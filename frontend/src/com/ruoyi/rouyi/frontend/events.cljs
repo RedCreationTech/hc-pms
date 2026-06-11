@@ -161,7 +161,7 @@
 (rf/reg-event-fx :configs/update
   (fn [{:keys [db]} [_ id params]]
     {:db db
-     :api/update-config id params}))
+     :api/update-config [id params]}))
 
 (rf/reg-fx :api/update-config
   (fn [[id params]]
