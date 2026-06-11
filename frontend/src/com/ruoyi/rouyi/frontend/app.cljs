@@ -32,6 +32,7 @@
 
 (defn init []
   (rf/dispatch-sync [:initialize-db])
+  (r/set-default-compiler! (r/create-compiler {:function-components true}))
   (let [container (.getElementById js/document "app")]
     (reset! root (rdc/create-root container))
     (rdc/render @root [app])))

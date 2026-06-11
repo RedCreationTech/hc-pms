@@ -2,7 +2,6 @@
   "用户管理页面。"
   (:require
     [reagent.core :as r]
-    [reagent.hooks :as hooks]
     [re-frame.core :as rf]
     [com.ruoyi.rouyi.frontend.antd :as antd]))
 
@@ -26,10 +25,6 @@
                          [antd/button {:type "link" :danger true :size "small"} "删除"]]))}])
 
 (defn user-page []
-  (hooks/use-effect (fn []
-                      (rf/dispatch [:users/fetch {}])
-                      js/undefined)
-                    [])
   (let [items @(rf/subscribe [:users/items])
         total @(rf/subscribe [:users/total])
         loading? @(rf/subscribe [:users/loading?])]
@@ -38,7 +33,7 @@
      [antd/space {:style {:marginBottom 16}}
       [antd/button {:type "primary"} "新增用户"]]
      [antd/table {:rowKey "user_id"
-                  :loading loading?
                   :columns (user-columns)
                   :dataSource (clj->js items)
-                  :pagination {:pageSize 10 :total total}}]]))
+                  :loading loading?
+                  :pagination #js {:total total :pageSize 10 :showSizeChanger true}}]]))

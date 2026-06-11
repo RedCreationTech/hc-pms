@@ -11,16 +11,18 @@
 
 (rf/reg-event-fx :navigate
   (fn [{:keys [db]} [_ page]]
-    {:db (assoc db :page page)
-     :dispatch (case page
-                 :user [:users/fetch {}]
-                 :dict [:dicts/fetch-types {}]
-                 :config [:configs/fetch {}]
-                 :oper-log [:oper-logs/fetch {}]
-                 :login-log [:login-logs/fetch {}]
-                 :online [:online-users/fetch {}]
-                 :job [:jobs/fetch {}]
-                 nil)}))
+    (let [fetch (case page
+                  :user [:users/fetch {}]
+                  :dict [:dicts/fetch-types {}]
+                  :config [:configs/fetch {}]
+                  :oper-log [:oper-logs/fetch {}]
+                  :login-log [:login-logs/fetch {}]
+                  :online [:online-users/fetch {}]
+                  :job [:jobs/fetch {}]
+                  nil)]
+      (if fetch
+        {:db (assoc db :page page) :dispatch fetch}
+        {:db (assoc db :page page)}))))
 
 (rf/reg-event-db :auth/set-token
   (fn [db [_ token]]
