@@ -2,9 +2,9 @@
   "代码生成器领域服务，根据数据库表结构生成前后端代码。
   支持读取 PostgreSQL 表元数据，生成完整的 Clojure/CLJS 模板代码。"
   (:require
-    [clojure.string :as str]
-    [clojure.java.io :as io]
-    [clojure.pprint :as pp]))
+   [clojure.string :as str]
+   [clojure.java.io :as io]
+   [clojure.pprint :as pp]))
 
 ;; ──────────────────────────────────────────────
 ;; 命名转换工具
@@ -175,9 +175,9 @@
       (str/includes? name "enabled")     "启用"
       (str/includes? name "deleted")     "删除"
       (str/includes? name "flag")        "标记"
-      :else                              (-> (str/replace name #"_" " ")
-                                              (str/replace #"(?<=^| )." #(str/upper-case %))
-                                              str/trim))))
+      :else                              (-> (str/replace name #"_" " "
+                                                          (str/replace #"(?<=^| )." #(str/upper-case %))
+                                                          str/trim)))))
 
 (defn- skip-column?
   "判断列是否应在表单/列表中跳过（系统字段）。"
@@ -383,22 +383,22 @@
   [columns]
   (let [display-cols (remove #(skip-column? (:column_name %)) columns)]
     (str/join "\n" (map-indexed
-                     (fn [idx col]
-                       (let [col-name (:column_name col)
-                             label (or (:column_comment col) (guess-label col-name))
-                             cljs-t (cljs-type (:data_type col))
-                             time? (str/includes? cljs-t "string")]
-                         (str "#js {:title \"" label "\"\n"
-                              "       :dataIndex \"" col-name "\"\n"
-                              "       :key \"" col-name "\""
-                              (when (< idx 3) "\n       :width 120")
-                              (when (= col-name "status")
-                                (str "\n       :render (fn [v _]\n"
-                                     "                (r/as-element\n"
-                                     "                  [antd/tag {:color (if (= v \"0\") \"green\" \"red\")}\n"
-                                     "                   (if (= v \"0\") \"正常\" \"停用\")]))"))
-                              "}")))
-                     display-cols))))
+                    (fn [idx col]
+                      (let [col-name (:column_name col)
+                            label (or (:column_comment col) (guess-label col-name))
+                            cljs-t (cljs-type (:data_type col))
+                            time? (str/includes? cljs-t "string")]
+                        (str "#js {:title \"" label "\"\n"
+                             "       :dataIndex \"" col-name "\"\n"
+                             "       :key \"" col-name "\""
+                             (when (< idx 3) "\n       :width 120")
+                             (when (= col-name "status")
+                               (str "\n       :render (fn [v _]\n"
+                                    "                (r/as-element\n"
+                                    "                  [antd/tag {:color (if (= v \"0\") \"green\" \"red\")}\n"
+                                    "                   (if (= v \"0\") \"正常\" \"停用\")]))"))
+                             "}")))
+                    display-cols))))
 
 (defn- frontend-form-fields
   "生成前端表单字段。"
@@ -410,27 +410,27 @@
                                (str/includes? (str/lower-case (:column_name %)) "update"))
                           columns)]
     (str/join "\n\n" (map-indexed
-                       (fn [idx col]
-                         (let [col-name (:column_name col)
-                               label (or (:column_comment col) (guess-label col-name))
-                               cljs-t (cljs-type (:data_type col))
-                               required? (= "NO" (:is_nullable col))
-                               text-area? (str/includes? (:data_type col) "text")
-                               numeric? (str/includes? cljs-t "number")
-                               boolean? (str/includes? cljs-t "boolean")]
-                           (str "       [antd/form-item {:label \"" label "\""
-                                " :name \"" col-name "\"\n"
-                                "        :rules #js [#js {:required " required?
-                                " :message \"请输入" label "\"}]}\n"
-                                (cond text-area?
-                                      "        [antd/textarea {:rows 4}]"
-                                      numeric?
-                                      "        [antd/input-number {:style {:width \"100%\"}}]"
-                                      boolean?
-                                      "        [antd/switch]"
-                                      :else
-                                      "        [antd/input])"))))
-                     form-cols))))
+                      (fn [idx col]
+                        (let [col-name (:column_name col)
+                              label (or (:column_comment col) (guess-label col-name))
+                              cljs-t (cljs-type (:data_type col))
+                              required? (= "NO" (:is_nullable col))
+                              text-area? (str/includes? (:data_type col) "text")
+                              numeric? (str/includes? cljs-t "number")
+                              boolean? (str/includes? cljs-t "boolean")]
+                          (str "       [antd/form-item {:label \"" label "\""
+                               " :name \"" col-name "\"\n"
+                               "        :rules #js [#js {:required " required?
+                               " :message \"请输入" label "\"}]}\n"
+                               (cond text-area?
+                                     "        [antd/textarea {:rows 4}]"
+                                     numeric?
+                                     "        [antd/input-number {:style {:width \"100%\"}}]"
+                                     boolean?
+                                     "        [antd/switch]"
+                                     :else
+                                     "        [antd/input])")))))
+              form-cols)))
 
 (defn- gen-frontend-page
   "生成 CLJS 前端页面文件。"
@@ -495,7 +495,7 @@
          "                   :labelCol {:span 6}\n"
          "                   :wrapperCol {:span 16}\n"
          "                   :initialValues (when editing?\n"
-         "                                    #js {" (str/join "\n"
+         "                                    #js {" (str/join "\n")
          (map (fn [col]
                 (let [col-name (:column_name col)]
                   (str "                                          " col-name " (.-" col-name " record)")))
@@ -645,16 +645,16 @@
   "生成数据库迁移 UP 文件。"
   [{:keys [table-name columns entity-name]}]
   (let [col-defs (map (fn [col]
-                       (let [col-name (:column_name col)
-                             data-type (:data_type col)
-                             nullable? (= "YES" (:is_nullable col))
-                             default (:column_default col)
-                             comment (:column_comment col)]
-                         (str "  " col-name " " data-type
-                              (when (not nullable?) " NOT NULL")
-                              (when default (str " DEFAULT " default))
-                              (when comment (str " -- " comment)))))
-                     columns)]
+                        (let [col-name (:column_name col)
+                              data-type (:data_type col)
+                              nullable? (= "YES" (:is_nullable col))
+                              default (:column_default col)
+                              comment (:column_comment col)]
+                          (str "  " col-name " " data-type
+                               (when (not nullable?) " NOT NULL")
+                               (when default (str " DEFAULT " default))
+                               (when comment (str " -- " comment)))))
+                      columns)]
     (str "-- " entity-name " — 自动生成的建表脚本\n"
          "-- 源表: " table-name "\n"
          "-- 生成时间: " (java.time.Instant/now) "\n\n"

@@ -54,3 +54,7 @@
 # - github.repo
 
 sync.remote: "git+ssh://git@github.com/RedCreationTech/ruoyi_clojure.git"
+prefix: rouyi_clojure
+issue-prefix: rouyi_clojure
+dolt.idle-timeout: "0"
+export.auto: "false"
