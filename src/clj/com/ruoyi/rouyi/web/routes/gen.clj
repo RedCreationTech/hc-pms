@@ -8,5 +8,11 @@
   ["/tool"
    {:middleware [((auth-mw/auth-middleware {:required? true}))]}
    ["/gen"
+    ;; 查询所有表
     ["/tables" {:get {:handler (partial gen/list-tables {:gen-service gen-service})}}]
-    ["/preview" {:get {:handler (partial gen/preview-code {:gen-service gen-service})}}]]])
+    ;; 查询表列信息
+    ["/columns" {:get {:handler (partial gen/table-columns {:gen-service gen-service})}}]
+    ;; 预览代码模板
+    ["/preview" {:get {:handler (partial gen/preview-code {:gen-service gen-service})}}]
+    ;; 批量生成代码
+    ["/generate" {:post {:handler (partial gen/batch-generate {:gen-service gen-service})}}]]])
