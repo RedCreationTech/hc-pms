@@ -14,9 +14,9 @@
         [antd/form {:onFinish (fn [values]
                                 (rf/dispatch [:auth/login (js->clj values :keywordize-keys true)]))}
          [antd/form-item {:name "username" :rules [{:required true :message "请输入用户名"}]}
-          [antd/input {:placeholder "用户名" :prefix [antd/user-icon]}]]
+          [antd/input {:placeholder "用户名" :prefix (r/as-element [antd/user-icon])}]]
          [antd/form-item {:name "password" :rules [{:required true :message "请输入密码"}]}
-          [antd/password {:placeholder "密码" :prefix [antd/lock-icon]}]]
+          [antd/password {:placeholder "密码" :prefix (r/as-element [antd/lock-icon])}]]
          [antd/form-item
           [antd/button {:type "primary" :htmlType "submit" :loading loading? :block true}
            "登录"]]]]])))

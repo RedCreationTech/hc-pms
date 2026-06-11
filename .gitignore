@@ -2,7 +2,9 @@
 .shadow-cljs/
 node_modules/
 target/
+resources/public/js/
 *.jar
 *.class
 .DS_Store
 *.log
+cpcache/

@@ -15,4 +15,8 @@
    :devtools   {:after-load com.ruoyi.rouyi.frontend.app/reload
                 :http-root  "resources/public"
                 :http-port  8700}
-   :compiler-options {:output-feature-set :es8}}}}
+   :compiler-options {:output-feature-set :es8}
+   :js-options {:ignore-asset-requires true
+                :resolve {"@rc-component/qrcode" false
+                          "@ant-design/qrcode" false
+                          "qrcode.react" false}}}}}
