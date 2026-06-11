@@ -62,4 +62,4 @@
   (start-app)
   (.addShutdownHook (Runtime/getRuntime) (Thread. (fn [] (stop-app) (shutdown-agents))))
   ;; Keep main thread alive so JVM doesn't exit
-  @(promise))
+  (while true (Thread/sleep 60000)))

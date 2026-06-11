@@ -46,7 +46,7 @@
   ([] (auth-middleware {}))
   ([{:keys [required? perms]}]
    (fn [handler]
-     (let [h (wrap-jwt-auth handler)
-           h (if required? (require-auth h) h)
-           h (if perms ((require-perms perms) h) h)]
+     (let [h (if required? (require-auth handler) handler)
+           h (if perms ((require-perms perms) h) h)
+           h (wrap-jwt-auth h)]
        h))))

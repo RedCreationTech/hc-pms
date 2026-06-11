@@ -43,4 +43,4 @@
   "从 Authorization Header 中提取 Bearer Token。"
   [request]
   (some-> (get-in request [:headers "authorization"])
-          (str/replace-first #"(?i)^Bearer\\s+" "")))
+          (str/replace-first #"(?i)^Bearer\s+" "")))

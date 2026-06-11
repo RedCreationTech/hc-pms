@@ -11,9 +11,11 @@
   (let [page-num (or (:page-num params) 1)
         page-size (or (:page-size params) 10)
         offset (* (dec page-num) page-size)
-        filters (-> params
-                    (dissoc :page-num :page-size)
-                    (assoc :offset offset :page_size page-size))
+        filters (merge {:user_name nil :phonenumber nil :status nil
+                        :dept_id nil :params nil}
+                       (-> params
+                           (dissoc :page-num :page-size))
+                       {:offset offset :page_size page-size})
         rows (query-fn :list-users filters)
         total (query-fn :count-users filters)]
     {:rows rows :total (:total total)}))
