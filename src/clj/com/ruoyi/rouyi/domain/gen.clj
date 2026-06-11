@@ -197,8 +197,7 @@
   [{:keys [table-name entity-name kebab-name camel-name columns]}]
   (let [all-cols (map :column_name columns)
         col-list (str/join ", " all-cols)
-        pk-col (or (first (filter #(= :pk (:meta (first (filter #(= (:column_name %) %) columns))))
-                                  (keys (group-by :column_name columns))))
+        pk-col (or (some #(when (= "YES" (:is_pk %)) (:column_name %)) columns)
                    (first all-cols))
         text-cols (map :column_name (text-columns columns))
         search-clause (when (seq text-cols)
@@ -338,7 +337,7 @@
        "  [{:keys [" camel-name "-svc]} request]\n"
        "  (let [id (Long/parseLong (get-in request [:path-params :id]))\n"
        "        params (get-in request [:body-params])]\n"
-       "    (ok (" camel-name "-svc/update-" kebab-name " params))))\n\n"
+       "    (ok (" camel-name "-svc/update-" kebab-name " id params))))\n\n"
        ";; ──── 删除 ────\n\n"
        "(defn delete-" kebab-name "\n"
        "  [{:keys [" camel-name "-svc]} request]\n"
