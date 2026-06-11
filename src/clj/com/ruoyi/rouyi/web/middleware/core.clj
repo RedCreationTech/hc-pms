@@ -29,8 +29,15 @@
        :body ""}
       (handler request))))
 
+(defn- wrap-query-fn
+  "将 query-fn 注入到请求的 :components 中，供 operlog 中间件使用。"
+  [query-fn]
+  (fn [handler]
+    (fn [request]
+      (handler (assoc request :components {:query-fn query-fn})))))
+
 (defn wrap-base
-  [{:keys [metrics site-defaults-config cookie-secret] :as opts}]
+  [{:keys [metrics site-defaults-config cookie-secret query-fn] :as opts}]
   (let [cookie-store (cookie/cookie-store {:key (.getBytes ^String cookie-secret)})]
     (fn [handler]
       (-> ((:middleware env/defaults) handler opts)
@@ -38,4 +45,5 @@
             (assoc-in site-defaults-config [:session :store] cookie-store))
           wrap-cors
           handle-preflight
-          operlog/wrap-oper-log))))
+          operlog/wrap-oper-log
+          (wrap-query-fn query-fn)))))

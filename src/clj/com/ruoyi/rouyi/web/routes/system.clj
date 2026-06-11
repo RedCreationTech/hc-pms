@@ -15,7 +15,7 @@
     [com.ruoyi.rouyi.web.controllers.monitor :as monitor]
     [com.ruoyi.rouyi.web.middleware.auth :as auth-mw]))
 
-(defn system-routes [{:keys [user-service role-service menu-service dept-service post-service dict-service config-service log-service query-fn]}]
+(defn system-routes [{:keys [user-service role-service menu-service dept-service post-service dict-service config-service log-service online-service query-fn]}]
   ["/system"
    {:middleware [((auth-mw/auth-middleware {:required? true}))]}
 
@@ -85,8 +85,8 @@
          :delete {:handler (partial log/clear-login-logs {:log-service log-service})}}]]
 
    ["/online"
-    ["" {:get {:handler (partial online/list-online {:online-service {}})}}]
-    ["/:token-id" {:delete {:handler (partial online/force-logout {:online-service {}})}}]]
+    ["" {:get {:handler (partial online/list-online {:online-service online-service})}}]
+    ["/:token-id" {:delete {:handler (partial online/force-logout {:online-service online-service})}}]]
 
    ["/profile"
     ["" {:get {:handler (partial profile/get-profile {:user-service user-service})}

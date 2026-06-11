@@ -15,6 +15,7 @@
  :handler/ring
  {:router                #ig/ref :router/core
   :api-path              "/api"
+  :query-fn              #ig/ref :db.sql/query-fn
   :cookie-secret         #or [#env COOKIE_SECRET "KWGRWFTDVZAHISQO"]
   :site-defaults-config  {:params    {:urlencoded true
                                       :multipart  true
@@ -60,6 +61,9 @@
  :app.system/log-service
  {:query-fn #ig/ref :db.sql/query-fn}
 
+ :app.system/online-service
+ {}
+
  :app.system/gen-service
  {:query-fn #ig/ref :db.sql/query-fn}
 
@@ -75,6 +79,7 @@
   :dict-service   #ig/ref :app.system/dict-service
   :config-service #ig/ref :app.system/config-service
   :log-service    #ig/ref :app.system/log-service
+  :online-service #ig/ref :app.system/online-service
   :gen-service    #ig/ref :app.system/gen-service}
 
  :router/routes

@@ -13,3 +13,6 @@ cpcache/
 .dolt/
 *.db
 .beads-credential-key
+.pi/
+.runtime/
+CLAUDE.local.md
