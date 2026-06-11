@@ -2,6 +2,7 @@
   "部门管理控制器。"
   (:require
     [com.ruoyi.rouyi.domain.system.dept :as dept-service]
+    [com.ruoyi.rouyi.infra.data-perm :as data-perm]
     [ring.util.response :as response]))
 
 (defn- ok ([data] (ok 200 "操作成功" data))
@@ -14,8 +15,13 @@
       (response/content-type "application/json")))
 
 (defn list-depts
+  "查询部门列表（带数据权限过滤）。"
   [{:keys [dept-service]} request]
-  (ok (dept-service/list-depts dept-service (:query-params request))))
+  (let [params (:query-params request)
+        identity (:identity request)
+        data-perm-filter (data-perm/data-perm-filter identity "default" :alias "u")
+        params (merge params (:params data-perm-filter))]
+    (ok (dept-service/list-depts dept-service params))))
 
 (defn get-dept
   [{:keys [dept-service]} request]

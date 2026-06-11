@@ -1,5 +1,5 @@
 (ns com.ruoyi.rouyi.web.middleware.operlog
-  "操作日志中间件：自动记录所有 API 请求的日志。"
+  "操作日志中间件：自动记录所有 API 请求到 sys_oper_log 表。"
   (:require
     [clojure.tools.logging :as log]
     [clojure.string :as str]
@@ -11,7 +11,7 @@
   #{"/api/auth/login" "/api/health" "/api/user/profile"})
 
 (def ^:private get-methods
-  "GET 请求作为查询日志（不记录参数细节）"
+  "GET 请求不记录日志（仅 health 和 login 特殊处理）"
   #{:get :head :options})
 
 (defn- format-params
@@ -25,41 +25,38 @@
       (str (subs s 0 200) "...")
       s)))
 
-(defn- build-oper-log
-  "构建操作日志记录。"
-  [request {:keys [status body] :or {status 200 body ""}} cost-ms]
-  (let [uri (:uri request)
-        method (:request-method request)
-        identity (:identity request)]
-    {:title        (str (name method) " " uri)
-     :oper-url     uri
-     :oper-method  (str (name method))
-     :request-param (format-params (:params request))
-     :json-result  (format-params body)
-     :status       (if (>= status 400) 1 0)
-     :oper-name    (or (:user-name identity) "anonymous")
-     :dept-name    ""
-     :oper-ip      (get-in request [:headers "x-forwarded-for"]
-                   (:remote-addr request "127.0.0.1"))
-     :cost-ms      cost-ms
-     :create-time  (java.time.LocalDateTime/now)}))
-
 (defn wrap-oper-log
   "操作日志中间件包装器。
-  记录每次 API 调用的耗时和结果。"
+  调用 query-fn 写入 sys_oper_log 表。"
   [handler]
   (fn [request]
     (let [uri (:uri request)
-          _   (when (and (not (str/starts-with? uri "/api/health"))
-                         (not (str/includes? uri "favicon")))
-                (log/debug "▶" (:request-method request) uri))
           start (System/currentTimeMillis)
           response (handler request)
           cost-ms (- (System/currentTimeMillis) start)]
-      ;; 记录非 GET 和非 skip 路径
       (when (and (str/starts-with? uri "/api/")
                  (not (skip-paths uri))
                  (not (contains? get-methods (:request-method request))))
-        (log/info (str "[" (:request-method request) "] " uri " → "
-                       (:status response) " " cost-ms "ms")))
+        (let [identity (:identity request)
+              log-entry {:title       (str (name (:request-method request)) " " uri)
+                         :business_type 0
+                         :method      ""
+                         :request_method (name (:request-method request))
+                         :operator_type 1
+                         :oper_name   (or (:user-name identity) "anonymous")
+                         :dept_name   ""
+                         :oper_url    uri
+                         :oper_ip     (get-in request [:headers "x-forwarded-for"]
+                                        (:remote-addr request "127.0.0.1"))
+                         :oper_location ""
+                         :oper_param  (format-params (:params request))
+                         :json_result (str (:status response))
+                         :status      (if (>= (:status response) 400) 1 0)
+                         :error_msg   ""
+                         :cost_time   cost-ms}]
+          (try
+            (when-let [query-fn (get-in request [:components :query-fn])]
+              (query-fn :create-oper-log! log-entry))
+            (catch Exception e
+              (log/warn e "Failed to write operation log")))))
       response)))
