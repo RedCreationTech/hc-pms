@@ -17,9 +17,10 @@
   (fn [db [_ token]]
     (assoc-in db [:auth :token] token)))
 
-(rf/reg-event-db :auth/set-user
-  (fn [db [_ user]]
-    (assoc-in db [:auth :user] user)))
+(rf/reg-event-fx :auth/set-user
+  (fn [{:keys [db]} [_ user]]
+    {:db       (assoc-in db [:auth :user] user)
+     :dispatch [:navigate :dashboard]}))
 
 (rf/reg-event-db :auth/set-loading
   (fn [db [_ loading?]]
