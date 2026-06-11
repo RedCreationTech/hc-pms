@@ -5,7 +5,10 @@
     [re-frame.core :as rf]
     [com.ruoyi.rouyi.frontend.antd :as antd]
     [com.ruoyi.rouyi.frontend.pages.dashboard :as dashboard]
-    [com.ruoyi.rouyi.frontend.pages.user :as user]))
+    [com.ruoyi.rouyi.frontend.pages.user :as user]
+    [com.ruoyi.rouyi.frontend.pages.online :as online]
+    [com.ruoyi.rouyi.frontend.pages.job :as job]
+    [com.ruoyi.rouyi.frontend.pages.profile :as profile]))
 
 (defn- menu-items []
   #js [{:key "dashboard" :icon (r/as-element [antd/dashboard-icon]) :label "首页"}
@@ -20,7 +23,9 @@
        {:key "monitor" :icon (r/as-element [antd/file-text-icon]) :label "系统监控"
         :children #js [{:key "oper-log" :label "操作日志"}
                         {:key "login-log" :label "登录日志"}
-                        {:key "online" :label "在线用户"}]}])
+                        {:key "online" :label "在线用户"}
+                        {:key "job" :label "定时任务"}]}
+       {:key "profile" :icon (r/as-element [antd/user-icon]) :label "个人中心"}])
 
 (defn main-layout []
   (let [collapsed (r/atom false)
@@ -53,4 +58,7 @@
          (case page
            :dashboard [dashboard/dashboard-page]
            :user [user/user-page]
+           :online [online/online-page]
+           :job [job/job-page]
+           :profile [profile/profile-page]
            [:div "页面建设中"])]]])))

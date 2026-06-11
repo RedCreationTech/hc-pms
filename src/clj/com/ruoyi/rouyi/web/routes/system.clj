@@ -11,6 +11,7 @@
     [com.ruoyi.rouyi.web.controllers.system.log :as log]
     [com.ruoyi.rouyi.web.controllers.system.online :as online]
     [com.ruoyi.rouyi.web.controllers.job :as job]
+    [com.ruoyi.rouyi.web.controllers.system.profile :as profile]
     [com.ruoyi.rouyi.web.controllers.monitor :as monitor]
     [com.ruoyi.rouyi.web.middleware.auth :as auth-mw]))
 
@@ -86,6 +87,12 @@
    ["/online"
     ["" {:get {:handler (partial online/list-online {:online-service {}})}}]
     ["/:token-id" {:delete {:handler (partial online/force-logout {:online-service {}})}}]]
+
+   ["/profile"
+    ["" {:get {:handler (partial profile/get-profile {:user-service user-service})}
+         :put {:handler (partial profile/update-profile {:user-service user-service})}}]
+    ["/password" {:put {:handler (partial profile/change-password {:user-service user-service})}}]
+    ["/avatar" {:post {:handler (partial profile/upload-avatar {:user-service user-service})}}]]
 
    ["/job"
     ["" {:get {:handler (partial job/list-jobs {:query-fn (:query-fn user-service)})}

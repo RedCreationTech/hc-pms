@@ -2,7 +2,7 @@
   "Ant Design 组件 Reagent 封装。"
   (:require
     [reagent.core :as r]
-    ["antd" :refer [Button Card ConfigProvider DatePicker Drawer Form Input Layout Menu Modal Pagination Select Space Table Tag message]]
+    ["antd" :refer [Button Card ConfigProvider DatePicker Drawer Form Input Layout Menu Modal Pagination Select Space Table Tag Upload message]]
     ["@ant-design/icons" :refer [LockOutlined UserOutlined DashboardOutlined TeamOutlined SettingOutlined SafetyOutlined FileTextOutlined]]))
 
 (def button (r/adapt-react-class Button))
@@ -19,6 +19,7 @@
 (def layout-content (r/adapt-react-class (.-Content Layout)))
 (def menu (r/adapt-react-class Menu))
 (def modal (r/adapt-react-class Modal))
+(def upload (r/adapt-react-class Upload))
 (def pagination (r/adapt-react-class Pagination))
 (def select (r/adapt-react-class Select))
 (def space (r/adapt-react-class Space))

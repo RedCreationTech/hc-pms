@@ -35,6 +35,50 @@
   (fn [db _]
     (get-in db [:users :loading?])))
 
+(rf/reg-sub :online-users/items
+  (fn [db _]
+    (get-in db [:online-users :items])))
+
+(rf/reg-sub :online-users/total
+  (fn [db _]
+    (get-in db [:online-users :total])))
+
+(rf/reg-sub :online-users/loading?
+  (fn [db _]
+    (get-in db [:online-users :loading?])))
+
+(rf/reg-sub :jobs/items
+  (fn [db _]
+    (get-in db [:jobs :items])))
+
+(rf/reg-sub :jobs/total
+  (fn [db _]
+    (get-in db [:jobs :total])))
+
+(rf/reg-sub :jobs/loading?
+  (fn [db _]
+    (get-in db [:jobs :loading?])))
+
+(rf/reg-sub :job-logs/items
+  (fn [db _]
+    (get-in db [:job-logs :items])))
+
+(rf/reg-sub :job-logs/total
+  (fn [db _]
+    (get-in db [:job-logs :total])))
+
+(rf/reg-sub :job-logs/loading?
+  (fn [db _]
+    (get-in db [:job-logs :loading?])))
+
+(rf/reg-sub :profile/data
+  (fn [db _]
+    (get-in db [:profile :data])))
+
+(rf/reg-sub :profile/loading?
+  (fn [db _]
+    (get-in db [:profile :loading?])))
+
 (rf/reg-sub :notification
   (fn [db _]
     (:notification db)))

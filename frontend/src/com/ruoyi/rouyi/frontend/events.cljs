@@ -86,3 +86,175 @@
                       (when (= 200 (:code result))
                         (rf/dispatch [:users/set-list (:data result)])))
                     (fn [_]))))
+
+;; ────── 在线用户 ──────
+
+(rf/reg-event-db :online-users/set-list
+  (fn [db [_ data]]
+    (-> db
+        (assoc-in [:online-users :items] (:rows data))
+        (assoc-in [:online-users :total] (:total data))
+        (assoc-in [:online-users :loading?] false))))
+
+(rf/reg-event-fx :online-users/fetch
+  (fn [{:keys [db]} [_ params]]
+    {:db (assoc-in db [:online-users :loading?] true)
+     :api/list-online-users params}))
+
+(rf/reg-fx :api/list-online-users
+  (fn [params]
+    (api/list-online-users params
+      (fn [result]
+        (when (= 200 (:code result))
+          (rf/dispatch [:online-users/set-list (:data result)])))
+      (fn [_]))))
+
+(rf/reg-event-fx :online-users/force-logout
+  (fn [_ [_ token-id]]
+    {:api/force-logout token-id}))
+
+(rf/reg-fx :api/force-logout
+  (fn [token-id]
+    (api/force-logout token-id
+      (fn [result]
+        (when (= 200 (:code result))
+          (rf/dispatch [:online-users/fetch {}])))
+      (fn [_]))))
+
+;; ────── 定时任务 ──────
+
+(rf/reg-event-db :jobs/set-list
+  (fn [db [_ data]]
+    (-> db
+        (assoc-in [:jobs :items] (:rows data))
+        (assoc-in [:jobs :total] (:total data))
+        (assoc-in [:jobs :loading?] false))))
+
+(rf/reg-event-fx :jobs/fetch
+  (fn [{:keys [db]} [_ params]]
+    {:db (assoc-in db [:jobs :loading?] true)
+     :api/list-jobs params}))
+
+(rf/reg-fx :api/list-jobs
+  (fn [params]
+    (api/list-jobs params
+      (fn [result]
+        (when (= 200 (:code result))
+          (rf/dispatch [:jobs/set-list (:data result)])))
+      (fn [_]))))
+
+(rf/reg-event-fx :jobs/create
+  (fn [_ [_ params]]
+    {:api/create-job params}))
+
+(rf/reg-fx :api/create-job
+  (fn [params]
+    (api/create-job params
+      (fn [result]
+        (when (= 200 (:code result))
+          (rf/dispatch [:jobs/fetch {}])))
+      (fn [_]))))
+
+(rf/reg-event-fx :jobs/update
+  (fn [_ [_ id params]]
+    {:api/update-job [id params]}))
+
+(rf/reg-fx :api/update-job
+  (fn [[id params]]
+    (api/update-job id params
+      (fn [result]
+        (when (= 200 (:code result))
+          (rf/dispatch [:jobs/fetch {}])))
+      (fn [_]))))
+
+(rf/reg-event-fx :jobs/delete
+  (fn [_ [_ id]]
+    {:api/delete-job id}))
+
+(rf/reg-fx :api/delete-job
+  (fn [id]
+    (api/delete-job id
+      (fn [result]
+        (when (= 200 (:code result))
+          (rf/dispatch [:jobs/fetch {}])))
+      (fn [_]))))
+
+;; ────── 任务日志 ──────
+
+(rf/reg-event-db :job-logs/set-list
+  (fn [db [_ data]]
+    (-> db
+        (assoc-in [:job-logs :items] (:rows data))
+        (assoc-in [:job-logs :total] (:total data))
+        (assoc-in [:job-logs :loading?] false))))
+
+(rf/reg-event-fx :job-logs/fetch
+  (fn [{:keys [db]} [_ params]]
+    {:db (assoc-in db [:job-logs :loading?] true)
+     :api/list-job-logs params}))
+
+(rf/reg-fx :api/list-job-logs
+  (fn [params]
+    (api/list-job-logs params
+      (fn [result]
+        (when (= 200 (:code result))
+          (rf/dispatch [:job-logs/set-list (:data result)])))
+      (fn [_]))))
+
+;; ────── 个人中心 ──────
+
+(rf/reg-event-db :profile/set-data
+  (fn [db [_ data]]
+    (assoc-in db [:profile :data] data)))
+
+(rf/reg-event-db :profile/set-loading
+  (fn [db [_ loading?]]
+    (assoc-in db [:profile :loading?] loading?)))
+
+(rf/reg-event-fx :profile/fetch
+  (fn [{:keys [db]} _]
+    {:db (assoc-in db [:profile :loading?] true)
+     :api/get-profile nil}))
+
+(rf/reg-fx :api/get-profile
+  (fn [_]
+    (api/get-profile
+      (fn [result]
+        (when (= 200 (:code result))
+          (rf/dispatch [:profile/set-data (:data result)])))
+      (fn [_]))))
+
+(rf/reg-event-fx :profile/update
+  (fn [_ [_ params]]
+    {:api/update-profile params}))
+
+(rf/reg-fx :api/update-profile
+  (fn [params]
+    (api/update-profile params
+      (fn [result]
+        (when (= 200 (:code result))
+          (js/alert "更新成功")
+          (rf/dispatch [:profile/fetch])))
+      (fn [_]))))
+
+(rf/reg-event-fx :profile/change-password
+  (fn [_ [_ params]]
+    {:api/change-password params}))
+
+(rf/reg-fx :api/change-password
+  (fn [params]
+    (api/change-password params
+      (fn [result]
+        (when (= 200 (:code result))
+          (js/alert "密码修改成功"))
+        (when (not= 200 (:code result))
+          (js/alert (:msg result))))
+      (fn [_]))))
+
+(rf/reg-fx :api/upload-avatar
+  (fn [form-data]
+    (api/upload-avatar form-data
+      (fn [result]
+        (when (= 200 (:code result))
+          (rf/dispatch [:profile/fetch])))
+      (fn [_]))))

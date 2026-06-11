@@ -14,4 +14,7 @@
    :oper-logs {:loading? false :items [] :total 0}
    :login-logs {:loading? false :items [] :total 0}
    :online-users {:loading? false :items [] :total 0}
+   :jobs {:loading? false :items [] :total 0 :filters {}}
+   :job-logs {:loading? false :items [] :total 0}
+   :profile {:loading? false}
    :notification nil})
