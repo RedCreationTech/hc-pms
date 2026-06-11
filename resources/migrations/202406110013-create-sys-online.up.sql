@@ -11,5 +11,5 @@ CREATE TABLE sys_online (
   last_access_time BIGINT,
   expire_time INT DEFAULT 1800000
 );
-
+--;;
 COMMENT ON TABLE sys_online IS '在线用户记录';

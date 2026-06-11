@@ -17,12 +17,13 @@ CREATE TABLE sys_oper_log (
   oper_time TIMESTAMP,
   cost_time BIGINT DEFAULT 0
 );
-
+--;;
 CREATE INDEX idx_sys_oper_log_oper_time ON sys_oper_log(oper_time);
+--;;
 CREATE INDEX idx_sys_oper_log_oper_name ON sys_oper_log(oper_name);
-
+--;;
 COMMENT ON TABLE sys_oper_log IS '操作日志记录';
-
+--;;
 CREATE TABLE sys_login_log (
   info_id BIGSERIAL PRIMARY KEY,
   user_name VARCHAR(50) DEFAULT '',
@@ -34,8 +35,9 @@ CREATE TABLE sys_login_log (
   msg VARCHAR(255) DEFAULT '',
   login_time TIMESTAMP
 );
-
+--;;
 CREATE INDEX idx_sys_login_log_login_time ON sys_login_log(login_time);
+--;;
 CREATE INDEX idx_sys_login_log_user_name ON sys_login_log(user_name);
-
+--;;
 COMMENT ON TABLE sys_login_log IS '系统访问记录';

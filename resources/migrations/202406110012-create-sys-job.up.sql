@@ -13,7 +13,7 @@ CREATE TABLE sys_job (
   update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   remark VARCHAR(500) DEFAULT ''
 );
-
+--;;
 CREATE TABLE sys_job_log (
   job_log_id BIGSERIAL PRIMARY KEY,
   job_name VARCHAR(64) NOT NULL,
@@ -24,9 +24,11 @@ CREATE TABLE sys_job_log (
   exception_info VARCHAR(4000) DEFAULT '',
   create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
+--;;
 CREATE INDEX idx_sys_job_status ON sys_job(status);
+--;;
 CREATE INDEX idx_sys_job_log_create_time ON sys_job_log(create_time);
-
+--;;
 COMMENT ON TABLE sys_job IS '定时任务调度表';
+--;;
 COMMENT ON TABLE sys_job_log IS '定时任务调度日志表';

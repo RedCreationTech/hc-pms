@@ -97,7 +97,7 @@
 
  :db.sql/connection
  #profile {:dev  {:jdbc-url "jdbc:postgresql://localhost/rouyi?user=rouyi&password=rouyi"}
-           :test {}
+           :test {:jdbc-url "jdbc:postgresql://localhost/rouyi?user=rouyi&password=rouyi"}
            :prod {:jdbc-url   #env JDBC_URL
                   :init-size  1
                   :min-idle   1

@@ -6,7 +6,7 @@
 
 (defn gen-routes [{:keys [gen-service]}]
   ["/tool"
-   {:middleware [((auth-mw/auth-middleware {:required? true}))]}
+   {:middleware [(auth-mw/auth-middleware {:required? true})]}
    ["/gen"
     ;; 查询所有表
     ["/tables" {:get {:handler (partial gen/list-tables {:gen-service gen-service})}}]

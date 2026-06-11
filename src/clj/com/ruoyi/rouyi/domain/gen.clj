@@ -360,7 +360,7 @@
        "    [com.ruoyi.rouyi.web.middleware.auth :as auth-mw]))\n\n"
        "(defn " kebab-name "-routes [{:keys [" camel-name "-svc]}]\n"
        "  [\"/" kebab-name "\"\n"
-       "   {:middleware [((auth-mw/auth-middleware {:required? true}))]}\n"
+       "   {:middleware [(auth-mw/auth-middleware {:required? true})]}\n"
        "   [\"\" {:get {:handler (partial " camel-name "/list-" kebab-name
        " {: " camel-name "-svc " camel-name "-svc})}\n"
        "         :post {:handler (partial " camel-name "/create-" kebab-name

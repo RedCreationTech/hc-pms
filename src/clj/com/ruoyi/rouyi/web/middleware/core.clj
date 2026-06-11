@@ -31,10 +31,9 @@
 
 (defn- wrap-query-fn
   "将 query-fn 注入到请求的 :components 中，供 operlog 中间件使用。"
-  [query-fn]
-  (fn [handler]
-    (fn [request]
-      (handler (assoc request :components {:query-fn query-fn})))))
+  [handler query-fn]
+  (fn [request]
+    (handler (assoc request :components {:query-fn query-fn}))))
 
 (defn wrap-base
   [{:keys [metrics site-defaults-config cookie-secret query-fn] :as opts}]

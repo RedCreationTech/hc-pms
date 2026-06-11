@@ -3,5 +3,5 @@ CREATE TABLE sys_role_menu (
   menu_id BIGINT NOT NULL,
   PRIMARY KEY (role_id, menu_id)
 );
-
+--;;
 COMMENT ON TABLE sys_role_menu IS '角色和菜单关联表';
