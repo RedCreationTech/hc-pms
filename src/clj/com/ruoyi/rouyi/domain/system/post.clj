@@ -1,10 +1,10 @@
 (ns com.ruoyi.rouyi.domain.system.post
   "岗位领域服务。")
 
-(defn list-posts
+  (defn list-posts
   "查询岗位列表。"
   [{:keys [query-fn]} params]
-  (query-fn :list-posts params))
+  (query-fn :list-posts (merge {:post_code nil :post_name nil :status nil} params)))
 
 (defn find-post-by-id
   "根据ID查询岗位。"

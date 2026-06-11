@@ -3,10 +3,10 @@
   (:require
     [clojure.string :as str]))
 
-(defn list-depts
+  (defn list-depts
   "查询部门列表。"
   [{:keys [query-fn]} params]
-  (query-fn :list-depts params))
+  (query-fn :list-depts (merge {:status nil :dept_name nil} params)))
 
 (defn find-dept-by-id
   "根据ID查询部门。"

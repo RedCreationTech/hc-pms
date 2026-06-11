@@ -61,14 +61,16 @@
      :api/get-info nil}))
 
 (rf/reg-fx :api/get-info
-  (fn [token]
+  (fn [_]
     (api/get-info
       (fn [result]
         (when (= 200 (:code result))
           (rf/dispatch [:auth/set-user (:data result)])))
-      (fn [_]))
-    ;; Fallback: set empty user so navigation works even if getInfo fails
-    (rf/dispatch [:auth/set-user nil])))
+      (fn [_]))))
+
+(rf/reg-event-db :theme/toggle-mode
+  (fn [db _]
+    (update-in db [:theme :mode] #(if (= % :light) :dark :light))))
 
 (rf/reg-event-db :users/set-list
   (fn [db [_ data]]

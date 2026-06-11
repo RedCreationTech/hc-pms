@@ -12,9 +12,7 @@
    :output-dir "resources/public/js"
    :asset-path "/js"
    :modules    {:app {:init-fn com.ruoyi.rouyi.frontend.app/init}}
-   :devtools   {:after-load com.ruoyi.rouyi.frontend.app/reload
-                :http-root  "resources/public"
-                :http-port  8700}
+   :devtools   {:after-load com.ruoyi.rouyi.frontend.app/reload}
    :compiler-options {:output-feature-set :es8}
    :js-options {:ignore-asset-requires true
                 :resolve {"@rc-component/qrcode" false

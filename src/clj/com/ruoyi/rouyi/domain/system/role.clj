@@ -3,10 +3,10 @@
   (:require
     [clojure.set :as set]))
 
-(defn list-roles
+  (defn list-roles
   "查询角色列表。"
   [{:keys [query-fn]} params]
-  (query-fn :list-roles params))
+  (query-fn :list-roles (merge {:role_name nil :role_key nil :status nil} params)))
 
 (defn find-role-by-id
   "根据ID查询角色详情，包含关联菜单ID列表。"

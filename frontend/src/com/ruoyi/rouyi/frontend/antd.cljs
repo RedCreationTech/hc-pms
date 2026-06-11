@@ -20,6 +20,8 @@
 (def layout-sider (r/adapt-react-class (.-Sider Layout)))
 (def layout-content (r/adapt-react-class (.-Content Layout)))
 (def menu (r/adapt-react-class Menu))
+(def menu-item (r/adapt-react-class (.-Item Menu)))
+(def sub-menu (r/adapt-react-class (.-SubMenu Menu)))
 (def modal (r/adapt-react-class Modal))
 (def pagination (r/adapt-react-class Pagination))
 (def popconfirm (r/adapt-react-class Popconfirm))

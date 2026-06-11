@@ -1,10 +1,10 @@
 (ns com.ruoyi.rouyi.domain.system.dict
   "字典领域服务。")
 
-(defn list-dict-types
+    (defn list-dict-types
   "查询字典类型列表。"
   [{:keys [query-fn]} params]
-  (query-fn :list-dict-types params))
+  (query-fn :list-dict-types (merge {:dict_name nil :dict_type nil :status nil} params)))
 
 (defn find-dict-type-by-id
   "根据ID查询字典类型。"
@@ -28,10 +28,10 @@
   [{:keys [query-fn]} dict-id]
   (query-fn :delete-dict-type! {:dict_id dict-id}))
 
-(defn list-dict-data
+  (defn list-dict-data
   "查询字典数据列表。"
   [{:keys [query-fn]} params]
-  (query-fn :list-dict-data params))
+  (query-fn :list-dict-data (merge {:dict_type nil :dict_label nil :status nil} params)))
 
 (defn find-dict-data-by-id
   "根据ID查询字典数据。"

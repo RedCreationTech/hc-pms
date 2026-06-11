@@ -130,3 +130,15 @@
 (rf/reg-sub :notification
   (fn [db _]
     (:notification db)))
+
+(rf/reg-sub :theme/mode
+  (fn [db _]
+    (get-in db [:theme :mode] :light)))
+
+(rf/reg-sub :theme/primary-color
+  (fn [db _]
+    (get-in db [:theme :primary-color] "#1677ff")))
+
+(rf/reg-sub :theme/compact?
+  (fn [db _]
+    (get-in db [:theme :compact?] false)))

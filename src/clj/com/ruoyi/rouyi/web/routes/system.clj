@@ -14,7 +14,7 @@
     [com.ruoyi.rouyi.web.controllers.system.profile :as profile]
     [com.ruoyi.rouyi.web.controllers.monitor :as monitor]
     [com.ruoyi.rouyi.web.middleware.auth :as auth-mw]
-    [malli.core :as m]
+
     [malli.util :as mu]))
 
 ;; ── Shared Swagger schemas ──────────────────────────────────────────
@@ -22,8 +22,8 @@
                    [:page {:optional true} :int] [:size {:optional true} :int]
                    [:order_by {:optional true} :string] [:is_asc {:optional true} :string]])
 
-(def PagingResult [:map {:closed true}
-                   [:total :int] [:rows [:vector :map]]])
+
+
 
 (def PathId [:map [:id :string]])
 
@@ -37,7 +37,7 @@
     ["" {:get  {:summary    "用户列表"
                 :description "分页查询用户列表（支持搜索、数据权限过滤）"
                 :parameters {:query PagingQuery}
-                :responses  {200 {:body PagingResult}}
+            
                 :handler    (partial user/list-users {:user-service user-service})}
          :post {:summary    "新增用户"
                 :description "创建新用户（含角色分配）"
@@ -51,7 +51,7 @@
 
    ["/role"
     ["" {:get  {:summary "角色列表" :description "分页查询角色列表"
-                :parameters {:query PagingQuery} :responses {200 {:body PagingResult}}
+            
                 :handler (partial role/list-roles {:role-service role-service})}
          :post {:summary "新增角色" :handler (partial role/create-role {:role-service role-service})}}]
     ["/:id" {:get    {:summary "角色详情" :parameters {:path PathId}
@@ -78,7 +78,6 @@
 
    ["/dict/type"
     ["" {:get  {:summary "字典类型列表" :parameters {:query PagingQuery}
-                :responses {200 {:body PagingResult}}
                 :handler (partial dict/list-dict-types {:dict-service dict-service})}
          :post {:summary "新增字典类型" :handler (partial dict/create-dict-type {:dict-service dict-service})}}]
     ["/:id" {:get    {:summary "字典类型详情" :parameters {:path PathId}
@@ -93,7 +92,6 @@
                                                    [:page {:optional true} :int] [:size {:optional true} :int]
                                                    [:order_by {:optional true} :string] [:is_asc {:optional true} :string]
                                                    [:dict_type {:optional true} :string]]}
-                :responses {200 {:body PagingResult}}
                 :handler (partial dict/list-dict-data {:dict-service dict-service})}
          :post {:summary "新增字典数据" :handler (partial dict/create-dict-data {:dict-service dict-service})}}]
     ["/:id" {:get    {:summary "字典数据详情" :parameters {:path PathId}
@@ -116,7 +114,6 @@
 
    ["/post"
     ["" {:get  {:summary "岗位列表" :parameters {:query PagingQuery}
-                :responses {200 {:body PagingResult}}
                 :handler (partial post/list-posts {:post-service post-service})}
          :post {:summary "新增岗位" :handler (partial post/create-post {:post-service post-service})}}]
     ["/:id" {:get    {:summary "岗位详情" :parameters {:path PathId}
@@ -128,7 +125,6 @@
 
    ["/config"
     ["" {:get  {:summary "参数配置列表" :parameters {:query PagingQuery}
-                :responses {200 {:body PagingResult}}
                 :handler (partial config/list-configs {:config-service config-service})}
          :post {:summary "新增参数配置" :handler (partial config/create-config {:config-service config-service})}}]
     ["/:id" {:get    {:summary "参数详情" :parameters {:path PathId}
@@ -140,14 +136,14 @@
 
    ["/oper-log"
     ["" {:get    {:summary "操作日志列表" :description "分页查询操作日志（只读）"
-                  :parameters {:query PagingQuery} :responses {200 {:body PagingResult}}
+              
                   :handler (partial log/list-oper-logs {:log-service log-service})}
          :delete {:summary "清空操作日志" :description "清空所有操作日志（需要确认）"
                   :handler (partial log/clear-oper-logs {:log-service log-service})}}]]
 
    ["/login-log"
     ["" {:get    {:summary "登录日志列表" :description "分页查询登录日志（只读）"
-                  :parameters {:query PagingQuery} :responses {200 {:body PagingResult}}
+              
                   :handler (partial log/list-login-logs {:log-service log-service})}
          :delete {:summary "清空登录日志" :description "清空所有登录日志"
                   :handler (partial log/clear-login-logs {:log-service log-service})}}]]
@@ -171,7 +167,6 @@
 
    ["/job"
     ["" {:get  {:summary "定时任务列表" :parameters {:query PagingQuery}
-                :responses {200 {:body PagingResult}}
                 :handler (partial job/list-jobs {:query-fn (:query-fn user-service)})}
          :post {:summary "新增定时任务" :handler (partial job/create-job {:query-fn (:query-fn user-service)})}}]
     ["/:id" {:get    {:summary "任务详情" :parameters {:path PathId}

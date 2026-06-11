@@ -7,9 +7,10 @@
   (let [page-num (or (:page-num params) 1)
         page-size (or (:page-size params) 10)
         offset (* (dec page-num) page-size)
-        filters (-> params
-                    (dissoc :page-num :page-size)
-                    (assoc :offset offset :page_size page-size))
+        filters (merge {:title nil :oper_name nil :business_type nil :status nil :begin_time nil}
+                       (-> params
+                           (dissoc :page-num :page-size)
+                           (assoc :offset offset :page_size page-size)))
         rows (query-fn :list-oper-logs filters)
         total (query-fn :count-oper-logs filters)]
     {:rows rows :total (:total total)}))
@@ -30,9 +31,10 @@
   (let [page-num (or (:page-num params) 1)
         page-size (or (:page-size params) 10)
         offset (* (dec page-num) page-size)
-        filters (-> params
-                    (dissoc :page-num :page-size)
-                    (assoc :offset offset :page_size page-size))
+        filters (merge {:user_name nil :ipaddr nil :status nil :begin_time nil}
+                       (-> params
+                           (dissoc :page-num :page-size)
+                           (assoc :offset offset :page_size page-size)))
         rows (query-fn :list-login-logs filters)
         total (query-fn :count-login-logs filters)]
     {:rows rows :total (:total total)}))

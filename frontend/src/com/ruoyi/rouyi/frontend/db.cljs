@@ -4,6 +4,7 @@
 (def default-db
   {:page :login
    :auth {:token nil :user nil :loading? false}
+   :theme {:mode :light :primary-color "#1677ff" :compact? false}
    :users {:loading? false :items [] :total 0 :filters {}}
    :roles {:loading? false :items []}
    :menus {:loading? false :items [] :tree []}
