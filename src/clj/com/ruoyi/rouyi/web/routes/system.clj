@@ -9,6 +9,7 @@
     [com.ruoyi.rouyi.web.controllers.system.dict :as dict]
     [com.ruoyi.rouyi.web.controllers.system.config :as config]
     [com.ruoyi.rouyi.web.controllers.system.log :as log]
+    [com.ruoyi.rouyi.web.controllers.system.online :as online]
     [com.ruoyi.rouyi.web.controllers.job :as job]
     [com.ruoyi.rouyi.web.controllers.monitor :as monitor]
     [com.ruoyi.rouyi.web.middleware.auth :as auth-mw]))
@@ -83,8 +84,8 @@
          :delete {:handler (partial log/clear-login-logs {:log-service log-service})}}]]
 
    ["/online"
-    ["" {:get {:handler (partial log/list-online-users {:log-service log-service})}}]
-    ["/:id" {:delete {:handler (partial log/kick-online-user {:log-service log-service})}}]]
+    ["" {:get {:handler (partial online/list-online {:online-service {}})}}]
+    ["/:token-id" {:delete {:handler (partial online/force-logout {:online-service {}})}}]]
 
    ["/job"
     ["" {:get {:handler (partial job/list-jobs {:query-fn (:query-fn user-service)})}

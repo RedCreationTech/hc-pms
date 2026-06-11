@@ -1,15 +1,18 @@
 (ns com.ruoyi.rouyi.web.middleware.auth
-  "认证与授权中间件，提供 JWT 校验和权限拦截。"
+  "认证与授权中间件，提供 JWT 校验、在线心跳和权限拦截。"
   (:require
     [com.ruoyi.rouyi.infra.security :as security]
+    [com.ruoyi.rouyi.infra.online :as online]
     [ring.util.response :as response]))
 
 (defn wrap-jwt-auth
-  "为请求附加当前认证用户。如果令牌无效，继续执行但 :identity 为 nil。"
+  "为请求附加当前认证用户，并更新在线心跳。
+  如果令牌无效，继续执行但 :identity 为 nil。"
   [handler]
   (fn [request]
     (let [token (security/extract-token request)
           claims (when token (security/parse-token token))
+          _ (when claims (online/heartbeat! token))
           request (if claims
                     (assoc request :identity claims)
                     request)]
@@ -39,7 +42,7 @@
                 (response/content-type "application/json"))))))))
 
 (defn auth-middleware
-  "组合中间件：JWT 解析 + 可选认证要求。"
+  "组合中间件：JWT 解析 + 在线心跳 + 可选认证要求。"
   ([] (auth-middleware {}))
   ([{:keys [required? perms]}]
    (fn [handler]

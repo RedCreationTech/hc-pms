@@ -5,6 +5,7 @@
     [com.ruoyi.rouyi.domain.system.role :as role-service]
     [com.ruoyi.rouyi.domain.system.menu :as menu-service]
     [com.ruoyi.rouyi.infra.security :as security]
+    [com.ruoyi.rouyi.infra.online :as online]
     [ring.util.response :as response]
     [clojure.string :as str]))
 
@@ -22,9 +23,10 @@
       (response/content-type "application/json")))
 
 (defn login
-  "用户登录，验证密码后签发 JWT。"
+  "用户登录，验证密码后签发 JWT，并注册在线用户。"
   [{:keys [user-service log-service]} request]
-  (let [{:keys [username password]} (:body-params request)]
+  (let [{:keys [username password]} (:body-params request)
+        login-ip (get-in request [:headers "x-forwarded-for"] (:remote-addr request "127.0.0.1"))]
     (if (or (str/blank? username) (str/blank? password))
       (error 400 "用户名和密码不能为空")
       (if-let [user (user-service/find-user-by-name user-service username)]
@@ -32,7 +34,8 @@
           (if (= "0" (:status user))
             (let [roles (user-service/find-user-by-id user-service (:user_id user))
                   role-ids (mapv :role_id (:roles roles))
-                  token (security/generate-token (:user_id user) (:user_name user) role-ids)]
+                  token (security/generate-token (:user_id user) (:user_name user) role-ids)
+                  _ (online/register! token (:user_id user) (:user_name user) login-ip)]
               (success {:token token}))
             (error 403 "用户已被停用"))
           (error 400 "密码错误"))
@@ -56,6 +59,8 @@
       (error 401 "用户不存在"))))
 
 (defn logout
-  "用户登出。"
-  [_ _]
+  "用户登出，清除在线记录。"
+  [request]
+  (when-let [token (security/extract-token request)]
+    (online/unregister! token))
   (success {}))

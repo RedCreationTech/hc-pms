@@ -1,6 +1,7 @@
 (ns com.ruoyi.rouyi.web.middleware.core
   (:require
     [com.ruoyi.rouyi.env :as env]
+    [com.ruoyi.rouyi.web.middleware.operlog :as operlog]
     [ring.middleware.defaults :as defaults]
     [ring.middleware.session.cookie :as cookie]))
 
@@ -36,4 +37,5 @@
           (defaults/wrap-defaults
             (assoc-in site-defaults-config [:session :store] cookie-store))
           wrap-cors
-          handle-preflight))))
+          handle-preflight
+          operlog/wrap-oper-log))))

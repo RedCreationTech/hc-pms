@@ -1,7 +1,8 @@
 (ns com.ruoyi.rouyi.web.controllers.system.user
-  "用户管理控制器。"
+  "用户管理控制器，支持数据权限过滤。"
   (:require
     [com.ruoyi.rouyi.domain.system.user :as user-service]
+    [com.ruoyi.rouyi.infra.data-perm :as data-perm]
     [ring.util.response :as response]))
 
 (defn- ok
@@ -15,9 +16,12 @@
       (response/content-type "application/json")))
 
 (defn list-users
-  "查询用户列表。"
+  "查询用户列表（带数据权限过滤）。"
   [{:keys [user-service]} request]
   (let [params (:query-params request)
+        identity (:identity request)
+        data-perm-filter (data-perm/data-perm-filter identity "default" :alias "u")
+        params (merge params (:params data-perm-filter))
         result (user-service/list-users user-service params)]
     (ok {:total (:total result) :rows (:rows result)})))
 
