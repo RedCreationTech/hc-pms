@@ -11,7 +11,7 @@
 ;; ──────────── 在线用户状态 ────────────
 
 (defonce online-users
-  "原子 map: token -> {:user-id :user-name :login-ip :login-time :last-access}"
+  ;; 原子 map: token -> {:user-id :user-name :login-ip :login-time :last-access}
   (atom {} {:validator map?}))
 
 (defonce cleanup-executor
@@ -25,6 +25,7 @@
               (catch Exception e
                 (log/warn e "Online user cleanup failed")))))
         5 5 TimeUnit/MINUTES))))
+
 
 ;; ──────────── 核心 API ────────────
 
