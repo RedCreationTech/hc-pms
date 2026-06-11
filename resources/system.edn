@@ -96,8 +96,14 @@
  {}
 
  :db.sql/connection
- #profile {:dev  {:jdbc-url "jdbc:postgresql://localhost/rouyi?user=rouyi&password=rouyi"}
-           :test {:jdbc-url "jdbc:postgresql://localhost/rouyi?user=rouyi&password=rouyi"}
+ #profile {:dev  {:jdbc-url "jdbc:sqlite:rouyi.db"}
+           :test {:jdbc-url "jdbc:sqlite:rouyi.db"
+                  :init-size  1
+                  :min-idle   1
+                  :max-idle   1
+                  :max-active 1
+                  :connection-test-query "SELECT 1"
+                  :validation-timeout 3000}
            :prod {:jdbc-url   #env JDBC_URL
                   :init-size  1
                   :min-idle   1
@@ -111,6 +117,14 @@
   :env       #ig/ref :system/env}
 
  :db.sql/migrations
- {:store            :database
-  :db               {:datasource #ig/ref :db.sql/connection}
-  :migrate-on-init? true}}
+ #profile {:dev  {:store            :database
+                  :db               {:datasource #ig/ref :db.sql/connection}
+                  :migrate-on-init? true
+                  :migration-dir    "resources/migrations-sqlite"}
+           :test {:store            :database
+                  :db               {:datasource #ig/ref :db.sql/connection}
+                  :migrate-on-init? true
+                  :migration-dir    "resources/migrations-sqlite"}
+           :prod {:store            :database
+                  :db               {:datasource #ig/ref :db.sql/connection}
+                  :migrate-on-init? true}}}

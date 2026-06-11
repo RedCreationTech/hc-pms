@@ -6,13 +6,18 @@
 
 (defn gen-routes [{:keys [gen-service]}]
   ["/tool"
-   {:middleware [(auth-mw/auth-middleware {:required? true})]}
+   {:middleware [(auth-mw/auth-middleware {:required? true})]
+    :swagger {:tags ["代码生成"]}}
    ["/gen"
-    ;; 查询所有表
-    ["/tables" {:get {:handler (partial gen/list-tables {:gen-service gen-service})}}]
-    ;; 查询表列信息
-    ["/columns" {:get {:handler (partial gen/table-columns {:gen-service gen-service})}}]
-    ;; 预览代码模板
-    ["/preview" {:get {:handler (partial gen/preview-code {:gen-service gen-service})}}]
-    ;; 批量生成代码
-    ["/generate" {:post {:handler (partial gen/batch-generate {:gen-service gen-service})}}]]])
+    ["/tables" {:get {:summary    "查询数据库表"
+                        :description "查询系统所有数据库表（供选择生成）"
+                        :handler    (partial gen/list-tables {:gen-service gen-service})}}]
+    ["/columns" {:get {:summary    "查询表列信息"
+                         :description "查询指定表的字段元数据"
+                         :handler    (partial gen/table-columns {:gen-service gen-service})}}]
+    ["/preview" {:get {:summary    "预览代码"
+                         :description "预览生成的代码模板内容"
+                         :handler    (partial gen/preview-code {:gen-service gen-service})}}]
+    ["/generate" {:post {:summary    "批量生成代码"
+                          :description "选择表并生成完整 CRUD 代码文件"
+                          :handler    (partial gen/batch-generate {:gen-service gen-service})}}]]])
