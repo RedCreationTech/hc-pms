@@ -47,6 +47,93 @@
             :on-success on-success
             :on-error on-error}))
 
+(defn list-dict-types
+  "查询字典类型列表。"
+  [params on-success on-error]
+  (request {:method :get
+            :uri "/system/dict/type"
+            :params params
+            :on-success on-success
+            :on-error on-error}))
+
+(defn list-dict-data
+  "查询字典数据列表。"
+  [params on-success on-error]
+  (request {:method :get
+            :uri "/system/dict/data"
+            :params params
+            :on-success on-success
+            :on-error on-error}))
+
+(defn list-configs
+  "查询参数配置列表。"
+  [params on-success on-error]
+  (request {:method :get
+            :uri "/system/config"
+            :params params
+            :on-success on-success
+            :on-error on-error}))
+
+(defn create-config
+  "创建参数配置。"
+  [params on-success on-error]
+  (request {:method :post
+            :uri "/system/config"
+            :params params
+            :on-success on-success
+            :on-error on-error}))
+
+(defn update-config
+  "更新参数配置。"
+  [id params on-success on-error]
+  (request {:method :put
+            :uri (str "/system/config/" id)
+            :params params
+            :on-success on-success
+            :on-error on-error}))
+
+(defn delete-config
+  "删除参数配置。"
+  [id on-success on-error]
+  (request {:method :delete
+            :uri (str "/system/config/" id)
+            :on-success on-success
+            :on-error on-error}))
+
+(defn list-oper-logs
+  "查询操作日志列表。"
+  [params on-success on-error]
+  (request {:method :get
+            :uri "/system/oper-log"
+            :params params
+            :on-success on-success
+            :on-error on-error}))
+
+(defn clear-oper-logs
+  "清空操作日志。"
+  [on-success on-error]
+  (request {:method :delete
+            :uri "/system/oper-log"
+            :on-success on-success
+            :on-error on-error}))
+
+(defn list-login-logs
+  "查询登录日志列表。"
+  [params on-success on-error]
+  (request {:method :get
+            :uri "/system/login-log"
+            :params params
+            :on-success on-success
+            :on-error on-error}))
+
+(defn clear-login-logs
+  "清空登录日志。"
+  [on-success on-error]
+  (request {:method :delete
+            :uri "/system/login-log"
+            :on-success on-success
+            :on-error on-error}))
+
 (defn list-users
   "查询用户列表。"
   [params on-success on-error]

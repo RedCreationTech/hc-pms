@@ -79,6 +79,54 @@
   (fn [db _]
     (get-in db [:profile :loading?])))
 
+(rf/reg-sub :dicts/types
+  (fn [db _]
+    (get-in db [:dicts :types])))
+
+(rf/reg-sub :dicts/data
+  (fn [db _]
+    (get-in db [:dicts :data])))
+
+(rf/reg-sub :dicts/loading?
+  (fn [db _]
+    (get-in db [:dicts :loading?])))
+
+(rf/reg-sub :configs/items
+  (fn [db _]
+    (get-in db [:configs :items])))
+
+(rf/reg-sub :configs/total
+  (fn [db _]
+    (get-in db [:configs :total])))
+
+(rf/reg-sub :configs/loading?
+  (fn [db _]
+    (get-in db [:configs :loading?])))
+
+(rf/reg-sub :oper-logs/items
+  (fn [db _]
+    (get-in db [:oper-logs :items])))
+
+(rf/reg-sub :oper-logs/total
+  (fn [db _]
+    (get-in db [:oper-logs :total])))
+
+(rf/reg-sub :oper-logs/loading?
+  (fn [db _]
+    (get-in db [:oper-logs :loading?])))
+
+(rf/reg-sub :login-logs/items
+  (fn [db _]
+    (get-in db [:login-logs :items])))
+
+(rf/reg-sub :login-logs/total
+  (fn [db _]
+    (get-in db [:login-logs :total])))
+
+(rf/reg-sub :login-logs/loading?
+  (fn [db _]
+    (get-in db [:login-logs :loading?])))
+
 (rf/reg-sub :notification
   (fn [db _]
     (:notification db)))

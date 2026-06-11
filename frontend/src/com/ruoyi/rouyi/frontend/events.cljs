@@ -79,6 +79,205 @@
     {:db (assoc-in db [:users :loading?] true)
      :api/list-users params}))
 
+(rf/reg-event-db :dicts/set-types
+  (fn [db [_ data]]
+    (-> db
+        (assoc-in [:dicts :types] (:rows data))
+        (assoc-in [:dicts :loading?] false))))
+
+(rf/reg-event-fx :dicts/fetch-types
+  (fn [{:keys [db]} [_ params]]
+    {:db (assoc-in db [:dicts :loading?] true)
+     :api/list-dict-types params}))
+
+(rf/reg-fx :api/list-dict-types
+  (fn [params]
+    (api/list-dict-types params
+      (fn [result]
+        (when (= 200 (:code result))
+          (rf/dispatch [:dicts/set-types (:data result)])))
+      (fn [_]))))
+
+(rf/reg-event-db :dicts/set-data
+  (fn [db [_ data]]
+    (-> db
+        (assoc-in [:dicts :data] (:rows data))
+        (assoc-in [:dicts :loading?] false))))
+
+(rf/reg-event-fx :dicts/fetch-data
+  (fn [{:keys [db]} [_ params]]
+    {:db (assoc-in db [:dicts :loading?] true)
+     :api/list-dict-data params}))
+
+(rf/reg-fx :api/list-dict-data
+  (fn [params]
+    (api/list-dict-data params
+      (fn [result]
+        (when (= 200 (:code result))
+          (rf/dispatch [:dicts/set-data (:data result)])))
+      (fn [_]))))
+
+(rf/reg-event-db :configs/set-list
+  (fn [db [_ data]]
+    (-> db
+        (assoc-in [:configs :items] (:rows data))
+        (assoc-in [:configs :total] (:total data))
+        (assoc-in [:configs :loading?] false))))
+
+(rf/reg-event-fx :configs/fetch
+  (fn [{:keys [db]} [_ params]]
+    {:db (assoc-in db [:configs :loading?] true)
+     :api/list-configs params}))
+
+(rf/reg-fx :api/list-configs
+  (fn [params]
+    (api/list-configs params
+      (fn [result]
+        (when (= 200 (:code result))
+          (rf/dispatch [:configs/set-list (:data result)])))
+      (fn [_]))))
+
+(rf/reg-event-fx :configs/create
+  (fn [{:keys [db]} [_ params]]
+    {:db db
+     :api/create-config params}))
+
+(rf/reg-fx :api/create-config
+  (fn [params]
+    (api/create-config params
+      (fn [result]
+        (when (= 200 (:code result))
+          (rf/dispatch [:configs/created])
+          (.success js/antd.message "创建成功"))
+        (when (not= 200 (:code result))
+          (.error js/antd.message (:msg result))))
+      (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-event-fx :configs/created
+  (fn [{:keys [db]} _]
+    {:db (assoc-in db [:notification] nil)
+     :dispatch [:configs/fetch {}]}))
+
+(rf/reg-event-fx :configs/update
+  (fn [{:keys [db]} [_ id params]]
+    {:db db
+     :api/update-config id params}))
+
+(rf/reg-fx :api/update-config
+  (fn [[id params]]
+    (api/update-config id params
+      (fn [result]
+        (when (= 200 (:code result))
+          (rf/dispatch [:configs/updated])
+          (.success js/antd.message "更新成功"))
+        (when (not= 200 (:code result))
+          (.error js/antd.message (:msg result))))
+      (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-event-fx :configs/updated
+  (fn [{:keys [db]} _]
+    {:db db
+     :dispatch [:configs/fetch {}]}))
+
+(rf/reg-event-fx :configs/delete
+  (fn [{:keys [db]} [_ id]]
+    {:db db
+     :api/delete-config id}))
+
+(rf/reg-fx :api/delete-config
+  (fn [id]
+    (api/delete-config id
+      (fn [result]
+        (when (= 200 (:code result))
+          (rf/dispatch [:configs/deleted])
+          (.success js/antd.message "删除成功"))
+        (when (not= 200 (:code result))
+          (.error js/antd.message (:msg result))))
+      (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-event-fx :configs/deleted
+  (fn [{:keys [db]} _]
+    {:db db
+     :dispatch [:configs/fetch {}]}))
+
+(rf/reg-event-db :oper-logs/set-list
+  (fn [db [_ data]]
+    (-> db
+        (assoc-in [:oper-logs :items] (:rows data))
+        (assoc-in [:oper-logs :total] (:total data))
+        (assoc-in [:oper-logs :loading?] false))))
+
+(rf/reg-event-fx :oper-logs/fetch
+  (fn [{:keys [db]} [_ params]]
+    {:db (assoc-in db [:oper-logs :loading?] true)
+     :api/list-oper-logs params}))
+
+(rf/reg-fx :api/list-oper-logs
+  (fn [params]
+    (api/list-oper-logs params
+      (fn [result]
+        (when (= 200 (:code result))
+          (rf/dispatch [:oper-logs/set-list (:data result)])))
+      (fn [_]))))
+
+(rf/reg-event-fx :oper-logs/clear
+  (fn [{:keys [db]} _]
+    {:db db
+     :api/clear-oper-logs nil}))
+
+(rf/reg-fx :api/clear-oper-logs
+  (fn [_]
+    (api/clear-oper-logs
+      (fn [result]
+        (when (= 200 (:code result))
+          (rf/dispatch [:oper-logs/cleared])
+          (.success js/antd.message "清空成功")))
+      (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-event-fx :oper-logs/cleared
+  (fn [{:keys [db]} _]
+    {:db db
+     :dispatch [:oper-logs/fetch {}]}))
+
+(rf/reg-event-db :login-logs/set-list
+  (fn [db [_ data]]
+    (-> db
+        (assoc-in [:login-logs :items] (:rows data))
+        (assoc-in [:login-logs :total] (:total data))
+        (assoc-in [:login-logs :loading?] false))))
+
+(rf/reg-event-fx :login-logs/fetch
+  (fn [{:keys [db]} [_ params]]
+    {:db (assoc-in db [:login-logs :loading?] true)
+     :api/list-login-logs params}))
+
+(rf/reg-fx :api/list-login-logs
+  (fn [params]
+    (api/list-login-logs params
+      (fn [result]
+        (when (= 200 (:code result))
+          (rf/dispatch [:login-logs/set-list (:data result)])))
+      (fn [_]))))
+
+(rf/reg-event-fx :login-logs/clear
+  (fn [{:keys [db]} _]
+    {:db db
+     :api/clear-login-logs nil}))
+
+(rf/reg-fx :api/clear-login-logs
+  (fn [_]
+    (api/clear-login-logs
+      (fn [result]
+        (when (= 200 (:code result))
+          (rf/dispatch [:login-logs/cleared])
+          (.success js/antd.message "清空成功")))
+      (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-event-fx :login-logs/cleared
+  (fn [{:keys [db]} _]
+    {:db db
+     :dispatch [:login-logs/fetch {}]}))
+
 (rf/reg-fx :api/list-users
   (fn [params]
     (api/list-users params

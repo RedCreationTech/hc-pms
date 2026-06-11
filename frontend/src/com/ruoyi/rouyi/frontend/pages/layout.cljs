@@ -8,7 +8,11 @@
     [com.ruoyi.rouyi.frontend.pages.user :as user]
     [com.ruoyi.rouyi.frontend.pages.online :as online]
     [com.ruoyi.rouyi.frontend.pages.job :as job]
-    [com.ruoyi.rouyi.frontend.pages.profile :as profile]))
+    [com.ruoyi.rouyi.frontend.pages.profile :as profile]
+    [com.ruoyi.rouyi.frontend.pages.dict :as dict]
+    [com.ruoyi.rouyi.frontend.pages.config :as config]
+    [com.ruoyi.rouyi.frontend.pages.oper-log :as oper-log]
+    [com.ruoyi.rouyi.frontend.pages.login-log :as login-log]))
 
 (defn- menu-items []
   #js [{:key "dashboard" :icon (r/as-element [antd/dashboard-icon]) :label "首页"}
@@ -61,4 +65,8 @@
            :online [online/online-page]
            :job [job/job-page]
            :profile [profile/profile-page]
+           :dict [dict/dict-page]
+           :config [config/config-page]
+           :oper-log [oper-log/oper-log-page]
+           :login-log [login-log/login-log-page]
            [:div "页面建设中"])]]])))
