@@ -4,6 +4,7 @@
     [reagent.core :as r]
     [reagent.dom.client :as rdc]
     [re-frame.core :as rf]
+    [com.ruoyi.rouyi.frontend.antd :as antd]
     [com.ruoyi.rouyi.frontend.events]
     [com.ruoyi.rouyi.frontend.subs]
     [com.ruoyi.rouyi.frontend.pages.login :as login]
@@ -19,7 +20,8 @@
       [login/login-page])))
 
 (defn app []
-  [current-page])
+  [antd/config-provider
+   [current-page]])
 
 (defn init []
   (rf/dispatch-sync [:initialize-db])
