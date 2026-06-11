@@ -4,7 +4,8 @@
   使用原子缓存跟踪活跃 Token，定期清理过期会话。
   提供在线用户列表和强退功能。"
   (:require
-    [clojure.tools.logging :as log])
+    [clojure.tools.logging :as log]
+    [clojure.string :as str])
   (:import
     [java.util.concurrent ScheduledThreadPoolExecutor TimeUnit]))
 
@@ -12,7 +13,9 @@
 
 (defonce online-users
   ;; 原子 map: token -> {:user-id :user-name :login-ip :login-time :last-access}
-  (atom {} {:validator map?}))
+  (atom {} :validator map?))
+
+(declare cleanup-expired!)
 
 (defonce cleanup-executor
   (delay

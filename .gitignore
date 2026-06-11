@@ -16,3 +16,4 @@ cpcache/
 .pi/
 .runtime/
 CLAUDE.local.md
+.cpcache/
