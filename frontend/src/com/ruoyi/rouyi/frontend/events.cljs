@@ -47,7 +47,7 @@
     {:db (-> db
               (assoc-in [:auth :token] (:token data))
               (assoc-in [:auth :loading?] false))
-     :dispatch [:auth/fetch-info]}))
+     :dispatch [:navigate :dashboard]}))
 
 (rf/reg-event-db :auth/login-failure
   (fn [db [_ msg]]
@@ -61,12 +61,14 @@
      :api/get-info nil}))
 
 (rf/reg-fx :api/get-info
-  (fn [_]
+  (fn [token]
     (api/get-info
       (fn [result]
         (when (= 200 (:code result))
           (rf/dispatch [:auth/set-user (:data result)])))
-      (fn [_]))))
+      (fn [_]))
+    ;; Fallback: set empty user so navigation works even if getInfo fails
+    (rf/dispatch [:auth/set-user nil])))
 
 (rf/reg-event-db :users/set-list
   (fn [db [_ data]]
