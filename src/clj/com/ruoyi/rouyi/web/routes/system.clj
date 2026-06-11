@@ -47,7 +47,11 @@
              :put    {:summary "更新用户" :parameters {:path PathId}
                       :handler (partial user/update-user {:user-service user-service})}
              :delete {:summary "删除用户" :parameters {:path PathId}
-                      :handler (partial user/delete-user {:user-service user-service})}}]]
+                      :handler (partial user/delete-user {:user-service user-service})}}]
+    ["/:id/status/:status" {:put {:summary "修改用户状态"
+                                   :handler (partial user/change-status {:user-service user-service})}}]
+    ["/:id/resetPwd"       {:put {:summary "重置用户密码"
+                                   :handler (partial user/reset-password {:user-service user-service})}}]]
 
    ["/role"
     ["" {:get  {:summary "角色列表" :description "分页查询角色列表"

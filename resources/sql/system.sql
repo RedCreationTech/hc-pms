@@ -328,3 +328,51 @@ DELETE FROM sys_config WHERE config_id = :config_id
 -- :doc 获取数据库连接信息
 SELECT current_database() AS db_name, version() AS db_version,
        (SELECT count(*) FROM pg_stat_activity) AS active_connections
+
+-- ════════════════════════════════════════════════════════════════
+-- 通知公告
+-- ════════════════════════════════════════════════════════════════
+
+-- :name list-notices :? :*
+-- :doc 查询通知公告列表
+SELECT * FROM sys_notice
+WHERE (:notice_name IS NULL OR notice_name LIKE '%' || :notice_name || '%')
+  AND (:notice_type IS NULL OR notice_type = :notice_type)
+  AND (:create_by IS NULL OR create_by LIKE '%' || :create_by || '%')
+ORDER BY notice_id DESC
+LIMIT :page_size OFFSET :offset
+
+-- :name count-notices :? :1
+-- :doc 统计通知公告数量
+SELECT COUNT(*) AS total FROM sys_notice
+WHERE (:notice_name IS NULL OR notice_name LIKE '%' || :notice_name || '%')
+  AND (:notice_type IS NULL OR notice_type = :notice_type)
+  AND (:create_by IS NULL OR create_by LIKE '%' || :create_by || '%')
+
+-- :name find-notice-by-id :? :1
+-- :doc 根据ID查询通知公告
+SELECT * FROM sys_notice WHERE notice_id = :notice_id
+
+-- :name create-notice! :! :n
+-- :doc 新增通知公告
+INSERT INTO sys_notice (notice_name, notice_type, status, create_by, create_time, remark)
+VALUES (:notice_name, :notice_type, :status, :create_by, CURRENT_TIMESTAMP, :remark)
+
+-- :name update-notice! :! :n
+-- :doc 更新通知公告
+UPDATE sys_notice
+SET notice_name = COALESCE(:notice_name, notice_name),
+    notice_type = COALESCE(:notice_type, notice_type),
+    status = COALESCE(:status, status),
+    update_by = :update_by,
+    update_time = CURRENT_TIMESTAMP,
+    remark = COALESCE(:remark, remark)
+WHERE notice_id = :notice_id
+
+-- :name delete-notice! :! :n
+-- :doc 删除通知公告
+DELETE FROM sys_notice WHERE notice_id = :notice_id
+
+-- :name last-insert-rowid :? :1
+-- :doc 获取最后插入的行ID (SQLite)
+SELECT last_insert_rowid()

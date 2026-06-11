@@ -3,19 +3,33 @@
 
 (def default-db
   {:page :login
+   :tabs {:items [{:key :dashboard :label "首页" :closable false}]
+          :active :dashboard}
    :auth {:token nil :user nil :loading? false}
    :theme {:mode :light :primary-color "#1677ff" :compact? false}
-   :users {:loading? false :items [] :total 0 :filters {}}
+   :users {:loading? false :items [] :total 0 
+           :query-params {} :page 1 :page-size 10
+           :selected-ids [] :show-search? true
+           :columns {:user_id {:label "用户编号" :visible? true}
+                     :user_name {:label "用户名称" :visible? true}
+                     :nick_name {:label "用户昵称" :visible? true}
+                     :dept_name {:label "部门" :visible? true}
+                     :phonenumber {:label "手机号码" :visible? true}
+                     :status {:label "状态" :visible? true}
+                     :create_time {:label "创建时间" :visible? true}}}
    :roles {:loading? false :items []}
    :menus {:loading? false :items [] :tree []}
-   :depts {:loading? false :items []}
+   :depts {:loading? false :items [] :tree []}
    :posts {:loading? false :items []}
    :dicts {:loading? false :types [] :data []}
    :configs {:loading? false :items []}
+   :notices {:loading? false :items [] :total 0}
    :oper-logs {:loading? false :items [] :total 0}
    :login-logs {:loading? false :items [] :total 0}
    :online-users {:loading? false :items [] :total 0}
    :jobs {:loading? false :items [] :total 0 :filters {}}
    :job-logs {:loading? false :items [] :total 0}
    :profile {:loading? false}
+   :server {:loading? false :data nil}
+   :cache {:loading? false :data nil :keys nil}
    :notification nil})

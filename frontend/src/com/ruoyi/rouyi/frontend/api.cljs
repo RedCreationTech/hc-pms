@@ -43,6 +43,153 @@
   (request {:method :get :uri "/system/user" :params params
             :on-success on-success :on-error on-error}))
 
+(defn get-user
+  "获取用户详情。"
+  [user-id on-success on-error]
+  (request {:method :get :uri (str "/system/user/" user-id)
+            :on-success on-success :on-error on-error}))
+
+(defn create-user
+  "新增用户。"
+  [params on-success on-error]
+  (request {:method :post :uri "/system/user" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn update-user
+  "更新用户。"
+  [user-id params on-success on-error]
+  (request {:method :put :uri (str "/system/user/" user-id) :params params
+            :on-success on-success :on-error on-error}))
+
+(defn delete-user
+  "删除用户。"
+  [user-id on-success on-error]
+  (request {:method :delete :uri (str "/system/user/" user-id)
+            :on-success on-success :on-error on-error}))
+
+(defn change-user-status
+  "修改用户状态。"
+  [user-id status on-success on-error]
+  (request {:method :put :uri (str "/system/user/" user-id "/status/" status)
+            :on-success on-success :on-error on-error}))
+
+(defn reset-user-password
+  "重置用户密码。"
+  [user-id password on-success on-error]
+  (request {:method :put :uri (str "/system/user/" user-id "/resetPwd")
+            :params {:password password}
+            :on-success on-success :on-error on-error}))
+
+(defn export-users
+  "导出用户数据。"
+  [params]
+  ;; 需要实现文件下载
+  (js/console.log "导出用户" params))
+
+;; ─── 角色管理 ──────────────────────────────────────────────────────
+
+(defn list-roles
+  "获取角色列表。"
+  [params on-success on-error]
+  (request {:method :get :uri "/system/role" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn create-role
+  "新增角色。"
+  [params on-success on-error]
+  (request {:method :post :uri "/system/role" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn update-role
+  "更新角色。"
+  [id params on-success on-error]
+  (request {:method :put :uri (str "/system/role/" id) :params params
+            :on-success on-success :on-error on-error}))
+
+(defn delete-role
+  "删除角色。"
+  [id on-success on-error]
+  (request {:method :delete :uri (str "/system/role/" id)
+            :on-success on-success :on-error on-error}))
+
+;; ─── 菜单管理 ──────────────────────────────────────────────────────
+
+(defn list-menus
+  "获取菜单列表。"
+  [on-success on-error]
+  (request {:method :get :uri "/system/menu"
+            :on-success on-success :on-error on-error}))
+
+(defn create-menu
+  "新增菜单。"
+  [params on-success on-error]
+  (request {:method :post :uri "/system/menu" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn update-menu
+  "更新菜单。"
+  [id params on-success on-error]
+  (request {:method :put :uri (str "/system/menu/" id) :params params
+            :on-success on-success :on-error on-error}))
+
+(defn delete-menu
+  "删除菜单。"
+  [id on-success on-error]
+  (request {:method :delete :uri (str "/system/menu/" id)
+            :on-success on-success :on-error on-error}))
+
+;; ─── 部门管理 ──────────────────────────────────────────────────────
+
+(defn list-depts
+  "获取部门列表。"
+  [on-success on-error]
+  (request {:method :get :uri "/system/dept"
+            :on-success on-success :on-error on-error}))
+
+(defn create-dept
+  "新增部门。"
+  [params on-success on-error]
+  (request {:method :post :uri "/system/dept" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn update-dept
+  "更新部门。"
+  [id params on-success on-error]
+  (request {:method :put :uri (str "/system/dept/" id) :params params
+            :on-success on-success :on-error on-error}))
+
+(defn delete-dept
+  "删除部门。"
+  [id on-success on-error]
+  (request {:method :delete :uri (str "/system/dept/" id)
+            :on-success on-success :on-error on-error}))
+
+;; ─── 岗位管理 ──────────────────────────────────────────────────────
+
+(defn list-posts
+  "获取岗位列表。"
+  [params on-success on-error]
+  (request {:method :get :uri "/system/post" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn create-post
+  "新增岗位。"
+  [params on-success on-error]
+  (request {:method :post :uri "/system/post" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn update-post
+  "更新岗位。"
+  [id params on-success on-error]
+  (request {:method :put :uri (str "/system/post/" id) :params params
+            :on-success on-success :on-error on-error}))
+
+(defn delete-post
+  "删除岗位。"
+  [id on-success on-error]
+  (request {:method :delete :uri (str "/system/post/" id)
+            :on-success on-success :on-error on-error}))
+
 (defn list-dict-types
   "获取字典类型列表。"
   [params on-success on-error]
@@ -95,4 +242,157 @@
   "用户登出。"
   [on-success on-error]
   (request {:method :post :uri "/auth/logout"
+            :on-success on-success :on-error on-error}))
+
+;; ─── 服务器监控 ──────────────────────────────────────────────────────
+
+(defn get-server-info
+  "获取服务器信息。"
+  [on-success on-error]
+  (request {:method :get :uri "/system/server"
+            :on-success on-success :on-error on-error}))
+
+;; ─── 缓存监控 ──────────────────────────────────────────────────────
+
+(defn get-cache-info
+  "获取缓存信息。"
+  [on-success on-error]
+  (request {:method :get :uri "/system/cache"
+            :on-success on-success :on-error on-error}))
+
+(defn get-cache-keys
+  "获取缓存键列表。"
+  [on-success on-error]
+  (request {:method :get :uri "/system/cache/keys"
+            :on-success on-success :on-error on-error}))
+
+(defn clear-cache
+  "清空缓存。"
+  [on-success on-error]
+  (request {:method :delete :uri "/system/cache"
+            :on-success on-success :on-error on-error}))
+
+;; ─── 通知公告 ──────────────────────────────────────────────────────
+
+(defn list-notices
+  "获取通知公告列表。"
+  [params on-success on-error]
+  (request {:method :get :uri "/system/notice" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn create-notice
+  "新增通知公告。"
+  [params on-success on-error]
+  (request {:method :post :uri "/system/notice" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn update-notice
+  "更新通知公告。"
+  [id params on-success on-error]
+  (request {:method :put :uri (str "/system/notice/" id) :params params
+            :on-success on-success :on-error on-error}))
+
+(defn delete-notice
+  "删除通知公告。"
+  [id on-success on-error]
+  (request {:method :delete :uri (str "/system/notice/" id)
+            :on-success on-success :on-error on-error}))
+
+;; ─── 个人信息 ──────────────────────────────────────────────────────
+
+(defn get-profile
+  "获取个人信息。"
+  [on-success on-error]
+  (request {:method :get :uri "/system/profile"
+            :on-success on-success :on-error on-error}))
+
+(defn update-profile
+  "更新个人信息。"
+  [params on-success on-error]
+  (request {:method :put :uri "/system/profile" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn change-password
+  "修改密码。"
+  [params on-success on-error]
+  (request {:method :put :uri "/system/profile/password" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn upload-avatar
+  "上传头像。"
+  [form-data on-success on-error]
+  (ajax/ajax-request
+    {:method :post
+     :uri (str api-base "/system/profile/avatar")
+     :body form-data
+     :headers (when-let [token (get-token)]
+                {"Authorization" (str "Bearer " token)})
+     :response-format (ajax/json-response-format {:keywords? true})
+     :handler (fn [[ok result]]
+                (if ok
+                  (on-success result)
+                  (on-error result)))}))
+
+;; ─── 配置管理 ──────────────────────────────────────────────────────
+
+(defn create-config
+  "新增参数配置。"
+  [params on-success on-error]
+  (request {:method :post :uri "/system/config" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn update-config
+  "更新参数配置。"
+  [id params on-success on-error]
+  (request {:method :put :uri (str "/system/config/" id) :params params
+            :on-success on-success :on-error on-error}))
+
+(defn delete-config
+  "删除参数配置。"
+  [id on-success on-error]
+  (request {:method :delete :uri (str "/system/config/" id)
+            :on-success on-success :on-error on-error}))
+
+;; ─── 操作日志 ──────────────────────────────────────────────────────
+
+(defn clear-oper-logs
+  "清空操作日志。"
+  [on-success on-error]
+  (request {:method :delete :uri "/system/oper-log"
+            :on-success on-success :on-error on-error}))
+
+;; ─── 登录日志 ──────────────────────────────────────────────────────
+
+(defn clear-login-logs
+  "清空登录日志。"
+  [on-success on-error]
+  (request {:method :delete :uri "/system/login-log"
+            :on-success on-success :on-error on-error}))
+
+;; ─── 在线用户 ──────────────────────────────────────────────────────
+
+(defn force-logout
+  "强制登出用户。"
+  [token-id on-success on-error]
+  (request {:method :delete :uri (str "/system/online/" token-id)
+            :on-success on-success :on-error on-error}))
+
+;; ─── 定时任务 ──────────────────────────────────────────────────────
+
+(defn create-job
+  "新增定时任务。"
+  [params on-success on-error]
+  (request {:method :post :uri "/system/job" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn update-job
+  "更新定时任务。"
+  [id params on-success on-error]
+  (request {:method :put :uri (str "/system/job/" id) :params params
+            :on-success on-success :on-error on-error}))
+
+(defn delete-job
+  "删除定时任务。"
+  [id on-success on-error]
+  (request {:method :delete :uri (str "/system/job/" id)
             :on-success on-success :on-error on-error}))

@@ -36,20 +36,21 @@
 (defn create-user!
   "创建新用户，自动加密密码。"
   [{:keys [query-fn]} {:keys [password roles posts] :as params}]
-  (let [hashed (security/hash-password password)
-        user-id (-> (query-fn :create-user!
-                               (-> params
-                                   (assoc :password hashed)
-                                   (dissoc :roles :posts)))
-                    first
-                    :user_id)]
-    ;; 关联角色
-    (doseq [role-id roles]
-      (query-fn :insert-user-role! {:user_id user-id :role_id role-id}))
-    ;; 关联岗位
-    (doseq [post-id posts]
-      (query-fn :insert-user-post! {:user_id user-id :post_id post-id}))
-    user-id))
+  (let [hashed (security/hash-password password)]
+    (query-fn :create-user!
+              (-> params
+                  (assoc :password hashed)
+                  (dissoc :roles :posts)))
+    ;; SQLite: 通过 last_insert_rowid() 获取刚插入的ID
+    (let [row (query-fn :last-insert-rowid {})
+          user-id (:last_insert_rowid row)]
+      ;; 关联角色
+      (doseq [role-id roles]
+        (query-fn :insert-user-role! {:user_id user-id :role_id role-id}))
+      ;; 关联岗位
+      (doseq [post-id posts]
+        (query-fn :insert-user-post! {:user_id user-id :post_id post-id}))
+      user-id)))
 
 (defn update-user!
   "更新用户信息，可选更新密码。"

@@ -70,7 +70,7 @@
                          [antd/button {:type "link" :danger true :size "small"} "删除"]]))}])
 
 (defn- data-section []
-  (let [dict-type @selected-type]
+  (let [^js dict-type @selected-type]
     (hooks/use-effect (fn []
                         (when dict-type
                           (rf/dispatch [:dicts/fetch-data {:dict_type (.-dict_type dict-type)}]))

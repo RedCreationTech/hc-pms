@@ -1,10 +1,10 @@
 (ns com.ruoyi.rouyi.frontend.pages.oper-log
   "操作日志页面。只读 Table + 详情弹窗 + 清空 + 导出。"
   (:require
-    [reagent.core :as r]
-    [reagent.hooks :as hooks]
-    [re-frame.core :as rf]
-    [com.ruoyi.rouyi.frontend.antd :as antd]))
+   [reagent.core :as r]
+   [reagent.hooks :as hooks]
+   [re-frame.core :as rf]
+   [com.ruoyi.rouyi.frontend.antd :as antd]))
 
 (defonce detail-modal (r/atom {:open? false :record nil}))
 
@@ -24,18 +24,18 @@
        #js {:title "状态" :dataIndex "status" :key "status"
             :render (fn [v _]
                       (r/as-element
-                        [antd/tag {:color (if (= v 0) "green" "red")}
-                         (if (= v 0) "正常" "失败")]))}
+                       [antd/tag {:color (if (= v 0) "green" "red")}
+                        (if (= v 0) "正常" "失败")]))}
        #js {:title "操作日期" :dataIndex "oper_time" :key "oper_time"}
        #js {:title "操作" :key "action" :width 80
             :render (fn [_ record]
                       (r/as-element
-                        [antd/button {:type "link" :size "small"
-                                      :onClick #(open-detail record)}
-                         [antd/eye-icon] "详情"]))}])
+                       [antd/button {:type "link" :size "small"
+                                     :onClick #(open-detail record)}
+                        [antd/eye-icon] "详情"]))}])
 
 (defn- detail-modal-content []
-  (let [record (:record @detail-modal)]
+  (let [^js record (:record @detail-modal)]
     (when record
       [:div
        [antd/descriptions {:column 2 :size "small" :bordered true}

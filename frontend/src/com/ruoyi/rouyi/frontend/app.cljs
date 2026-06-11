@@ -8,6 +8,7 @@
     [com.ruoyi.rouyi.frontend.events]
     [com.ruoyi.rouyi.frontend.subs]
     [com.ruoyi.rouyi.frontend.theme :as theme]
+    [com.ruoyi.rouyi.frontend.router :as router]
     [com.ruoyi.rouyi.frontend.pages.login :as login]
     [com.ruoyi.rouyi.frontend.pages.layout :as layout]))
 
@@ -32,6 +33,8 @@
 
 (defn init []
   (rf/dispatch-sync [:initialize-db])
+  ;; 先在渲染前初始化路由（只 configure，不 dispatch）
+  (router/init-routes!)
   (r/set-default-compiler! (r/create-compiler {:function-components true}))
   (let [container (.getElementById js/document "app")]
     (reset! root (rdc/create-root container))

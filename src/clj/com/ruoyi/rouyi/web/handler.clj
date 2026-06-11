@@ -41,5 +41,5 @@
 (defmethod ig/init-key :router/core
   [_ {:keys [routes env] :as opts}]
   (if (= env :dev)
-    #(ring/router ["" opts routes])
-    (constantly (ring/router ["" opts routes]))))
+    #(ring/router ["" opts routes] {:reitit.router/sequential true :conflicts nil})
+    (constantly (ring/router ["" opts routes] {:reitit.router/sequential true :conflicts nil}))))

@@ -2,7 +2,7 @@
   "Ant Design 组件 Reagent 封装。"
   (:require
     [reagent.core :as r]
-    ["antd" :refer [Button Card ConfigProvider DatePicker Descriptions Drawer Form Input Layout Menu Modal Pagination Popconfirm Select Space Table Tag Upload message]]
+    ["antd" :refer [Button Card ConfigProvider DatePicker Descriptions Dropdown Drawer Form Input Layout Menu Modal Pagination Popconfirm Radio Select Space Switch Table Tag Tooltip Tree TreeSelect Upload message]]
     ["@ant-design/icons" :refer [LockOutlined UserOutlined DashboardOutlined TeamOutlined SettingOutlined SafetyOutlined FileTextOutlined EditOutlined DeleteOutlined PlusOutlined DownloadOutlined EyeOutlined SearchOutlined]]))
 
 (def button (r/adapt-react-class Button))
@@ -11,10 +11,12 @@
 (def descriptions (r/adapt-react-class Descriptions))
 (def descriptions-item (r/adapt-react-class (.-Item Descriptions)))
 (def drawer (r/adapt-react-class Drawer))
+(def dropdown (r/adapt-react-class Dropdown))
 (def form (r/adapt-react-class Form))
 (def form-item (r/adapt-react-class (.-Item Form)))
 (def input (r/adapt-react-class Input))
 (def password (r/adapt-react-class (.-Password Input)))
+(def text-area (r/adapt-react-class (.-TextArea Input)))
 (def layout (r/adapt-react-class Layout))
 (def layout-header (r/adapt-react-class (.-Header Layout)))
 (def layout-sider (r/adapt-react-class (.-Sider Layout)))
@@ -25,10 +27,18 @@
 (def modal (r/adapt-react-class Modal))
 (def pagination (r/adapt-react-class Pagination))
 (def popconfirm (r/adapt-react-class Popconfirm))
+(def radio (r/adapt-react-class Radio))
+(def radio-group (r/adapt-react-class (.-Group Radio)))
 (def select (r/adapt-react-class Select))
+(def select-option (r/adapt-react-class (.-Option Select)))
 (def space (r/adapt-react-class Space))
+(def switch (r/adapt-react-class Switch))
 (def table (r/adapt-react-class Table))
 (def tag (r/adapt-react-class Tag))
+(def tree (r/adapt-react-class Tree))
+(def tooltip (r/adapt-react-class Tooltip))
+(def tree-select (r/adapt-react-class TreeSelect))
+(def upload (r/adapt-react-class Upload))
 
 (defn success! [text]
   (.success message text))
