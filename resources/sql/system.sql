@@ -1,6 +1,9 @@
 -- :name list-users :? :*
 -- :doc 查询用户列表，支持用户名、手机号、状态筛选
-SELECT u.*, d.dept_name
+SELECT u.user_id, u.dept_id, u.user_name, u.nick_name, u.user_type, u.email,
+       u.phonenumber, u.sex, u.avatar, u.password, u.status, u.del_flag,
+       u.login_ip, u.login_date, u.create_by, u.create_time, u.update_by,
+       u.update_time, u.remark, d.dept_name
 FROM sys_user u
 LEFT JOIN sys_dept d ON u.dept_id = d.dept_id
 WHERE u.del_flag = '0'
@@ -23,10 +26,9 @@ WHERE u.del_flag = '0'
 
 -- :name find-user-by-id :? :1
 -- :doc 根据ID查询用户
-SELECT u.*, d.dept_name
-FROM sys_user u
-LEFT JOIN sys_dept d ON u.dept_id = d.dept_id
-WHERE u.user_id = :user_id AND u.del_flag = '0'
+SELECT *
+FROM sys_user
+WHERE user_id = :user_id AND del_flag = '0'
 
 -- :name find-user-by-name :? :1
 -- :doc 根据用户名查询用户
@@ -60,13 +62,18 @@ UPDATE sys_user SET del_flag = '2', update_time = CURRENT_TIMESTAMP WHERE user_i
 
 -- :name list-roles-by-user-id :? :*
 -- :doc 查询用户的角色列表
-SELECT r.* FROM sys_role r
+SELECT r.role_id, r.role_name, r.role_key, r.role_sort, r.data_scope,
+       r.menu_check_strictly, r.dept_check_strictly, r.status, r.del_flag,
+       r.create_by, r.create_time, r.update_by, r.update_time, r.remark
+FROM sys_role r
 INNER JOIN sys_user_role ur ON r.role_id = ur.role_id
 WHERE ur.user_id = :user_id AND r.del_flag = '0'
 
 -- :name list-posts-by-user-id :? :*
 -- :doc 查询用户的岗位列表
-SELECT p.* FROM sys_post p
+SELECT p.post_id, p.post_code, p.post_name, p.post_sort, p.status,
+       p.create_by, p.create_time, p.update_by, p.update_time, p.remark
+FROM sys_post p
 INNER JOIN sys_user_post up ON p.post_id = up.post_id
 WHERE up.user_id = :user_id
 
@@ -185,7 +192,11 @@ WHERE menu_id = :menu_id
 DELETE FROM sys_menu WHERE menu_id = :menu_id
 
 -- :name list-menus-by-role-id :? :*
-SELECT m.* FROM sys_menu m
+SELECT m.menu_id, m.menu_name, m.parent_id, m.order_num, m.path,
+       m.component, m.query, m.route_name, m.is_frame, m.is_cache,
+       m.menu_type, m.visible, m.status, m.perms, m.icon,
+       m.create_by, m.create_time, m.update_by, m.update_time, m.remark
+FROM sys_menu m
 INNER JOIN sys_role_menu rm ON m.menu_id = rm.menu_id
 WHERE rm.role_id = :role_id
 

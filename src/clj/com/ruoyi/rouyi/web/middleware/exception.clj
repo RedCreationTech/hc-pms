@@ -1,17 +1,19 @@
 (ns com.ruoyi.rouyi.web.middleware.exception
   (:require
     [clojure.tools.logging :as log]
+    [cheshire.core :as json]
     [reitit.ring.middleware.exception :as exception]))
 
 (defn handler [message status exception request]
   (when (>= status 500)
-    ;; You can optionally use this to report error to an external service
-    (log/error exception))
-  {:status status
-   :body   {:message   message
-            :exception (.getClass exception)
-            :data      (ex-data exception)
-            :uri       (:uri request)}})
+    (log/error exception "Exception:" (.getMessage exception)))
+  {:status  status
+   :headers {"content-type" "application/json;charset=utf-8"}
+   :body    (json/generate-string
+              {:message   message
+               :exception (.getClass exception)
+               :data      (ex-data exception)
+               :uri       (:uri request)})})
 
 (def wrap-exception
   (exception/create-exception-middleware

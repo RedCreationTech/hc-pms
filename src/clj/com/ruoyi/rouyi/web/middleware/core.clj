@@ -1,5 +1,6 @@
 (ns com.ruoyi.rouyi.web.middleware.core
   (:require
+    [cheshire.core :as json]
     [com.ruoyi.rouyi.env :as env]
     [com.ruoyi.rouyi.web.middleware.operlog :as operlog]
     [ring.middleware.defaults :as defaults]
@@ -35,6 +36,17 @@
   (fn [request]
     (handler (assoc request :components {:query-fn query-fn}))))
 
+(defn- wrap-json-body
+  "确保响应 body 是字符串（JSON），而非 Clojure 数据结构。"
+  [handler]
+  (fn [request]
+    (let [resp (handler request)]
+      (if (map? (:body resp))
+        (-> resp
+            (assoc :body (json/generate-string (:body resp)))
+            (assoc-in [:headers "content-type"] "application/json;charset=utf-8"))
+        resp))))
+
 (defn wrap-base
   [{:keys [metrics site-defaults-config cookie-secret query-fn] :as opts}]
   (let [cookie-store (cookie/cookie-store {:key (.getBytes ^String cookie-secret)})]
@@ -45,4 +57,5 @@
           wrap-cors
           handle-preflight
           operlog/wrap-oper-log
-          (wrap-query-fn query-fn)))))
+          (wrap-query-fn query-fn)
+          wrap-json-body))))

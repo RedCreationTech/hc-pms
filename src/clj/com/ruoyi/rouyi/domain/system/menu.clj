@@ -41,5 +41,5 @@
 (defn menu-tree
   "获取菜单树。"
   [{:keys [query-fn]}]
-  (let [menus (query-fn :list-menus {})]
+  (let [menus (query-fn :list-menus {:menu_name nil :status nil :menu_type nil})]
     (build-tree menus 0)))

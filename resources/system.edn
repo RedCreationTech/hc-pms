@@ -122,12 +122,12 @@
  #profile {:dev  {:store            :database
                   :db               {:datasource #ig/ref :db.sql/connection}
                   :migrate-on-init? true
-                  :migration-dir    "resources/migrations-sqlite"}
+                  :migration-dir    "migrations-sqlite"}
            :test {:store            :database
                   :db               {:datasource #ig/ref :db.sql/connection}
                   :migrate-on-init? true
-                  :migration-dir    "resources/migrations-sqlite"}
+                  :migration-dir    "migrations-sqlite"}
            :prod {:store            :database
                   :db               {:datasource #ig/ref :db.sql/connection}
                   :migrate-on-init? true
-                  :migration-dir    "resources/migrations-sqlite"}}}
+                  :migration-dir    "migrations-sqlite"}}}
