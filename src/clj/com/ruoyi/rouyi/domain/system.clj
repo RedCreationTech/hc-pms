@@ -2,6 +2,7 @@
   "系统管理 Integrant 组件注册。"
   (:require
     [integrant.core :as ig]
+    [com.ruoyi.rouyi.domain.gen :as gen]
     [com.ruoyi.rouyi.infra.online :as online]))
 
 (defmethod ig/init-key :app.system/user-service
@@ -44,3 +45,11 @@
                       (mapcat (fn [[k v]] [(keyword (name k)) v]) params)))
    :force-logout  (fn [token-id]
                     (online/force-logout! token-id))})
+
+(defmethod ig/init-key :app.system/gen-service
+  [_ {:keys [query-fn]}]
+  "代码生成器服务组件，封装 gen 领域服务。"
+  {:query-fn query-fn
+   :list-tables (partial gen/list-tables {:query-fn query-fn})
+   :table-columns (partial gen/table-columns {:query-fn query-fn})
+   :generate-code (partial gen/generate-code {:query-fn query-fn})})
