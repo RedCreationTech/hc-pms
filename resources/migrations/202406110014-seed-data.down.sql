@@ -1,0 +1,1 @@
+TRUNCATE TABLE sys_user_role, sys_role_menu, sys_user_post, sys_online, sys_job_log, sys_job, sys_login_log, sys_oper_log, sys_config, sys_dict_data, sys_dict_type, sys_user, sys_post, sys_role, sys_menu, sys_dept CASCADE;

@@ -1,0 +1,18 @@
+{:source-paths ["frontend/src"]
+
+ :dependencies [[reagent "2.0.1"]
+                [re-frame "1.4.3"]
+                [cljs-ajax "0.8.4"]
+                [bidi "2.1.6"]
+                [venantius/accountant "0.2.5"]]
+
+ :builds
+ {:app
+  {:target     :browser
+   :output-dir "resources/public/js"
+   :asset-path "/js"
+   :modules    {:app {:init-fn com.ruoyi.rouyi.frontend.app/init}}
+   :devtools   {:after-load com.ruoyi.rouyi.frontend.app/reload
+                :http-root  "resources/public"
+                :http-port  8700}
+   :compiler-options {:output-feature-set :es8}}}}

@@ -1,0 +1,8 @@
+{:full-name "com.ruoyi/rouyi"
+ :ns-name   "com.ruoyi.rouyi"
+ :sanitized "com/ruoyi/rouyi"
+ :name      "rouyi"
+ :modules   {:root         "modules"
+             :repositories [{:url  "https://github.com/kit-clj/modules.git"
+                             :tag  "master"
+                             :name "kit-modules"}]}}

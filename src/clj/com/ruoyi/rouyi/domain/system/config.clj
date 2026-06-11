@@ -1,0 +1,34 @@
+(ns com.ruoyi.rouyi.domain.system.config
+  "参数配置领域服务。")
+
+(defn list-configs
+  "查询参数配置列表。"
+  [{:keys [query-fn]} params]
+  (query-fn :list-configs params))
+
+(defn find-config-by-id
+  "根据ID查询配置。"
+  [{:keys [query-fn]} config-id]
+  (query-fn :find-config-by-id {:config_id config-id}))
+
+(defn find-config-by-key
+  "根据键名查询配置值。"
+  [{:keys [query-fn]} config-key]
+  (query-fn :find-config-by-key {:config_key config-key}))
+
+(defn create-config!
+  "创建参数配置。"
+  [{:keys [query-fn]} params]
+  (-> (query-fn :create-config! params)
+      first
+      :config_id))
+
+(defn update-config!
+  "更新参数配置。"
+  [{:keys [query-fn]} params]
+  (query-fn :update-config! params))
+
+(defn delete-config!
+  "删除参数配置。"
+  [{:keys [query-fn]} config-id]
+  (query-fn :delete-config! {:config_id config-id}))
