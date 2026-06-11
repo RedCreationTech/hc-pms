@@ -104,11 +104,13 @@
                   :max-active 1
                   :connection-test-query "SELECT 1"
                   :validation-timeout 3000}
-           :prod {:jdbc-url   #env JDBC_URL
+           :prod {:jdbc-url   #or [#env JDBC_URL "jdbc:sqlite:rouyi.db"]
                   :init-size  1
                   :min-idle   1
-                  :max-idle   8
-                  :max-active 32}}
+                  :max-idle   1
+                  :max-active 1
+                  :connection-test-query "SELECT 1"
+                  :validation-timeout 3000}}
 
  :db.sql/query-fn
  {:conn      #ig/ref :db.sql/connection
@@ -127,4 +129,5 @@
                   :migration-dir    "resources/migrations-sqlite"}
            :prod {:store            :database
                   :db               {:datasource #ig/ref :db.sql/connection}
-                  :migrate-on-init? true}}}
+                  :migrate-on-init? true
+                  :migration-dir    "resources/migrations-sqlite"}}}
