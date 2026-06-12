@@ -121,7 +121,7 @@
                   :render (fn [v record]
                             (r/as-element
                              [:a {:style {:cursor "pointer" :color "#1677ff"}
-                                  :on-click #(rf/dispatch [:users/view-detail (.-user_id record)])}
+                                   :on-click #(rf/dispatch [:users/view-detail (.-user_id ^js record)])}
                               v]))})
                (when (get-in columns-config [:nick_name :visible?])
                  {:title "用户昵称" :dataIndex "nick_name" :key "nick_name"})
@@ -138,7 +138,7 @@
                                            :unCheckedChildren "停用"
                                            :on-change (fn [checked?]
                                                         (rf/dispatch [:users/change-status
-                                                                      (.-user_id record)
+                                                                      (.-user_id ^js record)
                                                                       (if checked? "0" "1")]))}]))})
                (when (get-in columns-config [:create_time :visible?])
                  {:title "创建时间" :dataIndex "create_time" :key "create_time" :width 160})
@@ -147,17 +147,17 @@
                           (r/as-element
                            [antd/space
                             [antd/button {:type "link" :size "small"
-                                          :on-click #(rf/dispatch [:users/open-edit (.-user_id record)])}
+                                          :on-click #(rf/dispatch [:users/open-edit (.-user_id ^js record)])}
                              "修改"]
                             [antd/button {:type "link" :danger true :size "small"
-                                          :on-click #(rf/dispatch [:users/delete (.-user_id record)])}
+                                          :on-click #(rf/dispatch [:users/delete (.-user_id ^js record)])}
                              "删除"]
                             [antd/dropdown {:menu {:items (clj->js [{:key "resetPwd" :label (r/as-element [:span "重置密码"])}
                                                                    {:key "authRole" :label (r/as-element [:span "分配角色"])}])
                                                    :onClick (fn [e]
                                                               (case (.-key e)
-                                                                "resetPwd" (rf/dispatch [:users/reset-password (.-user_id record)])
-                                                                "authRole" (rf/dispatch [:users/auth-role (.-user_id record)])
+                                                                "resetPwd" (rf/dispatch [:users/reset-password (.-user_id ^js record)])
+                                                                "authRole" (rf/dispatch [:users/auth-role (.-user_id ^js record)])
                                                                 nil))}}
                              [antd/button {:type "link" :size "small"} "更多 ▾"]]]))}]))))
 

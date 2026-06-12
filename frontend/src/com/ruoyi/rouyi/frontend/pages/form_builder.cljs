@@ -6,6 +6,7 @@
    [re-frame.core :as rf]
    ["@ant-design/icons" :refer [PlusOutlined DeleteOutlined DragOutlined EyeOutlined CodeOutlined
                                 CopyOutlined ClearOutlined]]
+   [clojure.string :as str]
    [com.ruoyi.rouyi.frontend.antd :as antd]))
 
 ;; ─── 组件面板定义 ──────────────────────────────────────────────────
