@@ -163,6 +163,45 @@
 
 ;; ─── 自定义弹窗（替代 antd/modal，避免 antd 6 + Reagent 兼容问题）──
 
+(defn- detail-drawer []
+  (let [visible? @(rf/subscribe [:users/detail-visible?])
+        user @(rf/subscribe [:users/detail-data])]
+    [antd/drawer {:title "用户详情"
+                  :open visible?
+                  :width 500
+                  :onClose #(rf/dispatch [:users/close-detail])}
+     (when user
+       [:div {:style {:padding "0 16px"}}
+        [antd/descriptions {:column 1 :bordered true :size "small"}
+         [antd/descriptions-item {:label "用户编号"} (:user_id user)]
+         [antd/descriptions-item {:label "用户名称"} (:user_name user)]
+         [antd/descriptions-item {:label "用户昵称"} (:nick_name user)]
+         [antd/descriptions-item {:label "部门"} (get-in user [:dept :dept_name] "-")]
+         [antd/descriptions-item {:label "手机号码"} (:phonenumber user "-")]
+         [antd/descriptions-item {:label "邮箱"} (:email user "-")]
+         [antd/descriptions-item {:label "性别"} (case (:sex user "0") "0" "男" "1" "女" "-")]
+         [antd/descriptions-item {:label "状态"} 
+          [antd/tag {:color (if (= (:status user "0") "0") "green" "red")}
+           (if (= (:status user "0") "0") "正常" "停用")]]
+         [antd/descriptions-item {:label "创建时间"} (:create_time user "-")]
+         [antd/descriptions-item {:label "备注"} (:remark user "-")]]
+        ;; 角色信息
+        (when (seq (:roles user))
+          [:div {:style {:marginTop 16}}
+           [:div {:style {:fontWeight 500 :marginBottom 8}} "角色信息"]
+           [:div {:style {:display "flex" :flexWrap "wrap" :gap 4}}
+            (for [role (:roles user)]
+              ^{:key (:role_id role)}
+              [antd/tag {:color "blue"} (:role_name role)])]])
+        ;; 岗位信息
+        (when (seq (:posts user))
+          [:div {:style {:marginTop 16}}
+           [:div {:style {:fontWeight 500 :marginBottom 8}} "岗位信息"]
+           [:div {:style {:display "flex" :flexWrap "wrap" :gap 4}}
+            (for [post (:posts user)]
+              ^{:key (:post_id post)}
+              [antd/tag {:color "cyan"} (:post_name post)])]])])]))
+
 (defn- form-modal []
   (let [visible? @(rf/subscribe [:users/modal-visible?])
         editing? @(rf/subscribe [:users/editing?])
@@ -443,4 +482,5 @@
                                 :onChange (fn [page pageSize]
                                             (rf/dispatch [:users/change-page page pageSize]))}}]
       [form-modal]
-      [reset-password-modal]]]))
+      [reset-password-modal]
+      [detail-drawer]]]))

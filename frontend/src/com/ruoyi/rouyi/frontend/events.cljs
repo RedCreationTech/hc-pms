@@ -727,7 +727,6 @@
 (rf/reg-event-db :depts/set-list
                  (fn [db [_ data]]
                    (let [items (if (sequential? data) data (:rows data []))
-                         _ (js/console.log "[depts/set-list] items count:" (count items))
                          tree (build-dept-tree items 0)
                          _ (js/console.log "[depts/set-list] tree count:" (count tree) "first:" (clj->js (first tree)))]
                      (-> db
