@@ -738,10 +738,10 @@
              (api/update-role id params
                               (fn [result]
                                 (when (= 200 (:code result))
-                                  (antd/success! "权限更新成功")
+                                  (antd/success! "权限更新成功，正在刷新...")
                                   (rf/dispatch [:roles/fetch {}])
-                                  ;; 刷新用户信息以更新菜单
-                                  (rf/dispatch [:auth/fetch-info])))
+                                  ;; 刷新页面以更新菜单
+                                  (js/setTimeout #(.reload js/location) 500)))
                               (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-event-fx :roles/delete

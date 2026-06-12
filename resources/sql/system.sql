@@ -416,3 +416,21 @@ ORDER BY name
 -- :name gen-columns :? :*
 -- :doc 查询指定表的列信息
 SELECT * FROM pragma_table_info(:table-name)
+
+-- :name list-menus-by-role-ids :? :*
+-- :doc 根据角色ID列表查询菜单（包含父菜单）
+SELECT DISTINCT m.menu_id, m.menu_name, m.parent_id, m.order_num, m.path,
+       m.component, m.query, m.route_name, m.is_frame, m.is_cache,
+       m.menu_type, m.visible, m.status, m.perms, m.icon,
+       m.create_by, m.create_time, m.update_by, m.update_time, m.remark
+FROM sys_menu m
+WHERE m.menu_id IN (
+  -- 直接分配的菜单
+  SELECT rm.menu_id FROM sys_role_menu rm WHERE rm.role_id IN (:v*:role-ids)
+  UNION
+  -- 父菜单
+  SELECT DISTINCT m2.parent_id FROM sys_menu m2
+  INNER JOIN sys_role_menu rm2 ON m2.menu_id = rm2.menu_id
+  WHERE rm2.role_id IN (:v*:role-ids) AND m2.parent_id > 0
+)
+ORDER BY m.parent_id, m.order_num

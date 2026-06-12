@@ -67,10 +67,11 @@
         user-id (:user-id identity)]
     (if-let [user (user-service/find-user-by-id user-service user-id)]
       (let [roles (:roles user)
-            perms (->> (mapcat #(role-service/get-role-perms {:query-fn (:query-fn user-service)} (:role_id %)) roles)
+            role-ids (mapv :role_id roles)
+            perms (->> (mapcat #(role-service/get-role-perms {:query-fn (:query-fn user-service)} %) role-ids)
                        (into #{})
                        (vec))
-            menus (menu-service/menu-tree menu-service)]
+            menus (menu-service/menu-tree-by-roles menu-service role-ids)]
         (success {:user (select-keys user [:user_id :user_name :nick_name :avatar :email :phonenumber :sex])
                   :roles (mapv :role_key roles)
                   :permissions perms

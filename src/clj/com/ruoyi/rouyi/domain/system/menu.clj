@@ -43,3 +43,11 @@
   [{:keys [query-fn]}]
   (let [menus (query-fn :list-menus {:menu_name nil :status nil :menu_type nil})]
     (build-tree menus 0)))
+
+(defn menu-tree-by-roles
+  "根据角色ID列表构建菜单树。"
+  [{:keys [query-fn]} role-ids]
+  (if (seq role-ids)
+    (let [menus (query-fn :list-menus-by-role-ids {:role-ids role-ids})]
+      (build-tree menus 0))
+    []))
