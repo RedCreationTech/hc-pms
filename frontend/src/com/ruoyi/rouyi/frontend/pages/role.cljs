@@ -157,8 +157,7 @@
                  :destroyOnHidden true
                  :afterOpenChange (fn [open?]
                                     (when open?
-                                      (rf/dispatch [:roles/fetch-menu-tree])
-                                      (rf/dispatch [:roles/set-checked-keys (mapv str (:menu-ids role []))])))}
+                                      (rf/dispatch [:roles/fetch-menu-tree])))}
      (if (seq menu-tree)
        [antd/tree {:checkable true
                    :defaultExpandAll true

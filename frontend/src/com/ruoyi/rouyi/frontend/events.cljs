@@ -748,11 +748,26 @@
 
 ;; ────── 角色菜单权限 ──────
 
-(rf/reg-event-db :roles/open-permission
+(rf/reg-event-fx :roles/open-permission
+                 (fn [{:keys [db]} [_ role]]
+                   {:db (-> db
+                            (assoc-in [:roles :permission-visible?] true)
+                            (assoc-in [:roles :permission-role] role))
+                    :api/fetch-role-for-permission (:role_id role)}))
+
+(rf/reg-fx :api/fetch-role-for-permission
+           (fn [role-id]
+             (api/get-role role-id
+                           (fn [result]
+                             (when (= 200 (:code result))
+                               (let [role (:data result)]
+                                 (rf/dispatch [:roles/set-permission-role role])
+                                 (rf/dispatch [:roles/set-checked-keys (mapv str (:menu-ids role []))]))))
+                           (fn [_] (antd/error! "获取角色详情失败")))))
+
+(rf/reg-event-db :roles/set-permission-role
                  (fn [db [_ role]]
-                   (-> db
-                       (assoc-in [:roles :permission-visible?] true)
-                       (assoc-in [:roles :permission-role] role))))
+                   (assoc-in db [:roles :permission-role] role)))
 
 (rf/reg-event-db :roles/close-permission
                  (fn [db _]
