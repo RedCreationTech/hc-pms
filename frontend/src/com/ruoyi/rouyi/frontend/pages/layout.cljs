@@ -68,7 +68,8 @@
   (let [tabs @(rf/subscribe [:tabs/items])
         idx (.indexOf (clj->js (mapv :key tabs)) key)
         has-others? (> (count tabs) 1)
-        has-right? (< idx (dec (count tabs)))]
+        has-right? (< idx (dec (count tabs)))
+        tab-ref (hooks/use-ref nil)]
     [:> Dropdown {:menu {:items (tab-context-menu key has-others? has-right?)
                          :onClick (fn [e]
                                     (case (.-key e)
@@ -80,7 +81,9 @@
                                       "refresh" (.reload js/location)
                                       nil))}
                   :trigger (clj->js ["contextMenu"])}
-     [:div {:style {:display "inline-flex"
+     [:div {:ref tab-ref
+            :class (str "tab-item" (when active? " tab-item-active"))
+            :style {:display "inline-flex"
                     :alignItems "center"
                     :height 30
                     :padding "0 12px"
@@ -92,14 +95,30 @@
                     :borderRadius 6
                     :cursor "pointer"
                     :fontSize 13
-                    :transition "all 0.2s"
+                    :transition "all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1)"
+                    :transform (when active? "scale(1.05)")
                     :border "1px solid"
                     :borderColor (if active?
                                    "var(--ant-color-primary, #1677ff)"
                                    "var(--ant-color-border, #d9d9d9)")
-                    :boxShadow (when active? "0 1px 4px rgba(0,0,0,0.12)")
-                    :whiteSpace "nowrap"}
+                    :boxShadow (if active?
+                                 "0 2px 8px rgba(24,144,255,0.35)"
+                                 "0 1px 2px rgba(0,0,0,0.03)")
+                    :whiteSpace "nowrap"
+                    :position "relative"
+                    :overflow "hidden"}
             :on-click #(do (rf/dispatch [:tabs/activate key]) (rf/dispatch [:navigate (keyword key)]))}
+      ;; Active indicator line
+      (when active?
+        [:div {:style {:position "absolute"
+                       :bottom 0
+                       :left "50%"
+                       :transform "translateX(-50%)"
+                       :width "60%"
+                       :height 2
+                       :background "#fff"
+                       :borderRadius 1
+                       :transition "all 0.3s"}}])
       (when (= key :dashboard)
         [:> HomeOutlined {:style {:marginRight 6 :fontSize 12}}])
       [:span label]
@@ -268,6 +287,46 @@
 
 ;; ─── 主布局 ────────────────────────────────────────────────────────
 
+;; ─── Tab 动画样式 ──────────────────────────────────────────────────────
+
+(defn- tab-animation-styles []
+  [:style
+   "
+@keyframes tabSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes tabFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes tabPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1.05); }
+}
+
+.tab-item {
+  animation: tabSlideIn 0.3s ease-out;
+}
+
+.tab-item-active {
+  animation: tabPulse 0.3s ease-out;
+}
+
+.tab-content-enter {
+  animation: tabFadeIn 0.3s ease-out;
+}
+"])
+
 (defn main-layout []
   (let [collapsed (r/atom false)]
     (fn []
@@ -280,6 +339,8 @@
             menu-items (menu->antd-items filtered-menus)
             labels (page-labels user-menus)]
         [:> Layout {:style {:minHeight "100vh"}}
+         ;; Tab 动画样式
+         [tab-animation-styles]
          [:> Layout.Sider {:collapsible true
                            :collapsed @collapsed
                            :onCollapse (fn [v] (reset! collapsed v))
@@ -344,7 +405,9 @@
           ;; Tab 栏
           [tab-bar]
           ;; 内容区
-          [:> Layout.Content {:style {:margin 24} :key (name page)}
+          [:> Layout.Content {:style {:margin 24}
+                              :key (name page)
+                              :class "tab-content-enter"}
            (case page
              :dashboard [dashboard/dashboard-page]
              :user [user/user-page]
