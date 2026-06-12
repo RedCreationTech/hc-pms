@@ -20,7 +20,7 @@
    :roles {:loading? false :items [] :query-params {}}
    :menus {:loading? false :items [] :tree []}
    :depts {:loading? false :items [] :tree []}
-   :posts {:loading? false :items []}
+   :posts {:loading? false :items [] :total 0 :query-params {}}
    :dicts {:loading? false :types [] :data []}
    :configs {:loading? false :items []}
    :notices {:loading? false :items [] :total 0}

@@ -611,6 +611,120 @@
                      {:db (assoc-in db [:roles :permission-visible?] false)
                       :api/update-role [role-id {:role_id role-id :menu-ids (vec menu-ids)}]})))
 
+;; ────── 部门管理 ──────
+
+(rf/reg-event-db :depts/set-list
+                 (fn [db [_ data]]
+                   (assoc-in db [:depts :items] (:rows data))))
+
+(rf/reg-event-fx :depts/fetch
+                 (fn [{:keys [db]} [_ params]]
+                   {:db (assoc-in db [:depts :loading?] true)
+                    :api/list-depts params}))
+
+(rf/reg-fx :api/list-depts
+           (fn [params]
+             (api/list-depts params
+                             (fn [result]
+                               (when (= 200 (:code result))
+                                 (rf/dispatch [:depts/set-list (:data result)])))
+                             (fn [_]))))
+
+(rf/reg-event-db :depts/open-modal
+                 (fn [db _]
+                   (-> db (assoc-in [:depts :modal-visible?] true) (assoc-in [:depts :editing?] false)
+                       (assoc-in [:depts :form-data] {:order_num 0 :status "0"}))))
+
+(rf/reg-event-db :depts/close-modal
+                 (fn [db _] (assoc-in db [:depts :modal-visible?] false)))
+
+(rf/reg-event-db :depts/update-form
+                 (fn [db [_ k v]] (assoc-in db [:depts :form-data k] v)))
+
+(rf/reg-event-db :depts/edit
+                 (fn [db [_ data]]
+                   (-> db (assoc-in [:depts :modal-visible?] true) (assoc-in [:depts :editing?] true)
+                       (assoc-in [:depts :form-data] data))))
+
+(rf/reg-event-fx :depts/submit
+                 (fn [{:keys [db]} _]
+                   (let [data (get-in db [:depts :form-data]) editing? (get-in db [:depts :editing?])]
+                     (if editing?
+                       {:db (assoc-in db [:depts :modal-visible?] false) :api/update-dept [(:dept_id data) data]}
+                       {:db (assoc-in db [:depts :modal-visible?] false) :api/create-dept data}))))
+
+(rf/reg-fx :api/create-dept
+           (fn [params]
+             (api/create-dept params (fn [r] (when (= 200 (:code r)) (.success js/antd.message "创建成功") (rf/dispatch [:depts/fetch {}]))) (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-fx :api/update-dept
+           (fn [[id params]]
+             (api/update-dept id params (fn [r] (when (= 200 (:code r)) (.success js/antd.message "更新成功") (rf/dispatch [:depts/fetch {}]))) (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-event-fx :depts/delete
+                 (fn [_ [_ id]] {:api/delete-dept id}))
+
+(rf/reg-fx :api/delete-dept
+           (fn [id]
+             (api/delete-dept id (fn [r] (when (= 200 (:code r)) (.success js/antd.message "删除成功") (rf/dispatch [:depts/fetch {}]))) (fn [_] (.error js/antd.message "网络错误")))))
+
+;; ────── 岗位管理 ──────
+
+(rf/reg-event-db :posts/set-list
+                 (fn [db [_ data]]
+                   (-> db (assoc-in [:posts :items] (:rows data)) (assoc-in [:posts :total] (:total data)) (assoc-in [:posts :loading?] false))))
+
+(rf/reg-event-db :posts/update-query
+                 (fn [db [_ k v]] (assoc-in db [:posts :query-params k] v)))
+
+(rf/reg-event-db :posts/reset-query
+                 (fn [db _] (assoc-in db [:posts :query-params] {})))
+
+(rf/reg-event-fx :posts/fetch
+                 (fn [{:keys [db]} [_ params]]
+                   {:db (assoc-in db [:posts :loading?] true) :api/list-posts params}))
+
+(rf/reg-fx :api/list-posts
+           (fn [params]
+             (api/list-posts params
+                             (fn [r] (when (= 200 (:code r)) (rf/dispatch [:posts/set-list (:data r)])))
+                             (fn [_]))))
+
+(rf/reg-event-db :posts/open-modal
+                 (fn [db _]
+                   (-> db (assoc-in [:posts :modal-visible?] true) (assoc-in [:posts :editing?] false)
+                       (assoc-in [:posts :form-data] {:post_sort 0 :status "0"}))))
+
+(rf/reg-event-db :posts/close-modal
+                 (fn [db _] (assoc-in db [:posts :modal-visible?] false)))
+
+(rf/reg-event-db :posts/update-form
+                 (fn [db [_ k v]] (assoc-in db [:posts :form-data k] v)))
+
+(rf/reg-event-db :posts/edit
+                 (fn [db [_ data]]
+                   (-> db (assoc-in [:posts :modal-visible?] true) (assoc-in [:posts :editing?] true)
+                       (assoc-in [:posts :form-data] data))))
+
+(rf/reg-event-fx :posts/submit
+                 (fn [{:keys [db]} _]
+                   (let [data (get-in db [:posts :form-data]) editing? (get-in db [:posts :editing?])]
+                     (if editing?
+                       {:db (assoc-in db [:posts :modal-visible?] false) :api/update-post [(:post_id data) data]}
+                       {:db (assoc-in db [:posts :modal-visible?] false) :api/create-post data}))))
+
+(rf/reg-fx :api/create-post
+           (fn [params] (api/create-post params (fn [r] (when (= 200 (:code r)) (.success js/antd.message "创建成功") (rf/dispatch [:posts/fetch {}]))) (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-fx :api/update-post
+           (fn [[id params]] (api/update-post id params (fn [r] (when (= 200 (:code r)) (.success js/antd.message "更新成功") (rf/dispatch [:posts/fetch {}]))) (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-event-fx :posts/delete
+                 (fn [_ [_ id]] {:api/delete-post id}))
+
+(rf/reg-fx :api/delete-post
+           (fn [id] (api/delete-post id (fn [r] (when (= 200 (:code r)) (.success js/antd.message "删除成功") (rf/dispatch [:posts/fetch {}]))) (fn [_] (.error js/antd.message "网络错误")))))
+
 ;; ────── 菜单管理 ──────
 
 (rf/reg-event-db :menus/set-list
