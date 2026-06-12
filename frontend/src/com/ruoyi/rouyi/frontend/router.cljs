@@ -67,7 +67,8 @@
       :path-exists? (fn [path]
                       (boolean (match-route path))))
     (vreset! initialized? true)
-    (accountant/dispatch-current!)
+    ;; 延迟 dispatch-current 确保 configure-navigation! 完成
+    (js/setTimeout #(accountant/dispatch-current!) 0)
     (catch js/Error e
       (js/console.warn "router: init failed" (.-message e)))))
 
