@@ -210,11 +210,15 @@
              :put    {:summary "更新任务" :parameters {:path PathId}
                       :handler (partial job/update-job {:query-fn (:query-fn user-service)})}
              :delete {:summary "删除任务" :parameters {:path PathId}
-                      :handler (partial job/delete-job {:query-fn (:query-fn user-service)})}}]]
+                      :handler (partial job/delete-job {:query-fn (:query-fn user-service)})}}]
+    ["/:id/changeStatus" {:put {:summary "修改任务状态" :handler (partial job/change-status {:query-fn (:query-fn user-service)})}}]
+    ["/:id/run" {:put {:summary "执行一次" :handler (partial job/run-once {})}}]]
 
    ["/job-log"
     ["" {:get {:summary "任务执行日志" :description "查询定时任务执行日志列表"
-               :handler (partial job/list-job-logs {:query-fn (:query-fn user-service)})}}]]
+               :handler (partial job/list-job-logs {:query-fn (:query-fn user-service)})}
+         :delete {:summary "清空日志" :description "清空所有任务执行日志"
+                  :handler (partial job/clean-logs {:query-fn (:query-fn user-service)})}}]]
 
    ["/server" {:get {:summary "服务器监控" :description "JVM/CPU/内存等系统信息"
                      :handler (partial monitor/server-info {})}}]

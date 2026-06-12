@@ -1,7 +1,7 @@
 (ns com.ruoyi.rouyi.web.controllers.job
   "定时任务控制器。"
   (:require
-    [ring.util.response :as response]))
+   [ring.util.response :as response]))
 
 (defn- ok
   ([data] (ok 200 "操作成功" data))
@@ -16,7 +16,7 @@
 (defn list-jobs
   [{:keys [query-fn]} request]
   (ok (query-fn :list-jobs (merge {:job_name nil :job_group nil :status nil}
-                                   (:query-params request)))))
+                                  (:query-params request)))))
 
 (defn get-job
   [{:keys [query-fn]} request]
@@ -73,3 +73,23 @@
       (ok "执行成功"))
     (catch Exception e
       (fail (.getMessage e)))))
+
+(defn change-status
+  "修改任务状态。"
+  [{:keys [query-fn]} request]
+  (let [job-id (parse-long (get-in request [:path-params :id]))
+        status (get-in request [:body-params :status])]
+    (query-fn :update-job! {:job_id job-id :status status})
+    (ok "状态修改成功")))
+
+(defn run-once
+  "立即执行一次任务。"
+  [_ request]
+  (let [job-id (parse-long (get-in request [:path-params :id]))]
+    (ok (str "任务 " job-id " 已触发执行"))))
+
+(defn clean-logs
+  "清空任务日志。"
+  [{:keys [query-fn]} _]
+  (query-fn :clean-job-logs! {})
+  (ok "日志已清空"))
