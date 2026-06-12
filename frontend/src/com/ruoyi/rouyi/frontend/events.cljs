@@ -631,17 +631,15 @@
 (rf/reg-fx :api/import-users
            (fn [file]
              (api/import-users-csv file
-<<<<<<< HEAD
-                                   (fn [r] (when (= 200 (:code r)) (antd/success! (str "成功导入 " (:imported (:data r)) " 个用户")) (rf/dispatch [:users/fetch {}])))
-                                   (fn [_] (antd/error! "导入失败")))))
-=======
                                    (fn [r]
+                                     (rf/dispatch [:users/set-import-loading false])
                                      (when (= 200 (:code r))
-                                       (.success js/antd.message (str "导入完成：成功 " (:success (:data r)) " 条，失败 " (:failed (:data r)) " 条"))
+                                       (antd/success! (str "导入完成：成功 " (:success (:data r)) " 条，失败 " (:failed (:data r)) " 条"))
                                        (rf/dispatch [:users/close-import])
                                        (rf/dispatch [:users/fetch {}])))
-                                   (fn [_] (.error js/antd.message "导入失败")))))
->>>>>>> f6f9cf7 (feat: 用户导入导出功能 (rc-l9a))
+                                   (fn [_]
+                                     (rf/dispatch [:users/set-import-loading false])
+                                     (antd/error! "导入失败")))))
 
 (rf/reg-event-fx :users/export
                  (fn [{:keys [db]} _]
@@ -653,7 +651,7 @@
              (api/export-users-csv
               params
               (fn [csv-data]
-                (let [blob (js/Blob. #js [csv-data] #js {:type "text/csv;charset=utf-8;bom="\uFEFF""})
+                (let [blob (js/Blob. #js [csv-data] #js {:type "text/csv;charset=utf-8"})
                       url (js/URL.createObjectURL blob)
                       link (.createElement js/document "a")]
                   (set! (.-href link) url)
