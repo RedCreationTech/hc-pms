@@ -733,6 +733,17 @@
                                   (rf/dispatch [:roles/fetch {}])))
                               (fn [_] (antd/error! "网络错误")))))
 
+(rf/reg-fx :api/update-role-and-refresh
+           (fn [[id params]]
+             (api/update-role id params
+                              (fn [result]
+                                (when (= 200 (:code result))
+                                  (antd/success! "权限更新成功")
+                                  (rf/dispatch [:roles/fetch {}])
+                                  ;; 刷新用户信息以更新菜单
+                                  (rf/dispatch [:auth/fetch-info])))
+                              (fn [_] (antd/error! "网络错误")))))
+
 (rf/reg-event-fx :roles/delete
                  (fn [_ [_ id]]
                    {:api/delete-role id}))
@@ -868,7 +879,7 @@
                          menu-ids (get-in db [:roles :checked-keys] [])
                          menu-ids-int (mapv (fn [x] (if (string? x) (parse-long x) x)) menu-ids)]
                      {:db (assoc-in db [:roles :permission-visible?] false)
-                      :api/update-role [role-id {:role_id role-id :menu-ids menu-ids-int}]})))
+                      :api/update-role-and-refresh [role-id {:role_id role-id :menu-ids menu-ids-int}]})))
 
 ;; ────── 部门管理 ──────
 
