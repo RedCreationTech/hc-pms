@@ -1475,3 +1475,7 @@
                      (if editing
                        {:api/update-user [(:user_id editing) form-data]}
                        {:api/create-user form-data}))))
+
+(rf/reg-event-db :users/close-reset-password
+  (fn [db _]
+    (assoc-in db [:users :reset-pwd-visible?] false)))
