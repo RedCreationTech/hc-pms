@@ -1387,13 +1387,7 @@
 
 (rf/reg-event-db :users/toggle-column
                  (fn [db [_ col-key]]
-                   (let [columns (get-in db [:users :columns] [])]
-                     (assoc-in db [:users :columns]
-                               (mapv (fn [c]
-                                       (if (= (:key c) col-key)
-                                         (update c :visible? not)
-                                         c))
-                                     columns)))))
+                   (update-in db [:users :columns col-key :visible?] not)))
 
 (rf/reg-event-fx :users/create
                  (fn [{:keys [db]} [_ params]]
