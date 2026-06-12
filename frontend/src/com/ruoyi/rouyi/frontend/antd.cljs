@@ -48,6 +48,9 @@
 (defn error! [text]
   (.error message text))
 
+(defn warning! [text]
+  (.warning message text))
+
 (def user-icon (r/adapt-react-class UserOutlined))
 (def lock-icon (r/adapt-react-class LockOutlined))
 (def dashboard-icon (r/adapt-react-class DashboardOutlined))

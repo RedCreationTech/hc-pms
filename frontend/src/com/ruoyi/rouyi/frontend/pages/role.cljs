@@ -1,5 +1,5 @@
 (ns com.ruoyi.rouyi.frontend.pages.role
-  "角色管理页面 — 搜索、CRUD、菜单权限分配。"
+  "角色管理页面 — 搜索、CRUD、菜单/数据/用户权限分配。"
   (:require
    [reagent.core :as r]
    [reagent.hooks :as hooks]
@@ -27,6 +27,24 @@
     (if-let [children (seq (:children dept))]
       (assoc node :children (mapv dept->tree-node children))
       node)))
+
+(defn- user-columns [action-label on-action]
+  #js [#js {:title "用户编号" :dataIndex "user_id" :key "user_id" :width 80}
+       #js {:title "用户名称" :dataIndex "user_name" :key "user_name"}
+       #js {:title "用户昵称" :dataIndex "nick_name" :key "nick_name"}
+       #js {:title "手机号" :dataIndex "phonenumber" :key "phonenumber" :width 130}
+       #js {:title "状态" :dataIndex "status" :key "status" :width 80
+            :render (fn [v _]
+                      (r/as-element
+                       [antd/tag {:color (if (= v "0") "green" "red")}
+                        (if (= v "0") "正常" "停用")]))}
+       #js {:title "创建时间" :dataIndex "create_time" :key "create_time" :width 170}
+       #js {:title "操作" :key "action" :width 100
+            :render (fn [_ ^js record]
+                      (r/as-element
+                       [antd/button {:type "link" :size "small"
+                                     :on-click #(on-action (.-user_id record))}
+                        action-label]))}])
 
 ;; ─── 搜索表单 ──────────────────────────────────────────────────────
 
@@ -106,22 +124,23 @@
                                                                 (.-role_id record)
                                                                 (if checked? "0" "1")]))}]))}
        #js {:title "创建时间" :dataIndex "create_time" :key "create_time" :width 180}
-       #js {:title "操作" :key "action" :width 220
+       #js {:title "操作" :key "action" :width 260
             :render (fn [_ ^js record]
                       (r/as-element
-                       [([antd/button {:type "link" :size "small"
-                                      :on-click #(rf/dispatch [:roles/open-user-alloc (js->clj record :keywordize-keys true)])}
-                         "分配用户"])
+                       [:div
                         [antd/button {:type "link" :size "small"
-                                      :on-click #(rf/dispatch [:roles/open-data-scope (js->clj record :keywordize-keys true)])}
+                                     :on-click #(rf/dispatch [:roles/open-user-alloc (js->clj record :keywordize-keys true)])}
+                         "分配用户"]
+                        [antd/button {:type "link" :size "small"
+                                     :on-click #(rf/dispatch [:roles/open-data-scope (js->clj record :keywordize-keys true)])}
                          "数据权限"]
                         [antd/button {:type "link" :size "small"
-                                      :icon (r/as-element [:> SafetyOutlined])
-                                      :on-click #(rf/dispatch [:roles/open-permission (js->clj record :keywordize-keys true)])}
+                                     :icon (r/as-element [:> SafetyOutlined])
+                                     :on-click #(rf/dispatch [:roles/open-permission (js->clj record :keywordize-keys true)])}
                          "分配权限"]
                         [antd/button {:type "link" :size "small"
-                                      :icon (r/as-element [:> EditOutlined])
-                                      :on-click #(rf/dispatch [:roles/edit (js->clj record :keywordize-keys true)])}
+                                     :icon (r/as-element [:> EditOutlined])
+                                     :on-click #(rf/dispatch [:roles/edit (js->clj record :keywordize-keys true)])}
                          "编辑"]
                         [antd/popconfirm {:title "确认删除该角色？"
                                           :onConfirm #(rf/dispatch [:roles/delete (.-role_id record)])}
@@ -220,14 +239,113 @@
          [:div {:style {:textAlign "center" :padding 24 :color "#999"}}
           "加载部门树中..."]))]))
 
+;; ─── 用户分配弹窗 ──────────────────────────────────────────────────────
+
+(defn- user-alloc-search [query-sub dispatch-update dispatch-reset dispatch-fetch]
+  (let [query @(rf/subscribe query-sub)]
+    [:div {:style {:display "flex" :gap 8 :marginBottom 12}}
+     [antd/input {:placeholder "用户名称"
+                  :value (:user_name query "")
+                  :on-change #(rf/dispatch [dispatch-update :user_name (.. % -target -value)])}]
+     [antd/input {:placeholder "手机号码"
+                  :value (:phonenumber query "")
+                  :on-change #(rf/dispatch [dispatch-update :phonenumber (.. % -target -value)])}]
+     [antd/button {:type "primary" :icon (r/as-element [:> SearchOutlined])
+                   :on-click #(rf/dispatch [dispatch-fetch])}
+      "搜索"]
+     [antd/button {:icon (r/as-element [:> ReloadOutlined])
+                   :on-click #(do (rf/dispatch [dispatch-reset])
+                                  (rf/dispatch [dispatch-fetch]))}
+      "重置"]]))
+
+(defn- user-alloc-table [items-sub total-sub loading?-sub selected-sub set-selected-event fetch-event action-label action-event]
+  (let [items @(rf/subscribe items-sub)
+        total @(rf/subscribe total-sub)
+        loading? @(rf/subscribe loading?-sub)
+        selected @(rf/subscribe selected-sub)]
+    [:div
+     [antd/table {:scroll #js {:x "max-content"}
+                  :rowKey "user_id"
+                  :columns (user-columns action-label #(rf/dispatch [action-event %]))
+                  :dataSource (clj->js items)
+                  :loading loading?
+                  :rowSelection #js {:selectedRowKeys (clj->js (mapv str selected))
+                                     :onChange (fn [keys _]
+                                                 (rf/dispatch [set-selected-event (js->clj keys)]))}
+                  :pagination {:total total
+                               :pageSize 10
+                               :showSizeChanger true
+                               :showTotal (fn [t] (str "共 " t " 条"))}}]]))
+
+(defn- user-alloc-modal []
+  (let [visible? @(rf/subscribe [:roles/user-alloc-visible?])
+        role @(rf/subscribe [:roles/user-alloc-role])
+        active-tab @(rf/subscribe [:roles/user-alloc-active-tab])]
+    [antd/modal {:title (str "分配用户 - " (:role_name role))
+                 :open visible?
+                 :width 760
+                 :footer nil
+                 :onCancel #(rf/dispatch [:roles/close-user-alloc])
+                 :destroyOnHidden true
+                 :afterOpenChange (fn [open?]
+                                    (when open?
+                                      (rf/dispatch [:roles/fetch-allocated])))}
+     [antd/tabs {:activeKey active-tab
+                 :onChange (fn [key]
+                             (rf/dispatch [:roles/set-user-alloc-active-tab key])
+                             (if (= key "allocated")
+                               (rf/dispatch [:roles/fetch-allocated])
+                               (rf/dispatch [:roles/fetch-unallocated])))}
+      {:key "allocated"
+       :label "已分配用户"
+       :children (r/as-element
+                  [:div
+                   [user-alloc-search :roles/allocated-query
+                    :roles/set-allocated-query
+                    :roles/reset-allocated-query
+                    :roles/fetch-allocated]
+                   [user-alloc-table :roles/allocated-items
+                    :roles/allocated-total
+                    :roles/allocated-loading?
+                    :roles/allocated-selected
+                    :roles/set-allocated-selected
+                    :roles/fetch-allocated
+                    "取消授权"
+                    :roles/cancel-user]
+                   [:div {:style {:marginTop 12 :textAlign "right"}}
+                    [antd/button {:danger true
+                                  :on-click #(rf/dispatch [:roles/cancel-all-users])}
+                     "批量取消授权"]]])}
+      {:key "unallocated"
+       :label "未分配用户"
+       :children (r/as-element
+                  [:div
+                   [user-alloc-search :roles/unallocated-query
+                    :roles/set-unallocated-query
+                    :roles/reset-unallocated-query
+                    :roles/fetch-unallocated]
+                   [user-alloc-table :roles/unallocated-items
+                    :roles/unallocated-total
+                    :roles/unallocated-loading?
+                    :roles/unallocated-selected
+                    :roles/set-unallocated-selected
+                    :roles/fetch-unallocated
+                    "选择"
+                    :roles/select-all-users]
+                   [:div {:style {:marginTop 12 :textAlign "right"}}
+                    [antd/button {:type "primary"
+                                  :on-click #(rf/dispatch [:roles/select-all-users])}
+                     "批量选择授权"]]])}]]))
+
 ;; ─── 主页面 ──────────────────────────────────────────────────────
 
-(;; ─── 用户分配弹窗 ──────────────────────────────────────────────────────
- defn role-page [] (hooks/use-effect
+(defn role-page []
+  (hooks/use-effect
    (fn []
      (rf/dispatch [:roles/fetch {}])
      js/undefined)
-   []) (let [items @(rf/subscribe [:roles/items])
+   [])
+  (let [items @(rf/subscribe [:roles/items])
         total @(rf/subscribe [:roles/total])
         loading? @(rf/subscribe [:roles/loading?])]
     [:div

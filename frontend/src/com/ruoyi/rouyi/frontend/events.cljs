@@ -950,10 +950,167 @@
                                           (rf/dispatch [:roles/fetch {}])))
                                       (fn [_] (antd/error! "设置失败")))))
 
+;; ────── 角色用户分配 ──────
+
+(rf/reg-event-fx :roles/open-user-alloc
+                 (fn [{:keys [db]} [_ role]]
+                   {:db (-> db
+                            (assoc-in [:roles :user-alloc-visible?] true)
+                            (assoc-in [:roles :user-alloc-role] role)
+                            (assoc-in [:roles :user-alloc-active-tab] "allocated")
+                            (assoc-in [:roles :allocated-query] {})
+                            (assoc-in [:roles :unallocated-query] {})
+                            (assoc-in [:roles :allocated-selected] [])
+                            (assoc-in [:roles :unallocated-selected] [])
+                            (assoc-in [:roles :allocated-items] [])
+                            (assoc-in [:roles :unallocated-items] [])
+                            (assoc-in [:roles :allocated-total] 0)
+                            (assoc-in [:roles :unallocated-total] 0))
+                    :api/list-role-allocated-users {:role_id (:role_id role)}}))
+
+(rf/reg-event-db :roles/close-user-alloc
+                 (fn [db _]
+                   (assoc-in db [:roles :user-alloc-visible?] false)))
+
+(rf/reg-event-db :roles/set-user-alloc-active-tab
+                 (fn [db [_ tab]]
+                   (assoc-in db [:roles :user-alloc-active-tab] tab)))
+
+(rf/reg-event-db :roles/set-allocated-query
+                 (fn [db [_ k v]]
+                   (assoc-in db [:roles :allocated-query k] v)))
+
+(rf/reg-event-db :roles/reset-allocated-query
+                 (fn [db _]
+                   (assoc-in db [:roles :allocated-query] {})))
+
+(rf/reg-event-fx :roles/fetch-allocated
+                 (fn [{:keys [db]} _]
+                   (let [role (get-in db [:roles :user-alloc-role])
+                         query (get-in db [:roles :allocated-query] {})]
+                     {:db (assoc-in db [:roles :allocated-loading?] true)
+                      :api/list-role-allocated-users (merge {:role_id (:role_id role)} query)})))
+
+(rf/reg-event-db :roles/set-allocated-list
+                 (fn [db [_ data]]
+                   (let [items (if (sequential? data) data (:rows data []))
+                         total (if (sequential? data) (count data) (:total data 0))]
+                     (-> db
+                         (assoc-in [:roles :allocated-items] items)
+                         (assoc-in [:roles :allocated-total] total)
+                         (assoc-in [:roles :allocated-loading?] false)))))
+
+(rf/reg-event-db :roles/set-allocated-selected
+                 (fn [db [_ keys]]
+                   (assoc-in db [:roles :allocated-selected] keys)))
+
+(rf/reg-event-db :roles/set-unallocated-query
+                 (fn [db [_ k v]]
+                   (assoc-in db [:roles :unallocated-query k] v)))
+
+(rf/reg-event-db :roles/reset-unallocated-query
+                 (fn [db _]
+                   (assoc-in db [:roles :unallocated-query] {})))
+
+(rf/reg-event-fx :roles/fetch-unallocated
+                 (fn [{:keys [db]} _]
+                   (let [role (get-in db [:roles :user-alloc-role])
+                         query (get-in db [:roles :unallocated-query] {})]
+                     {:db (assoc-in db [:roles :unallocated-loading?] true)
+                      :api/list-role-unallocated-users (merge {:role_id (:role_id role)} query)})))
+
+(rf/reg-event-db :roles/set-unallocated-list
+                 (fn [db [_ data]]
+                   (let [items (if (sequential? data) data (:rows data []))
+                         total (if (sequential? data) (count data) (:total data 0))]
+                     (-> db
+                         (assoc-in [:roles :unallocated-items] items)
+                         (assoc-in [:roles :unallocated-total] total)
+                         (assoc-in [:roles :unallocated-loading?] false)))))
+
+(rf/reg-event-db :roles/set-unallocated-selected
+                 (fn [db [_ keys]]
+                   (assoc-in db [:roles :unallocated-selected] keys)))
+
+(rf/reg-fx :api/list-role-allocated-users
+           (fn [params]
+             (api/list-role-allocated-users
+              params
+              (fn [result]
+                (when (= 200 (:code result))
+                  (rf/dispatch [:roles/set-allocated-list (:data result)])))
+              (fn [_] (rf/dispatch [:roles/set-allocated-list []])))))
+
+(rf/reg-fx :api/list-role-unallocated-users
+           (fn [params]
+             (api/list-role-unallocated-users
+              params
+              (fn [result]
+                (when (= 200 (:code result))
+                  (rf/dispatch [:roles/set-unallocated-list (:data result)])))
+              (fn [_] (rf/dispatch [:roles/set-unallocated-list []])))))
+
+(rf/reg-event-fx :roles/cancel-user
+                 (fn [{:keys [db]} [_ user-id]]
+                   (let [role (get-in db [:roles :user-alloc-role])]
+                     {:api/cancel-role-auth-user {:role_id (:role_id role) :user_id user-id}})))
+
+(rf/reg-fx :api/cancel-role-auth-user
+           (fn [params]
+             (api/cancel-role-auth-user
+              params
+              (fn [result]
+                (when (= 200 (:code result))
+                  (antd/success! "取消授权成功")
+                  (rf/dispatch [:roles/fetch-allocated])))
+              (fn [_] (antd/error! "取消授权失败")))))
+
+(rf/reg-event-fx :roles/cancel-all-users
+                 (fn [{:keys [db]} _]
+                   (let [role (get-in db [:roles :user-alloc-role])
+                         ids (get-in db [:roles :allocated-selected] [])]
+                     (if (seq ids)
+                       {:api/cancel-role-auth-user-all {:role_id (:role_id role)
+                                                        :user_ids (clojure.string/join "," ids)}}
+                       (do (antd/warning! "请选择要取消授权的用户")
+                           {:db db})))))
+
+(rf/reg-fx :api/cancel-role-auth-user-all
+           (fn [params]
+             (api/cancel-role-auth-user-all
+              params
+              (fn [result]
+                (when (= 200 (:code result))
+                  (antd/success! "批量取消授权成功")
+                  (rf/dispatch [:roles/fetch-allocated])
+                  (rf/dispatch [:roles/set-allocated-selected []])))
+              (fn [_] (antd/error! "批量取消授权失败")))))
+
+(rf/reg-event-fx :roles/select-all-users
+                 (fn [{:keys [db]} _]
+                   (let [role (get-in db [:roles :user-alloc-role])
+                         ids (get-in db [:roles :unallocated-selected] [])]
+                     (if (seq ids)
+                       {:api/select-role-auth-user-all {:role_id (:role_id role)
+                                                        :user_ids (clojure.string/join "," ids)}}
+                       (do (antd/warning! "请选择要授权的用户")
+                           {:db db})))))
+
+(rf/reg-fx :api/select-role-auth-user-all
+           (fn [params]
+             (api/select-role-auth-user-all
+              params
+              (fn [result]
+                (when (= 200 (:code result))
+                  (antd/success! "批量授权成功")
+                  (rf/dispatch [:roles/fetch-unallocated])
+                  (rf/dispatch [:roles/set-unallocated-selected []])))
+              (fn [_] (antd/error! "批量授权失败")))))
+
 ;; ────── 部门管理 ──────
 
-(;; ────── 角色用户分配 ──────
- rf/reg-event-db :depts/set-list (fn [db [_ data]]
+(rf/reg-event-db :depts/set-list
+                 (fn [db [_ data]]
                    (let [items (if (sequential? data) data (:rows data []))
                          tree (build-dept-tree items 0)
                          _ (js/console.log "[depts/set-list] tree count:" (count tree) "first:" (clj->js (first tree)))]
