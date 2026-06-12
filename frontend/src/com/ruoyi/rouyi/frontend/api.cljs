@@ -112,6 +112,54 @@
   (request {:method :delete :uri (str "/system/role/" id)
             :on-success on-success :on-error on-error}))
 
+(defn change-role-status
+  "修改角色状态。"
+  [id status on-success on-error]
+  (request {:method :put :uri (str "/system/role/" id) :params {:status status}
+            :on-success on-success :on-error on-error}))
+
+(defn get-role-dept-tree
+  "获取角色部门树。"
+  [role-id on-success on-error]
+  (request {:method :get :uri (str "/system/role/deptTree/" role-id)
+            :on-success on-success :on-error on-error}))
+
+(defn set-role-data-scope
+  "设置角色数据权限。"
+  [params on-success on-error]
+  (request {:method :put :uri "/system/role/dataScope" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn list-role-allocated-users
+  "获取角色已分配用户。"
+  [params on-success on-error]
+  (request {:method :get :uri "/system/role/authUser/allocatedList" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn list-role-unallocated-users
+  "获取角色未分配用户。"
+  [params on-success on-error]
+  (request {:method :get :uri "/system/role/authUser/unallocatedList" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn cancel-role-auth-user
+  "取消用户角色授权。"
+  [params on-success on-error]
+  (request {:method :put :uri "/system/role/authUser/cancel" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn cancel-role-auth-user-all
+  "批量取消用户角色授权。"
+  [params on-success on-error]
+  (request {:method :put :uri "/system/role/authUser/cancelAll" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn select-role-auth-user-all
+  "批量授权用户角色。"
+  [params on-success on-error]
+  (request {:method :put :uri "/system/role/authUser/selectAll" :params params
+            :on-success on-success :on-error on-error}))
+
 ;; ─── 菜单管理 ──────────────────────────────────────────────────────
 
 (defn list-menus
@@ -136,6 +184,12 @@
   "删除菜单。"
   [id on-success on-error]
   (request {:method :delete :uri (str "/system/menu/" id)
+            :on-success on-success :on-error on-error}))
+
+(defn change-menu-status
+  "修改菜单状态。"
+  [id status on-success on-error]
+  (request {:method :put :uri (str "/system/menu/" id) :params {:status status}
             :on-success on-success :on-error on-error}))
 
 ;; ─── 部门管理 ──────────────────────────────────────────────────────
@@ -164,6 +218,12 @@
   (request {:method :delete :uri (str "/system/dept/" id)
             :on-success on-success :on-error on-error}))
 
+(defn change-dept-status
+  "修改部门状态。"
+  [id status on-success on-error]
+  (request {:method :put :uri (str "/system/dept/" id) :params {:status status}
+            :on-success on-success :on-error on-error}))
+
 ;; ─── 岗位管理 ──────────────────────────────────────────────────────
 
 (defn list-posts
@@ -188,6 +248,12 @@
   "删除岗位。"
   [id on-success on-error]
   (request {:method :delete :uri (str "/system/post/" id)
+            :on-success on-success :on-error on-error}))
+
+(defn change-post-status
+  "修改岗位状态。"
+  [id status on-success on-error]
+  (request {:method :put :uri (str "/system/post/" id) :params {:status status}
             :on-success on-success :on-error on-error}))
 
 (defn list-dict-types
@@ -344,7 +410,7 @@
 (defn menu-tree
   "获取菜单树（用于角色权限分配）。"
   [on-success on-error]
-  (request {:method :get :uri "/system/menu-tree"
+  (request {:method :get :uri "/system/menu/treeselect"
             :on-success on-success :on-error on-error}))
 
 ;; ─── 配置管理 ──────────────────────────────────────────────────────

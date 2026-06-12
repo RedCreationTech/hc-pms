@@ -748,6 +748,10 @@
                  (fn [_ [_ id]]
                    {:api/delete-role id}))
 
+(rf/reg-event-fx :roles/change-status
+                 (fn [_ [_ id status]]
+                   {:api/change-role-status [id status]}))
+
 (rf/reg-fx :api/delete-role
            (fn [id]
              (api/delete-role id
@@ -756,6 +760,15 @@
                                   (antd/success! "删除成功")
                                   (rf/dispatch [:roles/fetch {}])))
                               (fn [_] (antd/error! "网络错误")))))
+
+(rf/reg-fx :api/change-role-status
+           (fn [[id status]]
+             (api/change-role-status id status
+                                     (fn [result]
+                                       (when (= 200 (:code result))
+                                         (antd/success! "状态修改成功")
+                                         (rf/dispatch [:roles/fetch {}])))
+                                     (fn [_] (antd/error! "网络错误")))))
 
 ;; ────── 角色菜单权限 ──────
 
@@ -881,10 +894,66 @@
                      {:db (assoc-in db [:roles :permission-visible?] false)
                       :api/update-role-and-refresh [role-id {:role_id role-id :menu-ids menu-ids-int}]})))
 
+;; ────── 角色数据权限 ──────
+
+(rf/reg-event-fx :roles/open-data-scope
+                 (fn [{:keys [db]} [_ role]]
+                   {:db (-> db
+                            (assoc-in [:roles :data-scope-visible?] true)
+                            (assoc-in [:roles :data-scope-role] role)
+                            (assoc-in [:roles :data-scope] (or (:data_scope role) "1"))
+                            (assoc-in [:roles :data-scope-checked-keys] []))
+                    :api/fetch-role-dept-tree (:role_id role)}))
+
+(rf/reg-event-db :roles/close-data-scope
+                 (fn [db _]
+                   (assoc-in db [:roles :data-scope-visible?] false)))
+
+(rf/reg-event-db :roles/set-data-scope
+                 (fn [db [_ data-scope]]
+                   (assoc-in db [:roles :data-scope] data-scope)))
+
+(rf/reg-event-db :roles/set-data-scope-checked-keys
+                 (fn [db [_ keys]]
+                   (assoc-in db [:roles :data-scope-checked-keys] keys)))
+
+(rf/reg-event-db :roles/set-dept-tree-and-keys
+                 (fn [db [_ result]]
+                   (-> db
+                       (assoc-in [:roles :data-scope-dept-tree] (:depts result []))
+                       (assoc-in [:roles :data-scope-checked-keys] (mapv str (:checked-keys result []))))))
+
+(rf/reg-fx :api/fetch-role-dept-tree
+           (fn [role-id]
+             (api/get-role-dept-tree role-id
+                                     (fn [result]
+                                       (when (= 200 (:code result))
+                                         (rf/dispatch [:roles/set-dept-tree-and-keys (:data result)])))
+                                     (fn [_] (antd/error! "获取部门树失败")))))
+
+(rf/reg-event-fx :roles/save-data-scope
+                 (fn [{:keys [db]} _]
+                   (let [role-id (get-in db [:roles :data-scope-role :role_id])
+                         data-scope (get-in db [:roles :data-scope] "1")
+                         dept-ids (get-in db [:roles :data-scope-checked-keys] [])]
+                     {:db (assoc-in db [:roles :data-scope-visible?] false)
+                      :api/save-data-scope {:role_id role-id
+                                            :data_scope data-scope
+                                            :dept_ids (clojure.string/join "," dept-ids)}})))
+
+(rf/reg-fx :api/save-data-scope
+           (fn [params]
+             (api/set-role-data-scope params
+                                      (fn [result]
+                                        (when (= 200 (:code result))
+                                          (antd/success! "数据权限设置成功")
+                                          (rf/dispatch [:roles/fetch {}])))
+                                      (fn [_] (antd/error! "设置失败")))))
+
 ;; ────── 部门管理 ──────
 
-(rf/reg-event-db :depts/set-list
-                 (fn [db [_ data]]
+(;; ────── 角色用户分配 ──────
+ rf/reg-event-db :depts/set-list (fn [db [_ data]]
                    (let [items (if (sequential? data) data (:rows data []))
                          tree (build-dept-tree items 0)
                          _ (js/console.log "[depts/set-list] tree count:" (count tree) "first:" (clj->js (first tree)))]
@@ -961,9 +1030,22 @@
 (rf/reg-event-fx :depts/delete
                  (fn [_ [_ id]] {:api/delete-dept id}))
 
+(rf/reg-event-fx :depts/change-status
+                 (fn [_ [_ id status]]
+                   {:api/change-dept-status [id status]}))
+
 (rf/reg-fx :api/delete-dept
            (fn [id]
              (api/delete-dept id (fn [r] (when (= 200 (:code r)) (antd/success! "删除成功") (rf/dispatch [:depts/fetch {}]))) (fn [_] (antd/error! "网络错误")))))
+
+(rf/reg-fx :api/change-dept-status
+           (fn [[id status]]
+             (api/change-dept-status id status
+                                     (fn [result]
+                                       (when (= 200 (:code result))
+                                         (antd/success! "状态修改成功")
+                                         (rf/dispatch [:depts/fetch {}])))
+                                     (fn [_] (antd/error! "网络错误")))))
 
 ;; ────── 岗位管理 ──────
 
@@ -1021,8 +1103,21 @@
 (rf/reg-event-fx :posts/delete
                  (fn [_ [_ id]] {:api/delete-post id}))
 
+(rf/reg-event-fx :posts/change-status
+                 (fn [_ [_ id status]]
+                   {:api/change-post-status [id status]}))
+
 (rf/reg-fx :api/delete-post
            (fn [id] (api/delete-post id (fn [r] (when (= 200 (:code r)) (antd/success! "删除成功") (rf/dispatch [:posts/fetch {}]))) (fn [_] (antd/error! "网络错误")))))
+
+(rf/reg-fx :api/change-post-status
+           (fn [[id status]]
+             (api/change-post-status id status
+                                     (fn [result]
+                                       (when (= 200 (:code result))
+                                         (antd/success! "状态修改成功")
+                                         (rf/dispatch [:posts/fetch {}])))
+                                     (fn [_] (antd/error! "网络错误")))))
 
 ;; ────── 服务器监控 ──────
 
@@ -1446,6 +1541,10 @@
                  (fn [_ [_ id]]
                    {:api/delete-menu id}))
 
+(rf/reg-event-fx :menus/change-status
+                 (fn [_ [_ id status]]
+                   {:api/change-menu-status [id status]}))
+
 (rf/reg-fx :api/delete-menu
            (fn [id]
              (api/delete-menu id
@@ -1454,6 +1553,15 @@
                                   (antd/success! "删除成功")
                                   (rf/dispatch [:menus/fetch])))
                               (fn [_] (antd/error! "网络错误")))))
+
+(rf/reg-fx :api/change-menu-status
+           (fn [[id status]]
+             (api/change-menu-status id status
+                                     (fn [result]
+                                       (when (= 200 (:code result))
+                                         (antd/success! "状态修改成功")
+                                         (rf/dispatch [:menus/fetch])))
+                                     (fn [_] (antd/error! "网络错误")))))
 
 ;; ─── 字典类型 CRUD ────────────────────────────────────────────────────────────
 
@@ -1845,7 +1953,8 @@
              (api/change-user-status user-id status
                                      (fn [result]
                                        (when (= 200 (:code result))
-                                         (antd/success! "状态修改成功")))
+                                         (antd/success! "状态修改成功")
+                                         (rf/dispatch [:users/fetch {}])))
                                      (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-fx :api/reset-user-password

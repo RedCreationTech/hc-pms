@@ -59,11 +59,16 @@
        #js {:title "排序" :dataIndex "order_num" :key "order_num" :width 80}
        #js {:title "负责人" :dataIndex "leader" :key "leader" :width 120}
        #js {:title "电话" :dataIndex "phone" :key "phone" :width 150}
-       #js {:title "状态" :dataIndex "status" :key "status" :width 80
-            :render (fn [v _]
+       #js {:title "状态" :dataIndex "status" :key "status" :width 100
+            :render (fn [v ^js record]
                       (r/as-element
-                       [antd/tag {:color (if (= v "0") "green" "red")}
-                        (if (= v "0") "正常" "停用")]))}
+                       [antd/switch {:checked (= v "0")
+                                     :checkedChildren "正常"
+                                     :unCheckedChildren "停用"
+                                     :on-change (fn [checked?]
+                                                  (rf/dispatch [:depts/change-status
+                                                                (.-dept_id record)
+                                                                (if checked? "0" "1")]))}]))}
        #js {:title "创建时间" :dataIndex "create_time" :key "create_time" :width 180}
        #js {:title "操作" :key "action" :width 220
             :render (fn [_ ^js record]

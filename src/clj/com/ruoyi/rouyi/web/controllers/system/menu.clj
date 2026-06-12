@@ -2,7 +2,6 @@
   "菜单管理控制器。"
   (:require
    [com.ruoyi.rouyi.domain.system.menu :as menu-service]
-   [com.ruoyi.rouyi.infra.data-perm :as data-perm]
    [ring.util.response :as response]))
 
 (defn- ok ([data] (ok 200 "操作成功" data))
@@ -15,14 +14,9 @@
       (response/content-type "application/json")))
 
 (defn list-menus
-  "查询菜单列表（带数据权限过滤）。"
+  "查询菜单列表。"
   [{:keys [menu-service]} request]
-  (let [params (:query-params request)
-        identity (:identity request)
-        data-perm-filter (data-perm/data-perm-filter identity "default" :alias "u")
-        params (merge {:menu_name nil :status nil :menu_type nil}
-                      params
-                      (:params data-perm-filter))]
+  (let [params (:query-params request)]
     (ok (menu-service/list-menus menu-service params))))
 
 (defn menu-tree
@@ -57,3 +51,11 @@
   (let [menu-id (parse-long (get-in request [:path-params :id]))]
     (menu-service/delete-menu! menu-service menu-id)
     (ok "删除成功")))
+
+(defn change-status
+  "修改菜单状态。"
+  [{:keys [menu-service]} request]
+  (let [menu-id (parse-long (get-in request [:path-params :id]))
+        status (get-in request [:body-params :status])]
+    (menu-service/update-menu! menu-service {:menu_id menu-id :status status})
+    (ok "状态修改成功")))

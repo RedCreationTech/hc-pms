@@ -25,8 +25,14 @@
 (def PagingQuery [:map {:closed true}
                   [:page {:optional true} :int] [:size {:optional true} :int]
                   [:order_by {:optional true} :string] [:is_asc {:optional true} :string]])
+(def RoleUserQuery [:map {:closed true}
+                    [:role_id :int]
+                    [:user_name {:optional true} :string]
+                    [:phonenumber {:optional true} :string]
+                    [:page {:optional true} :int] [:size {:optional true} :int]
+                    [:order_by {:optional true} :string] [:is_asc {:optional true} :string]])
 
-(def PathId [:map [:id :string]])
+(def PathId [:map [:id [:re #"\d+"]]])
 
 ;; ── Routes ──────────────────────────────────────────────────────────
 (defn system-routes [{:keys [user-service role-service menu-service dept-service post-service dict-service config-service log-service online-service query-fn datasource]}]
@@ -66,35 +72,36 @@
 
    ["/role"
     ["" {:get  {:summary "角色列表" :description "分页查询角色列表"
-
                 :handler (partial role/list-roles {:role-service role-service})}
          :post {:summary "新增角色" :handler (partial role/create-role {:role-service role-service})}}]
     ["/export" {:get {:summary "导出角色" :description "导出角色数据为CSV文件"
                        :handler (partial im/export-roles {:role-service role-service})}}]
     ["/optionselect" {:get {:summary "角色选项"
                             :handler (partial role/option-select {:role-service role-service})}}]
-    ["/authUser/allocatedList" {:get {:summary "角色已分配用户" :parameters {:path [:map [:id :string]]}
+    ["/authUser/allocatedList" {:get {:summary "角色已分配用户" :parameters {:query RoleUserQuery}
                                       :handler (partial role/allocated-list {:role-service role-service :user-service user-service})}}]
-    ["/authUser/unallocatedList" {:get {:summary "角色未分配用户" :parameters {:path [:map [:id :string]]}
+    ["/authUser/unallocatedList" {:get {:summary "角色未分配用户" :parameters {:query RoleUserQuery}
                                         :handler (partial role/unallocated-list {:role-service role-service :user-service user-service})}}]
     ["/authUser/cancel" {:put {:summary "取消用户角色"
+                               :parameters {:body [:map [:role_id :int] [:user_id :int]]}
                                :handler (partial role/cancel-auth-user {:role-service role-service})}}]
     ["/authUser/cancelAll" {:put {:summary "批量取消角色"
+                                  :parameters {:query [:map [:role_id :int] [:user_ids :string]]}
                                   :handler (partial role/cancel-auth-user-all {:role-service role-service})}}]
     ["/authUser/selectAll" {:put {:summary "批量授权角色"
+                                  :parameters {:query [:map [:role_id :int] [:user_ids :string]]}
                                   :handler (partial role/select-auth-user-all {:role-service role-service})}}]
     ["/deptTree/:id" {:get {:summary "角色部门树"
                             :handler (partial role/dept-tree-by-role {:role-service role-service :dept-service dept-service})}}]
+    ["/dataScope" {:put {:summary "数据权限分配"
+                         :parameters {:body [:map [:role_id :int] [:data_scope :string] [:dept_ids {:optional true} :string]]}
+                         :handler (partial role/data-scope {:role-service role-service})}}]
     ["/:id" {:get    {:summary "角色详情" :parameters {:path PathId}
                       :handler (partial role/get-role {:role-service role-service})}
              :put    {:summary "更新角色" :parameters {:path PathId}
                       :handler (partial role/update-role {:role-service role-service})}
              :delete {:summary "删除角色" :parameters {:path PathId}
-                      :handler (partial role/delete-role {:role-service role-service})}}]
-    ["/:id/status" {:put {:summary "修改角色状态"
-                          :handler (partial role/change-status {:role-service role-service})}}]
-    ["/:id/dataScope" {:put {:summary "数据权限分配"
-                             :handler (partial role/data-scope {:role-service role-service})}}]]
+                      :handler (partial role/delete-role {:role-service role-service})}}]]
 
    ["/menu"
     ["" {:get  {:summary "菜单列表（树形）" :description "查询所有菜单（树形结构）"
@@ -102,6 +109,8 @@
          :post {:summary "新增菜单" :handler (partial menu/create-menu {:menu-service menu-service})}}]
     ["/export" {:get {:summary "导出菜单" :description "导出菜单数据为CSV文件"
                        :handler (partial im/export-menus {:menu-service menu-service})}}]
+    ["/treeselect" {:get {:summary "菜单树选项" :description "获取菜单树（用于角色权限选择）"
+                          :handler (partial menu/menu-tree {:menu-service menu-service})}}]
     ["/:id" {:get    {:summary "菜单详情" :parameters {:path PathId}
                       :handler (partial menu/get-menu {:menu-service menu-service})}
              :put    {:summary "更新菜单" :parameters {:path PathId}
@@ -257,15 +266,6 @@
     ["/clearCacheName/:cacheName" {:delete {:summary "清除指定缓存" :handler (partial cache/clear-cache-name {})}}]
     ["/clearCacheKey/:cacheKey" {:delete {:summary "清除指定键" :handler (partial cache/clear-cache-key {})}}]
     ["/clearCacheAll" {:delete {:summary "清除所有缓存" :handler (partial cache/clear-cache-all {})}}]]
-
-   ["/notice"
-    ["/list" {:get {:summary "通知公告列表" :description "分页查询通知公告"
-                    :handler (partial notice/list-notices {:query-fn (:query-fn user-service)})}}]
-    ["" {:post {:summary "新增通知公告" :handler (partial notice/create-notice {:query-fn (:query-fn user-service)})}}]
-    ["/:id" {:put {:summary "更新通知公告" :parameters {:path [:map [:id :string]]}
-                   :handler (partial notice/update-notice {:query-fn (:query-fn user-service)})}
-             :delete {:summary "删除通知公告" :parameters {:path [:map [:id :string]]}
-                      :handler (partial notice/delete-notice {:query-fn (:query-fn user-service)})}}]]
 
    ["/file"
     ["" {:get {:summary "文件列表" :description "查询上传文件列表"

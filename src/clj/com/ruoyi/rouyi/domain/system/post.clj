@@ -21,7 +21,8 @@
 (defn update-post!
   "更新岗位。"
   [{:keys [query-fn]} params]
-  (query-fn :update-post! params))
+  (query-fn :update-post! (merge {:post_code nil :post_name nil :post_sort nil :status nil :remark nil :update_by nil}
+                                 params)))
 
 (defn delete-post!
   "删除岗位。"

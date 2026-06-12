@@ -303,6 +303,78 @@
             (fn [db _]
               (get-in db [:roles :checked-keys] [])))
 
+(rf/reg-sub :roles/data-scope-visible?
+            (fn [db _]
+              (get-in db [:roles :data-scope-visible?] false)))
+
+(rf/reg-sub :roles/data-scope-role
+            (fn [db _]
+              (get-in db [:roles :data-scope-role] {})))
+
+(rf/reg-sub :roles/data-scope
+            (fn [db _]
+              (get-in db [:roles :data-scope] "1")))
+
+(rf/reg-sub :roles/data-scope-dept-tree
+            (fn [db _]
+              (get-in db [:roles :data-scope-dept-tree] [])))
+
+(rf/reg-sub :roles/data-scope-checked-keys
+            (fn [db _]
+              (get-in db [:roles :data-scope-checked-keys] [])))
+
+(rf/reg-sub :roles/user-alloc-visible?
+            (fn [db _]
+              (get-in db [:roles :user-alloc-visible?] false)))
+
+(rf/reg-sub :roles/user-alloc-role
+            (fn [db _]
+              (get-in db [:roles :user-alloc-role] {})))
+
+(rf/reg-sub :roles/user-alloc-active-tab
+            (fn [db _]
+              (get-in db [:roles :user-alloc-active-tab] "allocated")))
+
+(rf/reg-sub :roles/allocated-items
+            (fn [db _]
+              (get-in db [:roles :allocated-items] [])))
+
+(rf/reg-sub :roles/allocated-total
+            (fn [db _]
+              (get-in db [:roles :allocated-total] 0)))
+
+(rf/reg-sub :roles/allocated-loading?
+            (fn [db _]
+              (get-in db [:roles :allocated-loading?] false)))
+
+(rf/reg-sub :roles/allocated-query
+            (fn [db _]
+              (get-in db [:roles :allocated-query] {})))
+
+(rf/reg-sub :roles/allocated-selected
+            (fn [db _]
+              (get-in db [:roles :allocated-selected] [])))
+
+(rf/reg-sub :roles/unallocated-items
+            (fn [db _]
+              (get-in db [:roles :unallocated-items] [])))
+
+(rf/reg-sub :roles/unallocated-total
+            (fn [db _]
+              (get-in db [:roles :unallocated-total] 0)))
+
+(rf/reg-sub :roles/unallocated-loading?
+            (fn [db _]
+              (get-in db [:roles :unallocated-loading?] false)))
+
+(rf/reg-sub :roles/unallocated-query
+            (fn [db _]
+              (get-in db [:roles :unallocated-query] {})))
+
+(rf/reg-sub :roles/unallocated-selected
+            (fn [db _]
+              (get-in db [:roles :unallocated-selected] [])))
+
 ;; ─── 菜单管理 ──────────────────────────────────────────────────────
 
 (rf/reg-sub :menus/items

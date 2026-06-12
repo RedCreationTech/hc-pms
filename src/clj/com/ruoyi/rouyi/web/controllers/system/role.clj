@@ -60,12 +60,23 @@
     (role-service/update-role! role-service {:role-id role-id :status status})
     (ok "状态修改成功")))
 
+(defn- parse-user-ids
+  "将逗号分隔的用户ID字符串解析为long集合。"
+  [s]
+  (when (seq s)
+    (->> (clojure.string/split s #",")
+         (map clojure.string/trim)
+         (remove empty?)
+         (map parse-long)
+         (doall))))
+
 (defn data-scope
   "设置角色数据权限范围。"
   [{:keys [role-service]} request]
-  (let [role-id (parse-long (get-in request [:path-params :id]))
-        params (:body-params request)]
-    (role-service/update-role! role-service (assoc params :role-id role-id))
+  (let [params (get-in request [:parameters :body])
+        role-id (:role_id params)
+        data-scope (:data_scope params)]
+    (role-service/update-role! role-service {:role-id role-id :data_scope data-scope})
     (ok "数据权限设置成功")))
 
 (defn option-select
@@ -76,38 +87,51 @@
 (defn allocated-list
   "查询角色已分配用户列表。"
   [{:keys [role-service user-service]} request]
-  (let [role-id (parse-long (get-in request [:path-params :id]))
-        params (:query-params request)]
-    (ok (role-service/list-allocated-users role-service {:role-id role-id :query-fn (:query-fn user-service)}))))
+  (let [q (get-in request [:parameters :query])
+        role-id (:role_id q)
+        user-name (:user_name q)
+        phonenumber (:phonenumber q)]
+    (ok (role-service/list-allocated-users role-service
+                                           {:role-id role-id
+                                            :user-name user-name
+                                            :phonenumber phonenumber}))))
 
 (defn unallocated-list
   "查询角色未分配用户列表。"
   [{:keys [role-service user-service]} request]
-  (let [role-id (parse-long (get-in request [:path-params :id]))
-        params (:query-params request)]
-    (ok (role-service/list-unallocated-users role-service {:role-id role-id :query-fn (:query-fn user-service)}))))
+  (let [q (get-in request [:parameters :query])
+        role-id (:role_id q)
+        user-name (:user_name q)
+        phonenumber (:phonenumber q)]
+    (ok (role-service/list-unallocated-users role-service
+                                             {:role-id role-id
+                                              :user-name user-name
+                                              :phonenumber phonenumber}))))
 
 (defn cancel-auth-user
   "取消用户角色授权。"
   [{:keys [role-service]} request]
-  (let [role-id (parse-long (get-in request [:path-params :id]))
-        user-id (parse-long (get-in request [:body-params :user_id]))]
+  (let [params (get-in request [:parameters :body])
+        role-id (:role_id params)
+        user-id (:user_id params)]
     (role-service/cancel-auth-user! role-service {:role-id role-id :user-id user-id})
     (ok "取消成功")))
 
 (defn cancel-auth-user-all
   "批量取消用户角色授权。"
   [{:keys [role-service]} request]
-  (let [role-id (parse-long (get-in request [:path-params :id]))
-        user-ids (get-in request [:body-params :user_ids])]
+  (let [q (get-in request [:parameters :query])
+        role-id (:role_id q)
+        user-ids (parse-user-ids (:user_ids q))]
     (role-service/cancel-auth-user-all! role-service {:role-id role-id :user-ids user-ids})
     (ok "批量取消成功")))
 
 (defn select-auth-user-all
   "批量授权用户角色。"
   [{:keys [role-service]} request]
-  (let [role-id (parse-long (get-in request [:path-params :id]))
-        user-ids (get-in request [:body-params :user_ids])]
+  (let [q (get-in request [:parameters :query])
+        role-id (:role_id q)
+        user-ids (parse-user-ids (:user_ids q))]
     (role-service/select-auth-user-all! role-service {:role-id role-id :user-ids user-ids})
     (ok "批量授权成功")))
 

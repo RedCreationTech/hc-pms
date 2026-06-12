@@ -93,11 +93,16 @@
             :render (fn [v _]
                       (r/as-element
                        [antd/tag (get menu-type-map v "菜单")]))}
-       #js {:title "状态" :dataIndex "status" :key "status" :width 80
-            :render (fn [v _]
+       #js {:title "状态" :dataIndex "status" :key "status" :width 100
+            :render (fn [v ^js record]
                       (r/as-element
-                       [antd/tag {:color (if (= v "0") "green" "red")}
-                        (if (= v "0") "正常" "停用")]))}
+                       [antd/switch {:checked (= v "0")
+                                     :checkedChildren "正常"
+                                     :unCheckedChildren "停用"
+                                     :on-change (fn [checked?]
+                                                  (rf/dispatch [:menus/change-status
+                                                                (.-menu_id record)
+                                                                (if checked? "0" "1")]))}]))}
        #js {:title "操作" :key "action" :width 220
             :render (fn [_ ^js record]
                       (r/as-element

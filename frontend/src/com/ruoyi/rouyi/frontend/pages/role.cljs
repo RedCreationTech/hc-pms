@@ -19,6 +19,15 @@
       (assoc node :children (mapv menu->tree-node children))
       node)))
 
+(defn- dept->tree-node
+  "将部门数据转换为 Ant Design Tree 节点格式。"
+  [dept]
+  (let [node {:title (:dept_name dept)
+              :key (str (:dept_id dept))}]
+    (if-let [children (seq (:children dept))]
+      (assoc node :children (mapv dept->tree-node children))
+      node)))
+
 ;; ─── 搜索表单 ──────────────────────────────────────────────────────
 
 (defn- search-form []
@@ -87,15 +96,25 @@
        #js {:title "权限字符" :dataIndex "role_key" :key "role_key"}
        #js {:title "显示顺序" :dataIndex "role_sort" :key "role_sort" :width 100}
        #js {:title "状态" :dataIndex "status" :key "status" :width 100
-            :render (fn [v _]
+            :render (fn [v ^js record]
                       (r/as-element
-                       [antd/tag {:color (if (= v "0") "green" "red")}
-                        (if (= v "0") "正常" "停用")]))}
+                       [antd/switch {:checked (= v "0")
+                                     :checkedChildren "正常"
+                                     :unCheckedChildren "停用"
+                                     :on-change (fn [checked?]
+                                                  (rf/dispatch [:roles/change-status
+                                                                (.-role_id record)
+                                                                (if checked? "0" "1")]))}]))}
        #js {:title "创建时间" :dataIndex "create_time" :key "create_time" :width 180}
        #js {:title "操作" :key "action" :width 220
             :render (fn [_ ^js record]
                       (r/as-element
-                       [antd/space
+                       [([antd/button {:type "link" :size "small"
+                                      :on-click #(rf/dispatch [:roles/open-user-alloc (js->clj record :keywordize-keys true)])}
+                         "分配用户"])
+                        [antd/button {:type "link" :size "small"
+                                      :on-click #(rf/dispatch [:roles/open-data-scope (js->clj record :keywordize-keys true)])}
+                         "数据权限"]
                         [antd/button {:type "link" :size "small"
                                       :icon (r/as-element [:> SafetyOutlined])
                                       :on-click #(rf/dispatch [:roles/open-permission (js->clj record :keywordize-keys true)])}
@@ -168,15 +187,47 @@
        [:div {:style {:textAlign "center" :padding 24 :color "#999"}}
         "加载菜单树中..."])]))
 
+;; ─── 数据权限弹窗 ──────────────────────────────────────────────────────
+
+(defn- data-scope-modal []
+  (let [visible? @(rf/subscribe [:roles/data-scope-visible?])
+        role @(rf/subscribe [:roles/data-scope-role])
+        data-scope @(rf/subscribe [:roles/data-scope])
+        dept-tree @(rf/subscribe [:roles/data-scope-dept-tree])
+        checked-keys @(rf/subscribe [:roles/data-scope-checked-keys])]
+    [antd/modal {:title (str "数据权限 - " (:role_name role))
+                 :open visible?
+                 :width 500
+                 :onOk #(rf/dispatch [:roles/save-data-scope])
+                 :onCancel #(rf/dispatch [:roles/close-data-scope])
+                 :destroyOnHidden true}
+     [antd/radio-group {:value data-scope
+                        :style {:marginBottom 16}
+                        :on-change #(rf/dispatch [:roles/set-data-scope (.. % -target -value)])}
+      [antd/radio {:value "1"} "全部数据权限"]
+      [antd/radio {:value "2"} "本部门数据"]
+      [antd/radio {:value "3"} "本部门及以下数据"]
+      [antd/radio {:value "4"} "仅本人数据"]
+      [antd/radio {:value "5"} "自定义数据"]]
+     (when (= data-scope "5")
+       (if (seq dept-tree)
+         [antd/tree {:checkable true
+                     :defaultExpandAll true
+                     :checkedKeys (clj->js checked-keys)
+                     :treeData (clj->js (mapv dept->tree-node dept-tree))
+                     :onCheck (fn [keys _]
+                                (rf/dispatch [:roles/set-data-scope-checked-keys (js->clj keys)]))}]
+         [:div {:style {:textAlign "center" :padding 24 :color "#999"}}
+          "加载部门树中..."]))]))
+
 ;; ─── 主页面 ──────────────────────────────────────────────────────
 
-(defn role-page []
-  (hooks/use-effect
+(;; ─── 用户分配弹窗 ──────────────────────────────────────────────────────
+ defn role-page [] (hooks/use-effect
    (fn []
      (rf/dispatch [:roles/fetch {}])
      js/undefined)
-   [])
-  (let [items @(rf/subscribe [:roles/items])
+   []) (let [items @(rf/subscribe [:roles/items])
         total @(rf/subscribe [:roles/total])
         loading? @(rf/subscribe [:roles/loading?])]
     [:div
@@ -191,4 +242,6 @@
                                :showSizeChanger true
                                :showTotal (fn [total] (str "共 " total " 条"))}}]
      [edit-modal]
-     [permission-modal]]))
+     [permission-modal]
+     [data-scope-modal]
+     [user-alloc-modal]]))

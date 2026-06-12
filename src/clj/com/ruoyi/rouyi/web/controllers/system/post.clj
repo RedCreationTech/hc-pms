@@ -2,7 +2,6 @@
   "岗位管理控制器。"
   (:require
    [com.ruoyi.rouyi.domain.system.post :as post-service]
-   [com.ruoyi.rouyi.infra.data-perm :as data-perm]
    [ring.util.response :as response]))
 
 (defn- ok ([data] (ok 200 "操作成功" data))
@@ -15,12 +14,9 @@
       (response/content-type "application/json")))
 
 (defn list-posts
-  "查询岗位列表（带数据权限过滤）。"
+  "查询岗位列表。"
   [{:keys [post-service]} request]
-  (let [params (:query-params request)
-        identity (:identity request)
-        data-perm-filter (data-perm/data-perm-filter identity "default" :alias "u")
-        params (merge params (:params data-perm-filter))]
+  (let [params (:query-params request)]
     (ok (post-service/list-posts post-service params))))
 
 (defn get-post
@@ -51,3 +47,11 @@
   (let [post-id (parse-long (get-in request [:path-params :id]))]
     (post-service/delete-post! post-service post-id)
     (ok "删除成功")))
+
+(defn change-status
+  "修改岗位状态。"
+  [{:keys [post-service]} request]
+  (let [post-id (parse-long (get-in request [:path-params :id]))
+        status (get-in request [:body-params :status])]
+    (post-service/update-post! post-service {:post_id post-id :status status})
+    (ok "状态修改成功")))

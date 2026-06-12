@@ -23,7 +23,9 @@
 (defn update-dept!
   "更新部门。"
   [{:keys [query-fn]} params]
-  (query-fn :update-dept! params))
+  (query-fn :update-dept! (merge {:parent_id nil :ancestors nil :dept_name nil :order_num nil
+                                  :leader nil :phone nil :email nil :status nil :update_by nil}
+                                 params)))
 
 (defn delete-dept!
   "逻辑删除部门。"
