@@ -46,17 +46,16 @@
    [])
   (let [items @(rf/subscribe [:file/items])
         loading? @(rf/subscribe [:file/loading?])]
-    (fn []
-      [:div
-       [:h3 "文件管理"]
-       [antd/space {:style {:marginBottom 16}}
-        [antd/upload {:showUploadList false
-                      :beforeUpload (fn [file]
-                                      (rf/dispatch [:file/upload file])
-                                      false)}
-         [antd/button {:icon (r/as-element [:> UploadOutlined])} "上传文件"]]
-        [antd/button {:icon (r/as-element [:> ReloadOutlined])
-                      :onClick #(rf/dispatch [:file/fetch])}
-         "刷新"]]
-       [antd/table {:rowKey "name" :loading loading? :columns (file-columns)
-                    :dataSource (clj->js items) :pagination false}]])))
+    [:div
+     [:h3 "文件管理"]
+     [antd/space {:style {:marginBottom 16}}
+      [antd/upload {:showUploadList false
+                    :beforeUpload (fn [file]
+                                    (rf/dispatch [:file/upload file])
+                                    false)}
+       [antd/button {:icon (r/as-element [:> UploadOutlined])} "上传文件"]]
+      [antd/button {:icon (r/as-element [:> ReloadOutlined])
+                    :onClick #(rf/dispatch [:file/fetch])}
+       "刷新"]]
+     [antd/table {:rowKey "name" :loading loading? :columns (file-columns)
+                  :dataSource (clj->js items) :pagination false}]]))

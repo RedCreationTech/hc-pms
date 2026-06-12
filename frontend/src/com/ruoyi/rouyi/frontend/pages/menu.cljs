@@ -170,14 +170,13 @@
   (let [items @(rf/subscribe [:menus/items])
         loading? @(rf/subscribe [:menus/loading?])
         tree-data (build-menu-tree items 0)]
-    (fn []
-      [:div
-       [toolbar]
-       [antd/table {:rowKey "menu_id"
-                    :loading loading?
-                    :columns (menu-columns)
-                    :dataSource (clj->js tree-data)
-                    :pagination false
-                    :defaultExpandAllRows true
-                    :childrenColumnName "children"}]
-       [edit-modal]])))
+    [:div
+     [toolbar]
+     [antd/table {:rowKey "menu_id"
+                  :loading loading?
+                  :columns (menu-columns)
+                  :dataSource (clj->js tree-data)
+                  :pagination false
+                  :defaultExpandAllRows true
+                  :childrenColumnName "children"}]
+     [edit-modal]]))

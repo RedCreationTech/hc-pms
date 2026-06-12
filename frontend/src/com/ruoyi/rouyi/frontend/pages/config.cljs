@@ -8,16 +8,15 @@
 
 (defn- search-bar []
   (let [keyword (r/atom "")]
-    (fn []
-      [antd/card {:style {:marginBottom 16}}
-       [antd/space
-        [antd/input {:placeholder "参数名称" :allowClear true
-                     :style {:width 200}
-                     :on-change #(reset! keyword (.. % -target -value))}]
-        [antd/button {:type "primary" :onClick #(rf/dispatch [:configs/fetch {:configName @keyword}])}
-         "搜索"]
-        [antd/button {:onClick #(do (reset! keyword "") (rf/dispatch [:configs/fetch {}]))}
-         "重置"]]])))
+    [antd/card {:style {:marginBottom 16}}
+     [antd/space
+      [antd/input {:placeholder "参数名称" :allowClear true
+                   :style {:width 200}
+                   :on-change #(reset! keyword (.. % -target -value))}]
+      [antd/button {:type "primary" :onClick #(rf/dispatch [:configs/fetch {:configName @keyword}])}
+       "搜索"]
+      [antd/button {:onClick #(do (reset! keyword "") (rf/dispatch [:configs/fetch {}]))}
+       "重置"]]]))
 
 (defn- config-columns [editing-item]
   #js [#js {:title "参数ID" :dataIndex "config_id" :key "config_id" :width 80}
