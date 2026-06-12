@@ -1,11 +1,28 @@
 (ns com.ruoyi.rouyi.frontend.db
   "前端应用初始状态。")
 
+(defn- get-stored-token
+  "从 localStorage 读取保存的 token。"
+  []
+  (try
+    (.getItem js/localStorage "ruoyi_token")
+    (catch js/Error _ nil)))
+
+(defn- get-stored-user
+  "从 localStorage 读取保存的用户信息。"
+  []
+  (try
+    (when-let [s (.getItem js/localStorage "ruoyi_user")]
+      (js->clj (.parse js/JSON s) :keywordize-keys true))
+    (catch js/Error _ nil)))
+
 (def default-db
-  {:page :login
-   :tabs {:items [{:key :dashboard :label "首页" :closable false}]
-          :active :dashboard}
-   :auth {:token nil :user nil :loading? false}
+  (let [token (get-stored-token)
+        user  (get-stored-user)]
+    {:page (if token :dashboard :login)
+     :tabs {:items [{:key :dashboard :label "首页" :closable false}]
+            :active :dashboard}
+     :auth {:token token :user user :loading? false}
    :theme {:mode :light :primary-color "#1677ff" :compact? false}
    :users {:loading? false :items [] :total 0
            :query-params {} :page 1 :page-size 10
@@ -35,4 +52,4 @@
    :file {:items [] :loading? false}
    :fb {:items [] :selected-id nil :code-visible? false}
    :gen {:tables-loading? false :tables [] :selected-tables [] :preview-loading? false :preview-visible? false}
-   :notification nil})
+   :notification nil}))

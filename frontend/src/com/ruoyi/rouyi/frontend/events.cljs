@@ -63,10 +63,13 @@
 
 (rf/reg-event-fx :auth/login-success
                  (fn [{:keys [db]} [_ data]]
-                   {:db (-> db
-                            (assoc-in [:auth :token] (:token data))
-                            (assoc-in [:auth :loading?] false))
-                    :dispatch [:navigate :dashboard]}))
+                   (let [token (:token data)]
+                     ;; 保存到 localStorage
+                     (try (.setItem js/localStorage "ruoyi_token" token) (catch js/Error _))
+                     {:db (-> db
+                              (assoc-in [:auth :token] token)
+                              (assoc-in [:auth :loading?] false))
+                      :dispatch [:navigate :dashboard]})))
 
 (rf/reg-event-db :auth/login-failure
                  (fn [db [_ msg]]
@@ -478,10 +481,12 @@
 
 (rf/reg-event-db :roles/set-list
                  (fn [db [_ data]]
-                   (-> db
-                       (assoc-in [:roles :items] (:rows data))
-                       (assoc-in [:roles :total] (:total data))
-                       (assoc-in [:roles :loading?] false))))
+                   (let [items (if (sequential? data) data (:rows data []))
+                         total (if (sequential? data) (count data) (:total data 0))]
+                     (-> db
+                         (assoc-in [:roles :items] items)
+                         (assoc-in [:roles :total] total)
+                         (assoc-in [:roles :loading?] false)))))
 
 (rf/reg-event-fx :roles/fetch
                  (fn [{:keys [db]} [_ params]]
