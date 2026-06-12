@@ -116,8 +116,8 @@
 
 (defn list-menus
   "获取菜单列表。"
-  [on-success on-error]
-  (request {:method :get :uri "/system/menu"
+  [params on-success on-error]
+  (request {:method :get :uri "/system/menu" :params params
             :on-success on-success :on-error on-error}))
 
 (defn create-menu
@@ -142,8 +142,8 @@
 
 (defn list-depts
   "获取部门列表。"
-  [on-success on-error]
-  (request {:method :get :uri "/system/dept"
+  [params on-success on-error]
+  (request {:method :get :uri "/system/dept" :params params
             :on-success on-success :on-error on-error}))
 
 (defn create-dept

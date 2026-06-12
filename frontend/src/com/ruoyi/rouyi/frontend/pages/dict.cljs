@@ -16,34 +16,33 @@
 
 (defn- type-form-modal []
   (let [form-data (r/atom {})]
-    (fn []
-      (when @type-modal-visible?
-        (reset! form-data (or @type-editing {})))
-      [antd/modal {:open @type-modal-visible?
-                   :title (if @type-editing "编辑字典类型" "新增字典类型")
-                   :on-ok #(do
-                             (if (:dict_id @form-data)
-                               (rf/dispatch [:dicts/update-type (:dict_id @form-data) @form-data])
-                               (rf/dispatch [:dicts/create-type @form-data]))
-                             (reset! type-modal-visible? false)
-                             (reset! type-editing nil))
-                   :on-cancel #(do (reset! type-modal-visible? false) (reset! type-editing nil))
-                   :okText "确定" :cancelText "取消"}
-       [:div {:style {:display "flex" :flexDirection "column" :gap 12}}
-        [:div [:span {:style {:color "red"}} "*"] " 字典名称:"]
-        [antd/input {:value (:dict_name @form-data "")
-                     :on-change #(swap! form-data assoc :dict_name (.. % -target -value))}]
-        [:div [:span {:style {:color "red"}} "*"] " 字典类型:"]
-        [antd/input {:value (:dict_type @form-data "")
-                     :on-change #(swap! form-data assoc :dict_type (.. % -target -value))}]
-        [:div "状态:"]
-        [antd/radio-group {:value (:status @form-data "0")
-                           :on-change #(swap! form-data assoc :status (.. % -target -value))}
-         [antd/radio {:value "0"} "正常"]
-         [antd/radio {:value "1"} "停用"]]
-        [:div "备注:"]
-        [antd/text-area {:value (:remark @form-data "") :rows 3
-                         :on-change #(swap! form-data assoc :remark (.. % -target -value))}]]])))
+    (when @type-modal-visible?
+      (reset! form-data (or @type-editing {})))
+    [antd/modal {:open @type-modal-visible?
+                 :title (if @type-editing "编辑字典类型" "新增字典类型")
+                 :on-ok #(do
+                           (if (:dict_id @form-data)
+                             (rf/dispatch [:dicts/update-type (:dict_id @form-data) @form-data])
+                             (rf/dispatch [:dicts/create-type @form-data]))
+                           (reset! type-modal-visible? false)
+                           (reset! type-editing nil))
+                 :on-cancel #(do (reset! type-modal-visible? false) (reset! type-editing nil))
+                 :okText "确定" :cancelText "取消"}
+     [:div {:style {:display "flex" :flexDirection "column" :gap 12}}
+      [:div [:span {:style {:color "red"}} "*"] " 字典名称:"]
+      [antd/input {:value (:dict_name @form-data "")
+                   :on-change #(swap! form-data assoc :dict_name (.. % -target -value))}]
+      [:div [:span {:style {:color "red"}} "*"] " 字典类型:"]
+      [antd/input {:value (:dict_type @form-data "")
+                   :on-change #(swap! form-data assoc :dict_type (.. % -target -value))}]
+      [:div "状态:"]
+      [antd/radio-group {:value (:status @form-data "0")
+                         :on-change #(swap! form-data assoc :status (.. % -target -value))}
+       [antd/radio {:value "0"} "正常"]
+       [antd/radio {:value "1"} "停用"]]
+      [:div "备注:"]
+      [antd/text-area {:value (:remark @form-data "") :rows 3
+                       :on-change #(swap! form-data assoc :remark (.. % -target -value))}]]]))
 
 (defn- type-columns []
   #js [#js {:title "字典编号" :dataIndex "dict_id" :key "dict_id" :width 80}
@@ -76,18 +75,17 @@
                       (rf/dispatch [:dicts/fetch-types {}])
                       js/undefined)
                     [])
-  (fn []
-    (let [types @(rf/subscribe [:dicts/types])
-          loading? @(rf/subscribe [:dicts/loading?])]
-      [:div
-       [:div {:style {:marginBottom 16}}
-        [antd/button {:type "primary" :onClick #(do (reset! type-editing nil) (reset! type-modal-visible? true))}
-         "新增字典类型"]]
-       [antd/table {:rowKey "dict_id" :loading loading? :scroll #js {:x 700}
-                    :columns (type-columns)
-                    :dataSource (clj->js types)
-                    :pagination {:pageSize 10 :show-total (fn [t] (str "共 " t " 条"))}}]
-       [type-form-modal]])))
+  (let [types @(rf/subscribe [:dicts/types])
+        loading? @(rf/subscribe [:dicts/loading?])]
+    [:div
+     [:div {:style {:marginBottom 16}}
+      [antd/button {:type "primary" :onClick #(do (reset! type-editing nil) (reset! type-modal-visible? true))}
+       "新增字典类型"]]
+     [antd/table {:rowKey "dict_id" :loading loading? :scroll #js {:x 700}
+                  :columns (type-columns)
+                  :dataSource (clj->js types)
+                  :pagination {:pageSize 10 :show-total (fn [t] (str "共 " t " 条"))}}]
+     [type-form-modal]]))
 
 ;; ─── 字典数据 ─────────────────────────────────────────────────────────────────
 
@@ -150,31 +148,30 @@
                            [antd/button {:type "link" :danger true :size "small"} "删除"]]])))}])
 
 (defn- data-section []
-  (let [dict-type @selected-type]
+  (let [dict-type @selected-type
+        data @(rf/subscribe [:dicts/data])
+        loading? @(rf/subscribe [:dicts/loading?])]
     (hooks/use-effect (fn []
                         (when dict-type
                           (rf/dispatch [:dicts/fetch-data {:dict_type (:dict_type dict-type)}]))
                         js/undefined)
                       [(:dict_type dict-type)])
-    (fn []
-      (let [data @(rf/subscribe [:dicts/data])
-            loading? @(rf/subscribe [:dicts/loading?])]
-        (if dict-type
-          [:div {:style {:marginTop 24}}
-           [:div {:style {:display "flex" :justifyContent "space-between"
-                          :alignItems "center" :marginBottom 16}}
-            [:h4 {:style {:margin 0}} (str "字典数据 — " (:dict_name dict-type) " (" (:dict_type dict-type) ")")]
-            [antd/button {:type "link" :onClick #(reset! selected-type nil)}
-             "返回类型列表"]]
-           [:div {:style {:marginBottom 16}}
-            [antd/button {:type "primary" :onClick #(do (reset! data-editing nil) (reset! data-modal-visible? true))}
-             "新增字典数据"]]
-           [antd/table {:rowKey "dict_code" :loading loading? :scroll #js {:x 600}
-                        :columns (data-columns dict-type)
-                        :dataSource (clj->js data)
-                        :pagination {:pageSize 10 :show-total (fn [t] (str "共 " t " 条"))}}]
-           [data-form-modal dict-type]]
-          [:div])))))
+    (if dict-type
+      [:div {:style {:marginTop 24}}
+       [:div {:style {:display "flex" :justifyContent "space-between"
+                      :alignItems "center" :marginBottom 16}}
+        [:h4 {:style {:margin 0}} (str "字典数据 — " (:dict_name dict-type) " (" (:dict_type dict-type) ")")]
+        [antd/button {:type "link" :onClick #(reset! selected-type nil)}
+         "返回类型列表"]]
+       [:div {:style {:marginBottom 16}}
+        [antd/button {:type "primary" :onClick #(do (reset! data-editing nil) (reset! data-modal-visible? true))}
+         "新增字典数据"]]
+       [antd/table {:rowKey "dict_code" :loading loading? :scroll #js {:x 600}
+                    :columns (data-columns dict-type)
+                    :dataSource (clj->js data)
+                    :pagination {:pageSize 10 :show-total (fn [t] (str "共 " t " 条"))}}]
+       [data-form-modal dict-type]]
+      [:div])))
 
 ;; ─── 主页面 ───────────────────────────────────────────────────────────────────
 

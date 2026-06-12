@@ -2,6 +2,7 @@
   "参数配置管理页面 — 完整 CRUD。"
   (:require
    [reagent.core :as r]
+   [reagent.hooks :as hooks]
    [re-frame.core :as rf]
    [com.ruoyi.rouyi.frontend.antd :as antd]))
 
@@ -87,20 +88,19 @@
        (rf/dispatch [:configs/fetch {}])
        js/undefined)
      [])
-    (fn []
-      (let [items @(rf/subscribe [:configs/items])
-            total @(rf/subscribe [:configs/total])
-            loading? @(rf/subscribe [:configs/loading?])]
-        [:div
-         [:h3 {:style {:marginBottom 16}} "参数管理"]
-         [search-bar]
-         [antd/card
-          [:div {:style {:marginBottom 16}}
-           [antd/button {:type "primary" :onClick #(do (reset! editing-item nil) (reset! modal-visible? true))}
-            "新增"]]
-          [antd/table {:rowKey "config_id" :loading loading? :scroll #js {:x 800}
-                       :columns (config-columns editing-item)
-                       :dataSource (clj->js items)
-                       :pagination {:pageSize 10 :total total
-                                    :show-total (fn [t] (str "共 " t " 条"))}}]]
-         [config-modal modal-visible? editing-item]]))))
+    (let [items @(rf/subscribe [:configs/items])
+          total @(rf/subscribe [:configs/total])
+          loading? @(rf/subscribe [:configs/loading?])]
+      [:div
+       [:h3 {:style {:marginBottom 16}} "参数管理"]
+       [search-bar]
+       [antd/card
+        [:div {:style {:marginBottom 16}}
+         [antd/button {:type "primary" :onClick #(do (reset! editing-item nil) (reset! modal-visible? true))}
+          "新增"]]
+        [antd/table {:rowKey "config_id" :loading loading? :scroll #js {:x 800}
+                     :columns (config-columns editing-item)
+                     :dataSource (clj->js items)
+                     :pagination {:pageSize 10 :total total
+                                  :show-total (fn [t] (str "共 " t " 条"))}}]]
+       [config-modal modal-visible? editing-item]])))

@@ -97,12 +97,11 @@
 (defn post-page []
   (hooks/use-effect (fn [] (rf/dispatch [:posts/fetch {}]) js/undefined) [])
   (let [items @(rf/subscribe [:posts/items]) total @(rf/subscribe [:posts/total]) loading? @(rf/subscribe [:posts/loading?])]
-    (fn []
-      [:div
-       [search-form]
-       [toolbar]
-       [antd/table {:rowKey "post_id" :loading loading? :columns (post-columns)
-                    :dataSource (clj->js items)
-                    :pagination {:total total :pageSize 10 :showSizeChanger true
-                                 :showTotal (fn [total] (str "共 " total " 条"))}}]
-       [edit-modal]])))
+    [:div
+     [search-form]
+     [toolbar]
+     [antd/table {:rowKey "post_id" :loading loading? :columns (post-columns)
+                  :dataSource (clj->js items)
+                  :pagination {:total total :pageSize 10 :showSizeChanger true
+                               :showTotal (fn [total] (str "共 " total " 条"))}}]
+     [edit-modal]]))

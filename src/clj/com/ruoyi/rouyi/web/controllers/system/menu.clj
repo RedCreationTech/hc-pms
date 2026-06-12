@@ -20,7 +20,9 @@
   (let [params (:query-params request)
         identity (:identity request)
         data-perm-filter (data-perm/data-perm-filter identity "default" :alias "u")
-        params (merge params (:params data-perm-filter))]
+        params (merge {:menu_name nil :status nil :menu_type nil}
+                      params
+                      (:params data-perm-filter))]
     (ok (menu-service/list-menus menu-service params))))
 
 (defn menu-tree

@@ -173,17 +173,16 @@
   (let [items @(rf/subscribe [:roles/items])
         total @(rf/subscribe [:roles/total])
         loading? @(rf/subscribe [:roles/loading?])]
-    (fn []
-      [:div
-       [search-form]
-       [toolbar]
-       [antd/table {:rowKey "role_id"
-                    :columns (role-columns)
-                    :dataSource (clj->js items)
-                    :loading loading?
-                    :pagination {:total total
-                                 :pageSize 10
-                                 :showSizeChanger true
-                                 :showTotal (fn [total] (str "共 " total " 条"))}}]
-       [edit-modal]
-       [permission-modal]])))
+    [:div
+     [search-form]
+     [toolbar]
+     [antd/table {:rowKey "role_id"
+                  :columns (role-columns)
+                  :dataSource (clj->js items)
+                  :loading loading?
+                  :pagination {:total total
+                               :pageSize 10
+                               :showSizeChanger true
+                               :showTotal (fn [total] (str "共 " total " 条"))}}]
+     [edit-modal]
+     [permission-modal]]))

@@ -58,11 +58,10 @@
 (defn oper-log-page []
   (hooks/use-effect (fn [] (rf/dispatch [:oper-logs/fetch {}]) js/undefined) [])
   (let [items @(rf/subscribe [:oper-logs/items]) total @(rf/subscribe [:oper-logs/total]) loading? @(rf/subscribe [:oper-logs/loading?])]
-    (fn []
-      [:div
-       [:h3 "操作日志"]
-       [antd/space {:style {:marginBottom 16}}
-        [antd/button {:type "primary" :danger true :onClick #(rf/dispatch [:oper-logs/clear])} "清空"]]
-       [antd/table {:rowKey "oper_id" :loading loading? :columns (oper-log-columns)
-                    :dataSource (clj->js items) :pagination {:pageSize 10 :total total}}]
-       [detail-modal]])))
+    [:div
+     [:h3 "操作日志"]
+     [antd/space {:style {:marginBottom 16}}
+      [antd/button {:type "primary" :danger true :onClick #(rf/dispatch [:oper-logs/clear])} "清空"]]
+     [antd/table {:rowKey "oper_id" :loading loading? :columns (oper-log-columns)
+                  :dataSource (clj->js items) :pagination {:pageSize 10 :total total}}]
+     [detail-modal]]))

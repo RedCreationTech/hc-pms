@@ -226,6 +226,17 @@
 
 ;; ─── 辅助：菜单转树选项 ──────────────────────────────────────────────────────
 
+(defn- build-menu-tree
+  "将平铺菜单列表转换为树形结构。"
+  [items parent-id]
+  (->> items
+       (filter #(= parent-id (:parent_id %)))
+       (mapv (fn [m]
+               (let [children (build-menu-tree items (:menu_id m))]
+                 (if (seq children)
+                   (assoc m :children children)
+                   m))))))
+
 (def ^:private menu-tree-options
   "将菜单数据转为 TreeSelect 使用的选项。"
   (memoize
@@ -250,15 +261,15 @@
      js/undefined)
    [])
   (let [items @(rf/subscribe [:menus/items])
-        loading? @(rf/subscribe [:menus/loading?])]
-    (fn []
-      [:div
-       [toolbar]
-       [antd/table {:rowKey "menu_id"
-                    :loading loading?
-                    :columns (menu-columns)
-                    :dataSource (clj->js items)
-                    :pagination false
-                    :defaultExpandAllRows true
-                    :childrenColumnName "children"}]
-       [edit-modal]])))
+        loading? @(rf/subscribe [:menus/loading?])
+        tree-data (build-menu-tree items 0)]
+    [:div
+     [toolbar]
+     [antd/table {:rowKey "menu_id"
+                  :loading loading?
+                  :columns (menu-columns)
+                  :dataSource (clj->js tree-data)
+                  :pagination false
+                  :defaultExpandAllRows true
+                  :childrenColumnName "children"}]
+     [edit-modal]]))

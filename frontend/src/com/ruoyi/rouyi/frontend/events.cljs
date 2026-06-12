@@ -4,8 +4,8 @@
    [re-frame.core :as rf]
    [com.ruoyi.rouyi.frontend.db :as db]
    [com.ruoyi.rouyi.frontend.api :as api]
-   [com.ruoyi.rouyi.frontend.router :as router]
-   [clojure.string :as str]))
+   [com.ruoyi.rouyi.frontend.antd :as antd]
+   [com.ruoyi.rouyi.frontend.router :as router]))
 
 (rf/reg-event-db :initialize-db
                  (fn [_ _]
@@ -109,9 +109,10 @@
 
 (rf/reg-event-db :dicts/set-types
                  (fn [db [_ data]]
-                   (-> db
-                       (assoc-in [:dicts :types] (:rows data))
-                       (assoc-in [:dicts :loading?] false))))
+                   (let [items (if (sequential? data) data (:rows data []))]
+                     (-> db
+                         (assoc-in [:dicts :types] items)
+                         (assoc-in [:dicts :loading?] false)))))
 
 (rf/reg-event-fx :dicts/fetch-types
                  (fn [{:keys [db]} [_ params]]
@@ -128,9 +129,10 @@
 
 (rf/reg-event-db :dicts/set-data
                  (fn [db [_ data]]
-                   (-> db
-                       (assoc-in [:dicts :data] (:rows data))
-                       (assoc-in [:dicts :loading?] false))))
+                   (let [items (if (sequential? data) data (:rows data []))]
+                     (-> db
+                         (assoc-in [:dicts :data] items)
+                         (assoc-in [:dicts :loading?] false)))))
 
 (rf/reg-event-fx :dicts/fetch-data
                  (fn [{:keys [db]} [_ params]]
@@ -147,10 +149,12 @@
 
 (rf/reg-event-db :configs/set-list
                  (fn [db [_ data]]
-                   (-> db
-                       (assoc-in [:configs :items] (:rows data))
-                       (assoc-in [:configs :total] (:total data))
-                       (assoc-in [:configs :loading?] false))))
+                   (let [items (if (sequential? data) data (:rows data []))
+                         total (if (sequential? data) (count data) (:total data 0))]
+                     (-> db
+                         (assoc-in [:configs :items] items)
+                         (assoc-in [:configs :total] total)
+                         (assoc-in [:configs :loading?] false)))))
 
 (rf/reg-event-fx :configs/fetch
                  (fn [{:keys [db]} [_ params]]
@@ -176,10 +180,10 @@
                                 (fn [result]
                                   (when (= 200 (:code result))
                                     (rf/dispatch [:configs/created])
-                                    (.success js/antd.message "创建成功"))
+                                    (antd/success! "创建成功"))
                                   (when (not= 200 (:code result))
-                                    (.error js/antd.message (:msg result))))
-                                (fn [_] (.error js/antd.message "网络错误")))))
+                                    (antd/error! (:msg result))))
+                                (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-event-fx :configs/created
                  (fn [{:keys [db]} _]
@@ -197,10 +201,10 @@
                                 (fn [result]
                                   (when (= 200 (:code result))
                                     (rf/dispatch [:configs/updated])
-                                    (.success js/antd.message "更新成功"))
+                                    (antd/success! "更新成功"))
                                   (when (not= 200 (:code result))
-                                    (.error js/antd.message (:msg result))))
-                                (fn [_] (.error js/antd.message "网络错误")))))
+                                    (antd/error! (:msg result))))
+                                (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-event-fx :configs/updated
                  (fn [{:keys [db]} _]
@@ -218,10 +222,10 @@
                                 (fn [result]
                                   (when (= 200 (:code result))
                                     (rf/dispatch [:configs/deleted])
-                                    (.success js/antd.message "删除成功"))
+                                    (antd/success! "删除成功"))
                                   (when (not= 200 (:code result))
-                                    (.error js/antd.message (:msg result))))
-                                (fn [_] (.error js/antd.message "网络错误")))))
+                                    (antd/error! (:msg result))))
+                                (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-event-fx :configs/deleted
                  (fn [{:keys [db]} _]
@@ -230,10 +234,12 @@
 
 (rf/reg-event-db :oper-logs/set-list
                  (fn [db [_ data]]
-                   (-> db
-                       (assoc-in [:oper-logs :items] (:rows data))
-                       (assoc-in [:oper-logs :total] (:total data))
-                       (assoc-in [:oper-logs :loading?] false))))
+                   (let [items (if (sequential? data) data (:rows data []))
+                         total (if (sequential? data) (count data) (:total data 0))]
+                     (-> db
+                         (assoc-in [:oper-logs :items] items)
+                         (assoc-in [:oper-logs :total] total)
+                         (assoc-in [:oper-logs :loading?] false)))))
 
 (rf/reg-event-fx :oper-logs/fetch
                  (fn [{:keys [db]} [_ params]]
@@ -259,8 +265,8 @@
               (fn [result]
                 (when (= 200 (:code result))
                   (rf/dispatch [:oper-logs/cleared])
-                  (.success js/antd.message "清空成功")))
-              (fn [_] (.error js/antd.message "网络错误")))))
+                  (antd/success! "清空成功")))
+              (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-event-fx :oper-logs/cleared
                  (fn [{:keys [db]} _]
@@ -269,10 +275,12 @@
 
 (rf/reg-event-db :login-logs/set-list
                  (fn [db [_ data]]
-                   (-> db
-                       (assoc-in [:login-logs :items] (:rows data))
-                       (assoc-in [:login-logs :total] (:total data))
-                       (assoc-in [:login-logs :loading?] false))))
+                   (let [items (if (sequential? data) data (:rows data []))
+                         total (if (sequential? data) (count data) (:total data 0))]
+                     (-> db
+                         (assoc-in [:login-logs :items] items)
+                         (assoc-in [:login-logs :total] total)
+                         (assoc-in [:login-logs :loading?] false)))))
 
 (rf/reg-event-fx :login-logs/fetch
                  (fn [{:keys [db]} [_ params]]
@@ -298,8 +306,8 @@
               (fn [result]
                 (when (= 200 (:code result))
                   (rf/dispatch [:login-logs/cleared])
-                  (.success js/antd.message "清空成功")))
-              (fn [_] (.error js/antd.message "网络错误")))))
+                  (antd/success! "清空成功")))
+              (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-event-fx :login-logs/cleared
                  (fn [{:keys [db]} _]
@@ -310,10 +318,12 @@
 
 (rf/reg-event-db :online-users/set-list
                  (fn [db [_ data]]
-                   (-> db
-                       (assoc-in [:online-users :items] (:rows data))
-                       (assoc-in [:online-users :total] (:total data))
-                       (assoc-in [:online-users :loading?] false))))
+                   (let [items (if (sequential? data) data (:rows data []))
+                         total (if (sequential? data) (count data) (:total data 0))]
+                     (-> db
+                         (assoc-in [:online-users :items] items)
+                         (assoc-in [:online-users :total] total)
+                         (assoc-in [:online-users :loading?] false)))))
 
 (rf/reg-event-fx :online-users/fetch
                  (fn [{:keys [db]} [_ params]]
@@ -344,10 +354,12 @@
 
 (rf/reg-event-db :jobs/set-list
                  (fn [db [_ data]]
-                   (-> db
-                       (assoc-in [:jobs :items] (:rows data))
-                       (assoc-in [:jobs :total] (:total data))
-                       (assoc-in [:jobs :loading?] false))))
+                   (let [items (if (sequential? data) data (:rows data []))
+                         total (if (sequential? data) (count data) (:total data 0))]
+                     (-> db
+                         (assoc-in [:jobs :items] items)
+                         (assoc-in [:jobs :total] total)
+                         (assoc-in [:jobs :loading?] false)))))
 
 (rf/reg-event-fx :jobs/fetch
                  (fn [{:keys [db]} [_ params]]
@@ -539,18 +551,18 @@
              (api/create-role params
                               (fn [result]
                                 (when (= 200 (:code result))
-                                  (.success js/antd.message "创建成功")
+                                  (antd/success! "创建成功")
                                   (rf/dispatch [:roles/fetch {}])))
-                              (fn [_] (.error js/antd.message "网络错误")))))
+                              (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-fx :api/update-role
            (fn [[id params]]
              (api/update-role id params
                               (fn [result]
                                 (when (= 200 (:code result))
-                                  (.success js/antd.message "更新成功")
+                                  (antd/success! "更新成功")
                                   (rf/dispatch [:roles/fetch {}])))
-                              (fn [_] (.error js/antd.message "网络错误")))))
+                              (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-event-fx :roles/delete
                  (fn [_ [_ id]]
@@ -561,9 +573,9 @@
              (api/delete-role id
                               (fn [result]
                                 (when (= 200 (:code result))
-                                  (.success js/antd.message "删除成功")
+                                  (antd/success! "删除成功")
                                   (rf/dispatch [:roles/fetch {}])))
-                              (fn [_] (.error js/antd.message "网络错误")))))
+                              (fn [_] (antd/error! "网络错误")))))
 
 ;; ────── 角色菜单权限 ──────
 
@@ -610,8 +622,8 @@
 (rf/reg-fx :api/import-users
            (fn [file]
              (api/import-users-csv file
-                                   (fn [r] (when (= 200 (:code r)) (.success js/antd.message (str "成功导入 " (:imported (:data r)) " 个用户")) (rf/dispatch [:users/fetch {}])))
-                                   (fn [_] (.error js/antd.message "导入失败")))))
+                                   (fn [r] (when (= 200 (:code r)) (antd/success! (str "成功导入 " (:imported (:data r)) " 个用户")) (rf/dispatch [:users/fetch {}])))
+                                   (fn [_] (antd/error! "导入失败")))))
 
 (rf/reg-event-fx :users/export
                  (fn [{:keys [db]} _]
@@ -630,7 +642,7 @@
                   (.click link)
                   (.removeChild js/document.body link)
                   (js/URL.revokeObjectURL url)))
-              (fn [_] (.error js/antd.message "导出失败")))))
+              (fn [_] (antd/error! "导出失败")))))
 
 (rf/reg-fx :api/upload-avatar
            (fn [form-data]
@@ -655,7 +667,8 @@
 
 (rf/reg-event-db :depts/set-list
                  (fn [db [_ data]]
-                   (assoc-in db [:depts :items] (:rows data))))
+                   (let [items (if (sequential? data) data (:rows data []))]
+                     (assoc-in db [:depts :items] items))))
 
 (rf/reg-event-fx :depts/fetch
                  (fn [{:keys [db]} [_ params]]
@@ -695,24 +708,26 @@
 
 (rf/reg-fx :api/create-dept
            (fn [params]
-             (api/create-dept params (fn [r] (when (= 200 (:code r)) (.success js/antd.message "创建成功") (rf/dispatch [:depts/fetch {}]))) (fn [_] (.error js/antd.message "网络错误")))))
+             (api/create-dept params (fn [r] (when (= 200 (:code r)) (antd/success! "创建成功") (rf/dispatch [:depts/fetch {}]))) (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-fx :api/update-dept
            (fn [[id params]]
-             (api/update-dept id params (fn [r] (when (= 200 (:code r)) (.success js/antd.message "更新成功") (rf/dispatch [:depts/fetch {}]))) (fn [_] (.error js/antd.message "网络错误")))))
+             (api/update-dept id params (fn [r] (when (= 200 (:code r)) (antd/success! "更新成功") (rf/dispatch [:depts/fetch {}]))) (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-event-fx :depts/delete
                  (fn [_ [_ id]] {:api/delete-dept id}))
 
 (rf/reg-fx :api/delete-dept
            (fn [id]
-             (api/delete-dept id (fn [r] (when (= 200 (:code r)) (.success js/antd.message "删除成功") (rf/dispatch [:depts/fetch {}]))) (fn [_] (.error js/antd.message "网络错误")))))
+             (api/delete-dept id (fn [r] (when (= 200 (:code r)) (antd/success! "删除成功") (rf/dispatch [:depts/fetch {}]))) (fn [_] (antd/error! "网络错误")))))
 
 ;; ────── 岗位管理 ──────
 
 (rf/reg-event-db :posts/set-list
                  (fn [db [_ data]]
-                   (-> db (assoc-in [:posts :items] (:rows data)) (assoc-in [:posts :total] (:total data)) (assoc-in [:posts :loading?] false))))
+                   (let [items (if (sequential? data) data (:rows data []))
+                         total (if (sequential? data) (count data) (:total data 0))]
+                     (-> db (assoc-in [:posts :items] items) (assoc-in [:posts :total] total) (assoc-in [:posts :loading?] false)))))
 
 (rf/reg-event-db :posts/update-query
                  (fn [db [_ k v]] (assoc-in db [:posts :query-params k] v)))
@@ -754,16 +769,16 @@
                        {:db (assoc-in db [:posts :modal-visible?] false) :api/create-post data}))))
 
 (rf/reg-fx :api/create-post
-           (fn [params] (api/create-post params (fn [r] (when (= 200 (:code r)) (.success js/antd.message "创建成功") (rf/dispatch [:posts/fetch {}]))) (fn [_] (.error js/antd.message "网络错误")))))
+           (fn [params] (api/create-post params (fn [r] (when (= 200 (:code r)) (antd/success! "创建成功") (rf/dispatch [:posts/fetch {}]))) (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-fx :api/update-post
-           (fn [[id params]] (api/update-post id params (fn [r] (when (= 200 (:code r)) (.success js/antd.message "更新成功") (rf/dispatch [:posts/fetch {}]))) (fn [_] (.error js/antd.message "网络错误")))))
+           (fn [[id params]] (api/update-post id params (fn [r] (when (= 200 (:code r)) (antd/success! "更新成功") (rf/dispatch [:posts/fetch {}]))) (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-event-fx :posts/delete
                  (fn [_ [_ id]] {:api/delete-post id}))
 
 (rf/reg-fx :api/delete-post
-           (fn [id] (api/delete-post id (fn [r] (when (= 200 (:code r)) (.success js/antd.message "删除成功") (rf/dispatch [:posts/fetch {}]))) (fn [_] (.error js/antd.message "网络错误")))))
+           (fn [id] (api/delete-post id (fn [r] (when (= 200 (:code r)) (antd/success! "删除成功") (rf/dispatch [:posts/fetch {}]))) (fn [_] (antd/error! "网络错误")))))
 
 ;; ────── 服务器监控 ──────
 
@@ -813,7 +828,7 @@
 
 (rf/reg-fx :api/clear-cache
            (fn [_]
-             (api/clear-cache (fn [r] (when (= 200 (:code r)) (.success js/antd.message "缓存已清空") (rf/dispatch [:cache/fetch-info]) (rf/dispatch [:cache/fetch-keys]))) (fn [_] (.error js/antd.message "清空缓存失败")))))
+             (api/clear-cache (fn [r] (when (= 200 (:code r)) (antd/success! "缓存已清空") (rf/dispatch [:cache/fetch-info]) (rf/dispatch [:cache/fetch-keys]))) (fn [_] (antd/error! "清空缓存失败")))))
 
 ;; ────── 数据源监控 ──────
 
@@ -870,7 +885,7 @@
                    {:db db :api/gen-generate tables}))
 
 (rf/reg-fx :api/gen-generate
-           (fn [tables] (api/gen-generate tables (fn [r] (when (= 200 (:code r)) (.success js/antd.message "代码生成成功"))) (fn [_] (.error js/antd.message "生成失败")))))
+           (fn [tables] (api/gen-generate tables (fn [r] (when (= 200 (:code r)) (antd/success! "代码生成成功"))) (fn [_] (antd/error! "生成失败")))))
 
 ;; ────── 操作日志详情 ──────
 
@@ -905,8 +920,8 @@
 (rf/reg-fx :api/file-upload
            (fn [file]
              (api/file-upload file
-                              (fn [r] (when (= 200 (:code r)) (.success js/antd.message "上传成功") (rf/dispatch [:file/fetch])))
-                              (fn [_] (.error js/antd.message "上传失败")))))
+                              (fn [r] (when (= 200 (:code r)) (antd/success! "上传成功") (rf/dispatch [:file/fetch])))
+                              (fn [_] (antd/error! "上传失败")))))
 
 (rf/reg-event-fx :file/download
                  (fn [_ [_ filename]]
@@ -918,8 +933,8 @@
 (rf/reg-fx :api/file-delete
            (fn [filename]
              (api/file-delete filename
-                              (fn [r] (when (= 200 (:code r)) (.success js/antd.message "删除成功") (rf/dispatch [:file/fetch])))
-                              (fn [_] (.error js/antd.message "删除失败")))))
+                              (fn [r] (when (= 200 (:code r)) (antd/success! "删除成功") (rf/dispatch [:file/fetch])))
+                              (fn [_] (antd/error! "删除失败")))))
 
 ;; ────── 表单构建器 ──────
 
@@ -1007,8 +1022,8 @@
                     :api/list-menus nil}))
 
 (rf/reg-fx :api/list-menus
-           (fn [_]
-             (api/list-menus
+           (fn [params]
+             (api/list-menus params
               (fn [result]
                 (when (= 200 (:code result))
                   (rf/dispatch [:menus/set-list (:data result)])))
@@ -1051,18 +1066,18 @@
              (api/create-menu params
                               (fn [result]
                                 (when (= 200 (:code result))
-                                  (.success js/antd.message "创建成功")
+                                  (antd/success! "创建成功")
                                   (rf/dispatch [:menus/fetch])))
-                              (fn [_] (.error js/antd.message "网络错误")))))
+                              (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-fx :api/update-menu
            (fn [[id params]]
              (api/update-menu id params
                               (fn [result]
                                 (when (= 200 (:code result))
-                                  (.success js/antd.message "更新成功")
+                                  (antd/success! "更新成功")
                                   (rf/dispatch [:menus/fetch])))
-                              (fn [_] (.error js/antd.message "网络错误")))))
+                              (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-event-fx :menus/delete
                  (fn [_ [_ id]]
@@ -1073,9 +1088,9 @@
              (api/delete-menu id
                               (fn [result]
                                 (when (= 200 (:code result))
-                                  (.success js/antd.message "删除成功")
+                                  (antd/success! "删除成功")
                                   (rf/dispatch [:menus/fetch])))
-                              (fn [_] (.error js/antd.message "网络错误")))))
+                              (fn [_] (antd/error! "网络错误")))))
 
 ;; ─── 字典类型 CRUD ────────────────────────────────────────────────────────────
 
@@ -1088,11 +1103,11 @@
              (api/create-dict-type params
                                    (fn [result]
                                      (when (= 200 (:code result))
-                                       (.success js/antd.message "创建成功")
+                                       (antd/success! "创建成功")
                                        (rf/dispatch [:dicts/fetch-types {}]))
                                      (when (not= 200 (:code result))
-                                       (.error js/antd.message (:msg result))))
-                                   (fn [_] (.error js/antd.message "网络错误")))))
+                                       (antd/error! (:msg result))))
+                                   (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-event-fx :dicts/update-type
                  (fn [_ [_ id params]]
@@ -1103,11 +1118,11 @@
              (api/update-dict-type id params
                                    (fn [result]
                                      (when (= 200 (:code result))
-                                       (.success js/antd.message "更新成功")
+                                       (antd/success! "更新成功")
                                        (rf/dispatch [:dicts/fetch-types {}]))
                                      (when (not= 200 (:code result))
-                                       (.error js/antd.message (:msg result))))
-                                   (fn [_] (.error js/antd.message "网络错误")))))
+                                       (antd/error! (:msg result))))
+                                   (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-event-fx :dicts/delete-type
                  (fn [_ [_ id]]
@@ -1118,11 +1133,11 @@
              (api/delete-dict-type id
                                    (fn [result]
                                      (when (= 200 (:code result))
-                                       (.success js/antd.message "删除成功")
+                                       (antd/success! "删除成功")
                                        (rf/dispatch [:dicts/fetch-types {}]))
                                      (when (not= 200 (:code result))
-                                       (.error js/antd.message (:msg result))))
-                                   (fn [_] (.error js/antd.message "网络错误")))))
+                                       (antd/error! (:msg result))))
+                                   (fn [_] (antd/error! "网络错误")))))
 
 ;; ─── 字典数据 CRUD ────────────────────────────────────────────────────────────
 
@@ -1135,11 +1150,11 @@
              (api/create-dict-data params
                                    (fn [result]
                                      (when (= 200 (:code result))
-                                       (.success js/antd.message "创建成功")
+                                       (antd/success! "创建成功")
                                        (rf/dispatch [:dicts/fetch-data {:dict_type (:dict_type params)}]))
                                      (when (not= 200 (:code result))
-                                       (.error js/antd.message (:msg result))))
-                                   (fn [_] (.error js/antd.message "网络错误")))))
+                                       (antd/error! (:msg result))))
+                                   (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-event-fx :dicts/update-data
                  (fn [_ [_ id params]]
@@ -1150,11 +1165,11 @@
              (api/update-dict-data id params
                                    (fn [result]
                                      (when (= 200 (:code result))
-                                       (.success js/antd.message "更新成功")
+                                       (antd/success! "更新成功")
                                        (rf/dispatch [:dicts/fetch-data {:dict_type (:dict_type params)}]))
                                      (when (not= 200 (:code result))
-                                       (.error js/antd.message (:msg result))))
-                                   (fn [_] (.error js/antd.message "网络错误")))))
+                                       (antd/error! (:msg result))))
+                                   (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-event-fx :dicts/delete-data
                  (fn [_ [_ id]]
@@ -1165,20 +1180,13 @@
              (api/delete-dict-data id
                                    (fn [result]
                                      (when (= 200 (:code result))
-                                       (.success js/antd.message "删除成功")
+                                       (antd/success! "删除成功")
                                        (rf/dispatch [:dicts/fetch-data {}]))
                                      (when (not= 200 (:code result))
-                                       (.error js/antd.message (:msg result))))
-                                   (fn [_] (.error js/antd.message "网络错误")))))
+                                       (antd/error! (:msg result))))
+                                   (fn [_] (antd/error! "网络错误")))))
 
-;; ────── 通知公告 ──────
-
-(rf/reg-event-db :notices/set-list
-                 (fn [db [_ data]]
-                   (-> db
-                       (assoc-in [:notices :items] (:rows data))
-                       (assoc-in [:notices :total] (:total data))
-                       (assoc-in [:notices :loading?] false))))
+;; ─── 通知公告 ─────────────────────────────────────────────────────────────────
 
 (rf/reg-event-fx :notices/fetch
                  (fn [{:keys [db]} [_ params]]
@@ -1191,46 +1199,43 @@
                                (fn [result]
                                  (when (= 200 (:code result))
                                    (rf/dispatch [:notices/set-list (:data result)])))
-                               (fn [_]))))
+                               (fn [_] (antd/error! "网络错误")))))
+
+(rf/reg-event-db :notices/set-list
+                 (fn [db [_ data]]
+                   (let [items (if (sequential? data) data (:rows data []))
+                         total (if (sequential? data) (count data) (:total data 0))]
+                     (assoc db :notices {:items items :total total :loading? false
+                                         :modal-visible? false :editing nil :form-data {}}))))
 
 (rf/reg-event-db :notices/open-modal
                  (fn [db _]
-                   (-> db
-                       (assoc-in [:notices :modal-visible?] true)
-                       (assoc-in [:notices :editing?] false)
-                       (assoc-in [:notices :form-data] {:notice_type "1" :status "0"}))))
+                   (assoc db :notices {:items (get-in db [:notices :items] [])
+                                       :total (get-in db [:notices :total] 0)
+                                       :loading? false
+                                       :modal-visible? true :editing nil :form-data {}})))
 
 (rf/reg-event-db :notices/close-modal
                  (fn [db _]
                    (assoc-in db [:notices :modal-visible?] false)))
 
-(rf/reg-event-db :notices/update-form
-                 (fn [db [_ k v]]
-                   (assoc-in db [:notices :form-data k] v)))
-
 (rf/reg-event-db :notices/edit
-                 (fn [db [_ data]]
+                 (fn [db [_ item]]
                    (-> db
                        (assoc-in [:notices :modal-visible?] true)
-                       (assoc-in [:notices :editing?] true)
-                       (assoc-in [:notices :form-data] data))))
+                       (assoc-in [:notices :editing] item)
+                       (assoc-in [:notices :form-data] item))))
+
+(rf/reg-event-db :notices/update-form
+                 (fn [db [_ field value]]
+                   (assoc-in db [:notices :form-data field] value)))
 
 (rf/reg-event-fx :notices/submit
                  (fn [{:keys [db]} _]
-                   (let [form-data (get-in db [:notices :form-data])
-                         editing?  (get-in db [:notices :editing?])
-                         notice-name (str (get form-data :notice_name))]
-                     (cond
-                       (str/blank? notice-name)
-                       (.error js/antd.message "请输入公告标题")
-
-                       (str/blank? (str (get form-data :notice_type "")))
-                       (.error js/antd.message "请选择公告类型")
-
-                       editing?
-                       {:api/update-notice [(:notice_id form-data) form-data]}
-
-                       :else
+                   (let [form-data (get-in db [:notices :form-data] {})
+                         editing (get-in db [:notices :editing])]
+                     (if editing
+                       {:api/update-notice [(:notice_id editing) form-data]}
                        {:api/create-notice form-data}))))
 
 (rf/reg-fx :api/create-notice
@@ -1238,32 +1243,18 @@
              (api/create-notice params
                                 (fn [result]
                                   (when (= 200 (:code result))
-                                    (rf/dispatch [:notices/created])
-                                    (.success js/antd.message "创建成功"))
-                                  (when (not= 200 (:code result))
-                                    (.error js/antd.message (:msg result))))
-                                (fn [_] (.error js/antd.message "网络错误")))))
-
-(rf/reg-event-fx :notices/created
-                 (fn [{:keys [db]} _]
-                   {:db (assoc-in db [:notices :modal-visible?] false)
-                    :dispatch [:notices/fetch {}]}))
+                                    (antd/success! "创建成功")
+                                    (rf/dispatch [:notices/fetch {}])))
+                                (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-fx :api/update-notice
            (fn [[id params]]
              (api/update-notice id params
                                 (fn [result]
                                   (when (= 200 (:code result))
-                                    (rf/dispatch [:notices/updated])
-                                    (.success js/antd.message "更新成功"))
-                                  (when (not= 200 (:code result))
-                                    (.error js/antd.message (:msg result))))
-                                (fn [_] (.error js/antd.message "网络错误")))))
-
-(rf/reg-event-fx :notices/updated
-                 (fn [{:keys [db]} _]
-                   {:db (assoc-in db [:notices :modal-visible?] false)
-                    :dispatch [:notices/fetch {}]}))
+                                    (antd/success! "更新成功")
+                                    (rf/dispatch [:notices/fetch {}])))
+                                (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-event-fx :notices/delete
                  (fn [_ [_ id]]
@@ -1274,15 +1265,10 @@
              (api/delete-notice id
                                 (fn [result]
                                   (when (= 200 (:code result))
-                                    (rf/dispatch [:notices/deleted])
-                                    (.success js/antd.message "删除成功"))
-                                  (when (not= 200 (:code result))
-                                    (.error js/antd.message (:msg result))))
-                                (fn [_] (.error js/antd.message "网络错误")))))
+                                    (antd/success! "删除成功")
+                                    (rf/dispatch [:notices/fetch {}])))
+                                (fn [_] (antd/error! "网络错误")))))
 
-(rf/reg-event-fx :notices/deleted
-                 (fn [_ _]
-                   {:dispatch [:notices/fetch {}]}))
 ;; ─── 用户管理完整事件 ─────────────────────────────────────────────────────────
 
 (rf/reg-event-db :users/open-add
@@ -1310,7 +1296,7 @@
                            (assoc-in [:users :modal-visible?] true)
                            (assoc-in [:users :editing] user)
                            (assoc-in [:users :form-data] user))
-                       (do (.warning js/antd.message "请先选择要修改的用户") db)))))
+                       (do (antd/error! "请先选择要修改的用户") db)))))
 
 (rf/reg-event-db :users/close-modal
                  (fn [db _]
@@ -1369,7 +1355,7 @@
                    (let [ids (get-in db [:users :selected-ids] [])]
                      (if (seq ids)
                        {:api/batch-delete-users ids}
-                       (do (.warning js/antd.message "请先选择要删除的用户") {})))))
+                       (do (antd/error! "请先选择要删除的用户") {})))))
 
 (rf/reg-event-db :users/toggle-select
                  (fn [db [_ id]]
@@ -1432,40 +1418,40 @@
                              (fn [result]
                                (when (= 200 (:code result))
                                  (rf/dispatch [:users/set-list (:data result)])))
-                             (fn [_] (.error js/antd.message "网络错误")))))
+                             (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-fx :api/create-user
            (fn [params]
              (api/create-user params
                               (fn [result]
                                 (when (= 200 (:code result))
-                                  (.success js/antd.message "创建成功")
+                                  (antd/success! "创建成功")
                                   (rf/dispatch [:users/fetch {}]))
                                 (when (not= 200 (:code result))
-                                  (.error js/antd.message (:msg result))))
-                              (fn [_] (.error js/antd.message "网络错误")))))
+                                  (antd/error! (:msg result))))
+                              (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-fx :api/update-user
            (fn [[id params]]
              (api/update-user id params
                               (fn [result]
                                 (when (= 200 (:code result))
-                                  (.success js/antd.message "更新成功")
+                                  (antd/success! "更新成功")
                                   (rf/dispatch [:users/fetch {}]))
                                 (when (not= 200 (:code result))
-                                  (.error js/antd.message (:msg result))))
-                              (fn [_] (.error js/antd.message "网络错误")))))
+                                  (antd/error! (:msg result))))
+                              (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-fx :api/delete-user
            (fn [id]
              (api/delete-user id
                               (fn [result]
                                 (when (= 200 (:code result))
-                                  (.success js/antd.message "删除成功")
+                                  (antd/success! "删除成功")
                                   (rf/dispatch [:users/fetch {}]))
                                 (when (not= 200 (:code result))
-                                  (.error js/antd.message (:msg result))))
-                              (fn [_] (.error js/antd.message "网络错误")))))
+                                  (antd/error! (:msg result))))
+                              (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-fx :api/batch-delete-users
            (fn [ids]
@@ -1473,8 +1459,8 @@
                (api/delete-user id
                                 (fn [result]
                                   (when (= 200 (:code result))
-                                    (.success js/antd.message "删除成功")))
-                                (fn [_] (.error js/antd.message "网络错误"))))
+                                    (antd/success! "删除成功")))
+                                (fn [_] (antd/error! "网络错误"))))
              (rf/dispatch [:users/fetch {}])))
 
 (rf/reg-fx :api/change-user-status
@@ -1482,16 +1468,16 @@
              (api/change-user-status user-id status
                                      (fn [result]
                                        (when (= 200 (:code result))
-                                         (.success js/antd.message "状态修改成功")))
-                                     (fn [_] (.error js/antd.message "网络错误")))))
+                                         (antd/success! "状态修改成功")))
+                                     (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-fx :api/reset-user-password
            (fn [[user-id new-pwd]]
              (api/reset-user-password user-id new-pwd
                                       (fn [result]
                                         (when (= 200 (:code result))
-                                          (.success js/antd.message "密码重置成功")))
-                                      (fn [_] (.error js/antd.message "网络错误")))))
+                                          (antd/success! "密码重置成功")))
+                                      (fn [_] (antd/error! "网络错误")))))
 
 ;; ─── 路由导航效果 ────────────────────────────────────────────────────────────
 

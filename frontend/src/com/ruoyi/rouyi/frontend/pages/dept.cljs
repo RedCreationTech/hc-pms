@@ -114,14 +114,13 @@
   (let [items @(rf/subscribe [:depts/items])
         loading? @(rf/subscribe [:depts/loading?])
         tree-data (build-dept-tree items 0)]
-    (fn []
-      [:div
-       [toolbar]
-       [antd/table {:rowKey "dept_id"
-                    :loading loading?
-                    :columns (dept-columns)
-                    :dataSource (clj->js tree-data)
-                    :pagination false
-                    :defaultExpandAllRows true
-                    :childrenColumnName "children"}]
-       [edit-modal]])))
+    [:div
+     [toolbar]
+     [antd/table {:rowKey "dept_id"
+                  :loading loading?
+                  :columns (dept-columns)
+                  :dataSource (clj->js tree-data)
+                  :pagination false
+                  :defaultExpandAllRows true
+                  :childrenColumnName "children"}]
+     [edit-modal]]))
