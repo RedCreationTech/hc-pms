@@ -30,13 +30,13 @@
   (let [{:keys [username password captcha uuid]} (:body-params request)
         login-ip (get-in request [:headers "x-forwarded-for"] (:remote-addr request "127.0.0.1"))
         ;; 验证码校验
-        captcha-valid? (if (and uuid captcha)
+        captcha-valid? (if (and (seq uuid) (seq captcha))
                          (let [stored (get @captcha/captcha-store uuid)]
                            (and stored
                                 (<= (System/currentTimeMillis) (:expire stored))
                                 (= (.toUpperCase captcha) (.toUpperCase (:code stored)))))
                          true)]
-    (when uuid (swap! captcha/captcha-store dissoc uuid))
+    (when (seq uuid) (swap! captcha/captcha-store dissoc uuid))
     (if (not captcha-valid?)
       (error 400 "验证码错误或已过期")
       (if (or (str/blank? username) (str/blank? password))

@@ -8,17 +8,17 @@
     [com.ruoyi.rouyi.frontend.antd :as antd]))
 
 (defn login-page []
-  (let [[username set-username!] (hooks/use-state "admin")
+  (let [initial-uuid (str (random-uuid))
+        [username set-username!] (hooks/use-state "admin")
         [password set-password!] (hooks/use-state "admin123")
         [captcha set-captcha!] (hooks/use-state "")
-        [captcha-uuid set-captcha-uuid!] (hooks/use-state "")
-        [captcha-url set-captcha-url!] (hooks/use-state "")
+        [captcha-uuid set-captcha-uuid!] (hooks/use-state initial-uuid)
+        [captcha-url set-captcha-url!] (hooks/use-state (str "/api/captcha/image?r=" initial-uuid))
         [loading? set-loading!] (hooks/use-state false)
         refresh-captcha (fn []
                           (let [uuid (str (random-uuid))]
                             (set-captcha-uuid! uuid)
                             (set-captcha-url! (str "/api/captcha/image?r=" uuid))))]
-    (hooks/use-effect (fn [] (refresh-captcha) js/undefined) [])
     [:div {:style {:display "flex" :justifyContent "center" :alignItems "center"
                    :height "100vh"
                    :background "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"}}
