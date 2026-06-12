@@ -593,3 +593,12 @@
 (defn export-configs [params] (export-generic-csv "/system/config/export" "参数数据.csv" params))
 (defn export-operlogs [params] (export-generic-csv "/monitor/operlog/export" "操作日志.csv" params))
 (defn export-loginlogs [params] (export-generic-csv "/monitor/logininfor/export" "登录日志.csv" params))
+
+;; ─── 代码生成部署 ──────────────────────────────────────────────────────
+
+(defn gen-deploy
+  "部署生成的代码到项目。"
+  [table-name on-success on-error]
+  (request {:method :post :uri "/tool/gen/deploy"
+            :params {:tableName table-name}
+            :on-success on-success :on-error on-error}))

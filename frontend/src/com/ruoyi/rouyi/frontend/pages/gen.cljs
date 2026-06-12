@@ -4,7 +4,7 @@
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [ReloadOutlined CodeOutlined EyeOutlined DownloadOutlined SettingOutlined]]
+   ["@ant-design/icons" :refer [ReloadOutlined CodeOutlined EyeOutlined DownloadOutlined SettingOutlined CloudUploadOutlined]]
    [com.ruoyi.rouyi.frontend.antd :as antd]))
 
 ;; ─── 工具函数 ──────────────────────────────────────────────────────
@@ -98,7 +98,11 @@
           (str "批量生成 (" (count selected-tables) " 个表)")]
          [antd/button {:icon (r/as-element [:> DownloadOutlined])
                        :onClick #(rf/dispatch [:gen/download selected-tables])}
-          "下载ZIP"]])]
+          "下载ZIP"]
+         [antd/button {:type "primary" :ghost true
+                       :icon (r/as-element [:> CloudUploadOutlined])
+                       :onClick #(rf/dispatch [:gen/deploy selected-tables])}
+          (str "部署到项目 (" (count selected-tables) " 个表)")]])]
 
      ;; 表格
      [antd/card {:title "数据库表"}
@@ -122,7 +126,11 @@
                                                [antd/button {:type "link" :size "small"
                                                              :icon (r/as-element [:> DownloadOutlined])
                                                              :onClick #(rf/dispatch [:gen/download [(.-table_name record)]])}
-                                                "下载"]]))}])
+                                                "下载"]
+                                               [antd/button {:type "link" :size "small"
+                                                             :icon (r/as-element [:> CloudUploadOutlined])
+                                                             :onClick #(rf/dispatch [:gen/deploy [(.-table_name record)]])}
+                                                "部署"]]))}])
                        :rowSelection {:type "checkbox"
                                       :selectedRowKeys (clj->js selected-tables)
                                       :onChange (fn [keys _]

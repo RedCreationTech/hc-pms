@@ -1142,6 +1142,20 @@
                                      (antd/success! "下载成功"))))
                                (fn [_] (antd/error! "下载失败")))))
 
+;; ────── 代码部署 ──────
+
+(rf/reg-event-fx :gen/deploy
+                 (fn [{:keys [db]} [_ tables]]
+                   {:db db :api/gen-deploy (first tables)}))
+
+(rf/reg-fx :api/gen-deploy
+           (fn [table-name]
+             (api/gen-deploy table-name
+                             (fn [r]
+                               (when (= 200 (:code r))
+                                 (antd/success! (str "部署成功: " (get-in r [:data :message])))))
+                             (fn [_] (antd/error! "部署失败")))))
+
 ;; ────── 操作日志详情 ──────
 
 (rf/reg-event-db :oper-logs/set-detail

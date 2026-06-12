@@ -20,4 +20,7 @@
                        :handler    (partial gen/preview-code {:gen-service gen-service})}}]
     ["/generate" {:post {:summary    "批量生成代码"
                          :description "选择表并生成完整 CRUD 代码文件"
-                         :handler    (partial gen/batch-generate {:gen-service gen-service})}}]]])
+                         :handler    (partial gen/batch-generate {:gen-service gen-service})}}]
+    ["/deploy" {:post {:summary    "部署代码"
+                        :description "将生成的代码部署到项目目录"
+                        :handler    (partial gen/deploy-code {:gen-service gen-service})}}]]])
