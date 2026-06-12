@@ -84,6 +84,16 @@
 
 ;; ─── 动态菜单构建 ──────────────────────────────────────────────────────
 
+(defn- filter-visible-menus
+  "过滤掉 F 类型（按钮权限）菜单，只保留 M 目录和 C 菜单。"
+  [menus]
+  (->> menus
+       (filter #(contains? #{"M" "C"} (:menu_type %)))
+       (mapv (fn [m]
+               (if (seq (:children m))
+                 (assoc m :children (filter-visible-menus (:children m)))
+                 m)))))
+
 (defn- menu->antd-items
   "将后端菜单树转换为 antd Menu 的 items 结构。"
   [menus]
@@ -121,7 +131,8 @@
             page @(rf/subscribe [:page])
             user-menus (or (seq (:menus user))
                                    [{:path "dashboard" :menu_name "首页" :icon "dashboard"}])
-            menu-items (menu->antd-items user-menus)
+            filtered-menus (filter-visible-menus user-menus)
+            menu-items (menu->antd-items filtered-menus)
             labels (page-labels user-menus)]
         [:> Layout {:style {:minHeight "100vh"}}
          [:> Layout.Sider {:collapsible true
