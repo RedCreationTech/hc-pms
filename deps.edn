@@ -41,9 +41,10 @@
            ;; JSON
            cheshire/cheshire {:mvn/version "5.13.0"}
 
-           ;; Utils
+           ;; Database
            clj-time/clj-time {:mvn/version "0.15.2"}
            org.xerial/sqlite-jdbc {:mvn/version "3.45.3.0"}
+           com.mysql/mysql-connector-j {:mvn/version "8.3.0"}
            com.zaxxer/HikariCP {:mvn/version "5.1.0"}
 
            ;; CSV

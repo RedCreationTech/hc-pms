@@ -1,0 +1,20 @@
+;; 数据库配置示例
+;; 支持 SQLite 和 MySQL
+
+{:database
+ {:sqlite {:dbtype "sqlite"
+           :dbname "rouyi.db"}
+  
+  :mysql {:dbtype "mysql"
+          :host "localhost"
+          :port 3306
+          :dbname "ruoyi"
+          :username "root"
+          :password "password"
+          :useSSL false
+          :allowPublicKeyRetrieval true
+          :serverTimezone "Asia/Shanghai"}}
+ 
+ :app
+ {:database :sqlite ;; 切换到 :mysql 使用 MySQL
+  }}
