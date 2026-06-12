@@ -404,7 +404,7 @@
                {"Authorization" (str "Bearer " token)})
     :response-format {:content-type "text/csv"
                       :description "CSV"
-                      :read (fn [xhrio] (.getResponseText xhrio))
+                      :read (fn [xhrio] (.-responseText xhrio))
                       :type :text}
     :handler (fn [[ok result]]
                (if ok
