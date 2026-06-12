@@ -4,8 +4,9 @@
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined ReloadOutlined]]
+   ["@ant-design/icons" :refer [PlusOutlined DownloadOutlined EditOutlined DeleteOutlined ReloadOutlined]]
    [com.ruoyi.rouyi.frontend.antd :as antd]
+   [com.ruoyi.rouyi.frontend.api :as api]
    [com.ruoyi.rouyi.frontend.components.dept-tree-select :refer [dept-tree-select]]))
 
 ;; ─── 辅助函数 ──────────────────────────────────────────────────────
@@ -73,6 +74,9 @@
                                       :on-click #(do (rf/dispatch [:depts/update-form :parent_id (.-dept_id record)])
                                                      (rf/dispatch [:depts/open-modal]))}
                          "新增"]
+                        [antd/button {:icon (r/as-element [:> DownloadOutlined])
+                                      :on-click #(api/export-depts {})}
+                         "导出"]
                         [antd/button {:type "link" :size "small"
                                       :icon (r/as-element [:> EditOutlined])
                                       :on-click #(rf/dispatch [:depts/edit (js->clj record :keywordize-keys true)])}

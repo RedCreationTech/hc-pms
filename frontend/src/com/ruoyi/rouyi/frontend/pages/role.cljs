@@ -4,8 +4,9 @@
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [SearchOutlined ReloadOutlined PlusOutlined EditOutlined DeleteOutlined SafetyOutlined]]
-   [com.ruoyi.rouyi.frontend.antd :as antd]))
+   ["@ant-design/icons" :refer [DownloadOutlined SearchOutlined ReloadOutlined PlusOutlined EditOutlined DeleteOutlined SafetyOutlined]]
+   [com.ruoyi.rouyi.frontend.antd :as antd]
+   [com.ruoyi.rouyi.frontend.api :as api]))
 
 ;; ─── 辅助函数 ──────────────────────────────────────────────────────
 
@@ -53,7 +54,10 @@
        [antd/button {:icon (r/as-element [:> ReloadOutlined])
                      :on-click #(do (rf/dispatch [:roles/reset-query])
                                     (rf/dispatch [:roles/fetch {}]))}
-        "重置"]]]]))
+        "重置"]
+       [antd/button {:icon (r/as-element [:> DownloadOutlined])
+                     :on-click #(api/export-roles {})}
+        "导出"]]]]))
 
 ;; ─── 工具栏 ────────────────────────────────────────────────────────
 
@@ -65,7 +69,10 @@
     "新增"]
    [antd/button {:icon (r/as-element [:> ReloadOutlined])
                  :on-click #(rf/dispatch [:roles/fetch {}])}
-    "刷新"]])
+    "刷新"]
+   [antd/button {:icon (r/as-element [:> DownloadOutlined])
+                 :on-click #(api/export-roles {})}
+    "导出"]])
 
 ;; ─── 表格列定义 ──────────────────────────────────────────────────────
 

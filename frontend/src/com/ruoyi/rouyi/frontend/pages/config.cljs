@@ -4,7 +4,8 @@
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
-   [com.ruoyi.rouyi.frontend.antd :as antd]))
+   [com.ruoyi.rouyi.frontend.antd :as antd]
+   [com.ruoyi.rouyi.frontend.api :as api]))
 
 (defn- search-bar []
   (let [keyword (r/atom "")]
@@ -95,7 +96,10 @@
        [antd/card
         [:div {:style {:marginBottom 16}}
          [antd/button {:type "primary" :onClick #(do (reset! editing-item nil) (reset! modal-visible? true))}
-          "新增"]]
+          "新增"]
+         [antd/button {:icon (r/as-element [:> DownloadOutlined])
+                       :on-click #(api/export-configs {})}
+          "导出"]]
         [antd/table {:rowKey "config_id" :loading loading? :scroll #js {:x 800}
                      :columns (config-columns editing-item)
                      :dataSource (clj->js items)

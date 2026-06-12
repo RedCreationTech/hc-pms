@@ -4,8 +4,9 @@
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [EyeOutlined]]
-   [com.ruoyi.rouyi.frontend.antd :as antd]))
+   ["@ant-design/icons" :refer [EyeOutlined DeleteOutlined SearchOutlined ReloadOutlined ClearOutlined DownloadOutlined]]
+   [com.ruoyi.rouyi.frontend.antd :as antd]
+   [com.ruoyi.rouyi.frontend.api :as api]))
 
 ;; ─── 详情弹窗 ──────────────────────────────────────────────────────
 

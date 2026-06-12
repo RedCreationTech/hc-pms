@@ -4,8 +4,9 @@
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [SearchOutlined ReloadOutlined PlusOutlined EditOutlined DeleteOutlined]]
-   [com.ruoyi.rouyi.frontend.antd :as antd]))
+   ["@ant-design/icons" :refer [DownloadOutlined SearchOutlined ReloadOutlined PlusOutlined EditOutlined DeleteOutlined]]
+   [com.ruoyi.rouyi.frontend.antd :as antd]
+   [com.ruoyi.rouyi.frontend.api :as api]))
 
 ;; ─── 搜索表单 ──────────────────────────────────────────────────────
 
@@ -37,7 +38,10 @@
         "搜索"]
        [antd/button {:icon (r/as-element [:> ReloadOutlined])
                      :on-click #(do (rf/dispatch [:posts/reset-query]) (rf/dispatch [:posts/fetch {}]))}
-        "重置"]]]]))
+        "重置"]
+       [antd/button {:icon (r/as-element [:> DownloadOutlined])
+                     :on-click #(api/export-posts {})}
+        "导出"]]]]))
 
 ;; ─── 工具栏 ────────────────────────────────────────────────────────
 
@@ -46,7 +50,9 @@
    [antd/button {:type "primary" :icon (r/as-element [:> PlusOutlined])
                  :on-click #(rf/dispatch [:posts/open-modal])} "新增"]
    [antd/button {:icon (r/as-element [:> ReloadOutlined])
-                 :on-click #(rf/dispatch [:posts/fetch {}])} "刷新"]])
+                 :on-click #(rf/dispatch [:posts/fetch {}])} "刷新"]
+   [antd/button {:icon (r/as-element [:> DownloadOutlined])
+                 :on-click #(api/export-posts {})} "导出"]])
 
 ;; ─── 表格列 ──────────────────────────────────────────────────────
 

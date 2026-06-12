@@ -4,8 +4,9 @@
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined ReloadOutlined SearchOutlined]]
+   ["@ant-design/icons" :refer [PlusOutlined DownloadOutlined EditOutlined DeleteOutlined ReloadOutlined SearchOutlined]]
    [com.ruoyi.rouyi.frontend.antd :as antd]
+   [com.ruoyi.rouyi.frontend.api :as api]
    [com.ruoyi.rouyi.frontend.components.icon-picker :as icon-picker]))
 
 ;; ─── 菜单类型标签 ──────────────────────────────────────────────────────
@@ -106,6 +107,9 @@
                                       :on-click #(do (rf/dispatch [:menus/update-form :parent_id (.-menu_id record)])
                                                      (rf/dispatch [:menus/open-modal]))}
                          "新增"]
+                        [antd/button {:icon (r/as-element [:> DownloadOutlined])
+                                      :on-click #(api/export-menus {})}
+                         "导出"]
                         [antd/button {:type "link" :size "small"
                                       :icon (r/as-element [:> EditOutlined])
                                       :on-click #(rf/dispatch [:menus/edit (js->clj record :keywordize-keys true)])}

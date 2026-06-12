@@ -556,3 +556,40 @@
   [id on-success on-error]
   (request {:method :delete :uri (str "/api/system/dict/data/" id)
             :on-success on-success :on-error on-error}))
+
+;; ─── 通用导出函数 ──────────────────────────────────────────────────────
+
+(defn export-generic-csv
+  "通用导出CSV。"
+  [url filename params]
+  (let [token (get-token)
+        headers (if token {"Authorization" (str "Bearer " token)} {})
+        query-str (when (seq params)
+                    (str "?" (clojure.string/join "&"
+                                                  (map (fn [[k v]] (str (name k) "=" (js/encodeURIComponent (str v))))
+                                                       params))))]
+    (-> (js/fetch (str api-base url (or query-str ""))
+                  (clj->js {:method "GET"
+                            :headers (clj->js headers)}))
+        (.then (fn [resp]
+                 (if (.-ok resp)
+                   (.blob resp)
+                   (throw (js/Error. (str "Export failed: " (.-status resp)))))))
+        (.then (fn [blob]
+                 (let [url (js/URL.createObjectURL blob)
+                       a (js/document.createElement "a")]
+                   (set! (.-href a) url)
+                   (set! (.-download a) (or filename "export.csv"))
+                   (.appendChild (.-body js/document) a)
+                   (.click a)
+                   (.removeChild (.-body js/document) a)
+                   (js/URL.revokeObjectURL url)))))))
+
+(defn export-roles [params] (export-generic-csv "/system/role/export" "角色数据.csv" params))
+(defn export-menus [params] (export-generic-csv "/system/menu/export" "菜单数据.csv" params))
+(defn export-depts [params] (export-generic-csv "/system/dept/export" "部门数据.csv" params))
+(defn export-posts [params] (export-generic-csv "/system/post/export" "岗位数据.csv" params))
+(defn export-dicts [params] (export-generic-csv "/system/dict/type/export" "字典数据.csv" params))
+(defn export-configs [params] (export-generic-csv "/system/config/export" "参数数据.csv" params))
+(defn export-operlogs [params] (export-generic-csv "/monitor/operlog/export" "操作日志.csv" params))
+(defn export-loginlogs [params] (export-generic-csv "/monitor/logininfor/export" "登录日志.csv" params))

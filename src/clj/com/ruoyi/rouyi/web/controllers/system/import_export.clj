@@ -2,6 +2,12 @@
   "用户导入导出控制器，使用 multipart 上传与 clojure.data.csv。"
   (:require
    [com.ruoyi.rouyi.domain.system.user :as user-service]
+   [com.ruoyi.rouyi.domain.system.role :as role-service]
+   [com.ruoyi.rouyi.domain.system.menu :as menu-service]
+   [com.ruoyi.rouyi.domain.system.dept :as dept-service]
+   [com.ruoyi.rouyi.domain.system.post :as post-service]
+   [com.ruoyi.rouyi.domain.system.dict :as dict-service]
+   [com.ruoyi.rouyi.domain.system.config :as config-service]
    [com.ruoyi.rouyi.infra.data-perm :as data-perm]
    [ring.util.response :as response]
    [ring.middleware.multipart-params :as multipart]
@@ -136,3 +142,65 @@
       (-> (response/response content)
           (response/header "Content-Type" "text/csv; charset=utf-8")
           (response/header "Content-Disposition" "attachment; filename=user_import_template.csv")))))
+
+;; ─── 通用导出函数 ──────────────────────────────────────────────────────
+
+(defn- generic-export
+  "通用导出函数。"
+  [list-fn service params header csv-fn filename request]
+  (try
+    (let [result (list-fn service (merge {:page-num 1 :page-size 10000 :page-num 1} params))
+          rows (if (sequential? result) result (:rows result []))
+          csv-lines (mapv csv-fn rows)
+          output (java.io.StringWriter.)]
+      (csv/write-csv output (cons header csv-lines) :separator \, :quote \")
+      (let [csv-str (str output)
+            bom "\uFEFF"
+            content (str bom csv-str)]
+        (-> (response/response content)
+            (response/header "Content-Type" "text/csv; charset=utf-8")
+            (response/header "Content-Disposition" (str "attachment; filename=" filename)))))
+    (catch Exception e
+      (fail (.getMessage e)))))
+
+(defn export-roles
+  "导出角色数据。"
+  [{:keys [role-service]} request]
+  (let [header ["role_id" "role_name" "role_key" "role_sort" "status"]
+        csv-fn (fn [r] [(:role_id r) (:role_name r) (:role_key r) (:role_sort r) (:status r)])]
+    (generic-export role-service/list-roles role-service {} header csv-fn "roles.csv" request)))
+
+(defn export-menus
+  "导出菜单数据。"
+  [{:keys [menu-service]} request]
+  (let [header ["menu_id" "menu_name" "parent_id" "order_num" "path" "component" "menu_type" "status"]
+        csv-fn (fn [m] [(:menu_id m) (:menu_name m) (:parent_id m) (:order_num m) (:path m) (:component m) (:menu_type m) (:status m)])]
+    (generic-export menu-service/list-menus menu-service {} header csv-fn "menus.csv" request)))
+
+(defn export-depts
+  "导出部门数据。"
+  [{:keys [dept-service]} request]
+  (let [header ["dept_id" "parent_id" "dept_name" "order_num" "leader" "status"]
+        csv-fn (fn [d] [(:dept_id d) (:parent_id d) (:dept_name d) (:order_num d) (:leader d) (:status d)])]
+    (generic-export dept-service/list-depts dept-service {} header csv-fn "depts.csv" request)))
+
+(defn export-posts
+  "导出岗位数据。"
+  [{:keys [post-service]} request]
+  (let [header ["post_id" "post_code" "post_name" "post_sort" "status"]
+        csv-fn (fn [p] [(:post_id p) (:post_code p) (:post_name p) (:post_sort p) (:status p)])]
+    (generic-export post-service/list-posts post-service {} header csv-fn "posts.csv" request)))
+
+(defn export-dict-types
+  "导出字典类型数据。"
+  [{:keys [dict-service]} request]
+  (let [header ["dict_id" "dict_name" "dict_type" "status"]
+        csv-fn (fn [d] [(:dict_id d) (:dict_name d) (:dict_type d) (:status d)])]
+    (generic-export dict-service/list-dict-types dict-service {} header csv-fn "dict_types.csv" request)))
+
+(defn export-configs
+  "导出参数配置数据。"
+  [{:keys [config-service]} request]
+  (let [header ["config_id" "config_name" "config_key" "config_value" "config_type"]
+        csv-fn (fn [c] [(:config_id c) (:config_name c) (:config_key c) (:config_value c) (:config_type c)])]
+    (generic-export config-service/list-configs config-service {} header csv-fn "configs.csv" request)))

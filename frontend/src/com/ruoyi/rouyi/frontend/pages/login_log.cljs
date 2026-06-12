@@ -4,7 +4,9 @@
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
-   [com.ruoyi.rouyi.frontend.antd :as antd]))
+   ["@ant-design/icons" :refer [DeleteOutlined SearchOutlined ReloadOutlined ClearOutlined DownloadOutlined]]
+   [com.ruoyi.rouyi.frontend.antd :as antd]
+   [com.ruoyi.rouyi.frontend.api :as api]))
 
 (defn- login-log-columns []
   #js [#js {:title "访问编号" :dataIndex "info_id" :key "info_id" :width 80}
@@ -28,15 +30,36 @@
                     [])
   (let [items @(rf/subscribe [:login-logs/items])
         total @(rf/subscribe [:login-logs/total])
-        loading? @(rf/subscribe [:login-logs/loading?])]
+        loading? @(rf/subscribe [:login-logs/loading?])
+        [ipaddr set-ipaddr!] (hooks/use-state "")
+        [username set-username!] (hooks/use-state "")]
     [:div
-     [antd/space {:style {:marginBottom 16}}
-      [antd/button {:type "primary" :danger true
-                    :onClick #(rf/dispatch [:login-logs/clear])}
-       "清空"]
-      [antd/button {:onClick #(rf/dispatch [:login-logs/export])} "导出"]]
+     ;; 搜索栏
+     [:div {:style {:display "flex" :gap 8 :marginBottom 12 :flexWrap "wrap" :alignItems "center"}}
+      [antd/input {:placeholder "登录地址" :style {:width 200}
+                   :value ipaddr :onChange #(set-ipaddr! (-> % .-target .-value))}]
+      [antd/input {:placeholder "用户名称" :style {:width 200}
+                   :value username :onChange #(set-username! (-> % .-target .-value))}]
+      [antd/button {:type "primary" :icon (r/as-element [:> SearchOutlined])
+                    :on-click #(rf/dispatch [:login-logs/search {:ipaddr ipaddr :user_name username}])}
+       "搜索"]
+      [antd/button {:icon (r/as-element [:> ReloadOutlined])
+                    :on-click #(do (set-ipaddr! "") (set-username! "") (rf/dispatch [:login-logs/fetch {}]))}
+       "重置"]]
+     ;; 工具栏
+     [:div {:style {:display "flex" :gap 8 :marginBottom 12}}
+      [antd/button {:type "danger" :ghost true :icon (r/as-element [:> DeleteOutlined])
+                    :on-click #(rf/dispatch [:login-logs/batch-delete])}
+       "批量删除"]
+      [antd/button {:type "danger" :ghost true :icon (r/as-element [:> ClearOutlined])
+                    :on-click #(rf/dispatch [:login-logs/clear])}
+       "清空全部"]
+      [antd/button {:icon (r/as-element [:> DownloadOutlined])
+                    :on-click #(api/export-loginlogs {})}
+       "导出"]]
      [antd/table {:scroll #js {:x "max-content"} :rowKey "info_id"
                   :loading loading?
+                  :rowSelection {:onChange (fn [keys] (rf/dispatch [:login-logs/select keys]))}
                   :columns (login-log-columns)
                   :dataSource (clj->js items)
-                  :pagination {:pageSize 10 :total total}}]]))
+                  :pagination {:pageSize 10 :total total :showTotal (fn [t] (str "共 " t " 条"))}}]]))

@@ -4,8 +4,9 @@
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined SearchOutlined ReloadOutlined]]
-   [com.ruoyi.rouyi.frontend.antd :as antd]))
+   ["@ant-design/icons" :refer [PlusOutlined DownloadOutlined EditOutlined DeleteOutlined SearchOutlined ReloadOutlined]]
+   [com.ruoyi.rouyi.frontend.antd :as antd]
+   [com.ruoyi.rouyi.frontend.api :as api]))
 
 (defonce selected-type (r/atom nil))
 (defonce type-modal-visible? (r/atom false))
@@ -95,7 +96,10 @@
        "重置"]]
      [:div {:style {:marginBottom 16}}
       [antd/button {:type "primary" :onClick #(do (reset! type-editing nil) (reset! type-modal-visible? true))}
-       "新增字典类型"]]
+       "新增字典类型"]
+      [antd/button {:icon (r/as-element [:> DownloadOutlined])
+                    :on-click #(api/export-dicts {})}
+       "导出"]]
      [antd/table {:rowKey "dict_id" :loading loading? :scroll #js {:x 700}
                   :columns (type-columns)
                   :dataSource (clj->js types)
