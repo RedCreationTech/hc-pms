@@ -148,7 +148,12 @@
              (let [full-path (if (seq parent-path)
                                (str parent-path "/" (:path m))
                                (:path m))
-                   acc (assoc acc (keyword full-path) (:menu_name m))]
+                   ;; 查找路由关键词，如 system/user -> :user
+                   matched (router/match-route (str "/" full-path))
+                   route-key (:handler matched)
+                   acc (if route-key
+                         (assoc acc route-key (:menu_name m))
+                         acc)]
                (if (seq (:children m))
                  (merge acc (page-labels (:children m) full-path))
                  acc)))
