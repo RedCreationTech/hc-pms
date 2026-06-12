@@ -399,6 +399,8 @@
 (rf/reg-sub :fb/code-visible? (fn [db _] (get-in db [:fb :code-visible?] false)))
 
 (rf/reg-sub :gen/preview-table-name (fn [db _] (get-in db [:gen :preview-table-name])))
+(rf/reg-sub :gen/config-visible? (fn [db _] (get-in db [:gen :config-visible?] false)))
+(rf/reg-sub :gen/config (fn [db _] (get-in db [:gen :config] {:package-path "com.ruoyi.rouyi" :module-name "system" :author "ruoyi" :table-prefix "sys_"})))
 
 (rf/reg-sub :posts/form-data
             (fn [db _]

@@ -963,6 +963,44 @@
 (rf/reg-fx :api/gen-generate
            (fn [tables] (api/gen-generate tables (fn [r] (when (= 200 (:code r)) (antd/success! "代码生成成功"))) (fn [_] (antd/error! "生成失败")))))
 
+;; ── 代码生成配置 ──
+
+(rf/reg-event-db :gen/open-config
+                 (fn [db _]
+                   (assoc-in db [:gen :config-visible?] true)))
+
+(rf/reg-event-db :gen/close-config
+                 (fn [db _]
+                   (assoc-in db [:gen :config-visible?] false)))
+
+(rf/reg-event-db :gen/update-config
+                 (fn [db [_ key value]]
+                   (assoc-in db [:gen :config key] value)))
+
+;; ── 代码下载 ──
+
+(rf/reg-event-fx :gen/download
+                 (fn [{:keys [db]} [_ tables]]
+                   {:db db :api/gen-download tables}))
+
+(rf/reg-fx :api/gen-download
+           (fn [tables]
+             (api/gen-generate tables
+                               (fn [r]
+                                 (when (= 200 (:code r))
+                                   (let [data (:data r)
+                                         blob (js/Blob. #js [(js/JSON.stringify (clj->js data) nil 2)] #js {:type "application/json"})
+                                         url (js/URL.createObjectURL blob)
+                                         link (.createElement js/document "a")]
+                                     (set! (.-href link) url)
+                                     (.setAttribute link "download" "generated_code.json")
+                                     (.appendChild js/document.body link)
+                                     (.click link)
+                                     (.removeChild js/document.body link)
+                                     (js/URL.revokeObjectURL url)
+                                     (antd/success! "下载成功"))))
+                               (fn [_] (antd/error! "下载失败")))))
+
 ;; ────── 操作日志详情 ──────
 
 (rf/reg-event-db :oper-logs/set-detail

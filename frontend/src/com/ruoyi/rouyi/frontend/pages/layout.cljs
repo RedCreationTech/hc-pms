@@ -3,7 +3,7 @@
   (:require
    [reagent.core :as r]
    [re-frame.core :as rf]
-   ["antd" :refer [Layout Menu Button Space Badge Avatar Dropdown]]
+   ["antd" :refer [Layout Menu Button Space Badge Avatar Dropdown Divider]]
    ["@ant-design/icons" :refer [DashboardOutlined SettingOutlined
                                 FileTextOutlined UserOutlined
                                 SunOutlined MoonOutlined
@@ -38,37 +38,57 @@
    [com.ruoyi.rouyi.frontend.pages.server :as server]
    [com.ruoyi.rouyi.frontend.pages.cache :as cache]
    [com.ruoyi.rouyi.frontend.pages.gen :as gen]
+   [com.ruoyi.rouyi.frontend.pages.swagger :as swagger]
    [com.ruoyi.rouyi.frontend.pages.form-builder :as form-builder]
    [com.ruoyi.rouyi.frontend.pages.file-manager :as file-manager]
    [com.ruoyi.rouyi.frontend.components.icon-picker :as icon-picker]))
 
 ;; ─── Tab 组件 ──────────────────────────────────────────────────────
 
+(defn- tab-context-menu
+  "标签页右键菜单项"
+  [key]
+  (clj->js
+   [{:key "close-current" :label "关闭当前" :disabled (= key :dashboard)}
+    {:key "close-others" :label "关闭其他"}
+    {:key "close-all" :label "关闭全部"}
+    {:type "divider"}
+    {:key "refresh" :label "刷新当前页"}]))
+
 (defn- tab-item
   "单个Tab项组件"
   [{:keys [key label closable active?]}]
-  [:div {:style {:display "inline-flex"
-                 :alignItems "center"
-                 :padding "6px 16px"
-                 :margin "0 2px"
-                 :background (if active? "var(--ant-color-primary, #1677ff)" "var(--ant-color-bg-elevated, #f5f5f5)")
-                 :color (if active? "#fff" "var(--ant-color-text, #666)")
-                 :borderRadius "4px 4px 0 0"
-                 :cursor "pointer"
-                 :fontSize 13
-                 :transition "all 0.2s"
-                 :border (when active? (str "1px solid var(--ant-color-primary, #1677ff)"))
-                 :borderBottom (when active? "1px solid var(--ant-color-bg-layout, #fff)")
-                 :whiteSpace "nowrap"}
-         :on-click #(do (rf/dispatch [:tabs/activate key]) (rf/dispatch [:navigate (keyword key)]))}
-   (when (= key :dashboard)
-     [:> HomeOutlined {:style {:marginRight 6 :fontSize 12}}])
-   [:span label]
-   (when (and closable (not= key :dashboard))
-     [:> CloseOutlined {:style {:marginLeft 8 :fontSize 10 :opacity 0.6}
-                        :on-click (fn [e]
-                                    (.stopPropagation e)
-                                    (rf/dispatch [:tabs/close key]))}])])
+  [:> Dropdown {:menu {:items (tab-context-menu key)
+                       :onClick (fn [e]
+                                  (case (.-key e)
+                                    "close-current" (rf/dispatch [:tabs/close key])
+                                    "close-others" (rf/dispatch [:tabs/remove-others key])
+                                    "close-all" (rf/dispatch [:tabs/remove-all])
+                                    "refresh" (.reload js/location)
+                                    nil))}
+                :trigger (clj->js ["contextMenu"])}
+   [:div {:style {:display "inline-flex"
+                  :alignItems "center"
+                  :padding "6px 16px"
+                  :margin "0 2px"
+                  :background (if active? "var(--ant-color-primary, #1677ff)" "var(--ant-color-bg-elevated, #f5f5f5)")
+                  :color (if active? "#fff" "var(--ant-color-text, #666)")
+                  :borderRadius "4px 4px 0 0"
+                  :cursor "pointer"
+                  :fontSize 13
+                  :transition "all 0.2s"
+                  :border (when active? (str "1px solid var(--ant-color-primary, #1677ff)"))
+                  :borderBottom (when active? "1px solid var(--ant-color-bg-layout, #fff)")
+                  :whiteSpace "nowrap"}
+            :on-click #(do (rf/dispatch [:tabs/activate key]) (rf/dispatch [:navigate (keyword key)]))}
+    (when (= key :dashboard)
+      [:> HomeOutlined {:style {:marginRight 6 :fontSize 12}}])
+    [:span label]
+    (when (and closable (not= key :dashboard))
+      [:> CloseOutlined {:style {:marginLeft 8 :fontSize 10 :opacity 0.6}
+                         :on-click (fn [e]
+                                     (.stopPropagation e)
+                                     (rf/dispatch [:tabs/close key]))}])]])
 
 (defn- tab-bar
   "Tab栏组件"
@@ -220,6 +240,7 @@
              :server [server/server-page]
              :cache [cache/cache-page]
              :gen [gen/gen-page]
+             :swagger [swagger/swagger-page]
              :build [form-builder/form-builder-page]
              :file [file-manager/file-manager-page]
              [:div {:style {:padding 48 :textAlign "center" :color "#999" :fontSize 16}}
