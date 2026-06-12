@@ -4,7 +4,7 @@
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined PlayCircleOutlined FileTextOutlined]]
+   ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined PlayCircleOutlined FileTextOutlined SearchOutlined ReloadOutlined]]
    [com.ruoyi.rouyi.frontend.antd :as antd]))
 
 (defn- status-tag [status]
@@ -52,6 +52,8 @@
 
 (defn job-page []
   (let [[show-form? set-show-form!] (hooks/use-state false)
+        [job-name set-job-name!] (hooks/use-state "")
+        [job-group set-job-group!] (hooks/use-state "")
         [editing-record set-editing-record!] (hooks/use-state nil)
         [show-log? set-show-log!] (hooks/use-state false)
         [log-job-name set-log-job-name!] (hooks/use-state "")
@@ -89,6 +91,18 @@
                           (set-form-cron! "")
                           (set-form-remark! ""))]
       [:div
+       ;; 搜索栏
+       [:div {:style {:display "flex" :gap 8 :marginBottom 12 :flexWrap "wrap" :alignItems "center"}}
+        [antd/input {:placeholder "任务名称" :style {:width 200}
+                     :value job-name :onChange #(set-job-name! (-> % .-target .-value))}]
+        [antd/input {:placeholder "任务组名" :style {:width 200}
+                     :value job-group :onChange #(set-job-group! (-> % .-target .-value))}]
+        [antd/button {:type "primary" :icon (r/as-element [:> SearchOutlined])
+                      :on-click #(rf/dispatch [:jobs/search {:job_name job-name :job_group job-group}])}
+         "搜索"]
+        [antd/button {:icon (r/as-element [:> ReloadOutlined])
+                      :on-click #(do (set-job-name! "") (set-job-group! "") (rf/dispatch [:jobs/fetch {}]))}
+         "重置"]]
        ;; 工具栏
        [antd/space {:style {:marginBottom 16}}
         [antd/button {:type "primary"

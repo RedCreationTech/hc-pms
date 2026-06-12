@@ -4,6 +4,7 @@
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
+   ["@ant-design/icons" :refer [SearchOutlined ReloadOutlined]]
    [com.ruoyi.rouyi.frontend.antd :as antd]))
 
 (defn- online-columns []
@@ -33,9 +34,20 @@
        (fn [] (js/clearInterval interval))))
    [])
   (let [items @(rf/subscribe [:online-users/items])
+        [uname set-uname!] (hooks/use-state "")
         total @(rf/subscribe [:online-users/total])
         loading? @(rf/subscribe [:online-users/loading?])]
     [:div
+     ;; 搜索栏
+     [:div {:style {:display "flex" :gap 8 :marginBottom 12 :flexWrap "wrap" :alignItems "center"}}
+      [antd/input {:placeholder "用户名" :style {:width 200}
+                   :value uname :onChange #(set-uname! (-> % .-target .-value))}]
+      [antd/button {:type "primary" :icon (r/as-element [:> SearchOutlined])
+                    :on-click #(rf/dispatch [:online-users/search {:user_name uname}])}
+       "搜索"]
+      [antd/button {:icon (r/as-element [:> ReloadOutlined])
+                    :on-click #(do (set-uname! "") (rf/dispatch [:online-users/fetch {}]))}
+       "重置"]]
      [antd/table {:scroll #js {:x "max-content"} :rowKey "token-id"
                   :loading loading?
                   :columns (online-columns)

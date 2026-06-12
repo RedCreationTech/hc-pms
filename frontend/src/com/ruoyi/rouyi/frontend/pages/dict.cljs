@@ -4,6 +4,7 @@
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
+   ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined SearchOutlined ReloadOutlined]]
    [com.ruoyi.rouyi.frontend.antd :as antd]))
 
 (defonce selected-type (r/atom nil))
@@ -76,8 +77,22 @@
                       js/undefined)
                     [])
   (let [types @(rf/subscribe [:dicts/types])
-        loading? @(rf/subscribe [:dicts/loading?])]
+        loading? @(rf/subscribe [:dicts/loading?])
+        [dict-name set-dict-name!] (hooks/use-state "")
+        [dict-type set-dict-type!] (hooks/use-state "")]
     [:div
+     ;; 搜索栏
+     [:div {:style {:display "flex" :gap 8 :marginBottom 12 :flexWrap "wrap" :alignItems "center"}}
+      [antd/input {:placeholder "字典名称" :style {:width 200}
+                   :value dict-name :onChange #(set-dict-name! (-> % .-target .-value))}]
+      [antd/input {:placeholder "字典类型" :style {:width 200}
+                   :value dict-type :onChange #(set-dict-type! (-> % .-target .-value))}]
+      [antd/button {:type "primary" :icon (r/as-element [:> SearchOutlined])
+                    :on-click #(rf/dispatch [:dicts/search {:dict_name dict-name :dict_type dict-type}])}
+       "搜索"]
+      [antd/button {:icon (r/as-element [:> ReloadOutlined])
+                    :on-click #(do (set-dict-name! "") (set-dict-type! "") (rf/dispatch [:dicts/fetch-types {}]))}
+       "重置"]]
      [:div {:style {:marginBottom 16}}
       [antd/button {:type "primary" :onClick #(do (reset! type-editing nil) (reset! type-modal-visible? true))}
        "新增字典类型"]]

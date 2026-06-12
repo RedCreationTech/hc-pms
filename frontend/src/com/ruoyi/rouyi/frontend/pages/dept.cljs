@@ -23,6 +23,24 @@
 
 ;; ─── 工具栏 ────────────────────────────────────────────────────────
 
+(defn- search-bar []
+  (let [[dept-name set-dept-name!] (hooks/use-state "")
+        [status set-status!] (hooks/use-state nil)]
+    [:div {:style {:display "flex" :gap 8 :marginBottom 12 :flexWrap "wrap" :alignItems "center"}}
+     [antd/input {:placeholder "部门名称" :style {:width 200}
+                  :value dept-name :onChange #(set-dept-name! (-> % .-target .-value))}]
+     [antd/select {:placeholder "状态" :style {:width 120} :allowClear true
+                   :value status :onChange #(set-status! %)}
+      [antd/select-option {:value "0"} "正常"]
+      [antd/select-option {:value "1"} "停用"]]
+     [antd/button {:type "primary" :icon (r/as-element [:> SearchOutlined])
+                   :on-click #(rf/dispatch [:depts/search {:dept_name dept-name :status status}])}
+      "搜索"]
+     [antd/button {:icon (r/as-element [:> ReloadOutlined])
+                   :on-click #(do (set-dept-name! "") (set-status! nil)
+                                  (rf/dispatch [:depts/fetch {}]))}
+      "重置"]]))
+
 (defn- toolbar []
   [:div {:style {:display "flex" :gap 8 :marginBottom 16}}
    [antd/button {:type "primary"
@@ -115,6 +133,7 @@
         loading? @(rf/subscribe [:depts/loading?])
         tree-data (build-dept-tree items 0)]
     [:div
+     [search-bar]
      [toolbar]
      [antd/table {:scroll #js {:x "max-content"} :rowKey "dept_id"
                   :loading loading?

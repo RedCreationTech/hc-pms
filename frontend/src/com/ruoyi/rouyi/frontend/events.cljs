@@ -151,6 +151,32 @@
                          (assoc-in [:dicts :types] items)
                          (assoc-in [:dicts :loading?] false)))))
 
+(rf/reg-event-fx :dicts/search
+                 (fn [{:keys [db]} [_ params]]
+                   {:db (assoc-in db [:dicts :loading?] true)
+                    :api/list-dicts-search params}))
+
+(rf/reg-fx :api/list-dicts-search
+           (fn [params]
+             (api/list-dict-types {}
+                                  (fn [result]
+                                    (when (= 200 (:code result))
+                                      (let [data (:data result)
+                                            items (if (sequential? data) data (:rows data []))
+                                            filtered (cond->> items
+                                                       (:dict_name params)
+                                                       (filter #(clojure.string/includes?
+                                                                 (or (:dict_name %) "")
+                                                                 (:dict_name params)))
+                                                       (:dict_type params)
+                                                       (filter #(clojure.string/includes?
+                                                                 (or (:dict_type %) "")
+                                                                 (:dict_type params)))
+                                                       (some? (:status params))
+                                                       (filter #(= (:status params) (:status %))))]
+                                        (rf/dispatch [:dicts/set-types {:rows filtered :total (count filtered)}]))))
+                                  (fn [_]))))
+
 (rf/reg-event-fx :dicts/fetch-types
                  (fn [{:keys [db]} [_ params]]
                    {:db (assoc-in db [:dicts :loading?] true)
@@ -412,6 +438,26 @@
                          (assoc-in [:online-users :total] total)
                          (assoc-in [:online-users :loading?] false)))))
 
+(rf/reg-event-fx :online-users/search
+                 (fn [{:keys [db]} [_ params]]
+                   {:db (assoc-in db [:online-users :loading?] true)
+                    :api/list-online-users-search params}))
+
+(rf/reg-fx :api/list-online-users-search
+           (fn [params]
+             (api/list-online-users {}
+                                    (fn [result]
+                                      (when (= 200 (:code result))
+                                        (let [data (:data result)
+                                              items (if (sequential? data) data (:rows data []))
+                                              filtered (cond->> items
+                                                         (:user_name params)
+                                                         (filter #(clojure.string/includes?
+                                                                   (or (get % "user-name" (:user_name %)) "")
+                                                                   (:user_name params))))]
+                                          (rf/dispatch [:online-users/set-list {:rows filtered :total (count filtered)}]))))
+                                    (fn [_]))))
+
 (rf/reg-event-fx :online-users/fetch
                  (fn [{:keys [db]} [_ params]]
                    {:db (assoc-in db [:online-users :loading?] true)
@@ -447,6 +493,30 @@
                          (assoc-in [:jobs :items] items)
                          (assoc-in [:jobs :total] total)
                          (assoc-in [:jobs :loading?] false)))))
+
+(rf/reg-event-fx :jobs/search
+                 (fn [{:keys [db]} [_ params]]
+                   {:db (assoc-in db [:jobs :loading?] true)
+                    :api/list-jobs-search params}))
+
+(rf/reg-fx :api/list-jobs-search
+           (fn [params]
+             (api/list-jobs {}
+                            (fn [result]
+                              (when (= 200 (:code result))
+                                (let [data (:data result)
+                                      items (if (sequential? data) data (:rows data []))
+                                      filtered (cond->> items
+                                                 (:job_name params)
+                                                 (filter #(clojure.string/includes?
+                                                           (or (:job_name %) "")
+                                                           (:job_name params)))
+                                                 (:job_group params)
+                                                 (filter #(clojure.string/includes?
+                                                           (or (:job_group %) "")
+                                                           (:job_group params))))]
+                                  (rf/dispatch [:jobs/set-list {:rows filtered :total (count filtered)}]))))
+                            (fn [_]))))
 
 (rf/reg-event-fx :jobs/fetch
                  (fn [{:keys [db]} [_ params]]
@@ -795,6 +865,27 @@
                          (assoc-in [:depts :items] items)
                          (assoc-in [:depts :tree] tree)
                          (assoc-in [:depts :loading?] false)))))
+
+(rf/reg-event-fx :depts/search
+                 (fn [{:keys [db]} [_ params]]
+                   {:db (assoc-in db [:depts :loading?] true)
+                    :api/list-depts-search params}))
+
+(rf/reg-fx :api/list-depts-search
+           (fn [params]
+             (api/list-depts {}
+                             (fn [result]
+                               (when (= 200 (:code result))
+                                 (let [items (:data result [])
+                                       filtered (cond->> items
+                                                  (:dept_name params)
+                                                  (filter #(clojure.string/includes?
+                                                            (or (:dept_name %) "")
+                                                            (:dept_name params)))
+                                                  (some? (:status params))
+                                                  (filter #(= (:status params) (:status %))))]
+                                   (rf/dispatch [:depts/set-list filtered]))))
+                             (fn [_]))))
 
 (rf/reg-event-fx :depts/fetch
                  (fn [{:keys [db]} [_ params]]
@@ -1216,6 +1307,29 @@
                    {:db (assoc-in db [:menus :loading?] true)
                     :api/list-menus nil}))
 
+(rf/reg-event-fx :menus/search
+                 (fn [{:keys [db]} [_ params]]
+                   {:db (assoc-in db [:menus :loading?] true)
+                    :api/list-menus-search params}))
+
+(rf/reg-fx :api/list-menus-search
+           (fn [params]
+             (api/list-menus
+              (fn [result]
+                (when (= 200 (:code result))
+                  (let [data (:data result)
+                        items (if (sequential? data) data (:rows data []))
+                        ;; 客户端过滤
+                        filtered (cond->> items
+                                   (:menu_name params)
+                                   (filter #(clojure.string/includes?
+                                             (or (:menu_name %) "")
+                                             (:menu_name params)))
+                                   (some? (:status params))
+                                   (filter #(= (:status params) (:status %))))]
+                    (rf/dispatch [:menus/set-list filtered]))))
+              (fn [_]))))
+
 (rf/reg-event-fx :menus/fetch-tree
                  (fn [{:keys [db]} _]
                    {:db db
@@ -1395,6 +1509,26 @@
                                    (fn [_] (antd/error! "网络错误")))))
 
 ;; ─── 通知公告 ─────────────────────────────────────────────────────────────────
+
+(rf/reg-event-fx :notices/search
+                 (fn [{:keys [db]} [_ params]]
+                   {:db (assoc-in db [:notices :loading?] true)
+                    :api/list-notices-search params}))
+
+(rf/reg-fx :api/list-notices-search
+           (fn [params]
+             (api/list-notices {}
+                               (fn [result]
+                                 (when (= 200 (:code result))
+                                   (let [data (:data result)
+                                         items (if (sequential? data) data (:rows data []))
+                                         filtered (cond->> items
+                                                    (:notice_title params)
+                                                    (filter #(clojure.string/includes?
+                                                              (or (:notice_title %) "")
+                                                              (:notice_title params))))]
+                                     (rf/dispatch [:notices/set-list {:rows filtered :total (count filtered)}]))))
+                               (fn [_]))))
 
 (rf/reg-event-fx :notices/fetch
                  (fn [{:keys [db]} [_ params]]

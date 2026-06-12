@@ -4,7 +4,7 @@
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined ReloadOutlined]]
+   ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined ReloadOutlined SearchOutlined]]
    [com.ruoyi.rouyi.frontend.antd :as antd]
    [com.ruoyi.rouyi.frontend.components.icon-picker :as icon-picker]))
 
@@ -37,6 +37,26 @@
                 (assoc node :children children)
                 node)))
           menus)))
+
+;; ─── 搜索栏 ────────────────────────────────────────────────────────
+
+(defn- search-bar []
+  (let [[menu-name set-menu-name!] (hooks/use-state "")
+        [status set-status!] (hooks/use-state nil)]
+    [:div {:style {:display "flex" :gap 8 :marginBottom 12 :flexWrap "wrap" :alignItems "center"}}
+     [antd/input {:placeholder "菜单名称" :style {:width 200}
+                  :value menu-name :onChange #(set-menu-name! (-> % .-target .-value))}]
+     [antd/select {:placeholder "状态" :style {:width 120} :allowClear true
+                   :value status :onChange #(set-status! %)}
+      [antd/select-option {:value "0"} "正常"]
+      [antd/select-option {:value "1"} "停用"]]
+     [antd/button {:type "primary" :icon (r/as-element [:> SearchOutlined])
+                   :on-click #(rf/dispatch [:menus/search {:menu_name menu-name :status status}])}
+      "搜索"]
+     [antd/button {:icon (r/as-element [:> ReloadOutlined])
+                   :on-click #(do (set-menu-name! "") (set-status! nil)
+                                  (rf/dispatch [:menus/fetch]))}
+      "重置"]]))
 
 ;; ─── 工具栏 ────────────────────────────────────────────────────────
 
@@ -171,6 +191,7 @@
         loading? @(rf/subscribe [:menus/loading?])
         tree-data (build-menu-tree items 0)]
     [:div
+     [search-bar]
      [toolbar]
      [antd/table {:scroll #js {:x "max-content"} :rowKey "menu_id"
                   :loading loading?

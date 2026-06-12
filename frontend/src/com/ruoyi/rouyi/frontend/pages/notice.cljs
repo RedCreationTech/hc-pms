@@ -3,6 +3,7 @@
   (:require
    [reagent.core :as r]
    [re-frame.core :as rf]
+   [reagent.hooks :as hooks]
    [clojure.string :as str]
    [com.ruoyi.rouyi.frontend.antd :as antd]))
 
@@ -69,6 +70,17 @@
         total @(rf/subscribe [:notices/total])
         loading? @(rf/subscribe [:notices/loading?])]
     [:div
+     ;; 搜索栏
+     (let [[title set-title!] (hooks/use-state "")]
+       [:div {:style {:display "flex" :gap 8 :marginBottom 12 :flexWrap "wrap" :alignItems "center"}}
+        [antd/input {:placeholder "公告标题" :style {:width 200}
+                     :value title :onChange #(set-title! (-> % .-target .-value))}]
+        [antd/button {:type "primary" :icon (r/as-element [:> SearchOutlined])
+                      :on-click #(rf/dispatch [:notices/search {:notice_title title}])}
+         "搜索"]
+        [antd/button {:icon (r/as-element [:> ReloadOutlined])
+                      :on-click #(do (set-title! "") (rf/dispatch [:notices/fetch {}]))}
+         "重置"]])
      [antd/space {:style {:marginBottom 16}}
       [antd/button {:type "primary"
                     :on-click #(rf/dispatch [:notices/open-modal])}
