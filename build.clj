@@ -1,6 +1,7 @@
 (ns build
   (:require [clojure.string :as string]
-            [clojure.tools.build.api :as b]))
+            [clojure.tools.build.api :as b]
+            [clojure.java.io :as io]))
 
 (def lib 'com.ruoyi/rouyi)
 (def main-cls (string/join "." (filter some? [(namespace lib) (name lib) "core"])))
@@ -39,3 +40,32 @@
 
 (defn all [_]
   (do (clean nil) (prep nil) (uber nil)))
+
+;; ─── Testing ──────────────────────────────────────────────────────
+
+(defn test
+  "Run unit tests"
+  [_]
+  (println "Running unit tests...")
+  (b/process {:command-args ["bash" "run_tests.sh"]
+              :dir "."}))
+
+(defn coverage
+  "Run tests with coverage"
+  [_]
+  (println "Running tests with coverage...")
+  (let [coverage-dir "target/coverage"]
+    (.mkdirs (io/file coverage-dir))
+    (b/process {:command-args ["clojure" "-A:test" "-e"
+                               (str "(require '[cloverage.coverage :as cov])"
+                                    "(cov/run-main {"
+                                    "  :src-ns-path [\"src/clj\"]"
+                                    "  :test-ns-path [\"test/clj\"]"
+                                    "  :ns-exclude-regex [\".*core.*|.*request-test.*\"]"
+                                    "  :output \"" coverage-dir "\""
+                                    "  :html true"
+                                    "  :emma-xml true"
+                                    "  :text true"
+                                    "})")]
+                :dir "."})
+    (println (str "Coverage report: " coverage-dir "/index.html"))))
