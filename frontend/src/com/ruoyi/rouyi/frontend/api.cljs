@@ -445,6 +445,12 @@
   (request {:method :delete :uri (str "/system/job/" id)
             :on-success on-success :on-error on-error}))
 
+(defn run-job-once
+  "立即执行一次定时任务。"
+  [job-id on-success on-error]
+  (request {:method :put :uri (str "/system/job/" job-id "/run")
+            :on-success on-success :on-error on-error}))
+
 ;; ─── 代码生成 ──────────────────────────────────────────────────────
 
 ;; ─── 文件管理 ──────────────────────────────────────────────────────

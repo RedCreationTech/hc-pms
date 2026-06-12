@@ -31,7 +31,10 @@
                          [antd/button {:type "link" :size "small" :disabled (= (:status record) "1")
                                        :onClick #(rf/dispatch [:jobs/update (:job_id record) {:status "1"}])} "暂停"]
                          [antd/button {:type "link" :size "small"
-                                       :onClick #(show-log-fn (:job_name record))} "日志"]]))}])
+                                       :onClick #(show-log-fn (:job_name record))} "日志"]
+                         [antd/popconfirm {:title "确认立即执行一次该任务？"
+                                           :onConfirm #(rf/dispatch [:jobs/run-once (:job_id record)])}
+                          [antd/button {:type "link" :size "small"} "执行一次"]]]))}])
 
 (defn- job-log-columns []
   #js [#js {:title "日志ID" :dataIndex "job_log_id" :key "job_log_id" :width 80}

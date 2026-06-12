@@ -447,6 +447,18 @@
                                  (rf/dispatch [:jobs/fetch {}])))
                              (fn [_]))))
 
+(rf/reg-event-fx :jobs/run-once
+                 (fn [_ [_ job-id]]
+                   {:api/run-job-once job-id}))
+
+(rf/reg-fx :api/run-job-once
+           (fn [job-id]
+             (api/run-job-once job-id
+                               (fn [result]
+                                 (when (= 200 (:code result))
+                                   (antd/success! "执行成功")))
+                               (fn [_] (antd/error! "执行失败")))))
+
 ;; ────── 任务日志 ──────
 
 (rf/reg-event-db :job-logs/set-list
