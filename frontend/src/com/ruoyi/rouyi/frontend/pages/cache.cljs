@@ -1,7 +1,6 @@
 (ns com.ruoyi.rouyi.frontend.pages.cache
   "缓存监控页面。"
   (:require
-   [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
    [com.ruoyi.rouyi.frontend.antd :as antd]))
@@ -49,29 +48,28 @@
                              "暂无缓存数据"])}]))
 
 (defn cache-page []
+  (hooks/use-effect
+   (fn []
+     (rf/dispatch [:cache/fetch-info])
+     (rf/dispatch [:cache/fetch-keys])
+     (fn []))
+   [])
   (let [cache-data @(rf/subscribe [:cache/data])
         cache-keys @(rf/subscribe [:cache/keys])
         loading? @(rf/subscribe [:cache/loading?])]
-    (r/create-class
-     {:component-did-mount
-      (fn []
-        (rf/dispatch [:cache/fetch-info])
-        (rf/dispatch [:cache/fetch-keys]))
-      :reagent-render
-      (fn []
-        [:div
-         [:h3 "缓存监控"]
-         [:div {:style {:marginBottom 16}}
-          [antd/button {:type "primary"
-                        :onClick #(rf/dispatch [:cache/fetch-info])}
-           "刷新"]
-          [antd/button {:style {:marginLeft 8}
-                        :danger true
-                        :onClick #(rf/dispatch [:cache/clear])}
-           "清空缓存"]]
-         (if loading?
-           [:div {:style {:textAlign "center" :padding 48}}
-            [antd/button {:loading true} "加载中..."]]
-           [:div
-            [cache-info-section (or cache-data {})]
-            [cache-keys-section (or cache-keys {})]])])})))
+    [:div
+     [:h3 "缓存监控"]
+     [:div {:style {:marginBottom 16}}
+      [antd/button {:type "primary"
+                    :onClick #(rf/dispatch [:cache/fetch-info])}
+       "刷新"]
+      [antd/button {:style {:marginLeft 8}
+                    :danger true
+                    :onClick #(rf/dispatch [:cache/clear])}
+       "清空缓存"]]
+     (if loading?
+       [:div {:style {:textAlign "center" :padding 48}}
+        [antd/button {:loading true} "加载中..."]]
+       [:div
+        [cache-info-section (or cache-data {})]
+        [cache-keys-section (or cache-keys {})]])]))

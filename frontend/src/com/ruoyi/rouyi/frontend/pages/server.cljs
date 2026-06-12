@@ -1,7 +1,7 @@
 (ns com.ruoyi.rouyi.frontend.pages.server
   "服务器监控页面。"
   (:require
-    [reagent.core :as r]
+    [reagent.hooks :as hooks]
     [re-frame.core :as rf]
     [com.ruoyi.rouyi.frontend.antd :as antd]))
 
@@ -67,20 +67,20 @@
                             (str "JVM最大内存：" max-memory " MB | 已分配：" total-memory " MB | 剩余：" free-memory " MB")]]}]))
 
 (defn server-page []
+  (hooks/use-effect
+   (fn []
+     (rf/dispatch [:server/fetch])
+     (fn []))
+   [])
   (let [server-data @(rf/subscribe [:server/data])
         loading? @(rf/subscribe [:server/loading?])]
-    (r/create-class
-      {:component-did-mount
-       (fn [] (rf/dispatch [:server/fetch]))
-       :reagent-render
-       (fn []
+    [:div
+     [:h3 "服务监控"]
+     (if loading?
+       [:div {:style {:textAlign "center" :padding 48}}
+        [antd/button {:loading true} "加载中..."]]
+       (when server-data
          [:div
-          [:h3 "服务监控"]
-          (if loading?
-            [:div {:style {:textAlign "center" :padding 48}}
-             [antd/button {:loading true} "加载中..."]]
-            (when server-data
-              [:div
-               [server-info-section server-data]
-               [memory-section server-data]
-               [jvm-section server-data]]))])})))
+          [server-info-section server-data]
+          [memory-section server-data]
+          [jvm-section server-data]]))]))
