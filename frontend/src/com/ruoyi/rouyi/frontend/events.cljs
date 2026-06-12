@@ -70,7 +70,7 @@
                      {:db (-> db
                               (assoc-in [:auth :token] token)
                               (assoc-in [:auth :loading?] false))
-                      :dispatch [:navigate :dashboard]})))
+                      :dispatch-n [[:navigate :dashboard] [:auth/fetch-info]]})))
 
 (rf/reg-event-db :auth/login-failure
                  (fn [db [_ msg]]
