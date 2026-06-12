@@ -1,9 +1,9 @@
 (ns com.ruoyi.rouyi.web.controllers.system.dict
   "字典管理控制器。"
   (:require
-    [com.ruoyi.rouyi.domain.system.dict :as dict-service]
-    [com.ruoyi.rouyi.infra.data-perm :as data-perm]
-    [ring.util.response :as response]))
+   [com.ruoyi.rouyi.domain.system.dict :as dict-service]
+   [com.ruoyi.rouyi.infra.data-perm :as data-perm]
+   [ring.util.response :as response]))
 
 (defn- ok ([data] (ok 200 "操作成功" data))
   ([code msg data]
@@ -89,3 +89,13 @@
   (let [dict-code (parse-long (get-in request [:path-params :id]))]
     (dict-service/delete-dict-data! dict-service dict-code)
     (ok "删除成功")))
+
+(defn option-select
+  "获取字典类型选项列表（下拉框用）。"
+  [{:keys [dict-service]} _]
+  (ok (dict-service/list-dict-types dict-service {:limit 999 :offset 0})))
+
+(defn refresh-cache
+  "刷新字典缓存。"
+  [_ _]
+  (ok "缓存已刷新"))

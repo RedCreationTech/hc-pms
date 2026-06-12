@@ -119,7 +119,9 @@
              :put    {:summary "更新字典类型" :parameters {:path PathId}
                       :handler (partial dict/update-dict-type {:dict-service dict-service})}
              :delete {:summary "删除字典类型" :parameters {:path PathId}
-                      :handler (partial dict/delete-dict-type {:dict-service dict-service})}}]]
+                      :handler (partial dict/delete-dict-type {:dict-service dict-service})}}]
+    ["/optionselect" {:get {:summary "字典类型选项" :handler (partial dict/option-select {:dict-service dict-service})}}]
+    ["/refreshCache" {:delete {:summary "刷新字典缓存" :handler (partial dict/refresh-cache {})}}]]
 
    ["/dict/data"
     ["" {:get  {:summary "字典数据列表" :parameters {:query [:map {:closed true}
@@ -224,8 +226,17 @@
                :handler (partial cache/cache-info {})}}]
     ["/keys" {:get {:summary "缓存键列表" :description "获取所有缓存键名"
                     :handler (partial cache/cache-keys {})}}]
+    ["/getNames" {:get {:summary "缓存名称" :description "获取所有缓存名称"
+                        :handler (partial cache/cache-names {})}}]
+    ["/getKeys/:cacheName" {:get {:summary "缓存键" :description "获取缓存键列表"
+                                  :handler (partial cache/cache-keys-by-name {})}}]
+    ["/getValue/:cacheName/:cacheKey" {:get {:summary "缓存值" :description "获取缓存值"
+                                             :handler (partial cache/cache-value {})}}]
     ["/clear" {:delete {:summary "清空缓存" :description "清空所有缓存数据"
-                        :handler (partial cache/cache-clear {})}}]]
+                        :handler (partial cache/cache-clear {})}}]
+    ["/clearCacheName/:cacheName" {:delete {:summary "清除指定缓存" :handler (partial cache/clear-cache-name {})}}]
+    ["/clearCacheKey/:cacheKey" {:delete {:summary "清除指定键" :handler (partial cache/clear-cache-key {})}}]
+    ["/clearCacheAll" {:delete {:summary "清除所有缓存" :handler (partial cache/clear-cache-all {})}}]]
 
    ["/file"
     ["" {:get {:summary "文件列表" :description "查询上传文件列表"
