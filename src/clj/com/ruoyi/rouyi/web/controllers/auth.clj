@@ -6,6 +6,7 @@
    [com.ruoyi.rouyi.domain.system.menu :as menu-service]
    [com.ruoyi.rouyi.infra.security :as security]
    [com.ruoyi.rouyi.infra.online :as online]
+    [com.ruoyi.rouyi.web.controllers.captcha :as captcha]
    [com.ruoyi.rouyi.domain.system.log :as log-domain]
    [ring.util.response :as response]
    [clojure.string :as str]))
@@ -26,8 +27,17 @@
 (defn login
   "用户登录，验证密码后签发 JWT，并注册在线用户。"
   [{:keys [user-service log-service]} request]
-  (let [{:keys [username password]} (:body-params request)
+  (let [{:keys [username password captcha uuid]} (:body-params request)
         login-ip (get-in request [:headers "x-forwarded-for"] (:remote-addr request "127.0.0.1"))]
+    ;; 验证码校验
+    (when (and uuid captcha)
+      (let [stored (get @captcha/captcha-store uuid)]
+        (when (or (nil? stored)
+                  (> (System/currentTimeMillis) (:expire stored))
+                  (not= (.toUpperCase captcha) (.toUpperCase (:code stored))))
+          (swap! captcha/captcha-store dissoc uuid)
+          (throw (ex-message "验证码错误或已过期")))))
+    (when uuid (swap! captcha/captcha-store dissoc uuid))
     (if (or (str/blank? username) (str/blank? password))
       (error 400 "用户名和密码不能为空")
       (if-let [user (user-service/find-user-by-name user-service username)]

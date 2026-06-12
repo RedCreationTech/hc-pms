@@ -4,6 +4,7 @@
    [com.ruoyi.rouyi.web.routes.auth :as auth]
    [com.ruoyi.rouyi.web.routes.system :as system]
    [com.ruoyi.rouyi.web.routes.gen :as gen]
+   [com.ruoyi.rouyi.web.routes.captcha :as captcha]
    [com.ruoyi.rouyi.web.routes.common :as common]
    [com.ruoyi.rouyi.web.middleware.exception :as exception]
    [com.ruoyi.rouyi.web.middleware.formats :as formats]
@@ -37,7 +38,8 @@
    (auth/auth-routes opts)
    (system/system-routes opts)
    (common/common-routes opts)
-   (gen/gen-routes opts)])
+   (gen/gen-routes opts)
+   (captcha/captcha-routes opts)])
 
 (derive :reitit.routes/api :reitit/routes)
 
