@@ -1,8 +1,8 @@
 (ns com.ruoyi.rouyi.frontend.api
   "HTTP API 客户端封装。"
   (:require
-    [ajax.core :as ajax]
-    [re-frame.db :as rf-db]))
+   [ajax.core :as ajax]
+   [re-frame.db :as rf-db]))
 
 (def api-base "/api")
 
@@ -13,17 +13,17 @@
   "发起 HTTP 请求，从 re-frame app-db 读取 token。"
   [{:keys [method uri params on-success on-error]}]
   (ajax/ajax-request
-    {:method method
-     :uri (str api-base uri)
-     :params params
-     :headers (when-let [token (get-token)]
-                {"Authorization" (str "Bearer " token)})
-     :format (ajax/json-request-format)
-     :response-format (ajax/json-response-format {:keywords? true})
-     :handler (fn [[ok result]]
-                (if ok
-                  (on-success result)
-                  (on-error result)))}))
+   {:method method
+    :uri (str api-base uri)
+    :params params
+    :headers (when-let [token (get-token)]
+               {"Authorization" (str "Bearer " token)})
+    :format (ajax/json-request-format)
+    :response-format (ajax/json-response-format {:keywords? true})
+    :handler (fn [[ok result]]
+               (if ok
+                 (on-success result)
+                 (on-error result)))}))
 
 (defn login
   "用户登录。"
@@ -322,16 +322,24 @@
   "上传头像。"
   [form-data on-success on-error]
   (ajax/ajax-request
-    {:method :post
-     :uri (str api-base "/system/profile/avatar")
-     :body form-data
-     :headers (when-let [token (get-token)]
-                {"Authorization" (str "Bearer " token)})
-     :response-format (ajax/json-response-format {:keywords? true})
-     :handler (fn [[ok result]]
-                (if ok
-                  (on-success result)
-                  (on-error result)))}))
+   {:method :post
+    :uri (str api-base "/system/profile/avatar")
+    :body form-data
+    :headers (when-let [token (get-token)]
+               {"Authorization" (str "Bearer " token)})
+    :response-format (ajax/json-response-format {:keywords? true})
+    :handler (fn [[ok result]]
+               (if ok
+                 (on-success result)
+                 (on-error result)))}))
+
+;; ─── 菜单树 ──────────────────────────────────────────────────────
+
+(defn menu-tree
+  "获取菜单树（用于角色权限分配）。"
+  [on-success on-error]
+  (request {:method :get :uri "/system/menu-tree"
+            :on-success on-success :on-error on-error}))
 
 ;; ─── 配置管理 ──────────────────────────────────────────────────────
 

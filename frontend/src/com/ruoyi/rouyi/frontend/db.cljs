@@ -7,7 +7,7 @@
           :active :dashboard}
    :auth {:token nil :user nil :loading? false}
    :theme {:mode :light :primary-color "#1677ff" :compact? false}
-   :users {:loading? false :items [] :total 0 
+   :users {:loading? false :items [] :total 0
            :query-params {} :page 1 :page-size 10
            :selected-ids [] :show-search? true
            :columns {:user_id {:label "用户编号" :visible? true}
@@ -17,7 +17,7 @@
                      :phonenumber {:label "手机号码" :visible? true}
                      :status {:label "状态" :visible? true}
                      :create_time {:label "创建时间" :visible? true}}}
-   :roles {:loading? false :items []}
+   :roles {:loading? false :items [] :query-params {}}
    :menus {:loading? false :items [] :tree []}
    :depts {:loading? false :items [] :tree []}
    :posts {:loading? false :items []}
