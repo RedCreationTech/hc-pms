@@ -32,7 +32,9 @@
    [com.ruoyi.rouyi.frontend.pages.login-log :as login-log]
    [com.ruoyi.rouyi.frontend.pages.server :as server]
    [com.ruoyi.rouyi.frontend.pages.cache :as cache]
-   [com.ruoyi.rouyi.frontend.pages.gen :as gen]))
+   [com.ruoyi.rouyi.frontend.pages.gen :as gen]
+   [com.ruoyi.rouyi.frontend.pages.form-builder :as form-builder]
+   [com.ruoyi.rouyi.frontend.pages.file-manager :as file-manager]))
 
 ;; ─── Tab 组件 ──────────────────────────────────────────────────────
 
@@ -134,7 +136,7 @@
                                              :oper-log "操作日志" :login-log "登录日志"
                                              :online "在线用户" :job "定时任务"
                                              :server "服务监控" :cache "缓存监控" :gen "代码生成"
-                                             :profile "个人中心"}]
+                                             :profile "个人中心" :build "表单构建" :file "文件管理"}]
                                  (rf/dispatch [:navigate page])
                                  (rf/dispatch [:tabs/add page (get labels page "页面")])))}]]
          ;; Main area
@@ -174,5 +176,7 @@
              :server [server/server-page]
              :cache [cache/cache-page]
              :gen [gen/gen-page]
+             :build [form-builder/form-builder-page]
+             :file [file-manager/file-manager-page]
              [:div {:style {:padding 48 :textAlign "center" :color "#999" :fontSize 16}}
               "页面建设中"])]]]))))

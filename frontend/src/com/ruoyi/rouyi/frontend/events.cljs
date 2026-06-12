@@ -593,6 +593,44 @@
                  (fn [db [_ data]]
                    (assoc-in db [:roles :menu-tree] data)))
 
+(rf/reg-event-fx :users/open-import
+                 (fn [_ _]
+                   (let [input (.createElement js/document "input")]
+                     (set! (.-type input) "file")
+                     (set! (.-accept input) ".csv")
+                     (set! (.-onchange input) (fn [e] (when-let [file (-> e .-target .-files (aget 0))] (rf/dispatch [:users/import file]))))
+                     (.click input))
+                   {}))
+
+(rf/reg-event-fx :users/import
+                 (fn [{:keys [db]} [_ file]]
+                   {:db db :api/import-users file}))
+
+(rf/reg-fx :api/import-users
+           (fn [file]
+             (api/import-users-csv file
+                                   (fn [r] (when (= 200 (:code r)) (.success js/antd.message (str "成功导入 " (:imported (:data r)) " 个用户")) (rf/dispatch [:users/fetch {}])))
+                                   (fn [_] (.error js/antd.message "导入失败")))))
+
+(rf/reg-event-fx :users/export
+                 (fn [{:keys [db]} _]
+                   {:db db :api/export-users nil}))
+
+(rf/reg-fx :api/export-users
+           (fn [_]
+             (api/export-users-csv
+              (fn [csv-data]
+                (let [blob (js/Blob. #js [csv-data] #js {:type "text/csv;charset=utf-8"})
+                      url (js/URL.createObjectURL blob)
+                      link (.createElement js/document "a")]
+                  (set! (.-href link) url)
+                  (.setAttribute link "download" "users_export.csv")
+                  (.appendChild js/document.body link)
+                  (.click link)
+                  (.removeChild js/document.body link)
+                  (js/URL.revokeObjectURL url)))
+              (fn [_] (.error js/antd.message "导出失败")))))
+
 (rf/reg-fx :api/upload-avatar
            (fn [form-data]
              (api/upload-avatar form-data
@@ -775,6 +813,22 @@
 (rf/reg-fx :api/clear-cache
            (fn [_]
              (api/clear-cache (fn [r] (when (= 200 (:code r)) (.success js/antd.message "缓存已清空") (rf/dispatch [:cache/fetch-info]) (rf/dispatch [:cache/fetch-keys]))) (fn [_] (.error js/antd.message "清空缓存失败")))))
+
+;; ────── 数据源监控 ──────
+
+(rf/reg-event-db :server/set-datasource
+                 (fn [db [_ data]]
+                   (assoc-in db [:server :datasource] data)))
+
+(rf/reg-event-fx :server/fetch-datasource
+                 (fn [{:keys [db]} _]
+                   {:db db :api/get-datasource nil}))
+
+(rf/reg-fx :api/get-datasource
+           (fn [_]
+             (api/get-datasource
+              (fn [r] (when (= 200 (:code r)) (rf/dispatch [:server/set-datasource (:data r)])))
+              (fn [_]))))
 
 ;; ────── 代码生成器 ──────
 

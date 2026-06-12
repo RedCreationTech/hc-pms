@@ -246,6 +246,12 @@
 
 ;; ─── 服务器监控 ──────────────────────────────────────────────────────
 
+(defn get-datasource
+  "获取数据源监控信息。"
+  [on-success on-error]
+  (request {:method :get :uri "/system/datasource"
+            :on-success on-success :on-error on-error}))
+
 (defn get-server-info
   "获取服务器信息。"
   [on-success on-error]
@@ -384,6 +390,28 @@
   [token-id on-success on-error]
   (request {:method :delete :uri (str "/system/online/" token-id)
             :on-success on-success :on-error on-error}))
+
+;; ─── 导入导出 ──────────────────────────────────────────────────────
+
+(defn export-users-csv
+  "导出用户CSV。"
+  [on-success on-error]
+  (request {:method :get :uri "/system/user/export"
+            :on-success on-success :on-error on-error}))
+
+(defn import-users-csv
+  "导入用户CSV。"
+  [file on-success on-error]
+  (let [form-data (js/FormData.)]
+    (.append form-data "file" file)
+    (ajax/ajax-request
+     {:method :post
+      :uri (str api-base "/system/user/import")
+      :body form-data
+      :headers (when-let [token (get-token)] {"Authorization" (str "Bearer " token)})
+      :response-format (ajax/json-response-format {:keywords? true})
+      :handler (fn [[ok result]]
+                 (if ok (on-success result) (on-error result)))})))
 
 ;; ─── 定时任务 ──────────────────────────────────────────────────────
 
