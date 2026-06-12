@@ -43,7 +43,7 @@
                   (dissoc :roles :posts)))
     ;; SQLite: 通过 last_insert_rowid() 获取刚插入的ID
     (let [row (query-fn :last-insert-rowid {})
-          user-id (:last_insert_rowid row)]
+          user-id (get row (keyword "last_insert_rowid()"))]
       ;; 关联角色
       (doseq [role-id roles]
         (query-fn :insert-user-role! {:user_id user-id :role_id role-id}))

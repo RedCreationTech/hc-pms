@@ -13,6 +13,7 @@
     :list-depts mock-depts
     :find-dept-by-id (first mock-depts)
     :create-dept! [{:dept_id 4}]
+    :last-insert-rowid {(keyword "last_insert_rowid()") 4}
     :update-dept! nil
     :delete-dept! nil
     []))

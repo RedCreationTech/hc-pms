@@ -19,7 +19,7 @@
     :delete-user-roles! nil
     :insert-user-role! nil
     :insert-user-post! nil
-    :last-insert-rowid {:last_insert_rowid 3}
+    :last-insert-rowid {(keyword "last_insert_rowid()") 3}
     []))
 
 (def mock-service {:query-fn mock-query-fn})

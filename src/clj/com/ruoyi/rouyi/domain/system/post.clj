@@ -14,9 +14,10 @@
 (defn create-post!
   "创建岗位。"
   [{:keys [query-fn]} params]
-  (-> (query-fn :create-post! params)
-      first
-      :post_id))
+  (query-fn :create-post! (merge {:post_code nil :post_name nil :post_sort nil :status nil
+                                  :remark nil :create_by nil}
+                                 params))
+  (get (query-fn :last-insert-rowid {}) (keyword "last_insert_rowid()")))
 
 (defn update-post!
   "更新岗位。"

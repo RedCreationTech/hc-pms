@@ -16,9 +16,12 @@
 (defn create-menu!
   "创建菜单。"
   [{:keys [query-fn]} params]
-  (-> (query-fn :create-menu! params)
-      first
-      :menu_id))
+  (query-fn :create-menu! (merge {:menu_name nil :parent_id nil :order_num nil :path nil
+                                  :component nil :query nil :route_name nil :is_frame nil
+                                  :is_cache nil :menu_type nil :visible nil :status nil
+                                  :perms nil :icon nil :create_by nil}
+                                 params))
+  (get (query-fn :last-insert-rowid {}) (keyword "last_insert_rowid()")))
 
 (defn update-menu!
   "更新菜单。"

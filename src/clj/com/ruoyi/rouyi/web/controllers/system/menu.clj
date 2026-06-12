@@ -13,6 +13,9 @@
   (-> (response/response {:code 500 :msg msg})
       (response/content-type "application/json")))
 
+(defn- current-user-name [request]
+  (get-in request [:identity :user-name] ""))
+
 (defn list-menus
   "查询菜单列表。"
   [{:keys [menu-service]} request]
@@ -33,7 +36,8 @@
 (defn create-menu
   [{:keys [menu-service]} request]
   (try
-    (let [menu-id (menu-service/create-menu! menu-service (:body-params request))]
+    (let [params (assoc (:body-params request) :create_by (current-user-name request))
+          menu-id (menu-service/create-menu! menu-service params)]
       (ok (str "创建成功: " menu-id)))
     (catch Exception e (fail (.getMessage e)))))
 
@@ -41,7 +45,9 @@
   [{:keys [menu-service]} request]
   (try
     (let [menu-id (parse-long (get-in request [:path-params :id]))
-          params (assoc (:body-params request) :menu_id menu-id)]
+          params (-> (:body-params request)
+                     (assoc :menu_id menu-id)
+                     (assoc :update_by (current-user-name request)))]
       (menu-service/update-menu! menu-service params)
       (ok "更新成功"))
     (catch Exception e (fail (.getMessage e)))))
@@ -57,5 +63,5 @@
   [{:keys [menu-service]} request]
   (let [menu-id (parse-long (get-in request [:path-params :id]))
         status (get-in request [:body-params :status])]
-    (menu-service/update-menu! menu-service {:menu_id menu-id :status status})
+    (menu-service/update-menu! menu-service {:menu_id menu-id :status status :update_by (current-user-name request)})
     (ok "状态修改成功")))

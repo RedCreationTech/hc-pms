@@ -12,6 +12,7 @@
     :list-posts mock-posts
     :find-post-by-id (first mock-posts)
     :create-post! [{:post_id 3}]
+    :last-insert-rowid {(keyword "last_insert_rowid()") 3}
     :update-post! nil
     :delete-post! nil
     []))

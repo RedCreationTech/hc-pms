@@ -110,6 +110,7 @@ VALUES (:parent_id, :ancestors, :dept_name, :order_num, :leader, :phone, :email,
 -- :name update-dept! :! :n
 UPDATE sys_dept
 SET parent_id = COALESCE(:parent_id, parent_id),
+    ancestors = COALESCE(:ancestors, ancestors),
     dept_name = COALESCE(:dept_name, dept_name),
     order_num = COALESCE(:order_num, order_num),
     leader = COALESCE(:leader, leader),
@@ -119,6 +120,12 @@ SET parent_id = COALESCE(:parent_id, parent_id),
     update_by = :update_by,
     update_time = CURRENT_TIMESTAMP
 WHERE dept_id = :dept_id
+
+-- :name list-depts-by-parent :? :*
+SELECT * FROM sys_dept WHERE parent_id = :parent_id AND del_flag = '0'
+
+-- :name update-dept-ancestors! :! :n
+UPDATE sys_dept SET ancestors = :ancestors WHERE dept_id = :dept_id
 
 -- :name delete-dept! :! :n
 UPDATE sys_dept SET del_flag = '2', update_time = CURRENT_TIMESTAMP WHERE dept_id = :dept_id

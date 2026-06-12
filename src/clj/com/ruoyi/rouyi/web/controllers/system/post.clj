@@ -13,6 +13,9 @@
   (-> (response/response {:code 500 :msg msg})
       (response/content-type "application/json")))
 
+(defn- current-user-name [request]
+  (get-in request [:identity :user-name] ""))
+
 (defn list-posts
   "查询岗位列表。"
   [{:keys [post-service]} request]
@@ -29,7 +32,8 @@
 (defn create-post
   [{:keys [post-service]} request]
   (try
-    (let [post-id (post-service/create-post! post-service (:body-params request))]
+    (let [params (assoc (:body-params request) :create_by (current-user-name request))
+          post-id (post-service/create-post! post-service params)]
       (ok (str "创建成功: " post-id)))
     (catch Exception e (fail (.getMessage e)))))
 
@@ -37,7 +41,9 @@
   [{:keys [post-service]} request]
   (try
     (let [post-id (parse-long (get-in request [:path-params :id]))
-          params (assoc (:body-params request) :post_id post-id)]
+          params (-> (:body-params request)
+                     (assoc :post_id post-id)
+                     (assoc :update_by (current-user-name request)))]
       (post-service/update-post! post-service params)
       (ok "更新成功"))
     (catch Exception e (fail (.getMessage e)))))
@@ -53,5 +59,5 @@
   [{:keys [post-service]} request]
   (let [post-id (parse-long (get-in request [:path-params :id]))
         status (get-in request [:body-params :status])]
-    (post-service/update-post! post-service {:post_id post-id :status status})
+    (post-service/update-post! post-service {:post_id post-id :status status :update_by (current-user-name request)})
     (ok "状态修改成功")))

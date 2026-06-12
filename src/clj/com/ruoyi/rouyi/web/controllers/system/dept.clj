@@ -13,6 +13,9 @@
   (-> (response/response {:code 500 :msg msg})
       (response/content-type "application/json")))
 
+(defn- current-user-name [request]
+  (get-in request [:identity :user-name] ""))
+
 (defn list-depts
   "查询部门列表。"
   [{:keys [dept-service]} request]
@@ -34,7 +37,8 @@
 (defn create-dept
   [{:keys [dept-service]} request]
   (try
-    (let [dept-id (dept-service/create-dept! dept-service (:body-params request))]
+    (let [params (assoc (:body-params request) :create_by (current-user-name request))
+          dept-id (dept-service/create-dept! dept-service params)]
       (ok (str "创建成功: " dept-id)))
     (catch Exception e (fail (.getMessage e)))))
 
@@ -42,7 +46,9 @@
   [{:keys [dept-service]} request]
   (try
     (let [dept-id (parse-long (get-in request [:path-params :id]))
-          params (assoc (:body-params request) :dept_id dept-id)]
+          params (-> (:body-params request)
+                     (assoc :dept_id dept-id)
+                     (assoc :update_by (current-user-name request)))]
       (dept-service/update-dept! dept-service params)
       (ok "更新成功"))
     (catch Exception e (fail (.getMessage e)))))
@@ -58,5 +64,5 @@
   [{:keys [dept-service]} request]
   (let [dept-id (parse-long (get-in request [:path-params :id]))
         status (get-in request [:body-params :status])]
-    (dept-service/update-dept! dept-service {:dept_id dept-id :status status})
+    (dept-service/update-dept! dept-service {:dept_id dept-id :status status :update_by (current-user-name request)})
     (ok "状态修改成功")))
