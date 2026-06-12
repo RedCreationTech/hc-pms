@@ -138,6 +138,7 @@ INSERT INTO sys_role (role_name, role_key, role_sort, data_scope, menu_check_str
 VALUES (:role_name, :role_key, :role_sort, :data_scope, :menu_check_strictly, :dept_check_strictly, :status, :create_by, CURRENT_TIMESTAMP, :remark)
 
 -- :name update-role! :! :n
+-- :doc 更新角色（所有字段可选）
 UPDATE sys_role
 SET role_name = COALESCE(:role_name, role_name),
     role_key = COALESCE(:role_key, role_key),
@@ -146,7 +147,6 @@ SET role_name = COALESCE(:role_name, role_name),
     menu_check_strictly = COALESCE(:menu_check_strictly, menu_check_strictly),
     dept_check_strictly = COALESCE(:dept_check_strictly, dept_check_strictly),
     status = COALESCE(:status, status),
-    update_by = :update_by,
     update_time = CURRENT_TIMESTAMP,
     remark = COALESCE(:remark, remark)
 WHERE role_id = :role_id
