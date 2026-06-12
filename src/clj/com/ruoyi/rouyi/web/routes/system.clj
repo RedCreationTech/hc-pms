@@ -248,7 +248,7 @@
     ["/getValue/:cacheName/:cacheKey" {:get {:summary "缓存值" :description "获取缓存值"
                                              :handler (partial cache/cache-value {})}}]
     ["/clear" {:delete {:summary "清空缓存" :description "清空所有缓存数据"
-                        :handler (partial cache/cache-clear {})}}]
+                        :handler (partial cache/clear-cache {})}}]
     ["/clearCacheName/:cacheName" {:delete {:summary "清除指定缓存" :handler (partial cache/clear-cache-name {})}}]
     ["/clearCacheKey/:cacheKey" {:delete {:summary "清除指定键" :handler (partial cache/clear-cache-key {})}}]
     ["/clearCacheAll" {:delete {:summary "清除所有缓存" :handler (partial cache/clear-cache-all {})}}]]

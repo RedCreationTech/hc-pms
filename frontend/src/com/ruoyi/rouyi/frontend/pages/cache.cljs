@@ -17,9 +17,9 @@
 (defn- cache-info-section [cache-data]
   (let [name (:name cache-data)
         type (:type cache-data)
-        keys-count (:keys-count cache-data)
-        memory-used (:memory-used cache-data)
-        memory-max (:memory-max cache-data)]
+        keys-count (:keysCount cache-data)
+        memory-used (:memoryUsed cache-data)
+        memory-max (:memoryMax cache-data)]
     [info-card {:title "缓存信息"
                 :children [:div {:style {:display "grid" :gridTemplateColumns "1fr 1fr" :gap 16}}
                            [:div [:span {:style {:color "#666"}} "缓存名称："] [:span (or name "N/A")]]
