@@ -25,7 +25,8 @@
                                  :post [:posts/fetch {}]
                                  nil)]
                      (if fetch
-                       {:db (assoc db :page page) :dispatch fetch}
+                       {:db (assoc db :page page)
+                        :dispatch fetch}
                        {:db (assoc db :page page)}))))
 
 (rf/reg-event-db :auth/set-token
@@ -724,6 +725,114 @@
 
 (rf/reg-fx :api/delete-post
            (fn [id] (api/delete-post id (fn [r] (when (= 200 (:code r)) (.success js/antd.message "删除成功") (rf/dispatch [:posts/fetch {}]))) (fn [_] (.error js/antd.message "网络错误")))))
+
+;; ────── 服务器监控 ──────
+
+(rf/reg-event-db :server/set-data
+                 (fn [db [_ data]]
+                   (-> db (assoc-in [:server :data] data) (assoc-in [:server :loading?] false))))
+
+(rf/reg-event-fx :server/fetch
+                 (fn [{:keys [db]} _]
+                   {:db (assoc-in db [:server :loading?] true) :api/get-server-info nil}))
+
+(rf/reg-fx :api/get-server-info
+           (fn [_]
+             (api/get-server-info
+              (fn [r] (when (= 200 (:code r)) (rf/dispatch [:server/set-data (:data r)])))
+              (fn [_]))))
+
+;; ────── 缓存监控 ──────
+
+(rf/reg-event-db :cache/set-info
+                 (fn [db [_ data]]
+                   (-> db (assoc-in [:cache :data] data) (assoc-in [:cache :loading?] false))))
+
+(rf/reg-event-fx :cache/fetch-info
+                 (fn [{:keys [db]} _]
+                   {:db (assoc-in db [:cache :loading?] true) :api/get-cache-info nil}))
+
+(rf/reg-fx :api/get-cache-info
+           (fn [_]
+             (api/get-cache-info (fn [r] (when (= 200 (:code r)) (rf/dispatch [:cache/set-info (:data r)]))) (fn [_]))))
+
+(rf/reg-event-db :cache/set-keys
+                 (fn [db [_ data]]
+                   (assoc-in db [:cache :keys] data)))
+
+(rf/reg-event-fx :cache/fetch-keys
+                 (fn [{:keys [db]} _]
+                   {:db db :api/get-cache-keys nil}))
+
+(rf/reg-fx :api/get-cache-keys
+           (fn [_]
+             (api/get-cache-keys (fn [r] (when (= 200 (:code r)) (rf/dispatch [:cache/set-keys (:data r)]))) (fn [_]))))
+
+(rf/reg-event-fx :cache/clear
+                 (fn [{:keys [db]} _]
+                   {:db db :api/clear-cache nil}))
+
+(rf/reg-fx :api/clear-cache
+           (fn [_]
+             (api/clear-cache (fn [r] (when (= 200 (:code r)) (.success js/antd.message "缓存已清空") (rf/dispatch [:cache/fetch-info]) (rf/dispatch [:cache/fetch-keys]))) (fn [_] (.error js/antd.message "清空缓存失败")))))
+
+;; ────── 操作日志详情 ──────
+
+(rf/reg-event-db :oper-logs/set-detail
+                 (fn [db [_ data]]
+                   (assoc-in db [:oper-logs :detail-data] data)))
+
+(rf/reg-event-db :oper-logs/show-detail
+                 (fn [db [_ data]]
+                   (-> db (assoc-in [:oper-logs :detail-visible?] true) (assoc-in [:oper-logs :detail-data] data))))
+
+(rf/reg-event-db :oper-logs/hide-detail
+                 (fn [db _]
+                   (assoc-in db [:oper-logs :detail-visible?] false)))
+
+;; ────── 多Tab管理 ──────
+
+(rf/reg-event-fx :tabs/add
+                 (fn [{:keys [db]} [_ key label]]
+                   (let [tabs (get-in db [:tabs :items] [])
+                         exists? (some #(= (:key %) key) tabs)]
+                     (if exists?
+                       {:db (assoc-in db [:tabs :active] key)}
+                       {:db (-> db
+                                (update-in [:tabs :items] conj {:key key :label label :closable (not= key :dashboard)})
+                                (assoc-in [:tabs :active] key))}))))
+
+(rf/reg-event-db :tabs/activate
+                 (fn [db [_ key]]
+                   (assoc-in db [:tabs :active] key)))
+
+(rf/reg-event-fx :tabs/remove
+                 (fn [{:keys [db]} [_ key]]
+                   (let [tabs (get-in db [:tabs :items] [])
+                         active (get-in db [:tabs :active])
+                         remaining (filterv #(not= (:key %) key) tabs)]
+                     (if (= active key)
+                       (let [new-active (if-let [last-rem (last remaining)] (:key last-rem) :dashboard)]
+                         {:db (-> db
+                                  (assoc-in [:tabs :items] remaining)
+                                  (assoc-in [:tabs :active] new-active))})
+                       {:db (assoc-in db [:tabs :items] remaining)}))))
+
+(rf/reg-event-db :tabs/remove-others
+                 (fn [db [_ key]]
+                   (let [tabs (get-in db [:tabs :items] [])
+                         home-tab (first (filter #(= (:key %) :dashboard) tabs))
+                         keep-tab (first (filter #(= (:key %) key) tabs))]
+                     (-> db
+                         (assoc-in [:tabs :items] (filterv some? [home-tab keep-tab]))
+                         (assoc-in [:tabs :active] key)))))
+
+(rf/reg-event-db :tabs/remove-all
+                 (fn [db _]
+                   (let [home-tab (first (filter #(= (:key %) :dashboard) (get-in db [:tabs :items] [])))]
+                     (-> db
+                         (assoc-in [:tabs :items] (if home-tab [home-tab] []))
+                         (assoc-in [:tabs :active] :dashboard)))))
 
 ;; ────── 菜单管理 ──────
 

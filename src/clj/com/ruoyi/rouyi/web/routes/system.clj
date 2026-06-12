@@ -1,29 +1,27 @@
 (ns com.ruoyi.rouyi.web.routes.system
   "系统管理路由聚合。"
   (:require
-    [com.ruoyi.rouyi.web.controllers.system.user :as user]
-    [com.ruoyi.rouyi.web.controllers.system.role :as role]
-    [com.ruoyi.rouyi.web.controllers.system.menu :as menu]
-    [com.ruoyi.rouyi.web.controllers.system.dept :as dept]
-    [com.ruoyi.rouyi.web.controllers.system.post :as post]
-    [com.ruoyi.rouyi.web.controllers.system.dict :as dict]
-    [com.ruoyi.rouyi.web.controllers.system.config :as config]
-    [com.ruoyi.rouyi.web.controllers.system.log :as log]
-    [com.ruoyi.rouyi.web.controllers.system.online :as online]
-    [com.ruoyi.rouyi.web.controllers.job :as job]
-    [com.ruoyi.rouyi.web.controllers.system.profile :as profile]
-    [com.ruoyi.rouyi.web.controllers.monitor :as monitor]
-    [com.ruoyi.rouyi.web.middleware.auth :as auth-mw]
+   [com.ruoyi.rouyi.web.controllers.system.user :as user]
+   [com.ruoyi.rouyi.web.controllers.system.role :as role]
+   [com.ruoyi.rouyi.web.controllers.system.menu :as menu]
+   [com.ruoyi.rouyi.web.controllers.system.dept :as dept]
+   [com.ruoyi.rouyi.web.controllers.system.post :as post]
+   [com.ruoyi.rouyi.web.controllers.system.dict :as dict]
+   [com.ruoyi.rouyi.web.controllers.system.config :as config]
+   [com.ruoyi.rouyi.web.controllers.system.log :as log]
+   [com.ruoyi.rouyi.web.controllers.system.online :as online]
+   [com.ruoyi.rouyi.web.controllers.job :as job]
+   [com.ruoyi.rouyi.web.controllers.system.profile :as profile]
+   [com.ruoyi.rouyi.web.controllers.monitor :as monitor]
+   [com.ruoyi.rouyi.web.controllers.system.cache :as cache]
+   [com.ruoyi.rouyi.web.middleware.auth :as auth-mw]
 
-    [malli.util :as mu]))
+   [malli.util :as mu]))
 
 ;; ── Shared Swagger schemas ──────────────────────────────────────────
 (def PagingQuery [:map {:closed true}
-                   [:page {:optional true} :int] [:size {:optional true} :int]
-                   [:order_by {:optional true} :string] [:is_asc {:optional true} :string]])
-
-
-
+                  [:page {:optional true} :int] [:size {:optional true} :int]
+                  [:order_by {:optional true} :string] [:is_asc {:optional true} :string]])
 
 (def PathId [:map [:id :string]])
 
@@ -37,7 +35,7 @@
     ["" {:get  {:summary    "用户列表"
                 :description "分页查询用户列表（支持搜索、数据权限过滤）"
                 :parameters {:query PagingQuery}
-            
+
                 :handler    (partial user/list-users {:user-service user-service})}
          :post {:summary    "新增用户"
                 :description "创建新用户（含角色分配）"
@@ -49,13 +47,13 @@
              :delete {:summary "删除用户" :parameters {:path PathId}
                       :handler (partial user/delete-user {:user-service user-service})}}]
     ["/:id/status/:status" {:put {:summary "修改用户状态"
-                                   :handler (partial user/change-status {:user-service user-service})}}]
+                                  :handler (partial user/change-status {:user-service user-service})}}]
     ["/:id/resetPwd"       {:put {:summary "重置用户密码"
-                                   :handler (partial user/reset-password {:user-service user-service})}}]]
+                                  :handler (partial user/reset-password {:user-service user-service})}}]]
 
    ["/role"
     ["" {:get  {:summary "角色列表" :description "分页查询角色列表"
-            
+
                 :handler (partial role/list-roles {:role-service role-service})}
          :post {:summary "新增角色" :handler (partial role/create-role {:role-service role-service})}}]
     ["/:id" {:get    {:summary "角色详情" :parameters {:path PathId}
@@ -93,9 +91,9 @@
 
    ["/dict/data"
     ["" {:get  {:summary "字典数据列表" :parameters {:query [:map {:closed true}
-                                                   [:page {:optional true} :int] [:size {:optional true} :int]
-                                                   [:order_by {:optional true} :string] [:is_asc {:optional true} :string]
-                                                   [:dict_type {:optional true} :string]]}
+                                                       [:page {:optional true} :int] [:size {:optional true} :int]
+                                                       [:order_by {:optional true} :string] [:is_asc {:optional true} :string]
+                                                       [:dict_type {:optional true} :string]]}
                 :handler (partial dict/list-dict-data {:dict-service dict-service})}
          :post {:summary "新增字典数据" :handler (partial dict/create-dict-data {:dict-service dict-service})}}]
     ["/:id" {:get    {:summary "字典数据详情" :parameters {:path PathId}
@@ -140,30 +138,30 @@
 
    ["/oper-log"
     ["" {:get    {:summary "操作日志列表" :description "分页查询操作日志（只读）"
-              
+
                   :handler (partial log/list-oper-logs {:log-service log-service})}
          :delete {:summary "清空操作日志" :description "清空所有操作日志（需要确认）"
                   :handler (partial log/clear-oper-logs {:log-service log-service})}}]]
 
    ["/login-log"
     ["" {:get    {:summary "登录日志列表" :description "分页查询登录日志（只读）"
-              
+
                   :handler (partial log/list-login-logs {:log-service log-service})}
          :delete {:summary "清空登录日志" :description "清空所有登录日志"
                   :handler (partial log/clear-login-logs {:log-service log-service})}}]]
 
    ["/online"
     ["" {:get {:summary "在线用户列表" :description "查询当前在线用户列表（只读）"
-              :handler (partial online/list-online {:online-service online-service})}}]
+               :handler (partial online/list-online {:online-service online-service})}}]
     ["/:token-id" {:delete {:summary "强退用户" :description "强制踢出在线用户"
-                             :parameters {:path [:map [:token-id :string]]}
-                             :handler (partial online/force-logout {:online-service online-service})}}]]
+                            :parameters {:path [:map [:token-id :string]]}
+                            :handler (partial online/force-logout {:online-service online-service})}}]]
 
    ["/profile"
     ["" {:get {:summary "个人信息" :description "获取当前登录用户信息"
-              :handler (partial profile/get-profile {:user-service user-service})}
+               :handler (partial profile/get-profile {:user-service user-service})}
          :put {:summary "更新个人信息" :description "更新昵称/手机/邮箱/性别"
-              :handler (partial profile/update-profile {:user-service user-service})}}]
+               :handler (partial profile/update-profile {:user-service user-service})}}]
     ["/password" {:put {:summary "修改密码" :description "修改当前用户登录密码"
                         :handler (partial profile/change-password {:user-service user-service})}}]
     ["/avatar"   {:post {:summary "上传头像" :description "上传用户头像文件"
@@ -187,4 +185,12 @@
    ["/server" {:get {:summary "服务器监控" :description "JVM/CPU/内存等系统信息"
                      :handler (partial monitor/server-info {})}}]
    ["/datasource" {:get {:summary "数据源监控" :description "数据库连接池状态"
-                         :handler (partial monitor/datasource-info {:query-fn (:query-fn user-service)})}}]])
+                         :handler (partial monitor/datasource-info {:query-fn (:query-fn user-service)})}}]
+
+   ["/cache"
+    ["" {:get {:summary "缓存信息" :description "获取缓存名称、类型、键数量等"
+               :handler (partial cache/cache-info {})}}]
+    ["/keys" {:get {:summary "缓存键列表" :description "获取所有缓存键名"
+                    :handler (partial cache/cache-keys {})}}]
+    ["/clear" {:delete {:summary "清空缓存" :description "清空所有缓存数据"
+                        :handler (partial cache/cache-clear {})}}]]])

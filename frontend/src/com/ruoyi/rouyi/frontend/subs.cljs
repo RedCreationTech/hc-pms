@@ -191,6 +191,14 @@
             (fn [db _]
               (get-in db [:oper-logs :loading?])))
 
+(rf/reg-sub :oper-logs/detail-visible?
+            (fn [db _]
+              (get-in db [:oper-logs :detail-visible?] false)))
+
+(rf/reg-sub :oper-logs/detail-data
+            (fn [db _]
+              (get-in db [:oper-logs :detail-data])))
+
 (rf/reg-sub :login-logs/items
             (fn [db _]
               (get-in db [:login-logs :items])))
