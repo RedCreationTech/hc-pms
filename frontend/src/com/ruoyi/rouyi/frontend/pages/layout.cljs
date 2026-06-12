@@ -76,7 +76,7 @@
   (let [tabs @(rf/subscribe [:tabs/items])
         active @(rf/subscribe [:tabs/active])]
     [:div {:style {
-                   :borderBottom "1px solid #f0f0f0"
+                   :borderBottom "1px solid var(--ant-color-border-secondary, #f0f0f0)"
                    :padding "8px 16px 0"
                    :display "flex"
                    :alignItems "flex-end"
@@ -148,7 +148,7 @@
           [:div {:style {:height 64 :display "flex" :alignItems "center"
                          :justifyContent "center" :fontSize 18 :fontWeight 600
                          :color (if (= theme-mode :dark) "#fff" "#000")
-                         :borderBottom (if (= theme-mode :dark) "1px solid #303030" "1px solid #f0f0f0")}}
+                         :borderBottom "1px solid var(--ant-color-border-secondary, #f0f0f0)"}}
            (if @collapsed "RY" "若依管理系统")]
           [:> Menu {:theme (if (= theme-mode :dark) "dark" "light")
                     :mode "inline"
@@ -166,7 +166,7 @@
           [:> Layout.Header {:style {:padding "0 24px"
                                      :display "flex" :justifyContent "space-between"
                                      :alignItems "center" :height 64
-                                     :borderBottom "1px solid #f0f0f0"}}
+                                     :borderBottom "1px solid var(--ant-color-border-secondary, #f0f0f0)"}}
            [:span {:style {:fontSize 16 :fontWeight 500}} "若依管理系统"]
            [:div {:style {:display "flex" :alignItems "center" :gap 4}}
             ;; 搜索

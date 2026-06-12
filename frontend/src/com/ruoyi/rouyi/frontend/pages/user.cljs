@@ -174,7 +174,7 @@
        [:div {:style {:background "var(--ant-color-bg-container, #fff)" :padding "24px" :borderRadius "8px" :width 600
                       :maxHeight "90vh" :overflow "auto" :boxShadow "0 6px 16px rgba(0,0,0,0.08)"}}
         [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center"
-                       :marginBottom 16 :paddingBottom 12 :borderBottom "1px solid #e8e8e8"}}
+                       :marginBottom 16 :paddingBottom 12 :borderBottom "1px solid var(--ant-color-border-secondary, #e8e8e8)"}}
          [:h3 {:style {:margin 0 :fontSize 16}} (if editing? "修改用户" "添加用户")]
          [antd/button {:type "text" :size "small"
                        :on-click #(rf/dispatch [:users/close-modal])} "✕"]]
@@ -231,7 +231,7 @@
            [:label {:style {:cursor "pointer"}}
             [antd/radio {:value "1" :checked (= (:status form-data) "1")
                          :on-change #(rf/dispatch [:users/update-form :status "1"])}] "停用"]]]]
-        [:div {:style {:display "flex" :justifyContent "flex-end" :gap 8 :marginTop 20 :paddingTop 16 :borderTop "1px solid #e8e8e8"}}
+        [:div {:style {:display "flex" :justifyContent "flex-end" :gap 8 :marginTop 20 :paddingTop 16 :borderTop "1px solid var(--ant-color-border-secondary, #e8e8e8)"}}
          [antd/button {:on-click #(rf/dispatch [:users/close-modal])} "取消"]
          [antd/button {:type "primary" :on-click #(rf/dispatch [:users/submit-form])} "确定"]]]])))
 
@@ -301,11 +301,11 @@
         selected-dept-id @(rf/subscribe [:users/selected-dept-id])
         expanded-id (r/atom nil)]
     [:div {:style {:width 200 :minWidth 200 :background "var(--ant-color-bg-container, #fff)" 
-                   :borderRadius 8 :border "1px solid #e8e8e8"
+                   :borderRadius 8 :border "1px solid var(--ant-color-border-secondary, #e8e8e8)"
                    :padding 12 :display "flex" :flexDirection "column"}}
      [:div {:style {:display "flex" :justifyContent "space-between"
                     :alignItems "center" :marginBottom 8
-                    :paddingBottom 8 :borderBottom "1px solid #f0f0f0"}}
+                    :paddingBottom 8 :borderBottom "1px solid var(--ant-color-border-secondary, #f0f0f0)"}}
       [:span {:style {:fontWeight 600 :fontSize 14}} "部门列表"]
       [:div
        [antd/button {:type "text" :size "small"
@@ -322,11 +322,11 @@
   (let [dept-items @(rf/subscribe [:depts/tree])
         selected-dept-id @(rf/subscribe [:users/selected-dept-id])]
     [:div {:style {:width 200 :minWidth 200 :background "var(--ant-color-bg-container, #fff)"
-                   :borderRadius 8 :border "1px solid #e8e8e8"
+                   :borderRadius 8 :border "1px solid var(--ant-color-border-secondary, #e8e8e8)"
                    :padding 12 :display "flex" :flexDirection "column"}}
      [:div {:style {:display "flex" :justifyContent "space-between"
                     :alignItems "center" :marginBottom 8
-                    :paddingBottom 8 :borderBottom "1px solid #f0f0f0"}}
+                    :paddingBottom 8 :borderBottom "1px solid var(--ant-color-border-secondary, #f0f0f0)"}}
       [:span {:style {:fontWeight 600 :fontSize 14}} "部门列表"]
       [antd/button {:type "text" :size "small"
                     :on-click #(rf/dispatch [:depts/fetch {}])}
@@ -374,10 +374,10 @@
                                      (disj ids dept-id)
                                      (conj ids dept-id)))))]
     [:div {:style {:width 200 :minWidth 200 :background "var(--ant-color-bg-container, #fff)"
-                   :borderRadius 8 :border "1px solid #e8e8e8"
+                   :borderRadius 8 :border "1px solid var(--ant-color-border-secondary, #e8e8e8)"
                    :padding 12 :display "flex" :flexDirection "column"}}
      [:div {:style {:fontWeight 600 :fontSize 14 :marginBottom 8
-                    :paddingBottom 8 :borderBottom "1px solid #f0f0f0"}}
+                    :paddingBottom 8 :borderBottom "1px solid var(--ant-color-border-secondary, #f0f0f0)"}}
       "部门列表"]
      [:div {:style {:flex 1 :overflow "auto" :fontSize 13}}
       (for [d (flatten-visible-tree dept-items expanded-ids 0)]

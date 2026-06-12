@@ -11,7 +11,7 @@
 
 (defn- search-form []
   (let [query-params @(rf/subscribe [:posts/query-params])]
-    [:div {:style {:background "var(--ant-color-bg-container, #fff)" :padding 16 :marginBottom 12 :borderRadius 8 :border "1px solid #e8e8e8"}}
+    [:div {:style {:background "var(--ant-color-bg-container, #fff)" :padding 16 :marginBottom 12 :borderRadius 8 :border "1px solid var(--ant-color-border-secondary, #e8e8e8)"}}
      [:div {:style {:display "flex" :flexWrap "wrap" :gap 12}}
       [:div {:style {:display "flex" :alignItems "center" :gap 8}}
        [:span {:style {:whiteSpace "nowrap" :fontSize 13}} "岗位编码"]

@@ -36,12 +36,12 @@
                              [:table {:style {:width "100%" :borderCollapse "collapse"}}
                               [:thead
                                [:tr {:style {:background "#fafafa"}}
-                                [:th {:style {:padding "8px 12px" :textAlign "left" :borderBottom "1px solid #f0f0f0"}} "序号"]
-                                [:th {:style {:padding "8px 12px" :textAlign "left" :borderBottom "1px solid #f0f0f0"}} "缓存键名"]]]
+                                [:th {:style {:padding "8px 12px" :textAlign "left" :borderBottom "1px solid var(--ant-color-border-secondary, #f0f0f0)"}} "序号"]
+                                [:th {:style {:padding "8px 12px" :textAlign "left" :borderBottom "1px solid var(--ant-color-border-secondary, #f0f0f0)"}} "缓存键名"]]]
                               [:tbody
                                (for [[idx k] (map-indexed vector keys)]
                                  ^{:key idx}
-                                 [:tr {:style {:borderBottom "1px solid #f0f0f0"}}
+                                 [:tr {:style {:borderBottom "1px solid var(--ant-color-border-secondary, #f0f0f0)"}}
                                   [:td {:style {:padding "8px 12px"}} (inc idx)]
                                   [:td {:style {:padding "8px 12px"}} (str k)]])]]]
                             [:div {:style {:textAlign "center" :padding 24 :color "#999"}}

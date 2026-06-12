@@ -71,7 +71,7 @@
   (when selected-item
     (let [props (:props selected-item)
           typ (:type selected-item)]
-      [:div {:style {:padding 16 :borderLeft "1px solid #f0f0f0" :minWidth 260}}
+      [:div {:style {:padding 16 :borderLeft "1px solid var(--ant-color-border-secondary, #f0f0f0)" :minWidth 260}}
        [:h4 {:style {:margin "0 0 16px 0"}} "组件属性"]
        [antd/form {:layout "vertical" :size "small"}
         [antd/form-item {:label "字段名" :required true}
@@ -107,13 +107,13 @@
 ;; ─── 组件面板 ──────────────────────────────────────────────────────
 
 (defn- palette-panel []
-  [:div {:style {:padding 16 :borderRight "1px solid #f0f0f0" :minWidth 200}}
+  [:div {:style {:padding 16 :borderRight "1px solid var(--ant-color-border-secondary, #f0f0f0)" :minWidth 200}}
    [:h4 {:style {:margin "0 0 12px 0"}} "组件面板"]
    (for [comp component-palette]
      ^{:key (:type comp)}
      [:div {:draggable true
             :style {:padding "10px 16px" :margin "0 0 8px 0" :background "#fafafa"
-                    :border "1px solid #e8e8e8" :borderRadius 4 :cursor "grab"
+                    :border "1px solid var(--ant-color-border-secondary, #e8e8e8)" :borderRadius 4 :cursor "grab"
                     :userSelect "none" :fontSize 13}
             :on-drag-start (fn [e]
                              (set! (.-dataTransfer (.-dataTransfer e)) "text/plain")
@@ -140,7 +140,7 @@
        (for [item items]
          ^{:key (:id item)}
          [:div {:style {:padding "8px 12px" :margin "0 0 8px 0"
-                        :border (if (= selected-id (:id item)) "2px solid #1677ff" "1px solid #e8e8e8")
+                        :border (if (= selected-id (:id item)) "2px solid var(--ant-color-primary, #1677ff)" "1px solid var(--ant-color-border-secondary, #e8e8e8)")
                         :borderRadius 4 :cursor "pointer" :display "flex" :alignItems "center"
                         :transition "border 0.2s" :background (if (= selected-id (:id item)) "#e6f4ff" "#fff")}
                 :on-click #(rf/dispatch [:fb/select-item (:id item)])}
@@ -193,7 +193,7 @@
          [antd/button {:icon (r/as-element [:> ClearOutlined])
                        :onClick #(rf/dispatch [:fb/clear])}
           "清空"]]]
-       [:div {:style {:display "flex" :border "1px solid #f0f0f0" :borderRadius 8 :overflow "hidden"}}
+       [:div {:style {:display "flex" :border "1px solid var(--ant-color-border-secondary, #f0f0f0)" :borderRadius 8 :overflow "hidden"}}
         [palette-panel]
         [design-canvas]
         [prop-editor selected-item]]
