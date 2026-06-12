@@ -53,27 +53,10 @@
    :gen "代码生成"
    :profile "个人中心"})
 
-;; 初始化路由
-(defn init-routes! []
-  (accountant/configure-navigation!
-    :nav-handler (fn [path]
-                   (let [match (match-route path)
-                         page (or (:handler match) :dashboard)]
-                     (rf/dispatch [:navigate page])))
-    :path-exists? (fn [path]
-                    (boolean (match-route path))))
-  (accountant/dispatch-current!))
-
-;; 导航到页面
+;; 状态标记
 (defonce initialized? (volatile! false))
 
-(defn navigate! [page]
-  (when @initialized?
-    (try
-      (accountant/navigate! (page-path page))
-      (catch js/Error e
-        (js/console.warn "router: navigate failed" (.-message e))))))
-
+;; 初始化路由
 (defn init-routes! []
   (try
     (accountant/configure-navigation!
@@ -87,3 +70,11 @@
     (accountant/dispatch-current!)
     (catch js/Error e
       (js/console.warn "router: init failed" (.-message e)))))
+
+;; 导航到页面
+(defn navigate! [page]
+  (when @initialized?
+    (try
+      (accountant/navigate! (page-path page))
+      (catch js/Error e
+        (js/console.warn "router: navigate failed" (.-message e))))))
