@@ -14,6 +14,7 @@
    [com.ruoyi.rouyi.web.controllers.system.profile :as profile]
    [com.ruoyi.rouyi.web.controllers.monitor :as monitor]
    [com.ruoyi.rouyi.web.controllers.system.cache :as cache]
+   [com.ruoyi.rouyi.web.controllers.system.import-export :as im]
    [com.ruoyi.rouyi.web.middleware.auth :as auth-mw]
 
    [malli.util :as mu]))
@@ -49,7 +50,11 @@
     ["/:id/status/:status" {:put {:summary "修改用户状态"
                                   :handler (partial user/change-status {:user-service user-service})}}]
     ["/:id/resetPwd"       {:put {:summary "重置用户密码"
-                                  :handler (partial user/reset-password {:user-service user-service})}}]]
+                                  :handler (partial user/reset-password {:user-service user-service})}}]
+    ["/export" {:get {:summary "导出用户" :description "导出用户数据为CSV文件"
+                      :handler (partial im/export-users {:user-service user-service})}}]
+    ["/import" {:post {:summary "导入用户" :description "从CSV文件批量导入用户"
+                       :handler (partial im/import-users {:user-service user-service})}}]]
 
    ["/role"
     ["" {:get  {:summary "角色列表" :description "分页查询角色列表"

@@ -32,4 +32,5 @@
    :profile {:loading? false}
    :server {:loading? false :data nil}
    :cache {:loading? false :data nil :keys nil}
+   :gen {:tables-loading? false :tables [] :selected-tables [] :preview-loading? false :preview-visible? false}
    :notification nil})

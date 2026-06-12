@@ -365,6 +365,14 @@
             (fn [db _]
               (get-in db [:posts :editing?] false)))
 
+(rf/reg-sub :gen/tables (fn [db _] (get-in db [:gen :tables])))
+(rf/reg-sub :gen/tables-loading? (fn [db _] (get-in db [:gen :tables-loading?] false)))
+(rf/reg-sub :gen/selected-tables (fn [db _] (get-in db [:gen :selected-tables] [])))
+(rf/reg-sub :gen/preview-data (fn [db _] (get-in db [:gen :preview-data])))
+(rf/reg-sub :gen/preview-loading? (fn [db _] (get-in db [:gen :preview-loading?] false)))
+(rf/reg-sub :gen/preview-visible? (fn [db _] (get-in db [:gen :preview-visible?] false)))
+(rf/reg-sub :gen/preview-table-name (fn [db _] (get-in db [:gen :preview-table-name])))
+
 (rf/reg-sub :posts/form-data
             (fn [db _]
               (get-in db [:posts :form-data] {})))

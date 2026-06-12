@@ -404,3 +404,32 @@
   [id on-success on-error]
   (request {:method :delete :uri (str "/system/job/" id)
             :on-success on-success :on-error on-error}))
+
+;; ─── 代码生成 ──────────────────────────────────────────────────────
+
+(defn gen-tables
+  "获取数据库表列表。"
+  [on-success on-error]
+  (request {:method :get :uri "/tool/gen/tables"
+            :on-success on-success :on-error on-error}))
+
+(defn gen-columns
+  "获取表列信息。"
+  [table-name on-success on-error]
+  (request {:method :get :uri "/tool/gen/columns"
+            :params {:tableName table-name}
+            :on-success on-success :on-error on-error}))
+
+(defn gen-preview
+  "预览生成的代码。"
+  [table-name on-success on-error]
+  (request {:method :get :uri "/tool/gen/preview"
+            :params {:tableName table-name}
+            :on-success on-success :on-error on-error}))
+
+(defn gen-generate
+  "批量生成代码。"
+  [tables on-success on-error]
+  (request {:method :post :uri "/tool/gen/generate"
+            :params {:tables tables}
+            :on-success on-success :on-error on-error}))

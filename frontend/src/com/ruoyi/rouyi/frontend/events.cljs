@@ -776,6 +776,47 @@
            (fn [_]
              (api/clear-cache (fn [r] (when (= 200 (:code r)) (.success js/antd.message "缓存已清空") (rf/dispatch [:cache/fetch-info]) (rf/dispatch [:cache/fetch-keys]))) (fn [_] (.error js/antd.message "清空缓存失败")))))
 
+;; ────── 代码生成器 ──────
+
+(rf/reg-event-db :gen/set-tables
+                 (fn [db [_ data]]
+                   (-> db (assoc-in [:gen :tables] data) (assoc-in [:gen :tables-loading?] false))))
+
+(rf/reg-event-fx :gen/fetch-tables
+                 (fn [{:keys [db]} _]
+                   {:db (assoc-in db [:gen :tables-loading?] true) :api/gen-tables nil}))
+
+(rf/reg-fx :api/gen-tables
+           (fn [_] (api/gen-tables (fn [r] (when (= 200 (:code r)) (rf/dispatch [:gen/set-tables (:data r)]))) (fn [_]))))
+
+(rf/reg-event-db :gen/set-selected-tables
+                 (fn [db [_ tables]]
+                   (assoc-in db [:gen :selected-tables] tables)))
+
+(rf/reg-event-db :gen/set-preview
+                 (fn [db [_ data table-name]]
+                   (-> db (assoc-in [:gen :preview-data] data) (assoc-in [:gen :preview-table-name] table-name)
+                       (assoc-in [:gen :preview-loading?] false) (assoc-in [:gen :preview-visible?] true))))
+
+(rf/reg-event-fx :gen/preview
+                 (fn [{:keys [db]} [_ table-name]]
+                   {:db (-> db (assoc-in [:gen :preview-loading?] true) (assoc-in [:gen :preview-visible?] true)
+                            (assoc-in [:gen :preview-table-name] table-name))
+                    :api/gen-preview table-name}))
+
+(rf/reg-fx :api/gen-preview
+           (fn [table-name] (api/gen-preview table-name (fn [r] (when (= 200 (:code r)) (rf/dispatch [:gen/set-preview (:data r) table-name]))) (fn [_]))))
+
+(rf/reg-event-db :gen/close-preview
+                 (fn [db _] (assoc-in db [:gen :preview-visible?] false)))
+
+(rf/reg-event-fx :gen/generate
+                 (fn [{:keys [db]} [_ tables]]
+                   {:db db :api/gen-generate tables}))
+
+(rf/reg-fx :api/gen-generate
+           (fn [tables] (api/gen-generate tables (fn [r] (when (= 200 (:code r)) (.success js/antd.message "代码生成成功"))) (fn [_] (.error js/antd.message "生成失败")))))
+
 ;; ────── 操作日志详情 ──────
 
 (rf/reg-event-db :oper-logs/set-detail

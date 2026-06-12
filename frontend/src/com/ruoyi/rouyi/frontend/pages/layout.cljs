@@ -31,7 +31,8 @@
    [com.ruoyi.rouyi.frontend.pages.oper-log :as oper-log]
    [com.ruoyi.rouyi.frontend.pages.login-log :as login-log]
    [com.ruoyi.rouyi.frontend.pages.server :as server]
-   [com.ruoyi.rouyi.frontend.pages.cache :as cache]))
+   [com.ruoyi.rouyi.frontend.pages.cache :as cache]
+   [com.ruoyi.rouyi.frontend.pages.gen :as gen]))
 
 ;; ─── Tab 组件 ──────────────────────────────────────────────────────
 
@@ -172,5 +173,6 @@
              :login-log [login-log/login-log-page]
              :server [server/server-page]
              :cache [cache/cache-page]
+             :gen [gen/gen-page]
              [:div {:style {:padding 48 :textAlign "center" :color "#999" :fontSize 16}}
               "页面建设中"])]]]))))
