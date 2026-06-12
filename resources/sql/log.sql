@@ -73,7 +73,8 @@ VALUES (:session_id, :login_name, :dept_name, :ipaddr, :login_location, :browser
 -- :name update-online-user! :! :n
 UPDATE sys_online
 SET last_access_time = :last_access_time,
-    status = COALESCE(:status, status)
+    status = COALESCE(:status, status),
+    expire_time = COALESCE(:expire_time, expire_time)
 WHERE session_id = :session_id
 
 -- :name delete-online-user! :! :n

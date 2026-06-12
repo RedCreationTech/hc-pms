@@ -62,16 +62,22 @@
  {:query-fn #ig/ref :db.sql/query-fn}
 
  :app.system/online-service
- {}
-
- :app.system/gen-service
  {:query-fn #ig/ref :db.sql/query-fn}
 
+ :app.system/gen-service
+  {:query-fn #ig/ref :db.sql/query-fn}
+
+ :app.system/job-scheduler
+  {:scheduler  #ig/ref :cronut/scheduler
+   :query-fn   #ig/ref :db.sql/query-fn
+   :migrations #ig/ref :db.sql/migrations}
+
  :reitit.routes/api
- {:base-path      "/api"
-  :env            #ig/ref :system/env
-  :query-fn       #ig/ref :db.sql/query-fn
-  :user-service   #ig/ref :app.system/user-service
+  {:base-path      "/api"
+   :env            #ig/ref :system/env
+   :query-fn       #ig/ref :db.sql/query-fn
+   :datasource     #ig/ref :db.sql/connection
+   :user-service   #ig/ref :app.system/user-service
   :role-service   #ig/ref :app.system/role-service
   :menu-service   #ig/ref :app.system/menu-service
   :dept-service   #ig/ref :app.system/dept-service

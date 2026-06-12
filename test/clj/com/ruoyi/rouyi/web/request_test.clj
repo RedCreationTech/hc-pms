@@ -1,7 +1,7 @@
 (ns com.ruoyi.rouyi.web.request-test
   "集成测试 — 启动完整系统并通过 HTTP 请求测试 API。"
   (:require [clojure.test :refer [deftest testing is use-fixtures]]
-            [com.ruoyi.rouyi.test-utils :refer [system-state system-fixture GET]]
+            [com.ruoyi.rouyi.test-utils :refer [system-state system-fixture GET PUT]]
             [peridot.core :as p]
             [clojure.data.json :as json]
             [clojure.java.io :as io]))
@@ -102,10 +102,20 @@
     (let [resp (GET (handler) "/api/system/server" {} (auth-headers (login-token)))]
       (is (= 200 (:status resp))))))
 
+(deftest datasource-monitor-test
+  (testing "数据源监控 API"
+    (let [resp (GET (handler) "/api/system/datasource" {} (auth-headers (login-token)))
+          body (parse-json resp)]
+      (is (= 200 (:status resp)))
+      (is (some? (get-in body [:data :active_connections]))))))
+
 (deftest online-list-test
   (testing "在线用户列表 API"
-    (let [resp (GET (handler) "/api/system/online" {} (auth-headers (login-token)))]
-      (is (= 200 (:status resp))))))
+    (let [token (login-token)
+          resp (GET (handler) "/api/system/online" {} (auth-headers token))
+          body (parse-json resp)]
+      (is (= 200 (:status resp)))
+      (is (vector? (get-in body [:data :rows]))))))
 
 (deftest operlog-list-test
   (testing "操作日志列表 API"
@@ -114,13 +124,42 @@
 
 (deftest loginlog-list-test
   (testing "登录日志列表 API"
-    (let [resp (GET (handler) "/api/monitor/logininfor" {} (auth-headers (login-token)))]
+    (let [resp (GET (handler) "/api/system/login-log" {} (auth-headers (login-token)))]
       (is (= 200 (:status resp))))))
 
 (deftest job-list-test
   (testing "定时任务列表 API"
     (let [resp (GET (handler) "/api/system/job" {} (auth-headers (login-token)))]
       (is (= 200 (:status resp))))))
+
+(deftest job-run-once-test
+  (testing "定时任务立即执行"
+    (let [token (login-token)
+          create-ctx (-> (p/session (handler))
+                         (p/request "/api/system/job"
+                                    :request-method :post
+                                    :content-type "application/json"
+                                    :headers (auth-headers token)
+                                    :body (json/write-str {:job_name "test-job"
+                                                           :job_group "DEFAULT"
+                                                           :invoke_target "com.ruoyi.rouyi.task/ry-no-params"
+                                                           :cron_expression "0 0 1 * * ?"
+                                                           :misfire_policy "3"
+                                                           :concurrent "1"
+                                                           :status "0"
+                                                           :create_by "admin"
+                                                           :remark "test"})))
+          job-id (get-in (parse-json (:response create-ctx)) [:data :job_id])
+          run-resp (PUT (handler) (str "/api/system/job/" job-id "/run") {} (auth-headers token))
+          _ (Thread/sleep 1200)
+          all-log-resp (GET (handler) "/api/system/job-log?page-num=1&page-size=10" {} (auth-headers token))
+          log-resp (GET (handler) (str "/api/system/job-log?page-num=1&page-size=10&job_name=test-job") {} (auth-headers token))
+          log-body (parse-json log-resp)
+          all-log-body (parse-json all-log-resp)]
+      (is (some? job-id))
+      (is (= 200 (:status run-resp)))
+      (is (pos? (count (get-in all-log-body [:data :rows]))))
+      (is (pos? (count (get-in log-body [:data :rows])))))))
 
 ;; ─── 代码生成 ──────────────────────────────────────────────────────
 

@@ -12,6 +12,9 @@ SELECT * FROM sys_job WHERE job_id = :job_id
 INSERT INTO sys_job (job_name, job_group, invoke_target, cron_expression, misfire_policy, concurrent, status, create_by, create_time, remark)
 VALUES (:job_name, :job_group, :invoke_target, :cron_expression, :misfire_policy, :concurrent, :status, :create_by, CURRENT_TIMESTAMP, :remark)
 
+-- :name last-insert-job-id :? :1
+SELECT last_insert_rowid() AS job_id
+
 -- :name update-job! :! :n
 UPDATE sys_job
 SET job_name = COALESCE(:job_name, job_name),

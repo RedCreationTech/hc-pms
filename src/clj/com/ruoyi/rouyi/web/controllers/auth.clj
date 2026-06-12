@@ -46,7 +46,7 @@
             (let [roles (user-service/find-user-by-id user-service (:user_id user))
                   role-ids (mapv :role_id (:roles roles))
                   token (security/generate-token (:user_id user) (:user_name user) role-ids)
-                  _ (online/register! token (:user_id user) (:user_name user) login-ip)
+                  _ (online/register! token (:user_name user) login-ip)
                   ;; 记录登录日志
                   _ (log-domain/create-login-log! user-service
                                                   {:user_name username :ipaddr login-ip :login_location ""

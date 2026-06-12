@@ -5,6 +5,7 @@
     [reagent.hooks :as hooks]
     [re-frame.core :as rf]
     ["@ant-design/icons" :refer [ReloadOutlined]]
+    ["antd" :refer [Progress Table Spin]]
     [com.ruoyi.rouyi.frontend.antd :as antd]))
 
 ;; ─── 进度条组件 ──────────────────────────────────────────────────────
@@ -22,7 +23,7 @@
      [:div {:style {:display "flex" :justifyContent "space-between" :marginBottom 8}}
       [:span {:style {:fontSize 14 :fontWeight 500}} label]
       [:span {:style {:fontSize 14 :color "#666"}} (str percent "%")]]
-     [> Progress {:percent percent :strokeColor color :showInfo false
+     [:> Progress {:percent percent :strokeColor color :showInfo false
                      :strokeWidth 10 :trailColor "#f0f0f0"}]
      [:div {:style {:display "flex" :justifyContent "space-between" :marginTop 4 :fontSize 12 :color "#999"}}
       [:span (str "已用: " (if unit (unit used) used))]
@@ -154,7 +155,7 @@
     [:h4 {:style {:margin 0 :fontSize 16 :fontWeight 600 :display "flex" :alignItems "center" :gap 8}}
      [:span {:style {:display "inline-block" :width 4 :height 20 :background "#faad14" :borderRadius 2}}]
      "磁盘状态"]]
-   [> Table {:size "small" :pagination false :rowKey "dirName"
+   [:> Table {:size "small" :pagination false :rowKey "dirName"
                 :dataSource (clj->js (or disk []))
                 :columns (clj->js
                           [{:title "盘符路径" :dataIndex "dirName" :key "dirName"}
@@ -168,7 +169,7 @@
                            {:title "已用百分比" :dataIndex "usage" :key "usage"
                             :render (fn [v]
                                       (r/as-element
-                                       [> Progress {:percent (Math/round v) :size "small"
+                                       [:> Progress {:percent (Math/round v) :size "small"
                                                        :strokeColor (cond
                                                                       (> v 80) "#ff4d4f"
                                                                       (> v 60) "#faad14"
@@ -192,7 +193,7 @@
        "刷新"]]
      (if loading?
        [:div {:style {:textAlign "center" :padding 48}}
-        [> Spin {:size "large"}]]
+        [:> Spin {:size "large"}]]
        (when server-data
          [:div
           [cpu-section server-data]

@@ -99,3 +99,8 @@ INSERT INTO sys_config (config_id, config_name, config_key, config_value, config
 (1, '主框架页-默认皮肤样式名称', 'sys.index.skinName', 'skin-blue', 'Y'),
 (2, '用户管理-账号初始密码', 'sys.user.initPassword', '123456', 'Y'),
 (3, '主框架页-侧边栏主题', 'sys.index.sidebarTheme', 'theme-dark', 'Y');
+--;;
+-- 初始化定时任务
+INSERT INTO sys_job (job_id, job_name, job_group, invoke_target, cron_expression, misfire_policy, concurrent, status) VALUES
+(1, '系统默认（无参）', 'DEFAULT', 'com.ruoyi.rouyi.task/ry-no-params', '0/10 * * * * ?', '3', '1', '0'),
+(2, '系统默认（有参）', 'DEFAULT', 'com.ruoyi.rouyi.task/ry-params(''hello'')', '0/15 * * * * ?', '3', '1', '0');

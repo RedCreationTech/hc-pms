@@ -3,10 +3,11 @@
   (:require
     [ring.util.response :as response]
     [clojure.string :as str])
-  (:import [java.lang.management ManagementFactory MemoryMXBean]
+  (:import [java.lang.management ManagementFactory]
            [java.io File]
            [java.time Instant ZoneId LocalDateTime]
-           [java.time.format DateTimeFormatter]))
+           [java.time.format DateTimeFormatter]
+           [com.zaxxer.hikari HikariDataSource HikariPoolMXBean]))
 
 (defn- ok
   ([data] (ok 200 "操作成功" data))
@@ -101,10 +102,22 @@
        :disk (get-disk-info)}))
 
 (defn datasource-info
-  "获取数据源监控信息。"
-  [{:keys [query-fn]} _]
+  "获取 HikariCP 数据源监控信息。"
+  [{:keys [datasource]} _]
   (try
-    (let [result (query-fn :datasource-info {})]
-      (ok result))
+    (if (instance? HikariDataSource datasource)
+      (let [pool (.getHikariPoolMXBean ^HikariDataSource datasource)]
+        (ok {:db_name (some-> (.getJdbcUrl ^HikariDataSource datasource) (str/replace "jdbc:" ""))
+             :db_version "SQLite"
+             :active_connections (.getActiveConnections pool)
+             :idle_connections (.getIdleConnections pool)
+             :total_connections (.getTotalConnections pool)
+             :threads_awaiting_connection (.getThreadsAwaitingConnection pool)
+             :max_connections (.getMaximumPoolSize datasource)
+             :min_idle (.getMinimumIdle datasource)
+             :connection_timeout (.getConnectionTimeout datasource)
+             :idle_timeout (.getIdleTimeout datasource)
+             :max_lifetime (.getMaxLifetime datasource)}))
+      (ok {:db_name "unknown" :db_version "unknown" :active_connections 0}))
     (catch Exception e
       (ok {:status "error" :message (.getMessage e)}))))

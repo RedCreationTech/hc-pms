@@ -91,7 +91,7 @@
                     :onClick #(rf/dispatch [:gen/open-config])}
        "生成配置"]
       (when (seq selected-tables)
-        [<>
+        [:<>
          [antd/button {:type "primary"
                        :icon (r/as-element [:> CodeOutlined])
                        :onClick #(rf/dispatch [:gen/generate selected-tables])}

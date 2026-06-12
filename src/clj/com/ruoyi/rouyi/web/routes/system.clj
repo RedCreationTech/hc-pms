@@ -17,7 +17,6 @@
    [com.ruoyi.rouyi.web.controllers.system.cache :as cache]
    [com.ruoyi.rouyi.web.controllers.system.import-export :as im]
    [com.ruoyi.rouyi.web.controllers.system.file :as file]
-   [com.ruoyi.rouyi.web.controllers.system.notice :as notice]
    [com.ruoyi.rouyi.web.middleware.auth :as auth-mw]
 
    [malli.util :as mu]))
@@ -30,7 +29,7 @@
 (def PathId [:map [:id :string]])
 
 ;; ── Routes ──────────────────────────────────────────────────────────
-(defn system-routes [{:keys [user-service role-service menu-service dept-service post-service dict-service config-service log-service online-service query-fn]}]
+(defn system-routes [{:keys [user-service role-service menu-service dept-service post-service dict-service config-service log-service online-service query-fn datasource]}]
   ["/system"
    {:middleware [(auth-mw/auth-middleware {:required? true})]
     :swagger {:tags ["系统管理"]}}
@@ -234,7 +233,7 @@
    ["/server" {:get {:summary "服务器监控" :description "JVM/CPU/内存等系统信息"
                      :handler (partial monitor/server-info {})}}]
    ["/datasource" {:get {:summary "数据源监控" :description "数据库连接池状态"
-                         :handler (partial monitor/datasource-info {:query-fn (:query-fn user-service)})}}]
+                         :handler (partial monitor/datasource-info {:datasource datasource})}}]
 
    ["/cache"
     ["" {:get {:summary "缓存信息" :description "获取缓存名称、类型、键数量等"

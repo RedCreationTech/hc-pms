@@ -3,6 +3,7 @@
    [com.ruoyi.rouyi.core :as core]
    [peridot.core :as p]
    [byte-streams :as bs]
+   [clojure.data.json :as json]
    [integrant.repl.state :as state]))
 
 (defn system-state
@@ -29,4 +30,13 @@
                  :content-type "application/edn"
                  :headers headers
                  :params params)
+      (get-response)))
+
+(defn PUT [app path body headers]
+  (-> (p/session app)
+      (p/request path
+                 :request-method :put
+                 :content-type "application/json"
+                 :headers headers
+                 :body (json/write-str body))
       (get-response)))

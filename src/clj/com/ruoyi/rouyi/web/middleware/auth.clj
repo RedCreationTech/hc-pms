@@ -12,8 +12,9 @@
   (fn [request]
     (let [token (security/extract-token request)
           claims (when token (security/parse-token token))
-          _ (when claims (online/heartbeat! token))
-          request (if claims
+          blacklisted? (and token (online/blacklisted? token))
+          _ (when (and claims (not blacklisted?)) (online/heartbeat! token))
+          request (if (and claims (not blacklisted?))
                     (assoc request :identity claims)
                     request)]
       (handler request))))
