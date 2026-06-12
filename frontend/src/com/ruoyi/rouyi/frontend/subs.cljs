@@ -498,9 +498,25 @@
             (fn [db _]
               (get-in db [:cache :data])))
 
+(rf/reg-sub :cache/names
+            (fn [db _]
+              (get-in db [:cache :names] [])))
+
+(rf/reg-sub :cache/selected-name
+            (fn [db _]
+              (get-in db [:cache :selected-name])))
+
 (rf/reg-sub :cache/keys
             (fn [db _]
-              (get-in db [:cache :keys])))
+              (get-in db [:cache :keys] [])))
+
+(rf/reg-sub :cache/value
+            (fn [db _]
+              (get-in db [:cache :value])))
+
+(rf/reg-sub :cache/value-visible?
+            (fn [db _]
+              (get-in db [:cache :value-visible?] false)))
 
 (rf/reg-sub :cache/loading?
             (fn [db _]

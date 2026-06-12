@@ -264,7 +264,7 @@
     ["/clear" {:delete {:summary "清空缓存" :description "清空所有缓存数据"
                         :handler (partial cache/clear-cache {})}}]
     ["/clearCacheName/:cacheName" {:delete {:summary "清除指定缓存" :handler (partial cache/clear-cache-name {})}}]
-    ["/clearCacheKey/:cacheKey" {:delete {:summary "清除指定键" :handler (partial cache/clear-cache-key {})}}]
+    ["/clearCacheKey/:cacheName/:cacheKey" {:delete {:summary "清除指定键" :handler (partial cache/clear-cache-key {})}}]
     ["/clearCacheAll" {:delete {:summary "清除所有缓存" :handler (partial cache/clear-cache-all {})}}]]
 
    ["/file"

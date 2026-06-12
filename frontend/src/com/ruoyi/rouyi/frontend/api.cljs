@@ -344,6 +344,36 @@
   (request {:method :delete :uri "/system/cache"
             :on-success on-success :on-error on-error}))
 
+(defn get-cache-names
+  "获取缓存名称列表。"
+  [on-success on-error]
+  (request {:method :get :uri "/system/cache/getNames"
+            :on-success on-success :on-error on-error}))
+
+(defn get-cache-keys-by-name
+  "获取指定缓存名称的键列表。"
+  [cache-name on-success on-error]
+  (request {:method :get :uri (str "/system/cache/getKeys/" cache-name)
+            :on-success on-success :on-error on-error}))
+
+(defn get-cache-value
+  "获取缓存值。"
+  [cache-name cache-key on-success on-error]
+  (request {:method :get :uri (str "/system/cache/getValue/" cache-name "/" cache-key)
+            :on-success on-success :on-error on-error}))
+
+(defn clear-cache-name
+  "清除指定缓存。"
+  [cache-name on-success on-error]
+  (request {:method :delete :uri (str "/system/cache/clearCacheName/" cache-name)
+            :on-success on-success :on-error on-error}))
+
+(defn clear-cache-key
+  "清除指定缓存键。"
+  [cache-name cache-key on-success on-error]
+  (request {:method :delete :uri (str "/system/cache/clearCacheKey/" cache-name "/" cache-key)
+            :on-success on-success :on-error on-error}))
+
 ;; ─── 通知公告 ──────────────────────────────────────────────────────
 
 (defn list-notices

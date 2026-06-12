@@ -1304,27 +1304,83 @@
 
 (rf/reg-event-db :cache/set-info
                  (fn [db [_ data]]
-                   (-> db (assoc-in [:cache :data] data) (assoc-in [:cache :loading?] false))))
+                   (-> db
+                       (assoc-in [:cache :data] data)
+                       (assoc-in [:cache :loading?] false))))
 
 (rf/reg-event-fx :cache/fetch-info
                  (fn [{:keys [db]} _]
-                   {:db (assoc-in db [:cache :loading?] true) :api/get-cache-info nil}))
+                   {:db (assoc-in db [:cache :loading?] true)
+                    :api/get-cache-info nil}))
 
 (rf/reg-fx :api/get-cache-info
            (fn [_]
-             (api/get-cache-info (fn [r] (when (= 200 (:code r)) (rf/dispatch [:cache/set-info (:data r)]))) (fn [_]))))
+             (api/get-cache-info
+              (fn [r] (when (= 200 (:code r)) (rf/dispatch [:cache/set-info (:data r)])))
+              (fn [_]))))
+
+(rf/reg-event-db :cache/set-names
+                 (fn [db [_ data]]
+                   (assoc-in db [:cache :names] (or (:cacheNames data) []))))
+
+(rf/reg-event-fx :cache/fetch-names
+                 (fn [{:keys [db]} _]
+                   {:db db :api/get-cache-names nil}))
+
+(rf/reg-fx :api/get-cache-names
+           (fn [_]
+             (api/get-cache-names
+              (fn [r] (when (= 200 (:code r)) (rf/dispatch [:cache/set-names (:data r)])))
+              (fn [_]))))
+
+(rf/reg-event-db :cache/select-name
+                 (fn [db [_ cache-name]]
+                   (assoc-in db [:cache :selected-name] cache-name)))
 
 (rf/reg-event-db :cache/set-keys
                  (fn [db [_ data]]
-                   (assoc-in db [:cache :keys] data)))
+                   (assoc-in db [:cache :keys] (or (:keys data) []))))
 
 (rf/reg-event-fx :cache/fetch-keys
                  (fn [{:keys [db]} _]
-                   {:db db :api/get-cache-keys nil}))
+                   (let [cache-name (get-in db [:cache :selected-name])]
+                     (if cache-name
+                       {:db db :api/get-cache-keys-by-name cache-name}
+                       {:db db}))))
 
-(rf/reg-fx :api/get-cache-keys
-           (fn [_]
-             (api/get-cache-keys (fn [r] (when (= 200 (:code r)) (rf/dispatch [:cache/set-keys (:data r)]))) (fn [_]))))
+(rf/reg-fx :api/get-cache-keys-by-name
+           (fn [cache-name]
+             (api/get-cache-keys-by-name
+              cache-name
+              (fn [r] (when (= 200 (:code r)) (rf/dispatch [:cache/set-keys (:data r)])))
+              (fn [_]))))
+
+(rf/reg-event-db :cache/set-value
+                 (fn [db [_ value]]
+                   (assoc-in db [:cache :value] value)))
+
+(rf/reg-event-db :cache/show-value
+                 (fn [db _]
+                   (assoc-in db [:cache :value-visible?] true)))
+
+(rf/reg-event-db :cache/close-value
+                 (fn [db _]
+                   (-> db
+                       (assoc-in [:cache :value-visible?] false)
+                       (assoc-in [:cache :value] nil))))
+
+(rf/reg-event-fx :cache/fetch-value
+                 (fn [_ [_ cache-name cache-key]]
+                   {:api/get-cache-value [cache-name cache-key]}))
+
+(rf/reg-fx :api/get-cache-value
+           (fn [[cache-name cache-key]]
+             (api/get-cache-value
+              cache-name cache-key
+              (fn [r] (when (= 200 (:code r))
+                        (rf/dispatch [:cache/set-value (get-in r [:data :value] "")])
+                        (rf/dispatch [:cache/show-value])))
+              (fn [_] (antd/error! "获取缓存值失败")))))
 
 (rf/reg-event-fx :cache/clear
                  (fn [{:keys [db]} _]
@@ -1332,7 +1388,45 @@
 
 (rf/reg-fx :api/clear-cache
            (fn [_]
-             (api/clear-cache (fn [r] (when (= 200 (:code r)) (antd/success! "缓存已清空") (rf/dispatch [:cache/fetch-info]) (rf/dispatch [:cache/fetch-keys]))) (fn [_] (antd/error! "清空缓存失败")))))
+             (api/clear-cache
+              (fn [r]
+                (when (= 200 (:code r))
+                  (antd/success! "缓存已清空")
+                  (rf/dispatch [:cache/fetch-info])
+                  (rf/dispatch [:cache/fetch-names])
+                  (rf/dispatch [:cache/fetch-keys])))
+              (fn [_] (antd/error! "清空缓存失败")))))
+
+(rf/reg-event-fx :cache/clear-name
+                 (fn [_ [_ cache-name]]
+                   {:api/clear-cache-name cache-name}))
+
+(rf/reg-fx :api/clear-cache-name
+           (fn [cache-name]
+             (api/clear-cache-name
+              cache-name
+              (fn [r]
+                (when (= 200 (:code r))
+                  (antd/success! "缓存已清空")
+                  (rf/dispatch [:cache/fetch-info])
+                  (rf/dispatch [:cache/fetch-names])
+                  (rf/dispatch [:cache/fetch-keys])))
+              (fn [_] (antd/error! "清空缓存失败")))))
+
+(rf/reg-event-fx :cache/clear-key
+                 (fn [_ [_ cache-name cache-key]]
+                   {:api/clear-cache-key [cache-name cache-key]}))
+
+(rf/reg-fx :api/clear-cache-key
+           (fn [[cache-name cache-key]]
+             (api/clear-cache-key
+              cache-name cache-key
+              (fn [r]
+                (when (= 200 (:code r))
+                  (antd/success! "缓存键已清除")
+                  (rf/dispatch [:cache/fetch-keys])
+                  (rf/dispatch [:cache/fetch-info])))
+              (fn [_] (antd/error! "清除缓存键失败")))))
 
 ;; ────── 数据源监控 ──────
 
