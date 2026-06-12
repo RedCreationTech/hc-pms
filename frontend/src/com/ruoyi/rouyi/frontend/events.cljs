@@ -984,6 +984,11 @@
                  (fn [db [_ key]]
                    (assoc-in db [:tabs :active] key)))
 
+(rf/reg-event-fx :tabs/close
+  (fn [{:keys [db]} [_ key]]
+    {:db db
+     :dispatch [:tabs/remove key]}))
+
 (rf/reg-event-fx :tabs/remove
                  (fn [{:keys [db]} [_ key]]
                    (let [tabs (get-in db [:tabs :items] [])
