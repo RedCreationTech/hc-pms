@@ -116,7 +116,7 @@
                     :border "1px solid var(--ant-color-border-secondary, #e8e8e8)" :borderRadius 4 :cursor "grab"
                     :userSelect "none" :fontSize 13}
             :on-drag-start (fn [e]
-                             (set! (.-dataTransfer (.-dataTransfer e)) "text/plain")
+                             (set! (.-effectAllowed (.-dataTransfer e)) "copyMove")
                              (.setData (.-dataTransfer e) "text/plain" (str (:type comp))))}
       [:span {:style {:color "#666"}} (:label comp)]])])
 
