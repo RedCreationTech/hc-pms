@@ -1014,7 +1014,9 @@
 
 (rf/reg-event-db :menus/set-list
                  (fn [db [_ data]]
-                   (assoc-in db [:menus :items] data)))
+                   (-> db
+                       (assoc-in [:menus :items] data)
+                       (assoc-in [:menus :loading?] false))))
 
 (rf/reg-event-fx :menus/fetch
                  (fn [{:keys [db]} _]
