@@ -69,16 +69,8 @@
 
                 :handler (partial role/list-roles {:role-service role-service})}
          :post {:summary "新增角色" :handler (partial role/create-role {:role-service role-service})}}]
-    ["/:id" {:get    {:summary "角色详情" :parameters {:path PathId}
-                      :handler (partial role/get-role {:role-service role-service})}
-             :put    {:summary "更新角色" :parameters {:path PathId}
-                      :handler (partial role/update-role {:role-service role-service})}
-             :delete {:summary "删除角色" :parameters {:path PathId}
-                      :handler (partial role/delete-role {:role-service role-service})}}]
-    ["/:id/status" {:put {:summary "修改角色状态"
-                          :handler (partial role/change-status {:role-service role-service})}}]
-    ["/:id/dataScope" {:put {:summary "数据权限分配"
-                             :handler (partial role/data-scope {:role-service role-service})}}]
+    ["/export" {:get {:summary "导出角色" :description "导出角色数据为CSV文件"
+                       :handler (partial im/export-roles {:role-service role-service})}}]
     ["/optionselect" {:get {:summary "角色选项"
                             :handler (partial role/option-select {:role-service role-service})}}]
     ["/authUser/allocatedList" {:get {:summary "角色已分配用户" :parameters {:path [:map [:id :string]]}
@@ -92,22 +84,30 @@
     ["/authUser/selectAll" {:put {:summary "批量授权角色"
                                   :handler (partial role/select-auth-user-all {:role-service role-service})}}]
     ["/deptTree/:id" {:get {:summary "角色部门树"
-                            :handler (partial role/dept-tree-by-role {:role-service role-service :dept-service dept-service})}}]]
+                            :handler (partial role/dept-tree-by-role {:role-service role-service :dept-service dept-service})}}]
+    ["/:id" {:get    {:summary "角色详情" :parameters {:path PathId}
+                      :handler (partial role/get-role {:role-service role-service})}
+             :put    {:summary "更新角色" :parameters {:path PathId}
+                      :handler (partial role/update-role {:role-service role-service})}
+             :delete {:summary "删除角色" :parameters {:path PathId}
+                      :handler (partial role/delete-role {:role-service role-service})}}]
+    ["/:id/status" {:put {:summary "修改角色状态"
+                          :handler (partial role/change-status {:role-service role-service})}}]
+    ["/:id/dataScope" {:put {:summary "数据权限分配"
+                             :handler (partial role/data-scope {:role-service role-service})}}]]
 
    ["/menu"
     ["" {:get  {:summary "菜单列表（树形）" :description "查询所有菜单（树形结构）"
                 :handler (partial menu/list-menus {:menu-service menu-service})}
          :post {:summary "新增菜单" :handler (partial menu/create-menu {:menu-service menu-service})}}]
+    ["/export" {:get {:summary "导出菜单" :description "导出菜单数据为CSV文件"
+                       :handler (partial im/export-menus {:menu-service menu-service})}}]
     ["/:id" {:get    {:summary "菜单详情" :parameters {:path PathId}
                       :handler (partial menu/get-menu {:menu-service menu-service})}
              :put    {:summary "更新菜单" :parameters {:path PathId}
                       :handler (partial menu/update-menu {:menu-service menu-service})}
              :delete {:summary "删除菜单" :parameters {:path PathId}
                       :handler (partial menu/delete-menu {:menu-service menu-service})}}]]
-
-   ["/menu-tree"
-    ["" {:get {:summary "菜单树选项" :description "返回菜单树（用于权限选择器）"
-               :handler (partial menu/menu-tree {:menu-service menu-service})}}]]
 
    ["/dict/type"
     ["" {:get  {:summary "字典类型列表" :parameters {:query PagingQuery}
@@ -140,6 +140,10 @@
     ["" {:get  {:summary "部门列表（树形）" :description "查询所有部门树"
                 :handler (partial dept/list-depts {:dept-service dept-service})}
          :post {:summary "新增部门" :handler (partial dept/create-dept {:dept-service dept-service})}}]
+    ["/export" {:get {:summary "导出部门" :description "导出部门数据为CSV文件"
+                       :handler (partial im/export-depts {:dept-service dept-service})}}]
+    ["/tree" {:get {:summary "部门树选项" :description "获取部门树（用于选择）"
+                    :handler (partial dept/dept-tree {:dept-service dept-service})}}]
     ["/:id" {:get    {:summary "部门详情" :parameters {:path PathId}
                       :handler (partial dept/get-dept {:dept-service dept-service})}
              :put    {:summary "更新部门" :parameters {:path PathId}
@@ -151,6 +155,8 @@
     ["" {:get  {:summary "岗位列表" :parameters {:query PagingQuery}
                 :handler (partial post/list-posts {:post-service post-service})}
          :post {:summary "新增岗位" :handler (partial post/create-post {:post-service post-service})}}]
+    ["/export" {:get {:summary "导出岗位" :description "导出岗位数据为CSV文件"
+                       :handler (partial im/export-posts {:post-service post-service})}}]
     ["/:id" {:get    {:summary "岗位详情" :parameters {:path PathId}
                       :handler (partial post/get-post {:post-service post-service})}
              :put    {:summary "更新岗位" :parameters {:path PathId}

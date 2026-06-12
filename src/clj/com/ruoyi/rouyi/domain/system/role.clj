@@ -27,11 +27,15 @@
 (defn update-role!
   "更新角色及菜单权限。"
   [{:keys [query-fn]} {:keys [role-id menu-ids] :as params}]
-  ;; 只有当有非menu-ids的参数时才更新角色基本信息
-  (let [role-params (dissoc params :menu-ids :role-id :role_name :role_key :role_sort :data_scope :menu_check_strictly :dept_check_strictly :status :remark)]
-    (when (seq role-params)
-      (query-fn :update-role! (merge {:role_name nil :role_key nil :role_sort nil :data_scope nil :menu_check_strictly nil :dept_check_strictly nil :status nil :remark nil}
-                                     (assoc role-params :role_id role-id)))))
+  ;; 更新角色基本信息（只保留实际字段）
+  (let [role-params (merge {:role_name nil :role_key nil :role_sort nil :data_scope nil
+                              :menu_check_strictly nil :dept_check_strictly nil
+                              :status nil :remark nil}
+                             (select-keys params [:role_name :role_key :role_sort :data_scope
+                                                  :menu_check_strictly :dept_check_strictly
+                                                  :status :remark])
+                             {:role_id role-id})]
+    (query-fn :update-role! role-params))
   ;; 更新菜单权限
   (when menu-ids
     (query-fn :delete-role-menus! {:role_id role-id})

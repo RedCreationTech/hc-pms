@@ -6,7 +6,7 @@
 (defn list-menus
   "查询菜单列表。"
   [{:keys [query-fn]} params]
-  (query-fn :list-menus params))
+  (query-fn :list-menus (merge {:menu_name nil :status nil :menu_type nil} params)))
 
 (defn find-menu-by-id
   "根据ID查询菜单。"

@@ -2,7 +2,6 @@
   "角色管理控制器。"
   (:require
    [com.ruoyi.rouyi.domain.system.role :as role-service]
-   [com.ruoyi.rouyi.infra.data-perm :as data-perm]
    [ring.util.response :as response]))
 
 (defn- ok ([data] (ok 200 "操作成功" data))
@@ -17,10 +16,7 @@
 (defn list-roles
   "查询角色列表。"
   [{:keys [role-service]} request]
-  (let [params (:query-params request)
-        identity (:identity request)
-        data-perm-filter (data-perm/data-perm-filter identity "default" :alias "u")
-        params (merge params (:params data-perm-filter))]
+  (let [params (:query-params request)]
     (ok (role-service/list-roles role-service params))))
 
 (defn get-role
