@@ -4,108 +4,42 @@
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [SearchOutlined ReloadOutlined PlusOutlined EditOutlined DeleteOutlined
-                                AppstoreOutlined MenuOutlined FunctionOutlined
-                                DashboardOutlined SettingOutlined UserOutlined TeamOutlined
-                                SafetyOutlined ApartmentOutlined TagOutlined BookOutlined
-                                ToolOutlined MonitorOutlined ScheduleOutlined DatabaseOutlined
-                                CloudOutlined CodeOutlined FormOutlined ProfileOutlined
-                                BellOutlined ContainerOutlined KeyOutlined FileTextOutlined
-                                HomeOutlined MailOutlined LinkOutlined PushpinOutlined
-                                StarOutlined HeartOutlined LockOutlined UnlockOutlined
-                                ShopOutlined ShoppingOutlined TrophyOutlined BugOutlined
-                                ThunderboltOutlined FireOutlined ExperimentOutlined
-                                PieChartOutlined BarChartOutlined LineChartOutlined
-                                TableOutlined]]
-   [com.ruoyi.rouyi.frontend.antd :as antd]))
-
-;; ─── 图标选择器 ──────────────────────────────────────────────────────
-
-(def icon-list
-  "常用图标列表。"
-  [{:name "DashboardOutlined" :icon DashboardOutlined}
-   {:name "SettingOutlined" :icon SettingOutlined}
-   {:name "UserOutlined" :icon UserOutlined}
-   {:name "TeamOutlined" :icon TeamOutlined}
-   {:name "SafetyOutlined" :icon SafetyOutlined}
-   {:name "ApartmentOutlined" :icon ApartmentOutlined}
-   {:name "TagOutlined" :icon TagOutlined}
-   {:name "BookOutlined" :icon BookOutlined}
-   {:name "ToolOutlined" :icon ToolOutlined}
-   {:name "MonitorOutlined" :icon MonitorOutlined}
-   {:name "ScheduleOutlined" :icon ScheduleOutlined}
-   {:name "DatabaseOutlined" :icon DatabaseOutlined}
-   {:name "CloudOutlined" :icon CloudOutlined}
-   {:name "CodeOutlined" :icon CodeOutlined}
-   {:name "FormOutlined" :icon FormOutlined}
-   {:name "ProfileOutlined" :icon ProfileOutlined}
-   {:name "BellOutlined" :icon BellOutlined}
-   {:name "ContainerOutlined" :icon ContainerOutlined}
-   {:name "KeyOutlined" :icon KeyOutlined}
-   {:name "FileTextOutlined" :icon FileTextOutlined}
-   {:name "HomeOutlined" :icon HomeOutlined}
-   {:name "MailOutlined" :icon MailOutlined}
-   {:name "LinkOutlined" :icon LinkOutlined}
-   {:name "PushpinOutlined" :icon PushpinOutlined}
-   {:name "StarOutlined" :icon StarOutlined}
-   {:name "HeartOutlined" :icon HeartOutlined}
-   {:name "LockOutlined" :icon LockOutlined}
-   {:name "UnlockOutlined" :icon UnlockOutlined}
-   {:name "ShopOutlined" :icon ShopOutlined}
-   {:name "ShoppingOutlined" :icon ShoppingOutlined}
-   {:name "TrophyOutlined" :icon TrophyOutlined}
-   {:name "BugOutlined" :icon BugOutlined}
-   {:name "ThunderboltOutlined" :icon ThunderboltOutlined}
-   {:name "FireOutlined" :icon FireOutlined}
-   {:name "ExperimentOutlined" :icon ExperimentOutlined}
-   {:name "PieChartOutlined" :icon PieChartOutlined}
-   {:name "BarChartOutlined" :icon BarChartOutlined}
-   {:name "LineChartOutlined" :icon LineChartOutlined}
-   {:name "TableOutlined" :icon TableOutlined}
-   {:name "AppstoreOutlined" :icon AppstoreOutlined}
-   {:name "MenuOutlined" :icon MenuOutlined}
-   {:name "FunctionOutlined" :icon FunctionOutlined}])
-
-(defn- icon-selector
-  "图标选择器组件 — 网格展示常用图标。"
-  [{:keys [value on-change]}]
-  [antd/popover {:trigger "click"
-                 :content
-                 (r/as-element
-                  [:div {:style {:display "grid"
-                                 :gridTemplateColumns "repeat(8, 1fr)"
-                                 :gap 4
-                                 :maxHeight 300
-                                 :overflow "auto"
-                                 :width 380
-                                 :padding 8}}
-                   (for [item icon-list]
-                     ^{:key (:name item)}
-                     [antd/tooltip {:title (:name item)}
-                      [:div {:style {:display "flex"
-                                     :alignItems "center"
-                                     :justifyContent "center"
-                                     :width 36 :height 36
-                                     :borderRadius 4
-                                     :cursor "pointer"
-                                     :border (if (= value (:name item))
-                                               "2px solid #1677ff"
-                                               "1px solid #f0f0f0")
-                                     :background (when (= value (:name item)) "#e6f4ff")}
-                             :on-click #(on-change (:name item))}
-                       [:> (:icon item) {:style {:fontSize 16}}]]])])}
-   [antd/button {:style {:width "100%" :textAlign "left"}}
-    (if value
-      (when-let [item (first (filter #(= (:name %) value) icon-list))]
-        (r/as-element
-         [antd/space
-          [:> (:icon item)]
-          [:span value]]))
-      "选择图标")]])
+   ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined ReloadOutlined]]
+   [com.ruoyi.rouyi.frontend.antd :as antd]
+   [com.ruoyi.rouyi.frontend.components.icon-picker :as icon-picker]))
 
 ;; ─── 菜单类型标签 ──────────────────────────────────────────────────────
 
 (def menu-type-map {"M" "目录" "C" "菜单" "F" "按钮"})
+
+;; ─── 辅助：平铺菜单转树 ──────────────────────────────────────────────────────
+
+(defn- build-menu-tree
+  "将平铺菜单列表按 parent_id 构建为树形结构。"
+  [items parent-id]
+  (->> items
+       (filter #(= parent-id (:parent_id %)))
+       (mapv (fn [m]
+               (let [children (build-menu-tree items (:menu_id m))]
+                 (if (seq children)
+                   (assoc m :children children)
+                   m))))))
+
+;; ─── 辅助：菜单转树选项 ──────────────────────────────────────────────────────
+
+(defn- menu-tree-options
+  "将菜单数据转为 TreeSelect 使用的选项。"
+  [menus]
+  (when (seq menus)
+    (letfn [(build [parent-id]
+              (->> menus
+                   (filter #(= parent-id (:parent_id %)))
+                   (mapv (fn [m]
+                           (let [node {:title (:menu_name m) :value (:menu_id m) :key (str (:menu_id m))}]
+                             (if-let [children (seq (build (:menu_id m)))]
+                               (assoc node :children children)
+                               node))))))]
+      (build 0))))
 
 ;; ─── 工具栏 ────────────────────────────────────────────────────────
 
@@ -122,16 +56,18 @@
 ;; ─── 表格列 ──────────────────────────────────────────────────────
 
 (defn- menu-columns []
-  #js [#js {:title "菜单名称" :dataIndex "menu_name" :key "menu_name" :width 200
-            :render (fn [v record]
+  #js [#js {:title "菜单名称" :dataIndex "menu_name" :key "menu_name" :width 220
+            :render (fn [v ^js record]
                       (r/as-element
                        [antd/space
-                        (when-let [icon-name (.-icon record)]
-                          (when (seq icon-name)
-                            (when-let [icon-item (first (filter #(= (:name %) icon-name) icon-list))]
-                              [:> (:icon icon-item)])))
+                        (icon-picker/icon-element (.-icon record) {:style {:fontSize 14}})
                         [:span v]]))}
-       #js {:title "图标" :dataIndex "icon" :key "icon" :width 80}
+       #js {:title "图标" :dataIndex "icon" :key "icon" :width 120
+            :render (fn [v _]
+                      (r/as-element
+                       [antd/space
+                        (icon-picker/icon-element v {:style {:fontSize 14}})
+                        [:span (or v "-")]]))}
        #js {:title "排序" :dataIndex "order_num" :key "order_num" :width 80}
        #js {:title "权限标识" :dataIndex "perms" :key "perms" :width 150}
        #js {:title "组件路径" :dataIndex "component" :key "component" :width 150}
@@ -149,8 +85,9 @@
                       (r/as-element
                        [antd/space
                         [antd/button {:type "link" :size "small"
-                                      :on-click #(rf/dispatch [:menus/open-modal])
-                                      :icon (r/as-element [:> PlusOutlined])}
+                                      :icon (r/as-element [:> PlusOutlined])
+                                      :on-click #(do (rf/dispatch [:menus/update-form :parent_id (.-menu_id record)])
+                                                     (rf/dispatch [:menus/open-modal]))}
                          "新增"]
                         [antd/button {:type "link" :size "small"
                                       :icon (r/as-element [:> EditOutlined])
@@ -191,8 +128,8 @@
         [antd/radio {:value "C"} "菜单"]
         [antd/radio {:value "F"} "按钮"]]]
       [antd/form-item {:label "菜单图标"}
-       [icon-selector {:value (:icon form-data "")
-                       :on-change #(rf/dispatch [:menus/update-form :icon %])}]]
+       [icon-picker/icon-picker {:value (:icon form-data)
+                                 :on-change #(rf/dispatch [:menus/update-form :icon %])}]]
       [antd/form-item {:label "菜单名称" :required true}
        [antd/input {:value (:menu_name form-data "")
                     :on-change #(rf/dispatch [:menus/update-form :menu_name (.. % -target -value)])}]]
@@ -201,7 +138,7 @@
                     :value (:order_num form-data 0)
                     :on-change #(rf/dispatch [:menus/update-form :order_num (js/parseInt (.. % -target -value) 10)])}]]
       (when (not= menu-type "F")
-        [:<>
+        [:<> 
          [antd/form-item {:label "路由地址"}
           [antd/input {:value (:path form-data "")
                        :on-change #(rf/dispatch [:menus/update-form :path (.. % -target -value)])}]]
@@ -224,34 +161,6 @@
           [antd/radio {:value "0"} "显示"]
           [antd/radio {:value "1"} "隐藏"]]])]]))
 
-;; ─── 辅助：菜单转树选项 ──────────────────────────────────────────────────────
-
-(defn- build-menu-tree
-  "将平铺菜单列表转换为树形结构。"
-  [items parent-id]
-  (->> items
-       (filter #(= parent-id (:parent_id %)))
-       (mapv (fn [m]
-               (let [children (build-menu-tree items (:menu_id m))]
-                 (if (seq children)
-                   (assoc m :children children)
-                   m))))))
-
-(def ^:private menu-tree-options
-  "将菜单数据转为 TreeSelect 使用的选项。"
-  (memoize
-   (fn [menus]
-     (when (seq menus)
-       (letfn [(build [parent-id]
-                 (->> menus
-                      (filter #(= parent-id (:parent_id %)))
-                      (mapv (fn [m]
-                              (let [node {:title (:menu_name m) :value (:menu_id m) :key (str (:menu_id m))}]
-                                (if-let [children (seq (build (:menu_id m)))]
-                                  (assoc node :children children)
-                                  node))))))]
-         (build 0))))))
-
 ;; ─── 主页面 ──────────────────────────────────────────────────────
 
 (defn menu-page []
@@ -263,13 +172,14 @@
   (let [items @(rf/subscribe [:menus/items])
         loading? @(rf/subscribe [:menus/loading?])
         tree-data (build-menu-tree items 0)]
-    [:div
-     [toolbar]
-     [antd/table {:rowKey "menu_id"
-                  :loading loading?
-                  :columns (menu-columns)
-                  :dataSource (clj->js tree-data)
-                  :pagination false
-                  :defaultExpandAllRows true
-                  :childrenColumnName "children"}]
-     [edit-modal]]))
+    (fn []
+      [:div
+       [toolbar]
+       [antd/table {:rowKey "menu_id"
+                    :loading loading?
+                    :columns (menu-columns)
+                    :dataSource (clj->js tree-data)
+                    :pagination false
+                    :defaultExpandAllRows true
+                    :childrenColumnName "children"}]
+       [edit-modal]])))
