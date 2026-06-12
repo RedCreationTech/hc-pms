@@ -3,16 +3,22 @@
   (:require
     [ring.util.response :as response]))
 
-(defn- ok ([data] (ok 200 "操作成功" data))
+(defn- ok
+  "构造成功响应。"
+  ([data] (ok 200 "操作成功" data))
   ([code msg data]
    (-> (response/response {:code code :msg msg :data data})
        (response/content-type "application/json"))))
 
-(defn- fail [msg]
+(defn- fail
+  "构造失败响应。"
+  [msg]
   (-> (response/response {:code 500 :msg msg})
       (response/content-type "application/json")))
 
-(defn- parse-int [v]
+(defn- parse-int
+  "将字符串解析为整数。"
+  [v]
   (when v (Integer/parseInt v)))
 
 (defn list-notices
@@ -49,9 +55,9 @@
                   :notice_type (:notice_type body "1")
                   :status      (:status body "0")
                   :create_by   (:user_name identity "")
-                  :remark      (:remark body "")}
-          result (query-fn :create-notice! params)]
-      (ok 200 "创建成功" {:notice_id result}))
+                  :remark      (:remark body "")}]
+      (query-fn :create-notice! params)
+      (ok "创建成功"))
     (catch Exception e (fail (.getMessage e)))))
 
 (defn update-notice
@@ -60,7 +66,6 @@
   (try
     (let [notice-id (parse-int (get-in request [:path-params :id]))
           body (:body-params request)
-          identity (:identity identity)
           params {:notice_id   notice-id
                   :notice_name (:notice_name body)
                   :notice_type (:notice_type body)

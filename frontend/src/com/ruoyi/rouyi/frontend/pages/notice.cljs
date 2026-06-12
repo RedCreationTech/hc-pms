@@ -3,6 +3,7 @@
   (:require
     [reagent.core :as r]
     [re-frame.core :as rf]
+    [clojure.string :as str]
     [com.ruoyi.rouyi.frontend.antd :as antd]))
 
 (defn- notice-columns []
@@ -40,22 +41,25 @@
     [antd/modal {:title (if editing? "编辑通知公告" "新增通知公告")
                  :open visible?
                  :onOk #(rf/dispatch [:notices/submit])
-                 :onCancel #(rf/dispatch [:notices/close-modal])}
+                 :onCancel #(rf/dispatch [:notices/close-modal])
+                 :okButtonProps {:disabled (str/blank? (str (:notice_name form-data)))}}
      [antd/form {:layout "vertical"}
-      [antd/form-item {:label "标题" :required true}
+      [antd/form-item {:label "标题" :name "notice_name"
+                       :rules [{:required true :message "请输入公告标题"}]}
        [antd/input {:value (:notice_name form-data)
                     :on-change #(rf/dispatch [:notices/update-form :notice_name (.. % -target -value)])}]]
-      [antd/form-item {:label "类型" :required true}
+      [antd/form-item {:label "类型" :name "notice_type"
+                       :rules [{:required true :message "请选择公告类型"}]}
        [antd/select {:value (:notice_type form-data "1")
                      :on-change #(rf/dispatch [:notices/update-form :notice_type %])}
         [antd/select-option {:value "1"} "通知"]
         [antd/select-option {:value "2"} "公告"]]]
-      [antd/form-item {:label "状态"}
+      [antd/form-item {:label "状态" :name "status"}
        [antd/radio-group {:value (:status form-data "0")
                           :on-change #(rf/dispatch [:notices/update-form :status (.. % -target -value)])}
         [antd/radio {:value "0"} "正常"]
         [antd/radio {:value "1"} "关闭"]]]
-      [antd/form-item {:label "备注"}
+      [antd/form-item {:label "备注" :name "remark"}
        [antd/text-area {:value (:remark form-data "")
                         :rows 4
                         :on-change #(rf/dispatch [:notices/update-form :remark (.. % -target -value)])}]]]]))

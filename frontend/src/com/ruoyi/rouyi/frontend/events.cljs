@@ -1170,7 +1170,14 @@
                                        (.error js/antd.message (:msg result))))
                                    (fn [_] (.error js/antd.message "网络错误")))))
 
-;; ─── 通知公告 ─────────────────────────────────────────────────────────────────
+;; ────── 通知公告 ──────
+
+(rf/reg-event-db :notices/set-list
+                 (fn [db [_ data]]
+                   (-> db
+                       (assoc-in [:notices :items] (:rows data))
+                       (assoc-in [:notices :total] (:total data))
+                       (assoc-in [:notices :loading?] false))))
 
 (rf/reg-event-fx :notices/fetch
                  (fn [{:keys [db]} [_ params]]
@@ -1183,41 +1190,46 @@
                                (fn [result]
                                  (when (= 200 (:code result))
                                    (rf/dispatch [:notices/set-list (:data result)])))
-                               (fn [_] (.error js/antd.message "网络错误")))))
-
-(rf/reg-event-db :notices/set-list
-                 (fn [db [_ data]]
-                   (assoc db :notices {:items (:rows data) :total (:total data 0) :loading? false
-                                       :modal-visible? false :editing nil :form-data {}})))
+                               (fn [_]))))
 
 (rf/reg-event-db :notices/open-modal
                  (fn [db _]
-                   (assoc db :notices {:items (get-in db [:notices :items] [])
-                                       :total (get-in db [:notices :total] 0)
-                                       :loading? false
-                                       :modal-visible? true :editing nil :form-data {}})))
+                   (-> db
+                       (assoc-in [:notices :modal-visible?] true)
+                       (assoc-in [:notices :editing?] false)
+                       (assoc-in [:notices :form-data] {:notice_type "1" :status "0"}))))
 
 (rf/reg-event-db :notices/close-modal
                  (fn [db _]
                    (assoc-in db [:notices :modal-visible?] false)))
 
+(rf/reg-event-db :notices/update-form
+                 (fn [db [_ k v]]
+                   (assoc-in db [:notices :form-data k] v)))
+
 (rf/reg-event-db :notices/edit
-                 (fn [db [_ item]]
+                 (fn [db [_ data]]
                    (-> db
                        (assoc-in [:notices :modal-visible?] true)
-                       (assoc-in [:notices :editing] item)
-                       (assoc-in [:notices :form-data] item))))
-
-(rf/reg-event-db :notices/update-form
-                 (fn [db [_ field value]]
-                   (assoc-in db [:notices :form-data field] value)))
+                       (assoc-in [:notices :editing?] true)
+                       (assoc-in [:notices :form-data] data))))
 
 (rf/reg-event-fx :notices/submit
                  (fn [{:keys [db]} _]
-                   (let [form-data (get-in db [:notices :form-data] {})
-                         editing (get-in db [:notices :editing])]
-                     (if editing
-                       {:api/update-notice [(:notice_id editing) form-data]}
+                   (let [form-data (get-in db [:notices :form-data])
+                         editing?  (get-in db [:notices :editing?])
+                         notice-name (str (get form-data :notice_name))]
+                     (cond
+                       (str/blank? notice-name)
+                       (.error js/antd.message "请输入公告标题")
+
+                       (str/blank? (str (get form-data :notice_type "")))
+                       (.error js/antd.message "请选择公告类型")
+
+                       editing?
+                       {:api/update-notice [(:notice_id form-data) form-data]}
+
+                       :else
                        {:api/create-notice form-data}))))
 
 (rf/reg-fx :api/create-notice
@@ -1225,18 +1237,32 @@
              (api/create-notice params
                                 (fn [result]
                                   (when (= 200 (:code result))
-                                    (.success js/antd.message "创建成功")
-                                    (rf/dispatch [:notices/fetch {}])))
+                                    (rf/dispatch [:notices/created])
+                                    (.success js/antd.message "创建成功"))
+                                  (when (not= 200 (:code result))
+                                    (.error js/antd.message (:msg result))))
                                 (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-event-fx :notices/created
+                 (fn [{:keys [db]} _]
+                   {:db (assoc-in db [:notices :modal-visible?] false)
+                    :dispatch [:notices/fetch {}]}))
 
 (rf/reg-fx :api/update-notice
            (fn [[id params]]
              (api/update-notice id params
                                 (fn [result]
                                   (when (= 200 (:code result))
-                                    (.success js/antd.message "更新成功")
-                                    (rf/dispatch [:notices/fetch {}])))
+                                    (rf/dispatch [:notices/updated])
+                                    (.success js/antd.message "更新成功"))
+                                  (when (not= 200 (:code result))
+                                    (.error js/antd.message (:msg result))))
                                 (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-event-fx :notices/updated
+                 (fn [{:keys [db]} _]
+                   {:db (assoc-in db [:notices :modal-visible?] false)
+                    :dispatch [:notices/fetch {}]}))
 
 (rf/reg-event-fx :notices/delete
                  (fn [_ [_ id]]
@@ -1247,10 +1273,15 @@
              (api/delete-notice id
                                 (fn [result]
                                   (when (= 200 (:code result))
-                                    (.success js/antd.message "删除成功")
-                                    (rf/dispatch [:notices/fetch {}])))
+                                    (rf/dispatch [:notices/deleted])
+                                    (.success js/antd.message "删除成功"))
+                                  (when (not= 200 (:code result))
+                                    (.error js/antd.message (:msg result))))
                                 (fn [_] (.error js/antd.message "网络错误")))))
 
+(rf/reg-event-fx :notices/deleted
+                 (fn [_ _]
+                   {:dispatch [:notices/fetch {}]}))
 ;; ─── 用户管理完整事件 ─────────────────────────────────────────────────────────
 
 (rf/reg-event-db :users/open-add

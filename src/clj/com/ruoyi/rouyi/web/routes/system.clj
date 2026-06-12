@@ -10,6 +10,7 @@
    [com.ruoyi.rouyi.web.controllers.system.config :as config]
    [com.ruoyi.rouyi.web.controllers.system.log :as log]
    [com.ruoyi.rouyi.web.controllers.system.online :as online]
+   [com.ruoyi.rouyi.web.controllers.system.notice :as notice]
    [com.ruoyi.rouyi.web.controllers.job :as job]
    [com.ruoyi.rouyi.web.controllers.system.profile :as profile]
    [com.ruoyi.rouyi.web.controllers.monitor :as monitor]
@@ -218,6 +219,17 @@
                :handler (partial job/list-job-logs {:query-fn (:query-fn user-service)})}
          :delete {:summary "清空日志" :description "清空所有任务执行日志"
                   :handler (partial job/clean-logs {:query-fn (:query-fn user-service)})}}]]
+
+   ["/notice"
+    ["" {:get  {:summary "通知公告列表" :parameters {:query PagingQuery}
+                :handler (partial notice/list-notices {:query-fn query-fn})}
+         :post {:summary "新增通知公告" :handler (partial notice/create-notice {:query-fn query-fn})}}]
+    ["/:id" {:get    {:summary "通知公告详情" :parameters {:path PathId}
+                      :handler (partial notice/get-notice {:query-fn query-fn})}
+             :put    {:summary "更新通知公告" :parameters {:path PathId}
+                      :handler (partial notice/update-notice {:query-fn query-fn})}
+             :delete {:summary "删除通知公告" :parameters {:path PathId}
+                      :handler (partial notice/delete-notice {:query-fn query-fn})}}]]
 
    ["/server" {:get {:summary "服务器监控" :description "JVM/CPU/内存等系统信息"
                      :handler (partial monitor/server-info {})}}]
