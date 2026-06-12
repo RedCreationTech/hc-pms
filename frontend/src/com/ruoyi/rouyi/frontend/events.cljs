@@ -1837,10 +1837,10 @@
                                    (let [data (:data result)
                                          items (if (sequential? data) data (:rows data []))
                                          filtered (cond->> items
-                                                    (:notice_title params)
+                                                    (:notice_name params)
                                                     (filter #(clojure.string/includes?
-                                                              (or (:notice_title %) "")
-                                                              (:notice_title params))))]
+                                                              (or (:notice_name %) "")
+                                                              (:notice_name params))))]
                                      (rf/dispatch [:notices/set-list {:rows filtered :total (count filtered)}]))))
                                (fn [_]))))
 
