@@ -5,6 +5,7 @@
    [re-frame.core :as rf]
    [reagent.hooks :as hooks]
    [clojure.string :as str]
+   ["@ant-design/icons" :refer [PlusOutlined SearchOutlined ReloadOutlined]]
    [com.ruoyi.rouyi.frontend.antd :as antd]))
 
 (defn- notice-columns []

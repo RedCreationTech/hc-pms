@@ -4,7 +4,7 @@
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [PlusOutlined DownloadOutlined EditOutlined DeleteOutlined ReloadOutlined]]
+   ["@ant-design/icons" :refer [PlusOutlined DownloadOutlined EditOutlined DeleteOutlined ReloadOutlined SearchOutlined]]
    [com.ruoyi.rouyi.frontend.antd :as antd]
    [com.ruoyi.rouyi.frontend.api :as api]
    [com.ruoyi.rouyi.frontend.components.dept-tree-select :refer [dept-tree-select]]))
