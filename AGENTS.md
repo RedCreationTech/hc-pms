@@ -63,6 +63,32 @@ clj-nrepl-eval -p 7000 '(user/migrate)'     # 运行迁移
 - 控制器、服务、域逻辑变更
 - 路由定义变更（需 `(user/rr)` 才能生效）
 
+## Frontend 组件规范
+
+### 使用 React Hooks，不用 reagent/atom
+
+项目统一使用 Reagent 2 的函数组件 + React Hooks 管理局部状态，**禁止使用 `reagent/atom`**。
+
+```clojure
+;; ❌ 错误 — 用 reagent/atom
+(let [expanded? (r/atom false)]
+  [:div {:on-click #(reset! expanded? true)} ...])
+
+;; ✅ 正确 — 用 hooks/use-state
+(let [[expanded? set-expanded!] (hooks/use-state false)]
+  [:div {:on-click #(set-expanded! true)} ...])
+```
+
+常用 hooks：
+| Hook | 用途 |
+|------|------|
+| `hooks/use-state` | 局部状态（替代 r/atom） |
+| `hooks/use-effect` | 副作用（替代 Form-2 的 `:component-did-mount`） |
+| `hooks/use-callback` | 缓存回调函数 |
+| `hooks/use-memo` | 缓存计算结果 |
+
+**原则**：能用 re-frame subscription 的全局状态用 re-frame，组件内部局部状态用 hooks，不要用 r/atom。
+
 ## Frontend Ant Design 常见错误
 
 ### 1. Button 的 `:icon` 属性必须是 React 元素，不能传字符串
