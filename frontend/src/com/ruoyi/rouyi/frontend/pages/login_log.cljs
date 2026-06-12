@@ -33,7 +33,8 @@
      [antd/space {:style {:marginBottom 16}}
       [antd/button {:type "primary" :danger true
                     :onClick #(rf/dispatch [:login-logs/clear])}
-       "清空"]]
+       "清空"]
+      [antd/button {:onClick #(rf/dispatch [:login-logs/export])} "导出"]]
      [antd/table {:scroll #js {:x "max-content"} :rowKey "info_id"
                   :loading loading?
                   :columns (login-log-columns)

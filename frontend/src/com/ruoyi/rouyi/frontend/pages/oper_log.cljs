@@ -60,7 +60,8 @@
   (let [items @(rf/subscribe [:oper-logs/items]) total @(rf/subscribe [:oper-logs/total]) loading? @(rf/subscribe [:oper-logs/loading?])]
     [:div
      [antd/space {:style {:marginBottom 16}}
-      [antd/button {:type "primary" :danger true :onClick #(rf/dispatch [:oper-logs/clear])} "清空"]]
+      [antd/button {:type "primary" :danger true :onClick #(rf/dispatch [:oper-logs/clear])} "清空"]
+      [antd/button {:onClick #(rf/dispatch [:oper-logs/export])} "导出"]]
      [antd/table {:scroll #js {:x "max-content"} :rowKey "oper_id" :loading loading? :columns (oper-log-columns)
                   :dataSource (clj->js items) :pagination {:pageSize 10 :total total}}]
      [detail-modal]]))

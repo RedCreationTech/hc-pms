@@ -310,6 +310,31 @@
                    {:db db
                     :dispatch [:oper-logs/fetch {}]}))
 
+(rf/reg-event-fx :oper-logs/export
+                 (fn [{:keys [db]} _]
+                   (let [items (get-in db [:oper-logs :items] [])]
+                     (when (seq items)
+                       (let [headers ["日志编号" "系统模块" "操作类型" "操作人员" "操作IP" "状态" "操作时间"]
+                             rows (map (fn [item]
+                                         [(:oper_id item) (:title item) (:business_type item)
+                                          (:oper_name item) (:oper_ip item)
+                                          (if (= "0" (:status item)) "成功" "失败")
+                                          (:oper_time item)])
+                                       items)
+                             csv (str (clojure.string/join "," headers) "\n"
+                                      (clojure.string/join "\n" (map #(clojure.string/join "," %) rows)))
+                             blob (js/Blob. #js [csv] #js {:type "text/csv;charset=utf-8"})
+                             url (js/URL.createObjectURL blob)
+                             link (.createElement js/document "a")]
+                         (set! (.-href link) url)
+                         (.setAttribute link "download" "oper_log.csv")
+                         (.appendChild js/document.body link)
+                         (.click link)
+                         (.removeChild js/document.body link)
+                         (js/URL.revokeObjectURL url)
+                         (antd/success! "导出成功"))))
+                   {:db db}))
+
 (rf/reg-event-db :login-logs/set-list
                  (fn [db [_ data]]
                    (let [items (if (sequential? data) data (:rows data []))
@@ -350,6 +375,31 @@
                  (fn [{:keys [db]} _]
                    {:db db
                     :dispatch [:login-logs/fetch {}]}))
+
+(rf/reg-event-fx :login-logs/export
+                 (fn [{:keys [db]} _]
+                   (let [items (get-in db [:login-logs :items] [])]
+                     (when (seq items)
+                       (let [headers ["访问编号" "用户名称" "登录地址" "登录地点" "浏览器" "操作系统" "登录状态" "操作信息" "登录时间"]
+                             rows (map (fn [item]
+                                         [(:info_id item) (:user_name item) (:ipaddr item)
+                                          (:login_location item) (:browser item) (:os item)
+                                          (if (= "0" (:status item)) "成功" "失败")
+                                          (:msg item) (:login_time item)])
+                                       items)
+                             csv (str (clojure.string/join "," headers) "\n"
+                                      (clojure.string/join "\n" (map #(clojure.string/join "," %) rows)))
+                             blob (js/Blob. #js [csv] #js {:type "text/csv;charset=utf-8"})
+                             url (js/URL.createObjectURL blob)
+                             link (.createElement js/document "a")]
+                         (set! (.-href link) url)
+                         (.setAttribute link "download" "login_log.csv")
+                         (.appendChild js/document.body link)
+                         (.click link)
+                         (.removeChild js/document.body link)
+                         (js/URL.revokeObjectURL url)
+                         (antd/success! "导出成功"))))
+                   {:db db}))
 
 ;; ────── 在线用户 ──────
 
