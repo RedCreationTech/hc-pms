@@ -610,3 +610,85 @@
                          menu-ids (get-in db [:roles :checked-keys] [])]
                      {:db (assoc-in db [:roles :permission-visible?] false)
                       :api/update-role [role-id {:role_id role-id :menu-ids (vec menu-ids)}]})))
+
+;; ────── 菜单管理 ──────
+
+(rf/reg-event-db :menus/set-list
+                 (fn [db [_ data]]
+                   (assoc-in db [:menus :items] data)))
+
+(rf/reg-event-fx :menus/fetch
+                 (fn [{:keys [db]} _]
+                   {:db (assoc-in db [:menus :loading?] true)
+                    :api/list-menus nil}))
+
+(rf/reg-fx :api/list-menus
+           (fn [_]
+             (api/list-menus
+              (fn [result]
+                (when (= 200 (:code result))
+                  (rf/dispatch [:menus/set-list (:data result)])))
+              (fn [_]))))
+
+(rf/reg-event-db :menus/open-modal
+                 (fn [db _]
+                   (-> db
+                       (assoc-in [:menus :modal-visible?] true)
+                       (assoc-in [:menus :editing?] false)
+                       (assoc-in [:menus :form-data] {:menu_type "M" :order_num 0 :status "0" :visible "0"}))))
+
+(rf/reg-event-db :menus/close-modal
+                 (fn [db _]
+                   (assoc-in db [:menus :modal-visible?] false)))
+
+(rf/reg-event-db :menus/update-form
+                 (fn [db [_ k v]]
+                   (assoc-in db [:menus :form-data k] v)))
+
+(rf/reg-event-db :menus/edit
+                 (fn [db [_ data]]
+                   (-> db
+                       (assoc-in [:menus :modal-visible?] true)
+                       (assoc-in [:menus :editing?] true)
+                       (assoc-in [:menus :form-data] data))))
+
+(rf/reg-event-fx :menus/submit
+                 (fn [{:keys [db]} _]
+                   (let [data (get-in db [:menus :form-data])
+                         editing? (get-in db [:menus :editing?])]
+                     (if editing?
+                       {:db (assoc-in db [:menus :modal-visible?] false)
+                        :api/update-menu [(:menu_id data) data]}
+                       {:db (assoc-in db [:menus :modal-visible?] false)
+                        :api/create-menu data}))))
+
+(rf/reg-fx :api/create-menu
+           (fn [params]
+             (api/create-menu params
+                              (fn [result]
+                                (when (= 200 (:code result))
+                                  (.success js/antd.message "创建成功")
+                                  (rf/dispatch [:menus/fetch])))
+                              (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-fx :api/update-menu
+           (fn [[id params]]
+             (api/update-menu id params
+                              (fn [result]
+                                (when (= 200 (:code result))
+                                  (.success js/antd.message "更新成功")
+                                  (rf/dispatch [:menus/fetch])))
+                              (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-event-fx :menus/delete
+                 (fn [_ [_ id]]
+                   {:api/delete-menu id}))
+
+(rf/reg-fx :api/delete-menu
+           (fn [id]
+             (api/delete-menu id
+                              (fn [result]
+                                (when (= 200 (:code result))
+                                  (.success js/antd.message "删除成功")
+                                  (rf/dispatch [:menus/fetch])))
+                              (fn [_] (.error js/antd.message "网络错误")))))

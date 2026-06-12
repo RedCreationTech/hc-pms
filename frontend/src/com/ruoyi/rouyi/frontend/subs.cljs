@@ -285,6 +285,22 @@
             (fn [db _]
               (get-in db [:menus :loading?] false)))
 
+(rf/reg-sub :menus/modal-visible?
+            (fn [db _]
+              (get-in db [:menus :modal-visible?] false)))
+
+(rf/reg-sub :menus/editing?
+            (fn [db _]
+              (get-in db [:menus :editing?] false)))
+
+(rf/reg-sub :menus/form-data
+            (fn [db _]
+              (get-in db [:menus :form-data] {})))
+
+(rf/reg-sub :menus/tree-data
+            (fn [db _]
+              (get-in db [:menus :tree-data] [])))
+
 ;; ─── 部门管理 ──────────────────────────────────────────────────────
 
 (rf/reg-sub :depts/items
