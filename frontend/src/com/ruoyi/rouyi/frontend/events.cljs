@@ -865,9 +865,10 @@
 (rf/reg-event-fx :roles/save-permission
                  (fn [{:keys [db]} _]
                    (let [role-id (get-in db [:roles :permission-role :role_id])
-                         menu-ids (get-in db [:roles :checked-keys] [])]
+                         menu-ids (get-in db [:roles :checked-keys] [])
+                         menu-ids-int (mapv (fn [x] (if (string? x) (parse-long x) x)) menu-ids)]
                      {:db (assoc-in db [:roles :permission-visible?] false)
-                      :api/update-role [role-id {:role_id role-id :menu-ids (vec menu-ids)}]})))
+                      :api/update-role [role-id {:role_id role-id :menu-ids menu-ids-int}]})))
 
 ;; ────── 部门管理 ──────
 
