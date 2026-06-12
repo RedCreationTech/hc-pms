@@ -4,7 +4,8 @@
    [re-frame.core :as rf]
    [com.ruoyi.rouyi.frontend.db :as db]
    [com.ruoyi.rouyi.frontend.api :as api]
-   [com.ruoyi.rouyi.frontend.router :as router]))
+   [com.ruoyi.rouyi.frontend.router :as router]
+   [clojure.string :as str]))
 
 (rf/reg-event-db :initialize-db
                  (fn [_ _]
