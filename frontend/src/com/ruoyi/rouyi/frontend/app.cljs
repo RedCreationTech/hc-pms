@@ -35,6 +35,9 @@
   (rf/dispatch-sync [:initialize-db])
   ;; 先在渲染前初始化路由（只 configure，不 dispatch）
   (router/init-routes!)
+  ;; 如果 localStorage 中有 token，获取用户信息
+  (when-let [token (try (.getItem js/localStorage "ruoyi_token") (catch js/Error _ nil))]
+    (rf/dispatch [:auth/fetch-info]))
   (r/set-default-compiler! (r/create-compiler {:function-components true}))
   (let [container (.getElementById js/document "app")]
     (reset! root (rdc/create-root container))
