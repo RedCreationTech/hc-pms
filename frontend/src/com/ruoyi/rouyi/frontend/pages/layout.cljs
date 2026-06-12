@@ -20,6 +20,7 @@
                                 QuestionCircleOutlined ExpandOutlined
                                 CompressOutlined LogoutOutlined
                                 MenuFoldOutlined MenuUnfoldOutlined]]
+   [com.ruoyi.rouyi.frontend.router :as router]
    [com.ruoyi.rouyi.frontend.components.theme-switcher :as theme-switcher]
    [com.ruoyi.rouyi.frontend.pages.dashboard :as dashboard]
    [com.ruoyi.rouyi.frontend.pages.user :as user]
@@ -186,7 +187,10 @@
                     :items menu-items
                     :onClick (fn [e]
                                (let [k (.-key e)
-                                     page (keyword k)]
+                                     ;; Look up the route keyword from the path
+                                     matched (router/match-route (str "/" k))
+                                     page (or (:handler matched) (keyword k))
+                                     _ (js/console.log "Page:" (str page))]
                                  (rf/dispatch [:navigate page])
                                  (rf/dispatch [:tabs/add page (get labels page "页面")])))}]]
          ;; Main area
