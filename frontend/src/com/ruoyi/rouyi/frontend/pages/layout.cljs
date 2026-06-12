@@ -121,30 +121,38 @@
 
 (defn- menu->antd-items
   "将后端菜单树转换为 antd Menu 的 items 结构。"
-  [menus]
-  (clj->js
-   (mapv (fn [m]
-           (let [item {:key (:path m)
-                       :label (:menu_name m)}
-                 icon-el (when (and (:icon m) (not= (:icon m) "#"))
-                           (icon-picker/icon-element (:icon m) {:style {:fontSize 14}}))]
-             (cond-> item
-               icon-el
-               (assoc :icon (r/as-element icon-el))
-               (seq (:children m))
-               (assoc :children (menu->antd-items (:children m))))))
-         menus)))
+  ([menus] (menu->antd-items menus ""))
+  ([menus parent-path]
+   (clj->js
+    (mapv (fn [m]
+            (let [full-path (if (seq parent-path)
+                              (str parent-path "/" (:path m))
+                              (:path m))
+                  item {:key full-path
+                        :label (:menu_name m)}
+                  icon-el (when (and (:icon m) (not= (:icon m) "#"))
+                            (icon-picker/icon-element (:icon m) {:style {:fontSize 14}}))]
+              (cond-> item
+                icon-el
+                (assoc :icon (r/as-element icon-el))
+                (seq (:children m))
+                (assoc :children (menu->antd-items (:children m) full-path)))))
+          menus))))
 
 (defn- page-labels
   "从菜单树递归提取页面路径到标签的映射。"
-  [menus]
-  (reduce (fn [acc m]
-            (let [acc (assoc acc (keyword (:path m)) (:menu_name m))]
-              (if (seq (:children m))
-                (merge acc (page-labels (:children m)))
-                acc)))
-          {}
-          menus))
+  ([menus] (page-labels menus ""))
+  ([menus parent-path]
+   (reduce (fn [acc m]
+             (let [full-path (if (seq parent-path)
+                               (str parent-path "/" (:path m))
+                               (:path m))
+                   acc (assoc acc (keyword full-path) (:menu_name m))]
+               (if (seq (:children m))
+                 (merge acc (page-labels (:children m) full-path))
+                 acc)))
+           {}
+           menus)))
 
 ;; ─── 主布局 ────────────────────────────────────────────────────────
 
