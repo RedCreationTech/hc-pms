@@ -54,6 +54,14 @@
                                   :handler (partial user/reset-password {:user-service user-service})}}]
     ["/export" {:get {:summary "导出用户" :description "导出用户数据为CSV文件"
                       :handler (partial im/export-users {:user-service user-service})}}]
+    ["/importTemplate" {:get {:summary "下载导入模板" :description "下载CSV导入模板文件"
+                              :handler (partial user/import-template {})}}]
+    ["/deptTree" {:get {:summary "部门树" :description "获取部门树（用于选择）"
+                        :handler (partial user/dept-tree {:dept-service dept-service})}}]
+    ["/:id/authRole" {:get {:summary "用户角色" :description "获取用户角色列表"
+                            :handler (partial user/auth-role {:user-service user-service})}
+                      :put {:summary "分配角色" :description "分配用户角色"
+                            :handler (partial user/update-auth-role {:user-service user-service})}}]
     ["/import" {:post {:summary "导入用户" :description "从CSV文件批量导入用户"
                        :handler (partial im/import-users {:user-service user-service})}}]]
 
@@ -67,7 +75,25 @@
              :put    {:summary "更新角色" :parameters {:path PathId}
                       :handler (partial role/update-role {:role-service role-service})}
              :delete {:summary "删除角色" :parameters {:path PathId}
-                      :handler (partial role/delete-role {:role-service role-service})}}]]
+                      :handler (partial role/delete-role {:role-service role-service})}}]
+    ["/:id/status" {:put {:summary "修改角色状态"
+                          :handler (partial role/change-status {:role-service role-service})}}]
+    ["/:id/dataScope" {:put {:summary "数据权限分配"
+                             :handler (partial role/data-scope {:role-service role-service})}}]
+    ["/optionselect" {:get {:summary "角色选项"
+                            :handler (partial role/option-select {:role-service role-service})}}]
+    ["/authUser/allocatedList" {:get {:summary "角色已分配用户" :parameters {:path [:map [:id :string]]}
+                                      :handler (partial role/allocated-list {:role-service role-service :user-service user-service})}}]
+    ["/authUser/unallocatedList" {:get {:summary "角色未分配用户" :parameters {:path [:map [:id :string]]}
+                                        :handler (partial role/unallocated-list {:role-service role-service :user-service user-service})}}]
+    ["/authUser/cancel" {:put {:summary "取消用户角色"
+                               :handler (partial role/cancel-auth-user {:role-service role-service})}}]
+    ["/authUser/cancelAll" {:put {:summary "批量取消角色"
+                                  :handler (partial role/cancel-auth-user-all {:role-service role-service})}}]
+    ["/authUser/selectAll" {:put {:summary "批量授权角色"
+                                  :handler (partial role/select-auth-user-all {:role-service role-service})}}]
+    ["/deptTree/:id" {:get {:summary "角色部门树"
+                            :handler (partial role/dept-tree-by-role {:role-service role-service :dept-service dept-service})}}]]
 
    ["/menu"
     ["" {:get  {:summary "菜单列表（树形）" :description "查询所有菜单（树形结构）"

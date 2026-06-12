@@ -1,9 +1,9 @@
 (ns com.ruoyi.rouyi.domain.system.user
   "用户领域服务，处理用户 CRUD、密码管理与角色关联。"
   (:require
-    [com.ruoyi.rouyi.infra.security :as security]
-    [clojure.string :as str]
-    [clojure.tools.logging :as log]))
+   [com.ruoyi.rouyi.infra.security :as security]
+   [clojure.string :as str]
+   [clojure.tools.logging :as log]))
 
 (defn list-users
   "查询用户列表，支持分页和条件筛选。"
@@ -78,3 +78,15 @@
   "逻辑删除用户。"
   [{:keys [query-fn]} user-id]
   (query-fn :delete-user! {:user_id user-id}))
+
+(defn get-user-roles
+  "获取用户角色列表。"
+  [{:keys [query-fn]} user-id]
+  (query-fn :list-roles-by-user-id {:user_id user-id}))
+
+(defn update-user-roles!
+  "更新用户角色（先删后插）。"
+  [{:keys [query-fn]} {:keys [user-id role-ids]}]
+  (query-fn :delete-user-roles! {:user_id user-id})
+  (doseq [rid role-ids]
+    (query-fn :insert-user-role! {:user_id user-id :role_id rid})))

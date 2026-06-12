@@ -1,9 +1,9 @@
 (ns com.ruoyi.rouyi.web.controllers.system.user
   "用户管理控制器，支持数据权限过滤。"
   (:require
-    [com.ruoyi.rouyi.domain.system.user :as user-service]
-    [com.ruoyi.rouyi.infra.data-perm :as data-perm]
-    [ring.util.response :as response]))
+   [com.ruoyi.rouyi.domain.system.user :as user-service]
+   [com.ruoyi.rouyi.infra.data-perm :as data-perm]
+   [ring.util.response :as response]))
 
 (defn- ok
   ([data] (ok 200 "操作成功" data))
@@ -79,8 +79,8 @@
           identity (:identity request)
           existing (user-service/find-user-by-id user-service user-id)
           params (merge (select-keys existing [:dept_id :user_name :nick_name :user_type
-                                                :email :phonenumber :sex :avatar
-                                                :status :remark :password])
+                                               :email :phonenumber :sex :avatar
+                                               :status :remark :password])
                         (dissoc body :roles :posts)
                         {:user-id user-id :update_by (:user_name identity "")}
                         (when (:roles body) {:roles (:roles body)})
@@ -106,8 +106,8 @@
           existing (user-service/find-user-by-id user-service user-id)
           identity (:identity request)
           params (merge (select-keys existing [:dept_id :user_name :nick_name :user_type
-                                                :email :phonenumber :sex :avatar
-                                                :status :remark :password])
+                                               :email :phonenumber :sex :avatar
+                                               :status :remark :password])
                         {:user-id user-id :status status :update_by (:user_name identity "")})]
       (user-service/update-user! user-service params)
       (ok "状态修改成功"))
@@ -123,8 +123,8 @@
           existing (user-service/find-user-by-id user-service user-id)
           identity (:identity request)
           params (merge (select-keys existing [:dept_id :user_name :nick_name :user_type
-                                                :email :phonenumber :sex :avatar
-                                                :status :remark])
+                                               :email :phonenumber :sex :avatar
+                                               :status :remark])
                         {:user-id user-id :password password :update_by (:user_name identity "")})]
       (user-service/update-user! user-service params)
       (ok "密码重置成功"))
@@ -172,8 +172,8 @@
           rows (:rows result)
           csv-header "user_name,nick_name,email,phonenumber,sex,status,dept_id,remark"
           csv-rows (mapv (fn [r]
-                           (str (:user_name r) "," (:nick_name r) "," (:email r) "," 
-                                (:phonenumber r) "," (:sex r) "," (:status r) "," 
+                           (str (:user_name r) "," (:nick_name r) "," (:email r) ","
+                                (:phonenumber r) "," (:sex r) "," (:status r) ","
                                 (:dept_id r) "," (:remark r)))
                          rows)
           csv (str csv-header "\n" (clojure.string/join "\n" csv-rows))]
@@ -182,3 +182,30 @@
           (response/header "Content-Disposition" "attachment; filename=users.csv")))
     (catch Exception e
       (fail (.getMessage e)))))
+
+(defn auth-role
+  "获取用户角色列表。"
+  [{:keys [user-service]} request]
+  (let [user-id (parse-long (get-in request [:path-params :id]))]
+    (ok (user-service/get-user-roles user-service user-id))))
+
+(defn update-auth-role
+  "分配用户角色。"
+  [{:keys [user-service]} request]
+  (let [user-id (parse-long (get-in request [:path-params :id]))
+        role-ids (get-in request [:body-params :role_ids])]
+    (user-service/update-user-roles! user-service {:user-id user-id :role-ids role-ids})
+    (ok "角色分配成功")))
+
+(defn dept-tree
+  "获取部门树。"
+  [{:keys [dept-service]} _]
+  (ok (dept-service/list-depts dept-service {})))
+
+(defn import-template
+  "下载用户导入模板。"
+  [_ _]
+  (let [csv "user_name,nick_name,email,phonenumber,sex,status,dept_id,remark\n,张三,,13800138000,0,0,,\n"]
+    (-> (response/response csv)
+        (response/header "Content-Type" "text/csv; charset=utf-8")
+        (response/header "Content-Disposition" "attachment; filename=user_import_template.csv"))))

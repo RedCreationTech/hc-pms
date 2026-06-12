@@ -376,3 +376,33 @@ DELETE FROM sys_notice WHERE notice_id = :notice_id
 -- :name last-insert-rowid :? :1
 -- :doc 获取最后插入的行ID (SQLite)
 SELECT last_insert_rowid()
+
+-- :name list-users-by-role :? :*
+-- :doc 查询已分配某角色的用户
+SELECT u.* FROM sys_user u
+INNER JOIN sys_user_role ur ON u.user_id = ur.user_id
+WHERE ur.role_id = :role_id
+  AND u.del_flag = '0'
+  AND (:user_name IS NULL OR u.user_name LIKE '%' || :user_name || '%')
+  AND (:phonenumber IS NULL OR u.phonenumber LIKE '%' || :phonenumber || '%')
+ORDER BY u.create_time DESC
+
+-- :name list-users-not-in-role :? :*
+-- :doc 查询未分配某角色的用户
+SELECT u.* FROM sys_user u
+WHERE u.del_flag = '0'
+  AND u.user_id NOT IN (SELECT user_id FROM sys_user_role WHERE role_id = :role_id)
+  AND (:user_name IS NULL OR u.user_name LIKE '%' || :user_name || '%')
+  AND (:phonenumber IS NULL OR u.phonenumber LIKE '%' || :phonenumber || '%')
+ORDER BY u.create_time DESC
+
+-- :name delete-user-role! :! :n
+-- :doc 删除用户角色关联
+DELETE FROM sys_user_role WHERE role_id = :role_id AND user_id = :user_id
+
+-- :name insert-user-role! :! :n
+-- :doc 插入用户角色关联
+INSERT INTO sys_user_role (user_id, role_id) VALUES (:user_id, :role_id)
+
+-- :name delete-user-roles! :! :n
+DELETE FROM sys_user_role WHERE user_id = :user_id

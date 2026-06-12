@@ -1,17 +1,18 @@
 (ns com.ruoyi.rouyi.web.routes.api
   (:require
-    [com.ruoyi.rouyi.web.controllers.health :as health]
-    [com.ruoyi.rouyi.web.routes.auth :as auth]
-    [com.ruoyi.rouyi.web.routes.system :as system]
-    [com.ruoyi.rouyi.web.routes.gen :as gen]
-    [com.ruoyi.rouyi.web.middleware.exception :as exception]
-    [com.ruoyi.rouyi.web.middleware.formats :as formats]
-    [integrant.core :as ig]
-    [reitit.coercion.malli :as malli]
-    [reitit.ring.coercion :as coercion]
-    [reitit.ring.middleware.muuntaja :as muuntaja]
-    [reitit.ring.middleware.parameters :as parameters]
-    [reitit.swagger :as swagger]))
+   [com.ruoyi.rouyi.web.controllers.health :as health]
+   [com.ruoyi.rouyi.web.routes.auth :as auth]
+   [com.ruoyi.rouyi.web.routes.system :as system]
+   [com.ruoyi.rouyi.web.routes.gen :as gen]
+   [com.ruoyi.rouyi.web.routes.common :as common]
+   [com.ruoyi.rouyi.web.middleware.exception :as exception]
+   [com.ruoyi.rouyi.web.middleware.formats :as formats]
+   [integrant.core :as ig]
+   [reitit.coercion.malli :as malli]
+   [reitit.ring.coercion :as coercion]
+   [reitit.ring.middleware.muuntaja :as muuntaja]
+   [reitit.ring.middleware.parameters :as parameters]
+   [reitit.swagger :as swagger]))
 
 (def route-data
   {:coercion   malli/coercion
@@ -35,6 +36,7 @@
     {:get #'health/healthcheck!}]
    (auth/auth-routes opts)
    (system/system-routes opts)
+   (common/common-routes opts)
    (gen/gen-routes opts)])
 
 (derive :reitit.routes/api :reitit/routes)
