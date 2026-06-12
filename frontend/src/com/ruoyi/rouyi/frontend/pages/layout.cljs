@@ -3,7 +3,7 @@
   (:require
    [reagent.core :as r]
    [re-frame.core :as rf]
-   ["antd" :refer [Layout Menu Button Space]]
+   ["antd" :refer [Layout Menu Button Space Badge Avatar Dropdown]]
    ["@ant-design/icons" :refer [DashboardOutlined SettingOutlined
                                 FileTextOutlined UserOutlined
                                 SunOutlined MoonOutlined
@@ -15,7 +15,11 @@
                                 DatabaseOutlined CloudOutlined
                                 CodeOutlined FormOutlined
                                 ProfileOutlined BellOutlined
-                                ContainerOutlined KeyOutlined]]
+                                ContainerOutlined KeyOutlined
+                                SearchOutlined GithubOutlined
+                                QuestionCircleOutlined ExpandOutlined
+                                CompressOutlined LogoutOutlined
+                                MenuFoldOutlined MenuUnfoldOutlined]]
    [com.ruoyi.rouyi.frontend.pages.dashboard :as dashboard]
    [com.ruoyi.rouyi.frontend.pages.user :as user]
    [com.ruoyi.rouyi.frontend.pages.role :as role]
@@ -163,14 +167,40 @@
                                      :alignItems "center" :height 64
                                      :borderBottom "1px solid #f0f0f0"}}
            [:span {:style {:fontSize 16 :fontWeight 500}} "若依管理系统"]
-           [:> Space
+           [:div {:style {:display "flex" :alignItems "center" :gap 4}}
+            ;; 搜索
+            [:> Button {:type "text" :icon (r/as-element [:> SearchOutlined])}]
+            ;; GitHub
+            [:> Button {:type "text" :icon (r/as-element [:> GithubOutlined])
+                        :onClick #(js/window.open "https://github.com/RedCreationTech/rouyi_clojure" "_blank")}]
+            ;; 文档
+            [:> Button {:type "text" :icon (r/as-element [:> QuestionCircleOutlined])}]
+            ;; 全屏
+            [:> Button {:type "text" :icon (r/as-element [:> ExpandOutlined])
+                        :onClick #(let [doc js/document.documentElement]
+                                    (if (.-fullscreenElement js/document)
+                                      (.exitFullscreen js/document)
+                                      (.requestFullscreen doc)))}]
+            ;; 主题切换
             [:> Button {:type "text"
                         :icon (r/as-element (if (= theme-mode :dark)
                                               [:> SunOutlined]
                                               [:> MoonOutlined]))
                         :onClick (fn [] (rf/dispatch [:theme/toggle-mode]))}]
-            [:span (get-in user [:user :nick_name] "管理员")]
-            [:> Button {:type "link" :onClick (fn [] (rf/dispatch [:auth/logout]))} "退出"]]]
+            ;; 通知
+            [:> Badge {:count 0 :size "small"}
+             [:> Button {:type "text" :icon (r/as-element [:> BellOutlined])}]]
+            ;; 头像 + 下拉菜单
+            [:> Dropdown {:menu {:items (clj->js [{:key "profile" :label "个人中心"}
+                                                   {:key "logout" :label "退出登录" :danger true}])
+                                 :onClick (fn [e]
+                                            (case (.-key e)
+                                              "profile" (rf/dispatch [:navigate :profile])
+                                              "logout" (rf/dispatch [:auth/logout])
+                                              nil))}}
+             [:div {:style {:display "flex" :alignItems "center" :gap 8 :cursor "pointer" :padding "0 8px"}}
+              [:> Avatar {:size 28 :icon (r/as-element [:> UserOutlined])}]
+              [:span {:style {:fontSize 14}} (get-in user [:user :nick_name] "管理员")]]]]]
           ;; Tab 栏
           [tab-bar]
           ;; 内容区
