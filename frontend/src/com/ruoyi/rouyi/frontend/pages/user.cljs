@@ -14,7 +14,7 @@
   (let [query-params @(rf/subscribe [:users/query-params])
         show-search? @(rf/subscribe [:users/show-search?])]
     (when show-search?
-      [:div {:style {:background "#fff" :padding 16 :marginBottom 12 :borderRadius 8 :border "1px solid #e8e8e8"}}
+      [:div {:style {:background "var(--ant-color-bg-container, #fff)" :padding 16 :marginBottom 12 :borderRadius 8 :border "1px solid var(--ant-color-border-secondary, #e8e8e8)"}}
        [:div {:style {:display "flex" :flexWrap "wrap" :gap 12}}
         [:div {:style {:display "flex" :alignItems "center" :gap 8}}
          [:span {:style {:whiteSpace "nowrap" :fontSize 13}} "用户名称"]
@@ -171,7 +171,7 @@
       [:div {:style {:position "fixed" :top 0 :left 0 :right 0 :bottom 0
                      :background "rgba(0,0,0,0.45)" :zIndex 1050
                      :display "flex" :justifyContent "center" :alignItems "center"}}
-       [:div {:style {:background "#fff" :padding "24px" :borderRadius "8px" :width 600
+       [:div {:style {:background "var(--ant-color-bg-container, #fff)" :padding "24px" :borderRadius "8px" :width 600
                       :maxHeight "90vh" :overflow "auto" :boxShadow "0 6px 16px rgba(0,0,0,0.08)"}}
         [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center"
                        :marginBottom 16 :paddingBottom 12 :borderBottom "1px solid #e8e8e8"}}
@@ -244,7 +244,7 @@
       [:div {:style {:position "fixed" :top 0 :left 0 :right 0 :bottom 0
                      :background "rgba(0,0,0,0.45)" :zIndex 1060
                      :display "flex" :justifyContent "center" :alignItems "center"}}
-       [:div {:style {:background "#fff" :padding 24 :borderRadius 8 :width 400
+       [:div {:style {:background "var(--ant-color-bg-container, #fff)" :padding 24 :borderRadius 8 :width 400
                       :boxShadow "0 6px 16px rgba(0,0,0,0.08)"}}
         [:h3 {:style {:margin "0 0 16px 0" :fontSize 16}} (str "重置密码 - " username)]
         [antd/input {:value @(rf/subscribe [:users/reset-pwd-value])
@@ -300,7 +300,7 @@
   (let [dept-items @(rf/subscribe [:depts/tree])
         selected-dept-id @(rf/subscribe [:users/selected-dept-id])
         expanded-id (r/atom nil)]
-    [:div {:style {:width 200 :minWidth 200 :background "#fff" 
+    [:div {:style {:width 200 :minWidth 200 :background "var(--ant-color-bg-container, #fff)" 
                    :borderRadius 8 :border "1px solid #e8e8e8"
                    :padding 12 :display "flex" :flexDirection "column"}}
      [:div {:style {:display "flex" :justifyContent "space-between"
@@ -321,7 +321,7 @@
 (defn- dept-tree-sidebar []
   (let [dept-items @(rf/subscribe [:depts/tree])
         selected-dept-id @(rf/subscribe [:users/selected-dept-id])]
-    [:div {:style {:width 200 :minWidth 200 :background "#fff"
+    [:div {:style {:width 200 :minWidth 200 :background "var(--ant-color-bg-container, #fff)"
                    :borderRadius 8 :border "1px solid #e8e8e8"
                    :padding 12 :display "flex" :flexDirection "column"}}
      [:div {:style {:display "flex" :justifyContent "space-between"
@@ -373,7 +373,7 @@
                                    (if (contains? ids dept-id)
                                      (disj ids dept-id)
                                      (conj ids dept-id)))))]
-    [:div {:style {:width 200 :minWidth 200 :background "#fff"
+    [:div {:style {:width 200 :minWidth 200 :background "var(--ant-color-bg-container, #fff)"
                    :borderRadius 8 :border "1px solid #e8e8e8"
                    :padding 12 :display "flex" :flexDirection "column"}}
      [:div {:style {:fontWeight 600 :fontSize 14 :marginBottom 8

@@ -51,14 +51,14 @@
                  :alignItems "center"
                  :padding "6px 16px"
                  :margin "0 2px"
-                 :background (if active? "#1677ff" "#f5f5f5")
-                 :color (if active? "#fff" "#666")
+                 :background (if active? "var(--ant-color-primary, #1677ff)" "var(--ant-color-bg-elevated, #f5f5f5)")
+                 :color (if active? "#fff" "var(--ant-color-text, #666)")
                  :borderRadius "4px 4px 0 0"
                  :cursor "pointer"
                  :fontSize 13
                  :transition "all 0.2s"
-                 :border (when active? "1px solid #1677ff")
-                 :borderBottom (when active? "1px solid #fff")
+                 :border (when active? (str "1px solid var(--ant-color-primary, #1677ff)"))
+                 :borderBottom (when active? "1px solid var(--ant-color-bg-layout, #fff)")
                  :whiteSpace "nowrap"}
          :on-click #(do (rf/dispatch [:tabs/activate key]) (rf/dispatch [:navigate (keyword key)]))}
    (when (= key :dashboard)
@@ -75,7 +75,7 @@
   []
   (let [tabs @(rf/subscribe [:tabs/items])
         active @(rf/subscribe [:tabs/active])]
-    [:div {:style {:background "#fff"
+    [:div {:style {
                    :borderBottom "1px solid #f0f0f0"
                    :padding "8px 16px 0"
                    :display "flex"
@@ -163,7 +163,7 @@
                                  (rf/dispatch [:tabs/add page (get labels page "页面")])))}]]
          ;; Main area
          [:> Layout
-          [:> Layout.Header {:style {:background "#fff" :padding "0 24px"
+          [:> Layout.Header {:style {:padding "0 24px"
                                      :display "flex" :justifyContent "space-between"
                                      :alignItems "center" :height 64
                                      :borderBottom "1px solid #f0f0f0"}}

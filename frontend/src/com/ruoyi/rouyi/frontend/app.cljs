@@ -19,12 +19,12 @@
         logged-in? @(rf/subscribe [:auth/logged-in?])
         theme-mode @(rf/subscribe [:theme/mode])
         primary-color @(rf/subscribe [:theme/primary-color])
-        compact? @(rf/subscribe [:theme/compact?])]
+        algorithm @(rf/subscribe [:theme/algorithm])]
     (if logged-in?
       [:> ConfigProvider {:theme (theme/theme-config
                                   {:mode theme-mode
                                    :primary-color primary-color
-                                   :compact? compact?})}
+                                   :algorithm algorithm})}
        [layout/main-layout]]
       [login/login-page])))
 

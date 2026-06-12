@@ -84,5 +84,5 @@
                ^{:key (str k)}
                [:div {:style {:marginBottom 16}}
                 [:h4 {:style {:margin "0 0 8px 0"}} (get file-type-labels k (name k))]
-                [:pre {:style {:background "#f5f5f5" :padding 12 :borderRadius 4 :maxHeight 400 :overflow "auto" :fontSize 12}}
+                [:pre {:style {:background "var(--ant-color-bg-layout, #f5f5f5)" :padding 12 :borderRadius 4 :maxHeight 400 :overflow "auto" :fontSize 12}}
                  v]]))]))]]))

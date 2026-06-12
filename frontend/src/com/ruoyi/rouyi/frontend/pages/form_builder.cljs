@@ -126,7 +126,7 @@
   (let [items @(rf/subscribe [:fb/items])
         selected-id @(rf/subscribe [:fb/selected-id])]
     [:div {:style {:flex 1 :padding 16 :minHeight 400
-                   :background "#fff"}
+                   :background "var(--ant-color-bg-container, #fff)"}
            :on-drag-over (fn [e] (.preventDefault e))
            :on-drop (fn [e]
                       (.preventDefault e)

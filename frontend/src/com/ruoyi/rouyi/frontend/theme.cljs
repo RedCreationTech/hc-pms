@@ -11,12 +11,15 @@
 
 (defn theme-config
   "根据当前主题设置构建 antd ConfigProvider 主题配置。"
-  [{:keys [mode primary-color compact?]
-    :or   {mode :light primary-color "#1677ff"}}]
+  [{:keys [mode primary-color algorithm]
+    :or   {mode :light primary-color "#1677ff" algorithm "default"}}]
   (let [is-dark? (= mode :dark)
-        algo-key (if is-dark?
-                   (if compact? :dark-compact :dark)
-                   (if compact? :compact :default))
+        algo-key (cond
+                   (and is-dark? (= algorithm "compact")) :dark-compact
+                   is-dark? :dark
+                   (= algorithm "dark") :dark
+                   (= algorithm "compact") :compact
+                   :else :default)
         base-tokens (if is-dark?
                       #js {:colorPrimary primary-color
                            :colorBgBase "#000"

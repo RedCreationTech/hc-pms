@@ -6,7 +6,7 @@
    [com.ruoyi.rouyi.frontend.antd :as antd]))
 
 (defn- info-card [{:keys [title children]}]
-  [:div {:style {:background "#fff"
+  [:div {:style {:background "var(--ant-color-bg-container, #fff)"
                  :borderRadius 8
                  :padding 24
                  :marginBottom 16

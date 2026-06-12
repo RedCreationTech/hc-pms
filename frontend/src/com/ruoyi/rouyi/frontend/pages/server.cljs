@@ -13,7 +13,7 @@
      [:div {:style {:display "flex" :justifyContent "space-between" :marginBottom 4}}
       [:span {:style {:fontWeight 500}} label]
       [:span {:style {:color "#666"}} (str used " / " total " MB")]]
-     [:div {:style {:background "#f5f5f5" :borderRadius 4 :height 20 :overflow "hidden"}}
+     [:div {:style {:background "var(--ant-color-bg-layout, #f5f5f5)" :borderRadius 4 :height 20 :overflow "hidden"}}
       [:div {:style {:background (or color "#1677ff")
                      :width (str percent "%")
                      :height "100%"
@@ -21,7 +21,7 @@
                      :transition "width 0.3s"}}]]]))
 
 (defn- info-card [{:keys [title children]}]
-  [:div {:style {:background "#fff"
+  [:div {:style {:background "var(--ant-color-bg-container, #fff)"
                  :borderRadius 8
                  :padding 24
                  :marginBottom 16

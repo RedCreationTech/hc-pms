@@ -24,14 +24,14 @@
         [antd/descriptions-item {:label "操作时间"} (:oper_time data)]
         [antd/descriptions-item {:label "请求URL" :span 2} (:oper_url data)]
         [antd/descriptions-item {:label "请求参数" :span 2}
-         [:pre {:style {:maxHeight 200 :overflow "auto" :fontSize 12 :background "#f5f5f5" :padding 8 :borderRadius 4}}
+         [:pre {:style {:maxHeight 200 :overflow "auto" :fontSize 12 :background "var(--ant-color-bg-layout, #f5f5f5)" :padding 8 :borderRadius 4}}
           (or (:oper_param data) "-")]]
         [antd/descriptions-item {:label "返回结果" :span 2}
-         [:pre {:style {:maxHeight 200 :overflow "auto" :fontSize 12 :background "#f5f5f5" :padding 8 :borderRadius 4}}
+         [:pre {:style {:maxHeight 200 :overflow "auto" :fontSize 12 :background "var(--ant-color-bg-layout, #f5f5f5)" :padding 8 :borderRadius 4}}
           (or (:json_result data) "-")]]
         (when (:error_msg data)
           [antd/descriptions-item {:label "错误信息" :span 2}
-           [:pre {:style {:color "red" :maxHeight 200 :overflow "auto" :fontSize 12 :background "#fff1f0" :padding 8 :borderRadius 4}}
+           [:pre {:style {:color "red" :maxHeight 200 :overflow "auto" :fontSize 12 :background "var(--ant-color-error-bg, #fff1f0)" :padding 8 :borderRadius 4}}
             (:error_msg data)]])])]))
 
 ;; ─── 表格列 ──────────────────────────────────────────────────────
