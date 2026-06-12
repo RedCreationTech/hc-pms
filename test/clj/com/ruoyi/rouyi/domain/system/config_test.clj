@@ -36,3 +36,24 @@
     (let [result (config/find-config-by-key mock-service "sys.index.skinName")]
       (is (some? result))
       (is (= "skin-blue" (:config_value result))))))
+
+(deftest test-create-config
+  (testing "创建参数"
+    (let [result (config/create-config! mock-service {:config_name "测试参数" :config_key "test.key" :config_value "test" :config_type "Y"})]
+      (is (some? result)))))
+
+(deftest test-update-config
+  (testing "更新参数"
+    (let [result (config/update-config! mock-service {:config_id 1 :config_value "new-value"})]
+      (is (nil? result)))))
+
+(deftest test-delete-config
+  (testing "删除参数"
+    (let [result (config/delete-config! mock-service 1)]
+      (is (nil? result)))))
+
+(deftest test-find-config-by-id-not-found
+  (testing "查询不存在的参数"
+    (with-redefs [mock-query-fn (fn [_ _] nil)]
+      (let [result (config/find-config-by-id {:query-fn mock-query-fn} 999)]
+        (is (nil? result))))))

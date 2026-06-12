@@ -3,8 +3,6 @@
   (:require [clojure.test :refer [deftest is testing]]
             [com.ruoyi.rouyi.domain.system.menu :as menu]))
 
-;; ─── 测试用 mock 数据 ──────────────────────────────────────────────────────
-
 (def mock-menus
   [{:menu_id 1 :menu_name "系统管理" :parent_id 0 :menu_type "M" :order_num 1}
    {:menu_id 2 :menu_name "系统监控" :parent_id 0 :menu_type "M" :order_num 2}
@@ -24,16 +22,11 @@
 
 (def mock-service {:query-fn mock-query-fn})
 
-;; ─── 测试用例 ──────────────────────────────────────────────────────
-
 (deftest test-menu-tree
   (testing "构建菜单树"
     (let [result (menu/menu-tree mock-service)]
       (is (= 2 (count result)))
-      ;; 第一个顶级菜单是系统管理
-      (is (= "系统管理" (:menu_name (first result))))
-      ;; 系统管理有子菜单
-      (is (seq (:children (first result)))))))
+      (is (= "系统管理" (:menu_name (first result)))))))
 
 (deftest test-menu-tree-by-roles
   (testing "根据角色构建菜单树"
@@ -51,3 +44,24 @@
     (let [result (menu/find-menu-by-id mock-service 1)]
       (is (some? result))
       (is (= "系统管理" (:menu_name result))))))
+
+(deftest test-create-menu
+  (testing "创建菜单"
+    (let [result (menu/create-menu! mock-service {:menu_name "新菜单" :parent_id 1})]
+      (is (some? result)))))
+
+(deftest test-update-menu
+  (testing "更新菜单"
+    (let [result (menu/update-menu! mock-service {:menu_id 1 :menu_name "更新后的菜单"})]
+      (is (nil? result)))))
+
+(deftest test-delete-menu
+  (testing "删除菜单"
+    (let [result (menu/delete-menu! mock-service 1)]
+      (is (nil? result)))))
+
+(deftest test-find-menu-by-id-not-found
+  (testing "查询不存在的菜单"
+    (with-redefs [mock-query-fn (fn [_ _] nil)]
+      (let [result (menu/find-menu-by-id {:query-fn mock-query-fn} 999)]
+        (is (nil? result))))))

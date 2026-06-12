@@ -29,3 +29,24 @@
     (let [result (post/find-post-by-id mock-service 1)]
       (is (some? result))
       (is (= "董事长" (:post_name result))))))
+
+(deftest test-create-post
+  (testing "创建岗位"
+    (let [result (post/create-post! mock-service {:post_code "cfo" :post_name "财务总监" :post_sort 3})]
+      (is (some? result)))))
+
+(deftest test-update-post
+  (testing "更新岗位"
+    (let [result (post/update-post! mock-service {:post_id 1 :post_name "更新后的董事长"})]
+      (is (nil? result)))))
+
+(deftest test-delete-post
+  (testing "删除岗位"
+    (let [result (post/delete-post! mock-service 1)]
+      (is (nil? result)))))
+
+(deftest test-find-post-by-id-not-found
+  (testing "查询不存在的岗位"
+    (with-redefs [mock-query-fn (fn [_ _] nil)]
+      (let [result (post/find-post-by-id {:query-fn mock-query-fn} 999)]
+        (is (nil? result))))))

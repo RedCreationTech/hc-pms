@@ -31,4 +31,23 @@
       (is (some? result))
       (is (= "总公司" (:dept_name result))))))
 
+(deftest test-create-dept
+  (testing "创建部门"
+    (let [result (dept/create-dept! mock-service {:dept_name "新部门" :parent_id 1})]
+      (is (some? result)))))
 
+(deftest test-update-dept
+  (testing "更新部门"
+    (let [result (dept/update-dept! mock-service {:dept_id 1 :dept_name "更新后的总公司"})]
+      (is (nil? result)))))
+
+(deftest test-delete-dept
+  (testing "删除部门"
+    (let [result (dept/delete-dept! mock-service 1)]
+      (is (nil? result)))))
+
+(deftest test-find-dept-by-id-not-found
+  (testing "查询不存在的部门"
+    (with-redefs [mock-query-fn (fn [_ _] nil)]
+      (let [result (dept/find-dept-by-id {:query-fn mock-query-fn} 999)]
+        (is (nil? result))))))

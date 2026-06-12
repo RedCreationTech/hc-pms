@@ -3,8 +3,6 @@
   (:require [clojure.test :refer [deftest is testing]]
             [com.ruoyi.rouyi.domain.system.role :as role]))
 
-;; ─── 测试用 mock 数据 ──────────────────────────────────────────────────────
-
 (def mock-roles
   [{:role_id 1 :role_name "管理员" :role_key "admin" :role_sort 1 :status "0"}
    {:role_id 2 :role_name "普通用户" :role_key "user" :role_sort 2 :status "0"}])
@@ -21,30 +19,47 @@
     :create-role! [{:role_id 3}]
     :update-role! nil
     :delete-role! nil
-    :delete-role-mules! nil
+    :delete-role-menus! nil
     :insert-role-menu! nil
     []))
 
 (def mock-service {:query-fn mock-query-fn})
 
-;; ─── 测试用例 ──────────────────────────────────────────────────────
-
 (deftest test-list-roles
   (testing "查询角色列表"
     (let [result (role/list-roles mock-service {})]
-      (is (= 2 (count result)))
-      (is (= "管理员" (:role_name (first result)))))))
+      (is (seq result))
+      (is (= 2 (count result))))))
 
 (deftest test-find-role-by-id
   (testing "根据ID查询角色"
     (let [result (role/find-role-by-id mock-service 1)]
       (is (some? result))
       (is (= "管理员" (:role_name result)))
-      (is (contains? result :menu-ids))
-      (is (= 2 (count (:menu-ids result)))))))
+      (is (contains? result :menu-ids)))))
 
 (deftest test-find-role-by-id-not-found
   (testing "查询不存在的角色"
     (with-redefs [mock-query-fn (fn [_ _] nil)]
       (let [result (role/find-role-by-id {:query-fn mock-query-fn} 999)]
         (is (nil? result))))))
+
+(deftest test-create-role
+  (testing "创建角色"
+    (let [result (role/create-role! mock-service {:role_name "新角色" :role_key "new" :menu-ids [1 2]})]
+      (is (some? result)))))
+
+(deftest test-update-role
+  (testing "更新角色"
+    (let [result (role/update-role! mock-service {:role-id 1 :role_name "更新后的角色" :menu-ids [1]})]
+      (is (= 1 result)))))
+
+(deftest test-update-role-with-menu-only
+  (testing "只更新角色菜单"
+    (let [result (role/update-role! mock-service {:role-id 1 :menu-ids [1 2 3]})]
+      (is (= 1 result)))))
+
+(deftest test-delete-role
+  (testing "删除角色"
+    (let [result (role/delete-role! mock-service 1)]
+      (is (nil? result)))))

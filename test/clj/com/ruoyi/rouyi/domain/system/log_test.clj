@@ -37,10 +37,18 @@
       (is (map? result))
       (is (= 2 (:total result))))))
 
-(deftest test-create-oper-log!
+(deftest test-create-oper-log
   (testing "创建操作日志"
-    (is (nil? (log/create-oper-log! mock-service {:title "测试"})))))
+    (is (nil? (log/create-oper-log! mock-service {:title "测试" :method "test"})))))
 
-(deftest test-create-login-log!
+(deftest test-create-login-log
   (testing "创建登录日志"
-    (is (nil? (log/create-login-log! mock-service {:user_name "test"})))))
+    (is (nil? (log/create-login-log! mock-service {:user_name "test" :ipaddr "127.0.0.1"})))))
+
+(deftest test-clear-oper-logs
+  (testing "清空操作日志"
+    (is (nil? (log/clear-oper-logs! mock-service {})))))
+
+(deftest test-clear-login-logs
+  (testing "清空登录日志"
+    (is (nil? (log/clear-login-logs! mock-service {})))))

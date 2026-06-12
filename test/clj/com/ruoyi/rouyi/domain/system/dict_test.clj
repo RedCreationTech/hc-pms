@@ -16,6 +16,7 @@
     :list-dict-types mock-dict-types
     :find-dict-type-by-id (first mock-dict-types)
     :list-dict-data mock-dict-data
+    :find-dict-data-by-id (first mock-dict-data)
     :create-dict-type! [{:dict_id 3}]
     :update-dict-type! nil
     :delete-dict-type! nil
@@ -43,3 +44,45 @@
     (let [result (dict/list-dict-data mock-service {:dict_type "sys_user_sex"})]
       (is (seq result))
       (is (= 2 (count result))))))
+
+(deftest test-find-dict-data-by-id
+  (testing "根据ID查询字典数据"
+    (let [result (dict/find-dict-data-by-id mock-service 1)]
+      (is (some? result))
+      (is (= "男" (:dict_label result))))))
+
+(deftest test-create-dict-type
+  (testing "创建字典类型"
+    (let [result (dict/create-dict-type! mock-service {:dict_name "新字典" :dict_type "new_type"})]
+      (is (some? result)))))
+
+(deftest test-update-dict-type
+  (testing "更新字典类型"
+    (let [result (dict/update-dict-type! mock-service {:dict_id 1 :dict_name "更新后的字典"})]
+      (is (nil? result)))))
+
+(deftest test-delete-dict-type
+  (testing "删除字典类型"
+    (let [result (dict/delete-dict-type! mock-service 1)]
+      (is (nil? result)))))
+
+(deftest test-create-dict-data
+  (testing "创建字典数据"
+    (let [result (dict/create-dict-data! mock-service {:dict_type "sys_user_sex" :dict_label "未知" :dict_value "2"})]
+      (is (some? result)))))
+
+(deftest test-update-dict-data
+  (testing "更新字典数据"
+    (let [result (dict/update-dict-data! mock-service {:dict_code 1 :dict_label "更新后的男"})]
+      (is (nil? result)))))
+
+(deftest test-delete-dict-data
+  (testing "删除字典数据"
+    (let [result (dict/delete-dict-data! mock-service 1)]
+      (is (nil? result)))))
+
+(deftest test-find-dict-type-by-id-not-found
+  (testing "查询不存在的字典类型"
+    (with-redefs [mock-query-fn (fn [_ _] nil)]
+      (let [result (dict/find-dict-type-by-id {:query-fn mock-query-fn} 999)]
+        (is (nil? result))))))
