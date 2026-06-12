@@ -14,14 +14,13 @@
 (defn create-dict-type!
   "创建字典类型。"
   [{:keys [query-fn]} params]
-  (-> (query-fn :create-dict-type! params)
-      first
-      :dict_id))
+  (query-fn :create-dict-type! (merge {:dict_name nil :dict_type nil :status nil :remark nil :create_by nil} params))
+  (get (query-fn :last-insert-rowid {}) (keyword "last_insert_rowid()")))
 
 (defn update-dict-type!
   "更新字典类型。"
   [{:keys [query-fn]} params]
-  (query-fn :update-dict-type! params))
+  (query-fn :update-dict-type! (merge {:dict_id nil :dict_name nil :dict_type nil :status nil :remark nil :update_by nil} params)))
 
 (defn delete-dict-type!
   "删除字典类型。"
@@ -41,14 +40,17 @@
 (defn create-dict-data!
   "创建字典数据。"
   [{:keys [query-fn]} params]
-  (-> (query-fn :create-dict-data! params)
-      first
-      :dict_code))
+  (query-fn :create-dict-data! (merge {:dict_sort nil :dict_label nil :dict_value nil :dict_type nil
+                                       :css_class nil :list_class nil :is_default nil :status nil
+                                       :remark nil :create_by nil} params))
+  (get (query-fn :last-insert-rowid {}) (keyword "last_insert_rowid()")))
 
 (defn update-dict-data!
   "更新字典数据。"
   [{:keys [query-fn]} params]
-  (query-fn :update-dict-data! params))
+  (query-fn :update-dict-data! (merge {:dict_code nil :dict_sort nil :dict_label nil :dict_value nil :dict_type nil
+                                       :css_class nil :list_class nil :is_default nil :status nil
+                                       :remark nil :update_by nil} params)))
 
 (defn delete-dict-data!
   "删除字典数据。"

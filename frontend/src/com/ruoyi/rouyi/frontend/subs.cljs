@@ -179,6 +179,10 @@
             (fn [db _]
               (get-in db [:dicts :loading?])))
 
+(rf/reg-sub :dicts/selected-type
+            (fn [db _]
+              (get-in db [:dicts :selected-type] nil)))
+
 (rf/reg-sub :configs/items
             (fn [db _]
               (get-in db [:configs :items])))

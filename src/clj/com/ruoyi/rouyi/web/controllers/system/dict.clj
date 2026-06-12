@@ -14,6 +14,9 @@
   (-> (response/response {:code 500 :msg msg})
       (response/content-type "application/json")))
 
+(defn- current-user-name [request]
+  (get-in request [:identity :user-name] ""))
+
 (defn list-dict-types
   "查询字典类型列表（带数据权限过滤）。"
   [{:keys [dict-service]} request]
@@ -33,7 +36,8 @@
 (defn create-dict-type
   [{:keys [dict-service]} request]
   (try
-    (let [dict-id (dict-service/create-dict-type! dict-service (:body-params request))]
+    (let [params (assoc (:body-params request) :create_by (current-user-name request))
+          dict-id (dict-service/create-dict-type! dict-service params)]
       (ok (str "创建成功: " dict-id)))
     (catch Exception e (fail (.getMessage e)))))
 
@@ -41,7 +45,9 @@
   [{:keys [dict-service]} request]
   (try
     (let [dict-id (parse-long (get-in request [:path-params :id]))
-          params (assoc (:body-params request) :dict_id dict-id)]
+          params (-> (:body-params request)
+                     (assoc :dict_id dict-id)
+                     (assoc :update_by (current-user-name request)))]
       (dict-service/update-dict-type! dict-service params)
       (ok "更新成功"))
     (catch Exception e (fail (.getMessage e)))))
@@ -71,7 +77,8 @@
 (defn create-dict-data
   [{:keys [dict-service]} request]
   (try
-    (let [dict-code (dict-service/create-dict-data! dict-service (:body-params request))]
+    (let [params (assoc (:body-params request) :create_by (current-user-name request))
+          dict-code (dict-service/create-dict-data! dict-service params)]
       (ok (str "创建成功: " dict-code)))
     (catch Exception e (fail (.getMessage e)))))
 
@@ -79,7 +86,9 @@
   [{:keys [dict-service]} request]
   (try
     (let [dict-code (parse-long (get-in request [:path-params :id]))
-          params (assoc (:body-params request) :dict_code dict-code)]
+          params (-> (:body-params request)
+                     (assoc :dict_code dict-code)
+                     (assoc :update_by (current-user-name request)))]
       (dict-service/update-dict-data! dict-service params)
       (ok "更新成功"))
     (catch Exception e (fail (.getMessage e)))))

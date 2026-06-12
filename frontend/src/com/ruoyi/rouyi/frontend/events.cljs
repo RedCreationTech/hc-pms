@@ -202,6 +202,14 @@
                    {:db (assoc-in db [:dicts :loading?] true)
                     :api/list-dict-data params}))
 
+(rf/reg-event-db :dicts/select-type
+                 (fn [db [_ dict-type]]
+                   (assoc-in db [:dicts :selected-type] dict-type)))
+
+(rf/reg-event-db :dicts/clear-selected-type
+                 (fn [db _]
+                   (assoc-in db [:dicts :selected-type] nil)))
+
 (rf/reg-fx :api/list-dict-data
            (fn [params]
              (api/list-dict-data params
