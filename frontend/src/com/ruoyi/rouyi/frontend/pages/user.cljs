@@ -3,6 +3,7 @@
   (:require
    [reagent.core :as r]
    [reagent.hooks :as hooks]
+   [reagent.hooks :as hooks]
    [re-frame.core :as rf]
    ["@ant-design/icons" :refer [SearchOutlined ReloadOutlined PlusOutlined EditOutlined DeleteOutlined UploadOutlined DownloadOutlined SettingOutlined]]
    [com.ruoyi.rouyi.frontend.antd :as antd]
@@ -317,6 +318,32 @@
      [:div {:style {:flex 1 :overflow "auto"}}
       (for [dept dept-items]
         (render-tree-node dept selected-dept-id expanded-id 0))]]))
+
+(defn- dept-tree-sidebar []
+  (let [dept-items @(rf/subscribe [:depts/tree])
+        selected-dept-id @(rf/subscribe [:users/selected-dept-id])]
+    [:div {:style {:width 200 :minWidth 200 :background "#fff"
+                   :borderRadius 8 :border "1px solid #e8e8e8"
+                   :padding 12 :display "flex" :flexDirection "column"}}
+     [:div {:style {:display "flex" :justifyContent "space-between"
+                    :alignItems "center" :marginBottom 8
+                    :paddingBottom 8 :borderBottom "1px solid #f0f0f0"}}
+      [:span {:style {:fontWeight 600 :fontSize 14}} "部门列表"]
+      [antd/button {:type "text" :size "small"
+                    :on-click #(rf/dispatch [:depts/fetch {}])}
+       "刷新"]]
+     [:div {:style {:flex 1 :overflow "auto" :fontSize 13}}
+      (if (seq dept-items)
+        (for [d dept-items]
+          ^{:key (str "dept-" (:dept_id d))}
+          [:div {:style {:padding "4px 8px" :cursor "pointer"
+                         :color (if (= (:dept_id d) selected-dept-id) "#1677ff" "#333")
+                         :background (if (= (:dept_id d) selected-dept-id) "#e6f7ff" "transparent")
+                         :borderRadius 4}
+                 :on-click #(do (rf/dispatch [:users/select-dept (:dept_id d)])
+                                (rf/dispatch [:users/fetch {:dept_id (:dept_id d)}]))}
+           (:dept_name d)])
+        [:div {:style {:textAlign "center" :color "#999" :padding 20}} "加载中..."])]]))
 
 (defn user-page []
   (hooks/use-effect

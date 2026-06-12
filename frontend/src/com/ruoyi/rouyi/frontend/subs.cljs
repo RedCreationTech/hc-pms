@@ -445,3 +445,7 @@
 (rf/reg-sub :notices/form-data
             (fn [db _]
               (get-in db [:notices :form-data] {})))
+
+(rf/reg-sub :users/expanded-dept-ids
+  (fn [db _]
+    (get-in db [:users :expanded-dept-ids] #{})))

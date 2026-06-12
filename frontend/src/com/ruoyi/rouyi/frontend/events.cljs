@@ -1585,3 +1585,15 @@
                  (if (seq children)
                    (assoc d :children children)
                    d))))))
+
+(rf/reg-event-db :users/toggle-dept-expand
+  (fn [db [_ dept-id]]
+    (let [expanded (get-in db [:users :expanded-dept-ids] #{})]
+      (assoc-in db [:users :expanded-dept-ids]
+                (if (contains? expanded dept-id)
+                  (disj expanded dept-id)
+                  (conj expanded dept-id))))))
+
+(rf/reg-event-db :users/collapse-all-depts
+  (fn [db _]
+    (assoc-in db [:users :expanded-dept-ids] #{})))
