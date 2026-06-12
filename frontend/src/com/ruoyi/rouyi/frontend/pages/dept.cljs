@@ -116,7 +116,7 @@
         tree-data (build-dept-tree items 0)]
     [:div
      [toolbar]
-     [antd/table {:rowKey "dept_id"
+     [antd/table {:scroll #js {:x "max-content"} :rowKey "dept_id"
                   :loading loading?
                   :columns (dept-columns)
                   :dataSource (clj->js tree-data)

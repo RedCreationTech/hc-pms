@@ -427,7 +427,7 @@
      [:div {:style {:flex 1 :overflow "auto"}}
       [search-form]
       [toolbar]
-      [antd/table {:rowKey "user_id"
+      [antd/table {:scroll #js {:x "max-content"} :rowKey "user_id"
                    :columns (user-columns)
                    :dataSource (clj->js items)
                    :loading loading?

@@ -34,7 +34,7 @@
       [antd/button {:type "primary" :danger true
                     :onClick #(rf/dispatch [:login-logs/clear])}
        "清空"]]
-     [antd/table {:rowKey "info_id"
+     [antd/table {:scroll #js {:x "max-content"} :rowKey "info_id"
                   :loading loading?
                   :columns (login-log-columns)
                   :dataSource (clj->js items)

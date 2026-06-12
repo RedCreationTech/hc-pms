@@ -61,6 +61,6 @@
     [:div
      [antd/space {:style {:marginBottom 16}}
       [antd/button {:type "primary" :danger true :onClick #(rf/dispatch [:oper-logs/clear])} "清空"]]
-     [antd/table {:rowKey "oper_id" :loading loading? :columns (oper-log-columns)
+     [antd/table {:scroll #js {:x "max-content"} :rowKey "oper_id" :loading loading? :columns (oper-log-columns)
                   :dataSource (clj->js items) :pagination {:pageSize 10 :total total}}]
      [detail-modal]]))

@@ -56,5 +56,5 @@
       [antd/button {:icon (r/as-element [:> ReloadOutlined])
                     :onClick #(rf/dispatch [:file/fetch])}
        "刷新"]]
-     [antd/table {:rowKey "name" :loading loading? :columns (file-columns)
+     [antd/table {:scroll #js {:x "max-content"} :rowKey "name" :loading loading? :columns (file-columns)
                   :dataSource (clj->js items) :pagination false}]]))

@@ -43,7 +43,7 @@
       (if tables-loading?
         [:div {:style {:textAlign "center" :padding 48}} [antd/button {:loading true} "加载中..."]]
         (when (seq tables)
-          [antd/table {:rowKey "table_name"
+          [antd/table {:scroll #js {:x "max-content"} :rowKey "table_name"
                        :dataSource (clj->js tables)
                        :pagination false
                        :columns (clj->js

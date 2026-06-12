@@ -73,7 +73,7 @@
       [antd/button {:type "primary"
                     :on-click #(rf/dispatch [:notices/open-modal])}
        "新增通知"]]
-     [antd/table {:rowKey "notice_id"
+     [antd/table {:scroll #js {:x "max-content"} :rowKey "notice_id"
                   :columns (notice-columns)
                   :dataSource (clj->js items)
                   :loading loading?

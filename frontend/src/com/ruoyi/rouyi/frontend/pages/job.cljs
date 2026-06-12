@@ -110,7 +110,7 @@
                      :onClose #(reset! show-log? false)
                      :width 800
                      :destroyOnClose true}
-        [antd/table {:rowKey "job_log_id"
+        [antd/table {:scroll #js {:x "max-content"} :rowKey "job_log_id"
                      :loading log-loading?
                      :columns (job-log-columns)
                      :dataSource (clj->js log-items)
@@ -122,7 +122,7 @@
                       :onClick #(do (reset! editing-record nil)
                                     (reset! show-form? true))} "新增任务"]]
 
-       [antd/table {:rowKey "job_id"
+       [antd/table {:scroll #js {:x "max-content"} :rowKey "job_id"
                     :loading loading?
                     :columns (job-columns
                                (fn [job-name]

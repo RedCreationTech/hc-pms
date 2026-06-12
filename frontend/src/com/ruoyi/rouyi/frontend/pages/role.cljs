@@ -176,7 +176,7 @@
     [:div
      [search-form]
      [toolbar]
-     [antd/table {:rowKey "role_id"
+     [antd/table {:scroll #js {:x "max-content"} :rowKey "role_id"
                   :columns (role-columns)
                   :dataSource (clj->js items)
                   :loading loading?

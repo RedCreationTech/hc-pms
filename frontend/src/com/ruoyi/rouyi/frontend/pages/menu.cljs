@@ -172,7 +172,7 @@
         tree-data (build-menu-tree items 0)]
     [:div
      [toolbar]
-     [antd/table {:rowKey "menu_id"
+     [antd/table {:scroll #js {:x "max-content"} :rowKey "menu_id"
                   :loading loading?
                   :columns (menu-columns)
                   :dataSource (clj->js tree-data)

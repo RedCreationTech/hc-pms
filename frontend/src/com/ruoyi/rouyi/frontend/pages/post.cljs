@@ -100,7 +100,7 @@
     [:div
      [search-form]
      [toolbar]
-     [antd/table {:rowKey "post_id" :loading loading? :columns (post-columns)
+     [antd/table {:scroll #js {:x "max-content"} :rowKey "post_id" :loading loading? :columns (post-columns)
                   :dataSource (clj->js items)
                   :pagination {:total total :pageSize 10 :showSizeChanger true
                                :showTotal (fn [total] (str "共 " total " 条"))}}]

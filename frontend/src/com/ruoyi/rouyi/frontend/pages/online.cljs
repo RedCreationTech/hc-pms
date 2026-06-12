@@ -40,7 +40,7 @@
           total @(rf/subscribe [:online-users/total])
           loading? @(rf/subscribe [:online-users/loading?])]
       [:div
-       [antd/table {:rowKey "token_id"
+       [antd/table {:scroll #js {:x "max-content"} :rowKey "token_id"
                     :loading loading?
                     :columns (online-columns)
                     :dataSource (clj->js items)
