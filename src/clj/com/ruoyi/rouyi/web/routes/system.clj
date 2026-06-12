@@ -16,6 +16,7 @@
    [com.ruoyi.rouyi.web.controllers.system.cache :as cache]
    [com.ruoyi.rouyi.web.controllers.system.import-export :as im]
    [com.ruoyi.rouyi.web.controllers.system.file :as file]
+   [com.ruoyi.rouyi.web.controllers.system.notice :as notice]
    [com.ruoyi.rouyi.web.middleware.auth :as auth-mw]
 
    [malli.util :as mu]))
@@ -57,8 +58,6 @@
     ["/importTemplate" {:get {:summary "下载导入模板" :description "下载CSV导入模板文件"
                               :handler (partial user/import-template {})}}]
     ["/deptTree" {:get {:summary "部门树" :description "获取部门树（用于选择）"
-                        :handler (partial user/dept-tree {:dept-service dept-service})}}]
-    ["/:id/authRole" {:get {:summary "用户角色" :description "获取用户角色列表"
                             :handler (partial user/auth-role {:user-service user-service})}
                       :put {:summary "分配角色" :description "分配用户角色"
                             :handler (partial user/update-auth-role {:user-service user-service})}}]
@@ -241,6 +240,15 @@
     ["/clearCacheName/:cacheName" {:delete {:summary "清除指定缓存" :handler (partial cache/clear-cache-name {})}}]
     ["/clearCacheKey/:cacheKey" {:delete {:summary "清除指定键" :handler (partial cache/clear-cache-key {})}}]
     ["/clearCacheAll" {:delete {:summary "清除所有缓存" :handler (partial cache/clear-cache-all {})}}]]
+
+   ["/notice"
+    ["/list" {:get {:summary "通知公告列表" :description "分页查询通知公告"
+                    :handler (partial notice/list-notices {:query-fn (:query-fn user-service)})}}]
+    ["" {:post {:summary "新增通知公告" :handler (partial notice/create-notice {:query-fn (:query-fn user-service)})}}]
+    ["/:id" {:put {:summary "更新通知公告" :parameters {:path [:map [:id :string]]}
+                   :handler (partial notice/update-notice {:query-fn (:query-fn user-service)})}
+             :delete {:summary "删除通知公告" :parameters {:path [:map [:id :string]]}
+                      :handler (partial notice/delete-notice {:query-fn (:query-fn user-service)})}}]]
 
    ["/file"
     ["" {:get {:summary "文件列表" :description "查询上传文件列表"

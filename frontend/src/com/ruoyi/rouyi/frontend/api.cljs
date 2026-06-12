@@ -498,3 +498,43 @@
   (request {:method :post :uri "/tool/gen/generate"
             :params {:tables tables}
             :on-success on-success :on-error on-error}))
+
+;; ─── 字典类型 CRUD ────────────────────────────────────────────────────────────
+
+(defn create-dict-type
+  "新增字典类型。"
+  [params on-success on-error]
+  (request {:method :post :uri "/api/system/dict/type" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn update-dict-type
+  "更新字典类型。"
+  [id params on-success on-error]
+  (request {:method :put :uri (str "/api/system/dict/type/" id) :params params
+            :on-success on-success :on-error on-error}))
+
+(defn delete-dict-type
+  "删除字典类型。"
+  [id on-success on-error]
+  (request {:method :delete :uri (str "/api/system/dict/type/" id)
+            :on-success on-success :on-error on-error}))
+
+;; ─── 字典数据 CRUD ────────────────────────────────────────────────────────────
+
+(defn create-dict-data
+  "新增字典数据。"
+  [params on-success on-error]
+  (request {:method :post :uri "/api/system/dict/data" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn update-dict-data
+  "更新字典数据。"
+  [id params on-success on-error]
+  (request {:method :put :uri (str "/api/system/dict/data/" id) :params params
+            :on-success on-success :on-error on-error}))
+
+(defn delete-dict-data
+  "删除字典数据。"
+  [id on-success on-error]
+  (request {:method :delete :uri (str "/api/system/dict/data/" id)
+            :on-success on-success :on-error on-error}))

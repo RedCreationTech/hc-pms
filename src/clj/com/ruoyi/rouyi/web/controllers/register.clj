@@ -1,6 +1,7 @@
 (ns com.ruoyi.rouyi.web.controllers.register
   "用户注册控制器。"
   (:require
+   [com.ruoyi.rouyi.domain.system.user :as user-service]
    [ring.util.response :as response]))
 
 (defn- ok
@@ -15,7 +16,7 @@
   (try
     (let [params (:body-params request)
           username (:username params)]
-      (if-let [existing (user-service/find-user-by-username user-service username)]
+      (if-let [existing (user-service/find-user-by-name user-service username)]
         (ok 500 "注册账号已存在")
         (do (user-service/create-user! user-service (assoc params :user_name username))
             (ok "注册成功"))))

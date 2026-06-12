@@ -1075,3 +1075,178 @@
                                   (.success js/antd.message "删除成功")
                                   (rf/dispatch [:menus/fetch])))
                               (fn [_] (.error js/antd.message "网络错误")))))
+
+;; ─── 字典类型 CRUD ────────────────────────────────────────────────────────────
+
+(rf/reg-event-fx :dicts/create-type
+                 (fn [_ [_ params]]
+                   {:api/create-dict-type params}))
+
+(rf/reg-fx :api/create-dict-type
+           (fn [params]
+             (api/create-dict-type params
+                                   (fn [result]
+                                     (when (= 200 (:code result))
+                                       (.success js/antd.message "创建成功")
+                                       (rf/dispatch [:dicts/fetch-types {}]))
+                                     (when (not= 200 (:code result))
+                                       (.error js/antd.message (:msg result))))
+                                   (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-event-fx :dicts/update-type
+                 (fn [_ [_ id params]]
+                   {:api/update-dict-type [id params]}))
+
+(rf/reg-fx :api/update-dict-type
+           (fn [[id params]]
+             (api/update-dict-type id params
+                                   (fn [result]
+                                     (when (= 200 (:code result))
+                                       (.success js/antd.message "更新成功")
+                                       (rf/dispatch [:dicts/fetch-types {}]))
+                                     (when (not= 200 (:code result))
+                                       (.error js/antd.message (:msg result))))
+                                   (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-event-fx :dicts/delete-type
+                 (fn [_ [_ id]]
+                   {:api/delete-dict-type id}))
+
+(rf/reg-fx :api/delete-dict-type
+           (fn [id]
+             (api/delete-dict-type id
+                                   (fn [result]
+                                     (when (= 200 (:code result))
+                                       (.success js/antd.message "删除成功")
+                                       (rf/dispatch [:dicts/fetch-types {}]))
+                                     (when (not= 200 (:code result))
+                                       (.error js/antd.message (:msg result))))
+                                   (fn [_] (.error js/antd.message "网络错误")))))
+
+;; ─── 字典数据 CRUD ────────────────────────────────────────────────────────────
+
+(rf/reg-event-fx :dicts/create-data
+                 (fn [_ [_ params]]
+                   {:api/create-dict-data params}))
+
+(rf/reg-fx :api/create-dict-data
+           (fn [params]
+             (api/create-dict-data params
+                                   (fn [result]
+                                     (when (= 200 (:code result))
+                                       (.success js/antd.message "创建成功")
+                                       (rf/dispatch [:dicts/fetch-data {:dict_type (:dict_type params)}]))
+                                     (when (not= 200 (:code result))
+                                       (.error js/antd.message (:msg result))))
+                                   (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-event-fx :dicts/update-data
+                 (fn [_ [_ id params]]
+                   {:api/update-dict-data [id params]}))
+
+(rf/reg-fx :api/update-dict-data
+           (fn [[id params]]
+             (api/update-dict-data id params
+                                   (fn [result]
+                                     (when (= 200 (:code result))
+                                       (.success js/antd.message "更新成功")
+                                       (rf/dispatch [:dicts/fetch-data {:dict_type (:dict_type params)}]))
+                                     (when (not= 200 (:code result))
+                                       (.error js/antd.message (:msg result))))
+                                   (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-event-fx :dicts/delete-data
+                 (fn [_ [_ id]]
+                   {:api/delete-dict-data id}))
+
+(rf/reg-fx :api/delete-dict-data
+           (fn [id]
+             (api/delete-dict-data id
+                                   (fn [result]
+                                     (when (= 200 (:code result))
+                                       (.success js/antd.message "删除成功")
+                                       (rf/dispatch [:dicts/fetch-data {}]))
+                                     (when (not= 200 (:code result))
+                                       (.error js/antd.message (:msg result))))
+                                   (fn [_] (.error js/antd.message "网络错误")))))
+
+;; ─── 通知公告 ─────────────────────────────────────────────────────────────────
+
+(rf/reg-event-fx :notices/fetch
+                 (fn [{:keys [db]} [_ params]]
+                   {:db (assoc-in db [:notices :loading?] true)
+                    :api/list-notices params}))
+
+(rf/reg-fx :api/list-notices
+           (fn [params]
+             (api/list-notices params
+                               (fn [result]
+                                 (when (= 200 (:code result))
+                                   (rf/dispatch [:notices/set-list (:data result)])))
+                               (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-event-db :notices/set-list
+                 (fn [db [_ data]]
+                   (assoc db :notices {:items (:rows data) :total (:total data 0) :loading? false
+                                       :modal-visible? false :editing nil :form-data {}})))
+
+(rf/reg-event-db :notices/open-modal
+                 (fn [db _]
+                   (assoc db :notices {:items (get-in db [:notices :items] [])
+                                       :total (get-in db [:notices :total] 0)
+                                       :loading? false
+                                       :modal-visible? true :editing nil :form-data {}})))
+
+(rf/reg-event-db :notices/close-modal
+                 (fn [db _]
+                   (assoc-in db [:notices :modal-visible?] false)))
+
+(rf/reg-event-db :notices/edit
+                 (fn [db [_ item]]
+                   (-> db
+                       (assoc-in [:notices :modal-visible?] true)
+                       (assoc-in [:notices :editing] item)
+                       (assoc-in [:notices :form-data] item))))
+
+(rf/reg-event-db :notices/update-form
+                 (fn [db [_ field value]]
+                   (assoc-in db [:notices :form-data field] value)))
+
+(rf/reg-event-fx :notices/submit
+                 (fn [{:keys [db]} _]
+                   (let [form-data (get-in db [:notices :form-data] {})
+                         editing (get-in db [:notices :editing])]
+                     (if editing
+                       {:api/update-notice [(:notice_id editing) form-data]}
+                       {:api/create-notice form-data}))))
+
+(rf/reg-fx :api/create-notice
+           (fn [params]
+             (api/create-notice params
+                                (fn [result]
+                                  (when (= 200 (:code result))
+                                    (.success js/antd.message "创建成功")
+                                    (rf/dispatch [:notices/fetch {}])))
+                                (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-fx :api/update-notice
+           (fn [[id params]]
+             (api/update-notice id params
+                                (fn [result]
+                                  (when (= 200 (:code result))
+                                    (.success js/antd.message "更新成功")
+                                    (rf/dispatch [:notices/fetch {}])))
+                                (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-event-fx :notices/delete
+                 (fn [_ [_ id]]
+                   {:api/delete-notice id}))
+
+(rf/reg-fx :api/delete-notice
+           (fn [id]
+             (api/delete-notice id
+                                (fn [result]
+                                  (when (= 200 (:code result))
+                                    (.success js/antd.message "删除成功")
+                                    (rf/dispatch [:notices/fetch {}])))
+                                (fn [_] (.error js/antd.message "网络错误")))))

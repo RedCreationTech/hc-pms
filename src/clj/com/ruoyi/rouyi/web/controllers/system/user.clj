@@ -197,11 +197,6 @@
     (user-service/update-user-roles! user-service {:user-id user-id :role-ids role-ids})
     (ok "角色分配成功")))
 
-(defn dept-tree
-  "获取部门树。"
-  [{:keys [dept-service]} _]
-  (ok (dept-service/list-depts dept-service {})))
-
 (defn import-template
   "下载用户导入模板。"
   [_ _]
