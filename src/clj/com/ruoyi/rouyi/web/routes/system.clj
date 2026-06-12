@@ -44,6 +44,16 @@
          :post {:summary    "新增用户"
                 :description "创建新用户（含角色分配）"
                 :handler    (partial user/create-user {:user-service user-service})}}]
+    ["/export" {:get {:summary "导出用户" :description "导出用户数据为CSV文件"
+                      :handler (partial im/export-users {:user-service user-service})}}]
+    ["/importTemplate" {:get {:summary "下载导入模板" :description "下载CSV导入模板文件"
+                              :handler (partial im/import-template {})}}]
+    ["/deptTree" {:get {:summary "部门树" :description "获取部门树（用于选择）"
+                            :handler (partial dept/dept-tree {:dept-service dept-service})}
+                      :put {:summary "分配角色" :description "分配用户角色"
+                            :handler (partial user/update-auth-role {:user-service user-service})}}]
+    ["/import" {:post {:summary "导入用户" :description "从CSV文件批量导入用户"
+                       :handler (partial im/import-users {:user-service user-service})}}]
     ["/:id" {:get    {:summary "用户详情" :parameters {:path PathId}
                       :handler (partial user/get-user {:user-service user-service})}
              :put    {:summary "更新用户" :parameters {:path PathId}
@@ -53,17 +63,7 @@
     ["/:id/status/:status" {:put {:summary "修改用户状态"
                                   :handler (partial user/change-status {:user-service user-service})}}]
     ["/:id/resetPwd"       {:put {:summary "重置用户密码"
-                                  :handler (partial user/reset-password {:user-service user-service})}}]
-    ["/export" {:get {:summary "导出用户" :description "导出用户数据为CSV文件"
-                      :handler (partial im/export-users {:user-service user-service})}}]
-    ["/importTemplate" {:get {:summary "下载导入模板" :description "下载CSV导入模板文件"
-                              :handler (partial im/import-template {})}}]
-    ["/deptTree" {:get {:summary "部门树" :description "获取部门树（用于选择）"
-                            :handler (partial user/auth-role {:user-service user-service})}
-                      :put {:summary "分配角色" :description "分配用户角色"
-                            :handler (partial user/update-auth-role {:user-service user-service})}}]
-    ["/import" {:post {:summary "导入用户" :description "从CSV文件批量导入用户"
-                       :handler (partial im/import-users {:user-service user-service})}}]]
+                                  :handler (partial user/reset-password {:user-service user-service})}}]]
 
    ["/role"
     ["" {:get  {:summary "角色列表" :description "分页查询角色列表"

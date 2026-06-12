@@ -23,6 +23,11 @@
         params (merge params (:params data-perm-filter))]
     (ok (dept-service/list-depts dept-service params))))
 
+(defn dept-tree
+  "获取部门树（用于用户管理左侧选择）。"
+  [{:keys [dept-service]} _request]
+  (ok (dept-service/list-depts dept-service {})))
+
 (defn get-dept
   [{:keys [dept-service]} request]
   (let [dept-id (parse-long (get-in request [:path-params :id]))]

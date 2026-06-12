@@ -4,6 +4,7 @@
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [reagent.hooks :as hooks]
+   [reagent.hooks :as hooks]
    [re-frame.core :as rf]
    ["@ant-design/icons" :refer [SearchOutlined ReloadOutlined PlusOutlined EditOutlined DeleteOutlined UploadOutlined DownloadOutlined SettingOutlined]]
    [com.ruoyi.rouyi.frontend.antd :as antd]
@@ -334,7 +335,7 @@
        "刷新"]]
      [:div {:style {:flex 1 :overflow "auto" :fontSize 13}}
       (if (seq dept-items)
-        (for [d dept-items]
+        (for [d (flatten-tree dept-items)]
           ^{:key (str "dept-" (:dept_id d))}
           [:div {:style {:padding "4px 8px" :cursor "pointer"
                          :color (if (= (:dept_id d) selected-dept-id) "#1677ff" "#333")
@@ -344,6 +345,16 @@
                                 (rf/dispatch [:users/fetch {:dept_id (:dept_id d)}]))}
            (:dept_name d)])
         [:div {:style {:textAlign "center" :color "#999" :padding 20}} "加载中..."])]]))
+
+(defn- flatten-tree
+  "将树形部门列表展平为带深度的序列。"
+  ([nodes] (flatten-tree nodes 0))
+  ([nodes depth]
+   (mapcat (fn [node]
+             (cons (assoc node :_depth depth)
+                   (when (seq (:children node))
+                     (flatten-tree (:children node) (inc depth)))))
+           nodes)))
 
 (defn user-page []
   (hooks/use-effect
