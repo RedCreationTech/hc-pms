@@ -11,11 +11,20 @@
   (-> (response/response {:code 200 :msg msg})
       (response/content-type "application/json")))
 
+(defn- parse-int [v]
+  (when v (Integer/parseInt v)))
+
 (defn list-online
   "获取在线用户列表。"
   [{:keys [online-service]} request]
   (let [params (:query-params request)
-        result ((:list-online online-service) params)]
+        page (or (parse-int (get params "pageNum")) 1)
+        size (or (parse-int (get params "pageSize")) 10)
+        result ((:list-online online-service)
+                {:login-name (get params "user_name")
+                 :ipaddr (get params "ipaddr")
+                 :page-num page
+                 :page-size size})]
     (ok {:rows (:rows result) :total (:total result)})))
 
 (defn force-logout

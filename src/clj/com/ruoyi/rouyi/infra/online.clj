@@ -147,6 +147,8 @@
                          {:ipaddr ipaddr
                           :login_name login-name}))]
     {:rows (mapv #(-> %
+                      (assoc :token-id (:session_id %))
+                      (assoc :token (:session_id %))
                       (assoc :user-id (:login_name %))
                       (assoc :user-name (:login_name %))
                       (assoc :login-ip (:ipaddr %))
