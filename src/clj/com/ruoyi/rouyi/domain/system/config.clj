@@ -19,14 +19,13 @@
 (defn create-config!
   "创建参数配置。"
   [{:keys [query-fn]} params]
-  (-> (query-fn :create-config! params)
-      first
-      :config_id))
+  (query-fn :create-config! (merge {:config_name nil :config_key nil :config_value nil :config_type nil :remark nil :create_by nil} params))
+  (get (query-fn :last-insert-rowid {}) (keyword "last_insert_rowid()")))
 
 (defn update-config!
   "更新参数配置。"
   [{:keys [query-fn]} params]
-  (query-fn :update-config! params))
+  (query-fn :update-config! (merge {:config_id nil :config_name nil :config_key nil :config_value nil :config_type nil :remark nil :update_by nil} params)))
 
 (defn delete-config!
   "删除参数配置。"

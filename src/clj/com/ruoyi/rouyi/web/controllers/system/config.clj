@@ -14,6 +14,9 @@
   (-> (response/response {:code 500 :msg msg})
       (response/content-type "application/json")))
 
+(defn- current-user-name [request]
+  (get-in request [:identity :user-name] ""))
+
 (defn list-configs
   "查询参数列表（带数据权限过滤）。"
   [{:keys [config-service]} request]
@@ -33,7 +36,8 @@
 (defn create-config
   [{:keys [config-service]} request]
   (try
-    (let [config-id (config-service/create-config! config-service (:body-params request))]
+    (let [params (assoc (:body-params request) :create_by (current-user-name request))
+          config-id (config-service/create-config! config-service params)]
       (ok (str "创建成功: " config-id)))
     (catch Exception e (fail (.getMessage e)))))
 
@@ -41,7 +45,9 @@
   [{:keys [config-service]} request]
   (try
     (let [config-id (parse-long (get-in request [:path-params :id]))
-          params (assoc (:body-params request) :config_id config-id)]
+          params (-> (:body-params request)
+                     (assoc :config_id config-id)
+                     (assoc :update_by (current-user-name request)))]
       (config-service/update-config! config-service params)
       (ok "更新成功"))
     (catch Exception e (fail (.getMessage e)))))
