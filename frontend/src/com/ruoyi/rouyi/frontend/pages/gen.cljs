@@ -35,7 +35,6 @@
         preview-visible? @(rf/subscribe [:gen/preview-visible?])
         preview-table-name @(rf/subscribe [:gen/preview-table-name])]
     [:div
-     [:h3 "代码生成"]
      [antd/card {:title "数据库表" :style {:marginBottom 16}
                  :extra (r/as-element
                          [antd/button {:icon (r/as-element [:> ReloadOutlined])

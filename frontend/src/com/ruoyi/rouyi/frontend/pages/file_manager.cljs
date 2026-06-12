@@ -47,7 +47,6 @@
   (let [items @(rf/subscribe [:file/items])
         loading? @(rf/subscribe [:file/loading?])]
     [:div
-     [:h3 "文件管理"]
      [antd/space {:style {:marginBottom 16}}
       [antd/upload {:showUploadList false
                     :beforeUpload (fn [file]

@@ -75,7 +75,6 @@
   (let [server-data @(rf/subscribe [:server/data])
         loading? @(rf/subscribe [:server/loading?])]
     [:div
-     [:h3 "服务监控"]
      (if loading?
        [:div {:style {:textAlign "center" :padding 48}}
         [antd/button {:loading true} "加载中..."]]

@@ -177,6 +177,5 @@
 
 (defn dict-page []
   [:div
-   [:h3 {:style {:marginBottom 16}} "字典管理"]
    [type-section]
    [data-section]])

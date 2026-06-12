@@ -30,7 +30,6 @@
         total @(rf/subscribe [:login-logs/total])
         loading? @(rf/subscribe [:login-logs/loading?])]
     [:div
-     [:h3 "登录日志"]
      [antd/space {:style {:marginBottom 16}}
       [antd/button {:type "primary" :danger true
                     :onClick #(rf/dispatch [:login-logs/clear])}

@@ -69,7 +69,6 @@
         total @(rf/subscribe [:notices/total])
         loading? @(rf/subscribe [:notices/loading?])]
     [:div
-     [:h3 "通知公告"]
      [antd/space {:style {:marginBottom 16}}
       [antd/button {:type "primary"
                     :on-click #(rf/dispatch [:notices/open-modal])}

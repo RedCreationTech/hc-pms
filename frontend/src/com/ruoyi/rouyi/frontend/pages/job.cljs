@@ -103,7 +103,6 @@
           log-loading? @(rf/subscribe [:job-logs/loading?])]
 
       [:div
-       [:h3 "定时任务"]
 
        ;; Job log drawer
        [antd/drawer {:title (str "任务日志 - " @log-job-name)

@@ -40,7 +40,6 @@
           total @(rf/subscribe [:online-users/total])
           loading? @(rf/subscribe [:online-users/loading?])]
       [:div
-       [:h3 "在线用户"]
        [antd/table {:rowKey "token_id"
                     :loading loading?
                     :columns (online-columns)

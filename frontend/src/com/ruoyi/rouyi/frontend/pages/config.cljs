@@ -91,7 +91,6 @@
           total @(rf/subscribe [:configs/total])
           loading? @(rf/subscribe [:configs/loading?])]
       [:div
-       [:h3 {:style {:marginBottom 16}} "参数管理"]
        [search-bar]
        [antd/card
         [:div {:style {:marginBottom 16}}

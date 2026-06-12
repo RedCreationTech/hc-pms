@@ -183,7 +183,6 @@
     (fn []
       [:div
        [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center" :marginBottom 16}}
-        [:h3 {:style {:margin 0}} "在线表单构建器"]
         [antd/space
          [antd/button {:icon (r/as-element [:> EyeOutlined])}
           "预览"]

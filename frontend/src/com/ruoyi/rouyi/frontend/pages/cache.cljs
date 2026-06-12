@@ -58,7 +58,6 @@
         cache-keys @(rf/subscribe [:cache/keys])
         loading? @(rf/subscribe [:cache/loading?])]
     [:div
-     [:h3 "缓存监控"]
      [:div {:style {:marginBottom 16}}
       [antd/button {:type "primary"
                     :onClick #(rf/dispatch [:cache/fetch-info])}
