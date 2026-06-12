@@ -4,7 +4,8 @@
    [reagent.core :as r]
    [re-frame.core :as rf]
    ["@ant-design/icons" :refer [SearchOutlined ReloadOutlined PlusOutlined EditOutlined DeleteOutlined UploadOutlined DownloadOutlined SettingOutlined]]
-   [com.ruoyi.rouyi.frontend.antd :as antd]))
+   [com.ruoyi.rouyi.frontend.antd :as antd]
+   [com.ruoyi.rouyi.frontend.components.dept-tree-select :refer [dept-tree-select]]))
 
 ;; ─── 搜索表单 ──────────────────────────────────────────────────────
 
@@ -35,6 +36,12 @@
                        :on-change #(rf/dispatch [:users/update-query :status %])}
           [antd/select-option {:value "0"} "正常"]
           [antd/select-option {:value "1"} "停用"]]]
+        [:div {:style {:display "flex" :alignItems "center" :gap 8}}
+         [:span {:style {:whiteSpace "nowrap" :fontSize 13}} "部门"]
+         [dept-tree-select {:value (:dept_id query-params)
+                            :placeholder "请选择部门"
+                            :allow-clear? true
+                            :on-change #(rf/dispatch [:users/update-query :dept_id %])}]]
         [:div {:style {:display "flex" :gap 8 :alignItems "flex-end"}}
          [antd/button {:type "primary"
                        :icon (r/as-element [:> SearchOutlined])
@@ -126,13 +133,13 @@
                  {:title "状态" :dataIndex "status" :key "status" :width 100
                   :render (fn [v record]
                             (r/as-element
-                             [antd/switch {:checked (= v "0")}
-                              :checkedChildren "正常"
-                              :unCheckedChildren "停用"
-                              :on-change (fn [checked?]
-                                           (rf/dispatch [:users/change-status]
-                                                        (.-user_id record)
-                                                        (if checked? "0" "1")))]))})
+                             [antd/switch {:checked (= v "0")
+                                           :checkedChildren "正常"
+                                           :unCheckedChildren "停用"
+                                           :on-change (fn [checked?]
+                                                        (rf/dispatch [:users/change-status
+                                                                      (.-user_id record)
+                                                                      (if checked? "0" "1")]))}]))})
                (when (get-in columns-config [:create_time :visible?])
                  {:title "创建时间" :dataIndex "create_time" :key "create_time" :width 160})
                {:title "操作" :key "action" :width 200
@@ -145,8 +152,8 @@
                             [antd/button {:type "link" :danger true :size "small"
                                           :on-click #(rf/dispatch [:users/delete (.-user_id record)])}
                              "删除"]
-                            [antd/dropdown {:menu {:items (clj->js [{:key "resetPwd" :label "重置密码"}]
-                                                                   {:key "authRole" :label "分配角色"})
+                            [antd/dropdown {:menu {:items (clj->js [{:key "resetPwd" :label (r/as-element [:span "重置密码"])}
+                                                                   {:key "authRole" :label (r/as-element [:span "分配角色"])}])
                                                    :onClick (fn [e]
                                                               (case (.-key e)
                                                                 "resetPwd" (rf/dispatch [:users/reset-password (.-user_id record)])
@@ -179,9 +186,10 @@
                        :on-change #(rf/dispatch [:users/update-form :nick_name (.. % -target -value)])}]]
          [:div
           [:label {:style {:display "block" :marginBottom 4 :fontWeight 500 :fontSize 13}} "归属部门"]
-          [antd/input {:value (:dept_id form-data "")
-                       :placeholder "请输入部门ID"
-                       :on-change #(rf/dispatch [:users/update-form :dept_id (.. % -target -value)])}]]
+          [dept-tree-select {:value (:dept_id form-data)
+                             :placeholder "请选择归属部门"
+                             :allow-clear? true
+                             :on-change #(rf/dispatch [:users/update-form :dept_id %])}]]
          [:div
           [:label {:style {:display "block" :marginBottom 4 :fontWeight 500 :fontSize 13}} "手机号码"]
           [antd/input {:value (:phonenumber form-data "")
