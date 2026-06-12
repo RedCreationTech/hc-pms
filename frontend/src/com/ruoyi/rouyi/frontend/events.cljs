@@ -302,14 +302,6 @@
                    {:db db
                     :dispatch [:login-logs/fetch {}]}))
 
-(rf/reg-fx :api/list-users
-           (fn [params]
-             (api/list-users params
-                             (fn [result]
-                               (when (= 200 (:code result))
-                                 (rf/dispatch [:users/set-list (:data result)])))
-                             (fn [_]))))
-
 ;; ────── 在线用户 ──────
 
 (rf/reg-event-db :online-users/set-list
@@ -1258,20 +1250,10 @@
 
 (rf/reg-event-db :users/open-add
                  (fn [db _]
-                   (assoc db :users {:items (get-in db [:users :items] [])
-                                     :total (get-in db [:users :total] 0)
-                                     :loading? false
-                                     :modal-visible? true
-                                     :editing nil
-                                     :form-data {}
-                                     :form-errors {}
-                                     :query-params (get-in db [:users :query-params] {})
-                                     :post-options (get-in db [:users :post-options] [])
-                                     :role-options (get-in db [:users :role-options] [])
-                                     :selected-ids (get-in db [:users :selected-ids] [])
-                                     :detail-visible? false :detail-data nil
-                                     :reset-pwd-visible? false :reset-pwd-username nil :reset-pwd-value ""
-                                     :selected-dept-id nil :show-search? true :columns []})))
+                   (-> db
+                       (assoc-in [:users :modal-visible?] true)
+                       (assoc-in [:users :editing] nil)
+                       (assoc-in [:users :form-data] {}))))
 
 (rf/reg-event-db :users/open-edit
                  (fn [db [_ user-id]]
@@ -1309,13 +1291,9 @@
 
 (rf/reg-event-fx :users/reset-query
                  (fn [{:keys [db]} _]
-                   {:db (assoc db :users {:items [] :total 0 :loading? false
-                                          :query-params {} :selected-ids []
-                                          :modal-visible? false :editing nil :form-data {}
-                                          :form-errors {} :post-options [] :role-options []
-                                          :detail-visible? false :detail-data nil
-                                          :reset-pwd-visible? false :reset-pwd-username nil :reset-pwd-value ""
-                                          :selected-dept-id nil :show-search? true :columns []})
+                   {:db (-> db
+                            (assoc-in [:users :query-params] {})
+                            (assoc-in [:users :selected-ids] []))
                     :api/list-users {}}))
 
 (rf/reg-event-fx :users/fetch-with-params
