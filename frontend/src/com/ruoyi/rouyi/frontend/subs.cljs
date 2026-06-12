@@ -239,6 +239,14 @@
             (fn [db _]
               (get-in db [:theme :compact?] false)))
 
+(rf/reg-sub :theme/algorithm
+            (fn [db _]
+              (get-in db [:theme :algorithm] "default")))
+
+(rf/reg-sub :theme/component-size
+            (fn [db _]
+              (get-in db [:theme :component-size] "middle")))
+
 ;; ─── Tabs ──────────────────────────────────────────────────────────
 
 (rf/reg-sub :tabs/items

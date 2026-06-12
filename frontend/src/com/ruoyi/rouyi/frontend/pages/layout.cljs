@@ -20,6 +20,7 @@
                                 QuestionCircleOutlined ExpandOutlined
                                 CompressOutlined LogoutOutlined
                                 MenuFoldOutlined MenuUnfoldOutlined]]
+   [com.ruoyi.rouyi.frontend.components.theme-switcher :as theme-switcher]
    [com.ruoyi.rouyi.frontend.pages.dashboard :as dashboard]
    [com.ruoyi.rouyi.frontend.pages.user :as user]
    [com.ruoyi.rouyi.frontend.pages.role :as role]
@@ -181,12 +182,8 @@
                                     (if (.-fullscreenElement js/document)
                                       (.exitFullscreen js/document)
                                       (.requestFullscreen doc)))}]
-            ;; 主题切换
-            [:> Button {:type "text"
-                        :icon (r/as-element (if (= theme-mode :dark)
-                                              [:> SunOutlined]
-                                              [:> MoonOutlined]))
-                        :onClick (fn [] (rf/dispatch [:theme/toggle-mode]))}]
+            ;; 主题设置
+            [theme-switcher/theme-switcher-button]
             ;; 通知
             [:> Badge {:count 0 :size "small"}
              [:> Button {:type "text" :icon (r/as-element [:> BellOutlined])}]]

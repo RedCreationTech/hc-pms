@@ -33,6 +33,8 @@
 
 (defn init []
   (rf/dispatch-sync [:initialize-db])
+  ;; 从 localStorage 加载主题设置
+  (rf/dispatch [:theme/load-from-storage])
   ;; 先在渲染前初始化路由（只 configure，不 dispatch）
   (router/init-routes!)
   ;; 如果 localStorage 中有 token，获取用户信息

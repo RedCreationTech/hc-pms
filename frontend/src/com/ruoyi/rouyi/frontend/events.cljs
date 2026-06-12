@@ -100,6 +100,38 @@
                  (fn [db _]
                    (update-in db [:theme :mode] #(if (= % :light) :dark :light))))
 
+(rf/reg-event-db :theme/set-mode
+                 (fn [db [_ mode]]
+                   (js/localStorage.setItem "rouyi-theme-mode" (name mode))
+                   (assoc-in db [:theme :mode] mode)))
+
+(rf/reg-event-db :theme/set-algorithm
+                 (fn [db [_ algorithm]]
+                   (js/localStorage.setItem "rouyi-theme-algorithm" algorithm)
+                   (assoc-in db [:theme :algorithm] algorithm)))
+
+(rf/reg-event-db :theme/set-primary-color
+                 (fn [db [_ color]]
+                   (js/localStorage.setItem "rouyi-primary-color" color)
+                   (assoc-in db [:theme :primary-color] color)))
+
+(rf/reg-event-db :theme/set-component-size
+                 (fn [db [_ size]]
+                   (js/localStorage.setItem "rouyi-component-size" size)
+                   (assoc-in db [:theme :component-size] size)))
+
+(rf/reg-event-db :theme/load-from-storage
+                 (fn [db _]
+                   (let [mode (js/localStorage.getItem "rouyi-theme-mode")
+                         algorithm (js/localStorage.getItem "rouyi-theme-algorithm")
+                         color (js/localStorage.getItem "rouyi-primary-color")
+                         size (js/localStorage.getItem "rouyi-component-size")]
+                     (cond-> db
+                       mode (assoc-in [:theme :mode] (keyword mode))
+                       algorithm (assoc-in [:theme :algorithm] algorithm)
+                       color (assoc-in [:theme :primary-color] color)
+                       size (assoc-in [:theme :component-size] size)))))
+
 (rf/reg-event-db :users/set-list
                  (fn [db [_ data]]
                    (-> db
