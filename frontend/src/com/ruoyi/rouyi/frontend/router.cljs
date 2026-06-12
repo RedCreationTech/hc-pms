@@ -21,7 +21,8 @@
         "monitor/job" :job
         "monitor/server" :server
         "monitor/cache" :cache
-        "tool/gen" :gen
+        "monitor/gen" :gen
+        "monitor/swagger" :swagger
         "system/user/profile" :profile}])
 
 ;; 路由匹配
@@ -50,6 +51,7 @@
    :server "服务监控"
    :cache "缓存监控"
    :gen "代码生成"
+   :swagger "系统接口"
    :profile "个人中心"})
 
 ;; 状态标记

@@ -6,6 +6,7 @@
     [com.ruoyi.rouyi.domain.system.menu :as menu-service]
     [com.ruoyi.rouyi.infra.security :as security]
     [com.ruoyi.rouyi.infra.online :as online]
+    [com.ruoyi.rouyi.domain.system.log :as log-domain]
     [ring.util.response :as response]
     [clojure.string :as str]))
 
@@ -35,10 +36,18 @@
             (let [roles (user-service/find-user-by-id user-service (:user_id user))
                   role-ids (mapv :role_id (:roles roles))
                   token (security/generate-token (:user_id user) (:user_name user) role-ids)
-                  _ (online/register! token (:user_id user) (:user_name user) login-ip)]
+                  _ (online/register! token (:user_id user) (:user_name user) login-ip)
+                  ;; 记录登录日志
+                  _ (log-domain/create-login-log! user-service
+                      {:user_name username :ipaddr login-ip :login_location ""
+                       :browser "" :os "" :status "0" :msg "登录成功"})]
               (success {:token token}))
             (error 403 "用户已被停用"))
-          (error 400 "密码错误"))
+          (do
+            (log-domain/create-login-log! user-service
+              {:user_name username :ipaddr login-ip :login_location ""
+               :browser "" :os "" :status "1" :msg "密码错误"})
+            (error 400 "密码错误")))
         (error 400 "用户不存在")))))
 
 (defn get-info

@@ -1,47 +1,43 @@
 (ns com.ruoyi.rouyi.frontend.pages.online
   "在线用户页面。"
   (:require
-   [reagent.core :as r]
-   [reagent.hooks :as hooks]
-   [re-frame.core :as rf]
-   [com.ruoyi.rouyi.frontend.antd :as antd]))
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]
+    [re-frame.core :as rf]
+    [com.ruoyi.rouyi.frontend.antd :as antd]))
 
 (defn- online-columns []
-  #js [#js {:title "用户ID" :dataIndex "user_id" :key "user_id"}
-       #js {:title "用户名" :dataIndex "user_name" :key "user_name"}
-       #js {:title "登录IP" :dataIndex "login_ip" :key "login_ip"}
-       #js {:title "登录时间" :dataIndex "login_time" :key "login_time"
+  #js [#js {:title "用户ID" :dataIndex "user-id" :key "user-id"}
+       #js {:title "用户名" :dataIndex "user-name" :key "user-name"}
+       #js {:title "登录IP" :dataIndex "login-ip" :key "login-ip"}
+       #js {:title "登录时间" :dataIndex "login-time" :key "login-time"
             :render (fn [v]
                       (r/as-element
-                       [:span (when v (js/Date. v))]))}
-       #js {:title "最后访问" :dataIndex "last_access" :key "last_access"
+                       [:span (when v (.toLocaleString (js/Date. v)))]))}
+       #js {:title "最后访问" :dataIndex "last-access" :key "last-access"
             :render (fn [v]
                       (r/as-element
-                       [:span (when v (js/Date. v))]))}
+                       [:span (when v (.toLocaleString (js/Date. v)))]))}
        #js {:title "操作" :key "action"
             :render (fn [_ record]
                       (r/as-element
                        [antd/button {:type "link" :danger true :size "small"
-                                     :onClick (fn [_]
-                                                (rf/dispatch [:online-users/force-logout (:token_id record)]))}
+                                     :onClick #(rf/dispatch [:online-users/force-logout (.-token-id record)])}
                         "强退"]))}])
 
 (defn online-page []
-  (let [poll-interval (r/atom nil)]
-    (hooks/use-effect
-     (fn []
-       (rf/dispatch [:online-users/fetch {}])
-       (reset! poll-interval
-               (js/setInterval #(rf/dispatch [:online-users/fetch {}]) 30000)
-               (when @poll-interval
-                 (js/clearInterval @poll-interval))))
-     [])
-    (let [items @(rf/subscribe [:online-users/items])
-          total @(rf/subscribe [:online-users/total])
-          loading? @(rf/subscribe [:online-users/loading?])]
-      [:div
-       [antd/table {:scroll #js {:x "max-content"} :rowKey "token_id"
-                    :loading loading?
-                    :columns (online-columns)
-                    :dataSource (clj->js items)
-                    :pagination {:pageSize 10 :total total}}]])))
+  (hooks/use-effect
+   (fn []
+     (rf/dispatch [:online-users/fetch {}])
+     (let [interval (js/setInterval #(rf/dispatch [:online-users/fetch {}]) 30000)]
+       (fn [] (js/clearInterval interval))))
+   [])
+  (let [items @(rf/subscribe [:online-users/items])
+        total @(rf/subscribe [:online-users/total])
+        loading? @(rf/subscribe [:online-users/loading?])]
+    [:div
+     [antd/table {:scroll #js {:x "max-content"} :rowKey "token-id"
+                  :loading loading?
+                  :columns (online-columns)
+                  :dataSource (clj->js items)
+                  :pagination {:pageSize 10 :total total}}]]))
