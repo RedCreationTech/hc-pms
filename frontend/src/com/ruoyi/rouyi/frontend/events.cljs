@@ -39,8 +39,13 @@
 
 (rf/reg-event-fx :auth/set-user
                  (fn [{:keys [db]} [_ user]]
-                   {:db       (assoc-in db [:auth :user] user)
-                    :dispatch [:navigate :dashboard]}))
+                   (let [page (:page db)
+                         effects {:db (assoc-in db [:auth :user] user)}
+                         ;; 只在登录后或当前页面异常时导航到 dashboard
+                         non-page? (or (nil? page) (= :login page))]
+                     (if non-page?
+                       (assoc effects :dispatch [:navigate :dashboard])
+                       effects))))
 
 (rf/reg-event-db :auth/set-loading
                  (fn [db [_ loading?]]
@@ -689,9 +694,11 @@
 
 (rf/reg-event-db :depts/set-list
                  (fn [db [_ data]]
-                   (let [items (if (sequential? data) data (:rows data []))]
+                   (let [items (if (sequential? data) data (:rows data []))
+                         tree (build-dept-tree items 0)]
                      (-> db
                          (assoc-in [:depts :items] items)
+                         (assoc-in [:depts :tree] tree)
                          (assoc-in [:depts :loading?] false)))))
 
 (rf/reg-event-fx :depts/fetch
@@ -1550,3 +1557,31 @@
 (rf/reg-event-db :users/close-reset-password
   (fn [db _]
     (assoc-in db [:users :reset-pwd-visible?] false)))
+
+;; ─── 用户管理辅助事件 ─────────────────────────────────────────────────────────
+
+(rf/reg-event-db :users/select-dept
+  (fn [db [_ dept-id]]
+    (assoc-in db [:users :selected-dept-id] dept-id)))
+
+(rf/reg-event-db :users/change-page
+  (fn [db [_ page page-size]]
+    (-> db
+        (assoc-in [:users :page] page)
+        (assoc-in [:users :page-size] page-size))))
+
+(rf/reg-event-db :users/set-selected
+  (fn [db [_ ids]]
+    (assoc-in db [:users :selected-ids] ids)))
+
+;; ─── 部门树构建工具 ───────────────────────────────────────────────────────────
+
+(defn- build-dept-tree
+  [items parent-id]
+  (->> items
+       (filter #(= parent-id (:parent_id %)))
+       (mapv (fn [d]
+               (let [children (build-dept-tree items (:dept_id d))]
+                 (if (seq children)
+                   (assoc d :children children)
+                   d))))))

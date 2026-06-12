@@ -71,7 +71,7 @@
     (let [path (.-pathname js/location)
           match (match-route path)
           page (or (:handler match) :dashboard)]
-      (rf/dispatch [:navigate page]))))
+      (rf/dispatch-sync [:navigate page]))))
 
 ;; 导航到页面（只更新 URL，不 dispatch 事件）
 (defn navigate! [page]
