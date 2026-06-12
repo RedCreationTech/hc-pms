@@ -602,3 +602,9 @@
   (request {:method :post :uri "/tool/gen/deploy"
             :params {:tableName table-name}
             :on-success on-success :on-error on-error}))
+
+(defn get-role
+  "获取角色详情。"
+  [id on-success on-error]
+  (request {:method :get :uri (str "/system/role/" id)
+            :on-success on-success :on-error on-error}))
