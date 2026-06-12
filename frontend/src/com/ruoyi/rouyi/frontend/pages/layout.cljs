@@ -34,7 +34,8 @@
    [com.ruoyi.rouyi.frontend.pages.cache :as cache]
    [com.ruoyi.rouyi.frontend.pages.gen :as gen]
    [com.ruoyi.rouyi.frontend.pages.form-builder :as form-builder]
-   [com.ruoyi.rouyi.frontend.pages.file-manager :as file-manager]))
+   [com.ruoyi.rouyi.frontend.pages.file-manager :as file-manager]
+   [com.ruoyi.rouyi.frontend.components.icon-picker :as icon-picker]))
 
 ;; ─── Tab 组件 ──────────────────────────────────────────────────────
 
@@ -81,6 +82,35 @@
        ^{:key (:key tab)}
        [tab-item (assoc tab :active? (= (:key tab) active))])]))
 
+;; ─── 动态菜单构建 ──────────────────────────────────────────────────────
+
+(defn- menu->antd-items
+  "将后端菜单树转换为 antd Menu 的 items 结构。"
+  [menus]
+  (clj->js
+   (mapv (fn [m]
+           (let [item {:key (:path m)
+                       :label (:menu_name m)}
+                 icon-el (when (and (:icon m) (not= (:icon m) "#"))
+                           (icon-picker/icon-element (:icon m) {:style {:fontSize 14}}))]
+             (cond-> item
+               icon-el
+               (assoc :icon (r/as-element icon-el))
+               (seq (:children m))
+               (assoc :children (menu->antd-items (:children m))))))
+         menus)))
+
+(defn- page-labels
+  "从菜单树递归提取页面路径到标签的映射。"
+  [menus]
+  (reduce (fn [acc m]
+            (let [acc (assoc acc (keyword (:path m)) (:menu_name m))]
+              (if (seq (:children m))
+                (merge acc (page-labels (:children m)))
+                acc)))
+          {}
+          menus))
+
 ;; ─── 主布局 ────────────────────────────────────────────────────────
 
 (defn main-layout []
@@ -89,27 +119,10 @@
       (let [theme-mode @(rf/subscribe [:theme/mode])
             user @(rf/subscribe [:auth/user])
             page @(rf/subscribe [:page])
-            menu-items #js [#js {:key "dashboard" :icon (r/as-element [:> DashboardOutlined]) :label "首页"}
-                            #js {:key "system" :icon (r/as-element [:> SettingOutlined]) :label "系统管理"
-                                 :children #js [#js {:key "user" :icon (r/as-element [:> UserOutlined]) :label "用户管理"}
-                                                #js {:key "role" :icon (r/as-element [:> SafetyOutlined]) :label "角色管理"}
-                                                #js {:key "menu" :icon (r/as-element [:> BookOutlined]) :label "菜单管理"}
-                                                #js {:key "dept" :icon (r/as-element [:> ApartmentOutlined]) :label "部门管理"}
-                                                #js {:key "post" :icon (r/as-element [:> ContainerOutlined]) :label "岗位管理"}
-                                                #js {:key "dict" :icon (r/as-element [:> TagOutlined]) :label "字典管理"}
-                                                #js {:key "config" :icon (r/as-element [:> ToolOutlined]) :label "参数管理"}
-                                                #js {:key "notice" :icon (r/as-element [:> BellOutlined]) :label "通知公告"}]}
-                            #js {:key "monitor" :icon (r/as-element [:> MonitorOutlined]) :label "系统监控"
-                                 :children #js [#js {:key "oper-log" :icon (r/as-element [:> FileTextOutlined]) :label "操作日志"}
-                                                #js {:key "login-log" :icon (r/as-element [:> KeyOutlined]) :label "登录日志"}
-                                                #js {:key "online" :icon (r/as-element [:> TeamOutlined]) :label "在线用户"}
-                                                #js {:key "job" :icon (r/as-element [:> ScheduleOutlined]) :label "定时任务"}
-                                                #js {:key "server" :icon (r/as-element [:> CloudOutlined]) :label "服务监控"}
-                                                #js {:key "cache" :icon (r/as-element [:> DatabaseOutlined]) :label "缓存监控"}]}
-                            #js {:key "tool" :icon (r/as-element [:> ToolOutlined]) :label "系统工具"
-                                 :children #js [#js {:key "gen" :icon (r/as-element [:> CodeOutlined]) :label "代码生成"}
-                                                #js {:key "build" :icon (r/as-element [:> FormOutlined]) :label "表单构建"}]}
-                            #js {:key "profile" :icon (r/as-element [:> ProfileOutlined]) :label "个人中心"}]]
+            user-menus (or (seq (:menus user))
+                                   [{:path "dashboard" :menu_name "首页" :icon "dashboard"}])
+            menu-items (menu->antd-items user-menus)
+            labels (page-labels user-menus)]
         [:> Layout {:style {:minHeight "100vh"}}
          [:> Layout.Sider {:collapsible true
                            :collapsed @collapsed
@@ -129,14 +142,7 @@
                     :items menu-items
                     :onClick (fn [e]
                                (let [k (.-key e)
-                                     page (keyword k)
-                                     labels {:dashboard "首页" :user "用户管理" :role "角色管理"
-                                             :menu "菜单管理" :dept "部门管理" :post "岗位管理"
-                                             :dict "字典管理" :config "参数管理" :notice "通知公告"
-                                             :oper-log "操作日志" :login-log "登录日志"
-                                             :online "在线用户" :job "定时任务"
-                                             :server "服务监控" :cache "缓存监控" :gen "代码生成"
-                                             :profile "个人中心" :build "表单构建" :file "文件管理"}]
+                                     page (keyword k)]
                                  (rf/dispatch [:navigate page])
                                  (rf/dispatch [:tabs/add page (get labels page "页面")])))}]]
          ;; Main area

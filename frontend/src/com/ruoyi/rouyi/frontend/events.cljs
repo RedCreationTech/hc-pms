@@ -1020,10 +1020,27 @@
                        (assoc-in [:menus :items] data)
                        (assoc-in [:menus :loading?] false))))
 
+(rf/reg-event-db :menus/set-tree
+                 (fn [db [_ data]]
+                   (assoc-in db [:menus :tree-data] data)))
+
 (rf/reg-event-fx :menus/fetch
                  (fn [{:keys [db]} _]
                    {:db (assoc-in db [:menus :loading?] true)
                     :api/list-menus nil}))
+
+(rf/reg-event-fx :menus/fetch-tree
+                 (fn [{:keys [db]} _]
+                   {:db db
+                    :api/menu-tree-for-menus nil}))
+
+(rf/reg-fx :api/menu-tree-for-menus
+           (fn [_]
+             (api/menu-tree
+              (fn [result]
+                (when (= 200 (:code result))
+                  (rf/dispatch [:menus/set-tree (:data result)])))
+              (fn [_]))))
 
 (rf/reg-fx :api/list-menus
            (fn [params]

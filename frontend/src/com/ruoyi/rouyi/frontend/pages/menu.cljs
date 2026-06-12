@@ -28,18 +28,15 @@
 ;; ─── 辅助：菜单转树选项 ──────────────────────────────────────────────────────
 
 (defn- menu-tree-options
-  "将菜单数据转为 TreeSelect 使用的选项。"
+  "将后端菜单树转为 TreeSelect 使用的选项。"
   [menus]
   (when (seq menus)
-    (letfn [(build [parent-id]
-              (->> menus
-                   (filter #(= parent-id (:parent_id %)))
-                   (mapv (fn [m]
-                           (let [node {:title (:menu_name m) :value (:menu_id m) :key (str (:menu_id m))}]
-                             (if-let [children (seq (build (:menu_id m)))]
-                               (assoc node :children children)
-                               node))))))]
-      (build 0))))
+    (mapv (fn [m]
+            (let [node {:title (:menu_name m) :value (:menu_id m) :key (str (:menu_id m))}]
+              (if-let [children (seq (menu-tree-options (:children m)))]
+                (assoc node :children children)
+                node)))
+          menus)))
 
 ;; ─── 工具栏 ────────────────────────────────────────────────────────
 
@@ -118,7 +115,7 @@
                           :placeholder "选择上级菜单（空为顶级）"
                           :allowClear true
                           :treeDefaultExpandAll true
-                          :treeData (clj->js (menu-tree-options @(rf/subscribe [:menus/items])))
+                          :treeData (clj->js (menu-tree-options @(rf/subscribe [:menus/tree-data])))
                           :value (:parent_id form-data)
                           :on-change #(rf/dispatch [:menus/update-form :parent_id %1])}]]
       [antd/form-item {:label "菜单类型" :required true}
@@ -167,6 +164,7 @@
   (hooks/use-effect
    (fn []
      (rf/dispatch [:menus/fetch])
+     (rf/dispatch [:menus/fetch-tree])
      js/undefined)
    [])
   (let [items @(rf/subscribe [:menus/items])

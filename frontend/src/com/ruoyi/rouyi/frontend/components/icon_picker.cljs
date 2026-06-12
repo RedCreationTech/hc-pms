@@ -1,6 +1,7 @@
 (ns com.ruoyi.rouyi.frontend.components.icon-picker
   "图标选择器与图标解析组件。"
   (:require
+   [clojure.string :as str]
    [reagent.core :as r]
    ["@ant-design/icons" :refer [AppstoreOutlined MenuOutlined FunctionOutlined
                                 DashboardOutlined SettingOutlined UserOutlined TeamOutlined
@@ -67,11 +68,44 @@
   (mapv (fn [[name component]] {:name name :icon component})
         icon-name->component))
 
+(def ^:private alias->name
+  "常用图标别名到标准组件名称的映射。"
+  {"system" "SettingOutlined"
+   "monitor" "MonitorOutlined"
+   "tool" "ToolOutlined"
+   "user" "UserOutlined"
+   "role" "SafetyOutlined"
+   "menu" "BookOutlined"
+   "dept" "ApartmentOutlined"
+   "post" "ContainerOutlined"
+   "dict" "TagOutlined"
+   "config" "ToolOutlined"
+   "notice" "BellOutlined"
+   "oper-log" "FileTextOutlined"
+   "login-log" "KeyOutlined"
+   "online" "TeamOutlined"
+   "job" "ScheduleOutlined"
+   "server" "CloudOutlined"
+   "cache" "DatabaseOutlined"
+   "gen" "CodeOutlined"
+   "build" "FormOutlined"
+   "profile" "ProfileOutlined"
+   "dashboard" "DashboardOutlined"})
+
+(defn normalize-icon-name
+  "规范化图标名称，支持标准名称或常用别名。"
+  [name]
+  (when (and name (not= name "#") (seq name))
+    (let [s (str/trim name)]
+      (or (get alias->name s)
+          (when (contains? icon-name->component s) s)
+          (when (re-matches #"[A-Za-z]+Outlined" s) s)))))
+
 (defn icon-component
   "根据名称返回图标 React 组件类，未找到时返回 nil。"
   [name]
-  (when (and name (not= name "#") (seq name))
-    (get icon-name->component name)))
+  (when-let [n (normalize-icon-name name)]
+    (get icon-name->component n)))
 
 (defn icon-element
   "根据名称返回图标 React 元素，未找到时返回 nil。"
