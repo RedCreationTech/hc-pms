@@ -36,6 +36,33 @@ cp -rf source dest          # NOT: cp -r source dest
 - `apt-get` - use `-y` flag
 - `brew` - use `HOMEBREW_NO_AUTO_UPDATE=1` env var
 
+## 后端热重载 (nREPL)
+
+后端运行时通过 nREPL 端口 7000 热重载代码，**无需重启进程**：
+
+```bash
+# 单模块重载（最快，推荐日常开发）
+clj-nrepl-eval -p 7000 '(user/rd)'          # 重载域服务
+clj-nrepl-eval -p 7000 '(user/rroutes)'     # 重载路由（需 rr 生效）
+clj-nrepl-eval -p 7000 '(user/ra)'          # 重载所有命名空间
+
+# 全局重载（较慢，结构变更时使用）
+clj-nrepl-eval -p 7000 '(user/rr)'          # 完全重启系统 (halt → prep → go)
+
+# 数据库操作
+clj-nrepl-eval -p 7000 '(user/reset-db)'    # 重置数据库（清空重建）
+clj-nrepl-eval -p 7000 '(user/migrate)'     # 运行迁移
+```
+
+**何时需要重启（`(user/rr)`）：**
+- HugSQL `.sql` 文件变更（查询缓存在启动时加载）
+- `resources/system.edn` 配置变更
+- Integrant 组件结构变更
+
+**何时只需重载（`(user/rd)`）：**
+- 控制器、服务、域逻辑变更
+- 路由定义变更（需 `(user/rr)` 才能生效）
+
 ## Frontend Ant Design 常见错误
 
 ### 1. Button 的 `:icon` 属性必须是 React 元素，不能传字符串
