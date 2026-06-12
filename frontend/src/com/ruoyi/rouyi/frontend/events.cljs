@@ -620,6 +620,10 @@
                  (fn [db [_ file]]
                    (assoc-in db [:users :import-file] file)))
 
+(rf/reg-event-db :users/set-import-loading
+                 (fn [db [_ loading?]]
+                   (assoc-in db [:users :import-loading?] loading?)))
+
 (rf/reg-event-fx :users/import
                  (fn [{:keys [db]} _]
                    (let [file (get-in db [:users :import-file])]
