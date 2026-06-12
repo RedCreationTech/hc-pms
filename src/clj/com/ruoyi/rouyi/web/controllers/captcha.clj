@@ -62,12 +62,13 @@
 
 (defn captcha-image
   "生成验证码图片并返回。"
-  [_ _]
+  [_ request]
   (let [code (generate-code 4)
         image (create-captcha-image code 150 50)
         baos (ByteArrayOutputStream.)]
     (ImageIO/write image "png" baos)
-    (let [uuid (str (java.util.UUID/randomUUID))]
+    (let [uuid (or (get-in request [:query-params "r"])
+                   (str (java.util.UUID/randomUUID)))]
       ;; 存储验证码，5分钟有效
       (swap! captcha-store assoc uuid {:code code :expire (+ (System/currentTimeMillis) 300000)})
       ;; 清理过期验证码

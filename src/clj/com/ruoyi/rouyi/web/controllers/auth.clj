@@ -28,37 +28,38 @@
   "用户登录，验证密码后签发 JWT，并注册在线用户。"
   [{:keys [user-service log-service]} request]
   (let [{:keys [username password captcha uuid]} (:body-params request)
-        login-ip (get-in request [:headers "x-forwarded-for"] (:remote-addr request "127.0.0.1"))]
-    ;; 验证码校验
-    (when (and uuid captcha)
-      (let [stored (get @captcha/captcha-store uuid)]
-        (when (or (nil? stored)
-                  (> (System/currentTimeMillis) (:expire stored))
-                  (not= (.toUpperCase captcha) (.toUpperCase (:code stored))))
-          (swap! captcha/captcha-store dissoc uuid)
-          (throw (ex-message "验证码错误或已过期")))))
+        login-ip (get-in request [:headers "x-forwarded-for"] (:remote-addr request "127.0.0.1"))
+        ;; 验证码校验
+        captcha-valid? (if (and uuid captcha)
+                         (let [stored (get @captcha/captcha-store uuid)]
+                           (and stored
+                                (<= (System/currentTimeMillis) (:expire stored))
+                                (= (.toUpperCase captcha) (.toUpperCase (:code stored)))))
+                         true)]
     (when uuid (swap! captcha/captcha-store dissoc uuid))
-    (if (or (str/blank? username) (str/blank? password))
-      (error 400 "用户名和密码不能为空")
-      (if-let [user (user-service/find-user-by-name user-service username)]
-        (if (security/verify-password password (:password user))
-          (if (= "0" (:status user))
-            (let [roles (user-service/find-user-by-id user-service (:user_id user))
-                  role-ids (mapv :role_id (:roles roles))
-                  token (security/generate-token (:user_id user) (:user_name user) role-ids)
-                  _ (online/register! token (:user_name user) login-ip)
-                  ;; 记录登录日志
-                  _ (log-domain/create-login-log! user-service
-                                                  {:user_name username :ipaddr login-ip :login_location ""
-                                                   :browser "" :os "" :status "0" :msg "登录成功"})]
-              (success {:token token}))
-            (error 403 "用户已被停用"))
-          (do
-            (log-domain/create-login-log! user-service
-                                          {:user_name username :ipaddr login-ip :login_location ""
-                                           :browser "" :os "" :status "1" :msg "密码错误"})
-            (error 400 "密码错误")))
-        (error 400 "用户不存在")))))
+    (if (not captcha-valid?)
+      (error 400 "验证码错误或已过期")
+      (if (or (str/blank? username) (str/blank? password))
+        (error 400 "用户名和密码不能为空")
+        (if-let [user (user-service/find-user-by-name user-service username)]
+          (if (security/verify-password password (:password user))
+            (if (= "0" (:status user))
+              (let [roles (user-service/find-user-by-id user-service (:user_id user))
+                    role-ids (mapv :role_id (:roles roles))
+                    token (security/generate-token (:user_id user) (:user_name user) role-ids)
+                    _ (online/register! token (:user_name user) login-ip)
+                    ;; 记录登录日志
+                    _ (log-domain/create-login-log! user-service
+                                                    {:user_name username :ipaddr login-ip :login_location ""
+                                                     :browser "" :os "" :status "0" :msg "登录成功"})]
+                (success {:token token}))
+              (error 403 "用户已被停用"))
+            (do
+              (log-domain/create-login-log! user-service
+                                            {:user_name username :ipaddr login-ip :login_location ""
+                                             :browser "" :os "" :status "1" :msg "密码错误"})
+              (error 400 "密码错误")))
+          (error 400 "用户不存在"))))))
 
 (defn get-info
   "获取当前登录用户信息及权限菜单。"
