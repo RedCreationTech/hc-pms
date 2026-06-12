@@ -114,7 +114,7 @@
                      :on-change #(swap! form-data assoc :dict_value (.. % -target -value))}]
         [:div "排序:"]
         [antd/input {:value (str (:dict_sort @form-data 0))
-                            :on-change #(swap! form-data assoc :dict_sort %)}]
+                     :on-change #(swap! form-data assoc :dict_sort %)}]
         [:div "状态:"]
         [antd/radio-group {:value (:status @form-data "0")
                            :on-change #(swap! form-data assoc :status (.. % -target -value))}

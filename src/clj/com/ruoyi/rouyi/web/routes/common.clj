@@ -1,8 +1,8 @@
 (ns com.ruoyi.rouyi.web.routes.common
   "通用路由。"
   (:require
-    [com.ruoyi.rouyi.web.controllers.common :as common]
-    [com.ruoyi.rouyi.web.controllers.captcha :as captcha]))
+   [com.ruoyi.rouyi.web.controllers.common :as common]
+   [com.ruoyi.rouyi.web.controllers.captcha :as captcha]))
 
 (defn common-routes [_opts]
   [["/captchaImage" {:get {:summary "生成验证码" :handler (partial captcha/captcha-image {})}}]

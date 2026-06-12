@@ -1,8 +1,8 @@
 (ns com.ruoyi.rouyi.web.controllers.captcha
   "验证码控制器 — 生成和验证验证码。"
   (:require
-    [ring.util.response :as response]
-    [clojure.string :as str]))
+   [ring.util.response :as response]
+   [clojure.string :as str]))
 
 (defonce captcha-store (atom {}))
 

@@ -1,8 +1,8 @@
 (ns com.ruoyi.rouyi.web.controllers.gen
   "代码生成器控制器。"
   (:require
-    [com.ruoyi.rouyi.domain.gen :as gen-service]
-    [ring.util.response :as response]))
+   [com.ruoyi.rouyi.domain.gen :as gen-service]
+   [ring.util.response :as response]))
 
 (defn- ok
   ([data] (ok 200 "操作成功" data))

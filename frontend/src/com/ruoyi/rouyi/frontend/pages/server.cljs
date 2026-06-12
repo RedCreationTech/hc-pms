@@ -1,9 +1,9 @@
 (ns com.ruoyi.rouyi.frontend.pages.server
   "服务器监控页面。"
   (:require
-    [reagent.hooks :as hooks]
-    [re-frame.core :as rf]
-    [com.ruoyi.rouyi.frontend.antd :as antd]))
+   [reagent.hooks :as hooks]
+   [re-frame.core :as rf]
+   [com.ruoyi.rouyi.frontend.antd :as antd]))
 
 (defn- progress-item [{:keys [label used total color]}]
   (let [percent (if (and total (pos? total))

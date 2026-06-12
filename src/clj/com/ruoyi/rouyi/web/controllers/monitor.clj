@@ -1,7 +1,7 @@
 (ns com.ruoyi.rouyi.web.controllers.monitor
   "系统监控控制器，提供服务监控、数据源监控等。"
   (:require
-    [ring.util.response :as response]))
+   [ring.util.response :as response]))
 
 (defn- ok ([data] (ok 200 "操作成功" data))
   ([code msg data]

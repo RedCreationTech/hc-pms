@@ -4,10 +4,10 @@
   使用原子缓存跟踪活跃 Token，定期清理过期会话。
   提供在线用户列表和强退功能。"
   (:require
-    [clojure.tools.logging :as log]
-    [clojure.string :as str])
+   [clojure.tools.logging :as log]
+   [clojure.string :as str])
   (:import
-    [java.util.concurrent ScheduledThreadPoolExecutor TimeUnit]))
+   [java.util.concurrent ScheduledThreadPoolExecutor TimeUnit]))
 
 ;; ──────────── 在线用户状态 ────────────
 
@@ -21,14 +21,13 @@
   (delay
     (doto (ScheduledThreadPoolExecutor. 1)
       (.scheduleAtFixedRate
-        (reify Runnable
-          (run [_]
-            (try
-              (cleanup-expired!)
-              (catch Exception e
-                (log/warn e "Online user cleanup failed")))))
-        5 5 TimeUnit/MINUTES))))
-
+       (reify Runnable
+         (run [_]
+           (try
+             (cleanup-expired!)
+             (catch Exception e
+               (log/warn e "Online user cleanup failed")))))
+       5 5 TimeUnit/MINUTES))))
 
 ;; ──────────── 核心 API ────────────
 
@@ -37,11 +36,11 @@
   [token user-id user-name login-ip]
   (let [now (System/currentTimeMillis)]
     (swap! online-users assoc token
-      {:user-id     user-id
-       :user-name   user-name
-       :login-ip    login-ip
-       :login-time  now
-       :last-access now}))
+           {:user-id     user-id
+            :user-name   user-name
+            :login-ip    login-ip
+            :login-time  now
+            :last-access now}))
   (force cleanup-executor)
   nil)
 
@@ -50,7 +49,7 @@
   [token]
   (when-let [entry (get @online-users token)]
     (swap! online-users assoc-in [token :last-access]
-      (System/currentTimeMillis)))
+           (System/currentTimeMillis)))
   nil)
 
 (defn unregister!
@@ -64,8 +63,8 @@
   []
   (let [threshold (- (System/currentTimeMillis) (* 30 60 1000))]
     (swap! online-users
-      (fn [users]
-        (into {} (remove (fn [[_ v]] (< (:last-access v) threshold)) users)))))
+           (fn [users]
+             (into {} (remove (fn [[_ v]] (< (:last-access v) threshold)) users)))))
   nil)
 
 (defn list-online

@@ -1,8 +1,8 @@
 (ns com.ruoyi.rouyi.frontend.router
   "前端路由管理 — 手动实现，不依赖 accountant。"
   (:require
-    [bidi.bidi :as bidi]
-    [re-frame.core :as rf]))
+   [bidi.bidi :as bidi]
+   [re-frame.core :as rf]))
 
 ;; 路由定义
 (def routes

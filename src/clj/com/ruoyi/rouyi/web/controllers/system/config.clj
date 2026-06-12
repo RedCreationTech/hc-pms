@@ -1,9 +1,9 @@
 (ns com.ruoyi.rouyi.web.controllers.system.config
   "参数配置控制器。"
   (:require
-    [com.ruoyi.rouyi.domain.system.config :as config-service]
-    [com.ruoyi.rouyi.infra.data-perm :as data-perm]
-    [ring.util.response :as response]))
+   [com.ruoyi.rouyi.domain.system.config :as config-service]
+   [com.ruoyi.rouyi.infra.data-perm :as data-perm]
+   [ring.util.response :as response]))
 
 (defn- ok ([data] (ok 200 "操作成功" data))
   ([code msg data]

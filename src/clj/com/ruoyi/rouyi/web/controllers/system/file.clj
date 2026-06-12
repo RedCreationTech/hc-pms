@@ -1,8 +1,8 @@
 (ns com.ruoyi.rouyi.web.controllers.system.file
   "文件管理控制器 — 上传、列表、下载、删除。"
   (:require
-    [clojure.java.io :as io]
-    [ring.util.response :as response]))
+   [clojure.java.io :as io]
+   [ring.util.response :as response]))
 
 (def upload-dir "uploads/")
 

@@ -1,7 +1,7 @@
 (ns com.ruoyi.rouyi.domain.system.config
   "参数配置领域服务。")
 
-  (defn list-configs
+(defn list-configs
   "查询参数配置列表。"
   [{:keys [query-fn]} params]
   (query-fn :list-configs (merge {:config_name nil :config_key nil :config_type nil} params)))

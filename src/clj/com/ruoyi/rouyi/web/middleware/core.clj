@@ -1,10 +1,10 @@
 (ns com.ruoyi.rouyi.web.middleware.core
   (:require
-    [cheshire.core :as json]
-    [com.ruoyi.rouyi.env :as env]
-    [com.ruoyi.rouyi.web.middleware.operlog :as operlog]
-    [ring.middleware.defaults :as defaults]
-    [ring.middleware.session.cookie :as cookie]))
+   [cheshire.core :as json]
+   [com.ruoyi.rouyi.env :as env]
+   [com.ruoyi.rouyi.web.middleware.operlog :as operlog]
+   [ring.middleware.defaults :as defaults]
+   [ring.middleware.session.cookie :as cookie]))
 
 (defn- wrap-cors
   "允许跨域请求，支持前端开发服务器访问。"
@@ -53,7 +53,7 @@
     (fn [handler]
       (-> ((:middleware env/defaults) handler opts)
           (defaults/wrap-defaults
-            (assoc-in site-defaults-config [:session :store] cookie-store))
+           (assoc-in site-defaults-config [:session :store] cookie-store))
           wrap-cors
           handle-preflight
           operlog/wrap-oper-log

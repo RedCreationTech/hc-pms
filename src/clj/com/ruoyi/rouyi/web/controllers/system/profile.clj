@@ -1,11 +1,11 @@
 (ns com.ruoyi.rouyi.web.controllers.system.profile
   "个人中心控制器。"
   (:require
-    [ring.util.response :as response]
-    [com.ruoyi.rouyi.domain.system.user :as user-service]
-    [com.ruoyi.rouyi.infra.security :as security]
-    [com.ruoyi.rouyi.infra.online :as online]
-    [clojure.string :as str]))
+   [ring.util.response :as response]
+   [com.ruoyi.rouyi.domain.system.user :as user-service]
+   [com.ruoyi.rouyi.infra.security :as security]
+   [com.ruoyi.rouyi.infra.online :as online]
+   [clojure.string :as str]))
 
 (defn- ok
   ([data] (ok 200 "操作成功" data))

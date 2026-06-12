@@ -81,7 +81,7 @@
                   :border (when active? (str "1px solid var(--ant-color-primary, #1677ff)"))
                   :borderBottom (when active? "1px solid var(--ant-color-bg-layout, #fff)")
                   :whiteSpace "nowrap"}
-            :on-click #(do (rf/dispatch [:tabs/activate key]) (rf/dispatch [:navigate (keyword key)]))}
+          :on-click #(do (rf/dispatch [:tabs/activate key]) (rf/dispatch [:navigate (keyword key)]))}
     (when (= key :dashboard)
       [:> HomeOutlined {:style {:marginRight 6 :fontSize 12}}])
     [:span label]
@@ -96,8 +96,7 @@
   []
   (let [tabs @(rf/subscribe [:tabs/items])
         active @(rf/subscribe [:tabs/active])]
-    [:div {:style {
-                   :borderBottom "1px solid var(--ant-color-border-secondary, #f0f0f0)"
+    [:div {:style {:borderBottom "1px solid var(--ant-color-border-secondary, #f0f0f0)"
                    :padding "8px 16px 0"
                    :display "flex"
                    :alignItems "flex-end"
@@ -169,7 +168,7 @@
             user @(rf/subscribe [:auth/user])
             page @(rf/subscribe [:page])
             user-menus (or (seq (:menus user))
-                                   [{:path "dashboard" :menu_name "首页" :icon "dashboard"}])
+                           [{:path "dashboard" :menu_name "首页" :icon "dashboard"}])
             filtered-menus (filter-visible-menus user-menus)
             menu-items (menu->antd-items filtered-menus)
             labels (page-labels user-menus)]
@@ -226,7 +225,7 @@
              [:> Button {:type "text" :icon (r/as-element [:> BellOutlined])}]]
             ;; 头像 + 下拉菜单
             [:> Dropdown {:menu {:items (clj->js [{:key "profile" :label "个人中心"}
-                                                   {:key "logout" :label "退出登录" :danger true}])
+                                                  {:key "logout" :label "退出登录" :danger true}])
                                  :onClick (fn [e]
                                             (case (.-key e)
                                               "profile" (rf/dispatch [:navigate :profile])

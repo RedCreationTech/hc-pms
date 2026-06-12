@@ -49,9 +49,9 @@
     ["/importTemplate" {:get {:summary "下载导入模板" :description "下载CSV导入模板文件"
                               :handler (partial im/import-template {})}}]
     ["/deptTree" {:get {:summary "部门树" :description "获取部门树（用于选择）"
-                            :handler (partial dept/dept-tree {:dept-service dept-service})}
-                      :put {:summary "分配角色" :description "分配用户角色"
-                            :handler (partial user/update-auth-role {:user-service user-service})}}]
+                        :handler (partial dept/dept-tree {:dept-service dept-service})}
+                  :put {:summary "分配角色" :description "分配用户角色"
+                        :handler (partial user/update-auth-role {:user-service user-service})}}]
     ["/import" {:post {:summary "导入用户" :description "从CSV文件批量导入用户"
                        :handler (partial im/import-users {:user-service user-service})}}]
     ["/:id" {:get    {:summary "用户详情" :parameters {:path PathId}

@@ -1,17 +1,17 @@
 (ns com.ruoyi.rouyi.frontend.app
   "前端应用入口。"
   (:require
-    [reagent.core :as r]
-    [reagent.dom.client :as rdc]
-    [reagent.hooks :as hooks]
+   [reagent.core :as r]
+   [reagent.dom.client :as rdc]
+   [reagent.hooks :as hooks]
    [re-frame.core :as rf]
-    ["antd" :refer [ConfigProvider]]
-    [com.ruoyi.rouyi.frontend.events]
-    [com.ruoyi.rouyi.frontend.subs]
-    [com.ruoyi.rouyi.frontend.theme :as theme]
-    [com.ruoyi.rouyi.frontend.router :as router]
-    [com.ruoyi.rouyi.frontend.pages.login :as login]
-    [com.ruoyi.rouyi.frontend.pages.layout :as layout]))
+   ["antd" :refer [ConfigProvider]]
+   [com.ruoyi.rouyi.frontend.events]
+   [com.ruoyi.rouyi.frontend.subs]
+   [com.ruoyi.rouyi.frontend.theme :as theme]
+   [com.ruoyi.rouyi.frontend.router :as router]
+   [com.ruoyi.rouyi.frontend.pages.login :as login]
+   [com.ruoyi.rouyi.frontend.pages.layout :as layout]))
 
 (defonce root (atom nil))
 

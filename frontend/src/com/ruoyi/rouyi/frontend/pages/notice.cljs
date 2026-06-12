@@ -1,10 +1,10 @@
 (ns com.ruoyi.rouyi.frontend.pages.notice
   "通知公告管理页面。"
   (:require
-    [reagent.core :as r]
-    [re-frame.core :as rf]
-    [clojure.string :as str]
-    [com.ruoyi.rouyi.frontend.antd :as antd]))
+   [reagent.core :as r]
+   [re-frame.core :as rf]
+   [clojure.string :as str]
+   [com.ruoyi.rouyi.frontend.antd :as antd]))
 
 (defn- notice-columns []
   #js [#js {:title "ID" :dataIndex "notice_id" :key "notice_id" :width 80}
@@ -13,26 +13,26 @@
             :width 100
             :render (fn [v _]
                       (r/as-element
-                        [antd/tag {:color (if (= v "1") "blue" "green")}
-                         (if (= v "1") "通知" "公告")]))}
+                       [antd/tag {:color (if (= v "1") "blue" "green")}
+                        (if (= v "1") "通知" "公告")]))}
        #js {:title "状态" :dataIndex "status" :key "status"
             :width 100
             :render (fn [v _]
                       (r/as-element
-                        [antd/tag {:color (if (= v "0") "green" "red")}
-                         (if (= v "0") "正常" "关闭")]))}
+                       [antd/tag {:color (if (= v "0") "green" "red")}
+                        (if (= v "0") "正常" "关闭")]))}
        #js {:title "创建者" :dataIndex "create_by" :key "create_by" :width 120}
        #js {:title "创建时间" :dataIndex "create_time" :key "create_time" :width 180}
        #js {:title "操作" :key "action" :width 150
             :render (fn [_ ^js record]
                       (r/as-element
-                        [antd/space
-                         [antd/button {:type "link" :size "small"
-                                       :on-click #(rf/dispatch [:notices/edit (js->clj record :keywordize-keys true)])}
-                          "编辑"]
-                         [antd/button {:type "link" :danger true :size "small"
-                                       :on-click #(rf/dispatch [:notices/delete (.-notice_id ^js record)])}
-                          "删除"]]))}])
+                       [antd/space
+                        [antd/button {:type "link" :size "small"
+                                      :on-click #(rf/dispatch [:notices/edit (js->clj record :keywordize-keys true)])}
+                         "编辑"]
+                        [antd/button {:type "link" :danger true :size "small"
+                                      :on-click #(rf/dispatch [:notices/delete (.-notice_id ^js record)])}
+                         "删除"]]))}])
 
 (defn- notice-modal []
   (let [visible? @(rf/subscribe [:notices/modal-visible?])

@@ -1147,9 +1147,9 @@
                    (assoc-in db [:tabs :active] key)))
 
 (rf/reg-event-fx :tabs/close
-  (fn [{:keys [db]} [_ key]]
-    {:db db
-     :dispatch [:tabs/remove key]}))
+                 (fn [{:keys [db]} [_ key]]
+                   {:db db
+                    :dispatch [:tabs/remove key]}))
 
 (rf/reg-event-fx :tabs/remove
                  (fn [{:keys [db]} [_ key]]
@@ -1212,10 +1212,10 @@
 (rf/reg-fx :api/list-menus
            (fn [params]
              (api/list-menus params
-              (fn [result]
-                (when (= 200 (:code result))
-                  (rf/dispatch [:menus/set-list (:data result)])))
-              (fn [_]))))
+                             (fn [result]
+                               (when (= 200 (:code result))
+                                 (rf/dispatch [:menus/set-list (:data result)])))
+                             (fn [_]))))
 
 (rf/reg-event-db :menus/open-modal
                  (fn [db _]
@@ -1682,24 +1682,24 @@
                        {:api/create-user form-data}))))
 
 (rf/reg-event-db :users/close-reset-password
-  (fn [db _]
-    (assoc-in db [:users :reset-pwd-visible?] false)))
+                 (fn [db _]
+                   (assoc-in db [:users :reset-pwd-visible?] false)))
 
 ;; ─── 用户管理辅助事件 ─────────────────────────────────────────────────────────
 
 (rf/reg-event-db :users/select-dept
-  (fn [db [_ dept-id]]
-    (assoc-in db [:users :selected-dept-id] dept-id)))
+                 (fn [db [_ dept-id]]
+                   (assoc-in db [:users :selected-dept-id] dept-id)))
 
 (rf/reg-event-db :users/change-page
-  (fn [db [_ page page-size]]
-    (-> db
-        (assoc-in [:users :page] page)
-        (assoc-in [:users :page-size] page-size))))
+                 (fn [db [_ page page-size]]
+                   (-> db
+                       (assoc-in [:users :page] page)
+                       (assoc-in [:users :page-size] page-size))))
 
 (rf/reg-event-db :users/set-selected
-  (fn [db [_ ids]]
-    (assoc-in db [:users :selected-ids] ids)))
+                 (fn [db [_ ids]]
+                   (assoc-in db [:users :selected-ids] ids)))
 
 ;; ─── 部门树构建工具 ───────────────────────────────────────────────────────────
 
@@ -1714,13 +1714,13 @@
                    d))))))
 
 (rf/reg-event-db :users/toggle-dept-expand
-  (fn [db [_ dept-id]]
-    (let [expanded (get-in db [:users :expanded-dept-ids] #{})]
-      (assoc-in db [:users :expanded-dept-ids]
-                (if (contains? expanded dept-id)
-                  (disj expanded dept-id)
-                  (conj expanded dept-id))))))
+                 (fn [db [_ dept-id]]
+                   (let [expanded (get-in db [:users :expanded-dept-ids] #{})]
+                     (assoc-in db [:users :expanded-dept-ids]
+                               (if (contains? expanded dept-id)
+                                 (disj expanded dept-id)
+                                 (conj expanded dept-id))))))
 
 (rf/reg-event-db :users/collapse-all-depts
-  (fn [db _]
-    (assoc-in db [:users :expanded-dept-ids] #{})))
+                 (fn [db _]
+                   (assoc-in db [:users :expanded-dept-ids] #{})))

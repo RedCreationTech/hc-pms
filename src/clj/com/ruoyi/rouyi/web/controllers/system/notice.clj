@@ -1,7 +1,7 @@
 (ns com.ruoyi.rouyi.web.controllers.system.notice
   "通知公告控制器。"
   (:require
-    [ring.util.response :as response]))
+   [ring.util.response :as response]))
 
 (defn- ok
   "构造成功响应。"

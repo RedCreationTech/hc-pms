@@ -1,9 +1,9 @@
 (ns com.ruoyi.rouyi.frontend.antd
   "Ant Design 组件 Reagent 封装。"
   (:require
-    [reagent.core :as r]
-    ["antd" :refer [Button Card ConfigProvider DatePicker Descriptions Dropdown Drawer Form Input Layout Menu Modal Pagination Popconfirm Popover Radio Select Space Switch Table Tabs Tag Tooltip Tree TreeSelect Upload message]]
-    ["@ant-design/icons" :refer [LockOutlined UserOutlined DashboardOutlined TeamOutlined SettingOutlined SafetyOutlined FileTextOutlined EditOutlined DeleteOutlined PlusOutlined DownloadOutlined EyeOutlined SearchOutlined]]))
+   [reagent.core :as r]
+   ["antd" :refer [Button Card ConfigProvider DatePicker Descriptions Dropdown Drawer Form Input Layout Menu Modal Pagination Popconfirm Popover Radio Select Space Switch Table Tabs Tag Tooltip Tree TreeSelect Upload message]]
+   ["@ant-design/icons" :refer [LockOutlined UserOutlined DashboardOutlined TeamOutlined SettingOutlined SafetyOutlined FileTextOutlined EditOutlined DeleteOutlined PlusOutlined DownloadOutlined EyeOutlined SearchOutlined]]))
 
 (def button (r/adapt-react-class Button))
 (def card (r/adapt-react-class Card))

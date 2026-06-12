@@ -9,18 +9,18 @@
      clj-nrepl-eval -p 7000 '(user/reset-system)'        ;; Full Integrant reset
      clj-nrepl-eval -p 7000 '(user/rr)'                  ;; Short alias for reset-system"
   (:require
-    [clojure.pprint]
-    [clojure.spec.alpha :as s]
-    [clojure.tools.logging :as log]
-    [clojure.tools.namespace.repl :as repl]
-    [criterium.core :as c]
-    [expound.alpha :as expound]
-    [integrant.core :as ig]
-    [integrant.repl :refer [clear go halt prep init reset reset-all]]
-    [integrant.repl.state :as state]
-    [kit.api :as kit]
-    [lambdaisland.classpath :as licp]
-    [com.ruoyi.rouyi.core :refer [start-app]]))
+   [clojure.pprint]
+   [clojure.spec.alpha :as s]
+   [clojure.tools.logging :as log]
+   [clojure.tools.namespace.repl :as repl]
+   [criterium.core :as c]
+   [expound.alpha :as expound]
+   [integrant.core :as ig]
+   [integrant.repl :refer [clear go halt prep init reset reset-all]]
+   [integrant.repl.state :as state]
+   [kit.api :as kit]
+   [lambdaisland.classpath :as licp]
+   [com.ruoyi.rouyi.core :refer [start-app]]))
 
 (alter-var-root #'s/*explain-out* (constantly expound/printer))
 (add-tap (bound-fn* clojure.pprint/pprint))

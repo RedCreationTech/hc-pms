@@ -11,8 +11,8 @@
   用法: (data-perm-filter identity role-key table-alias)
   返回一个 SQL 片段或 WHERE 条件 map，注入到 HugSQL 查询中。"
   (:require
-    [clojure.string :as str]
-    [clojure.tools.logging :as log]))
+   [clojure.string :as str]
+   [clojure.tools.logging :as log]))
 
 ;; ──────────── 数据权限 SQL 片段生成 ────────────
 

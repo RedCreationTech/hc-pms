@@ -1,9 +1,9 @@
 (ns com.ruoyi.rouyi.web.controllers.system.dept
   "部门管理控制器。"
   (:require
-    [com.ruoyi.rouyi.domain.system.dept :as dept-service]
-    [com.ruoyi.rouyi.infra.data-perm :as data-perm]
-    [ring.util.response :as response]))
+   [com.ruoyi.rouyi.domain.system.dept :as dept-service]
+   [com.ruoyi.rouyi.infra.data-perm :as data-perm]
+   [ring.util.response :as response]))
 
 (defn- ok ([data] (ok 200 "操作成功" data))
   ([code msg data]

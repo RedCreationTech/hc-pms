@@ -1,7 +1,7 @@
 (ns com.ruoyi.rouyi.env
   (:require
-    [clojure.tools.logging :as log]
-    [com.ruoyi.rouyi.dev-middleware :refer [wrap-dev]]))
+   [clojure.tools.logging :as log]
+   [com.ruoyi.rouyi.dev-middleware :refer [wrap-dev]]))
 
 (def defaults
   {:init       (fn []

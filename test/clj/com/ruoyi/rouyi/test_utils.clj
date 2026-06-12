@@ -1,9 +1,9 @@
 (ns com.ruoyi.rouyi.test-utils
   (:require
-    [com.ruoyi.rouyi.core :as core]
-    [peridot.core :as p]
-    [byte-streams :as bs]
-    [integrant.repl.state :as state]))
+   [com.ruoyi.rouyi.core :as core]
+   [peridot.core :as p]
+   [byte-streams :as bs]
+   [integrant.repl.state :as state]))
 
 (defn system-state
   []

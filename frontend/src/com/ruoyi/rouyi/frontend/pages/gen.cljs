@@ -1,11 +1,11 @@
 (ns com.ruoyi.rouyi.frontend.pages.gen
   "代码生成器页面 — 数据库表选择、代码预览与生成。"
   (:require
-    [reagent.core :as r]
-    [reagent.hooks :as hooks]
-    [re-frame.core :as rf]
-    ["@ant-design/icons" :refer [ReloadOutlined CodeOutlined EyeOutlined DownloadOutlined SettingOutlined]]
-    [com.ruoyi.rouyi.frontend.antd :as antd]))
+   [reagent.core :as r]
+   [reagent.hooks :as hooks]
+   [re-frame.core :as rf]
+   ["@ant-design/icons" :refer [ReloadOutlined CodeOutlined EyeOutlined DownloadOutlined SettingOutlined]]
+   [com.ruoyi.rouyi.frontend.antd :as antd]))
 
 ;; ─── 工具函数 ──────────────────────────────────────────────────────
 
@@ -99,7 +99,7 @@
          [antd/button {:icon (r/as-element [:> DownloadOutlined])
                        :onClick #(rf/dispatch [:gen/download selected-tables])}
           "下载ZIP"]])]
-     
+
      ;; 表格
      [antd/card {:title "数据库表"}
       (if tables-loading?
@@ -127,7 +127,7 @@
                                       :selectedRowKeys (clj->js selected-tables)
                                       :onChange (fn [keys _]
                                                   (rf/dispatch [:gen/set-selected-tables (js->clj keys)]))}}]))]
-     
+
      ;; 代码预览弹窗
      [antd/drawer {:title (str "代码预览 - " preview-table-name)
                    :open preview-visible?
@@ -137,6 +137,6 @@
         [:div {:style {:textAlign "center" :padding 48}} [antd/button {:loading true} "加载中..."]]
         (when preview-data
           [preview-tabs preview-data]))]
-     
+
      ;; 配置弹窗
      [config-modal]]))

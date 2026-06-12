@@ -135,7 +135,7 @@
                     :value (:order_num form-data 0)
                     :on-change #(rf/dispatch [:menus/update-form :order_num (js/parseInt (.. % -target -value) 10)])}]]
       (when (not= menu-type "F")
-        [:<> 
+        [:<>
          [antd/form-item {:label "路由地址"}
           [antd/input {:value (:path form-data "")
                        :on-change #(rf/dispatch [:menus/update-form :path (.. % -target -value)])}]]

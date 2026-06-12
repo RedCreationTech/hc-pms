@@ -1,10 +1,10 @@
 (ns com.ruoyi.rouyi.web.middleware.operlog
   "操作日志中间件：自动记录所有 API 请求到 sys_oper_log 表。"
   (:require
-    [clojure.tools.logging :as log]
-    [clojure.string :as str]
-    [cheshire.core :as json]
-    [ring.util.response :as response]))
+   [clojure.tools.logging :as log]
+   [clojure.string :as str]
+   [cheshire.core :as json]
+   [ring.util.response :as response]))
 
 (def ^:private skip-paths
   "不记录日志的路径"
@@ -47,7 +47,7 @@
                          :dept_name   ""
                          :oper_url    uri
                          :oper_ip     (get-in request [:headers "x-forwarded-for"]
-                                        (:remote-addr request "127.0.0.1"))
+                                              (:remote-addr request "127.0.0.1"))
                          :oper_location ""
                          :oper_param  (format-params (:params request))
                          :json_result (str (:status response))

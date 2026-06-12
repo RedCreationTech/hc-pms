@@ -121,7 +121,7 @@
                   :render (fn [v record]
                             (r/as-element
                              [:a {:style {:cursor "pointer" :color "#1677ff"}
-                                   :on-click #(rf/dispatch [:users/view-detail (.-user_id ^js record)])}
+                                  :on-click #(rf/dispatch [:users/view-detail (.-user_id ^js record)])}
                               v]))})
                (when (get-in columns-config [:nick_name :visible?])
                  {:title "用户昵称" :dataIndex "nick_name" :key "nick_name"})
@@ -153,7 +153,7 @@
                                           :on-click #(rf/dispatch [:users/delete (.-user_id ^js record)])}
                              "删除"]
                             [antd/dropdown {:menu {:items (clj->js [{:key "resetPwd" :label (r/as-element [:span "重置密码"])}
-                                                                   {:key "authRole" :label (r/as-element [:span "分配角色"])}])
+                                                                    {:key "authRole" :label (r/as-element [:span "分配角色"])}])
                                                    :onClick (fn [e]
                                                               (case (.-key e)
                                                                 "resetPwd" (rf/dispatch [:users/reset-password (.-user_id ^js record)])
@@ -180,7 +180,7 @@
          [antd/descriptions-item {:label "手机号码"} (:phonenumber user "-")]
          [antd/descriptions-item {:label "邮箱"} (:email user "-")]
          [antd/descriptions-item {:label "性别"} (case (:sex user "0") "0" "男" "1" "女" "-")]
-         [antd/descriptions-item {:label "状态"} 
+         [antd/descriptions-item {:label "状态"}
           [antd/tag {:color (if (= (:status user "0") "0") "green" "red")}
            (if (= (:status user "0") "0") "正常" "停用")]]
          [antd/descriptions-item {:label "创建时间"} (:create_time user "-")]
@@ -339,7 +339,7 @@
   (let [dept-items @(rf/subscribe [:depts/tree])
         selected-dept-id @(rf/subscribe [:users/selected-dept-id])
         expanded-id (r/atom nil)]
-    [:div {:style {:width 200 :minWidth 200 :background "var(--ant-color-bg-container, #fff)" 
+    [:div {:style {:width 200 :minWidth 200 :background "var(--ant-color-bg-container, #fff)"
                    :borderRadius 8 :border "1px solid var(--ant-color-border-secondary, #e8e8e8)"
                    :padding 12 :display "flex" :flexDirection "column"}}
      [:div {:style {:display "flex" :justifyContent "space-between"
@@ -447,11 +447,11 @@
 
 (defn user-page []
   (hooks/use-effect
-    (fn []
-      (rf/dispatch [:depts/fetch {}])
-      (rf/dispatch [:users/fetch {}])
-      js/undefined)
-    [])
+   (fn []
+     (rf/dispatch [:depts/fetch {}])
+     (rf/dispatch [:users/fetch {}])
+     js/undefined)
+   [])
   (let [items @(rf/subscribe [:users/items])
         total @(rf/subscribe [:users/total])
         loading? @(rf/subscribe [:users/loading?])

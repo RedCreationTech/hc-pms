@@ -1,14 +1,14 @@
 (ns com.ruoyi.rouyi.web.controllers.auth
   "认证控制器，处理登录、登出及当前用户信息获取。"
   (:require
-    [com.ruoyi.rouyi.domain.system.user :as user-service]
-    [com.ruoyi.rouyi.domain.system.role :as role-service]
-    [com.ruoyi.rouyi.domain.system.menu :as menu-service]
-    [com.ruoyi.rouyi.infra.security :as security]
-    [com.ruoyi.rouyi.infra.online :as online]
-    [com.ruoyi.rouyi.domain.system.log :as log-domain]
-    [ring.util.response :as response]
-    [clojure.string :as str]))
+   [com.ruoyi.rouyi.domain.system.user :as user-service]
+   [com.ruoyi.rouyi.domain.system.role :as role-service]
+   [com.ruoyi.rouyi.domain.system.menu :as menu-service]
+   [com.ruoyi.rouyi.infra.security :as security]
+   [com.ruoyi.rouyi.infra.online :as online]
+   [com.ruoyi.rouyi.domain.system.log :as log-domain]
+   [ring.util.response :as response]
+   [clojure.string :as str]))
 
 (defn- success
   "构造成功响应。"
@@ -39,14 +39,14 @@
                   _ (online/register! token (:user_id user) (:user_name user) login-ip)
                   ;; 记录登录日志
                   _ (log-domain/create-login-log! user-service
-                      {:user_name username :ipaddr login-ip :login_location ""
-                       :browser "" :os "" :status "0" :msg "登录成功"})]
+                                                  {:user_name username :ipaddr login-ip :login_location ""
+                                                   :browser "" :os "" :status "0" :msg "登录成功"})]
               (success {:token token}))
             (error 403 "用户已被停用"))
           (do
             (log-domain/create-login-log! user-service
-              {:user_name username :ipaddr login-ip :login_location ""
-               :browser "" :os "" :status "1" :msg "密码错误"})
+                                          {:user_name username :ipaddr login-ip :login_location ""
+                                           :browser "" :os "" :status "1" :msg "密码错误"})
             (error 400 "密码错误")))
         (error 400 "用户不存在")))))
 

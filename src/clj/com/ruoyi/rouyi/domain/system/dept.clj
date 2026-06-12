@@ -1,9 +1,9 @@
 (ns com.ruoyi.rouyi.domain.system.dept
   "部门领域服务。"
   (:require
-    [clojure.string :as str]))
+   [clojure.string :as str]))
 
-  (defn list-depts
+(defn list-depts
   "查询部门列表。"
   [{:keys [query-fn]} params]
   (query-fn :list-depts (merge {:status nil :dept_name nil} params)))

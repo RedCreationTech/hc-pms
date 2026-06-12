@@ -1,8 +1,8 @@
 (ns com.ruoyi.rouyi.web.controllers.common
   "通用控制器 — 文件上传、下载、资源访问。"
   (:require
-    [clojure.java.io :as io]
-    [ring.util.response :as response]))
+   [clojure.java.io :as io]
+   [ring.util.response :as response]))
 
 (def upload-dir "uploads/")
 (def resource-dir "resources/")

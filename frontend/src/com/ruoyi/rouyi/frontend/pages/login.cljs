@@ -1,9 +1,9 @@
 (ns com.ruoyi.rouyi.frontend.pages.login
   "登录页面。"
   (:require
-    [reagent.core :as r]
-    [re-frame.core :as rf]
-    [com.ruoyi.rouyi.frontend.antd :as antd]))
+   [reagent.core :as r]
+   [re-frame.core :as rf]
+   [com.ruoyi.rouyi.frontend.antd :as antd]))
 
 (defn login-page []
   (let [loading? @(rf/subscribe [:auth/loading?])]

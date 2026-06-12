@@ -1,9 +1,9 @@
 (ns com.ruoyi.rouyi.infra.security
   "安全工具模块，提供密码哈希与 JWT 令牌签发/验证功能。"
   (:require
-    [buddy.hashers :as hashers]
-    [buddy.sign.jwt :as jwt]
-    [clojure.string :as str]))
+   [buddy.hashers :as hashers]
+   [buddy.sign.jwt :as jwt]
+   [clojure.string :as str]))
 
 (def secret-key
   "JWT 签名密钥，生产环境应通过环境变量注入。"

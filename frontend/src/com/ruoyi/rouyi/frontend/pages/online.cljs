@@ -1,10 +1,10 @@
 (ns com.ruoyi.rouyi.frontend.pages.online
   "在线用户页面。"
   (:require
-    [reagent.core :as r]
-    [reagent.hooks :as hooks]
-    [re-frame.core :as rf]
-    [com.ruoyi.rouyi.frontend.antd :as antd]))
+   [reagent.core :as r]
+   [reagent.hooks :as hooks]
+   [re-frame.core :as rf]
+   [com.ruoyi.rouyi.frontend.antd :as antd]))
 
 (defn- online-columns []
   #js [#js {:title "用户ID" :dataIndex "user-id" :key "user-id"}

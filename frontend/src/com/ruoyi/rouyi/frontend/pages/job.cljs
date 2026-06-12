@@ -1,11 +1,11 @@
 (ns com.ruoyi.rouyi.frontend.pages.job
   "定时任务管理页面。"
   (:require
-    [reagent.core :as r]
-    [reagent.hooks :as hooks]
-    [re-frame.core :as rf]
-    ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined PlayCircleOutlined FileTextOutlined]]
-    [com.ruoyi.rouyi.frontend.antd :as antd]))
+   [reagent.core :as r]
+   [reagent.hooks :as hooks]
+   [re-frame.core :as rf]
+   ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined PlayCircleOutlined FileTextOutlined]]
+   [com.ruoyi.rouyi.frontend.antd :as antd]))
 
 (defn- status-tag [status]
   [antd/tag {:color (if (= status "0") "green" "red")}
