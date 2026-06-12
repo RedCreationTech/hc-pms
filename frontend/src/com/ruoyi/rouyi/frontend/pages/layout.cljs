@@ -192,6 +192,28 @@
        [:> DownOutlined {:style {:cursor "pointer" :color "var(--ant-color-text-secondary, #999)"
                                  :fontSize 12 :padding "4px"}}]]]]))
 
+;; ─── 页面关键词到菜单路径映射 ─────────────────────────────────────────
+(def page->menu-key
+  "将路由关键词映射到菜单的 key（完整路径）。"
+  {:user "system/user"
+   :role "system/role"
+   :menu "system/menu"
+   :dept "system/dept"
+   :post "system/post"
+   :dict "system/dict"
+   :config "system/config"
+   :notice "system/notice"
+   :oper-log "monitor/operlog"
+   :login-log "monitor/logininfor"
+   :online "monitor/online"
+   :job "monitor/job"
+   :server "monitor/server"
+   :cache "monitor/cache"
+   :gen "monitor/gen"
+   :swagger "monitor/swagger"
+   :profile "system/user/profile"
+   :dashboard "dashboard"})
+
 ;; ─── 动态菜单构建 ──────────────────────────────────────────────────────
 
 (defn- filter-visible-menus
@@ -271,7 +293,7 @@
           [:> Menu {:theme (if (= theme-mode :dark) "dark" "light")
                     :mode "inline"
                     :inlineCollapsed @collapsed
-                    :selectedKeys (clj->js [(name page)])
+                    :selectedKeys (clj->js [(or (page->menu-key page) (name page))])
                     :defaultOpenKeys #js ["system" "monitor" "tool"]
                     :items menu-items
                     :onClick (fn [e]
