@@ -149,7 +149,7 @@
   "通用导出函数。"
   [list-fn service params header csv-fn filename request]
   (try
-    (let [result (list-fn service (merge {:page-num 1 :page-size 10000 :page-num 1} params))
+    (let [result (list-fn service (merge {:page-num 1 :page-size 10000} params))
           rows (if (sequential? result) result (:rows result []))
           csv-lines (mapv csv-fn rows)
           output (java.io.StringWriter.)]
