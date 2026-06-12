@@ -7,7 +7,7 @@
   (let [page-num (or (:page-num params) 1)
         page-size (or (:page-size params) 10)
         offset (* (dec page-num) page-size)
-        filters (merge {:title nil :oper_name nil :business_type nil :status nil :begin_time nil}
+        filters (merge {:title nil :oper_name nil :business_type nil :status nil :begin_time nil :end_time nil}
                        (-> params
                            (dissoc :page-num :page-size)
                            (assoc :offset offset :page_size page-size)))
@@ -31,7 +31,7 @@
   (let [page-num (or (:page-num params) 1)
         page-size (or (:page-size params) 10)
         offset (* (dec page-num) page-size)
-        filters (merge {:user_name nil :ipaddr nil :status nil :begin_time nil}
+        filters (merge {:user_name nil :ipaddr nil :status nil :begin_time nil :end_time nil}
                        (-> params
                            (dissoc :page-num :page-size)
                            (assoc :offset offset :page_size page-size)))
