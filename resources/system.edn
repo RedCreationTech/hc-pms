@@ -121,7 +121,7 @@
  :db.sql/query-fn
  {:conn      #ig/ref :db.sql/connection
   :options   {}
-  :filenames ["queries.sql" "sql/system.sql" "sql/log.sql" "sql/job.sql" "sql/gen.sql"]
+  :filenames ["queries.sql" "sql/system.sql" "sql/log.sql" "sql/job.sql" "sql/gen.sql" "sql/generated.sql"]
   :env       #ig/ref :system/env}
 
  :db.sql/migrations
