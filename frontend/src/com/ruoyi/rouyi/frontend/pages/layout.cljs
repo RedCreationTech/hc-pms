@@ -64,7 +64,7 @@
 
 (defn- tab-item
   "单个Tab项组件"
-  [{:keys [key label closable active?]}]
+  [{:keys [key label icon closable active?]}]
   (let [tabs @(rf/subscribe [:tabs/items])
         idx (.indexOf (clj->js (mapv :key tabs)) key)
         has-others? (> (count tabs) 1)
@@ -119,8 +119,12 @@
                        :background "#fff"
                        :borderRadius 1
                        :transition "all 0.3s"}}])
-      (when (= key :dashboard)
-        [:> HomeOutlined {:style {:marginRight 6 :fontSize 12}}])
+      ;; 图标
+      (if icon
+        (when-let [icon-el (icon-picker/icon-element icon {:style {:marginRight 6 :fontSize 12}})]
+          icon-el)
+        (when (= key :dashboard)
+          [:> HomeOutlined {:style {:marginRight 6 :fontSize 12}}]))
       [:span label]
       (when (and closable (not= key :dashboard))
         [:> CloseOutlined {:style {:marginLeft 8 :fontSize 10
@@ -285,6 +289,26 @@
            {}
            menus)))
 
+(defn- page-icons
+  "从菜单树递归提取页面路径到图标的映射。"
+  ([menus] (page-icons menus ""))
+  ([menus parent-path]
+   (reduce (fn [acc m]
+             (let [full-path (if (seq parent-path)
+                               (str parent-path "/" (:path m))
+                               (:path m))
+                   matched (router/match-route (str "/" full-path))
+                   route-key (:handler matched)
+                   icon (:icon m)
+                   acc (if (and route-key (seq icon))
+                         (assoc acc route-key icon)
+                         acc)]
+               (if (seq (:children m))
+                 (merge acc (page-icons (:children m) full-path))
+                 acc)))
+           {}
+           menus)))
+
 ;; ─── 主布局 ────────────────────────────────────────────────────────
 
 ;; ─── Tab 动画样式 ──────────────────────────────────────────────────────
@@ -337,7 +361,8 @@
                            [{:path "dashboard" :menu_name "首页" :icon "dashboard"}])
             filtered-menus (filter-visible-menus user-menus)
             menu-items (menu->antd-items filtered-menus)
-            labels (page-labels user-menus)]
+            labels (page-labels user-menus)
+            icons (page-icons user-menus)]
         [:> Layout {:style {:minHeight "100vh"}}
          ;; Tab 动画样式
          [tab-animation-styles]
@@ -364,7 +389,7 @@
                                      page (or (:handler matched) (keyword k))
                                      _ (js/console.log "Page:" (str page))]
                                  (rf/dispatch [:navigate page])
-                                 (rf/dispatch [:tabs/add page (get labels page "页面")])))}]]
+                                 (rf/dispatch [:tabs/add page (get labels page "页面") (get icons page)])))}]]
          ;; Main area
          [:> Layout
           [:> Layout.Header {:style {:padding "0 24px"
