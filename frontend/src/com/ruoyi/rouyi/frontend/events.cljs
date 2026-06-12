@@ -885,6 +885,36 @@
                  (fn [db _]
                    (assoc-in db [:oper-logs :detail-visible?] false)))
 
+;; ────── 表单构建器 ──────
+
+(let [counter (atom 0)]
+  (rf/reg-event-db :fb/add-item
+                   (fn [db [_ comp]]
+                     (let [id (swap! counter inc)]
+                       (update-in db [:fb :items] conj {:id id :type (:type comp) :props (:defaults comp)})))))
+
+(rf/reg-event-db :fb/remove-item
+                 (fn [db [_ id]]
+                   (update-in db [:fb :items] #(filterv (fn [i] (not= (:id i) id)) %))))
+
+(rf/reg-event-db :fb/select-item
+                 (fn [db [_ id]]
+                   (assoc-in db [:fb :selected-id] id)))
+
+(rf/reg-event-db :fb/update-prop
+                 (fn [db [_ k v]]
+                   (let [id (get-in db [:fb :selected-id])]
+                     (update-in db [:fb :items]
+                                (fn [items] (mapv (fn [i] (if (= (:id i) id) (assoc-in i [:props k] v) i)) items))))))
+
+(rf/reg-event-db :fb/toggle-code
+                 (fn [db _]
+                   (update-in db [:fb :code-visible?] not)))
+
+(rf/reg-event-db :fb/clear
+                 (fn [db _]
+                   (assoc db :fb {:items [] :selected-id nil :code-visible? false})))
+
 ;; ────── 多Tab管理 ──────
 
 (rf/reg-event-fx :tabs/add
