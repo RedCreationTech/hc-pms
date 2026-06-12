@@ -1,0 +1,19 @@
+{:paths ["src/clj" "resources"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.4"}
+        cloverage/cloverage {:mvn/version "1.2.4"}
+        metosin/reitit {:mvn/version "0.10.1"}
+        ring/ring-core {:mvn/version "1.15.4"}
+        ring/ring-defaults {:mvn/version "0.7.0"}
+        ch.qos.logback/logback-classic {:mvn/version "1.5.32"}
+        metosin/muuntaja {:mvn/version "0.6.11"}
+        io.github.kit-clj/kit-core {:mvn/version "1.0.10"}
+        io.github.kit-clj/kit-undertow {:mvn/version "1.0.14"}
+        io.github.kit-clj/kit-sql-conman {:mvn/version "1.10.6"}
+        io.github.kit-clj/kit-sql-migratus {:mvn/version "1.0.6"}
+        io.github.kit-clj/kit-quartz {:mvn/version "1.0.5"}
+        clj-time/clj-time {:mvn/version "0.15.2"}
+        org.xerial/sqlite-jdbc {:mvn/version "3.45.3.0"}
+        com.zaxxer/HikariCP {:mvn/version "5.1.0"}
+        org.clojure/data.csv {:mvn/version "1.1.0"}}
+ :aliases {:test {:extra-paths ["test/clj" "env/dev/clj"]
+                  :extra-deps {ring/ring-mock {:mvn/version "0.6.2"}}}}}
