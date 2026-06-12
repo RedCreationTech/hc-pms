@@ -668,7 +668,9 @@
 (rf/reg-event-db :depts/set-list
                  (fn [db [_ data]]
                    (let [items (if (sequential? data) data (:rows data []))]
-                     (assoc-in db [:depts :items] items))))
+                     (-> db
+                         (assoc-in [:depts :items] items)
+                         (assoc-in [:depts :loading?] false)))))
 
 (rf/reg-event-fx :depts/fetch
                  (fn [{:keys [db]} [_ params]]
