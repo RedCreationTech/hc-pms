@@ -606,34 +606,54 @@
                  (fn [db [_ data]]
                    (assoc-in db [:roles :menu-tree] data)))
 
-(rf/reg-event-fx :users/open-import
-                 (fn [_ _]
-                   (let [input (.createElement js/document "input")]
-                     (set! (.-type input) "file")
-                     (set! (.-accept input) ".csv")
-                     (set! (.-onchange input) (fn [e] (when-let [file (-> e .-target .-files (aget 0))] (rf/dispatch [:users/import file]))))
-                     (.click input))
-                   {}))
+(rf/reg-event-db :users/open-import
+                 (fn [db _]
+                   (-> db
+                       (assoc-in [:users :import-visible?] true)
+                       (assoc-in [:users :import-file] nil))))
+
+(rf/reg-event-db :users/close-import
+                 (fn [db _]
+                   (assoc-in db [:users :import-visible?] false)))
+
+(rf/reg-event-db :users/set-import-file
+                 (fn [db [_ file]]
+                   (assoc-in db [:users :import-file] file)))
 
 (rf/reg-event-fx :users/import
-                 (fn [{:keys [db]} [_ file]]
-                   {:db db :api/import-users file}))
+                 (fn [{:keys [db]} _]
+                   (let [file (get-in db [:users :import-file])]
+                     (if file
+                       {:db (assoc-in db [:users :import-loading?] true)
+                        :api/import-users file}
+                       {:db db}))))
 
 (rf/reg-fx :api/import-users
            (fn [file]
              (api/import-users-csv file
+<<<<<<< HEAD
                                    (fn [r] (when (= 200 (:code r)) (antd/success! (str "成功导入 " (:imported (:data r)) " 个用户")) (rf/dispatch [:users/fetch {}])))
                                    (fn [_] (antd/error! "导入失败")))))
+=======
+                                   (fn [r]
+                                     (when (= 200 (:code r))
+                                       (.success js/antd.message (str "导入完成：成功 " (:success (:data r)) " 条，失败 " (:failed (:data r)) " 条"))
+                                       (rf/dispatch [:users/close-import])
+                                       (rf/dispatch [:users/fetch {}])))
+                                   (fn [_] (.error js/antd.message "导入失败")))))
+>>>>>>> f6f9cf7 (feat: 用户导入导出功能 (rc-l9a))
 
 (rf/reg-event-fx :users/export
                  (fn [{:keys [db]} _]
-                   {:db db :api/export-users nil}))
+                   (let [params (get-in db [:users :query-params] {})]
+                     {:db db :api/export-users params})))
 
 (rf/reg-fx :api/export-users
-           (fn [_]
+           (fn [params]
              (api/export-users-csv
+              params
               (fn [csv-data]
-                (let [blob (js/Blob. #js [csv-data] #js {:type "text/csv;charset=utf-8"})
+                (let [blob (js/Blob. #js [csv-data] #js {:type "text/csv;charset=utf-8;bom="\uFEFF""})
                       url (js/URL.createObjectURL blob)
                       link (.createElement js/document "a")]
                   (set! (.-href link) url)

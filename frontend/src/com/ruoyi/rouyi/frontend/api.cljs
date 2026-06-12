@@ -395,9 +395,21 @@
 
 (defn export-users-csv
   "导出用户CSV。"
-  [on-success on-error]
-  (request {:method :get :uri "/system/user/export"
-            :on-success on-success :on-error on-error}))
+  [params on-success on-error]
+  (ajax/ajax-request
+   {:method :get
+    :uri (str api-base "/system/user/export")
+    :params params
+    :headers (when-let [token (get-token)]
+               {"Authorization" (str "Bearer " token)})
+    :response-format {:content-type "text/csv"
+                      :description "CSV"
+                      :read (fn [xhrio] (.getResponseText xhrio))
+                      :type :text}
+    :handler (fn [[ok result]]
+               (if ok
+                 (on-success (:body result))
+                 (on-error result)))}))
 
 (defn import-users-csv
   "导入用户CSV。"

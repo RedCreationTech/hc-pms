@@ -111,6 +111,18 @@
             (fn [db _]
               (get-in db [:users :columns])))
 
+(rf/reg-sub :users/import-visible?
+            (fn [db _]
+              (get-in db [:users :import-visible?] false)))
+
+(rf/reg-sub :users/import-loading?
+            (fn [db _]
+              (get-in db [:users :import-loading?] false)))
+
+(rf/reg-sub :users/import-file
+            (fn [db _]
+              (get-in db [:users :import-file] nil)))
+
 (rf/reg-sub :online-users/items
             (fn [db _]
               (get-in db [:online-users :items])))

@@ -255,6 +255,41 @@
          [antd/button {:on-click #(rf/dispatch [:users/close-reset-password])} "取消"]
          [antd/button {:type "primary" :on-click #(rf/dispatch [:users/confirm-reset-password])} "确定"]]]])))
 
+(defn- import-modal []
+  (let [visible? @(rf/subscribe [:users/import-visible?])
+        loading? @(rf/subscribe [:users/import-loading?])
+        file @(rf/subscribe [:users/import-file])]
+    (when visible?
+      [:div {:style {:position "fixed" :top 0 :left 0 :right 0 :bottom 0
+                     :background "rgba(0,0,0,0.45)" :zIndex 1060
+                     :display "flex" :justifyContent "center" :alignItems "center"}}
+       [:div {:style {:background "#fff" :padding 24 :borderRadius 8 :width 480
+                      :boxShadow "0 6px 16px rgba(0,0,0,0.08)"}}
+        [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center"
+                       :marginBottom 16 :paddingBottom 12 :borderBottom "1px solid #e8e8e8"}}
+         [:h3 {:style {:margin 0 :fontSize 16}} "导入用户"]
+         [antd/button {:type "text" :size "small"
+                       :on-click #(rf/dispatch [:users/close-import])} "✕"]]
+        [:div {:style {:marginBottom 16}}
+         [:p {:style {:margin "0 0 12px 0" :fontSize 13 :color "#666"}}
+          "支持 CSV 格式，请先下载导入模板"]
+         [:a {:href "/api/system/user/importTemplate"
+              :download "user_import_template.csv"
+              :style {:color "#1677ff" :fontSize 13}}
+          "下载导入模板"]]
+        [antd/upload
+         {:accept ".csv"
+          :before-upload (fn [f] (rf/dispatch [:users/set-import-file f]) false)
+          :file-list (clj->js (when file [{:uid "1" :name (.-name file) :status "done"}]))
+          :max-count 1}
+         [antd/button {:icon (r/as-element [:> UploadOutlined])} "选择 CSV 文件"]]
+        [:div {:style {:display "flex" :justifyContent "flex-end" :gap 8 :marginTop 20 :paddingTop 16 :borderTop "1px solid #e8e8e8"}}
+         [antd/button {:on-click #(rf/dispatch [:users/close-import])} "取消"]
+         [antd/button {:type "primary"
+                       :loading loading?
+                       :disabled (nil? file)
+                       :on-click #(rf/dispatch [:users/import])} "导入"]]]])))
+
 (defn user-page []
   (let [items @(rf/subscribe [:users/items])
         total @(rf/subscribe [:users/total])
@@ -282,4 +317,5 @@
                                :onChange (fn [page pageSize]
                                            (rf/dispatch [:users/change-page page pageSize]))}}]
      [form-modal]
-     [reset-password-modal]]))
+     [reset-password-modal]
+     [import-modal]]))

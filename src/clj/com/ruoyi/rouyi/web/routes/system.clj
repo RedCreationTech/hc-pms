@@ -57,7 +57,7 @@
     ["/export" {:get {:summary "导出用户" :description "导出用户数据为CSV文件"
                       :handler (partial im/export-users {:user-service user-service})}}]
     ["/importTemplate" {:get {:summary "下载导入模板" :description "下载CSV导入模板文件"
-                              :handler (partial user/import-template {})}}]
+                              :handler (partial im/import-template {})}}]
     ["/deptTree" {:get {:summary "部门树" :description "获取部门树（用于选择）"
                             :handler (partial user/auth-role {:user-service user-service})}
                       :put {:summary "分配角色" :description "分配用户角色"
