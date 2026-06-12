@@ -168,9 +168,25 @@
          [antd/form-item {:label "路由地址"}
           [antd/input {:value (:path form-data "")
                        :on-change #(rf/dispatch [:menus/update-form :path (.. % -target -value)])}]]
+         [antd/form-item {:label "路由名称"}
+          [antd/input {:value (:route_name form-data "")
+                       :on-change #(rf/dispatch [:menus/update-form :route_name (.. % -target -value)])}]]
          [antd/form-item {:label "组件路径"}
           [antd/input {:value (:component form-data "")
-                       :on-change #(rf/dispatch [:menus/update-form :component (.. % -target -value)])}]]])
+                       :on-change #(rf/dispatch [:menus/update-form :component (.. % -target -value)])}]]
+         [antd/form-item {:label "路由参数"}
+          [antd/input {:value (:query form-data "")
+                       :on-change #(rf/dispatch [:menus/update-form :query (.. % -target -value)])}]]
+         [antd/form-item {:label "是否外链"}
+          [antd/radio-group {:value (:is_frame form-data "0")
+                             :on-change #(rf/dispatch [:menus/update-form :is_frame (.. % -target -value)])}
+           [antd/radio {:value "0"} "否"]
+           [antd/radio {:value "1"} "是"]]]
+         [antd/form-item {:label "是否缓存"}
+          [antd/radio-group {:value (:is_cache form-data "0")
+                             :on-change #(rf/dispatch [:menus/update-form :is_cache (.. % -target -value)])}
+           [antd/radio {:value "0"} "否"]
+           [antd/radio {:value "1"} "是"]]]])
       (when (not= menu-type "M")
         [antd/form-item {:label "权限标识"}
          [antd/input {:value (:perms form-data "")

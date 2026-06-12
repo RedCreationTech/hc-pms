@@ -26,7 +26,7 @@
   (query-fn :update-menu! (merge {:menu_name nil :parent_id nil :order_num nil :path nil
                                   :component nil :query nil :route_name nil :is_frame nil
                                   :is_cache nil :menu_type nil :visible nil :status nil
-                                  :perms nil :icon nil :update_by nil}
+                                  :perms nil :icon nil :create_by nil :create_time nil :update_by nil}
                                  params)))
 
 (defn delete-menu!

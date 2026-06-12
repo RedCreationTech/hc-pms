@@ -1492,7 +1492,7 @@
                    (-> db
                        (assoc-in [:menus :modal-visible?] true)
                        (assoc-in [:menus :editing?] false)
-                       (assoc-in [:menus :form-data] {:menu_type "M" :order_num 0 :status "0" :visible "0"}))))
+                       (assoc-in [:menus :form-data] {:menu_type "M" :order_num 0 :status "0" :visible "0" :is_frame "0" :is_cache "0"}))))
 
 (rf/reg-event-db :menus/close-modal
                  (fn [db _]
