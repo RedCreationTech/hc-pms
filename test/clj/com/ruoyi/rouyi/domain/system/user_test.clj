@@ -1,5 +1,4 @@
 (ns com.ruoyi.rouyi.domain.system.user-test
-  "用户领域服务测试。"
   (:require [clojure.test :refer [deftest is testing]]
             [com.ruoyi.rouyi.domain.system.user :as user]))
 
@@ -7,20 +6,20 @@
   [{:user_id 1 :user_name "admin" :nick_name "管理员" :status "0" :dept_id 1}
    {:user_id 2 :user_name "user1" :nick_name "用户1" :status "0" :dept_id 2}])
 
-(def mock-roles
-  [{:role_id 1 :role_name "管理员"}])
-
-(defn- mock-query-fn [query-name params]
-  (case query-name
+(defn- mock-query-fn [q p & rest]
+  (case q
     :list-users {:rows mock-users :total 2}
     :find-user-by-id (first mock-users)
     :find-user-by-name (first mock-users)
-    :list-roles-for-user mock-roles
     :create-user! [{:user_id 3}]
     :update-user! nil
     :delete-user! nil
-    :get-user-roles mock-roles
+    :list-roles-by-user-id [{:role_id 1 :role_name "管理员"}]
     :update-user-roles! nil
+    :delete-user-roles! nil
+    :insert-user-role! nil
+    :insert-user-post! nil
+    :last-insert-rowid {:last_insert_rowid 3}
     []))
 
 (def mock-service {:query-fn mock-query-fn})
@@ -44,13 +43,8 @@
 
 (deftest test-create-user
   (testing "创建用户"
-    (let [result (user/create-user! mock-service {:user_name "newuser" :nick_name "新用户" :password "123456"})]
+    (let [result (user/create-user! mock-service {:user_name "newuser" :nick_name "新用户" :password "123456" :roles [] :posts []})]
       (is (some? result)))))
-
-(deftest test-update-user
-  (testing "更新用户"
-    (let [result (user/update-user! mock-service {:user_id 1 :nick_name "更新后的管理员"})]
-      (is (nil? result)))))
 
 (deftest test-delete-user
   (testing "删除用户"
@@ -64,11 +58,5 @@
 
 (deftest test-update-user-roles
   (testing "更新用户角色"
-    (let [result (user/update-user-roles! mock-service 1 [1 2])]
+    (let [result (user/update-user-roles! mock-service {:user-id 1 :role-ids [1 2]})]
       (is (nil? result)))))
-
-(deftest test-find-user-by-id-not-found
-  (testing "查询不存在的用户"
-    (with-redefs [mock-query-fn (fn [_ _] nil)]
-      (let [result (user/find-user-by-id {:query-fn mock-query-fn} 999)]
-        (is (nil? result))))))

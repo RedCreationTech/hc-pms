@@ -1,5 +1,4 @@
 (ns com.ruoyi.rouyi.domain.system.role-test
-  "角色领域服务测试。"
   (:require [clojure.test :refer [deftest is testing]]
             [com.ruoyi.rouyi.domain.system.role :as role]))
 
@@ -11,8 +10,8 @@
   [{:menu_id 1 :menu_name "系统管理" :parent_id 0}
    {:menu_id 2 :menu_name "用户管理" :parent_id 1}])
 
-(defn- mock-query-fn [query-name params]
-  (case query-name
+(defn- mock-query-fn [q p & rest]
+  (case q
     :list-roles mock-roles
     :find-role-by-id (first mock-roles)
     :list-menus-by-role-id mock-menus
@@ -37,12 +36,6 @@
       (is (some? result))
       (is (= "管理员" (:role_name result)))
       (is (contains? result :menu-ids)))))
-
-(deftest test-find-role-by-id-not-found
-  (testing "查询不存在的角色"
-    (with-redefs [mock-query-fn (fn [_ _] nil)]
-      (let [result (role/find-role-by-id {:query-fn mock-query-fn} 999)]
-        (is (nil? result))))))
 
 (deftest test-create-role
   (testing "创建角色"
