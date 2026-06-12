@@ -1179,6 +1179,26 @@
                          (assoc-in [:tabs :items] (if home-tab [home-tab] []))
                          (assoc-in [:tabs :active] :dashboard)))))
 
+(rf/reg-event-db :tabs/remove-right
+                 (fn [db [_ key]]
+                   (let [tabs (get-in db [:tabs :items] [])
+                         idx (first (keep-indexed #(when (= (:key %2) key) %1) tabs))
+                         remaining (if idx (subvec tabs 0 (inc idx)) tabs)]
+                     (-> db
+                         (assoc-in [:tabs :items] remaining)
+                         (assoc-in [:tabs :active] key)))))
+
+(rf/reg-fx :tabs/fullscreen!
+           (fn [_]
+             (let [el (or (.-documentElement js/document) (.-body js/document))]
+               (if (.-fullscreenElement js/document)
+                 (.exitFullscreen js/document)
+                 (.requestFullscreen el)))))
+
+(rf/reg-event-fx :tabs/fullscreen
+                 (fn [_ _]
+                   {:tabs/fullscreen! nil}))
+
 ;; ────── 菜单管理 ──────
 
 (rf/reg-event-db :menus/set-list

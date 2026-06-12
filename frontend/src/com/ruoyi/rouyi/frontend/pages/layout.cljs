@@ -3,6 +3,8 @@
   (:require
    [reagent.core :as r]
    [re-frame.core :as rf]
+   [reagent.hooks :as hooks]
+   [com.ruoyi.rouyi.frontend.antd :as antd]
    ["antd" :refer [Layout Menu Button Space Badge Avatar Dropdown Divider]]
    ["@ant-design/icons" :refer [DashboardOutlined SettingOutlined
                                 FileTextOutlined UserOutlined
@@ -18,6 +20,8 @@
                                 ContainerOutlined KeyOutlined
                                 SearchOutlined GithubOutlined
                                 QuestionCircleOutlined ExpandOutlined
+                                LeftOutlined RightOutlined
+                                ReloadOutlined DownOutlined
                                 CompressOutlined LogoutOutlined
                                 MenuFoldOutlined MenuUnfoldOutlined]]
    [com.ruoyi.rouyi.frontend.router :as router]
@@ -48,64 +52,145 @@
 
 (defn- tab-context-menu
   "标签页右键菜单项"
-  [key]
+  [key has-others? has-right?]
   (clj->js
    [{:key "close-current" :label "关闭当前" :disabled (= key :dashboard)}
-    {:key "close-others" :label "关闭其他"}
+    {:key "close-others" :label "关闭其他" :disabled (not has-others?)}
+    {:key "close-right" :label "关闭右侧" :disabled (not has-right?)}
     {:key "close-all" :label "关闭全部"}
     {:type "divider"}
+    {:key "fullscreen" :label "全屏显示"}
     {:key "refresh" :label "刷新当前页"}]))
 
 (defn- tab-item
   "单个Tab项组件"
   [{:keys [key label closable active?]}]
-  [:> Dropdown {:menu {:items (tab-context-menu key)
-                       :onClick (fn [e]
-                                  (case (.-key e)
-                                    "close-current" (rf/dispatch [:tabs/close key])
-                                    "close-others" (rf/dispatch [:tabs/remove-others key])
-                                    "close-all" (rf/dispatch [:tabs/remove-all])
-                                    "refresh" (.reload js/location)
-                                    nil))}
-                :trigger (clj->js ["contextMenu"])}
-   [:div {:style {:display "inline-flex"
-                  :alignItems "center"
-                  :padding "6px 16px"
-                  :margin "0 2px"
-                  :background (if active? "var(--ant-color-primary, #1677ff)" "var(--ant-color-bg-elevated, #f5f5f5)")
-                  :color (if active? "#fff" "var(--ant-color-text, #666)")
-                  :borderRadius "4px 4px 0 0"
-                  :cursor "pointer"
-                  :fontSize 13
-                  :transition "all 0.2s"
-                  :border (when active? (str "1px solid var(--ant-color-primary, #1677ff)"))
-                  :borderBottom (when active? "1px solid var(--ant-color-bg-layout, #fff)")
-                  :whiteSpace "nowrap"}
-          :on-click #(do (rf/dispatch [:tabs/activate key]) (rf/dispatch [:navigate (keyword key)]))}
-    (when (= key :dashboard)
-      [:> HomeOutlined {:style {:marginRight 6 :fontSize 12}}])
-    [:span label]
-    (when (and closable (not= key :dashboard))
-      [:> CloseOutlined {:style {:marginLeft 8 :fontSize 10 :opacity 0.6}
-                         :on-click (fn [e]
-                                     (.stopPropagation e)
-                                     (rf/dispatch [:tabs/close key]))}])]])
+  (let [tabs @(rf/subscribe [:tabs/items])
+        idx (.indexOf (clj->js (mapv :key tabs)) key)
+        has-others? (> (count tabs) 1)
+        has-right? (< idx (dec (count tabs)))]
+    [:> Dropdown {:menu {:items (tab-context-menu key has-others? has-right?)
+                         :onClick (fn [e]
+                                    (case (.-key e)
+                                      "close-current" (rf/dispatch [:tabs/close key])
+                                      "close-others" (rf/dispatch [:tabs/remove-others key])
+                                      "close-right" (rf/dispatch [:tabs/remove-right key])
+                                      "close-all" (rf/dispatch [:tabs/remove-all])
+                                      "fullscreen" (rf/dispatch [:tabs/fullscreen])
+                                      "refresh" (.reload js/location)
+                                      nil))}
+                  :trigger (clj->js ["contextMenu"])}
+     [:div {:style {:display "inline-flex"
+                    :alignItems "center"
+                    :height 30
+                    :padding "0 12px"
+                    :marginRight 4
+                    :background (if active?
+                                  "var(--ant-color-primary, #1677ff)"
+                                  "var(--ant-color-bg-container, #fff)")
+                    :color (if active? "#fff" "var(--ant-color-text-secondary, #666)")
+                    :borderRadius 6
+                    :cursor "pointer"
+                    :fontSize 13
+                    :transition "all 0.2s"
+                    :border "1px solid"
+                    :borderColor (if active?
+                                   "var(--ant-color-primary, #1677ff)"
+                                   "var(--ant-color-border, #d9d9d9)")
+                    :boxShadow (when active? "0 1px 4px rgba(0,0,0,0.12)")
+                    :whiteSpace "nowrap"}
+            :on-click #(do (rf/dispatch [:tabs/activate key]) (rf/dispatch [:navigate (keyword key)]))}
+      (when (= key :dashboard)
+        [:> HomeOutlined {:style {:marginRight 6 :fontSize 12}}])
+      [:span label]
+      (when (and closable (not= key :dashboard))
+        [:> CloseOutlined {:style {:marginLeft 8 :fontSize 10
+                                   :opacity (if active? 0.8 0.4)
+                                   :transition "opacity 0.2s"}
+                           :on-click (fn [e]
+                                       (.stopPropagation e)
+                                       (rf/dispatch [:tabs/close key]))}])]]))
+
+(defn- scroll-tabs
+  "左右滚动标签页"
+  [container-ref direction]
+  (when-let [el (.-current container-ref)]
+    (let [scroll-amount 200]
+      (.scrollBy el #js {:left (* direction scroll-amount) :behavior "smooth"}))))
 
 (defn- tab-bar
-  "Tab栏组件"
+  "Tab栏组件 — RuoYi 风格"
   []
-  (let [tabs @(rf/subscribe [:tabs/items])
-        active @(rf/subscribe [:tabs/active])]
+  (let [container-ref (hooks/use-ref nil)
+        tabs @(rf/subscribe [:tabs/items])
+        active @(rf/subscribe [:tabs/active])
+        ;; 检查是否有滚动条
+        [show-scroll set-show-scroll!] (hooks/use-state false)]
+    (hooks/use-effect
+     (fn []
+       (when-let [el (.-current container-ref)]
+         (let [check-scroll #(set-show-scroll! (or (>= (.-scrollWidth el) (.-clientWidth el))))]
+           (check-scroll)
+           (.addEventListener el "resize" check-scroll)
+           (fn [] (.removeEventListener el "resize" check-scroll)))))
+     [(count tabs)])
     [:div {:style {:borderBottom "1px solid var(--ant-color-border-secondary, #f0f0f0)"
-                   :padding "8px 16px 0"
+                   :padding "6px 12px 0"
                    :display "flex"
-                   :alignItems "flex-end"
-                   :overflowX "auto"
-                   :whiteSpace "nowrap"
-                   :minHeight 44}}
-     (for [tab tabs]
-       ^{:key (:key tab)}
-       [tab-item (assoc tab :active? (= (:key tab) active))])]))
+                   :alignItems "center"
+                   :height 40
+                   :background "var(--ant-color-bg-container, #fff)"}}
+     ;; 左滚动按钮
+     (when show-scroll
+       [:div {:style {:cursor "pointer" :padding "0 4px" :color "var(--ant-color-text-secondary, #999)"
+                      :fontSize 16 :userSelect "none"}
+              :on-click #(scroll-tabs container-ref -1)}
+        [:> LeftOutlined {:style {:fontSize 12}}]])
+     ;; Tab 容器
+     [:div {:ref container-ref
+            :style {:flex 1
+                    :display "flex"
+                    :alignItems "flex-end"
+                    :overflowX "auto"
+                    :overflowY "hidden"
+                    :whiteSpace "nowrap"
+                    :scrollbarWidth "none"
+                    ::WebkitOverflowScrolling "touch"
+                    :msOverflowStyle "none"}}
+      (for [tab tabs]
+        ^{:key (:key tab)}
+        [tab-item (assoc tab :active? (= (:key tab) active))])]
+     ;; 右滚动按钮
+     (when show-scroll
+       [:div {:style {:cursor "pointer" :padding "0 4px" :color "var(--ant-color-text-secondary, #999)"
+                      :fontSize 16 :userSelect "none"}
+              :on-click #(scroll-tabs container-ref 1)}
+        [:> RightOutlined {:style {:fontSize 12}}]])
+     ;; 操作按钮组
+     [:div {:style {:display "flex" :alignItems "center" :marginLeft 8 :gap 4}}
+      [antd/tooltip {:title "刷新当前页"}
+       [:> ReloadOutlined {:style {:cursor "pointer" :color "var(--ant-color-text-secondary, #999)"
+                                   :fontSize 14 :padding "4px"}
+                           :on-click #(.reload js/location)}]]
+      [antd/tooltip {:title "全屏显示"}
+       [:> ExpandOutlined {:style {:cursor "pointer" :color "var(--ant-color-text-secondary, #999)"
+                                   :fontSize 14 :padding "4px"}
+                           :on-click #(rf/dispatch [:tabs/fullscreen])}]]
+      [antd/dropdown {:menu {:items (clj->js [{:key "close-others" :label "关闭其他"
+                                               {:key "close-right" :label "关闭右侧"}
+                                               {:key "close-all" :label "关闭全部"}
+                                               {:type "divider"}
+                                               {:key "refresh" :label "刷新当前页"}}])
+                             :onClick (fn [e]
+                                        (let [active-tab @(rf/subscribe [:tabs/active])]
+                                          (case (.-key e)
+                                            "close-others" (rf/dispatch [:tabs/remove-others active-tab])
+                                            "close-right" (rf/dispatch [:tabs/remove-right active-tab])
+                                            "close-all" (rf/dispatch [:tabs/remove-all])
+                                            "refresh" (.reload js/location)
+                                            nil)))}}
+       [:> DownOutlined {:style {:cursor "pointer" :color "var(--ant-color-text-secondary, #999)"
+                                 :fontSize 12 :padding "4px"}}]]]]))
 
 ;; ─── 动态菜单构建 ──────────────────────────────────────────────────────
 
