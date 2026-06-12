@@ -36,7 +36,11 @@ INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component,
 (13, '在线用户', 2, 3, 'online', 'monitor/online/index', 'C', '0', '0', 'monitor:online:list', 'online'),
 (14, '定时任务', 2, 4, 'job', 'monitor/job/index', 'C', '0', '0', 'monitor:job:list', 'job'),
 (15, '代码生成', 2, 5, 'gen', 'tool/gen/index', 'C', '0', '0', 'tool:gen:list', 'code'),
-(16, '系统接口', 2, 6, 'swagger', 'tool/swagger/index', 'C', '0', '0', 'tool:swagger:list', 'swagger');
+(16, '系统接口', 2, 6, 'swagger', 'tool/swagger/index', 'C', '0', '0', 'tool:swagger:list', 'swagger'),
+(17, '服务监控', 2, 7, 'server', 'monitor/server/index', 'C', '0', '0', 'monitor:server:list', 'server'),
+(18, '缓存监控', 2, 8, 'cache', 'monitor/cache/index', 'C', '0', '0', 'monitor:cache:list', 'cache'),
+(19, '数据监控', 2, 9, 'datasource', 'monitor/datasource/index', 'C', '0', '0', 'monitor:datasource:list', 'database'),
+(20, '表单构建', 2, 10, 'build', 'tool/build/index', 'C', '0', '0', 'tool:build:list', 'build');
 --;;
 -- 用户查询
 INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, menu_type, visible, status, perms, icon) VALUES
@@ -64,7 +68,7 @@ INSERT INTO sys_user_role (user_id, role_id) VALUES (1, 1);
 --;;
 -- 初始化角色菜单关联 (admin拥有所有菜单)
 INSERT INTO sys_role_menu (role_id, menu_id) VALUES
-(1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9), (1, 10), (1, 11), (1, 12), (1, 13), (1, 14), (1, 15), (1, 16),
+(1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9), (1, 10), (1, 11), (1, 12), (1, 13), (1, 14), (1, 15), (1, 16), (1, 17), (1, 18), (1, 19), (1, 20),
 (1, 100), (1, 101), (1, 102), (1, 103), (1, 104), (1, 105), (1, 106), (1, 107), (1, 108), (1, 109), (1, 110), (1, 111), (1, 112), (1, 113);
 --;;
 -- 初始化字典类型

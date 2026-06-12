@@ -42,6 +42,7 @@
    [com.ruoyi.rouyi.frontend.pages.login-log :as login-log]
    [com.ruoyi.rouyi.frontend.pages.server :as server]
    [com.ruoyi.rouyi.frontend.pages.cache :as cache]
+   [com.ruoyi.rouyi.frontend.pages.datasource :as datasource]
    [com.ruoyi.rouyi.frontend.pages.gen :as gen]
    [com.ruoyi.rouyi.frontend.pages.swagger :as swagger]
    [com.ruoyi.rouyi.frontend.pages.form-builder :as form-builder]
@@ -232,8 +233,10 @@
    :job "monitor/job"
    :server "monitor/server"
    :cache "monitor/cache"
+   :datasource "monitor/datasource"
    :gen "monitor/gen"
    :swagger "monitor/swagger"
+   :build "tool/build"
    :profile "system/user/profile"
    :dashboard "dashboard"})
 
@@ -450,6 +453,7 @@
              :login-log [login-log/login-log-page]
              :server [server/server-page]
              :cache [cache/cache-page]
+             :datasource [datasource/datasource-page]
              :gen [gen/gen-page]
              :swagger [swagger/swagger-page]
              :build [form-builder/form-builder-page]
