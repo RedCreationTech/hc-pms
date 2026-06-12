@@ -3,7 +3,8 @@
   (:require
     [reagent.core :as r]
     [reagent.dom.client :as rdc]
-    [re-frame.core :as rf]
+    [reagent.hooks :as hooks]
+   [re-frame.core :as rf]
     ["antd" :refer [ConfigProvider]]
     [com.ruoyi.rouyi.frontend.events]
     [com.ruoyi.rouyi.frontend.subs]
@@ -20,6 +21,15 @@
         theme-mode @(rf/subscribe [:theme/mode])
         primary-color @(rf/subscribe [:theme/primary-color])
         algorithm @(rf/subscribe [:theme/algorithm])]
+    ;; 设置 body 背景色以匹配主题
+    (hooks/use-effect
+     (fn []
+       (let [body (.-body js/document)
+             is-dark? (= theme-mode :dark)]
+         (set! (.-backgroundColor (.-style body))
+               (if is-dark? "#000" "#f5f5f5"))
+         js/undefined))
+     [theme-mode])
     (if logged-in?
       [:> ConfigProvider {:theme (theme/theme-config
                                   {:mode theme-mode
