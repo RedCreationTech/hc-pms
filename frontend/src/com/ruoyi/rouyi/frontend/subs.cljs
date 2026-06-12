@@ -371,6 +371,9 @@
 (rf/reg-sub :gen/preview-data (fn [db _] (get-in db [:gen :preview-data])))
 (rf/reg-sub :gen/preview-loading? (fn [db _] (get-in db [:gen :preview-loading?] false)))
 (rf/reg-sub :gen/preview-visible? (fn [db _] (get-in db [:gen :preview-visible?] false)))
+(rf/reg-sub :file/items (fn [db _] (get-in db [:file :items] [])))
+(rf/reg-sub :file/loading? (fn [db _] (get-in db [:file :loading?] false)))
+
 (rf/reg-sub :fb/items (fn [db _] (get-in db [:fb :items] [])))
 (rf/reg-sub :fb/selected-id (fn [db _] (get-in db [:fb :selected-id])))
 (rf/reg-sub :fb/code-visible? (fn [db _] (get-in db [:fb :code-visible?] false)))

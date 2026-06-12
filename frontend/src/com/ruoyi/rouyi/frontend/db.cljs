@@ -32,6 +32,7 @@
    :profile {:loading? false}
    :server {:loading? false :data nil}
    :cache {:loading? false :data nil :keys nil}
+   :file {:items [] :loading? false}
    :fb {:items [] :selected-id nil :code-visible? false}
    :gen {:tables-loading? false :tables [] :selected-tables [] :preview-loading? false :preview-visible? false}
    :notification nil})

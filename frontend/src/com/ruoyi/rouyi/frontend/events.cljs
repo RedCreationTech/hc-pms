@@ -885,6 +885,41 @@
                  (fn [db _]
                    (assoc-in db [:oper-logs :detail-visible?] false)))
 
+;; ────── 文件管理 ──────
+
+(rf/reg-event-db :file/set-list
+                 (fn [db [_ data]]
+                   (-> db (assoc-in [:file :items] data) (assoc-in [:file :loading?] false))))
+
+(rf/reg-event-fx :file/fetch
+                 (fn [{:keys [db]} _]
+                   {:db (assoc-in db [:file :loading?] true) :api/file-list nil}))
+
+(rf/reg-fx :api/file-list
+           (fn [_] (api/file-list (fn [r] (when (= 200 (:code r)) (rf/dispatch [:file/set-list (:data r)]))) (fn [_]))))
+
+(rf/reg-event-fx :file/upload
+                 (fn [_ [_ file]] {:api/file-upload file}))
+
+(rf/reg-fx :api/file-upload
+           (fn [file]
+             (api/file-upload file
+                              (fn [r] (when (= 200 (:code r)) (.success js/antd.message "上传成功") (rf/dispatch [:file/fetch])))
+                              (fn [_] (.error js/antd.message "上传失败")))))
+
+(rf/reg-event-fx :file/download
+                 (fn [_ [_ filename]]
+                   (api/file-download filename) {}))
+
+(rf/reg-event-fx :file/delete
+                 (fn [_ [_ filename]] {:api/file-delete filename}))
+
+(rf/reg-fx :api/file-delete
+           (fn [filename]
+             (api/file-delete filename
+                              (fn [r] (when (= 200 (:code r)) (.success js/antd.message "删除成功") (rf/dispatch [:file/fetch])))
+                              (fn [_] (.error js/antd.message "删除失败")))))
+
 ;; ────── 表单构建器 ──────
 
 (let [counter (atom 0)]

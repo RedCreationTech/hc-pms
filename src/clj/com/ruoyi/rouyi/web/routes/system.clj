@@ -15,6 +15,7 @@
    [com.ruoyi.rouyi.web.controllers.monitor :as monitor]
    [com.ruoyi.rouyi.web.controllers.system.cache :as cache]
    [com.ruoyi.rouyi.web.controllers.system.import-export :as im]
+   [com.ruoyi.rouyi.web.controllers.system.file :as file]
    [com.ruoyi.rouyi.web.middleware.auth :as auth-mw]
 
    [malli.util :as mu]))
@@ -198,4 +199,14 @@
     ["/keys" {:get {:summary "缓存键列表" :description "获取所有缓存键名"
                     :handler (partial cache/cache-keys {})}}]
     ["/clear" {:delete {:summary "清空缓存" :description "清空所有缓存数据"
-                        :handler (partial cache/cache-clear {})}}]]])
+                        :handler (partial cache/cache-clear {})}}]]
+
+   ["/file"
+    ["" {:get {:summary "文件列表" :description "查询上传文件列表"
+               :handler (partial file/list-files {})}
+         :post {:summary "上传文件" :description "上传文件到服务器"
+                :handler (partial file/upload-file {})}}]
+    ["/:filename" {:get {:summary "下载文件" :description "下载指定文件"
+                         :handler (partial file/download-file {})}
+                   :delete {:summary "删除文件" :description "删除指定文件"
+                            :handler (partial file/delete-file {})}}]]])
