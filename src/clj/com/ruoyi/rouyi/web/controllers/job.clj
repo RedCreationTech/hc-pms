@@ -2,6 +2,7 @@
   "定时任务控制器。"
   (:require
    [clojure.string :as str]
+   [clojure.walk :as walk]
    [com.ruoyi.rouyi.infra.scheduler :as scheduler-core]
    [com.ruoyi.rouyi.infra.cron :as cron]
    [ring.util.response :as response]))
@@ -15,6 +16,12 @@
 (defn- fail [msg]
   (-> (response/response {:code 500 :msg msg})
       (response/content-type "application/json")))
+
+(defn- current-user-name [request]
+  (get-in request [:identity :user-name] ""))
+
+(defn- body-params [request]
+  (walk/keywordize-keys (:body-params request {})))
 
 (defn list-jobs
   [{:keys [query-fn]} request]
@@ -37,7 +44,10 @@
 (defn create-job
   [{:keys [query-fn]} request]
   (try
-    (let [params (:body-params request)
+    (let [params (-> {:job_name nil :job_group nil :invoke_target nil :cron_expression nil
+                     :misfire_policy nil :concurrent nil :status nil :remark nil :create_by nil}
+                     (merge (body-params request))
+                     (assoc :create_by (current-user-name request)))
           _ (validate-job! params)
           _ (query-fn :create-job! params)
           id (:job_id (query-fn :last-insert-job-id {}))]
@@ -51,7 +61,11 @@
   [{:keys [query-fn]} request]
   (try
     (let [job-id (parse-long (get-in request [:path-params :id]))
-          params (assoc (:body-params request) :job_id job-id)
+          params (-> {:job_name nil :job_group nil :invoke_target nil :cron_expression nil
+                     :misfire_policy nil :concurrent nil :status nil :remark nil :update_by nil}
+                     (merge (body-params request))
+                     (assoc :job_id job-id)
+                     (assoc :update_by (current-user-name request)))
           _ (validate-job! params)]
       (query-fn :update-job! params)
       (when-let [job (query-fn :find-job-by-id {:job_id job-id})]
@@ -102,9 +116,12 @@
   "修改任务状态。"
   [{:keys [query-fn]} request]
   (let [job-id (parse-long (get-in request [:path-params :id]))
-        status (get-in request [:body-params :status])
+        status (:status (body-params request))
         job (query-fn :find-job-by-id {:job_id job-id})]
-    (query-fn :update-job! {:job_id job-id :status status})
+    (query-fn :update-job! (merge {:job_id nil :job_name nil :job_group nil :invoke_target nil
+                                   :cron_expression nil :misfire_policy nil :concurrent nil
+                                   :status nil :remark nil :update_by nil}
+                                  {:job_id job-id :status status :update_by (current-user-name request)}))
     (when job
       (if (= "0" status)
         (scheduler-core/resume-job! job-id (:job_group job))
