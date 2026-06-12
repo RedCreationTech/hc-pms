@@ -613,6 +613,29 @@
             :params {:tables tables}
             :on-success on-success :on-error on-error}))
 
+(defn gen-download
+  "下载生成的代码 ZIP。"
+  [tables]
+  (let [token (get-token)
+        headers (if token {"Authorization" (str "Bearer " token)} {})]
+    (-> (js/fetch (str api-base "/tool/gen/download")
+                  (clj->js {:method "POST"
+                            :headers (clj->js (assoc headers "Content-Type" "application/json"))
+                            :body (js/JSON.stringify (clj->js {:tables tables}))}))
+        (.then (fn [resp]
+                 (if (.-ok resp)
+                   (.blob resp)
+                   (throw (js/Error. (str "Download failed: " (.-status resp)))))))
+        (.then (fn [blob]
+                 (let [url (js/URL.createObjectURL blob)
+                       a (js/document.createElement "a")]
+                   (set! (.-href a) url)
+                   (set! (.-download a) "gen-code.zip")
+                   (.appendChild (.-body js/document) a)
+                   (.click a)
+                   (.removeChild (.-body js/document) a)
+                   (js/URL.revokeObjectURL url)))))))
+
 ;; ─── 字典类型 CRUD ────────────────────────────────────────────────────────────
 
 (defn create-dict-type

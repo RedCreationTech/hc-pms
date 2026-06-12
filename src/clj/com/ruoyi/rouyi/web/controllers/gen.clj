@@ -5,9 +5,10 @@
    [ring.util.response :as response]
    [clojure.java.io :as io]
    [clojure.string :as str])
-  (:import [java.io File]
+  (:import [java.io File FileOutputStream]
            [java.time LocalDateTime]
-           [java.time.format DateTimeFormatter]))
+           [java.time.format DateTimeFormatter]
+           [java.util.zip ZipOutputStream ZipEntry]))
 
 (defn- ok
   ([data] (ok 200 "操作成功" data))
@@ -92,3 +93,52 @@
              :written written
              :routes (:backend-routes code)}))
       (ok 500 "生成失败" {:error "无法生成代码"}))))
+
+(defn- zip-directory! [src-dir ^File zip-file]
+  "将目录打包成 zip 文件。"
+  (with-open [zos (ZipOutputStream. (FileOutputStream. zip-file))]
+    (doseq [file (file-seq (io/file src-dir))
+            :when (.isFile file)]
+      (let [entry-name (.replace (.getPath file) (str src-dir File/separator) "")]
+        (.putNextEntry zos (ZipEntry. entry-name))
+        (io/copy file zos)
+        (.closeEntry zos))))
+  zip-file)
+
+(defn- write-generated-to-dir! [base-dir code]
+  "将单个表的生成代码写入临时目录。"
+  (let [kebab (:kebab-name code)
+        ts (timestamp)
+        table-name (:table-name code)]
+    (doseq [[path content]
+            [[(str "backend/src/clj/com/ruoyi/rouyi/domain/system/" kebab ".clj") (:backend-domain code)]
+             [(str "backend/src/clj/com/ruoyi/rouyi/web/controllers/system/" kebab ".clj") (:backend-controller code)]
+             [(str "backend/resources/sql/" kebab ".sql") (:backend-sql-queries code)]
+             [(str "backend/resources/migrations-sqlite/" ts "_" kebab ".up.sql") (:migration-up code)]
+             [(str "backend/resources/migrations-sqlite/" ts "_" kebab ".down.sql")
+              (str "DROP TABLE IF EXISTS " table-name ";")]
+             [(str "frontend/src/com/ruoyi/rouyi/frontend/api/" kebab ".cljs") (:frontend-api code)]
+             [(str "frontend/src/com/ruoyi/rouyi/frontend/pages/" kebab ".cljs") (:frontend-page code)]
+             [(str "frontend/src/com/ruoyi/rouyi/frontend/events/" kebab ".cljs") (:frontend-events code)]
+             [(str "frontend/src/com/ruoyi/rouyi/frontend/subs/" kebab ".cljs") (:frontend-subs code)]]]
+      (when (seq content)
+        (write-file! (str base-dir File/separator path) content)))))
+
+(defn download-code
+  "批量生成代码并打包成 ZIP 下载。"
+  [{:keys [gen-service]} request]
+  (let [table-names (get-in request [:body-params :tables] [])
+        codes (mapv #(gen-service/generate-code gen-service %) table-names)
+        temp-dir (io/file (str "target/gen-download-" (timestamp)))
+        zip-file (io/file (str (.getPath temp-dir) ".zip"))]
+    (if (empty? codes)
+      (ok 400 "请选择要生成的表" {})
+      (do
+        (.mkdirs temp-dir)
+        (doseq [code codes]
+          (write-generated-to-dir! (.getPath temp-dir) code))
+        (zip-directory! (.getPath temp-dir) zip-file)
+        (.deleteOnExit zip-file)
+        (-> (response/file-response (.getPath zip-file))
+            (response/content-type "application/zip")
+            (response/header "Content-Disposition" "attachment; filename=\"gen-code.zip\""))))))

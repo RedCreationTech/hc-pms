@@ -1507,21 +1507,8 @@
 
 (rf/reg-fx :api/gen-download
            (fn [tables]
-             (api/gen-generate tables
-                               (fn [r]
-                                 (when (= 200 (:code r))
-                                   (let [data (:data r)
-                                         blob (js/Blob. #js [(js/JSON.stringify (clj->js data) nil 2)] #js {:type "application/json"})
-                                         url (js/URL.createObjectURL blob)
-                                         link (.createElement js/document "a")]
-                                     (set! (.-href link) url)
-                                     (.setAttribute link "download" "generated_code.json")
-                                     (.appendChild js/document.body link)
-                                     (.click link)
-                                     (.removeChild js/document.body link)
-                                     (js/URL.revokeObjectURL url)
-                                     (antd/success! "下载成功"))))
-                               (fn [_] (antd/error! "下载失败")))))
+             (when (seq tables)
+               (api/gen-download tables))))
 
 ;; ────── 代码部署 ──────
 

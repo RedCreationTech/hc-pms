@@ -23,4 +23,7 @@
                          :handler    (partial gen/batch-generate {:gen-service gen-service})}}]
     ["/deploy" {:post {:summary    "部署代码"
                         :description "将生成的代码部署到项目目录"
-                        :handler    (partial gen/deploy-code {:gen-service gen-service})}}]]])
+                        :handler    (partial gen/deploy-code {:gen-service gen-service})}}]
+    ["/download" {:post {:summary    "下载代码"
+                         :description "批量生成代码并打包成 ZIP 下载"
+                         :handler    (partial gen/download-code {:gen-service gen-service})}}]]])
