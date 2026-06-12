@@ -3,7 +3,8 @@
   (:require
    [re-frame.core :as rf]
    [com.ruoyi.rouyi.frontend.db :as db]
-   [com.ruoyi.rouyi.frontend.api :as api]))
+   [com.ruoyi.rouyi.frontend.api :as api]
+   [com.ruoyi.rouyi.frontend.router :as router]))
 
 (rf/reg-event-db :initialize-db
                  (fn [_ _]
@@ -23,11 +24,13 @@
                                  :menu [:menus/fetch]
                                  :dept [:depts/fetch {}]
                                  :post [:posts/fetch {}]
-                                 nil)]
+                                 :notice [:notices/fetch {}]
+                                 nil)
+                         effects {:db (assoc db :page page)
+                                  :router/navigate! page}]
                      (if fetch
-                       {:db (assoc db :page page)
-                        :dispatch fetch}
-                       {:db (assoc db :page page)}))))
+                       (assoc effects :dispatch fetch)
+                       effects))))
 
 (rf/reg-event-db :auth/set-token
                  (fn [db [_ token]]
@@ -1250,3 +1253,247 @@
                                     (.success js/antd.message "删除成功")
                                     (rf/dispatch [:notices/fetch {}])))
                                 (fn [_] (.error js/antd.message "网络错误")))))
+
+;; ─── 用户管理完整事件 ─────────────────────────────────────────────────────────
+
+(rf/reg-event-db :users/open-add
+                 (fn [db _]
+                   (assoc db :users {:items (get-in db [:users :items] [])
+                                     :total (get-in db [:users :total] 0)
+                                     :loading? false
+                                     :modal-visible? true
+                                     :editing nil
+                                     :form-data {}
+                                     :form-errors {}
+                                     :query-params (get-in db [:users :query-params] {})
+                                     :post-options (get-in db [:users :post-options] [])
+                                     :role-options (get-in db [:users :role-options] [])
+                                     :selected-ids (get-in db [:users :selected-ids] [])
+                                     :detail-visible? false :detail-data nil
+                                     :reset-pwd-visible? false :reset-pwd-username nil :reset-pwd-value ""
+                                     :selected-dept-id nil :show-search? true :columns []})))
+
+(rf/reg-event-db :users/open-edit
+                 (fn [db [_ user-id]]
+                   (let [items (get-in db [:users :items] [])
+                         user (first (filter #(= user-id (:user_id %)) items))]
+                     (assoc-in db [:users :modal-visible?] true)
+                     (assoc-in db [:users :editing] user)
+                     (assoc-in db [:users :form-data] (or user {})))))
+
+(rf/reg-event-db :users/open-edit-selected
+                 (fn [db _]
+                   (let [ids (get-in db [:users :selected-ids] [])
+                         items (get-in db [:users :items] [])
+                         user (first (filter #(= (first ids) (:user_id %)) items))]
+                     (if user
+                       (-> db
+                           (assoc-in [:users :modal-visible?] true)
+                           (assoc-in [:users :editing] user)
+                           (assoc-in [:users :form-data] user))
+                       (do (.warning js/antd.message "请先选择要修改的用户") db)))))
+
+(rf/reg-event-db :users/close-modal
+                 (fn [db _]
+                   (assoc-in db [:users :modal-visible?] false)))
+
+(rf/reg-event-db :users/update-query
+                 (fn [db [_ field value]]
+                   (assoc-in db [:users :query-params field] value)))
+
+(rf/reg-event-fx :users/search
+                 (fn [{:keys [db]} _]
+                   (let [params (get-in db [:users :query-params] {})]
+                     {:db (assoc-in db [:users :page] 1)
+                      :api/list-users (merge params {:page-num 1 :page-size 10})})))
+
+(rf/reg-event-fx :users/reset-query
+                 (fn [{:keys [db]} _]
+                   {:db (assoc db :users {:items [] :total 0 :loading? false
+                                          :query-params {} :selected-ids []
+                                          :modal-visible? false :editing nil :form-data {}
+                                          :form-errors {} :post-options [] :role-options []
+                                          :detail-visible? false :detail-data nil
+                                          :reset-pwd-visible? false :reset-pwd-username nil :reset-pwd-value ""
+                                          :selected-dept-id nil :show-search? true :columns []})
+                    :api/list-users {}}))
+
+(rf/reg-event-fx :users/fetch-with-params
+                 (fn [{:keys [db]} _]
+                   (let [params (get-in db [:users :query-params] {})]
+                     {:api/list-users params})))
+
+(rf/reg-event-db :users/toggle-search
+                 (fn [db _]
+                   (update-in db [:users :show-search?] not)))
+
+(rf/reg-event-db :users/toggle-column
+                 (fn [db [_ col-key]]
+                   (let [columns (get-in db [:users :columns] [])]
+                     (assoc-in db [:users :columns]
+                               (mapv (fn [c]
+                                       (if (= (:key c) col-key)
+                                         (update c :visible? not)
+                                         c))
+                                     columns)))))
+
+(rf/reg-event-fx :users/create
+                 (fn [{:keys [db]} [_ params]]
+                   {:api/create-user params}))
+
+(rf/reg-event-fx :users/update
+                 (fn [{:keys [db]} [_ id params]]
+                   {:api/update-user [id params]}))
+
+(rf/reg-event-fx :users/delete
+                 (fn [{:keys [db]} [_ id]]
+                   {:api/delete-user id}))
+
+(rf/reg-event-fx :users/batch-delete
+                 (fn [{:keys [db]} _]
+                   (let [ids (get-in db [:users :selected-ids] [])]
+                     (if (seq ids)
+                       {:api/batch-delete-users ids}
+                       (do (.warning js/antd.message "请先选择要删除的用户") {})))))
+
+(rf/reg-event-db :users/toggle-select
+                 (fn [db [_ id]]
+                   (let [ids (get-in db [:users :selected-ids] [])]
+                     (assoc-in db [:users :selected-ids]
+                               (if (some #{id} ids)
+                                 (filterv #(not= id %) ids)
+                                 (conj ids id))))))
+
+(rf/reg-event-db :users/toggle-select-all
+                 (fn [db [_ selected?]]
+                   (if selected?
+                     (assoc-in db [:users :selected-ids] (mapv :user_id (get-in db [:users :items] [])))
+                     (assoc-in db [:users :selected-ids] []))))
+
+(rf/reg-event-fx :users/change-status
+                 (fn [{:keys [db]} [_ user-id status]]
+                   {:api/change-user-status [user-id status]}))
+
+(rf/reg-event-fx :users/reset-password
+                 (fn [{:keys [db]} [_ user-id]]
+                   {:db (-> db
+                            (assoc-in [:users :reset-pwd-visible?] true)
+                            (assoc-in [:users :reset-pwd-username] user-id)
+                            (assoc-in [:users :reset-pwd-value] "123456"))}))
+
+(rf/reg-event-db :users/update-reset-pwd-value
+                 (fn [db [_ value]]
+                   (assoc-in db [:users :reset-pwd-value] value)))
+
+(rf/reg-event-fx :users/submit-reset-password
+                 (fn [{:keys [db]} _]
+                   (let [user-id (get-in db [:users :reset-pwd-username])
+                         new-pwd (get-in db [:users :reset-pwd-value] "123456")]
+                     {:db (assoc-in db [:users :reset-pwd-visible?] false)
+                      :api/reset-user-password [user-id new-pwd]})))
+
+(rf/reg-event-db :users/view-detail
+                 (fn [db [_ user-id]]
+                   (let [items (get-in db [:users :items] [])
+                         user (first (filter #(= user-id (:user_id %)) items))]
+                     (-> db
+                         (assoc-in [:users :detail-visible?] true)
+                         (assoc-in [:users :detail-data] user)))))
+
+(rf/reg-event-db :users/close-detail
+                 (fn [db _]
+                   (assoc-in db [:users :detail-visible?] false)))
+
+(rf/reg-event-db :users/auth-role
+                 (fn [db [_ user-id]]
+    ;; TODO: open role assignment dialog
+                   (do (.info js/antd.message "角色分配功能开发中") db)))
+
+;; ─── API 注册 ─────────────────────────────────────────────────────────────────
+
+(rf/reg-fx :api/list-users
+           (fn [params]
+             (api/list-users params
+                             (fn [result]
+                               (when (= 200 (:code result))
+                                 (rf/dispatch [:users/set-list (:data result)])))
+                             (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-fx :api/create-user
+           (fn [params]
+             (api/create-user params
+                              (fn [result]
+                                (when (= 200 (:code result))
+                                  (.success js/antd.message "创建成功")
+                                  (rf/dispatch [:users/fetch {}]))
+                                (when (not= 200 (:code result))
+                                  (.error js/antd.message (:msg result))))
+                              (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-fx :api/update-user
+           (fn [[id params]]
+             (api/update-user id params
+                              (fn [result]
+                                (when (= 200 (:code result))
+                                  (.success js/antd.message "更新成功")
+                                  (rf/dispatch [:users/fetch {}]))
+                                (when (not= 200 (:code result))
+                                  (.error js/antd.message (:msg result))))
+                              (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-fx :api/delete-user
+           (fn [id]
+             (api/delete-user id
+                              (fn [result]
+                                (when (= 200 (:code result))
+                                  (.success js/antd.message "删除成功")
+                                  (rf/dispatch [:users/fetch {}]))
+                                (when (not= 200 (:code result))
+                                  (.error js/antd.message (:msg result))))
+                              (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-fx :api/batch-delete-users
+           (fn [ids]
+             (doseq [id ids]
+               (api/delete-user id
+                                (fn [result]
+                                  (when (= 200 (:code result))
+                                    (.success js/antd.message "删除成功")))
+                                (fn [_] (.error js/antd.message "网络错误"))))
+             (rf/dispatch [:users/fetch {}])))
+
+(rf/reg-fx :api/change-user-status
+           (fn [[user-id status]]
+             (api/change-user-status user-id status
+                                     (fn [result]
+                                       (when (= 200 (:code result))
+                                         (.success js/antd.message "状态修改成功")))
+                                     (fn [_] (.error js/antd.message "网络错误")))))
+
+(rf/reg-fx :api/reset-user-password
+           (fn [[user-id new-pwd]]
+             (api/reset-user-password user-id new-pwd
+                                      (fn [result]
+                                        (when (= 200 (:code result))
+                                          (.success js/antd.message "密码重置成功")))
+                                      (fn [_] (.error js/antd.message "网络错误")))))
+
+;; ─── 路由导航效果 ────────────────────────────────────────────────────────────
+
+(rf/reg-fx :router/navigate!
+           (fn [page]
+             (router/navigate! page)))
+
+;; ─── 用户表单事件 ─────────────────────────────────────────────────────────────
+
+(rf/reg-event-db :users/update-form
+                 (fn [db [_ field value]]
+                   (assoc-in db [:users :form-data field] value)))
+
+(rf/reg-event-fx :users/submit
+                 (fn [{:keys [db]} _]
+                   (let [form-data (get-in db [:users :form-data] {})
+                         editing (get-in db [:users :editing])]
+                     (if editing
+                       {:api/update-user [(:user_id editing) form-data]}
+                       {:api/create-user form-data}))))
