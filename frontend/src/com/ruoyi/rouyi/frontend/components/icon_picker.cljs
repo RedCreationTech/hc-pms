@@ -90,7 +90,19 @@
    "gen" "CodeOutlined"
    "build" "FormOutlined"
    "profile" "ProfileOutlined"
-   "dashboard" "DashboardOutlined"})
+   "dashboard" "DashboardOutlined"
+   ;; RuoYi-Vue 兼容别名
+   "peoples" "TeamOutlined"
+   "tree-table" "TableOutlined"
+   "tree" "ApartmentOutlined"
+   "logininfor" "KeyOutlined"
+   "edit" "FormOutlined"
+   "message" "MailOutlined"
+   "swagger" "LinkOutlined"
+   "list" "TableOutlined"
+   "chart" "PieChartOutlined"
+   "form" "FormOutlined"
+   "code" "CodeOutlined"})
 
 (defn normalize-icon-name
   "规范化图标名称，支持标准名称或常用别名。"

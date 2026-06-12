@@ -3,8 +3,6 @@
   (:require
    [reagent.core :as r]
    [reagent.hooks :as hooks]
-   [reagent.hooks :as hooks]
-   [reagent.hooks :as hooks]
    [re-frame.core :as rf]
    ["@ant-design/icons" :refer [SearchOutlined ReloadOutlined PlusOutlined EditOutlined DeleteOutlined UploadOutlined DownloadOutlined SettingOutlined]]
    [com.ruoyi.rouyi.frontend.antd :as antd]
@@ -422,12 +420,11 @@
         selected-dept-id @(rf/subscribe [:users/selected-dept-id])
         page @(rf/subscribe [:users/page])
         page-size @(rf/subscribe [:users/page-size])]
-    [:div {:style {:display "flex" :gap 12 :height "100%"}}
+    [:div {:style {:display "flex" :gap 8 :height "100%"}}
      ;; 左侧部门树
      [dept-tree-sidebar]
      ;; 右侧内容区
      [:div {:style {:flex 1 :overflow "auto"}}
-      [:h3 {:style {:margin "0 0 12px 0"}} "用户管理"]
       [search-form]
       [toolbar]
       [antd/table {:rowKey "user_id"

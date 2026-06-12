@@ -55,7 +55,7 @@
                  :border (when active? "1px solid #1677ff")
                  :borderBottom (when active? "1px solid #fff")
                  :whiteSpace "nowrap"}
-         :on-click #(rf/dispatch [:tabs/activate key])}
+         :on-click #(do (rf/dispatch [:tabs/activate key]) (rf/dispatch [:navigate (keyword key)]))}
    (when (= key :dashboard)
      [:> HomeOutlined {:style {:marginRight 6 :fontSize 12}}])
    [:span label]
