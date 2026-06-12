@@ -356,6 +356,58 @@
                      (flatten-tree (:children node) (inc depth)))))
            nodes)))
 
+(defn- flatten-visible-tree
+  "展平可见的部门节点（只展开 expanded-ids 中的节点）。"
+  ([nodes expanded-ids depth]
+   (mapcat (fn [node]
+             (let [is-expanded? (contains? expanded-ids (:dept_id node))]
+               (cons (assoc node :_depth depth)
+                     (when (and (seq (:children node)) is-expanded?)
+                       (flatten-visible-tree (:children node) expanded-ids (inc depth))))))
+           nodes)))
+
+(defn- dept-tree-sidebar []
+  (let [dept-items @(rf/subscribe [:depts/tree])
+        selected-dept-id @(rf/subscribe [:users/selected-dept-id])
+        [expanded-ids set-expanded!] (hooks/use-state #{})
+        toggle! (fn [dept-id]
+                  (set-expanded! (fn [ids]
+                                   (if (contains? ids dept-id)
+                                     (disj ids dept-id)
+                                     (conj ids dept-id)))))]
+    [:div {:style {:width 200 :minWidth 200 :background "#fff"
+                   :borderRadius 8 :border "1px solid #e8e8e8"
+                   :padding 12 :display "flex" :flexDirection "column"}}
+     [:div {:style {:fontWeight 600 :fontSize 14 :marginBottom 8
+                    :paddingBottom 8 :borderBottom "1px solid #f0f0f0"}}
+      "部门列表"]
+     [:div {:style {:flex 1 :overflow "auto" :fontSize 13}}
+      (for [d (flatten-visible-tree dept-items expanded-ids 0)]
+        ^{:key (str "dept-" (:dept_id d) "-" (:_depth d))}
+        [:div {:style {:display "flex" :alignItems "center"
+                       :padding "4px 8px"
+                       :paddingLeft (str (+ 8 (* (:_depth d) 16)) "px")
+                       :cursor "pointer" :borderRadius 4
+                       :background (if (= (:dept_id d) selected-dept-id) "#e6f7ff" "transparent")
+                       :color (if (= (:dept_id d) selected-dept-id) "#1677ff" "#333")}
+               :on-click #(do (toggle! (:dept_id d))
+                              (rf/dispatch [:users/select-dept (:dept_id d)])
+                              (rf/dispatch [:users/fetch {:dept_id (:dept_id d)}]))}
+         ;; 展开/折叠箭头
+         (if (seq (:children d))
+           [:span {:style {:display "inline-flex" :width 14 :fontSize 10
+                           :marginRight 2 :color "#999"
+                           :transform (if (contains? expanded-ids (:dept_id d))
+                                        "rotate(90deg)" "rotate(0deg)")
+                           :transition "transform 0.2s"}}
+            "▶"]
+           [:span {:style {:display "inline-flex" :width 14 :marginRight 2}} ""])
+         ;; 图标
+         [:span {:style {:marginRight 4 :fontSize 12}}
+          (if (seq (:children d)) "📁" "📄")]
+         ;; 名称
+         [:span (:dept_name d)]])]]))
+
 (defn user-page []
   (hooks/use-effect
     (fn []
