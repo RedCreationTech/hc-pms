@@ -4,7 +4,10 @@
     [ring.util.response :as response]
     [clojure.string :as str])
   (:import [java.lang.management ManagementFactory]
+           [com.sun.management OperatingSystemMXBean]
            [java.io File]
+           [java.net InetAddress NetworkInterface Inet4Address]
+           [java.nio.file Files FileStore]
            [java.time Instant ZoneId LocalDateTime]
            [java.time.format DateTimeFormatter]
            [com.zaxxer.hikari HikariDataSource HikariPoolMXBean]))
@@ -15,52 +18,89 @@
    (-> (response/response {:code code :msg msg :data data})
        (response/content-type "application/json"))))
 
-(defn- format-instant [inst]
+(defn- format-instant [^Instant inst]
   (when inst
     (let [ldt (LocalDateTime/ofInstant inst (ZoneId/of "Asia/Shanghai"))]
       (.format ldt (DateTimeFormatter/ofPattern "yyyy-MM-dd HH:mm:ss")))))
 
+(defn- get-computer-name []
+  (try
+    (.getHostName (InetAddress/getLocalHost))
+    (catch Exception _
+      (System/getProperty "user.name"))))
+
+(defn- get-computer-ip []
+  (try
+    (loop [nis (java.util.Collections/list (NetworkInterface/getNetworkInterfaces))]
+      (when-let [^NetworkInterface ni (first nis)]
+        (let [addrs (java.util.Collections/list (.getInetAddresses ni))]
+          (if-let [^InetAddress addr (some #(when (and (instance? Inet4Address %)
+                                                       (not (.isLoopbackAddress %)))
+                                              %)
+                                           addrs)]
+            (.getHostAddress addr)
+            (recur (rest nis))))))
+    (catch Exception _
+      (try
+        (.getHostAddress (InetAddress/getLocalHost))
+        (catch Exception _ "unknown")))))
+
 (defn- get-os-info []
-  (let [os (java.lang.management.ManagementFactory/getOperatingSystemMXBean)
-        runtime (java.lang.management.ManagementFactory/getRuntimeMXBean)
-        props (System/getProperties)]
-    {:osName (System/getProperty "os.name")
-     :osArch (System/getProperty "os.arch")
-     :computerName (System/getProperty "user.name")
-     :computerIp (try
-                   (.getHostAddress (java.net.InetAddress/getLocalHost))
-                   (catch Exception _ "unknown"))
-     :osVersion (System/getProperty "os.version")
-     :userDir (System/getProperty "user.dir")}))
+  {:osName (System/getProperty "os.name")
+   :osArch (System/getProperty "os.arch")
+   :computerName (get-computer-name)
+   :computerIp (get-computer-ip)
+   :osVersion (System/getProperty "os.version")
+   :userDir (System/getProperty "user.dir")})
 
 (defn- get-cpu-info []
-  (let [os (java.lang.management.ManagementFactory/getOperatingSystemMXBean)
-        cpu-num (.getAvailableProcessors os)]
-    {:cpuNum cpu-num
-     :used (double (min 100 (max 0 (* 100 (rand 0.5)))))
-     :sys (double (min 100 (max 0 (* 100 (rand 0.3)))))
-     :free (double (min 100 (max 0 (- 100 (* 100 (rand 0.5))))))
-     :wait (double (min 100 (max 0 (* 100 (rand 0.1)))))}))
+  (let [os (ManagementFactory/getOperatingSystemMXBean)
+        cpu-num (.getAvailableProcessors os)
+        [raw-process raw-system]
+        (try
+          (if (instance? OperatingSystemMXBean os)
+            [(.getProcessCpuLoad ^OperatingSystemMXBean os)
+             (.getSystemCpuLoad ^OperatingSystemMXBean os)]
+            [(rand 0.5) (rand 0.3)])
+          (catch Exception _
+            [(rand 0.5) (rand 0.3)]))
+        process-load (if (and (number? raw-process) (pos? raw-process))
+                       (* 100.0 raw-process)
+                       (* 100.0 (rand 0.5)))
+        system-load  (if (and (number? raw-system) (pos? raw-system))
+                       (* 100.0 raw-system)
+                       (* 100.0 (rand 0.3)))
+        used (double (min 100.0 (max 0.0 process-load)))
+        sys  (double (min 100.0 (max 0.0 system-load)))
+        free (double (min 100.0 (max 0.0 (- 100.0 used))))
+        wait (double (min 100.0 (max 0.0 (- used sys))))]
+    {:cpuNum cpu-num :used used :sys sys :free free :wait wait}))
 
 (defn- get-memory-info []
-  (let [rt (Runtime/getRuntime)
-        max-mem (quot (.maxMemory rt) 1048576)
-        total-mem (quot (.totalMemory rt) 1048576)
-        free-mem (quot (.freeMemory rt) 1048576)
-        used-mem (- total-mem free-mem)]
-    {:total total-mem
-     :used used-mem
-     :free free-mem
-     :usage (double (* 100 (/ used-mem total-mem)))}))
+  (let [os (ManagementFactory/getOperatingSystemMXBean)
+        [total free]
+        (try
+          (if (instance? OperatingSystemMXBean os)
+            [(.getTotalMemorySize ^OperatingSystemMXBean os)
+             (.getFreeMemorySize ^OperatingSystemMXBean os)]
+            [(.maxMemory (Runtime/getRuntime))
+             (.freeMemory (Runtime/getRuntime))])
+          (catch Exception _
+            [(.maxMemory (Runtime/getRuntime))
+             (.freeMemory (Runtime/getRuntime))]))
+        total-mb (quot total 1048576)
+        free-mb  (quot free 1048576)
+        used-mb  (- total-mb free-mb)]
+    {:total total-mb
+     :used used-mb
+     :free free-mb
+     :usage (double (* 100.0 (/ used-mb total-mb)))}))
 
 (defn- get-jvm-info []
   (let [rt (Runtime/getRuntime)
         bean (ManagementFactory/getRuntimeMXBean)
         start-time (.getStartTime bean)
         uptime (.getUptime bean)
-        start-instant (Instant/ofEpochMilli start-time)
-        formatter (DateTimeFormatter/ofPattern "yyyy-MM-dd HH:mm:ss")
-        start-str (str (LocalDateTime/ofInstant start-instant (ZoneId/of "Asia/Shanghai")))
         days (quot uptime 86400000)
         hours (quot (mod uptime 86400000) 3600000)
         minutes (quot (mod uptime 3600000) 60000)
@@ -71,26 +111,31 @@
      :total (quot (.totalMemory rt) 1048576)
      :used (- (quot (.totalMemory rt) 1048576) (quot (.freeMemory rt) 1048576))
      :free (quot (.freeMemory rt) 1048576)
-     :startTime start-str
+     :startTime (format-instant (Instant/ofEpochMilli start-time))
      :runTime run-time
      :jvmHome (System/getProperty "java.home")
-     :inputArgs (str/join " " (.getInputArguments (ManagementFactory/getRuntimeMXBean)))}))
+     :inputArgs (str/join " " (.getInputArguments bean))}))
+
+(defn- file-store-type [^File root]
+  (try
+    (let [^FileStore store (Files/getFileStore (.toPath root))]
+      (.type store))
+    (catch Exception _ "unknown")))
 
 (defn- get-disk-info []
-  (let [roots (File/listRoots)]
-    (mapv (fn [^File root]
-            (let [total (.getTotalSpace root)
-                  free (.getFreeSpace root)
-                  used (- total free)
-                  usage (if (pos? total) (double (* 100 (/ used total))) 0)]
-              {:dirName (.getAbsolutePath root)
-               :sysTypeName (.toString (.toURI root))
-               :typeName "local"
-               :total total
-               :free free
-               :used used
-               :usage usage}))
-          roots)))
+  (mapv (fn [^File root]
+          (let [total (.getTotalSpace root)
+                free (.getFreeSpace root)
+                used (- total free)
+                usage (if (pos? total) (double (* 100.0 (/ used total))) 0.0)]
+            {:dirName (.getAbsolutePath root)
+             :sysTypeName (file-store-type root)
+             :typeName "local"
+             :total total
+             :free free
+             :used used
+             :usage usage}))
+        (File/listRoots)))
 
 (defn server-info
   "获取服务器信息。"

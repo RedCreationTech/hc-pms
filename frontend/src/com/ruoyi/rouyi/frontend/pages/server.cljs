@@ -112,10 +112,10 @@
       [:span {:style {:display "inline-block" :width 4 :height 20 :background "#722ed1" :borderRadius 2}}]
       "JVM"]
      [:span {:style {:fontSize 14 :color "#666"}} (str "最大: " (format-mb (:max jvm 0)))]]
-    [usage-bar {:label "使用率" :used (:used jvm 0) :total (:total jvm 1) :unit format-mb}]
+    [usage-bar {:label "使用率" :used (:used jvm 0) :total (:max jvm 1) :unit format-mb}]
     [:div {:style {:display "flex" :justifyContent "space-between" :marginTop 8 :fontSize 13 :color "#999"}}
      [:span (str "已用: " (format-mb (:used jvm 0)))]
-     [:span (str "剩余: " (format-mb (- (:total jvm 0) (:used jvm 0))))]]]])
+     [:span (str "剩余: " (format-mb (max 0 (- (:max jvm 0) (:used jvm 0)))))]]]])
 
 ;; ─── 服务器信息区域 ──────────────────────────────────────────────────────
 
