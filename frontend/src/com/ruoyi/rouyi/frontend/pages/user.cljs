@@ -102,7 +102,6 @@
                                                        [antd/switch {:size "small" :checked visible?}]])})
                                            columns))
                               :onClick (fn [e]
-                                         (.stopPropagation e)
                                          (let [key (keyword (.-key e))]
                                            (rf/dispatch [:users/toggle-column key])))}
                        :trigger #js ["click"]}
