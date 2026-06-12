@@ -1,8 +1,7 @@
 (ns com.ruoyi.rouyi.frontend.router
-  "前端路由管理。"
+  "前端路由管理 — 手动实现，不依赖 accountant。"
   (:require
     [bidi.bidi :as bidi]
-    [accountant.core :as accountant]
     [re-frame.core :as rf]))
 
 ;; 路由定义
@@ -31,7 +30,7 @@
 
 ;; 获取页面路径
 (defn page-path [page]
-  (bidi/path-for routes page))
+  (or (bidi/path-for routes page) "/"))
 
 ;; 页面名称映射
 (def page-names
@@ -56,26 +55,26 @@
 ;; 状态标记
 (defonce initialized? (volatile! false))
 
+;; 监听浏览器前进/后退
+(defn- on-popstate [^js _event]
+  (let [path (.-pathname js/location)
+        match (match-route path)
+        page (or (:handler match) :dashboard)]
+    (rf/dispatch [:navigate page])))
+
 ;; 初始化路由
 (defn init-routes! []
-  (try
-    (accountant/configure-navigation!
-      :nav-handler (fn [path]
-                     (let [match (match-route path)
-                           page (or (:handler match) :dashboard)]
-                       (rf/dispatch [:navigate page])))
-      :path-exists? (fn [path]
-                      (boolean (match-route path))))
+  (when-not @initialized?
+    (.addEventListener js/window "popstate" on-popstate)
     (vreset! initialized? true)
-    ;; 延迟 dispatch-current 确保 configure-navigation! 完成
-    (js/setTimeout #(accountant/dispatch-current!) 0)
-    (catch js/Error e
-      (js/console.warn "router: init failed" (.-message e)))))
+    ;; 手动 dispatch 当前 URL
+    (let [path (.-pathname js/location)
+          match (match-route path)
+          page (or (:handler match) :dashboard)]
+      (rf/dispatch [:navigate page]))))
 
-;; 导航到页面
+;; 导航到页面（只更新 URL，不 dispatch 事件）
 (defn navigate! [page]
   (when @initialized?
-    (try
-      (accountant/navigate! (page-path page))
-      (catch js/Error e
-        (js/console.warn "router: navigate failed" (.-message e))))))
+    (let [path (page-path page)]
+      (.pushState js/history nil "" path))))
