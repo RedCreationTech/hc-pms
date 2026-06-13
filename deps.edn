@@ -94,5 +94,26 @@
                   :exec-fn      cognitect.test-runner.api/test
                   :extra-paths ["env/dev/clj" "env/dev/resources" "env/test/resources" "test/clj"]
                   :main-opts   ["-e" "(require 'pjstadig.humane-test-output) (pjstadig.humane-test-output/activate!)"
-                                "-m" "cognitect.test-runner"]}}
+                                "-m" "cognitect.test-runner"]}
+
+           :coverage {:extra-deps  {criterium/criterium                  {:mvn/version "0.4.6"}
+                                    expound/expound                      {:mvn/version "0.9.0"}
+                                    integrant/repl                       {:mvn/version "0.5.1"}
+                                    pjstadig/humane-test-output          {:mvn/version "0.11.0"}
+                                    ring/ring-devel                      {:mvn/version "1.15.3"}
+                                    ring/ring-mock                       {:mvn/version "0.6.2"}
+                                    io.github.kit-clj/kit-generator      {:mvn/version "0.2.9"}
+                                    org.clojure/tools.namespace          {:mvn/version "1.5.0"}
+                                    peridot/peridot                      {:mvn/version "0.5.4"}
+                                    org.clj-commons/byte-streams         {:mvn/version "0.3.4"}
+                                    com.lambdaisland/classpath           {:mvn/version "0.6.58"}
+                                    cloverage/cloverage                  {:mvn/version "1.2.4"}}
+                      :extra-paths ["env/dev/clj" "env/dev/resources" "env/test/resources" "test/clj"]
+                      :main-opts   ["-m" "cloverage.coverage"
+                                    "-p" "src/clj"
+                                    "-s" "test/clj"
+                                    "-o" "target/coverage"
+                                    "--html" "--text"
+                                    "-r" ".*core.*"
+                                    "--runner" "clojure.test"]}}
  }

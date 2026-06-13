@@ -17,6 +17,9 @@
          test      {:doc  "runs tests"
                     :task (clojure {:dir "."} "-M:test")}
 
+         coverage  {:doc  "runs coverage (report at target/coverage/index.html)"
+                    :task (clojure {:dir "."} "-M:coverage")}
+
          uberjar   {:doc  "builds the uberjar"
                     :task (clojure {:dir "."} "-T:build all")}
 
