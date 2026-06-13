@@ -20,6 +20,7 @@
         "system/menu" :menu
         "system/dept" :dept
         "system/post" :post
+        "system/file" :file
         "system/dict" :dict
         "system/config" :config
         "system/notice" :notice
@@ -59,6 +60,7 @@
    :menu "菜单管理"
    :dept "部门管理"
    :post "岗位管理"
+   :file "文件管理"
    :dict "字典管理"
    :config "参数管理"
    :notice "通知公告"

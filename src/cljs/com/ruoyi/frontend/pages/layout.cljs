@@ -232,6 +232,7 @@
    :menu "system/menu"
    :dept "system/dept"
    :post "system/post"
+   :file "system/file"
    :dict "system/dict"
    :config "system/config"
    :notice "system/notice"
@@ -348,6 +349,22 @@
               m)))
         menus))
 
+(defn- inject-file-menu [menus]
+  "在「系统管理」目录下动态注入文件管理菜单。"
+  (mapv (fn [m]
+          (if (= "system" (:path m))
+            (update m :children (fnil conj [])
+                    {:path "file"
+                     :menu_name "文件管理"
+                     :menu_type "C"
+                     :visible "0"
+                     :status "0"
+                     :icon "FileTextOutlined"})
+            (if (seq (:children m))
+              (update m :children inject-file-menu)
+              m)))
+        menus))
+
 ;; ─── 主布局 ────────────────────────────────────────────────────────
 
 ;; ─── Tab 动画样式 ──────────────────────────────────────────────────────
@@ -397,7 +414,7 @@
         page @(rf/subscribe [:page])
         user-menus (or (seq (:menus user))
                        [{:path "dashboard" :menu_name "首页" :icon "dashboard"}])
-        menus-with-integrant (inject-integrant-menu user-menus)
+        menus-with-integrant ((comp inject-integrant-menu inject-file-menu) user-menus)
         filtered-menus (filter-visible-menus menus-with-integrant)
         menu-items (menu->antd-items filtered-menus)
         labels (page-labels menus-with-integrant)
