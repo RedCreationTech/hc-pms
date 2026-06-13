@@ -466,11 +466,10 @@ MIGRATION_DIR=migrations bb test
 
 ```bash
 # 1. Start backend (port 3000, nREPL port 7000)
-cd /home/kevin/gt/rouyi_clojure/mayor/rig
-rm -f rouyi.db && clojure -M:dev -m com.ruoyi.core &
+clojure -M:dev -m com.ruoyi.core &
 
 # 2. Start frontend watch (auto-recompiles on .cljs changes)
-setsid bash -c 'cd /home/kevin/gt/rouyi_clojure/mayor/rig && npx shadow-cljs watch app' &
+npx shadow-cljs watch app &
 # First compilation takes ~2min, subsequent changes compile in seconds
 
 # 3. Access
@@ -501,7 +500,7 @@ Available helpers (defined in `env/dev/clj/user.clj`):
 | `reload-all` | `ra` | All of the above |
 | `reload-system` | `rr` | Full system reset (halt → prep → go) |
 
-**Note**: Route changes require a full system reset (`rr`) because routes are compiled once at startup.
+**Note**: Route changes require a full system reset (`rr`) because routes are compiled once at startup. If `(user/rr)` fails with `BindException: Address already in use` (Undertow can't rebind), kill the process and restart with `clojure -M:dev -m com.ruoyi.core`.
 
 #### Frontend (ClojureScript) — shadow-cljs auto-compiles
 
