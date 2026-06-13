@@ -17,6 +17,7 @@
                        :handler    (partial gen/table-columns {:gen-service gen-service})}}]
     ["/preview" {:get {:summary    "预览代码"
                        :description "预览生成的代码模板内容"
+                       :parameters {:query [:map [:tableName :string]]}
                        :handler    (partial gen/preview-code {:gen-service gen-service})}}]
     ["/generate" {:post {:summary    "批量生成代码"
                          :description "选择表并生成完整 CRUD 代码文件"

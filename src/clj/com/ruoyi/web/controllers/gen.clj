@@ -24,14 +24,14 @@
 (defn table-columns
   "查询指定表列信息。"
   [{:keys [gen-service]} request]
-  (let [table-name (get-in request [:query-params :tableName])]
+  (let [table-name (get-in request [:query-params "tableName"])]
     (when (seq table-name)
       (ok (gen-service/table-columns gen-service table-name)))))
 
 (defn preview-code
   "生成并预览代码。"
   [{:keys [gen-service]} request]
-  (let [table-name (get-in request [:query-params :tableName])]
+  (let [table-name (get-in request [:query-params "tableName"])]
     (when (seq table-name)
       (ok (gen-service/generate-code gen-service table-name)))))
 

@@ -25,7 +25,7 @@
 
 (deftest test-table-columns
   (testing "查询表列信息"
-    (let [request {:query-params {:tableName "sys_gen_test"}}
+    (let [request {:query-params {"tableName" "sys_gen_test"}}
           response (gen/table-columns {:gen-service mock-gen-service} request)]
       (is (= 200 (:status response)))
       (is (= 2 (count (get-in response [:body :data]))))))
@@ -34,7 +34,7 @@
 
 (deftest test-preview-code
   (testing "预览代码"
-    (let [request {:query-params {:tableName "sys_gen_test"}}
+    (let [request {:query-params {"tableName" "sys_gen_test"}}
           response (gen/preview-code {:gen-service mock-gen-service} request)]
       (is (= 200 (:status response)))
       (is (= "gen-test" (get-in response [:body :data :kebab-name])))

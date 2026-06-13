@@ -621,7 +621,8 @@
 (defn force-logout
   "强制登出用户。"
   [token-id on-success on-error]
-  (request {:method :delete :uri (str "/system/online/" token-id)
+  (request {:method :delete
+            :uri (str "/system/online/" (js/encodeURIComponent (str token-id)))
             :on-success on-success :on-error on-error}))
 
 

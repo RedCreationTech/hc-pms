@@ -1,11 +1,18 @@
 (ns com.ruoyi.frontend.pages.online
   "在线用户页面。"
   (:require
+   [goog.object :as gobj]
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
    ["@ant-design/icons" :refer [SearchOutlined ReloadOutlined]]
    [com.ruoyi.frontend.antd :as antd]))
+
+(defn- token-id-from-row
+  "Antd render 第一个参数可能是文本/记录；兼容取 token-id。"
+  [r1 r2]
+  (or (when (object? r1) (gobj/get r1 "token-id"))
+      (when (object? r2) (gobj/get r2 "token-id"))))
 
 (defn- online-columns []
   #js [#js {:title "用户ID" :dataIndex "user-id" :key "user-id"}
@@ -19,11 +26,12 @@
             :render (fn [v]
                       (r/as-element
                        [:span (when v (.toLocaleString (js/Date. v)))]))}
-       #js {:title "操作" :key "action"
-            :render (fn [_ ^js record]
+       #js {:title "操作" :key "action" :dataIndex "token-id"
+            :render (fn [v ^js record]
                       (r/as-element
                        [antd/button {:type "link" :danger true :size "small"
-                                     :onClick #(rf/dispatch [:online-users/force-logout (.-token-id record)])}
+                                     :onClick #(when-let [tid (token-id-from-row v record)]
+                                                 (rf/dispatch [:online-users/force-logout tid]))}
                         "强退"]))}])
 
 (defn online-page []
