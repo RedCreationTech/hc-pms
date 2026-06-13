@@ -83,14 +83,6 @@
             (fn [db _]
               (get-in db [:users :form-errors] {})))
 
-(rf/reg-sub :users/post-options
-            (fn [db _]
-              (get-in db [:users :post-options] [])))
-
-(rf/reg-sub :users/role-options
-            (fn [db _]
-              (get-in db [:users :role-options] [])))
-
 (rf/reg-sub :users/detail-visible?
             (fn [db _]
               (get-in db [:users :detail-visible?] false)))

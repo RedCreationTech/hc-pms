@@ -168,7 +168,7 @@
         user @(rf/subscribe [:users/detail-data])]
     [antd/drawer {:title "用户详情"
                   :open visible?
-                  :width 500
+                  :size "large"
                   :onClose #(rf/dispatch [:users/close-detail])}
      (when user
        [:div {:style {:padding "0 16px"}}
