@@ -245,8 +245,10 @@
           [antd/form-item {:label "用户昵称" :name "nick_name"
                            :rules [{:required true :message "请输入用户昵称"}]}
            [antd/input {:placeholder "请输入用户昵称"}]]
-          [antd/form-item {:label "归属部门" :name "dept_id"}
-           [dept-tree-select {:placeholder "请选择归属部门" :allow-clear? true}]]
+          [antd/form-item {:label "归属部门"}
+           [dept-tree-select {:placeholder "请选择归属部门" :allow-clear? true
+                              :value (.getFieldValue form "dept_id")
+                              :on-change (fn [v] (.setFieldsValue form #js {"dept_id" v}))}]]
           [antd/form-item {:label "手机号码" :name "phonenumber"}
            [antd/input {:placeholder "请输入手机号码"}]]
           [antd/form-item {:label "邮箱" :name "email"}
