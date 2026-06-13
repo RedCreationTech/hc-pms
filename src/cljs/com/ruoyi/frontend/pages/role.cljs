@@ -250,7 +250,7 @@
 ;; ─── 用户分配弹窗 ──────────────────────────────────────────────────────
 
 (defn- user-alloc-search [query-sub dispatch-update dispatch-reset dispatch-fetch]
-  (let [query @(rf/subscribe query-sub)]
+  (let [query @(rf/subscribe (if (keyword? query-sub) [query-sub] query-sub))]
     [:div {:style {:display "flex" :gap 8 :marginBottom 12}}
      [antd/input {:placeholder "用户名称"
                   :value (:user_name query "")
@@ -267,10 +267,10 @@
       "重置"]]))
 
 (defn- user-alloc-table [items-sub total-sub loading?-sub selected-sub set-selected-event fetch-event action-label action-event]
-  (let [items @(rf/subscribe items-sub)
-        total @(rf/subscribe total-sub)
-        loading? @(rf/subscribe loading?-sub)
-        selected @(rf/subscribe selected-sub)]
+  (let [items @(rf/subscribe (if (keyword? items-sub) [items-sub] items-sub))
+        total @(rf/subscribe (if (keyword? total-sub) [total-sub] total-sub))
+        loading? @(rf/subscribe (if (keyword? loading?-sub) [loading?-sub] loading?-sub))
+        selected @(rf/subscribe (if (keyword? selected-sub) [selected-sub] selected-sub))]
     [:div
      [antd/table {:scroll #js {:x "max-content"}
                   :rowKey "user_id"
