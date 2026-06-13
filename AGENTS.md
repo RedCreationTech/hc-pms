@@ -174,6 +174,70 @@ clj-nrepl-eval -p 7000 '(user/migrate)'     # 运行迁移
   (accountant/dispatch-current!))
 ```
 
+### 8. antd `message` 必须用 `App` 组件上下文，不能直接用静态方法
+
+```clojure
+;; ❌ 错误（antd 6 告警 Static function can not consume context）
+(.success js/antd.message "创建成功")
+
+;; ✅ 正确：在 antd.cljs 中通过 App.useApp 获取 message 实例
+(def app (r/adapt-react-class App))
+(defonce message-api (atom nil))
+
+(defn use-app-message []
+  (let [api (.useApp App)]
+    (reset! message-api (.-message api))))
+
+(defn success! [text]
+  (if-let [api @message-api]
+    (.success api text)
+    (.success message text)))
+
+;; app.cljs 中包裹应用
+[:> ConfigProvider {...}
+ [antd/app
+  [message-init]   ;; 调用 use-app-message 的组件
+  [layout/main-layout]]]
+```
+
+### 9. Card 的 `bodyStyle` 已废弃，改用 `styles.body`
+
+```clojure
+;; ❌ 错误
+[antd/card {:title "xxx" :bodyStyle {:padding 12}} ...]
+
+;; ✅ 正确
+[antd/card {:title "xxx" :styles {:body {:padding 12}}} ...]
+```
+
+### 10. 自定义表单控件不要依赖 Form.Item 自动注入 value/onChange
+
+Reagent 函数组件作为 `Form.Item` 子元素时，antd 无法像对原生 Input/Select 那样自动注入
+`value` 和 `onChange`。需要手动通过 `Form.useForm` 实例读写字段。
+
+```clojure
+;; ❌ 错误（选中后表单无反应）
+[antd/form-item {:label "归属部门" :name "dept_id"}
+ [dept-tree-select {:placeholder "请选择"}]]
+
+;; ✅ 正确
+(let [[form] (antd/form-use-form)]
+  [antd/form-item {:label "归属部门"}
+   [dept-tree-select {:placeholder "请选择"
+                      :value (.getFieldValue form "dept_id")
+                      :on-change (fn [v]
+                                   (.setFieldsValue form #js {"dept_id" v}))}]])
+```
+
+### 11. 后端分页参数使用 `page` / `size`
+
+前端传给后端列表接口的分页参数必须是 `page` 和 `size`，而不是 `pageNum`/`pageSize`/`page-num`/`page-size`。
+
+```clojure
+;; ✅ 正确
+{:api/list-users (merge params {:page page :size size})}
+```
+
 ## RuoYi-Vue 对照参考
 
 参考项目：https://gitee.com/y_project/RuoYi-Vue (master 分支, Spring Boot 4.x + Vue 3)
