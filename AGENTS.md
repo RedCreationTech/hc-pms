@@ -134,6 +134,8 @@ clj-nrepl-eval -p 7000 '(user/migrate)'     # 运行迁移
 ;; ✅ 正确
 [antd/drawer {:size "default" ...}]
 ;; 或 {:size "large"}
+;; 需要精确宽度时用 :style
+[antd/drawer {:style {:width 500} ...}]
 ```
 
 ### 5. 外部组件必须导入后定义，不能直接引用
@@ -236,6 +238,40 @@ Reagent 函数组件作为 `Form.Item` 子元素时，antd 无法像对原生 In
 ```clojure
 ;; ✅ 正确
 {:api/list-users (merge params {:page page :size size})}
+```
+
+### 12. 不要同时设置 `:border` 和 `:borderColor`
+
+React 会警告 shorthand 与非 shorthand 属性冲突，应把颜色合并到 `:border` 中。
+
+```clojure
+;; ❌ 错误
+{:border "1px solid" :borderColor "#1677ff"}
+
+;; ✅ 正确
+{:border "1px solid #1677ff"}
+```
+
+### 13. Modal / Drawer 的 `:width` 已废弃，改用 `:style {:width N}`
+
+```clojure
+;; ❌ 错误
+[antd/modal {:width 700 ...}]
+[antd/drawer {:width 560 ...}]
+
+;; ✅ 正确
+[antd/modal {:style {:width 700} ...}]
+[antd/drawer {:style {:width 560} ...}]
+```
+
+### 14. Modal / Drawer 的 `:destroyOnClose` 已废弃，改用 `:destroyOnHidden`
+
+```clojure
+;; ❌ 错误
+[antd/modal {:destroyOnClose true ...}]
+
+;; ✅ 正确
+[antd/modal {:destroyOnHidden true ...}]
 ```
 
 ## RuoYi-Vue 对照参考
