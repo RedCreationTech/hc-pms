@@ -531,7 +531,7 @@
 
 (defn project-modal
   [{:keys [open? editing readonly? on-ok on-cancel]}]
-  (let [form (antd/form-use-form)
+  (let [[form] (antd/form-use-form)
         [upload-files set-upload-files!] (hooks/use-state {})
         [attachments set-attachments!] (hooks/use-state [])
         delete-attachment! (fn [attachment]
@@ -589,7 +589,7 @@
 
 (defn team-modal
   [{:keys [open? project on-ok on-cancel]}]
-  (let [form (antd/form-use-form)]
+  (let [[form] (antd/form-use-form)]
     (hooks/use-effect
      (fn []
        (when open?
@@ -963,7 +963,7 @@
 
 (defn- solution-edit-modal
   [{:keys [section mode open? on-save on-close project initial-data files set-files!]}]
-  (let [form (antd/form-use-form)
+  (let [[form] (antd/form-use-form)
         readonly? (= mode :view)
         title (case section
                 :project (str (if readonly? "预览" "编辑") " · 项目概况")
@@ -1617,7 +1617,7 @@
         [modal? set-modal!] (hooks/use-state false)
         [editing set-editing!] (hooks/use-state nil)
         [viewing? set-viewing!] (hooks/use-state false)
-        form (antd/form-use-form)
+        [form] (antd/form-use-form)
         [gallery set-gallery!] (hooks/use-state [])
         [attachments set-attachments!] (hooks/use-state [])
         [pending-files set-pending-files!] (hooks/use-state [])
