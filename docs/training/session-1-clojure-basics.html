@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第1讲：Clojure入门与项目全栈技术栈 | 若依 Clojure 培训</title>
+  <style>
+    :root { --primary: #1677ff; --success: #52c41a; --warning: #fa8c16; --danger: #f5222d; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.7; color: #262626; background: #f5f5f5; margin: 0; }
+    header { background: var(--primary); color: #fff; padding: 1.2rem 1rem; }
+    header h1 { margin: 0; font-size: 1.4rem; }
+    header p { margin: .25rem 0 0; opacity: .9; }
+    nav { background: #fff; border-bottom: 1px solid #e8e8e8; padding: .6rem 1rem; display: flex; flex-wrap: wrap; gap: .5rem; }
+    nav a { text-decoration: none; color: #595959; padding: .35rem .8rem; border-radius: 4px; border: 1px solid #d9d9d9; font-size: .9rem; }
+    nav a:hover { color: var(--primary); border-color: var(--primary); }
+    nav a.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    main.container { max-width: 960px; margin: 1.5rem auto; padding: 1.5rem 2rem; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
+    h1 { color: #262626; border-bottom: 2px solid var(--primary); padding-bottom: .5rem; }
+    h2 { color: #262626; margin-top: 2rem; font-size: 1.25rem; }
+    h3 { color: #434343; margin-top: 1.5rem; font-size: 1.1rem; }
+    ul li { margin: .35rem 0; }
+    .agenda { background: #f0f7ff; border-left: 4px solid var(--primary); padding: 1rem 1.2rem; margin: 1.2rem 0 2rem; border-radius: 0 6px 6px 0; }
+    .agenda h2 { margin-top: 0; }
+    pre { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; padding: 1rem; overflow-x: auto; line-height: 1.5; }
+    code { font-family: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace; font-size: .9em; }
+    .exercise { background: #fff7e6; border-left: 4px solid var(--warning); padding: 1rem 1.2rem; margin-top: 2.5rem; border-radius: 0 6px 6px 0; }
+    .exercise h2 { margin-top: 0; }
+    .note { background: #f6ffed; border: 1px solid #b7eb8f; padding: .8rem 1rem; border-radius: 6px; color: #135200; margin: 1rem 0; }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+    th, td { border: 1px solid #e8e8e8; padding: .6rem .8rem; text-align: left; }
+    th { background: #fafafa; }
+    /* syntax coloring */
+    .kw { color: #d73a49; font-weight: 600; }
+    .sym { color: #24292e; }
+    .str { color: #032f62; }
+    .num { color: #005cc5; }
+    .comment { color: #6a737d; font-style: italic; }
+    .macro { color: #6f42c1; font-weight: 600; }
+    .type { color: #22863a; }
+    .edn-key { color: #d73a49; }
+    .edn-str { color: #032f62; }
+    .sql-kw { color: #d73a49; font-weight: 600; }
+    .sql-func { color: #6f42c1; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>若依 Clojure 全栈系统培训</h1>
+    <p>面向开发者的 5 讲系列课程</p>
+  </header>
+  <nav>
+    <a href="session-1-clojure-basics.html" class="active">第1讲：Clojure 基础</a>
+    <a href="session-2-frontend-state.html">第2讲：前端状态</a>
+    <a href="session-3-frontend-ui-routing.html">第3讲：前端 UI 与路由</a>
+    <a href="session-4-backend-request-flow.html">第4讲：后端请求流</a>
+    <a href="session-5-backend-infra.html">第5讲：后端基础设施</a>
+  </nav>
+  <main class="container">
+    <h1>第1讲：Clojure 入门与项目全栈技术栈</h1>
+    <section class="agenda">
+      <h2>本讲议程</h2>
+      <ul>
+        <li>Clojure / ClojureScript 简介：不可变数据、REPL 优先</li>
+        <li>基础语法：S-表达式、关键字、符号、字符串、数字、布尔、nil</li>
+        <li>核心集合：vector、list、map、set</li>
+        <li>函数定义、解构、多态、变参、匿名函数与线程宏</li>
+        <li>命名空间与 require / refer / alias</li>
+        <li>项目工具链：deps.edn、shadow-cljs.edn、alias 与构建脚本</li>
+        <li>若依 Clojure 全栈概览：后端 Kit + Integrant，前端 Reagent + Re-frame</li>
+        <li>开发工作流：启动、热重载、测试、打包</li>
+      </ul>
+    </section>
+
+    <h2>1. Clojure 与 ClojureScript 是什么</h2>
+    <p>Clojure 是一门运行在 JVM 上的现代 Lisp 方言，强调<strong>不可变数据（immutable data）</strong>与<strong>函数式编程</strong>。ClojureScript 是 Clojure 到 JavaScript 的编译器，共享 99% 的语法与核心库，让同一门语言同时写后端与前端。</p>
+    <p>本项目的核心哲学：</p>
+    <ul>
+      <li><strong>REPL-first：</strong>优先在 REPL 中验证想法，再固化到文件。</li>
+      <li><strong>数据即代码：</strong>配置、SQL、路由、组件都是 EDN/Clojure 数据结构。</li>
+      <li><strong>不可变状态：</strong>用 <code>assoc</code>、<code>update</code>、<code>-></code> 派生新值，而非原地修改。</li>
+    </ul>
+
+    <h2>2. 语法基础</h2>
+    <p>Clojure 代码由 <strong>S-表达式</strong> 组成：<code>(操作符 参数1 参数2 ...)</code>。以下是实际代码中频繁出现的字面量：</p>
+    <pre><code class="language-clojure"><span class="comment">;; 关键字（keyword）用于当键/标签，带冒号</span>
+<span class="macro">:user_name</span>  <span class="macro">:ok</span>  <span class="macro">:roles</span>
+
+<span class="comment">;; 符号（symbol）用于变量、函数名</span>
+user_name  list-users  +
+
+<span class="comment">;; 字符串与数字</span>
+<span class="str">"若依管理系统"</span>   <span class="num">200</span>   <span class="num">3.14</span>
+
+<span class="comment">;; 布尔与 nil</span>
+<span class="kw">true</span>  <span class="kw">false</span>  <span class="kw">nil</span>
+
+<span class="comment">;; 调用函数：操作符在前</span>
+(<span class="macro">+</span> <span class="num">1</span> <span class="num">2</span> <span class="num">3</span>)
+(<span class="sym">str</span> <span class="str">"Hello, "</span> <span class="str">"Clojure"</span>)</code></pre>
+
+    <h2>3. 核心集合</h2>
+    <p>项目里所有数据结构几乎都是以下四种：</p>
+    <pre><code class="language-clojure"><span class="comment">;; vector：索引访问，最常用作列表/参数序列</span>
+[<span class="num">1</span> <span class="num">2</span> <span class="num">3</span>]
+
+<span class="comment">;; list：代码本身，也用于 cons/seq 操作</span>
+'(<span class="num">1</span> <span class="num">2</span> <span class="num">3</span>)
+
+<span class="comment">;; map：键值对，本项目 app-db 的核心</span>
+{<span class="macro">:user_name</span> <span class="str">"admin"</span>  <span class="macro">:status</span> <span class="str">"0"</span>  <span class="macro">:roles</span> [<span class="macro">:admin</span>]}
+
+<span class="comment">;; set：去重集合</span>
+#{<span class="macro">:user</span> <span class="macro">:role</span> <span class="macro">:menu</span>}</code></pre>
+
+    <h2>4. 函数、解构与线程宏</h2>
+    <h3>4.1 defn 与 let</h3>
+    <pre><code class="language-clojure">(<span class="kw">defn</span> <span class="sym">greet</span>
+  <span class="str">"打招呼"</span>
+  [name]
+  (<span class="sym">str</span> <span class="str">"你好, "</span> name))
+
+(<span class="kw">let</span> [x <span class="num">10</span>
+      y <span class="num">20</span>]
+  (<span class="macro">+</span> x y))</code></pre>
+
+    <h3>4.2 解构</h3>
+    <pre><code class="language-clojure"><span class="comment">;; map 解构：从 request 中直接取出 identity</span>
+(<span class="kw">defn</span> <span class="sym">list-users</span>
+  [{<span class="macro">:keys</span> [user-service]} request]
+  (<span class="sym">...</span>))
+
+<span class="comment">;; vector 解构</span>
+(<span class="kw">let</span> [[a b &amp; rest] [<span class="num">1</span> <span class="num">2</span> <span class="num">3</span> <span class="num">4</span>]]
+  [a b rest])
+<span class="comment">;; =&gt; [1 2 (3 4)]</span></code></pre>
+
+    <h3>4.3 多态、变参与匿名函数</h3>
+    <pre><code class="language-clojure"><span class="comment">;; 多态：按参数数量分派</span>
+(<span class="kw">defn</span> <span class="sym">area</span>
+  ([r] (<span class="sym">*</span> <span class="num">3.14</span> r r))
+  ([w h] (<span class="sym">*</span> w h)))
+
+<span class="comment">;; 变参</span>
+(<span class="kw">defn</span> <span class="sym">sum</span> [&amp; nums] (<span class="sym">apply</span> <span class="macro">+</span> nums))
+
+<span class="comment">;; 匿名函数</span>
+(<span class="kw">fn</span> [x] (<span class="sym">*</span> x x))
+#(<span class="sym">*</span> % %)</code></pre>
+
+    <h3>4.4 线程宏</h3>
+    <p>线程宏让数据变换从左到右阅读，本项目大量出现在事件处理与控制器中：</p>
+    <pre><code class="language-clojure"><span class="comment">;; -&gt; 把值插到第一个参数位置</span>
+(<span class="macro">-&gt;</span> db
+    (<span class="sym">assoc-in</span> [<span class="macro">:auth</span> <span class="macro">:token</span>] token)
+    (<span class="sym">assoc-in</span> [<span class="macro">:auth</span> <span class="macro">:loading?</span>] <span class="kw">false</span>))
+
+<span class="comment">;; -&gt;&gt; 插到最后一个参数位置</span>
+(<span class="macro">-&gt;&gt;</span> menus
+     (<span class="sym">filter</span> visible-menu?)
+     (<span class="sym">map</span> menu-&gt;antd-items))
+
+<span class="comment">;; some-&gt; 遇到 nil 就停止</span>
+(<span class="macro">some-&gt;</span> token security/parse-token <span class="macro">:user-name</span>)
+
+<span class="comment">;; cond-&gt; 按条件添加变换</span>
+(<span class="macro">cond-&gt;</span> items
+  (seq search-name) (<span class="sym">filter</span> name-matches?)
+  status (<span class="sym">filter</span> #(= status (<span class="macro">:status</span> %))))</code></pre>
+
+    <h2>5. 命名空间</h2>
+    <p>每个 <code>.clj</code> / <code>.cljs</code> 文件顶部都有 <code>ns</code> 声明。本项目大量使用 <code>:as</code> 别名与 <code>:refer</code> 引入：</p>
+    <pre><code class="language-clojure">(<span class="kw">ns</span> com.ruoyi.frontend.events
+  <span class="str">"re-frame 事件处理器。"</span>
+  (<span class="macro">:require</span>
+   [re-frame.core <span class="macro">:as</span> rf]
+   [com.ruoyi.frontend.db <span class="macro">:as</span> db]
+   [com.ruoyi.frontend.api <span class="macro">:as</span> api]
+   [com.ruoyi.frontend.antd <span class="macro">:as</span> antd]
+   [com.ruoyi.frontend.router <span class="macro">:as</span> router]))</code></pre>
+
+    <h2>6. 项目工具链</h2>
+    <h3>6.1 deps.edn</h3>
+    <p><code>deps.edn</code> 是 Clojure CLI 的依赖与 alias 配置。本项目定义了 <code>:dev</code>、<code>:test</code>、<code>:build</code> 等 alias：</p>
+    <pre><code class="language-edn">{<span class="edn-key">:paths</span>   [<span class="edn-str">"src/clj"</span> <span class="edn-str">"resources"</span>]
+ <span class="edn-key">:deps</span>    {org.clojure/clojure {<span class="edn-key">:mvn/version</span> <span class="edn-str">"1.12.4"</span>}
+           metosin/reitit      {<span class="edn-key">:mvn/version</span> <span class="edn-str">"0.10.1"</span>}
+           <span class="comment">;; ...</span>
+           }
+ <span class="edn-key">:aliases</span> {<span class="edn-key">:dev</span>  {<span class="edn-key">:extra-deps</span>  {integrant/repl {<span class="edn-key">:mvn/version</span> <span class="edn-str">"0.5.1"</span>}}
+                   <span class="edn-key">:extra-paths</span> [<span class="edn-str">"env/dev/clj"</span> <span class="edn-str">"env/dev/resources"</span> <span class="edn-str">"test/clj"</span>]}
+           <span class="edn-key">:test</span> {<span class="edn-key">:extra-deps</span>  {io.github.cognitect-labs/test-runner {<span class="edn-key">:git/tag</span> <span class="edn-str">"v0.5.1"</span>}}
+                   <span class="edn-key">:exec-fn</span> cognitect.test-runner.api/test}
+           <span class="edn-key">:build</span> {<span class="edn-key">:deps</span> {io.github.clojure/tools.build {<span class="edn-key">:mvn/version</span> <span class="edn-str">"0.10.12"</span>}}
+                   <span class="edn-key">:ns-default</span> build}}}</code></pre>
+
+    <h3>6.2 shadow-cljs.edn</h3>
+    <p>前端构建由 shadow-cljs 负责，入口模块为 <code>com.ruoyi.frontend.app/init</code>：</p>
+    <pre><code class="language-edn">{<span class="edn-key">:source-paths</span> [<span class="edn-str">"src/cljs"</span>]
+ <span class="edn-key">:dependencies</span> [[reagent <span class="edn-str">"2.0.1"</span>]
+                [re-frame <span class="edn-str">"1.4.3"</span>]
+                [cljs-ajax <span class="edn-str">"0.8.4"</span>]
+                [bidi <span class="edn-str">"2.1.6"</span>]
+                [venantius/accountant <span class="edn-str">"0.2.5"</span>]]
+ <span class="edn-key">:builds</span>
+ {<span class="edn-key">:app</span>
+  {<span class="edn-key">:target</span>     <span class="edn-key">:browser</span>
+   <span class="edn-key">:output-dir</span> <span class="edn-str">"resources/public/js"</span>
+   <span class="edn-key">:asset-path</span> <span class="edn-str">"/js"</span>
+   <span class="edn-key">:modules</span>    {<span class="edn-key">:app</span> {<span class="edn-key">:init-fn</span> com.ruoyi.frontend.app/init}}
+   <span class="edn-key">:devtools</span>   {<span class="edn-key">:after-load</span> com.ruoyi.frontend.app/reload}}}}}</code></pre>
+
+    <h2>7. 全栈技术栈概览</h2>
+    <table>
+      <tr><th>层</th><th>技术</th><th>作用</th></tr>
+      <tr><td>后端框架</td><td>Kit + Integrant</td><td>组件生命周期、依赖注入</td></tr>
+      <tr><td>HTTP 服务</td><td>Undertow + Ring + Reitit</td><td>Web 服务器、中间件、路由</td></tr>
+      <tr><td>数据转换</td><td>Muuntaja + Malli</td><td>请求/响应格式化与校验</td></tr>
+      <tr><td>数据库</td><td>HikariCP + conman + next.jdbc</td><td>连接池、HugSQL 查询</td></tr>
+      <tr><td>安全</td><td>buddy-auth / sign / hashers</td><td>JWT、bcrypt</td></tr>
+      <tr><td>前端框架</td><td>Reagent 2 + React Hooks</td><td>组件渲染</td></tr>
+      <tr><td>前端状态</td><td>Re-frame</td><td>单向数据流</td></tr>
+      <tr><td>前端路由</td><td>bidi + accountant（本项目手动实现）</td><td>页面路由</td></tr>
+      <tr><td>UI 组件</td><td>Ant Design 6</td><td>企业级组件库</td></tr>
+      <tr><td>构建</td><td>shadow-cljs</td><td>ClojureScript 编译</td></tr>
+    </table>
+
+    <h2>8. 开发工作流</h2>
+    <p>启动后端：</p>
+    <pre><code class="language-bash">clojure -M:dev -m com.ruoyi.core</code></pre>
+    <p>启动前端 watch（端口 3000 由后端统一服务静态资源，开发时 shadow-cljs watch 负责增量编译）：</p>
+    <pre><code class="language-bash">npx shadow-cljs watch app</code></pre>
+    <p>后端 nREPL 热重载（端口 7000）：</p>
+    <pre><code class="language-bash">clj-nrepl-eval -p 7000 '(user/rd)'      <span class="comment">;; 重载域服务</span>
+clj-nrepl-eval -p 7000 '(user/rroutes)' <span class="comment">;; 重载路由定义</span>
+clj-nrepl-eval -p 7000 '(user/ra)'      <span class="comment">;; 重载所有命名空间</span>
+clj-nrepl-eval -p 7000 '(user/rr)'      <span class="comment">;; 完全重启 Integrant 系统</span></code></pre>
+    <p>测试：</p>
+    <pre><code class="language-bash">clojure -M:test</code></pre>
+
+    <h2>9. 构建与部署</h2>
+    <pre><code class="language-bash"><span class="comment">;; 1. 编译前端生产包</span>
+npx shadow-cljs release app
+
+<span class="comment">;; 2. 构建 standalone uberjar</span>
+clojure -T:build all
+
+<span class="comment">;; 3. 运行</span>
+java -jar target/rouyi-standalone.jar</code></pre>
+
+    <section class="exercise">
+      <h2>练习 / 讨论</h2>
+      <ol>
+        <li>在 REPL 中打开本项目的 <code>src/clj</code>，尝试用 <code>(require '[com.ruoyi.domain.system.user :as user])</code> 加载用户域服务，并用线程宏重写一个你最近写过的嵌套调用。</li>
+        <li>观察 <code>deps.edn</code> 与 <code>shadow-cljs.edn</code>：为什么后端和前端要分别使用两套依赖管理？请指出各自负责编译/运行的代码目录。</li>
+        <li>讨论：不可变数据在大型 SPA 中有哪些好处？结合 Re-frame 的 <code>app-db</code> 思考。</li>
+      </ol>
+    </section>
+  </main>
+</body>
+</html>

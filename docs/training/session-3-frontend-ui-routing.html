@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第3讲：前端页面呈现、组件与路由 | 若依 Clojure 培训</title>
+  <style>
+    :root { --primary: #1677ff; --success: #52c41a; --warning: #fa8c16; --danger: #f5222d; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.7; color: #262626; background: #f5f5f5; margin: 0; }
+    header { background: var(--primary); color: #fff; padding: 1.2rem 1rem; }
+    header h1 { margin: 0; font-size: 1.4rem; }
+    header p { margin: .25rem 0 0; opacity: .9; }
+    nav { background: #fff; border-bottom: 1px solid #e8e8e8; padding: .6rem 1rem; display: flex; flex-wrap: wrap; gap: .5rem; }
+    nav a { text-decoration: none; color: #595959; padding: .35rem .8rem; border-radius: 4px; border: 1px solid #d9d9d9; font-size: .9rem; }
+    nav a:hover { color: var(--primary); border-color: var(--primary); }
+    nav a.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    main.container { max-width: 960px; margin: 1.5rem auto; padding: 1.5rem 2rem; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
+    h1 { color: #262626; border-bottom: 2px solid var(--primary); padding-bottom: .5rem; }
+    h2 { color: #262626; margin-top: 2rem; font-size: 1.25rem; }
+    h3 { color: #434343; margin-top: 1.5rem; font-size: 1.1rem; }
+    ul li { margin: .35rem 0; }
+    .agenda { background: #f0f7ff; border-left: 4px solid var(--primary); padding: 1rem 1.2rem; margin: 1.2rem 0 2rem; border-radius: 0 6px 6px 0; }
+    .agenda h2 { margin-top: 0; }
+    pre { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; padding: 1rem; overflow-x: auto; line-height: 1.5; }
+    code { font-family: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace; font-size: .9em; }
+    .exercise { background: #fff7e6; border-left: 4px solid var(--warning); padding: 1rem 1.2rem; margin-top: 2.5rem; border-radius: 0 6px 6px 0; }
+    .exercise h2 { margin-top: 0; }
+    .note { background: #f6ffed; border: 1px solid #b7eb8f; padding: .8rem 1rem; border-radius: 6px; color: #135200; margin: 1rem 0; }
+    .warn { background: #fff2f0; border: 1px solid #ffccc7; padding: .8rem 1rem; border-radius: 6px; color: #5c0011; margin: 1rem 0; }
+    .kw { color: #d73a49; font-weight: 600; }
+    .sym { color: #24292e; }
+    .str { color: #032f62; }
+    .num { color: #005cc5; }
+    .comment { color: #6a737d; font-style: italic; }
+    .macro { color: #6f42c1; font-weight: 600; }
+    .type { color: #22863a; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>若依 Clojure 全栈系统培训</h1>
+    <p>面向开发者的 5 讲系列课程</p>
+  </header>
+  <nav>
+    <a href="session-1-clojure-basics.html">第1讲：Clojure 基础</a>
+    <a href="session-2-frontend-state.html">第2讲：前端状态</a>
+    <a href="session-3-frontend-ui-routing.html" class="active">第3讲：前端 UI 与路由</a>
+    <a href="session-4-backend-request-flow.html">第4讲：后端请求流</a>
+    <a href="session-5-backend-infra.html">第5讲：后端基础设施</a>
+  </nav>
+  <main class="container">
+    <h1>第3讲：前端页面呈现、组件与路由</h1>
+    <section class="agenda">
+      <h2>本讲议程</h2>
+      <ul>
+        <li>Reagent 2 函数组件与 <code>reagent.hooks</code></li>
+        <li>Ant Design 6 的 Reagent 封装：antd.cljs</li>
+        <li>常见 Ant Design 使用规范与坑</li>
+        <li>主布局：Sider、菜单、Tab 栏、内容区</li>
+        <li>Error Boundary 实现</li>
+        <li>路由：bidi 路由表、<code>init-routes!</code>、<code>navigate!</code></li>
+        <li>页面模式：搜索栏、工具栏、表格、状态开关、表单弹窗</li>
+        <li>动手：新增一条路由 + 空页面，或修改表格列</li>
+      </ul>
+    </section>
+
+    <h2>1. Reagent 2 函数组件</h2>
+    <p>本项目统一使用 Reagent 2 的函数组件 + React Hooks。<strong>禁止使用 <code>reagent/atom</code></strong> 管理局部状态。</p>
+    <pre><code class="language-clojure"><span class="comment">;; ❌ 错误 — 用 reagent/atom</span>
+(<span class="kw">let</span> [expanded? (<span class="sym">r/atom</span> <span class="kw">false</span>)]
+  [:div {<span class="macro">:on-click</span> #(<span class="sym">reset!</span> expanded? <span class="kw">true</span>)} ...])
+
+<span class="comment">;; ✅ 正确 — 用 hooks/use-state</span>
+(<span class="kw">let</span> [[expanded? set-expanded!] (<span class="sym">hooks/use-state</span> <span class="kw">false</span>)]
+  [:div {<span class="macro">:on-click</span> #(<span class="sym">set-expanded!</span> <span class="kw">true</span>)} ...])</code></pre>
+    <p>常用 hooks：</p>
+    <ul>
+      <li><code>hooks/use-state</code>：局部状态</li>
+      <li><code>hooks/use-effect</code>：副作用</li>
+      <li><code>hooks/use-callback</code>：缓存回调</li>
+      <li><code>hooks/use-memo</code>：缓存计算</li>
+      <li><code>hooks/use-ref</code>：DOM 引用</li>
+    </ul>
+
+    <h2>2. Ant Design 6 的 Reagent 封装</h2>
+    <p><code>src/cljs/com/ruoyi/frontend/antd.cljs</code> 把所有用到的 Ant Design 组件转为 Reagent 组件。注意 <code>Input.TextArea</code> 和 <code>Form.useForm</code> 的获取方式：</p>
+    <pre><code class="language-clojure">(<span class="kw">ns</span> com.ruoyi.frontend.antd
+  (<span class="macro">:require</span>
+   [reagent.core <span class="macro">:as</span> r]
+   [<span class="str">"antd"</span> <span class="macro">:refer</span> [App Button Card ConfigProvider DatePicker <span class="sym">...</span> Form Input <span class="sym">...</span> message]]
+   [<span class="str">"@ant-design/icons"</span> <span class="macro">:refer</span> [<span class="sym">...</span>]]))
+
+(<span class="kw">def</span> <span class="sym">app</span> (<span class="sym">r/adapt-react-class</span> App))
+(<span class="kw">def</span> <span class="sym">button</span> (<span class="sym">r/adapt-react-class</span> Button))
+(<span class="kw">def</span> <span class="sym">card</span> (<span class="sym">r/adapt-react-class</span> Card))
+(<span class="kw">def</span> <span class="sym">form</span> (<span class="sym">r/adapt-react-class</span> Form))
+(<span class="kw">def</span> <span class="sym">form-item</span> (<span class="sym">r/adapt-react-class</span> (.-Item Form)))
+(<span class="kw">def</span> <span class="sym">form-use-form</span> (.-useForm Form))
+(<span class="kw">def</span> <span class="sym">input</span> (<span class="sym">r/adapt-react-class</span> Input))
+(<span class="kw">def</span> <span class="sym">password</span> (<span class="sym">r/adapt-react-class</span> (.-Password Input)))
+(<span class="kw">def</span> <span class="sym">text-area</span> (<span class="sym">r/adapt-react-class</span> (.-TextArea Input)))
+(<span class="kw">def</span> <span class="sym">select</span> (<span class="sym">r/adapt-react-class</span> Select))
+(<span class="kw">def</span> <span class="sym">select-option</span> (<span class="sym">r/adapt-react-class</span> (.-Option Select)))
+(<span class="kw">def</span> <span class="sym">modal</span> (<span class="sym">r/adapt-react-class</span> Modal))
+(<span class="kw">def</span> <span class="sym">drawer</span> (<span class="sym">r/adapt-react-class</span> Drawer))
+(<span class="kw">def</span> <span class="sym">table</span> (<span class="sym">r/adapt-react-class</span> Table))
+
+<span class="comment">;; message 需要通过 App.useApp 获取实例</span>
+(<span class="kw">defonce</span> <span class="sym">message-api</span> (<span class="sym">atom</span> <span class="kw">nil</span>))
+
+(<span class="kw">defn</span> <span class="sym">use-app-message</span> []
+  (<span class="kw">let</span> [api (<span class="sym">.useApp</span> App)]
+    (<span class="sym">reset!</span> message-api (.-message api))))
+
+(<span class="kw">defn</span> <span class="sym">success!</span> [text]
+  (<span class="kw">if-let</span> [api @message-api]
+    (<span class="sym">.success</span> api text)
+    (<span class="sym">.success</span> message text)))</code></pre>
+
+    <h2>3. 常见 Ant Design 使用规范与坑</h2>
+    <p>这些约定来自 <code>AGENTS.md</code> 与项目实践：</p>
+    <div class="warn">
+      <strong>注意：</strong> Ant Design 6 与 Reagent 2 混用时，以下细节非常容易踩坑。
+    </div>
+    <pre><code class="language-clojure"><span class="comment">;; ✅ Button 的 :icon 必须是 React 元素</span>
+[antd/button {<span class="macro">:type</span> <span class="str">"primary"</span>
+              <span class="macro">:icon</span> (<span class="sym">r/as-element</span> [:&gt; SearchOutlined])}
+ <span class="str">"搜索"</span>]
+
+<span class="comment">;; ✅ Dropdown menu 的 :label 必须用 r/as-element 包裹</span>
+{<span class="macro">:key</span> <span class="str">"user_id"</span>
+ <span class="macro">:label</span> (<span class="sym">r/as-element</span> [:div {<span class="macro">:onClick</span> (fn [e] ...)} [:span <span class="str">"用户编号"</span>]])}
+
+<span class="comment">;; ✅ Drawer 的 :width 已废弃，改用 :size 或 :style</span>
+[antd/drawer {<span class="macro">:title</span> <span class="str">"用户详情"</span> <span class="macro">:open</span> visible? <span class="macro">:size</span> <span class="str">"large"</span>} ...]
+
+<span class="comment">;; ✅ Modal / Drawer 的 destroyOnClose 已废弃，改用 :destroyOnHidden</span>
+[antd/modal {<span class="macro">:title</span> <span class="str">"新增角色"</span> <span class="macro">:open</span> visible? <span class="macro">:destroyOnHidden</span> <span class="kw">true</span>} ...]
+
+<span class="comment">;; ✅ Card 的 bodyStyle 已废弃，改用 :styles.body</span>
+[antd/card {<span class="macro">:title</span> <span class="str">"xxx"</span> <span class="macro">:styles</span> {<span class="macro">:body</span> {<span class="macro">:padding</span> <span class="num">12</span>}}} ...]
+
+<span class="comment">;; ✅ 不要同时设置 :border 与 :borderColor</span>
+{<span class="macro">:border</span> <span class="str">"1px solid #1677ff"</span>}</code></pre>
+
+    <h2>4. 主布局</h2>
+    <p><code>src/cljs/com/ruoyi/frontend/pages/layout.cljs</code> 实现了 RuoYi 风格布局：左侧 Sider、顶部 Header、Tab 栏、内容区。</p>
+    <pre><code class="language-clojure">(<span class="kw">defn</span> <span class="sym">main-layout</span> []
+  (<span class="kw">let</span> [[collapsed set-collapsed!] (<span class="sym">hooks/use-state</span> <span class="kw">false</span>)
+        theme-mode @(<span class="sym">rf/subscribe</span> [<span class="macro">:theme/mode</span>])
+        user @(<span class="sym">rf/subscribe</span> [<span class="macro">:auth/user</span>])
+        page @(<span class="sym">rf/subscribe</span> [<span class="macro">:page</span>])
+        user-menus (<span class="kw">or</span> (<span class="sym">seq</span> (<span class="macro">:menus</span> user))
+                       [{<span class="macro">:path</span> <span class="str">"dashboard"</span> <span class="macro">:menu_name</span> <span class="str">"首页"</span> <span class="macro">:icon</span> <span class="str">"dashboard"</span>}])
+        <span class="comment">;; 过滤按钮权限菜单，只保留目录 M 和菜单 C</span>
+        filtered-menus (<span class="sym">filter-visible-menus</span> user-menus)
+        menu-items (<span class="sym">menu-&gt;antd-items</span> filtered-menus)]
+    [:&gt; Layout {<span class="macro">:style</span> {<span class="macro">:minHeight</span> <span class="str">"100vh"</span>}}
+     [:&gt; Layout.Sider {<span class="macro">:collapsible</span> <span class="kw">true</span>
+                       <span class="macro">:collapsed</span> collapsed
+                       <span class="macro">:onCollapse</span> set-collapsed!
+                       <span class="macro">:theme</span> (<span class="kw">if</span> (<span class="macro">=</span> theme-mode <span class="macro">:dark</span>) <span class="str">"dark"</span> <span class="str">"light"</span>)
+                       <span class="macro">:width</span> <span class="num">220</span>}
+      [:div {<span class="macro">:style</span> {<span class="macro">:height</span> <span class="num">64</span> ...}} (<span class="kw">if</span> collapsed <span class="str">"RY"</span> <span class="str">"若依管理系统"</span>)]
+      [:&gt; Menu {<span class="macro">:theme</span> ... <span class="macro">:mode</span> <span class="str">"inline"</span>
+                <span class="macro">:items</span> menu-items
+                <span class="macro">:onClick</span> (<span class="kw">fn</span> [e]
+                           (<span class="kw">let</span> [k (.-key e)
+                                 matched (<span class="sym">router/match-route</span> (<span class="sym">str</span> <span class="str">"/"</span> k))
+                                 page (<span class="kw">or</span> (<span class="macro">:handler</span> matched) (<span class="sym">keyword</span> k))]
+                             (<span class="sym">rf/dispatch</span> [<span class="macro">:navigate</span> page])
+                             (<span class="sym">rf/dispatch</span> [<span class="macro">:tabs/add</span> page (<span class="sym">get</span> labels page <span class="str">"页面"</span>) (<span class="sym">get</span> icons page)])))}]]
+     [:&gt; Layout
+      [:&gt; Layout.Header ...]
+      [tab-bar]
+      [:&gt; Layout.Content {<span class="macro">:style</span> {<span class="macro">:margin</span> <span class="num">24</span>} <span class="macro">:key</span> (<span class="sym">name</span> page)}
+       [error-boundary/boundary
+        (<span class="kw">case</span> page
+          <span class="macro">:dashboard</span> [dashboard/dashboard-page]
+          <span class="macro">:user</span> [user/user-page]
+          <span class="macro">:role</span> [role/role-page]
+          <span class="comment">;; ...</span>
+          [:div <span class="str">"页面建设中"</span>])]]]]))</code></pre>
+
+    <h2>5. Error Boundary</h2>
+    <p>因为函数组件无法捕获子树渲染错误，项目用 Reagent 的 class 组件实现了一个错误边界：</p>
+    <pre><code class="language-clojure">(<span class="kw">ns</span> com.ruoyi.frontend.components.error-boundary
+  (<span class="macro">:require</span>
+   [reagent.core <span class="macro">:as</span> r]))
+
+(<span class="kw">def</span> <span class="sym">boundary</span>
+  (<span class="sym">r/create-class</span>
+   {<span class="macro">:get-initial-state</span>
+    (<span class="kw">fn</span> [_this] <span class="kw">nil</span>)
+    <span class="macro">:component-did-catch</span>
+    (<span class="kw">fn</span> [this error info]
+      (<span class="sym">js/console.error</span> <span class="str">"ErrorBoundary caught error:"</span> error info)
+      (<span class="sym">r/set-state</span> this {<span class="macro">:error</span> error <span class="macro">:info</span> info}))
+    <span class="macro">:reagent-render</span>
+    (<span class="kw">fn</span> [child]
+      (<span class="kw">let</span> [this (<span class="sym">r/current-component</span>)
+            st (<span class="sym">r/state</span> this)]
+        (<span class="kw">if</span> (<span class="macro">:error</span> st)
+          (<span class="sym">r/as-element</span> [fallback-ui (<span class="macro">:error</span> st) (<span class="macro">:info</span> st)])
+          (<span class="sym">r/as-element</span> child))))}))</code></pre>
+
+    <h2>6. 路由</h2>
+    <p>本项目使用 bidi 定义路由表，并在 <code>router.cljs</code> 中手动管理浏览器历史：</p>
+    <pre><code class="language-clojure">(<span class="kw">ns</span> com.ruoyi.frontend.router
+  (<span class="macro">:require</span>
+   [bidi.bidi <span class="macro">:as</span> bidi]
+   [re-frame.core <span class="macro">:as</span> rf]))
+
+(<span class="kw">def</span> <span class="sym">routes</span>
+  [<span class="str">"/"</span> {<span class="str">""</span> <span class="macro">:dashboard</span>
+        <span class="str">"dashboard"</span> <span class="macro">:dashboard</span>
+        <span class="str">"system/user"</span> <span class="macro">:user</span>
+        <span class="str">"system/role"</span> <span class="macro">:role</span>
+        <span class="str">"system/menu"</span> <span class="macro">:menu</span>
+        <span class="str">"monitor/operlog"</span> <span class="macro">:oper-log</span>
+        <span class="comment">;; ...</span>
+        }])
+
+(<span class="kw">defn</span> <span class="sym">match-route</span> [path]
+  (<span class="sym">bidi/match-route</span> routes path))
+
+(<span class="kw">defn</span> <span class="sym">page-path</span> [page]
+  (<span class="kw">or</span> (<span class="sym">bidi/path-for</span> routes page) <span class="str">"/"</span>))
+
+(<span class="kw">defonce</span> <span class="sym">initialized?</span> (<span class="sym">volatile!</span> <span class="kw">false</span>))
+
+(<span class="kw">defn</span> <span class="sym">init-routes!</span> []
+  (<span class="kw">when-not</span> @initialized?
+    (<span class="sym">.addEventListener</span> js/window <span class="str">"popstate"</span> on-popstate)
+    (<span class="sym">vreset!</span> initialized? <span class="kw">true</span>)
+    (<span class="kw">let</span> [path (.-pathname js/location)
+          match (<span class="sym">match-route</span> path)
+          page (<span class="kw">or</span> (<span class="macro">:handler</span> match) <span class="macro">:dashboard</span>)]
+      (<span class="sym">rf/dispatch-sync</span> [<span class="macro">:navigate</span> page]))))
+
+<span class="comment">;; navigate! 只更新 URL，不 dispatch 事件</span>
+(<span class="kw">defn</span> <span class="sym">navigate!</span> [page]
+  (<span class="kw">when</span> @initialized?
+    (<span class="kw">let</span> [path (<span class="sym">page-path</span> page)]
+      (<span class="sym">.pushState</span> js/history <span class="kw">nil</span> <span class="str">""</span> path))))</code></pre>
+
+    <h2>7. 页面模式</h2>
+    <p>以 <code>user.cljs</code> 和 <code>role.cljs</code> 为例，一个标准管理页面由四部分组成：</p>
+    <ol>
+      <li><strong>搜索栏（ghost card）</strong></li>
+      <li><strong>工具栏</strong></li>
+      <li><strong>表格</strong></li>
+      <li><strong>新增/编辑弹窗或详情抽屉</strong></li>
+    </ol>
+
+    <h3>7.1 搜索栏</h3>
+    <pre><code class="language-clojure">(<span class="kw">defn-</span> <span class="sym">search-form</span> []
+  (<span class="kw">let</span> [query-params @(<span class="sym">rf/subscribe</span> [<span class="macro">:users/query-params</span>])]
+    [:div {<span class="macro">:style</span> {<span class="macro">:background</span> <span class="str">"var(--ant-color-bg-container, #fff)"</span>
+                    <span class="macro">:padding</span> <span class="num">16</span> <span class="macro">:marginBottom</span> <span class="num">12</span>
+                    <span class="macro">:borderRadius</span> <span class="num">8</span>
+                    <span class="macro">:border</span> <span class="str">"1px solid var(--ant-color-border-secondary, #e8e8e8)"</span>}}
+     [:div {<span class="macro">:style</span> {<span class="macro">:display</span> <span class="str">"flex"</span> <span class="macro">:flexWrap</span> <span class="str">"wrap"</span> <span class="macro">:gap</span> <span class="num">12</span>}}
+      [antd/input {<span class="macro">:placeholder</span> <span class="str">"请输入用户名称"</span>
+                   <span class="macro">:style</span> {<span class="macro">:width</span> <span class="num">200</span>}
+                   <span class="macro">:value</span> (<span class="macro">:user_name</span> query-params)
+                   <span class="macro">:on-change</span> #(<span class="sym">rf/dispatch</span> [<span class="macro">:users/update-query</span> <span class="macro">:user_name</span> (.. % -target -value)])}]
+      [antd/button {<span class="macro">:type</span> <span class="str">"primary"</span>
+                    <span class="macro">:icon</span> (<span class="sym">r/as-element</span> [:&gt; SearchOutlined])
+                    <span class="macro">:on-click</span> #(<span class="sym">rf/dispatch</span> [<span class="macro">:users/search</span>])}
+       <span class="str">"搜索"</span>]]]))</code></pre>
+
+    <h3>7.2 表格列与状态开关</h3>
+    <pre><code class="language-clojure">(<span class="kw">defn-</span> <span class="sym">user-columns</span> []
+  (<span class="kw">let</span> [columns-config @(<span class="sym">rf/subscribe</span> [<span class="macro">:users/columns</span>])]
+    (<span class="sym">clj-&gt;js</span>
+     (filterv some?
+      [(<span class="kw">when</span> (<span class="sym">get-in</span> columns-config [<span class="macro">:user_name</span> <span class="macro">:visible?</span>])
+         {<span class="macro">:title</span> <span class="str">"用户名称"</span> <span class="macro">:dataIndex</span> <span class="str">"user_name"</span> <span class="macro">:key</span> <span class="str">"user_name"</span>
+          <span class="macro">:render</span> (<span class="kw">fn</span> [v record]
+                    (<span class="sym">r/as-element</span>
+                     [:a {<span class="macro">:style</span> {<span class="macro">:cursor</span> <span class="str">"pointer"</span> <span class="macro">:color</span> <span class="str">"#1677ff"</span>}
+                          <span class="macro">:on-click</span> #(<span class="sym">rf/dispatch</span> [<span class="macro">:users/view-detail</span> (.-user_id ^js record)])}
+                      v]))})
+       (<span class="kw">when</span> (<span class="sym">get-in</span> columns-config [<span class="macro">:status</span> <span class="macro">:visible?</span>])
+         {<span class="macro">:title</span> <span class="str">"状态"</span> <span class="macro">:dataIndex</span> <span class="str">"status"</span> <span class="macro">:key</span> <span class="str">"status"</span> <span class="macro">:width</span> <span class="num">100</span>
+          <span class="macro">:render</span> (<span class="kw">fn</span> [v record]
+                    (<span class="sym">r/as-element</span>
+                     [antd/switch {<span class="macro">:checked</span> (<span class="macro">=</span> v <span class="str">"0"</span>)
+                                   <span class="macro">:checkedChildren</span> <span class="str">"正常"</span>
+                                   <span class="macro">:unCheckedChildren</span> <span class="str">"停用"</span>
+                                   <span class="macro">:on-change</span> (<span class="kw">fn</span> [checked?]
+                                                (<span class="sym">rf/dispatch</span> [<span class="macro">:users/change-status</span>
+                                                              (.-user_id ^js record)
+                                                              (<span class="kw">if</span> checked? <span class="str">"0"</span> <span class="str">"1"</span>)]))}]))})
+       {<span class="macro">:title</span> <span class="str">"操作"</span> <span class="macro">:key</span> <span class="str">"action"</span> <span class="macro">:width</span> <span class="num">200</span>
+        <span class="macro">:render</span> (<span class="kw">fn</span> [_ record]
+                  (<span class="sym">r/as-element</span>
+                   [antd/space
+                    [antd/button {<span class="macro">:type</span> <span class="str">"link"</span> <span class="macro">:size</span> <span class="str">"small"</span>
+                                  <span class="macro">:on-click</span> #(<span class="sym">rf/dispatch</span> [<span class="macro">:users/open-edit</span> (.-user_id ^js record)])}
+                     <span class="str">"修改"</span>]
+                    [antd/dropdown {<span class="macro">:menu</span> {<span class="macro">:items</span> ...}}
+                     [antd/button {<span class="macro">:type</span> <span class="str">"link"</span> <span class="macro">:size</span> <span class="str">"small"</span>} <span class="str">"更多 ▾"</span>]]]))}]))))</code></pre>
+
+    <h3>7.3 表单管理</h3>
+    <p>弹窗表单使用 <code>antd/form-use-form</code> 创建 form 实例，通过 <code>:onFinish</code> 提交：</p>
+    <pre><code class="language-clojure">(<span class="kw">let</span> [visible? @(<span class="sym">rf/subscribe</span> [<span class="macro">:roles/modal-visible?</span>])
+      editing @(<span class="sym">rf/subscribe</span> [<span class="macro">:roles/editing</span>])
+      form-data @(<span class="sym">rf/subscribe</span> [<span class="macro">:roles/form-data</span>])
+      [form] (<span class="sym">antd/form-use-form</span>)]
+  (<span class="sym">hooks/use-effect</span>
+   (<span class="kw">fn</span> []
+     (<span class="kw">when</span> visible?
+       (<span class="sym">.setFieldsValue</span> form (<span class="sym">clj-&gt;js</span> (<span class="sym">merge</span> {<span class="macro">:role_sort</span> <span class="num">0</span> <span class="macro">:status</span> <span class="str">"0"</span> <span class="macro">:data_scope</span> <span class="str">"1"</span>} form-data))))
+     js/undefined)
+   [visible? form-data])
+  [antd/modal {<span class="macro">:title</span> (<span class="kw">if</span> editing <span class="str">"修改角色"</span> <span class="str">"新增角色"</span>)
+               <span class="macro">:open</span> visible?
+               <span class="macro">:onOk</span> #(<span class="sym">.submit</span> form)
+               <span class="macro">:onCancel</span> #(<span class="sym">rf/dispatch</span> [<span class="macro">:roles/close-modal</span>])
+               <span class="macro">:destroyOnHidden</span> <span class="kw">true</span>}
+   [antd/form {<span class="macro">:form</span> form
+               <span class="macro">:labelCol</span> {<span class="macro">:span</span> <span class="num">6</span>}
+               <span class="macro">:wrapperCol</span> {<span class="macro">:span</span> <span class="num">16</span>}
+               <span class="macro">:preserve</span> <span class="kw">false</span>
+               <span class="macro">:onFinish</span> (<span class="kw">fn</span> [values]
+                           (<span class="sym">rf/dispatch</span> [<span class="macro">:roles/submit</span> (<span class="sym">js-&gt;clj</span> values <span class="macro">:keywordize-keys</span> <span class="kw">true</span>)]))
+               <span class="macro">:initialValues</span> (<span class="sym">clj-&gt;js</span> ...)}
+    [antd/form-item {<span class="macro">:label</span> <span class="str">"角色名称"</span> <span class="macro">:name</span> <span class="str">"role_name"</span>
+                     <span class="macro">:rules</span> [{<span class="macro">:required</span> <span class="kw">true</span> <span class="macro">:message</span> <span class="str">"请输入角色名称"</span>}]}
+     [antd/input {<span class="macro">:placeholder</span> <span class="str">"请输入角色名称"</span>}]]]])</code></pre>
+
+    <section class="exercise">
+      <h2>练习 / 讨论</h2>
+      <ol>
+        <li>在 <code>router.cljs</code> 中新增一条路由 <code>"demo/hello" :demo-hello</code>，然后在 <code>layout.cljs</code> 的 <code>case</code> 中增加对应页面渲染。新建一个空的 <code>pages/demo.cljs</code> 组件，观察菜单或地址栏访问是否生效。</li>
+        <li>修改 <code>user.cljs</code> 中的 <code>user-columns</code>，把“手机号码”列加宽到 150，并给“用户名称”列添加一个 <code>antd/tooltip</code> 提示。</li>
+        <li>讨论：为什么自定义表单控件（如 <code>dept-tree-select</code>）不能依赖 <code>Form.Item</code> 自动注入 <code>value/onChange</code>？本项目是怎么解决的？</li>
+      </ol>
+    </section>
+  </main>
+</body>
+</html>

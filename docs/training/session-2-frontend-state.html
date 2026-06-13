@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第2讲：前端数据组织与状态管理 | 若依 Clojure 培训</title>
+  <style>
+    :root { --primary: #1677ff; --success: #52c41a; --warning: #fa8c16; --danger: #f5222d; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.7; color: #262626; background: #f5f5f5; margin: 0; }
+    header { background: var(--primary); color: #fff; padding: 1.2rem 1rem; }
+    header h1 { margin: 0; font-size: 1.4rem; }
+    header p { margin: .25rem 0 0; opacity: .9; }
+    nav { background: #fff; border-bottom: 1px solid #e8e8e8; padding: .6rem 1rem; display: flex; flex-wrap: wrap; gap: .5rem; }
+    nav a { text-decoration: none; color: #595959; padding: .35rem .8rem; border-radius: 4px; border: 1px solid #d9d9d9; font-size: .9rem; }
+    nav a:hover { color: var(--primary); border-color: var(--primary); }
+    nav a.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    main.container { max-width: 960px; margin: 1.5rem auto; padding: 1.5rem 2rem; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
+    h1 { color: #262626; border-bottom: 2px solid var(--primary); padding-bottom: .5rem; }
+    h2 { color: #262626; margin-top: 2rem; font-size: 1.25rem; }
+    h3 { color: #434343; margin-top: 1.5rem; font-size: 1.1rem; }
+    ul li { margin: .35rem 0; }
+    .agenda { background: #f0f7ff; border-left: 4px solid var(--primary); padding: 1rem 1.2rem; margin: 1.2rem 0 2rem; border-radius: 0 6px 6px 0; }
+    .agenda h2 { margin-top: 0; }
+    pre { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; padding: 1rem; overflow-x: auto; line-height: 1.5; }
+    code { font-family: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace; font-size: .9em; }
+    .exercise { background: #fff7e6; border-left: 4px solid var(--warning); padding: 1rem 1.2rem; margin-top: 2.5rem; border-radius: 0 6px 6px 0; }
+    .exercise h2 { margin-top: 0; }
+    .note { background: #f6ffed; border: 1px solid #b7eb8f; padding: .8rem 1rem; border-radius: 6px; color: #135200; margin: 1rem 0; }
+    .kw { color: #d73a49; font-weight: 600; }
+    .sym { color: #24292e; }
+    .str { color: #032f62; }
+    .num { color: #005cc5; }
+    .comment { color: #6a737d; font-style: italic; }
+    .macro { color: #6f42c1; font-weight: 600; }
+    .type { color: #22863a; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>若依 Clojure 全栈系统培训</h1>
+    <p>面向开发者的 5 讲系列课程</p>
+  </header>
+  <nav>
+    <a href="session-1-clojure-basics.html">第1讲：Clojure 基础</a>
+    <a href="session-2-frontend-state.html" class="active">第2讲：前端状态</a>
+    <a href="session-3-frontend-ui-routing.html">第3讲：前端 UI 与路由</a>
+    <a href="session-4-backend-request-flow.html">第4讲：后端请求流</a>
+    <a href="session-5-backend-infra.html">第5讲：后端基础设施</a>
+  </nav>
+  <main class="container">
+    <h1>第2讲：前端数据组织与状态管理</h1>
+    <section class="agenda">
+      <h2>本讲议程</h2>
+      <ul>
+        <li>Re-frame 核心概念：event → effect → subscription → view</li>
+        <li><code>app-db</code> 的扁平命名空间设计</li>
+        <li>事件处理器：<code>reg-event-db</code>、<code>reg-event-fx</code>、<code>reg-fx</code></li>
+        <li>API 层：<code>api.cljs</code> 与 <code>request</code> 助手</li>
+        <li>订阅：<code>reg-sub</code>、参数化订阅、layer 2 / layer 3</li>
+        <li>服务器状态与派生状态；UI 状态的管理</li>
+        <li>Effect：导航、消息提示、localStorage 主题</li>
+        <li>动手：新增一对 event / subscription</li>
+      </ul>
+    </section>
+
+    <h2>1. Re-frame 数据流模型</h2>
+    <p>Re-frame 是 ClojureScript 的状态管理框架，核心循环如下：</p>
+    <ol>
+      <li><strong>View</strong> 触发 <code>(rf/dispatch [:event-id payload])</code></li>
+      <li><strong>Event handler</strong> 返回新的 <code>db</code> 或 <code>fx</code> map</li>
+      <li><strong>Effect handler</strong> 执行副作用（HTTP、导航、localStorage）</li>
+      <li><strong>Subscription</strong> 从 <code>app-db</code> 派生视图需要的数据</li>
+      <li><strong>View</strong> 订阅数据并渲染</li>
+    </ol>
+    <p>这种单向数据流让调试变得非常清晰：任何状态变化都可追溯到一次 dispatch。</p>
+
+    <h2>2. app-db 的扁平命名空间</h2>
+    <p>打开 <code>src/cljs/com/ruoyi/frontend/db.cljs</code>，可以看到 <code>default-db</code> 是一个扁平 map，每个一级键对应一个业务域：</p>
+    <pre><code class="language-clojure">(<span class="kw">def</span> <span class="sym">default-db</span>
+  {<span class="macro">:page</span> (<span class="kw">if</span> token <span class="macro">:dashboard</span> <span class="macro">:login</span>)
+   <span class="macro">:tabs</span> {<span class="macro">:items</span> [{<span class="macro">:key</span> <span class="macro">:dashboard</span> <span class="macro">:label</span> <span class="str">"首页"</span> <span class="macro">:closable</span> <span class="kw">false</span>}]
+          <span class="macro">:active</span> <span class="macro">:dashboard</span>}
+   <span class="macro">:auth</span> {<span class="macro">:token</span> token <span class="macro">:user</span> user <span class="macro">:loading?</span> <span class="kw">false</span>}
+   <span class="macro">:theme</span> {<span class="macro">:mode</span> <span class="macro">:light</span> <span class="macro">:primary-color</span> <span class="str">"#1677ff"</span> <span class="macro">:compact?</span> <span class="kw">false</span>}
+   <span class="macro">:users</span> {<span class="macro">:loading?</span> <span class="kw">false</span> <span class="macro">:items</span> [] <span class="macro">:total</span> <span class="num">0</span>
+           <span class="macro">:query-params</span> {} <span class="macro">:page</span> <span class="num">1</span> <span class="macro">:page-size</span> <span class="num">10</span>
+           <span class="macro">:selected-ids</span> [] <span class="macro">:show-search?</span> <span class="kw">true</span>
+           <span class="macro">:import-visible?</span> <span class="kw">false</span> <span class="macro">:import-loading?</span> <span class="kw">false</span> <span class="macro">:import-file</span> <span class="kw">nil</span>
+           <span class="macro">:columns</span> {<span class="macro">:user_id</span> {<span class="macro">:label</span> <span class="str">"用户编号"</span> <span class="macro">:visible?</span> <span class="kw">true</span>}
+                       <span class="macro">:user_name</span> {<span class="macro">:label</span> <span class="str">"用户名称"</span> <span class="macro">:visible?</span> <span class="kw">true</span>}
+                       <span class="comment">;; ...</span>
+                       }}
+   <span class="macro">:roles</span> {<span class="macro">:loading?</span> <span class="kw">false</span> <span class="macro">:items</span> [] <span class="macro">:query-params</span> {}}
+   <span class="macro">:menus</span> {<span class="macro">:loading?</span> <span class="kw">false</span> <span class="macro">:items</span> [] <span class="macro">:tree</span> []}
+   <span class="macro">:depts</span> {<span class="macro">:loading?</span> <span class="kw">false</span> <span class="macro">:items</span> [] <span class="macro">:tree</span> []}
+   <span class="comment">;; posts / dicts / configs / notices / logs ...</span>
+   })</code></pre>
+    <div class="note">
+      <strong>设计原则：</strong>把服务器状态（<code>:items</code>、<code>:total</code>）和 UI 状态（<code>:modal-visible?</code>、<code>:query-params</code>、<code>:selected-ids</code>）放在同一个命名空间下，订阅时只需要 <code>(rf/subscribe [:users/items])</code> 这样的路径。
+    </div>
+
+    <h2>3. 事件处理器</h2>
+    <h3>3.1 纯 db 事件：reg-event-db</h3>
+    <p>只修改 <code>app-db</code>，没有副作用：</p>
+    <pre><code class="language-clojure">(<span class="sym">rf/reg-event-db</span> <span class="macro">:auth/set-token</span>
+                 (<span class="kw">fn</span> [db [_ token]]
+                   (<span class="sym">assoc-in</span> db [<span class="macro">:auth</span> <span class="macro">:token</span>] token)))
+
+(<span class="sym">rf/reg-event-db</span> <span class="macro">:users/set-list</span>
+                 (<span class="kw">fn</span> [db [_ data]]
+                   (<span class="macro">-&gt;</span> db
+                       (<span class="sym">assoc-in</span> [<span class="macro">:users</span> <span class="macro">:items</span>] (<span class="macro">:rows</span> data))
+                       (<span class="sym">assoc-in</span> [<span class="macro">:users</span> <span class="macro">:total</span>] (<span class="macro">:total</span> data))
+                       (<span class="sym">assoc-in</span> [<span class="macro">:users</span> <span class="macro">:loading?</span>] <span class="kw">false</span>))))</code></pre>
+
+    <h3>3.2 带副作用的事件：reg-event-fx</h3>
+    <p>返回一个 <code>{:db new-db :effect-key effect-value}</code> map，可同时触发多个 effect：</p>
+    <pre><code class="language-clojure">(<span class="sym">rf/reg-event-fx</span> <span class="macro">:users/fetch</span>
+                 (<span class="kw">fn</span> [{<span class="macro">:keys</span> [db]} [_ params]]
+                   {<span class="macro">:db</span> (<span class="sym">assoc-in</span> db [<span class="macro">:users</span> <span class="macro">:loading?</span>] <span class="kw">true</span>)
+                    <span class="macro">:api/list-users</span> params}))
+
+(<span class="sym">rf/reg-event-fx</span> <span class="macro">:auth/login-success</span>
+                 (<span class="kw">fn</span> [{<span class="macro">:keys</span> [db]} [_ data]]
+                   (<span class="kw">let</span> [token (<span class="macro">:token</span> data)]
+                     (<span class="sym">try</span> (<span class="sym">.setItem</span> js/localStorage <span class="str">"ruoyi_token"</span> token) (<span class="kw">catch</span> js/Error _))
+                     {<span class="macro">:db</span> (<span class="macro">-&gt;</span> db
+                              (<span class="sym">assoc-in</span> [<span class="macro">:auth</span> <span class="macro">:token</span>] token)
+                              (<span class="sym">assoc-in</span> [<span class="macro">:auth</span> <span class="macro">:loading?</span>] <span class="kw">false</span>))
+                      <span class="macro">:dispatch-n</span> [[<span class="macro">:navigate</span> <span class="macro">:dashboard</span>] [<span class="macro">:auth/fetch-info</span>]]})))</code></pre>
+
+    <h3>3.3 副作用注册：reg-fx</h3>
+    <p>真正的 HTTP 调用、导航、消息提示都在 <code>reg-fx</code> 中定义：</p>
+    <pre><code class="language-clojure">(<span class="sym">rf/reg-fx</span> <span class="macro">:api/list-users</span>
+           (<span class="kw">fn</span> [params]
+             (<span class="sym">api/list-users</span> params
+                                  (<span class="kw">fn</span> [result]
+                                    (<span class="kw">when</span> (<span class="macro">=</span> <span class="num">200</span> (<span class="macro">:code</span> result))
+                                      (<span class="sym">rf/dispatch</span> [<span class="macro">:users/set-list</span> (<span class="macro">:data</span> result)])))
+                                  (<span class="kw">fn</span> [_]))))</code></pre>
+
+    <h2>4. API 层</h2>
+    <p><code>src/cljs/com/ruoyi/frontend/api.cljs</code> 封装了所有后端调用。核心 <code>request</code> 函数自动从 <code>app-db</code> 读取 token 并附加 <code>Authorization: Bearer &lt;token&gt;</code>：</p>
+    <pre><code class="language-clojure">(<span class="kw">def</span> <span class="sym">api-base</span> <span class="str">"/api"</span>)
+
+(<span class="kw">defn-</span> <span class="sym">get-token</span> []
+  (<span class="sym">get-in</span> @rf-db/app-db [<span class="macro">:auth</span> <span class="macro">:token</span>]))
+
+(<span class="kw">defn-</span> <span class="sym">request</span>
+  <span class="str">"发起 HTTP 请求，从 re-frame app-db 读取 token。"</span>
+  [{<span class="macro">:keys</span> [method uri params on-success on-error]}]
+  (<span class="sym">ajax/ajax-request</span>
+    {<span class="macro">:method</span> method
+     <span class="macro">:uri</span> (<span class="sym">str</span> api-base uri)
+     <span class="macro">:params</span> params
+     <span class="macro">:headers</span> (<span class="kw">when-let</span> [token (<span class="sym">get-token</span>)]
+                {<span class="str">"Authorization"</span> (<span class="sym">str</span> <span class="str">"Bearer "</span> token)})
+     <span class="macro">:format</span> (<span class="sym">ajax/json-request-format</span>)
+     <span class="macro">:response-format</span> (<span class="sym">ajax/json-response-format</span> {<span class="macro">:keywords?</span> <span class="kw">true</span>})
+     <span class="macro">:handler</span> (<span class="kw">fn</span> [[ok result]]
+                (<span class="kw">if</span> ok
+                  (<span class="sym">on-success</span> result)
+                  (<span class="sym">on-error</span> result)))}))</code></pre>
+    <p>业务函数就是简单的 <code>request</code> 包装：</p>
+    <pre><code class="language-clojure">(<span class="kw">defn</span> <span class="sym">list-users</span>
+  <span class="str">"获取用户列表。"</span>
+  [params on-success on-error]
+  (<span class="sym">request</span> {<span class="macro">:method</span> <span class="macro">:get</span> <span class="macro">:uri</span> <span class="str">"/system/user"</span> <span class="macro">:params</span> params
+            <span class="macro">:on-success</span> on-success <span class="macro">:on-error</span> on-error}))</code></pre>
+
+    <h2>5. 订阅</h2>
+    <h3>5.1 基础订阅</h3>
+    <pre><code class="language-clojure">(<span class="sym">rf/reg-sub</span> <span class="macro">:users/items</span>
+            (<span class="kw">fn</span> [db _]
+              (<span class="sym">get-in</span> db [<span class="macro">:users</span> <span class="macro">:items</span>])))
+
+(<span class="sym">rf/reg-sub</span> <span class="macro">:users/loading?</span>
+            (<span class="kw">fn</span> [db _]
+              (<span class="sym">get-in</span> db [<span class="macro">:users</span> <span class="macro">:loading?</span>] <span class="kw">false</span>)))</code></pre>
+
+    <h3>5.2 参数化订阅</h3>
+    <p>Re-frame 的向量订阅第二个元素开始是参数：</p>
+    <pre><code class="language-clojure">(<span class="sym">rf/reg-sub</span> <span class="macro">:integrant/trace</span>
+            (<span class="kw">fn</span> [db [_ key]]
+              (<span class="sym">get-in</span> db [<span class="macro">:integrant</span> <span class="macro">:trace</span> key])))
+
+<span class="comment">;; 使用</span>
+@(<span class="sym">rf/subscribe</span> [<span class="macro">:integrant/trace</span> <span class="macro">:app.system/user-service</span>])</code></pre>
+
+    <h3>5.3 派生状态</h3>
+    <p>Layer-3 订阅可以基于其他订阅做计算，适合把原始数据转换成视图需要的形状：</p>
+    <pre><code class="language-clojure">(<span class="sym">rf/reg-sub</span> <span class="macro">:users/selected-empty?</span>
+            (<span class="kw">fn</span> [db _]
+              (<span class="sym">empty?</span> (<span class="sym">get-in</span> db [<span class="macro">:users</span> <span class="macro">:selected-ids</span>] []))))
+
+(<span class="sym">rf/reg-sub</span> <span class="macro">:users/selected-dept-id</span>
+            (<span class="kw">fn</span> [db _]
+              (<span class="sym">get-in</span> db [<span class="macro">:users</span> <span class="macro">:query-params</span> <span class="macro">:dept_id</span>])))</code></pre>
+
+    <h2>6. UI 状态与服务器状态</h2>
+    <p>在本项目中：</p>
+    <ul>
+      <li><strong>服务器状态：</strong>用户列表、角色列表、字典数据等，从 API 获取，通过 <code>:xxx/set-list</code> 写入。</li>
+      <li><strong>UI 状态：</strong>搜索框内容、当前页码、选中行、弹窗显隐等，直接存在 <code>app-db</code> 对应命名空间下。</li>
+    </ul>
+    <p>不要把 UI 状态放到 <code>reagent/atom</code> 里，这样时间旅行调试、热重载都会失效。</p>
+
+    <h2>7. 常见 Effect</h2>
+    <p><strong>主题持久化</strong>：写入 localStorage 同时更新 db：</p>
+    <pre><code class="language-clojure">(<span class="sym">rf/reg-event-db</span> <span class="macro">:theme/set-mode</span>
+                 (<span class="kw">fn</span> [db [_ mode]]
+                   (<span class="sym">js/localStorage.setItem</span> <span class="str">"rouyi-theme-mode"</span> (<span class="sym">name</span> mode))
+                   (<span class="sym">assoc-in</span> db [<span class="macro">:theme</span> <span class="macro">:mode</span>] mode)))</code></pre>
+    <p><strong>导航</strong>：事件触发 URL 变更，并在 <code>:navigate</code> 中加载对应页面数据：</p>
+    <pre><code class="language-clojure">(<span class="sym">rf/reg-event-fx</span> <span class="macro">:navigate</span>
+                 (<span class="kw">fn</span> [{<span class="macro">:keys</span> [db]} [_ page]]
+                   (<span class="kw">let</span> [fetch (<span class="kw">case</span> page
+                                 <span class="macro">:user</span> [<span class="macro">:users/fetch</span> {}]
+                                 <span class="macro">:role</span> [<span class="macro">:roles/fetch</span> {}]
+                                 <span class="macro">:menu</span> [<span class="macro">:menus/fetch</span>]
+                                 <span class="kw">nil</span>)
+                         effects {<span class="macro">:db</span> (<span class="sym">assoc</span> db <span class="macro">:page</span> page)
+                                  <span class="macro">:router/navigate!</span> page}]
+                     (<span class="kw">if</span> fetch
+                       (<span class="sym">assoc</span> effects <span class="macro">:dispatch</span> fetch)
+                       effects))))</code></pre>
+    <p><strong>消息提示</strong>：通过 <code>antd.cljs</code> 中的 <code>success!</code> / <code>error!</code> 调用（下一讲详细介绍）：</p>
+    <pre><code class="language-clojure">(<span class="sym">rf/reg-fx</span> <span class="macro">:api/create-config</span>
+           (<span class="kw">fn</span> [params]
+             (<span class="sym">api/create-config</span> params
+                                (<span class="kw">fn</span> [result]
+                                  (<span class="kw">when</span> (<span class="macro">=</span> <span class="num">200</span> (<span class="macro">:code</span> result))
+                                    (<span class="sym">rf/dispatch</span> [<span class="macro">:configs/created</span>])
+                                    (<span class="sym">antd/success!</span> <span class="str">"创建成功"</span>))
+                                  (<span class="kw">when</span> (<span class="macro">not=</span> <span class="num">200</span> (<span class="macro">:code</span> result))
+                                    (<span class="sym">antd/error!</span> (<span class="macro">:msg</span> result))))
+                                (<span class="kw">fn</span> [_] (<span class="sym">antd/error!</span> <span class="str">"网络错误"</span>)))))</code></pre>
+
+    <section class="exercise">
+      <h2>练习 / 讨论</h2>
+      <ol>
+        <li>在 <code>src/cljs/com/ruoyi/frontend/events.cljs</code> 中新增一个事件 <code>:users/toggle-search</code>，并在 <code>subs.cljs</code> 中添加对应订阅 <code>:users/show-search?</code>。观察用户管理页面搜索栏的展开/收起是否工作。</li>
+        <li>请画出一次“点击搜索按钮”的完整数据流：从 <code>antd/button</code> 的 <code>:on-click</code> 开始，到表格重新渲染结束。</li>
+        <li>讨论：为什么 API 调用要放在 <code>reg-fx</code> 里，而不是直接写在 <code>reg-event-fx</code> 返回的 map 中？这样拆分有什么好处？</li>
+      </ol>
+    </section>
+  </main>
+</body>
+</html>

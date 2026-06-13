@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第5讲：后端基础设施：数据库、配置与Integrant | 若依 Clojure 培训</title>
+  <style>
+    :root { --primary: #1677ff; --success: #52c41a; --warning: #fa8c16; --danger: #f5222d; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.7; color: #262626; background: #f5f5f5; margin: 0; }
+    header { background: var(--primary); color: #fff; padding: 1.2rem 1rem; }
+    header h1 { margin: 0; font-size: 1.4rem; }
+    header p { margin: .25rem 0 0; opacity: .9; }
+    nav { background: #fff; border-bottom: 1px solid #e8e8e8; padding: .6rem 1rem; display: flex; flex-wrap: wrap; gap: .5rem; }
+    nav a { text-decoration: none; color: #595959; padding: .35rem .8rem; border-radius: 4px; border: 1px solid #d9d9d9; font-size: .9rem; }
+    nav a:hover { color: var(--primary); border-color: var(--primary); }
+    nav a.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    main.container { max-width: 960px; margin: 1.5rem auto; padding: 1.5rem 2rem; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
+    h1 { color: #262626; border-bottom: 2px solid var(--primary); padding-bottom: .5rem; }
+    h2 { color: #262626; margin-top: 2rem; font-size: 1.25rem; }
+    h3 { color: #434343; margin-top: 1.5rem; font-size: 1.1rem; }
+    ul li { margin: .35rem 0; }
+    .agenda { background: #f0f7ff; border-left: 4px solid var(--primary); padding: 1rem 1.2rem; margin: 1.2rem 0 2rem; border-radius: 0 6px 6px 0; }
+    .agenda h2 { margin-top: 0; }
+    pre { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; padding: 1rem; overflow-x: auto; line-height: 1.5; }
+    code { font-family: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace; font-size: .9em; }
+    .exercise { background: #fff7e6; border-left: 4px solid var(--warning); padding: 1rem 1.2rem; margin-top: 2.5rem; border-radius: 0 6px 6px 0; }
+    .exercise h2 { margin-top: 0; }
+    .note { background: #f6ffed; border: 1px solid #b7eb8f; padding: .8rem 1rem; border-radius: 6px; color: #135200; margin: 1rem 0; }
+    .kw { color: #d73a49; font-weight: 600; }
+    .sym { color: #24292e; }
+    .str { color: #032f62; }
+    .num { color: #005cc5; }
+    .comment { color: #6a737d; font-style: italic; }
+    .macro { color: #6f42c1; font-weight: 600; }
+    .type { color: #22863a; }
+    .edn-key { color: #d73a49; }
+    .edn-tag { color: #6f42c1; font-weight: 600; }
+    .sql-kw { color: #d73a49; font-weight: 600; }
+    .sql-func { color: #6f42c1; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>若依 Clojure 全栈系统培训</h1>
+    <p>面向开发者的 5 讲系列课程</p>
+  </header>
+  <nav>
+    <a href="session-1-clojure-basics.html">第1讲：Clojure 基础</a>
+    <a href="session-2-frontend-state.html">第2讲：前端状态</a>
+    <a href="session-3-frontend-ui-routing.html">第3讲：前端 UI 与路由</a>
+    <a href="session-4-backend-request-flow.html">第4讲：后端请求流</a>
+    <a href="session-5-backend-infra.html" class="active">第5讲：后端基础设施</a>
+  </nav>
+  <main class="container">
+    <h1>第5讲：后端基础设施：数据库、配置与 Integrant</h1>
+    <section class="agenda">
+      <h2>本讲议程</h2>
+      <ul>
+        <li>配置分层：deps.edn → env → config.clj → system.edn</li>
+        <li>Integrant 组件系统：key、ref、生命周期、state atom</li>
+        <li>数据库栈：HikariCP、conman、next.jdbc、HugSQL</li>
+        <li>Migratus 迁移与 SQLite/MySQL 双库兼容</li>
+        <li>安全、在线用户、定时任务、缓存</li>
+        <li>测试、构建与部署</li>
+        <li>动手：新增 migration + HugSQL 查询 + Integrant 组件</li>
+      </ul>
+    </section>
+
+    <h2>1. 配置分层</h2>
+    <p>本项目的配置由四层叠加：</p>
+    <ol>
+      <li><strong>deps.edn alias</strong> 决定加载 <code>env/dev</code> 还是 <code>env/prod</code>。</li>
+      <li><strong>env/dev/clj/com/ruoyi/env.clj</strong> 设置 <code>{:profile :dev}</code>。</li>
+      <li><strong>src/clj/com/ruoyi/config.clj</strong> 读取 <code>resources/system.edn</code>。</li>
+      <li><strong>resources/system.edn</strong> 使用 Aero reader 解析环境变量与 profile。</li>
+    </ol>
+
+    <h3>1.1 env.clj</h3>
+    <pre><code class="language-clojure">(<span class="kw">def</span> <span class="sym">defaults</span>
+  {<span class="macro">:init</span>  (<span class="kw">fn</span> [] (<span class="sym">log/info</span> <span class="str">"\n-=[rouyi starting using the development or test profile]=-"</span>))
+   <span class="macro">:start</span> (<span class="kw">fn</span> [] (<span class="sym">log/info</span> <span class="str">"\n-=[rouyi started successfully using the development or test profile]=-"</span>))
+   <span class="macro">:stop</span>  (<span class="kw">fn</span> [] (<span class="sym">log/info</span> <span class="str">"\n-=[rouyi has shut down successfully]=-"</span>))
+   <span class="macro">:middleware</span> wrap-dev
+   <span class="macro">:opts</span>  {<span class="macro">:profile</span> <span class="macro">:dev</span>}})</code></pre>
+
+    <h3>1.2 config.clj</h3>
+    <pre><code class="language-clojure">(<span class="kw">ns</span> com.ruoyi.config
+  (<span class="macro">:require</span>
+   [kit.config <span class="macro">:as</span> config]))
+
+(<span class="kw">def</span> ^<span class="macro">:const</span> <span class="sym">system-filename</span> <span class="str">"system.edn"</span>)
+
+(<span class="kw">defn</span> <span class="sym">system-config</span>
+  [options]
+  (<span class="sym">config/read-config</span> system-filename options))</code></pre>
+
+    <h3>1.3 system.edn 中的 Aero reader</h3>
+    <pre><code class="language-edn">{<span class="edn-key">:system/env</span>
+ <span class="edn-tag">#profile</span> {<span class="edn-key">:dev</span>  <span class="edn-key">:dev</span>
+           <span class="edn-key">:test</span> <span class="edn-key">:test</span>
+           <span class="edn-key">:prod</span> <span class="edn-key">:prod</span>}
+
+ <span class="edn-key">:nrepl/server</span>
+ {<span class="edn-key">:port</span> <span class="edn-tag">#long</span> <span class="edn-tag">#or</span> [<span class="edn-tag">#env</span> <span class="edn-str">"NREPL_PORT"</span> <span class="num">7000</span>]
+  <span class="edn-key">:bind</span> <span class="edn-tag">#or</span> [<span class="edn-tag">#env</span> <span class="edn-str">"NREPL_HOST"</span> <span class="edn-str">"127.0.0.1"</span>]}
+
+ <span class="edn-key">:server/http</span>
+ {<span class="edn-key">:port</span>    <span class="edn-tag">#long</span> <span class="edn-tag">#or</span> [<span class="edn-tag">#env</span> <span class="edn-str">"PORT"</span> <span class="num">3000</span>]
+  <span class="edn-key">:host</span>    <span class="edn-tag">#or</span> [<span class="edn-tag">#env</span> <span class="edn-str">"HTTP_HOST"</span> <span class="edn-str">"0.0.0.0"</span>]
+  <span class="edn-key">:handler</span> <span class="edn-tag">#ig/ref</span> <span class="edn-key">:handler/ring</span>}
+
+ <span class="edn-key">:handler/ring</span>
+ {<span class="edn-key">:router</span>       <span class="edn-tag">#ig/ref</span> <span class="edn-key">:router/core</span>
+  <span class="edn-key">:api-path</span>     <span class="edn-str">"/api"</span>
+  <span class="edn-key">:query-fn</span>     <span class="edn-tag">#ig/ref</span> <span class="edn-key">:db.sql/query-fn</span>
+  <span class="edn-key">:cookie-secret</span> <span class="edn-tag">#or</span> [<span class="edn-tag">#env</span> <span class="edn-str">"COOKIE_SECRET"</span> <span class="edn-str">"KWGRWFTDVZAHISQO"</span>]}
+
+ <span class="edn-key">:db.sql/connection</span>
+ <span class="edn-tag">#profile</span> {<span class="edn-key">:dev</span>  {<span class="edn-key">:jdbc-url</span>   <span class="edn-tag">#or</span> [<span class="edn-tag">#env</span> <span class="edn-str">"JDBC_URL"</span> <span class="edn-str">"jdbc:sqlite:rouyi.db"</span>]
+                  <span class="edn-key">:init-size</span>  <span class="num">1</span>
+                  <span class="edn-key">:min-idle</span>   <span class="num">1</span>
+                  <span class="edn-key">:max-active</span> <span class="num">1</span>
+                  <span class="edn-key">:connection-test-query</span> <span class="edn-str">"SELECT 1"</span>}
+           <span class="edn-key">:test</span> {<span class="edn-key">:jdbc-url</span> <span class="edn-tag">#or</span> [<span class="edn-tag">#env</span> <span class="edn-str">"JDBC_URL"</span> <span class="edn-str">"jdbc:sqlite:rouyi.db"</span>] ...}
+           <span class="edn-key">:prod</span> {<span class="edn-key">:jdbc-url</span> <span class="edn-tag">#or</span> [<span class="edn-tag">#env</span> <span class="edn-str">"JDBC_URL"</span> <span class="edn-str">"jdbc:sqlite:rouyi.db"</span>] ...}}
+
+ <span class="edn-key">:db.sql/query-fn</span>
+ {<span class="edn-key">:conn</span>      <span class="edn-tag">#ig/ref</span> <span class="edn-key">:db.sql/connection</span>
+  <span class="edn-key">:options</span>   {}
+  <span class="edn-key">:filenames</span> [<span class="edn-str">"queries.sql"</span> <span class="edn-str">"sql/system.sql"</span> <span class="edn-str">"sql/log.sql"</span>
+              <span class="edn-str">"sql/job.sql"</span> <span class="edn-str">"sql/gen.sql"</span> <span class="edn-str">"sql/generated.sql"</span> <span class="edn-str">"sql/business.sql"</span>]
+  <span class="edn-key">:env</span>       <span class="edn-tag">#ig/ref</span> <span class="edn-key">:system/env</span>}
+
+ <span class="edn-key">:db.sql/migrations</span>
+ <span class="edn-tag">#profile</span> {<span class="edn-key">:dev</span> {<span class="edn-key">:store</span>            <span class="edn-key">:database</span>
+                 <span class="edn-key">:db</span>               {<span class="edn-key">:datasource</span> <span class="edn-tag">#ig/ref</span> <span class="edn-key">:db.sql/connection</span>}
+                 <span class="edn-key">:migrate-on-init?</span> <span class="edn-key">true</span>
+                 <span class="edn-key">:migration-dir</span>    <span class="edn-tag">#or</span> [<span class="edn-tag">#env</span> <span class="edn-str">"MIGRATION_DIR"</span> <span class="edn-str">"migrations-sqlite"</span>]}}}</code></pre>
+
+    <h2>2. Integrant 组件系统</h2>
+    <p>Integrant 用 key 描述组件，用 <code>#ig/ref</code> 声明依赖，用 <code>ig/init-key</code> / <code>ig/halt-key</code> 管理生命周期。</p>
+    <pre><code class="language-clojure"><span class="comment">;; src/clj/com/ruoyi/web/handler.clj</span>
+(<span class="kw">defmethod</span> <span class="sym">ig/init-key</span> <span class="macro">:handler/ring</span>
+  [_ {<span class="macro">:keys</span> [router api-path] <span class="macro">:as</span> opts}]
+  (<span class="kw">let</span> [actual (<span class="sym">ring/ring-handler</span> ...
+                {<span class="macro">:middleware</span> [(middleware/wrap-base opts)]})]
+    (<span class="sym">reset!</span> ring-handler-atom actual)
+    ring-handler))
+
+<span class="comment">;; src/clj/com/ruoyi/integrant/state.clj</span>
+(<span class="kw">defonce</span> <span class="sym">system</span> (<span class="sym">atom</span> <span class="kw">nil</span>))</code></pre>
+    <p>开发时常用的热重载命令来自 <code>env/dev/clj/user.clj</code>：</p>
+    <pre><code class="language-clojure">(<span class="kw">defn</span> <span class="sym">reload-domain</span> [] ...)
+(<span class="kw">defn</span> <span class="sym">reload-routes</span> [] ...)
+(<span class="kw">defn</span> <span class="sym">reload-all</span> [] ...)
+(<span class="kw">defn</span> <span class="sym">reload-system</span> [] (<span class="sym">integrant.repl/reset</span>))
+
+(<span class="kw">def</span> <span class="sym">rr</span> reload-system)
+(<span class="kw">def</span> <span class="sym">rd</span> reload-domain)
+(<span class="kw">def</span> <span class="sym">ra</span> reload-all)</code></pre>
+
+    <h2>3. 数据库栈</h2>
+    <p>数据库访问由 kit-sql-conman 提供：</p>
+    <ul>
+      <li><strong>HikariCP</strong>：连接池。</li>
+      <li><strong>conman</strong>：把 HugSQL 查询绑定为 Clojure 函数。</li>
+      <li><strong>next.jdbc</strong>：底层 JDBC 执行。</li>
+      <li><strong>HugSQL</strong>：<code>-- :name</code> 标注的 <code>.sql</code> 文件。</li>
+    </ul>
+    <pre><code class="language-sql"><span class="comment">-- resources/sql/system.sql</span>
+<span class="comment">-- :name list-users :? :*</span>
+<span class="sql-kw">SELECT</span> u.user_id, u.user_name, u.nick_name, u.status, d.dept_name
+<span class="sql-kw">FROM</span> sys_user u
+<span class="sql-kw">LEFT JOIN</span> sys_dept d <span class="sql-kw">ON</span> u.dept_id = d.dept_id
+<span class="sql-kw">WHERE</span> u.del_flag = <span class="str">'0'</span>
+  <span class="sql-kw">AND</span> (:user_name <span class="sql-kw">IS NULL</span> <span class="sql-kw">OR</span> <span class="sql-func">INSTR</span>(u.user_name, :user_name) &gt; <span class="num">0</span>)
+<span class="sql-kw">ORDER BY</span> u.user_id
+<span class="sql-kw">LIMIT</span> :page_size <span class="sql-kw">OFFSET</span> :offset
+
+<span class="comment">-- :name create-user! :! :n</span>
+<span class="sql-kw">INSERT INTO</span> sys_user (user_name, nick_name, password, status, create_by, create_time)
+<span class="sql-kw">VALUES</span> (:user_name, :nick_name, :password, :status, :create_by, <span class="sql-func">CURRENT_TIMESTAMP</span>)</code></pre>
+    <p>在 domain service 中通过 <code>query-fn</code> 调用：</p>
+    <pre><code class="language-clojure">(<span class="kw">defn</span> <span class="sym">list-users</span> [{<span class="macro">:keys</span> [query-fn]} params]
+  (<span class="kw">let</span> [rows (<span class="sym">query-fn</span> <span class="macro">:list-users</span> filters)
+        total (<span class="sym">query-fn</span> <span class="macro">:count-users</span> filters)]
+    {<span class="macro">:rows</span> rows <span class="macro">:total</span> (<span class="macro">:total</span> total)}))</code></pre>
+
+    <h2>4. 迁移与双库兼容</h2>
+    <p>项目同时支持 SQLite 和 MySQL，因此有两套迁移目录：</p>
+    <ul>
+      <li><code>resources/migrations-sqlite/</code></li>
+      <li><code>resources/migrations/</code></li>
+    </ul>
+    <p>通过环境变量切换：</p>
+    <pre><code class="language-bash">JDBC_URL="jdbc:mysql://root:password@127.0.0.1:3308/ruoyi?useSSL=false&amp;serverTimezone=Asia/Shanghai&amp;allowPublicKeyRetrieval=true" \
+MIGRATION_DIR=migrations \
+clojure -M:dev -m com.ruoyi.core</code></pre>
+    <p><code>src/clj/com/ruoyi/infra/db.clj</code> 封装了数据库类型检测与自增 ID 获取：</p>
+    <pre><code class="language-clojure">(<span class="kw">defn</span> <span class="sym">detect-db-type</span> [db]
+  (<span class="kw">let</span> [product-name (<span class="sym">.getDatabaseProductName</span> (.getMetaData connable))]
+    (<span class="kw">cond</span>
+      (<span class="sym">str/includes?</span> (<span class="sym">str/lower-case</span> product-name) <span class="str">"sqlite"</span>) <span class="macro">:sqlite</span>
+      (<span class="sym">str/includes?</span> (<span class="sym">str/lower-case</span> product-name) <span class="str">"mysql"</span>)  <span class="macro">:mysql</span>
+      <span class="macro">:else</span> <span class="macro">:unknown</span>)))
+
+(<span class="kw">defn</span> <span class="sym">insert-and-get-id!</span>
+  [query-fn db insert-query params id-query id-key]
+  (<span class="kw">let</span> [db-type (<span class="sym">detect-db-type</span> db)
+        id-q (<span class="kw">if</span> (<span class="macro">=</span> <span class="macro">:mysql</span> db-type)
+               (<span class="sym">keyword</span> (<span class="sym">str</span> (<span class="sym">name</span> id-query) <span class="str">"-mysql"</span>))
+               id-query)]
+    (<span class="sym">jdbc/with-transaction</span> [tx db]
+      (<span class="sym">query-fn</span> tx insert-query params)
+      (<span class="sym">get</span> (<span class="sym">query-fn</span> tx id-q {}) id-key))))</code></pre>
+
+    <h2>5. 安全</h2>
+    <p><code>src/clj/com/ruoyi/infra/security.clj</code> 提供密码哈希与 JWT：</p>
+    <pre><code class="language-clojure">(<span class="kw">def</span> <span class="sym">secret-key</span>
+  (<span class="kw">or</span> (<span class="sym">System/getenv</span> <span class="str">"JWT_SECRET"</span>)
+      <span class="str">"rouyi-default-jwt-secret-key-change-in-production"</span>))
+
+(<span class="kw">defn</span> <span class="sym">hash-password</span> [plain-text]
+  (<span class="sym">hashers/derive</span> plain-text {<span class="macro">:alg</span> <span class="macro">:bcrypt+blake2b-512</span>}))
+
+(<span class="kw">defn</span> <span class="sym">generate-token</span> [user-id user-name roles &amp; {<span class="macro">:keys</span> [exp-hours] <span class="macro">:or</span> {exp-hours <span class="num">24</span>}}]
+  (<span class="kw">let</span> [claims {<span class="macro">:user-id</span> user-id <span class="macro">:user-name</span> user-name <span class="macro">:roles</span> roles
+                <span class="macro">:exp</span> (<span class="macro">+</span> (<span class="sym">System/currentTimeMillis</span>) (<span class="sym">*</span> exp-hours <span class="num">60</span> <span class="num">60</span> <span class="num">1000</span>))}]
+    (<span class="sym">jwt/sign</span> claims secret-key {<span class="macro">:alg</span> <span class="macro">:hs256</span>})))</code></pre>
+
+    <h2>6. 在线用户</h2>
+    <p><code>src/clj/com/ruoyi/infra/online.clj</code> 把会话持久化到 <code>sys_online</code>，并提供强退黑名单：</p>
+    <pre><code class="language-clojure">(<span class="kw">defonce</span> <span class="sym">token-blacklist</span>
+  (<span class="sym">atom</span> {} <span class="macro">:validator</span> map?))
+
+(<span class="kw">defn</span> <span class="sym">blacklist!</span> [token exp-ms]
+  (<span class="sym">swap!</span> token-blacklist <span class="sym">assoc</span> token exp-ms))
+
+(<span class="kw">defn</span> <span class="sym">blacklisted?</span> [token]
+  (<span class="sym">contains?</span> @token-blacklist token))
+
+(<span class="kw">defn</span> <span class="sym">register!</span> [token user-name login-ip]
+  ((query-fn) <span class="macro">:create-online-user!</span>
+              {<span class="macro">:session_id</span> token <span class="macro">:login_name</span> user-name
+               <span class="macro">:ipaddr</span> login-ip <span class="macro">:status</span> <span class="str">"on_line"</span>
+               <span class="macro">:start_timestamp</span> now <span class="macro">:last_access_time</span> now}))</code></pre>
+
+    <h2>7. 定时任务</h2>
+    <p><code>src/clj/com/ruoyi/infra/scheduler.clj</code> 用 Quartz 调度 sys_job 表中的任务：</p>
+    <pre><code class="language-clojure">(<span class="kw">defn</span> <span class="sym">invoke-target-allowed?</span> [target]
+  (<span class="kw">and</span> (<span class="kw">not</span> (<span class="sym">some</span> #(<span class="sym">str/includes?</span> target %) dangerous-patterns))
+       (<span class="sym">str/starts-with?</span> target allowed-ns-prefix)))
+
+(<span class="kw">defn</span> <span class="sym">schedule-job!</span> [job]
+  (<span class="kw">when</span> (<span class="kw">and</span> (<span class="sym">seq</span> (<span class="macro">:cron_expression</span> job))
+             (<span class="sym">invoke-target-allowed?</span> (<span class="macro">:invoke_target</span> job)))
+    (<span class="kw">let</span> [s (scheduler)
+          job-detail (<span class="sym">build-job-detail</span> job)
+          trigger (<span class="sym">build-cron-trigger</span> job)]
+      (<span class="sym">.scheduleJob</span> s job-detail trigger)
+      (<span class="kw">when</span> (<span class="macro">=</span> <span class="str">"1"</span> (<span class="macro">:status</span> job))
+        (<span class="sym">.pauseJob</span> s (<span class="sym">job-key</span> (<span class="macro">:job_id</span> job) (<span class="macro">:job_group</span> job)))))))</code></pre>
+
+    <h2>8. 缓存</h2>
+    <p><code>src/clj/com/ruoyi/infra/cache.clj</code> 目前是基于 atom 的内存缓存占位实现：</p>
+    <pre><code class="language-clojure">(<span class="kw">defonce</span> <span class="sym">cache-store</span>
+  (<span class="sym">atom</span> {<span class="macro">:data</span> (<span class="sym">atom</span> {})
+         <span class="macro">:hit</span> <span class="num">0</span>
+         <span class="macro">:miss</span> <span class="num">0</span>}))</code></pre>
+
+    <h2>9. 测试</h2>
+    <p>测试通过 <code>clojure -M:test</code> 运行。项目使用 <code>clojure.test</code> 并对 <code>query-fn</code> 进行 mock：</p>
+    <pre><code class="language-clojure">(<span class="kw">defn-</span> <span class="sym">mock-query-fn</span> [q p &amp; rest]
+  (<span class="kw">case</span> q
+    <span class="macro">:list-users</span> {<span class="macro">:rows</span> mock-users <span class="macro">:total</span> <span class="num">2</span>}
+    <span class="macro">:find-user-by-id</span> (<span class="sym">first</span> mock-users)
+    <span class="macro">:create-user!</span> [{<span class="macro">:user_id</span> <span class="num">3</span>}]
+    <span class="macro">:last-insert-rowid</span> {<span class="macro">:last_insert_rowid</span> <span class="num">3</span>}
+    []))
+
+(<span class="kw">def</span> <span class="sym">mock-service</span> {<span class="macro">:query-fn</span> mock-query-fn})
+
+(<span class="kw">deftest</span> <span class="sym">test-create-user</span>
+  (<span class="sym">testing</span> <span class="str">"创建用户"</span>
+    (<span class="kw">let</span> [result (<span class="sym">user/create-user!</span> mock-service {<span class="macro">:user_name</span> <span class="str">"newuser"</span>
+                                                   <span class="macro">:nick_name</span> <span class="str">"新用户"</span>
+                                                   <span class="macro">:password</span> <span class="str">"123456"</span>
+                                                   <span class="macro">:roles</span> [] <span class="macro">:posts</span> []})]
+      (<span class="sym">is</span> (<span class="sym">some?</span> result)))))</code></pre>
+
+    <h2>10. 构建与部署</h2>
+    <p>生产构建分两步：先编译 ClojureScript，再构建 uberjar：</p>
+    <pre><code class="language-bash">npx shadow-cljs release app
+clojure -T:build all
+java -jar target/rouyi-standalone.jar</code></pre>
+    <p>Docker 部署可直接基于 uberjar 镜像，或把 jar 与 <code>rouyi.db</code> 挂载到容器内运行。</p>
+
+    <section class="exercise">
+      <h2>练习 / 讨论</h2>
+      <ol>
+        <li>在 <code>resources/migrations-sqlite/</code> 下新增一个 Migratus 迁移文件，创建一张 <code>sys_demo</code> 表（含 <code>demo_id</code>、<code>demo_name</code>、<code>create_time</code>）。</li>
+        <li>在 <code>resources/sql/system.sql</code> 中添加两个 HugSQL 查询：<code>:name list-demos :? :*</code> 和 <code>:name create-demo! :! :n</code>。</li>
+        <li>在 <code>system.edn</code> 中新增一个 Integrant key <code>:app.system/demo-service</code>，并在 <code>:reitit.routes/api</code> 中注入它。然后在 <code>system.clj</code> 里新增 <code>GET /system/demo</code> 端点，返回演示数据。</li>
+        <li>讨论：为什么生产环境的 <code>JWT_SECRET</code> 和 <code>COOKIE_SECRET</code> 应该通过环境变量注入，而不是写在 <code>system.edn</code> 里？</li>
+      </ol>
+    </section>
+  </main>
+</body>
+</html>

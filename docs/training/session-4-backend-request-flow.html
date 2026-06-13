@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第4讲：后端请求处理：从HTTP到业务逻辑 | 若依 Clojure 培训</title>
+  <style>
+    :root { --primary: #1677ff; --success: #52c41a; --warning: #fa8c16; --danger: #f5222d; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.7; color: #262626; background: #f5f5f5; margin: 0; }
+    header { background: var(--primary); color: #fff; padding: 1.2rem 1rem; }
+    header h1 { margin: 0; font-size: 1.4rem; }
+    header p { margin: .25rem 0 0; opacity: .9; }
+    nav { background: #fff; border-bottom: 1px solid #e8e8e8; padding: .6rem 1rem; display: flex; flex-wrap: wrap; gap: .5rem; }
+    nav a { text-decoration: none; color: #595959; padding: .35rem .8rem; border-radius: 4px; border: 1px solid #d9d9d9; font-size: .9rem; }
+    nav a:hover { color: var(--primary); border-color: var(--primary); }
+    nav a.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    main.container { max-width: 960px; margin: 1.5rem auto; padding: 1.5rem 2rem; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
+    h1 { color: #262626; border-bottom: 2px solid var(--primary); padding-bottom: .5rem; }
+    h2 { color: #262626; margin-top: 2rem; font-size: 1.25rem; }
+    h3 { color: #434343; margin-top: 1.5rem; font-size: 1.1rem; }
+    ul li { margin: .35rem 0; }
+    .agenda { background: #f0f7ff; border-left: 4px solid var(--primary); padding: 1rem 1.2rem; margin: 1.2rem 0 2rem; border-radius: 0 6px 6px 0; }
+    .agenda h2 { margin-top: 0; }
+    pre { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; padding: 1rem; overflow-x: auto; line-height: 1.5; }
+    code { font-family: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace; font-size: .9em; }
+    .exercise { background: #fff7e6; border-left: 4px solid var(--warning); padding: 1rem 1.2rem; margin-top: 2.5rem; border-radius: 0 6px 6px 0; }
+    .exercise h2 { margin-top: 0; }
+    .note { background: #f6ffed; border: 1px solid #b7eb8f; padding: .8rem 1rem; border-radius: 6px; color: #135200; margin: 1rem 0; }
+    .kw { color: #d73a49; font-weight: 600; }
+    .sym { color: #24292e; }
+    .str { color: #032f62; }
+    .num { color: #005cc5; }
+    .comment { color: #6a737d; font-style: italic; }
+    .macro { color: #6f42c1; font-weight: 600; }
+    .type { color: #22863a; }
+    .sql-kw { color: #d73a49; font-weight: 600; }
+    .sql-func { color: #6f42c1; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>若依 Clojure 全栈系统培训</h1>
+    <p>面向开发者的 5 讲系列课程</p>
+  </header>
+  <nav>
+    <a href="session-1-clojure-basics.html">第1讲：Clojure 基础</a>
+    <a href="session-2-frontend-state.html">第2讲：前端状态</a>
+    <a href="session-3-frontend-ui-routing.html">第3讲：前端 UI 与路由</a>
+    <a href="session-4-backend-request-flow.html" class="active">第4讲：后端请求流</a>
+    <a href="session-5-backend-infra.html">第5讲：后端基础设施</a>
+  </nav>
+  <main class="container">
+    <h1>第4讲：后端请求处理：从 HTTP 到业务逻辑</h1>
+    <section class="agenda">
+      <h2>本讲议程</h2>
+      <ul>
+        <li>启动流程：<code>core.clj</code> → <code>system-config</code> → <code>ig/init</code></li>
+        <li>一次请求的完整路径：Undertow → Ring → 中间件 → Reitit → Controller → Service → HugSQL</li>
+        <li>基础中间件：CORS、session、JSON body、query-fn 注入</li>
+        <li>认证中间件：JWT 解析、权限校验、在线心跳</li>
+        <li>异常与操作日志中间件</li>
+        <li>路由组织：api.clj 与 system.clj</li>
+        <li>控制器与领域服务：以用户管理为例</li>
+        <li>数据权限：ALL / CUSTOM / DEPT / DEPT_CHILD / SELF</li>
+        <li>动手：追踪一次请求 / 新增一个系统端点</li>
+      </ul>
+    </section>
+
+    <h2>1. 启动流程</h2>
+    <p><code>src/clj/com/ruoyi/core.clj</code> 是 JVM 入口。它读取 <code>system.edn</code>，通过 Integrant 初始化整个系统：</p>
+    <pre><code class="language-clojure">(<span class="kw">defn</span> <span class="sym">start-app</span> [&amp; [params]]
+  ((<span class="kw">or</span> (<span class="macro">:start</span> params) (<span class="macro">:start</span> defaults) (<span class="kw">fn</span> [])))
+  (<span class="macro">-&gt;&gt;</span> (<span class="sym">config/system-config</span> (<span class="kw">or</span> (<span class="macro">:opts</span> params) (<span class="macro">:opts</span> defaults) {}))
+       (<span class="sym">ig/expand</span>)
+       (<span class="sym">ig/init</span>)
+       (<span class="sym">reset!</span> system)))
+
+(<span class="kw">defn</span> <span class="sym">-main</span> [&amp; _]
+  (<span class="sym">start-app</span>)
+  (<span class="sym">.addShutdownHook</span> (Runtime/getRuntime) (Thread. (<span class="kw">fn</span> [] (<span class="sym">stop-app</span>) (<span class="sym">shutdown-agents</span>))))
+  (<span class="kw">while true</span> (<span class="sym">Thread/sleep</span> <span class="num">60000</span>)))</code></pre>
+
+    <h2>2. 一次请求的完整路径</h2>
+    <p>当浏览器访问 <code>GET /api/system/user?page=1&amp;size=10</code> 时，请求会经过以下层次：</p>
+    <ol>
+      <li><strong>Undertow</strong> 接收 HTTP 请求，交给 Ring handler。</li>
+      <li><strong>Ring handler</strong>（<code>handler/ring</code>）调用 <code>wrap-base</code> 组装中间件。</li>
+      <li><strong>Base middleware</strong>：defaults、CORS、preflight、operlog、query-fn 注入、JSON body。</li>
+      <li><strong>Auth middleware</strong>：解析 JWT，附加 <code>:identity</code>，检查权限。</li>
+      <li><strong>Reitit router</strong>：匹配路由、校验参数、coerce 请求/响应。</li>
+      <li><strong>Controller</strong>：解析参数，调用 service。</li>
+      <li><strong>Domain service</strong>：业务逻辑、事务、密码加密、关联表操作。</li>
+      <li><strong>HugSQL / conman</strong>：执行 SQL，返回结果。</li>
+    </ol>
+
+    <h2>3. 基础中间件</h2>
+    <p><code>src/clj/com/ruoyi/web/middleware/core.clj</code> 定义了所有请求都会经过的包装器：</p>
+    <pre><code class="language-clojure">(<span class="kw">defn</span> <span class="sym">wrap-base</span>
+  [{<span class="macro">:keys</span> [metrics site-defaults-config cookie-secret query-fn] <span class="macro">:as</span> opts}]
+  (<span class="kw">let</span> [cookie-store (<span class="sym">cookie/cookie-store</span> {<span class="macro">:key</span> (<span class="sym">.getBytes</span> ^String cookie-secret)})]
+    (<span class="kw">fn</span> [handler]
+      (<span class="macro">-&gt;</span> ((<span class="macro">:middleware</span> env/defaults) handler opts)
+          (<span class="sym">defaults/wrap-defaults</span>
+           (<span class="sym">assoc-in</span> site-defaults-config [<span class="macro">:session</span> <span class="macro">:store</span>] cookie-store))
+          <span class="sym">wrap-cors</span>
+          <span class="sym">handle-preflight</span>
+          <span class="sym">operlog/wrap-oper-log</span>
+          (<span class="sym">wrap-query-fn</span> query-fn)
+          <span class="sym">wrap-json-body</span>))))</code></pre>
+    <p>注意顺序：请求先进入 <code>wrap-json-body</code>（最外层最后返回），实际执行时从 <code>((:middleware env/defaults) handler opts)</code> 开始向内。</p>
+
+    <h2>4. 认证中间件</h2>
+    <p><code>src/clj/com/ruoyi/web/middleware/auth.clj</code> 负责 JWT 解析与权限控制：</p>
+    <pre><code class="language-clojure">(<span class="kw">defn</span> <span class="sym">wrap-jwt-auth</span>
+  <span class="str">"为请求附加当前认证用户，并更新在线心跳。"</span>
+  [handler]
+  (<span class="kw">fn</span> [request]
+    (<span class="kw">let</span> [token (<span class="sym">security/extract-token</span> request)
+          claims (<span class="kw">when</span> token (<span class="sym">security/parse-token</span> token))
+          blacklisted? (<span class="kw">and</span> token (<span class="sym">online/blacklisted?</span> token))
+          _ (<span class="kw">when</span> (<span class="kw">and</span> claims (<span class="kw">not</span> blacklisted?)) (<span class="sym">online/heartbeat!</span> token))
+          request (<span class="kw">if</span> (<span class="kw">and</span> claims (<span class="kw">not</span> blacklisted?))
+                    (<span class="sym">assoc</span> request <span class="macro">:identity</span> claims)
+                    request)]
+      (handler request))))
+
+(<span class="kw">defn</span> <span class="sym">require-auth</span>
+  <span class="str">"要求请求必须通过认证，否则返回 401。"</span>
+  [handler]
+  (<span class="kw">fn</span> [request]
+    (<span class="kw">if</span> (<span class="macro">:identity</span> request)
+      (handler request)
+      (<span class="macro">-&gt;</span> (<span class="sym">response/response</span> {<span class="macro">:code</span> <span class="num">401</span> <span class="macro">:msg</span> <span class="str">"未登录或令牌已过期"</span>})
+          (<span class="sym">response/status</span> <span class="num">401</span>)
+          (<span class="sym">response/content-type</span> <span class="str">"application/json"</span>)))))</code></pre>
+
+    <h2>5. 异常中间件</h2>
+    <p><code>src/clj/com/ruoyi/web/middleware/exception.clj</code> 把异常统一转换为 JSON：</p>
+    <pre><code class="language-clojure">(<span class="kw">def</span> <span class="sym">wrap-exception</span>
+  (<span class="sym">exception/create-exception-middleware</span>
+   (<span class="sym">merge</span>
+    exception/default-handlers
+    {<span class="macro">:system.exception/internal</span>     (<span class="sym">partial</span> handler <span class="str">"internal exception"</span> <span class="num">500</span>)
+     <span class="macro">:system.exception/business</span>     (<span class="sym">partial</span> handler <span class="str">"bad request"</span> <span class="num">400</span>)
+     <span class="macro">:system.exception/not-found</span>    (<span class="sym">partial</span> handler <span class="str">"not found"</span> <span class="num">404</span>)
+     <span class="macro">:system.exception/unauthorized</span> (<span class="sym">partial</span> handler <span class="str">"unauthorized"</span> <span class="num">401</span>)
+     <span class="macro">:system.exception/forbidden</span>    (<span class="sym">partial</span> handler <span class="str">"forbidden"</span> <span class="num">403</span>)
+     <span class="macro">::exception/default</span>            (<span class="sym">partial</span> handler <span class="str">"default"</span> <span class="num">500</span>)})))</code></pre>
+
+    <h2>6. 操作日志中间件</h2>
+    <p><code>src/clj/com/ruoyi/web/middleware/operlog.clj</code> 自动记录非 GET 的 <code>/api/*</code> 请求到 <code>sys_oper_log</code>：</p>
+    <pre><code class="language-clojure">(<span class="kw">defn</span> <span class="sym">wrap-oper-log</span>
+  [handler]
+  (<span class="kw">fn</span> [request]
+    (<span class="kw">let</span> [uri (<span class="macro">:uri</span> request)
+          start (<span class="sym">System/currentTimeMillis</span>)
+          response (handler request)
+          cost-ms (<span class="sym">-</span> (<span class="sym">System/currentTimeMillis</span>) start)]
+      (<span class="kw">when</span> (<span class="kw">and</span> (<span class="sym">str/starts-with?</span> uri <span class="str">"/api/"</span>)
+                 (<span class="kw">not</span> (<span class="sym">skip-paths</span> uri))
+                 (<span class="kw">not</span> (<span class="sym">contains?</span> get-methods (<span class="macro">:request-method</span> request))))
+        (<span class="kw">let</span> [identity (<span class="macro">:identity</span> request)
+              log-entry {<span class="macro">:title</span> (<span class="sym">str</span> (<span class="sym">name</span> (<span class="macro">:request-method</span> request)) <span class="str">" "</span> uri)
+                         <span class="macro">:request_method</span> (<span class="sym">name</span> (<span class="macro">:request-method</span> request))
+                         <span class="macro">:oper_name</span> (<span class="kw">or</span> (<span class="macro">:user-name</span> identity) <span class="str">"anonymous"</span>)
+                         <span class="macro">:oper_url</span> uri
+                         <span class="macro">:oper_param</span> (<span class="sym">format-params</span> (<span class="macro">:params</span> request))
+                         <span class="macro">:json_result</span> (<span class="sym">str</span> (<span class="macro">:status</span> response))
+                         <span class="macro">:status</span> (<span class="kw">if</span> (<span class="macro">&gt;=</span> (<span class="macro">:status</span> response) <span class="num">400</span>) <span class="num">1</span> <span class="num">0</span>)
+                         <span class="macro">:cost_time</span> cost-ms}]
+          (<span class="sym">try</span>
+            (<span class="kw">when-let</span> [query-fn (<span class="sym">get-in</span> request [<span class="macro">:components</span> <span class="macro">:query-fn</span>])]
+              (<span class="sym">query-fn</span> <span class="macro">:create-oper-log!</span> log-entry))
+            (<span class="kw">catch</span> Exception e
+              (<span class="sym">log/warn</span> e <span class="str">"Failed to write operation log"</span>)))))
+      response)))</code></pre>
+
+    <h2>7. 路由组织</h2>
+    <h3>7.1 api.clj：全局 route-data</h3>
+    <pre><code class="language-clojure">(<span class="kw">def</span> <span class="sym">route-data</span>
+  {<span class="macro">:coercion</span>   malli/coercion
+   <span class="macro">:muuntaja</span>   formats/instance
+   <span class="macro">:swagger</span>    {<span class="macro">:id</span> ::api}
+   <span class="macro">:middleware</span> [parameters/parameters-middleware
+                muuntaja/format-negotiate-middleware
+                muuntaja/format-response-middleware
+                coercion/coerce-exceptions-middleware
+                muuntaja/format-request-middleware
+                coercion/coerce-response-middleware
+                coercion/coerce-request-middleware
+                exception/wrap-exception]})
+
+(<span class="kw">defn</span> <span class="sym">api-routes</span> [opts]
+  [[<span class="str">"/swagger.json"</span> {<span class="macro">:get</span> {<span class="macro">:no-doc</span> <span class="kw">true</span>
+                         <span class="macro">:swagger</span> {<span class="macro">:info</span> {<span class="macro">:title</span> <span class="str">"RouYi API"</span>}}
+                         <span class="macro">:handler</span> (<span class="sym">swagger/create-swagger-handler</span>)}}]
+   [<span class="str">"/health"</span> {<span class="macro">:get</span> #'<span class="sym">health/healthcheck!</span>}]
+   (<span class="sym">auth/auth-routes</span> opts)
+   (<span class="sym">system/system-routes</span> opts)
+   (<span class="sym">common/common-routes</span> opts)
+   (<span class="sym">business/business-routes</span> opts)
+   (<span class="sym">gen/gen-routes</span> opts)
+   (<span class="sym">captcha/captcha-routes</span> opts)])</code></pre>
+
+    <h3>7.2 system.clj：业务路由</h3>
+    <p>系统管理路由统一挂载 <code>auth-middleware</code>，并用 <code>partial</code> 注入 service：</p>
+    <pre><code class="language-clojure">(<span class="kw">defn</span> <span class="sym">system-routes</span> [{<span class="macro">:keys</span> [user-service role-service ...]}]
+  [<span class="str">"/system"</span>
+   {<span class="macro">:middleware</span> [(auth-mw/auth-middleware {<span class="macro">:required?</span> <span class="kw">true</span>})]
+    <span class="macro">:swagger</span> {<span class="macro">:tags</span> [<span class="str">"系统管理"</span>]}}
+
+   [<span class="str">"/user"</span>
+    [<span class="str">""</span> {<span class="macro">:get</span> {<span class="macro">:summary</span> <span class="str">"用户列表"</span>
+               <span class="macro">:parameters</span> {<span class="macro">:query</span> PagingQuery}
+               <span class="macro">:handler</span> (<span class="sym">partial</span> user/list-users {<span class="macro">:user-service</span> user-service})}
+         <span class="macro">:post</span> {<span class="macro">:summary</span> <span class="str">"新增用户"</span>
+                <span class="macro">:handler</span> (<span class="sym">partial</span> user/create-user {<span class="macro">:user-service</span> user-service})}}]
+    [<span class="str">"/:id"</span> {<span class="macro">:get</span> {<span class="macro">:summary</span> <span class="str">"用户详情"</span> <span class="macro">:parameters</span> {<span class="macro">:path</span> PathId}
+                   <span class="macro">:handler</span> (<span class="sym">partial</span> user/get-user {<span class="macro">:user-service</span> user-service})}
+            <span class="macro">:put</span> {<span class="macro">:summary</span> <span class="str">"更新用户"</span> <span class="macro">:parameters</span> {<span class="macro">:path</span> PathId}
+                   <span class="macro">:handler</span> (<span class="sym">partial</span> user/update-user {<span class="macro">:user-service</span> user-service})}
+            <span class="macro">:delete</span> {<span class="macro">:summary</span> <span class="str">"删除用户"</span> <span class="macro">:parameters</span> {<span class="macro">:path</span> PathId}
+                      <span class="macro">:handler</span> (<span class="sym">partial</span> user/delete-user {<span class="macro">:user-service</span> user-service})}}]]])</code></pre>
+
+    <h2>8. 控制器模式</h2>
+    <p><code>src/clj/com/ruoyi/web/controllers/system/user.clj</code> 展示了标准控制器：</p>
+    <pre><code class="language-clojure">(<span class="kw">defn-</span> <span class="sym">ok</span>
+  ([data] (<span class="sym">ok</span> <span class="num">200</span> <span class="str">"操作成功"</span> data))
+  ([code msg data]
+   (<span class="macro">-&gt;</span> (<span class="sym">response/response</span> {<span class="macro">:code</span> code <span class="macro">:msg</span> msg <span class="macro">:data</span> data})
+       (<span class="sym">response/content-type</span> <span class="str">"application/json"</span>))))
+
+(<span class="kw">defn-</span> <span class="sym">fail</span> [msg]
+  (<span class="macro">-&gt;</span> (<span class="sym">response/response</span> {<span class="macro">:code</span> <span class="num">500</span> <span class="macro">:msg</span> msg})
+      (<span class="sym">response/content-type</span> <span class="str">"application/json"</span>)))
+
+(<span class="kw">defn</span> <span class="sym">list-users</span>
+  <span class="str">"查询用户列表（带数据权限过滤）。"</span>
+  [{<span class="macro">:keys</span> [user-service]} request]
+  (<span class="kw">let</span> [raw (<span class="macro">:query-params</span> request)
+        identity (<span class="macro">:identity</span> request)
+        data-perm-filter (<span class="sym">data-perm/data-perm-filter</span> identity <span class="str">"default"</span> <span class="macro">:alias</span> <span class="str">"u"</span>)
+        params (<span class="sym">merge</span> {<span class="macro">:page-num</span> (<span class="kw">or</span> (<span class="sym">parse-int</span> (<span class="sym">get</span> raw <span class="str">"page"</span>)) <span class="num">1</span>)
+                         <span class="macro">:page-size</span> (<span class="kw">or</span> (<span class="sym">parse-int</span> (<span class="sym">get</span> raw <span class="str">"size"</span>)) <span class="num">10</span>)}
+                        (<span class="sym">dissoc</span> raw <span class="str">"page"</span> <span class="str">"size"</span>)
+                        (<span class="macro">:params</span> data-perm-filter))
+        result (<span class="sym">user-service/list-users</span> user-service params)]
+    (<span class="sym">ok</span> {<span class="macro">:total</span> (<span class="macro">:total</span> result) <span class="macro">:rows</span> (<span class="macro">:rows</span> result)})))</code></pre>
+
+    <h2>9. 领域服务</h2>
+    <p><code>src/clj/com/ruoyi/domain/system/user.clj</code> 处理业务逻辑、事务、密码加密、关联表：</p>
+    <pre><code class="language-clojure">(<span class="kw">defn</span> <span class="sym">create-user!</span>
+  <span class="str">"创建新用户，自动加密密码。"</span>
+  [{<span class="macro">:keys</span> [query-fn db]} {<span class="macro">:keys</span> [password roles posts] <span class="macro">:as</span> params}]
+  (<span class="kw">let</span> [hashed (<span class="sym">security/hash-password</span> password)
+        user-id (<span class="sym">db/insert-and-get-id!</span> query-fn db <span class="macro">:create-user!</span>
+                                         (<span class="macro">-&gt;</span> params
+                                             (<span class="sym">assoc</span> <span class="macro">:password</span> hashed)
+                                             (<span class="sym">dissoc</span> <span class="macro">:roles</span> <span class="macro">:posts</span>)))]
+    (<span class="sym">doseq</span> [role-id roles]
+      (<span class="sym">query-fn</span> <span class="macro">:insert-user-role!</span> {<span class="macro">:user_id</span> user-id <span class="macro">:role_id</span> role-id}))
+    (<span class="sym">doseq</span> [post-id posts]
+      (<span class="sym">query-fn</span> <span class="macro">:insert-user-post!</span> {<span class="macro">:user_id</span> user-id <span class="macro">:post_id</span> post-id}))
+    user-id))
+
+(<span class="kw">defn</span> <span class="sym">update-user!</span>
+  <span class="str">"更新用户信息，可选更新密码。"</span>
+  [{<span class="macro">:keys</span> [query-fn]} {<span class="macro">:keys</span> [user-id password roles posts] <span class="macro">:as</span> params}]
+  (<span class="kw">let</span> [update-data (<span class="macro">-&gt;</span> params
+                          (<span class="sym">dissoc</span> <span class="macro">:roles</span> <span class="macro">:posts</span> <span class="macro">:user-id</span>)
+                          (<span class="sym">assoc</span> <span class="macro">:user_id</span> user-id)
+                          (<span class="sym">assoc</span> <span class="macro">:password</span> (<span class="kw">when</span> password (<span class="sym">security/hash-password</span> password))))]
+    (<span class="sym">query-fn</span> <span class="macro">:update-user!</span> update-data)
+    (<span class="kw">when</span> roles
+      (<span class="sym">query-fn</span> <span class="macro">:delete-user-roles!</span> {<span class="macro">:user_id</span> user-id})
+      (<span class="sym">doseq</span> [role-id roles]
+        (<span class="sym">query-fn</span> <span class="macro">:insert-user-role!</span> {<span class="macro">:user_id</span> user-id <span class="macro">:role_id</span> role-id})))
+    (<span class="kw">when</span> posts
+      (<span class="sym">query-fn</span> <span class="macro">:delete-user-posts!</span> {<span class="macro">:user_id</span> user-id})
+      (<span class="sym">doseq</span> [post-id posts]
+        (<span class="sym">query-fn</span> <span class="macro">:insert-user-post!</span> {<span class="macro">:user_id</span> user-id <span class="macro">:post_id</span> post-id})))
+    user-id))</code></pre>
+
+    <h2>10. 数据权限</h2>
+    <p><code>src/clj/com/ruoyi/infra/data_perm.clj</code> 根据角色生成 SQL 片段。五种范围对应 RuoYi 的数据权限：</p>
+    <pre><code class="language-clojure">(<span class="kw">case</span> scope
+  <span class="num">1</span> {<span class="macro">:params</span> {} <span class="macro">:sql</span> <span class="str">"1=1"</span>}          <span class="comment">;; ALL</span>
+  <span class="num">2</span> {<span class="macro">:params</span> {<span class="macro">:data-perm-dept-ids</span> ids}
+     <span class="macro">:sql</span> (<span class="sym">str</span> <span class="str">" "</span> alias <span class="str">".dept_id IN (:v*:data-perm-dept-ids)"</span>)}  <span class="comment">;; CUSTOM</span>
+  <span class="num">3</span> {<span class="macro">:params</span> {<span class="macro">:data-perm-dept-id</span> dept-id}
+     <span class="macro">:sql</span> (<span class="sym">str</span> <span class="str">" "</span> alias <span class="str">".dept_id = :data-perm-dept-id"</span>)}          <span class="comment">;; DEPT</span>
+  <span class="num">4</span> {<span class="macro">:params</span> {<span class="macro">:data-perm-dept-id</span> dept-id}
+     <span class="macro">:sql</span> (<span class="sym">str</span> <span class="str">" "</span> alias <span class="str">".dept_id IN (SELECT dept_id FROM sys_dept WHERE del_flag = '0' AND (dept_id = :data-perm-dept-id OR ancestors LIKE ...))"</span>)} <span class="comment">;; DEPT_CHILD</span>
+  <span class="num">5</span> {<span class="macro">:params</span> {<span class="macro">:data-perm-user-id</span> uid}
+     <span class="macro">:sql</span> (<span class="sym">str</span> <span class="str">" "</span> alias <span class="str">".user_id = :data-perm-user-id"</span>)})         <span class="comment">;; SELF</span></code></pre>
+    <p>控制器把它合并进查询参数后，HugSQL 的 <code>:v*</code> 列表参数会被自动展开：</p>
+    <pre><code class="language-sql"><span class="sql-kw">SELECT</span> u.* <span class="sql-kw">FROM</span> sys_user u
+<span class="sql-kw">WHERE</span> u.del_flag = <span class="str">'0'</span>
+  <span class="sql-kw">AND</span> (:user_name <span class="sql-kw">IS NULL</span> <span class="sql-kw">OR</span> <span class="sql-func">INSTR</span>(u.user_name, :user_name) &gt; <span class="num">0</span>)
+  <span class="sql-kw">AND</span> u.dept_id <span class="sql-kw">IN</span> (:v*:data-perm-dept-ids)
+<span class="sql-kw">LIMIT</span> :page_size <span class="sql-kw">OFFSET</span> :offset</code></pre>
+
+    <section class="exercise">
+      <h2>练习 / 讨论</h2>
+      <ol>
+        <li>启动后端后，使用 <code>curl</code> 或浏览器开发者工具访问 <code>GET /api/system/user?page=1&amp;size=5</code>，观察响应。然后在 <code>wrap-oper-log</code> 里加一行 <code>(log/info "operlog:" uri)</code>，用 <code>(user/rr)</code> 热重载后再次请求，确认日志打印。</li>
+        <li>在 <code>system.clj</code> 中新增一个 <code>GET /system/demo/hello</code> 端点，要求必须登录，并在控制器中返回 <code>{:code 200 :msg "ok" :data "hello"}</code>。</li>
+        <li>讨论：数据权限过滤放在控制器层还是 SQL 层更好？本项目为什么选择生成 SQL 片段注入查询参数？</li>
+      </ol>
+    </section>
+  </main>
+</body>
+</html>
