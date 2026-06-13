@@ -142,7 +142,7 @@
      [visible? form-data])
     [antd/modal {:title (if editing "修改菜单" "新增菜单")
                  :open visible?
-                 :width 700
+                 :style {:width 700}
                  :onOk #(.submit form)
                  :onCancel #(rf/dispatch [:menus/close-modal])
                  :destroyOnHidden true}

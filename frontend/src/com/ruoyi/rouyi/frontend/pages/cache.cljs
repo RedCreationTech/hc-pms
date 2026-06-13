@@ -166,7 +166,7 @@
                    :open value-visible?
                    :footer nil
                    :onCancel #(rf/dispatch [:cache/close-value])
-                   :width 560}
+                   :style {:width 560}}
          [:pre {:style {:background "#f6f8fa" :padding 16 :borderRadius 8
                         :maxHeight 400 :overflow "auto" :margin 0
                         :fontSize 13 :whiteSpace "pre-wrap" :wordBreak "break-all"}}

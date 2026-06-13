@@ -162,7 +162,7 @@
   (let [visible? @(rf/subscribe [:fb/code-visible?])
         items @(rf/subscribe [:fb/items])
         code (when (seq items) (generate-hiccup items))]
-    [antd/modal {:title "生成 Hiccup 代码" :open visible? :width 700
+    [antd/modal {:title "生成 Hiccup 代码" :open visible? :style {:width 700}
                  :onCancel #(rf/dispatch [:fb/toggle-code])
                  :footer (r/as-element
                           [:div {:style {:display "flex" :justifyContent "space-between"}}

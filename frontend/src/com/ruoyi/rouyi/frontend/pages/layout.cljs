@@ -98,10 +98,9 @@
                     :fontSize 13
                     :transition "all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1)"
                     :transform (when active? "scale(1.05)")
-                    :border "1px solid"
-                    :borderColor (if active?
-                                   "var(--ant-color-primary, #1677ff)"
-                                   "var(--ant-color-border, #d9d9d9)")
+                    :border (if active?
+                              "1px solid var(--ant-color-primary, #1677ff)"
+                              "1px solid var(--ant-color-border, #d9d9d9)")
                     :boxShadow (if active?
                                  "0 2px 8px rgba(24,144,255,0.35)"
                                  "0 1px 2px rgba(0,0,0,0.03)")

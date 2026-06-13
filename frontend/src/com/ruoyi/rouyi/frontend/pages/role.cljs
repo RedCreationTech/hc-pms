@@ -197,7 +197,7 @@
         checked-keys @(rf/subscribe [:roles/checked-keys])]
     [antd/modal {:title (str "分配权限 - " (:role_name role))
                  :open visible?
-                 :width 500
+                 :style {:width 500}
                  :onOk #(rf/dispatch [:roles/save-permission])
                  :onCancel #(rf/dispatch [:roles/close-permission])
                  :destroyOnHidden true
@@ -224,7 +224,7 @@
         checked-keys @(rf/subscribe [:roles/data-scope-checked-keys])]
     [antd/modal {:title (str "数据权限 - " (:role_name role))
                  :open visible?
-                 :width 500
+                 :style {:width 500}
                  :onOk #(rf/dispatch [:roles/save-data-scope])
                  :onCancel #(rf/dispatch [:roles/close-data-scope])
                  :destroyOnHidden true}
@@ -291,7 +291,7 @@
         active-tab @(rf/subscribe [:roles/user-alloc-active-tab])]
     [antd/modal {:title (str "分配用户 - " (:role_name role))
                  :open visible?
-                 :width 760
+                 :style {:width 760}
                  :footer nil
                  :onCancel #(rf/dispatch [:roles/close-user-alloc])
                  :destroyOnHidden true

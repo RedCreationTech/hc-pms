@@ -44,7 +44,7 @@
                  :open visible?
                  :onOk #(.submit form)
                  :onCancel on-close
-                 :destroyOnClose true}
+                 :destroyOnHidden true}
      [antd/form {:form form
                  :layout "vertical"
                  :preserve false

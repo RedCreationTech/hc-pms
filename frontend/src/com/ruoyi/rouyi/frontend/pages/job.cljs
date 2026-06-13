@@ -140,7 +140,7 @@
                                 (rf/dispatch [:jobs/create data]))
                               (on-close-form)))
                     :onCancel on-close-form
-                    :destroyOnClose true}
+                    :destroyOnHidden true}
         [antd/form {:layout "vertical"}
          [antd/form-item {:label "任务名称" :required true}
           [antd/input {:value form-name :onChange #(set-form-name! (-> % .-target .-value))}]]
@@ -159,8 +159,8 @@
        [antd/drawer {:title (str "任务日志 - " log-job-name)
                      :open show-log?
                      :onClose #(set-show-log! false)
-                     :width 800
-                     :destroyOnClose true}
+                     :style {:width 800}
+                     :destroyOnHidden true}
         [antd/table {:scroll #js {:x "max-content"} :rowKey "job_log_id"
                      :loading log-loading?
                      :columns (clj->js
