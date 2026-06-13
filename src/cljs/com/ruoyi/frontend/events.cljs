@@ -2344,6 +2344,7 @@
                               (fn [result]
                                 (when (= 200 (:code result))
                                   (antd/success! "创建成功")
+                                  (rf/dispatch [:users/close-modal])
                                   (rf/dispatch [:users/fetch {}]))
                                 (when (not= 200 (:code result))
                                   (antd/error! (:msg result))))
@@ -2355,6 +2356,7 @@
                               (fn [result]
                                 (when (= 200 (:code result))
                                   (antd/success! "更新成功")
+                                  (rf/dispatch [:users/close-modal])
                                   (rf/dispatch [:users/fetch {}]))
                                 (when (not= 200 (:code result))
                                   (antd/error! (:msg result))))
