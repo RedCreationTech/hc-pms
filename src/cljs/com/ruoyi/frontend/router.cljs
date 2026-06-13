@@ -7,6 +7,14 @@
 ;; 路由定义
 (def routes
   ["/" {"" :dashboard
+        "dashboard" :dashboard
+        "solution" :solution-home
+        "project/info" :project-info
+        "resource/standard" :resource-standard
+        "resource/vector-kb" :resource-vector-kb
+        "resource/structured-kb" :resource-structured-kb
+        "resource/case" :resource-case
+        "resource/atlas" :resource-atlas
         "system/user" :user
         "system/role" :role
         "system/menu" :menu
@@ -39,6 +47,13 @@
 ;; 页面名称映射
 (def page-names
   {:dashboard "首页"
+   :solution-home "方案管理"
+   :project-info "项目信息管理"
+   :resource-standard "标准规范"
+   :resource-vector-kb "向量知识库"
+   :resource-structured-kb "结构化知识库"
+   :resource-case "优秀案例库"
+   :resource-atlas "通用图集库"
    :user "用户管理"
    :role "角色管理"
    :menu "菜单管理"

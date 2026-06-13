@@ -48,6 +48,7 @@
    [com.ruoyi.frontend.pages.form-builder :as form-builder]
    [com.ruoyi.frontend.pages.file-manager :as file-manager]
    [com.ruoyi.frontend.pages.integrant :as integrant]
+   [com.ruoyi.frontend.pages.business :as business]
    [com.ruoyi.frontend.components.icon-picker :as icon-picker]))
 
 ;; ─── Tab 组件 ──────────────────────────────────────────────────────
@@ -200,11 +201,11 @@
        [:> ExpandOutlined {:style {:cursor "pointer" :color "var(--ant-color-text-secondary, #999)"
                                    :fontSize 14 :padding "4px"}
                            :on-click #(rf/dispatch [:tabs/fullscreen])}]]
-      [antd/dropdown {:menu {:items (clj->js [{:key "close-others" :label "关闭其他"
+      [antd/dropdown {:menu {:items (clj->js [{:key "close-others" :label "关闭其他"}
                                                {:key "close-right" :label "关闭右侧"}
                                                {:key "close-all" :label "关闭全部"}
                                                {:type "divider"}
-                                               {:key "refresh" :label "刷新当前页"}}])
+                                               {:key "refresh" :label "刷新当前页"}])
                              :onClick (fn [e]
                                         (let [active-tab @(rf/subscribe [:tabs/active])]
                                           (case (.-key e)
@@ -219,7 +220,14 @@
 ;; ─── 页面关键词到菜单路径映射 ─────────────────────────────────────────
 (def page->menu-key
   "将路由关键词映射到菜单的 key（完整路径）。"
-  {:user "system/user"
+  {:solution-home "solution"
+   :project-info "project/info"
+   :resource-standard "resource/standard"
+   :resource-vector-kb "resource/vector-kb"
+   :resource-structured-kb "resource/structured-kb"
+   :resource-case "resource/case"
+   :resource-atlas "resource/atlas"
+   :user "system/user"
    :role "system/role"
    :menu "system/menu"
    :dept "system/dept"
@@ -259,16 +267,21 @@
   ([menus parent-path]
    (clj->js
     (mapv (fn [m]
-            (let [full-path (if (seq parent-path)
-                              (str parent-path "/" (:path m))
-                              (:path m))
-                  item {:key full-path
+            (let [path (:path m)
+                  full-path (cond
+                              (not (seq path)) parent-path
+                              (seq parent-path) (str parent-path "/" path)
+                              :else path)
+                  item-key (if (seq full-path)
+                             full-path
+                             (str "menu-" (:menu_id m)))
+                  item {:key item-key
                         :label (:menu_name m)}
                   icon-el (when (and (:icon m) (not= (:icon m) "#"))
                             (icon-picker/icon-element (:icon m) {:style {:fontSize 14}}))]
               (cond-> item
                 icon-el
-                (assoc :icon (r/as-element icon-el))
+                (assoc :icon icon-el)
                 (seq (:children m))
                 (assoc :children (menu->antd-items (:children m) full-path)))))
           menus))))
@@ -278,11 +291,14 @@
   ([menus] (page-labels menus ""))
   ([menus parent-path]
    (reduce (fn [acc m]
-             (let [full-path (if (seq parent-path)
-                               (str parent-path "/" (:path m))
-                               (:path m))
+             (let [path (:path m)
+                   full-path (cond
+                               (not (seq path)) parent-path
+                               (seq parent-path) (str parent-path "/" path)
+                               :else path)
                    ;; 查找路由关键词，如 system/user -> :user
-                   matched (router/match-route (str "/" full-path))
+                   matched (when (seq full-path)
+                             (router/match-route (str "/" full-path)))
                    route-key (:handler matched)
                    acc (if route-key
                          (assoc acc route-key (:menu_name m))
@@ -298,10 +314,13 @@
   ([menus] (page-icons menus ""))
   ([menus parent-path]
    (reduce (fn [acc m]
-             (let [full-path (if (seq parent-path)
-                               (str parent-path "/" (:path m))
-                               (:path m))
-                   matched (router/match-route (str "/" full-path))
+             (let [path (:path m)
+                   full-path (cond
+                               (not (seq path)) parent-path
+                               (seq parent-path) (str parent-path "/" path)
+                               :else path)
+                   matched (when (seq full-path)
+                             (router/match-route (str "/" full-path)))
                    route-key (:handler matched)
                    icon (:icon m)
                    acc (if (and route-key (seq icon))
@@ -372,36 +391,35 @@
 "])
 
 (defn main-layout []
-  (let [collapsed (r/atom false)]
-    (fn []
-      (let [theme-mode @(rf/subscribe [:theme/mode])
-            user @(rf/subscribe [:auth/user])
-            page @(rf/subscribe [:page])
-            user-menus (or (seq (:menus user))
-                           [{:path "dashboard" :menu_name "首页" :icon "dashboard"}])
-            menus-with-integrant (inject-integrant-menu user-menus)
-            filtered-menus (filter-visible-menus menus-with-integrant)
-            menu-items (menu->antd-items filtered-menus)
-            labels (page-labels menus-with-integrant)
-            icons (page-icons menus-with-integrant)]
-        [:> Layout {:style {:minHeight "100vh"}}
+  (let [[collapsed set-collapsed!] (hooks/use-state false)
+        theme-mode @(rf/subscribe [:theme/mode])
+        user @(rf/subscribe [:auth/user])
+        page @(rf/subscribe [:page])
+        user-menus (or (seq (:menus user))
+                       [{:path "dashboard" :menu_name "首页" :icon "dashboard"}])
+        menus-with-integrant (inject-integrant-menu user-menus)
+        filtered-menus (filter-visible-menus menus-with-integrant)
+        menu-items (menu->antd-items filtered-menus)
+        labels (page-labels menus-with-integrant)
+        icons (page-icons menus-with-integrant)]
+    [:> Layout {:style {:minHeight "100vh"}}
          ;; Tab 动画样式
          [tab-animation-styles]
          [:> Layout.Sider {:collapsible true
-                           :collapsed @collapsed
-                           :onCollapse (fn [v] (reset! collapsed v))
+                           :collapsed collapsed
+                           :onCollapse set-collapsed!
                            :theme (if (= theme-mode :dark) "dark" "light")
                            :width 220}
           [:div {:style {:height 64 :display "flex" :alignItems "center"
                          :justifyContent "center" :fontSize 18 :fontWeight 600
                          :color (if (= theme-mode :dark) "#fff" "#000")
                          :borderBottom "1px solid var(--ant-color-border-secondary, #f0f0f0)"}}
-           (if @collapsed "RY" "若依管理系统")]
+           (if collapsed "RY" "若依管理系统")]
           [:> Menu {:theme (if (= theme-mode :dark) "dark" "light")
                     :mode "inline"
-                    :inlineCollapsed @collapsed
+                    :inlineCollapsed collapsed
                     :selectedKeys (clj->js [(or (page->menu-key page) (name page))])
-                    :defaultOpenKeys #js ["system" "monitor" "tool"]
+                    :defaultOpenKeys #js ["menu-1999" "system" "monitor" "tool"]
                     :items menu-items
                     :onClick (fn [e]
                                (let [k (.-key e)
@@ -456,6 +474,13 @@
                               :class "tab-content-enter"}
            (case page
              :dashboard [dashboard/dashboard-page]
+             :solution-home [business/solution-home-page]
+             :project-info [business/project-page]
+             :resource-standard [business/resource-page :standard]
+             :resource-vector-kb [business/resource-page :vector-kb]
+             :resource-structured-kb [business/resource-page :structured-kb]
+             :resource-case [business/resource-page :case]
+             :resource-atlas [business/resource-page :atlas]
              :user [user/user-page]
              :role [role/role-page]
              :menu [menu/menu-page]
@@ -478,4 +503,4 @@
              :build [form-builder/form-builder-page]
              :file [file-manager/file-manager-page]
              [:div {:style {:padding 48 :textAlign "center" :color "#999" :fontSize 16}}
-              "页面建设中"])]]]))))
+              "页面建设中"])]]]))

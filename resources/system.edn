@@ -77,6 +77,9 @@
  {:query-fn #ig/ref :db.sql/query-fn
   :db       #ig/ref :db.sql/connection}
 
+ :app.business/service
+ {:query-fn #ig/ref :db.sql/query-fn}
+
  :app.system/job-scheduler
  {:scheduler  #ig/ref :cronut/scheduler
   :query-fn   #ig/ref :db.sql/query-fn
@@ -97,7 +100,8 @@
   :config-service #ig/ref :app.system/config-service
   :log-service    #ig/ref :app.system/log-service
   :online-service #ig/ref :app.system/online-service
-  :gen-service    #ig/ref :app.system/gen-service}
+  :gen-service    #ig/ref :app.system/gen-service
+  :business-service #ig/ref :app.business/service}
 
  :router/routes
  {:routes #ig/refset :reitit/routes}
@@ -138,7 +142,7 @@
  :db.sql/query-fn
  {:conn      #ig/ref :db.sql/connection
   :options   {}
-  :filenames ["queries.sql" "sql/system.sql" "sql/log.sql" "sql/job.sql" "sql/gen.sql" "sql/generated.sql"]
+  :filenames ["queries.sql" "sql/system.sql" "sql/log.sql" "sql/job.sql" "sql/gen.sql" "sql/generated.sql" "sql/business.sql"]
   :env       #ig/ref :system/env}
 
  :db.sql/migrations
