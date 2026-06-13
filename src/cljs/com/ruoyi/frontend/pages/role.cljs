@@ -303,47 +303,47 @@
                              (rf/dispatch [:roles/set-user-alloc-active-tab key])
                              (if (= key "allocated")
                                (rf/dispatch [:roles/fetch-allocated])
-                               (rf/dispatch [:roles/fetch-unallocated])))}
-      {:key "allocated"
-       :label "已分配用户"
-       :children (r/as-element
-                  [:div
-                   [user-alloc-search :roles/allocated-query
-                    :roles/set-allocated-query
-                    :roles/reset-allocated-query
-                    :roles/fetch-allocated]
-                   [user-alloc-table :roles/allocated-items
-                    :roles/allocated-total
-                    :roles/allocated-loading?
-                    :roles/allocated-selected
-                    :roles/set-allocated-selected
-                    :roles/fetch-allocated
-                    "取消授权"
-                    :roles/cancel-user]
-                   [:div {:style {:marginTop 12 :textAlign "right"}}
-                    [antd/button {:danger true
-                                  :on-click #(rf/dispatch [:roles/cancel-all-users])}
-                     "批量取消授权"]]])}
-      {:key "unallocated"
-       :label "未分配用户"
-       :children (r/as-element
-                  [:div
-                   [user-alloc-search :roles/unallocated-query
-                    :roles/set-unallocated-query
-                    :roles/reset-unallocated-query
-                    :roles/fetch-unallocated]
-                   [user-alloc-table :roles/unallocated-items
-                    :roles/unallocated-total
-                    :roles/unallocated-loading?
-                    :roles/unallocated-selected
-                    :roles/set-unallocated-selected
-                    :roles/fetch-unallocated
-                    "选择"
-                    :roles/select-all-users]
-                   [:div {:style {:marginTop 12 :textAlign "right"}}
-                    [antd/button {:type "primary"
-                                  :on-click #(rf/dispatch [:roles/select-all-users])}
-                     "批量选择授权"]]])}]]))
+                               (rf/dispatch [:roles/fetch-unallocated])))
+                 :items [{:key "allocated"
+                          :label "已分配用户"
+                          :children (r/as-element
+                                     [:div
+                                      [user-alloc-search :roles/allocated-query
+                                       :roles/set-allocated-query
+                                       :roles/reset-allocated-query
+                                       :roles/fetch-allocated]
+                                      [user-alloc-table :roles/allocated-items
+                                       :roles/allocated-total
+                                       :roles/allocated-loading?
+                                       :roles/allocated-selected
+                                       :roles/set-allocated-selected
+                                       :roles/fetch-allocated
+                                       "取消授权"
+                                       :roles/cancel-user]
+                                      [:div {:style {:marginTop 12 :textAlign "right"}}
+                                       [antd/button {:danger true
+                                                     :on-click #(rf/dispatch [:roles/cancel-all-users])}
+                                        "批量取消授权"]]])}
+                         {:key "unallocated"
+                          :label "未分配用户"
+                          :children (r/as-element
+                                     [:div
+                                      [user-alloc-search :roles/unallocated-query
+                                       :roles/set-unallocated-query
+                                       :roles/reset-unallocated-query
+                                       :roles/fetch-unallocated]
+                                      [user-alloc-table :roles/unallocated-items
+                                       :roles/unallocated-total
+                                       :roles/unallocated-loading?
+                                       :roles/unallocated-selected
+                                       :roles/set-unallocated-selected
+                                       :roles/fetch-unallocated
+                                       "选择"
+                                       :roles/select-all-users]
+                                      [:div {:style {:marginTop 12 :textAlign "right"}}
+                                       [antd/button {:type "primary"
+                                                     :on-click #(rf/dispatch [:roles/select-all-users])}
+                                        "批量选择授权"]]])}]}]]))
 
 ;; ─── 主页面 ──────────────────────────────────────────────────────
 
