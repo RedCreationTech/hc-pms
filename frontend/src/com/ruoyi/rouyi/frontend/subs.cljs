@@ -492,6 +492,10 @@
             (fn [db _]
               (get-in db [:server :loading?] false)))
 
+(rf/reg-sub :server/datasource
+            (fn [db _]
+              (get-in db [:server :datasource])))
+
 ;; ─── 缓存监控 ──────────────────────────────────────────────────────
 
 (rf/reg-sub :cache/data

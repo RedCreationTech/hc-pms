@@ -124,16 +124,16 @@
                                    {:key "5" :content "用户登录：admin" :time "3小时前"}])
                      :columns (clj->js
                                [{:dataIndex "content" :key "content" :width "70%"}
-                                {:dataIndex "time" :key "time" :align "right"}])}]]
+                                {:dataIndex "time" :key "time" :align "right"}])}]]]
 
-       ;; 右侧：系统信息
-       [antd/card {:title "系统信息" :style {:borderRadius 8}
-                   :bodyStyle {:padding "0 24px"}}
-        [system-info-item {:label "操作系统" :value "macOS Sonoma"}]
-        [system-info-item {:label "系统架构" :value "aarch64"}]
-        [system-info-item {:label "Java 版本" :value "JDK 17"}]
-        [system-info-item {:label "Clojure" :value "1.12.0"}]
-        [system-info-item {:label "数据库" :value "SQLite 3"}]
-        [system-info-item {:label "前端框架" :value "Reagent 2.0"}]
-        [system-info-item {:label "UI 组件" :value "Ant Design 6"}]
-        [system-info-item {:label "构建工具" :value "shadow-cljs"}]]]]]))
+      ;; 右侧：系统信息
+      [antd/card {:title "系统信息" :style {:borderRadius 8}
+                  :bodyStyle {:padding "0 24px"}}
+       [system-info-item {:label "操作系统" :value "macOS Sonoma"}]
+       [system-info-item {:label "系统架构" :value "aarch64"}]
+       [system-info-item {:label "Java 版本" :value "JDK 17"}]
+       [system-info-item {:label "Clojure" :value "1.12.0"}]
+       [system-info-item {:label "数据库" :value "SQLite 3"}]
+       [system-info-item {:label "前端框架" :value "Reagent 2.0"}]
+       [system-info-item {:label "UI 组件" :value "Ant Design 6"}]
+       [system-info-item {:label "构建工具" :value "shadow-cljs"}]]]]))

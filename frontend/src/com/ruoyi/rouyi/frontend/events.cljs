@@ -83,6 +83,34 @@
                        (assoc-in [:auth :loading?] false)
                        (assoc :notification {:type :error :message msg}))))
 
+(rf/reg-event-fx :auth/logout
+                 (fn [{:keys [db]} _]
+                   (try
+                     (.removeItem js/localStorage "ruoyi_token")
+                     (.removeItem js/localStorage "ruoyi_user")
+                     (catch js/Error _))
+                   {:db (-> db
+                            (assoc-in [:auth :token] nil)
+                            (assoc-in [:auth :user] nil)
+                            (assoc :tabs {:items [{:key :dashboard :label "首页" :closable false}]
+                                          :active :dashboard}))
+                    :api/logout nil
+                    :dispatch [:navigate :login]}))
+
+(rf/reg-fx :api/logout
+           (fn [_]
+             (api/logout
+              (fn [_]
+                (try
+                  (.removeItem js/localStorage "ruoyi_token")
+                  (.removeItem js/localStorage "ruoyi_user")
+                  (catch js/Error _)))
+              (fn [_]
+                (try
+                  (.removeItem js/localStorage "ruoyi_token")
+                  (.removeItem js/localStorage "ruoyi_user")
+                  (catch js/Error _))))))
+
 (rf/reg-event-fx :auth/fetch-info
                  (fn [{:keys [db]} _]
                    {:db db
@@ -1606,13 +1634,13 @@
 ;; ────── 多Tab管理 ──────
 
 (rf/reg-event-fx :tabs/add
-                 (fn [{:keys [db]} [_ key label]]
+                 (fn [{:keys [db]} [_ key label icon]]
                    (let [tabs (get-in db [:tabs :items] [])
                          exists? (some #(= (:key %) key) tabs)]
                      (if exists?
                        {:db (assoc-in db [:tabs :active] key)}
                        {:db (-> db
-                                (update-in [:tabs :items] conj {:key key :label label :closable (not= key :dashboard)})
+                                (update-in [:tabs :items] conj {:key key :label label :icon icon :closable (not= key :dashboard)})
                                 (assoc-in [:tabs :active] key))}))))
 
 (rf/reg-event-db :tabs/activate
