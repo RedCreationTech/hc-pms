@@ -494,6 +494,26 @@
 (rf/reg-sub :fb/selected-id (fn [db _] (get-in db [:fb :selected-id])))
 (rf/reg-sub :fb/code-visible? (fn [db _] (get-in db [:fb :code-visible?] false)))
 
+(rf/reg-sub :form-template/list
+            (fn [db _]
+              (get-in db [:form-templates :items] [])))
+
+(rf/reg-sub :form-template/loading?
+            (fn [db _]
+              (get-in db [:form-templates :loading?] false)))
+
+(rf/reg-sub :form-template/modal-visible?
+            (fn [db _]
+              (get-in db [:form-templates :modal-visible?] false)))
+
+(rf/reg-sub :form-template/drawer-visible?
+            (fn [db _]
+              (get-in db [:form-templates :drawer-visible?] false)))
+
+(rf/reg-sub :form-template/saving?
+            (fn [db _]
+              (get-in db [:form-templates :saving?] false)))
+
 (rf/reg-sub :gen/preview-table-name (fn [db _] (get-in db [:gen :preview-table-name])))
 (rf/reg-sub :gen/config-visible? (fn [db _] (get-in db [:gen :config-visible?] false)))
 (rf/reg-sub :gen/config (fn [db _] (get-in db [:gen :config] {:package-path "com.ruoyi" :module-name "system" :author "ruoyi" :table-prefix "sys_"})))

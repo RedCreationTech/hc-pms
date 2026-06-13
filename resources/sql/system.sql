@@ -445,3 +445,42 @@ WHERE m.menu_id IN (
   WHERE rm2.role_id IN (:v*:role-ids) AND m2.parent_id > 0
 )
 ORDER BY m.parent_id, m.order_num
+
+-- ════════════════════════════════════════════════════════════════
+-- 表单模板
+-- ════════════════════════════════════════════════════════════════
+
+-- :name list-form-templates :? :*
+-- :doc 查询表单模板列表
+SELECT * FROM sys_form_template WHERE 1=1
+  AND (:form_name IS NULL OR INSTR(form_name, :form_name) > 0)
+  AND (:form_key IS NULL OR INSTR(form_key, :form_key) > 0)
+ORDER BY id DESC
+
+-- :name find-form-template-by-id :? :1
+-- :doc 根据ID查询表单模板
+SELECT * FROM sys_form_template WHERE id = :id
+
+-- :name find-form-template-by-key :? :1
+-- :doc 根据form_key查询表单模板
+SELECT * FROM sys_form_template WHERE form_key = :form_key
+
+-- :name create-form-template! :! :n
+-- :doc 新增表单模板
+INSERT INTO sys_form_template (form_name, form_key, schema_json, remark, create_by, create_time)
+VALUES (:form_name, :form_key, :schema_json, :remark, :create_by, CURRENT_TIMESTAMP)
+
+-- :name update-form-template! :! :n
+-- :doc 更新表单模板
+UPDATE sys_form_template
+SET form_name   = COALESCE(:form_name, form_name),
+    form_key    = COALESCE(:form_key, form_key),
+    schema_json = COALESCE(:schema_json, schema_json),
+    remark      = COALESCE(:remark, remark),
+    update_by   = :update_by,
+    update_time = CURRENT_TIMESTAMP
+WHERE id = :id
+
+-- :name delete-form-template! :! :n
+-- :doc 删除表单模板
+DELETE FROM sys_form_template WHERE id = :id

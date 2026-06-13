@@ -5,7 +5,7 @@
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
    ["@ant-design/icons" :refer [PlusOutlined DeleteOutlined DragOutlined EyeOutlined CodeOutlined
-                                CopyOutlined ClearOutlined]]
+                                CopyOutlined ClearOutlined SaveOutlined FolderOpenOutlined]]
    [clojure.string :as str]
    [com.ruoyi.frontend.antd :as antd]))
 
@@ -174,6 +174,68 @@
                     :maxHeight 500 :overflow "auto" :fontSize 13 :lineHeight 1.6}}
       (if code code "请先添加表单组件")]]))
 
+
+(defn- save-template-modal []
+  (let [visible? @(rf/subscribe [:form-template/modal-visible?])
+        saving? @(rf/subscribe [:form-template/saving?])
+        items @(rf/subscribe [:fb/items])
+        [form] (antd/form-use-form)]
+    [antd/modal {:title "保存表单模板" :open visible?
+                 :style {:width 500}
+                 :confirmLoading saving?
+                 :onCancel #(rf/dispatch [:form-template/close-save-modal])
+                 :onOk #(.submit form)
+                 :destroyOnHidden true}
+     [antd/form {:form form
+                 :layout "vertical"
+                 :onFinish (fn [values]
+                             (if (seq items)
+                               (rf/dispatch [:form-template/save values])
+                               (antd/error! "请先添加表单组件")))}
+      [antd/form-item {:label "模板名称" :name "form_name"
+                       :rules [{:required true :message "请输入模板名称"}]}
+       [antd/input {:placeholder "请输入模板名称"}]]
+      [antd/form-item {:label "模板标识" :name "form_key"
+                       :rules [{:required true :message "请输入模板标识"}]}
+       [antd/input {:placeholder "请输入唯一标识"}]]
+      [antd/form-item {:label "备注" :name "remark"}
+       [antd/text-area {:rows 3 :placeholder "请输入备注"}]]]]))
+
+;; ─── 加载模板抽屉 ──────────────────────────────────────────────────
+
+(defn- load-template-drawer []
+  (let [visible? @(rf/subscribe [:form-template/drawer-visible?])
+        loading? @(rf/subscribe [:form-template/loading?])
+        templates @(rf/subscribe [:form-template/list])]
+    [antd/drawer {:title "加载表单模板" :open visible?
+                  :style {:width 480}
+                  :onClose #(rf/dispatch [:form-template/close-load-drawer])
+                  :destroyOnHidden true}
+     (if loading?
+       [antd/spin {:tip "加载中..."}]
+       (if (empty? templates)
+         [antd/empty-component {:description "暂无保存的模板"}]
+         [:div
+          (for [t templates]
+            ^{:key (:id t)}
+            [:div {:style {:padding 12 :margin "0 0 12px 0"
+                           :border "1px solid var(--ant-color-border-secondary, #f0f0f0)"
+                           :borderRadius 8}}
+             [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center"}}
+              [:div
+               [:div {:style {:fontWeight 600 :fontSize 14}} (:form_name t)]
+               [:div {:style {:color "#888" :fontSize 12 :margin "4px 0"}} (str "key: " (:form_key t))]
+               (when (seq (:remark t))
+                 [:div {:style {:color "#888" :fontSize 12}} (:remark t)])]
+              [antd/space
+               [antd/button {:type "primary" :size "small"
+                             :onClick #(rf/dispatch [:form-template/load t])}
+                "加载"]
+               [antd/popconfirm {:title "确认删除？"
+                                 :onConfirm #(rf/dispatch [:form-template/delete (:id t)])}
+                [antd/button {:type "text" :danger true :size "small"}
+                 "删除"]]]]])]))]))
+
 ;; ─── 主页面 ──────────────────────────────────────────────────────
 
 (defn form-builder-page []
@@ -190,6 +252,12 @@
                        :onClick #(rf/dispatch [:fb/toggle-code])
                        :disabled (empty? items)}
           "生成代码"]
+         [antd/button {:icon (r/as-element [:> SaveOutlined])
+                       :onClick #(rf/dispatch [:form-template/open-save-modal])}
+          "保存模板"]
+         [antd/button {:icon (r/as-element [:> FolderOpenOutlined])
+                       :onClick #(rf/dispatch [:form-template/open-load-drawer-and-fetch])}
+          "加载模板"]
          [antd/button {:icon (r/as-element [:> ClearOutlined])
                        :onClick #(rf/dispatch [:fb/clear])}
           "清空"]]]
@@ -197,4 +265,6 @@
         [palette-panel]
         [design-canvas]
         [prop-editor selected-item]]
-       [code-preview-modal]])))
+       [code-preview-modal]
+       [save-template-modal]
+       [load-template-drawer]])))

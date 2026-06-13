@@ -54,5 +54,6 @@
      :cache {:loading? false :data nil :names [] :selected-name nil :keys [] :value nil :value-visible? false}
      :file {:items [] :loading? false}
      :fb {:items [] :selected-id nil :code-visible? false}
+     :form-templates {:items [] :loading? false :modal-visible? false :drawer-visible? false :saving? false}
      :gen {:tables-loading? false :tables [] :selected-tables [] :preview-loading? false :preview-visible? false}
      :notification nil}))
