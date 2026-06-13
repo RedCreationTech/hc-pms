@@ -36,6 +36,16 @@
     .type { color: #22863a; }
     .sql-kw { color: #d73a49; font-weight: 600; }
     .sql-func { color: #6f42c1; }
+    .diagram-container { border: 1px solid #e8e8e8; border-radius: 8px; padding: 1.2rem; margin: 1.5rem 0; background: #fafafa; }
+    .diagram-container h2 { margin-top: 0; }
+    .diagram-note { color: #595959; font-size: .9rem; margin-bottom: 1rem; }
+    .mermaid { background: #fff; border: 1px solid #e8e8e8; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    .step-cards { display: flex; flex-wrap: wrap; gap: .75rem; margin-bottom: 1rem; }
+    .step-card { flex: 1 1 140px; padding: .75rem; background: #fff; border: 1px solid #d9d9d9; border-radius: 6px; cursor: pointer; transition: all .2s; }
+    .step-card:hover { border-color: var(--primary); background: #f0f7ff; }
+    .step-card.active { border-color: var(--primary); background: #e6f4ff; font-weight: 600; }
+    .detail-panel { display: none; background: #fff; border: 1px solid #e8e8e8; border-radius: 6px; padding: 1rem; }
+    .detail-panel.active { display: block; }
   </style>
 </head>
 <body>
@@ -67,6 +77,89 @@
       </ul>
     </section>
 
+    <section class="diagram-container">
+      <h2>后端请求处理流程（可点击节点）</h2>
+      <p class="diagram-note">⚠ 交互图依赖 Mermaid.js CDN，需联网渲染。文字内容已完整覆盖流程。</p>
+      <div class="mermaid">
+flowchart TD
+    A["HTTP 请求"] --> B["Undertow"]
+    B --> C["Ring handler"]
+    C --> D["Base middleware"]
+    D --> E["Auth middleware"]
+    E --> F["Reitit router"]
+    F --> G["Controller"]
+    G --> H["Domain service"]
+    H --> I["HugSQL"]
+    I --> J["SQLite / MySQL"]
+    D --> K["操作日志 middleware"]
+    E --> L["异常处理 middleware"]
+    click A call showStep("http")
+    click B call showStep("undertow")
+    click C call showStep("ring")
+    click D call showStep("base")
+    click E call showStep("auth")
+    click F call showStep("reitit")
+    click G call showStep("controller")
+    click H call showStep("domain")
+    click I call showStep("hugsql")
+    click J call showStep("db")
+    click K call showStep("operlog")
+    click L call showStep("exception")
+      </div>
+      <div class="step-cards">
+        <div class="step-card" data-step="http" onclick="showStep('http')">🌐 HTTP 请求</div>
+        <div class="step-card" data-step="undertow" onclick="showStep('undertow')">🔥 Undertow</div>
+        <div class="step-card" data-step="ring" onclick="showStep('ring')">📦 Ring handler</div>
+        <div class="step-card" data-step="base" onclick="showStep('base')">🛡️ Base middleware</div>
+        <div class="step-card" data-step="auth" onclick="showStep('auth')">🔐 Auth middleware</div>
+        <div class="step-card" data-step="reitit" onclick="showStep('reitit')">🧭 Reitit router</div>
+        <div class="step-card" data-step="controller" onclick="showStep('controller')">🎮 Controller</div>
+        <div class="step-card" data-step="domain" onclick="showStep('domain')">🧠 Domain service</div>
+        <div class="step-card" data-step="hugsql" onclick="showStep('hugsql')">📝 HugSQL</div>
+        <div class="step-card" data-step="db" onclick="showStep('db')">💾 SQLite / MySQL</div>
+        <div class="step-card" data-step="operlog" onclick="showStep('operlog')">📋 操作日志</div>
+        <div class="step-card" data-step="exception" onclick="showStep('exception')">⚠️ 异常处理</div>
+      </div>
+      <div class="detail-panels">
+        <div class="detail-panel" data-step="http">
+          <strong>HTTP 请求</strong>：例如 <code>GET /api/system/user?page=1&amp;size=10</code>，携带 <code>Authorization: Bearer &lt;token&gt;</code> 头部。
+        </div>
+        <div class="detail-panel" data-step="undertow">
+          <strong>Undertow</strong>：嵌入式 Web 服务器，监听 3000 端口，把 HTTP 请求转换为 Ring 风格的请求 map。
+        </div>
+        <div class="detail-panel" data-step="ring">
+          <strong>Ring handler</strong>：由 Integrant 初始化并持有 <code>:handler/ring</code> 组件。它是整个请求处理链的入口。
+        </div>
+        <div class="detail-panel" data-step="base">
+          <strong>Base middleware</strong>：组装 CORS、session、JSON body、query-fn 注入等通用包装器，按 Ring 约定由内向外嵌套。
+        </div>
+        <div class="detail-panel" data-step="auth">
+          <strong>Auth middleware</strong>：解析 JWT，检查黑名单与权限，更新在线用户心跳，未通过则直接返回 401。
+        </div>
+        <div class="detail-panel" data-step="reitit">
+          <strong>Reitit router</strong>：匹配路径、校验参数、coerce 请求/响应，并把请求分派到对应的控制器函数。
+        </div>
+        <div class="detail-panel" data-step="controller">
+          <strong>Controller</strong>：从 request 中提取参数，调用 domain service，构造 <code>{:code :msg :data}</code> 响应。
+        </div>
+        <div class="detail-panel" data-step="domain">
+          <strong>Domain service</strong>：实现业务规则、事务、密码加密、关联表写入等。
+        </div>
+        <div class="detail-panel" data-step="hugsql">
+          <strong>HugSQL</strong>：通过 conman 绑定 <code>resources/sql/*.sql</code> 中的命名查询，由 <code>query-fn</code> 统一执行。
+        </div>
+        <div class="detail-panel" data-step="db">
+          <strong>SQLite / MySQL</strong>：HikariCP 连接池管理的实际数据库。项目通过 <code>JDBC_URL</code> 与 <code>MIGRATION_DIR</code> 切换。
+        </div>
+        <div class="detail-panel" data-step="operlog">
+          <strong>操作日志 middleware</strong>：在响应返回后，自动记录非 GET 的 <code>/api/*</code> 请求到 <code>sys_oper_log</code>。
+        </div>
+        <div class="detail-panel" data-step="exception">
+          <strong>异常处理 middleware</strong>：捕获业务异常与未处理异常，统一转换为 JSON 响应与对应 HTTP 状态码。
+        </div>
+      </div>
+    </section>
+
     <h2>1. 启动流程</h2>
     <p><code>src/clj/com/ruoyi/core.clj</code> 是 JVM 入口。它读取 <code>system.edn</code>，通过 Integrant 初始化整个系统：</p>
     <pre><code class="language-clojure">(<span class="kw">defn</span> <span class="sym">start-app</span> [&amp; [params]]
@@ -93,6 +186,9 @@
       <li><strong>Domain service</strong>：业务逻辑、事务、密码加密、关联表操作。</li>
       <li><strong>HugSQL / conman</strong>：执行 SQL，返回结果。</li>
     </ol>
+    <div class="note">
+      <strong>与 nREPL 联动：</strong>本地验证这条链路最快的方法不是反复重启后端，而是使用<a href="session-1-clojure-basics.html">第1讲</a>介绍的 nREPL 热重载。修改 <code>wrap-oper-log</code> 后执行 <code>(user/rr)</code>，新中间件立即生效；修改控制器后执行 <code>(user/rd)</code>，刷新浏览器即可看到变化。
+    </div>
 
     <h2>3. 基础中间件</h2>
     <p><code>src/clj/com/ruoyi/web/middleware/core.clj</code> 定义了所有请求都会经过的包装器：</p>
@@ -305,10 +401,23 @@
       <h2>练习 / 讨论</h2>
       <ol>
         <li>启动后端后，使用 <code>curl</code> 或浏览器开发者工具访问 <code>GET /api/system/user?page=1&amp;size=5</code>，观察响应。然后在 <code>wrap-oper-log</code> 里加一行 <code>(log/info "operlog:" uri)</code>，用 <code>(user/rr)</code> 热重载后再次请求，确认日志打印。</li>
-        <li>在 <code>system.clj</code> 中新增一个 <code>GET /system/demo/hello</code> 端点，要求必须登录，并在控制器中返回 <code>{:code 200 :msg "ok" :data "hello"}</code>。</li>
+        <li>在 <code>system.clj</code> 中新增一个 <code>GET /system/demo/hello</code> 端点，要求必须登录，并在控制器中返回 <code>{:code 200 :msg "ok" :data "hello"}</code>。借助<a href="session-1-clojure-basics.html">第1讲</a>的 <code>(user/rroutes)</code> + <code>(user/rr)</code> 让它在不重启后端的情况下上线。</li>
         <li>讨论：数据权限过滤放在控制器层还是 SQL 层更好？本项目为什么选择生成 SQL 片段注入查询参数？</li>
       </ol>
     </section>
   </main>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    window.showStep = function(id) {
+      document.querySelectorAll('.detail-panel').forEach(function(p) { p.classList.remove('active'); });
+      document.querySelectorAll('.step-card').forEach(function(c) { c.classList.remove('active'); });
+      var panel = document.querySelector('.detail-panel[data-step="' + id + '"]');
+      var card = document.querySelector('.step-card[data-step="' + id + '"]');
+      if (panel) panel.classList.add('active');
+      if (card) card.classList.add('active');
+    };
+    mermaid.initialize({ startOnLoad: true, securityLevel: 'loose', theme: 'default' });
+    showStep('http');
+  </script>
 </body>
 </html>

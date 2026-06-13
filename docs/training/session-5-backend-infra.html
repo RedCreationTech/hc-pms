@@ -38,6 +38,16 @@
     .edn-tag { color: #6f42c1; font-weight: 600; }
     .sql-kw { color: #d73a49; font-weight: 600; }
     .sql-func { color: #6f42c1; }
+    .diagram-container { border: 1px solid #e8e8e8; border-radius: 8px; padding: 1.2rem; margin: 1.5rem 0; background: #fafafa; }
+    .diagram-container h2 { margin-top: 0; }
+    .diagram-note { color: #595959; font-size: .9rem; margin-bottom: 1rem; }
+    .mermaid { background: #fff; border: 1px solid #e8e8e8; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    .step-cards { display: flex; flex-wrap: wrap; gap: .75rem; margin-bottom: 1rem; }
+    .step-card { flex: 1 1 140px; padding: .75rem; background: #fff; border: 1px solid #d9d9d9; border-radius: 6px; cursor: pointer; transition: all .2s; }
+    .step-card:hover { border-color: var(--primary); background: #f0f7ff; }
+    .step-card.active { border-color: var(--primary); background: #e6f4ff; font-weight: 600; }
+    .detail-panel { display: none; background: #fff; border: 1px solid #e8e8e8; border-radius: 6px; padding: 1rem; }
+    .detail-panel.active { display: block; }
   </style>
 </head>
 <body>
@@ -65,6 +75,96 @@
         <li>测试、构建与部署</li>
         <li>动手：新增 migration + HugSQL 查询 + Integrant 组件</li>
       </ul>
+    </section>
+
+    <section class="diagram-container">
+      <h2>Integrant 生命周期与组件依赖（可点击节点）</h2>
+      <p class="diagram-note">⚠ 交互图依赖 Mermaid.js CDN，需联网渲染。文字内容已完整覆盖生命周期。</p>
+      <div class="mermaid">
+flowchart TD
+    A["resources/system.edn"] -->|"Aero #profile / #env"| B["展开后的配置"]
+    B --> C["ig/init"]
+    C --> D[":db.sql/connection"]
+    C --> E[":db.sql/migrations"]
+    C --> F[":db.sql/query-fn"]
+    C --> G[":app.system/*-service"]
+    C --> H[":router/core"]
+    C --> I[":handler/ring"]
+    C --> J[":server/http"]
+    C --> K[":infra/scheduler"]
+    E -->|"#ig/ref"| D
+    F -->|"#ig/ref"| D
+    G -->|"#ig/ref"| F
+    H -->|"#ig/ref"| G
+    I -->|"#ig/ref"| H
+    J -->|"#ig/ref"| I
+    K -->|"#ig/ref"| E
+    L["ig/halt!"] --> M["关闭连接池 / 服务 / 调度器"]
+    click A call showStep("edn")
+    click B call showStep("aero")
+    click C call showStep("init")
+    click D call showStep("connection")
+    click E call showStep("migrations")
+    click F call showStep("query-fn")
+    click G call showStep("service")
+    click H call showStep("router")
+    click I call showStep("handler")
+    click J call showStep("server")
+    click K call showStep("scheduler")
+    click L call showStep("halt")
+      </div>
+      <div class="step-cards">
+        <div class="step-card" data-step="edn" onclick="showStep('edn')">📄 system.edn</div>
+        <div class="step-card" data-step="aero" onclick="showStep('aero')">🎈 Aero 展开</div>
+        <div class="step-card" data-step="init" onclick="showStep('init')">🚀 ig/init</div>
+        <div class="step-card" data-step="connection" onclick="showStep('connection')">🔌 数据源</div>
+        <div class="step-card" data-step="migrations" onclick="showStep('migrations')">🗄️ 迁移</div>
+        <div class="step-card" data-step="query-fn" onclick="showStep('query-fn')">📝 query-fn</div>
+        <div class="step-card" data-step="service" onclick="showStep('service')">🧩 业务服务</div>
+        <div class="step-card" data-step="router" onclick="showStep('router')">🧭 路由</div>
+        <div class="step-card" data-step="handler" onclick="showStep('handler')">📦 Ring handler</div>
+        <div class="step-card" data-step="server" onclick="showStep('server')">🌐 HTTP 服务</div>
+        <div class="step-card" data-step="scheduler" onclick="showStep('scheduler')">⏰ 定时任务</div>
+        <div class="step-card" data-step="halt" onclick="showStep('halt')">🛑 ig/halt!</div>
+      </div>
+      <div class="detail-panels">
+        <div class="detail-panel" data-step="edn">
+          <strong>system.edn</strong>：系统的声明式配置。所有组件 key、初始参数、依赖关系都写在这里。
+        </div>
+        <div class="detail-panel" data-step="aero">
+          <strong>Aero 展开</strong>：通过 <code>#profile</code>、<code>#env</code>、<code>#or</code> 等 reader tag 把 system.edn 转换成环境相关的 EDN。
+        </div>
+        <div class="detail-panel" data-step="init">
+          <strong>ig/init</strong>：Integrant 根据依赖图按拓扑顺序初始化组件；先初始化被依赖的组件，再初始化依赖者。
+        </div>
+        <div class="detail-panel" data-step="connection">
+          <strong>:db.sql/connection</strong>：HikariCP 数据源，所有数据库访问的根基。
+        </div>
+        <div class="detail-panel" data-step="migrations">
+          <strong>:db.sql/migrations</strong>：Migratus 在启动时自动运行迁移。注意定时任务调度器依赖它，确保表先存在。
+        </div>
+        <div class="detail-panel" data-step="query-fn">
+          <strong>:db.sql/query-fn</strong>：conman 把 HugSQL 查询绑定成一个可调用函数，注入到所有 service 中。
+        </div>
+        <div class="detail-panel" data-step="service">
+          <strong>:app.system/*-service</strong>：业务服务 map，包含 <code>query-fn</code>、<code>db</code> 等，供控制器使用。
+        </div>
+        <div class="detail-panel" data-step="router">
+          <strong>:router/core</strong>：Reitit 路由表，由所有业务 routes 合并而成。
+        </div>
+        <div class="detail-panel" data-step="handler">
+          <strong>:handler/ring</strong>：Ring handler，把路由与中间件栈组合成最终处理函数。
+        </div>
+        <div class="detail-panel" data-step="server">
+          <strong>:server/http</strong>：Undertow HTTP 服务，持有 <code>:handler/ring</code> 监听端口 3000。
+        </div>
+        <div class="detail-panel" data-step="scheduler">
+          <strong>:infra/scheduler</strong>：Quartz 调度器，从 <code>sys_job</code> 加载任务。它依赖 migrations，确保任务表已就绪。
+        </div>
+        <div class="detail-panel" data-step="halt">
+          <strong>ig/halt!</strong>：系统关闭时按相反顺序停止组件，释放连接池、端口、调度器等资源。
+        </div>
+      </div>
     </section>
 
     <h2>1. 配置分层</h2>
@@ -150,7 +250,7 @@
 
 <span class="comment">;; src/clj/com/ruoyi/integrant/state.clj</span>
 (<span class="kw">defonce</span> <span class="sym">system</span> (<span class="sym">atom</span> <span class="kw">nil</span>))</code></pre>
-    <p>开发时常用的热重载命令来自 <code>env/dev/clj/user.clj</code>：</p>
+    <p>开发时常用的热重载命令来自 <code>env/dev/clj/user.clj</code>。更详细的用法与选择策略请参考<a href="session-1-clojure-basics.html">第1讲：LLM + nREPL 探索式开发</a>。</p>
     <pre><code class="language-clojure">(<span class="kw">defn</span> <span class="sym">reload-domain</span> [] ...)
 (<span class="kw">defn</span> <span class="sym">reload-routes</span> [] ...)
 (<span class="kw">defn</span> <span class="sym">reload-all</span> [] ...)
@@ -159,6 +259,9 @@
 (<span class="kw">def</span> <span class="sym">rr</span> reload-system)
 (<span class="kw">def</span> <span class="sym">rd</span> reload-domain)
 (<span class="kw">def</span> <span class="sym">ra</span> reload-all)</code></pre>
+    <div class="note">
+      <strong>注意：</strong>修改 <code>system.edn</code> 或组件结构后，需要 <code>(user/rr)</code> 完全重启 Integrant 系统；修改 domain 逻辑只需 <code>(user/rd)</code>。定时任务调度器依赖 migrations 组件，因此必须先完成迁移再启动调度器。
+    </div>
 
     <h2>3. 数据库栈</h2>
     <p>数据库访问由 kit-sql-conman 提供：</p>
@@ -301,10 +404,23 @@ java -jar target/rouyi-standalone.jar</code></pre>
       <ol>
         <li>在 <code>resources/migrations-sqlite/</code> 下新增一个 Migratus 迁移文件，创建一张 <code>sys_demo</code> 表（含 <code>demo_id</code>、<code>demo_name</code>、<code>create_time</code>）。</li>
         <li>在 <code>resources/sql/system.sql</code> 中添加两个 HugSQL 查询：<code>:name list-demos :? :*</code> 和 <code>:name create-demo! :! :n</code>。</li>
-        <li>在 <code>system.edn</code> 中新增一个 Integrant key <code>:app.system/demo-service</code>，并在 <code>:reitit.routes/api</code> 中注入它。然后在 <code>system.clj</code> 里新增 <code>GET /system/demo</code> 端点，返回演示数据。</li>
+        <li>在 <code>system.edn</code> 中新增一个 Integrant key <code>:app.system/demo-service</code>，并在 <code>:reitit.routes/api</code> 中注入它。然后在 <code>system.clj</code> 里新增 <code>GET /system/demo</code> 端点，返回演示数据。完成后用 <code>(user/rr)</code> 重置系统验证。</li>
         <li>讨论：为什么生产环境的 <code>JWT_SECRET</code> 和 <code>COOKIE_SECRET</code> 应该通过环境变量注入，而不是写在 <code>system.edn</code> 里？</li>
       </ol>
     </section>
   </main>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    window.showStep = function(id) {
+      document.querySelectorAll('.detail-panel').forEach(function(p) { p.classList.remove('active'); });
+      document.querySelectorAll('.step-card').forEach(function(c) { c.classList.remove('active'); });
+      var panel = document.querySelector('.detail-panel[data-step="' + id + '"]');
+      var card = document.querySelector('.step-card[data-step="' + id + '"]');
+      if (panel) panel.classList.add('active');
+      if (card) card.classList.add('active');
+    };
+    mermaid.initialize({ startOnLoad: true, securityLevel: 'loose', theme: 'default' });
+    showStep('edn');
+  </script>
 </body>
 </html>

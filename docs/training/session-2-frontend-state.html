@@ -34,6 +34,16 @@
     .comment { color: #6a737d; font-style: italic; }
     .macro { color: #6f42c1; font-weight: 600; }
     .type { color: #22863a; }
+    .diagram-container { border: 1px solid #e8e8e8; border-radius: 8px; padding: 1.2rem; margin: 1.5rem 0; background: #fafafa; }
+    .diagram-container h2 { margin-top: 0; }
+    .diagram-note { color: #595959; font-size: .9rem; margin-bottom: 1rem; }
+    .mermaid { background: #fff; border: 1px solid #e8e8e8; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    .step-cards { display: flex; flex-wrap: wrap; gap: .75rem; margin-bottom: 1rem; }
+    .step-card { flex: 1 1 140px; padding: .75rem; background: #fff; border: 1px solid #d9d9d9; border-radius: 6px; cursor: pointer; transition: all .2s; }
+    .step-card:hover { border-color: var(--primary); background: #f0f7ff; }
+    .step-card.active { border-color: var(--primary); background: #e6f4ff; font-weight: 600; }
+    .detail-panel { display: none; background: #fff; border: 1px solid #e8e8e8; border-radius: 6px; padding: 1rem; }
+    .detail-panel.active { display: block; }
   </style>
 </head>
 <body>
@@ -64,6 +74,65 @@
       </ul>
     </section>
 
+    <section class="diagram-container">
+      <h2>Re-frame 数据流（可点击节点查看说明）</h2>
+      <p class="diagram-note">⚠ 交互图依赖 Mermaid.js CDN，需联网渲染。离线时下方文字内容已完整覆盖流程。</p>
+      <div class="mermaid">
+flowchart LR
+    A["UI 事件<br/>on-click"] --> B["dispatch<br/>[:users/fetch params]"]
+    B --> C["event handler<br/>reg-event-fx"]
+    C --> D["effect<br/>:api/list-users"]
+    D --> E["HTTP API"]
+    E --> F["db update<br/>:users/set-list"]
+    F --> G["subscription<br/>reg-sub"]
+    G --> H["view re-render"]
+    click A call showStep("event")
+    click B call showStep("dispatch")
+    click C call showStep("handler")
+    click D call showStep("effect")
+    click E call showStep("api")
+    click F call showStep("db")
+    click G call showStep("sub")
+    click H call showStep("view")
+      </div>
+      <div class="step-cards">
+        <div class="step-card" data-step="event" onclick="showStep('event')">1️⃣ UI 事件</div>
+        <div class="step-card" data-step="dispatch" onclick="showStep('dispatch')">2️⃣ dispatch</div>
+        <div class="step-card" data-step="handler" onclick="showStep('handler')">3️⃣ event handler</div>
+        <div class="step-card" data-step="effect" onclick="showStep('effect')">4️⃣ effect</div>
+        <div class="step-card" data-step="api" onclick="showStep('api')">5️⃣ HTTP API</div>
+        <div class="step-card" data-step="db" onclick="showStep('db')">6️⃣ db update</div>
+        <div class="step-card" data-step="sub" onclick="showStep('sub')">7️⃣ subscription</div>
+        <div class="step-card" data-step="view" onclick="showStep('view')">8️⃣ view re-render</div>
+      </div>
+      <div class="detail-panels">
+        <div class="detail-panel" data-step="event">
+          <strong>UI 事件</strong>：用户点击按钮、切换开关、提交表单。在 Reagent 函数组件中表现为 <code>:on-click #(rf/dispatch [:users/fetch {}])</code>。
+        </div>
+        <div class="detail-panel" data-step="dispatch">
+          <strong>dispatch</strong>：把事件向量放入 re-frame 事件队列。它是单向数据流的入口，所有状态变化都必须从这里开始。
+        </div>
+        <div class="detail-panel" data-step="handler">
+          <strong>event handler</strong>：由 <code>reg-event-db</code> 或 <code>reg-event-fx</code> 注册。纯函数，接收当前 db 和事件参数，返回新的 db 或 effect map。
+        </div>
+        <div class="detail-panel" data-step="effect">
+          <strong>effect</strong>：由 <code>reg-fx</code> 注册，负责真正的副作用（HTTP、导航、localStorage）。event handler 只描述“要做什么”，effect 去执行。
+        </div>
+        <div class="detail-panel" data-step="api">
+          <strong>HTTP API</strong>：<code>api.cljs</code> 中的 <code>request</code> 函数从 app-db 读取 token，发起 AJAX；成功后再次 dispatch 一个 db 更新事件。
+        </div>
+        <div class="detail-panel" data-step="db">
+          <strong>db update</strong>：例如 <code>:users/set-list</code> 把返回的 <code>:rows</code> 和 <code>:total</code> 写入 <code>app-db</code>，同时把 <code>:loading?</code> 置为 false。
+        </div>
+        <div class="detail-panel" data-step="sub">
+          <strong>subscription</strong>：由 <code>reg-sub</code> 注册，从 app-db 派生视图需要的数据。只有订阅的数据变化时，相关视图才会重新渲染。
+        </div>
+        <div class="detail-panel" data-step="view">
+          <strong>view re-render</strong>：Reagent 组件订阅数据，数据变化后 React 重新渲染对应子树。UI 与状态始终保持同步。
+        </div>
+      </div>
+    </section>
+
     <h2>1. Re-frame 数据流模型</h2>
     <p>Re-frame 是 ClojureScript 的状态管理框架，核心循环如下：</p>
     <ol>
@@ -73,7 +142,7 @@
       <li><strong>Subscription</strong> 从 <code>app-db</code> 派生视图需要的数据</li>
       <li><strong>View</strong> 订阅数据并渲染</li>
     </ol>
-    <p>这种单向数据流让调试变得非常清晰：任何状态变化都可追溯到一次 dispatch。</p>
+    <p>这种单向数据流让调试变得非常清晰：任何状态变化都可追溯到一次 dispatch。在第1讲介绍的 <a href="session-1-clojure-basics.html">shadow-cljs REPL</a> 中，你可以直接读取 <code>@re-frame.db/app-db</code>，验证这条链路是否正确。</p>
 
     <h2>2. app-db 的扁平命名空间</h2>
     <p>打开 <code>src/cljs/com/ruoyi/frontend/db.cljs</code>，可以看到 <code>default-db</code> 是一个扁平 map，每个一级键对应一个业务域：</p>
@@ -241,10 +310,24 @@
       <h2>练习 / 讨论</h2>
       <ol>
         <li>在 <code>src/cljs/com/ruoyi/frontend/events.cljs</code> 中新增一个事件 <code>:users/toggle-search</code>，并在 <code>subs.cljs</code> 中添加对应订阅 <code>:users/show-search?</code>。观察用户管理页面搜索栏的展开/收起是否工作。</li>
-        <li>请画出一次“点击搜索按钮”的完整数据流：从 <code>antd/button</code> 的 <code>:on-click</code> 开始，到表格重新渲染结束。</li>
+        <li>请画出一次“点击搜索按钮”的完整数据流：从 <code>antd/button</code> 的 <code>:on-click</code> 开始，到表格重新渲染结束。可对照本页上方的交互图讲解。</li>
+        <li>在 shadow-cljs REPL 中 dispatch 一次 <code>:users/fetch</code>，并观察 <code>app-db</code> 中 <code>:users/loading?</code> 与 <code>:users/items</code> 的变化。</li>
         <li>讨论：为什么 API 调用要放在 <code>reg-fx</code> 里，而不是直接写在 <code>reg-event-fx</code> 返回的 map 中？这样拆分有什么好处？</li>
       </ol>
     </section>
   </main>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    window.showStep = function(id) {
+      document.querySelectorAll('.detail-panel').forEach(function(p) { p.classList.remove('active'); });
+      document.querySelectorAll('.step-card').forEach(function(c) { c.classList.remove('active'); });
+      var panel = document.querySelector('.detail-panel[data-step="' + id + '"]');
+      var card = document.querySelector('.step-card[data-step="' + id + '"]');
+      if (panel) panel.classList.add('active');
+      if (card) card.classList.add('active');
+    };
+    mermaid.initialize({ startOnLoad: true, securityLevel: 'loose', theme: 'default' });
+    showStep('event');
+  </script>
 </body>
 </html>
