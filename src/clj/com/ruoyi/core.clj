@@ -16,6 +16,7 @@
    [kit.edge.utils.nrepl]
    [kit.edge.server.undertow]
    [com.ruoyi.web.handler]
+   [com.ruoyi.integrant.trace]
 
     ;; Domain services
    [com.ruoyi.domain.system]
