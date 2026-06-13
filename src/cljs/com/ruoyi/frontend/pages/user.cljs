@@ -12,45 +12,69 @@
 
 (defn- search-form []
   (let [query-params @(rf/subscribe [:users/query-params])
-        show-search? @(rf/subscribe [:users/show-search?])]
-    (when show-search?
-      [:div {:style {:background "var(--ant-color-bg-container, #fff)" :padding 16 :marginBottom 12 :borderRadius 8 :border "1px solid var(--ant-color-border-secondary, #e8e8e8)"}}
-       [:div {:style {:display "flex" :flexWrap "wrap" :gap 12}}
-        [:div {:style {:display "flex" :alignItems "center" :gap 8}}
-         [:span {:style {:whiteSpace "nowrap" :fontSize 13}} "用户名称"]
-         [antd/input {:placeholder "请输入用户名称"
+        show-search? @(rf/subscribe [:users/show-search?])
+        form-ref (hooks/use-ref nil)
+        [height set-height!] (hooks/use-state (if show-search? "auto" "0px"))]
+    ;; Animate height on toggle
+    (hooks/use-effect
+     (fn []
+       (if show-search?
+         (when-let [el (.-current form-ref)]
+           (set-height! "0px")
+           (js/setTimeout
+            (fn [] (set-height! (str (.-scrollHeight el) "px")))
+            10)
+           (js/setTimeout
+            (fn [] (set-height! "auto"))
+            320))
+         (do (when-let [el (.-current form-ref)]
+               (set-height! (str (.-scrollHeight el) "px"))
+               (js/setTimeout
+                (fn [] (set-height! "0px"))
+                10)))))
+     [show-search?])
+    [:div {:ref form-ref
+           :style {:overflow "hidden"
+                   :height height
+                   :opacity (if show-search? 1 0)
+                   :transition "height 0.3s ease, opacity 0.3s ease"}}
+     [:div {:style {:background "var(--ant-color-bg-container, #fff)" :padding 16 :marginBottom 12 :borderRadius 8 :border "1px solid var(--ant-color-border-secondary, #e8e8e8)"}}
+      [:div {:style {:display "flex" :flexWrap "wrap" :gap 12}}
+       [:div {:style {:display "flex" :alignItems "center" :gap 8}}
+        [:span {:style {:whiteSpace "nowrap" :fontSize 13}} "用户名称"]
+        [antd/input {:placeholder "请输入用户名称"
+                     :style {:width 200}
+                     :value (:user_name query-params)
+                     :on-change #(rf/dispatch [:users/update-query :user_name (.. % -target -value)])}]]
+       [:div {:style {:display "flex" :alignItems "center" :gap 8}}
+        [:span {:style {:whiteSpace "nowrap" :fontSize 13}} "手机号码"]
+        [antd/input {:placeholder "请输入手机号码"
+                     :style {:width 200}
+                     :value (:phonenumber query-params)
+                     :on-change #(rf/dispatch [:users/update-query :phonenumber (.. % -target -value)])}]]
+       [:div {:style {:display "flex" :alignItems "center" :gap 8}}
+        [:span {:style {:whiteSpace "nowrap" :fontSize 13}} "状态"]
+        [antd/select {:placeholder "用户状态"
                       :style {:width 200}
-                      :value (:user_name query-params)
-                      :on-change #(rf/dispatch [:users/update-query :user_name (.. % -target -value)])}]]
-        [:div {:style {:display "flex" :alignItems "center" :gap 8}}
-         [:span {:style {:whiteSpace "nowrap" :fontSize 13}} "手机号码"]
-         [antd/input {:placeholder "请输入手机号码"
-                      :style {:width 200}
-                      :value (:phonenumber query-params)
-                      :on-change #(rf/dispatch [:users/update-query :phonenumber (.. % -target -value)])}]]
-        [:div {:style {:display "flex" :alignItems "center" :gap 8}}
-         [:span {:style {:whiteSpace "nowrap" :fontSize 13}} "状态"]
-         [antd/select {:placeholder "用户状态"
-                       :style {:width 200}
-                       :value (:status query-params)
-                       :allowClear true
-                       :on-change #(rf/dispatch [:users/update-query :status %])}
-          [antd/select-option {:value "0"} "正常"]
-          [antd/select-option {:value "1"} "停用"]]]
-        [:div {:style {:display "flex" :alignItems "center" :gap 8}}
-         [:span {:style {:whiteSpace "nowrap" :fontSize 13}} "部门"]
-         [dept-tree-select {:value (:dept_id query-params)
-                            :placeholder "请选择部门"
-                            :allow-clear? true
-                            :on-change #(rf/dispatch [:users/update-query :dept_id %])}]]
-        [:div {:style {:display "flex" :gap 8 :alignItems "flex-end"}}
-         [antd/button {:type "primary"
-                       :icon (r/as-element [:> SearchOutlined])
-                       :on-click #(rf/dispatch [:users/search])}
-          "搜索"]
-         [antd/button {:icon (r/as-element [:> ReloadOutlined])
-                       :on-click #(rf/dispatch [:users/reset-query])}
-          "重置"]]]])))
+                      :value (:status query-params)
+                      :allowClear true
+                      :on-change #(rf/dispatch [:users/update-query :status %])}
+         [antd/select-option {:value "0"} "正常"]
+         [antd/select-option {:value "1"} "停用"]]]
+       [:div {:style {:display "flex" :alignItems "center" :gap 8}}
+        [:span {:style {:whiteSpace "nowrap" :fontSize 13}} "部门"]
+        [dept-tree-select {:value (:dept_id query-params)
+                           :placeholder "请选择部门"
+                           :allow-clear? true
+                           :on-change #(rf/dispatch [:users/update-query :dept_id %])}]]
+       [:div {:style {:display "flex" :gap 8 :alignItems "flex-end"}}
+        [antd/button {:type "primary"
+                      :icon (r/as-element [:> SearchOutlined])
+                      :on-click #(rf/dispatch [:users/search])}
+         "搜索"]
+        [antd/button {:icon (r/as-element [:> ReloadOutlined])
+                      :on-click #(rf/dispatch [:users/reset-query])}
+         "重置"]]]]]))
 
 ;; ─── 工具栏 ────────────────────────────────────────────────────────
 
@@ -334,7 +358,7 @@
                                    (if (contains? ids dept-id)
                                      (disj ids dept-id)
                                      (conj ids dept-id)))))]
-    [:div {:style {:width 200 :minWidth 200 :background "var(--ant-color-bg-container, #fff)"
+    [:div {:style {:width 200 :minWidth 200 :flexShrink 0 :background "var(--ant-color-bg-container, #fff)"
                    :borderRadius 8 :border "1px solid var(--ant-color-border-secondary, #e8e8e8)"
                    :padding 12 :display "flex" :flexDirection "column"}}
      [:div {:style {:fontWeight 600 :fontSize 14 :marginBottom 8
@@ -381,11 +405,11 @@
         selected-dept-id @(rf/subscribe [:users/selected-dept-id])
         page @(rf/subscribe [:users/page])
         page-size @(rf/subscribe [:users/page-size])]
-    [:div {:style {:display "flex" :gap 8 :height "100%"}}
+    [:div {:style {:display "flex" :gap 12 :height "100%" :alignItems "flex-start"}}
      ;; 左侧部门树
      [dept-tree-sidebar]
      ;; 右侧内容区
-     [:div {:style {:flex 1 :overflow "auto"}}
+     [:div {:style {:flex 1 :minWidth 0 :overflow "auto"}}
       [search-form]
       [toolbar]
       [antd/table {:scroll #js {:x "max-content"} :rowKey "user_id"

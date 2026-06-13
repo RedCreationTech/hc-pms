@@ -409,7 +409,8 @@
                            :collapsed collapsed
                            :onCollapse set-collapsed!
                            :theme (if (= theme-mode :dark) "dark" "light")
-                           :width 220}
+                           :width 220
+                           :trigger nil}
           [:div {:style {:height 64 :display "flex" :alignItems "center"
                          :justifyContent "center" :fontSize 18 :fontWeight 600
                          :color (if (= theme-mode :dark) "#fff" "#000")
@@ -435,7 +436,18 @@
                                      :display "flex" :justifyContent "space-between"
                                      :alignItems "center" :height 64
                                      :borderBottom "1px solid var(--ant-color-border-secondary, #f0f0f0)"}}
-           [:span {:style {:fontSize 16 :fontWeight 500}} "若依管理系统"]
+           ;; Left: hamburger + title
+           [:div {:style {:display "flex" :alignItems "center" :gap 12}}
+            ;; Hamburger toggle button
+            [:div {:style {:cursor "pointer" :padding "0 8px" :fontSize 20
+                           :display "flex" :alignItems "center"
+                           :color "var(--ant-color-text)"
+                           :transition "color 0.3s"}
+                   :on-click #(set-collapsed! (not collapsed))}
+             (if collapsed
+               [:> MenuUnfoldOutlined]
+               [:> MenuFoldOutlined])]
+            [:span {:style {:fontSize 16 :fontWeight 500}} "若依管理系统"]]
            [:div {:style {:display "flex" :alignItems "center" :gap 4}}
             ;; 搜索
             [:> Button {:type "text" :icon (r/as-element [:> SearchOutlined])}]
