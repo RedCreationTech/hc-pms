@@ -11,6 +11,8 @@
    [com.ruoyi.frontend.components.pagination :refer [pagination]]
    [com.ruoyi.frontend.components.status-tag :refer [status-tag]]
    [com.ruoyi.frontend.components.action-menu :refer [action-menu]]
+   [com.ruoyi.frontend.components.form-field :refer [form-field]]
+   [com.ruoyi.frontend.components.form-section :refer [form-section] :rename {form-section generic-form-section}]
    [reagent.core :as r]
    [reagent.hooks :as hooks]))
 
@@ -130,13 +132,6 @@
    [:div {:style {:marginBottom 4 :fontWeight 500 :fontSize 13 :lineHeight "20px"}} label]
    child])
 
-(defn- form-section
-  [title & children]
-  [:div {:style {:marginTop 14}}
-   [:div {:style {:borderLeft "3px solid var(--ant-color-primary, #1677ff)"
-                  :paddingLeft 10 :marginBottom 10 :fontWeight 600
-                  :color "var(--ant-color-text, #1f2937)"}} title]
-   (into [:div {:style {:display "grid" :gridTemplateColumns "repeat(2, minmax(0, 1fr))" :gap "10px 16px" :alignItems "start"}}] children)])
 
 (defn- full-row
   [child]
@@ -322,6 +317,30 @@
         (assoc :extra_json (.stringify js/JSON (clj->js extra))))))
 
 (def project-overview-fields
+  [{:key :project_name :label "项目名称" :type :full-input :rules [{:required true :message "请输入项目名称"}]}
+   {:key :engineering_industry :label "工程业态" :type :select :options (:engineering_industry project-select-options)}
+   {:key :engineering_nature :label "工程性质" :type :select :options (:engineering_nature project-select-options)}
+   {:key :project_address :label "工程地址" :type :input}
+   {:key :construction_scale :label "建设规模" :type :input}
+   {:key :province :label "所属省份" :type :select :options (:province project-select-options)}
+   {:key :contract_scope :label "承包范围" :type :input}
+   {:key :total_land_area :label "总占地面积" :type :unit :unit "万㎡"}
+   {:key :total_building_area :label "总建筑面积" :type :unit :unit "万㎡"}
+   {:key :construction_unit :label "建设单位" :type :input}
+   {:key :survey_unit :label "勘察单位" :type :input}
+   {:key :design_unit :label "设计单位" :type :input}
+   {:key :supervision_unit :label "监理单位" :type :input}
+   {:key :general_contractor_unit :label "总承包单位" :type :input}
+   {:key :main_subproject :label "主要分包工程" :type :input}
+   {:key :contract_period :label "工期" :type :unit :unit "天"}
+   {:key :quality_requirement :label "质量" :type :input}
+   {:key :safety_requirement :label "安全" :type :input}
+   {:key :technology_requirement :label "科技" :type :input}
+   {:key :start_date :label "开工时间" :type :input}
+   {:key :end_date :label "竣工时间" :type :input}
+   {:key :main_function :label "工程主要功能或用途" :type :textarea :full? true}])
+
+(def project-fields
   [[:project_name "项目名称" :full-input]
    [:engineering_industry "工程业态" :select]
    [:engineering_nature "工程性质" :select]
@@ -345,106 +364,61 @@
    [:end_date "竣工时间" :input]
    [:main_function "工程主要功能或用途" :textarea]])
 
-(def project-fields
-  project-overview-fields)
-
-(defn- update-vector-item
-  [form set-form! k idx updater]
-  (let [items (vec (or (get form k) []))]
-    (set-form! (assoc form k (mapv (fn [i item]
-                                     (if (= i idx) (updater item) item))
-                                   (range) items)))))
-
-(defn- assoc-vector-field
-  [form set-form! k idx field v]
-  (update-vector-item form set-form! k idx #(assoc % field v)))
-
-(defn- remove-vector-item
-  [form set-form! k idx]
-  (set-form! (assoc form k (vec (concat (subvec (vec (or (get form k) [])) 0 idx)
-                                        (subvec (vec (or (get form k) [])) (inc idx)))))))
-
 (defn- empty-subcontract-team
   []
   {:team_name "" :manager_name "" :technical_leader_name "" :safety_leader_name ""})
 
-(defn- project-form-section
-  [title columns & children]
-  [:div {:style {:marginTop 14}}
-   [:div {:style {:borderLeft "3px solid var(--ant-color-primary, #1677ff)"
-                  :paddingLeft 10 :marginBottom 10 :fontWeight 600
-                  :color "var(--ant-color-text, #1f2937)"}} title]
-   (into [:div {:style {:display "grid"
-                        :gridTemplateColumns (str "repeat(" columns ", minmax(0, 1fr))")
-                        :gap "10px 16px"
-                        :alignItems "start"}}]
-         children)])
-
-(defn- project-form-field
-  ([form set-form! field] (project-form-field form set-form! nil false field))
-  ([form set-form! upload-state field] (project-form-field form set-form! upload-state false field))
-  ([form set-form! upload-state readonly? [k label type]]
-   (case type
-     :full-input [full-row [form-item label [input form set-form! k label readonly?]]]
-     :textarea [full-row [form-item label [textarea form set-form! k label readonly?]]]
-     :upload [form-item label (if upload-state
-                                [pending-upload-box {:files (get-in upload-state [:files k] [])
-                                                     :set-files! #(let [set-files! (:set-files! upload-state)]
-                                                                    (set-files! (assoc (:files upload-state) k %)))
-                                                     :readonly? readonly?
-                                                     :text (if (= k :source_file)
-                                                             "支持 docx、pdf、json、xlsx，文件大小不超过 100M"
-                                                             "从项目综合管理系统导入项目基础信息")}]
-                                [upload-placeholder (if (= k :source_file)
-                                                      "支持 docx、pdf、json、xlsx，文件大小不超过 100M"
-                                                      "从项目综合管理系统导入项目基础信息")])]
-     :select [form-item label [select-input form set-form! k label (get project-select-options k []) readonly?]]
-     :area [form-item label [unit-input form set-form! k label "万㎡" readonly?]]
-     :days [form-item label [unit-input form set-form! k label "天" readonly?]]
-     [form-item label [input form set-form! k label readonly?]])))
-
-(defn- management-staff-section
-  ([form set-form!] (management-staff-section form set-form! false))
-  ([form set-form! readonly?]
-   (let [staff (or (:management_staff form) (default-management-staff))]
-     [:div {:style {:marginTop 14}}
-      [:div {:style {:borderLeft "3px solid var(--ant-color-primary, #1677ff)"
-                     :paddingLeft 10 :marginBottom 10 :fontWeight 600
-                     :color "var(--ant-color-text, #1f2937)"}}
-       "人员组织"]
-      [:div {:style {:marginBottom 8 :fontWeight 600}} "总承包项目管理人员及职责分工"]
-      [:div {:style {:border "1px solid var(--ant-color-border-secondary, #e5e7eb)" :borderRadius 4 :overflow "hidden"}}
-       [:div {:style {:display "grid" :gridTemplateColumns "70px 1.2fr 1.4fr 1.4fr"
-                      :background "var(--ant-color-fill-quaternary, #f8fafc)"
-                      :fontWeight 600 :color "var(--ant-color-text, #374151)"}}
-        (for [title ["序号" "岗位名称" "姓名" "职称（资质）"]]
-          ^{:key title} [:div {:style {:padding "9px 12px" :borderRight "1px solid var(--ant-color-border-secondary, #e5e7eb)"}} title])]
-       (for [[idx row] (map-indexed vector staff)]
-         ^{:key (:role_key row)}
-         [:div {:style {:display "grid" :gridTemplateColumns "70px 1.2fr 1.4fr 1.4fr"
-                        :borderTop "1px solid var(--ant-color-border-secondary, #e5e7eb)" :alignItems "center"}}
-          [:div {:style {:padding "8px 12px" :borderRight "1px solid var(--ant-color-border-secondary, #e5e7eb)" :textAlign "center"}} (inc idx)]
-          [:div {:style {:padding "8px 12px" :borderRight "1px solid var(--ant-color-border-secondary, #e5e7eb)"}} (:role_name row)]
-          [:div {:style {:padding 8 :borderRight "1px solid var(--ant-color-border-secondary, #e5e7eb)"}}
-           [antd/input {:value (value row :person_name)
-                        :placeholder "姓名"
+(defn- management-staff-table
+  [{:keys [value readonly? on-change]}]
+  (let [staff (or value (default-management-staff))]
+    [:div {:style {:marginTop 14}}
+     [:div {:style {:borderLeft "3px solid var(--ant-color-primary, #1677ff)"
+                    :paddingLeft 10 :marginBottom 10 :fontWeight 600
+                    :color "var(--ant-color-text, #1f2937)"}}
+      "人员组织"]
+     [:div {:style {:marginBottom 8 :fontWeight 600}} "总承包项目管理人员及职责分工"]
+     [:div {:style {:border "1px solid var(--ant-color-border-secondary, #e5e7eb)" :borderRadius 4 :overflow "hidden"}}
+      [:div {:style {:display "grid" :gridTemplateColumns "70px 1.2fr 1.4fr 1.4fr"
+                     :background "var(--ant-color-fill-quaternary, #f8fafc)"
+                     :fontWeight 600 :color "var(--ant-color-text, #374151)"}}
+       (for [title ["序号" "岗位名称" "姓名" "职称（资质）"]]
+         ^{:key title} [:div {:style {:padding "9px 12px" :borderRight "1px solid var(--ant-color-border-secondary, #e5e7eb)"}} title])]
+      (for [[idx row] (map-indexed vector staff)]
+        ^{:key (:role_key row)}
+        [:div {:style {:display "grid" :gridTemplateColumns "70px 1.2fr 1.4fr 1.4fr"
+                       :borderTop "1px solid var(--ant-color-border-secondary, #e5e7eb)" :alignItems "center"}}
+         [:div {:style {:padding "8px 12px" :borderRight "1px solid var(--ant-color-border-secondary, #e5e7eb)" :textAlign "center"}} (inc idx)]
+         [:div {:style {:padding "8px 12px" :borderRight "1px solid var(--ant-color-border-secondary, #e5e7eb)"}} (:role_name row)]
+         [:div {:style {:padding 8 :borderRight "1px solid var(--ant-color-border-secondary, #e5e7eb)"}}
+          [antd/input {:value (value row :person_name)
+                       :placeholder "姓名"
+                       :disabled readonly?
+                       :style {:height 34}
+                       :on-change #(when-not readonly?
+                                     (on-change (assoc-in staff [idx :person_name] (target-value %))))}]]
+         [:div {:style {:padding 8}}
+          [antd/select {:value (value row :title)
+                        :placeholder "职称（资质）"
                         :disabled readonly?
-                        :style {:height 34}
+                        :style {:width "100%" :height 34}
                         :on-change #(when-not readonly?
-                                      (assoc-vector-field form set-form! :management_staff idx :person_name (target-value %)))}]]
-          [:div {:style {:padding 8}}
-           [antd/select {:value (value row :title)
-                         :placeholder "职称（资质）"
-                         :disabled readonly?
-                         :style {:width "100%" :height 34}
-                         :on-change #(when-not readonly?
-                                       (assoc-vector-field form set-form! :management_staff idx :title %))}
-            (for [title (:title project-select-options)]
-              ^{:key title} [antd/select-option {:value title} title])]]])]])))
+                                      (on-change (assoc-in staff [idx :title] %)))}
+           (for [title (:title project-select-options)]
+             ^{:key title} [antd/select-option {:value title} title])]]])]]))
 
-(defn- subcontract-team-row
-  [form set-form! readonly? idx team]
-  (let [roles [{:label "项目经理" :field :manager_name}
+(defn- management-staff-form-item [form readonly?]
+  (let [staff (or (js->clj (.getFieldValue form "management_staff") :keywordize-keys true)
+                  (default-management-staff))]
+    [antd/form-item {:name :management_staff :noStyle true}
+     [management-staff-table
+      {:value staff
+       :readonly? readonly?
+       :on-change #(.setFieldsValue form #js {:management_staff (clj->js %)})}]]))
+
+(defn- subcontract-team-card
+  [{:keys [teams idx readonly? on-change]}]
+  (let [team (get teams idx)
+        roles [{:label "项目经理" :field :manager_name}
                {:label "项目技术负责人" :field :technical_leader_name}
                {:label "项目安全负责人" :field :safety_leader_name}]
         cell-style {:padding "14px 16px" :borderBottom "1px solid var(--ant-color-border-secondary, #f1f3f7)"}]
@@ -464,10 +438,11 @@
                     :disabled readonly?
                     :style {:height 40 :width "100%"}
                     :on-change #(when-not readonly?
-                                  (assoc-vector-field form set-form! :subcontract_teams idx :team_name (target-value %)))}]
+                                  (on-change (assoc-in teams [idx :team_name] (target-value %))))}]
        (when-not readonly?
          [antd/button {:type "link" :danger true :style {:padding 0 :marginTop 30}
-                       :on-click #(remove-vector-item form set-form! :subcontract_teams idx)}
+                       :on-click #(on-change (vec (concat (subvec teams 0 idx)
+                                                          (subvec teams (inc idx)))))}
           "删除本组"])]
       [:div
        (for [{:keys [label field]} roles]
@@ -480,48 +455,64 @@
                         :disabled readonly?
                         :style {:height 40 :width "100%"}
                         :on-change #(when-not readonly?
-                                      (assoc-vector-field form set-form! :subcontract_teams idx field (target-value %)))}]]])]]]))
+                                      (on-change (assoc-in teams [idx field] (target-value %))))}]]])]]]))
 
-(defn- subcontract-teams-section
-  ([form set-form!] (subcontract-teams-section form set-form! false))
-  ([form set-form! readonly?]
-   (let [teams (vec (or (:subcontract_teams form) []))]
-     [:div {:style {:marginTop 14}}
-      [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center" :marginBottom 10}}
-       [:div {:style {:borderLeft "3px solid var(--ant-color-primary, #1677ff)"
-                      :paddingLeft 10 :fontWeight 600
-                      :color "var(--ant-color-text, #1f2937)"}}
-        "分包单位及岗位人员的安全职责表"]
-       (when-not readonly?
-         [antd/button {:type "primary"
-                       :icon (r/as-element [antd/plus-icon])
-                       :on-click #(set-form! (update form :subcontract_teams (fnil conj []) (empty-subcontract-team)))}
-          "新增分包队伍"])]
-      (if (empty? teams)
-        [:div {:style {:height 64 :border "1px dashed var(--ant-color-border, #d9d9d9)"
-                       :borderRadius 4 :display "flex" :alignItems "center" :justifyContent "center"
-                       :color "var(--ant-color-text-secondary, #8c8c8c)"}}
-         "暂无分包队伍，请点击上方按钮添加"]
-        [:div {:style {:display "grid" :gap 16}}
-         (for [[idx team] (map-indexed vector teams)]
-           ^{:key idx}
-           [subcontract-team-row form set-form! readonly? idx team])])])))
+(defn- subcontract-teams-list
+  [{:keys [value readonly? on-change]}]
+  (let [teams (vec (or value []))]
+    [:div {:style {:marginTop 14}}
+     [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center" :marginBottom 10}}
+      [:div {:style {:borderLeft "3px solid var(--ant-color-primary, #1677ff)"
+                     :paddingLeft 10 :fontWeight 600
+                     :color "var(--ant-color-text, #1f2937)"}}
+       "分包单位及岗位人员的安全职责表"]
+      (when-not readonly?
+        [antd/button {:type "primary"
+                      :icon (r/as-element [antd/plus-icon])
+                      :on-click #(on-change (conj teams (empty-subcontract-team)))}
+         "新增分包队伍"])]
+     (if (empty? teams)
+       [:div {:style {:height 64 :border "1px dashed var(--ant-color-border, #d9d9d9)"
+                      :borderRadius 4 :display "flex" :alignItems "center" :justifyContent "center"
+                      :color "var(--ant-color-text-secondary, #8c8c8c)"}}
+        "暂无分包队伍，请点击上方按钮添加"]
+       [:div {:style {:display "grid" :gap 16}}
+        (for [[idx team] (map-indexed vector teams)]
+          ^{:key idx}
+          [subcontract-team-card
+           {:teams teams
+            :idx idx
+            :readonly? readonly?
+            :on-change on-change}])])]))
+
+(defn- subcontract-teams-form-item [form readonly?]
+  (let [teams (or (js->clj (.getFieldValue form "subcontract_teams") :keywordize-keys true) [])]
+    [antd/form-item {:name :subcontract_teams :noStyle true}
+     [subcontract-teams-list
+      {:value teams
+       :readonly? readonly?
+       :on-change #(.setFieldsValue form #js {:subcontract_teams (clj->js %)})}]]))
 
 (defn project-form
-  ([form set-form!] (project-form form set-form! nil))
-  ([form set-form! upload-state] (project-form form set-form! upload-state false))
-  ([form set-form! upload-state readonly?]
+  ([form] (project-form form {} (fn [_]) false))
+  ([form readonly?] (project-form form {} (fn [_]) readonly?))
+  ([form upload-files set-upload-files! readonly?]
    [:div
-    [project-form-section "数据来源" 2
-     [project-form-field form set-form! upload-state readonly? [:source_file "上传施工组织设计方案并解析" :upload]]
-     [project-form-field form set-form! upload-state readonly? [:engineering_source "关联综合管理系统导入项目" :upload]]]
-    (into [project-form-section "项目概况" 3]
-          (map (fn [field]
-                 (with-meta [project-form-field form set-form! nil readonly? field]
-                   {:key (name (first field))}))
-               project-overview-fields))
-    [management-staff-section form set-form! readonly?]
-    [subcontract-teams-section form set-form! readonly?]]))
+    [generic-form-section {:title "数据来源" :columns 2}
+     [pending-upload-box {:files (get upload-files :source_file [])
+                          :set-files! #(set-upload-files! (assoc upload-files :source_file %))
+                          :readonly? readonly?
+                          :text "支持 docx、pdf、json、xlsx，文件大小不超过 100M"}]
+     [pending-upload-box {:files (get upload-files :engineering_source [])
+                          :set-files! #(set-upload-files! (assoc upload-files :engineering_source %))
+                          :readonly? readonly?
+                          :text "从项目综合管理系统导入项目基础信息"}]]
+    [generic-form-section {:title "项目概况" :columns 3}
+     (for [field project-overview-fields]
+       ^{:key (name (:key field))}
+       [form-field (assoc field :form form :name (:key field) :disabled readonly?)])]
+    [management-staff-form-item form readonly?]
+    [subcontract-teams-form-item form readonly?]]))
 
 (defn upload-box
   [{:keys [biz-type biz-id section-key file-purpose on-uploaded]}]
@@ -540,7 +531,7 @@
 
 (defn project-modal
   [{:keys [open? editing readonly? on-ok on-cancel]}]
-  (let [[form set-form!] (hooks/use-state {})
+  (let [form (antd/form-use-form)
         [upload-files set-upload-files!] (hooks/use-state {})
         [attachments set-attachments!] (hooks/use-state [])
         delete-attachment! (fn [attachment]
@@ -555,19 +546,20 @@
      (fn []
        (when open?
          (set-upload-files! {})
+         (.resetFields form)
          (if (:id editing)
            (do
-             (set-form! (hydrate-project editing))
              (set-attachments! (vec (or (:attachments editing) [])))
+             (.setFieldsValue form (clj->js (hydrate-project editing)))
              (api/get-project (:id editing)
                               (fn [result]
                                 (when (ok? result)
                                   (let [detail (:data result)]
-                                    (set-form! (hydrate-project detail))
-                                    (set-attachments! (vec (or (:attachments detail) []))))))
+                                    (set-attachments! (vec (or (:attachments detail) [])))
+                                    (.setFieldsValue form (clj->js (hydrate-project detail))))))
                               (fn [_] nil)))
            (do
-             (set-form! (default-project-form))
+             (.setFieldsValue form (clj->js (default-project-form)))
              (set-attachments! []))))
        js/undefined)
      [open? editing])
@@ -577,31 +569,49 @@
                                          readonly? "查看项目"
                                          (:id editing) "编辑项目"
                                          :else "新建项目")
-                                :okText "保存" :cancelText "取消"
+                                :okText "保存"
+                                :cancelText "取消"
                                 :destroyOnHidden true
-                                :on-ok #(when-not readonly? (on-ok (project-payload form) upload-files))
+                                :on-ok #(when-not readonly? (.submit form))
                                 :on-cancel on-cancel}
                          readonly? (assoc :footer nil)))
-     [project-form form set-form! {:files upload-files :set-files! set-upload-files!} readonly?]
-     [form-section "已上传附件"
-      [full-row [attachment-list {:attachments attachments
-                                  :readonly? readonly?
-                                  :on-delete delete-attachment!}]]]]))
+     [antd/form {:form form
+                 :layout "vertical"
+                 :disabled readonly?
+                 :on-finish (fn [values]
+                              (let [values (js->clj values :keywordize-keys true)]
+                                (on-ok (project-payload values) upload-files)))}
+      [project-form form upload-files set-upload-files! readonly?]
+      [generic-form-section {:title "已上传附件" :columns 1}
+       [full-row [attachment-list {:attachments attachments
+                                   :readonly? readonly?
+                                   :on-delete delete-attachment!}]]]]]))
 
 (defn team-modal
   [{:keys [open? project on-ok on-cancel]}]
-  (let [[form set-form!] (hooks/use-state {})]
-    (hooks/use-effect (fn [] (set-form! {}) js/undefined) [open?])
+  (let [form (antd/form-use-form)]
+    (hooks/use-effect
+     (fn []
+       (when open?
+         (.resetFields form)
+         (.setFieldsValue form #js {}))
+       js/undefined)
+     [open?])
     [antd/modal (merge (modal-size 640)
                        {:open open? :title "新增分包队伍" :okText "保存" :cancelText "取消"
-                        :on-ok #(on-ok form) :on-cancel on-cancel})
-     [form-grid
-      [form-item "分包队伍名称" [input form set-form! :team_name "分包队伍名称"]]
-      [form-item "负责人" [input form set-form! :leader_name "负责人"]]
-      [form-item "联系电话" [input form set-form! :contact_phone "联系电话"]]
-      [form-item "分包内容" [textarea form set-form! :work_scope "分包内容"]]
-      [form-item "备注" [textarea form set-form! :remark "备注"]]]
-     [:div {:style {:marginTop 8 :color "var(--ant-color-text-disabled, #999)"}} "所属项目：" (:project_name project)]]))
+                        :on-ok #(.submit form)
+                        :on-cancel on-cancel})
+     [antd/form {:form form :layout "vertical"
+                 :on-finish (fn [values]
+                              (on-ok (js->clj values :keywordize-keys true)))}
+      [form-field {:type :input :form form :name :team_name :label "分包队伍名称"
+                   :rules [{:required true :message "请输入分包队伍名称"}]}]
+      [form-field {:type :input :form form :name :leader_name :label "负责人"}]
+      [form-field {:type :input :form form :name :contact_phone :label "联系电话"}]
+      [form-field {:type :textarea :form form :name :work_scope :label "分包内容"}]
+      [form-field {:type :textarea :form form :name :remark :label "备注"}]
+      [:div {:style {:marginTop 8 :color "var(--ant-color-text-disabled, #999)"}}
+       "所属项目：" (:project_name project)]]]))
 
 (def section-fields
   {"project-info" project-fields
@@ -953,7 +963,7 @@
 
 (defn- solution-edit-modal
   [{:keys [section mode open? on-save on-close project initial-data files set-files!]}]
-  (let [[form set-form!] (hooks/use-state {})
+  (let [form (antd/form-use-form)
         readonly? (= mode :view)
         title (case section
                 :project (str (if readonly? "预览" "编辑") " · 项目概况")
@@ -965,87 +975,95 @@
     (hooks/use-effect
      (fn []
        (when open?
-         (set-form! (merge (solution-section-default section project) initial-data)))
+         (.resetFields form)
+         (.setFieldsValue form (clj->js (merge (solution-section-default section project) initial-data))))
        js/undefined)
      [open? section])
     [antd/modal (merge (modal-size 1180)
                        (cond-> {:open open? :title title
                                 :okText "保存" :cancelText "取消"
                                 :destroyOnHidden true
-                                :on-ok #(do (when on-save (on-save section form files))
-                                            (antd/success! "保存成功")
-                                            (on-close))
+                                :on-ok #(when-not readonly? (.submit form))
                                 :on-cancel on-close}
                          readonly? (assoc :footer nil)))
-     (case section
-       :project
-       [:div
-        [:div {:style {:color "var(--ant-color-text-secondary, #8c8c8c)" :marginBottom 18}}
-         (if readonly? "当前为预览模式，表单不可编辑。" "保存后会用于生成方案的项目信息章节。")]
-        [project-form form set-form! nil readonly?]]
+     [antd/form {:form form :layout "vertical"
+                 :disabled readonly?
+                 :on-finish (fn [values]
+                              (let [values (js->clj values :keywordize-keys true)]
+                                (when on-save (on-save section values files))
+                                (antd/success! "保存成功")
+                                (on-close)))}
+      (case section
+        :project
+        [:div
+         [:div {:style {:color "var(--ant-color-text-secondary, #8c8c8c)" :marginBottom 18}}
+          (if readonly? "当前为预览模式，表单不可编辑。" "保存后会用于生成方案的项目信息章节。")]
+         [project-form form readonly?]]
 
-       :people
-       [:div
-        [:div {:style {:color "var(--ant-color-text-secondary, #8c8c8c)" :marginBottom 18}}
-         (if readonly? "当前为预览模式，表单不可编辑。" "保存后会用于生成方案的人员组织章节。")]
-        [management-staff-section form set-form! readonly?]
-        [subcontract-teams-section form set-form! readonly?]]
+        :people
+        [:div
+         [:div {:style {:color "var(--ant-color-text-secondary, #8c8c8c)" :marginBottom 18}}
+          (if readonly? "当前为预览模式，表单不可编辑。" "保存后会用于生成方案的人员组织章节。")]
+         [management-staff-form-item form readonly?]
+         [subcontract-teams-form-item form readonly?]]
 
-       :cover
-       [:div
-        [:div {:style {:color "var(--ant-color-text-secondary, #8c8c8c)" :marginBottom 18}}
-         (if readonly? "当前为预览模式，表单不可编辑。" "封面附件会在生成方案后自动上传。")]
-        [solution-modal-section "封面信息"
-         [:div {:style {:display "grid" :gridTemplateColumns "repeat(2, minmax(0, 1fr))" :gap "18px 28px"}}
-          [full-row [form-item "项目名称" [input form set-form! :project_name "项目名称" readonly?]]]
-          [form-item "方案类型" [select-input form set-form! :solution_type "方案类型" solution-type-options readonly?]]
-          [form-item "日期" [input form set-form! :compile_date "日期" readonly?]]
-          [full-row [form-item "项目渲染图"
-                     [pending-upload-box {:files files
-                                          :set-files! set-files!
-                                          :readonly? readonly?
-                                          :text "点击或将文件拖拽至框内上传；文件类型：PNG/JPG，支持多选"}]]]
-          [form-item "编制单位" [input form set-form! :compile_unit "编制单位" readonly?]]
-          [form-item "编制人" [input form set-form! :compiler "编制人" readonly?]]
-          [form-item "制图人" [input form set-form! :draftsman "制图人" readonly?]]
-          [form-item "项目负责人" [input form set-form! :project_leader "项目负责人" readonly?]]
-          [form-item "审核人" [input form set-form! :reviewer "审核人" readonly?]]]]]
+        :cover
+        [:div
+         [:div {:style {:color "var(--ant-color-text-secondary, #8c8c8c)" :marginBottom 18}}
+          (if readonly? "当前为预览模式，表单不可编辑。" "封面附件会在生成方案后自动上传。")]
+         [solution-modal-section "封面信息"
+          [:div {:style {:display "grid" :gridTemplateColumns "repeat(2, minmax(0, 1fr))" :gap "18px 28px"}}
+           [full-row [form-field {:type :input :form form :name :project_name :label "项目名称"}]]
+           [form-field {:type :select :form form :name :solution_type :label "方案类型" :options solution-type-options}]
+           [form-field {:type :input :form form :name :compile_date :label "日期"}]
+           [form-field {:type :input :form form :name :compile_unit :label "编制单位"}]
+           [form-field {:type :input :form form :name :compiler :label "编制人"}]
+           [form-field {:type :input :form form :name :draftsman :label "制图人"}]
+           [form-field {:type :input :form form :name :project_leader :label "项目负责人"}]
+           [form-field {:type :input :form form :name :reviewer :label "审核人"}]
+           [full-row [form-item "项目渲染图"
+                      [pending-upload-box {:files files
+                                           :set-files! set-files!
+                                           :readonly? readonly?
+                                           :text "点击或将文件拖拽至框内上传；文件类型：PNG/JPG，支持多选"}]]]]]]
 
-       :design
-       [:div
-        [solution-modal-section "设计概况"
-         [:div {:style {:display "grid" :gridTemplateColumns "repeat(3, minmax(0, 1fr))" :gap "18px 28px"}}
-          [form-item "总建筑面积（㎡）" [input form set-form! :total_building_area "如 181247.08" readonly?]]
-          [form-item "地上建筑面积（㎡）" [input form set-form! :ground_building_area "如 101064.08" readonly?]]
-          [form-item "地下建筑面积（㎡）" [input form set-form! :underground_building_area "如 80183" readonly?]]
-          [form-item "地下层数（层）" [input form set-form! :underground_floors "如 3" readonly?]]
-          [form-item "地上层数（层）" [input form set-form! :ground_floors "如 17" readonly?]]
-          [form-item "裙房层数（层）" [input form set-form! :podium_floors "如 5" readonly?]]
-          [form-item "地下层高（m）" [input form set-form! :underground_height "如 4" readonly?]]
-          [form-item "首层层高（m）" [input form set-form! :first_floor_height "如 5.4" readonly?]]
-          [form-item "标准层层高（m）" [input form set-form! :standard_floor_height "如 4.2" readonly?]]
-          [form-item "防火等级" [input form set-form! :fire_rating "如 A1" readonly?]]]
-         (for [[k label] [[:floor_material "楼地面"] [:wall_material "墙面"] [:ceiling_material "顶棚"]
-                          [:stair_material "楼梯"] [:machine_room_material "机房（地面 / 墙面 / 顶棚）"]
-                          [:window_material "窗"] [:waterproof_material "防水"]]]
-           ^{:key (name k)}
-           [:div {:style {:marginTop 18}}
-            [form-item label [select-input form set-form! k "选择材料添加..." ["乳胶漆" "瓷砖" "石材"] readonly?]]])
-         [:div {:style {:marginTop 18}}
-          [form-item "环境保护" [textarea form set-form! :environment_protection "遵守国家及地方政府关于环境保护、水土保持等要求" readonly?]]]]]
+        :design
+        [:div
+         [:div {:style {:color "var(--ant-color-text-secondary, #8c8c8c)" :marginBottom 18}}
+          (if readonly? "当前为预览模式，表单不可编辑。" "当前仅编辑「设计概况」；保存只更新本区块。")]
+         [solution-modal-section "设计概况"
+          [:div {:style {:display "grid" :gridTemplateColumns "repeat(3, minmax(0, 1fr))" :gap "18px 28px"}}
+           [form-field {:type :input :form form :name :total_building_area :label "总建筑面积（㎡）"}]
+           [form-field {:type :input :form form :name :ground_building_area :label "地上建筑面积（㎡）"}]
+           [form-field {:type :input :form form :name :underground_building_area :label "地下建筑面积（㎡）"}]
+           [form-field {:type :input :form form :name :underground_floors :label "地下层数（层）"}]
+           [form-field {:type :input :form form :name :ground_floors :label "地上层数（层）"}]
+           [form-field {:type :input :form form :name :podium_floors :label "裙房层数（层）"}]
+           [form-field {:type :input :form form :name :underground_height :label "地下层高（m）"}]
+           [form-field {:type :input :form form :name :first_floor_height :label "首层层高（m）"}]
+           [form-field {:type :input :form form :name :standard_floor_height :label "标准层层高（m）"}]
+           [form-field {:type :input :form form :name :fire_rating :label "防火等级"}]]
+          (for [[k label] [[:floor_material "楼地面"] [:wall_material "墙面"] [:ceiling_material "顶棚"]
+                           [:stair_material "楼梯"] [:machine_room_material "机房（地面 / 墙面 / 顶棚）"]
+                           [:window_material "窗"] [:waterproof_material "防水"]]]
+            ^{:key (name k)}
+            [:div {:style {:marginTop 18}}
+             [form-field {:type :select :form form :name k :label label :options ["选择材料添加..." "乳胶漆" "瓷砖" "石材"] :disabled readonly?}]])
+          [:div {:style {:marginTop 18}}
+           [form-field {:type :textarea :form form :name :environment_protection :label "环境保护" :full? true}]]]]
 
-       :layout
-       [:div
-        [solution-modal-section "平面布置图"
-         [form-item "文字说明" [textarea form set-form! :drawing_desc "描述施工区域、楼层、道路与应急布置等。" readonly?]]
-         [:div {:style {:marginTop 18}}
-          [form-item "上传平面布置图"
-           [pending-upload-box {:files files
-                                :set-files! set-files!
-                                :readonly? readonly?
-                                :text "点击或将文件拖拽至框内上传；文件类型：PNG/JPG，支持多选"}]]]]]
+        :layout
+        [:div
+         [solution-modal-section "平面布置图"
+          [form-field {:type :textarea :form form :name :drawing_desc :label "文字说明" :full? true}]
+          [:div {:style {:marginTop 18}}
+           [form-item "上传平面布置图"
+            [pending-upload-box {:files files
+                                 :set-files! set-files!
+                                 :readonly? readonly?
+                                 :text "点击或将文件拖拽至框内上传；文件类型：PNG/JPG，支持多选"}]]]]]
 
-       [:span])]))
+        [:span])]]))
 
 (defn solution-home-page
   []
@@ -1363,11 +1381,17 @@
 
 (defn- hydrate-resource
   [row]
-  (merge (parse-extra-json (:extra_json row)) row))
+  (let [row (merge (parse-extra-json (:extra_json row)) row)]
+    (cond-> row
+      (string? (:tags row)) (assoc :tags (if (seq (:tags row))
+                                           (filterv seq (str/split (:tags row) #","))
+                                           [])))))
 
 (defn- resource-payload
   [form]
-  (let [extra (select-keys form resource-extra-keys)]
+  (let [form (cond-> form
+               (vector? (:tags form)) (assoc :tags (str/join "," (:tags form))))
+        extra (select-keys form resource-extra-keys)]
     (-> form
         (as-> payload (reduce dissoc payload resource-extra-keys))
         (assoc :extra_json (.stringify js/JSON (clj->js extra))))))
@@ -1557,35 +1581,34 @@
     :atlas 1120
     760))
 
-(defn- resource-form-field
-  [kind resource-type editing form set-form! gallery set-gallery! pending-files set-pending-files! attachments delete-attachment! readonly? [k label field-type]]
+(defn- resource-form-field*
+  [kind form gallery pending-files set-pending-files! attachments delete-attachment! readonly? [k label field-type]]
   (let [upload-text (case kind
                       :atlas "点击或将文件拖拽至框内上传；文件类型：JPG、JPEG、PNG"
                       :vector-kb "点击或将文件拖拽至框内上传；文件类型：DOC/DOCX，文件大小不超过100MB"
-                      "点击或将文件拖拽至框内上传；文件类型：DOC/DOCX/PDF，文件大小不超过100MB")
-        control (case field-type
-                  :textarea [textarea form set-form! k label readonly?]
-                  :status [select-status form set-form! readonly?]
-                  :select [select-input form set-form! k label (resource-options kind k) readonly?]
-                  :multi-select (if readonly?
-                                  [select-input form set-form! k label (resource-options kind k) true]
-                                  [multi-select-input form set-form! k label (resource-options kind k)])
-                  :upload [:div
-                           [attachment-list {:attachments attachments
-                                             :readonly? readonly?
-                                             :on-delete delete-attachment!}]
-                           (when-not readonly?
-                             [:div {:style {:marginTop 8}}
-                              [pending-upload-box {:files pending-files
-                                                   :set-files! set-pending-files!
-                                                   :readonly? false
-                                                   :text upload-text}]])]
-                  :gallery (if (= kind :atlas) [gallery-grid gallery] [:span])
-                  [input form set-form! k label readonly?])
-        item [form-item label control]]
-    (if (or (= field-type :upload) (= field-type :gallery) (= field-type :textarea))
-      [full-row item]
-      item)))
+                      "点击或将文件拖拽至框内上传；文件类型：DOC/DOCX/PDF，文件大小不超过100MB")]
+    (case field-type
+      :upload [full-row
+               [form-item label
+                [:div
+                 [attachment-list {:attachments attachments
+                                   :readonly? readonly?
+                                   :on-delete delete-attachment!}]
+                 (when-not readonly?
+                   [:div {:style {:marginTop 8}}
+                    [pending-upload-box {:files pending-files
+                                         :set-files! set-pending-files!
+                                         :readonly? false
+                                         :text upload-text}]])]]]
+      :gallery [full-row
+                [form-item label
+                 (if (= kind :atlas) [gallery-grid gallery] [:span])]]
+      :textarea [full-row
+                 [form-field {:type :textarea :form form :name k :label label :full? true :disabled readonly?}]]
+      :select [form-field {:type :select :form form :name k :label label :options (resource-options kind k) :disabled readonly?}]
+      :multi-select [form-field {:type :multi-select :form form :name k :label label :options (resource-options kind k) :disabled readonly?}]
+      :status [form-field {:type :status :form form :name k :label label :disabled readonly?}]
+      [form-field {:type :input :form form :name k :label label :disabled readonly?}])))
 
 (defn resource-page
   [kind]
@@ -1594,7 +1617,7 @@
         [modal? set-modal!] (hooks/use-state false)
         [editing set-editing!] (hooks/use-state nil)
         [viewing? set-viewing!] (hooks/use-state false)
-        [form set-form!] (hooks/use-state {})
+        form (antd/form-use-form)
         [gallery set-gallery!] (hooks/use-state [])
         [attachments set-attachments!] (hooks/use-state [])
         [pending-files set-pending-files!] (hooks/use-state [])
@@ -1625,18 +1648,20 @@
           open-resource! (fn [row readonly?]
                            (set-editing! row)
                            (set-viewing! readonly?)
-                           (set-form! (hydrate-resource row))
                            (set-gallery! [])
                            (set-attachments! (vec (or (:attachments row) [])))
                            (set-pending-files! [])
+                           (.resetFields form)
+                           (.setFieldsValue form (clj->js (hydrate-resource row)))
                            (set-modal! true)
                            (api/get-resource type (:id row)
                                              (fn [result]
                                                (when (ok? result)
                                                  (let [detail (:data result)]
                                                    (set-editing! detail)
-                                                   (set-form! (hydrate-resource detail))
-                                                   (set-attachments! (vec (or (:attachments detail) []))))))
+                                                   (set-attachments! (vec (or (:attachments detail) [])))
+                                                   (.resetFields form)
+                                                   (.setFieldsValue form (clj->js (hydrate-resource detail))))))
                                              (fn [_] nil))
                            (reload-gallery! (:id row)))
           open-view! (fn [row] (open-resource! row true))
@@ -1656,10 +1681,11 @@
                 [antd/button {:type "primary" :size "small" :icon (r/as-element [antd/plus-icon])
                               :on-click #(do (set-editing! nil)
                                              (set-viewing! false)
-                                             (set-form! {:status "0"})
                                              (set-gallery! [])
                                              (set-attachments! [])
                                              (set-pending-files! [])
+                                             (.resetFields form)
+                                             (.setFieldsValue form #js {:status "0"})
                                              (set-modal! true))}
                  (or button "新增")]]
          :right [right-toolbar {:show-search? show-search?
@@ -1689,40 +1715,44 @@
                                    :okText "保存" :cancelText "取消"
                                    :destroyOnHidden true
                                    :on-cancel #(set-modal! false)
-                                   :on-ok #(when-not viewing?
-                                             (let [finish! (fn []
-                                                             (antd/success! "保存成功")
-                                                             (set-modal! false)
-                                                             (set-pending-files! [])
-                                                             (fetch!))
-                                                   upload-after-save! (fn [resource-id]
-                                                                        (upload-files! {:biz-type type
-                                                                                        :biz-id resource-id
-                                                                                        :section-key ""
-                                                                                        :file-purpose (if (= kind :atlas) "gallery" "attachment")
-                                                                                        :files pending-files
-                                                                                        :on-uploaded (when (= kind :atlas)
-                                                                                                       (fn [result]
-                                                                                                         (api/create-gallery-item
-                                                                                                          resource-id
-                                                                                                          {:attachment_id (get-in result [:data :id])
-                                                                                                           :image_title (get-in result [:data :original_name])
-                                                                                                           :is_cover (if (empty? gallery) "Y" "N")}
-                                                                                                          (fn [_])
-                                                                                                          (fn [_] (antd/error! "图库明细创建失败")))))
-                                                                                        :on-done finish!}))]
-                                               (if (:id editing)
-                                                 (api/update-resource type (:id editing) (resource-payload form)
-                                                                      (fn [result]
-                                                                        (handle-result! result nil (fn [_] (upload-after-save! (:id editing))) "保存失败"))
-                                                                      (fn [_] (antd/error! "保存失败")))
-                                                 (api/create-resource type (resource-payload form)
-                                                                      (fn [result]
-                                                                        (handle-result! result nil (fn [saved] (upload-after-save! (result-id saved))) "保存失败"))
-                                                                      (fn [_] (antd/error! "保存失败"))))))}
+                                   :on-ok #(when-not viewing? (.submit form))}
                             viewing? (assoc :footer nil)))
-        (into [resource-form-grid kind]
-              (map (fn [field]
-                     (with-meta [resource-form-field kind type editing form set-form! gallery set-gallery! pending-files set-pending-files! attachments delete-attachment! viewing? field]
-                       {:key (name (first field))}))
-                   fields))]])))
+        [antd/form {:form form :layout "vertical"
+                    :disabled viewing?
+                    :on-finish (fn [values]
+                                 (let [values (js->clj values :keywordize-keys true)
+                                       finish! (fn []
+                                                 (antd/success! "保存成功")
+                                                 (set-modal! false)
+                                                 (set-pending-files! [])
+                                                 (fetch!))
+                                       upload-after-save! (fn [resource-id]
+                                                            (upload-files! {:biz-type type
+                                                                            :biz-id resource-id
+                                                                            :section-key ""
+                                                                            :file-purpose (if (= kind :atlas) "gallery" "attachment")
+                                                                            :files pending-files
+                                                                            :on-uploaded (when (= kind :atlas)
+                                                                                           (fn [result]
+                                                                                             (api/create-gallery-item
+                                                                                              resource-id
+                                                                                              {:attachment_id (get-in result [:data :id])
+                                                                                               :image_title (get-in result [:data :original_name])
+                                                                                               :is_cover (if (empty? gallery) "Y" "N")}
+                                                                                              (fn [_])
+                                                                                              (fn [_] (antd/error! "图库明细创建失败")))))
+                                                                            :on-done finish!}))]
+                                   (if (:id editing)
+                                     (api/update-resource type (:id editing) (resource-payload values)
+                                                          (fn [result]
+                                                            (handle-result! result nil (fn [_] (upload-after-save! (:id editing))) "保存失败"))
+                                                          (fn [_] (antd/error! "保存失败")))
+                                     (api/create-resource type (resource-payload values)
+                                                          (fn [result]
+                                                            (handle-result! result nil (fn [saved] (upload-after-save! (result-id saved))) "保存失败"))
+                                                          (fn [_] (antd/error! "保存失败"))))))}
+         (into [resource-form-grid kind]
+               (map (fn [field]
+                      ^{:key (name (first field))}
+                      [resource-form-field* kind form gallery pending-files set-pending-files! attachments delete-attachment! viewing? field])
+                    fields))]]])))
