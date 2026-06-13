@@ -311,10 +311,12 @@
 
 (defn- project-payload
   [form]
-  (let [extra (select-keys form project-extra-keys)]
-    (-> form
-        (as-> payload (reduce dissoc payload project-extra-keys))
-        (assoc :extra_json (.stringify js/JSON (clj->js extra))))))
+  (let [extra (select-keys form project-extra-keys)
+        base (-> form
+                 (as-> payload (reduce dissoc payload project-extra-keys))
+                 (assoc :extra_json (.stringify js/JSON (clj->js extra))))]
+    ;; 后端 schema 对可选字段不接受 nil，提交前过滤掉未填写的 nil 值
+    (into {} (remove #(nil? (second %)) base))))
 
 (def project-overview-fields
   [{:key :project_name :label "项目名称" :type :full-input :rules [{:required true :message "请输入项目名称"}]}
@@ -390,14 +392,14 @@
          [:div {:style {:padding "8px 12px" :borderRight "1px solid var(--ant-color-border-secondary, #e5e7eb)" :textAlign "center"}} (inc idx)]
          [:div {:style {:padding "8px 12px" :borderRight "1px solid var(--ant-color-border-secondary, #e5e7eb)"}} (:role_name row)]
          [:div {:style {:padding 8 :borderRight "1px solid var(--ant-color-border-secondary, #e5e7eb)"}}
-          [antd/input {:value (value row :person_name)
+          [antd/input {:value (or (:person_name row) "")
                        :placeholder "姓名"
                        :disabled readonly?
                        :style {:height 34}
                        :on-change #(when-not readonly?
                                      (on-change (assoc-in staff [idx :person_name] (target-value %))))}]]
          [:div {:style {:padding 8}}
-          [antd/select {:value (value row :title)
+          [antd/select {:value (or (:title row) "")
                         :placeholder "职称（资质）"
                         :disabled readonly?
                         :style {:width "100%" :height 34}
