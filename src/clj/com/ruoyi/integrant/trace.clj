@@ -10,13 +10,18 @@
 
 (def ^:private max-log-entries 200)
 
+(defn- sensitive-key? [k]
+  (let [s (str/lower-case (name k))]
+    (boolean (some #(str/includes? s %)
+                   ["authorization" "cookie" "token" "password" "passwd" "secret"]))))
+
 (defn- safe-snapshot [v]
   "把任意值转成可 JSON 序列化的简短摘要。"
   (cond
     (nil? v) nil
-    (map? v) (into {} (map (fn [[k v]] [(str k) (safe-snapshot v)])) v)
+    (map? v) (into {} (map (fn [[k v]] [(str k) (if (sensitive-key? k) "<redacted>" (safe-snapshot v))])) v)
     (sequential? v) (mapv safe-snapshot v)
-    (set? v) (into #{} (map safe-snapshot v))
+    (set? v) (mapv safe-snapshot v)
     (fn? v) "<function>"
     (instance? Throwable v) (str (class v) ": " (ex-message v))
     :else

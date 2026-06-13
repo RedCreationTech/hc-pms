@@ -49,6 +49,11 @@
                   (collect-tree-keys (:children n))))
           nodes))
 
+(defn- trace-key [k]
+  (if (keyword? k)
+    (subs (str k) 1)
+    (str k)))
+
 ;; ─── 依赖图 ─────────────────────────────────────────────────────────
 
 (defn- compute-depths [order deps]
@@ -59,8 +64,8 @@
                        0)))]
     (into {} (map (fn [k] [k (depth-fn k)]) order))))
 
-(defn- dep-graph [data selected on-select]
-  (let [{:keys [order dependencies]} data
+(defn- dep-graph [data selected trace-by-key on-select on-toggle]
+  (let [{:keys [order dependencies system]} data
         depths (compute-depths order dependencies)
         by-depth (group-by #(get depths %) order)
         layer-height (+ 50 (* 34 (apply max 1 (map count (vals by-depth)))))
@@ -84,36 +89,53 @@
          (when-let [p2 (get node-pos k)]
            ^{:key (str d "->" k)}
            [:line {:x1 (:x p1) :y1 (:y p1)
-                   :x2 (- (:x p2) 50) :y2 (:y p2)
+                   :x2 (- (:x p2) 75) :y2 (:y p2)
                    :stroke "#999" :strokeWidth 1
                    :markerEnd "url(#ig-arrow)"}])))
      (for [[k pos] node-pos]
-       ^{:key k}
-       [:g {:transform (str "translate(" (:x pos) "," (:y pos) ")")
-            :style {:cursor "pointer"}
-            :onClick #(on-select k)}
-        [:rect {:x -55 :y -14 :width 110 :height 28
-                :rx 4 :ry 4
-                :fill (if (= k selected) "#1677ff" "#fff")
-                :stroke (if (= k selected) "#1677ff" "#d9d9d9")}]
-        [:text {:x 0 :y 4 :textAnchor "middle"
-                :fill (if (= k selected) "#fff" "#333")
-                :fontSize 11}
-         k]])]))
+       (let [function? (= "function" (get-in system [(keyword k) :kind]))
+             active? (boolean (get-in trace-by-key [k :active]))]
+         ^{:key k}
+         [:g {:transform (str "translate(" (:x pos) "," (:y pos) ")")
+              :style {:cursor "pointer"}
+              :onClick #(on-select k)}
+          [:rect {:x -75 :y -16 :width 150 :height 32
+                  :rx 4 :ry 4
+                  :fill (if (= k selected) "#1677ff" "#fff")
+                  :stroke (if (= k selected) "#1677ff" "#d9d9d9")}]
+          [:text {:x (if function? -18 0) :y 4 :textAnchor "middle"
+                  :fill (if (= k selected) "#fff" "#333")
+                  :fontSize 11}
+           k]
+          (when function?
+            [:g {:transform "translate(42,-8)"
+                 :style {:cursor "pointer"}
+                 :onClick (fn [e]
+                            (.stopPropagation e)
+                            (on-toggle k (not active?)))}
+             [:rect {:x 0 :y 0 :width 28 :height 16 :rx 8 :ry 8
+                     :fill (if active? "#52c41a" "#d9d9d9")}]
+             [:circle {:cx (if active? 20 8) :cy 8 :r 6 :fill "#fff"}]])]))]))
 
 (defn- trace-log-line [log]
-  [:div {:style {:fontFamily "monospace"
-                 :fontSize 12
-                 :borderBottom "1px solid #f0f0f0"
-                 :padding "4px 0"}}
-   [:span {:style {:color (case (:type log)
-                            "call" "#1890ff"
-                            "return" "#52c41a"
-                            "error"  "#ff4d4f"
-                            "#999")}}
-    (str "[" (:type log) "]")]
-   " "
-   [:span {:style {:color "#666"}} (pr-str (:value log))]])
+  (let [error? (= "error" (:type log))]
+    [:div {:style {:fontFamily "monospace"
+                   :fontSize 12
+                   :borderBottom "1px solid #f0f0f0"
+                   :padding "6px 0"}}
+     [:div
+      [:span {:style {:color (if error? "#ff4d4f" "#52c41a")
+                      :fontWeight 600}}
+       (if error? "[error]" "[return]")]
+      [:span {:style {:color "#999" :marginLeft 8}}
+       (str (:duration log) "ms")]]
+     [:div {:style {:color "#666"}}
+      [:span {:style {:color "#1890ff"}} "in "]
+      (pr-str (:args log))]
+     [:div {:style {:color "#666"}}
+      [:span {:style {:color (if error? "#ff4d4f" "#52c41a")}}
+       (if error? "err " "out ")]
+      (pr-str (if error? (:error log) (:result log)))]]))
 
 ;; ─── 主页面 ─────────────────────────────────────────────────────────
 
@@ -125,7 +147,9 @@
    [])
   (let [data @(rf/subscribe [:integrant/data])
         [selected set-selected!] (hooks/use-state nil)
-        [expanded set-expanded!] (hooks/use-state #{})]
+        [expanded set-expanded!] (hooks/use-state #{})
+        trace-data @(rf/subscribe [:integrant/trace selected])
+        trace-by-key @(rf/subscribe [:integrant/traces])]
     (hooks/use-effect
      (fn []
        (when (and (nil? selected) (seq (:order data)))
@@ -138,6 +162,21 @@
          (set-expanded! (set (collect-tree-keys (->tree-nodes "config" (:config data))))))
        js/undefined)
      [data])
+    (hooks/use-effect
+     (fn []
+       (when data
+         (doseq [[k sys] (:system data)]
+           (when (= "function" (:kind sys))
+             (rf/dispatch [:integrant/fetch-trace-logs (trace-key k)]))))
+       js/undefined)
+     [data])
+    (hooks/use-effect
+     (fn []
+       (if (and selected (:active trace-data))
+         (let [id (js/setInterval #(rf/dispatch [:integrant/fetch-trace-logs selected]) 1000)]
+           #(js/clearInterval id))
+         js/undefined))
+     [selected (:active trace-data)])
     (if (nil? data)
       [:div {:style {:textAlign "center" :padding 48 :color "#999"}} "加载中..."]
       (let [tree-data (->tree-nodes "config" (:config data))
@@ -145,15 +184,7 @@
             deps (get-in data [:dependencies sel-k] [])
             dents (get-in data [:dependents sel-k] [])
             sys (get-in data [:system sel-k])
-            is-fn? (= "function" (:kind sys))
-            trace-data @(rf/subscribe [:integrant/trace selected])]
-        (hooks/use-effect
-         (fn []
-           (if (and selected (:active trace-data))
-             (let [id (js/setInterval #(rf/dispatch [:integrant/fetch-trace-logs selected]) 1000)]
-               #(js/clearInterval id))
-             js/undefined))
-         [selected trace-data])
+            is-fn? (= "function" (:kind sys))]
         [:div
          [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center" :marginBottom 16}}
           [:h3 {:style {:margin 0}} "Integrant 依赖视图"]
@@ -166,7 +197,7 @@
           ;; 静态配置
           [antd/card {:title "静态配置 (Config)"
                       :size "small"
-                      :bodyStyle {:padding 12 :maxHeight 480 :overflow "auto"}}
+                      :styles {:body {:padding 12 :maxHeight 480 :overflow "auto"}}}
            [antd/tree {:treeData (clj->js tree-data)
                        :expandedKeys (clj->js expanded)
                        :onExpand #(set-expanded! (set %2))
@@ -178,7 +209,7 @@
           ;; 启动顺序
           [antd/card {:title "启动顺序 / 依赖 (Order)"
                       :size "small"
-                      :bodyStyle {:padding 12 :maxHeight 480 :overflow "auto"}}
+                      :styles {:body {:padding 12 :maxHeight 480 :overflow "auto"}}}
            [:div {:style {:display "flex" :flexDirection "column" :gap 4}}
             (for [[idx k] (map-indexed vector (:order data))]
               ^{:key k}
@@ -193,7 +224,7 @@
           ;; 运行时详情
           [antd/card {:title (str "运行时详情: " (or selected "-"))
                       :size "small"
-                      :bodyStyle {:padding 12}}
+                      :styles {:body {:padding 12}}}
            [antd/descriptions {:bordered true :size "small" :column 1}
             [antd/descriptions-item {:label "类型"}
              (or (:kind sys) "-")]
@@ -212,8 +243,8 @@
                   [antd/tag {:color "green" :style {:cursor "pointer"} :onClick #(set-selected! d)} d])]
                "-")]
             (when is-fn?
-              [antd/descriptions-item {:label "调用追踪"}
-               [antd/switch {:checked (:active trace-data)
+              [antd/descriptions-item {:label "输入/输出采集"}
+               [antd/switch {:checked (boolean (:active trace-data))
                              :checkedChildren "开启"
                              :unCheckedChildren "关闭"
                              :onChange #(rf/dispatch [:integrant/toggle-trace selected %])}]])
@@ -224,7 +255,7 @@
                "-")]]
            (when (and is-fn? (seq (:logs trace-data)))
              [:div {:style {:marginTop 12}}
-              [:div {:style {:fontWeight 500 :marginBottom 8}} "调用日志"]
+              [:div {:style {:fontWeight 500 :marginBottom 8}} "输入/输出日志"]
               [:div {:style {:maxHeight 240 :overflow "auto" :background "#fafafa" :padding "0 12px"}}
                (for [log (reverse (:logs trace-data))]
                  ^{:key (:id log)}
@@ -232,5 +263,7 @@
          [:div {:style {:marginTop 16}}
           [antd/card {:title "依赖图 (Dependency Graph)"
                       :size "small"
-                      :bodyStyle {:padding 12 :overflow "auto"}}
-           [dep-graph data selected #(set-selected! %)]]]]))))
+                      :styles {:body {:padding 12 :overflow "auto"}}}
+           [dep-graph data selected trace-by-key
+            #(set-selected! %)
+            #(rf/dispatch [:integrant/toggle-trace %1 %2])]]]]))))

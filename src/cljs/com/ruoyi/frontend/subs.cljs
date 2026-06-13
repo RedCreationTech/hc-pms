@@ -524,6 +524,10 @@
             (fn [db [_ key]]
               (get-in db [:integrant :trace key])))
 
+(rf/reg-sub :integrant/traces
+            (fn [db _]
+              (get-in db [:integrant :trace] {})))
+
 ;; ─── 缓存监控 ──────────────────────────────────────────────────────
 
 (rf/reg-sub :cache/data

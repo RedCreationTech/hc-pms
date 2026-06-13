@@ -213,13 +213,20 @@
         :dependents dents
         :system system-summary})))
 
-(defn- format-trace-log [log]
-  (let [type (cond (:error log) "error" (:result log) "return" :else "call")
-        value (str "args=" (pr-str (:args log))
-                   (when (:result log) (str " result=" (pr-str (:result log))))
-                   (when (:error log) (str " error=" (pr-str (:error log))))
-                   " duration=" (:duration log) "ms")]
-    {:id (str (:time log)) :type type :value value}))
+(defn- format-trace-log [idx log]
+  (let [error? (contains? log :error)
+        result? (contains? log :result)]
+    {:id (str (:time log) "-" idx)
+     :type (cond error? "error" result? "return" :else "call")
+     :time (:time log)
+     :duration (:duration log)
+     :args (:args log)
+     :result (when result? (:result log))
+     :error (when error? (:error log))}))
+
+(defn- format-trace-logs [logs]
+  (mapv (fn [[idx log]] (format-trace-log idx log))
+        (map-indexed vector logs)))
 
 (defn integrant-trace
   "开启/关闭某个函数组件的调用追踪。"
@@ -228,10 +235,10 @@
         enabled? (boolean (:enabled body-params))]
     (trace/set-active! key-str enabled?)
     (ok {:active (trace/active? key-str)
-         :logs (mapv format-trace-log (trace/logs key-str))})))
+         :logs (format-trace-logs (trace/logs key-str))})))
 
 (defn integrant-trace-logs
   "获取某个函数组件的追踪日志。"
   [_ {:keys [path-params]}]
   (ok {:active (trace/active? (:key path-params))
-       :logs (mapv format-trace-log (trace/logs (:key path-params)))}))
+       :logs (format-trace-logs (trace/logs (:key path-params)))}))
