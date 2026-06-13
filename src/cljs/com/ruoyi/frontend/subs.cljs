@@ -127,6 +127,76 @@
             (fn [db _]
               (get-in db [:users :import-file] nil)))
 
+;; ─── 项目管理 ──────────────────────────────────────────────────────
+
+(rf/reg-sub :projects/items
+            (fn [db _]
+              (get-in db [:projects :items])))
+
+(rf/reg-sub :projects/total
+            (fn [db _]
+              (get-in db [:projects :total])))
+
+(rf/reg-sub :projects/loading?
+            (fn [db _]
+              (get-in db [:projects :loading?] false)))
+
+(rf/reg-sub :projects/query-params
+            (fn [db _]
+              (get-in db [:projects :query-params] {})))
+
+(rf/reg-sub :projects/page
+            (fn [db _]
+              (get-in db [:projects :page] 1)))
+
+(rf/reg-sub :projects/page-size
+            (fn [db _]
+              (get-in db [:projects :page-size] 10)))
+
+(rf/reg-sub :projects/selected-ids
+            (fn [db _]
+              (get-in db [:projects :selected-ids] [])))
+
+(rf/reg-sub :projects/selected-empty?
+            (fn [db _]
+              (empty? (get-in db [:projects :selected-ids] []))))
+
+(rf/reg-sub :projects/show-search?
+            (fn [db _]
+              (get-in db [:projects :show-search?] true)))
+
+(rf/reg-sub :projects/columns
+            (fn [db _]
+              (get-in db [:projects :columns])))
+
+(rf/reg-sub :projects/modal-visible?
+            (fn [db _]
+              (get-in db [:projects :modal-visible?] false)))
+
+(rf/reg-sub :projects/editing
+            (fn [db _]
+              (get-in db [:projects :editing])))
+
+(rf/reg-sub :projects/form-data
+            (fn [db _]
+              (get-in db [:projects :form-data] {})))
+
+(rf/reg-sub :projects/detail-visible?
+            (fn [db _]
+              (get-in db [:projects :detail-visible?] false)))
+
+(rf/reg-sub :projects/detail-data
+            (fn [db _]
+              (get-in db [:projects :detail-data])))
+
+(rf/reg-sub :projects/team-visible?
+            (fn [db _]
+              (get-in db [:projects :team-visible?] false)))
+
+(rf/reg-sub :projects/team-project
+            (fn [db _]
+              (get-in db [:projects :team-project])))
+
 (rf/reg-sub :online-users/items
             (fn [db _]
               (get-in db [:online-users :items])))

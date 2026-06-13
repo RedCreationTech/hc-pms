@@ -35,6 +35,16 @@
                        :phonenumber {:label "手机号码" :visible? true}
                        :status {:label "状态" :visible? true}
                        :create_time {:label "创建时间" :visible? true}}}
+     :projects {:loading? false :items [] :total 0
+                :query-params {} :page 1 :page-size 10
+                :selected-ids [] :show-search? true
+                :modal-visible? false :editing nil :form-data {}
+                :detail-visible? false :detail-data nil :team-visible? false :team-project nil
+                :columns {:project_name {:label "项目名称" :visible? true}
+                          :engineering_industry {:label "工程业态" :visible? true}
+                          :engineering_nature {:label "工程性质" :visible? true}
+                          :status {:label "状态" :visible? true}
+                          :create_time {:label "创建时间" :visible? true}}}
      :roles {:loading? false :items [] :query-params {}}
      :menus {:loading? false :items [] :tree []}
      :depts {:loading? false :items [] :tree []}

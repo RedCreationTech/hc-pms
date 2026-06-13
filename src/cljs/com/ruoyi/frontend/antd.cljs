@@ -3,7 +3,7 @@
   (:require
    [reagent.core :as r]
    ["antd" :refer [App Button Card ConfigProvider DatePicker Descriptions Drawer Dropdown Empty Form Input Layout Menu Modal Pagination Popconfirm Popover Radio Select Space Spin Switch Table Tabs Tag Tooltip Tree TreeSelect Upload message]]
-   ["@ant-design/icons" :refer [LockOutlined UserOutlined DashboardOutlined TeamOutlined SettingOutlined SafetyOutlined FileTextOutlined EditOutlined DeleteOutlined PlusOutlined DownloadOutlined EyeOutlined SearchOutlined]]))
+   ["@ant-design/icons" :refer [LockOutlined UserOutlined DashboardOutlined TeamOutlined SettingOutlined SafetyOutlined FileTextOutlined EditOutlined DeleteOutlined PlusOutlined DownloadOutlined EyeOutlined SearchOutlined ReloadOutlined UploadOutlined MoreOutlined]]))
 
 (def app (r/adapt-react-class App))
 (def button (r/adapt-react-class Button))
@@ -81,3 +81,6 @@
 (def download-icon (r/adapt-react-class DownloadOutlined))
 (def eye-icon (r/adapt-react-class EyeOutlined))
 (def search-icon (r/adapt-react-class SearchOutlined))
+(def reload-icon (r/adapt-react-class ReloadOutlined))
+(def upload-icon (r/adapt-react-class UploadOutlined))
+(def more-icon (r/adapt-react-class MoreOutlined))

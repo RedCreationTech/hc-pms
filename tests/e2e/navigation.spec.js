@@ -25,6 +25,7 @@ const cases = [
   { path: '/monitor/gen', text: '生成' },
   { path: '/monitor/swagger', text: 'Swagger' },
   { path: '/tool/build', text: '表单' },
+  { path: '/project/info', text: '项目名称' },
 ];
 
 for (const { path, text } of cases) {

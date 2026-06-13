@@ -50,6 +50,7 @@
    [com.ruoyi.frontend.pages.file-manager :as file-manager]
    [com.ruoyi.frontend.pages.integrant :as integrant]
    [com.ruoyi.frontend.pages.business :as business]
+   [com.ruoyi.frontend.pages.project :as project]
    [com.ruoyi.frontend.components.icon-picker :as icon-picker]))
 
 ;; ─── Tab 组件 ──────────────────────────────────────────────────────
@@ -506,7 +507,7 @@
             (case page
               :dashboard [dashboard/dashboard-page]
              :solution-home [business/solution-home-page]
-             :project-info [business/project-page]
+             :project-info [project/project-page]
              :resource-standard [business/resource-page :standard]
              :resource-vector-kb [business/resource-page :vector-kb]
              :resource-structured-kb [business/resource-page :structured-kb]

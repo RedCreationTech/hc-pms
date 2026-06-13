@@ -2498,3 +2498,230 @@
 (rf/reg-event-db :users/collapse-all-depts
                  (fn [db _]
                    (assoc-in db [:users :expanded-dept-ids] #{})))
+
+;; ─── 项目管理 ─────────────────────────────────────────────────────────
+
+(rf/reg-event-db :projects/set-list
+                 (fn [db [_ data]]
+                   (-> db
+                       (assoc-in [:projects :items] (:rows data))
+                       (assoc-in [:projects :total] (:total data))
+                       (assoc-in [:projects :loading?] false))))
+
+(rf/reg-event-fx :projects/fetch
+                 (fn [{:keys [db]} [_ params]]
+                   {:db (assoc-in db [:projects :loading?] true)
+                    :api/list-projects params}))
+
+(rf/reg-event-fx :projects/fetch-with-params
+                 (fn [{:keys [db]} _]
+                   (let [params (get-in db [:projects :query-params] {})
+                         page (get-in db [:projects :page] 1)
+                         size (get-in db [:projects :page-size] 10)]
+                     {:api/list-projects (merge params {:page page :size size})})))
+
+(rf/reg-event-fx :projects/search
+                 (fn [{:keys [db]} _]
+                   (let [params (get-in db [:projects :query-params] {})
+                         size (get-in db [:projects :page-size] 10)]
+                     {:db (assoc-in db [:projects :page] 1)
+                      :api/list-projects (merge params {:page 1 :size size})})))
+
+(rf/reg-event-fx :projects/reset-query
+                 (fn [{:keys [db]} _]
+                   {:db (-> db
+                            (assoc-in [:projects :query-params] {})
+                            (assoc-in [:projects :selected-ids] [])
+                            (assoc-in [:projects :page] 1)
+                            (assoc-in [:projects :page-size] 10))
+                    :api/list-projects {:page 1 :size 10}}))
+
+(rf/reg-event-db :projects/update-query
+                 (fn [db [_ field value]]
+                   (assoc-in db [:projects :query-params field] value)))
+
+(rf/reg-event-db :projects/toggle-search
+                 (fn [db _]
+                   (update-in db [:projects :show-search?] not)))
+
+(rf/reg-event-db :projects/toggle-column
+                 (fn [db [_ col-key]]
+                   (update-in db [:projects :columns col-key :visible?] not)))
+
+(rf/reg-event-db :projects/open-add
+                 (fn [db _]
+                   (-> db
+                       (assoc-in [:projects :modal-visible?] true)
+                       (assoc-in [:projects :editing] nil)
+                       (assoc-in [:projects :form-data] {}))))
+
+(rf/reg-event-fx :projects/open-edit
+                 (fn [_ [_ project-id]]
+                   {:api/get-project project-id}))
+
+(rf/reg-event-db :projects/edit-project
+                 (fn [db [_ project]]
+                   (-> db
+                       (assoc-in [:projects :modal-visible?] true)
+                       (assoc-in [:projects :editing] project)
+                       (assoc-in [:projects :form-data] (or project {})))))
+
+(rf/reg-event-db :projects/close-modal
+                 (fn [db _]
+                   (assoc-in db [:projects :modal-visible?] false)))
+
+(rf/reg-event-fx :projects/create
+                 (fn [_ [_ params]]
+                   {:api/create-project params}))
+
+(rf/reg-event-fx :projects/update
+                 (fn [_ [_ id params]]
+                   {:api/update-project [id params]}))
+
+(rf/reg-event-fx :projects/delete
+                 (fn [_ [_ id]]
+                   {:api/delete-project id}))
+
+(rf/reg-event-fx :projects/submit
+                 (fn [{:keys [db]} [_ values]]
+                   (let [editing (get-in db [:projects :editing])]
+                     (if editing
+                       {:api/update-project [(:id editing) values]}
+                       {:api/create-project values}))))
+
+(rf/reg-event-db :projects/view-detail
+                 (fn [db [_ project-id]]
+                   (let [items (get-in db [:projects :items] [])
+                         project (first (filter #(= project-id (:id %)) items))]
+                     (-> db
+                         (assoc-in [:projects :detail-visible?] true)
+                         (assoc-in [:projects :detail-data] project)))))
+
+(rf/reg-event-db :projects/close-detail
+                 (fn [db _]
+                   (assoc-in db [:projects :detail-visible?] false)))
+
+(rf/reg-event-db :projects/open-team
+                 (fn [db [_ project-id]]
+                   (let [project (first (filter #(= project-id (:id %)) (get-in db [:projects :items] [])))]
+                     (-> db
+                         (assoc-in [:projects :team-visible?] true)
+                         (assoc-in [:projects :team-project] project)))))
+
+(rf/reg-event-db :projects/close-team
+                 (fn [db _]
+                   (assoc-in db [:projects :team-visible?] false)))
+
+(rf/reg-event-db :projects/toggle-select
+                 (fn [db [_ id]]
+                   (let [ids (get-in db [:projects :selected-ids] [])]
+                     (assoc-in db [:projects :selected-ids]
+                               (if (some #{id} ids)
+                                 (filterv #(not= id %) ids)
+                                 (conj ids id))))))
+
+(rf/reg-event-db :projects/toggle-select-all
+                 (fn [db [_ selected?]]
+                   (if selected?
+                     (assoc-in db [:projects :selected-ids] (mapv :id (get-in db [:projects :items] [])))
+                     (assoc-in db [:projects :selected-ids] []))))
+
+(rf/reg-event-db :projects/set-selected
+                 (fn [db [_ ids]]
+                   (assoc-in db [:projects :selected-ids] (mapv #(js/parseInt % 10) ids))))
+
+(rf/reg-event-fx :projects/open-edit-selected
+                 (fn [{:keys [db]} _]
+                   (let [ids (get-in db [:projects :selected-ids] [])]
+                     (if (seq ids)
+                       {:api/get-project (first ids)}
+                       (do (antd/error! "请先选择要修改的项目") {})))))
+
+(rf/reg-event-fx :projects/batch-delete
+                 (fn [{:keys [db]} _]
+                   (let [ids (get-in db [:projects :selected-ids] [])]
+                     (if (seq ids)
+                       {:api/batch-delete-projects ids}
+                       (do (antd/error! "请先选择要删除的项目") {})))))
+
+(rf/reg-event-fx :projects/change-page
+                 (fn [{:keys [db]} [_ page page-size]]
+                   {:db (-> db
+                            (assoc-in [:projects :page] page)
+                            (assoc-in [:projects :page-size] page-size))
+                    :dispatch [:projects/fetch-with-params]}))
+
+(rf/reg-fx :api/list-projects
+           (fn [params]
+             (api/list-projects params
+                                (fn [result]
+                                  (when (= 200 (:code result))
+                                    (rf/dispatch [:projects/set-list (:data result)])))
+                                (fn [_] (antd/error! "网络错误")))))
+
+(rf/reg-fx :api/get-project
+           (fn [project-id]
+             (api/get-project project-id
+                              (fn [result]
+                                (when (= 200 (:code result))
+                                  (rf/dispatch [:projects/edit-project (:data result)])))
+                              (fn [_] (antd/error! "获取项目详情失败")))))
+
+(rf/reg-fx :api/create-project
+           (fn [params]
+             (api/create-project params
+                                 (fn [result]
+                                   (when (= 200 (:code result))
+                                     (antd/success! "创建成功")
+                                     (rf/dispatch [:projects/close-modal])
+                                     (rf/dispatch [:projects/fetch {}]))
+                                   (when (not= 200 (:code result))
+                                     (antd/error! (:msg result))))
+                                 (fn [_] (antd/error! "网络错误")))))
+
+(rf/reg-fx :api/update-project
+           (fn [[id params]]
+             (api/update-project id params
+                                 (fn [result]
+                                   (when (= 200 (:code result))
+                                     (antd/success! "更新成功")
+                                     (rf/dispatch [:projects/close-modal])
+                                     (rf/dispatch [:projects/fetch {}]))
+                                   (when (not= 200 (:code result))
+                                     (antd/error! (:msg result))))
+                                 (fn [_] (antd/error! "网络错误")))))
+
+(rf/reg-fx :api/delete-project
+           (fn [id]
+             (api/delete-project id
+                                 (fn [result]
+                                   (when (= 200 (:code result))
+                                     (antd/success! "删除成功")
+                                     (rf/dispatch [:projects/fetch {}]))
+                                   (when (not= 200 (:code result))
+                                     (antd/error! (:msg result))))
+                                 (fn [_] (antd/error! "网络错误")))))
+
+(rf/reg-fx :api/batch-delete-projects
+           (fn [ids]
+             (let [remaining (atom (count ids))
+                   failed? (atom false)]
+               (if (zero? @remaining)
+                 (antd/error! "请选择要删除的项目")
+                 (doseq [id ids]
+                   (api/delete-project id
+                                       (fn [result]
+                                         (when (not= 200 (:code result))
+                                           (reset! failed? true)
+                                           (antd/error! (or (:msg result) "删除失败")))
+                                         (when (zero? (swap! remaining dec))
+                                           (if @failed?
+                                             (rf/dispatch [:projects/set-selected []])
+                                             (do (antd/success! "批量删除成功")
+                                                 (rf/dispatch [:projects/set-selected []])
+                                                 (rf/dispatch [:projects/fetch {}])))))
+                                       (fn [_]
+                                         (reset! failed? true)
+                                         (antd/error! "删除失败")
+                                         (when (zero? (swap! remaining dec))
+                                           (rf/dispatch [:projects/set-selected []])))))))))
