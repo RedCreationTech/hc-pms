@@ -17,6 +17,7 @@
     :list-roles-by-user-id [{:role_id 1 :role_name "管理员"}]
     :update-user-roles! nil
     :delete-user-roles! nil
+    :delete-user-posts! nil
     :insert-user-role! nil
     :insert-user-post! nil
     :last-insert-rowid {(keyword "last_insert_rowid()") 3}
@@ -60,3 +61,22 @@
   (testing "更新用户角色"
     (let [result (user/update-user-roles! mock-service {:user-id 1 :role-ids [1 2]})]
       (is (nil? result)))))
+
+(deftest test-update-user-with-password-and-relations
+  (testing "更新用户：修改密码、角色、岗位"
+    (let [result (user/update-user! mock-service
+                                    {:user-id 1
+                                     :user_name "admin"
+                                     :password "newpwd"
+                                     :roles [1 2]
+                                     :posts [1]})]
+      (is (= 1 result)))))
+
+(deftest test-update-user-without-password
+  (testing "更新用户：不修改密码"
+    (let [result (user/update-user! mock-service
+                                    {:user-id 1
+                                     :user_name "admin"
+                                     :roles []
+                                     :posts []})]
+      (is (= 1 result)))))

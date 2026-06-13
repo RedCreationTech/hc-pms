@@ -21,6 +21,11 @@
     :create-login-log! nil
     :clear-oper-logs! nil
     :clear-login-logs! nil
+    :list-online-users [{:session_id "1" :user_name "admin"}]
+    :count-online-users {:total 1}
+    :create-online-user! nil
+    :update-online-user! nil
+    :delete-online-user! nil
     []))
 
 (def mock-service {:query-fn mock-query-fn})
@@ -52,3 +57,21 @@
 (deftest test-clear-login-logs
   (testing "清空登录日志"
     (is (nil? (log/clear-login-logs! mock-service {})))))
+
+(deftest test-list-online-users
+  (testing "查询在线用户列表"
+    (let [result (log/list-online-users mock-service {})]
+      (is (map? result))
+      (is (= 1 (:total result))))))
+
+(deftest test-create-online-user
+  (testing "创建在线用户记录"
+    (is (nil? (log/create-online-user! mock-service {:session_id "1" :user_name "admin"})))))
+
+(deftest test-update-online-user
+  (testing "更新在线用户访问时间"
+    (is (nil? (log/update-online-user! mock-service {:session_id "1" :access_time "2026-01-01"})))))
+
+(deftest test-delete-online-user
+  (testing "踢出在线用户"
+    (is (nil? (log/delete-online-user! mock-service "1")))))

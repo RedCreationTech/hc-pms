@@ -4,17 +4,19 @@
             [com.ruoyi.domain.system.dept :as dept]))
 
 (def mock-depts
-  [{:dept_id 1 :dept_name "总公司" :parent_id 0 :order_num 1 :status "0"}
-   {:dept_id 2 :dept_name "技术部" :parent_id 1 :order_num 1 :status "0"}
-   {:dept_id 3 :dept_name "市场部" :parent_id 1 :order_num 2 :status "0"}])
+  [{:dept_id 1 :dept_name "总公司" :parent_id 0 :order_num 1 :status "0" :ancestors "0"}
+   {:dept_id 2 :dept_name "技术部" :parent_id 1 :order_num 1 :status "0" :ancestors "0,1"}
+   {:dept_id 3 :dept_name "市场部" :parent_id 1 :order_num 2 :status "0" :ancestors "0,1"}])
 
 (defn- mock-query-fn [query-name params]
   (case query-name
     :list-depts mock-depts
     :find-dept-by-id (first mock-depts)
+    :list-depts-by-parent (when (= 1 (:parent_id params)) (rest mock-depts))
     :create-dept! [{:dept_id 4}]
     :last-insert-rowid {(keyword "last_insert_rowid()") 4}
     :update-dept! nil
+    :update-dept-ancestors! nil
     :delete-dept! nil
     []))
 
@@ -52,3 +54,18 @@
     (with-redefs [mock-query-fn (fn [_ _] nil)]
       (let [result (dept/find-dept-by-id {:query-fn mock-query-fn} 999)]
         (is (nil? result))))))
+
+(deftest test-create-top-level-dept
+  (testing "创建顶级部门，ancestors 为 0"
+    (let [result (dept/create-dept! mock-service {:dept_name "事业部" :parent_id 0})]
+      (is (some? result)))))
+
+(deftest test-create-child-dept
+  (testing "创建子部门，ancestors 继承父部门"
+    (let [result (dept/create-dept! mock-service {:dept_name "子部门" :parent_id 1})]
+      (is (some? result)))))
+
+(deftest test-update-dept-with-parent
+  (testing "更新部门并级联更新子部门 ancestors"
+    (let [result (dept/update-dept! mock-service {:dept_id 2 :dept_name "技术部-更新" :parent_id 1})]
+      (is (nil? result)))))

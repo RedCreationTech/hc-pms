@@ -20,6 +20,10 @@
     :delete-role! nil
     :delete-role-menus! nil
     :insert-role-menu! nil
+    :list-users-by-role [{:user_id 1 :user_name "admin"}]
+    :list-users-not-in-role [{:user_id 2 :user_name "user1"}]
+    :delete-user-role! nil
+    :insert-user-role! nil
     []))
 
 (def mock-service {:query-fn mock-query-fn})
@@ -56,3 +60,40 @@
   (testing "删除角色"
     (let [result (role/delete-role! mock-service 1)]
       (is (nil? result)))))
+
+(deftest test-list-allocated-users
+  (testing "查询已分配该角色的用户"
+    (let [result (role/list-allocated-users mock-service {:role-id 1})]
+      (is (seq result))
+      (is (= 1 (count result))))))
+
+(deftest test-list-unallocated-users
+  (testing "查询未分配该角色的用户"
+    (let [result (role/list-unallocated-users mock-service {:role-id 1})]
+      (is (seq result))
+      (is (= 1 (count result))))))
+
+(deftest test-cancel-auth-user
+  (testing "取消单个用户角色授权"
+    (is (nil? (role/cancel-auth-user! mock-service {:role-id 1 :user-id 2})))))
+
+(deftest test-cancel-auth-user-all
+  (testing "批量取消用户角色授权"
+    (is (nil? (role/cancel-auth-user-all! mock-service {:role-id 1 :user-ids [2 3]})))))
+
+(deftest test-select-auth-user-all
+  (testing "批量授权用户角色"
+    (is (nil? (role/select-auth-user-all! mock-service {:role-id 1 :user-ids [2 3]})))))
+
+(deftest test-dept-tree-by-role
+  (testing "获取角色关联部门树"
+    (let [dept-service {:query-fn mock-query-fn :list-depts :list-depts}
+          result (role/dept-tree-by-role mock-service dept-service 1)]
+      (is (map? result))
+      (is (contains? result :depts))
+      (is (contains? result :checked-keys)))))
+
+(deftest test-get-role-perms
+  (testing "获取角色权限标识"
+    (let [result (role/get-role-perms mock-service 1)]
+      (is (set? result)))))

@@ -8,14 +8,14 @@
 ╚══════════════════════════════════════════════════════════════╝
 
 测试框架: clojure.test + cloverage
-测试时间: 2026-06-12
+测试时间: 2026-06-13
 
 ┌──────────────────────────────────────────────────────────────┐
 │  测试汇总                                                     │
 ├──────────────────────────────────────────────────────────────┤
-│  📁 测试命名空间:  12 个                                      │
-│  🧪 测试用例:      36 个                                      │
-│  ✅ 断言通过:      73 个                                      │
+│  📁 测试命名空间:  40 个                                      │
+│  🧪 测试用例:      306 个                                     │
+│  ✅ 断言通过:      741 个                                     │
 │  ❌ 断言失败:       0 个                                      │
 │  ⚠️  错误:          0 个                                      │
 ├──────────────────────────────────────────────────────────────┤
@@ -23,114 +23,57 @@
 └──────────────────────────────────────────────────────────────┘
 ```
 
-## 测试覆盖详情
+## 覆盖率汇总
 
-### 1. 领域层 (domain)
+| 指标 | 覆盖率 |
+|------|--------|
+| 整体 Forms | **87.04%** |
+| 整体 Lines | **91.86%** |
 
-| 命名空间 | 测试文件 | 测试数 | 断言数 | 状态 |
-|---------|---------|--------|--------|------|
-| gen | gen_test.clj | 5 | 11 | ✅ |
-| system.config | config_test.clj | 3 | 6 | ✅ |
-| system.dept | dept_test.clj | 2 | 4 | ✅ |
-| system.dict | dict_test.clj | 3 | 6 | ✅ |
-| system.log | log_test.clj | 4 | 8 | ✅ |
-| system.menu | menu_test.clj | 4 | 8 | ✅ |
-| system.post | post_test.clj | 2 | 4 | ✅ |
-| system.role | role_test.clj | 3 | 7 | ✅ |
-| system.user | user_test.clj | 3 | 7 | ✅ |
+## 重点覆盖提升
 
-### 2. 基础设施层 (infra)
+- **Web 控制器层**：`auth`、`captcha`、`common`、`register`、`system.cache`、`system.file`、`system.import-export`、`system.notice`、`system.profile`、`system.role`、`system.user`、`job`、`gen` 等控制器均已补齐单元测试。
+- **基础设施层**：`infra.db`、`infra.online`、`infra.data-perm`、`infra.security` 覆盖率达到 90% 以上。
+- **中间件**：`middleware.auth`、`middleware.exception`、`middleware.formats` 覆盖率达到 90% 以上。
+- **Domain 层**：`user`、`role`、`dept`、`log` 补齐更新/删除/关联等分支测试。
 
-| 命名空间 | 测试文件 | 测试数 | 断言数 | 状态 |
-|---------|---------|--------|--------|------|
-| cache | cache_test.clj | 1 | 2 | ✅ |
-| db | db_test.clj | 3 | 6 | ✅ |
-| security | security_test.clj | 3 | 5 | ✅ |
+## 仍有提升空间的模块
 
-## 覆盖的函数
+以下模块当前覆盖率仍较低，可作为下一步重点：
 
-### 代码生成器 (gen)
-- `list-tables` - 查询表列表
-- `table-columns` - 查询表列信息
-- `generate-code` - 生成代码
-
-### 配置管理 (config)
-- `list-configs` - 查询参数列表
-- `find-config-by-id` - 根据ID查询参数
-- `find-config-by-key` - 根据Key查询参数
-
-### 部门管理 (dept)
-- `list-depts` - 查询部门列表
-- `find-dept-by-id` - 根据ID查询部门
-
-### 字典管理 (dict)
-- `list-dict-types` - 查询字典类型列表
-- `find-dict-type-by-id` - 根据ID查询字典类型
-- `list-dict-data` - 查询字典数据列表
-
-### 日志管理 (log)
-- `list-oper-logs` - 查询操作日志
-- `list-login-logs` - 查询登录日志
-- `create-oper-log!` - 创建操作日志
-- `create-login-log!` - 创建登录日志
-
-### 菜单管理 (menu)
-- `menu-tree` - 构建菜单树
-- `menu-tree-by-roles` - 根据角色构建菜单树
-- `find-menu-by-id` - 根据ID查询菜单
-
-### 岗位管理 (post)
-- `list-posts` - 查询岗位列表
-- `find-post-by-id` - 根据ID查询岗位
-
-### 角色管理 (role)
-- `list-roles` - 查询角色列表
-- `find-role-by-id` - 根据ID查询角色
-
-### 用户管理 (user)
-- `list-users` - 查询用户列表
-- `find-user-by-id` - 根据ID查询用户
-
-### 缓存 (cache)
-- `cache-store` - 缓存存储
-
-### 数据库 (db)
-- `sqlite->mysql` - SQL方言转换
-- `mysql->sqlite` - SQL方言转换
-
-### 安全 (security)
-- `hash-password` - 密码哈希
-- `verify-password` - 密码验证
-- `extract-token` - Token提取
+| 命名空间 | Forms | Lines |
+|----------|-------|-------|
+| com.ruoyi.core | 49.60% | 70.00% |
+| com.ruoyi.infra.scheduler | 57.49% | 74.81% |
+| com.ruoyi.task | 52.50% | 80.00% |
+| com.ruoyi.web.controllers.system.dept | 70.74% | 76.74% |
+| com.ruoyi.web.controllers.system.dict | 57.98% | 63.01% |
+| com.ruoyi.web.controllers.system.log | 54.95% | 60.87% |
+| com.ruoyi.web.controllers.system.menu | 71.12% | 76.74% |
+| com.ruoyi.web.controllers.system.online | 69.31% | 78.26% |
+| com.ruoyi.web.controllers.system.post | 72.93% | 78.05% |
+| com.ruoyi.web.handler | 68.75% | 76.47% |
+| com.ruoyi.web.middleware.operlog | 76.89% | 89.47% |
 
 ## 运行测试
 
 ```bash
 # 运行所有单元测试
-clojure -M:test -e "
-(require '[clojure.test :refer [run-tests]])
-(run-tests
-  'com.ruoyi.domain.gen-test
-  'com.ruoyi.domain.system.config-test
-  'com.ruoyi.domain.system.dept-test
-  'com.ruoyi.domain.system.dict-test
-  'com.ruoyi.domain.system.log-test
-  'com.ruoyi.domain.system.menu-test
-  'com.ruoyi.domain.system.post-test
-  'com.ruoyi.domain.system.role-test
-  'com.ruoyi.domain.system.user-test
-  'com.ruoyi.infra.cache-test
-  'com.ruoyi.infra.db-test
-  'com.ruoyi.infra.security-test)
-"
+clojure -M:test
+
+# 生成覆盖率报告（输出到 target/coverage/index.html）
+clojure -Sdeps '{:deps {cloverage/cloverage {:mvn/version "1.2.4"}
+                        ring/ring-mock {:mvn/version "0.6.2"}
+                        peridot/peridot {:mvn/version "0.5.4"}
+                        org.clj-commons/byte-streams {:mvn/version "0.3.4"}}}' \
+  -M:dev -m cloverage.coverage \
+  --src-ns-path src/clj --test-ns-path test/clj \
+  --ns-regex 'com\\.ruoyi\\..*' --output target/coverage
 ```
 
-## MySQL 支持
+## 运行 E2E 测试
 
-已添加 MySQL 支持模块 (`src/clj/com/ruoyi/infra/db.clj`):
-- 自动检测数据库类型 (SQLite/MySQL)
-- SQL 方言自动转换
-- 分页查询适配
-- 表结构查询适配
-
-配置示例见 `resources/config.edn`
+```bash
+# 确保后端在 localhost:3000 运行
+npx playwright test
+```

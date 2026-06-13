@@ -11,7 +11,7 @@
    :headers {"content-type" "application/json;charset=utf-8"}
    :body    (json/generate-string
              {:message   message
-              :exception (.getClass exception)
+              :exception (.getName (.getClass exception))
               :data      (ex-data exception)
               :uri       (:uri request)})})
 

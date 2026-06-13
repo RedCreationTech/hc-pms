@@ -27,7 +27,7 @@
 (defn- build-dept-filter
   "根据角色数据权限范围，生成部门过滤条件。
   返回 {:dept_ids [...] :user_id ...} 形式的参数 map 和 SQL where 片段。"
-  [role dept-ids alias]
+  [role dept-ids alias user-id]
   (let [scope (:data-scope role 5)
         alias  (or alias "u")]
     (case scope
@@ -53,7 +53,7 @@
           {:params {} :sql "1=0"})
 
       ;; 5: SELF — 仅本人
-      5 (if-let [uid (:user-id role)]
+      5 (if-let [uid user-id]
           {:params {:data-perm-user-id uid}
            :sql    (str " " alias ".user_id = :data-perm-user-id")}
           {:params {} :sql "1=0"}))))
@@ -76,5 +76,5 @@
       {:params {} :sql "1=1"}
       (let [role (first (filter #(= role-key (:role-key %)) roles))]
         (if role
-          (build-dept-filter role dept-ids alias)
+          (build-dept-filter role dept-ids alias user-id)
           {:params {} :sql "1=1"})))))
