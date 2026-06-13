@@ -7,19 +7,19 @@
 
 ## Phase 1 — 快速补全（可立即交付）
 
-### 1.1 文件管理接入路由与侧边栏菜单 🔴
+### 1.1 文件管理接入路由与侧边栏菜单 ✅
 - **现状**：`pages/file_manager.cljs` 页面和 `/api/system/file/*` 后端 API 已存在，但 `router.cljs` 未注册 `:file` 路由，侧边栏菜单也没有入口。
-- **目标**：
+- **已完成**：
   - 在 `src/cljs/com/ruoyi/frontend/router.cljs` 增加 `/system/file` → `:file` 路由。
-  - 在 `src/cljs/com/ruoyi/frontend/pages/layout.cljs` 注入文件管理菜单项（系统工具或系统管理下）。
+  - 在 `src/cljs/com/ruoyi/frontend/pages/layout.cljs` 注入文件管理菜单项（系统管理 → 文件管理）。
 - **验收**：登录后点击菜单能打开文件管理页面，上传/下载/删除可用。
 
-### 1.2 更新 `ROADMAP.md` 与 `GAP_ANALYSIS.md` 🔴
+### 1.2 更新 `ROADMAP.md` 与 `GAP_ANALYSIS.md` ✅
 - **现状**：两份文档与代码严重不同步，会误导后续开发。
-- **目标**：
+- **已完成**：
   - 把已实现的功能（角色/菜单/部门/岗位/服务监控/数据源监控/缓存监控/多 Tab/代码生成 UI/Swagger/文件管理/Integrant 监控）标记为完成。
   - 补充 Integrant 依赖视图与调用追踪说明。
-  - 修正总体完成度。
+  - 修正总体完成度到 ~95%。
 - **验收**：文档描述与 `src/cljs/com/ruoyi/frontend/pages/`、`src/clj/com/ruoyi/web/routes/system.clj` 一致。
 
 ---
