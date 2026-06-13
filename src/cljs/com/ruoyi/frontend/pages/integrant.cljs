@@ -148,8 +148,8 @@
   (let [data @(rf/subscribe [:integrant/data])
         [selected set-selected!] (hooks/use-state nil)
         [expanded set-expanded!] (hooks/use-state #{})
-        trace-data @(rf/subscribe [:integrant/trace selected])
-        trace-by-key @(rf/subscribe [:integrant/traces])]
+        trace-by-key @(rf/subscribe [:integrant/traces])
+        trace-data (get trace-by-key selected)]
     (hooks/use-effect
      (fn []
        (when (and (nil? selected) (seq (:order data)))
