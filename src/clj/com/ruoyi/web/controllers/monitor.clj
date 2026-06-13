@@ -2,7 +2,12 @@
   "系统监控控制器，提供服务器信息、数据源监控等。"
   (:require
    [ring.util.response :as response]
-   [clojure.string :as str])
+   [clojure.string :as str]
+   [integrant.core :as ig]
+   [com.ruoyi.config :as config]
+   [com.ruoyi.integrant.state :as integrant-state]
+   [com.ruoyi.integrant.trace :as trace]
+   [weavejester.dependency :as dep])
   (:import [java.lang.management ManagementFactory]
            [com.sun.management OperatingSystemMXBean]
            [java.io File]
@@ -166,3 +171,67 @@
       (ok {:db_name "unknown" :db_version "unknown" :active_connections 0}))
     (catch Exception e
       (ok {:status "error" :message (.getMessage e)}))))
+
+;; ─── Integrant config → system 监控 ─────────────────────────────────
+
+(defn- ^:private sanitize-key [k]
+  "把 Integrant key 统一转成无冒号的字符串，方便前端匹配。"
+  (if (keyword? k)
+    (subs (str k) 1)
+    (str k)))
+
+(defn- sanitize-value [v]
+  "把 #ig/ref 等不可 JSON 序列化的值转成可序列化结构。"
+  (cond
+    (ig/ref? v) {:__ig_ref true :key (str (:key v))}
+    (map? v) (into {} (map (fn [[k v]] [k (sanitize-value v)])) v)
+    (sequential? v) (mapv sanitize-value v)
+    (set? v) (into #{} (map sanitize-value v))
+    :else v))
+
+(defn- summarize-system-value [v]
+  "对运行时组件做摘要，避免直接序列化连接池等对象。"
+  (cond
+    (map? v) {:type (str (class v)) :kind "map" :keys (mapv sanitize-key (keys v))}
+    (sequential? v) {:type (str (class v)) :kind "seq" :count (count v)}
+    (fn? v) {:type "function" :kind "function"}
+    :else {:type (str (class v)) :kind "object" :value (str v)}))
+
+(defn integrant-info
+  "返回 Integrant 静态配置、依赖图与运行时系统摘要。"
+  [_ _]
+  (let [cfg (config/system-config {})
+        graph (ig/dependency-graph cfg)
+        order (vec (dep/topo-sort graph))
+        deps (into {} (map (fn [k] [(sanitize-key k) (mapv sanitize-key (dep/immediate-dependencies graph k))])) order)
+        dents (into {} (map (fn [k] [(sanitize-key k) (mapv sanitize-key (dep/immediate-dependents graph k))])) order)
+        sys @integrant-state/system
+        system-summary (into {} (map (fn [k] [(sanitize-key k) (summarize-system-value (get sys k))])) order)]
+    (ok {:config (sanitize-value cfg)
+        :order (mapv sanitize-key order)
+        :dependencies deps
+        :dependents dents
+        :system system-summary})))
+
+(defn- format-trace-log [log]
+  (let [type (cond (:error log) "error" (:result log) "return" :else "call")
+        value (str "args=" (pr-str (:args log))
+                   (when (:result log) (str " result=" (pr-str (:result log))))
+                   (when (:error log) (str " error=" (pr-str (:error log))))
+                   " duration=" (:duration log) "ms")]
+    {:id (str (:time log)) :type type :value value}))
+
+(defn integrant-trace
+  "开启/关闭某个函数组件的调用追踪。"
+  [_ {:keys [path-params body-params]}]
+  (let [key-str (:key path-params)
+        enabled? (boolean (:enabled body-params))]
+    (trace/set-active! key-str enabled?)
+    (ok {:active (trace/active? key-str)
+         :logs (mapv format-trace-log (trace/logs key-str))})))
+
+(defn integrant-trace-logs
+  "获取某个函数组件的追踪日志。"
+  [_ {:keys [path-params]}]
+  (ok {:active (trace/active? (:key path-params))
+       :logs (mapv format-trace-log (trace/logs (:key path-params)))}))

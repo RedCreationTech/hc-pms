@@ -4,6 +4,7 @@
    [integrant.core :as ig]
    [com.ruoyi.config :as config]
    [com.ruoyi.env :refer [defaults]]
+   [com.ruoyi.integrant.state :as integrant-state]
 
     ;; Edges
    [kit.edge.db.sql.conman]
@@ -45,7 +46,7 @@
                :exception ex
                :where (str "Uncaught exception on" (.getName thread))})))
 
-(defonce system (atom nil))
+(def system integrant-state/system)
 
 (defn stop-app []
   ((or (:stop defaults) (fn [])))

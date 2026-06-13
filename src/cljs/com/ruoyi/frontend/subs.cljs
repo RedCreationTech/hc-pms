@@ -516,6 +516,14 @@
             (fn [db _]
               (get-in db [:server :datasource])))
 
+(rf/reg-sub :integrant/data
+            (fn [db _]
+              (get-in db [:integrant :data])))
+
+(rf/reg-sub :integrant/trace
+            (fn [db [_ key]]
+              (get-in db [:integrant :trace key])))
+
 ;; ─── 缓存监控 ──────────────────────────────────────────────────────
 
 (rf/reg-sub :cache/data

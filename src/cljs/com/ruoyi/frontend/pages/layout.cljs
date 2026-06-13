@@ -47,6 +47,7 @@
    [com.ruoyi.frontend.pages.swagger :as swagger]
    [com.ruoyi.frontend.pages.form-builder :as form-builder]
    [com.ruoyi.frontend.pages.file-manager :as file-manager]
+   [com.ruoyi.frontend.pages.integrant :as integrant]
    [com.ruoyi.frontend.components.icon-picker :as icon-picker]))
 
 ;; ─── Tab 组件 ──────────────────────────────────────────────────────
@@ -233,6 +234,7 @@
    :server "monitor/server"
    :cache "monitor/cache"
    :datasource "monitor/datasource"
+   :integrant "monitor/integrant"
    :gen "monitor/gen"
    :swagger "monitor/swagger"
    :build "tool/build"
@@ -311,6 +313,22 @@
            {}
            menus)))
 
+(defn- inject-integrant-menu [menus]
+  "在「系统监控」目录下动态注入 Integrant 依赖菜单（演示用）。"
+  (mapv (fn [m]
+          (if (= "monitor" (:path m))
+            (update m :children (fnil conj [])
+                    {:path "integrant"
+                     :menu_name "Integrant 依赖"
+                     :menu_type "C"
+                     :visible "0"
+                     :status "0"
+                     :icon "FunctionOutlined"})
+            (if (seq (:children m))
+              (update m :children inject-integrant-menu)
+              m)))
+        menus))
+
 ;; ─── 主布局 ────────────────────────────────────────────────────────
 
 ;; ─── Tab 动画样式 ──────────────────────────────────────────────────────
@@ -361,10 +379,11 @@
             page @(rf/subscribe [:page])
             user-menus (or (seq (:menus user))
                            [{:path "dashboard" :menu_name "首页" :icon "dashboard"}])
-            filtered-menus (filter-visible-menus user-menus)
+            menus-with-integrant (inject-integrant-menu user-menus)
+            filtered-menus (filter-visible-menus menus-with-integrant)
             menu-items (menu->antd-items filtered-menus)
-            labels (page-labels user-menus)
-            icons (page-icons user-menus)]
+            labels (page-labels menus-with-integrant)
+            icons (page-icons menus-with-integrant)]
         [:> Layout {:style {:minHeight "100vh"}}
          ;; Tab 动画样式
          [tab-animation-styles]
@@ -453,6 +472,7 @@
              :server [server/server-page]
              :cache [cache/cache-page]
              :datasource [datasource/datasource-page]
+             :integrant [integrant/integrant-page]
              :gen [gen/gen-page]
              :swagger [swagger/swagger-page]
              :build [form-builder/form-builder-page]

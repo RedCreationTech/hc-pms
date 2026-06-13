@@ -49,6 +49,7 @@
      :job-logs {:loading? false :items [] :total 0}
      :profile {:loading? false}
      :server {:loading? false :data nil}
+     :integrant {:data nil :trace {}}
      :cache {:loading? false :data nil :names [] :selected-name nil :keys [] :value nil :value-visible? false}
      :file {:items [] :loading? false}
      :fb {:items [] :selected-id nil :code-visible? false}

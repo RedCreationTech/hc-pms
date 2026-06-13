@@ -322,6 +322,25 @@
   "获取服务器信息。"
   [on-success on-error]
   (request {:method :get :uri "/system/server"
+            :on-success on-success :on-error on-success}))
+
+(defn get-integrant-info
+  "获取 Integrant 配置、依赖图与运行时系统摘要。"
+  [on-success on-error]
+  (request {:method :get :uri "/system/integrant"
+            :on-success on-success :on-error on-error}))
+
+(defn set-integrant-trace
+  "开启/关闭某个 Integrant 函数组件的调用追踪。"
+  [key enabled? on-success on-error]
+  (request {:method :post :uri (str "/system/integrant/trace/" key)
+            :params {:enabled enabled?}
+            :on-success on-success :on-error on-error}))
+
+(defn get-integrant-trace-logs
+  "获取某个 Integrant 函数组件的追踪日志。"
+  [key on-success on-error]
+  (request {:method :get :uri (str "/system/integrant/trace/" key)
             :on-success on-success :on-error on-error}))
 
 ;; ─── 缓存监控 ──────────────────────────────────────────────────────

@@ -256,6 +256,13 @@
    ["/datasource" {:get {:summary "数据源监控" :description "数据库连接池状态"
                          :handler (partial monitor/datasource-info {:datasource datasource})}}]
 
+   ["/integrant" {:get {:summary "Integrant 依赖" :description "Integrant 配置、依赖图与运行时系统摘要"
+                        :handler (partial monitor/integrant-info {})}}]
+
+   ["/integrant/trace/*key"
+    {:get {:summary "Integrant 函数追踪日志" :handler (partial monitor/integrant-trace-logs {})}
+     :post {:summary "开启/关闭 Integrant 函数追踪" :handler (partial monitor/integrant-trace {})}}]
+
    ["/cache"
     ["" {:get {:summary "缓存信息" :description "获取缓存名称、类型、键数量等"
                :handler (partial cache/cache-info {})}}]

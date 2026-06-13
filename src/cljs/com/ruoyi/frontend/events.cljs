@@ -1472,6 +1472,48 @@
               (fn [r] (when (= 200 (:code r)) (rf/dispatch [:server/set-datasource (:data r)])))
               (fn [_]))))
 
+;; ────── Integrant 依赖监控 ──────
+
+(rf/reg-event-db :integrant/set-data
+                 (fn [db [_ data]]
+                   (assoc-in db [:integrant :data] data)))
+
+(rf/reg-event-fx :integrant/fetch
+                 (fn [{:keys [db]} _]
+                   {:db db :api/get-integrant-info nil}))
+
+(rf/reg-fx :api/get-integrant-info
+           (fn [_]
+             (api/get-integrant-info
+              (fn [r] (when (= 200 (:code r)) (rf/dispatch [:integrant/set-data (:data r)])))
+              (fn [_]))))
+
+(rf/reg-event-db :integrant/set-trace
+                 (fn [db [_ key data]]
+                   (assoc-in db [:integrant :trace key] data)))
+
+(rf/reg-event-fx :integrant/toggle-trace
+                 (fn [{:keys [db]} [_ key enabled?]]
+                   {:db db :api/set-integrant-trace [key enabled?]}))
+
+(rf/reg-fx :api/set-integrant-trace
+           (fn [[key enabled?]]
+             (api/set-integrant-trace
+              key enabled?
+              (fn [r] (when (= 200 (:code r)) (rf/dispatch [:integrant/set-trace key (:data r)])))
+              (fn [_]))))
+
+(rf/reg-event-fx :integrant/fetch-trace-logs
+                 (fn [{:keys [db]} [_ key]]
+                   {:db db :api/get-integrant-trace-logs key}))
+
+(rf/reg-fx :api/get-integrant-trace-logs
+           (fn [key]
+             (api/get-integrant-trace-logs
+              key
+              (fn [r] (when (= 200 (:code r)) (rf/dispatch [:integrant/set-trace key (:data r)])))
+              (fn [_]))))
+
 ;; ────── 代码生成器 ──────
 
 (rf/reg-event-db :gen/set-tables
