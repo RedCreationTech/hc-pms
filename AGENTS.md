@@ -447,6 +447,30 @@ clojure -T:build all            # Build standalone jar (includes frontend)
 java -jar target/rouyi-standalone.jar  # Run (port 3000, SQLite)
 ```
 
+### E2E 测试 (Playwright)
+
+已接入 Playwright 对主要功能做端到端验证，默认跑在 `http://localhost:3000`。
+
+```bash
+# 安装浏览器（首次）
+npx playwright install chromium
+
+# 运行全部 E2E 用例并生成 HTML/JSON 报告
+npm run test:e2e
+
+# 查看 HTML 报告
+npm run test:e2e:report
+```
+
+测试目录：`tests/e2e/`
+
+- `auth.spec.js` — 管理员登录/登出
+- `navigation.spec.js` — 系统管理、系统监控、系统工具等核心菜单可访问性
+- `post-crud.spec.js` — 岗位管理新增/修改/删除示例
+- `auth-helper.js` — 登录/登出公共辅助
+
+报告输出：`playwright-report/`
+
 ### API Access
 
 - Swagger UI: `http://localhost:3000/api`

@@ -20,3 +20,6 @@ CLAUDE.local.md
 .clj-kondo/
 .lsp/.cache/
 .lsp/.cache/
+
+# Playwright
+test-results/

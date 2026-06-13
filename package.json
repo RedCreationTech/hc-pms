@@ -15,6 +15,8 @@
   },
   "scripts": {
     "watch": "npx shadow-cljs watch app",
-    "release": "npx shadow-cljs release app"
+    "release": "npx shadow-cljs release app",
+    "test:e2e": "npx playwright test",
+    "test:e2e:report": "npx playwright show-report"
   }
 }
