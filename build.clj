@@ -4,7 +4,7 @@
             [clojure.java.io :as io]))
 
 (def lib 'com.ruoyi/rouyi)
-(def main-cls (string/join "." (filter some? [(namespace lib) (name lib) "core"])))
+(def main-cls "com.ruoyi.core")
 (def version (format "0.0.1-SNAPSHOT"))
 (def target-dir "target")
 (def class-dir (str target-dir "/" "classes"))

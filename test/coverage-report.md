@@ -110,24 +110,24 @@
 clojure -M:test -e "
 (require '[clojure.test :refer [run-tests]])
 (run-tests
-  'com.ruoyi.rouyi.domain.gen-test
-  'com.ruoyi.rouyi.domain.system.config-test
-  'com.ruoyi.rouyi.domain.system.dept-test
-  'com.ruoyi.rouyi.domain.system.dict-test
-  'com.ruoyi.rouyi.domain.system.log-test
-  'com.ruoyi.rouyi.domain.system.menu-test
-  'com.ruoyi.rouyi.domain.system.post-test
-  'com.ruoyi.rouyi.domain.system.role-test
-  'com.ruoyi.rouyi.domain.system.user-test
-  'com.ruoyi.rouyi.infra.cache-test
-  'com.ruoyi.rouyi.infra.db-test
-  'com.ruoyi.rouyi.infra.security-test)
+  'com.ruoyi.domain.gen-test
+  'com.ruoyi.domain.system.config-test
+  'com.ruoyi.domain.system.dept-test
+  'com.ruoyi.domain.system.dict-test
+  'com.ruoyi.domain.system.log-test
+  'com.ruoyi.domain.system.menu-test
+  'com.ruoyi.domain.system.post-test
+  'com.ruoyi.domain.system.role-test
+  'com.ruoyi.domain.system.user-test
+  'com.ruoyi.infra.cache-test
+  'com.ruoyi.infra.db-test
+  'com.ruoyi.infra.security-test)
 "
 ```
 
 ## MySQL 支持
 
-已添加 MySQL 支持模块 (`src/clj/com/ruoyi/rouyi/infra/db.clj`):
+已添加 MySQL 支持模块 (`src/clj/com/ruoyi/infra/db.clj`):
 - 自动检测数据库类型 (SQLite/MySQL)
 - SQL 方言自动转换
 - 分页查询适配

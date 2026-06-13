@@ -144,7 +144,7 @@
 
 #### 后端缓存 API（基于 Clojure 内置缓存）
 ```clojure
-(ns com.ruoyi.rouyi.infra.cache
+(ns com.ruoyi.infra.cache
   "内存缓存管理，不依赖 Redis。"
   (:require [clojure.core.cache :as cache]))
 

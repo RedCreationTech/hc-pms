@@ -17,3 +17,4 @@ cpcache/
 .runtime/
 CLAUDE.local.md
 .cpcache/
+.clj-kondo/

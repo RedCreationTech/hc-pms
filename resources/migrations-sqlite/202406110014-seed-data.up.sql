@@ -106,5 +106,5 @@ INSERT INTO sys_config (config_id, config_name, config_key, config_value, config
 --;;
 -- 初始化定时任务
 INSERT INTO sys_job (job_id, job_name, job_group, invoke_target, cron_expression, misfire_policy, concurrent, status) VALUES
-(1, '系统默认（无参）', 'DEFAULT', 'com.ruoyi.rouyi.task/ry-no-params', '0/10 * * * * ?', '3', '1', '0'),
-(2, '系统默认（有参）', 'DEFAULT', 'com.ruoyi.rouyi.task/ry-params(''hello'')', '0/15 * * * * ?', '3', '1', '0');
+(1, '系统默认（无参）', 'DEFAULT', 'com.ruoyi.task/ry-no-params', '0/10 * * * * ?', '3', '1', '0'),
+(2, '系统默认（有参）', 'DEFAULT', 'com.ruoyi.task/ry-params(''hello'')', '0/15 * * * * ?', '3', '1', '0');

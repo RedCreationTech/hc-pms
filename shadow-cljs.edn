@@ -1,4 +1,4 @@
-{:source-paths ["frontend/src"]
+{:source-paths ["src/cljs"]
 
  :dependencies [[reagent "2.0.1"]
                 [re-frame "1.4.3"]
@@ -11,8 +11,8 @@
   {:target     :browser
    :output-dir "resources/public/js"
    :asset-path "/js"
-   :modules    {:app {:init-fn com.ruoyi.rouyi.frontend.app/init}}
-   :devtools   {:after-load com.ruoyi.rouyi.frontend.app/reload}
+   :modules    {:app {:init-fn com.ruoyi.frontend.app/init}}
+   :devtools   {:after-load com.ruoyi.frontend.app/reload}
    :compiler-options {:output-feature-set :es8}
    :js-options {:ignore-asset-requires true
                 :resolve {"@rc-component/qrcode" false
