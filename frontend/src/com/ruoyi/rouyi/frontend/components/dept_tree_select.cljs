@@ -12,7 +12,7 @@
   (->> items
        (filter #(= parent-id (:parent_id %)))
        (mapv (fn [d]
-               (let [node {:title (:dept_name d) :value (:dept_id d) :key (str (:dept_id d))}]
+               (let [node {:title (:dept_name d) :value (str (:dept_id d)) :key (str (:dept_id d))}]
                  (if-let [children (seq (build-tree-data items (:dept_id d)))]
                    (assoc node :children children)
                    node))))))
