@@ -7,8 +7,8 @@ SELECT u.user_id, u.dept_id, u.user_name, u.nick_name, u.user_type, u.email,
 FROM sys_user u
 LEFT JOIN sys_dept d ON u.dept_id = d.dept_id
 WHERE u.del_flag = '0'
-  AND (:user_name IS NULL OR u.user_name LIKE '%' || :user_name || '%')
-  AND (:phonenumber IS NULL OR u.phonenumber LIKE '%' || :phonenumber || '%')
+  AND (:user_name IS NULL OR INSTR(u.user_name, :user_name) > 0)
+  AND (:phonenumber IS NULL OR INSTR(u.phonenumber, :phonenumber) > 0)
   AND (:status IS NULL OR u.status = :status)
   AND (:dept_id IS NULL OR u.dept_id = :dept_id)
 ORDER BY u.user_id
@@ -19,8 +19,8 @@ LIMIT :page_size OFFSET :offset
 SELECT COUNT(*) AS total
 FROM sys_user u
 WHERE u.del_flag = '0'
-  AND (:user_name IS NULL OR u.user_name LIKE '%' || :user_name || '%')
-  AND (:phonenumber IS NULL OR u.phonenumber LIKE '%' || :phonenumber || '%')
+  AND (:user_name IS NULL OR INSTR(u.user_name, :user_name) > 0)
+  AND (:phonenumber IS NULL OR INSTR(u.phonenumber, :phonenumber) > 0)
   AND (:status IS NULL OR u.status = :status)
   AND (:dept_id IS NULL OR u.dept_id = :dept_id)
 
@@ -97,7 +97,7 @@ DELETE FROM sys_user_post WHERE user_id = :user_id
 -- :doc 查询部门列表
 SELECT * FROM sys_dept WHERE del_flag = '0'
   AND (:status IS NULL OR status = :status)
-  AND (:dept_name IS NULL OR dept_name LIKE '%' || :dept_name || '%')
+  AND (:dept_name IS NULL OR INSTR(dept_name, :dept_name) > 0)
 ORDER BY parent_id, order_num
 
 -- :name find-dept-by-id :? :1
@@ -132,7 +132,7 @@ UPDATE sys_dept SET del_flag = '2', update_time = CURRENT_TIMESTAMP WHERE dept_i
 
 -- :name list-roles :? :*
 SELECT * FROM sys_role WHERE del_flag = '0'
-  AND (:role_name IS NULL OR role_name LIKE '%' || :role_name || '%')
+  AND (:role_name IS NULL OR INSTR(role_name, :role_name) > 0)
   AND (:role_key IS NULL OR role_key = :role_key)
   AND (:status IS NULL OR status = :status)
 ORDER BY role_sort
@@ -163,7 +163,7 @@ UPDATE sys_role SET del_flag = '2', update_time = CURRENT_TIMESTAMP WHERE role_i
 
 -- :name list-menus :? :*
 SELECT * FROM sys_menu
-WHERE (:menu_name IS NULL OR menu_name LIKE '%' || :menu_name || '%')
+WHERE (:menu_name IS NULL OR INSTR(menu_name, :menu_name) > 0)
   AND (:status IS NULL OR status = :status)
   AND (:menu_type IS NULL OR menu_type = :menu_type)
 ORDER BY parent_id, order_num
@@ -215,8 +215,8 @@ INSERT INTO sys_role_menu (role_id, menu_id) VALUES (:role_id, :menu_id)
 
 -- :name list-posts :? :*
 SELECT * FROM sys_post WHERE 1=1
-  AND (:post_code IS NULL OR post_code LIKE '%' || :post_code || '%')
-  AND (:post_name IS NULL OR post_name LIKE '%' || :post_name || '%')
+  AND (:post_code IS NULL OR INSTR(post_code, :post_code) > 0)
+  AND (:post_name IS NULL OR INSTR(post_name, :post_name) > 0)
   AND (:status IS NULL OR status = :status)
 ORDER BY post_sort
 
@@ -243,8 +243,8 @@ DELETE FROM sys_post WHERE post_id = :post_id
 
 -- :name list-dict-types :? :*
 SELECT * FROM sys_dict_type WHERE 1=1
-  AND (:dict_name IS NULL OR dict_name LIKE '%' || :dict_name || '%')
-  AND (:dict_type IS NULL OR dict_type LIKE '%' || :dict_type || '%')
+  AND (:dict_name IS NULL OR INSTR(dict_name, :dict_name) > 0)
+  AND (:dict_type IS NULL OR INSTR(dict_type, :dict_type) > 0)
   AND (:status IS NULL OR status = :status)
 ORDER BY dict_id
 
@@ -271,7 +271,7 @@ DELETE FROM sys_dict_type WHERE dict_id = :dict_id
 -- :name list-dict-data :? :*
 SELECT * FROM sys_dict_data WHERE 1=1
   AND (:dict_type IS NULL OR dict_type = :dict_type)
-  AND (:dict_label IS NULL OR dict_label LIKE '%' || :dict_label || '%')
+  AND (:dict_label IS NULL OR INSTR(dict_label, :dict_label) > 0)
   AND (:status IS NULL OR status = :status)
 ORDER BY dict_sort
 
@@ -302,8 +302,8 @@ DELETE FROM sys_dict_data WHERE dict_code = :dict_code
 
 -- :name list-configs :? :*
 SELECT * FROM sys_config WHERE 1=1
-  AND (:config_name IS NULL OR config_name LIKE '%' || :config_name || '%')
-  AND (:config_key IS NULL OR config_key LIKE '%' || :config_key || '%')
+  AND (:config_name IS NULL OR INSTR(config_name, :config_name) > 0)
+  AND (:config_key IS NULL OR INSTR(config_key, :config_key) > 0)
   AND (:config_type IS NULL OR config_type = :config_type)
 ORDER BY config_id
 
@@ -343,18 +343,18 @@ SELECT current_database() AS db_name, version() AS db_version,
 -- :name list-notices :? :*
 -- :doc 查询通知公告列表
 SELECT * FROM sys_notice
-WHERE (:notice_name IS NULL OR notice_name LIKE '%' || :notice_name || '%')
+WHERE (:notice_name IS NULL OR INSTR(notice_name, :notice_name) > 0)
   AND (:notice_type IS NULL OR notice_type = :notice_type)
-  AND (:create_by IS NULL OR create_by LIKE '%' || :create_by || '%')
+  AND (:create_by IS NULL OR INSTR(create_by, :create_by) > 0)
 ORDER BY notice_id DESC
 LIMIT :page_size OFFSET :offset
 
 -- :name count-notices :? :1
 -- :doc 统计通知公告数量
 SELECT COUNT(*) AS total FROM sys_notice
-WHERE (:notice_name IS NULL OR notice_name LIKE '%' || :notice_name || '%')
+WHERE (:notice_name IS NULL OR INSTR(notice_name, :notice_name) > 0)
   AND (:notice_type IS NULL OR notice_type = :notice_type)
-  AND (:create_by IS NULL OR create_by LIKE '%' || :create_by || '%')
+  AND (:create_by IS NULL OR INSTR(create_by, :create_by) > 0)
 
 -- :name find-notice-by-id :? :1
 -- :doc 根据ID查询通知公告
@@ -394,8 +394,8 @@ SELECT u.* FROM sys_user u
 INNER JOIN sys_user_role ur ON u.user_id = ur.user_id
 WHERE ur.role_id = :role_id
   AND u.del_flag = '0'
-  AND (:user_name IS NULL OR u.user_name LIKE '%' || :user_name || '%')
-  AND (:phonenumber IS NULL OR u.phonenumber LIKE '%' || :phonenumber || '%')
+  AND (:user_name IS NULL OR INSTR(u.user_name, :user_name) > 0)
+  AND (:phonenumber IS NULL OR INSTR(u.phonenumber, :phonenumber) > 0)
 ORDER BY u.create_time DESC
 
 -- :name list-users-not-in-role :? :*
@@ -403,8 +403,8 @@ ORDER BY u.create_time DESC
 SELECT u.* FROM sys_user u
 WHERE u.del_flag = '0'
   AND u.user_id NOT IN (SELECT user_id FROM sys_user_role WHERE role_id = :role_id)
-  AND (:user_name IS NULL OR u.user_name LIKE '%' || :user_name || '%')
-  AND (:phonenumber IS NULL OR u.phonenumber LIKE '%' || :phonenumber || '%')
+  AND (:user_name IS NULL OR INSTR(u.user_name, :user_name) > 0)
+  AND (:phonenumber IS NULL OR INSTR(u.phonenumber, :phonenumber) > 0)
 ORDER BY u.create_time DESC
 
 -- :name delete-user-role! :! :n

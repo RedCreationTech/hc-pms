@@ -1,7 +1,7 @@
 -- :name list-oper-logs :? :*
 SELECT * FROM sys_oper_log WHERE 1=1
-  AND (:title IS NULL OR title LIKE '%' || :title || '%')
-  AND (:oper_name IS NULL OR oper_name LIKE '%' || :oper_name || '%')
+  AND (:title IS NULL OR INSTR(title, :title) > 0)
+  AND (:oper_name IS NULL OR INSTR(oper_name, :oper_name) > 0)
   AND (:business_type IS NULL OR business_type = :business_type)
   AND (:status IS NULL OR status = :status)
   AND (:begin_time IS NULL OR oper_time >= :begin_time)
@@ -11,8 +11,8 @@ LIMIT :page_size OFFSET :offset
 
 -- :name count-oper-logs :? :1
 SELECT COUNT(*) AS total FROM sys_oper_log WHERE 1=1
-  AND (:title IS NULL OR title LIKE '%' || :title || '%')
-  AND (:oper_name IS NULL OR oper_name LIKE '%' || :oper_name || '%')
+  AND (:title IS NULL OR INSTR(title, :title) > 0)
+  AND (:oper_name IS NULL OR INSTR(oper_name, :oper_name) > 0)
   AND (:business_type IS NULL OR business_type = :business_type)
   AND (:status IS NULL OR status = :status)
   AND (:begin_time IS NULL OR oper_time >= :begin_time)
@@ -29,8 +29,8 @@ DELETE FROM sys_oper_log WHERE 1=1
 
 -- :name list-login-logs :? :*
 SELECT * FROM sys_login_log WHERE 1=1
-  AND (:user_name IS NULL OR user_name LIKE '%' || :user_name || '%')
-  AND (:ipaddr IS NULL OR ipaddr LIKE '%' || :ipaddr || '%')
+  AND (:user_name IS NULL OR INSTR(user_name, :user_name) > 0)
+  AND (:ipaddr IS NULL OR INSTR(ipaddr, :ipaddr) > 0)
   AND (:status IS NULL OR status = :status)
   AND (:begin_time IS NULL OR login_time >= :begin_time)
   AND (:end_time IS NULL OR login_time <= :end_time)
@@ -39,8 +39,8 @@ LIMIT :page_size OFFSET :offset
 
 -- :name count-login-logs :? :1
 SELECT COUNT(*) AS total FROM sys_login_log WHERE 1=1
-  AND (:user_name IS NULL OR user_name LIKE '%' || :user_name || '%')
-  AND (:ipaddr IS NULL OR ipaddr LIKE '%' || :ipaddr || '%')
+  AND (:user_name IS NULL OR INSTR(user_name, :user_name) > 0)
+  AND (:ipaddr IS NULL OR INSTR(ipaddr, :ipaddr) > 0)
   AND (:status IS NULL OR status = :status)
   AND (:begin_time IS NULL OR login_time >= :begin_time)
   AND (:end_time IS NULL OR login_time <= :end_time)
@@ -56,15 +56,15 @@ DELETE FROM sys_login_log WHERE 1=1
 
 -- :name list-online-users :? :*
 SELECT * FROM sys_online WHERE 1=1
-  AND (:ipaddr IS NULL OR ipaddr LIKE '%' || :ipaddr || '%')
-  AND (:login_name IS NULL OR login_name LIKE '%' || :login_name || '%')
+  AND (:ipaddr IS NULL OR INSTR(ipaddr, :ipaddr) > 0)
+  AND (:login_name IS NULL OR INSTR(login_name, :login_name) > 0)
 ORDER BY last_access_time DESC
 LIMIT :page_size OFFSET :offset
 
 -- :name count-online-users :? :1
 SELECT COUNT(*) AS total FROM sys_online WHERE 1=1
-  AND (:ipaddr IS NULL OR ipaddr LIKE '%' || :ipaddr || '%')
-  AND (:login_name IS NULL OR login_name LIKE '%' || :login_name || '%')
+  AND (:ipaddr IS NULL OR INSTR(ipaddr, :ipaddr) > 0)
+  AND (:login_name IS NULL OR INSTR(login_name, :login_name) > 0)
 
 -- :name create-online-user! :! :n
 INSERT INTO sys_online (session_id, login_name, dept_name, ipaddr, login_location, browser, os, status, start_timestamp, last_access_time, expire_time)
