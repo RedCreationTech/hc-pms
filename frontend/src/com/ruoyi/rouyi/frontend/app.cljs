@@ -16,6 +16,10 @@
 
 (defonce root (atom nil))
 
+(defn- message-init []
+  (antd/use-app-message)
+  nil)
+
 (defn- current-page []
   (let [page @(rf/subscribe [:page])
         logged-in? @(rf/subscribe [:auth/logged-in?])
@@ -40,10 +44,6 @@
         [message-init]
         [layout/main-layout]]]
       [login/login-page])))
-
-(defn- message-init []
-  (antd/use-app-message)
-  nil)
 
 (defn app []
   [current-page])

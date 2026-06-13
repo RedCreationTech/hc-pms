@@ -24,7 +24,7 @@
       [:span {:style {:fontSize 14 :fontWeight 500}} label]
       [:span {:style {:fontSize 14 :color "#666"}} (str percent "%")]]
      [:> Progress {:percent percent :strokeColor color :showInfo false
-                     :strokeWidth 10 :trailColor "#f0f0f0"}]
+                     :size 10 :railColor "#f0f0f0"}]
      [:div {:style {:display "flex" :justifyContent "space-between" :marginTop 4 :fontSize 12 :color "#999"}}
       [:span (str "已用: " (if unit (unit used) used))]
       [:span (str "总计: " (if unit (unit total) total))]]]))

@@ -1142,6 +1142,8 @@
 
 ;; ────── 部门管理 ──────
 
+(declare build-dept-tree)
+
 (rf/reg-event-db :depts/set-list
                  (fn [db [_ data]]
                    (let [items (if (sequential? data) data (:rows data []))
@@ -1723,6 +1725,7 @@
 (rf/reg-fx :api/list-menus-search
            (fn [params]
              (api/list-menus
+              {}
               (fn [result]
                 (when (= 200 (:code result))
                   (let [data (:data result)

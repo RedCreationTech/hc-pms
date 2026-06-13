@@ -20,7 +20,7 @@
        #js {:title "状态" :dataIndex "status" :key "status" :width 80
             :render (fn [v] (r/as-element [status-tag v]))}
        #js {:title "操作" :key "action" :width 280
-            :render (fn [_ record]
+            :render (fn [_ ^js record]
                       (r/as-element
                        [antd/space
                         [antd/button {:type "link" :size "small"

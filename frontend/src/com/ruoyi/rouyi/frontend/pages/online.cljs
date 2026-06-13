@@ -20,7 +20,7 @@
                       (r/as-element
                        [:span (when v (.toLocaleString (js/Date. v)))]))}
        #js {:title "操作" :key "action"
-            :render (fn [_ record]
+            :render (fn [_ ^js record]
                       (r/as-element
                        [antd/button {:type "link" :danger true :size "small"
                                      :onClick #(rf/dispatch [:online-users/force-logout (.-token-id record)])}

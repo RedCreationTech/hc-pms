@@ -274,6 +274,16 @@ React 会警告 shorthand 与非 shorthand 属性冲突，应把颜色合并到 
 [antd/modal {:destroyOnHidden true ...}]
 ```
 
+### 15. Progress 的 `strokeWidth` / `trailColor` 已废弃，改用 `size` / `railColor`
+
+```clojure
+;; ❌ 错误
+[:> Progress {:percent percent :strokeWidth 10 :trailColor "#f0f0f0"}]
+
+;; ✅ 正确
+[:> Progress {:percent percent :size 10 :railColor "#f0f0f0"}]
+```
+
 ## RuoYi-Vue 对照参考
 
 参考项目：https://gitee.com/y_project/RuoYi-Vue (master 分支, Spring Boot 4.x + Vue 3)
