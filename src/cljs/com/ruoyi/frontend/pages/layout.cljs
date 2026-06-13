@@ -26,6 +26,7 @@
                                 MenuFoldOutlined MenuUnfoldOutlined]]
    [com.ruoyi.frontend.router :as router]
    [com.ruoyi.frontend.components.theme-switcher :as theme-switcher]
+   [com.ruoyi.frontend.components.error-boundary :as error-boundary]
    [com.ruoyi.frontend.pages.dashboard :as dashboard]
    [com.ruoyi.frontend.pages.user :as user]
    [com.ruoyi.frontend.pages.role :as role]
@@ -497,12 +498,13 @@
               [:span {:style {:fontSize 14}} (get-in user [:user :nick_name] "管理员")]]]]]
           ;; Tab 栏
           [tab-bar]
-          ;; 内容区
+          ;; 内容区（加 Error Boundary，避免单个页面崩溃导致整个布局白屏）
           [:> Layout.Content {:style {:margin 24}
                               :key (name page)
                               :class "tab-content-enter"}
-           (case page
-             :dashboard [dashboard/dashboard-page]
+           [error-boundary/boundary
+            (case page
+              :dashboard [dashboard/dashboard-page]
              :solution-home [business/solution-home-page]
              :project-info [business/project-page]
              :resource-standard [business/resource-page :standard]
@@ -532,4 +534,4 @@
              :build [form-builder/form-builder-page]
              :file [file-manager/file-manager-page]
              [:div {:style {:padding 48 :textAlign "center" :color "#999" :fontSize 16}}
-              "页面建设中"])]]]))
+              "页面建设中"])]]]]))

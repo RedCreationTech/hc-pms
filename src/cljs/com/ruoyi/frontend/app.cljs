@@ -6,7 +6,11 @@
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
    ["antd" :refer [ConfigProvider]]
+   ["antd/locale/zh_CN" :default zh-CN]
+   ["dayjs" :as dayjs]
+   ["dayjs/locale/zh-cn"]
    [com.ruoyi.frontend.antd :as antd]
+   [com.ruoyi.frontend.components.error-boundary :as error-boundary]
    [com.ruoyi.frontend.events]
    [com.ruoyi.frontend.subs]
    [com.ruoyi.frontend.theme :as theme]
@@ -35,18 +39,25 @@
                (if is-dark? "#000" "#f5f5f5"))
          js/undefined))
      [theme-mode])
+    ;; 确保日期、时间等组件使用中文
+    (hooks/use-effect
+     (fn []
+       (.locale dayjs "zh-cn")
+       js/undefined)
+     [])
     (if logged-in?
       [:> ConfigProvider {:theme (theme/theme-config
                                   {:mode theme-mode
                                    :primary-color primary-color
-                                   :algorithm algorithm})}
+                                   :algorithm algorithm})
+                          :locale zh-CN}
        [antd/app
         [message-init]
         [layout/main-layout]]]
       [login/login-page])))
 
 (defn app []
-  [current-page])
+  [error-boundary/boundary [current-page]])
 
 (defn init []
   (rf/dispatch-sync [:initialize-db])
