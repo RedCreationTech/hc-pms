@@ -362,8 +362,8 @@ SELECT * FROM sys_notice WHERE notice_id = :notice_id
 
 -- :name create-notice! :! :n
 -- :doc 新增通知公告
-INSERT INTO sys_notice (notice_name, notice_type, status, create_by, create_time, remark)
-VALUES (:notice_name, :notice_type, :status, :create_by, CURRENT_TIMESTAMP, :remark)
+INSERT INTO sys_notice (notice_name, notice_type, status, create_by, create_time, notice_content, remark)
+VALUES (:notice_name, :notice_type, :status, :create_by, CURRENT_TIMESTAMP, :notice_content, :remark)
 
 -- :name update-notice! :! :n
 -- :doc 更新通知公告
@@ -371,6 +371,7 @@ UPDATE sys_notice
 SET notice_name = COALESCE(:notice_name, notice_name),
     notice_type = COALESCE(:notice_type, notice_type),
     status = COALESCE(:status, status),
+    notice_content = COALESCE(:notice_content, notice_content),
     update_by = :update_by,
     update_time = CURRENT_TIMESTAMP,
     remark = COALESCE(:remark, remark)

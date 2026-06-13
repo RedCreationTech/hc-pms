@@ -33,12 +33,12 @@
   - 预览弹窗接入 `react-syntax-highlighter`，按 Clojure/SQL 语法高亮。
 - **验收**：生成代码后可一键下载 ZIP；预览代码按 Clojure/ClojureScript/SQL 高亮。
 
-### 2.2 表单构建器：后端持久化 🟡
+### 2.2 表单构建器：后端持久化 ✅
 - **现状**：前端拖拽设计器已存在，但无法保存/加载模板。
-- **目标**：
-  - 设计 `form_template` 表（id, name, schema_json, create_time, ...）。
-  - 后端 CRUD API：`/api/system/form-template`。
-  - 前端列表页 + 保存/加载/删除模板。
+- **已完成**：
+  - 新增 `sys_form_template` 表及迁移文件。
+  - 后端 CRUD API `/api/system/form-template`。
+  - 前端 form builder 增加“保存模板”弹窗和“加载模板”抽屉，支持保存/加载/删除。
 - **验收**：设计好的表单可以命名保存，后续从列表加载继续编辑。
 
 ### 2.3 通知公告富文本编辑器 🟡

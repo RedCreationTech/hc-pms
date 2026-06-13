@@ -55,6 +55,7 @@
                   :notice_type (:notice_type body "1")
                   :status      (:status body "0")
                   :create_by   (:user-name identity "")
+                  :notice_content (:notice_content body "")
                   :remark      (:remark body "")}]
       (query-fn :create-notice! params)
       (ok "创建成功"))
@@ -70,6 +71,7 @@
                   :notice_name (:notice_name body)
                   :notice_type (:notice_type body)
                   :status      (:status body)
+                  :notice_content (:notice_content body)
                   :update_by   (get-in request [:identity :user-name] "")
                   :remark      (:remark body)}]
       (query-fn :update-notice! params)

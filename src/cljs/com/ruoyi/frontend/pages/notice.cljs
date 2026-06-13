@@ -6,6 +6,7 @@
    [reagent.hooks :as hooks]
    [clojure.string :as str]
    ["@ant-design/icons" :refer [PlusOutlined SearchOutlined ReloadOutlined]]
+   ["react-quill-new" :default ReactQuill]
    [com.ruoyi.frontend.antd :as antd]))
 
 (defn- notice-columns []
@@ -69,6 +70,8 @@
        [antd/radio-group
         [antd/radio {:value "0"} "正常"]
         [antd/radio {:value "1"} "关闭"]]]
+      [antd/form-item {:label "内容" :name "notice_content"}
+       [:> ReactQuill {:theme "snow" :placeholder "请输入公告内容" :style {:height 200}}]]
       [antd/form-item {:label "备注" :name "remark"}
        [antd/text-area {:placeholder "请输入备注" :rows 4}]]]]))
 
