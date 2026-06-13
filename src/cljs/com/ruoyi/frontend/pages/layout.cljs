@@ -323,8 +323,9 @@
                              (str "menu-" (:menu_id m)))
                   item {:key item-key
                         :label (:menu_name m)}
-                  icon-el (when (and (:icon m) (not= (:icon m) "#"))
-                            (icon-picker/icon-element (:icon m) {:style {:fontSize 14}}))]
+                  icon-name (or (and (:icon m) (not= (:icon m) "#") (:icon m))
+                                "ContainerOutlined")
+                  icon-el (icon-picker/icon-element icon-name {:style {:fontSize 14}})]
               (cond-> item
                 icon-el
                 (assoc :icon icon-el)
@@ -368,8 +369,9 @@
                    matched (when (seq full-path)
                              (router/match-route (str "/" full-path)))
                    route-key (:handler matched)
-                   icon (:icon m)
-                   acc (if (and route-key (seq icon))
+                   icon (or (and (seq (:icon m)) (not= (:icon m) "#") (:icon m))
+                            "ContainerOutlined")
+                   acc (if route-key
                          (assoc acc route-key icon)
                          acc)]
                (if (seq (:children m))
