@@ -3,7 +3,8 @@
   (:require
    [com.ruoyi.infra.security :as security]
    [clojure.string :as str]
-   [clojure.tools.logging :as log]))
+   [clojure.tools.logging :as log]
+   [com.ruoyi.infra.db :as db]))
 
 (defn list-users
   "查询用户列表，支持分页和条件筛选。"
@@ -35,15 +36,12 @@
 
 (defn create-user!
   "创建新用户，自动加密密码。"
-  [{:keys [query-fn]} {:keys [password roles posts] :as params}]
+  [{:keys [query-fn db]} {:keys [password roles posts] :as params}]
   (let [hashed (security/hash-password password)]
-    (query-fn :create-user!
-              (-> params
-                  (assoc :password hashed)
-                  (dissoc :roles :posts)))
-    ;; SQLite: 通过 last_insert_rowid() 获取刚插入的ID
-    (let [row (query-fn :last-insert-rowid {})
-          user-id (get row (keyword "last_insert_rowid()"))]
+    (let [user-id (db/insert-and-get-id! query-fn db :create-user!
+                                         (-> params
+                                             (assoc :password hashed)
+                                             (dissoc :roles :posts)))]
       ;; 关联角色
       (doseq [role-id roles]
         (query-fn :insert-user-role! {:user_id user-id :role_id role-id}))

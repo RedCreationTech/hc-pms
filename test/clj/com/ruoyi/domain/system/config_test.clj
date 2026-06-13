@@ -13,7 +13,7 @@
     :find-config-by-id (first mock-configs)
     :find-config-by-key (first mock-configs)
     :create-config! [{:config_id 3}]
-    :last-insert-rowid {(keyword "last_insert_rowid()") 3}
+    :last-insert-rowid {:last_insert_rowid 3}
     :update-config! nil
     :delete-config! nil
     []))

@@ -18,7 +18,7 @@
                                    :phonenumber "13800138000" :sex "0" :avatar ""
                                    :status "0" :remark "" :password "hashed"}
                  :create-user! nil
-                 :last-insert-rowid {(keyword "last_insert_rowid()") 2}
+                 :last-insert-rowid {:last_insert_rowid 2}
                  :update-user! nil
                  :delete-user! nil
                  :list-roles-by-user-id [{:role_id 1 :role_name "管理员"}]

@@ -1,5 +1,5 @@
 CREATE TABLE sys_oper_log (
-  oper_id BIGSERIAL PRIMARY KEY,
+  oper_id BIGINT AUTO_INCREMENT PRIMARY KEY,
   title VARCHAR(50) DEFAULT '',
   business_type INT DEFAULT 0,
   method VARCHAR(500) DEFAULT '',
@@ -22,10 +22,8 @@ CREATE INDEX idx_sys_oper_log_oper_time ON sys_oper_log(oper_time);
 --;;
 CREATE INDEX idx_sys_oper_log_oper_name ON sys_oper_log(oper_name);
 --;;
-COMMENT ON TABLE sys_oper_log IS '操作日志记录';
---;;
 CREATE TABLE sys_login_log (
-  info_id BIGSERIAL PRIMARY KEY,
+  info_id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_name VARCHAR(50) DEFAULT '',
   ipaddr VARCHAR(128) DEFAULT '',
   login_location VARCHAR(255) DEFAULT '',
@@ -40,4 +38,3 @@ CREATE INDEX idx_sys_login_log_login_time ON sys_login_log(login_time);
 --;;
 CREATE INDEX idx_sys_login_log_user_name ON sys_login_log(user_name);
 --;;
-COMMENT ON TABLE sys_login_log IS '系统访问记录';

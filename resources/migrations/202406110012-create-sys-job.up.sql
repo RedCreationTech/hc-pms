@@ -1,5 +1,5 @@
 CREATE TABLE sys_job (
-  job_id BIGSERIAL PRIMARY KEY,
+  job_id BIGINT AUTO_INCREMENT PRIMARY KEY,
   job_name VARCHAR(100) NOT NULL,
   job_group VARCHAR(64) NOT NULL DEFAULT 'DEFAULT',
   invoke_target VARCHAR(500) NOT NULL,
@@ -15,7 +15,7 @@ CREATE TABLE sys_job (
 );
 --;;
 CREATE TABLE sys_job_log (
-  job_log_id BIGSERIAL PRIMARY KEY,
+  job_log_id BIGINT AUTO_INCREMENT PRIMARY KEY,
   job_name VARCHAR(64) NOT NULL,
   job_group VARCHAR(64) NOT NULL,
   invoke_target VARCHAR(500) NOT NULL,
@@ -29,6 +29,3 @@ CREATE INDEX idx_sys_job_status ON sys_job(status);
 --;;
 CREATE INDEX idx_sys_job_log_create_time ON sys_job_log(create_time);
 --;;
-COMMENT ON TABLE sys_job IS '定时任务调度表';
---;;
-COMMENT ON TABLE sys_job_log IS '定时任务调度日志表';

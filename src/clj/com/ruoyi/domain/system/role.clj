@@ -1,7 +1,8 @@
 (ns com.ruoyi.domain.system.role
   "角色领域服务，处理角色 CRUD、菜单授权与数据权限。"
   (:require
-   [clojure.set :as set]))
+   [clojure.set :as set]
+   [com.ruoyi.infra.db :as db]))
 
 (defn list-roles
   "查询角色列表。"
@@ -16,10 +17,8 @@
 
 (defn create-role!
   "创建角色并绑定菜单权限。"
-  [{:keys [query-fn]} {:keys [menu-ids] :as params}]
-  (let [role-id (-> (query-fn :create-role! (dissoc params :menu-ids))
-                    first
-                    :role_id)]
+  [{:keys [query-fn db]} {:keys [menu-ids] :as params}]
+  (let [role-id (db/insert-and-get-id! query-fn db :create-role! (dissoc params :menu-ids))]
     (doseq [m-id menu-ids]
       (query-fn :insert-role-menu! {:role_id role-id :menu_id m-id}))
     role-id))

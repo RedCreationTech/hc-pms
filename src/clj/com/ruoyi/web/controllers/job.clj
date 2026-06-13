@@ -3,6 +3,7 @@
   (:require
    [clojure.string :as str]
    [clojure.walk :as walk]
+   [com.ruoyi.infra.db :as db]
    [com.ruoyi.infra.scheduler :as scheduler-core]
    [com.ruoyi.infra.cron :as cron]
    [ring.util.response :as response]))
@@ -42,15 +43,14 @@
     (throw (ex-info "调用目标不合法或不在允许命名空间内" {}))))
 
 (defn create-job
-  [{:keys [query-fn]} request]
+  [{:keys [query-fn db]} request]
   (try
     (let [params (-> {:job_name nil :job_group nil :invoke_target nil :cron_expression nil
                       :misfire_policy nil :concurrent nil :status nil :remark nil :create_by nil}
                      (merge (body-params request))
                      (assoc :create_by (current-user-name request)))
           _ (validate-job! params)
-          _ (query-fn :create-job! params)
-          id (:job_id (query-fn :last-insert-job-id {}))]
+          id (db/insert-and-get-id! query-fn db :create-job! params :last-insert-job-id :job_id)]
       (when-let [job (query-fn :find-job-by-id {:job_id id})]
         (scheduler-core/schedule-job! job))
       (ok {:job_id id}))

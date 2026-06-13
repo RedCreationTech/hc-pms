@@ -16,6 +16,7 @@
     :find-role-by-id (first mock-roles)
     :list-menus-by-role-id mock-menus
     :create-role! [{:role_id 3}]
+    :last-insert-rowid {:last_insert_rowid 3}
     :update-role! nil
     :delete-role! nil
     :delete-role-menus! nil

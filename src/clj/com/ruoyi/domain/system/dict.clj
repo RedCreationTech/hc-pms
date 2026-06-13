@@ -1,5 +1,7 @@
 (ns com.ruoyi.domain.system.dict
-  "字典领域服务。")
+  "字典领域服务。"
+  (:require
+   [com.ruoyi.infra.db :as db]))
 
 (defn list-dict-types
   "查询字典类型列表。"
@@ -13,9 +15,9 @@
 
 (defn create-dict-type!
   "创建字典类型。"
-  [{:keys [query-fn]} params]
-  (query-fn :create-dict-type! (merge {:dict_name nil :dict_type nil :status nil :remark nil :create_by nil} params))
-  (get (query-fn :last-insert-rowid {}) (keyword "last_insert_rowid()")))
+  [{:keys [query-fn db]} params]
+  (db/insert-and-get-id! query-fn db :create-dict-type!
+                         (merge {:dict_name nil :dict_type nil :status nil :remark nil :create_by nil} params)))
 
 (defn update-dict-type!
   "更新字典类型。"
@@ -39,11 +41,11 @@
 
 (defn create-dict-data!
   "创建字典数据。"
-  [{:keys [query-fn]} params]
-  (query-fn :create-dict-data! (merge {:dict_sort nil :dict_label nil :dict_value nil :dict_type nil
-                                       :css_class nil :list_class nil :is_default nil :status nil
-                                       :remark nil :create_by nil} params))
-  (get (query-fn :last-insert-rowid {}) (keyword "last_insert_rowid()")))
+  [{:keys [query-fn db]} params]
+  (db/insert-and-get-id! query-fn db :create-dict-data!
+                         (merge {:dict_sort nil :dict_label nil :dict_value nil :dict_type nil
+                                 :css_class nil :list_class nil :is_default nil :status nil
+                                 :remark nil :create_by nil} params)))
 
 (defn update-dict-data!
   "更新字典数据。"

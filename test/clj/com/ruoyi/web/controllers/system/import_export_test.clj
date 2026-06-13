@@ -26,7 +26,7 @@
                      :remark ""}]
        :count-users {:total 1}
        :create-user! nil
-       :last-insert-rowid {(keyword "last_insert_rowid()") 2}
+       :last-insert-rowid {:last_insert_rowid 2}
        :insert-user-role! nil
        :insert-user-post! nil
        nil))})

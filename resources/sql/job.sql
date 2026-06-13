@@ -1,6 +1,6 @@
 -- :name list-jobs :? :*
 SELECT * FROM sys_job WHERE 1=1
-  AND (:job_name IS NULL OR job_name LIKE '%' || :job_name || '%')
+  AND (:job_name IS NULL OR INSTR(job_name, :job_name) > 0)
   AND (:job_group IS NULL OR job_group = :job_group)
   AND (:status IS NULL OR status = :status)
 ORDER BY job_id
@@ -13,7 +13,12 @@ INSERT INTO sys_job (job_name, job_group, invoke_target, cron_expression, misfir
 VALUES (:job_name, :job_group, :invoke_target, :cron_expression, :misfire_policy, :concurrent, :status, :create_by, CURRENT_TIMESTAMP, :remark)
 
 -- :name last-insert-job-id :? :1
+-- :doc 获取最后插入的任务ID (SQLite)
 SELECT last_insert_rowid() AS job_id
+
+-- :name last-insert-job-id-mysql :? :1
+-- :doc 获取最后插入的任务ID (MySQL)
+SELECT LAST_INSERT_ID() AS job_id
 
 -- :name update-job! :! :n
 UPDATE sys_job
@@ -34,7 +39,7 @@ DELETE FROM sys_job WHERE job_id = :job_id
 
 -- :name list-job-logs :? :*
 SELECT * FROM sys_job_log WHERE 1=1
-  AND (:job_name IS NULL OR job_name LIKE '%' || :job_name || '%')
+  AND (:job_name IS NULL OR INSTR(job_name, :job_name) > 0)
   AND (:job_group IS NULL OR job_group = :job_group)
   AND (:status IS NULL OR status = :status)
 ORDER BY job_log_id DESC
@@ -42,7 +47,7 @@ LIMIT :page_size OFFSET :offset
 
 -- :name count-job-logs :? :1
 SELECT COUNT(*) AS total FROM sys_job_log WHERE 1=1
-  AND (:job_name IS NULL OR job_name LIKE '%' || :job_name || '%')
+  AND (:job_name IS NULL OR INSTR(job_name, :job_name) > 0)
   AND (:job_group IS NULL OR job_group = :job_group)
   AND (:status IS NULL OR status = :status)
 

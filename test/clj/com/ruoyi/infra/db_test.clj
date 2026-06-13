@@ -78,7 +78,7 @@
           (is (= 1 (count @calls)))
           (let [{:keys [sql opts]} (first @calls)
                 called-db (:db (first @calls))]
-            (is (= db called-db))
+            (is (= (:connectable db) called-db))
             (is (= ["0"] (rest sql)))
             (is (str/starts-with? (first sql) "SELECT * FROM sys_user WHERE status = :status LIMIT 10 OFFSET 10"))
             (is (= rs/as-unqualified-kebab-maps (:builder-fn opts)))))))
@@ -90,25 +90,38 @@
               result (db/paginate-query db "SELECT * FROM sys_user" {} 1 20)]
           (is (= [{:id 2}] result))
           (is (str/starts-with? (first (:sql (first @calls))) "SELECT * FROM sys_user LIMIT 20 OFFSET 0"))
-          (is (= "MySQL" (-> (first @calls) :db :connectable .getMetaData .getDatabaseProductName))))))))
+          (is (= "MySQL" (-> (first @calls) :db (.getMetaData) (.getDatabaseProductName)))))))))
 
 (deftest test-get-table-columns
   (testing "获取表列信息"
     (let [calls (atom [])]
       (with-redefs [jdbc/execute! (fn [db sql-vec opts]
                                     (swap! calls conj {:db db :sql sql-vec :opts opts})
-                                    [{:name "id"}])]
-        (is (= [{:name "id"}] (db/get-table-columns (fake-db "SQLite") "sys_user")))
+                                    [{:name "id" :type "INTEGER" :notnull 1 :dflt_value nil :pk 1}])]
+        (is (= [{:column_name "id" :data_type "INTEGER" :is_nullable "NO"
+                 :column_default nil :dflt_value nil :column_comment ""
+                 :character_maximum_length nil :numeric_precision nil :numeric_scale nil
+                 :is_pk "YES" :pk 1}]
+               (db/get-table-columns (fake-db "SQLite") "sys_user")))
         (is (= ["PRAGMA table_info(sys_user)"]
                (-> @calls first :sql)))
-        (is (= rs/as-unqualified-kebab-maps (-> @calls first :opts :builder-fn)))))
+        (is (= rs/as-unqualified-lower-maps (-> @calls first :opts :builder-fn)))))
     (let [calls (atom [])]
       (with-redefs [jdbc/execute! (fn [db sql-vec opts]
                                     (swap! calls conj {:db db :sql sql-vec :opts opts})
-                                    [{:field "id"}])]
-        (is (= [{:field "id"}] (db/get-table-columns (fake-db "MySQL") "sys_user")))
-        (is (= ["DESCRIBE sys_user"]
-               (-> @calls first :sql)))))
+                                    [{:column_name "id" :data_type "int" :is_nullable "NO"
+                                      :column_default nil :column_comment ""
+                                      :character_maximum_length nil :numeric_precision nil
+                                      :numeric_scale nil :is_pk "YES"}])]
+        (is (= [{:column_name "id" :data_type "int" :is_nullable "NO"
+                 :column_default nil :column_comment ""
+                 :character_maximum_length nil :numeric_precision nil
+                 :numeric_scale nil :is_pk "YES"}]
+               (db/get-table-columns (fake-db "MySQL") "sys_user")))
+        (let [sql (first (-> @calls first :sql))]
+          (is (str/starts-with? sql "SELECT c.column_name"))
+          (is (str/includes? sql "information_schema.columns")))
+        (is (= rs/as-unqualified-lower-maps (-> @calls first :opts :builder-fn)))))
     (testing "未知数据库类型返回空列表"
       (is (= [] (db/get-table-columns (fake-db "PostgreSQL") "sys_user"))))))
 
@@ -123,14 +136,14 @@
           (is (str/starts-with? sql "SELECT name as table_name"))
           (is (str/includes? sql "sqlite_master"))
           (is (str/includes? sql "type='table'")))
-        (is (= rs/as-unqualified-kebab-maps (-> @calls first :opts :builder-fn)))))
+        (is (= rs/as-unqualified-lower-maps (-> @calls first :opts :builder-fn)))))
     (let [calls (atom [])]
       (with-redefs [jdbc/execute! (fn [db sql-vec opts]
                                     (swap! calls conj {:db db :sql sql-vec :opts opts})
                                     [{:table_name "sys_user"}])]
         (is (= [{:table_name "sys_user"}] (db/get-tables (fake-db "MySQL"))))
         (let [sql (first (-> @calls first :sql))]
-          (is (str/starts-with? sql "SELECT table_name, table_comment"))
+          (is (str/starts-with? sql "SELECT table_name, IFNULL"))
           (is (str/includes? sql "information_schema.tables"))
           (is (str/includes? sql "table_type = 'BASE TABLE'")))))
     (testing "未知数据库类型返回空列表"

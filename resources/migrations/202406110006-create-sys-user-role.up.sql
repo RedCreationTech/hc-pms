@@ -4,4 +4,3 @@ CREATE TABLE sys_user_role (
   PRIMARY KEY (user_id, role_id)
 );
 --;;
-COMMENT ON TABLE sys_user_role IS '用户和角色关联表';

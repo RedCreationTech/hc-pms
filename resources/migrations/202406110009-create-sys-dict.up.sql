@@ -1,5 +1,5 @@
 CREATE TABLE sys_dict_type (
-  dict_id BIGSERIAL PRIMARY KEY,
+  dict_id BIGINT AUTO_INCREMENT PRIMARY KEY,
   dict_name VARCHAR(100) DEFAULT '',
   dict_type VARCHAR(100) NOT NULL,
   status CHAR(1) DEFAULT '0',
@@ -13,7 +13,7 @@ CREATE TABLE sys_dict_type (
 CREATE UNIQUE INDEX idx_sys_dict_type ON sys_dict_type(dict_type);
 --;;
 CREATE TABLE sys_dict_data (
-  dict_code BIGSERIAL PRIMARY KEY,
+  dict_code BIGINT AUTO_INCREMENT PRIMARY KEY,
   dict_sort INT DEFAULT 0,
   dict_label VARCHAR(100) DEFAULT '',
   dict_value VARCHAR(100) DEFAULT '',
@@ -33,6 +33,3 @@ CREATE INDEX idx_sys_dict_data_type ON sys_dict_data(dict_type);
 --;;
 CREATE INDEX idx_sys_dict_data_status ON sys_dict_data(status);
 --;;
-COMMENT ON TABLE sys_dict_type IS '字典类型表';
---;;
-COMMENT ON TABLE sys_dict_data IS '字典数据表';

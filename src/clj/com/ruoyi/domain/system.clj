@@ -7,36 +7,36 @@
    [com.ruoyi.infra.scheduler :as scheduler]))
 
 (defmethod ig/init-key :app.system/user-service
-  [_ {:keys [query-fn]}]
-  {:query-fn query-fn})
+  [_ {:keys [query-fn db]}]
+  {:query-fn query-fn :db db})
 
 (defmethod ig/init-key :app.system/role-service
-  [_ {:keys [query-fn]}]
-  {:query-fn query-fn})
+  [_ {:keys [query-fn db]}]
+  {:query-fn query-fn :db db})
 
 (defmethod ig/init-key :app.system/menu-service
-  [_ {:keys [query-fn]}]
-  {:query-fn query-fn})
+  [_ {:keys [query-fn db]}]
+  {:query-fn query-fn :db db})
 
 (defmethod ig/init-key :app.system/dept-service
-  [_ {:keys [query-fn]}]
-  {:query-fn query-fn})
+  [_ {:keys [query-fn db]}]
+  {:query-fn query-fn :db db})
 
 (defmethod ig/init-key :app.system/post-service
-  [_ {:keys [query-fn]}]
-  {:query-fn query-fn})
+  [_ {:keys [query-fn db]}]
+  {:query-fn query-fn :db db})
 
 (defmethod ig/init-key :app.system/dict-service
-  [_ {:keys [query-fn]}]
-  {:query-fn query-fn})
+  [_ {:keys [query-fn db]}]
+  {:query-fn query-fn :db db})
 
 (defmethod ig/init-key :app.system/config-service
-  [_ {:keys [query-fn]}]
-  {:query-fn query-fn})
+  [_ {:keys [query-fn db]}]
+  {:query-fn query-fn :db db})
 
 (defmethod ig/init-key :app.system/log-service
-  [_ {:keys [query-fn]}]
-  {:query-fn query-fn})
+  [_ {:keys [query-fn db]}]
+  {:query-fn query-fn :db db})
 
 (defmethod ig/init-key :app.system/online-service
   [_ {:keys [query-fn]}]
@@ -48,11 +48,13 @@
                     (online/force-logout! token-id))})
 
 (defmethod ig/init-key :app.system/gen-service
-  [_ {:keys [query-fn]}]
-  {:query-fn query-fn
-   :list-tables (partial gen/list-tables {:query-fn query-fn})
-   :table-columns (partial gen/table-columns {:query-fn query-fn})
-   :generate-code (partial gen/generate-code {:query-fn query-fn})})
+  [_ {:keys [query-fn db]}]
+  (let [ctx {:query-fn query-fn :db db}]
+    {:query-fn query-fn
+     :db db
+     :list-tables (partial gen/list-tables ctx)
+     :table-columns (partial gen/table-columns ctx)
+     :generate-code (partial gen/generate-code ctx)}))
 
 (defmethod ig/init-key :app.system/job-scheduler
   [_ {:keys [scheduler query-fn migrations]}]

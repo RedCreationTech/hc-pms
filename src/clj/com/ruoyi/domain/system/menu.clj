@@ -1,7 +1,8 @@
 (ns com.ruoyi.domain.system.menu
   "菜单领域服务，处理菜单树构建与 CRUD。"
   (:require
-   [clojure.walk :as walk]))
+   [clojure.walk :as walk]
+   [com.ruoyi.infra.db :as db]))
 
 (defn list-menus
   "查询菜单列表。"
@@ -15,13 +16,13 @@
 
 (defn create-menu!
   "创建菜单。"
-  [{:keys [query-fn]} params]
-  (query-fn :create-menu! (merge {:menu_name nil :parent_id nil :order_num nil :path nil
-                                  :component nil :query nil :route_name nil :is_frame nil
-                                  :is_cache nil :menu_type nil :visible nil :status nil
-                                  :perms nil :icon nil :create_by nil}
-                                 params))
-  (get (query-fn :last-insert-rowid {}) (keyword "last_insert_rowid()")))
+  [{:keys [query-fn db]} params]
+  (db/insert-and-get-id! query-fn db :create-menu!
+                         (merge {:menu_name nil :parent_id nil :order_num nil :path nil
+                                 :component nil :query nil :route_name nil :is_frame nil
+                                 :is_cache nil :menu_type nil :visible nil :status nil
+                                 :perms nil :icon nil :create_by nil}
+                                params)))
 
 (defn update-menu!
   "更新菜单。"

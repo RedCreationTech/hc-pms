@@ -1,5 +1,5 @@
 CREATE TABLE sys_online (
-  session_id VARCHAR(50) PRIMARY KEY,
+  session_id VARCHAR(255) PRIMARY KEY,
   login_name VARCHAR(50) DEFAULT '',
   dept_name VARCHAR(50) DEFAULT '',
   ipaddr VARCHAR(128) DEFAULT '',
@@ -12,4 +12,3 @@ CREATE TABLE sys_online (
   expire_time INT DEFAULT 1800000
 );
 --;;
-COMMENT ON TABLE sys_online IS '在线用户记录';

@@ -14,7 +14,7 @@
     :find-dept-by-id (first mock-depts)
     :list-depts-by-parent (when (= 1 (:parent_id params)) (rest mock-depts))
     :create-dept! [{:dept_id 4}]
-    :last-insert-rowid {(keyword "last_insert_rowid()") 4}
+    :last-insert-rowid {:last_insert_rowid 4}
     :update-dept! nil
     :update-dept-ancestors! nil
     :delete-dept! nil

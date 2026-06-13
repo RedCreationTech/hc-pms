@@ -38,46 +38,57 @@
                                       :default-charset        "utf-8"}}}
 
  :app.system/user-service
- {:query-fn #ig/ref :db.sql/query-fn}
+ {:query-fn #ig/ref :db.sql/query-fn
+  :db       #ig/ref :db.sql/connection}
 
  :app.system/role-service
- {:query-fn #ig/ref :db.sql/query-fn}
+ {:query-fn #ig/ref :db.sql/query-fn
+  :db       #ig/ref :db.sql/connection}
 
  :app.system/menu-service
- {:query-fn #ig/ref :db.sql/query-fn}
+ {:query-fn #ig/ref :db.sql/query-fn
+  :db       #ig/ref :db.sql/connection}
 
  :app.system/dept-service
- {:query-fn #ig/ref :db.sql/query-fn}
+ {:query-fn #ig/ref :db.sql/query-fn
+  :db       #ig/ref :db.sql/connection}
 
  :app.system/post-service
- {:query-fn #ig/ref :db.sql/query-fn}
+ {:query-fn #ig/ref :db.sql/query-fn
+  :db       #ig/ref :db.sql/connection}
 
  :app.system/dict-service
- {:query-fn #ig/ref :db.sql/query-fn}
+ {:query-fn #ig/ref :db.sql/query-fn
+  :db       #ig/ref :db.sql/connection}
 
  :app.system/config-service
- {:query-fn #ig/ref :db.sql/query-fn}
+ {:query-fn #ig/ref :db.sql/query-fn
+  :db       #ig/ref :db.sql/connection}
 
  :app.system/log-service
- {:query-fn #ig/ref :db.sql/query-fn}
+ {:query-fn #ig/ref :db.sql/query-fn
+  :db       #ig/ref :db.sql/connection}
 
  :app.system/online-service
- {:query-fn #ig/ref :db.sql/query-fn}
+ {:query-fn #ig/ref :db.sql/query-fn
+  :db       #ig/ref :db.sql/connection}
 
  :app.system/gen-service
-  {:query-fn #ig/ref :db.sql/query-fn}
+ {:query-fn #ig/ref :db.sql/query-fn
+  :db       #ig/ref :db.sql/connection}
 
  :app.system/job-scheduler
-  {:scheduler  #ig/ref :cronut/scheduler
-   :query-fn   #ig/ref :db.sql/query-fn
-   :migrations #ig/ref :db.sql/migrations}
+ {:scheduler  #ig/ref :cronut/scheduler
+  :query-fn   #ig/ref :db.sql/query-fn
+  :migrations #ig/ref :db.sql/migrations
+  :db         #ig/ref :db.sql/connection}
 
  :reitit.routes/api
-  {:base-path      "/api"
-   :env            #ig/ref :system/env
-   :query-fn       #ig/ref :db.sql/query-fn
-   :datasource     #ig/ref :db.sql/connection
-   :user-service   #ig/ref :app.system/user-service
+ {:base-path      "/api"
+  :env            #ig/ref :system/env
+  :query-fn       #ig/ref :db.sql/query-fn
+  :datasource     #ig/ref :db.sql/connection
+  :user-service   #ig/ref :app.system/user-service
   :role-service   #ig/ref :app.system/role-service
   :menu-service   #ig/ref :app.system/menu-service
   :dept-service   #ig/ref :app.system/dept-service
@@ -102,8 +113,14 @@
  {}
 
  :db.sql/connection
- #profile {:dev  {:jdbc-url "jdbc:sqlite:rouyi.db"}
-           :test {:jdbc-url "jdbc:sqlite:rouyi.db"
+ #profile {:dev  {:jdbc-url   #or [#env JDBC_URL "jdbc:sqlite:rouyi.db"]
+                  :init-size  1
+                  :min-idle   1
+                  :max-idle   1
+                  :max-active 1
+                  :connection-test-query "SELECT 1"
+                  :validation-timeout 3000}
+           :test {:jdbc-url   #or [#env JDBC_URL "jdbc:sqlite:rouyi.db"]
                   :init-size  1
                   :min-idle   1
                   :max-idle   1
@@ -128,12 +145,12 @@
  #profile {:dev  {:store            :database
                   :db               {:datasource #ig/ref :db.sql/connection}
                   :migrate-on-init? true
-                  :migration-dir    "migrations-sqlite"}
+                  :migration-dir    #or [#env MIGRATION_DIR "migrations-sqlite"]}
            :test {:store            :database
                   :db               {:datasource #ig/ref :db.sql/connection}
                   :migrate-on-init? true
-                  :migration-dir    "migrations-sqlite"}
+                  :migration-dir    #or [#env MIGRATION_DIR "migrations-sqlite"]}
            :prod {:store            :database
                   :db               {:datasource #ig/ref :db.sql/connection}
                   :migrate-on-init? true
-                  :migration-dir    "migrations-sqlite"}}}
+                  :migration-dir    #or [#env MIGRATION_DIR "migrations-sqlite"]}}}

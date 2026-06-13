@@ -382,7 +382,11 @@ DELETE FROM sys_notice WHERE notice_id = :notice_id
 
 -- :name last-insert-rowid :? :1
 -- :doc 获取最后插入的行ID (SQLite)
-SELECT last_insert_rowid()
+SELECT last_insert_rowid() AS last_insert_rowid
+
+-- :name last-insert-rowid-mysql :? :1
+-- :doc 获取最后插入的行ID (MySQL)
+SELECT LAST_INSERT_ID() AS last_insert_rowid
 
 -- :name list-users-by-role :? :*
 -- :doc 查询已分配某角色的用户

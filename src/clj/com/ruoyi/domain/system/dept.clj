@@ -1,7 +1,8 @@
 (ns com.ruoyi.domain.system.dept
   "部门领域服务。"
   (:require
-   [clojure.string :as str]))
+   [clojure.string :as str]
+   [com.ruoyi.infra.db :as db]))
 
 (defn list-depts
   "查询部门列表。"
@@ -37,15 +38,14 @@
 
 (defn create-dept!
   "创建部门。"
-  [{:keys [query-fn] :as ctx} params]
+  [{:keys [query-fn db] :as ctx} params]
   (let [parent-id (:parent_id params 0)
         params (-> {:parent_id nil :ancestors nil :dept_name nil :order_num nil
                     :leader nil :phone nil :email nil :status nil :create_by nil}
                    (merge params)
                    (assoc :parent_id parent-id
                           :ancestors (compute-ancestors ctx parent-id)))]
-    (query-fn :create-dept! params)
-    (get (query-fn :last-insert-rowid {}) (keyword "last_insert_rowid()"))))
+    (db/insert-and-get-id! query-fn db :create-dept! params)))
 
 (defn update-dept!
   "更新部门。"

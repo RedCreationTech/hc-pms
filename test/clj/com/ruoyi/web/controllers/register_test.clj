@@ -9,7 +9,7 @@
                (case q
                  :find-user-by-name nil
                  :create-user! nil
-                 :last-insert-rowid {(keyword "last_insert_rowid()") 1}
+                 :last-insert-rowid {:last_insert_rowid 1}
                  nil))})
 
 (deftest test-register-success
@@ -40,7 +40,7 @@
                             (case q
                               :find-user-by-name nil
                               :create-user! (throw (RuntimeException. "数据库错误"))
-                              :last-insert-rowid {(keyword "last_insert_rowid()") 1}
+                              :last-insert-rowid {:last_insert_rowid 1}
                               nil)))
           request {:body-params {:username "newuser" :password "123456"}}
           response (register/register {:user-service service} request)]

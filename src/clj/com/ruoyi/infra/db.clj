@@ -7,18 +7,56 @@
 ;; ─── 数据库类型检测 ──────────────────────────────────────────────────────
 
 (defn detect-db-type
-  "检测数据库类型。"
+  "检测数据库类型。支持 DataSource、Connection 以及 next.jdbc 包装对象。"
   [db]
-  (let [meta (try
-               (.getMetaData (:connectable db))
-               (catch Exception _ nil))]
-    (if meta
-      (let [product-name (.getDatabaseProductName meta)]
+  (let [connable (or (:connectable db) db)]
+    (try
+      (let [product-name (try
+                           (.getDatabaseProductName (.getMetaData connable))
+                           (catch Exception _
+                             (with-open [conn (jdbc/get-connection connable)]
+                               (.getDatabaseProductName (.getMetaData conn)))))]
         (cond
           (str/includes? (str/lower-case product-name) "sqlite") :sqlite
           (str/includes? (str/lower-case product-name) "mysql") :mysql
           :else :unknown))
-      :unknown)))
+      (catch Exception _ :unknown))))
+
+(defn- connectable
+  "提取可用于 JDBC 执行的数据源或连接。"
+  [db]
+  (or (:connectable db) db))
+
+(defn last-insert-id
+  "获取最近一次插入的自增 ID，自动适配 SQLite/MySQL。
+   默认使用 :last-insert-rowid（SQLite）或 :last-insert-rowid-mysql（MySQL）查询。
+   可通过 result-key 指定返回字段名，例如 :job_id。
+   注意：MySQL 下请传入与插入同一事务的连接，否则可能获取不到 ID。"
+  ([query-fn db]
+   (last-insert-id query-fn db :last-insert-rowid :last_insert_rowid))
+  ([query-fn db query-name result-key]
+   (let [db-type (detect-db-type db)
+         q (if (= :mysql db-type)
+             (keyword (str (name query-name) "-mysql"))
+             query-name)]
+     (get (query-fn db q {}) result-key))))
+
+(defn insert-and-get-id!
+  "在同一事务中执行插入并返回自增 ID，自动适配 SQLite/MySQL。"
+  ([query-fn db insert-query params]
+   (insert-and-get-id! query-fn db insert-query params :last-insert-rowid :last_insert_rowid))
+  ([query-fn db insert-query params id-query id-key]
+   (let [db-type (detect-db-type db)
+         id-q (if (= :mysql db-type)
+                (keyword (str (name id-query) "-mysql"))
+                id-query)]
+     (if (some? db)
+       (jdbc/with-transaction [tx db]
+         (query-fn tx insert-query params)
+         (get (query-fn tx id-q {}) id-key))
+       (do
+         (query-fn insert-query params)
+         (get (query-fn id-q {}) id-key))))))
 
 ;; ─── SQL 方言转换 ──────────────────────────────────────────────────────
 
@@ -84,25 +122,54 @@
                         :mysql (str sql " LIMIT " page-size " OFFSET " offset)
                         :sqlite (str sql " LIMIT " page-size " OFFSET " offset)
                         (str sql " LIMIT " page-size " OFFSET " offset))]
-    (jdbc/execute! db
+    (jdbc/execute! (connectable db)
                    (into [paginated-sql] (vals params))
                    {:builder-fn rs/as-unqualified-kebab-maps})))
 
 ;; ─── 表结构查询 ──────────────────────────────────────────────────────
 
 (defn get-table-columns
-  "获取表的列信息。"
+  "获取表的列信息，返回统一字段：
+   :column_name :data_type :is_nullable :column_default :column_comment
+   :character_maximum_length :numeric_precision :numeric_scale :is_pk"
   [db table-name]
   (let [db-type (detect-db-type db)]
     (case db-type
       :sqlite
-      (jdbc/execute! db
-                     [(str "PRAGMA table_info(" table-name ")")]
-                     {:builder-fn rs/as-unqualified-kebab-maps})
+      (mapv (fn [{:keys [name type notnull dflt_value pk]}]
+              {:column_name name
+               :data_type type
+               :is_nullable (if (= 1 notnull) "NO" "YES")
+               :column_default dflt_value
+               :dflt_value dflt_value
+               :column_comment ""
+               :character_maximum_length nil
+               :numeric_precision nil
+               :numeric_scale nil
+               :is_pk (if (= 1 pk) "YES" "NO")
+               :pk pk})
+            (jdbc/execute! (connectable db)
+                           [(str "PRAGMA table_info(" table-name ")")]
+                           {:builder-fn rs/as-unqualified-lower-maps}))
       :mysql
-      (jdbc/execute! db
-                     [(str "DESCRIBE " table-name)]
-                     {:builder-fn rs/as-unqualified-kebab-maps})
+      (jdbc/execute! (connectable db)
+                     [(str "SELECT c.column_name, c.data_type, c.is_nullable, "
+                           "c.column_default, c.column_comment, "
+                           "c.character_maximum_length, c.numeric_precision, c.numeric_scale, "
+                           "CASE WHEN tc.constraint_type = 'PRIMARY KEY' THEN 'YES' ELSE 'NO' END AS is_pk "
+                           "FROM information_schema.columns c "
+                           "LEFT JOIN information_schema.key_column_usage kcu "
+                           "  ON c.table_schema = kcu.table_schema "
+                           "  AND c.table_name = kcu.table_name "
+                           "  AND c.column_name = kcu.column_name "
+                           "LEFT JOIN information_schema.table_constraints tc "
+                           "  ON kcu.constraint_schema = tc.constraint_schema "
+                           "  AND kcu.constraint_name = tc.constraint_name "
+                           "  AND tc.constraint_type = 'PRIMARY KEY' "
+                           "WHERE c.table_schema = DATABASE() AND c.table_name = ? "
+                           "ORDER BY c.ordinal_position")
+                      table-name]
+                     {:builder-fn rs/as-unqualified-lower-maps})
       [])))
 
 (defn get-tables
@@ -111,11 +178,11 @@
   (let [db-type (detect-db-type db)]
     (case db-type
       :sqlite
-      (jdbc/execute! db
+      (jdbc/execute! (connectable db)
                      ["SELECT name as table_name, COALESCE(name, '') as table_comment FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"]
-                     {:builder-fn rs/as-unqualified-kebab-maps})
+                     {:builder-fn rs/as-unqualified-lower-maps})
       :mysql
-      (jdbc/execute! db
-                     ["SELECT table_name, table_comment FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE' ORDER BY table_name"]
-                     {:builder-fn rs/as-unqualified-kebab-maps})
+      (jdbc/execute! (connectable db)
+                     ["SELECT table_name, IFNULL(table_comment, '') AS table_comment FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE' ORDER BY table_name"]
+                     {:builder-fn rs/as-unqualified-lower-maps})
       [])))

@@ -1,5 +1,7 @@
 (ns com.ruoyi.domain.system.post
-  "岗位领域服务。")
+  "岗位领域服务。"
+  (:require
+   [com.ruoyi.infra.db :as db]))
 
 (defn list-posts
   "查询岗位列表。"
@@ -13,11 +15,11 @@
 
 (defn create-post!
   "创建岗位。"
-  [{:keys [query-fn]} params]
-  (query-fn :create-post! (merge {:post_code nil :post_name nil :post_sort nil :status nil
-                                  :remark nil :create_by nil}
-                                 params))
-  (get (query-fn :last-insert-rowid {}) (keyword "last_insert_rowid()")))
+  [{:keys [query-fn db]} params]
+  (db/insert-and-get-id! query-fn db :create-post!
+                         (merge {:post_code nil :post_name nil :post_sort nil :status nil
+                                 :remark nil :create_by nil}
+                                params)))
 
 (defn update-post!
   "更新岗位。"

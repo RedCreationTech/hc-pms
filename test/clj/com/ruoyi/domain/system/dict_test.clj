@@ -18,7 +18,7 @@
     :list-dict-data mock-dict-data
     :find-dict-data-by-id (first mock-dict-data)
     :create-dict-type! [{:dict_id 3}]
-    :last-insert-rowid {(keyword "last_insert_rowid()") 3}
+    :last-insert-rowid {:last_insert_rowid 3}
     :update-dict-type! nil
     :delete-dict-type! nil
     :create-dict-data! [{:dict_code 3}]

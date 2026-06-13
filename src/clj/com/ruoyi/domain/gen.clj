@@ -2,21 +2,26 @@
   "代码生成器领域层 — 根据表结构生成 CRUD 代码模板。"
   (:require
    [clojure.string :as str]
+   [com.ruoyi.infra.db :as idb]
    [next.jdbc :as jdbc]
    [next.jdbc.result-set :as rs]))
 
 (defn list-tables
   "查询数据库中的所有表。"
-  [{:keys [query-fn]}]
+  [{:keys [query-fn db]}]
   (try
-    (query-fn :gen-tables {})
+    (if db
+      (idb/get-tables db)
+      (query-fn :gen-tables {}))
     (catch Exception _ [])))
 
 (defn table-columns
   "查询指定表的列信息。"
-  [{:keys [query-fn]} table-name]
+  [{:keys [query-fn db]} table-name]
   (try
-    (query-fn :gen-columns {:table-name table-name})
+    (if db
+      (idb/get-table-columns db table-name)
+      (query-fn :gen-columns {:table-name table-name}))
     (catch Exception _ [])))
 
 ;; ─── 列元数据归一化 ──────────────────────────────────────────────────────

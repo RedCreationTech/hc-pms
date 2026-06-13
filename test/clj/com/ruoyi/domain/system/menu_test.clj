@@ -15,7 +15,7 @@
     :list-menus mock-menus
     :find-menu-by-id (first mock-menus)
     :create-menu! [{:menu_id 5}]
-    :last-insert-rowid {(keyword "last_insert_rowid()") 5}
+    :last-insert-rowid {:last_insert_rowid 5}
     :update-menu! nil
     :delete-menu! nil
     :list-menus-by-role-ids mock-menus

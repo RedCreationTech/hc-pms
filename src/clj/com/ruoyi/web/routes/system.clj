@@ -223,22 +223,22 @@
 
    ["/job"
     ["" {:get  {:summary "定时任务列表" :parameters {:query PagingQuery}
-                :handler (partial job/list-jobs {:query-fn (:query-fn user-service)})}
-         :post {:summary "新增定时任务" :handler (partial job/create-job {:query-fn (:query-fn user-service)})}}]
+                :handler (partial job/list-jobs {:query-fn (:query-fn user-service) :db datasource})}
+         :post {:summary "新增定时任务" :handler (partial job/create-job {:query-fn (:query-fn user-service) :db datasource})}}]
     ["/:id" {:get    {:summary "任务详情" :parameters {:path PathId}
-                      :handler (partial job/get-job {:query-fn (:query-fn user-service)})}
+                      :handler (partial job/get-job {:query-fn (:query-fn user-service) :db datasource})}
              :put    {:summary "更新任务" :parameters {:path PathId}
-                      :handler (partial job/update-job {:query-fn (:query-fn user-service)})}
+                      :handler (partial job/update-job {:query-fn (:query-fn user-service) :db datasource})}
              :delete {:summary "删除任务" :parameters {:path PathId}
-                      :handler (partial job/delete-job {:query-fn (:query-fn user-service)})}}]
-    ["/:id/changeStatus" {:put {:summary "修改任务状态" :handler (partial job/change-status {:query-fn (:query-fn user-service)})}}]
+                      :handler (partial job/delete-job {:query-fn (:query-fn user-service) :db datasource})}}]
+    ["/:id/changeStatus" {:put {:summary "修改任务状态" :handler (partial job/change-status {:query-fn (:query-fn user-service) :db datasource})}}]
     ["/:id/run" {:put {:summary "执行一次" :handler (partial job/run-once {})}}]]
 
    ["/job-log"
     ["" {:get {:summary "任务执行日志" :description "查询定时任务执行日志列表"
-               :handler (partial job/list-job-logs {:query-fn (:query-fn user-service)})}
+               :handler (partial job/list-job-logs {:query-fn (:query-fn user-service) :db datasource})}
          :delete {:summary "清空日志" :description "清空所有任务执行日志"
-                  :handler (partial job/clean-logs {:query-fn (:query-fn user-service)})}}]]
+                  :handler (partial job/clean-logs {:query-fn (:query-fn user-service) :db datasource})}}]]
 
    ["/notice"
     ["" {:get  {:summary "通知公告列表" :parameters {:query PagingQuery}

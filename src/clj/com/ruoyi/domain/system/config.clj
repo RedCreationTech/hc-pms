@@ -1,5 +1,7 @@
 (ns com.ruoyi.domain.system.config
-  "参数配置领域服务。")
+  "参数配置领域服务。"
+  (:require
+   [com.ruoyi.infra.db :as db]))
 
 (defn list-configs
   "查询参数配置列表。"
@@ -18,9 +20,9 @@
 
 (defn create-config!
   "创建参数配置。"
-  [{:keys [query-fn]} params]
-  (query-fn :create-config! (merge {:config_name nil :config_key nil :config_value nil :config_type nil :remark nil :create_by nil} params))
-  (get (query-fn :last-insert-rowid {}) (keyword "last_insert_rowid()")))
+  [{:keys [query-fn db]} params]
+  (db/insert-and-get-id! query-fn db :create-config!
+                         (merge {:config_name nil :config_key nil :config_value nil :config_type nil :remark nil :create_by nil} params)))
 
 (defn update-config!
   "更新参数配置。"
