@@ -4,7 +4,10 @@
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
+   [clojure.string :as str]
    ["@ant-design/icons" :refer [ReloadOutlined CodeOutlined EyeOutlined DownloadOutlined SettingOutlined CloudUploadOutlined]]
+   ["react-syntax-highlighter" :default SyntaxHighlighter]
+   ["react-syntax-highlighter/dist/esm/styles/hljs/atom-one-dark" :default atom-one-dark]
    [com.ruoyi.frontend.antd :as antd]))
 
 ;; ─── 工具函数 ──────────────────────────────────────────────────────
@@ -45,26 +48,30 @@
 ;; ─── 代码预览（带 Tab） ──────────────────────────────────────────────
 
 (defn- preview-tabs [preview-data]
-  (let [active-tab (r/atom "backend-sql")]
-    (fn [preview-data]
-      (let [files (dissoc preview-data :table-name :entity-name :kebab-name :camel-name :columns)
-            tab-items (clj->js
-                       (map (fn [[k v]]
-                              (when (seq v)
-                                {:key (name k)
-                                 :label (get file-type-labels (name k) (name k))}))
-                            (sort-by first files)))]
-        [:div
-         [:> antd/tabs {:activeKey @active-tab
-                        :onChange #(reset! active-tab %)
-                        :items tab-items
-                        :size "small"}]
-         (let [current-file (get files (keyword @active-tab))]
-           (when (seq current-file)
-             [:pre {:style {:background "#1e1e1e" :color "#d4d4d4" :padding 16 :borderRadius 4
-                            :maxHeight 500 :overflow "auto" :fontSize 12 :lineHeight 1.6
-                            :whiteSpace "pre-wrap" :wordBreak "break-all"}}
-              current-file]))]))))
+  (let [[active-tab set-active-tab!] (hooks/use-state "backend-sql")
+        files (dissoc preview-data :table-name :entity-name :kebab-name :camel-name :columns)
+        tab-items (clj->js
+                   (keep (fn [[k v]]
+                           (when (seq v)
+                             {:key (name k)
+                              :label (get file-type-labels (name k) (name k))}))
+                        (sort-by first files)))
+        lang (if (clojure.string/ends-with? active-tab "-sql") "sql" "clojure")]
+    [:div
+     [:> antd/tabs {:activeKey active-tab
+                    :onChange #(set-active-tab! %)
+                    :items tab-items
+                    :size "small"}]
+     (let [current-file (get files (keyword active-tab))]
+       (when (seq current-file)
+         [:> SyntaxHighlighter {:language lang
+                                :style atom-one-dark
+                                :customStyle {:borderRadius 4
+                                              :maxHeight 500
+                                              :fontSize 12
+                                              :lineHeight "1.6"
+                                              :margin 0}}
+          current-file]))]))
 
 ;; ─── 主页面 ──────────────────────────────────────────────────────
 

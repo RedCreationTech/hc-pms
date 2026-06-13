@@ -26,11 +26,11 @@
 
 ## Phase 2 — 功能补齐（已有页面/API，但体验不完整）
 
-### 2.1 代码生成器：ZIP 下载 + 语法高亮 🟡
+### 2.1 代码生成器：ZIP 下载 + 语法高亮 ✅
 - **现状**：表选择、预览、批量生成已可用；`GAP_ANALYSIS.md` 标 60%。
-- **目标**：
-  - 后端 `/api/tool/gen/download` 返回 ZIP（或修正前端下载逻辑）。
-  - 预览弹窗增加代码语法高亮。
+- **已完成**：
+  - 验证后端 `/api/tool/gen/download` 返回 ZIP 正常。
+  - 预览弹窗接入 `react-syntax-highlighter`，按 Clojure/SQL 语法高亮。
 - **验收**：生成代码后可一键下载 ZIP；预览代码按 Clojure/ClojureScript/SQL 高亮。
 
 ### 2.2 表单构建器：后端持久化 🟡
