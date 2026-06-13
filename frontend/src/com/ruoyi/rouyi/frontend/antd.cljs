@@ -2,9 +2,10 @@
   "Ant Design 组件 Reagent 封装。"
   (:require
    [reagent.core :as r]
-   ["antd" :refer [Button Card ConfigProvider DatePicker Descriptions Dropdown Drawer Form Input Layout Menu Modal Pagination Popconfirm Popover Radio Select Space Switch Table Tabs Tag Tooltip Tree TreeSelect Upload message]]
+   ["antd" :refer [App Button Card ConfigProvider DatePicker Descriptions Dropdown Drawer Form Input Layout Menu Modal Pagination Popconfirm Popover Radio Select Space Switch Table Tabs Tag Tooltip Tree TreeSelect Upload message]]
    ["@ant-design/icons" :refer [LockOutlined UserOutlined DashboardOutlined TeamOutlined SettingOutlined SafetyOutlined FileTextOutlined EditOutlined DeleteOutlined PlusOutlined DownloadOutlined EyeOutlined SearchOutlined]]))
 
+(def app (r/adapt-react-class App))
 (def button (r/adapt-react-class Button))
 (def card (r/adapt-react-class Card))
 (def date-picker (r/adapt-react-class DatePicker))
@@ -43,14 +44,27 @@
 (def tree-select (r/adapt-react-class TreeSelect))
 (def upload (r/adapt-react-class Upload))
 
+(defonce message-api (atom nil))
+
+(defn use-app-message []
+  "在 App 组件内部调用，获取 message 实例。"
+  (let [api (.useApp App)]
+    (reset! message-api (.-message api))))
+
 (defn success! [text]
-  (.success message text))
+  (if-let [api @message-api]
+    (.success api text)
+    (.success message text)))
 
 (defn error! [text]
-  (.error message text))
+  (if-let [api @message-api]
+    (.error api text)
+    (.error message text)))
 
 (defn warning! [text]
-  (.warning message text))
+  (if-let [api @message-api]
+    (.warning api text)
+    (.warning message text)))
 
 (def user-icon (r/adapt-react-class UserOutlined))
 (def lock-icon (r/adapt-react-class LockOutlined))

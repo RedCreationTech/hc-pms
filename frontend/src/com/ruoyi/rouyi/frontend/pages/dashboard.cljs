@@ -16,7 +16,7 @@
 (defn- stat-card [{:keys [title value icon color desc]}]
   [antd/card {:hoverable true
               :style {:borderRadius 8 :overflow "hidden"}
-              :bodyStyle {:padding "20px 24px"}}
+              :styles {:body {:padding "20px 24px"}}}
    [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center"}}
     [:div
      [:div {:style {:fontSize 14 :color "var(--ant-color-text-secondary)" :marginBottom 8}}
@@ -73,7 +73,7 @@
      [antd/card {:style {:marginBottom 16 :borderRadius 8 :overflow "hidden"
                          :background "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
                          :border "none"}
-                 :bodyStyle {:padding "32px 40px"}}
+                 :styles {:body {:padding "32px 40px"}}}
       [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center"}}
        [:div
         [:div {:style {:fontSize 24 :fontWeight 600 :color "#fff" :marginBottom 8}}
@@ -101,7 +101,7 @@
       [:div
        ;; 快捷入口
        [antd/card {:title "快捷操作" :style {:marginBottom 16 :borderRadius 8}
-                   :bodyStyle {:padding "12px 16px"}}
+                   :styles {:body {:padding "12px 16px"}}}
         [:div {:style {:display "grid" :gridTemplateColumns "repeat(4, 1fr)" :gap 8}}
          [quick-link {:title "用户管理" :icon UserOutlined :color "#1677ff" :route :user}]
          [quick-link {:title "角色管理" :icon SafetyOutlined :color "#52c41a" :route :role}]
@@ -114,7 +114,7 @@
 
        ;; 最近操作
        [antd/card {:title "最近操作" :style {:borderRadius 8}
-                   :bodyStyle {:padding 0}}
+                   :styles {:body {:padding 0}}}
         [antd/table {:size "small" :showHeader false :pagination false
                      :dataSource (clj->js
                                   [{:key "1" :content "管理员修改了用户信息" :time "2分钟前"}
@@ -128,7 +128,7 @@
 
       ;; 右侧：系统信息
       [antd/card {:title "系统信息" :style {:borderRadius 8}
-                  :bodyStyle {:padding "0 24px"}}
+                  :styles {:body {:padding "0 24px"}}}
        [system-info-item {:label "操作系统" :value "macOS Sonoma"}]
        [system-info-item {:label "系统架构" :value "aarch64"}]
        [system-info-item {:label "Java 版本" :value "JDK 17"}]

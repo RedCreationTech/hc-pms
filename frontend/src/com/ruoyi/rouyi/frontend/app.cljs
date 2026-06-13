@@ -6,6 +6,7 @@
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
    ["antd" :refer [ConfigProvider]]
+   [com.ruoyi.rouyi.frontend.antd :as antd]
    [com.ruoyi.rouyi.frontend.events]
    [com.ruoyi.rouyi.frontend.subs]
    [com.ruoyi.rouyi.frontend.theme :as theme]
@@ -35,8 +36,14 @@
                                   {:mode theme-mode
                                    :primary-color primary-color
                                    :algorithm algorithm})}
-       [layout/main-layout]]
+       [antd/app
+        [message-init]
+        [layout/main-layout]]]
       [login/login-page])))
+
+(defn- message-init []
+  (antd/use-app-message)
+  nil)
 
 (defn app []
   [current-page])
