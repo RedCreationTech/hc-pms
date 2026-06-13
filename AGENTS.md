@@ -383,6 +383,85 @@ Database (SQLite)                 — rouyi.db, auto-migrated on startup
 
 Both frontend and backend share port **3000**. The backend serves both API and static files.
 
+### Database Compatibility (SQLite / MySQL)
+
+项目同时支持 SQLite 和 MySQL，切换靠两个环境变量：
+
+| 环境变量 | 默认值 | MySQL 用法 |
+|----------|--------|------------|
+| `JDBC_URL` | `jdbc:sqlite:rouyi.db` | `jdbc:mysql://user:pass@host:port/db?useSSL=false&allowPublicKeyRetrieval=true` |
+| `MIGRATION_DIR` | `migrations-sqlite` | `migrations` |
+
+#### Migration 必须完全分开
+
+DDL 差异无法兼容，因此有两套目录：
+
+- `resources/migrations-sqlite/` —— SQLite 专用
+- `resources/migrations/` —— MySQL 专用
+
+新增/修改表时，**两个目录必须同步更新**。常见差异：
+
+| 场景 | SQLite | MySQL |
+|------|--------|-------|
+| 自增主键 | `INTEGER PRIMARY KEY` | `BIGINT AUTO_INCREMENT PRIMARY KEY` |
+| 时间字段 | `TEXT DEFAULT CURRENT_TIMESTAMP` | `TIMESTAMP DEFAULT CURRENT_TIMESTAMP` |
+| 布尔/状态 | `CHAR(1)` / `INTEGER` | `CHAR(1)` / `TINYINT` |
+
+#### 查询 SQL 优先共用，必要时分支
+
+业务查询统一放在 `resources/sql/*.sql`，由 `conman` 加载。原则：
+
+1. **优先用两库都支持的语法**
+
+   ```sql
+   -- ✅ 推荐：两库都支持
+   AND (:job_name IS NULL OR INSTR(job_name, :job_name) > 0)
+   LIMIT :page_size OFFSET :offset
+   ```
+
+2. **禁止在共用 SQL 里写 SQLite-only 语法**
+
+   ```sql
+   -- ❌ 错误：|| 在 MySQL 默认 sql_mode 下是逻辑 OR
+   AND (:user_name IS NULL OR user_name LIKE '%' || :user_name || '%')
+
+   -- ✅ 正确
+   AND (:user_name IS NULL OR INSTR(user_name, :user_name) > 0)
+   ```
+
+3. **函数名不同就提供命名变体，在 Clojure 层选择**
+
+   例如 `resources/sql/system.sql`：
+
+   ```sql
+   -- :name last-insert-rowid :? :1
+   SELECT last_insert_rowid() AS last_insert_rowid
+
+   -- :name last-insert-rowid-mysql :? :1
+   SELECT LAST_INSERT_ID() AS last_insert_rowid
+   ```
+
+   由 `com.ruoyi.infra.db/detect-db-type` 判断后调用对应名字。
+
+4. **元数据/动态查询在 Clojure 层分支**
+
+   `com.ruoyi.infra.db` 里对 `get-tables`、`get-table-columns`、`paginate-query` 等按 `:sqlite` / `:mysql` 分情况处理，不要把 `PRAGMA`、`sqlite_master`、`information_schema` 混进共用 `.sql`。
+
+#### 修改后必须双库跑测试
+
+任何 `resources/migrations*` 或 `resources/sql/*.sql` 改动，都要验证两套数据库：
+
+```bash
+# SQLite
+rm -f rouyi.db && bb test
+
+# MySQL（先清空数据库）
+docker exec ruoyi-mysql mysql -uroot -ppassword -e \
+  "DROP DATABASE IF EXISTS ruoyi; CREATE DATABASE ruoyi CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+JDBC_URL="jdbc:mysql://root:password@127.0.0.1:3308/ruoyi?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true" \
+MIGRATION_DIR=migrations bb test
+```
+
 ### Starting Dev Environment
 
 ```bash
