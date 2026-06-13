@@ -18,3 +18,5 @@ cpcache/
 CLAUDE.local.md
 .cpcache/
 .clj-kondo/
+.lsp/.cache/
+.lsp/.cache/
