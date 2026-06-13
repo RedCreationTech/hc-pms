@@ -9,7 +9,7 @@
 | 层级 | 技术 |
 |------|------|
 | 后端 | Clojure 1.12, Kit, Integrant, Reitit, Ring, next.jdbc, Migratus |
-| 数据库 | SQLite (默认), 支持 MySQL / PostgreSQL |
+| 数据库 | SQLite (默认), 支持 MySQL |
 | 安全 | Buddy (JWT + bcrypt), XSS/CSRF 防护 |
 | 前端 | ClojureScript, Shadow-CLJS, Reagent 2.0, React 19, Ant Design 6, re-frame |
 | 任务调度 | Quartz |
