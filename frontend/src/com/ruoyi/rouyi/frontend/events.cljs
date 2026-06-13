@@ -724,32 +724,29 @@
                    (-> db
                        (assoc-in [:roles :modal-visible?] true)
                        (assoc-in [:roles :editing?] false)
+                       (assoc-in [:roles :editing] nil)
                        (assoc-in [:roles :form-data] {:role_sort 0 :status "0" :data_scope "1"}))))
 
 (rf/reg-event-db :roles/close-modal
                  (fn [db _]
                    (assoc-in db [:roles :modal-visible?] false)))
 
-(rf/reg-event-db :roles/update-form
-                 (fn [db [_ k v]]
-                   (assoc-in db [:roles :form-data k] v)))
-
 (rf/reg-event-db :roles/edit
                  (fn [db [_ data]]
                    (-> db
                        (assoc-in [:roles :modal-visible?] true)
                        (assoc-in [:roles :editing?] true)
+                       (assoc-in [:roles :editing] data)
                        (assoc-in [:roles :form-data] data))))
 
 (rf/reg-event-fx :roles/submit
-                 (fn [{:keys [db]} _]
-                   (let [data (get-in db [:roles :form-data])
-                         editing? (get-in db [:roles :editing?])]
-                     (if editing?
+                 (fn [{:keys [db]} [_ values]]
+                   (let [editing (get-in db [:roles :editing])]
+                     (if editing
                        {:db (assoc-in db [:roles :modal-visible?] false)
-                        :api/update-role [(:role_id data) data]}
+                        :api/update-role [(:role_id editing) values]}
                        {:db (assoc-in db [:roles :modal-visible?] false)
-                        :api/create-role data}))))
+                        :api/create-role values}))))
 
 (rf/reg-fx :api/create-role
            (fn [params]
@@ -1190,27 +1187,25 @@
                              (fn [_]))))
 
 (rf/reg-event-db :depts/open-modal
-                 (fn [db _]
-                   (-> db (assoc-in [:depts :modal-visible?] true) (assoc-in [:depts :editing?] false)
-                       (assoc-in [:depts :form-data] {:order_num 0 :status "0"}))))
+                 (fn [db [_ initial-data]]
+                   (-> db (assoc-in [:depts :modal-visible?] true) (assoc-in [:depts :editing] nil)
+                       (assoc-in [:depts :form-data] (merge {:order_num 0 :status "0"} initial-data)))))
 
 (rf/reg-event-db :depts/close-modal
                  (fn [db _] (assoc-in db [:depts :modal-visible?] false)))
 
-(rf/reg-event-db :depts/update-form
-                 (fn [db [_ k v]] (assoc-in db [:depts :form-data k] v)))
-
 (rf/reg-event-db :depts/edit
                  (fn [db [_ data]]
-                   (-> db (assoc-in [:depts :modal-visible?] true) (assoc-in [:depts :editing?] true)
+                   (-> db (assoc-in [:depts :modal-visible?] true) (assoc-in [:depts :editing] data)
                        (assoc-in [:depts :form-data] data))))
 
 (rf/reg-event-fx :depts/submit
-                 (fn [{:keys [db]} _]
-                   (let [data (get-in db [:depts :form-data]) editing? (get-in db [:depts :editing?])]
-                     (if editing?
-                       {:db (assoc-in db [:depts :modal-visible?] false) :api/update-dept [(:dept_id data) data]}
-                       {:db (assoc-in db [:depts :modal-visible?] false) :api/create-dept data}))))
+                 (fn [{:keys [db]} [_ values]]
+                   (let [editing (get-in db [:depts :editing])
+                         values (update values :order_num #(if (string? %) (js/parseInt % 10) %))]
+                     (if editing
+                       {:db (assoc-in db [:depts :modal-visible?] false) :api/update-dept [(:dept_id editing) values]}
+                       {:db (assoc-in db [:depts :modal-visible?] false) :api/create-dept values}))))
 
 (rf/reg-fx :api/create-dept
            (fn [params]
@@ -1266,26 +1261,29 @@
 
 (rf/reg-event-db :posts/open-modal
                  (fn [db _]
-                   (-> db (assoc-in [:posts :modal-visible?] true) (assoc-in [:posts :editing?] false)
+                   (-> db
+                       (assoc-in [:posts :modal-visible?] true)
+                       (assoc-in [:posts :editing?] false)
+                       (assoc-in [:posts :editing] nil)
                        (assoc-in [:posts :form-data] {:post_sort 0 :status "0"}))))
 
 (rf/reg-event-db :posts/close-modal
                  (fn [db _] (assoc-in db [:posts :modal-visible?] false)))
 
-(rf/reg-event-db :posts/update-form
-                 (fn [db [_ k v]] (assoc-in db [:posts :form-data k] v)))
-
 (rf/reg-event-db :posts/edit
                  (fn [db [_ data]]
-                   (-> db (assoc-in [:posts :modal-visible?] true) (assoc-in [:posts :editing?] true)
+                   (-> db
+                       (assoc-in [:posts :modal-visible?] true)
+                       (assoc-in [:posts :editing?] true)
+                       (assoc-in [:posts :editing] data)
                        (assoc-in [:posts :form-data] data))))
 
 (rf/reg-event-fx :posts/submit
-                 (fn [{:keys [db]} _]
-                   (let [data (get-in db [:posts :form-data]) editing? (get-in db [:posts :editing?])]
-                     (if editing?
-                       {:db (assoc-in db [:posts :modal-visible?] false) :api/update-post [(:post_id data) data]}
-                       {:db (assoc-in db [:posts :modal-visible?] false) :api/create-post data}))))
+                 (fn [{:keys [db]} [_ values]]
+                   (let [editing (get-in db [:posts :editing])]
+                     (if editing
+                       {:db (assoc-in db [:posts :modal-visible?] false) :api/update-post [(:post_id editing) values]}
+                       {:db (assoc-in db [:posts :modal-visible?] false) :api/create-post values}))))
 
 (rf/reg-fx :api/create-post
            (fn [params] (api/create-post params (fn [r] (when (= 200 (:code r)) (antd/success! "创建成功") (rf/dispatch [:posts/fetch {}]))) (fn [_] (antd/error! "网络错误")))))
@@ -1762,32 +1760,31 @@
                              (fn [_]))))
 
 (rf/reg-event-db :menus/open-modal
-                 (fn [db _]
+                 (fn [db [_ initial-data]]
                    (-> db
                        (assoc-in [:menus :modal-visible?] true)
                        (assoc-in [:menus :editing?] false)
-                       (assoc-in [:menus :form-data] {:menu_type "M" :order_num 0 :status "0" :visible "0" :is_frame "0" :is_cache "0"}))))
+                       (assoc-in [:menus :editing] false)
+                       (assoc-in [:menus :form-data] (merge {:menu_type "M" :order_num 0 :status "0" :visible "0" :is_frame "0" :is_cache "0"} initial-data)))))
 
 (rf/reg-event-db :menus/close-modal
                  (fn [db _]
                    (assoc-in db [:menus :modal-visible?] false)))
-
-(rf/reg-event-db :menus/update-form
-                 (fn [db [_ k v]]
-                   (assoc-in db [:menus :form-data k] v)))
 
 (rf/reg-event-db :menus/edit
                  (fn [db [_ data]]
                    (-> db
                        (assoc-in [:menus :modal-visible?] true)
                        (assoc-in [:menus :editing?] true)
+                       (assoc-in [:menus :editing] true)
                        (assoc-in [:menus :form-data] data))))
 
 (rf/reg-event-fx :menus/submit
-                 (fn [{:keys [db]} _]
-                   (let [data (get-in db [:menus :form-data])
-                         editing? (get-in db [:menus :editing?])]
-                     (if editing?
+                 (fn [{:keys [db]} [_ values]]
+                   (let [data (-> values
+                                  (update :order_num #(if (seq (str %)) (js/parseInt % 10) 0)))
+                         editing (get-in db [:menus :editing])]
+                     (if editing
                        {:db (assoc-in db [:menus :modal-visible?] false)
                         :api/update-menu [(:menu_id data) data]}
                        {:db (assoc-in db [:menus :modal-visible?] false)
@@ -1991,17 +1988,12 @@
                        (assoc-in [:notices :editing] item)
                        (assoc-in [:notices :form-data] item))))
 
-(rf/reg-event-db :notices/update-form
-                 (fn [db [_ field value]]
-                   (assoc-in db [:notices :form-data field] value)))
-
 (rf/reg-event-fx :notices/submit
-                 (fn [{:keys [db]} _]
-                   (let [form-data (get-in db [:notices :form-data] {})
-                         editing (get-in db [:notices :editing])]
+                 (fn [{:keys [db]} [_ values]]
+                   (let [editing (get-in db [:notices :editing])]
                      (if editing
-                       {:api/update-notice [(:notice_id editing) form-data]}
-                       {:api/create-notice form-data}))))
+                       {:api/update-notice [(:notice_id editing) values]}
+                       {:api/create-notice values}))))
 
 (rf/reg-fx :api/create-notice
            (fn [params]
@@ -2043,25 +2035,24 @@
                        (assoc-in [:users :editing] nil)
                        (assoc-in [:users :form-data] {}))))
 
-(rf/reg-event-db :users/open-edit
-                 (fn [db [_ user-id]]
-                   (let [items (get-in db [:users :items] [])
-                         user (first (filter #(= user-id (:user_id %)) items))]
-                     (assoc-in db [:users :modal-visible?] true)
-                     (assoc-in db [:users :editing] user)
-                     (assoc-in db [:users :form-data] (or user {})))))
+(rf/reg-event-fx :users/open-edit
+                 (fn [_ [_ user-id]]
+                   {:api/get-user user-id}))
 
-(rf/reg-event-db :users/open-edit-selected
-                 (fn [db _]
-                   (let [ids (get-in db [:users :selected-ids] [])
-                         items (get-in db [:users :items] [])
-                         user (first (filter #(= (first ids) (:user_id %)) items))]
-                     (if user
-                       (-> db
-                           (assoc-in [:users :modal-visible?] true)
-                           (assoc-in [:users :editing] user)
-                           (assoc-in [:users :form-data] user))
-                       (do (antd/error! "请先选择要修改的用户") db)))))
+(rf/reg-event-db :users/edit-user
+                 (fn [db [_ user]]
+                   (-> db
+                       (assoc-in [:users :modal-visible?] true)
+                       (assoc-in [:users :editing] user)
+                       (assoc-in [:users :form-data] (or user {})))))
+
+(rf/reg-event-fx :users/open-edit-selected
+                 (fn [{:keys [db]} _]
+                   (let [ids (get-in db [:users :selected-ids] [])]
+                     (if (seq ids)
+                       {:api/get-user (first ids)}
+                       (do (antd/error! "请先选择要修改的用户")
+                           {:db db})))))
 
 (rf/reg-event-db :users/close-modal
                  (fn [db _]
@@ -2073,21 +2064,26 @@
 
 (rf/reg-event-fx :users/search
                  (fn [{:keys [db]} _]
-                   (let [params (get-in db [:users :query-params] {})]
+                   (let [params (get-in db [:users :query-params] {})
+                         size (get-in db [:users :page-size] 10)]
                      {:db (assoc-in db [:users :page] 1)
-                      :api/list-users (merge params {:page-num 1 :page-size 10})})))
+                      :api/list-users (merge params {:page 1 :size size})})))
 
 (rf/reg-event-fx :users/reset-query
                  (fn [{:keys [db]} _]
                    {:db (-> db
                             (assoc-in [:users :query-params] {})
-                            (assoc-in [:users :selected-ids] []))
-                    :api/list-users {}}))
+                            (assoc-in [:users :selected-ids] [])
+                            (assoc-in [:users :page] 1)
+                            (assoc-in [:users :page-size] 10))
+                    :api/list-users {:page 1 :size 10}}))
 
 (rf/reg-event-fx :users/fetch-with-params
                  (fn [{:keys [db]} _]
-                   (let [params (get-in db [:users :query-params] {})]
-                     {:api/list-users params})))
+                   (let [params (get-in db [:users :query-params] {})
+                         page (get-in db [:users :page] 1)
+                         size (get-in db [:users :page-size] 10)]
+                     {:api/list-users (merge params {:page page :size size})})))
 
 (rf/reg-event-db :users/toggle-search
                  (fn [db _]
@@ -2141,14 +2137,10 @@
                             (assoc-in [:users :reset-pwd-username] user-id)
                             (assoc-in [:users :reset-pwd-value] "123456"))}))
 
-(rf/reg-event-db :users/update-reset-pwd-value
-                 (fn [db [_ value]]
-                   (assoc-in db [:users :reset-pwd-value] value)))
-
 (rf/reg-event-fx :users/submit-reset-password
-                 (fn [{:keys [db]} _]
+                 (fn [{:keys [db]} [_ values]]
                    (let [user-id (get-in db [:users :reset-pwd-username])
-                         new-pwd (get-in db [:users :reset-pwd-value] "123456")]
+                         new-pwd (:password values "123456")]
                      {:db (assoc-in db [:users :reset-pwd-visible?] false)
                       :api/reset-user-password [user-id new-pwd]})))
 
@@ -2212,6 +2204,14 @@
                                   (antd/error! (:msg result))))
                               (fn [_] (antd/error! "网络错误")))))
 
+(rf/reg-fx :api/get-user
+           (fn [user-id]
+             (api/get-user user-id
+                           (fn [result]
+                             (when (= 200 (:code result))
+                               (rf/dispatch [:users/edit-user (:data result)])))
+                           (fn [_] (antd/error! "获取用户详情失败")))))
+
 (rf/reg-fx :api/batch-delete-users
            (fn [ids]
              (doseq [id ids]
@@ -2247,17 +2247,12 @@
 
 ;; ─── 用户表单事件 ─────────────────────────────────────────────────────────────
 
-(rf/reg-event-db :users/update-form
-                 (fn [db [_ field value]]
-                   (assoc-in db [:users :form-data field] value)))
-
 (rf/reg-event-fx :users/submit
-                 (fn [{:keys [db]} _]
-                   (let [form-data (get-in db [:users :form-data] {})
-                         editing (get-in db [:users :editing])]
+                 (fn [{:keys [db]} [_ values]]
+                   (let [editing (get-in db [:users :editing])]
                      (if editing
-                       {:api/update-user [(:user_id editing) form-data]}
-                       {:api/create-user form-data}))))
+                       {:api/update-user [(:user_id editing) values]}
+                       {:api/create-user values}))))
 
 (rf/reg-event-db :users/close-reset-password
                  (fn [db _]
@@ -2269,15 +2264,47 @@
                  (fn [db [_ dept-id]]
                    (assoc-in db [:users :selected-dept-id] dept-id)))
 
-(rf/reg-event-db :users/change-page
-                 (fn [db [_ page page-size]]
-                   (-> db
-                       (assoc-in [:users :page] page)
-                       (assoc-in [:users :page-size] page-size))))
+(rf/reg-event-fx :users/change-page
+                 (fn [{:keys [db]} [_ page page-size]]
+                   {:db (-> db
+                            (assoc-in [:users :page] page)
+                            (assoc-in [:users :page-size] page-size))
+                    :dispatch [:users/fetch-with-params]}))
 
 (rf/reg-event-db :users/set-selected
                  (fn [db [_ ids]]
-                   (assoc-in db [:users :selected-ids] ids)))
+                   (assoc-in db [:users :selected-ids] (mapv #(js/parseInt % 10) ids))))
+
+(rf/reg-event-db :users/set-role-options
+                 (fn [db [_ data]]
+                   (let [items (if (sequential? data) data (:rows data []))]
+                     (assoc-in db [:users :role-options] items))))
+
+(rf/reg-event-db :users/set-post-options
+                 (fn [db [_ data]]
+                   (let [items (if (sequential? data) data (:rows data []))]
+                     (assoc-in db [:users :post-options] items))))
+
+(rf/reg-event-fx :users/fetch-options
+                 (fn [_ _]
+                   {:api/list-role-options nil
+                    :api/list-post-options nil}))
+
+(rf/reg-fx :api/list-role-options
+           (fn [_]
+             (api/list-roles {:page 1 :size 1000}
+                              (fn [result]
+                                (when (= 200 (:code result))
+                                  (rf/dispatch [:users/set-role-options (:data result)])))
+                              (fn [_]))))
+
+(rf/reg-fx :api/list-post-options
+           (fn [_]
+             (api/list-posts {:page 1 :size 1000}
+                              (fn [result]
+                                (when (= 200 (:code result))
+                                  (rf/dispatch [:users/set-post-options (:data result)])))
+                              (fn [_]))))
 
 ;; ─── 部门树构建工具 ───────────────────────────────────────────────────────────
 

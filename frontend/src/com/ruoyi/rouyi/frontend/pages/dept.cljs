@@ -76,8 +76,7 @@
                        [antd/space
                         [antd/button {:type "link" :size "small"
                                       :icon (r/as-element [:> PlusOutlined])
-                                      :on-click #(do (rf/dispatch [:depts/update-form :parent_id (.-dept_id record)])
-                                                     (rf/dispatch [:depts/open-modal]))}
+                                      :on-click #(rf/dispatch [:depts/open-modal {:parent_id (.-dept_id record)}])}
                          "新增"]
                         [antd/button {:icon (r/as-element [:> DownloadOutlined])
                                       :on-click #(api/export-depts {})}
@@ -96,37 +95,43 @@
 
 (defn- edit-modal []
   (let [visible? @(rf/subscribe [:depts/modal-visible?])
-        editing? @(rf/subscribe [:depts/editing?])
-        form-data @(rf/subscribe [:depts/form-data])]
-    [antd/modal {:title (if editing? "修改部门" "新增部门")
+        editing @(rf/subscribe [:depts/editing])
+        form-data @(rf/subscribe [:depts/form-data])
+        [form] (antd/form-use-form)]
+    (hooks/use-effect
+     (fn []
+       (when visible?
+         (.setFieldsValue form (clj->js (merge {:order_num 0 :status "0"} form-data))))
+       js/undefined)
+     [visible? form-data])
+    [antd/modal {:title (if editing "修改部门" "新增部门")
                  :open visible?
-                 :onOk #(rf/dispatch [:depts/submit])
+                 :onOk #(.submit form)
                  :onCancel #(rf/dispatch [:depts/close-modal])
                  :destroyOnHidden true}
-     [antd/form {:labelCol {:span 6} :wrapperCol {:span 16}}
-      [antd/form-item {:label "上级部门"}
-       [dept-tree-select {:value (:parent_id form-data)
-                          :placeholder "选择上级部门（空为顶级）"
-                          :allow-clear? true
-                          :on-change #(rf/dispatch [:depts/update-form :parent_id %])}]]
-      [antd/form-item {:label "部门名称" :required true}
-       [antd/input {:value (:dept_name form-data "")
-                    :on-change #(rf/dispatch [:depts/update-form :dept_name (.. % -target -value)])}]]
-      [antd/form-item {:label "显示排序"}
-       [antd/input {:type "number" :value (:order_num form-data 0)
-                    :on-change #(rf/dispatch [:depts/update-form :order_num (js/parseInt (.. % -target -value) 10)])}]]
-      [antd/form-item {:label "负责人"}
-       [antd/input {:value (:leader form-data "")
-                    :on-change #(rf/dispatch [:depts/update-form :leader (.. % -target -value)])}]]
-      [antd/form-item {:label "联系电话"}
-       [antd/input {:value (:phone form-data "")
-                    :on-change #(rf/dispatch [:depts/update-form :phone (.. % -target -value)])}]]
-      [antd/form-item {:label "邮箱"}
-       [antd/input {:value (:email form-data "")
-                    :on-change #(rf/dispatch [:depts/update-form :email (.. % -target -value)])}]]
-      [antd/form-item {:label "状态"}
-       [antd/radio-group {:value (:status form-data "0")
-                          :on-change #(rf/dispatch [:depts/update-form :status (.. % -target -value)])}
+     [antd/form {:form form
+                 :labelCol {:span 6}
+                 :wrapperCol {:span 16}
+                 :preserve false
+                 :onFinish (fn [values]
+                             (rf/dispatch [:depts/submit (js->clj values :keywordize-keys true)]))
+                 :initialValues (clj->js (merge {:order_num 0 :status "0"} form-data))}
+      [antd/form-item {:label "上级部门" :name "parent_id"}
+       [dept-tree-select {:placeholder "选择上级部门（空为顶级）"
+                          :allow-clear? true}]]
+      [antd/form-item {:label "部门名称" :name "dept_name"
+                       :rules [{:required true :message "请输入部门名称"}]}
+       [antd/input {:placeholder "请输入部门名称"}]]
+      [antd/form-item {:label "显示排序" :name "order_num"}
+       [antd/input {:type "number" :placeholder "请输入显示排序"}]]
+      [antd/form-item {:label "负责人" :name "leader"}
+       [antd/input {:placeholder "请输入负责人"}]]
+      [antd/form-item {:label "联系电话" :name "phone"}
+       [antd/input {:placeholder "请输入联系电话"}]]
+      [antd/form-item {:label "邮箱" :name "email"}
+       [antd/input {:placeholder "请输入邮箱"}]]
+      [antd/form-item {:label "状态" :name "status"}
+       [antd/radio-group
         [antd/radio {:value "0"} "正常"]
         [antd/radio {:value "1"} "停用"]]]]]))
 

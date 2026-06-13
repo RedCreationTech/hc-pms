@@ -152,33 +152,41 @@
 
 (defn- edit-modal []
   (let [visible? @(rf/subscribe [:roles/modal-visible?])
-        editing? @(rf/subscribe [:roles/editing?])
-        form-data @(rf/subscribe [:roles/form-data])]
-    [antd/modal {:title (if editing? "修改角色" "新增角色")
+        editing @(rf/subscribe [:roles/editing])
+        form-data @(rf/subscribe [:roles/form-data])
+        [form] (antd/form-use-form)]
+    (hooks/use-effect
+     (fn []
+       (when visible?
+         (.setFieldsValue form (clj->js (merge {:role_sort 0 :status "0" :data_scope "1"} form-data))))
+       js/undefined)
+     [visible? form-data])
+    [antd/modal {:title (if editing "修改角色" "新增角色")
                  :open visible?
-                 :onOk #(rf/dispatch [:roles/submit])
+                 :onOk #(.submit form)
                  :onCancel #(rf/dispatch [:roles/close-modal])
                  :destroyOnHidden true}
-     [antd/form {:labelCol {:span 6} :wrapperCol {:span 16}}
-      [antd/form-item {:label "角色名称" :required true}
-       [antd/input {:value (:role_name form-data "")
-                    :on-change #(rf/dispatch [:roles/update-form :role_name (.. % -target -value)])}]]
-      [antd/form-item {:label "权限字符" :required true}
-       [antd/input {:value (:role_key form-data "")
-                    :on-change #(rf/dispatch [:roles/update-form :role_key (.. % -target -value)])}]]
-      [antd/form-item {:label "角色顺序"}
-       [antd/input {:type "number"
-                    :value (:role_sort form-data 0)
-                    :on-change #(rf/dispatch [:roles/update-form :role_sort (js/parseInt (.. % -target -value) 10)])}]]
-      [antd/form-item {:label "状态"}
-       [antd/radio-group {:value (:status form-data "0")
-                          :on-change #(rf/dispatch [:roles/update-form :status (.. % -target -value)])}
+     [antd/form {:form form
+                 :labelCol {:span 6}
+                 :wrapperCol {:span 16}
+                 :preserve false
+                 :onFinish (fn [values]
+                             (rf/dispatch [:roles/submit (js->clj values :keywordize-keys true)]))
+                 :initialValues (clj->js (merge {:role_sort 0 :status "0" :data_scope "1"} form-data))}
+      [antd/form-item {:label "角色名称" :name "role_name"
+                       :rules [{:required true :message "请输入角色名称"}]}
+       [antd/input {:placeholder "请输入角色名称"}]]
+      [antd/form-item {:label "权限字符" :name "role_key"
+                       :rules [{:required true :message "请输入权限字符"}]}
+       [antd/input {:placeholder "请输入权限字符"}]]
+      [antd/form-item {:label "角色顺序" :name "role_sort"}
+       [antd/input {:type "number" :placeholder "请输入角色顺序"}]]
+      [antd/form-item {:label "状态" :name "status"}
+       [antd/radio-group
         [antd/radio {:value "0"} "正常"]
         [antd/radio {:value "1"} "停用"]]]
-      [antd/form-item {:label "备注"}
-       [antd/text-area {:value (:remark form-data "")
-                        :rows 3
-                        :on-change #(rf/dispatch [:roles/update-form :remark (.. % -target -value)])}]]]]))
+      [antd/form-item {:label "备注" :name "remark"}
+       [antd/text-area {:placeholder "请输入备注" :rows 3}]]]]))
 
 ;; ─── 权限分配弹窗 ──────────────────────────────────────────────────────
 

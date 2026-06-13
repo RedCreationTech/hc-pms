@@ -203,9 +203,24 @@
               [antd/tag {:color "cyan"} (:post_name post)])]])])]))
 
 (defn- form-modal []
+  "用户新增/编辑弹窗 — 使用 antd Form 管理表单状态。"
   (let [visible? @(rf/subscribe [:users/modal-visible?])
-        editing? @(rf/subscribe [:users/editing?])
-        form-data @(rf/subscribe [:users/form-data])]
+        editing @(rf/subscribe [:users/editing])
+        form-data @(rf/subscribe [:users/form-data])
+        role-options @(rf/subscribe [:users/role-options])
+        post-options @(rf/subscribe [:users/post-options])
+        [form] (antd/form-use-form)]
+    (hooks/use-effect
+     (fn []
+       (when visible?
+         (rf/dispatch [:users/fetch-options])
+         (let [base (merge {:status "0" :sex "0" :roles [] :posts []} form-data)
+               initial (-> base
+                           (assoc :roles (mapv :role_id (:roles form-data))
+                                  :posts (mapv :post_id (:posts form-data))))]
+           (.setFieldsValue form (clj->js initial))))
+       js/undefined)
+     [visible? form-data])
     (when visible?
       [:div {:style {:position "fixed" :top 0 :left 0 :right 0 :bottom 0
                      :background "rgba(0,0,0,0.45)" :zIndex 1050
@@ -214,71 +229,70 @@
                       :maxHeight "90vh" :overflow "auto" :boxShadow "0 6px 16px rgba(0,0,0,0.08)"}}
         [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center"
                        :marginBottom 16 :paddingBottom 12 :borderBottom "1px solid var(--ant-color-border-secondary, #e8e8e8)"}}
-         [:h3 {:style {:margin 0 :fontSize 16}} (if editing? "修改用户" "添加用户")]
+         [:h3 {:style {:margin 0 :fontSize 16}} (if editing "修改用户" "添加用户")]
          [antd/button {:type "text" :size "small"
                        :on-click #(rf/dispatch [:users/close-modal])} "✕"]]
-        [:div {:style {:display "grid" :gridTemplateColumns "1fr 1fr" :gap 12}}
-         [:div
-          [:label {:style {:display "block" :marginBottom 4 :fontWeight 500 :fontSize 13}} "用户昵称 *"]
-          [antd/input {:value (:nick_name form-data "")
-                       :placeholder "请输入用户昵称"
-                       :on-change #(rf/dispatch [:users/update-form :nick_name (.. % -target -value)])}]]
-         [:div
-          [:label {:style {:display "block" :marginBottom 4 :fontWeight 500 :fontSize 13}} "归属部门"]
-          [dept-tree-select {:value (:dept_id form-data)
-                             :placeholder "请选择归属部门"
-                             :allow-clear? true
-                             :on-change #(rf/dispatch [:users/update-form :dept_id %])}]]
-         [:div
-          [:label {:style {:display "block" :marginBottom 4 :fontWeight 500 :fontSize 13}} "手机号码"]
-          [antd/input {:value (:phonenumber form-data "")
-                       :placeholder "请输入手机号码"
-                       :on-change #(rf/dispatch [:users/update-form :phonenumber (.. % -target -value)])}]]
-         [:div
-          [:label {:style {:display "block" :marginBottom 4 :fontWeight 500 :fontSize 13}} "邮箱"]
-          [antd/input {:value (:email form-data "")
-                       :placeholder "请输入邮箱"
-                       :on-change #(rf/dispatch [:users/update-form :email (.. % -target -value)])}]]
-         (when-not editing?
-           [:div
-            [:label {:style {:display "block" :marginBottom 4 :fontWeight 500 :fontSize 13}} "用户名称 *"]
-            [antd/input {:value (:user_name form-data "")
-                         :placeholder "请输入用户名称"
-                         :on-change #(rf/dispatch [:users/update-form :user_name (.. % -target -value)])}]])
-         (when-not editing?
-           [:div
-            [:label {:style {:display "block" :marginBottom 4 :fontWeight 500 :fontSize 13}} "用户密码 *"]
-            [antd/input {:value (:password form-data "")
-                         :placeholder "请输入用户密码" :type "password"
-                         :on-change #(rf/dispatch [:users/update-form :password (.. % -target -value)])}]])
-
-         [:div
-          [:label {:style {:display "block" :marginBottom 4 :fontWeight 500 :fontSize 13}} "用户性别"]
-          [antd/select {:value (:sex form-data)
-                        :placeholder "请选择性别"
-                        :allowClear true
-                        :on-change #(rf/dispatch [:users/update-form :sex %])}
-           [antd/select-option {:value "0"} "男"]
-           [antd/select-option {:value "1"} "女"]
-           [antd/select-option {:value "2"} "未知"]]]
-         [:div
-          [:label {:style {:display "block" :marginBottom 4 :fontWeight 500 :fontSize 13}} "状态"]
-          [:div
-           [:label {:style {:marginRight 16 :cursor "pointer"}}
-            [antd/radio {:value "0" :checked (= (:status form-data) "0")
-                         :on-change #(rf/dispatch [:users/update-form :status "0"])}] "正常"]
-           [:label {:style {:cursor "pointer"}}
-            [antd/radio {:value "1" :checked (= (:status form-data) "1")
-                         :on-change #(rf/dispatch [:users/update-form :status "1"])}] "停用"]]]]
-        [:div {:style {:display "flex" :justifyContent "flex-end" :gap 8 :marginTop 20 :paddingTop 16 :borderTop "1px solid var(--ant-color-border-secondary, #e8e8e8)"}}
-         [antd/button {:on-click #(rf/dispatch [:users/close-modal])} "取消"]
-         [antd/button {:type "primary" :on-click #(rf/dispatch [:users/submit-form])} "确定"]]]])))
+        [antd/form {:form form
+                    :layout "vertical"
+                    :preserve false
+                    :onFinish (fn [values]
+                                (rf/dispatch [:users/submit (js->clj values :keywordize-keys true)]))
+                    :initialValues (clj->js (let [base (merge {:status "0" :sex "0" :roles [] :posts []} form-data)]
+                                              (assoc base
+                                                     :roles (mapv :role_id (:roles form-data))
+                                                     :posts (mapv :post_id (:posts form-data)))))}
+         [:div {:style {:display "grid" :gridTemplateColumns "1fr 1fr" :gap 12}}
+          [antd/form-item {:label "用户昵称" :name "nick_name"
+                           :rules [{:required true :message "请输入用户昵称"}]}
+           [antd/input {:placeholder "请输入用户昵称"}]]
+          [antd/form-item {:label "归属部门" :name "dept_id"}
+           [dept-tree-select {:placeholder "请选择归属部门" :allow-clear? true}]]
+          [antd/form-item {:label "手机号码" :name "phonenumber"}
+           [antd/input {:placeholder "请输入手机号码"}]]
+          [antd/form-item {:label "邮箱" :name "email"}
+           [antd/input {:placeholder "请输入邮箱"}]]
+          (when-not editing
+            [antd/form-item {:label "用户名称" :name "user_name"
+                             :rules [{:required true :message "请输入用户名称"}]}
+             [antd/input {:placeholder "请输入用户名称"}]])
+          (when-not editing
+            [antd/form-item {:label "用户密码" :name "password"
+                             :rules [{:required true :message "请输入用户密码"}]}
+             [antd/password {:placeholder "请输入用户密码"}]])
+          [antd/form-item {:label "用户性别" :name "sex"}
+           [antd/select {:placeholder "请选择性别" :allowClear true}
+            [antd/select-option {:value "0"} "男"]
+            [antd/select-option {:value "1"} "女"]
+            [antd/select-option {:value "2"} "未知"]]]
+          [antd/form-item {:label "状态" :name "status"}
+           [antd/radio-group
+            [antd/radio {:value "0"} "正常"]
+            [antd/radio {:value "1"} "停用"]]]
+          [antd/form-item {:label "角色" :name "roles"}
+           [antd/select {:mode "multiple" :placeholder "请选择角色" :allowClear true}
+            (for [role role-options]
+              ^{:key (:role_id role)} [antd/select-option {:value (:role_id role)} (:role_name role)])]]
+          [antd/form-item {:label "岗位" :name "posts"}
+           [antd/select {:mode "multiple" :placeholder "请选择岗位" :allowClear true}
+            (for [post post-options]
+              ^{:key (:post_id post)} [antd/select-option {:value (:post_id post)} (:post_name post)])]]]
+         [:div {:style {:display "flex" :justifyContent "flex-end" :gap 8 :marginTop 20 :paddingTop 16
+                        :borderTop "1px solid var(--ant-color-border-secondary, #e8e8e8)"}}
+          [antd/button {:on-click #(rf/dispatch [:users/close-modal])} "取消"]
+          [antd/button {:type "primary" :htmlType "submit"} "确定"]]]]])))
 
 ;; ─── 主页面 ────────────────────────────────────────────────────────
 
 (defn- reset-password-modal []
   (let [visible? @(rf/subscribe [:users/reset-pwd-visible?])
-        username @(rf/subscribe [:users/reset-pwd-username])]
+        username @(rf/subscribe [:users/reset-pwd-username])
+        [form] (antd/form-use-form)]
+    (hooks/use-effect
+     (fn []
+       (when visible?
+         (.resetFields form))
+       js/undefined)
+     [visible?])
     (when visible?
       [:div {:style {:position "fixed" :top 0 :left 0 :right 0 :bottom 0
                      :background "rgba(0,0,0,0.45)" :zIndex 1060
@@ -286,13 +300,18 @@
        [:div {:style {:background "var(--ant-color-bg-container, #fff)" :padding 24 :borderRadius 8 :width 400
                       :boxShadow "0 6px 16px rgba(0,0,0,0.08)"}}
         [:h3 {:style {:margin "0 0 16px 0" :fontSize 16}} (str "重置密码 - " username)]
-        [antd/input {:value @(rf/subscribe [:users/reset-pwd-value])
-                     :placeholder "请输入新密码"
-                     :type "password"
-                     :on-change #(rf/dispatch [:users/update-reset-pwd (.. % -target -value)])}]
-        [:div {:style {:display "flex" :justifyContent "flex-end" :gap 8 :marginTop 16}}
-         [antd/button {:on-click #(rf/dispatch [:users/close-reset-password])} "取消"]
-         [antd/button {:type "primary" :on-click #(rf/dispatch [:users/confirm-reset-password])} "确定"]]]])))
+        [antd/form {:form form
+                    :layout "vertical"
+                    :preserve false
+                    :onFinish (fn [values]
+                                (rf/dispatch [:users/submit-reset-password (js->clj values :keywordize-keys true)]))
+                    :initialValues #js {}}
+         [antd/form-item {:label "新密码" :name "password"
+                          :rules [{:required true :message "请输入新密码"}]}
+          [antd/password {:placeholder "请输入新密码"}]]
+         [:div {:style {:display "flex" :justifyContent "flex-end" :gap 8 :marginTop 16}}
+          [antd/button {:on-click #(rf/dispatch [:users/close-reset-password])} "取消"]
+          [antd/button {:type "primary" :htmlType "submit"} "确定"]]]]])))
 
 (defn- render-tree-node
   "递归渲染单个部门节点。"

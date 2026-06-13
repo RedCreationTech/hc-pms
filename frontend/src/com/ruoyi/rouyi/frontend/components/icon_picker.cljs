@@ -131,9 +131,10 @@
 
 (defn icon-picker
   "图标选择器组件 — 网格展示常用图标。
-   参数：:value 当前选中的图标名称，:on-change 选择回调，:placeholder 占位文本。"
-  [{:keys [value on-change placeholder]}]
-  (let [placeholder (or placeholder "选择图标")]
+   参数：:value 当前选中的图标名称，:on-change/:onChange 选择回调，:placeholder 占位文本。"
+  [{:keys [value on-change onChange placeholder]}]
+  (let [on-change (or on-change onChange)
+        placeholder (or placeholder "选择图标")]
     [com.ruoyi.rouyi.frontend.antd/popover
      {:trigger "click"
       :content

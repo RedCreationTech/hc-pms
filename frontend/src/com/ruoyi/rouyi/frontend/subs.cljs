@@ -61,11 +61,23 @@
 
 (rf/reg-sub :users/editing?
             (fn [db _]
-              (get-in db [:users :editing?] false)))
+              (boolean (get-in db [:users :editing]))))
+
+(rf/reg-sub :users/editing
+            (fn [db _]
+              (get-in db [:users :editing])))
 
 (rf/reg-sub :users/form-data
             (fn [db _]
               (get-in db [:users :form-data] {})))
+
+(rf/reg-sub :users/role-options
+            (fn [db _]
+              (get-in db [:users :role-options] [])))
+
+(rf/reg-sub :users/post-options
+            (fn [db _]
+              (get-in db [:users :post-options] [])))
 
 (rf/reg-sub :users/form-errors
             (fn [db _]
@@ -285,7 +297,11 @@
 
 (rf/reg-sub :roles/editing?
             (fn [db _]
-              (get-in db [:roles :editing?] false)))
+              (boolean (get-in db [:roles :editing]))))
+
+(rf/reg-sub :roles/editing
+            (fn [db _]
+              (get-in db [:roles :editing])))
 
 (rf/reg-sub :roles/form-data
             (fn [db _]
@@ -395,7 +411,11 @@
 
 (rf/reg-sub :menus/editing?
             (fn [db _]
-              (get-in db [:menus :editing?] false)))
+              (boolean (get-in db [:menus :editing]))))
+
+(rf/reg-sub :menus/editing
+            (fn [db _]
+              (get-in db [:menus :editing])))
 
 (rf/reg-sub :menus/form-data
             (fn [db _]
@@ -429,7 +449,11 @@
 
 (rf/reg-sub :depts/editing?
             (fn [db _]
-              (get-in db [:depts :editing?] false)))
+              (boolean (get-in db [:depts :editing]))))
+
+(rf/reg-sub :depts/editing
+            (fn [db _]
+              (get-in db [:depts :editing])))
 
 (rf/reg-sub :depts/form-data
             (fn [db _]
@@ -459,7 +483,11 @@
 
 (rf/reg-sub :posts/editing?
             (fn [db _]
-              (get-in db [:posts :editing?] false)))
+              (boolean (get-in db [:posts :editing]))))
+
+(rf/reg-sub :posts/editing
+            (fn [db _]
+              (get-in db [:posts :editing])))
 
 (rf/reg-sub :gen/tables (fn [db _] (get-in db [:gen :tables])))
 (rf/reg-sub :gen/tables-loading? (fn [db _] (get-in db [:gen :tables-loading?] false)))
@@ -546,7 +574,11 @@
 
 (rf/reg-sub :notices/editing?
             (fn [db _]
-              (get-in db [:notices :editing?] false)))
+              (boolean (get-in db [:notices :editing]))))
+
+(rf/reg-sub :notices/editing
+            (fn [db _]
+              (get-in db [:notices :editing])))
 
 (rf/reg-sub :notices/form-data
             (fn [db _]

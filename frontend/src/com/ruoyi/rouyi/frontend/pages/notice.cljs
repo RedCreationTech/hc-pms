@@ -38,33 +38,39 @@
 
 (defn- notice-modal []
   (let [visible? @(rf/subscribe [:notices/modal-visible?])
-        editing? @(rf/subscribe [:notices/editing?])
-        form-data @(rf/subscribe [:notices/form-data])]
-    [antd/modal {:title (if editing? "编辑通知公告" "新增通知公告")
+        editing @(rf/subscribe [:notices/editing])
+        form-data @(rf/subscribe [:notices/form-data])
+        [form] (antd/form-use-form)]
+    (hooks/use-effect
+     (fn []
+       (when visible?
+         (.setFieldsValue form (clj->js (merge {:status "0" :notice_type "1"} form-data))))
+       js/undefined)
+     [visible? form-data])
+    [antd/modal {:title (if editing "编辑通知公告" "新增通知公告")
                  :open visible?
-                 :onOk #(rf/dispatch [:notices/submit])
-                 :onCancel #(rf/dispatch [:notices/close-modal])
-                 :okButtonProps {:disabled (str/blank? (str (:notice_name form-data)))}}
-     [antd/form {:layout "vertical"}
+                 :onOk #(.submit form)
+                 :onCancel #(rf/dispatch [:notices/close-modal])}
+     [antd/form {:form form
+                 :layout "vertical"
+                 :preserve false
+                 :onFinish (fn [values]
+                             (rf/dispatch [:notices/submit (js->clj values :keywordize-keys true)]))
+                 :initialValues (clj->js (merge {:status "0" :notice_type "1"} form-data))}
       [antd/form-item {:label "标题" :name "notice_name"
                        :rules [{:required true :message "请输入公告标题"}]}
-       [antd/input {:value (:notice_name form-data)
-                    :on-change #(rf/dispatch [:notices/update-form :notice_name (.. % -target -value)])}]]
+       [antd/input {:placeholder "请输入公告标题"}]]
       [antd/form-item {:label "类型" :name "notice_type"
                        :rules [{:required true :message "请选择公告类型"}]}
-       [antd/select {:value (:notice_type form-data "1")
-                     :on-change #(rf/dispatch [:notices/update-form :notice_type %])}
+       [antd/select {:placeholder "请选择公告类型"}
         [antd/select-option {:value "1"} "通知"]
         [antd/select-option {:value "2"} "公告"]]]
       [antd/form-item {:label "状态" :name "status"}
-       [antd/radio-group {:value (:status form-data "0")
-                          :on-change #(rf/dispatch [:notices/update-form :status (.. % -target -value)])}
+       [antd/radio-group
         [antd/radio {:value "0"} "正常"]
         [antd/radio {:value "1"} "关闭"]]]
       [antd/form-item {:label "备注" :name "remark"}
-       [antd/text-area {:value (:remark form-data "")
-                        :rows 4
-                        :on-change #(rf/dispatch [:notices/update-form :remark (.. % -target -value)])}]]]]))
+       [antd/text-area {:placeholder "请输入备注" :rows 4}]]]]))
 
 (defn notice-page []
   (let [items @(rf/subscribe [:notices/items])

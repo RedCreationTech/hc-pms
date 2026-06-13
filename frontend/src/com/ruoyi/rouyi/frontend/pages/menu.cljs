@@ -109,8 +109,7 @@
                        [antd/space
                         [antd/button {:type "link" :size "small"
                                       :icon (r/as-element [:> PlusOutlined])
-                                      :on-click #(do (rf/dispatch [:menus/update-form :parent_id (.-menu_id record)])
-                                                     (rf/dispatch [:menus/open-modal]))}
+                                      :on-click #(rf/dispatch [:menus/open-modal {:parent_id (.-menu_id record)}])}
                          "新增"]
                         [antd/button {:icon (r/as-element [:> DownloadOutlined])
                                       :on-click #(api/export-menus {})}
@@ -129,77 +128,79 @@
 
 (defn- edit-modal []
   (let [visible? @(rf/subscribe [:menus/modal-visible?])
-        editing? @(rf/subscribe [:menus/editing?])
+        editing @(rf/subscribe [:menus/editing])
         form-data @(rf/subscribe [:menus/form-data])
-        menu-type (:menu_type form-data "M")]
-    [antd/modal {:title (if editing? "修改菜单" "新增菜单")
+        [form] (antd/form-use-form)
+        [menu-type set-menu-type!] (hooks/use-state "M")]
+    (hooks/use-effect
+     (fn []
+       (when visible?
+         (let [initial (merge {:menu_type "M" :order_num 0 :status "0" :visible "0" :is_frame "0" :is_cache "0"} form-data)]
+           (.setFieldsValue form (clj->js initial))
+           (set-menu-type! (:menu_type initial "M"))))
+       js/undefined)
+     [visible? form-data])
+    [antd/modal {:title (if editing "修改菜单" "新增菜单")
                  :open visible?
                  :width 700
-                 :onOk #(rf/dispatch [:menus/submit])
+                 :onOk #(.submit form)
                  :onCancel #(rf/dispatch [:menus/close-modal])
                  :destroyOnHidden true}
-     [antd/form {:labelCol {:span 6} :wrapperCol {:span 16}}
-      [antd/form-item {:label "上级菜单"}
+     [antd/form {:form form
+                 :labelCol {:span 6}
+                 :wrapperCol {:span 16}
+                 :preserve false
+                 :onFinish (fn [values]
+                             (rf/dispatch [:menus/submit (js->clj values :keywordize-keys true)]))
+                 :initialValues (clj->js (merge {:menu_type "M" :order_num 0 :status "0" :visible "0" :is_frame "0" :is_cache "0"} form-data))
+                 :onValuesChange (fn [changed _]
+                                   (when-let [t (goog.object/get changed "menu_type")]
+                                     (set-menu-type! t)))}
+      [antd/form-item {:label "上级菜单" :name "parent_id"}
        [antd/tree-select {:style {:width "100%"}
                           :placeholder "选择上级菜单（空为顶级）"
                           :allowClear true
                           :treeDefaultExpandAll true
-                          :treeData (clj->js (menu-tree-options @(rf/subscribe [:menus/tree-data])))
-                          :value (:parent_id form-data)
-                          :on-change #(rf/dispatch [:menus/update-form :parent_id %1])}]]
-      [antd/form-item {:label "菜单类型" :required true}
-       [antd/radio-group {:value menu-type
-                          :on-change #(rf/dispatch [:menus/update-form :menu_type (.. % -target -value)])}
+                          :treeData (clj->js (menu-tree-options @(rf/subscribe [:menus/tree-data])))}]]
+      [antd/form-item {:label "菜单类型" :name "menu_type" :required true}
+       [antd/radio-group
         [antd/radio {:value "M"} "目录"]
         [antd/radio {:value "C"} "菜单"]
         [antd/radio {:value "F"} "按钮"]]]
-      [antd/form-item {:label "菜单图标"}
-       [icon-picker/icon-picker {:value (:icon form-data)
-                                 :on-change #(rf/dispatch [:menus/update-form :icon %])}]]
-      [antd/form-item {:label "菜单名称" :required true}
-       [antd/input {:value (:menu_name form-data "")
-                    :on-change #(rf/dispatch [:menus/update-form :menu_name (.. % -target -value)])}]]
-      [antd/form-item {:label "显示排序"}
-       [antd/input {:type "number"
-                    :value (:order_num form-data 0)
-                    :on-change #(rf/dispatch [:menus/update-form :order_num (js/parseInt (.. % -target -value) 10)])}]]
+      [antd/form-item {:label "菜单图标" :name "icon"}
+       [icon-picker/icon-picker {:placeholder "选择图标"}]]
+      [antd/form-item {:label "菜单名称" :name "menu_name" :required true}
+       [antd/input {:placeholder "请输入菜单名称"}]]
+      [antd/form-item {:label "显示排序" :name "order_num"}
+       [antd/input {:type "number" :placeholder "请输入显示排序"}]]
       (when (not= menu-type "F")
         [:<>
-         [antd/form-item {:label "路由地址"}
-          [antd/input {:value (:path form-data "")
-                       :on-change #(rf/dispatch [:menus/update-form :path (.. % -target -value)])}]]
-         [antd/form-item {:label "路由名称"}
-          [antd/input {:value (:route_name form-data "")
-                       :on-change #(rf/dispatch [:menus/update-form :route_name (.. % -target -value)])}]]
-         [antd/form-item {:label "组件路径"}
-          [antd/input {:value (:component form-data "")
-                       :on-change #(rf/dispatch [:menus/update-form :component (.. % -target -value)])}]]
-         [antd/form-item {:label "路由参数"}
-          [antd/input {:value (:query form-data "")
-                       :on-change #(rf/dispatch [:menus/update-form :query (.. % -target -value)])}]]
-         [antd/form-item {:label "是否外链"}
-          [antd/radio-group {:value (:is_frame form-data "0")
-                             :on-change #(rf/dispatch [:menus/update-form :is_frame (.. % -target -value)])}
+         [antd/form-item {:label "路由地址" :name "path"}
+          [antd/input {:placeholder "请输入路由地址"}]]
+         [antd/form-item {:label "路由名称" :name "route_name"}
+          [antd/input {:placeholder "请输入路由名称"}]]
+         [antd/form-item {:label "组件路径" :name "component"}
+          [antd/input {:placeholder "请输入组件路径"}]]
+         [antd/form-item {:label "路由参数" :name "query"}
+          [antd/input {:placeholder "请输入路由参数"}]]
+         [antd/form-item {:label "是否外链" :name "is_frame"}
+          [antd/radio-group
            [antd/radio {:value "0"} "否"]
            [antd/radio {:value "1"} "是"]]]
-         [antd/form-item {:label "是否缓存"}
-          [antd/radio-group {:value (:is_cache form-data "0")
-                             :on-change #(rf/dispatch [:menus/update-form :is_cache (.. % -target -value)])}
+         [antd/form-item {:label "是否缓存" :name "is_cache"}
+          [antd/radio-group
            [antd/radio {:value "0"} "否"]
            [antd/radio {:value "1"} "是"]]]])
       (when (not= menu-type "M")
-        [antd/form-item {:label "权限标识"}
-         [antd/input {:value (:perms form-data "")
-                      :on-change #(rf/dispatch [:menus/update-form :perms (.. % -target -value)])}]])
-      [antd/form-item {:label "菜单状态"}
-       [antd/radio-group {:value (:status form-data "0")
-                          :on-change #(rf/dispatch [:menus/update-form :status (.. % -target -value)])}
+        [antd/form-item {:label "权限标识" :name "perms"}
+         [antd/input {:placeholder "请输入权限标识"}]])
+      [antd/form-item {:label "菜单状态" :name "status"}
+       [antd/radio-group
         [antd/radio {:value "0"} "正常"]
         [antd/radio {:value "1"} "停用"]]]
       (when (not= menu-type "F")
-        [antd/form-item {:label "显示状态"}
-         [antd/radio-group {:value (:visible form-data "0")
-                            :on-change #(rf/dispatch [:menus/update-form :visible (.. % -target -value)])}
+        [antd/form-item {:label "显示状态" :name "visible"}
+         [antd/radio-group
           [antd/radio {:value "0"} "显示"]
           [antd/radio {:value "1"} "隐藏"]]])]]))
 

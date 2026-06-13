@@ -122,6 +122,8 @@
     ["" {:get  {:summary "字典类型列表" :parameters {:query PagingQuery}
                 :handler (partial dict/list-dict-types {:dict-service dict-service})}
          :post {:summary "新增字典类型" :handler (partial dict/create-dict-type {:dict-service dict-service})}}]
+    ["/export" {:get {:summary "导出字典类型" :description "导出字典类型数据为CSV文件"
+                       :handler (partial im/export-dict-types {:dict-service dict-service})}}]
     ["/:id" {:get    {:summary "字典类型详情" :parameters {:path PathId}
                       :handler (partial dict/get-dict-type {:dict-service dict-service})}
              :put    {:summary "更新字典类型" :parameters {:path PathId}
@@ -138,6 +140,8 @@
                                                        [:dict_type {:optional true} :string]]}
                 :handler (partial dict/list-dict-data {:dict-service dict-service})}
          :post {:summary "新增字典数据" :handler (partial dict/create-dict-data {:dict-service dict-service})}}]
+    ["/export" {:get {:summary "导出字典数据" :description "导出字典数据为CSV文件"
+                       :handler (partial im/export-dict-data {:dict-service dict-service})}}]
     ["/:id" {:get    {:summary "字典数据详情" :parameters {:path PathId}
                       :handler (partial dict/get-dict-data {:dict-service dict-service})}
              :put    {:summary "更新字典数据" :parameters {:path PathId}
@@ -177,6 +181,8 @@
     ["" {:get  {:summary "参数配置列表" :parameters {:query PagingQuery}
                 :handler (partial config/list-configs {:config-service config-service})}
          :post {:summary "新增参数配置" :handler (partial config/create-config {:config-service config-service})}}]
+    ["/export" {:get {:summary "导出参数" :description "导出参数配置数据为CSV文件"
+                       :handler (partial im/export-configs {:config-service config-service})}}]
     ["/:id" {:get    {:summary "参数详情" :parameters {:path PathId}
                       :handler (partial config/get-config {:config-service config-service})}
              :put    {:summary "更新参数" :parameters {:path PathId}

@@ -198,6 +198,13 @@
         csv-fn (fn [d] [(:dict_id d) (:dict_name d) (:dict_type d) (:status d)])]
     (generic-export dict-service/list-dict-types dict-service {} header csv-fn "dict_types.csv" request)))
 
+(defn export-dict-data
+  "导出字典数据。"
+  [{:keys [dict-service]} request]
+  (let [header ["dict_code" "dict_sort" "dict_label" "dict_value" "dict_type" "status"]
+        csv-fn (fn [d] [(:dict_code d) (:dict_sort d) (:dict_label d) (:dict_value d) (:dict_type d) (:status d)])]
+    (generic-export dict-service/list-dict-data dict-service {} header csv-fn "dict_data.csv" request)))
+
 (defn export-configs
   "导出参数配置数据。"
   [{:keys [config-service]} request]

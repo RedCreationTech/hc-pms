@@ -86,25 +86,38 @@
 
 (defn- edit-modal []
   (let [visible? @(rf/subscribe [:posts/modal-visible?])
-        editing? @(rf/subscribe [:posts/editing?])
-        form-data @(rf/subscribe [:posts/form-data])]
-    [antd/modal {:title (if editing? "修改岗位" "新增岗位")
-                 :open visible? :onOk #(rf/dispatch [:posts/submit])
+        editing @(rf/subscribe [:posts/editing])
+        form-data @(rf/subscribe [:posts/form-data])
+        [form] (antd/form-use-form)]
+    (hooks/use-effect
+     (fn []
+       (when visible?
+         (.setFieldsValue form (clj->js (merge {:post_sort 0 :status "0"} form-data))))
+       js/undefined)
+     [visible? form-data])
+    [antd/modal {:title (if editing "修改岗位" "新增岗位")
+                 :open visible? :onOk #(.submit form)
                  :onCancel #(rf/dispatch [:posts/close-modal]) :destroyOnHidden true}
-     [antd/form {:labelCol {:span 6} :wrapperCol {:span 16}}
-      [antd/form-item {:label "岗位编码" :required true}
-       [antd/input {:value (:post_code form-data "") :on-change #(rf/dispatch [:posts/update-form :post_code (.. % -target -value)])}]]
-      [antd/form-item {:label "岗位名称" :required true}
-       [antd/input {:value (:post_name form-data "") :on-change #(rf/dispatch [:posts/update-form :post_name (.. % -target -value)])}]]
-      [antd/form-item {:label "显示排序"}
-       [antd/input {:type "number" :value (:post_sort form-data 0)
-                    :on-change #(rf/dispatch [:posts/update-form :post_sort (js/parseInt (.. % -target -value) 10)])}]]
-      [antd/form-item {:label "状态"}
-       [antd/radio-group {:value (:status form-data "0") :on-change #(rf/dispatch [:posts/update-form :status (.. % -target -value)])}
-        [antd/radio {:value "0"} "正常"] [antd/radio {:value "1"} "停用"]]]
-      [antd/form-item {:label "备注"}
-       [antd/text-area {:value (:remark form-data "") :rows 3
-                        :on-change #(rf/dispatch [:posts/update-form :remark (.. % -target -value)])}]]]]))
+     [antd/form {:form form
+                 :labelCol {:span 6} :wrapperCol {:span 16}
+                 :preserve false
+                 :onFinish (fn [values]
+                             (rf/dispatch [:posts/submit (js->clj values :keywordize-keys true)]))
+                 :initialValues (clj->js (merge {:post_sort 0 :status "0"} form-data))}
+      [antd/form-item {:label "岗位编码" :name "post_code" :required true}
+       [antd/input {:placeholder "请输入岗位编码"}]]
+      [antd/form-item {:label "岗位名称" :name "post_name" :required true}
+       [antd/input {:placeholder "请输入岗位名称"}]]
+      [antd/form-item {:label "显示排序" :name "post_sort"
+                       :get-value-from-event #(let [v (.. % -target -value)]
+                                                (if (seq v) (js/parseInt v 10) 0))}
+       [antd/input {:type "number"}]]
+      [antd/form-item {:label "状态" :name "status"}
+       [antd/radio-group
+        [antd/radio {:value "0"} "正常"]
+        [antd/radio {:value "1"} "停用"]]]
+      [antd/form-item {:label "备注" :name "remark"}
+       [antd/text-area {:placeholder "请输入备注" :rows 3}]]]]))
 
 ;; ─── 主页面 ──────────────────────────────────────────────────────
 

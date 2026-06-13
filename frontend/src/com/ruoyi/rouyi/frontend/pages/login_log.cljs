@@ -48,9 +48,6 @@
        "重置"]]
      ;; 工具栏
      [:div {:style {:display "flex" :gap 8 :marginBottom 12}}
-      [antd/button {:type "danger" :ghost true :icon (r/as-element [:> DeleteOutlined])
-                    :on-click #(rf/dispatch [:login-logs/batch-delete])}
-       "批量删除"]
       [antd/button {:type "danger" :ghost true :icon (r/as-element [:> ClearOutlined])
                     :on-click #(rf/dispatch [:login-logs/clear])}
        "清空全部"]
@@ -59,7 +56,6 @@
        "导出"]]
      [antd/table {:scroll #js {:x "max-content"} :rowKey "info_id"
                   :loading loading?
-                  :rowSelection {:onChange (fn [keys] (rf/dispatch [:login-logs/select keys]))}
                   :columns (login-log-columns)
                   :dataSource (clj->js items)
                   :pagination {:pageSize 10 :total total :showTotal (fn [t] (str "共 " t " 条"))}}]]))

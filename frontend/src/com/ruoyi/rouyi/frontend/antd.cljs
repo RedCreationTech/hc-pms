@@ -14,6 +14,7 @@
 (def dropdown (r/adapt-react-class Dropdown))
 (def form (r/adapt-react-class Form))
 (def form-item (r/adapt-react-class (.-Item Form)))
+(def form-use-form (.-useForm Form))
 (def input (r/adapt-react-class Input))
 (def password (r/adapt-react-class (.-Password Input)))
 (def text-area (r/adapt-react-class (.-TextArea Input)))

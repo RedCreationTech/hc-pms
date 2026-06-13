@@ -17,11 +17,24 @@
                    (assoc node :children children)
                    node))))))
 
+(defn- normalize-props
+  "兼容 js/React props 与 Clojure map。"
+  [props]
+  (cond
+    (map? props) props
+    (object? props) (js->clj props :keywordize-keys true)
+    :else {}))
+
 (defn dept-tree-select
   "部门树选择器。
-  props: :value :on-change :placeholder :allow-clear?"
-  [{:keys [value on-change placeholder allow-clear?]}]
-  (let [items @(rf/subscribe [:depts/items])
+  props: :value :on-change/:onChange :placeholder :allow-clear?"
+  [props]
+  (let [props (normalize-props props)
+        value (:value props)
+        on-change (or (:on-change props) (:onChange props))
+        placeholder (:placeholder props)
+        allow-clear? (:allow-clear? props)
+        items @(rf/subscribe [:depts/items])
         loading? @(rf/subscribe [:depts/loading?])]
     (hooks/use-effect
      (fn []
@@ -38,4 +51,6 @@
       :loading loading?
       :treeData (clj->js (build-tree-data items 0))
       :value (when value (str value))
-      :on-change (fn [v] (on-change (when v (js/parseInt v 10))))}]))
+      :on-change (fn [v]
+                   (when (fn? on-change)
+                     (on-change (when v (js/parseInt v 10)))))}]))
