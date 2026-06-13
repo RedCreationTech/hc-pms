@@ -24,7 +24,7 @@
       [:span {:style {:fontSize 14 :fontWeight 500}} label]
       [:span {:style {:fontSize 14 :color "#666"}} (str percent "%")]]
      [:> Progress {:percent percent :strokeColor color :showInfo false
-                     :size 10 :railColor "#f0f0f0"}]
+                   :size 10 :railColor "#f0f0f0"}]
      [:div {:style {:display "flex" :justifyContent "space-between" :marginTop 4 :fontSize 12 :color "#999"}}
       [:span (str "已用: " (if unit (unit used) used))]
       [:span (str "总计: " (if unit (unit total) total))]]]))
@@ -50,26 +50,26 @@
     :columns
     (clj->js
      [{:title "缓存名称" :dataIndex "name" :key "name"
-        :render (fn [v]
-                  (r/as-element
-                   [:span {:style {:color "#1677ff" :cursor "pointer"}
-                           :onClick #(do (rf/dispatch [:cache/select-name v])
-                                         (rf/dispatch [:cache/fetch-keys]))}
-                    v]))}
-       {:title "操作" :key "action"
-        :render (fn [_ record]
-                  (let [cache-name (.-name record)]
-                    (r/as-element
-                     [:div
-                      [antd/button {:type "link" :size "small"
-                                    :onClick #(do (rf/dispatch [:cache/select-name cache-name])
-                                                  (rf/dispatch [:cache/fetch-keys]))}
-                       "查看"]
-                      [antd/popconfirm
-                       {:title (str "确认清空缓存 [" cache-name "]？")
-                        :onConfirm #(rf/dispatch [:cache/clear-name cache-name])}
-                       [antd/button {:type "link" :danger true :size "small"}
-                        "删除"]]])))}])}])
+       :render (fn [v]
+                 (r/as-element
+                  [:span {:style {:color "#1677ff" :cursor "pointer"}
+                          :onClick #(do (rf/dispatch [:cache/select-name v])
+                                        (rf/dispatch [:cache/fetch-keys]))}
+                   v]))}
+      {:title "操作" :key "action"
+       :render (fn [_ record]
+                 (let [cache-name (.-name record)]
+                   (r/as-element
+                    [:div
+                     [antd/button {:type "link" :size "small"
+                                   :onClick #(do (rf/dispatch [:cache/select-name cache-name])
+                                                 (rf/dispatch [:cache/fetch-keys]))}
+                      "查看"]
+                     [antd/popconfirm
+                      {:title (str "确认清空缓存 [" cache-name "]？")
+                       :onConfirm #(rf/dispatch [:cache/clear-name cache-name])}
+                      [antd/button {:type "link" :danger true :size "small"}
+                       "删除"]]])))}])}])
 
 ;; ─── 缓存键表格 ──────────────────────────────────────────────────────
 

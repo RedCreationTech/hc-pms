@@ -1,12 +1,12 @@
 (ns com.ruoyi.rouyi.frontend.pages.server
   "服务器监控页面 — RuoYi 风格。"
   (:require
-    [reagent.core :as r]
-    [reagent.hooks :as hooks]
-    [re-frame.core :as rf]
-    ["@ant-design/icons" :refer [ReloadOutlined]]
-    ["antd" :refer [Progress Table Spin]]
-    [com.ruoyi.rouyi.frontend.antd :as antd]))
+   [reagent.core :as r]
+   [reagent.hooks :as hooks]
+   [re-frame.core :as rf]
+   ["@ant-design/icons" :refer [ReloadOutlined]]
+   ["antd" :refer [Progress Table Spin]]
+   [com.ruoyi.rouyi.frontend.antd :as antd]))
 
 ;; ─── 进度条组件 ──────────────────────────────────────────────────────
 
@@ -24,7 +24,7 @@
       [:span {:style {:fontSize 14 :fontWeight 500}} label]
       [:span {:style {:fontSize 14 :color "#666"}} (str percent "%")]]
      [:> Progress {:percent percent :strokeColor color :showInfo false
-                     :size 10 :railColor "#f0f0f0"}]
+                   :size 10 :railColor "#f0f0f0"}]
      [:div {:style {:display "flex" :justifyContent "space-between" :marginTop 4 :fontSize 12 :color "#999"}}
       [:span (str "已用: " (if unit (unit used) used))]
       [:span (str "总计: " (if unit (unit total) total))]]]))
@@ -156,24 +156,24 @@
      [:span {:style {:display "inline-block" :width 4 :height 20 :background "#faad14" :borderRadius 2}}]
      "磁盘状态"]]
    [:> Table {:size "small" :pagination false :rowKey "dirName"
-                :dataSource (clj->js (or disk []))
-                :columns (clj->js
-                          [{:title "盘符路径" :dataIndex "dirName" :key "dirName"}
-                           {:title "文件系统" :dataIndex "sysTypeName" :key "sysTypeName"}
-                           {:title "总大小" :dataIndex "total" :key "total"
-                            :render (fn [v] (r/as-element [:span (format-bytes v)]))}
-                           {:title "可用大小" :dataIndex "free" :key "free"
-                            :render (fn [v] (r/as-element [:span (format-bytes v)]))}
-                           {:title "已用大小" :dataIndex "used" :key "used"
-                            :render (fn [v] (r/as-element [:span (format-bytes v)]))}
-                           {:title "已用百分比" :dataIndex "usage" :key "usage"
-                            :render (fn [v]
-                                      (r/as-element
-                                       [:> Progress {:percent (Math/round v) :size "small"
-                                                       :strokeColor (cond
-                                                                      (> v 80) "#ff4d4f"
-                                                                      (> v 60) "#faad14"
-                                                                      :else "#52c41a")}]))}])}]])
+              :dataSource (clj->js (or disk []))
+              :columns (clj->js
+                        [{:title "盘符路径" :dataIndex "dirName" :key "dirName"}
+                         {:title "文件系统" :dataIndex "sysTypeName" :key "sysTypeName"}
+                         {:title "总大小" :dataIndex "total" :key "total"
+                          :render (fn [v] (r/as-element [:span (format-bytes v)]))}
+                         {:title "可用大小" :dataIndex "free" :key "free"
+                          :render (fn [v] (r/as-element [:span (format-bytes v)]))}
+                         {:title "已用大小" :dataIndex "used" :key "used"
+                          :render (fn [v] (r/as-element [:span (format-bytes v)]))}
+                         {:title "已用百分比" :dataIndex "usage" :key "usage"
+                          :render (fn [v]
+                                    (r/as-element
+                                     [:> Progress {:percent (Math/round v) :size "small"
+                                                   :strokeColor (cond
+                                                                  (> v 80) "#ff4d4f"
+                                                                  (> v 60) "#faad14"
+                                                                  :else "#52c41a")}]))}])}]])
 
 ;; ─── 主页面 ──────────────────────────────────────────────────────
 

@@ -2296,18 +2296,18 @@
 (rf/reg-fx :api/list-role-options
            (fn [_]
              (api/list-roles {:page 1 :size 1000}
-                              (fn [result]
-                                (when (= 200 (:code result))
-                                  (rf/dispatch [:users/set-role-options (:data result)])))
-                              (fn [_]))))
+                             (fn [result]
+                               (when (= 200 (:code result))
+                                 (rf/dispatch [:users/set-role-options (:data result)])))
+                             (fn [_]))))
 
 (rf/reg-fx :api/list-post-options
            (fn [_]
              (api/list-posts {:page 1 :size 1000}
-                              (fn [result]
-                                (when (= 200 (:code result))
-                                  (rf/dispatch [:users/set-post-options (:data result)])))
-                              (fn [_]))))
+                             (fn [result]
+                               (when (= 200 (:code result))
+                                 (rf/dispatch [:users/set-post-options (:data result)])))
+                             (fn [_]))))
 
 ;; ─── 部门树构建工具 ───────────────────────────────────────────────────────────
 
