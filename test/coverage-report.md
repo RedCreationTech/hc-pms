@@ -13,9 +13,9 @@
 ┌──────────────────────────────────────────────────────────────┐
 │  测试汇总                                                     │
 ├──────────────────────────────────────────────────────────────┤
-│  📁 测试命名空间:  40 个                                      │
-│  🧪 测试用例:      306 个                                     │
-│  ✅ 断言通过:      741 个                                     │
+│  📁 测试命名空间:  45 个                                      │
+│  🧪 测试用例:      348 个                                     │
+│  ✅ 断言通过:      853 个                                     │
 │  ❌ 断言失败:       0 个                                      │
 │  ⚠️  错误:          0 个                                      │
 ├──────────────────────────────────────────────────────────────┤
@@ -27,15 +27,15 @@
 
 | 指标 | 覆盖率 |
 |------|--------|
-| 整体 Forms | **87.04%** |
-| 整体 Lines | **91.86%** |
+| 整体 Forms | **89.86%** |
+| 整体 Lines | **94.25%** |
 
 ## 重点覆盖提升
 
-- **Web 控制器层**：`auth`、`captcha`、`common`、`register`、`system.cache`、`system.file`、`system.import-export`、`system.notice`、`system.profile`、`system.role`、`system.user`、`job`、`gen` 等控制器均已补齐单元测试。
-- **基础设施层**：`infra.db`、`infra.online`、`infra.data-perm`、`infra.security` 覆盖率达到 90% 以上。
-- **中间件**：`middleware.auth`、`middleware.exception`、`middleware.formats` 覆盖率达到 90% 以上。
-- **Domain 层**：`user`、`role`、`dept`、`log` 补齐更新/删除/关联等分支测试。
+- **Web 控制器层**：`auth`、`captcha`、`common`、`register`、`system.cache`、`system.config`、`system.dept`、`system.dict`、`system.file`、`system.import-export`、`system.log`、`system.menu`、`system.notice`、`system.online`、`system.post`、`system.profile`、`system.role`、`system.user`、`job`、`gen` 等控制器均已补齐单元测试。
+- **基础设施层**：`infra.cache`、`infra.data-perm`、`infra.db`、`infra.online`、`infra.security` 覆盖率达到 85% 以上；`infra.scheduler`、`task` 补齐调度与示例任务分支。
+- **中间件**：`middleware.auth`、`middleware.exception`、`middleware.formats`、`middleware.operlog`、`web.handler` 覆盖率达到 90% 以上。
+- **Domain 层**：`user`、`role`、`dept`、`menu`、`log`、`post`、`dict` 补齐更新/删除/关联等分支测试。
 
 ## 仍有提升空间的模块
 
@@ -44,16 +44,14 @@
 | 命名空间 | Forms | Lines |
 |----------|-------|-------|
 | com.ruoyi.core | 49.60% | 70.00% |
-| com.ruoyi.infra.scheduler | 57.49% | 74.81% |
-| com.ruoyi.task | 52.50% | 80.00% |
-| com.ruoyi.web.controllers.system.dept | 70.74% | 76.74% |
-| com.ruoyi.web.controllers.system.dict | 57.98% | 63.01% |
-| com.ruoyi.web.controllers.system.log | 54.95% | 60.87% |
-| com.ruoyi.web.controllers.system.menu | 71.12% | 76.74% |
-| com.ruoyi.web.controllers.system.online | 69.31% | 78.26% |
-| com.ruoyi.web.controllers.system.post | 72.93% | 78.05% |
-| com.ruoyi.web.handler | 68.75% | 76.47% |
-| com.ruoyi.web.middleware.operlog | 76.89% | 89.47% |
+| com.ruoyi.infra.scheduler | 57.62% | 74.81% |
+| com.ruoyi.infra.online | 55.19% | 83.16% |
+| com.ruoyi.domain.system.dept | 72.31% | 84.62% |
+| com.ruoyi.domain.system.user | 76.43% | 96.36% |
+| com.ruoyi.infra.cron | 83.64% | 75.00% |
+| com.ruoyi.infra.db | 87.70% | 91.75% |
+| com.ruoyi.web.controllers.system.config | 88.48% | 87.18% |
+| com.ruoyi.web.controllers.system.user | 88.87% | 89.58% |
 
 ## 运行测试
 
