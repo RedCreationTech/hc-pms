@@ -81,10 +81,11 @@
 
 ## Phase 5 — Integrant 调用追踪增强
 
-### 5.1 让非 Ring 函数组件也能真正抓到调用日志 🟡
+### 5.1 让非 Ring 函数组件也能真正抓到调用日志 ✅
 - **现状**：`:handler/ring` 通过动态代理能抓到 HTTP 请求；但 `:db.sql/query-fn` 等组件的调用方在系统启动时就持有旧函数引用，切换追踪后日志不会增加。
-- **目标**：
-  - 对常用函数组件（如 `:db.sql/query-fn`）也提供动态代理入口，或在 `trace/start!` 中触发 Integrant resume，让依赖方重新初始化。
+- **已完成**：
+  - 覆盖 `ig/init-key :db.sql/query-fn`，返回动态代理函数。
+  - `trace/start!` / `stop!` 切换时替换代理 atom，使所有已持有 `:db.sql/query-fn` 的服务立即生效。
 - **验收**：追踪 `:db.sql/query-fn` 后，列表查询能显示对应的调用日志。
 
 ---
