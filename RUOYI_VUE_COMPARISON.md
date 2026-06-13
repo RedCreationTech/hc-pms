@@ -175,7 +175,7 @@
 
 ```clojure
 ;; 使用 Clojure 内置缓存，不依赖 Redis
-(ns com.ruoyi.rouyi.infra.cache
+(ns com.ruoyi.infra.cache
   "内存缓存管理。"
   (:require [clojure.core.cache :as cache]))
 

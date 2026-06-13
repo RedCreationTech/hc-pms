@@ -388,7 +388,7 @@ Both frontend and backend share port **3000**. The backend serves both API and s
 ```bash
 # 1. Start backend (port 3000, nREPL port 7000)
 cd /home/kevin/gt/rouyi_clojure/mayor/rig
-rm -f rouyi.db && clojure -M:dev -m com.ruoyi.rouyi.core &
+rm -f rouyi.db && clojure -M:dev -m com.ruoyi.core &
 
 # 2. Start frontend watch (auto-recompiles on .cljs changes)
 setsid bash -c 'cd /home/kevin/gt/rouyi_clojure/mayor/rig && npx shadow-cljs watch app' &

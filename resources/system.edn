@@ -23,7 +23,7 @@
                                       :keywordize true}
                           :cookies   true
                           :session   {:flash true
-                                      :cookie-name "com.ruoyi.rouyi"
+                                      :cookie-name "com.ruoyi"
                                       :cookie-attrs {:max-age     86400
                                                      :http-only   true
                                                      :same-site   :strict}}

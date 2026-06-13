@@ -20,7 +20,7 @@
    [integrant.repl.state :as state]
    [kit.api :as kit]
    [lambdaisland.classpath :as licp]
-   [com.ruoyi.rouyi.core :refer [start-app]]))
+   [com.ruoyi.core :refer [start-app]]))
 
 (alter-var-root #'s/*explain-out* (constantly expound/printer))
 (add-tap (bound-fn* clojure.pprint/pprint))
@@ -30,13 +30,13 @@
 (defn dev-prep!
   []
   (integrant.repl/set-prep! (fn []
-                              (-> (com.ruoyi.rouyi.config/system-config {:profile :dev})
+                              (-> (com.ruoyi.config/system-config {:profile :dev})
                                   (ig/expand)))))
 
 (defn test-prep!
   []
   (integrant.repl/set-prep! (fn []
-                              (-> (com.ruoyi.rouyi.config/system-config {:profile :test})
+                              (-> (com.ruoyi.config/system-config {:profile :test})
                                   (ig/expand)))))
 
 (dev-prep!)
@@ -73,66 +73,66 @@
   "Reload all domain service namespaces (user, role, menu, dept, etc.)"
   []
   (log/info "Reloading domain services...")
-  (require 'com.ruoyi.rouyi.domain.system :reload)
-  (require 'com.ruoyi.rouyi.domain.system.user :reload)
-  (require 'com.ruoyi.rouyi.domain.system.role :reload)
-  (require 'com.ruoyi.rouyi.domain.system.menu :reload)
-  (require 'com.ruoyi.rouyi.domain.system.dept :reload)
-  (require 'com.ruoyi.rouyi.domain.system.post :reload)
-  (require 'com.ruoyi.rouyi.domain.system.dict :reload)
-  (require 'com.ruoyi.rouyi.domain.system.config :reload)
-  (require 'com.ruoyi.rouyi.domain.system.log :reload)
-  (require 'com.ruoyi.rouyi.domain.gen :reload)
+  (require 'com.ruoyi.domain.system :reload)
+  (require 'com.ruoyi.domain.system.user :reload)
+  (require 'com.ruoyi.domain.system.role :reload)
+  (require 'com.ruoyi.domain.system.menu :reload)
+  (require 'com.ruoyi.domain.system.dept :reload)
+  (require 'com.ruoyi.domain.system.post :reload)
+  (require 'com.ruoyi.domain.system.dict :reload)
+  (require 'com.ruoyi.domain.system.config :reload)
+  (require 'com.ruoyi.domain.system.log :reload)
+  (require 'com.ruoyi.domain.gen :reload)
   (log/info "Domain services reloaded."))
 
 (defn reload-middleware
   "Reload middleware namespaces."
   []
   (log/info "Reloading middleware...")
-  (require 'com.ruoyi.rouyi.web.middleware.core :reload)
-  (require 'com.ruoyi.rouyi.web.middleware.auth :reload)
-  (require 'com.ruoyi.rouyi.web.middleware.exception :reload)
-  (require 'com.ruoyi.rouyi.web.middleware.operlog :reload)
+  (require 'com.ruoyi.web.middleware.core :reload)
+  (require 'com.ruoyi.web.middleware.auth :reload)
+  (require 'com.ruoyi.web.middleware.exception :reload)
+  (require 'com.ruoyi.web.middleware.operlog :reload)
   (log/info "Middleware reloaded."))
 
 (defn reload-routes
   "Reload route definitions."
   []
   (log/info "Reloading routes...")
-  (require 'com.ruoyi.rouyi.web.routes.auth :reload)
-  (require 'com.ruoyi.rouyi.web.routes.system :reload)
-  (require 'com.ruoyi.rouyi.web.routes.gen :reload)
-  (require 'com.ruoyi.rouyi.web.routes.api :reload)
-  (require 'com.ruoyi.rouyi.web.handler :reload)
+  (require 'com.ruoyi.web.routes.auth :reload)
+  (require 'com.ruoyi.web.routes.system :reload)
+  (require 'com.ruoyi.web.routes.gen :reload)
+  (require 'com.ruoyi.web.routes.api :reload)
+  (require 'com.ruoyi.web.handler :reload)
   (log/info "Routes reloaded. Run (user/reset-system) to apply."))
 
 (defn reload-controllers
   "Reload web controller namespaces."
   []
   (log/info "Reloading controllers...")
-  (require 'com.ruoyi.rouyi.web.controllers.auth :reload)
-  (require 'com.ruoyi.rouyi.web.controllers.job :reload)
-  (require 'com.ruoyi.rouyi.web.controllers.monitor :reload)
-  (require 'com.ruoyi.rouyi.web.controllers.gen :reload)
-  (require 'com.ruoyi.rouyi.web.controllers.system.user :reload)
-  (require 'com.ruoyi.rouyi.web.controllers.system.role :reload)
-  (require 'com.ruoyi.rouyi.web.controllers.system.menu :reload)
-  (require 'com.ruoyi.rouyi.web.controllers.system.dept :reload)
-  (require 'com.ruoyi.rouyi.web.controllers.system.post :reload)
-  (require 'com.ruoyi.rouyi.web.controllers.system.dict :reload)
-  (require 'com.ruoyi.rouyi.web.controllers.system.config :reload)
-  (require 'com.ruoyi.rouyi.web.controllers.system.log :reload)
-  (require 'com.ruoyi.rouyi.web.controllers.system.online :reload)
-  (require 'com.ruoyi.rouyi.web.controllers.system.profile :reload)
+  (require 'com.ruoyi.web.controllers.auth :reload)
+  (require 'com.ruoyi.web.controllers.job :reload)
+  (require 'com.ruoyi.web.controllers.monitor :reload)
+  (require 'com.ruoyi.web.controllers.gen :reload)
+  (require 'com.ruoyi.web.controllers.system.user :reload)
+  (require 'com.ruoyi.web.controllers.system.role :reload)
+  (require 'com.ruoyi.web.controllers.system.menu :reload)
+  (require 'com.ruoyi.web.controllers.system.dept :reload)
+  (require 'com.ruoyi.web.controllers.system.post :reload)
+  (require 'com.ruoyi.web.controllers.system.dict :reload)
+  (require 'com.ruoyi.web.controllers.system.config :reload)
+  (require 'com.ruoyi.web.controllers.system.log :reload)
+  (require 'com.ruoyi.web.controllers.system.online :reload)
+  (require 'com.ruoyi.web.controllers.system.profile :reload)
   (log/info "Controllers reloaded."))
 
 (defn reload-infra
   "Reload infrastructure namespaces (security, online, data-perm)."
   []
   (log/info "Reloading infra...")
-  (require 'com.ruoyi.rouyi.infra.security :reload)
-  (require 'com.ruoyi.rouyi.infra.online :reload)
-  (require 'com.ruoyi.rouyi.infra.data-perm :reload)
+  (require 'com.ruoyi.infra.security :reload)
+  (require 'com.ruoyi.infra.online :reload)
+  (require 'com.ruoyi.infra.data-perm :reload)
   (log/info "Infra reloaded."))
 
 (defn reload-all

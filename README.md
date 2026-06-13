@@ -69,14 +69,14 @@
 │   ├── migrations/             # 数据库迁移文件
 │   ├── sql/                    # HugSQL 查询文件
 │   └── public/index.html       # 前端入口
-├── src/clj/com/ruoyi/rouyi/    # 后端源码
+├── src/clj/com/ruoyi/    # 后端源码
 │   ├── core.clj                # 应用入口
 │   ├── infra/security.clj      # JWT / 密码加密
 │   ├── domain/system/          # 领域服务层
 │   ├── web/controllers/        # 控制器层
 │   ├── web/routes/             # 路由配置
 │   └── web/middleware/         # 中间件 (认证)
-├── frontend/src/com/ruoyi/rouyi/frontend/  # 前端源码
+├── src/cljs/com/ruoyi/frontend/  # 前端源码
 │   ├── app.cljs                # 前端入口
 │   ├── api.cljs                # HTTP 客户端
 │   ├── events.cljs             # re-frame 事件
