@@ -26,6 +26,8 @@ const cases = [
   { path: '/monitor/swagger', text: 'Swagger' },
   { path: '/tool/build', text: '表单' },
   { path: '/project/info', text: '项目名称' },
+  { path: '/solution', text: '方案管理' },
+  { path: '/resource/standard', text: '标准规范' },
 ];
 
 for (const { path, text } of cases) {
