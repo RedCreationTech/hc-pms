@@ -323,7 +323,7 @@
                              (str "menu-" (:menu_id m)))
                   item {:key item-key
                         :label (:menu_name m)}
-                  icon-name (or (and (:icon m) (not= (:icon m) "#") (:icon m))
+                  icon-name (or (and (seq (:icon m)) (not= (:icon m) "#") (:icon m))
                                 "ContainerOutlined")
                   icon-el (icon-picker/icon-element icon-name {:style {:fontSize 14}})]
               (cond-> item
