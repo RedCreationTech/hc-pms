@@ -89,6 +89,7 @@
      [:div {:ref tab-ref
             :class (str "tab-item" (when active? " tab-item-active"))
             :style {:display "inline-flex"
+                    :flex "0 0 auto"
                     :alignItems "center"
                     :height 30
                     :padding "0 12px"
@@ -146,21 +147,52 @@
       (.scrollBy el #js {:left (* direction scroll-amount) :behavior "smooth"}))))
 
 (defn- tab-bar
-  "Tab栏组件 — RuoYi 风格"
+  "Tab栏组件 — RuoYi 风格，支持左右滚动"
   []
   (let [container-ref (hooks/use-ref nil)
         tabs @(rf/subscribe [:tabs/items])
         active @(rf/subscribe [:tabs/active])
-        ;; 检查是否有滚动条
-        [show-scroll set-show-scroll!] (hooks/use-state false)]
+        [show-scroll set-show-scroll!] (hooks/use-state false)
+        [can-left set-can-left!] (hooks/use-state false)
+        [can-right set-can-right!] (hooks/use-state false)
+        check-scroll (fn []
+                       (when-let [el (.-current container-ref)]
+                         (let [sw (.-scrollWidth el)
+                               cw (.-clientWidth el)
+                               left (.-scrollLeft el)]
+                           (set-show-scroll! (> sw cw))
+                           (set-can-left! (> left 0))
+                           (set-can-right! (> (- sw cw left) 1)))))]
+    ;; 监听容器尺寸变化，更新滚动状态
     (hooks/use-effect
      (fn []
        (when-let [el (.-current container-ref)]
-         (let [check-scroll #(set-show-scroll! (or (>= (.-scrollWidth el) (.-clientWidth el))))]
-           (check-scroll)
-           (.addEventListener el "resize" check-scroll)
-           (fn [] (.removeEventListener el "resize" check-scroll)))))
+         (check-scroll)
+         (if (exists? js/ResizeObserver)
+           (let [ro (js/ResizeObserver. (fn [_] (check-scroll)))]
+             (.observe ro el)
+             (fn [] (.disconnect ro)))
+           (do (.addEventListener js/window "resize" check-scroll)
+               (fn [] (.removeEventListener js/window "resize" check-scroll))))))
      [(count tabs)])
+    ;; 激活标签自动滚动到可视区域
+    (hooks/use-effect
+     (fn []
+       (when-let [el (.-current container-ref)]
+         (let [active-el (.querySelector el ".tab-item-active")]
+           (when active-el
+             (let [el-left (.-offsetLeft active-el)
+                   el-width (.-offsetWidth active-el)
+                   scroll (.-scrollLeft el)
+                   cw (.-clientWidth el)]
+               (cond
+                 (< el-left scroll)
+                 (set! (.-scrollLeft el) el-left)
+
+                 (> (+ el-left el-width) (+ scroll cw))
+                 (set! (.-scrollLeft el) (- (+ el-left el-width) cw)))))))
+       js/undefined)
+     [active])
     [:div {:style {:borderBottom "1px solid var(--ant-color-border-secondary, #f0f0f0)"
                    :padding "6px 12px 0"
                    :display "flex"
@@ -169,9 +201,14 @@
                    :background "var(--ant-color-bg-container, #fff)"}}
      ;; 左滚动按钮
      (when show-scroll
-       [:div {:style {:cursor "pointer" :padding "0 4px" :color "var(--ant-color-text-secondary, #999)"
-                      :fontSize 16 :userSelect "none"}
-              :on-click #(scroll-tabs container-ref -1)}
+       [:div {:class "tab-scroll-btn tab-scroll-left"
+              :style {:flex "0 0 auto"
+                      :cursor (if can-left "pointer" "not-allowed")
+                      :padding "0 4px"
+                      :color (if can-left "var(--ant-color-text-secondary, #666)" "var(--ant-color-border, #ccc)")
+                      :fontSize 16
+                      :userSelect "none"}
+              :on-click #(when can-left (scroll-tabs container-ref -1))}
         [:> LeftOutlined {:style {:fontSize 12}}]])
      ;; Tab 容器
      [:div {:ref container-ref
@@ -183,15 +220,21 @@
                     :whiteSpace "nowrap"
                     :scrollbarWidth "none"
                     ::WebkitOverflowScrolling "touch"
-                    :msOverflowStyle "none"}}
+                    :msOverflowStyle "none"}
+            :on-scroll check-scroll}
       (for [tab tabs]
         ^{:key (:key tab)}
         [tab-item (assoc tab :active? (= (:key tab) active))])]
      ;; 右滚动按钮
      (when show-scroll
-       [:div {:style {:cursor "pointer" :padding "0 4px" :color "var(--ant-color-text-secondary, #999)"
-                      :fontSize 16 :userSelect "none"}
-              :on-click #(scroll-tabs container-ref 1)}
+       [:div {:class "tab-scroll-btn tab-scroll-right"
+              :style {:flex "0 0 auto"
+                      :cursor (if can-right "pointer" "not-allowed")
+                      :padding "0 4px"
+                      :color (if can-right "var(--ant-color-text-secondary, #666)" "var(--ant-color-border, #ccc)")
+                      :fontSize 16
+                      :userSelect "none"}
+              :on-click #(when can-right (scroll-tabs container-ref 1))}
         [:> RightOutlined {:style {:fontSize 12}}]])
      ;; 操作按钮组
      [:div {:style {:display "flex" :alignItems "center" :marginLeft 8 :gap 4}}
