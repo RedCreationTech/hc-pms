@@ -58,10 +58,10 @@
                         (sort-by first files)))
         lang (if (clojure.string/ends-with? active-tab "-sql") "sql" "clojure")]
     [:div
-     [:> antd/tabs {:activeKey active-tab
-                    :onChange #(set-active-tab! %)
-                    :items tab-items
-                    :size "small"}]
+     [antd/tabs {:activeKey active-tab
+                 :onChange #(set-active-tab! %)
+                 :items tab-items
+                 :size "small"}]
      (let [current-file (get files (keyword active-tab))]
        (when (seq current-file)
          [:> SyntaxHighlighter {:language lang
