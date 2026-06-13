@@ -1,0 +1,19 @@
+=== 无 type hint 版本 ===
+Evaluation count : 288 in 6 samples of 48 calls.
+             Execution time mean : 2.317390 ms
+    Execution time std-deviation : 344.383605 µs
+   Execution time lower quantile : 2.112879 ms ( 2.5%)
+   Execution time upper quantile : 2.910810 ms (97.5%)
+                   Overhead used : 1.720303 ns
+
+Found 1 outliers in 6 samples (16.6667 %)
+	low-severe	 1 (16.6667 %)
+ Variance from outliers : 47.0520 % Variance is moderately inflated by outliers
+
+=== 有 type hint 版本 ===
+Evaluation count : 6600 in 6 samples of 1100 calls.
+             Execution time mean : 91.051273 µs
+    Execution time std-deviation : 220.335941 ns
+   Execution time lower quantile : 90.800175 µs ( 2.5%)
+   Execution time upper quantile : 91.319023 µs (97.5%)
+                   Overhead used : 1.720303 ns

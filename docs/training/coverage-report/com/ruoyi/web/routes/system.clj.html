@@ -1,0 +1,926 @@
+<html>
+ <head>
+   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" href="../../../../coverage.css"/>  <title> com/ruoyi/web/routes/system.clj </title>
+ </head>
+ <body>
+<span class="covered" title="1 out of 1 forms covered">
+                001&nbsp;&nbsp;(ns&nbsp;com.ruoyi.web.routes.system
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                002&nbsp;&nbsp;&nbsp;&nbsp;&quot;系统管理路由聚合。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                003&nbsp;&nbsp;&nbsp;&nbsp;(:require
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                004&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.system.user&nbsp;:as&nbsp;user]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                005&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.system.role&nbsp;:as&nbsp;role]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                006&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.system.menu&nbsp;:as&nbsp;menu]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                007&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.system.dept&nbsp;:as&nbsp;dept]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                008&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.system.post&nbsp;:as&nbsp;post]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                009&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.system.dict&nbsp;:as&nbsp;dict]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                010&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.system.config&nbsp;:as&nbsp;config]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                011&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.system.log&nbsp;:as&nbsp;log]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                012&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.system.online&nbsp;:as&nbsp;online]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                013&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.system.notice&nbsp;:as&nbsp;notice]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                014&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.job&nbsp;:as&nbsp;job]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                015&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.system.profile&nbsp;:as&nbsp;profile]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                016&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.monitor&nbsp;:as&nbsp;monitor]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                017&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.system.cache&nbsp;:as&nbsp;cache]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                018&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.system.import-export&nbsp;:as&nbsp;im]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                019&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.system.file&nbsp;:as&nbsp;file]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                020&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.system.form-template&nbsp;:as&nbsp;form-template]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                021&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.middleware.auth&nbsp;:as&nbsp;auth-mw]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                022&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                023&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[malli.util&nbsp;:as&nbsp;mu]))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                024&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                025&nbsp;&nbsp;;;&nbsp;──&nbsp;Shared&nbsp;Swagger&nbsp;schemas&nbsp;──────────────────────────────────────────
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                026&nbsp;&nbsp;(def&nbsp;PagingQuery&nbsp;[:map&nbsp;{:closed&nbsp;true}
+                </span><br/>
+<span class="covered" title="12 out of 12 forms covered">
+                027&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:page&nbsp;{:optional&nbsp;true}&nbsp;:int]&nbsp;[:size&nbsp;{:optional&nbsp;true}&nbsp;:int]
+                </span><br/>
+<span class="covered" title="12 out of 12 forms covered">
+                028&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:order_by&nbsp;{:optional&nbsp;true}&nbsp;:string]&nbsp;[:is_asc&nbsp;{:optional&nbsp;true}&nbsp;:string]])
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                029&nbsp;&nbsp;(def&nbsp;RoleUserQuery&nbsp;[:map&nbsp;{:closed&nbsp;true}
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                030&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:role_id&nbsp;:int]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                031&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:user_name&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                032&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:phonenumber&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="12 out of 12 forms covered">
+                033&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:page&nbsp;{:optional&nbsp;true}&nbsp;:int]&nbsp;[:size&nbsp;{:optional&nbsp;true}&nbsp;:int]
+                </span><br/>
+<span class="covered" title="12 out of 12 forms covered">
+                034&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:order_by&nbsp;{:optional&nbsp;true}&nbsp;:string]&nbsp;[:is_asc&nbsp;{:optional&nbsp;true}&nbsp;:string]])
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                035&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                036&nbsp;&nbsp;(def&nbsp;PathId&nbsp;[:map&nbsp;[:id&nbsp;[:re&nbsp;#&quot;\d+&quot;]]])
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                037&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                038&nbsp;&nbsp;;;&nbsp;──&nbsp;Routes&nbsp;──────────────────────────────────────────────────────────
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                039&nbsp;&nbsp;(defn&nbsp;system-routes&nbsp;[{:keys&nbsp;[user-service&nbsp;role-service&nbsp;menu-service&nbsp;dept-service&nbsp;post-service&nbsp;dict-service&nbsp;config-service&nbsp;log-service&nbsp;online-service&nbsp;form-template-service&nbsp;query-fn&nbsp;datasource]}]
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                040&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;system&quot;
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                041&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:middleware&nbsp;[(auth-mw&#x2F;auth-middleware&nbsp;{:required?&nbsp;true})]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                042&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:swagger&nbsp;{:tags&nbsp;[&quot;系统管理&quot;]}}
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                043&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                044&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;user&quot;
+                </span><br/>
+<span class="covered" title="12 out of 12 forms covered">
+                045&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;&nbsp;{:summary&nbsp;&nbsp;&nbsp;&nbsp;&quot;用户列表&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                046&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:description&nbsp;&quot;分页查询用户列表（支持搜索、数据权限过滤）&quot;
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                047&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:parameters&nbsp;{:query&nbsp;PagingQuery}
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                048&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                049&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;&nbsp;&nbsp;&nbsp;(partial&nbsp;user&#x2F;list-users&nbsp;{:user-service&nbsp;user-service})}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                050&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:post&nbsp;{:summary&nbsp;&nbsp;&nbsp;&nbsp;&quot;新增用户&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                051&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:description&nbsp;&quot;创建新用户（含角色分配）&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                052&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;&nbsp;&nbsp;&nbsp;(partial&nbsp;user&#x2F;create-user&nbsp;{:user-service&nbsp;user-service})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                053&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;export&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;导出用户&quot;&nbsp;:description&nbsp;&quot;导出用户数据为CSV文件&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                054&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;im&#x2F;export-users&nbsp;{:user-service&nbsp;user-service})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                055&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;importTemplate&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;下载导入模板&quot;&nbsp;:description&nbsp;&quot;下载CSV导入模板文件&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                056&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;im&#x2F;import-template&nbsp;{})}}]
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                057&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;deptTree&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;部门树&quot;&nbsp;:description&nbsp;&quot;获取部门树（用于选择）&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                058&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;dept&#x2F;dept-tree&nbsp;{:dept-service&nbsp;dept-service})}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                059&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:put&nbsp;{:summary&nbsp;&quot;分配角色&quot;&nbsp;:description&nbsp;&quot;分配用户角色&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                060&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;user&#x2F;update-auth-role&nbsp;{:user-service&nbsp;user-service})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                061&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;import&quot;&nbsp;{:post&nbsp;{:summary&nbsp;&quot;导入用户&quot;&nbsp;:description&nbsp;&quot;从CSV文件批量导入用户&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                062&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;im&#x2F;import-users&nbsp;{:user-service&nbsp;user-service})}}]
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                063&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&quot;&nbsp;{:get&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;用户详情&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                064&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;user&#x2F;get-user&nbsp;{:user-service&nbsp;user-service})}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                065&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:put&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;更新用户&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                066&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;user&#x2F;update-user&nbsp;{:user-service&nbsp;user-service})}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                067&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:delete&nbsp;{:summary&nbsp;&quot;删除用户&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                068&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;user&#x2F;delete-user&nbsp;{:user-service&nbsp;user-service})}}]
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                069&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&#x2F;status&#x2F;:status&quot;&nbsp;{:put&nbsp;{:summary&nbsp;&quot;修改用户状态&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                070&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;user&#x2F;change-status&nbsp;{:user-service&nbsp;user-service})}}]
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                071&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&#x2F;resetPwd&quot;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:put&nbsp;{:summary&nbsp;&quot;重置用户密码&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                072&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;user&#x2F;reset-password&nbsp;{:user-service&nbsp;user-service})}}]]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                073&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                074&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;role&quot;
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                075&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;&nbsp;{:summary&nbsp;&quot;角色列表&quot;&nbsp;:description&nbsp;&quot;分页查询角色列表&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                076&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;role&#x2F;list-roles&nbsp;{:role-service&nbsp;role-service})}
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                077&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:post&nbsp;{:summary&nbsp;&quot;新增角色&quot;&nbsp;:handler&nbsp;(partial&nbsp;role&#x2F;create-role&nbsp;{:role-service&nbsp;role-service})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                078&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;export&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;导出角色&quot;&nbsp;:description&nbsp;&quot;导出角色数据为CSV文件&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                079&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;im&#x2F;export-roles&nbsp;{:role-service&nbsp;role-service})}}]
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                080&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;optionselect&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;角色选项&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                081&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;role&#x2F;option-select&nbsp;{:role-service&nbsp;role-service})}}]
+                </span><br/>
+<span class="covered" title="12 out of 12 forms covered">
+                082&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;authUser&#x2F;allocatedList&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;角色已分配用户&quot;&nbsp;:parameters&nbsp;{:query&nbsp;RoleUserQuery}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                083&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;role&#x2F;allocated-list&nbsp;{:role-service&nbsp;role-service&nbsp;:user-service&nbsp;user-service})}}]
+                </span><br/>
+<span class="covered" title="12 out of 12 forms covered">
+                084&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;authUser&#x2F;unallocatedList&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;角色未分配用户&quot;&nbsp;:parameters&nbsp;{:query&nbsp;RoleUserQuery}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                085&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;role&#x2F;unallocated-list&nbsp;{:role-service&nbsp;role-service&nbsp;:user-service&nbsp;user-service})}}]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                086&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;authUser&#x2F;cancel&quot;&nbsp;{:put&nbsp;{:summary&nbsp;&quot;取消用户角色&quot;
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                087&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:parameters&nbsp;{:body&nbsp;[:map&nbsp;[:role_id&nbsp;:int]&nbsp;[:user_id&nbsp;:int]]}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                088&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;role&#x2F;cancel-auth-user&nbsp;{:role-service&nbsp;role-service})}}]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                089&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;authUser&#x2F;cancelAll&quot;&nbsp;{:put&nbsp;{:summary&nbsp;&quot;批量取消角色&quot;
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                090&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:parameters&nbsp;{:query&nbsp;[:map&nbsp;[:role_id&nbsp;:int]&nbsp;[:user_ids&nbsp;:string]]}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                091&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;role&#x2F;cancel-auth-user-all&nbsp;{:role-service&nbsp;role-service})}}]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                092&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;authUser&#x2F;selectAll&quot;&nbsp;{:put&nbsp;{:summary&nbsp;&quot;批量授权角色&quot;
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                093&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:parameters&nbsp;{:query&nbsp;[:map&nbsp;[:role_id&nbsp;:int]&nbsp;[:user_ids&nbsp;:string]]}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                094&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;role&#x2F;select-auth-user-all&nbsp;{:role-service&nbsp;role-service})}}]
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                095&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;deptTree&#x2F;:id&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;角色部门树&quot;
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                096&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;role&#x2F;dept-tree-by-role&nbsp;{:role-service&nbsp;role-service&nbsp;:dept-service&nbsp;dept-service})}}]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                097&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;dataScope&quot;&nbsp;{:put&nbsp;{:summary&nbsp;&quot;数据权限分配&quot;
+                </span><br/>
+<span class="covered" title="16 out of 16 forms covered">
+                098&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:parameters&nbsp;{:body&nbsp;[:map&nbsp;[:role_id&nbsp;:int]&nbsp;[:data_scope&nbsp;:string]&nbsp;[:dept_ids&nbsp;{:optional&nbsp;true}&nbsp;:string]]}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                099&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;role&#x2F;data-scope&nbsp;{:role-service&nbsp;role-service})}}]
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                100&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&quot;&nbsp;{:get&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;角色详情&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                101&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;role&#x2F;get-role&nbsp;{:role-service&nbsp;role-service})}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                102&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:put&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;更新角色&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                103&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;role&#x2F;update-role&nbsp;{:role-service&nbsp;role-service})}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                104&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:delete&nbsp;{:summary&nbsp;&quot;删除角色&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                105&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;role&#x2F;delete-role&nbsp;{:role-service&nbsp;role-service})}}]]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                106&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                107&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;menu&quot;
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                108&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;&nbsp;{:summary&nbsp;&quot;菜单列表（树形）&quot;&nbsp;:description&nbsp;&quot;查询所有菜单（树形结构）&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                109&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;menu&#x2F;list-menus&nbsp;{:menu-service&nbsp;menu-service})}
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                110&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:post&nbsp;{:summary&nbsp;&quot;新增菜单&quot;&nbsp;:handler&nbsp;(partial&nbsp;menu&#x2F;create-menu&nbsp;{:menu-service&nbsp;menu-service})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                111&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;export&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;导出菜单&quot;&nbsp;:description&nbsp;&quot;导出菜单数据为CSV文件&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                112&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;im&#x2F;export-menus&nbsp;{:menu-service&nbsp;menu-service})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                113&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;treeselect&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;菜单树选项&quot;&nbsp;:description&nbsp;&quot;获取菜单树（用于角色权限选择）&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                114&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;menu&#x2F;menu-tree&nbsp;{:menu-service&nbsp;menu-service})}}]
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                115&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&quot;&nbsp;{:get&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;菜单详情&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                116&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;menu&#x2F;get-menu&nbsp;{:menu-service&nbsp;menu-service})}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                117&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:put&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;更新菜单&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                118&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;menu&#x2F;update-menu&nbsp;{:menu-service&nbsp;menu-service})}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                119&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:delete&nbsp;{:summary&nbsp;&quot;删除菜单&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                120&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;menu&#x2F;delete-menu&nbsp;{:menu-service&nbsp;menu-service})}}]]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                121&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                122&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;dict&#x2F;type&quot;
+                </span><br/>
+<span class="covered" title="13 out of 13 forms covered">
+                123&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;&nbsp;{:summary&nbsp;&quot;字典类型列表&quot;&nbsp;:parameters&nbsp;{:query&nbsp;PagingQuery}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                124&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;dict&#x2F;list-dict-types&nbsp;{:dict-service&nbsp;dict-service})}
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                125&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:post&nbsp;{:summary&nbsp;&quot;新增字典类型&quot;&nbsp;:handler&nbsp;(partial&nbsp;dict&#x2F;create-dict-type&nbsp;{:dict-service&nbsp;dict-service})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                126&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;export&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;导出字典类型&quot;&nbsp;:description&nbsp;&quot;导出字典类型数据为CSV文件&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                127&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;im&#x2F;export-dict-types&nbsp;{:dict-service&nbsp;dict-service})}}]
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                128&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&quot;&nbsp;{:get&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;字典类型详情&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                129&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;dict&#x2F;get-dict-type&nbsp;{:dict-service&nbsp;dict-service})}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                130&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:put&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;更新字典类型&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                131&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;dict&#x2F;update-dict-type&nbsp;{:dict-service&nbsp;dict-service})}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                132&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:delete&nbsp;{:summary&nbsp;&quot;删除字典类型&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                133&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;dict&#x2F;delete-dict-type&nbsp;{:dict-service&nbsp;dict-service})}}]
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                134&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;optionselect&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;字典类型选项&quot;&nbsp;:handler&nbsp;(partial&nbsp;dict&#x2F;option-select&nbsp;{:dict-service&nbsp;dict-service})}}]
+                </span><br/>
+<span class="covered" title="12 out of 12 forms covered">
+                135&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;refreshCache&quot;&nbsp;{:delete&nbsp;{:summary&nbsp;&quot;刷新字典缓存&quot;&nbsp;:handler&nbsp;(partial&nbsp;dict&#x2F;refresh-cache&nbsp;{})}}]]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                136&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                137&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;dict&#x2F;data&quot;
+                </span><br/>
+<span class="covered" title="17 out of 17 forms covered">
+                138&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;&nbsp;{:summary&nbsp;&quot;字典数据列表&quot;&nbsp;:parameters&nbsp;{:query&nbsp;[:map&nbsp;{:closed&nbsp;true}
+                </span><br/>
+<span class="covered" title="12 out of 12 forms covered">
+                139&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:page&nbsp;{:optional&nbsp;true}&nbsp;:int]&nbsp;[:size&nbsp;{:optional&nbsp;true}&nbsp;:int]
+                </span><br/>
+<span class="covered" title="12 out of 12 forms covered">
+                140&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:order_by&nbsp;{:optional&nbsp;true}&nbsp;:string]&nbsp;[:is_asc&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                141&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:dict_type&nbsp;{:optional&nbsp;true}&nbsp;:string]]}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                142&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;dict&#x2F;list-dict-data&nbsp;{:dict-service&nbsp;dict-service})}
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                143&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:post&nbsp;{:summary&nbsp;&quot;新增字典数据&quot;&nbsp;:handler&nbsp;(partial&nbsp;dict&#x2F;create-dict-data&nbsp;{:dict-service&nbsp;dict-service})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                144&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;export&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;导出字典数据&quot;&nbsp;:description&nbsp;&quot;导出字典数据为CSV文件&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                145&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;im&#x2F;export-dict-data&nbsp;{:dict-service&nbsp;dict-service})}}]
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                146&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&quot;&nbsp;{:get&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;字典数据详情&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                147&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;dict&#x2F;get-dict-data&nbsp;{:dict-service&nbsp;dict-service})}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                148&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:put&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;更新字典数据&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                149&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;dict&#x2F;update-dict-data&nbsp;{:dict-service&nbsp;dict-service})}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                150&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:delete&nbsp;{:summary&nbsp;&quot;删除字典数据&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                151&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;dict&#x2F;delete-dict-data&nbsp;{:dict-service&nbsp;dict-service})}}]]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                152&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                153&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;dept&quot;
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                154&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;&nbsp;{:summary&nbsp;&quot;部门列表（树形）&quot;&nbsp;:description&nbsp;&quot;查询所有部门树&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                155&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;dept&#x2F;list-depts&nbsp;{:dept-service&nbsp;dept-service})}
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                156&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:post&nbsp;{:summary&nbsp;&quot;新增部门&quot;&nbsp;:handler&nbsp;(partial&nbsp;dept&#x2F;create-dept&nbsp;{:dept-service&nbsp;dept-service})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                157&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;export&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;导出部门&quot;&nbsp;:description&nbsp;&quot;导出部门数据为CSV文件&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                158&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;im&#x2F;export-depts&nbsp;{:dept-service&nbsp;dept-service})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                159&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;tree&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;部门树选项&quot;&nbsp;:description&nbsp;&quot;获取部门树（用于选择）&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                160&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;dept&#x2F;dept-tree&nbsp;{:dept-service&nbsp;dept-service})}}]
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                161&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&quot;&nbsp;{:get&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;部门详情&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                162&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;dept&#x2F;get-dept&nbsp;{:dept-service&nbsp;dept-service})}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                163&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:put&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;更新部门&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                164&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;dept&#x2F;update-dept&nbsp;{:dept-service&nbsp;dept-service})}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                165&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:delete&nbsp;{:summary&nbsp;&quot;删除部门&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                166&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;dept&#x2F;delete-dept&nbsp;{:dept-service&nbsp;dept-service})}}]]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                167&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                168&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;post&quot;
+                </span><br/>
+<span class="covered" title="13 out of 13 forms covered">
+                169&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;&nbsp;{:summary&nbsp;&quot;岗位列表&quot;&nbsp;:parameters&nbsp;{:query&nbsp;PagingQuery}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                170&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;post&#x2F;list-posts&nbsp;{:post-service&nbsp;post-service})}
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                171&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:post&nbsp;{:summary&nbsp;&quot;新增岗位&quot;&nbsp;:handler&nbsp;(partial&nbsp;post&#x2F;create-post&nbsp;{:post-service&nbsp;post-service})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                172&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;export&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;导出岗位&quot;&nbsp;:description&nbsp;&quot;导出岗位数据为CSV文件&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                173&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;im&#x2F;export-posts&nbsp;{:post-service&nbsp;post-service})}}]
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                174&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&quot;&nbsp;{:get&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;岗位详情&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                175&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;post&#x2F;get-post&nbsp;{:post-service&nbsp;post-service})}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                176&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:put&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;更新岗位&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                177&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;post&#x2F;update-post&nbsp;{:post-service&nbsp;post-service})}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                178&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:delete&nbsp;{:summary&nbsp;&quot;删除岗位&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                179&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;post&#x2F;delete-post&nbsp;{:post-service&nbsp;post-service})}}]]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                180&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                181&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;config&quot;
+                </span><br/>
+<span class="covered" title="13 out of 13 forms covered">
+                182&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;&nbsp;{:summary&nbsp;&quot;参数配置列表&quot;&nbsp;:parameters&nbsp;{:query&nbsp;PagingQuery}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                183&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;config&#x2F;list-configs&nbsp;{:config-service&nbsp;config-service})}
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                184&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:post&nbsp;{:summary&nbsp;&quot;新增参数配置&quot;&nbsp;:handler&nbsp;(partial&nbsp;config&#x2F;create-config&nbsp;{:config-service&nbsp;config-service})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                185&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;export&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;导出参数&quot;&nbsp;:description&nbsp;&quot;导出参数配置数据为CSV文件&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                186&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;im&#x2F;export-configs&nbsp;{:config-service&nbsp;config-service})}}]
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                187&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&quot;&nbsp;{:get&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;参数详情&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                188&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;config&#x2F;get-config&nbsp;{:config-service&nbsp;config-service})}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                189&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:put&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;更新参数&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                190&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;config&#x2F;update-config&nbsp;{:config-service&nbsp;config-service})}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                191&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:delete&nbsp;{:summary&nbsp;&quot;删除参数&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                192&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;config&#x2F;delete-config&nbsp;{:config-service&nbsp;config-service})}}]]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                193&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                194&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;form-template&quot;
+                </span><br/>
+<span class="covered" title="13 out of 13 forms covered">
+                195&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;&nbsp;{:summary&nbsp;&quot;表单模板列表&quot;&nbsp;:parameters&nbsp;{:query&nbsp;PagingQuery}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                196&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;form-template&#x2F;list-form-templates&nbsp;{:form-template-service&nbsp;form-template-service})}
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                197&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:post&nbsp;{:summary&nbsp;&quot;新增表单模板&quot;&nbsp;:handler&nbsp;(partial&nbsp;form-template&#x2F;create-form-template&nbsp;{:form-template-service&nbsp;form-template-service})}}]
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                198&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&quot;&nbsp;{:get&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;表单模板详情&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                199&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;form-template&#x2F;get-form-template&nbsp;{:form-template-service&nbsp;form-template-service})}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                200&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:put&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;更新表单模板&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                201&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;form-template&#x2F;update-form-template&nbsp;{:form-template-service&nbsp;form-template-service})}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                202&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:delete&nbsp;{:summary&nbsp;&quot;删除表单模板&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                203&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;form-template&#x2F;delete-form-template&nbsp;{:form-template-service&nbsp;form-template-service})}}]]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                204&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                205&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;oper-log&quot;
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                206&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;操作日志列表&quot;&nbsp;:description&nbsp;&quot;分页查询操作日志（只读）&quot;
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                207&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                208&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;log&#x2F;list-oper-logs&nbsp;{:log-service&nbsp;log-service})}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                209&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:delete&nbsp;{:summary&nbsp;&quot;清空操作日志&quot;&nbsp;:description&nbsp;&quot;清空所有操作日志（需要确认）&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                210&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;log&#x2F;clear-oper-logs&nbsp;{:log-service&nbsp;log-service})}}]]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                211&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                212&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;login-log&quot;
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                213&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;登录日志列表&quot;&nbsp;:description&nbsp;&quot;分页查询登录日志（只读）&quot;
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                214&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                215&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;log&#x2F;list-login-logs&nbsp;{:log-service&nbsp;log-service})}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                216&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:delete&nbsp;{:summary&nbsp;&quot;清空登录日志&quot;&nbsp;:description&nbsp;&quot;清空所有登录日志&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                217&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;log&#x2F;clear-login-logs&nbsp;{:log-service&nbsp;log-service})}}]]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                218&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                219&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;online&quot;
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                220&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;在线用户列表&quot;&nbsp;:description&nbsp;&quot;查询当前在线用户列表（只读）&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                221&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;online&#x2F;list-online&nbsp;{:online-service&nbsp;online-service})}}]
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                222&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:token-id&quot;&nbsp;{:delete&nbsp;{:summary&nbsp;&quot;强退用户&quot;&nbsp;:description&nbsp;&quot;强制踢出在线用户&quot;
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                223&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:parameters&nbsp;{:path&nbsp;[:map&nbsp;[:token-id&nbsp;:string]]}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                224&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;online&#x2F;force-logout&nbsp;{:online-service&nbsp;online-service})}}]]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                225&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                226&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;profile&quot;
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                227&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;个人信息&quot;&nbsp;:description&nbsp;&quot;获取当前登录用户信息&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                228&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;profile&#x2F;get-profile&nbsp;{:user-service&nbsp;user-service})}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                229&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:put&nbsp;{:summary&nbsp;&quot;更新个人信息&quot;&nbsp;:description&nbsp;&quot;更新昵称&#x2F;手机&#x2F;邮箱&#x2F;性别&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                230&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;profile&#x2F;update-profile&nbsp;{:user-service&nbsp;user-service})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                231&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;password&quot;&nbsp;{:put&nbsp;{:summary&nbsp;&quot;修改密码&quot;&nbsp;:description&nbsp;&quot;修改当前用户登录密码&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                232&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;profile&#x2F;change-password&nbsp;{:user-service&nbsp;user-service})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                233&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;avatar&quot;&nbsp;&nbsp;&nbsp;{:post&nbsp;{:summary&nbsp;&quot;上传头像&quot;&nbsp;:description&nbsp;&quot;上传用户头像文件&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                234&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;profile&#x2F;upload-avatar&nbsp;{:user-service&nbsp;user-service})}}]]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                235&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                236&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;job&quot;
+                </span><br/>
+<span class="covered" title="13 out of 13 forms covered">
+                237&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;&nbsp;{:summary&nbsp;&quot;定时任务列表&quot;&nbsp;:parameters&nbsp;{:query&nbsp;PagingQuery}
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                238&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;job&#x2F;list-jobs&nbsp;{:query-fn&nbsp;(:query-fn&nbsp;user-service)&nbsp;:db&nbsp;datasource})}
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                239&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:post&nbsp;{:summary&nbsp;&quot;新增定时任务&quot;&nbsp;:handler&nbsp;(partial&nbsp;job&#x2F;create-job&nbsp;{:query-fn&nbsp;(:query-fn&nbsp;user-service)&nbsp;:db&nbsp;datasource})}}]
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                240&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&quot;&nbsp;{:get&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;任务详情&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                241&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;job&#x2F;get-job&nbsp;{:query-fn&nbsp;(:query-fn&nbsp;user-service)&nbsp;:db&nbsp;datasource})}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                242&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:put&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;更新任务&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                243&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;job&#x2F;update-job&nbsp;{:query-fn&nbsp;(:query-fn&nbsp;user-service)&nbsp;:db&nbsp;datasource})}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                244&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:delete&nbsp;{:summary&nbsp;&quot;删除任务&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                245&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;job&#x2F;delete-job&nbsp;{:query-fn&nbsp;(:query-fn&nbsp;user-service)&nbsp;:db&nbsp;datasource})}}]
+                </span><br/>
+<span class="covered" title="18 out of 18 forms covered">
+                246&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&#x2F;changeStatus&quot;&nbsp;{:put&nbsp;{:summary&nbsp;&quot;修改任务状态&quot;&nbsp;:handler&nbsp;(partial&nbsp;job&#x2F;change-status&nbsp;{:query-fn&nbsp;(:query-fn&nbsp;user-service)&nbsp;:db&nbsp;datasource})}}]
+                </span><br/>
+<span class="covered" title="12 out of 12 forms covered">
+                247&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&#x2F;run&quot;&nbsp;{:put&nbsp;{:summary&nbsp;&quot;执行一次&quot;&nbsp;:handler&nbsp;(partial&nbsp;job&#x2F;run-once&nbsp;{})}}]]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                248&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                249&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;job-log&quot;
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                250&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;任务执行日志&quot;&nbsp;:description&nbsp;&quot;查询定时任务执行日志列表&quot;
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                251&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;job&#x2F;list-job-logs&nbsp;{:query-fn&nbsp;(:query-fn&nbsp;user-service)&nbsp;:db&nbsp;datasource})}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                252&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:delete&nbsp;{:summary&nbsp;&quot;清空日志&quot;&nbsp;:description&nbsp;&quot;清空所有任务执行日志&quot;
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                253&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;job&#x2F;clean-logs&nbsp;{:query-fn&nbsp;(:query-fn&nbsp;user-service)&nbsp;:db&nbsp;datasource})}}]]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                254&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                255&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;notice&quot;
+                </span><br/>
+<span class="covered" title="13 out of 13 forms covered">
+                256&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;&nbsp;{:summary&nbsp;&quot;通知公告列表&quot;&nbsp;:parameters&nbsp;{:query&nbsp;PagingQuery}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                257&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;notice&#x2F;list-notices&nbsp;{:query-fn&nbsp;query-fn})}
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                258&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:post&nbsp;{:summary&nbsp;&quot;新增通知公告&quot;&nbsp;:handler&nbsp;(partial&nbsp;notice&#x2F;create-notice&nbsp;{:query-fn&nbsp;query-fn})}}]
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                259&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&quot;&nbsp;{:get&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;通知公告详情&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                260&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;notice&#x2F;get-notice&nbsp;{:query-fn&nbsp;query-fn})}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                261&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:put&nbsp;&nbsp;&nbsp;&nbsp;{:summary&nbsp;&quot;更新通知公告&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                262&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;notice&#x2F;update-notice&nbsp;{:query-fn&nbsp;query-fn})}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                263&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:delete&nbsp;{:summary&nbsp;&quot;删除通知公告&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                264&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;notice&#x2F;delete-notice&nbsp;{:query-fn&nbsp;query-fn})}}]]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                265&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                266&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;dashboard&#x2F;stats&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;首页仪表盘统计&quot;&nbsp;:description&nbsp;&quot;聚合用户数、在线数、日志数、任务数、最近操作和系统信息&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                267&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;monitor&#x2F;dashboard-stats&nbsp;{:query-fn&nbsp;query-fn})}}]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                268&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                269&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;server&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;服务器监控&quot;&nbsp;:description&nbsp;&quot;JVM&#x2F;CPU&#x2F;内存等系统信息&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                270&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;monitor&#x2F;server-info&nbsp;{})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                271&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;datasource&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;数据源监控&quot;&nbsp;:description&nbsp;&quot;数据库连接池状态&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                272&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;monitor&#x2F;datasource-info&nbsp;{:datasource&nbsp;datasource})}}]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                273&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                274&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;integrant&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;Integrant&nbsp;依赖&quot;&nbsp;:description&nbsp;&quot;Integrant&nbsp;配置、依赖图与运行时系统摘要&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                275&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;monitor&#x2F;integrant-info&nbsp;{})}}]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                276&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                277&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;integrant&#x2F;trace&#x2F;*key&quot;
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                278&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;Integrant&nbsp;函数追踪日志&quot;&nbsp;:handler&nbsp;(partial&nbsp;monitor&#x2F;integrant-trace-logs&nbsp;{})}
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                279&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:post&nbsp;{:summary&nbsp;&quot;开启&#x2F;关闭&nbsp;Integrant&nbsp;函数追踪&quot;&nbsp;:handler&nbsp;(partial&nbsp;monitor&#x2F;integrant-trace&nbsp;{})}}]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                280&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                281&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;cache&quot;
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                282&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;缓存信息&quot;&nbsp;:description&nbsp;&quot;获取缓存名称、类型、键数量等&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                283&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;cache&#x2F;cache-info&nbsp;{})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                284&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;keys&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;缓存键列表&quot;&nbsp;:description&nbsp;&quot;获取所有缓存键名&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                285&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;cache&#x2F;cache-keys&nbsp;{})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                286&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;getNames&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;缓存名称&quot;&nbsp;:description&nbsp;&quot;获取所有缓存名称&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                287&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;cache&#x2F;cache-names&nbsp;{})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                288&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;getKeys&#x2F;:cacheName&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;缓存键&quot;&nbsp;:description&nbsp;&quot;获取缓存键列表&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                289&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;cache&#x2F;cache-keys-by-name&nbsp;{})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                290&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;getValue&#x2F;:cacheName&#x2F;:cacheKey&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;缓存值&quot;&nbsp;:description&nbsp;&quot;获取缓存值&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                291&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;cache&#x2F;cache-value&nbsp;{})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                292&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;clear&quot;&nbsp;{:delete&nbsp;{:summary&nbsp;&quot;清空缓存&quot;&nbsp;:description&nbsp;&quot;清空所有缓存数据&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                293&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;cache&#x2F;clear-cache&nbsp;{})}}]
+                </span><br/>
+<span class="covered" title="12 out of 12 forms covered">
+                294&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;clearCacheName&#x2F;:cacheName&quot;&nbsp;{:delete&nbsp;{:summary&nbsp;&quot;清除指定缓存&quot;&nbsp;:handler&nbsp;(partial&nbsp;cache&#x2F;clear-cache-name&nbsp;{})}}]
+                </span><br/>
+<span class="covered" title="12 out of 12 forms covered">
+                295&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;clearCacheKey&#x2F;:cacheName&#x2F;:cacheKey&quot;&nbsp;{:delete&nbsp;{:summary&nbsp;&quot;清除指定键&quot;&nbsp;:handler&nbsp;(partial&nbsp;cache&#x2F;clear-cache-key&nbsp;{})}}]
+                </span><br/>
+<span class="covered" title="12 out of 12 forms covered">
+                296&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;clearCacheAll&quot;&nbsp;{:delete&nbsp;{:summary&nbsp;&quot;清除所有缓存&quot;&nbsp;:handler&nbsp;(partial&nbsp;cache&#x2F;clear-cache-all&nbsp;{})}}]]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                297&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                298&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;file&quot;
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                299&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;文件列表&quot;&nbsp;:description&nbsp;&quot;查询上传文件列表&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                300&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;file&#x2F;list-files&nbsp;{})}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                301&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:post&nbsp;{:summary&nbsp;&quot;上传文件&quot;&nbsp;:description&nbsp;&quot;上传文件到服务器&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                302&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;file&#x2F;upload-file&nbsp;{})}}]
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                303&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:filename&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;下载文件&quot;&nbsp;:description&nbsp;&quot;下载指定文件&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                304&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;file&#x2F;download-file&nbsp;{})}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                305&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:delete&nbsp;{:summary&nbsp;&quot;删除文件&quot;&nbsp;:description&nbsp;&quot;删除指定文件&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                306&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;file&#x2F;delete-file&nbsp;{})}}]]])
+                </span><br/>
+ </body>
+</html>

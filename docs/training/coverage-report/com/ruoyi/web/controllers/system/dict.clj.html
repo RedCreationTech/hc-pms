@@ -1,0 +1,338 @@
+<html>
+ <head>
+   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" href="../../../../../coverage.css"/>  <title> com/ruoyi/web/controllers/system/dict.clj </title>
+ </head>
+ <body>
+<span class="covered" title="1 out of 1 forms covered">
+                001&nbsp;&nbsp;(ns&nbsp;com.ruoyi.web.controllers.system.dict
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                002&nbsp;&nbsp;&nbsp;&nbsp;&quot;字典管理控制器。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                003&nbsp;&nbsp;&nbsp;&nbsp;(:require
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                004&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.domain.system.dict&nbsp;:as&nbsp;dict-service]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                005&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.infra.data-perm&nbsp;:as&nbsp;data-perm]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                006&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[ring.util.response&nbsp;:as&nbsp;response]))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                007&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                008&nbsp;&nbsp;(defn-&nbsp;ok&nbsp;([data]&nbsp;(ok&nbsp;200&nbsp;&quot;操作成功&quot;&nbsp;data))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                009&nbsp;&nbsp;&nbsp;&nbsp;([code&nbsp;msg&nbsp;data]
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                010&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(-&gt;&nbsp;(response&#x2F;response&nbsp;{:code&nbsp;code&nbsp;:msg&nbsp;msg&nbsp;:data&nbsp;data})
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                011&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(response&#x2F;content-type&nbsp;&quot;application&#x2F;json&quot;))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                012&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                013&nbsp;&nbsp;(defn-&nbsp;fail&nbsp;[msg]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                014&nbsp;&nbsp;&nbsp;&nbsp;(-&gt;&nbsp;(response&#x2F;response&nbsp;{:code&nbsp;500&nbsp;:msg&nbsp;msg})
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                015&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(response&#x2F;content-type&nbsp;&quot;application&#x2F;json&quot;)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                016&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                017&nbsp;&nbsp;(defn-&nbsp;current-user-name&nbsp;[request]
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                018&nbsp;&nbsp;&nbsp;&nbsp;(get-in&nbsp;request&nbsp;[:identity&nbsp;:user-name]&nbsp;&quot;&quot;))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                019&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                020&nbsp;&nbsp;(defn&nbsp;list-dict-types
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                021&nbsp;&nbsp;&nbsp;&nbsp;&quot;查询字典类型列表（带数据权限过滤）。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                022&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[dict-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                023&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[params&nbsp;(:query-params&nbsp;request)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                024&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;identity&nbsp;(:identity&nbsp;request)
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                025&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;data-perm-filter&nbsp;(data-perm&#x2F;data-perm-filter&nbsp;identity&nbsp;&quot;default&quot;&nbsp;:alias&nbsp;&quot;u&quot;)
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                026&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;params&nbsp;(merge&nbsp;params&nbsp;(:params&nbsp;data-perm-filter))]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                027&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;(dict-service&#x2F;list-dict-types&nbsp;dict-service&nbsp;params))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                028&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                029&nbsp;&nbsp;(defn&nbsp;get-dict-type
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                030&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[dict-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                031&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[dict-id&nbsp;(parse-long&nbsp;(get-in&nbsp;request&nbsp;[:path-params&nbsp;:id]))]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                032&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if-let&nbsp;[dt&nbsp;(dict-service&#x2F;find-dict-type-by-id&nbsp;dict-service&nbsp;dict-id)]
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                033&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;dt)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                034&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(fail&nbsp;&quot;字典类型不存在&quot;))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                035&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                036&nbsp;&nbsp;(defn&nbsp;create-dict-type
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                037&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[dict-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                038&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                039&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[params&nbsp;(assoc&nbsp;(:body-params&nbsp;request)&nbsp;:create_by&nbsp;(current-user-name&nbsp;request))
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                040&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;dict-id&nbsp;(dict-service&#x2F;create-dict-type!&nbsp;dict-service&nbsp;params)]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                041&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;(str&nbsp;&quot;创建成功:&nbsp;&quot;&nbsp;dict-id)))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                042&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e&nbsp;(fail&nbsp;(.getMessage&nbsp;e)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                043&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                044&nbsp;&nbsp;(defn&nbsp;update-dict-type
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                045&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[dict-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                046&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                047&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[dict-id&nbsp;(parse-long&nbsp;(get-in&nbsp;request&nbsp;[:path-params&nbsp;:id]))
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                048&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;params&nbsp;(-&gt;&nbsp;(:body-params&nbsp;request)
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                049&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(assoc&nbsp;:dict_id&nbsp;dict-id)
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                050&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(assoc&nbsp;:update_by&nbsp;(current-user-name&nbsp;request)))]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                051&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(dict-service&#x2F;update-dict-type!&nbsp;dict-service&nbsp;params)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                052&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;&quot;更新成功&quot;))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                053&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e&nbsp;(fail&nbsp;(.getMessage&nbsp;e)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                054&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                055&nbsp;&nbsp;(defn&nbsp;delete-dict-type
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                056&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[dict-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                057&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[dict-id&nbsp;(parse-long&nbsp;(get-in&nbsp;request&nbsp;[:path-params&nbsp;:id]))]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                058&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(dict-service&#x2F;delete-dict-type!&nbsp;dict-service&nbsp;dict-id)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                059&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;&quot;删除成功&quot;)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                060&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                061&nbsp;&nbsp;(defn&nbsp;list-dict-data
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                062&nbsp;&nbsp;&nbsp;&nbsp;&quot;查询字典数据列表（带数据权限过滤）。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                063&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[dict-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                064&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[params&nbsp;(:query-params&nbsp;request)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                065&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;identity&nbsp;(:identity&nbsp;request)
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                066&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;data-perm-filter&nbsp;(data-perm&#x2F;data-perm-filter&nbsp;identity&nbsp;&quot;default&quot;&nbsp;:alias&nbsp;&quot;u&quot;)
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                067&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;params&nbsp;(merge&nbsp;params&nbsp;(:params&nbsp;data-perm-filter))]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                068&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;(dict-service&#x2F;list-dict-data&nbsp;dict-service&nbsp;params))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                069&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                070&nbsp;&nbsp;(defn&nbsp;get-dict-data
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                071&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[dict-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                072&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[dict-code&nbsp;(parse-long&nbsp;(get-in&nbsp;request&nbsp;[:path-params&nbsp;:id]))]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                073&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if-let&nbsp;[dd&nbsp;(dict-service&#x2F;find-dict-data-by-id&nbsp;dict-service&nbsp;dict-code)]
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                074&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;dd)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                075&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(fail&nbsp;&quot;字典数据不存在&quot;))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                076&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                077&nbsp;&nbsp;(defn&nbsp;create-dict-data
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                078&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[dict-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                079&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                080&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[params&nbsp;(assoc&nbsp;(:body-params&nbsp;request)&nbsp;:create_by&nbsp;(current-user-name&nbsp;request))
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                081&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;dict-code&nbsp;(dict-service&#x2F;create-dict-data!&nbsp;dict-service&nbsp;params)]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                082&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;(str&nbsp;&quot;创建成功:&nbsp;&quot;&nbsp;dict-code)))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                083&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e&nbsp;(fail&nbsp;(.getMessage&nbsp;e)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                084&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                085&nbsp;&nbsp;(defn&nbsp;update-dict-data
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                086&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[dict-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                087&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                088&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[dict-code&nbsp;(parse-long&nbsp;(get-in&nbsp;request&nbsp;[:path-params&nbsp;:id]))
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                089&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;params&nbsp;(-&gt;&nbsp;(:body-params&nbsp;request)
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                090&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(assoc&nbsp;:dict_code&nbsp;dict-code)
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                091&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(assoc&nbsp;:update_by&nbsp;(current-user-name&nbsp;request)))]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                092&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(dict-service&#x2F;update-dict-data!&nbsp;dict-service&nbsp;params)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                093&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;&quot;更新成功&quot;))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                094&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e&nbsp;(fail&nbsp;(.getMessage&nbsp;e)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                095&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                096&nbsp;&nbsp;(defn&nbsp;delete-dict-data
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                097&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[dict-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                098&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[dict-code&nbsp;(parse-long&nbsp;(get-in&nbsp;request&nbsp;[:path-params&nbsp;:id]))]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                099&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(dict-service&#x2F;delete-dict-data!&nbsp;dict-service&nbsp;dict-code)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                100&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;&quot;删除成功&quot;)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                101&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                102&nbsp;&nbsp;(defn&nbsp;option-select
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                103&nbsp;&nbsp;&nbsp;&nbsp;&quot;获取字典类型选项列表（下拉框用）。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                104&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[dict-service]}&nbsp;_]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                105&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;(dict-service&#x2F;list-dict-types&nbsp;dict-service&nbsp;{:limit&nbsp;999&nbsp;:offset&nbsp;0})))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                106&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                107&nbsp;&nbsp;(defn&nbsp;refresh-cache
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                108&nbsp;&nbsp;&nbsp;&nbsp;&quot;刷新字典缓存。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                109&nbsp;&nbsp;&nbsp;&nbsp;[_&nbsp;_]
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                110&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;&quot;缓存已刷新&quot;))
+                </span><br/>
+ </body>
+</html>

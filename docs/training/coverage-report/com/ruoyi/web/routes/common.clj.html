@@ -1,0 +1,41 @@
+<html>
+ <head>
+   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" href="../../../../coverage.css"/>  <title> com/ruoyi/web/routes/common.clj </title>
+ </head>
+ <body>
+<span class="covered" title="1 out of 1 forms covered">
+                001&nbsp;&nbsp;(ns&nbsp;com.ruoyi.web.routes.common
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                002&nbsp;&nbsp;&nbsp;&nbsp;&quot;通用路由。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                003&nbsp;&nbsp;&nbsp;&nbsp;(:require
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                004&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.common&nbsp;:as&nbsp;common]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                005&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.captcha&nbsp;:as&nbsp;captcha]))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                006&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                007&nbsp;&nbsp;(defn&nbsp;common-routes&nbsp;[_opts]
+                </span><br/>
+<span class="covered" title="13 out of 13 forms covered">
+                008&nbsp;&nbsp;&nbsp;&nbsp;[[&quot;&#x2F;captchaImage&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;生成验证码&quot;&nbsp;:handler&nbsp;(partial&nbsp;captcha&#x2F;captcha-image&nbsp;{})}}]
+                </span><br/>
+<span class="covered" title="12 out of 12 forms covered">
+                009&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;common&#x2F;upload&quot;&nbsp;{:post&nbsp;{:summary&nbsp;&quot;通用文件上传&quot;&nbsp;:handler&nbsp;(partial&nbsp;common&#x2F;upload&nbsp;{})}}]
+                </span><br/>
+<span class="covered" title="12 out of 12 forms covered">
+                010&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;common&#x2F;download&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;通用文件下载&quot;&nbsp;:handler&nbsp;(partial&nbsp;common&#x2F;download&nbsp;{})}}]
+                </span><br/>
+<span class="covered" title="12 out of 12 forms covered">
+                011&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;common&#x2F;download&#x2F;resource&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;下载资源文件&quot;&nbsp;:handler&nbsp;(partial&nbsp;common&#x2F;download-resource&nbsp;{})}}]])
+                </span><br/>
+ </body>
+</html>

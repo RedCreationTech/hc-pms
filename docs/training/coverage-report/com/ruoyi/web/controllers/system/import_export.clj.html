@@ -1,0 +1,647 @@
+<html>
+ <head>
+   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" href="../../../../../coverage.css"/>  <title> com/ruoyi/web/controllers/system/import_export.clj </title>
+ </head>
+ <body>
+<span class="covered" title="1 out of 1 forms covered">
+                001&nbsp;&nbsp;(ns&nbsp;com.ruoyi.web.controllers.system.import-export
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                002&nbsp;&nbsp;&nbsp;&nbsp;&quot;用户导入导出控制器，使用&nbsp;multipart&nbsp;上传与&nbsp;clojure.data.csv。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                003&nbsp;&nbsp;&nbsp;&nbsp;(:require
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                004&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.domain.system.user&nbsp;:as&nbsp;user-service]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                005&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.domain.system.role&nbsp;:as&nbsp;role-service]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                006&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.domain.system.menu&nbsp;:as&nbsp;menu-service]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                007&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.domain.system.dept&nbsp;:as&nbsp;dept-service]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                008&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.domain.system.post&nbsp;:as&nbsp;post-service]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                009&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.domain.system.dict&nbsp;:as&nbsp;dict-service]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                010&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.domain.system.config&nbsp;:as&nbsp;config-service]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                011&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.infra.data-perm&nbsp;:as&nbsp;data-perm]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                012&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[ring.util.response&nbsp;:as&nbsp;response]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                013&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[ring.middleware.multipart-params&nbsp;:as&nbsp;multipart]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                014&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[clojure.data.csv&nbsp;:as&nbsp;csv]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                015&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[clojure.java.io&nbsp;:as&nbsp;io]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                016&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[clojure.string&nbsp;:as&nbsp;str]))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                017&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                018&nbsp;&nbsp;(defn-&nbsp;ok
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                019&nbsp;&nbsp;&nbsp;&nbsp;([data]&nbsp;(ok&nbsp;200&nbsp;&quot;操作成功&quot;&nbsp;data))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                020&nbsp;&nbsp;&nbsp;&nbsp;([code&nbsp;msg&nbsp;data]
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                021&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(-&gt;&nbsp;(response&#x2F;response&nbsp;{:code&nbsp;code&nbsp;:msg&nbsp;msg&nbsp;:data&nbsp;data})
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                022&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(response&#x2F;content-type&nbsp;&quot;application&#x2F;json&quot;))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                023&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                024&nbsp;&nbsp;(defn-&nbsp;fail&nbsp;[msg]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                025&nbsp;&nbsp;&nbsp;&nbsp;(-&gt;&nbsp;(response&#x2F;response&nbsp;{:code&nbsp;500&nbsp;:msg&nbsp;msg})
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                026&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(response&#x2F;content-type&nbsp;&quot;application&#x2F;json&quot;)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                027&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                028&nbsp;&nbsp;(defn-&nbsp;parse-int&nbsp;[v]
+                </span><br/>
+<span class="partial" title="13 out of 14 forms covered">
+                029&nbsp;&nbsp;&nbsp;&nbsp;(when&nbsp;(and&nbsp;v&nbsp;(not&nbsp;(str&#x2F;blank?&nbsp;(str&nbsp;v))))
+                </span><br/>
+<span class="partial" title="6 out of 7 forms covered">
+                030&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(try&nbsp;(Integer&#x2F;parseInt&nbsp;(str&nbsp;v))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                031&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;_&nbsp;nil))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                032&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                033&nbsp;&nbsp;(defn-&nbsp;csv-row-&gt;user
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                034&nbsp;&nbsp;&nbsp;&nbsp;&quot;将&nbsp;CSV&nbsp;行向量转换为用户参数映射。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                035&nbsp;&nbsp;&nbsp;&nbsp;[headers&nbsp;row]
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                036&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[m&nbsp;(zipmap&nbsp;headers&nbsp;row)]
+                </span><br/>
+<span class="covered" title="19 out of 19 forms covered">
+                037&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:user_name&nbsp;(str&#x2F;trim&nbsp;(get&nbsp;m&nbsp;&quot;user_name&quot;&nbsp;&quot;&quot;))
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                038&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:nick_name&nbsp;(str&#x2F;trim&nbsp;(get&nbsp;m&nbsp;&quot;nick_name&quot;&nbsp;&quot;&quot;))
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                039&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:email&nbsp;(str&#x2F;trim&nbsp;(get&nbsp;m&nbsp;&quot;email&quot;&nbsp;&quot;&quot;))
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                040&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:phonenumber&nbsp;(str&#x2F;trim&nbsp;(get&nbsp;m&nbsp;&quot;phonenumber&quot;&nbsp;&quot;&quot;))
+                </span><br/>
+<span class="partial" title="10 out of 11 forms covered">
+                041&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:sex&nbsp;(or&nbsp;(str&#x2F;trim&nbsp;(get&nbsp;m&nbsp;&quot;sex&quot;&nbsp;&quot;0&quot;))&nbsp;&quot;0&quot;)
+                </span><br/>
+<span class="partial" title="10 out of 11 forms covered">
+                042&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:status&nbsp;(or&nbsp;(str&#x2F;trim&nbsp;(get&nbsp;m&nbsp;&quot;status&quot;&nbsp;&quot;0&quot;))&nbsp;&quot;0&quot;)
+                </span><br/>
+<span class="partial" title="9 out of 10 forms covered">
+                043&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:dept_id&nbsp;(or&nbsp;(parse-int&nbsp;(get&nbsp;m&nbsp;&quot;dept_id&quot;))&nbsp;1)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                044&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:user_type&nbsp;&quot;00&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                045&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:avatar&nbsp;&quot;&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                046&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:remark&nbsp;(str&#x2F;trim&nbsp;(get&nbsp;m&nbsp;&quot;remark&quot;&nbsp;&quot;&quot;))}))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                047&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                048&nbsp;&nbsp;(defn-&nbsp;read-csv-rows
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                049&nbsp;&nbsp;&nbsp;&nbsp;&quot;读取&nbsp;multipart&nbsp;上传的&nbsp;CSV&nbsp;文件，返回行向量列表。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                050&nbsp;&nbsp;&nbsp;&nbsp;[file]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                051&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[tempfile&nbsp;(:tempfile&nbsp;file)]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                052&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(with-open&nbsp;[reader&nbsp;(io&#x2F;reader&nbsp;tempfile&nbsp;:encoding&nbsp;&quot;UTF-8&quot;)]
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                053&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(doall&nbsp;(csv&#x2F;read-csv&nbsp;reader)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                054&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                055&nbsp;&nbsp;(defn&nbsp;import-users
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                056&nbsp;&nbsp;&nbsp;&nbsp;&quot;批量导入用户（multipart&nbsp;CSV）。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                057&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[user-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                058&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                059&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[multipart-params&nbsp;(:multipart-params&nbsp;request)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                060&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;file&nbsp;(get&nbsp;multipart-params&nbsp;&quot;file&quot;)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                061&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;identity&nbsp;(:identity&nbsp;request)
+                </span><br/>
+<span class="covered" title="16 out of 16 forms covered">
+                062&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;_&nbsp;(when&nbsp;(or&nbsp;(nil?&nbsp;file)&nbsp;(str&#x2F;blank?&nbsp;(:filename&nbsp;file&nbsp;&quot;&quot;)))
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                063&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(throw&nbsp;(Exception.&nbsp;&quot;请选择要上传的文件&quot;)))
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                064&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;rows&nbsp;(read-csv-rows&nbsp;file)
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                065&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;headers&nbsp;(mapv&nbsp;str&#x2F;trim&nbsp;(first&nbsp;rows))
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                066&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;data-rows&nbsp;(rest&nbsp;rows)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                067&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;default-password&nbsp;&quot;123456&quot;
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                068&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;results&nbsp;(mapv&nbsp;(fn&nbsp;[row]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                069&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                070&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[user&nbsp;(csv-row-&gt;user&nbsp;headers&nbsp;row)]
+                </span><br/>
+<span class="partial" title="6 out of 7 forms covered">
+                071&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(when&nbsp;(str&#x2F;blank?&nbsp;(:user_name&nbsp;user))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                072&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(throw&nbsp;(Exception.&nbsp;&quot;用户名不能为空&quot;)))
+                </span><br/>
+<span class="partial" title="6 out of 7 forms covered">
+                073&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(when&nbsp;(str&#x2F;blank?&nbsp;(:nick_name&nbsp;user))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                074&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(throw&nbsp;(Exception.&nbsp;&quot;用户昵称不能为空&quot;)))
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                075&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(user-service&#x2F;create-user!&nbsp;user-service
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                076&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(assoc&nbsp;user
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                077&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:password&nbsp;default-password
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                078&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:roles&nbsp;[]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                079&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:posts&nbsp;[]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                080&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:create_by&nbsp;(:user_name&nbsp;identity&nbsp;&quot;&quot;)))
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                081&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:user_name&nbsp;(:user_name&nbsp;user)&nbsp;:status&nbsp;&quot;success&quot;})
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                082&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e
+                </span><br/>
+<span class="not-covered" title="0 out of 9 forms covered">
+                083&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:user_name&nbsp;(first&nbsp;row)&nbsp;:status&nbsp;&quot;failed&quot;&nbsp;:msg&nbsp;(.getMessage&nbsp;e)})))
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                084&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;data-rows)
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                085&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;success-count&nbsp;(count&nbsp;(filter&nbsp;#(=&nbsp;&quot;success&quot;&nbsp;(:status&nbsp;%))&nbsp;results))
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                086&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;failed-count&nbsp;(count&nbsp;(filter&nbsp;#(=&nbsp;&quot;failed&quot;&nbsp;(:status&nbsp;%))&nbsp;results))]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                087&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;{:total&nbsp;(count&nbsp;results)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                088&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:success&nbsp;success-count
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                089&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:failed&nbsp;failed-count
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                090&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:details&nbsp;results}))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                091&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                092&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(fail&nbsp;(.getMessage&nbsp;e)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                093&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                094&nbsp;&nbsp;(defn-&nbsp;user-&gt;csv-row
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                095&nbsp;&nbsp;&nbsp;&nbsp;&quot;将用户映射转换为&nbsp;CSV&nbsp;行向量。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                096&nbsp;&nbsp;&nbsp;&nbsp;[user]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                097&nbsp;&nbsp;&nbsp;&nbsp;[(:user_name&nbsp;user)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                098&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(:nick_name&nbsp;user)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                099&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(:email&nbsp;user)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                100&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(:phonenumber&nbsp;user)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                101&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(:sex&nbsp;user)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                102&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(:status&nbsp;user)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                103&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(:dept_id&nbsp;user)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                104&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(:remark&nbsp;user)])
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                105&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                106&nbsp;&nbsp;(defn&nbsp;export-users
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                107&nbsp;&nbsp;&nbsp;&nbsp;&quot;导出用户为&nbsp;CSV&nbsp;文件（带数据权限过滤）。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                108&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[user-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                109&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                110&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[identity&nbsp;(:identity&nbsp;request)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                111&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;raw&nbsp;(:query-params&nbsp;request)
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                112&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;data-perm-filter&nbsp;(data-perm&#x2F;data-perm-filter&nbsp;identity&nbsp;&quot;default&quot;&nbsp;:alias&nbsp;&quot;u&quot;)
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                113&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;params&nbsp;(merge&nbsp;{:page-num&nbsp;1&nbsp;:page-size&nbsp;10000}
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                114&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(dissoc&nbsp;raw&nbsp;&quot;page&quot;&nbsp;&quot;size&quot;)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                115&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(:params&nbsp;data-perm-filter))
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                116&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;result&nbsp;(user-service&#x2F;list-users&nbsp;user-service&nbsp;params)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                117&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;rows&nbsp;(:rows&nbsp;result)
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                118&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;header&nbsp;[&quot;user_name&quot;&nbsp;&quot;nick_name&quot;&nbsp;&quot;email&quot;&nbsp;&quot;phonenumber&quot;&nbsp;&quot;sex&quot;&nbsp;&quot;status&quot;&nbsp;&quot;dept_id&quot;&nbsp;&quot;remark&quot;]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                119&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;csv-lines&nbsp;(mapv&nbsp;user-&gt;csv-row&nbsp;rows)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                120&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;output&nbsp;(java.io.StringWriter.)]
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                121&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(csv&#x2F;write-csv&nbsp;output&nbsp;(cons&nbsp;header&nbsp;csv-lines)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                122&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:separator&nbsp;\,&nbsp;:quote&nbsp;\&quot;)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                123&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[csv-str&nbsp;(str&nbsp;output)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                124&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;bom&nbsp;&quot;\uFEFF&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                125&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;content&nbsp;(str&nbsp;bom&nbsp;csv-str)]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                126&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(-&gt;&nbsp;(response&#x2F;response&nbsp;content)
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                127&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(response&#x2F;header&nbsp;&quot;Content-Type&quot;&nbsp;&quot;text&#x2F;csv;&nbsp;charset=utf-8&quot;)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                128&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(response&#x2F;header&nbsp;&quot;Content-Disposition&quot;&nbsp;&quot;attachment;&nbsp;filename=users.csv&quot;))))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                129&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                130&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(fail&nbsp;(.getMessage&nbsp;e)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                131&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                132&nbsp;&nbsp;(defn&nbsp;import-template
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                133&nbsp;&nbsp;&nbsp;&nbsp;&quot;下载用户导入模板。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                134&nbsp;&nbsp;&nbsp;&nbsp;[_&nbsp;_]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                135&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[header&nbsp;[&quot;user_name&quot;&nbsp;&quot;nick_name&quot;&nbsp;&quot;email&quot;&nbsp;&quot;phonenumber&quot;&nbsp;&quot;sex&quot;&nbsp;&quot;status&quot;&nbsp;&quot;dept_id&quot;&nbsp;&quot;remark&quot;]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                136&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;sample&nbsp;[&quot;admin&quot;&nbsp;&quot;管理员&quot;&nbsp;&quot;admin@ruoyi.vip&quot;&nbsp;&quot;13800138000&quot;&nbsp;&quot;0&quot;&nbsp;&quot;0&quot;&nbsp;&quot;1&quot;&nbsp;&quot;&quot;]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                137&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;output&nbsp;(java.io.StringWriter.)]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                138&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(csv&#x2F;write-csv&nbsp;output&nbsp;[header&nbsp;sample]&nbsp;:separator&nbsp;\,&nbsp;:quote&nbsp;\&quot;)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                139&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[csv-str&nbsp;(str&nbsp;output)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                140&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;bom&nbsp;&quot;\uFEFF&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                141&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;content&nbsp;(str&nbsp;bom&nbsp;csv-str)]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                142&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(-&gt;&nbsp;(response&#x2F;response&nbsp;content)
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                143&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(response&#x2F;header&nbsp;&quot;Content-Type&quot;&nbsp;&quot;text&#x2F;csv;&nbsp;charset=utf-8&quot;)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                144&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(response&#x2F;header&nbsp;&quot;Content-Disposition&quot;&nbsp;&quot;attachment;&nbsp;filename=user_import_template.csv&quot;)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                145&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                146&nbsp;&nbsp;;;&nbsp;───&nbsp;通用导出函数&nbsp;──────────────────────────────────────────────────────
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                147&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                148&nbsp;&nbsp;(defn-&nbsp;generic-export
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                149&nbsp;&nbsp;&nbsp;&nbsp;&quot;通用导出函数。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                150&nbsp;&nbsp;&nbsp;&nbsp;[list-fn&nbsp;service&nbsp;params&nbsp;header&nbsp;csv-fn&nbsp;filename&nbsp;request]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                151&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="covered" title="12 out of 12 forms covered">
+                152&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[result&nbsp;(list-fn&nbsp;service&nbsp;(merge&nbsp;{:page-num&nbsp;1&nbsp;:page-size&nbsp;10000}&nbsp;params))
+                </span><br/>
+<span class="partial" title="5 out of 9 forms covered">
+                153&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;rows&nbsp;(if&nbsp;(sequential?&nbsp;result)&nbsp;result&nbsp;(:rows&nbsp;result&nbsp;[]))
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                154&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;csv-lines&nbsp;(mapv&nbsp;csv-fn&nbsp;rows)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                155&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;output&nbsp;(java.io.StringWriter.)]
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                156&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(csv&#x2F;write-csv&nbsp;output&nbsp;(cons&nbsp;header&nbsp;csv-lines)&nbsp;:separator&nbsp;\,&nbsp;:quote&nbsp;\&quot;)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                157&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[csv-str&nbsp;(str&nbsp;output)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                158&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;bom&nbsp;&quot;\uFEFF&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                159&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;content&nbsp;(str&nbsp;bom&nbsp;csv-str)]
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                160&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(-&gt;&nbsp;(response&#x2F;response&nbsp;content)
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                161&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(response&#x2F;header&nbsp;&quot;Content-Type&quot;&nbsp;&quot;text&#x2F;csv;&nbsp;charset=utf-8&quot;)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                162&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(response&#x2F;header&nbsp;&quot;Content-Disposition&quot;&nbsp;(str&nbsp;&quot;attachment;&nbsp;filename=&quot;&nbsp;filename)))))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                163&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                164&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(fail&nbsp;(.getMessage&nbsp;e)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                165&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                166&nbsp;&nbsp;(defn&nbsp;export-roles
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                167&nbsp;&nbsp;&nbsp;&nbsp;&quot;导出角色数据。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                168&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[role-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                169&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[header&nbsp;[&quot;role_id&quot;&nbsp;&quot;role_name&quot;&nbsp;&quot;role_key&quot;&nbsp;&quot;role_sort&quot;&nbsp;&quot;status&quot;]
+                </span><br/>
+<span class="covered" title="17 out of 17 forms covered">
+                170&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;csv-fn&nbsp;(fn&nbsp;[r]&nbsp;[(:role_id&nbsp;r)&nbsp;(:role_name&nbsp;r)&nbsp;(:role_key&nbsp;r)&nbsp;(:role_sort&nbsp;r)&nbsp;(:status&nbsp;r)])]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                171&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(generic-export&nbsp;role-service&#x2F;list-roles&nbsp;role-service&nbsp;{}&nbsp;header&nbsp;csv-fn&nbsp;&quot;roles.csv&quot;&nbsp;request)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                172&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                173&nbsp;&nbsp;(defn&nbsp;export-menus
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                174&nbsp;&nbsp;&nbsp;&nbsp;&quot;导出菜单数据。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                175&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[menu-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                176&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[header&nbsp;[&quot;menu_id&quot;&nbsp;&quot;menu_name&quot;&nbsp;&quot;parent_id&quot;&nbsp;&quot;order_num&quot;&nbsp;&quot;path&quot;&nbsp;&quot;component&quot;&nbsp;&quot;menu_type&quot;&nbsp;&quot;status&quot;]
+                </span><br/>
+<span class="covered" title="26 out of 26 forms covered">
+                177&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;csv-fn&nbsp;(fn&nbsp;[m]&nbsp;[(:menu_id&nbsp;m)&nbsp;(:menu_name&nbsp;m)&nbsp;(:parent_id&nbsp;m)&nbsp;(:order_num&nbsp;m)&nbsp;(:path&nbsp;m)&nbsp;(:component&nbsp;m)&nbsp;(:menu_type&nbsp;m)&nbsp;(:status&nbsp;m)])]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                178&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(generic-export&nbsp;menu-service&#x2F;list-menus&nbsp;menu-service&nbsp;{}&nbsp;header&nbsp;csv-fn&nbsp;&quot;menus.csv&quot;&nbsp;request)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                179&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                180&nbsp;&nbsp;(defn&nbsp;export-depts
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                181&nbsp;&nbsp;&nbsp;&nbsp;&quot;导出部门数据。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                182&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[dept-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                183&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[header&nbsp;[&quot;dept_id&quot;&nbsp;&quot;parent_id&quot;&nbsp;&quot;dept_name&quot;&nbsp;&quot;order_num&quot;&nbsp;&quot;leader&quot;&nbsp;&quot;status&quot;]
+                </span><br/>
+<span class="covered" title="20 out of 20 forms covered">
+                184&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;csv-fn&nbsp;(fn&nbsp;[d]&nbsp;[(:dept_id&nbsp;d)&nbsp;(:parent_id&nbsp;d)&nbsp;(:dept_name&nbsp;d)&nbsp;(:order_num&nbsp;d)&nbsp;(:leader&nbsp;d)&nbsp;(:status&nbsp;d)])]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                185&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(generic-export&nbsp;dept-service&#x2F;list-depts&nbsp;dept-service&nbsp;{}&nbsp;header&nbsp;csv-fn&nbsp;&quot;depts.csv&quot;&nbsp;request)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                186&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                187&nbsp;&nbsp;(defn&nbsp;export-posts
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                188&nbsp;&nbsp;&nbsp;&nbsp;&quot;导出岗位数据。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                189&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[post-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                190&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[header&nbsp;[&quot;post_id&quot;&nbsp;&quot;post_code&quot;&nbsp;&quot;post_name&quot;&nbsp;&quot;post_sort&quot;&nbsp;&quot;status&quot;]
+                </span><br/>
+<span class="covered" title="17 out of 17 forms covered">
+                191&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;csv-fn&nbsp;(fn&nbsp;[p]&nbsp;[(:post_id&nbsp;p)&nbsp;(:post_code&nbsp;p)&nbsp;(:post_name&nbsp;p)&nbsp;(:post_sort&nbsp;p)&nbsp;(:status&nbsp;p)])]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                192&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(generic-export&nbsp;post-service&#x2F;list-posts&nbsp;post-service&nbsp;{}&nbsp;header&nbsp;csv-fn&nbsp;&quot;posts.csv&quot;&nbsp;request)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                193&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                194&nbsp;&nbsp;(defn&nbsp;export-dict-types
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                195&nbsp;&nbsp;&nbsp;&nbsp;&quot;导出字典类型数据。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                196&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[dict-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                197&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[header&nbsp;[&quot;dict_id&quot;&nbsp;&quot;dict_name&quot;&nbsp;&quot;dict_type&quot;&nbsp;&quot;status&quot;]
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                198&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;csv-fn&nbsp;(fn&nbsp;[d]&nbsp;[(:dict_id&nbsp;d)&nbsp;(:dict_name&nbsp;d)&nbsp;(:dict_type&nbsp;d)&nbsp;(:status&nbsp;d)])]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                199&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(generic-export&nbsp;dict-service&#x2F;list-dict-types&nbsp;dict-service&nbsp;{}&nbsp;header&nbsp;csv-fn&nbsp;&quot;dict_types.csv&quot;&nbsp;request)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                200&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                201&nbsp;&nbsp;(defn&nbsp;export-dict-data
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                202&nbsp;&nbsp;&nbsp;&nbsp;&quot;导出字典数据。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                203&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[dict-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                204&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[header&nbsp;[&quot;dict_code&quot;&nbsp;&quot;dict_sort&quot;&nbsp;&quot;dict_label&quot;&nbsp;&quot;dict_value&quot;&nbsp;&quot;dict_type&quot;&nbsp;&quot;status&quot;]
+                </span><br/>
+<span class="covered" title="20 out of 20 forms covered">
+                205&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;csv-fn&nbsp;(fn&nbsp;[d]&nbsp;[(:dict_code&nbsp;d)&nbsp;(:dict_sort&nbsp;d)&nbsp;(:dict_label&nbsp;d)&nbsp;(:dict_value&nbsp;d)&nbsp;(:dict_type&nbsp;d)&nbsp;(:status&nbsp;d)])]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                206&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(generic-export&nbsp;dict-service&#x2F;list-dict-data&nbsp;dict-service&nbsp;{}&nbsp;header&nbsp;csv-fn&nbsp;&quot;dict_data.csv&quot;&nbsp;request)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                207&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                208&nbsp;&nbsp;(defn&nbsp;export-configs
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                209&nbsp;&nbsp;&nbsp;&nbsp;&quot;导出参数配置数据。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                210&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[config-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                211&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[header&nbsp;[&quot;config_id&quot;&nbsp;&quot;config_name&quot;&nbsp;&quot;config_key&quot;&nbsp;&quot;config_value&quot;&nbsp;&quot;config_type&quot;]
+                </span><br/>
+<span class="covered" title="17 out of 17 forms covered">
+                212&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;csv-fn&nbsp;(fn&nbsp;[c]&nbsp;[(:config_id&nbsp;c)&nbsp;(:config_name&nbsp;c)&nbsp;(:config_key&nbsp;c)&nbsp;(:config_value&nbsp;c)&nbsp;(:config_type&nbsp;c)])]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                213&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(generic-export&nbsp;config-service&#x2F;list-configs&nbsp;config-service&nbsp;{}&nbsp;header&nbsp;csv-fn&nbsp;&quot;configs.csv&quot;&nbsp;request)))
+                </span><br/>
+ </body>
+</html>

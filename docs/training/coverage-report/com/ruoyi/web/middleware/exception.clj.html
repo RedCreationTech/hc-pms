@@ -1,0 +1,107 @@
+<html>
+ <head>
+   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" href="../../../../coverage.css"/>  <title> com/ruoyi/web/middleware/exception.clj </title>
+ </head>
+ <body>
+<span class="covered" title="2 out of 2 forms covered">
+                001&nbsp;&nbsp;(ns&nbsp;com.ruoyi.web.middleware.exception
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                002&nbsp;&nbsp;&nbsp;&nbsp;(:require
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                003&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[clojure.tools.logging&nbsp;:as&nbsp;log]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                004&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[cheshire.core&nbsp;:as&nbsp;json]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                005&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[reitit.ring.middleware.exception&nbsp;:as&nbsp;exception]))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                006&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                007&nbsp;&nbsp;(defn&nbsp;handler&nbsp;[message&nbsp;status&nbsp;exception&nbsp;request]
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                008&nbsp;&nbsp;&nbsp;&nbsp;(when&nbsp;(&gt;=&nbsp;status&nbsp;500)
+                </span><br/>
+<span class="partial" title="25 out of 35 forms covered">
+                009&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(log&#x2F;error&nbsp;exception&nbsp;&quot;Exception:&quot;&nbsp;(.getMessage&nbsp;exception)))
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                010&nbsp;&nbsp;&nbsp;&nbsp;{:status&nbsp;&nbsp;status
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                011&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:headers&nbsp;{&quot;content-type&quot;&nbsp;&quot;application&#x2F;json;charset=utf-8&quot;}
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                012&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:body&nbsp;&nbsp;&nbsp;&nbsp;(json&#x2F;generate-string
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                013&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:message&nbsp;&nbsp;&nbsp;message
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                014&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:exception&nbsp;(.getName&nbsp;(.getClass&nbsp;exception))
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                015&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:data&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ex-data&nbsp;exception)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                016&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:uri&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(:uri&nbsp;request)})})
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                017&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                018&nbsp;&nbsp;(def&nbsp;wrap-exception
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                019&nbsp;&nbsp;&nbsp;&nbsp;(exception&#x2F;create-exception-middleware
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                020&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(merge
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                021&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;exception&#x2F;default-handlers
+                </span><br/>
+<span class="covered" title="13 out of 13 forms covered">
+                022&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:system.exception&#x2F;internal&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(partial&nbsp;handler&nbsp;&quot;internal&nbsp;exception&quot;&nbsp;500)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                023&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:system.exception&#x2F;business&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(partial&nbsp;handler&nbsp;&quot;bad&nbsp;request&quot;&nbsp;400)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                024&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:system.exception&#x2F;not-found&nbsp;&nbsp;&nbsp;&nbsp;(partial&nbsp;handler&nbsp;&quot;not&nbsp;found&quot;&nbsp;404)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                025&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:system.exception&#x2F;unauthorized&nbsp;(partial&nbsp;handler&nbsp;&quot;unauthorized&quot;&nbsp;401)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                026&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:system.exception&#x2F;forbidden&nbsp;&nbsp;&nbsp;&nbsp;(partial&nbsp;handler&nbsp;&quot;forbidden&quot;&nbsp;403)
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                027&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                028&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;override&nbsp;the&nbsp;default&nbsp;handler
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                029&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;::exception&#x2F;default&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(partial&nbsp;handler&nbsp;&quot;default&quot;&nbsp;500)
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                030&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                031&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;print&nbsp;stack-traces&nbsp;for&nbsp;all&nbsp;exceptions
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                032&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;::exception&#x2F;wrap&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(fn&nbsp;[handler&nbsp;e&nbsp;request]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                033&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(handler&nbsp;e&nbsp;request))})))
+                </span><br/>
+ </body>
+</html>

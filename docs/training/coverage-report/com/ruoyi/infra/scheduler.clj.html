@@ -1,0 +1,674 @@
+<html>
+ <head>
+   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" href="../../../coverage.css"/>  <title> com/ruoyi/infra/scheduler.clj </title>
+ </head>
+ <body>
+<span class="partial" title="1 out of 5 forms covered">
+                001&nbsp;&nbsp;(ns&nbsp;com.ruoyi.infra.scheduler
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                002&nbsp;&nbsp;&nbsp;&nbsp;&quot;定时任务调度器。
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                003&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                004&nbsp;&nbsp;&nbsp;&nbsp;封装&nbsp;Quartz&nbsp;调度，支持从&nbsp;sys_job&nbsp;加载任务、新增、修改、删除、
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                005&nbsp;&nbsp;&nbsp;&nbsp;暂停&#x2F;恢复以及立即执行一次。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                006&nbsp;&nbsp;&nbsp;&nbsp;(:require
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                007&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[clojure.tools.logging&nbsp;:as&nbsp;log]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                008&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[clojure.string&nbsp;:as&nbsp;str]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                009&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.infra.cron&nbsp;:as&nbsp;cron])
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                010&nbsp;&nbsp;&nbsp;&nbsp;(:import
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                011&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[org.quartz&nbsp;Job&nbsp;JobExecutionContext&nbsp;JobBuilder&nbsp;TriggerBuilder&nbsp;JobKey&nbsp;TriggerKey]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                012&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[org.quartz.spi&nbsp;JobFactory&nbsp;TriggerFiredBundle]))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                013&nbsp;&nbsp;
+                </span><br/>
+<span class="partial" title="5 out of 10 forms covered">
+                014&nbsp;&nbsp;(defonce&nbsp;^:private&nbsp;scheduler-atom&nbsp;(atom&nbsp;nil))
+                </span><br/>
+<span class="partial" title="5 out of 10 forms covered">
+                015&nbsp;&nbsp;(defonce&nbsp;^:private&nbsp;query-fn-atom&nbsp;(atom&nbsp;nil))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                016&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                017&nbsp;&nbsp;(defn&nbsp;set-scheduler!
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                018&nbsp;&nbsp;&nbsp;&nbsp;&quot;注入&nbsp;Quartz&nbsp;scheduler&nbsp;实例。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                019&nbsp;&nbsp;&nbsp;&nbsp;[scheduler]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                020&nbsp;&nbsp;&nbsp;&nbsp;(reset!&nbsp;scheduler-atom&nbsp;scheduler))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                021&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                022&nbsp;&nbsp;(defn&nbsp;set-query-fn!
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                023&nbsp;&nbsp;&nbsp;&nbsp;&quot;注入数据库&nbsp;query-fn。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                024&nbsp;&nbsp;&nbsp;&nbsp;[query-fn]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                025&nbsp;&nbsp;&nbsp;&nbsp;(reset!&nbsp;query-fn-atom&nbsp;query-fn))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                026&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                027&nbsp;&nbsp;(defn-&nbsp;query-fn&nbsp;[]
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                028&nbsp;&nbsp;&nbsp;&nbsp;(if-let&nbsp;[q&nbsp;@query-fn-atom]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                029&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;q
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                030&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(throw&nbsp;(IllegalStateException.&nbsp;&quot;scheduler&nbsp;query-fn&nbsp;not&nbsp;initialized&quot;))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                031&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                032&nbsp;&nbsp;(defn-&nbsp;scheduler&nbsp;[]
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                033&nbsp;&nbsp;&nbsp;&nbsp;(if-let&nbsp;[s&nbsp;@scheduler-atom]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                034&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;s
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                035&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(throw&nbsp;(IllegalStateException.&nbsp;&quot;scheduler&nbsp;not&nbsp;initialized&quot;))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                036&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                037&nbsp;&nbsp;;;&nbsp;────────────&nbsp;任务执行&nbsp;────────────
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                038&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                039&nbsp;&nbsp;(def&nbsp;^:private&nbsp;dangerous-patterns
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                040&nbsp;&nbsp;&nbsp;&nbsp;#{&quot;rmi:&quot;&nbsp;&quot;ldap:&quot;&nbsp;&quot;ldaps:&quot;&nbsp;&quot;http:&#x2F;&#x2F;&quot;&nbsp;&quot;https:&#x2F;&#x2F;&quot;})
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                041&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                042&nbsp;&nbsp;(def&nbsp;^:private&nbsp;allowed-ns-prefix
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                043&nbsp;&nbsp;&nbsp;&nbsp;&quot;com.ruoyi.task&quot;)
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                044&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                045&nbsp;&nbsp;(defn&nbsp;invoke-target-allowed?
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                046&nbsp;&nbsp;&nbsp;&nbsp;&quot;校验&nbsp;invoke_target&nbsp;不包含危险协议，且调用目标在允许命名空间内。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                047&nbsp;&nbsp;&nbsp;&nbsp;[target]
+                </span><br/>
+<span class="covered" title="15 out of 15 forms covered">
+                048&nbsp;&nbsp;&nbsp;&nbsp;(and&nbsp;(not&nbsp;(some&nbsp;#(str&#x2F;includes?&nbsp;target&nbsp;%)&nbsp;dangerous-patterns))
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                049&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;starts-with?&nbsp;target&nbsp;allowed-ns-prefix)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                050&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                051&nbsp;&nbsp;(defn-&nbsp;parse-invoke-target
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                052&nbsp;&nbsp;&nbsp;&nbsp;&quot;解析&nbsp;invoke_target&nbsp;字符串。
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                053&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                054&nbsp;&nbsp;&nbsp;&nbsp;支持两种形式：
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                055&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;task-ns&#x2F;task-fn&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(无参函数)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                056&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;task-ns&#x2F;task-fn(&#x27;a&#x27;,&nbsp;1)&nbsp;&nbsp;&nbsp;(带参函数，仅支持字符串与数字字面量)
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                057&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                058&nbsp;&nbsp;&nbsp;&nbsp;返回&nbsp;{:ns&nbsp;:fn&nbsp;:args}&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                059&nbsp;&nbsp;&nbsp;&nbsp;[target]
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                060&nbsp;&nbsp;&nbsp;&nbsp;(when&nbsp;(seq&nbsp;target)
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                061&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[[head&nbsp;args-str]&nbsp;(str&#x2F;split&nbsp;target&nbsp;#&quot;\(&quot;&nbsp;2)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                062&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[ns-part&nbsp;fn-part]&nbsp;(if&nbsp;(str&#x2F;includes?&nbsp;head&nbsp;&quot;&#x2F;&quot;)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                063&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;split&nbsp;head&nbsp;#&quot;&#x2F;&quot;&nbsp;2)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                064&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[allowed-ns-prefix&nbsp;head])]
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                065&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:ns&nbsp;(symbol&nbsp;ns-part)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                066&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:fn&nbsp;(symbol&nbsp;fn-part)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                067&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:args&nbsp;(when&nbsp;args-str
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                068&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(-&gt;&nbsp;args-str
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                069&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;replace&nbsp;#&quot;\)$&quot;&nbsp;&quot;&quot;)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                070&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;split&nbsp;#&quot;\s*,\s*&quot;)))})))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                071&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                072&nbsp;&nbsp;(defn-&nbsp;parse-arg
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                073&nbsp;&nbsp;&nbsp;&nbsp;&quot;将参数字符串解析为&nbsp;Clojure&nbsp;值。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                074&nbsp;&nbsp;&nbsp;&nbsp;[s]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                075&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[s&nbsp;(str&#x2F;trim&nbsp;s)]
+                </span><br/>
+<span class="partial" title="1 out of 8 forms covered">
+                076&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(cond
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                077&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(re-matches&nbsp;#&quot;^[&#x27;\&quot;].*[&#x27;\&quot;]$&quot;&nbsp;s)&nbsp;(str&#x2F;replace&nbsp;s&nbsp;#&quot;^[&#x27;\&quot;]|[&#x27;\&quot;]$&quot;&nbsp;&quot;&quot;)
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                078&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(re-matches&nbsp;#&quot;^-?\d+$&quot;&nbsp;s)&nbsp;(parse-long&nbsp;s)
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                079&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(re-matches&nbsp;#&quot;^-?\d+\.\d+$&quot;&nbsp;s)&nbsp;(parse-double&nbsp;s)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                080&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(=&nbsp;&quot;true&quot;&nbsp;s)&nbsp;true
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                081&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(=&nbsp;&quot;false&quot;&nbsp;s)&nbsp;false
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                082&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:else&nbsp;s)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                083&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                084&nbsp;&nbsp;(defn-&nbsp;invoke-target!
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                085&nbsp;&nbsp;&nbsp;&nbsp;&quot;执行&nbsp;invoke_target&nbsp;指向的函数。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                086&nbsp;&nbsp;&nbsp;&nbsp;[target]
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                087&nbsp;&nbsp;&nbsp;&nbsp;(if-let&nbsp;[{:keys&nbsp;[ns&nbsp;fn&nbsp;args]}&nbsp;(parse-invoke-target&nbsp;target)]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                088&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(do
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                089&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(require&nbsp;ns)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                090&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[var&nbsp;(ns-resolve&nbsp;ns&nbsp;fn)
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                091&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;parsed-args&nbsp;(mapv&nbsp;parse-arg&nbsp;args)]
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                092&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if&nbsp;var
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                093&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(apply&nbsp;@var&nbsp;parsed-args)
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                094&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(throw&nbsp;(ex-info&nbsp;(str&nbsp;&quot;Target&nbsp;function&nbsp;not&nbsp;found:&nbsp;&quot;&nbsp;target)&nbsp;{})))))
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                095&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(throw&nbsp;(ex-info&nbsp;(str&nbsp;&quot;Invalid&nbsp;invoke&nbsp;target:&nbsp;&quot;&nbsp;target)&nbsp;{}))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                096&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                097&nbsp;&nbsp;(defn-&nbsp;write-job-log!
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                098&nbsp;&nbsp;&nbsp;&nbsp;&quot;记录任务执行日志。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                099&nbsp;&nbsp;&nbsp;&nbsp;[job&nbsp;status&nbsp;message&nbsp;exception]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                100&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                101&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;((query-fn)&nbsp;:create-job-log!
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                102&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:job_name&nbsp;(:job_name&nbsp;job)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                103&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:job_group&nbsp;(:job_group&nbsp;job)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                104&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:invoke_target&nbsp;(:invoke_target&nbsp;job)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                105&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:job_message&nbsp;message
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                106&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:status&nbsp;status
+                </span><br/>
+<span class="partial" title="18 out of 25 forms covered">
+                107&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:exception_info&nbsp;(or&nbsp;(some-&gt;&nbsp;exception&nbsp;Throwable-&gt;map&nbsp;str)&nbsp;&quot;&quot;)})
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                108&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e
+                </span><br/>
+<span class="not-covered" title="0 out of 33 forms covered">
+                109&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(log&#x2F;warn&nbsp;e&nbsp;&quot;Failed&nbsp;to&nbsp;write&nbsp;job&nbsp;log&quot;))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                110&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                111&nbsp;&nbsp;(def&nbsp;^Job&nbsp;ruoyi-job
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                112&nbsp;&nbsp;&nbsp;&nbsp;(proxy&nbsp;[Job]&nbsp;[]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                113&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(execute&nbsp;[^JobExecutionContext&nbsp;ctx]
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                114&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[data&nbsp;(.getMergedJobDataMap&nbsp;ctx)
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                115&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;job&nbsp;{:job_id&nbsp;(.getString&nbsp;data&nbsp;&quot;job_id&quot;)
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                116&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:job_name&nbsp;(.getString&nbsp;data&nbsp;&quot;job_name&quot;)
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                117&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:job_group&nbsp;(.getString&nbsp;data&nbsp;&quot;job_group&quot;)
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                118&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:invoke_target&nbsp;(.getString&nbsp;data&nbsp;&quot;invoke_target&quot;)}
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                119&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;start&nbsp;(System&#x2F;currentTimeMillis)]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                120&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                121&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(invoke-target!&nbsp;(:invoke_target&nbsp;job))
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                122&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(write-job-log!&nbsp;job&nbsp;&quot;0&quot;
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                123&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&nbsp;&quot;任务执行成功，耗时&nbsp;&quot;&nbsp;(-&nbsp;(System&#x2F;currentTimeMillis)&nbsp;start)&nbsp;&quot;&nbsp;ms&quot;)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                124&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;nil)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                125&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e
+                </span><br/>
+<span class="not-covered" title="0 out of 35 forms covered">
+                126&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(log&#x2F;warn&nbsp;e&nbsp;&quot;Job&nbsp;execution&nbsp;failed&quot;&nbsp;job)
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                127&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(write-job-log!&nbsp;job&nbsp;&quot;1&quot;
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                128&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&nbsp;&quot;任务执行失败，耗时&nbsp;&quot;&nbsp;(-&nbsp;(System&#x2F;currentTimeMillis)&nbsp;start)&nbsp;&quot;&nbsp;ms&quot;)
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                129&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;e)))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                130&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;nil))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                131&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                132&nbsp;&nbsp;;;&nbsp;────────────&nbsp;调度操作&nbsp;────────────
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                133&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                134&nbsp;&nbsp;(defn-&nbsp;job-key&nbsp;[job-id&nbsp;job-group]
+                </span><br/>
+<span class="partial" title="11 out of 12 forms covered">
+                135&nbsp;&nbsp;&nbsp;&nbsp;(JobKey&#x2F;jobKey&nbsp;(str&nbsp;&quot;job_&quot;&nbsp;job-id)&nbsp;(or&nbsp;job-group&nbsp;&quot;DEFAULT&quot;)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                136&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                137&nbsp;&nbsp;(defn-&nbsp;trigger-key&nbsp;[job-id&nbsp;job-group]
+                </span><br/>
+<span class="partial" title="11 out of 12 forms covered">
+                138&nbsp;&nbsp;&nbsp;&nbsp;(TriggerKey&#x2F;triggerKey&nbsp;(str&nbsp;&quot;trigger_&quot;&nbsp;job-id)&nbsp;(or&nbsp;job-group&nbsp;&quot;DEFAULT&quot;)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                139&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                140&nbsp;&nbsp;(defn-&nbsp;build-job-detail&nbsp;[job]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                141&nbsp;&nbsp;&nbsp;&nbsp;(-&gt;&nbsp;(JobBuilder&#x2F;newJob&nbsp;(class&nbsp;ruoyi-job))
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                142&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.withIdentity&nbsp;(job-key&nbsp;(:job_id&nbsp;job)&nbsp;(:job_group&nbsp;job)))
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                143&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.usingJobData&nbsp;&quot;job_id&quot;&nbsp;(str&nbsp;(:job_id&nbsp;job)))
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                144&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.usingJobData&nbsp;&quot;job_name&quot;&nbsp;(str&nbsp;(:job_name&nbsp;job)))
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                145&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.usingJobData&nbsp;&quot;job_group&quot;&nbsp;(str&nbsp;(:job_group&nbsp;job)))
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                146&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.usingJobData&nbsp;&quot;invoke_target&quot;&nbsp;(str&nbsp;(:invoke_target&nbsp;job)))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                147&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.build)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                148&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                149&nbsp;&nbsp;(defn-&nbsp;build-cron-trigger&nbsp;[job]
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                150&nbsp;&nbsp;&nbsp;&nbsp;(-&gt;&nbsp;(TriggerBuilder&#x2F;newTrigger)
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                151&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.withIdentity&nbsp;(trigger-key&nbsp;(:job_id&nbsp;job)&nbsp;(:job_group&nbsp;job)))
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                152&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.forJob&nbsp;(job-key&nbsp;(:job_id&nbsp;job)&nbsp;(:job_group&nbsp;job)))
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                153&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.withSchedule&nbsp;(cron&#x2F;cron-schedule&nbsp;(:cron_expression&nbsp;job)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                154&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(:misfire_policy&nbsp;job)))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                155&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.build)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                156&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                157&nbsp;&nbsp;(defn&nbsp;schedule-job!
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                158&nbsp;&nbsp;&nbsp;&nbsp;&quot;将&nbsp;sys_job&nbsp;记录注册到&nbsp;Quartz&nbsp;调度器。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                159&nbsp;&nbsp;&nbsp;&nbsp;[job]
+                </span><br/>
+<span class="partial" title="15 out of 16 forms covered">
+                160&nbsp;&nbsp;&nbsp;&nbsp;(when&nbsp;(and&nbsp;(seq&nbsp;(:cron_expression&nbsp;job))&nbsp;(invoke-target-allowed?&nbsp;(:invoke_target&nbsp;job)))
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                161&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[s&nbsp;(scheduler)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                162&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;job-detail&nbsp;(build-job-detail&nbsp;job)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                163&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;trigger&nbsp;(build-cron-trigger&nbsp;job)]
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                164&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.scheduleJob&nbsp;s&nbsp;job-detail&nbsp;trigger)
+                </span><br/>
+<span class="partial" title="6 out of 7 forms covered">
+                165&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(when&nbsp;(=&nbsp;&quot;1&quot;&nbsp;(:status&nbsp;job))
+                </span><br/>
+<span class="not-covered" title="0 out of 9 forms covered">
+                166&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.pauseJob&nbsp;s&nbsp;(job-key&nbsp;(:job_id&nbsp;job)&nbsp;(:job_group&nbsp;job)))))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                167&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                168&nbsp;&nbsp;(defn&nbsp;reschedule-job!
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                169&nbsp;&nbsp;&nbsp;&nbsp;&quot;更新&nbsp;Quartz&nbsp;中的任务。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                170&nbsp;&nbsp;&nbsp;&nbsp;[job]
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                171&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[s&nbsp;(scheduler)
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                172&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;k&nbsp;(job-key&nbsp;(:job_id&nbsp;job)&nbsp;(:job_group&nbsp;job))]
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                173&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(when&nbsp;(.checkExists&nbsp;s&nbsp;k)
+                </span><br/>
+<span class="not-covered" title="0 out of 2 forms covered">
+                174&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.deleteJob&nbsp;s&nbsp;k))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                175&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(schedule-job!&nbsp;job)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                176&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                177&nbsp;&nbsp;(defn&nbsp;unschedule-job!
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                178&nbsp;&nbsp;&nbsp;&nbsp;&quot;从&nbsp;Quartz&nbsp;中删除任务。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                179&nbsp;&nbsp;&nbsp;&nbsp;[job-id&nbsp;job-group]
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                180&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[s&nbsp;(scheduler)]
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                181&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.deleteJob&nbsp;s&nbsp;(job-key&nbsp;job-id&nbsp;job-group))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                182&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                183&nbsp;&nbsp;(defn&nbsp;pause-job!
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                184&nbsp;&nbsp;&nbsp;&nbsp;&quot;暂停任务。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                185&nbsp;&nbsp;&nbsp;&nbsp;[job-id&nbsp;job-group]
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                186&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[s&nbsp;(scheduler)]
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                187&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.pauseJob&nbsp;s&nbsp;(job-key&nbsp;job-id&nbsp;job-group))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                188&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                189&nbsp;&nbsp;(defn&nbsp;resume-job!
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                190&nbsp;&nbsp;&nbsp;&nbsp;&quot;恢复任务。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                191&nbsp;&nbsp;&nbsp;&nbsp;[job-id&nbsp;job-group]
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                192&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[s&nbsp;(scheduler)]
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                193&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.resumeJob&nbsp;s&nbsp;(job-key&nbsp;job-id&nbsp;job-group))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                194&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                195&nbsp;&nbsp;(defn&nbsp;trigger-job!
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                196&nbsp;&nbsp;&nbsp;&nbsp;&quot;立即触发任务执行一次。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                197&nbsp;&nbsp;&nbsp;&nbsp;[job-id&nbsp;job-group]
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                198&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[s&nbsp;(scheduler)]
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                199&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.triggerJob&nbsp;s&nbsp;(job-key&nbsp;job-id&nbsp;job-group))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                200&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                201&nbsp;&nbsp;(defn&nbsp;load-jobs!
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                202&nbsp;&nbsp;&nbsp;&nbsp;&quot;从&nbsp;sys_job&nbsp;表加载所有正常任务到调度器。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                203&nbsp;&nbsp;&nbsp;&nbsp;[]
+                </span><br/>
+<span class="covered" title="12 out of 12 forms covered">
+                204&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[jobs&nbsp;((query-fn)&nbsp;:list-jobs&nbsp;{:job_name&nbsp;nil&nbsp;:job_group&nbsp;nil&nbsp;:status&nbsp;nil})]
+                </span><br/>
+<span class="partial" title="26 out of 31 forms covered">
+                205&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(doseq&nbsp;[job&nbsp;jobs]
+                </span><br/>
+<span class="partial" title="1 out of 2 forms covered">
+                206&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="partial" title="3 out of 6 forms covered">
+                207&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(schedule-job!&nbsp;job)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                208&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e
+                </span><br/>
+<span class="not-covered" title="0 out of 70 forms covered">
+                209&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(log&#x2F;warn&nbsp;e&nbsp;&quot;Failed&nbsp;to&nbsp;schedule&nbsp;job&quot;&nbsp;job))))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                210&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                211&nbsp;&nbsp;(defn-&nbsp;make-job-factory&nbsp;[]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                212&nbsp;&nbsp;&nbsp;&nbsp;(reify&nbsp;JobFactory
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                213&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(^Job&nbsp;newJob&nbsp;[_&nbsp;^TriggerFiredBundle&nbsp;bundle&nbsp;^org.quartz.Scheduler&nbsp;scheduler]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                214&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ruoyi-job)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                215&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                216&nbsp;&nbsp;(defn&nbsp;init!
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                217&nbsp;&nbsp;&nbsp;&nbsp;&quot;初始化调度器：注入并加载任务。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                218&nbsp;&nbsp;&nbsp;&nbsp;[scheduler&nbsp;query-fn]
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                219&nbsp;&nbsp;&nbsp;&nbsp;(set-scheduler!&nbsp;scheduler)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                220&nbsp;&nbsp;&nbsp;&nbsp;(set-query-fn!&nbsp;query-fn)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                221&nbsp;&nbsp;&nbsp;&nbsp;(.setJobFactory&nbsp;^org.quartz.Scheduler&nbsp;scheduler&nbsp;(make-job-factory))
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                222&nbsp;&nbsp;&nbsp;&nbsp;(load-jobs!))
+                </span><br/>
+ </body>
+</html>

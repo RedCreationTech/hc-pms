@@ -1,0 +1,38 @@
+<html>
+ <head>
+   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" href="../../../../coverage.css"/>  <title> com/ruoyi/web/routes/captcha.clj </title>
+ </head>
+ <body>
+<span class="covered" title="1 out of 1 forms covered">
+                001&nbsp;&nbsp;(ns&nbsp;com.ruoyi.web.routes.captcha
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                002&nbsp;&nbsp;&nbsp;&nbsp;&quot;验证码路由。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                003&nbsp;&nbsp;&nbsp;&nbsp;(:require
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                004&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.captcha&nbsp;:as&nbsp;captcha]))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                005&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                006&nbsp;&nbsp;(defn&nbsp;captcha-routes&nbsp;[_opts]
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                007&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;captcha&quot;
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                008&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;image&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;获取验证码图片&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                009&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:description&nbsp;&quot;生成验证码图片，返回图片数据和验证码ID&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                010&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;captcha&#x2F;captcha-image&nbsp;{})}}]])
+                </span><br/>
+ </body>
+</html>

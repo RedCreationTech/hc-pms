@@ -1,0 +1,32 @@
+<html>
+ <head>
+   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" href="../../../coverage.css"/>  <title> com/ruoyi/infra/cache.clj </title>
+ </head>
+ <body>
+<span class="covered" title="1 out of 1 forms covered">
+                001&nbsp;&nbsp;(ns&nbsp;com.ruoyi.infra.cache
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                002&nbsp;&nbsp;&nbsp;&nbsp;&quot;内存缓存管理，基于&nbsp;Clojure&nbsp;atom&nbsp;实现。不依赖外部缓存服务。&quot;)
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                003&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                004&nbsp;&nbsp;;;&nbsp;全局缓存存储
+                </span><br/>
+<span class="partial" title="6 out of 7 forms covered">
+                005&nbsp;&nbsp;(defonce&nbsp;cache-store
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                006&nbsp;&nbsp;&nbsp;&nbsp;(atom&nbsp;{:data&nbsp;(atom&nbsp;{})
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                007&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:hit&nbsp;0
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                008&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:miss&nbsp;0}))
+                </span><br/>
+ </body>
+</html>

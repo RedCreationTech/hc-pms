@@ -1,0 +1,206 @@
+=== 无 type hint — 字节码 ===
+
+// Decompiling class: gen_perf_artifacts$sum_no_hint
+class gen_perf_artifacts$sum_no_hint
+    Minor version: 0
+    Major version: 52
+    Flags: PUBLIC, FINAL, SUPER
+    
+    public static final clojure.lang.Var const__0;
+        Flags: PUBLIC, STATIC, FINAL
+    
+    public static final clojure.lang.Var const__1;
+        Flags: PUBLIC, STATIC, FINAL
+    
+    public static final clojure.lang.Var const__2;
+        Flags: PUBLIC, STATIC, FINAL
+    
+    public static final clojure.lang.Var const__3;
+        Flags: PUBLIC, STATIC, FINAL
+    
+    public void <init>();
+        Flags: PUBLIC
+        Code:
+                  linenumber      50
+               0: aload_0        
+               1: invokespecial   clojure/lang/AFunction.<init>:()V
+               4: return         
+    
+    public static java.lang.Object invokeStatic(java.lang.Object n);
+        Flags: PUBLIC, STATIC
+        Code:
+                  linenumber      50
+               0: getstatic       gen_perf_artifacts$sum_no_hint.const__0:Lclojure/lang/Var;
+               3: invokevirtual   clojure/lang/Var.getRawRoot:()Ljava/lang/Object;
+                  linenumber      51
+               6: checkcast       Lclojure/lang/IFn;
+               9: getstatic       gen_perf_artifacts$sum_no_hint.const__1:Lclojure/lang/Var;
+              12: invokevirtual   clojure/lang/Var.getRawRoot:()Ljava/lang/Object;
+              15: getstatic       gen_perf_artifacts$sum_no_hint.const__2:Lclojure/lang/Var;
+              18: invokevirtual   clojure/lang/Var.getRawRoot:()Ljava/lang/Object;
+                  linenumber      51
+              21: checkcast       Lclojure/lang/IFn;
+              24: new             Lgen_perf_artifacts$sum_no_hint$fn__954;
+              27: dup            
+              28: invokespecial   gen_perf_artifacts$sum_no_hint$fn__954.<init>:()V
+              31: getstatic       gen_perf_artifacts$sum_no_hint.const__3:Lclojure/lang/Var;
+              34: invokevirtual   clojure/lang/Var.getRawRoot:()Ljava/lang/Object;
+                  linenumber      51
+              37: checkcast       Lclojure/lang/IFn;
+              40: aload_0         /* n */
+                  linenumber      51
+              41: invokeinterface clojure/lang/IFn.invoke:(Ljava/lang/Object;)Ljava/lang/Object;
+                  linenumber      51
+              46: invokeinterface clojure/lang/IFn.invoke:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+                  linenumber      51
+              51: invokeinterface clojure/lang/IFn.invoke:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+              56: areturn        
+    
+    public java.lang.Object invoke(java.lang.Object p0);
+        Flags: PUBLIC
+        Code:
+               0: aload_1        
+               1: aconst_null    
+               2: astore_1       
+                  linenumber      50
+               3: invokestatic    gen_perf_artifacts$sum_no_hint.invokeStatic:(Ljava/lang/Object;)Ljava/lang/Object;
+               6: areturn        
+    
+    static {};
+        Flags: PUBLIC, STATIC
+        Code:
+                  linenumber      50
+               0: ldc             "clojure.core"
+               2: ldc             "reduce"
+               4: invokestatic    clojure/lang/RT.var:(Ljava/lang/String;Ljava/lang/String;)Lclojure/lang/Var;
+               7: checkcast       Lclojure/lang/Var;
+              10: putstatic       gen_perf_artifacts$sum_no_hint.const__0:Lclojure/lang/Var;
+              13: ldc             "clojure.core"
+              15: ldc             "+"
+              17: invokestatic    clojure/lang/RT.var:(Ljava/lang/String;Ljava/lang/String;)Lclojure/lang/Var;
+              20: checkcast       Lclojure/lang/Var;
+              23: putstatic       gen_perf_artifacts$sum_no_hint.const__1:Lclojure/lang/Var;
+              26: ldc             "clojure.core"
+              28: ldc             "map"
+              30: invokestatic    clojure/lang/RT.var:(Ljava/lang/String;Ljava/lang/String;)Lclojure/lang/Var;
+              33: checkcast       Lclojure/lang/Var;
+              36: putstatic       gen_perf_artifacts$sum_no_hint.const__2:Lclojure/lang/Var;
+              39: ldc             "clojure.core"
+              41: ldc             "range"
+              43: invokestatic    clojure/lang/RT.var:(Ljava/lang/String;Ljava/lang/String;)Lclojure/lang/Var;
+              46: checkcast       Lclojure/lang/Var;
+              49: putstatic       gen_perf_artifacts$sum_no_hint.const__3:Lclojure/lang/Var;
+              52: return         
+
+
+// Decompiling class: gen_perf_artifacts$sum_no_hint$fn__954
+class gen_perf_artifacts$sum_no_hint$fn__954
+    Minor version: 0
+    Major version: 52
+    Flags: PUBLIC, FINAL, SUPER
+    
+    public void <init>();
+        Flags: PUBLIC
+        Code:
+                  linenumber      1
+               0: aload_0        
+               1: invokespecial   clojure/lang/AFunction.<init>:()V
+               4: return         
+    
+    public java.lang.Object invoke(java.lang.Object p1__951_SHARP_);
+        Flags: PUBLIC
+        Code:
+                  linenumber      1
+               0: aload_1         /* p1__951_SHARP_ */
+               1: checkcast       Ljava/lang/Number;
+               4: invokestatic    clojure/lang/RT.doubleCast:(Ljava/lang/Object;)D
+                  linenumber      51
+               7: aconst_null    
+               8: astore_0        /* this */
+               9: invokestatic    java/lang/Math.sqrt:(D)D
+              12: invokestatic    java/lang/Double.valueOf:(D)Ljava/lang/Double;
+              15: areturn        
+    
+    static {};
+        Flags: PUBLIC, STATIC
+        Code:
+                  linenumber      1
+               0: return         
+
+
+=== 有 type hint — 字节码 ===
+
+// Decompiling class: gen_perf_artifacts$sum_hint
+class gen_perf_artifacts$sum_hint
+    Minor version: 0
+    Major version: 52
+    Flags: PUBLIC, FINAL, SUPER
+    
+    public void <init>();
+        Flags: PUBLIC
+        Code:
+                  linenumber      54
+               0: aload_0        
+               1: invokespecial   clojure/lang/AFunction.<init>:()V
+               4: return         
+    
+    public static java.lang.Object invokeStatic(long n);
+        Flags: PUBLIC, STATIC
+        Code:
+                  linenumber      54
+               0: lconst_0       
+               1: lstore_2        /* i */
+               2: dconst_0       
+               3: dstore          sum
+                  linenumber      56
+               5: lload_2         /* i */
+               6: lload_0         /* n */
+               7: lcmp           
+               8: ifge            32
+              11: lload_2         /* i */
+                  linenumber      57
+              12: lconst_1       
+              13: ladd           
+              14: dload           sum
+              16: lload_2         /* i */
+                  linenumber      57
+              17: l2d            
+                  linenumber      57
+              18: invokestatic    java/lang/Math.sqrt:(D)D
+                  linenumber      57
+              21: dadd           
+              22: dstore          sum
+              24: lstore_2        /* i */
+              25: goto            5
+              28: nop            
+              29: nop            
+              30: athrow         
+              31: athrow         
+              32: dload           sum
+              34: invokestatic    java/lang/Double.valueOf:(D)Ljava/lang/Double;
+              37: areturn        
+        StackMapTable: 00 04 FD 00 05 04 03 FF 00 16 00 00 00 01 07 00 20 42 07 00 20 FE 00 00 04 04 03
+    
+    public java.lang.Object invoke(java.lang.Object p0);
+        Flags: PUBLIC
+        Code:
+               0: aload_1        
+               1: checkcast       Ljava/lang/Number;
+               4: invokestatic    clojure/lang/RT.longCast:(Ljava/lang/Object;)J
+                  linenumber      54
+               7: invokestatic    gen_perf_artifacts$sum_hint.invokeStatic:(J)Ljava/lang/Object;
+              10: areturn        
+    
+    public final java.lang.Object invokePrim(long p0);
+        Flags: PUBLIC, FINAL
+        Code:
+               0: lload_1        
+               1: invokestatic    gen_perf_artifacts$sum_hint.invokeStatic:(J)Ljava/lang/Object;
+               4: areturn        
+    
+    static {};
+        Flags: PUBLIC, STATIC
+        Code:
+                  linenumber      54
+               0: return         
+

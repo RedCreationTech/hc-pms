@@ -1,0 +1,188 @@
+<html>
+ <head>
+   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" href="../../../../coverage.css"/>  <title> com/ruoyi/domain/system/dict.clj </title>
+ </head>
+ <body>
+<span class="covered" title="1 out of 1 forms covered">
+                001&nbsp;&nbsp;(ns&nbsp;com.ruoyi.domain.system.dict
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                002&nbsp;&nbsp;&nbsp;&nbsp;&quot;字典领域服务。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                003&nbsp;&nbsp;&nbsp;&nbsp;(:require
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                004&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.infra.db&nbsp;:as&nbsp;db]))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                005&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                006&nbsp;&nbsp;(defn&nbsp;list-dict-types
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                007&nbsp;&nbsp;&nbsp;&nbsp;&quot;查询字典类型列表。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                008&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[query-fn]}&nbsp;params]
+                </span><br/>
+<span class="covered" title="13 out of 13 forms covered">
+                009&nbsp;&nbsp;&nbsp;&nbsp;(query-fn&nbsp;:list-dict-types&nbsp;(merge&nbsp;{:dict_name&nbsp;nil&nbsp;:dict_type&nbsp;nil&nbsp;:status&nbsp;nil}&nbsp;params)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                010&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                011&nbsp;&nbsp;(defn&nbsp;find-dict-type-by-id
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                012&nbsp;&nbsp;&nbsp;&nbsp;&quot;根据ID查询字典类型。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                013&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[query-fn]}&nbsp;dict-id]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                014&nbsp;&nbsp;&nbsp;&nbsp;(query-fn&nbsp;:find-dict-type-by-id&nbsp;{:dict_id&nbsp;dict-id}))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                015&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                016&nbsp;&nbsp;(defn&nbsp;create-dict-type!
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                017&nbsp;&nbsp;&nbsp;&nbsp;&quot;创建字典类型。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                018&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[query-fn&nbsp;db]}&nbsp;params]
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                019&nbsp;&nbsp;&nbsp;&nbsp;(db&#x2F;insert-and-get-id!&nbsp;query-fn&nbsp;db&nbsp;:create-dict-type!
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                020&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(merge&nbsp;{:dict_name&nbsp;nil&nbsp;:dict_type&nbsp;nil&nbsp;:status&nbsp;nil&nbsp;:remark&nbsp;nil&nbsp;:create_by&nbsp;nil}&nbsp;params)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                021&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                022&nbsp;&nbsp;(defn&nbsp;update-dict-type!
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                023&nbsp;&nbsp;&nbsp;&nbsp;&quot;更新字典类型。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                024&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[query-fn]}&nbsp;params]
+                </span><br/>
+<span class="covered" title="19 out of 19 forms covered">
+                025&nbsp;&nbsp;&nbsp;&nbsp;(query-fn&nbsp;:update-dict-type!&nbsp;(merge&nbsp;{:dict_id&nbsp;nil&nbsp;:dict_name&nbsp;nil&nbsp;:dict_type&nbsp;nil&nbsp;:status&nbsp;nil&nbsp;:remark&nbsp;nil&nbsp;:update_by&nbsp;nil}&nbsp;params)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                026&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                027&nbsp;&nbsp;(defn&nbsp;delete-dict-type!
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                028&nbsp;&nbsp;&nbsp;&nbsp;&quot;删除字典类型。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                029&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[query-fn]}&nbsp;dict-id]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                030&nbsp;&nbsp;&nbsp;&nbsp;(query-fn&nbsp;:delete-dict-type!&nbsp;{:dict_id&nbsp;dict-id}))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                031&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                032&nbsp;&nbsp;(defn&nbsp;list-dict-data
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                033&nbsp;&nbsp;&nbsp;&nbsp;&quot;查询字典数据列表。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                034&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[query-fn]}&nbsp;params]
+                </span><br/>
+<span class="covered" title="13 out of 13 forms covered">
+                035&nbsp;&nbsp;&nbsp;&nbsp;(query-fn&nbsp;:list-dict-data&nbsp;(merge&nbsp;{:dict_type&nbsp;nil&nbsp;:dict_label&nbsp;nil&nbsp;:status&nbsp;nil}&nbsp;params)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                036&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                037&nbsp;&nbsp;(defn&nbsp;find-dict-data-by-id
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                038&nbsp;&nbsp;&nbsp;&nbsp;&quot;根据ID查询字典数据。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                039&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[query-fn]}&nbsp;dict-code]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                040&nbsp;&nbsp;&nbsp;&nbsp;(query-fn&nbsp;:find-dict-data-by-id&nbsp;{:dict_code&nbsp;dict-code}))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                041&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                042&nbsp;&nbsp;(defn&nbsp;create-dict-data!
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                043&nbsp;&nbsp;&nbsp;&nbsp;&quot;创建字典数据。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                044&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[query-fn&nbsp;db]}&nbsp;params]
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                045&nbsp;&nbsp;&nbsp;&nbsp;(db&#x2F;insert-and-get-id!&nbsp;query-fn&nbsp;db&nbsp;:create-dict-data!
+                </span><br/>
+<span class="covered" title="23 out of 23 forms covered">
+                046&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(merge&nbsp;{:dict_sort&nbsp;nil&nbsp;:dict_label&nbsp;nil&nbsp;:dict_value&nbsp;nil&nbsp;:dict_type&nbsp;nil
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                047&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:css_class&nbsp;nil&nbsp;:list_class&nbsp;nil&nbsp;:is_default&nbsp;nil&nbsp;:status&nbsp;nil
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                048&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:remark&nbsp;nil&nbsp;:create_by&nbsp;nil}&nbsp;params)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                049&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                050&nbsp;&nbsp;(defn&nbsp;update-dict-data!
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                051&nbsp;&nbsp;&nbsp;&nbsp;&quot;更新字典数据。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                052&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[query-fn]}&nbsp;params]
+                </span><br/>
+<span class="covered" title="28 out of 28 forms covered">
+                053&nbsp;&nbsp;&nbsp;&nbsp;(query-fn&nbsp;:update-dict-data!&nbsp;(merge&nbsp;{:dict_code&nbsp;nil&nbsp;:dict_sort&nbsp;nil&nbsp;:dict_label&nbsp;nil&nbsp;:dict_value&nbsp;nil&nbsp;:dict_type&nbsp;nil
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                054&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:css_class&nbsp;nil&nbsp;:list_class&nbsp;nil&nbsp;:is_default&nbsp;nil&nbsp;:status&nbsp;nil
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                055&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:remark&nbsp;nil&nbsp;:update_by&nbsp;nil}&nbsp;params)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                056&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                057&nbsp;&nbsp;(defn&nbsp;delete-dict-data!
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                058&nbsp;&nbsp;&nbsp;&nbsp;&quot;删除字典数据。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                059&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[query-fn]}&nbsp;dict-code]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                060&nbsp;&nbsp;&nbsp;&nbsp;(query-fn&nbsp;:delete-dict-data!&nbsp;{:dict_code&nbsp;dict-code}))
+                </span><br/>
+ </body>
+</html>

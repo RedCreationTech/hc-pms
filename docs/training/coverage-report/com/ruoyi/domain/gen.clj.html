@@ -1,0 +1,815 @@
+<html>
+ <head>
+   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" href="../../../coverage.css"/>  <title> com/ruoyi/domain/gen.clj </title>
+ </head>
+ <body>
+<span class="covered" title="1 out of 1 forms covered">
+                001&nbsp;&nbsp;(ns&nbsp;com.ruoyi.domain.gen
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                002&nbsp;&nbsp;&nbsp;&nbsp;&quot;代码生成器领域层&nbsp;—&nbsp;根据表结构生成&nbsp;CRUD&nbsp;代码模板。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                003&nbsp;&nbsp;&nbsp;&nbsp;(:require
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                004&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[clojure.string&nbsp;:as&nbsp;str]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                005&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.infra.db&nbsp;:as&nbsp;idb]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                006&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[next.jdbc&nbsp;:as&nbsp;jdbc]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                007&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[next.jdbc.result-set&nbsp;:as&nbsp;rs]))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                008&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                009&nbsp;&nbsp;(defn&nbsp;list-tables
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                010&nbsp;&nbsp;&nbsp;&nbsp;&quot;查询数据库中的所有表。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                011&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[query-fn&nbsp;db]}]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                012&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                013&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if&nbsp;db
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                014&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(idb&#x2F;get-tables&nbsp;db)
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                015&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(query-fn&nbsp;:gen-tables&nbsp;{}))
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                016&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;_&nbsp;[])))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                017&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                018&nbsp;&nbsp;(defn&nbsp;table-columns
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                019&nbsp;&nbsp;&nbsp;&nbsp;&quot;查询指定表的列信息。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                020&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[query-fn&nbsp;db]}&nbsp;table-name]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                021&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                022&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if&nbsp;db
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                023&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(idb&#x2F;get-table-columns&nbsp;db&nbsp;table-name)
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                024&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(query-fn&nbsp;:gen-columns&nbsp;{:table-name&nbsp;table-name}))
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                025&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;_&nbsp;[])))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                026&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                027&nbsp;&nbsp;;;&nbsp;───&nbsp;列元数据归一化&nbsp;──────────────────────────────────────────────────────
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                028&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                029&nbsp;&nbsp;(defn-&nbsp;col-name&nbsp;[col]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                030&nbsp;&nbsp;&nbsp;&nbsp;(or&nbsp;(:name&nbsp;col)&nbsp;(:column_name&nbsp;col)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                031&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                032&nbsp;&nbsp;(defn-&nbsp;col-type&nbsp;[col]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                033&nbsp;&nbsp;&nbsp;&nbsp;(or&nbsp;(:type&nbsp;col)&nbsp;(:data_type&nbsp;col)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                034&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                035&nbsp;&nbsp;(defn-&nbsp;col-pk?&nbsp;[col]
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                036&nbsp;&nbsp;&nbsp;&nbsp;(or&nbsp;(=&nbsp;1&nbsp;(:pk&nbsp;col))
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                037&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(=&nbsp;&quot;YES&quot;&nbsp;(:is_pk&nbsp;col))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                038&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                039&nbsp;&nbsp;(defn-&nbsp;col-nullable?&nbsp;[col]
+                </span><br/>
+<span class="partial" title="10 out of 11 forms covered">
+                040&nbsp;&nbsp;&nbsp;&nbsp;(or&nbsp;(=&nbsp;0&nbsp;(:notnull&nbsp;col))
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                041&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(=&nbsp;&quot;YES&quot;&nbsp;(:is_nullable&nbsp;col))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                042&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                043&nbsp;&nbsp;;;&nbsp;───&nbsp;命名转换&nbsp;──────────────────────────────────────────────────────────
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                044&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                045&nbsp;&nbsp;(defn-&nbsp;entity-name&nbsp;[table-name]
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                046&nbsp;&nbsp;&nbsp;&nbsp;(-&gt;&nbsp;table-name
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                047&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;replace&nbsp;#&quot;^(sys_|gen_|t_)&quot;&nbsp;&quot;&quot;)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                048&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;str&#x2F;capitalize))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                049&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                050&nbsp;&nbsp;(defn-&nbsp;kebab-name&nbsp;[table-name]
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                051&nbsp;&nbsp;&nbsp;&nbsp;(-&gt;&nbsp;table-name
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                052&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;replace&nbsp;#&quot;^(sys_|gen_|t_)&quot;&nbsp;&quot;&quot;)
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                053&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;replace&nbsp;#&quot;_&quot;&nbsp;&quot;-&quot;)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                054&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;str&#x2F;lower-case))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                055&nbsp;&nbsp;
+                </span><br/>
+<span class="partial" title="1 out of 2 forms covered">
+                056&nbsp;&nbsp;(defn-&nbsp;plural&nbsp;[s]&nbsp;s)
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                057&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                058&nbsp;&nbsp;;;&nbsp;───&nbsp;SQL&nbsp;生成&nbsp;──────────────────────────────────────────────────────────
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                059&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                060&nbsp;&nbsp;(defn-&nbsp;sql-type&nbsp;[db-type]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                061&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[t&nbsp;(str&#x2F;lower-case&nbsp;(str&nbsp;db-type))]
+                </span><br/>
+<span class="partial" title="4 out of 10 forms covered">
+                062&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(cond
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                063&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;starts-with?&nbsp;t&nbsp;&quot;int&quot;)&nbsp;&quot;INTEGER&quot;
+                </span><br/>
+<span class="partial" title="12 out of 22 forms covered">
+                064&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(or&nbsp;(str&#x2F;starts-with?&nbsp;t&nbsp;&quot;varchar&quot;)
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                065&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;starts-with?&nbsp;t&nbsp;&quot;char&quot;)
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                066&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;starts-with?&nbsp;t&nbsp;&quot;text&quot;)
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                067&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;starts-with?&nbsp;t&nbsp;&quot;datetime&quot;)
+                </span><br/>
+<span class="not-covered" title="0 out of 2 forms covered">
+                068&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;starts-with?&nbsp;t&nbsp;&quot;date&quot;))&nbsp;&quot;TEXT&quot;
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                069&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;starts-with?&nbsp;t&nbsp;&quot;real&quot;)&nbsp;&quot;REAL&quot;
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                070&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;starts-with?&nbsp;t&nbsp;&quot;blob&quot;)&nbsp;&quot;BLOB&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                071&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:else&nbsp;&quot;TEXT&quot;)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                072&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                073&nbsp;&nbsp;(defn-&nbsp;generate-ddl&nbsp;[table-name&nbsp;columns]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                074&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[lines&nbsp;(mapv&nbsp;(fn&nbsp;[col]
+                </span><br/>
+<span class="covered" title="12 out of 12 forms covered">
+                075&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;(col-name&nbsp;col)&nbsp;&quot;&nbsp;&quot;&nbsp;(sql-type&nbsp;(col-type&nbsp;col))
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                076&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(when&nbsp;(col-pk?&nbsp;col)&nbsp;&quot;&nbsp;PRIMARY&nbsp;KEY&nbsp;AUTOINCREMENT&quot;)
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                077&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(when&nbsp;(not&nbsp;(col-nullable?&nbsp;col))&nbsp;&quot;&nbsp;NOT&nbsp;NULL&quot;)
+                </span><br/>
+<span class="partial" title="6 out of 9 forms covered">
+                078&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(when-let&nbsp;[d&nbsp;(:dflt_value&nbsp;col)]
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                079&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&nbsp;&quot;&nbsp;DEFAULT&nbsp;&quot;&nbsp;d))))
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                080&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;columns)]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                081&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&nbsp;&quot;CREATE&nbsp;TABLE&nbsp;IF&nbsp;NOT&nbsp;EXISTS&nbsp;&quot;&nbsp;table-name&nbsp;&quot;&nbsp;(\n&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                082&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;join&nbsp;&quot;,\n&quot;&nbsp;lines)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                083&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;\n);&quot;)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                084&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                085&nbsp;&nbsp;(defn-&nbsp;generate-hugsql&nbsp;[table-name&nbsp;kebab&nbsp;columns]
+                </span><br/>
+<span class="partial" title="11 out of 14 forms covered">
+                086&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[pk-col&nbsp;(or&nbsp;(first&nbsp;(filter&nbsp;col-pk?&nbsp;columns))&nbsp;(first&nbsp;columns))
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                087&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;pk&nbsp;(col-name&nbsp;pk-col)
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                088&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;non-pk&nbsp;(remove&nbsp;#(=&nbsp;(col-name&nbsp;%)&nbsp;pk)&nbsp;columns)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                089&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;list-fn&nbsp;(str&nbsp;&quot;list-&quot;&nbsp;kebab&nbsp;&quot;s&quot;)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                090&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;find-fn&nbsp;(str&nbsp;&quot;find-&quot;&nbsp;kebab&nbsp;&quot;-by-id&quot;)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                091&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;create-fn&nbsp;(str&nbsp;&quot;create-&quot;&nbsp;kebab&nbsp;&quot;!&quot;)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                092&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;update-fn&nbsp;(str&nbsp;&quot;update-&quot;&nbsp;kebab&nbsp;&quot;!&quot;)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                093&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;delete-fn&nbsp;(str&nbsp;&quot;delete-&quot;&nbsp;kebab&nbsp;&quot;!&quot;)
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                094&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;col-list&nbsp;(str&#x2F;join&nbsp;&quot;,&nbsp;&quot;&nbsp;(map&nbsp;col-name&nbsp;columns))
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                095&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;insert-cols&nbsp;(str&#x2F;join&nbsp;&quot;,&nbsp;&quot;&nbsp;(map&nbsp;col-name&nbsp;non-pk))
+                </span><br/>
+<span class="covered" title="13 out of 13 forms covered">
+                096&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;insert-params&nbsp;(str&#x2F;join&nbsp;&quot;,&nbsp;&quot;&nbsp;(map&nbsp;#(str&nbsp;&quot;:&quot;&nbsp;(col-name&nbsp;%))&nbsp;non-pk))
+                </span><br/>
+<span class="covered" title="22 out of 22 forms covered">
+                097&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;set-clause&nbsp;(str&#x2F;join&nbsp;&quot;,\n&quot;&nbsp;(map&nbsp;#(str&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;(col-name&nbsp;%)&nbsp;&quot;&nbsp;=&nbsp;COALESCE(:&quot;&nbsp;(col-name&nbsp;%)&nbsp;&quot;,&nbsp;&quot;&nbsp;(col-name&nbsp;%)&nbsp;&quot;)&quot;)&nbsp;non-pk))]
+                </span><br/>
+<span class="covered" title="46 out of 46 forms covered">
+                098&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&nbsp;&quot;--&nbsp;:name&nbsp;&quot;&nbsp;list-fn&nbsp;&quot;\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                099&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;--&nbsp;:command&nbsp;:query\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                100&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;--&nbsp;:result&nbsp;:*\n&quot;
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                101&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;SELECT&nbsp;&quot;&nbsp;col-list&nbsp;&quot;\n&nbsp;&nbsp;FROM&nbsp;&quot;&nbsp;table-name&nbsp;&quot;\n&nbsp;ORDER&nbsp;BY&nbsp;&quot;&nbsp;pk&nbsp;&quot;&nbsp;DESC;\n\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                102&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;--&nbsp;:name&nbsp;&quot;&nbsp;find-fn&nbsp;&quot;\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                103&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;--&nbsp;:command&nbsp;:query\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                104&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;--&nbsp;:result&nbsp;:one\n&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                105&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;SELECT&nbsp;&quot;&nbsp;col-list&nbsp;&quot;\n&nbsp;&nbsp;FROM&nbsp;&quot;&nbsp;table-name&nbsp;&quot;\n&nbsp;WHERE&nbsp;&quot;&nbsp;pk&nbsp;&quot;&nbsp;=&nbsp;:&quot;&nbsp;pk&nbsp;&quot;;\n\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                106&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;--&nbsp;:name&nbsp;&quot;&nbsp;create-fn&nbsp;&quot;\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                107&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;--&nbsp;:command&nbsp;:insert\n&quot;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                108&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;INSERT&nbsp;INTO&nbsp;&quot;&nbsp;table-name&nbsp;&quot;&nbsp;(&quot;&nbsp;insert-cols&nbsp;&quot;)\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                109&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;VALUES&nbsp;(&quot;&nbsp;insert-params&nbsp;&quot;);\n\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                110&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;--&nbsp;:name&nbsp;&quot;&nbsp;update-fn&nbsp;&quot;\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                111&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;--&nbsp;:command&nbsp;:execute\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                112&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;UPDATE&nbsp;&quot;&nbsp;table-name&nbsp;&quot;\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                113&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;SET&nbsp;&quot;&nbsp;set-clause&nbsp;&quot;\n&quot;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                114&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;WHERE&nbsp;&quot;&nbsp;pk&nbsp;&quot;&nbsp;=&nbsp;:&quot;&nbsp;pk&nbsp;&quot;;\n\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                115&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;--&nbsp;:name&nbsp;&quot;&nbsp;delete-fn&nbsp;&quot;\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                116&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;--&nbsp;:command&nbsp;:execute\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                117&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;DELETE&nbsp;FROM&nbsp;&quot;&nbsp;table-name&nbsp;&quot;\n&quot;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                118&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;WHERE&nbsp;&quot;&nbsp;pk&nbsp;&quot;&nbsp;=&nbsp;:&quot;&nbsp;pk&nbsp;&quot;;\n&quot;)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                119&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                120&nbsp;&nbsp;;;&nbsp;───&nbsp;后端&nbsp;Domain&nbsp;生成&nbsp;───────────────────────────────────────────────────
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                121&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                122&nbsp;&nbsp;(defn-&nbsp;generate-domain&nbsp;[table-name&nbsp;entity&nbsp;kebab&nbsp;columns]
+                </span><br/>
+<span class="partial" title="11 out of 14 forms covered">
+                123&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[pk-col&nbsp;(or&nbsp;(first&nbsp;(filter&nbsp;col-pk?&nbsp;columns))&nbsp;(first&nbsp;columns))
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                124&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;pk-name&nbsp;(col-name&nbsp;pk-col)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                125&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;list-fn&nbsp;(str&nbsp;&quot;list-&quot;&nbsp;kebab&nbsp;&quot;s&quot;)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                126&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;find-fn&nbsp;(str&nbsp;&quot;find-&quot;&nbsp;kebab&nbsp;&quot;-by-id&quot;)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                127&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;create-fn&nbsp;(str&nbsp;&quot;create-&quot;&nbsp;kebab&nbsp;&quot;!&quot;)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                128&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;update-fn&nbsp;(str&nbsp;&quot;update-&quot;&nbsp;kebab&nbsp;&quot;!&quot;)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                129&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;delete-fn&nbsp;(str&nbsp;&quot;delete-&quot;&nbsp;kebab&nbsp;&quot;!&quot;)]
+                </span><br/>
+<span class="covered" title="49 out of 49 forms covered">
+                130&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&nbsp;&quot;(ns&nbsp;com.ruoyi.domain.system.&quot;&nbsp;kebab&nbsp;&quot;\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                131&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;\&quot;&quot;&nbsp;entity&nbsp;&quot;&nbsp;领域服务。\&quot;)\n\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                132&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;(defn&nbsp;&quot;&nbsp;list-fn&nbsp;&quot;\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                133&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;\&quot;查询&quot;&nbsp;entity&nbsp;&quot;列表。\&quot;\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                134&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;[{:keys&nbsp;[query-fn]}&nbsp;params]\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                135&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;(query-fn&nbsp;:&quot;&nbsp;list-fn&nbsp;&quot;&nbsp;(merge&nbsp;{&quot;
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                136&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;join&nbsp;&quot;&nbsp;&quot;&nbsp;(map&nbsp;#(str&nbsp;&quot;:&quot;&nbsp;(col-name&nbsp;%)&nbsp;&quot;&nbsp;nil&quot;)&nbsp;columns))&nbsp;&quot;}&nbsp;params)))\n\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                137&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;(defn&nbsp;&quot;&nbsp;find-fn&nbsp;&quot;\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                138&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;\&quot;根据ID查询&quot;&nbsp;entity&nbsp;&quot;。\&quot;\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                139&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;[{:keys&nbsp;[query-fn]}&nbsp;id]\n&quot;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                140&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;(query-fn&nbsp;:&quot;&nbsp;find-fn&nbsp;&quot;&nbsp;{:&quot;&nbsp;pk-name&nbsp;&quot;&nbsp;id}))\n\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                141&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;(defn&nbsp;&quot;&nbsp;create-fn&nbsp;&quot;\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                142&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;\&quot;创建&quot;&nbsp;entity&nbsp;&quot;。\&quot;\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                143&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;[{:keys&nbsp;[query-fn]}&nbsp;params]\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                144&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;(-&gt;&nbsp;(query-fn&nbsp;:&quot;&nbsp;create-fn&nbsp;&quot;&nbsp;params)\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                145&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;first\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                146&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:&quot;&nbsp;pk-name&nbsp;&quot;))\n\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                147&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;(defn&nbsp;&quot;&nbsp;update-fn&nbsp;&quot;\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                148&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;\&quot;更新&quot;&nbsp;entity&nbsp;&quot;。\&quot;\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                149&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;[{:keys&nbsp;[query-fn]}&nbsp;params]\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                150&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;(query-fn&nbsp;:&quot;&nbsp;update-fn&nbsp;&quot;&nbsp;(merge&nbsp;{&quot;
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                151&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;join&nbsp;&quot;&nbsp;&quot;&nbsp;(map&nbsp;#(str&nbsp;&quot;:&quot;&nbsp;(col-name&nbsp;%)&nbsp;&quot;&nbsp;nil&quot;)&nbsp;columns))&nbsp;&quot;}&nbsp;params)))\n\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                152&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;(defn&nbsp;&quot;&nbsp;delete-fn&nbsp;&quot;\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                153&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;\&quot;删除&quot;&nbsp;entity&nbsp;&quot;。\&quot;\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                154&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;[{:keys&nbsp;[query-fn]}&nbsp;id]\n&quot;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                155&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;(query-fn&nbsp;:&quot;&nbsp;delete-fn&nbsp;&quot;&nbsp;{:&quot;&nbsp;pk-name&nbsp;&quot;&nbsp;id}))\n&quot;)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                156&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                157&nbsp;&nbsp;;;&nbsp;───&nbsp;后端&nbsp;Controller&nbsp;生成&nbsp;───────────────────────────────────────────────
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                158&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                159&nbsp;&nbsp;(defn-&nbsp;generate-controller&nbsp;[entity&nbsp;kebab&nbsp;pk-name]
+                </span><br/>
+<span class="covered" title="54 out of 54 forms covered">
+                160&nbsp;&nbsp;&nbsp;&nbsp;(str&nbsp;&quot;(ns&nbsp;com.ruoyi.web.controllers.system.&quot;&nbsp;kebab&nbsp;&quot;\\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                161&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;\&quot;&quot;&nbsp;entity&nbsp;&quot;管理控制器。\&quot;\\n&quot;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                162&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;(:require\\n&nbsp;&nbsp;&nbsp;[com.ruoyi.domain.system.&quot;&nbsp;kebab&nbsp;&quot;&nbsp;:as&nbsp;&quot;&nbsp;kebab&nbsp;&quot;-service]\\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                163&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;[ring.util.response&nbsp;:as&nbsp;response]))\\n\\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                164&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;(defn-&nbsp;ok&nbsp;([data]&nbsp;(ok&nbsp;200&nbsp;\&quot;操作成功\&quot;&nbsp;data))\\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                165&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;([code&nbsp;msg&nbsp;data]\\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                166&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;(-&gt;&nbsp;(response&#x2F;response&nbsp;{:code&nbsp;code&nbsp;:msg&nbsp;msg&nbsp;:data&nbsp;data})\\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                167&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(response&#x2F;content-type&nbsp;\&quot;application&#x2F;json\&quot;))))\\n\\n&quot;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                168&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;(defn&nbsp;list-&quot;&nbsp;kebab&nbsp;&quot;s&nbsp;[{:keys&nbsp;[&quot;&nbsp;kebab&nbsp;&quot;-service]}&nbsp;request]\\n&quot;
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                169&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;(ok&nbsp;(&quot;&nbsp;kebab&nbsp;&quot;-service&#x2F;list-&quot;&nbsp;kebab&nbsp;&quot;s&nbsp;&quot;&nbsp;kebab&nbsp;&quot;-service&nbsp;(:query-params&nbsp;request))))\\n\\n&quot;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                170&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;(defn&nbsp;get-&quot;&nbsp;kebab&nbsp;&quot;&nbsp;[{:keys&nbsp;[&quot;&nbsp;kebab&nbsp;&quot;-service]}&nbsp;request]\\n&quot;
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                171&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;(ok&nbsp;(&quot;&nbsp;kebab&nbsp;&quot;-service&#x2F;find-&quot;&nbsp;kebab&nbsp;&quot;-by-id&nbsp;&quot;&nbsp;kebab&nbsp;&quot;-service&nbsp;(parse-long&nbsp;(get-in&nbsp;request&nbsp;[:path-params&nbsp;:id])))))\\n\\n&quot;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                172&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;(defn&nbsp;create-&quot;&nbsp;kebab&nbsp;&quot;&nbsp;[{:keys&nbsp;[&quot;&nbsp;kebab&nbsp;&quot;-service]}&nbsp;request]\\n&quot;
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                173&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;(ok&nbsp;(str&nbsp;\&quot;创建成功:&nbsp;\&quot;&nbsp;(&quot;&nbsp;kebab&nbsp;&quot;-service&#x2F;create-&quot;&nbsp;kebab&nbsp;&quot;!&nbsp;&quot;&nbsp;kebab&nbsp;&quot;-service&nbsp;(:body-params&nbsp;request)))))\\n\\n&quot;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                174&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;(defn&nbsp;update-&quot;&nbsp;kebab&nbsp;&quot;&nbsp;[{:keys&nbsp;[&quot;&nbsp;kebab&nbsp;&quot;-service]}&nbsp;request]\\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                175&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;(let&nbsp;[id&nbsp;(parse-long&nbsp;(get-in&nbsp;request&nbsp;[:path-params&nbsp;:id]))]\\n&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                176&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;(&quot;&nbsp;kebab&nbsp;&quot;-service&#x2F;update-&quot;&nbsp;kebab&nbsp;&quot;!&nbsp;&quot;&nbsp;kebab&nbsp;&quot;-service&nbsp;(assoc&nbsp;(:body-params&nbsp;request)&nbsp;:&quot;&nbsp;pk-name&nbsp;&quot;&nbsp;id))\\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                177&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;\&quot;更新成功\&quot;)))\\n\\n&quot;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                178&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;(defn&nbsp;delete-&quot;&nbsp;kebab&nbsp;&quot;&nbsp;[{:keys&nbsp;[&quot;&nbsp;kebab&nbsp;&quot;-service]}&nbsp;request]\\n&quot;
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                179&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;(&quot;&nbsp;kebab&nbsp;&quot;-service&#x2F;delete-&quot;&nbsp;kebab&nbsp;&quot;!&nbsp;&quot;&nbsp;kebab&nbsp;&quot;-service&nbsp;(parse-long&nbsp;(get-in&nbsp;request&nbsp;[:path-params&nbsp;:id])))\\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                180&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;(ok&nbsp;\&quot;删除成功\&quot;))\\n&quot;))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                181&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                182&nbsp;&nbsp;;;&nbsp;───&nbsp;后端&nbsp;Routes&nbsp;生成&nbsp;───────────────────────────────────────────────────
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                183&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                184&nbsp;&nbsp;(defn-&nbsp;generate-routes&nbsp;[kebab]
+                </span><br/>
+<span class="covered" title="35 out of 35 forms covered">
+                185&nbsp;&nbsp;&nbsp;&nbsp;(str&nbsp;&quot;&nbsp;&nbsp;&nbsp;[\&quot;&#x2F;&quot;&nbsp;kebab&nbsp;&quot;\&quot;\n&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                186&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;[\&quot;\&quot;&nbsp;{:get&nbsp;&nbsp;{:handler&nbsp;(partial&nbsp;&quot;&nbsp;kebab&nbsp;&quot;&#x2F;list-&quot;&nbsp;kebab&nbsp;&quot;s&nbsp;{:&quot;&nbsp;kebab&nbsp;&quot;-service&nbsp;&quot;&nbsp;kebab&nbsp;&quot;-service})}\n&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                187&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:post&nbsp;{:handler&nbsp;(partial&nbsp;&quot;&nbsp;kebab&nbsp;&quot;&#x2F;create-&quot;&nbsp;kebab&nbsp;&quot;&nbsp;{:&quot;&nbsp;kebab&nbsp;&quot;-service&nbsp;&quot;&nbsp;kebab&nbsp;&quot;-service})}}]\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                188&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;[\&quot;&#x2F;export\&quot;&nbsp;{:get&nbsp;{:handler&nbsp;...}}]\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                189&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;[\&quot;&#x2F;&quot;&nbsp;kebab&nbsp;&quot;&#x2F;:id\&quot;&nbsp;{:get&nbsp;&nbsp;&nbsp;&nbsp;{:parameters&nbsp;{:path&nbsp;PathId}\n&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                190&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;&quot;&nbsp;kebab&nbsp;&quot;&#x2F;get-&quot;&nbsp;kebab&nbsp;&quot;&nbsp;{:&quot;&nbsp;kebab&nbsp;&quot;-service&nbsp;&quot;&nbsp;kebab&nbsp;&quot;-service})}\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                191&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:put&nbsp;&nbsp;&nbsp;&nbsp;{:parameters&nbsp;{:path&nbsp;PathId}\n&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                192&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;&quot;&nbsp;kebab&nbsp;&quot;&#x2F;update-&quot;&nbsp;kebab&nbsp;&quot;&nbsp;{:&quot;&nbsp;kebab&nbsp;&quot;-service&nbsp;&quot;&nbsp;kebab&nbsp;&quot;-service})}\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                193&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:delete&nbsp;{:parameters&nbsp;{:path&nbsp;PathId}\n&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                194&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;(partial&nbsp;&quot;&nbsp;kebab&nbsp;&quot;&#x2F;delete-&quot;&nbsp;kebab&nbsp;&quot;&nbsp;{:&quot;&nbsp;kebab&nbsp;&quot;-service&nbsp;&quot;&nbsp;kebab&nbsp;&quot;-service})}}]]\n&quot;))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                195&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                196&nbsp;&nbsp;;;&nbsp;───&nbsp;前端&nbsp;API&nbsp;生成&nbsp;─────────────────────────────────────────────────────
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                197&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                198&nbsp;&nbsp;(defn-&nbsp;generate-frontend-api&nbsp;[kebab]
+                </span><br/>
+<span class="covered" title="31 out of 31 forms covered">
+                199&nbsp;&nbsp;&nbsp;&nbsp;(str&nbsp;&quot;;;&nbsp;───&nbsp;&quot;&nbsp;kebab&nbsp;&quot;&nbsp;管理&nbsp;──────────────────────────────────────────────────────\n\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                200&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;(defn&nbsp;list-&quot;&nbsp;kebab&nbsp;&quot;s\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                201&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;\&quot;获取&quot;&nbsp;kebab&nbsp;&quot;列表。\&quot;\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                202&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;[params&nbsp;on-success&nbsp;on-error]\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                203&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;(request&nbsp;{:method&nbsp;:get&nbsp;:uri&nbsp;\&quot;&#x2F;system&#x2F;&quot;&nbsp;kebab&nbsp;&quot;\&quot;&nbsp;:params&nbsp;params\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                204&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:on-success&nbsp;on-success&nbsp;:on-error&nbsp;on-error}))\n\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                205&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;(defn&nbsp;create-&quot;&nbsp;kebab&nbsp;&quot;\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                206&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;[params&nbsp;on-success&nbsp;on-error]\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                207&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;(request&nbsp;{:method&nbsp;:post&nbsp;:uri&nbsp;\&quot;&#x2F;system&#x2F;&quot;&nbsp;kebab&nbsp;&quot;\&quot;&nbsp;:params&nbsp;params\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                208&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:on-success&nbsp;on-success&nbsp;:on-error&nbsp;on-error}))\n\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                209&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;(defn&nbsp;update-&quot;&nbsp;kebab&nbsp;&quot;\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                210&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;[id&nbsp;params&nbsp;on-success&nbsp;on-error]\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                211&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;(request&nbsp;{:method&nbsp;:put&nbsp;:uri&nbsp;(str&nbsp;\&quot;&#x2F;system&#x2F;&quot;&nbsp;kebab&nbsp;&quot;&#x2F;\&quot;&nbsp;id)&nbsp;:params&nbsp;params\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                212&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:on-success&nbsp;on-success&nbsp;:on-error&nbsp;on-error}))\n\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                213&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;(defn&nbsp;delete-&quot;&nbsp;kebab&nbsp;&quot;\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                214&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;[id&nbsp;on-success&nbsp;on-error]\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                215&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;(request&nbsp;{:method&nbsp;:delete&nbsp;:uri&nbsp;(str&nbsp;\&quot;&#x2F;system&#x2F;&quot;&nbsp;kebab&nbsp;&quot;&#x2F;\&quot;&nbsp;id)\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                216&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:on-success&nbsp;on-success&nbsp;:on-error&nbsp;on-error}))\n&quot;))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                217&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                218&nbsp;&nbsp;;;&nbsp;───&nbsp;前端页面&#x2F;事件&#x2F;订阅占位&nbsp;─────────────────────────────────────────────
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                219&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                220&nbsp;&nbsp;(defn-&nbsp;generate-frontend-page&nbsp;[kebab&nbsp;entity]
+                </span><br/>
+<span class="covered" title="17 out of 17 forms covered">
+                221&nbsp;&nbsp;&nbsp;&nbsp;(str&nbsp;&quot;(ns&nbsp;com.ruoyi.frontend.pages.&quot;&nbsp;kebab&nbsp;&quot;\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                222&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;\&quot;&quot;&nbsp;entity&nbsp;&quot;管理页面。\&quot;\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                223&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;(:require&nbsp;[reagent.core&nbsp;:as&nbsp;r]\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                224&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[reagent.hooks&nbsp;:as&nbsp;hooks]\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                225&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[re-frame.core&nbsp;:as&nbsp;rf]\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                226&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.frontend.antd&nbsp;:as&nbsp;antd]))\n\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                227&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;(defn&nbsp;&quot;&nbsp;kebab&nbsp;&quot;-page&nbsp;[]\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                228&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;(hooks&#x2F;use-effect&nbsp;(fn&nbsp;[]&nbsp;(rf&#x2F;dispatch&nbsp;[:&quot;&nbsp;kebab&nbsp;&quot;s&#x2F;fetch&nbsp;{}])&nbsp;js&#x2F;undefined)&nbsp;[])\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                229&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;[:div&nbsp;\&quot;TODO:&nbsp;&quot;&nbsp;entity&nbsp;&quot;&nbsp;页面\&quot;])\n&quot;))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                230&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                231&nbsp;&nbsp;(defn-&nbsp;generate-frontend-events&nbsp;[kebab]
+                </span><br/>
+<span class="covered" title="12 out of 12 forms covered">
+                232&nbsp;&nbsp;&nbsp;&nbsp;(str&nbsp;&quot;;;&nbsp;──────&nbsp;&quot;&nbsp;kebab&nbsp;&quot;&nbsp;管理&nbsp;──────\n\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                233&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;(rf&#x2F;reg-event-fx&nbsp;:&quot;&nbsp;kebab&nbsp;&quot;s&#x2F;fetch\n&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                234&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;(fn&nbsp;[{:keys&nbsp;[db]}&nbsp;[_&nbsp;params]]\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                235&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;{:db&nbsp;(assoc-in&nbsp;db&nbsp;[:&quot;&nbsp;kebab&nbsp;&quot;s&nbsp;:loading?]&nbsp;true)\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                236&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:api&#x2F;list-&quot;&nbsp;kebab&nbsp;&quot;s&nbsp;params}))\n&quot;))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                237&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                238&nbsp;&nbsp;(defn-&nbsp;generate-frontend-subs&nbsp;[kebab]
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                239&nbsp;&nbsp;&nbsp;&nbsp;(str&nbsp;&quot;(rf&#x2F;reg-sub&nbsp;:&quot;&nbsp;kebab&nbsp;&quot;s&#x2F;items\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                240&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;(fn&nbsp;[db&nbsp;_]&nbsp;(get-in&nbsp;db&nbsp;[:&quot;&nbsp;kebab&nbsp;&quot;s&nbsp;:items]&nbsp;[])))\n\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                241&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;(rf&#x2F;reg-sub&nbsp;:&quot;&nbsp;kebab&nbsp;&quot;s&#x2F;loading?\n&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                242&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;(fn&nbsp;[db&nbsp;_]&nbsp;(get-in&nbsp;db&nbsp;[:&quot;&nbsp;kebab&nbsp;&quot;s&nbsp;:loading?]&nbsp;false)))\n&quot;))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                243&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                244&nbsp;&nbsp;;;&nbsp;───&nbsp;公开&nbsp;API&nbsp;──────────────────────────────────────────────────────────
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                245&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                246&nbsp;&nbsp;(defn&nbsp;generate-code
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                247&nbsp;&nbsp;&nbsp;&nbsp;&quot;根据表名生成完整&nbsp;CRUD&nbsp;代码模板。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                248&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[query-fn]&nbsp;:as&nbsp;ctx}&nbsp;table-name]
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                249&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[columns&nbsp;(table-columns&nbsp;ctx&nbsp;table-name)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                250&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;entity&nbsp;(entity-name&nbsp;table-name)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                251&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;kebab&nbsp;(kebab-name&nbsp;table-name)
+                </span><br/>
+<span class="covered" title="15 out of 15 forms covered">
+                252&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;pk-name&nbsp;(col-name&nbsp;(or&nbsp;(first&nbsp;(filter&nbsp;col-pk?&nbsp;columns))&nbsp;(first&nbsp;columns)))]
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                253&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(merge
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                254&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:table-name&nbsp;table-name
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                255&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:entity-name&nbsp;entity
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                256&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:kebab-name&nbsp;kebab
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                257&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:columns&nbsp;(count&nbsp;columns)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                258&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:message&nbsp;(str&nbsp;&quot;已生成&nbsp;&quot;&nbsp;table-name&nbsp;&quot;&nbsp;的&nbsp;CRUD&nbsp;代码&quot;)}
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                259&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(when&nbsp;(seq&nbsp;columns)
+                </span><br/>
+<span class="covered" title="15 out of 15 forms covered">
+                260&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:backend-sql&nbsp;(generate-ddl&nbsp;table-name&nbsp;columns)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                261&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:backend-sql-queries&nbsp;(generate-hugsql&nbsp;table-name&nbsp;kebab&nbsp;columns)
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                262&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:backend-domain&nbsp;(generate-domain&nbsp;table-name&nbsp;entity&nbsp;kebab&nbsp;columns)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                263&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:backend-controller&nbsp;(generate-controller&nbsp;entity&nbsp;kebab&nbsp;pk-name)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                264&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:backend-routes&nbsp;(generate-routes&nbsp;kebab)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                265&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:frontend-api&nbsp;(generate-frontend-api&nbsp;kebab)
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                266&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:frontend-page&nbsp;(generate-frontend-page&nbsp;kebab&nbsp;entity)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                267&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:frontend-events&nbsp;(generate-frontend-events&nbsp;kebab)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                268&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:frontend-subs&nbsp;(generate-frontend-subs&nbsp;kebab)
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                269&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:migration-up&nbsp;(generate-ddl&nbsp;table-name&nbsp;columns)}))))
+                </span><br/>
+ </body>
+</html>

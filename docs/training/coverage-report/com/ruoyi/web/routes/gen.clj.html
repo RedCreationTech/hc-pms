@@ -1,0 +1,98 @@
+<html>
+ <head>
+   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" href="../../../../coverage.css"/>  <title> com/ruoyi/web/routes/gen.clj </title>
+ </head>
+ <body>
+<span class="covered" title="1 out of 1 forms covered">
+                001&nbsp;&nbsp;(ns&nbsp;com.ruoyi.web.routes.gen
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                002&nbsp;&nbsp;&nbsp;&nbsp;&quot;代码生成器路由。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                003&nbsp;&nbsp;&nbsp;&nbsp;(:require
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                004&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.gen&nbsp;:as&nbsp;gen]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                005&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.middleware.auth&nbsp;:as&nbsp;auth-mw]))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                006&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                007&nbsp;&nbsp;(defn&nbsp;gen-routes&nbsp;[{:keys&nbsp;[gen-service]}]
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                008&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;tool&quot;
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                009&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:middleware&nbsp;[(auth-mw&#x2F;auth-middleware&nbsp;{:required?&nbsp;true})]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                010&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:swagger&nbsp;{:tags&nbsp;[&quot;代码生成&quot;]}}
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                011&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;gen&quot;
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                012&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;tables&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&nbsp;&nbsp;&nbsp;&quot;查询数据库表&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                013&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:description&nbsp;&quot;查询系统所有数据库表（供选择生成）&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                014&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;&nbsp;&nbsp;&nbsp;(partial&nbsp;gen&#x2F;list-tables&nbsp;{:gen-service&nbsp;gen-service})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                015&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;columns&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&nbsp;&nbsp;&nbsp;&quot;查询表列信息&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                016&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:description&nbsp;&quot;查询指定表的字段元数据&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                017&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;&nbsp;&nbsp;&nbsp;(partial&nbsp;gen&#x2F;table-columns&nbsp;{:gen-service&nbsp;gen-service})}}]
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                018&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;preview&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&nbsp;&nbsp;&nbsp;&quot;预览代码&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                019&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:description&nbsp;&quot;预览生成的代码模板内容&quot;
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                020&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:parameters&nbsp;{:query&nbsp;[:map&nbsp;[:tableName&nbsp;:string]]}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                021&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;&nbsp;&nbsp;&nbsp;(partial&nbsp;gen&#x2F;preview-code&nbsp;{:gen-service&nbsp;gen-service})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                022&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;generate&quot;&nbsp;{:post&nbsp;{:summary&nbsp;&nbsp;&nbsp;&nbsp;&quot;批量生成代码&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                023&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:description&nbsp;&quot;选择表并生成完整&nbsp;CRUD&nbsp;代码文件&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                024&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;&nbsp;&nbsp;&nbsp;(partial&nbsp;gen&#x2F;batch-generate&nbsp;{:gen-service&nbsp;gen-service})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                025&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;deploy&quot;&nbsp;{:post&nbsp;{:summary&nbsp;&nbsp;&nbsp;&nbsp;&quot;部署代码&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                026&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:description&nbsp;&quot;将生成的代码部署到项目目录&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                027&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;&nbsp;&nbsp;&nbsp;(partial&nbsp;gen&#x2F;deploy-code&nbsp;{:gen-service&nbsp;gen-service})}}]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                028&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;download&quot;&nbsp;{:post&nbsp;{:summary&nbsp;&nbsp;&nbsp;&nbsp;&quot;下载代码&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                029&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:description&nbsp;&quot;批量生成代码并打包成&nbsp;ZIP&nbsp;下载&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                030&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;&nbsp;&nbsp;&nbsp;(partial&nbsp;gen&#x2F;download-code&nbsp;{:gen-service&nbsp;gen-service})}}]]])
+                </span><br/>
+ </body>
+</html>

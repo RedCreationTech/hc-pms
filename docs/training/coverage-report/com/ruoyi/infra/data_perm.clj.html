@@ -1,0 +1,248 @@
+<html>
+ <head>
+   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" href="../../../coverage.css"/>  <title> com/ruoyi/infra/data_perm.clj </title>
+ </head>
+ <body>
+<span class="covered" title="1 out of 1 forms covered">
+                001&nbsp;&nbsp;(ns&nbsp;com.ruoyi.infra.data-perm
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                002&nbsp;&nbsp;&nbsp;&nbsp;&quot;数据权限过滤。
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                003&nbsp;&nbsp;&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                004&nbsp;&nbsp;&nbsp;&nbsp;支持&nbsp;RuoYi&nbsp;的五种数据权限范围:
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                005&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;1:&nbsp;ALL&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;—&nbsp;全部数据
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                006&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;2:&nbsp;CUSTOM&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;—&nbsp;自定义&nbsp;(角色关联的部门)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                007&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;3:&nbsp;DEPT&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;—&nbsp;本部门
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                008&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;4:&nbsp;DEPT_CHILD&nbsp;&nbsp;&nbsp;—&nbsp;本部门及以下
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                009&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;5:&nbsp;SELF&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;—&nbsp;仅本人
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                010&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                011&nbsp;&nbsp;&nbsp;&nbsp;用法:&nbsp;(data-perm-filter&nbsp;identity&nbsp;role-key&nbsp;table-alias)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                012&nbsp;&nbsp;&nbsp;&nbsp;返回一个&nbsp;SQL&nbsp;片段或&nbsp;WHERE&nbsp;条件&nbsp;map，注入到&nbsp;HugSQL&nbsp;查询中。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                013&nbsp;&nbsp;&nbsp;&nbsp;(:require
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                014&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[clojure.string&nbsp;:as&nbsp;str]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                015&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[clojure.tools.logging&nbsp;:as&nbsp;log]))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                016&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                017&nbsp;&nbsp;;;&nbsp;────────────&nbsp;数据权限&nbsp;SQL&nbsp;片段生成&nbsp;────────────
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                018&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                019&nbsp;&nbsp;(def&nbsp;scope-names
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                020&nbsp;&nbsp;&nbsp;&nbsp;&quot;数据权限范围名称映射&quot;
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                021&nbsp;&nbsp;&nbsp;&nbsp;{1&nbsp;&quot;ALL&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                022&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;2&nbsp;&quot;CUSTOM&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                023&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;3&nbsp;&quot;DEPT&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                024&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;4&nbsp;&quot;DEPT_CHILD&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                025&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;5&nbsp;&quot;SELF&quot;})
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                026&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                027&nbsp;&nbsp;(defn-&nbsp;build-dept-filter
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                028&nbsp;&nbsp;&nbsp;&nbsp;&quot;根据角色数据权限范围，生成部门过滤条件。
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                029&nbsp;&nbsp;&nbsp;&nbsp;返回&nbsp;{:dept_ids&nbsp;[...]&nbsp;:user_id&nbsp;...}&nbsp;形式的参数&nbsp;map&nbsp;和&nbsp;SQL&nbsp;where&nbsp;片段。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                030&nbsp;&nbsp;&nbsp;&nbsp;[role&nbsp;dept-ids&nbsp;alias&nbsp;user-id]
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                031&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[scope&nbsp;(:data-scope&nbsp;role&nbsp;5)
+                </span><br/>
+<span class="partial" title="5 out of 6 forms covered">
+                032&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;alias&nbsp;&nbsp;(or&nbsp;alias&nbsp;&quot;u&quot;)]
+                </span><br/>
+<span class="partial" title="3 out of 9 forms covered">
+                033&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(case&nbsp;scope
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                034&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;1:&nbsp;ALL&nbsp;—&nbsp;不追加过滤
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                035&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;1&nbsp;{:params&nbsp;{}&nbsp;:sql&nbsp;&quot;1=1&quot;}
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                036&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                037&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;2:&nbsp;CUSTOM&nbsp;—&nbsp;自定义部门范围
+                </span><br/>
+<span class="partial" title="6 out of 10 forms covered">
+                038&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;2&nbsp;(let&nbsp;[ids&nbsp;(or&nbsp;dept-ids&nbsp;[(:dept-id&nbsp;role)])]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                039&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:params&nbsp;{:data-perm-dept-ids&nbsp;ids}
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                040&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:sql&nbsp;&nbsp;&nbsp;&nbsp;(str&nbsp;&quot;&nbsp;&quot;&nbsp;alias&nbsp;&quot;.dept_id&nbsp;IN&nbsp;(:v*:data-perm-dept-ids)&quot;)})
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                041&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                042&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;3:&nbsp;DEPT&nbsp;—&nbsp;本部门
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                043&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;3&nbsp;(if-let&nbsp;[dept-id&nbsp;(:dept-id&nbsp;role)]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                044&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:params&nbsp;{:data-perm-dept-id&nbsp;dept-id}
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                045&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:sql&nbsp;&nbsp;&nbsp;&nbsp;(str&nbsp;&quot;&nbsp;&quot;&nbsp;alias&nbsp;&quot;.dept_id&nbsp;=&nbsp;:data-perm-dept-id&quot;)}
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                046&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:params&nbsp;{}&nbsp;:sql&nbsp;&quot;1=0&quot;})
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                047&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                048&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;4:&nbsp;DEPT_CHILD&nbsp;—&nbsp;本部门及以下
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                049&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;4&nbsp;(if-let&nbsp;[dept-id&nbsp;(:dept-id&nbsp;role)]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                050&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:params&nbsp;{:data-perm-dept-id&nbsp;dept-id}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                051&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:sql&nbsp;&nbsp;&nbsp;&nbsp;(str&nbsp;&quot;&nbsp;&quot;&nbsp;alias&nbsp;&quot;.dept_id&nbsp;IN&nbsp;(SELECT&nbsp;dept_id&nbsp;FROM&nbsp;sys_dept&nbsp;&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                052&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;WHERE&nbsp;del_flag&nbsp;=&nbsp;&#x27;0&#x27;&nbsp;AND&nbsp;(dept_id&nbsp;=&nbsp;:data-perm-dept-id&nbsp;OR&nbsp;ancestors&nbsp;LIKE&nbsp;&#x27;%&#x2F;&#x27;&nbsp;||&nbsp;:data-perm-dept-id&nbsp;||&nbsp;&#x27;&#x2F;%&#x27;&nbsp;||&nbsp;&#x27;%&#x27;))&quot;)}
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                053&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:params&nbsp;{}&nbsp;:sql&nbsp;&quot;1=0&quot;})
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                054&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                055&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;5:&nbsp;SELF&nbsp;—&nbsp;仅本人
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                056&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;5&nbsp;(if-let&nbsp;[uid&nbsp;user-id]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                057&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:params&nbsp;{:data-perm-user-id&nbsp;uid}
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                058&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:sql&nbsp;&nbsp;&nbsp;&nbsp;(str&nbsp;&quot;&nbsp;&quot;&nbsp;alias&nbsp;&quot;.user_id&nbsp;=&nbsp;:data-perm-user-id&quot;)}
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                059&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:params&nbsp;{}&nbsp;:sql&nbsp;&quot;1=0&quot;}))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                060&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                061&nbsp;&nbsp;(defn&nbsp;data-perm-filter
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                062&nbsp;&nbsp;&nbsp;&nbsp;&quot;为查询生成数据权限过滤条件。
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                063&nbsp;&nbsp;&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                064&nbsp;&nbsp;&nbsp;&nbsp;identity&nbsp;&nbsp;—&nbsp;当前用户&nbsp;claims&nbsp;(含&nbsp;:user-id&nbsp;:roles)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                065&nbsp;&nbsp;&nbsp;&nbsp;role-key&nbsp;&nbsp;—&nbsp;查询所用的角色标识&nbsp;(如&nbsp;\&quot;admin\&quot;&nbsp;不过滤)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                066&nbsp;&nbsp;&nbsp;&nbsp;alias&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;—&nbsp;SQL&nbsp;表别名&nbsp;(默认&nbsp;\&quot;u\&quot;)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                067&nbsp;&nbsp;&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                068&nbsp;&nbsp;&nbsp;&nbsp;返回&nbsp;{:sql&nbsp;\&quot;...\&quot;&nbsp;:params&nbsp;{...}}&nbsp;合并到查询参数中。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                069&nbsp;&nbsp;&nbsp;&nbsp;[identity&nbsp;role-key&nbsp;&amp;&nbsp;{:keys&nbsp;[dept-ids&nbsp;alias]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                070&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:or&nbsp;&nbsp;&nbsp;{alias&nbsp;&quot;u&quot;}}]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                071&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[user-id&nbsp;&nbsp;(:user-id&nbsp;identity)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                072&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;user-name&nbsp;(:user-name&nbsp;identity)
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                073&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;roles&nbsp;&nbsp;&nbsp;&nbsp;(:roles&nbsp;identity&nbsp;[])]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                074&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;管理员不过滤
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                075&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if&nbsp;(some&nbsp;#(=&nbsp;&quot;admin&quot;&nbsp;(:role-key&nbsp;%))&nbsp;roles)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                076&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:params&nbsp;{}&nbsp;:sql&nbsp;&quot;1=1&quot;}
+                </span><br/>
+<span class="covered" title="12 out of 12 forms covered">
+                077&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[role&nbsp;(first&nbsp;(filter&nbsp;#(=&nbsp;role-key&nbsp;(:role-key&nbsp;%))&nbsp;roles))]
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                078&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if&nbsp;role
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                079&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(build-dept-filter&nbsp;role&nbsp;dept-ids&nbsp;alias&nbsp;user-id)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                080&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:params&nbsp;{}&nbsp;:sql&nbsp;&quot;1=1&quot;})))))
+                </span><br/>
+ </body>
+</html>

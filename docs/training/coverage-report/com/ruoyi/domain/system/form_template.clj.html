@@ -1,0 +1,137 @@
+<html>
+ <head>
+   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" href="../../../../coverage.css"/>  <title> com/ruoyi/domain/system/form_template.clj </title>
+ </head>
+ <body>
+<span class="covered" title="1 out of 1 forms covered">
+                001&nbsp;&nbsp;(ns&nbsp;com.ruoyi.domain.system.form-template
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                002&nbsp;&nbsp;&nbsp;&nbsp;&quot;表单模板领域服务。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                003&nbsp;&nbsp;&nbsp;&nbsp;(:require
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                004&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.infra.db&nbsp;:as&nbsp;db]))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                005&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                006&nbsp;&nbsp;(defn&nbsp;list-form-templates
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                007&nbsp;&nbsp;&nbsp;&nbsp;&quot;查询表单模板列表。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                008&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[query-fn]}&nbsp;params]
+                </span><br/>
+<span class="not-covered" title="0 out of 11 forms covered">
+                009&nbsp;&nbsp;&nbsp;&nbsp;(query-fn&nbsp;:list-form-templates&nbsp;(merge&nbsp;{:form_name&nbsp;nil&nbsp;:form_key&nbsp;nil}&nbsp;params)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                010&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                011&nbsp;&nbsp;(defn&nbsp;find-form-template-by-id
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                012&nbsp;&nbsp;&nbsp;&nbsp;&quot;根据ID查询表单模板。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                013&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[query-fn]}&nbsp;id]
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                014&nbsp;&nbsp;&nbsp;&nbsp;(query-fn&nbsp;:find-form-template-by-id&nbsp;{:id&nbsp;id}))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                015&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                016&nbsp;&nbsp;(defn&nbsp;find-form-template-by-key
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                017&nbsp;&nbsp;&nbsp;&nbsp;&quot;根据form_key查询表单模板。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                018&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[query-fn]}&nbsp;form-key]
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                019&nbsp;&nbsp;&nbsp;&nbsp;(query-fn&nbsp;:find-form-template-by-key&nbsp;{:form_key&nbsp;form-key}))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                020&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                021&nbsp;&nbsp;(defn&nbsp;create-form-template!
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                022&nbsp;&nbsp;&nbsp;&nbsp;&quot;创建表单模板，返回自增ID。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                023&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[query-fn&nbsp;db]}&nbsp;params]
+                </span><br/>
+<span class="not-covered" title="0 out of 10 forms covered">
+                024&nbsp;&nbsp;&nbsp;&nbsp;(when&nbsp;(find-form-template-by-key&nbsp;{:query-fn&nbsp;query-fn}&nbsp;(:form_key&nbsp;params))
+                </span><br/>
+<span class="not-covered" title="0 out of 9 forms covered">
+                025&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(throw&nbsp;(ex-info&nbsp;&quot;表单key已存在&quot;&nbsp;{:form_key&nbsp;(:form_key&nbsp;params)})))
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                026&nbsp;&nbsp;&nbsp;&nbsp;(db&#x2F;insert-and-get-id!&nbsp;query-fn&nbsp;db&nbsp;:create-form-template!
+                </span><br/>
+<span class="not-covered" title="0 out of 14 forms covered">
+                027&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(merge&nbsp;{:form_name&nbsp;nil&nbsp;:form_key&nbsp;nil&nbsp;:schema_json&nbsp;nil&nbsp;:remark&nbsp;nil&nbsp;:create_by&nbsp;nil}&nbsp;params)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                028&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                029&nbsp;&nbsp;(defn&nbsp;update-form-template!
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                030&nbsp;&nbsp;&nbsp;&nbsp;&quot;更新表单模板。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                031&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[query-fn]}&nbsp;params]
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                032&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[id&nbsp;(:id&nbsp;params)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                033&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;new-key&nbsp;(:form_key&nbsp;params)
+                </span><br/>
+<span class="not-covered" title="0 out of 9 forms covered">
+                034&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;existing&nbsp;(when&nbsp;new-key&nbsp;(find-form-template-by-key&nbsp;{:query-fn&nbsp;query-fn}&nbsp;new-key))]
+                </span><br/>
+<span class="not-covered" title="0 out of 13 forms covered">
+                035&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(when&nbsp;(and&nbsp;existing&nbsp;(not=&nbsp;(:id&nbsp;existing)&nbsp;id))
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                036&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(throw&nbsp;(ex-info&nbsp;&quot;表单key已存在&quot;&nbsp;{:form_key&nbsp;new-key})))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                037&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(query-fn&nbsp;:update-form-template!
+                </span><br/>
+<span class="not-covered" title="0 out of 16 forms covered">
+                038&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(merge&nbsp;{:id&nbsp;id&nbsp;:form_name&nbsp;nil&nbsp;:form_key&nbsp;nil&nbsp;:schema_json&nbsp;nil&nbsp;:remark&nbsp;nil&nbsp;:update_by&nbsp;nil}&nbsp;params))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                039&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                040&nbsp;&nbsp;(defn&nbsp;delete-form-template!
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                041&nbsp;&nbsp;&nbsp;&nbsp;&quot;删除表单模板。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                042&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[query-fn]}&nbsp;id]
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                043&nbsp;&nbsp;&nbsp;&nbsp;(query-fn&nbsp;:delete-form-template!&nbsp;{:id&nbsp;id}))
+                </span><br/>
+ </body>
+</html>

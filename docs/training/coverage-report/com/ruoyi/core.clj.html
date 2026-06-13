@@ -1,0 +1,215 @@
+<html>
+ <head>
+   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" href="../../coverage.css"/>  <title> com/ruoyi/core.clj </title>
+ </head>
+ <body>
+<span class="partial" title="1 out of 2 forms covered">
+                001&nbsp;&nbsp;(ns&nbsp;com.ruoyi.core
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                002&nbsp;&nbsp;&nbsp;&nbsp;(:require
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                003&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[clojure.tools.logging&nbsp;:as&nbsp;log]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                004&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[integrant.core&nbsp;:as&nbsp;ig]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                005&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.config&nbsp;:as&nbsp;config]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                006&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.env&nbsp;:refer&nbsp;[defaults]]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                007&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.integrant.state&nbsp;:as&nbsp;integrant-state]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                008&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                009&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;Edges
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                010&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[kit.edge.db.sql.conman]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                011&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[kit.edge.db.sql.migratus]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                012&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[kit.edge.db.postgres]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                013&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[kit.edge.db.mysql]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                014&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[kit.edge.scheduling.quartz]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                015&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[kit.edge.templating.selmer]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                016&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[kit.edge.utils.nrepl]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                017&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[kit.edge.server.undertow]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                018&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.handler]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                019&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.integrant.trace]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                020&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                021&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;Domain&nbsp;services
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                022&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.domain.system]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                023&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.domain.system.user]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                024&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.domain.system.role]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                025&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.domain.system.menu]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                026&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.domain.system.dept]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                027&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.domain.system.post]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                028&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.domain.system.dict]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                029&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.domain.system.config]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                030&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.domain.system.log]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                031&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.domain.gen]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                032&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.domain.business]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                033&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                034&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;Middleware
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                035&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.middleware.auth]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                036&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                037&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;Routes
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                038&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.routes.api]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                039&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.routes.auth]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                040&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.routes.system]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                041&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.routes.gen]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                042&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.routes.business])
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                043&nbsp;&nbsp;&nbsp;&nbsp;(:gen-class))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                044&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                045&nbsp;&nbsp;;;&nbsp;log&nbsp;uncaught&nbsp;exceptions&nbsp;in&nbsp;threads
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                046&nbsp;&nbsp;(Thread&#x2F;setDefaultUncaughtExceptionHandler
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                047&nbsp;&nbsp;&nbsp;(fn&nbsp;[thread&nbsp;ex]
+                </span><br/>
+<span class="not-covered" title="0 out of 21 forms covered">
+                048&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(log&#x2F;error&nbsp;{:what&nbsp;:uncaught-exception
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                049&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:exception&nbsp;ex
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                050&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:where&nbsp;(str&nbsp;&quot;Uncaught&nbsp;exception&nbsp;on&quot;&nbsp;(.getName&nbsp;thread))})))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                051&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                052&nbsp;&nbsp;(def&nbsp;system&nbsp;integrant-state&#x2F;system)
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                053&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                054&nbsp;&nbsp;(defn&nbsp;stop-app&nbsp;[]
+                </span><br/>
+<span class="partial" title="8 out of 9 forms covered">
+                055&nbsp;&nbsp;&nbsp;&nbsp;((or&nbsp;(:stop&nbsp;defaults)&nbsp;(fn&nbsp;[])))
+                </span><br/>
+<span class="partial" title="12 out of 13 forms covered">
+                056&nbsp;&nbsp;&nbsp;&nbsp;(some-&gt;&nbsp;(deref&nbsp;system)&nbsp;(ig&#x2F;halt!)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                057&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                058&nbsp;&nbsp;(defn&nbsp;start-app&nbsp;[&amp;&nbsp;[params]]
+                </span><br/>
+<span class="partial" title="14 out of 16 forms covered">
+                059&nbsp;&nbsp;&nbsp;&nbsp;((or&nbsp;(:start&nbsp;params)&nbsp;(:start&nbsp;defaults)&nbsp;(fn&nbsp;[])))
+                </span><br/>
+<span class="partial" title="10 out of 18 forms covered">
+                060&nbsp;&nbsp;&nbsp;&nbsp;(-&gt;&gt;&nbsp;(config&#x2F;system-config&nbsp;(or&nbsp;(:opts&nbsp;params)&nbsp;(:opts&nbsp;defaults)&nbsp;{}))
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                061&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ig&#x2F;expand)
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                062&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ig&#x2F;init)
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                063&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(reset!&nbsp;system)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                064&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                065&nbsp;&nbsp;(defn&nbsp;-main&nbsp;[&amp;&nbsp;_]
+                </span><br/>
+<span class="not-covered" title="0 out of 2 forms covered">
+                066&nbsp;&nbsp;&nbsp;&nbsp;(start-app)
+                </span><br/>
+<span class="not-covered" title="0 out of 9 forms covered">
+                067&nbsp;&nbsp;&nbsp;&nbsp;(.addShutdownHook&nbsp;(Runtime&#x2F;getRuntime)&nbsp;(Thread.&nbsp;(fn&nbsp;[]&nbsp;(stop-app)&nbsp;(shutdown-agents))))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                068&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;Keep&nbsp;main&nbsp;thread&nbsp;alive&nbsp;so&nbsp;JVM&nbsp;doesn&#x27;t&nbsp;exit
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                069&nbsp;&nbsp;&nbsp;&nbsp;(while&nbsp;true&nbsp;(Thread&#x2F;sleep&nbsp;60000)))
+                </span><br/>
+ </body>
+</html>

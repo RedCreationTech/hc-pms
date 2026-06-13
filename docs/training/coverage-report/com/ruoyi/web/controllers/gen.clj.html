@@ -1,0 +1,440 @@
+<html>
+ <head>
+   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" href="../../../../coverage.css"/>  <title> com/ruoyi/web/controllers/gen.clj </title>
+ </head>
+ <body>
+<span class="covered" title="1 out of 1 forms covered">
+                001&nbsp;&nbsp;(ns&nbsp;com.ruoyi.web.controllers.gen
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                002&nbsp;&nbsp;&nbsp;&nbsp;&quot;代码生成器控制器。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                003&nbsp;&nbsp;&nbsp;&nbsp;(:require
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                004&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.domain.gen&nbsp;:as&nbsp;gen-service]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                005&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[ring.util.response&nbsp;:as&nbsp;response]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                006&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[clojure.java.io&nbsp;:as&nbsp;io]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                007&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[clojure.string&nbsp;:as&nbsp;str])
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                008&nbsp;&nbsp;&nbsp;&nbsp;(:import&nbsp;[java.io&nbsp;File&nbsp;FileOutputStream]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                009&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[java.time&nbsp;LocalDateTime]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                010&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[java.time.format&nbsp;DateTimeFormatter]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                011&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[java.util.zip&nbsp;ZipOutputStream&nbsp;ZipEntry]))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                012&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                013&nbsp;&nbsp;(defn-&nbsp;ok
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                014&nbsp;&nbsp;&nbsp;&nbsp;([data]&nbsp;(ok&nbsp;200&nbsp;&quot;操作成功&quot;&nbsp;data))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                015&nbsp;&nbsp;&nbsp;&nbsp;([code&nbsp;msg&nbsp;data]
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                016&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(-&gt;&nbsp;(response&#x2F;response&nbsp;{:code&nbsp;code&nbsp;:msg&nbsp;msg&nbsp;:data&nbsp;data})
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                017&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(response&#x2F;content-type&nbsp;&quot;application&#x2F;json&quot;))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                018&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                019&nbsp;&nbsp;(defn&nbsp;list-tables
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                020&nbsp;&nbsp;&nbsp;&nbsp;&quot;查询数据库中的所有表。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                021&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[gen-service]}&nbsp;_request]
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                022&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;(gen-service&#x2F;list-tables&nbsp;gen-service)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                023&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                024&nbsp;&nbsp;(defn&nbsp;table-columns
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                025&nbsp;&nbsp;&nbsp;&nbsp;&quot;查询指定表列信息。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                026&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[gen-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                027&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[table-name&nbsp;(get-in&nbsp;request&nbsp;[:query-params&nbsp;&quot;tableName&quot;])]
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                028&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(when&nbsp;(seq&nbsp;table-name)
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                029&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;(gen-service&#x2F;table-columns&nbsp;gen-service&nbsp;table-name)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                030&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                031&nbsp;&nbsp;(defn&nbsp;preview-code
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                032&nbsp;&nbsp;&nbsp;&nbsp;&quot;生成并预览代码。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                033&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[gen-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                034&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[table-name&nbsp;(get-in&nbsp;request&nbsp;[:query-params&nbsp;&quot;tableName&quot;])]
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                035&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(when&nbsp;(seq&nbsp;table-name)
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                036&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;(gen-service&#x2F;generate-code&nbsp;gen-service&nbsp;table-name)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                037&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                038&nbsp;&nbsp;(defn&nbsp;batch-generate
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                039&nbsp;&nbsp;&nbsp;&nbsp;&quot;批量生成代码。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                040&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[gen-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                041&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[table-names&nbsp;(get-in&nbsp;request&nbsp;[:body-params&nbsp;:tables]&nbsp;[])]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                042&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;(mapv&nbsp;#(gen-service&#x2F;generate-code&nbsp;gen-service&nbsp;%)&nbsp;table-names))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                043&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                044&nbsp;&nbsp;(defn-&nbsp;write-file!&nbsp;[path&nbsp;content]
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                045&nbsp;&nbsp;&nbsp;&nbsp;(when&nbsp;(seq&nbsp;content)
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                046&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[file&nbsp;(io&#x2F;file&nbsp;path)]
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                047&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(io&#x2F;make-parents&nbsp;file)
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                048&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(spit&nbsp;file&nbsp;content)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                049&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;path)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                050&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                051&nbsp;&nbsp;(defn-&nbsp;upsert-generated-sql!&nbsp;[table-name&nbsp;hugsql]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                052&nbsp;&nbsp;&nbsp;&nbsp;&quot;将&nbsp;HugSQL&nbsp;写入&nbsp;generated.sql，按表名替换旧块，避免重复定义。&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                053&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[file&nbsp;(io&#x2F;file&nbsp;&quot;resources&#x2F;sql&#x2F;generated.sql&quot;)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                054&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;marker&nbsp;(str&nbsp;&quot;--&nbsp;==&nbsp;generated&nbsp;&quot;&nbsp;table-name&nbsp;&quot;&nbsp;==&quot;)
+                </span><br/>
+<span class="partial" title="5 out of 6 forms covered">
+                055&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;existing&nbsp;(if&nbsp;(.exists&nbsp;file)&nbsp;(slurp&nbsp;file)&nbsp;&quot;&quot;)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                056&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;lines&nbsp;(str&#x2F;split-lines&nbsp;existing)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                057&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;找到本表块起止行（简单行匹配）
+                </span><br/>
+<span class="partial" title="11 out of 13 forms covered">
+                058&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;start&nbsp;(first&nbsp;(keep-indexed&nbsp;#(when&nbsp;(str&#x2F;starts-with?&nbsp;%2&nbsp;marker)&nbsp;%1)&nbsp;lines))
+                </span><br/>
+<span class="partial" title="2 out of 3 forms covered">
+                059&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;end&nbsp;(when&nbsp;start
+                </span><br/>
+<span class="not-covered" title="0 out of 17 forms covered">
+                060&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(first&nbsp;(keep-indexed&nbsp;#(when&nbsp;(and&nbsp;(&gt;&nbsp;%1&nbsp;start)
+                </span><br/>
+<span class="not-covered" title="0 out of 2 forms covered">
+                061&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;starts-with?&nbsp;%2&nbsp;&quot;--&nbsp;==&nbsp;generated&nbsp;&quot;))&nbsp;%1)
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                062&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;lines)))
+                </span><br/>
+<span class="partial" title="3 out of 10 forms covered">
+                063&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;before&nbsp;(if&nbsp;start&nbsp;(str&#x2F;join&nbsp;&quot;\n&quot;&nbsp;(take&nbsp;start&nbsp;lines))&nbsp;existing)
+                </span><br/>
+<span class="partial" title="3 out of 10 forms covered">
+                064&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;after&nbsp;(if&nbsp;end&nbsp;(str&#x2F;join&nbsp;&quot;\n&quot;&nbsp;(drop&nbsp;end&nbsp;lines))&nbsp;&quot;&quot;)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                065&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;block&nbsp;(str&nbsp;marker&nbsp;&quot;\n&quot;&nbsp;hugsql)]
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                066&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(io&#x2F;make-parents&nbsp;file)
+                </span><br/>
+<span class="covered" title="15 out of 15 forms covered">
+                067&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(spit&nbsp;file&nbsp;(str&nbsp;(str&#x2F;trim&nbsp;before)&nbsp;&quot;\n\n&quot;&nbsp;block&nbsp;&quot;\n\n&quot;&nbsp;(str&#x2F;trim&nbsp;after)&nbsp;&quot;\n&quot;))
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                068&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.getPath&nbsp;file)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                069&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                070&nbsp;&nbsp;(defn-&nbsp;timestamp&nbsp;[]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                071&nbsp;&nbsp;&nbsp;&nbsp;(.format&nbsp;(DateTimeFormatter&#x2F;ofPattern&nbsp;&quot;yyyyMMddHHmmss&quot;)&nbsp;(LocalDateTime&#x2F;now)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                072&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                073&nbsp;&nbsp;(defn&nbsp;deploy-code
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                074&nbsp;&nbsp;&nbsp;&nbsp;&quot;部署生成的代码到项目目录。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                075&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[gen-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                076&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[table-name&nbsp;(get-in&nbsp;request&nbsp;[:body-params&nbsp;:tableName])
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                077&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;code&nbsp;(gen-service&#x2F;generate-code&nbsp;gen-service&nbsp;table-name)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                078&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;kebab&nbsp;(:kebab-name&nbsp;code)]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                079&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if&nbsp;(seq&nbsp;kebab)
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                080&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[written&nbsp;(remove&nbsp;nil?
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                081&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[(upsert-generated-sql!&nbsp;table-name&nbsp;(:backend-sql-queries&nbsp;code))
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                082&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(write-file!&nbsp;(str&nbsp;&quot;resources&#x2F;sql&#x2F;&quot;&nbsp;kebab&nbsp;&quot;.sql&quot;)&nbsp;(:backend-sql-queries&nbsp;code))
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                083&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(write-file!&nbsp;(str&nbsp;&quot;src&#x2F;clj&#x2F;com&#x2F;ruoyi&#x2F;domain&#x2F;system&#x2F;&quot;&nbsp;kebab&nbsp;&quot;.clj&quot;)&nbsp;(:backend-domain&nbsp;code))
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                084&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(write-file!&nbsp;(str&nbsp;&quot;src&#x2F;clj&#x2F;com&#x2F;ruoyi&#x2F;web&#x2F;controllers&#x2F;system&#x2F;&quot;&nbsp;kebab&nbsp;&quot;.clj&quot;)&nbsp;(:backend-controller&nbsp;code))
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                085&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(write-file!&nbsp;(str&nbsp;&quot;src&#x2F;cljs&#x2F;com&#x2F;ruoyi&#x2F;frontend&#x2F;api&#x2F;&quot;&nbsp;kebab&nbsp;&quot;.cljs&quot;)&nbsp;(:frontend-api&nbsp;code))
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                086&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(write-file!&nbsp;(str&nbsp;&quot;src&#x2F;cljs&#x2F;com&#x2F;ruoyi&#x2F;frontend&#x2F;pages&#x2F;&quot;&nbsp;kebab&nbsp;&quot;.cljs&quot;)&nbsp;(:frontend-page&nbsp;code))
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                087&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(write-file!&nbsp;(str&nbsp;&quot;src&#x2F;cljs&#x2F;com&#x2F;ruoyi&#x2F;frontend&#x2F;events&#x2F;&quot;&nbsp;kebab&nbsp;&quot;.cljs&quot;)&nbsp;(:frontend-events&nbsp;code))
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                088&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(write-file!&nbsp;(str&nbsp;&quot;src&#x2F;cljs&#x2F;com&#x2F;ruoyi&#x2F;frontend&#x2F;subs&#x2F;&quot;&nbsp;kebab&nbsp;&quot;.cljs&quot;)&nbsp;(:frontend-subs&nbsp;code))
+                </span><br/>
+<span class="covered" title="13 out of 13 forms covered">
+                089&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(write-file!&nbsp;(str&nbsp;&quot;resources&#x2F;migrations-sqlite&#x2F;&quot;&nbsp;(timestamp)&nbsp;&quot;_&quot;&nbsp;kebab&nbsp;&quot;.up.sql&quot;)&nbsp;(:migration-up&nbsp;code))
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                090&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(write-file!&nbsp;(str&nbsp;&quot;resources&#x2F;migrations-sqlite&#x2F;&quot;&nbsp;(timestamp)&nbsp;&quot;_&quot;&nbsp;kebab&nbsp;&quot;.down.sql&quot;)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                091&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&nbsp;&quot;DROP&nbsp;TABLE&nbsp;IF&nbsp;EXISTS&nbsp;&quot;&nbsp;table-name&nbsp;&quot;;&quot;))])]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                092&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;{:message&nbsp;(str&nbsp;&quot;代码部署成功:&nbsp;&quot;&nbsp;table-name)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                093&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:written&nbsp;written
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                094&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:routes&nbsp;(:backend-routes&nbsp;code)}))
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                095&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;500&nbsp;&quot;生成失败&quot;&nbsp;{:error&nbsp;&quot;无法生成代码&quot;}))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                096&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                097&nbsp;&nbsp;(defn-&nbsp;zip-directory!&nbsp;[src-dir&nbsp;^File&nbsp;zip-file]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                098&nbsp;&nbsp;&nbsp;&nbsp;&quot;将目录打包成&nbsp;zip&nbsp;文件。&quot;
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                099&nbsp;&nbsp;&nbsp;&nbsp;(with-open&nbsp;[zos&nbsp;(ZipOutputStream.&nbsp;(FileOutputStream.&nbsp;zip-file))]
+                </span><br/>
+<span class="partial" title="33 out of 41 forms covered">
+                100&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(doseq&nbsp;[file&nbsp;(file-seq&nbsp;(io&#x2F;file&nbsp;src-dir))
+                </span><br/>
+<span class="partial" title="1 out of 2 forms covered">
+                101&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:when&nbsp;(.isFile&nbsp;file)]
+                </span><br/>
+<span class="partial" title="8 out of 16 forms covered">
+                102&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[entry-name&nbsp;(.replace&nbsp;(.getPath&nbsp;file)&nbsp;(str&nbsp;src-dir&nbsp;File&#x2F;separator)&nbsp;&quot;&quot;)]
+                </span><br/>
+<span class="partial" title="3 out of 6 forms covered">
+                103&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.putNextEntry&nbsp;zos&nbsp;(ZipEntry.&nbsp;entry-name))
+                </span><br/>
+<span class="partial" title="4 out of 8 forms covered">
+                104&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(io&#x2F;copy&nbsp;file&nbsp;zos)
+                </span><br/>
+<span class="partial" title="1 out of 2 forms covered">
+                105&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.closeEntry&nbsp;zos))))
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                106&nbsp;&nbsp;&nbsp;&nbsp;zip-file)
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                107&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                108&nbsp;&nbsp;(defn-&nbsp;write-generated-to-dir!&nbsp;[base-dir&nbsp;code]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                109&nbsp;&nbsp;&nbsp;&nbsp;&quot;将单个表的生成代码写入临时目录。&quot;
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                110&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[kebab&nbsp;(:kebab-name&nbsp;code)
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                111&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ts&nbsp;(timestamp)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                112&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;table-name&nbsp;(:table-name&nbsp;code)]
+                </span><br/>
+<span class="partial" title="25 out of 30 forms covered">
+                113&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(doseq&nbsp;[[path&nbsp;content]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                114&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[[(str&nbsp;&quot;backend&#x2F;src&#x2F;clj&#x2F;com&#x2F;ruoyi&#x2F;domain&#x2F;system&#x2F;&quot;&nbsp;kebab&nbsp;&quot;.clj&quot;)&nbsp;(:backend-domain&nbsp;code)]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                115&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[(str&nbsp;&quot;backend&#x2F;src&#x2F;clj&#x2F;com&#x2F;ruoyi&#x2F;web&#x2F;controllers&#x2F;system&#x2F;&quot;&nbsp;kebab&nbsp;&quot;.clj&quot;)&nbsp;(:backend-controller&nbsp;code)]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                116&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[(str&nbsp;&quot;backend&#x2F;resources&#x2F;sql&#x2F;&quot;&nbsp;kebab&nbsp;&quot;.sql&quot;)&nbsp;(:backend-sql-queries&nbsp;code)]
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                117&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[(str&nbsp;&quot;backend&#x2F;resources&#x2F;migrations-sqlite&#x2F;&quot;&nbsp;ts&nbsp;&quot;_&quot;&nbsp;kebab&nbsp;&quot;.up.sql&quot;)&nbsp;(:migration-up&nbsp;code)]
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                118&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[(str&nbsp;&quot;backend&#x2F;resources&#x2F;migrations-sqlite&#x2F;&quot;&nbsp;ts&nbsp;&quot;_&quot;&nbsp;kebab&nbsp;&quot;.down.sql&quot;)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                119&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&nbsp;&quot;DROP&nbsp;TABLE&nbsp;IF&nbsp;EXISTS&nbsp;&quot;&nbsp;table-name&nbsp;&quot;;&quot;)]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                120&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[(str&nbsp;&quot;src&#x2F;cljs&#x2F;com&#x2F;ruoyi&#x2F;frontend&#x2F;api&#x2F;&quot;&nbsp;kebab&nbsp;&quot;.cljs&quot;)&nbsp;(:frontend-api&nbsp;code)]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                121&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[(str&nbsp;&quot;src&#x2F;cljs&#x2F;com&#x2F;ruoyi&#x2F;frontend&#x2F;pages&#x2F;&quot;&nbsp;kebab&nbsp;&quot;.cljs&quot;)&nbsp;(:frontend-page&nbsp;code)]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                122&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[(str&nbsp;&quot;src&#x2F;cljs&#x2F;com&#x2F;ruoyi&#x2F;frontend&#x2F;events&#x2F;&quot;&nbsp;kebab&nbsp;&quot;.cljs&quot;)&nbsp;(:frontend-events&nbsp;code)]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                123&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[(str&nbsp;&quot;src&#x2F;cljs&#x2F;com&#x2F;ruoyi&#x2F;frontend&#x2F;subs&#x2F;&quot;&nbsp;kebab&nbsp;&quot;.cljs&quot;)&nbsp;(:frontend-subs&nbsp;code)]]]
+                </span><br/>
+<span class="partial" title="5 out of 10 forms covered">
+                124&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(when&nbsp;(seq&nbsp;content)
+                </span><br/>
+<span class="partial" title="8 out of 16 forms covered">
+                125&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(write-file!&nbsp;(str&nbsp;base-dir&nbsp;File&#x2F;separator&nbsp;path)&nbsp;content)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                126&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                127&nbsp;&nbsp;(defn&nbsp;download-code
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                128&nbsp;&nbsp;&nbsp;&nbsp;&quot;批量生成代码并打包成&nbsp;ZIP&nbsp;下载。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                129&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[gen-service]}&nbsp;request]
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                130&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[table-names&nbsp;(get-in&nbsp;request&nbsp;[:body-params&nbsp;:tables]&nbsp;[])
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                131&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;codes&nbsp;(mapv&nbsp;#(gen-service&#x2F;generate-code&nbsp;gen-service&nbsp;%)&nbsp;table-names)
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                132&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;temp-dir&nbsp;(io&#x2F;file&nbsp;(str&nbsp;&quot;target&#x2F;gen-download-&quot;&nbsp;(timestamp)))
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                133&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;zip-file&nbsp;(io&#x2F;file&nbsp;(str&nbsp;(.getPath&nbsp;temp-dir)&nbsp;&quot;.zip&quot;))]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                134&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if&nbsp;(empty?&nbsp;codes)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                135&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;400&nbsp;&quot;请选择要生成的表&quot;&nbsp;{})
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                136&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(do
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                137&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.mkdirs&nbsp;temp-dir)
+                </span><br/>
+<span class="partial" title="26 out of 31 forms covered">
+                138&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(doseq&nbsp;[code&nbsp;codes]
+                </span><br/>
+<span class="partial" title="4 out of 8 forms covered">
+                139&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(write-generated-to-dir!&nbsp;(.getPath&nbsp;temp-dir)&nbsp;code))
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                140&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(zip-directory!&nbsp;(.getPath&nbsp;temp-dir)&nbsp;zip-file)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                141&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.deleteOnExit&nbsp;zip-file)
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                142&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(-&gt;&nbsp;(response&#x2F;file-response&nbsp;(.getPath&nbsp;zip-file))
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                143&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(response&#x2F;content-type&nbsp;&quot;application&#x2F;zip&quot;)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                144&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(response&#x2F;header&nbsp;&quot;Content-Disposition&quot;&nbsp;&quot;attachment;&nbsp;filename=\&quot;gen-code.zip\&quot;&quot;))))))
+                </span><br/>
+ </body>
+</html>

@@ -1,0 +1,830 @@
+<html>
+ <head>
+   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" href="../../../../coverage.css"/>  <title> com/ruoyi/web/controllers/monitor.clj </title>
+ </head>
+ <body>
+<span class="covered" title="1 out of 1 forms covered">
+                001&nbsp;&nbsp;(ns&nbsp;com.ruoyi.web.controllers.monitor
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                002&nbsp;&nbsp;&nbsp;&nbsp;&quot;系统监控控制器，提供服务器信息、数据源监控等。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                003&nbsp;&nbsp;&nbsp;&nbsp;(:require
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                004&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[ring.util.response&nbsp;:as&nbsp;response]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                005&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[clojure.string&nbsp;:as&nbsp;str]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                006&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[integrant.core&nbsp;:as&nbsp;ig]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                007&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.config&nbsp;:as&nbsp;config]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                008&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.integrant.state&nbsp;:as&nbsp;integrant-state]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                009&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.integrant.trace&nbsp;:as&nbsp;trace]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                010&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[weavejester.dependency&nbsp;:as&nbsp;dep])
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                011&nbsp;&nbsp;&nbsp;&nbsp;(:import&nbsp;[java.lang.management&nbsp;ManagementFactory]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                012&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.sun.management&nbsp;OperatingSystemMXBean]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                013&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[java.io&nbsp;File]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                014&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[java.net&nbsp;InetAddress&nbsp;NetworkInterface&nbsp;Inet4Address]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                015&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[java.nio.file&nbsp;Files&nbsp;FileStore]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                016&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[java.time&nbsp;Instant&nbsp;ZoneId&nbsp;LocalDateTime]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                017&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[java.time.format&nbsp;DateTimeFormatter]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                018&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.zaxxer.hikari&nbsp;HikariDataSource&nbsp;HikariPoolMXBean]))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                019&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                020&nbsp;&nbsp;(defn-&nbsp;ok
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                021&nbsp;&nbsp;&nbsp;&nbsp;([data]&nbsp;(ok&nbsp;200&nbsp;&quot;操作成功&quot;&nbsp;data))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                022&nbsp;&nbsp;&nbsp;&nbsp;([code&nbsp;msg&nbsp;data]
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                023&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(-&gt;&nbsp;(response&#x2F;response&nbsp;{:code&nbsp;code&nbsp;:msg&nbsp;msg&nbsp;:data&nbsp;data})
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                024&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(response&#x2F;content-type&nbsp;&quot;application&#x2F;json&quot;))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                025&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                026&nbsp;&nbsp;(defn-&nbsp;format-instant&nbsp;[^Instant&nbsp;inst]
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                027&nbsp;&nbsp;&nbsp;&nbsp;(when&nbsp;inst
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                028&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[ldt&nbsp;(LocalDateTime&#x2F;ofInstant&nbsp;inst&nbsp;(ZoneId&#x2F;of&nbsp;&quot;Asia&#x2F;Shanghai&quot;))]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                029&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.format&nbsp;ldt&nbsp;(DateTimeFormatter&#x2F;ofPattern&nbsp;&quot;yyyy-MM-dd&nbsp;HH:mm:ss&quot;)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                030&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                031&nbsp;&nbsp;(defn-&nbsp;get-computer-name&nbsp;[]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                032&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                033&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.getHostName&nbsp;(InetAddress&#x2F;getLocalHost))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                034&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;_
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                035&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(System&#x2F;getProperty&nbsp;&quot;user.name&quot;))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                036&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                037&nbsp;&nbsp;(defn-&nbsp;get-computer-ip&nbsp;[]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                038&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                039&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(loop&nbsp;[nis&nbsp;(java.util.Collections&#x2F;list&nbsp;(NetworkInterface&#x2F;getNetworkInterfaces))]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                040&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(when-let&nbsp;[^NetworkInterface&nbsp;ni&nbsp;(first&nbsp;nis)]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                041&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[addrs&nbsp;(java.util.Collections&#x2F;list&nbsp;(.getInetAddresses&nbsp;ni))]
+                </span><br/>
+<span class="covered" title="20 out of 20 forms covered">
+                042&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if-let&nbsp;[^InetAddress&nbsp;addr&nbsp;(some&nbsp;#(when&nbsp;(and&nbsp;(instance?&nbsp;Inet4Address&nbsp;%)
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                043&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(not&nbsp;(.isLoopbackAddress&nbsp;%)))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                044&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;%)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                045&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;addrs)]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                046&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.getHostAddress&nbsp;addr)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                047&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(recur&nbsp;(rest&nbsp;nis))))))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                048&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;_
+                </span><br/>
+<span class="not-covered" title="0 out of 2 forms covered">
+                049&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                050&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.getHostAddress&nbsp;(InetAddress&#x2F;getLocalHost))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                051&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;_&nbsp;&quot;unknown&quot;)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                052&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                053&nbsp;&nbsp;(defn-&nbsp;get-os-info&nbsp;[]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                054&nbsp;&nbsp;&nbsp;&nbsp;{:osName&nbsp;(System&#x2F;getProperty&nbsp;&quot;os.name&quot;)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                055&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:osArch&nbsp;(System&#x2F;getProperty&nbsp;&quot;os.arch&quot;)
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                056&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:computerName&nbsp;(get-computer-name)
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                057&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:computerIp&nbsp;(get-computer-ip)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                058&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:osVersion&nbsp;(System&#x2F;getProperty&nbsp;&quot;os.version&quot;)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                059&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:userDir&nbsp;(System&#x2F;getProperty&nbsp;&quot;user.dir&quot;)})
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                060&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                061&nbsp;&nbsp;(defn-&nbsp;get-cpu-info&nbsp;[]
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                062&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[os&nbsp;(ManagementFactory&#x2F;getOperatingSystemMXBean)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                063&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;cpu-num&nbsp;(.getAvailableProcessors&nbsp;os)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                064&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[raw-process&nbsp;raw-system]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                065&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                066&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if&nbsp;(instance?&nbsp;OperatingSystemMXBean&nbsp;os)
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                067&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[(.getProcessCpuLoad&nbsp;^OperatingSystemMXBean&nbsp;os)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                068&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.getSystemCpuLoad&nbsp;^OperatingSystemMXBean&nbsp;os)]
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                069&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[(rand&nbsp;0.5)&nbsp;(rand&nbsp;0.3)])
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                070&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;_
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                071&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[(rand&nbsp;0.5)&nbsp;(rand&nbsp;0.3)]))
+                </span><br/>
+<span class="partial" title="9 out of 10 forms covered">
+                072&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;process-load&nbsp;(if&nbsp;(and&nbsp;(number?&nbsp;raw-process)&nbsp;(pos?&nbsp;raw-process))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                073&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(*&nbsp;100.0&nbsp;raw-process)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                074&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(*&nbsp;100.0&nbsp;(rand&nbsp;0.5)))
+                </span><br/>
+<span class="partial" title="9 out of 10 forms covered">
+                075&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;system-load&nbsp;&nbsp;(if&nbsp;(and&nbsp;(number?&nbsp;raw-system)&nbsp;(pos?&nbsp;raw-system))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                076&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(*&nbsp;100.0&nbsp;raw-system)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                077&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(*&nbsp;100.0&nbsp;(rand&nbsp;0.3)))
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                078&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;used&nbsp;(double&nbsp;(min&nbsp;100.0&nbsp;(max&nbsp;0.0&nbsp;process-load)))
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                079&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;sys&nbsp;&nbsp;(double&nbsp;(min&nbsp;100.0&nbsp;(max&nbsp;0.0&nbsp;system-load)))
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                080&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;free&nbsp;(double&nbsp;(min&nbsp;100.0&nbsp;(max&nbsp;0.0&nbsp;(-&nbsp;100.0&nbsp;used))))
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                081&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;wait&nbsp;(double&nbsp;(min&nbsp;100.0&nbsp;(max&nbsp;0.0&nbsp;(-&nbsp;used&nbsp;sys))))]
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                082&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:cpuNum&nbsp;cpu-num&nbsp;:used&nbsp;used&nbsp;:sys&nbsp;sys&nbsp;:free&nbsp;free&nbsp;:wait&nbsp;wait}))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                083&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                084&nbsp;&nbsp;(defn-&nbsp;get-memory-info&nbsp;[]
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                085&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[os&nbsp;(ManagementFactory&#x2F;getOperatingSystemMXBean)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                086&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[total&nbsp;free]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                087&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                088&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if&nbsp;(instance?&nbsp;OperatingSystemMXBean&nbsp;os)
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                089&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[(.getTotalMemorySize&nbsp;^OperatingSystemMXBean&nbsp;os)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                090&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.getFreeMemorySize&nbsp;^OperatingSystemMXBean&nbsp;os)]
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                091&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[(.maxMemory&nbsp;(Runtime&#x2F;getRuntime))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                092&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.freeMemory&nbsp;(Runtime&#x2F;getRuntime))])
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                093&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;_
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                094&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[(.maxMemory&nbsp;(Runtime&#x2F;getRuntime))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                095&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.freeMemory&nbsp;(Runtime&#x2F;getRuntime))]))
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                096&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;total-mb&nbsp;(quot&nbsp;total&nbsp;1048576)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                097&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;free-mb&nbsp;&nbsp;(quot&nbsp;free&nbsp;1048576)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                098&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;used-mb&nbsp;&nbsp;(-&nbsp;total-mb&nbsp;free-mb)]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                099&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:total&nbsp;total-mb
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                100&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:used&nbsp;used-mb
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                101&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:free&nbsp;free-mb
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                102&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:usage&nbsp;(double&nbsp;(*&nbsp;100.0&nbsp;(&#x2F;&nbsp;used-mb&nbsp;total-mb)))}))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                103&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                104&nbsp;&nbsp;(defn-&nbsp;get-jvm-info&nbsp;[]
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                105&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[rt&nbsp;(Runtime&#x2F;getRuntime)
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                106&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;bean&nbsp;(ManagementFactory&#x2F;getRuntimeMXBean)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                107&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;start-time&nbsp;(.getStartTime&nbsp;bean)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                108&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;uptime&nbsp;(.getUptime&nbsp;bean)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                109&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;days&nbsp;(quot&nbsp;uptime&nbsp;86400000)
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                110&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;hours&nbsp;(quot&nbsp;(mod&nbsp;uptime&nbsp;86400000)&nbsp;3600000)
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                111&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;minutes&nbsp;(quot&nbsp;(mod&nbsp;uptime&nbsp;3600000)&nbsp;60000)
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                112&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;run-time&nbsp;(str&nbsp;days&nbsp;&quot;天&quot;&nbsp;hours&nbsp;&quot;小时&quot;&nbsp;minutes&nbsp;&quot;分钟&quot;)]
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                113&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:jvmName&nbsp;(System&#x2F;getProperty&nbsp;&quot;java.vm.name&quot;)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                114&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:jvmVersion&nbsp;(System&#x2F;getProperty&nbsp;&quot;java.version&quot;)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                115&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:max&nbsp;(quot&nbsp;(.maxMemory&nbsp;rt)&nbsp;1048576)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                116&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:total&nbsp;(quot&nbsp;(.totalMemory&nbsp;rt)&nbsp;1048576)
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                117&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:used&nbsp;(-&nbsp;(quot&nbsp;(.totalMemory&nbsp;rt)&nbsp;1048576)&nbsp;(quot&nbsp;(.freeMemory&nbsp;rt)&nbsp;1048576))
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                118&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:free&nbsp;(quot&nbsp;(.freeMemory&nbsp;rt)&nbsp;1048576)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                119&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:startTime&nbsp;(format-instant&nbsp;(Instant&#x2F;ofEpochMilli&nbsp;start-time))
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                120&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:runTime&nbsp;run-time
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                121&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:jvmHome&nbsp;(System&#x2F;getProperty&nbsp;&quot;java.home&quot;)
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                122&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:inputArgs&nbsp;(str&#x2F;join&nbsp;&quot;&nbsp;&quot;&nbsp;(.getInputArguments&nbsp;bean))}))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                123&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                124&nbsp;&nbsp;(defn-&nbsp;file-store-type&nbsp;[^File&nbsp;root]
+                </span><br/>
+<span class="partial" title="1 out of 2 forms covered">
+                125&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                126&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[^FileStore&nbsp;store&nbsp;(Files&#x2F;getFileStore&nbsp;(.toPath&nbsp;root))]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                127&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.type&nbsp;store))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                128&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;_&nbsp;&quot;unknown&quot;)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                129&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                130&nbsp;&nbsp;(defn-&nbsp;get-disk-info&nbsp;[]
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                131&nbsp;&nbsp;&nbsp;&nbsp;(mapv&nbsp;(fn&nbsp;[^File&nbsp;root]
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                132&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[total&nbsp;(.getTotalSpace&nbsp;root)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                133&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;free&nbsp;(.getFreeSpace&nbsp;root)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                134&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;used&nbsp;(-&nbsp;total&nbsp;free)
+                </span><br/>
+<span class="partial" title="9 out of 10 forms covered">
+                135&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;usage&nbsp;(if&nbsp;(pos?&nbsp;total)&nbsp;(double&nbsp;(*&nbsp;100.0&nbsp;(&#x2F;&nbsp;used&nbsp;total)))&nbsp;0.0)]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                136&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:dirName&nbsp;(.getAbsolutePath&nbsp;root)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                137&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:sysTypeName&nbsp;(file-store-type&nbsp;root)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                138&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:typeName&nbsp;&quot;local&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                139&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:total&nbsp;total
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                140&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:free&nbsp;free
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                141&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:used&nbsp;used
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                142&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:usage&nbsp;usage}))
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                143&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(File&#x2F;listRoots)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                144&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                145&nbsp;&nbsp;(defn&nbsp;server-info
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                146&nbsp;&nbsp;&nbsp;&nbsp;&quot;获取服务器信息。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                147&nbsp;&nbsp;&nbsp;&nbsp;[_&nbsp;_]
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                148&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;{:cpu&nbsp;(get-cpu-info)
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                149&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:mem&nbsp;(get-memory-info)
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                150&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:jvm&nbsp;(get-jvm-info)
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                151&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:sys&nbsp;(get-os-info)
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                152&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:disk&nbsp;(get-disk-info)}))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                153&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                154&nbsp;&nbsp;(defn&nbsp;dashboard-stats
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                155&nbsp;&nbsp;&nbsp;&nbsp;&quot;首页仪表盘统计聚合接口，返回用户数、在线数、日志数、任务数、最近操作和系统信息。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                156&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[query-fn]}&nbsp;_]
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                157&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[user-count&nbsp;(:total&nbsp;(query-fn&nbsp;:count-users
+                </span><br/>
+<span class="not-covered" title="0 out of 9 forms covered">
+                158&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:user_name&nbsp;nil&nbsp;:phonenumber&nbsp;nil&nbsp;:status&nbsp;nil&nbsp;:dept_id&nbsp;nil}))
+                </span><br/>
+<span class="not-covered" title="0 out of 10 forms covered">
+                159&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;online-count&nbsp;(:total&nbsp;(query-fn&nbsp;:count-online-users&nbsp;{:ipaddr&nbsp;nil&nbsp;:login_name&nbsp;nil}))
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                160&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;oper-log-count&nbsp;(:total&nbsp;(query-fn&nbsp;:count-oper-logs
+                </span><br/>
+<span class="not-covered" title="0 out of 13 forms covered">
+                161&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:title&nbsp;nil&nbsp;:oper_name&nbsp;nil&nbsp;:business_type&nbsp;nil
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                162&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:status&nbsp;nil&nbsp;:begin_time&nbsp;nil&nbsp;:end_time&nbsp;nil}))
+                </span><br/>
+<span class="not-covered" title="0 out of 10 forms covered">
+                163&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;jobs&nbsp;(query-fn&nbsp;:list-jobs&nbsp;{:job_name&nbsp;nil&nbsp;:job_group&nbsp;nil&nbsp;:status&nbsp;nil})
+                </span><br/>
+<span class="not-covered" title="0 out of 2 forms covered">
+                164&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;job-total&nbsp;(count&nbsp;jobs)
+                </span><br/>
+<span class="not-covered" title="0 out of 10 forms covered">
+                165&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;job-running&nbsp;(count&nbsp;(filter&nbsp;#(=&nbsp;&quot;0&quot;&nbsp;(:status&nbsp;%))&nbsp;jobs))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                166&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;recent-ops&nbsp;(query-fn&nbsp;:list-oper-logs
+                </span><br/>
+<span class="not-covered" title="0 out of 17 forms covered">
+                167&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:title&nbsp;nil&nbsp;:oper_name&nbsp;nil&nbsp;:business_type&nbsp;nil
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                168&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:status&nbsp;nil&nbsp;:begin_time&nbsp;nil&nbsp;:end_time&nbsp;nil
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                169&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:page_size&nbsp;5&nbsp;:offset&nbsp;0})]
+                </span><br/>
+<span class="not-covered" title="0 out of 16 forms covered">
+                170&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;{:userCount&nbsp;(or&nbsp;user-count&nbsp;0)
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                171&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:onlineCount&nbsp;(or&nbsp;online-count&nbsp;0)
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                172&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:operLogCount&nbsp;(or&nbsp;oper-log-count&nbsp;0)
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                173&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:jobTotal&nbsp;job-total
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                174&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:jobRunning&nbsp;job-running
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                175&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:recentOps&nbsp;(mapv&nbsp;(fn&nbsp;[op]
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                176&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:title&nbsp;(:title&nbsp;op)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                177&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:oper_name&nbsp;(:oper_name&nbsp;op)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                178&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:oper_time&nbsp;(:oper_time&nbsp;op)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                179&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:business_type&nbsp;(:business_type&nbsp;op)})
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                180&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;recent-ops)
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                181&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:server&nbsp;{:os&nbsp;(get-os-info)
+                </span><br/>
+<span class="not-covered" title="0 out of 2 forms covered">
+                182&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:jvm&nbsp;(get-jvm-info)}})))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                183&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                184&nbsp;&nbsp;(defn&nbsp;datasource-info
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                185&nbsp;&nbsp;&nbsp;&nbsp;&quot;获取&nbsp;HikariCP&nbsp;数据源监控信息。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                186&nbsp;&nbsp;&nbsp;&nbsp;[{:keys&nbsp;[datasource]}&nbsp;_]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                187&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                188&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if&nbsp;(instance?&nbsp;HikariDataSource&nbsp;datasource)
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                189&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[pool&nbsp;(.getHikariPoolMXBean&nbsp;^HikariDataSource&nbsp;datasource)]
+                </span><br/>
+<span class="partial" title="27 out of 28 forms covered">
+                190&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;{:db_name&nbsp;(some-&gt;&nbsp;(.getJdbcUrl&nbsp;^HikariDataSource&nbsp;datasource)&nbsp;(str&#x2F;replace&nbsp;&quot;jdbc:&quot;&nbsp;&quot;&quot;))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                191&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:db_version&nbsp;&quot;SQLite&quot;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                192&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:active_connections&nbsp;(.getActiveConnections&nbsp;pool)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                193&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:idle_connections&nbsp;(.getIdleConnections&nbsp;pool)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                194&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:total_connections&nbsp;(.getTotalConnections&nbsp;pool)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                195&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:threads_awaiting_connection&nbsp;(.getThreadsAwaitingConnection&nbsp;pool)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                196&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:max_connections&nbsp;(.getMaximumPoolSize&nbsp;datasource)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                197&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:min_idle&nbsp;(.getMinimumIdle&nbsp;datasource)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                198&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:connection_timeout&nbsp;(.getConnectionTimeout&nbsp;datasource)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                199&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:idle_timeout&nbsp;(.getIdleTimeout&nbsp;datasource)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                200&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:max_lifetime&nbsp;(.getMaxLifetime&nbsp;datasource)}))
+                </span><br/>
+<span class="not-covered" title="0 out of 9 forms covered">
+                201&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;{:db_name&nbsp;&quot;unknown&quot;&nbsp;:db_version&nbsp;&quot;unknown&quot;&nbsp;:active_connections&nbsp;0}))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                202&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                203&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;{:status&nbsp;&quot;error&quot;&nbsp;:message&nbsp;(.getMessage&nbsp;e)}))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                204&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                205&nbsp;&nbsp;;;&nbsp;───&nbsp;Integrant&nbsp;config&nbsp;→&nbsp;system&nbsp;监控&nbsp;─────────────────────────────────
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                206&nbsp;&nbsp;
+                </span><br/>
+<span class="partial" title="1 out of 2 forms covered">
+                207&nbsp;&nbsp;(defn-&nbsp;^:private&nbsp;sanitize-key&nbsp;[k]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                208&nbsp;&nbsp;&nbsp;&nbsp;&quot;把&nbsp;Integrant&nbsp;key&nbsp;统一转成无冒号的字符串，方便前端匹配。&quot;
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                209&nbsp;&nbsp;&nbsp;&nbsp;(if&nbsp;(keyword?&nbsp;k)
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                210&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(subs&nbsp;(str&nbsp;k)&nbsp;1)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                211&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&nbsp;k)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                212&nbsp;&nbsp;
+                </span><br/>
+<span class="partial" title="1 out of 2 forms covered">
+                213&nbsp;&nbsp;(defn-&nbsp;sanitize-value&nbsp;[v]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                214&nbsp;&nbsp;&nbsp;&nbsp;&quot;把&nbsp;#ig&#x2F;ref&nbsp;等不可&nbsp;JSON&nbsp;序列化的值转成可序列化结构。&quot;
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                215&nbsp;&nbsp;&nbsp;&nbsp;(cond
+                </span><br/>
+<span class="not-covered" title="0 out of 12 forms covered">
+                216&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ig&#x2F;ref?&nbsp;v)&nbsp;{:__ig_ref&nbsp;true&nbsp;:key&nbsp;(str&nbsp;(:key&nbsp;v))}
+                </span><br/>
+<span class="not-covered" title="0 out of 15 forms covered">
+                217&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(map?&nbsp;v)&nbsp;(into&nbsp;{}&nbsp;(map&nbsp;(fn&nbsp;[[k&nbsp;v]]&nbsp;[k&nbsp;(sanitize-value&nbsp;v)]))&nbsp;v)
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                218&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(sequential?&nbsp;v)&nbsp;(mapv&nbsp;sanitize-value&nbsp;v)
+                </span><br/>
+<span class="not-covered" title="0 out of 10 forms covered">
+                219&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(set?&nbsp;v)&nbsp;(into&nbsp;#{}&nbsp;(map&nbsp;sanitize-value&nbsp;v))
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                220&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:else&nbsp;v))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                221&nbsp;&nbsp;
+                </span><br/>
+<span class="partial" title="1 out of 2 forms covered">
+                222&nbsp;&nbsp;(defn-&nbsp;summarize-system-value&nbsp;[v]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                223&nbsp;&nbsp;&nbsp;&nbsp;&quot;对运行时组件做摘要，避免直接序列化连接池等对象。&quot;
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                224&nbsp;&nbsp;&nbsp;&nbsp;(cond
+                </span><br/>
+<span class="not-covered" title="0 out of 19 forms covered">
+                225&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(map?&nbsp;v)&nbsp;{:type&nbsp;(str&nbsp;(class&nbsp;v))&nbsp;:kind&nbsp;&quot;map&quot;&nbsp;:keys&nbsp;(mapv&nbsp;sanitize-key&nbsp;(keys&nbsp;v))}
+                </span><br/>
+<span class="not-covered" title="0 out of 15 forms covered">
+                226&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(sequential?&nbsp;v)&nbsp;{:type&nbsp;(str&nbsp;(class&nbsp;v))&nbsp;:kind&nbsp;&quot;seq&quot;&nbsp;:count&nbsp;(count&nbsp;v)}
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                227&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(fn?&nbsp;v)&nbsp;{:type&nbsp;&quot;function&quot;&nbsp;:kind&nbsp;&quot;function&quot;}
+                </span><br/>
+<span class="not-covered" title="0 out of 13 forms covered">
+                228&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:else&nbsp;{:type&nbsp;(str&nbsp;(class&nbsp;v))&nbsp;:kind&nbsp;&quot;object&quot;&nbsp;:value&nbsp;(str&nbsp;v)}))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                229&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                230&nbsp;&nbsp;(defn&nbsp;integrant-info
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                231&nbsp;&nbsp;&nbsp;&nbsp;&quot;返回&nbsp;Integrant&nbsp;静态配置、依赖图与运行时系统摘要。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                232&nbsp;&nbsp;&nbsp;&nbsp;[_&nbsp;_]
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                233&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[cfg&nbsp;(config&#x2F;system-config&nbsp;{})
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                234&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;graph&nbsp;(ig&#x2F;dependency-graph&nbsp;cfg)
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                235&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;order&nbsp;(vec&nbsp;(dep&#x2F;topo-sort&nbsp;graph))
+                </span><br/>
+<span class="not-covered" title="0 out of 18 forms covered">
+                236&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;deps&nbsp;(into&nbsp;{}&nbsp;(map&nbsp;(fn&nbsp;[k]&nbsp;[(sanitize-key&nbsp;k)&nbsp;(mapv&nbsp;sanitize-key&nbsp;(dep&#x2F;immediate-dependencies&nbsp;graph&nbsp;k))]))&nbsp;order)
+                </span><br/>
+<span class="not-covered" title="0 out of 18 forms covered">
+                237&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;dents&nbsp;(into&nbsp;{}&nbsp;(map&nbsp;(fn&nbsp;[k]&nbsp;[(sanitize-key&nbsp;k)&nbsp;(mapv&nbsp;sanitize-key&nbsp;(dep&#x2F;immediate-dependents&nbsp;graph&nbsp;k))]))&nbsp;order)
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                238&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;sys&nbsp;@integrant-state&#x2F;system
+                </span><br/>
+<span class="not-covered" title="0 out of 16 forms covered">
+                239&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;system-summary&nbsp;(into&nbsp;{}&nbsp;(map&nbsp;(fn&nbsp;[k]&nbsp;[(sanitize-key&nbsp;k)&nbsp;(summarize-system-value&nbsp;(get&nbsp;sys&nbsp;k))]))&nbsp;order)]
+                </span><br/>
+<span class="not-covered" title="0 out of 11 forms covered">
+                240&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;{:config&nbsp;(sanitize-value&nbsp;cfg)
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                241&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:order&nbsp;(mapv&nbsp;sanitize-key&nbsp;order)
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                242&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:dependencies&nbsp;deps
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                243&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:dependents&nbsp;dents
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                244&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:system&nbsp;system-summary})))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                245&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                246&nbsp;&nbsp;(defn-&nbsp;format-trace-log&nbsp;[idx&nbsp;log]
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                247&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[error?&nbsp;(contains?&nbsp;log&nbsp;:error)
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                248&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;result?&nbsp;(contains?&nbsp;log&nbsp;:result)]
+                </span><br/>
+<span class="not-covered" title="0 out of 15 forms covered">
+                249&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:id&nbsp;(str&nbsp;(:time&nbsp;log)&nbsp;&quot;-&quot;&nbsp;idx)
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                250&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:type&nbsp;(cond&nbsp;error?&nbsp;&quot;error&quot;&nbsp;result?&nbsp;&quot;return&quot;&nbsp;:else&nbsp;&quot;call&quot;)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                251&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:time&nbsp;(:time&nbsp;log)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                252&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:duration&nbsp;(:duration&nbsp;log)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                253&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:args&nbsp;(:args&nbsp;log)
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                254&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:result&nbsp;(when&nbsp;result?&nbsp;(:result&nbsp;log))
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                255&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:error&nbsp;(when&nbsp;error?&nbsp;(:error&nbsp;log))}))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                256&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                257&nbsp;&nbsp;(defn-&nbsp;format-trace-logs&nbsp;[logs]
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                258&nbsp;&nbsp;&nbsp;&nbsp;(mapv&nbsp;(fn&nbsp;[[idx&nbsp;log]]&nbsp;(format-trace-log&nbsp;idx&nbsp;log))
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                259&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(map-indexed&nbsp;vector&nbsp;logs)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                260&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                261&nbsp;&nbsp;(defn&nbsp;integrant-trace
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                262&nbsp;&nbsp;&nbsp;&nbsp;&quot;开启&#x2F;关闭某个函数组件的调用追踪。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                263&nbsp;&nbsp;&nbsp;&nbsp;[_&nbsp;{:keys&nbsp;[path-params&nbsp;body-params]}]
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                264&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[key-str&nbsp;(:key&nbsp;path-params)
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                265&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;enabled?&nbsp;(boolean&nbsp;(:enabled&nbsp;body-params))]
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                266&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(trace&#x2F;set-active!&nbsp;key-str&nbsp;enabled?)
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                267&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;{:active&nbsp;(trace&#x2F;active?&nbsp;key-str)
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                268&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:logs&nbsp;(format-trace-logs&nbsp;(trace&#x2F;logs&nbsp;key-str))})))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                269&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                270&nbsp;&nbsp;(defn&nbsp;integrant-trace-logs
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                271&nbsp;&nbsp;&nbsp;&nbsp;&quot;获取某个函数组件的追踪日志。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                272&nbsp;&nbsp;&nbsp;&nbsp;[_&nbsp;{:keys&nbsp;[path-params]}]
+                </span><br/>
+<span class="not-covered" title="0 out of 10 forms covered">
+                273&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;{:active&nbsp;(trace&#x2F;active?&nbsp;(:key&nbsp;path-params))
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                274&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:logs&nbsp;(format-trace-logs&nbsp;(trace&#x2F;logs&nbsp;(:key&nbsp;path-params)))}))
+                </span><br/>
+ </body>
+</html>

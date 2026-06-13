@@ -1,0 +1,1151 @@
+<html>
+ <head>
+   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" href="../../../../../coverage.css"/>  <title> com/ruoyi/web/controllers/business/core.clj </title>
+ </head>
+ <body>
+<span class="covered" title="1 out of 1 forms covered">
+                001&nbsp;&nbsp;(ns&nbsp;com.ruoyi.web.controllers.business.core
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                002&nbsp;&nbsp;&nbsp;&nbsp;&quot;工程方案与资源管理业务控制器。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                003&nbsp;&nbsp;&nbsp;&nbsp;(:require
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                004&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[clojure.java.io&nbsp;:as&nbsp;io]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                005&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[clojure.string&nbsp;:as&nbsp;str]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                006&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[ring.util.response&nbsp;:as&nbsp;response]))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                007&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                008&nbsp;&nbsp;(def&nbsp;upload-root&nbsp;&quot;uploads&#x2F;business&quot;)
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                009&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                010&nbsp;&nbsp;(defn-&nbsp;q-fn
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                011&nbsp;&nbsp;&nbsp;&nbsp;&quot;获取业务服务的&nbsp;query-fn，确保调用顺序与系统其他控制器一致。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                012&nbsp;&nbsp;&nbsp;&nbsp;[business-service&nbsp;query-name&nbsp;params&nbsp;&amp;&nbsp;_]
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                013&nbsp;&nbsp;&nbsp;&nbsp;((:query-fn&nbsp;business-service)&nbsp;query-name&nbsp;params))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                014&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                015&nbsp;&nbsp;(defn-&nbsp;ok
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                016&nbsp;&nbsp;&nbsp;&nbsp;([data]&nbsp;(ok&nbsp;200&nbsp;&quot;操作成功&quot;&nbsp;data))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                017&nbsp;&nbsp;&nbsp;&nbsp;([code&nbsp;msg&nbsp;data]
+                </span><br/>
+<span class="not-covered" title="0 out of 11 forms covered">
+                018&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(-&gt;&nbsp;(response&#x2F;response&nbsp;{:code&nbsp;code&nbsp;:msg&nbsp;msg&nbsp;:data&nbsp;data})
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                019&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(response&#x2F;content-type&nbsp;&quot;application&#x2F;json&quot;))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                020&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                021&nbsp;&nbsp;(defn-&nbsp;fail&nbsp;[msg]
+                </span><br/>
+<span class="not-covered" title="0 out of 9 forms covered">
+                022&nbsp;&nbsp;&nbsp;&nbsp;(-&gt;&nbsp;(response&#x2F;response&nbsp;{:code&nbsp;500&nbsp;:msg&nbsp;msg})
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                023&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(response&#x2F;content-type&nbsp;&quot;application&#x2F;json&quot;)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                024&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                025&nbsp;&nbsp;(defn-&nbsp;parse-int*&nbsp;[value&nbsp;default]
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                026&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                027&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(cond
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                028&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(int?&nbsp;value)&nbsp;value
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                029&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(string?&nbsp;value)&nbsp;(Integer&#x2F;parseInt&nbsp;value)
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                030&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(nil?&nbsp;value)&nbsp;default
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                031&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:else&nbsp;default)
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                032&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;_&nbsp;default)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                033&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                034&nbsp;&nbsp;(defn-&nbsp;parse-id&nbsp;[request]
+                </span><br/>
+<span class="not-covered" title="0 out of 9 forms covered">
+                035&nbsp;&nbsp;&nbsp;&nbsp;(parse-int*&nbsp;(get-in&nbsp;request&nbsp;[:path-params&nbsp;:id])&nbsp;nil))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                036&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                037&nbsp;&nbsp;(defn-&nbsp;current-user&nbsp;[request]
+                </span><br/>
+<span class="not-covered" title="0 out of 11 forms covered">
+                038&nbsp;&nbsp;&nbsp;&nbsp;(or&nbsp;(get-in&nbsp;request&nbsp;[:identity&nbsp;:user-name])&nbsp;&quot;&quot;))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                039&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                040&nbsp;&nbsp;(defn-&nbsp;blank-&gt;nil&nbsp;[value]
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                041&nbsp;&nbsp;&nbsp;&nbsp;(cond
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                042&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(nil?&nbsp;value)&nbsp;nil
+                </span><br/>
+<span class="not-covered" title="0 out of 10 forms covered">
+                043&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(and&nbsp;(string?&nbsp;value)&nbsp;(str&#x2F;blank?&nbsp;value))&nbsp;nil
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                044&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:else&nbsp;value))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                045&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                046&nbsp;&nbsp;(defn-&nbsp;paging&nbsp;[params]
+                </span><br/>
+<span class="not-covered" title="0 out of 16 forms covered">
+                047&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[page&nbsp;(max&nbsp;1&nbsp;(parse-int*&nbsp;(or&nbsp;(get&nbsp;params&nbsp;&quot;page&quot;)&nbsp;(get&nbsp;params&nbsp;:page))&nbsp;1))
+                </span><br/>
+<span class="not-covered" title="0 out of 15 forms covered">
+                048&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;size&nbsp;(max&nbsp;1&nbsp;(parse-int*&nbsp;(or&nbsp;(get&nbsp;params&nbsp;&quot;size&quot;)&nbsp;(get&nbsp;params&nbsp;:size))&nbsp;10))]
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                049&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:limit&nbsp;size&nbsp;:offset&nbsp;(*&nbsp;(dec&nbsp;page)&nbsp;size)}))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                050&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                051&nbsp;&nbsp;(defn-&nbsp;q&nbsp;[params&nbsp;key]
+                </span><br/>
+<span class="not-covered" title="0 out of 14 forms covered">
+                052&nbsp;&nbsp;&nbsp;&nbsp;(blank-&gt;nil&nbsp;(or&nbsp;(get&nbsp;params&nbsp;(name&nbsp;key))&nbsp;(get&nbsp;params&nbsp;key))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                053&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                054&nbsp;&nbsp;(defn-&nbsp;common-query&nbsp;[params&nbsp;keys]
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                055&nbsp;&nbsp;&nbsp;&nbsp;(merge&nbsp;(paging&nbsp;params)
+                </span><br/>
+<span class="not-covered" title="0 out of 13 forms covered">
+                056&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(into&nbsp;{}&nbsp;(map&nbsp;(fn&nbsp;[k]&nbsp;[k&nbsp;(q&nbsp;params&nbsp;k)])&nbsp;keys))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                057&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                058&nbsp;&nbsp;(defn-&nbsp;body-with-defaults&nbsp;[body&nbsp;defaults]
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                059&nbsp;&nbsp;&nbsp;&nbsp;(merge&nbsp;defaults&nbsp;body))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                060&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                061&nbsp;&nbsp;(defn-&nbsp;last-id&nbsp;[business-service]
+                </span><br/>
+<span class="not-covered" title="0 out of 9 forms covered">
+                062&nbsp;&nbsp;&nbsp;&nbsp;(get&nbsp;(q-fn&nbsp;business-service&nbsp;:last-insert-rowid&nbsp;{})&nbsp;(keyword&nbsp;&quot;last_insert_rowid()&quot;)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                063&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                064&nbsp;&nbsp;(defn-&nbsp;with-create-user&nbsp;[params&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                065&nbsp;&nbsp;&nbsp;&nbsp;(assoc&nbsp;params&nbsp;:create_by&nbsp;(current-user&nbsp;request)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                066&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                067&nbsp;&nbsp;(defn-&nbsp;with-update-user&nbsp;[params&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                068&nbsp;&nbsp;&nbsp;&nbsp;(assoc&nbsp;params&nbsp;:update_by&nbsp;(current-user&nbsp;request)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                069&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                070&nbsp;&nbsp;(defn&nbsp;list-engineerings&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 10 forms covered">
+                071&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[params&nbsp;(common-query&nbsp;(:query-params&nbsp;request)&nbsp;[:engineering_name&nbsp;:engineering_code&nbsp;:status])
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                072&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;rows&nbsp;(q-fn&nbsp;business-service&nbsp;:list-engineerings&nbsp;params)
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                073&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;total&nbsp;(q-fn&nbsp;business-service&nbsp;:count-engineerings&nbsp;params&nbsp;{:result-set-fn&nbsp;first})]
+                </span><br/>
+<span class="not-covered" title="0 out of 9 forms covered">
+                074&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;{:rows&nbsp;rows&nbsp;:total&nbsp;(:total&nbsp;total)})))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                075&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                076&nbsp;&nbsp;(defn&nbsp;get-engineering&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 13 forms covered">
+                077&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[row&nbsp;(q-fn&nbsp;business-service&nbsp;:get-engineering&nbsp;{:id&nbsp;(parse-id&nbsp;request)}&nbsp;{:result-set-fn&nbsp;first})]
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                078&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if&nbsp;row&nbsp;(ok&nbsp;row)&nbsp;(fail&nbsp;&quot;工程不存在&quot;))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                079&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                080&nbsp;&nbsp;(defn&nbsp;create-engineering&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                081&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                082&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[params&nbsp;(-&gt;&nbsp;(:body-params&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 11 forms covered">
+                083&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(body-with-defaults&nbsp;{:engineering_code&nbsp;&quot;&quot;&nbsp;:description&nbsp;&quot;&quot;&nbsp;:status&nbsp;&quot;0&quot;&nbsp;:remark&nbsp;&quot;&quot;})
+                </span><br/>
+<span class="not-covered" title="0 out of 2 forms covered">
+                084&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(with-create-user&nbsp;request))]
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                085&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(q-fn&nbsp;business-service&nbsp;:create-engineering!&nbsp;params)
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                086&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;{:id&nbsp;(last-id&nbsp;business-service)}))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                087&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e&nbsp;(fail&nbsp;(.getMessage&nbsp;e)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                088&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                089&nbsp;&nbsp;(defn&nbsp;update-engineering&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                090&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                091&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[params&nbsp;(-&gt;&nbsp;(:body-params&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 11 forms covered">
+                092&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(body-with-defaults&nbsp;{:engineering_code&nbsp;&quot;&quot;&nbsp;:description&nbsp;&quot;&quot;&nbsp;:status&nbsp;&quot;0&quot;&nbsp;:remark&nbsp;&quot;&quot;})
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                093&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(assoc&nbsp;:id&nbsp;(parse-id&nbsp;request))
+                </span><br/>
+<span class="not-covered" title="0 out of 2 forms covered">
+                094&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(with-update-user&nbsp;request))]
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                095&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(q-fn&nbsp;business-service&nbsp;:update-engineering!&nbsp;params)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                096&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;&quot;更新成功&quot;))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                097&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e&nbsp;(fail&nbsp;(.getMessage&nbsp;e)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                098&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                099&nbsp;&nbsp;(defn&nbsp;delete-engineering&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 9 forms covered">
+                100&nbsp;&nbsp;&nbsp;&nbsp;(q-fn&nbsp;business-service&nbsp;:delete-engineering!&nbsp;{:id&nbsp;(parse-id&nbsp;request)})
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                101&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;&quot;删除成功&quot;))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                102&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                103&nbsp;&nbsp;(def&nbsp;project-defaults
+                </span><br/>
+<span class="covered" title="45 out of 45 forms covered">
+                104&nbsp;&nbsp;&nbsp;&nbsp;{:engineering_id&nbsp;nil&nbsp;:engineering_name&nbsp;&quot;&quot;&nbsp;:project_code&nbsp;&quot;&quot;&nbsp;:project_address&nbsp;&quot;&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                105&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:construction_unit&nbsp;&quot;&quot;&nbsp;:contractor_unit&nbsp;&quot;&quot;&nbsp;:supervision_unit&nbsp;&quot;&quot;&nbsp;:design_unit&nbsp;&quot;&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                106&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:survey_unit&nbsp;&quot;&quot;&nbsp;:project_manager&nbsp;&quot;&quot;&nbsp;:project_leader&nbsp;&quot;&quot;&nbsp;:contact_phone&nbsp;&quot;&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                107&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:contract_period&nbsp;&quot;&quot;&nbsp;:start_date&nbsp;nil&nbsp;:end_date&nbsp;nil&nbsp;:building_area&nbsp;&quot;&quot;&nbsp;:project_cost&nbsp;&quot;&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                108&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:structure_type&nbsp;&quot;&quot;&nbsp;:building_floors&nbsp;&quot;&quot;&nbsp;:project_overview&nbsp;&quot;&quot;&nbsp;:extra_json&nbsp;&quot;{}&quot;&nbsp;:remark&nbsp;&quot;&quot;})
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                109&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                110&nbsp;&nbsp;(defn&nbsp;list-projects&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 11 forms covered">
+                111&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[params&nbsp;(common-query&nbsp;(:query-params&nbsp;request)&nbsp;[:engineering_id&nbsp;:project_name&nbsp;:project_code&nbsp;:construction_unit])
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                112&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;rows&nbsp;(q-fn&nbsp;business-service&nbsp;:list-projects&nbsp;params)
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                113&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;total&nbsp;(q-fn&nbsp;business-service&nbsp;:count-projects&nbsp;params)]
+                </span><br/>
+<span class="not-covered" title="0 out of 9 forms covered">
+                114&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;{:rows&nbsp;rows&nbsp;:total&nbsp;(:total&nbsp;total)})))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                115&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                116&nbsp;&nbsp;(defn&nbsp;get-project&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                117&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[id&nbsp;(parse-id&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 10 forms covered">
+                118&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;row&nbsp;(q-fn&nbsp;business-service&nbsp;:get-project&nbsp;{:id&nbsp;id}&nbsp;{:result-set-fn&nbsp;first})
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                119&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;teams&nbsp;(q-fn&nbsp;business-service&nbsp;:list-subcontract-teams&nbsp;{:project_id&nbsp;id})
+                </span><br/>
+<span class="not-covered" title="0 out of 13 forms covered">
+                120&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;attachments&nbsp;(q-fn&nbsp;business-service&nbsp;:list-attachments&nbsp;{:biz_type&nbsp;&quot;project&quot;&nbsp;:biz_id&nbsp;id&nbsp;:section_key&nbsp;nil&nbsp;:file_purpose&nbsp;nil})]
+                </span><br/>
+<span class="not-covered" title="0 out of 14 forms covered">
+                121&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if&nbsp;row&nbsp;(ok&nbsp;(assoc&nbsp;row&nbsp;:teams&nbsp;teams&nbsp;:attachments&nbsp;attachments))&nbsp;(fail&nbsp;&quot;项目不存在&quot;))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                122&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                123&nbsp;&nbsp;(defn&nbsp;create-project&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                124&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                125&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[params&nbsp;(-&gt;&nbsp;(:body-params&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                126&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(body-with-defaults&nbsp;project-defaults)
+                </span><br/>
+<span class="not-covered" title="0 out of 2 forms covered">
+                127&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(with-create-user&nbsp;request))]
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                128&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(q-fn&nbsp;business-service&nbsp;:create-project!&nbsp;params)
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                129&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;{:id&nbsp;(last-id&nbsp;business-service)}))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                130&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e&nbsp;(fail&nbsp;(.getMessage&nbsp;e)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                131&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                132&nbsp;&nbsp;(defn&nbsp;update-project&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                133&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                134&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[params&nbsp;(-&gt;&nbsp;(:body-params&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                135&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(body-with-defaults&nbsp;project-defaults)
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                136&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(assoc&nbsp;:id&nbsp;(parse-id&nbsp;request))
+                </span><br/>
+<span class="not-covered" title="0 out of 2 forms covered">
+                137&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(with-update-user&nbsp;request))]
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                138&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(q-fn&nbsp;business-service&nbsp;:update-project!&nbsp;params)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                139&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;&quot;更新成功&quot;))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                140&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e&nbsp;(fail&nbsp;(.getMessage&nbsp;e)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                141&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                142&nbsp;&nbsp;(defn&nbsp;delete-project&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 9 forms covered">
+                143&nbsp;&nbsp;&nbsp;&nbsp;(q-fn&nbsp;business-service&nbsp;:delete-project!&nbsp;{:id&nbsp;(parse-id&nbsp;request)})
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                144&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;&quot;删除成功&quot;))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                145&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                146&nbsp;&nbsp;(defn&nbsp;list-subcontract-teams&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 11 forms covered">
+                147&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;(q-fn&nbsp;business-service&nbsp;:list-subcontract-teams&nbsp;{:project_id&nbsp;(parse-id&nbsp;request)})))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                148&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                149&nbsp;&nbsp;(defn&nbsp;create-subcontract-team&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                150&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                151&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[params&nbsp;(-&gt;&nbsp;(:body-params&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 13 forms covered">
+                152&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(body-with-defaults&nbsp;{:leader_name&nbsp;&quot;&quot;&nbsp;:contact_phone&nbsp;&quot;&quot;&nbsp;:work_scope&nbsp;&quot;&quot;&nbsp;:extra_json&nbsp;&quot;{}&quot;&nbsp;:remark&nbsp;&quot;&quot;})
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                153&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(assoc&nbsp;:project_id&nbsp;(parse-id&nbsp;request))
+                </span><br/>
+<span class="not-covered" title="0 out of 2 forms covered">
+                154&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(with-create-user&nbsp;request))]
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                155&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(q-fn&nbsp;business-service&nbsp;:create-subcontract-team!&nbsp;params)
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                156&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;{:id&nbsp;(last-id&nbsp;business-service)}))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                157&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e&nbsp;(fail&nbsp;(.getMessage&nbsp;e)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                158&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                159&nbsp;&nbsp;(defn&nbsp;update-subcontract-team&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                160&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                161&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[params&nbsp;(-&gt;&nbsp;(:body-params&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 13 forms covered">
+                162&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(body-with-defaults&nbsp;{:leader_name&nbsp;&quot;&quot;&nbsp;:contact_phone&nbsp;&quot;&quot;&nbsp;:work_scope&nbsp;&quot;&quot;&nbsp;:extra_json&nbsp;&quot;{}&quot;&nbsp;:remark&nbsp;&quot;&quot;})
+                </span><br/>
+<span class="not-covered" title="0 out of 12 forms covered">
+                163&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(assoc&nbsp;:id&nbsp;(parse-int*&nbsp;(get-in&nbsp;request&nbsp;[:path-params&nbsp;:team-id])&nbsp;nil))
+                </span><br/>
+<span class="not-covered" title="0 out of 2 forms covered">
+                164&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(with-update-user&nbsp;request))]
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                165&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(q-fn&nbsp;business-service&nbsp;:update-subcontract-team!&nbsp;params)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                166&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;&quot;更新成功&quot;))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                167&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e&nbsp;(fail&nbsp;(.getMessage&nbsp;e)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                168&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                169&nbsp;&nbsp;(defn&nbsp;delete-subcontract-team&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 15 forms covered">
+                170&nbsp;&nbsp;&nbsp;&nbsp;(q-fn&nbsp;business-service&nbsp;:delete-subcontract-team!&nbsp;{:id&nbsp;(parse-int*&nbsp;(get-in&nbsp;request&nbsp;[:path-params&nbsp;:team-id])&nbsp;nil)})
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                171&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;&quot;删除成功&quot;))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                172&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                173&nbsp;&nbsp;(def&nbsp;solution-defaults
+                </span><br/>
+<span class="covered" title="15 out of 15 forms covered">
+                174&nbsp;&nbsp;&nbsp;&nbsp;{:engineering_id&nbsp;nil&nbsp;:project_id&nbsp;nil&nbsp;:engineering_name&nbsp;&quot;&quot;&nbsp;:project_name&nbsp;&quot;&quot;&nbsp;:status&nbsp;&quot;draft&quot;&nbsp;:progress&nbsp;0&nbsp;:remark&nbsp;&quot;&quot;})
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                175&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                176&nbsp;&nbsp;(defn&nbsp;list-solutions&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 11 forms covered">
+                177&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[params&nbsp;(common-query&nbsp;(:query-params&nbsp;request)&nbsp;[:solution_name&nbsp;:engineering_id&nbsp;:project_id&nbsp;:status])
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                178&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;rows&nbsp;(q-fn&nbsp;business-service&nbsp;:list-solutions&nbsp;params)
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                179&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;total&nbsp;(q-fn&nbsp;business-service&nbsp;:count-solutions&nbsp;params&nbsp;{:result-set-fn&nbsp;first})]
+                </span><br/>
+<span class="not-covered" title="0 out of 9 forms covered">
+                180&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;{:rows&nbsp;rows&nbsp;:total&nbsp;(:total&nbsp;total)})))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                181&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                182&nbsp;&nbsp;(defn&nbsp;get-solution&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 13 forms covered">
+                183&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[row&nbsp;(q-fn&nbsp;business-service&nbsp;:get-solution&nbsp;{:id&nbsp;(parse-id&nbsp;request)}&nbsp;{:result-set-fn&nbsp;first})]
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                184&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if&nbsp;row&nbsp;(ok&nbsp;row)&nbsp;(fail&nbsp;&quot;方案不存在&quot;))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                185&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                186&nbsp;&nbsp;(defn&nbsp;create-solution&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                187&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                188&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[params&nbsp;(-&gt;&nbsp;(:body-params&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                189&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(body-with-defaults&nbsp;solution-defaults)
+                </span><br/>
+<span class="not-covered" title="0 out of 2 forms covered">
+                190&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(with-create-user&nbsp;request))]
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                191&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(q-fn&nbsp;business-service&nbsp;:create-solution!&nbsp;params)
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                192&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;{:id&nbsp;(last-id&nbsp;business-service)}))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                193&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e&nbsp;(fail&nbsp;(.getMessage&nbsp;e)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                194&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                195&nbsp;&nbsp;(defn&nbsp;update-solution&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                196&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                197&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[params&nbsp;(-&gt;&nbsp;(:body-params&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                198&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(body-with-defaults&nbsp;solution-defaults)
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                199&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(assoc&nbsp;:id&nbsp;(parse-id&nbsp;request))
+                </span><br/>
+<span class="not-covered" title="0 out of 2 forms covered">
+                200&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(with-update-user&nbsp;request))]
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                201&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(q-fn&nbsp;business-service&nbsp;:update-solution!&nbsp;params)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                202&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;&quot;更新成功&quot;))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                203&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e&nbsp;(fail&nbsp;(.getMessage&nbsp;e)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                204&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                205&nbsp;&nbsp;(defn&nbsp;delete-solution&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 9 forms covered">
+                206&nbsp;&nbsp;&nbsp;&nbsp;(q-fn&nbsp;business-service&nbsp;:delete-solution!&nbsp;{:id&nbsp;(parse-id&nbsp;request)})
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                207&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;&quot;删除成功&quot;))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                208&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                209&nbsp;&nbsp;(def&nbsp;section-titles
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                210&nbsp;&nbsp;&nbsp;&nbsp;{&quot;project-info&quot;&nbsp;&quot;项目信息&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                211&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;people-org&quot;&nbsp;&quot;人员和组织&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                212&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;cover&quot;&nbsp;&quot;封面&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                213&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;design-overview&quot;&nbsp;&quot;设计概况&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                214&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;layout-plan&quot;&nbsp;&quot;平面布置图&quot;})
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                215&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                216&nbsp;&nbsp;(defn&nbsp;get-solution-section&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                217&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[params&nbsp;{:solution_id&nbsp;(parse-id&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                218&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:section_key&nbsp;(get-in&nbsp;request&nbsp;[:path-params&nbsp;:section-key])}
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                219&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;row&nbsp;(q-fn&nbsp;business-service&nbsp;:get-solution-section&nbsp;params&nbsp;{:result-set-fn&nbsp;first})]
+                </span><br/>
+<span class="not-covered" title="0 out of 21 forms covered">
+                220&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;(or&nbsp;row&nbsp;(assoc&nbsp;params&nbsp;:section_title&nbsp;(get&nbsp;section-titles&nbsp;(:section_key&nbsp;params)&nbsp;(:section_key&nbsp;params))&nbsp;:content_json&nbsp;&quot;{}&quot;)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                221&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                222&nbsp;&nbsp;(defn&nbsp;save-solution-section&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                223&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                224&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[section-key&nbsp;(get-in&nbsp;request&nbsp;[:path-params&nbsp;:section-key])
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                225&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;body&nbsp;(:body-params&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 12 forms covered">
+                226&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;params&nbsp;{:solution_id&nbsp;(parse-id&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                227&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:section_key&nbsp;section-key
+                </span><br/>
+<span class="not-covered" title="0 out of 11 forms covered">
+                228&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:section_title&nbsp;(or&nbsp;(:section_title&nbsp;body)&nbsp;(get&nbsp;section-titles&nbsp;section-key&nbsp;section-key))
+                </span><br/>
+<span class="not-covered" title="0 out of 15 forms covered">
+                229&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:content_json&nbsp;(or&nbsp;(:content_json&nbsp;body)&nbsp;(:content&nbsp;body)&nbsp;&quot;{}&quot;)
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                230&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:sort_order&nbsp;(or&nbsp;(:sort_order&nbsp;body)&nbsp;0)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                231&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:create_by&nbsp;(current-user&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                232&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:update_by&nbsp;(current-user&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                233&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:remark&nbsp;(or&nbsp;(:remark&nbsp;body)&nbsp;&quot;&quot;)}]
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                234&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(q-fn&nbsp;business-service&nbsp;:upsert-solution-section!&nbsp;params)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                235&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;&quot;保存成功&quot;))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                236&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e&nbsp;(fail&nbsp;(.getMessage&nbsp;e)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                237&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                238&nbsp;&nbsp;(def&nbsp;resource-defaults
+                </span><br/>
+<span class="covered" title="35 out of 35 forms covered">
+                239&nbsp;&nbsp;&nbsp;&nbsp;{:code&nbsp;&quot;&quot;&nbsp;:category&nbsp;&quot;&quot;&nbsp;:publish_unit&nbsp;&quot;&quot;&nbsp;:publish_date&nbsp;nil&nbsp;:effective_date&nbsp;nil
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                240&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:file_name&nbsp;&quot;&quot;&nbsp;:file_type&nbsp;&quot;&quot;&nbsp;:vector_status&nbsp;&quot;pending&quot;&nbsp;:tags&nbsp;&quot;&quot;&nbsp;:related_project_name&nbsp;&quot;&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                241&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:structured_fields&nbsp;&quot;&quot;&nbsp;:summary&nbsp;&quot;&quot;&nbsp;:content&nbsp;&quot;&quot;&nbsp;:status&nbsp;&quot;0&quot;&nbsp;:sort_order&nbsp;0&nbsp;:extra_json&nbsp;&quot;{}&quot;&nbsp;:remark&nbsp;&quot;&quot;})
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                242&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                243&nbsp;&nbsp;(defn&nbsp;list-resources&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 14 forms covered">
+                244&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[params&nbsp;(assoc&nbsp;(common-query&nbsp;(:query-params&nbsp;request)&nbsp;[:name&nbsp;:code&nbsp;:category&nbsp;:status])
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                245&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:resource_type&nbsp;(get-in&nbsp;request&nbsp;[:path-params&nbsp;:type]))
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                246&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;rows&nbsp;(q-fn&nbsp;business-service&nbsp;:list-resources&nbsp;params)
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                247&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;total&nbsp;(q-fn&nbsp;business-service&nbsp;:count-resources&nbsp;params)]
+                </span><br/>
+<span class="not-covered" title="0 out of 9 forms covered">
+                248&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;{:rows&nbsp;rows&nbsp;:total&nbsp;(:total&nbsp;total)})))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                249&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                250&nbsp;&nbsp;(defn&nbsp;get-resource&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 13 forms covered">
+                251&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[params&nbsp;{:id&nbsp;(parse-id&nbsp;request)&nbsp;:resource_type&nbsp;(get-in&nbsp;request&nbsp;[:path-params&nbsp;:type])}
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                252&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;row&nbsp;(q-fn&nbsp;business-service&nbsp;:get-resource&nbsp;params)
+                </span><br/>
+<span class="not-covered" title="0 out of 17 forms covered">
+                253&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;attachments&nbsp;(q-fn&nbsp;business-service&nbsp;:list-attachments&nbsp;{:biz_type&nbsp;(:resource_type&nbsp;params)&nbsp;:biz_id&nbsp;(:id&nbsp;params)&nbsp;:section_key&nbsp;nil&nbsp;:file_purpose&nbsp;nil})]
+                </span><br/>
+<span class="not-covered" title="0 out of 12 forms covered">
+                254&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if&nbsp;row&nbsp;(ok&nbsp;(assoc&nbsp;row&nbsp;:attachments&nbsp;attachments))&nbsp;(fail&nbsp;&quot;资源不存在&quot;))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                255&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                256&nbsp;&nbsp;(defn&nbsp;create-resource&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                257&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                258&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[query-fn&nbsp;(:query-fn&nbsp;business-service)
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                259&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;params&nbsp;(-&gt;&nbsp;(:body-params&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                260&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(body-with-defaults&nbsp;resource-defaults)
+                </span><br/>
+<span class="not-covered" title="0 out of 9 forms covered">
+                261&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(assoc&nbsp;:resource_type&nbsp;(get-in&nbsp;request&nbsp;[:path-params&nbsp;:type]))
+                </span><br/>
+<span class="not-covered" title="0 out of 2 forms covered">
+                262&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(with-create-user&nbsp;request))]
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                263&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(query-fn&nbsp;:create-resource!&nbsp;params)
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                264&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;{:id&nbsp;(last-id&nbsp;business-service)}))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                265&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e&nbsp;(fail&nbsp;(.getMessage&nbsp;e)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                266&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                267&nbsp;&nbsp;(defn&nbsp;update-resource&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                268&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                269&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[params&nbsp;(-&gt;&nbsp;(:body-params&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                270&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(body-with-defaults&nbsp;resource-defaults)
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                271&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(assoc&nbsp;:id&nbsp;(parse-id&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                272&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:resource_type&nbsp;(get-in&nbsp;request&nbsp;[:path-params&nbsp;:type]))
+                </span><br/>
+<span class="not-covered" title="0 out of 2 forms covered">
+                273&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(with-update-user&nbsp;request))]
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                274&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;((:query-fn&nbsp;business-service)&nbsp;:update-resource!&nbsp;params)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                275&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;&quot;更新成功&quot;))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                276&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e&nbsp;(fail&nbsp;(.getMessage&nbsp;e)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                277&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                278&nbsp;&nbsp;(defn&nbsp;delete-resource&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 17 forms covered">
+                279&nbsp;&nbsp;&nbsp;&nbsp;((:query-fn&nbsp;business-service)&nbsp;:delete-resource!&nbsp;{:id&nbsp;(parse-id&nbsp;request)&nbsp;:resource_type&nbsp;(get-in&nbsp;request&nbsp;[:path-params&nbsp;:type])})
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                280&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;&quot;删除成功&quot;))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                281&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                282&nbsp;&nbsp;(defn-&nbsp;ensure-dir!&nbsp;[path]
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                283&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[dir&nbsp;(io&#x2F;file&nbsp;path)]
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                284&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(when-not&nbsp;(.exists&nbsp;dir)&nbsp;(.mkdirs&nbsp;dir))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                285&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                286&nbsp;&nbsp;(defn-&nbsp;extension&nbsp;[filename]
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                287&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[idx&nbsp;(str&#x2F;last-index-of&nbsp;filename&nbsp;&quot;.&quot;)]
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                288&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if&nbsp;idx&nbsp;(subs&nbsp;filename&nbsp;idx)&nbsp;&quot;&quot;)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                289&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                290&nbsp;&nbsp;(defn&nbsp;upload-attachment&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                291&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                292&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[query-fn&nbsp;(:query-fn&nbsp;business-service)
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                293&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;file&nbsp;(get-in&nbsp;request&nbsp;[:params&nbsp;:file])
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                294&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;body&nbsp;(:params&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                295&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;temp-file&nbsp;(:tempfile&nbsp;file)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                296&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;original&nbsp;(:filename&nbsp;file)
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                297&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;biz-type&nbsp;(or&nbsp;(:biz_type&nbsp;body)&nbsp;&quot;common&quot;)
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                298&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;biz-id&nbsp;(parse-int*&nbsp;(:biz_id&nbsp;body)&nbsp;nil)
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                299&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;section-key&nbsp;(or&nbsp;(:section_key&nbsp;body)&nbsp;&quot;&quot;)
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                300&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;purpose&nbsp;(or&nbsp;(:file_purpose&nbsp;body)&nbsp;&quot;attachment&quot;)]
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                301&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if&nbsp;(and&nbsp;temp-file&nbsp;original)
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                302&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[dir&nbsp;(str&nbsp;upload-root&nbsp;&quot;&#x2F;&quot;&nbsp;biz-type)
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                303&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;stored&nbsp;(str&nbsp;(java.util.UUID&#x2F;randomUUID)&nbsp;&quot;-&quot;&nbsp;original)
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                304&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;target&nbsp;(io&#x2F;file&nbsp;dir&nbsp;stored)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                305&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ext&nbsp;(extension&nbsp;original)]
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                306&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ensure-dir!&nbsp;dir)
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                307&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(io&#x2F;copy&nbsp;temp-file&nbsp;target)
+                </span><br/>
+<span class="not-covered" title="0 out of 19 forms covered">
+                308&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[params&nbsp;{:biz_type&nbsp;biz-type
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                309&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:biz_id&nbsp;biz-id
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                310&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:section_key&nbsp;section-key
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                311&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:file_purpose&nbsp;purpose
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                312&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:original_name&nbsp;original
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                313&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:stored_name&nbsp;stored
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                314&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:storage_type&nbsp;&quot;local&quot;
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                315&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:storage_path&nbsp;(.getPath&nbsp;target)
+                </span><br/>
+<span class="not-covered" title="0 out of 5 forms covered">
+                316&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:file_url&nbsp;(str&nbsp;&quot;&#x2F;api&#x2F;business&#x2F;attachments&#x2F;&quot;&nbsp;stored&nbsp;&quot;&#x2F;download&quot;)
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                317&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:mime_type&nbsp;(or&nbsp;(:content-type&nbsp;file)&nbsp;&quot;application&#x2F;octet-stream&quot;)
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                318&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:extension&nbsp;ext
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                319&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:file_size&nbsp;(.length&nbsp;target)
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                320&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:sort_order&nbsp;(parse-int*&nbsp;(:sort_order&nbsp;body)&nbsp;0)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                321&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:create_by&nbsp;(current-user&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                322&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:remark&nbsp;(or&nbsp;(:remark&nbsp;body)&nbsp;&quot;&quot;)}]
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                323&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(query-fn&nbsp;:create-attachment!&nbsp;params)
+                </span><br/>
+<span class="not-covered" title="0 out of 9 forms covered">
+                324&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;(assoc&nbsp;params&nbsp;:id&nbsp;(last-id&nbsp;business-service)))))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                325&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(fail&nbsp;&quot;上传失败&quot;)))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                326&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e&nbsp;(fail&nbsp;(.getMessage&nbsp;e)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                327&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                328&nbsp;&nbsp;(defn&nbsp;list-attachments&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 11 forms covered">
+                329&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[params&nbsp;(common-query&nbsp;(:query-params&nbsp;request)&nbsp;[:biz_type&nbsp;:biz_id&nbsp;:section_key&nbsp;:file_purpose])]
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                330&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;((:query-fn&nbsp;business-service)&nbsp;:list-attachments&nbsp;params))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                331&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                332&nbsp;&nbsp;(defn&nbsp;delete-attachment&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 10 forms covered">
+                333&nbsp;&nbsp;&nbsp;&nbsp;((:query-fn&nbsp;business-service)&nbsp;:delete-attachment!&nbsp;{:id&nbsp;(parse-id&nbsp;request)})
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                334&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;&quot;删除成功&quot;))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                335&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                336&nbsp;&nbsp;(defn&nbsp;download-attachment&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                337&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[id-or-name&nbsp;(get-in&nbsp;request&nbsp;[:path-params&nbsp;:id])
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                338&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;row&nbsp;(if&nbsp;(re-matches&nbsp;#&quot;\d+&quot;&nbsp;(str&nbsp;id-or-name))
+                </span><br/>
+<span class="not-covered" title="0 out of 10 forms covered">
+                339&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(q-fn&nbsp;business-service&nbsp;:get-attachment&nbsp;{:id&nbsp;(parse-int*&nbsp;id-or-name&nbsp;nil)})
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                340&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;nil)
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                341&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;file&nbsp;(when&nbsp;row&nbsp;(io&#x2F;file&nbsp;(:storage_path&nbsp;row)))]
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                342&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if&nbsp;(and&nbsp;file&nbsp;(.exists&nbsp;file))
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                343&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(-&gt;&nbsp;(response&#x2F;response&nbsp;file)
+                </span><br/>
+<span class="not-covered" title="0 out of 10 forms covered">
+                344&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(response&#x2F;header&nbsp;&quot;Content-Disposition&quot;&nbsp;(str&nbsp;&quot;attachment;&nbsp;filename=\&quot;&quot;&nbsp;(:original_name&nbsp;row)&nbsp;&quot;\&quot;&quot;))
+                </span><br/>
+<span class="not-covered" title="0 out of 9 forms covered">
+                345&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(response&#x2F;content-type&nbsp;(or&nbsp;(:mime_type&nbsp;row)&nbsp;&quot;application&#x2F;octet-stream&quot;)))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                346&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(fail&nbsp;&quot;文件不存在&quot;))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                347&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                348&nbsp;&nbsp;(defn&nbsp;list-gallery-items&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 12 forms covered">
+                349&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;((:query-fn&nbsp;business-service)&nbsp;:list-gallery-items&nbsp;{:atlas_id&nbsp;(parse-id&nbsp;request)})))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                350&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                351&nbsp;&nbsp;(defn&nbsp;create-gallery-item&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                352&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                353&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[query-fn&nbsp;(:query-fn&nbsp;business-service)
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                354&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;params&nbsp;(-&gt;&nbsp;(:body-params&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 13 forms covered">
+                355&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(body-with-defaults&nbsp;{:image_title&nbsp;&quot;&quot;&nbsp;:image_desc&nbsp;&quot;&quot;&nbsp;:is_cover&nbsp;&quot;N&quot;&nbsp;:sort_order&nbsp;0&nbsp;:remark&nbsp;&quot;&quot;})
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                356&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(assoc&nbsp;:atlas_id&nbsp;(parse-id&nbsp;request))
+                </span><br/>
+<span class="not-covered" title="0 out of 2 forms covered">
+                357&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(with-create-user&nbsp;request))]
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                358&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(when&nbsp;(=&nbsp;&quot;Y&quot;&nbsp;(:is_cover&nbsp;params))
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                359&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(query-fn&nbsp;:clear-gallery-cover!&nbsp;{:atlas_id&nbsp;(:atlas_id&nbsp;params)}))
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                360&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(query-fn&nbsp;:create-gallery-item!&nbsp;params)
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                361&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;{:id&nbsp;(last-id&nbsp;business-service)}))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                362&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e&nbsp;(fail&nbsp;(.getMessage&nbsp;e)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                363&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                364&nbsp;&nbsp;(defn&nbsp;update-gallery-item&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                365&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                366&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[query-fn&nbsp;(:query-fn&nbsp;business-service)
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                367&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;params&nbsp;(-&gt;&nbsp;(:body-params&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 13 forms covered">
+                368&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(body-with-defaults&nbsp;{:image_title&nbsp;&quot;&quot;&nbsp;:image_desc&nbsp;&quot;&quot;&nbsp;:is_cover&nbsp;&quot;N&quot;&nbsp;:sort_order&nbsp;0&nbsp;:remark&nbsp;&quot;&quot;})
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                369&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(assoc&nbsp;:atlas_id&nbsp;(parse-id&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 9 forms covered">
+                370&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:id&nbsp;(parse-int*&nbsp;(get-in&nbsp;request&nbsp;[:path-params&nbsp;:item-id])&nbsp;nil))
+                </span><br/>
+<span class="not-covered" title="0 out of 2 forms covered">
+                371&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(with-update-user&nbsp;request))]
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                372&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(when&nbsp;(=&nbsp;&quot;Y&quot;&nbsp;(:is_cover&nbsp;params))
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                373&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(query-fn&nbsp;:clear-gallery-cover!&nbsp;{:atlas_id&nbsp;(:atlas_id&nbsp;params)}))
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                374&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(query-fn&nbsp;:update-gallery-item!&nbsp;params)
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                375&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;&quot;更新成功&quot;))
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                376&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;e&nbsp;(fail&nbsp;(.getMessage&nbsp;e)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                377&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                378&nbsp;&nbsp;(defn&nbsp;delete-gallery-item&nbsp;[{:keys&nbsp;[business-service]}&nbsp;request]
+                </span><br/>
+<span class="not-covered" title="0 out of 11 forms covered">
+                379&nbsp;&nbsp;&nbsp;&nbsp;((:query-fn&nbsp;business-service)&nbsp;:delete-gallery-item!&nbsp;{:atlas_id&nbsp;(parse-id&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 9 forms covered">
+                380&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:id&nbsp;(parse-int*&nbsp;(get-in&nbsp;request&nbsp;[:path-params&nbsp;:item-id])&nbsp;nil)})
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                381&nbsp;&nbsp;&nbsp;&nbsp;(ok&nbsp;&quot;删除成功&quot;))
+                </span><br/>
+ </body>
+</html>

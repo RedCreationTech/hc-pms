@@ -1,0 +1,572 @@
+<html>
+ <head>
+   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" href="../../../coverage.css"/>  <title> com/ruoyi/infra/db.clj </title>
+ </head>
+ <body>
+<span class="covered" title="1 out of 1 forms covered">
+                001&nbsp;&nbsp;(ns&nbsp;com.ruoyi.infra.db
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                002&nbsp;&nbsp;&nbsp;&nbsp;&quot;数据库抽象层&nbsp;—&nbsp;支持&nbsp;SQLite&nbsp;和&nbsp;MySQL。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                003&nbsp;&nbsp;&nbsp;&nbsp;(:require&nbsp;[clojure.string&nbsp;:as&nbsp;str]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                004&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[next.jdbc&nbsp;:as&nbsp;jdbc]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                005&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[next.jdbc.result-set&nbsp;:as&nbsp;rs]))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                006&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                007&nbsp;&nbsp;;;&nbsp;───&nbsp;数据库类型检测&nbsp;──────────────────────────────────────────────────────
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                008&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                009&nbsp;&nbsp;(defn&nbsp;detect-db-type
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                010&nbsp;&nbsp;&nbsp;&nbsp;&quot;检测数据库类型。支持&nbsp;DataSource、Connection&nbsp;以及&nbsp;next.jdbc&nbsp;包装对象。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                011&nbsp;&nbsp;&nbsp;&nbsp;[db]
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                012&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[connable&nbsp;(or&nbsp;(:connectable&nbsp;db)&nbsp;db)]
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                013&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(try
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                014&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[product-name&nbsp;(try
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                015&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.getDatabaseProductName&nbsp;(.getMetaData&nbsp;connable))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                016&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;_
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                017&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(with-open&nbsp;[conn&nbsp;(jdbc&#x2F;get-connection&nbsp;connable)]
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                018&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(.getDatabaseProductName&nbsp;(.getMetaData&nbsp;conn)))))]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                019&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(cond
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                020&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;includes?&nbsp;(str&#x2F;lower-case&nbsp;product-name)&nbsp;&quot;sqlite&quot;)&nbsp;:sqlite
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                021&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;includes?&nbsp;(str&#x2F;lower-case&nbsp;product-name)&nbsp;&quot;mysql&quot;)&nbsp;:mysql
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                022&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:else&nbsp;:unknown))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                023&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(catch&nbsp;Exception&nbsp;_&nbsp;:unknown))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                024&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                025&nbsp;&nbsp;(defn-&nbsp;connectable
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                026&nbsp;&nbsp;&nbsp;&nbsp;&quot;提取可用于&nbsp;JDBC&nbsp;执行的数据源或连接。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                027&nbsp;&nbsp;&nbsp;&nbsp;[db]
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                028&nbsp;&nbsp;&nbsp;&nbsp;(or&nbsp;(:connectable&nbsp;db)&nbsp;db))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                029&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                030&nbsp;&nbsp;(defn&nbsp;last-insert-id
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                031&nbsp;&nbsp;&nbsp;&nbsp;&quot;获取最近一次插入的自增&nbsp;ID，自动适配&nbsp;SQLite&#x2F;MySQL。
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                032&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;默认使用&nbsp;:last-insert-rowid（SQLite）或&nbsp;:last-insert-rowid-mysql（MySQL）查询。
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                033&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;可通过&nbsp;result-key&nbsp;指定返回字段名，例如&nbsp;:job_id。
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                034&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;注意：MySQL&nbsp;下请传入与插入同一事务的连接，否则可能获取不到&nbsp;ID。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                035&nbsp;&nbsp;&nbsp;&nbsp;([query-fn&nbsp;db]
+                </span><br/>
+<span class="not-covered" title="0 out of 6 forms covered">
+                036&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(last-insert-id&nbsp;query-fn&nbsp;db&nbsp;:last-insert-rowid&nbsp;:last_insert_rowid))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                037&nbsp;&nbsp;&nbsp;&nbsp;([query-fn&nbsp;db&nbsp;query-name&nbsp;result-key]
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                038&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[db-type&nbsp;(detect-db-type&nbsp;db)
+                </span><br/>
+<span class="not-covered" title="0 out of 4 forms covered">
+                039&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;q&nbsp;(if&nbsp;(=&nbsp;:mysql&nbsp;db-type)
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                040&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(keyword&nbsp;(str&nbsp;(name&nbsp;query-name)&nbsp;&quot;-mysql&quot;))
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                041&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;query-name)]
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                042&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(get&nbsp;(query-fn&nbsp;db&nbsp;q&nbsp;{})&nbsp;result-key))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                043&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                044&nbsp;&nbsp;(defn&nbsp;insert-and-get-id!
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                045&nbsp;&nbsp;&nbsp;&nbsp;&quot;在同一事务中执行插入并返回自增&nbsp;ID，自动适配&nbsp;SQLite&#x2F;MySQL。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                046&nbsp;&nbsp;&nbsp;&nbsp;([query-fn&nbsp;db&nbsp;insert-query&nbsp;params]
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                047&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(insert-and-get-id!&nbsp;query-fn&nbsp;db&nbsp;insert-query&nbsp;params&nbsp;:last-insert-rowid&nbsp;:last_insert_rowid))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                048&nbsp;&nbsp;&nbsp;&nbsp;([query-fn&nbsp;db&nbsp;insert-query&nbsp;params&nbsp;id-query&nbsp;id-key]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                049&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[db-type&nbsp;(detect-db-type&nbsp;db)
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                050&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;id-q&nbsp;(if&nbsp;(=&nbsp;:mysql&nbsp;db-type)
+                </span><br/>
+<span class="not-covered" title="0 out of 8 forms covered">
+                051&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(keyword&nbsp;(str&nbsp;(name&nbsp;id-query)&nbsp;&quot;-mysql&quot;))
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                052&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;id-query)]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                053&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if&nbsp;(some?&nbsp;db)
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                054&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(jdbc&#x2F;with-transaction&nbsp;[tx&nbsp;db]
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                055&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(query-fn&nbsp;tx&nbsp;insert-query&nbsp;params)
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                056&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(get&nbsp;(query-fn&nbsp;tx&nbsp;id-q&nbsp;{})&nbsp;id-key))
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                057&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(do
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                058&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(query-fn&nbsp;insert-query&nbsp;params)
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                059&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(get&nbsp;(query-fn&nbsp;id-q&nbsp;{})&nbsp;id-key))))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                060&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                061&nbsp;&nbsp;;;&nbsp;───&nbsp;SQL&nbsp;方言转换&nbsp;──────────────────────────────────────────────────────
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                062&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                063&nbsp;&nbsp;(defn&nbsp;sqlite-&gt;mysql
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                064&nbsp;&nbsp;&nbsp;&nbsp;&quot;将&nbsp;SQLite&nbsp;SQL&nbsp;转换为&nbsp;MySQL&nbsp;兼容&nbsp;SQL。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                065&nbsp;&nbsp;&nbsp;&nbsp;[sql]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                066&nbsp;&nbsp;&nbsp;&nbsp;(-&gt;&nbsp;sql
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                067&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;SQLite&nbsp;的&nbsp;AUTOINCREMENT&nbsp;-&gt;&nbsp;MySQL&nbsp;的&nbsp;AUTO_INCREMENT
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                068&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;replace&nbsp;#&quot;AUTOINCREMENT&quot;&nbsp;&quot;AUTO_INCREMENT&quot;)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                069&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;SQLite&nbsp;的&nbsp;INTEGER&nbsp;PRIMARY&nbsp;KEY&nbsp;-&gt;&nbsp;MySQL&nbsp;的&nbsp;BIGINT&nbsp;PRIMARY&nbsp;KEY&nbsp;AUTO_INCREMENT
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                070&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;replace&nbsp;#&quot;INTEGER&nbsp;PRIMARY&nbsp;KEY&quot;&nbsp;&quot;BIGINT&nbsp;PRIMARY&nbsp;KEY&nbsp;AUTO_INCREMENT&quot;)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                071&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;SQLite&nbsp;的&nbsp;datetime(&#x27;now&#x27;)&nbsp;-&gt;&nbsp;MySQL&nbsp;的&nbsp;NOW()
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                072&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;replace&nbsp;#&quot;datetime\(&#x27;now&#x27;\)&quot;&nbsp;&quot;NOW()&quot;)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                073&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;SQLite&nbsp;的&nbsp;date(&#x27;now&#x27;)&nbsp;-&gt;&nbsp;MySQL&nbsp;的&nbsp;CURDATE()
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                074&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;replace&nbsp;#&quot;date\(&#x27;now&#x27;\)&quot;&nbsp;&quot;CURDATE()&quot;)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                075&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;SQLite&nbsp;的&nbsp;julianday&nbsp;-&gt;&nbsp;MySQL&nbsp;的&nbsp;DATEDIFF
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                076&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;replace&nbsp;#&quot;julianday\(([^)]+)\)\s*-\s*julianday\(([^)]+)\)&quot;&nbsp;&quot;DATEDIFF($1,&nbsp;$2)&quot;)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                077&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;SQLite&nbsp;的&nbsp;GROUP_CONCAT&nbsp;-&gt;&nbsp;MySQL&nbsp;的&nbsp;GROUP_CONCAT
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                078&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;replace&nbsp;#&quot;group_concat&quot;&nbsp;&quot;GROUP_CONCAT&quot;)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                079&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;SQLite&nbsp;的&nbsp;PRAGMA&nbsp;-&gt;&nbsp;MySQL&nbsp;的&nbsp;SHOW
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                080&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;replace&nbsp;#&quot;PRAGMA&nbsp;table_info\(([^)]+)\)&quot;&nbsp;&quot;DESCRIBE&nbsp;$1&quot;)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                081&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;SQLite&nbsp;的&nbsp;sqlite_master&nbsp;-&gt;&nbsp;MySQL&nbsp;的&nbsp;information_schema
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                082&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;replace&nbsp;#&quot;sqlite_master&quot;&nbsp;&quot;information_schema.tables&quot;)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                083&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;SQLite&nbsp;的&nbsp;type=&#x27;table&#x27;&nbsp;-&gt;&nbsp;MySQL&nbsp;的&nbsp;table_type=&#x27;BASE&nbsp;TABLE&#x27;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                084&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;replace&nbsp;#&quot;type=&#x27;table&#x27;&quot;&nbsp;&quot;table_type=&#x27;BASE&nbsp;TABLE&#x27;&quot;)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                085&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                086&nbsp;&nbsp;(defn&nbsp;mysql-&gt;sqlite
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                087&nbsp;&nbsp;&nbsp;&nbsp;&quot;将&nbsp;MySQL&nbsp;SQL&nbsp;转换为&nbsp;SQLite&nbsp;兼容&nbsp;SQL。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                088&nbsp;&nbsp;&nbsp;&nbsp;[sql]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                089&nbsp;&nbsp;&nbsp;&nbsp;(-&gt;&nbsp;sql
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                090&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;MySQL&nbsp;的&nbsp;AUTO_INCREMENT&nbsp;-&gt;&nbsp;SQLite&nbsp;的&nbsp;AUTOINCREMENT
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                091&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;replace&nbsp;#&quot;AUTO_INCREMENT&quot;&nbsp;&quot;AUTOINCREMENT&quot;)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                092&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;MySQL&nbsp;的&nbsp;BIGINT&nbsp;PRIMARY&nbsp;KEY&nbsp;AUTO_INCREMENT&nbsp;-&gt;&nbsp;SQLite&nbsp;的&nbsp;INTEGER&nbsp;PRIMARY&nbsp;KEY
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                093&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;replace&nbsp;#&quot;BIGINT&nbsp;PRIMARY&nbsp;KEY&nbsp;AUTO_INCREMENT&quot;&nbsp;&quot;INTEGER&nbsp;PRIMARY&nbsp;KEY&quot;)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                094&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;MySQL&nbsp;的&nbsp;NOW()&nbsp;-&gt;&nbsp;SQLite&nbsp;的&nbsp;datetime(&#x27;now&#x27;)
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                095&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;replace&nbsp;#&quot;NOW\(\)&quot;&nbsp;&quot;datetime(&#x27;now&#x27;)&quot;)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                096&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;MySQL&nbsp;的&nbsp;CURDATE()&nbsp;-&gt;&nbsp;SQLite&nbsp;的&nbsp;date(&#x27;now&#x27;)
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                097&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;replace&nbsp;#&quot;CURDATE\(\)&quot;&nbsp;&quot;date(&#x27;now&#x27;)&quot;)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                098&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;MySQL&nbsp;的&nbsp;DATEDIFF&nbsp;-&gt;&nbsp;SQLite&nbsp;的&nbsp;julianday
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                099&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;replace&nbsp;#&quot;DATEDIFF\(([^,]+),\s*([^)]+)\)&quot;&nbsp;&quot;julianday($1)&nbsp;-&nbsp;julianday($2)&quot;)
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                100&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;;;&nbsp;MySQL&nbsp;的&nbsp;DESCRIBE&nbsp;-&gt;&nbsp;SQLite&nbsp;的&nbsp;PRAGMA&nbsp;table_info
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                101&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&#x2F;replace&nbsp;#&quot;DESCRIBE\s+(\w+)&quot;&nbsp;&quot;PRAGMA&nbsp;table_info($1)&quot;)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                102&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                103&nbsp;&nbsp;;;&nbsp;───&nbsp;数据库兼容层&nbsp;──────────────────────────────────────────────────────
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                104&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                105&nbsp;&nbsp;(defn&nbsp;adapt-sql
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                106&nbsp;&nbsp;&nbsp;&nbsp;&quot;根据数据库类型适配&nbsp;SQL。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                107&nbsp;&nbsp;&nbsp;&nbsp;[db&nbsp;sql]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                108&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[db-type&nbsp;(detect-db-type&nbsp;db)]
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                109&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(case&nbsp;db-type
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                110&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:mysql&nbsp;(sqlite-&gt;mysql&nbsp;sql)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                111&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:sqlite&nbsp;sql
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                112&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;sql)))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                113&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                114&nbsp;&nbsp;;;&nbsp;───&nbsp;分页查询&nbsp;──────────────────────────────────────────────────────
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                115&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                116&nbsp;&nbsp;(defn&nbsp;paginate-query
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                117&nbsp;&nbsp;&nbsp;&nbsp;&quot;分页查询适配。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                118&nbsp;&nbsp;&nbsp;&nbsp;[db&nbsp;sql&nbsp;params&nbsp;page-num&nbsp;page-size]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                119&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[db-type&nbsp;(detect-db-type&nbsp;db)
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                120&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;offset&nbsp;(*&nbsp;(dec&nbsp;page-num)&nbsp;page-size)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                121&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;paginated-sql&nbsp;(case&nbsp;db-type
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                122&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:mysql&nbsp;(str&nbsp;sql&nbsp;&quot;&nbsp;LIMIT&nbsp;&quot;&nbsp;page-size&nbsp;&quot;&nbsp;OFFSET&nbsp;&quot;&nbsp;offset)
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                123&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:sqlite&nbsp;(str&nbsp;sql&nbsp;&quot;&nbsp;LIMIT&nbsp;&quot;&nbsp;page-size&nbsp;&quot;&nbsp;OFFSET&nbsp;&quot;&nbsp;offset)
+                </span><br/>
+<span class="not-covered" title="0 out of 7 forms covered">
+                124&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(str&nbsp;sql&nbsp;&quot;&nbsp;LIMIT&nbsp;&quot;&nbsp;page-size&nbsp;&quot;&nbsp;OFFSET&nbsp;&quot;&nbsp;offset))]
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                125&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(jdbc&#x2F;execute!&nbsp;(connectable&nbsp;db)
+                </span><br/>
+<span class="covered" title="7 out of 7 forms covered">
+                126&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(into&nbsp;[paginated-sql]&nbsp;(vals&nbsp;params))
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                127&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:builder-fn&nbsp;rs&#x2F;as-unqualified-kebab-maps})))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                128&nbsp;&nbsp;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                129&nbsp;&nbsp;;;&nbsp;───&nbsp;表结构查询&nbsp;──────────────────────────────────────────────────────
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                130&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                131&nbsp;&nbsp;(defn&nbsp;get-table-columns
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                132&nbsp;&nbsp;&nbsp;&nbsp;&quot;获取表的列信息，返回统一字段：
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                133&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:column_name&nbsp;:data_type&nbsp;:is_nullable&nbsp;:column_default&nbsp;:column_comment
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                134&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:character_maximum_length&nbsp;:numeric_precision&nbsp;:numeric_scale&nbsp;:is_pk&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                135&nbsp;&nbsp;&nbsp;&nbsp;[db&nbsp;table-name]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                136&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[db-type&nbsp;(detect-db-type&nbsp;db)]
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                137&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(case&nbsp;db-type
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                138&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:sqlite
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                139&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(mapv&nbsp;(fn&nbsp;[{:keys&nbsp;[name&nbsp;type&nbsp;notnull&nbsp;dflt_value&nbsp;pk]}]
+                </span><br/>
+<span class="covered" title="17 out of 17 forms covered">
+                140&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:column_name&nbsp;name
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                141&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:data_type&nbsp;type
+                </span><br/>
+<span class="partial" title="5 out of 6 forms covered">
+                142&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:is_nullable&nbsp;(if&nbsp;(=&nbsp;1&nbsp;notnull)&nbsp;&quot;NO&quot;&nbsp;&quot;YES&quot;)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                143&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:column_default&nbsp;dflt_value
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                144&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:dflt_value&nbsp;dflt_value
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                145&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:column_comment&nbsp;&quot;&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                146&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:character_maximum_length&nbsp;nil
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                147&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:numeric_precision&nbsp;nil
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                148&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:numeric_scale&nbsp;nil
+                </span><br/>
+<span class="partial" title="5 out of 6 forms covered">
+                149&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:is_pk&nbsp;(if&nbsp;(=&nbsp;1&nbsp;pk)&nbsp;&quot;YES&quot;&nbsp;&quot;NO&quot;)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                150&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:pk&nbsp;pk})
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                151&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(jdbc&#x2F;execute!&nbsp;(connectable&nbsp;db)
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                152&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[(str&nbsp;&quot;PRAGMA&nbsp;table_info(&quot;&nbsp;table-name&nbsp;&quot;)&quot;)]
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                153&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:builder-fn&nbsp;rs&#x2F;as-unqualified-lower-maps}))
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                154&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:mysql
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                155&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(jdbc&#x2F;execute!&nbsp;(connectable&nbsp;db)
+                </span><br/>
+<span class="covered" title="18 out of 18 forms covered">
+                156&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[(str&nbsp;&quot;SELECT&nbsp;c.column_name,&nbsp;c.data_type,&nbsp;c.is_nullable,&nbsp;&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                157&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;c.column_default,&nbsp;c.column_comment,&nbsp;&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                158&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;c.character_maximum_length,&nbsp;c.numeric_precision,&nbsp;c.numeric_scale,&nbsp;&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                159&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;CASE&nbsp;WHEN&nbsp;tc.constraint_type&nbsp;=&nbsp;&#x27;PRIMARY&nbsp;KEY&#x27;&nbsp;THEN&nbsp;&#x27;YES&#x27;&nbsp;ELSE&nbsp;&#x27;NO&#x27;&nbsp;END&nbsp;AS&nbsp;is_pk&nbsp;&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                160&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;FROM&nbsp;information_schema.columns&nbsp;c&nbsp;&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                161&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;LEFT&nbsp;JOIN&nbsp;information_schema.key_column_usage&nbsp;kcu&nbsp;&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                162&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;ON&nbsp;c.table_schema&nbsp;=&nbsp;kcu.table_schema&nbsp;&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                163&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;AND&nbsp;c.table_name&nbsp;=&nbsp;kcu.table_name&nbsp;&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                164&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;AND&nbsp;c.column_name&nbsp;=&nbsp;kcu.column_name&nbsp;&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                165&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;LEFT&nbsp;JOIN&nbsp;information_schema.table_constraints&nbsp;tc&nbsp;&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                166&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;ON&nbsp;kcu.constraint_schema&nbsp;=&nbsp;tc.constraint_schema&nbsp;&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                167&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;AND&nbsp;kcu.constraint_name&nbsp;=&nbsp;tc.constraint_name&nbsp;&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                168&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;&nbsp;&nbsp;AND&nbsp;tc.constraint_type&nbsp;=&nbsp;&#x27;PRIMARY&nbsp;KEY&#x27;&nbsp;&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                169&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;WHERE&nbsp;c.table_schema&nbsp;=&nbsp;DATABASE()&nbsp;AND&nbsp;c.table_name&nbsp;=&nbsp;?&nbsp;&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                170&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;ORDER&nbsp;BY&nbsp;c.ordinal_position&quot;)
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                171&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;table-name]
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                172&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:builder-fn&nbsp;rs&#x2F;as-unqualified-lower-maps})
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                173&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[])))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                174&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                175&nbsp;&nbsp;(defn&nbsp;get-tables
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                176&nbsp;&nbsp;&nbsp;&nbsp;&quot;获取数据库中的所有表。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                177&nbsp;&nbsp;&nbsp;&nbsp;[db]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                178&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[db-type&nbsp;(detect-db-type&nbsp;db)]
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                179&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(case&nbsp;db-type
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                180&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:sqlite
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                181&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(jdbc&#x2F;execute!&nbsp;(connectable&nbsp;db)
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                182&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;SELECT&nbsp;name&nbsp;as&nbsp;table_name,&nbsp;COALESCE(name,&nbsp;&#x27;&#x27;)&nbsp;as&nbsp;table_comment&nbsp;FROM&nbsp;sqlite_master&nbsp;WHERE&nbsp;type=&#x27;table&#x27;&nbsp;AND&nbsp;name&nbsp;NOT&nbsp;LIKE&nbsp;&#x27;sqlite_%&#x27;&nbsp;ORDER&nbsp;BY&nbsp;name&quot;]
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                183&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:builder-fn&nbsp;rs&#x2F;as-unqualified-lower-maps})
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                184&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:mysql
+                </span><br/>
+<span class="covered" title="5 out of 5 forms covered">
+                185&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(jdbc&#x2F;execute!&nbsp;(connectable&nbsp;db)
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                186&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;SELECT&nbsp;table_name,&nbsp;IFNULL(table_comment,&nbsp;&#x27;&#x27;)&nbsp;AS&nbsp;table_comment&nbsp;FROM&nbsp;information_schema.tables&nbsp;WHERE&nbsp;table_schema&nbsp;=&nbsp;DATABASE()&nbsp;AND&nbsp;table_type&nbsp;=&nbsp;&#x27;BASE&nbsp;TABLE&#x27;&nbsp;ORDER&nbsp;BY&nbsp;table_name&quot;]
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                187&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:builder-fn&nbsp;rs&#x2F;as-unqualified-lower-maps})
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                188&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[])))
+                </span><br/>
+ </body>
+</html>

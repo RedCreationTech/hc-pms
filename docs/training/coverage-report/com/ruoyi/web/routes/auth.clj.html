@@ -1,0 +1,137 @@
+<html>
+ <head>
+   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" href="../../../../coverage.css"/>  <title> com/ruoyi/web/routes/auth.clj </title>
+ </head>
+ <body>
+<span class="covered" title="1 out of 1 forms covered">
+                001&nbsp;&nbsp;(ns&nbsp;com.ruoyi.web.routes.auth
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                002&nbsp;&nbsp;&nbsp;&nbsp;&quot;认证路由。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                003&nbsp;&nbsp;&nbsp;&nbsp;(:require
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                004&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.auth&nbsp;:as&nbsp;auth]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                005&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.register&nbsp;:as&nbsp;register]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                006&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.middleware.auth&nbsp;:as&nbsp;auth-mw]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                007&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.infra.security&nbsp;:as&nbsp;security]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                008&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[ring.util.response&nbsp;:as&nbsp;response]))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                009&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                010&nbsp;&nbsp;(defn-&nbsp;wrap-parse-token
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                011&nbsp;&nbsp;&nbsp;&nbsp;&quot;简单的&nbsp;JWT&nbsp;解析中间件，不依赖&nbsp;auth-middleware&nbsp;的复杂逻辑。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                012&nbsp;&nbsp;&nbsp;&nbsp;[handler]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                013&nbsp;&nbsp;&nbsp;&nbsp;(fn&nbsp;[request]
+                </span><br/>
+<span class="partial" title="17 out of 18 forms covered">
+                014&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(let&nbsp;[token&nbsp;(some-&gt;&nbsp;(get-in&nbsp;request&nbsp;[:headers&nbsp;&quot;authorization&quot;])
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                015&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(clojure.string&#x2F;replace-first&nbsp;#&quot;(?i)Bearer\s+&quot;&nbsp;&quot;&quot;))
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                016&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;claims&nbsp;(when&nbsp;token&nbsp;(security&#x2F;parse-token&nbsp;token))
+                </span><br/>
+<span class="partial" title="7 out of 8 forms covered">
+                017&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;request&nbsp;(if&nbsp;claims&nbsp;(assoc&nbsp;request&nbsp;:identity&nbsp;claims)&nbsp;request)]
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                018&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(handler&nbsp;request))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                019&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                020&nbsp;&nbsp;(defn-&nbsp;require-identity
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                021&nbsp;&nbsp;&nbsp;&nbsp;[handler]
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                022&nbsp;&nbsp;&nbsp;&nbsp;(fn&nbsp;[request]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                023&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(if&nbsp;(:identity&nbsp;request)
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                024&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(handler&nbsp;request)
+                </span><br/>
+<span class="not-covered" title="0 out of 9 forms covered">
+                025&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(-&gt;&nbsp;(response&#x2F;response&nbsp;{:code&nbsp;401&nbsp;:msg&nbsp;&quot;未登录或令牌已过期&quot;})
+                </span><br/>
+<span class="not-covered" title="0 out of 3 forms covered">
+                026&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(response&#x2F;status&nbsp;401)
+                </span><br/>
+<span class="not-covered" title="0 out of 1 forms covered">
+                027&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(response&#x2F;content-type&nbsp;&quot;application&#x2F;json&quot;)))))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                028&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                029&nbsp;&nbsp;(defn&nbsp;auth-routes&nbsp;[{:keys&nbsp;[user-service&nbsp;log-service&nbsp;menu-service]}]
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                030&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;auth&quot;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                031&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:swagger&nbsp;{:tags&nbsp;[&quot;认证&quot;]}}
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                032&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;login&quot;&nbsp;{:post&nbsp;{:summary&nbsp;&nbsp;&nbsp;&nbsp;&quot;登录&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                033&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:description&nbsp;&quot;用户名密码登录，返回&nbsp;Token&quot;
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                034&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;&nbsp;&nbsp;&nbsp;(partial&nbsp;auth&#x2F;login&nbsp;{:user-service&nbsp;user-service&nbsp;:log-service&nbsp;log-service})}}]
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                035&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;logout&quot;&nbsp;{:post&nbsp;{:summary&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;退出登录&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                036&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:description&nbsp;&quot;清除当前用户会话&quot;
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                037&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:middleware&nbsp;&nbsp;[wrap-parse-token&nbsp;require-identity]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                038&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(partial&nbsp;auth&#x2F;logout&nbsp;{})}}]
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                039&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;getInfo&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&quot;获取用户信息&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                040&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:description&nbsp;&quot;获取当前用户信息（角色&#x2F;权限&#x2F;菜单）&quot;
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                041&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:middleware&nbsp;&nbsp;[wrap-parse-token&nbsp;require-identity]
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                042&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:handler&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(partial&nbsp;auth&#x2F;get-info&nbsp;{:user-service&nbsp;user-service&nbsp;:menu-service&nbsp;menu-service})}}]
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                043&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;register&quot;&nbsp;{:post&nbsp;{:summary&nbsp;&quot;用户注册&quot;&nbsp;:handler&nbsp;(partial&nbsp;register&#x2F;register&nbsp;{:user-service&nbsp;user-service})}}]])
+                </span><br/>
+ </body>
+</html>

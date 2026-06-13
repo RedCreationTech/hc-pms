@@ -53,6 +53,7 @@
     .step-card.active { border-color: var(--primary); background: #e6f4ff; font-weight: 600; }
     .detail-panel { display: none; background: #fff; border: 1px solid #e8e8e8; border-radius: 6px; padding: 1rem; }
     .detail-panel.active { display: block; }
+    iframe { display: block; }
   </style>
 </head>
 <body>
@@ -80,47 +81,55 @@
         <li>项目工具链：deps.edn、shadow-cljs.edn、alias 与构建脚本</li>
         <li>若依 Clojure 全栈概览：后端 Kit + Integrant，前端 Reagent + Re-frame</li>
         <li><strong>LLM + nREPL 探索式开发：把 REPL 当作超级控制台</strong></li>
+        <li><strong>测试与覆盖率：长期维护的安全网</strong></li>
+        <li><strong>nREPL 性能分析实战：async-profiler + Criterium + 反编译</strong></li>
         <li>开发工作流：启动、热重载、测试、打包</li>
       </ul>
     </section>
 
     <section class="diagram-container">
       <h2>全栈探索式开发总览</h2>
-      <p class="diagram-note">⚠ 以下交互图依赖 Mermaid.js CDN，需要联网才能渲染。文字内容已完整覆盖所有步骤，离线也可阅读。</p>
+      <p class="diagram-note">⚠ 以下交互图依赖 Mermaid.js CDN，需要联网才能渲染。文字内容已完整覆盖所有步骤，离线也可阅读。要点：LLM / Agent 并没有“绕过”任何工具，它使用的是和人类一样的命令行 REPL 客户端。</p>
       <div class="mermaid">
 flowchart TD
-    A["LLM / Agent"] -->|"clj-nrepl-eval -p 7000"| B["后端 nREPL :7000"]
+    A["LLM / Agent"] -->|"clj-nrepl-eval"| R["clj-nrepl-eval / REPL client"]
+    R -->|"TCP 7000"| B["后端 nREPL :7000"]
+    A -->|"npx shadow-cljs cljs-repl app"| S["shadow-cljs 浏览器 REPL"]
+    S --> H["re-frame app-db / UI"]
     B --> C["Integrant 后端系统"]
     C --> D["domain service"]
     C --> E["DB migrations"]
     C --> F["路由热重载"]
-    B --> G["shadow-cljs REPL"]
-    G --> H["re-frame app-db / UI"]
     C --> I["JWT / Swing / Profiling"]
     click A call showStep("agent")
+    click R call showStep("repl-client")
     click B call showStep("nrepl")
     click C call showStep("system")
     click D call showStep("domain")
     click E call showStep("db")
     click F call showStep("route")
-    click G call showStep("cljs-repl")
+    click S call showStep("cljs-repl")
     click H call showStep("app-db")
     click I call showStep("superpower")
       </div>
       <div class="step-cards">
         <div class="step-card" data-step="agent" onclick="showStep('agent')">🤖 LLM / Agent</div>
+        <div class="step-card" data-step="repl-client" onclick="showStep('repl-client')">🖥️ clj-nrepl-eval / REPL client</div>
         <div class="step-card" data-step="nrepl" onclick="showStep('nrepl')">🔌 后端 nREPL</div>
         <div class="step-card" data-step="system" onclick="showStep('system')">⚙️ Integrant 系统</div>
         <div class="step-card" data-step="domain" onclick="showStep('domain')">🧩 域服务热重载</div>
         <div class="step-card" data-step="db" onclick="showStep('db')">🗄️ 数据库 live</div>
         <div class="step-card" data-step="route" onclick="showStep('route')">🛤️ 路由 live</div>
-        <div class="step-card" data-step="cljs-repl" onclick="showStep('cljs-repl')">🌐 shadow-cljs REPL</div>
+        <div class="step-card" data-step="cljs-repl" onclick="showStep('cljs-repl')">🌐 shadow-cljs 浏览器 REPL</div>
         <div class="step-card" data-step="app-db" onclick="showStep('app-db')">💾 re-frame app-db</div>
         <div class="step-card" data-step="superpower" onclick="showStep('superpower')">🚀 超级能力</div>
       </div>
       <div class="detail-panels">
         <div class="detail-panel" data-step="agent">
-          <strong>LLM / Agent</strong>：大模型或编码助手不是只生成代码，而是直接把代码片段发送到运行中的 nREPL，立即验证结果。错误可以当场修正，无需重启 JVM。
+          <strong>LLM / Agent</strong>：大模型或编码助手不是只生成代码，而是和人类开发者一样，通过 <code>clj-nrepl-eval</code>、<code>npx shadow-cljs cljs-repl app</code> 等命令行/客户端工具与运行中的系统交互。它并不会绕过这些工具直接访问 nREPL。
+        </div>
+        <div class="detail-panel" data-step="repl-client">
+          <strong>clj-nrepl-eval / REPL client</strong>：这是人类日常使用的 nREPL 客户端，负责把 Clojure 表单发送到后端 JVM。LLM/agent 也走同一条路径，因此它的求值结果和你在终端里敲出来完全一致。
         </div>
         <div class="detail-panel" data-step="nrepl">
           <strong>后端 nREPL :7000</strong>：由 <code>clojure -M:dev -m com.ruoyi.core</code> 启动，暴露 TCP 端口 7000。它是 JVM 进程的“远程控制口”，任何 Clojure 表单都能在这里求值。
@@ -138,7 +147,7 @@ flowchart TD
           <strong>路由 live</strong>：新增 Reitit 路由条目后，先 <code>(user/rroutes)</code> 再 <code>(user/rr)</code> 重置系统，新接口就上线了。
         </div>
         <div class="detail-panel" data-step="cljs-repl">
-          <strong>shadow-cljs REPL</strong>：通过 <code>npx shadow-cljs cljs-repl app</code> 连接浏览器，DOM、app-db、re-frame 事件都触手可及。
+          <strong>shadow-cljs 浏览器 REPL</strong>：通过 <code>npx shadow-cljs cljs-repl app</code> 连接浏览器，DOM、app-db、re-frame 事件都触手可及。
         </div>
         <div class="detail-panel" data-step="app-db">
           <strong>re-frame app-db</strong>：在 ClojureScript REPL 里读取或修改 <code>@re-frame.db/app-db</code>，UI 会自动响应，调试效率极高。
@@ -155,7 +164,7 @@ flowchart TD
     <ul>
       <li><strong>REPL-first：</strong>优先在 REPL 中验证想法，再固化到文件。</li>
       <li><strong>数据即代码：</strong>配置、SQL、路由、组件都是 EDN/Clojure 数据结构。</li>
-      <li><strong>不可变状态：</strong>用 <code>assoc</code>、<code>update</code>、<code>-></code> 派生新值，而非原地修改。</li>
+      <li><strong>不可变状态：</strong>用 <code>assoc</code>、<code>update</code>、<code>-&gt;</code> 派生新值，而非原地修改。</li>
     </ul>
 
     <h2>2. 语法基础</h2>
@@ -408,7 +417,296 @@ curl -H "Authorization: Bearer &lt;token&gt;" http://localhost:3000/api/system/d
     </ul>
     <p>这些操作的共同点是：<strong>它们都能访问运行时的真实状态</strong>——<code>user/query-fn</code>、<code>state/system</code>、Integrant 组件、数据库连接，全部可用。</p>
 
-    <h2>9. 开发工作流</h2>
+    <h2>9. 测试与覆盖率：长期维护的安全网</h2>
+    <p>对于一个长期演进的 Clojure 全栈系统，测试不仅是“验证正确性”的手段，更是：</p>
+    <ul>
+      <li><strong>防止回归</strong>：每次重构前先跑一遍测试，确保没有打破既有行为。</li>
+      <li><strong>文档化意图</strong>：好的测试用例比注释更能说明函数在边界条件下的行为。</li>
+      <li><strong>让重构安全</strong>：当需要拆分服务、调整数据库 schema 或升级依赖时，高覆盖率是底气。</li>
+      <li><strong>可执行规范</strong>：测试就是活的 spec，随代码一起演进。</li>
+    </ul>
+
+    <h3>9.1 最新覆盖率数据</h3>
+    <p>最近一次 cloverage 运行结果：</p>
+    <ul>
+      <li><strong>348 个测试</strong>，<strong>853 个断言</strong>，<strong>0 个失败</strong></li>
+      <li>总体覆盖率：<strong>80.22% forms</strong> / <strong>84.90% lines</strong></li>
+    </ul>
+    <p>下面是 HTML 覆盖率报告（本地文件以静态资源方式打开时相对路径有效）：</p>
+    <iframe src="coverage-report/index.html" width="100%" height="600" style="border:1px solid #e8e8e8; border-radius:6px;"></iframe>
+    <p><a href="coverage-report/index.html" target="_blank">在新标签页打开覆盖率报告 ↗</a></p>
+    <p class="diagram-note">提示：iframe 中的文件是本地静态文件，只有在浏览器中直接打开本 HTML 或使用本地 HTTP 服务时才能正常加载。</p>
+
+    <h3>9.2 本地运行测试与覆盖率</h3>
+    <p>运行测试：</p>
+    <pre><code class="language-bash">clojure -M:test</code></pre>
+    <p>生成覆盖率报告（使用 cloverage）：</p>
+    <pre><code class="language-bash">clojure -Sdeps '{:deps {cloverage/cloverage {:mvn/version "1.2.4"} ...}}' -M:dev -m cloverage.coverage \
+  --src-ns-path src/clj \
+  --test-ns-path test/clj \
+  --ns-regex 'com\.ruoyi\..*' \
+  --ns-exclude-regex 'com\.ruoyi\.integrant\.trace' \
+  --output target/coverage</code></pre>
+    <p class="diagram-note">说明：<code>com.ruoyi.integrant.trace</code> 被排除是因为 cloverage 的 instrumentation 会在该命名空间上触发 <code>StackOverflowError</code>。</p>
+    <p>如果 HTML 报告无法打开，也可以查看项目根目录下的文本摘要：<a href="../../test/coverage-report.md" target="_blank">test/coverage-report.md</a>。</p>
+
+    <h2>10. nREPL 性能分析实战：async-profiler + Criterium + 反编译</h2>
+    <p>因为 nREPL 握着正在运行的完整系统，所以它不仅是调试工具，也是性能实验室。你可以在真实数据、真实配置、真实 JVM 上直接做基准测试、采样分析和反编译观察，而不需要写独立的 benchmark 工程。</p>
+
+    <h3>10.1 Criterium 基准：type hint 的代价</h3>
+    <p>下面的 benchmark 对比了“无 type hint”和“有 type hint”的两个求和函数。有 type hint 的版本声明了 <code>^long</code> 和 <code>^double</code>，从而避免 boxed <code>Double</code> 算术和反射调用：</p>
+    <pre><code class="language-text">=== 无 type hint 版本 ===
+Evaluation count : 288 in 6 samples of 48 calls.
+             Execution time mean : 2.317390 ms
+    Execution time std-deviation : 344.383605 µs
+   Execution time lower quantile : 2.112879 ms ( 2.5%)
+   Execution time upper quantile : 2.910810 ms (97.5%)
+                   Overhead used : 1.720303 ns
+
+Found 1 outliers in 6 samples (16.6667 %)
+	low-severe	 1 (16.6667 %)
+ Variance from outliers : 47.0520 % Variance is moderately inflated by outliers
+
+=== 有 type hint 版本 ===
+Evaluation count : 6600 in 6 samples of 1100 calls.
+             Execution time mean : 91.051273 µs
+    Execution time std-deviation : 220.335941 ns
+   Execution time lower quantile : 90.800175 µs ( 2.5%)
+   Execution time upper quantile : 91.319023 µs (97.5%)
+                   Overhead used : 1.720303 ns</code></pre>
+    <p>差距约 <strong>25 倍</strong>。原因不是算法不同，而是无 hint 版本在每一步都进行了对象装箱、<code>RT.doubleCast</code> 和函数调用；有 hint 版本被编译成了原始类型循环。</p>
+
+    <h3>10.2 反编译 Java 对比</h3>
+    <p>使用 <code>clj-java-decompiler</code> 可以看到 Clojure 编译器实际生成的 Java 代码。无 hint 版本保留了 <code>reduce + map range</code> 的高阶函数调用；有 hint 版本则被优化成了简单的 <code>while</code> 循环：</p>
+    <pre><code class="language-java">=== 无 type hint — 反编译 Java ===
+
+// Decompiling class: gen_perf_artifacts$sum_no_hint
+import clojure.lang.*;
+
+public final class gen_perf_artifacts$sum_no_hint extends AFunction
+{
+    public static final Var __reduce;
+    public static final Var ___PLUS_;
+    public static final Var __map;
+    public static final Var __range;
+    
+    public static Object invokeStatic(final Object n) {
+        return __reduce.invoke(___PLUS_.getRawRoot(), __map.invoke(new gen_perf_artifacts$sum_no_hint$fn__943(), __range.invoke(n)));
+    }
+    
+    @Override
+    public Object invoke(final Object n) {
+        return invokeStatic(n);
+    }
+    
+    static {
+        __reduce = RT.var("clojure.core", "reduce");
+        ___PLUS_ = RT.var("clojure.core", "+");
+        __map = RT.var("clojure.core", "map");
+        __range = RT.var("clojure.core", "range");
+    }
+}
+
+
+// Decompiling class: gen_perf_artifacts$sum_no_hint$fn__943
+import clojure.lang.*;
+
+public final class gen_perf_artifacts$sum_no_hint$fn__943 extends AFunction
+{
+    @Override
+    public Object invoke(final Object p1__940_SHARP_) {
+        final double doubleCast = RT.doubleCast(p1__940_SHARP_);
+        this = null;
+        return Math.sqrt(doubleCast);
+    }
+}
+
+
+=== 有 type hint — 反编译 Java ===
+
+// Decompiling class: gen_perf_artifacts$sum_hint
+import clojure.lang.*;
+
+public final class gen_perf_artifacts$sum_hint extends AFunction implements LO
+{
+    public static Object invokeStatic(final long n) {
+        long i = 0L;
+        double sum = 0.0;
+        while (i < n) {
+            final long n2 = i + 1L;
+            sum += Math.sqrt((double)i);
+            i = n2;
+        }
+        return sum;
+    }
+    
+    @Override
+    public Object invoke(final Object o) {
+        return invokeStatic(RT.longCast(o));
+    }
+    
+    @Override
+    public final Object invokePrim(final long n) {
+        return invokeStatic(n);
+    }
+}</code></pre>
+
+    <h3>10.3 JVM 字节码对比</h3>
+    <p>字节码层面更能看到装箱与原始类型操作的区别。下面摘录展示了无 hint 版本里频繁的 <code>IFn.invoke</code>、<code>RT.doubleCast</code> 和 <code>Double.valueOf</code>，以及有 hint 版本的 <code>ladd / dadd / l2d</code> 原始指令：</p>
+    <details>
+      <summary>展开字节码摘录（前 120 行）</summary>
+      <pre><code class="language-text">=== 无 type hint — 字节码 ===
+
+// Decompiling class: gen_perf_artifacts$sum_no_hint
+class gen_perf_artifacts$sum_no_hint
+    Minor version: 0
+    Major version: 52
+    Flags: PUBLIC, FINAL, SUPER
+    
+    public static final clojure.lang.Var const__0;
+        Flags: PUBLIC, STATIC, FINAL
+    
+    public static final clojure.lang.Var const__1;
+        Flags: PUBLIC, STATIC, FINAL
+    
+    public static final clojure.lang.Var const__2;
+        Flags: PUBLIC, STATIC, FINAL
+    
+    public static final clojure.lang.Var const__3;
+        Flags: PUBLIC, STATIC, FINAL
+    
+    public void &lt;init&gt;();
+        Flags: PUBLIC
+        Code:
+                  linenumber      50
+               0: aload_0        
+               1: invokespecial   clojure/lang/AFunction.&lt;init&gt;:()V
+               4: return         
+    
+    public static java.lang.Object invokeStatic(java.lang.Object n);
+        Flags: PUBLIC, STATIC
+        Code:
+                  linenumber      50
+               0: getstatic       gen_perf_artifacts$sum_no_hint.const__0:Lclojure/lang/Var;
+               3: invokevirtual   clojure/lang/Var.getRawRoot:()Ljava/lang/Object;
+                  linenumber      51
+               6: checkcast       Lclojure/lang/IFn;
+               9: getstatic       gen_perf_artifacts$sum_no_hint.const__1:Lclojure/lang/Var;
+              12: invokevirtual   clojure/lang/Var.getRawRoot:()Ljava/lang/Object;
+              15: getstatic       gen_perf_artifacts$sum_no_hint.const__2:Lclojure/lang/Var;
+              18: invokevirtual   clojure/lang/Var.getRawRoot:()Ljava/lang/Object;
+                  linenumber      51
+              21: checkcast       Lclojure/lang/IFn;
+              24: new             Lgen_perf_artifacts$sum_no_hint$fn__954;
+              27: dup            
+              28: invokespecial   gen_perf_artifacts$sum_no_hint$fn__954.&lt;init&gt;:()V
+              31: getstatic       gen_perf_artifacts$sum_no_hint.const__3:Lclojure/lang/Var;
+              34: invokevirtual   clojure/lang/Var.getRawRoot:()Ljava/lang/Object;
+                  linenumber      51
+              37: checkcast       Lclojure/lang/IFn;
+              40: aload_0         /* n */
+                  linenumber      51
+              41: invokeinterface clojure/lang/IFn.invoke:(Ljava/lang/Object;)Ljava/lang/Object;
+                  linenumber      51
+              46: invokeinterface clojure/lang/IFn.invoke:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+                  linenumber      51
+              51: invokeinterface clojure/lang/IFn.invoke:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+              56: areturn        
+    
+    public java.lang.Object invoke(java.lang.Object p0);
+        Flags: PUBLIC
+        Code:
+               0: aload_1        
+               1: aconst_null    
+               2: astore_1       
+                  linenumber      50
+               3: invokestatic    gen_perf_artifacts$sum_no_hint.invokeStatic:(Ljava/lang/Object;)Ljava/lang/Object;
+               6: areturn        
+    
+    static {};
+        Flags: PUBLIC, STATIC
+        Code:
+                  linenumber      50
+               0: ldc             "clojure.core"
+               2: ldc             "reduce"
+               4: invokestatic    clojure/lang/RT.var:(Ljava/lang/String;Ljava/lang/String;)Lclojure/lang/Var;
+               7: checkcast       Lclojure/lang/Var;
+              10: putstatic       gen_perf_artifacts$sum_no_hint.const__0:Lclojure/lang/Var;
+              13: ldc             "clojure.core"
+              15: ldc             "+"
+              17: invokestatic    clojure/lang/RT.var:(Ljava/lang/String;Ljava/lang/String;)Lclojure/lang/Var;
+              20: checkcast       Lclojure/lang/Var;
+              23: putstatic       gen_perf_artifacts$sum_no_hint.const__1:Lclojure/lang/Var;
+              26: ldc             "clojure.core"
+              28: ldc             "map"
+              30: invokestatic    clojure/lang/RT.var:(Ljava/lang/String;Ljava/lang/String;)Lclojure/lang/Var;
+              33: checkcast       Lclojure/lang/Var;
+              36: putstatic       gen_perf_artifacts$sum_no_hint.const__2:Lclojure/lang/Var;
+              39: ldc             "clojure.core"
+              41: ldc             "range"
+              43: invokestatic    clojure/lang/RT.var:(Ljava/lang/String;Ljava/lang/String;)Lclojure/lang/Var;
+              46: checkcast       Lclojure/lang/Var;
+              49: putstatic       gen_perf_artifacts$sum_no_hint.const__3:Lclojure/lang/Var;
+              52: return         
+
+
+// Decompiling class: gen_perf_artifacts$sum_no_hint$fn__954
+class gen_perf_artifacts$sum_no_hint$fn__954
+    Minor version: 0
+    Major version: 52
+    Flags: PUBLIC, FINAL, SUPER
+    
+    public void &lt;init&gt;();
+        Flags: PUBLIC
+        Code:
+                  linenumber      1
+               0: aload_0        
+               1: invokespecial   clojure/lang/AFunction.&lt;init&gt;:()V
+               4: return         
+    
+    public java.lang.Object invoke(java.lang.Object p1__951_SHARP_);
+        Flags: PUBLIC
+        Code:
+                  linenumber      1
+               0: aload_1         /* p1__951_SHARP_ */
+               1: checkcast       Ljava/lang/Number;
+               4: invokestatic    clojure/lang/RT.doubleCast:(Ljava/lang/Object;)D
+                  linenumber      51
+               7: aconst_null    
+               8: astore_0        /* this */
+               9: invokestatic    java/lang/Math.sqrt:(D)D
+              12: invokestatic    java/lang/Double.valueOf:(D)Ljava/lang/Double;
+              15: areturn        
+    
+    static {};
+        Flags: PUBLIC, STATIC
+        Code:
+                  linenumber      1
+               0: return</code></pre>
+    </details>
+    <p><a href="assets/type-hint-bytecode.txt" target="_blank">查看完整字节码文件 ↗</a></p>
+
+    <h3>10.4 async-profiler 火焰图</h3>
+    <p>下面是在 REPL 中运行若干代表性接口后生成的 async-profiler 火焰图。它可以直观地显示 CPU 时间花在了哪些函数调用栈上：</p>
+    <iframe src="assets/flamegraph.html" width="100%" height="600" style="border:1px solid #e8e8e8; border-radius:6px;"></iframe>
+    <p><a href="assets/flamegraph.html" target="_blank">在新标签页打开火焰图 ↗</a></p>
+    <div class="note">
+      <strong>诚实说明</strong>：这份火焰图是在一个由 JDK 21 支持的独立 REPL 进程中运行 <code>(clj-async-profiler.core/profile ...)</code> 生成的。主开发服务器当前运行在 JDK 26 上，而原生 async-profiler 库在该 JDK 版本下会崩溃进程，因此我们在 JDK 21 环境中单独采样。这是工具链的已知限制，不影响对项目性能瓶颈的判断。
+    </div>
+
+    <h3>10.5 生成这些产物所用的命令</h3>
+    <p>所有性能分析产物都来自同一次命令运行。下面给出完整命令（使用 JDK 21）：</p>
+    <pre><code class="language-bash">JAVA_HOME=/opt/homebrew/Cellar/openjdk@21/21.0.11/libexec/openjdk.jdk/Contents/Home \
+PATH=$JAVA_HOME/bin:$PATH \
+clojure -J-Djdk.attach.allowAttachSelf \
+  -Sdeps '{:deps {com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.6.1"}
+                  com.clojure-goes-fast/clj-java-decompiler {:mvn/version "0.3.7"}
+                  criterium/criterium {:mvn/version "0.4.6"}}
+            :paths ["scripts"]}' \
+  -M -m gen-perf-artifacts</code></pre>
+    <p class="diagram-note">说明：生成脚本本身没有提交到仓库，只有生成的 artifacts（<code>type-hint-benchmark.txt</code>、<code>type-hint-decompile.java</code>、<code>type-hint-bytecode.txt</code>、<code>flamegraph.html</code>）放在 <code>docs/training/assets/</code> 里，供培训文档直接引用。</p>
+
+    <h2>11. 开发工作流</h2>
     <p>启动后端：</p>
     <pre><code class="language-bash">clojure -M:dev -m com.ruoyi.core</code></pre>
     <p>启动前端 watch（端口 3000 由后端统一服务静态资源，开发时 shadow-cljs watch 负责增量编译）：</p>
@@ -421,7 +719,7 @@ clj-nrepl-eval -p 7000 '(user/rr)'      <span class="comment">;; 完全重启 In
     <p>测试：</p>
     <pre><code class="language-bash">clojure -M:test</code></pre>
 
-    <h2>10. 构建与部署</h2>
+    <h2>12. 构建与部署</h2>
     <pre><code class="language-bash"><span class="comment">;; 1. 编译前端生产包</span>
 npx shadow-cljs release app
 
@@ -437,6 +735,7 @@ java -jar target/rouyi-standalone.jar</code></pre>
         <li>在 REPL 中打开本项目的 <code>src/clj</code>，尝试用 <code>(require '[com.ruoyi.domain.system.user :as user])</code> 加载用户域服务，并用线程宏重写一个你最近写过的嵌套调用。</li>
         <li>跟随 8.3 和 8.4，试着在不重启后端的情况下新增一张 <code>sys_demo</code> 表、一个 HugSQL 查询、一个 <code>/system/demo/hello</code> 接口。</li>
         <li>用 <code>npx shadow-cljs cljs-repl app</code> 连接前端 REPL，读取 <code>@re-frame.db/app-db</code>，修改某个查询参数并触发 <code>:users/fetch</code>，观察表格是否刷新。</li>
+        <li>运行 <code>clojure -M:test</code> 和 cloverage，看看当前覆盖率与你预期的差距在哪里。</li>
         <li>讨论：不可变数据在大型 SPA 中有哪些好处？结合 Re-frame 的 <code>app-db</code> 思考。</li>
       </ol>
     </section>

@@ -1,0 +1,530 @@
+<html>
+ <head>
+   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" href="../../../../coverage.css"/>  <title> com/ruoyi/web/routes/business.clj </title>
+ </head>
+ <body>
+<span class="covered" title="1 out of 1 forms covered">
+                001&nbsp;&nbsp;(ns&nbsp;com.ruoyi.web.routes.business
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                002&nbsp;&nbsp;&nbsp;&nbsp;&quot;工程方案与资源管理业务路由。&quot;
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                003&nbsp;&nbsp;&nbsp;&nbsp;(:require
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                004&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.controllers.business.core&nbsp;:as&nbsp;biz]
+                </span><br/>
+<span class="not-tracked" title="0 out of 0 forms covered">
+                005&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[com.ruoyi.web.middleware.auth&nbsp;:as&nbsp;auth-mw]))
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                006&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                007&nbsp;&nbsp;(def&nbsp;PathId&nbsp;[:map&nbsp;[:id&nbsp;[:re&nbsp;#&quot;\d+&quot;]]])
+                </span><br/>
+<span class="covered" title="13 out of 13 forms covered">
+                008&nbsp;&nbsp;(def&nbsp;TeamPath&nbsp;[:map&nbsp;[:id&nbsp;[:re&nbsp;#&quot;\d+&quot;]]&nbsp;[:team-id&nbsp;[:re&nbsp;#&quot;\d+&quot;]]])
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                009&nbsp;&nbsp;(def&nbsp;SectionPath&nbsp;[:map&nbsp;[:id&nbsp;[:re&nbsp;#&quot;\d+&quot;]]&nbsp;[:section-key&nbsp;:string]])
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                010&nbsp;&nbsp;(def&nbsp;ResourcePath&nbsp;[:map&nbsp;[:type&nbsp;:string]])
+                </span><br/>
+<span class="covered" title="11 out of 11 forms covered">
+                011&nbsp;&nbsp;(def&nbsp;ResourceIdPath&nbsp;[:map&nbsp;[:type&nbsp;:string]&nbsp;[:id&nbsp;[:re&nbsp;#&quot;\d+&quot;]]])
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                012&nbsp;&nbsp;(def&nbsp;GalleryPath&nbsp;[:map&nbsp;[:id&nbsp;[:re&nbsp;#&quot;\d+&quot;]]])
+                </span><br/>
+<span class="covered" title="13 out of 13 forms covered">
+                013&nbsp;&nbsp;(def&nbsp;GalleryItemPath&nbsp;[:map&nbsp;[:id&nbsp;[:re&nbsp;#&quot;\d+&quot;]]&nbsp;[:item-id&nbsp;[:re&nbsp;#&quot;\d+&quot;]]])
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                014&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                015&nbsp;&nbsp;(def&nbsp;PagingQuery&nbsp;[:map&nbsp;{:closed&nbsp;true}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                016&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:page&nbsp;{:optional&nbsp;true}&nbsp;:int]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                017&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:size&nbsp;{:optional&nbsp;true}&nbsp;:int]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                018&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:status&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                019&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:name&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                020&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:code&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                021&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:category&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                022&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:project_name&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                023&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:project_code&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                024&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:solution_name&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                025&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:engineering_name&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                026&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:engineering_code&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                027&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:engineering_id&nbsp;{:optional&nbsp;true}&nbsp;:int]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                028&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:project_id&nbsp;{:optional&nbsp;true}&nbsp;:int]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                029&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:construction_unit&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                030&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:create_time&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                031&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:engineering_industry&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                032&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:engineering_nature&nbsp;{:optional&nbsp;true}&nbsp;:string]])
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                033&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                034&nbsp;&nbsp;(def&nbsp;EngineeringBody&nbsp;[:map
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                035&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:engineering_name&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                036&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:engineering_code&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                037&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:description&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                038&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:status&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                039&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:remark&nbsp;{:optional&nbsp;true}&nbsp;:string]])
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                040&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                041&nbsp;&nbsp;(def&nbsp;ProjectBody&nbsp;[:map
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                042&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:project_name&nbsp;:string]
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                043&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:engineering_id&nbsp;{:optional&nbsp;true}&nbsp;[:maybe&nbsp;:int]]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                044&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:engineering_name&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                045&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:project_code&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                046&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:project_address&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                047&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:construction_unit&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                048&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:contractor_unit&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                049&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:supervision_unit&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                050&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:design_unit&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                051&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:survey_unit&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                052&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:project_manager&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                053&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:project_leader&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                054&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:contact_phone&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                055&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:contract_period&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                056&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:start_date&nbsp;{:optional&nbsp;true}&nbsp;[:maybe&nbsp;:string]]
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                057&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:end_date&nbsp;{:optional&nbsp;true}&nbsp;[:maybe&nbsp;:string]]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                058&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:building_area&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                059&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:project_cost&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                060&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:structure_type&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                061&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:building_floors&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                062&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:project_overview&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                063&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:extra_json&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                064&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:remark&nbsp;{:optional&nbsp;true}&nbsp;:string]])
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                065&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                066&nbsp;&nbsp;(def&nbsp;TeamBody&nbsp;[:map
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                067&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:team_name&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                068&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:leader_name&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                069&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:contact_phone&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                070&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:work_scope&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                071&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:extra_json&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                072&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:remark&nbsp;{:optional&nbsp;true}&nbsp;:string]])
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                073&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                074&nbsp;&nbsp;(def&nbsp;SolutionBody&nbsp;[:map
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                075&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:solution_name&nbsp;:string]
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                076&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:engineering_id&nbsp;{:optional&nbsp;true}&nbsp;[:maybe&nbsp;:int]]
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                077&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:project_id&nbsp;{:optional&nbsp;true}&nbsp;[:maybe&nbsp;:int]]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                078&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:engineering_name&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                079&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:project_name&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                080&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:status&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                081&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:progress&nbsp;{:optional&nbsp;true}&nbsp;:int]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                082&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:remark&nbsp;{:optional&nbsp;true}&nbsp;:string]])
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                083&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                084&nbsp;&nbsp;(def&nbsp;SectionBody&nbsp;[:map
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                085&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:section_title&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                086&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:content_json&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                087&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:content&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                088&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:sort_order&nbsp;{:optional&nbsp;true}&nbsp;:int]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                089&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:remark&nbsp;{:optional&nbsp;true}&nbsp;:string]])
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                090&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                091&nbsp;&nbsp;(def&nbsp;ResourceBody&nbsp;[:map
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                092&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:name&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                093&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:code&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                094&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:category&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                095&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:publish_unit&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                096&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:publish_date&nbsp;{:optional&nbsp;true}&nbsp;[:maybe&nbsp;:string]]
+                </span><br/>
+<span class="covered" title="8 out of 8 forms covered">
+                097&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:effective_date&nbsp;{:optional&nbsp;true}&nbsp;[:maybe&nbsp;:string]]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                098&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:file_name&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                099&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:file_type&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                100&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:vector_status&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                101&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:tags&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                102&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:related_project_name&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                103&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:structured_fields&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                104&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:summary&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                105&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:content&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                106&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:status&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                107&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:sort_order&nbsp;{:optional&nbsp;true}&nbsp;:int]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                108&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:extra_json&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                109&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:remark&nbsp;{:optional&nbsp;true}&nbsp;:string]])
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                110&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                111&nbsp;&nbsp;(def&nbsp;AttachmentQuery&nbsp;[:map&nbsp;{:closed&nbsp;true}
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                112&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:biz_type&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                113&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:biz_id&nbsp;{:optional&nbsp;true}&nbsp;:int]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                114&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:section_key&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                115&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:file_purpose&nbsp;{:optional&nbsp;true}&nbsp;:string]])
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                116&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                117&nbsp;&nbsp;(def&nbsp;GalleryBody&nbsp;[:map
+                </span><br/>
+<span class="covered" title="3 out of 3 forms covered">
+                118&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:attachment_id&nbsp;:int]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                119&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:image_title&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                120&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:image_desc&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                121&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:is_cover&nbsp;{:optional&nbsp;true}&nbsp;:string]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                122&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:sort_order&nbsp;{:optional&nbsp;true}&nbsp;:int]
+                </span><br/>
+<span class="covered" title="6 out of 6 forms covered">
+                123&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[:remark&nbsp;{:optional&nbsp;true}&nbsp;:string]])
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                124&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="1 out of 1 forms covered">
+                125&nbsp;&nbsp;(defn&nbsp;business-routes&nbsp;[{:keys&nbsp;[business-service]}]
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                126&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;business&quot;
+                </span><br/>
+<span class="covered" title="9 out of 9 forms covered">
+                127&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{:middleware&nbsp;[(auth-mw&#x2F;auth-middleware&nbsp;{:required?&nbsp;true})]
+                </span><br/>
+<span class="covered" title="4 out of 4 forms covered">
+                128&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:swagger&nbsp;{:tags&nbsp;[&quot;工程方案与资源管理&quot;]}}
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                129&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                130&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;engineering&quot;
+                </span><br/>
+<span class="covered" title="19 out of 19 forms covered">
+                131&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;工程列表&quot;&nbsp;:parameters&nbsp;{:query&nbsp;PagingQuery}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;list-engineerings&nbsp;{:business-service&nbsp;business-service})}
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                132&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:post&nbsp;{:summary&nbsp;&quot;新建工程&quot;&nbsp;:parameters&nbsp;{:body&nbsp;EngineeringBody}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;create-engineering&nbsp;{:business-service&nbsp;business-service})}}]
+                </span><br/>
+<span class="covered" title="20 out of 20 forms covered">
+                133&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;工程详情&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;get-engineering&nbsp;{:business-service&nbsp;business-service})}
+                </span><br/>
+<span class="covered" title="16 out of 16 forms covered">
+                134&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:put&nbsp;{:summary&nbsp;&quot;更新工程&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId&nbsp;:body&nbsp;EngineeringBody}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;update-engineering&nbsp;{:business-service&nbsp;business-service})}
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                135&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:delete&nbsp;{:summary&nbsp;&quot;逻辑删除工程&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;delete-engineering&nbsp;{:business-service&nbsp;business-service})}}]]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                136&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                137&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;project&quot;
+                </span><br/>
+<span class="covered" title="19 out of 19 forms covered">
+                138&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;项目列表&quot;&nbsp;:parameters&nbsp;{:query&nbsp;PagingQuery}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;list-projects&nbsp;{:business-service&nbsp;business-service})}
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                139&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:post&nbsp;{:summary&nbsp;&quot;新建项目&quot;&nbsp;:parameters&nbsp;{:body&nbsp;ProjectBody}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;create-project&nbsp;{:business-service&nbsp;business-service})}}]
+                </span><br/>
+<span class="covered" title="20 out of 20 forms covered">
+                140&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;项目详情&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;get-project&nbsp;{:business-service&nbsp;business-service})}
+                </span><br/>
+<span class="covered" title="16 out of 16 forms covered">
+                141&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:put&nbsp;{:summary&nbsp;&quot;更新项目&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId&nbsp;:body&nbsp;ProjectBody}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;update-project&nbsp;{:business-service&nbsp;business-service})}
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                142&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:delete&nbsp;{:summary&nbsp;&quot;逻辑删除项目&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;delete-project&nbsp;{:business-service&nbsp;business-service})}}]
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                143&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&#x2F;subcontract-team&quot;
+                </span><br/>
+<span class="covered" title="19 out of 19 forms covered">
+                144&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;项目分包队伍列表&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;list-subcontract-teams&nbsp;{:business-service&nbsp;business-service})}
+                </span><br/>
+<span class="covered" title="16 out of 16 forms covered">
+                145&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:post&nbsp;{:summary&nbsp;&quot;新增项目分包队伍&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId&nbsp;:body&nbsp;TeamBody}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;create-subcontract-team&nbsp;{:business-service&nbsp;business-service})}}]
+                </span><br/>
+<span class="covered" title="21 out of 21 forms covered">
+                146&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:team-id&quot;&nbsp;{:put&nbsp;{:summary&nbsp;&quot;更新项目分包队伍&quot;&nbsp;:parameters&nbsp;{:path&nbsp;TeamPath&nbsp;:body&nbsp;TeamBody}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;update-subcontract-team&nbsp;{:business-service&nbsp;business-service})}
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                147&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:delete&nbsp;{:summary&nbsp;&quot;逻辑删除项目分包队伍&quot;&nbsp;:parameters&nbsp;{:path&nbsp;TeamPath}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;delete-subcontract-team&nbsp;{:business-service&nbsp;business-service})}}]]]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                148&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                149&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;solution&quot;
+                </span><br/>
+<span class="covered" title="19 out of 19 forms covered">
+                150&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;方案列表&quot;&nbsp;:parameters&nbsp;{:query&nbsp;PagingQuery}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;list-solutions&nbsp;{:business-service&nbsp;business-service})}
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                151&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:post&nbsp;{:summary&nbsp;&quot;创建方案&quot;&nbsp;:parameters&nbsp;{:body&nbsp;SolutionBody}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;create-solution&nbsp;{:business-service&nbsp;business-service})}}]
+                </span><br/>
+<span class="covered" title="20 out of 20 forms covered">
+                152&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;方案详情&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;get-solution&nbsp;{:business-service&nbsp;business-service})}
+                </span><br/>
+<span class="covered" title="16 out of 16 forms covered">
+                153&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:put&nbsp;{:summary&nbsp;&quot;更新方案&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId&nbsp;:body&nbsp;SolutionBody}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;update-solution&nbsp;{:business-service&nbsp;business-service})}
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                154&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:delete&nbsp;{:summary&nbsp;&quot;逻辑删除方案&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;delete-solution&nbsp;{:business-service&nbsp;business-service})}}]
+                </span><br/>
+<span class="covered" title="19 out of 19 forms covered">
+                155&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&#x2F;sections&#x2F;:section-key&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;方案章节详情&quot;&nbsp;:parameters&nbsp;{:path&nbsp;SectionPath}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;get-solution-section&nbsp;{:business-service&nbsp;business-service})}
+                </span><br/>
+<span class="covered" title="16 out of 16 forms covered">
+                156&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:put&nbsp;{:summary&nbsp;&quot;保存方案章节&quot;&nbsp;:parameters&nbsp;{:path&nbsp;SectionPath&nbsp;:body&nbsp;SectionBody}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;save-solution-section&nbsp;{:business-service&nbsp;business-service})}}]]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                157&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                158&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;resource&#x2F;:type&quot;
+                </span><br/>
+<span class="covered" title="21 out of 21 forms covered">
+                159&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;资源列表&quot;&nbsp;:parameters&nbsp;{:path&nbsp;ResourcePath&nbsp;:query&nbsp;PagingQuery}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;list-resources&nbsp;{:business-service&nbsp;business-service})}
+                </span><br/>
+<span class="covered" title="16 out of 16 forms covered">
+                160&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:post&nbsp;{:summary&nbsp;&quot;新增资源&quot;&nbsp;:parameters&nbsp;{:path&nbsp;ResourcePath&nbsp;:body&nbsp;ResourceBody}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;create-resource&nbsp;{:business-service&nbsp;business-service})}}]
+                </span><br/>
+<span class="covered" title="20 out of 20 forms covered">
+                161&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;资源详情&quot;&nbsp;:parameters&nbsp;{:path&nbsp;ResourceIdPath}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;get-resource&nbsp;{:business-service&nbsp;business-service})}
+                </span><br/>
+<span class="covered" title="16 out of 16 forms covered">
+                162&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:put&nbsp;{:summary&nbsp;&quot;更新资源&quot;&nbsp;:parameters&nbsp;{:path&nbsp;ResourceIdPath&nbsp;:body&nbsp;ResourceBody}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;update-resource&nbsp;{:business-service&nbsp;business-service})}
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                163&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:delete&nbsp;{:summary&nbsp;&quot;逻辑删除资源&quot;&nbsp;:parameters&nbsp;{:path&nbsp;ResourceIdPath}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;delete-resource&nbsp;{:business-service&nbsp;business-service})}}]
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                164&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&#x2F;gallery&quot;
+                </span><br/>
+<span class="covered" title="19 out of 19 forms covered">
+                165&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;图集图片列表&quot;&nbsp;:parameters&nbsp;{:path&nbsp;GalleryPath}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;list-gallery-items&nbsp;{:business-service&nbsp;business-service})}
+                </span><br/>
+<span class="covered" title="16 out of 16 forms covered">
+                166&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:post&nbsp;{:summary&nbsp;&quot;新增图集图片&quot;&nbsp;:parameters&nbsp;{:path&nbsp;GalleryPath&nbsp;:body&nbsp;GalleryBody}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;create-gallery-item&nbsp;{:business-service&nbsp;business-service})}}]
+                </span><br/>
+<span class="covered" title="21 out of 21 forms covered">
+                167&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:item-id&quot;&nbsp;{:put&nbsp;{:summary&nbsp;&quot;更新图集图片&quot;&nbsp;:parameters&nbsp;{:path&nbsp;GalleryItemPath&nbsp;:body&nbsp;GalleryBody}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;update-gallery-item&nbsp;{:business-service&nbsp;business-service})}
+                </span><br/>
+<span class="covered" title="14 out of 14 forms covered">
+                168&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:delete&nbsp;{:summary&nbsp;&quot;逻辑删除图集图片&quot;&nbsp;:parameters&nbsp;{:path&nbsp;GalleryItemPath}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;delete-gallery-item&nbsp;{:business-service&nbsp;business-service})}}]]]
+                </span><br/>
+<span class="blank" title="0 out of 0 forms covered">
+                169&nbsp;&nbsp;
+                </span><br/>
+<span class="covered" title="2 out of 2 forms covered">
+                170&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;attachments&quot;
+                </span><br/>
+<span class="covered" title="19 out of 19 forms covered">
+                171&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;附件列表&quot;&nbsp;:parameters&nbsp;{:query&nbsp;AttachmentQuery}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;list-attachments&nbsp;{:business-service&nbsp;business-service})}
+                </span><br/>
+<span class="covered" title="10 out of 10 forms covered">
+                172&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:post&nbsp;{:summary&nbsp;&quot;上传附件&quot;&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;upload-attachment&nbsp;{:business-service&nbsp;business-service})}}]
+                </span><br/>
+<span class="covered" title="18 out of 18 forms covered">
+                173&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&quot;&nbsp;{:delete&nbsp;{:summary&nbsp;&quot;逻辑删除附件&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;delete-attachment&nbsp;{:business-service&nbsp;business-service})}}]
+                </span><br/>
+<span class="covered" title="18 out of 18 forms covered">
+                174&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&quot;&#x2F;:id&#x2F;download&quot;&nbsp;{:get&nbsp;{:summary&nbsp;&quot;下载附件&quot;&nbsp;:parameters&nbsp;{:path&nbsp;PathId}&nbsp;:handler&nbsp;(partial&nbsp;biz&#x2F;download-attachment&nbsp;{:business-service&nbsp;business-service})}}]]])
+                </span><br/>
+ </body>
+</html>
