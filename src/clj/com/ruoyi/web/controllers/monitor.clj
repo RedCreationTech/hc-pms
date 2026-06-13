@@ -151,6 +151,36 @@
        :sys (get-os-info)
        :disk (get-disk-info)}))
 
+(defn dashboard-stats
+  "首页仪表盘统计聚合接口，返回用户数、在线数、日志数、任务数、最近操作和系统信息。"
+  [{:keys [query-fn]} _]
+  (let [user-count (:total (query-fn :count-users
+                                     {:user_name nil :phonenumber nil :status nil :dept_id nil}))
+        online-count (:total (query-fn :count-online-users {:ipaddr nil :login_name nil}))
+        oper-log-count (:total (query-fn :count-oper-logs
+                                         {:title nil :oper_name nil :business_type nil
+                                          :status nil :begin_time nil :end_time nil}))
+        jobs (query-fn :list-jobs {:job_name nil :job_group nil :status nil})
+        job-total (count jobs)
+        job-running (count (filter #(= "0" (:status %)) jobs))
+        recent-ops (query-fn :list-oper-logs
+                             {:title nil :oper_name nil :business_type nil
+                              :status nil :begin_time nil :end_time nil
+                              :page_size 5 :offset 0})]
+    (ok {:userCount (or user-count 0)
+         :onlineCount (or online-count 0)
+         :operLogCount (or oper-log-count 0)
+         :jobTotal job-total
+         :jobRunning job-running
+         :recentOps (mapv (fn [op]
+                            {:title (:title op)
+                             :oper_name (:oper_name op)
+                             :oper_time (:oper_time op)
+                             :business_type (:business_type op)})
+                          recent-ops)
+         :server {:os (get-os-info)
+                  :jvm (get-jvm-info)}})))
+
 (defn datasource-info
   "获取 HikariCP 数据源监控信息。"
   [{:keys [datasource]} _]

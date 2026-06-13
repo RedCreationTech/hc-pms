@@ -251,6 +251,9 @@
              :delete {:summary "删除通知公告" :parameters {:path PathId}
                       :handler (partial notice/delete-notice {:query-fn query-fn})}}]]
 
+   ["/dashboard/stats" {:get {:summary "首页仪表盘统计" :description "聚合用户数、在线数、日志数、任务数、最近操作和系统信息"
+                              :handler (partial monitor/dashboard-stats {:query-fn query-fn})}}]
+
    ["/server" {:get {:summary "服务器监控" :description "JVM/CPU/内存等系统信息"
                      :handler (partial monitor/server-info {})}}]
    ["/datasource" {:get {:summary "数据源监控" :description "数据库连接池状态"

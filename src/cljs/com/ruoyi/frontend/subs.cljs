@@ -502,6 +502,16 @@
             (fn [db _]
               (get-in db [:posts :form-data] {})))
 
+;; ─── 首页仪表盘 ──────────────────────────────────────────────────────
+
+(rf/reg-sub :dashboard/stats
+            (fn [db _]
+              (get-in db [:dashboard :stats])))
+
+(rf/reg-sub :dashboard/loading?
+            (fn [db _]
+              (get-in db [:dashboard :loading?] false)))
+
 ;; ─── 服务器监控 ──────────────────────────────────────────────────────
 
 (rf/reg-sub :server/data

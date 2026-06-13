@@ -376,6 +376,12 @@
   (request {:method :get :uri "/system/server"
             :on-success on-success :on-error on-success}))
 
+(defn get-dashboard-stats
+  "获取首页仪表盘统计数据。"
+  [on-success on-error]
+  (request {:method :get :uri "/system/dashboard/stats"
+            :on-success on-success :on-error on-error}))
+
 (defn get-integrant-info
   "获取 Integrant 配置、依赖图与运行时系统摘要。"
   [on-success on-error]

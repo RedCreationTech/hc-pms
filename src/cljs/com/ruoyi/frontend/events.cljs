@@ -1312,6 +1312,26 @@
                                          (rf/dispatch [:posts/fetch {}])))
                                      (fn [_] (antd/error! "网络错误")))))
 
+;; ────── 首页仪表盘 ──────
+
+(rf/reg-event-db :dashboard/set-stats
+                 (fn [db [_ data]]
+                   (-> db
+                       (assoc-in [:dashboard :stats] data)
+                       (assoc-in [:dashboard :loading?] false))))
+
+(rf/reg-event-fx :dashboard/fetch
+                 (fn [{:keys [db]} _]
+                   {:db (assoc-in db [:dashboard :loading?] true)
+                    :api/get-dashboard-stats nil}))
+
+(rf/reg-fx :api/get-dashboard-stats
+           (fn [_]
+             (api/get-dashboard-stats
+              (fn [r] (when (= 200 (:code r))
+                       (rf/dispatch [:dashboard/set-stats (:data r)])))
+              (fn [_] (rf/dispatch [:dashboard/set-stats nil])))))
+
 ;; ────── 服务器监控 ──────
 
 (rf/reg-event-db :server/set-data
