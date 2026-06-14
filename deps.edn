@@ -63,13 +63,15 @@
                                 expound/expound                 {:mvn/version "0.9.0"}
                                 integrant/repl                  {:mvn/version "0.5.1"}
                                 mvxcvi/cljstyle                 {:mvn/version "0.17.642"}
+                                com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.6.1"}
                                 pjstadig/humane-test-output     {:mvn/version "0.11.0"}
                                 ring/ring-devel                 {:mvn/version "1.15.3"}
                                 ring/ring-mock                  {:mvn/version "0.6.2"}
                                 io.github.kit-clj/kit-generator {:mvn/version "0.2.9"}
                                 org.clojure/tools.namespace     {:mvn/version "1.5.1"}
                                 }
-                  :extra-paths ["env/dev/clj" "env/dev/resources" "test/clj"]}
+                  :extra-paths ["env/dev/clj" "env/dev/resources" "test/clj"]
+                  :jvm-opts ["-Djdk.attach.allowAttachSelf"]}
            :nrepl {:extra-deps {nrepl/nrepl {:mvn/version "1.5.1"}}
                    :main-opts  ["-m" "nrepl.cmdline" "-i"]}
            :cider {:extra-deps {nrepl/nrepl       {:mvn/version "1.5.1"}
