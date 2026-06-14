@@ -273,17 +273,17 @@
       [:div {:style {:position "fixed" :top 0 :left 0 :right 0 :bottom 0
                      :background "rgba(0,0,0,0.45)" :zIndex 1050
                      :display "flex" :justifyContent "center" :alignItems "flex-start"}}
-       [:div {:style {:background "var(--ant-color-bg-container, #fff)" :padding "32px 34px 34px" :borderRadius 4 :width 990 :marginTop 84
+       [:div {:style {:background "var(--ant-color-bg-container, #fff)" :padding "24px 24px 26px" :borderRadius 4 :width 700 :marginTop 76
                       :maxHeight "calc(100vh - 96px)" :overflow "auto" :boxShadow "0 2px 12px rgba(0,0,0,0.18)"}}
         [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center"
-                       :marginBottom 28}}
-         [:h3 {:style {:margin 0 :fontSize 26 :fontWeight 500 :color "#303133"}} (if editing "修改用户" "添加用户")]
+                       :marginBottom 22}}
+         [:h3 {:style {:margin 0 :fontSize 22 :fontWeight 500 :color "#303133"}} (if editing "修改用户" "添加用户")]
          [antd/button {:type "text"
                        :style {:fontSize 24 :color "#909399" :width 32 :height 32}
                        :on-click #(rf/dispatch [:users/close-modal])} "×"]]
         [antd/form {:form form
                     :layout "horizontal"
-                    :labelCol {:style {:width 114}}
+                    :labelCol {:style {:width 86}}
                     :wrapperCol {:style {:flex 1}}
                     :preserve false
                     :onFinish (fn [values]
@@ -292,7 +292,7 @@
                                               (assoc base
                                                      :roles (mapv :role_id (:roles form-data))
                                                      :posts (mapv :post_id (:posts form-data)))))}
-         [:div {:style {:display "grid" :gridTemplateColumns "1fr 1fr" :columnGap 34 :rowGap 55}}
+         [:div {:style {:display "grid" :gridTemplateColumns "1fr 1fr" :columnGap 24 :rowGap 28}}
           [antd/form-item {:style {:marginBottom 0} :label "用户昵称" :name "nick_name"
                            :rules [{:required true :message "请输入用户昵称"}]}
            [antd/input {:placeholder "请输入用户昵称" :style {:height 42 :borderRadius 4}}]]
@@ -331,13 +331,13 @@
               ^{:key (:role_id role)} [antd/select-option {:value (:role_id role)} (:role_name role)])]]
           [antd/form-item {:style {:gridColumn "1 / -1" :marginBottom 0} :label "备注" :name "remark"}
            [antd/text-area {:placeholder "请输入内容"
-                            :style {:height 86 :borderRadius 4 :resize "vertical"}}]]]
-         [:div {:style {:display "flex" :justifyContent "flex-end" :gap 12 :marginTop 64}}
+                            :style {:height 68 :borderRadius 4 :resize "vertical"}}]]]
+         [:div {:style {:display "flex" :justifyContent "flex-end" :gap 12 :marginTop 46}}
           [antd/button {:type "primary" :htmlType "submit"
-                        :style {:width 120 :height 44 :fontSize 18 :borderRadius 4 :background "#409eff"}}
+                        :style {:width 86 :height 42 :fontSize 16 :borderRadius 4 :background "#409eff"}}
            "确定"]
           [antd/button {:on-click #(rf/dispatch [:users/close-modal])
-                        :style {:width 120 :height 44 :fontSize 18 :borderRadius 4}}
+                        :style {:width 86 :height 42 :fontSize 16 :borderRadius 4}}
            "取消"]]]]])))
 
 ;; ─── 主页面 ────────────────────────────────────────────────────────
