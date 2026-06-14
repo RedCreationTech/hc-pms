@@ -546,6 +546,8 @@
   (let [[collapsed set-collapsed!] (hooks/use-state false)
         user @(rf/subscribe [:auth/user])
         page @(rf/subscribe [:page])
+        sider-width 220
+        collapsed-width 64
         menus-with-integrant standard-menu-tree
         filtered-menus (filter-visible-menus menus-with-integrant)
         menu-items (menu->antd-items filtered-menus)
@@ -559,17 +561,18 @@
                            :collapsed collapsed
                            :onCollapse set-collapsed!
                            :theme "dark"
-                           :width 280
+                           :width sider-width
+                           :collapsedWidth collapsed-width
                            :trigger nil
                            :style {:background "#172033"
                                    :boxShadow "2px 0 8px rgba(0,0,0,0.18)"}}
-          [:div {:style {:height 64 :display "flex" :alignItems "center"
-                         :justifyContent "center" :gap 12 :fontSize 18 :fontWeight 700
+          [:div {:style {:height 56 :display "flex" :alignItems "center"
+                         :justifyContent "center" :gap 10 :fontSize 17 :fontWeight 700
                          :color "#fff"
                          :background "#172033"}}
-           [:div {:style {:width 34 :height 34 :borderRadius "50%"
+           [:div {:style {:width 28 :height 28 :borderRadius "50%"
                           :display "flex" :alignItems "center" :justifyContent "center"
-                          :color "#79e0c2" :fontSize 24 :fontWeight 300}}
+                          :color "#79e0c2" :fontSize 20 :fontWeight 300}}
             "⌁"]
            (when-not collapsed [:span "若依管理系统"])]
           [:> Menu {:theme "dark"
@@ -592,16 +595,16 @@
                                    (rf/dispatch [:tabs/add page (get labels page "页面") (get icons page)]))))}]]
          ;; Main area
          [:> Layout {:style {:background "#fff"}}
-          [:> Layout.Header {:style {:padding "0 18px"
+          [:> Layout.Header {:style {:padding "0 16px"
                                      :display "flex" :justifyContent "space-between"
-                                     :alignItems "center" :height 72
+                                     :alignItems "center" :height 56
                                      :background "#fff"
                                      :borderBottom "1px solid #e4e7ed"
                                      :boxShadow "0 1px 4px rgba(0,21,41,0.08)"}}
            ;; Left: hamburger + breadcrumb
            [:div {:style {:display "flex" :alignItems "center" :gap 12}}
             ;; Hamburger toggle button
-            [:div {:style {:cursor "pointer" :padding "0 6px" :fontSize 22
+            [:div {:style {:cursor "pointer" :padding "0 6px" :fontSize 21
                            :display "flex" :alignItems "center"
                            :color "#303133"
                            :transition "color 0.3s"}
@@ -609,7 +612,7 @@
              (if collapsed
                [:> MenuUnfoldOutlined]
                [:> MenuFoldOutlined])]
-            [:div {:style {:display "flex" :alignItems "center" :gap 10 :fontSize 16}}
+            [:div {:style {:display "flex" :alignItems "center" :gap 10 :fontSize 15}}
              (for [[idx crumb] (map-indexed vector breadcrumbs)]
                ^{:key (str "crumb-" idx)}
                [:<>
@@ -620,22 +623,22 @@
                  crumb]])]]
            [:div {:style {:display "flex" :alignItems "center" :gap 6}}
             ;; 搜索
-            [:> Button {:type "text" :style {:fontSize 20 :color "#606266"} :icon (r/as-element [:> SearchOutlined])}]
+            [:> Button {:type "text" :style {:fontSize 18 :color "#606266"} :icon (r/as-element [:> SearchOutlined])}]
             ;; GitHub
-            [:> Button {:type "text" :style {:fontSize 20 :color "#606266"} :icon (r/as-element [:> GithubOutlined])
+            [:> Button {:type "text" :style {:fontSize 18 :color "#606266"} :icon (r/as-element [:> GithubOutlined])
                         :onClick #(js/window.open "https://github.com/RedCreationTech/rouyi_clojure" "_blank")}]
             ;; 文档
-            [:> Button {:type "text" :style {:fontSize 20 :color "#606266"} :icon (r/as-element [:> QuestionCircleOutlined])}]
+            [:> Button {:type "text" :style {:fontSize 18 :color "#606266"} :icon (r/as-element [:> QuestionCircleOutlined])}]
             ;; 全屏
-            [:> Button {:type "text" :style {:fontSize 20 :color "#606266"} :icon (r/as-element [:> ExpandOutlined])
+            [:> Button {:type "text" :style {:fontSize 18 :color "#606266"} :icon (r/as-element [:> ExpandOutlined])
                         :onClick #(let [doc js/document.documentElement]
                                     (if (.-fullscreenElement js/document)
                                       (.exitFullscreen js/document)
                                       (.requestFullscreen doc)))}]
-            [:> Button {:type "text" :style {:fontSize 20 :color "#606266"} :icon (r/as-element [:> FontSizeOutlined])}]
+            [:> Button {:type "text" :style {:fontSize 18 :color "#606266"} :icon (r/as-element [:> FontSizeOutlined])}]
             ;; 通知
             [:> Badge {:count 3 :size "small"}
-             [:> Button {:type "text" :style {:fontSize 20 :color "#606266"} :icon (r/as-element [:> BellOutlined])}]]
+             [:> Button {:type "text" :style {:fontSize 18 :color "#606266"} :icon (r/as-element [:> BellOutlined])}]]
             ;; 头像 + 下拉菜单
             [:> Dropdown {:menu {:items (clj->js [{:key "profile" :label "个人中心"}
                                                   {:key "logout" :label "退出登录" :danger true}])
@@ -645,19 +648,19 @@
                                               "logout" (rf/dispatch [:auth/logout])
                                               nil))}}
              [:div {:style {:display "flex" :alignItems "center" :gap 8 :cursor "pointer" :padding "0 6px"}}
-              [:> Avatar {:size 36
+              [:> Avatar {:size 32
                           :style {:background "linear-gradient(135deg,#f7d7c4,#9bc9ff)"
                                   :color "#fff"
                                   :fontWeight 700}}
                "若"]
-              [:span {:style {:fontSize 16 :fontWeight 600 :color "#303133"}} "若依"]]]]]
+              [:span {:style {:fontSize 15 :fontWeight 600 :color "#303133"}} "若依"]]]]]
           ;; Tab 栏
           [tab-bar]
           ;; 内容区（加 Error Boundary，避免单个页面崩溃导致整个布局白屏）
           [:> Layout.Content {:style {:margin 0
                                       :padding 0
                                       :background "#fff"
-                                      :minHeight "calc(100vh - 112px)"
+                                      :minHeight "calc(100vh - 96px)"
                                       :paddingBottom 52
                                       :position "relative"}
                               :key (name page)
@@ -703,7 +706,7 @@
                           :boxShadow "0 4px 12px rgba(233,137,170,0.35)"
                           :zIndex 20}}
             "LA"]
-           [:div {:style {:position "fixed" :left (if collapsed 80 280) :right 0 :bottom 0
+           [:div {:style {:position "fixed" :left (if collapsed collapsed-width sider-width) :right 0 :bottom 0
                           :height 52 :display "flex" :alignItems "center" :justifyContent "flex-end"
                           :padding "0 26px" :borderTop "1px solid #ebeef5"
                           :color "#808080" :fontSize 16 :background "#fff" :zIndex 10}}
