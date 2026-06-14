@@ -6,7 +6,9 @@
    [re-frame.core :as rf]
    ["@ant-design/icons" :refer [SearchOutlined ReloadOutlined ClearOutlined DownloadOutlined]]
    [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.api :as api]))
+   [com.ruoyi.frontend.api :as api]
+   [com.ruoyi.frontend.components.page-search :as page-search]
+   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
 
 (defn- login-log-columns []
   #js [#js {:title "访问编号" :dataIndex "info_id" :key "info_id" :width 80}
@@ -35,25 +37,45 @@
         [username set-username!] (hooks/use-state "")]
     [:div
      ;; 搜索栏
-     [:div {:style {:display "flex" :gap 8 :marginBottom 12 :flexWrap "wrap" :alignItems "center"}}
-      [antd/input {:placeholder "登录地址" :style {:width 200}
-                   :value ipaddr :onChange #(set-ipaddr! (-> % .-target .-value))}]
-      [antd/input {:placeholder "用户名称" :style {:width 200}
-                   :value username :onChange #(set-username! (-> % .-target .-value))}]
-      [antd/button {:type "primary" :icon (r/as-element [:> SearchOutlined])
-                    :on-click #(rf/dispatch [:login-logs/search {:ipaddr ipaddr :user_name username}])}
-       "搜索"]
-      [antd/button {:icon (r/as-element [:> ReloadOutlined])
-                    :on-click #(do (set-ipaddr! "") (set-username! "") (rf/dispatch [:login-logs/fetch {}]))}
-       "重置"]]
+     [page-search/page-search {:visible? true}
+      [page-search/search-row
+       [page-search/search-item
+        "登录地址"
+        [antd/input {:placeholder "请输入登录地址"
+                     :style page-search/input-style
+                     :value ipaddr
+                     :onChange #(set-ipaddr! (-> % .-target .-value))}]]
+       [page-search/search-item
+        "用户名称"
+        [antd/input {:placeholder "请输入用户名称"
+                     :style page-search/input-style
+                     :value username
+                     :onChange #(set-username! (-> % .-target .-value))}]]
+       [page-search/search-actions
+        [page-toolbar/search-button {:icon (r/as-element [:> SearchOutlined])
+                                     :on-click #(rf/dispatch [:login-logs/search {:ipaddr ipaddr :user_name username}])}]
+        [page-toolbar/reset-button {:icon (r/as-element [:> ReloadOutlined])
+                                    :on-click #(do (set-ipaddr! "")
+                                                   (set-username! "")
+                                                   (rf/dispatch [:login-logs/fetch {}]))}]]]]
      ;; 工具栏
-     [:div {:style {:display "flex" :gap 8 :marginBottom 12}}
-      [antd/button {:type "danger" :ghost true :icon (r/as-element [:> ClearOutlined])
-                    :on-click #(rf/dispatch [:login-logs/clear])}
-       "清空全部"]
-      [antd/button {:icon (r/as-element [:> DownloadOutlined])
-                    :on-click #(api/export-loginlogs {})}
-       "导出"]]
+     [page-toolbar/page-toolbar
+      {:left [page-toolbar/toolbar-left
+              [page-toolbar/toolbar-button {:kind :delete
+                                            :icon (r/as-element [:> ClearOutlined])
+                                            :on-click #(rf/dispatch [:login-logs/clear])
+                                            :label "清空"}]
+              [page-toolbar/toolbar-button {:kind :export
+                                            :icon (r/as-element [:> DownloadOutlined])
+                                            :on-click #(api/export-loginlogs {})
+                                            :label "导出"}]]
+       :right [page-toolbar/toolbar-right
+               [page-toolbar/round-tool-button {:title "搜索"
+                                                :icon (r/as-element [:> SearchOutlined])
+                                                :on-click #(rf/dispatch [:login-logs/search {:ipaddr ipaddr :user_name username}])}]
+               [page-toolbar/round-tool-button {:title "刷新"
+                                                :icon (r/as-element [:> ReloadOutlined])
+                                                :on-click #(rf/dispatch [:login-logs/fetch {}])}]]}]
      [antd/table {:scroll #js {:x "max-content"} :rowKey "info_id"
                   :loading loading?
                   :columns (login-log-columns)

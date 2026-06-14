@@ -6,7 +6,8 @@
    [re-frame.core :as rf]
    ["@ant-design/icons" :refer [EyeOutlined DeleteOutlined SearchOutlined ReloadOutlined ClearOutlined DownloadOutlined]]
    [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.api :as api]))
+   [com.ruoyi.frontend.api :as api]
+   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
 
 ;; ─── 详情弹窗 ──────────────────────────────────────────────────────
 
@@ -60,9 +61,20 @@
   (hooks/use-effect (fn [] (rf/dispatch [:oper-logs/fetch {}]) js/undefined) [])
   (let [items @(rf/subscribe [:oper-logs/items]) total @(rf/subscribe [:oper-logs/total]) loading? @(rf/subscribe [:oper-logs/loading?])]
     [:div
-     [antd/space {:style {:marginBottom 16}}
-      [antd/button {:type "primary" :danger true :onClick #(rf/dispatch [:oper-logs/clear])} "清空"]
-      [antd/button {:onClick #(rf/dispatch [:oper-logs/export])} "导出"]]
+     [page-toolbar/page-toolbar
+      {:left [page-toolbar/toolbar-left
+              [page-toolbar/toolbar-button {:kind :delete
+                                            :icon (r/as-element [:> ClearOutlined])
+                                            :on-click #(rf/dispatch [:oper-logs/clear])
+                                            :label "清空"}]
+              [page-toolbar/toolbar-button {:kind :export
+                                            :icon (r/as-element [:> DownloadOutlined])
+                                            :on-click #(rf/dispatch [:oper-logs/export])
+                                            :label "导出"}]]
+       :right [page-toolbar/toolbar-right
+               [page-toolbar/round-tool-button {:title "刷新"
+                                                :icon (r/as-element [:> ReloadOutlined])
+                                                :on-click #(rf/dispatch [:oper-logs/fetch {}])}]]}]
      [antd/table {:scroll #js {:x "max-content"} :rowKey "oper_id" :loading loading? :columns (oper-log-columns)
                   :dataSource (clj->js items) :pagination {:pageSize 10 :total total}}]
      [detail-modal]]))

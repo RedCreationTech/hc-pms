@@ -6,20 +6,26 @@
    [re-frame.core :as rf]
    ["@ant-design/icons" :refer [PlusOutlined DownloadOutlined SearchOutlined ReloadOutlined]]
    [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.api :as api]))
+   [com.ruoyi.frontend.api :as api]
+   [com.ruoyi.frontend.components.page-search :as page-search]
+   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
 
 (defn- search-bar []
   (let [[keyword set-keyword!] (hooks/use-state "")]
-    [antd/card {:style {:marginBottom 16}}
-     [antd/space
-      [antd/input {:placeholder "参数名称" :allowClear true
-                   :style {:width 200}
-                   :value keyword
-                   :on-change #(set-keyword! (.. % -target -value))}]
-      [antd/button {:type "primary" :onClick #(rf/dispatch [:configs/fetch {:configName keyword}])}
-       "搜索"]
-      [antd/button {:onClick #(do (set-keyword! "") (rf/dispatch [:configs/fetch {}]))}
-       "重置"]]]))
+    [page-search/page-search {:visible? true}
+     [page-search/search-row
+      [page-search/search-item
+       "参数名称"
+       [antd/input {:placeholder "请输入参数名称"
+                    :style page-search/input-style
+                    :value keyword
+                    :on-change #(set-keyword! (.. % -target -value))}]]
+      [page-search/search-actions
+       [page-toolbar/search-button {:icon (r/as-element [:> SearchOutlined])
+                                    :on-click #(rf/dispatch [:configs/fetch {:configName keyword}])}]
+       [page-toolbar/reset-button {:icon (r/as-element [:> ReloadOutlined])
+                                   :on-click #(do (set-keyword! "")
+                                                  (rf/dispatch [:configs/fetch {}]))}]]]]))
 
 (defn- config-columns [on-edit on-delete]
   #js [#js {:title "参数ID" :dataIndex "config_id" :key "config_id" :width 80}
@@ -85,20 +91,30 @@
      [])
     [:div
      [search-bar]
-     [antd/card
-      [:div {:style {:marginBottom 16}}
-       [antd/button {:type "primary" :onClick #(do (set-editing! nil) (set-modal-visible! true))}
-        "新增"]
-       [antd/button {:icon (r/as-element [:> DownloadOutlined])
-                     :on-click #(api/export-configs {})}
-        "导出"]]
+     [page-toolbar/page-toolbar
+      {:left [page-toolbar/toolbar-left
+              [page-toolbar/toolbar-button {:kind :add
+                                            :icon (r/as-element [:> PlusOutlined])
+                                            :on-click #(do (set-editing! nil) (set-modal-visible! true))
+                                            :label "新增"}]
+              [page-toolbar/toolbar-button {:kind :export
+                                            :icon (r/as-element [:> DownloadOutlined])
+                                            :on-click #(api/export-configs {})
+                                            :label "导出"}]]
+       :right [page-toolbar/toolbar-right
+               [page-toolbar/round-tool-button {:title "搜索"
+                                                :icon (r/as-element [:> SearchOutlined])
+                                                :on-click #(rf/dispatch [:configs/fetch {}])}]
+               [page-toolbar/round-tool-button {:title "刷新"
+                                                :icon (r/as-element [:> ReloadOutlined])
+                                                :on-click #(rf/dispatch [:configs/fetch {}])}]]}]
       [antd/table {:rowKey "config_id" :loading loading? :scroll #js {:x 800}
                    :columns (config-columns
                              #(do (set-editing! %) (set-modal-visible! true))
                              #(rf/dispatch [:configs/delete %]))
                    :dataSource (clj->js items)
                    :pagination {:pageSize 10 :total total
-                                :show-total (fn [t] (str "共 " t " 条"))}}]]
+                                :show-total (fn [t] (str "共 " t " 条"))}}]
      [config-modal
       {:visible? modal-visible?
        :editing editing

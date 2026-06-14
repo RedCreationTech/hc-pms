@@ -5,7 +5,9 @@
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
    ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined PlayCircleOutlined FileTextOutlined SearchOutlined ReloadOutlined]]
-   [com.ruoyi.frontend.antd :as antd]))
+   [com.ruoyi.frontend.antd :as antd]
+   [com.ruoyi.frontend.components.page-search :as page-search]
+   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
 
 (defn- status-tag [status]
   [antd/tag {:color (if (= status "0") "green" "red")}
@@ -92,29 +94,47 @@
                           (set-form-remark! ""))]
       [:div
        ;; 搜索栏
-       [:div {:style {:display "flex" :gap 8 :marginBottom 12 :flexWrap "wrap" :alignItems "center"}}
-        [antd/input {:placeholder "任务名称" :style {:width 200}
-                     :value job-name :onChange #(set-job-name! (-> % .-target .-value))}]
-        [antd/input {:placeholder "任务组名" :style {:width 200}
-                     :value job-group :onChange #(set-job-group! (-> % .-target .-value))}]
-        [antd/button {:type "primary" :icon (r/as-element [:> SearchOutlined])
-                      :on-click #(rf/dispatch [:jobs/search {:job_name job-name :job_group job-group}])}
-         "搜索"]
-        [antd/button {:icon (r/as-element [:> ReloadOutlined])
-                      :on-click #(do (set-job-name! "") (set-job-group! "") (rf/dispatch [:jobs/fetch {}]))}
-         "重置"]]
+       [page-search/page-search {:visible? true}
+        [page-search/search-row
+         [page-search/search-item
+          "任务名称"
+          [antd/input {:placeholder "请输入任务名称"
+                       :style page-search/input-style
+                       :value job-name
+                       :onChange #(set-job-name! (-> % .-target .-value))}]]
+         [page-search/search-item
+          "任务组名"
+          [antd/input {:placeholder "请输入任务组名"
+                       :style page-search/input-style
+                       :value job-group
+                       :onChange #(set-job-group! (-> % .-target .-value))}]]
+         [page-search/search-actions
+          [page-toolbar/search-button {:icon (r/as-element [:> SearchOutlined])
+                                       :on-click #(rf/dispatch [:jobs/search {:job_name job-name :job_group job-group}])}]
+          [page-toolbar/reset-button {:icon (r/as-element [:> ReloadOutlined])
+                                      :on-click #(do (set-job-name! "")
+                                                     (set-job-group! "")
+                                                     (rf/dispatch [:jobs/fetch {}]))}]]]]
        ;; 工具栏
-       [antd/space {:style {:marginBottom 16}}
-        [antd/button {:type "primary"
-                      :icon (r/as-element [:> PlusOutlined])
-                      :onClick #(do (set-editing-record! nil)
-                                    (set-form-name! "")
-                                    (set-form-group! "DEFAULT")
-                                    (set-form-target! "")
-                                    (set-form-cron! "")
-                                    (set-form-remark! "")
-                                    (set-show-form! true))}
-         "新增任务"]]
+       [page-toolbar/page-toolbar
+        {:left [page-toolbar/toolbar-left
+                [page-toolbar/toolbar-button {:kind :add
+                                              :icon (r/as-element [:> PlusOutlined])
+                                              :on-click #(do (set-editing-record! nil)
+                                                             (set-form-name! "")
+                                                             (set-form-group! "DEFAULT")
+                                                             (set-form-target! "")
+                                                             (set-form-cron! "")
+                                                             (set-form-remark! "")
+                                                             (set-show-form! true))
+                                              :label "新增"}]]
+         :right [page-toolbar/toolbar-right
+                 [page-toolbar/round-tool-button {:title "搜索"
+                                                  :icon (r/as-element [:> SearchOutlined])
+                                                  :on-click #(rf/dispatch [:jobs/search {:job_name job-name :job_group job-group}])}]
+                 [page-toolbar/round-tool-button {:title "刷新"
+                                                  :icon (r/as-element [:> ReloadOutlined])
+                                                  :on-click #(rf/dispatch [:jobs/fetch {}])}]]}]
 
        ;; 表格
        [antd/table {:scroll #js {:x "max-content"} :rowKey "job_id"

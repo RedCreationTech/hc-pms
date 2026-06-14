@@ -6,7 +6,9 @@
    [re-frame.core :as rf]
    ["@ant-design/icons" :refer [DownloadOutlined SearchOutlined ReloadOutlined PlusOutlined EditOutlined DeleteOutlined SafetyOutlined]]
    [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.api :as api]))
+   [com.ruoyi.frontend.api :as api]
+   [com.ruoyi.frontend.components.page-search :as page-search]
+   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
 
 ;; ─── 辅助函数 ──────────────────────────────────────────────────────
 
@@ -50,56 +52,64 @@
 
 (defn- search-form []
   (let [query-params @(rf/subscribe [:roles/query-params])]
-    [:div {:style {:background "var(--ant-color-bg-container, #fff)" :padding 16 :marginBottom 12 :borderRadius 8 :border "1px solid var(--ant-color-border-secondary, #e8e8e8)"}}
-     [:div {:style {:display "flex" :flexWrap "wrap" :gap 12}}
-      [:div {:style {:display "flex" :alignItems "center" :gap 8}}
-       [:span {:style {:whiteSpace "nowrap" :fontSize 13}} "角色名称"]
+    [page-search/page-search {:visible? true}
+     [page-search/search-row
+      [page-search/search-item
+       "角色名称"
        [antd/input {:placeholder "请输入角色名称"
-                    :style {:width 200}
+                    :style page-search/input-style
                     :value (:role_name query-params)
                     :on-change #(rf/dispatch [:roles/update-query :role_name (.. % -target -value)])}]]
-      [:div {:style {:display "flex" :alignItems "center" :gap 8}}
-       [:span {:style {:whiteSpace "nowrap" :fontSize 13}} "权限字符"]
+      [page-search/search-item
+       "权限字符"
        [antd/input {:placeholder "请输入权限字符"
-                    :style {:width 200}
+                    :style page-search/input-style
                     :value (:role_key query-params)
                     :on-change #(rf/dispatch [:roles/update-query :role_key (.. % -target -value)])}]]
-      [:div {:style {:display "flex" :alignItems "center" :gap 8}}
-       [:span {:style {:whiteSpace "nowrap" :fontSize 13}} "状态"]
+      [page-search/search-item
+       "状态"
        [antd/select {:placeholder "角色状态"
-                     :style {:width 200}
+                     :style page-search/select-style
                      :value (:status query-params)
                      :allowClear true
                      :on-change #(rf/dispatch [:roles/update-query :status %])}
         [antd/select-option {:value "0"} "正常"]
         [antd/select-option {:value "1"} "停用"]]]
-      [:div {:style {:display "flex" :gap 8 :alignItems "flex-end"}}
-       [antd/button {:type "primary"
-                     :icon (r/as-element [:> SearchOutlined])
-                     :on-click #(rf/dispatch [:roles/fetch (:roles/query-params @re-frame.db/app-db)])}
-        "搜索"]
-       [antd/button {:icon (r/as-element [:> ReloadOutlined])
-                     :on-click #(do (rf/dispatch [:roles/reset-query])
-                                    (rf/dispatch [:roles/fetch {}]))}
-        "重置"]
-       [antd/button {:icon (r/as-element [:> DownloadOutlined])
-                     :on-click #(api/export-roles {})}
-        "导出"]]]]))
+      [page-search/search-actions
+       [page-toolbar/search-button {:icon (r/as-element [:> SearchOutlined])
+                                    :on-click #(rf/dispatch [:roles/fetch (:roles/query-params @re-frame.db/app-db)])}]
+       [page-toolbar/reset-button {:icon (r/as-element [:> ReloadOutlined])
+                                   :on-click #(do (rf/dispatch [:roles/reset-query])
+                                                  (rf/dispatch [:roles/fetch {}]))}]]]]))
 
 ;; ─── 工具栏 ────────────────────────────────────────────────────────
 
 (defn- toolbar []
-  [:div {:style {:display "flex" :gap 8 :marginBottom 16}}
-   [antd/button {:type "primary"
-                 :icon (r/as-element [:> PlusOutlined])
-                 :on-click #(rf/dispatch [:roles/open-modal])}
-    "新增"]
-   [antd/button {:icon (r/as-element [:> ReloadOutlined])
-                 :on-click #(rf/dispatch [:roles/fetch {}])}
-    "刷新"]
-   [antd/button {:icon (r/as-element [:> DownloadOutlined])
-                 :on-click #(api/export-roles {})}
-    "导出"]])
+  [page-toolbar/page-toolbar
+   {:left [page-toolbar/toolbar-left
+           [page-toolbar/toolbar-button {:kind :add
+                                         :icon (r/as-element [:> PlusOutlined])
+                                         :on-click #(rf/dispatch [:roles/open-modal])
+                                         :label "新增"}]
+           [page-toolbar/toolbar-button {:kind :edit
+                                         :icon (r/as-element [:> EditOutlined])
+                                         :disabled? true
+                                         :label "修改"}]
+           [page-toolbar/toolbar-button {:kind :delete
+                                         :icon (r/as-element [:> DeleteOutlined])
+                                         :disabled? true
+                                         :label "删除"}]
+           [page-toolbar/toolbar-button {:kind :export
+                                         :icon (r/as-element [:> DownloadOutlined])
+                                         :on-click #(api/export-roles {})
+                                         :label "导出"}]]
+    :right [page-toolbar/toolbar-right
+            [page-toolbar/round-tool-button {:title "搜索"
+                                             :icon (r/as-element [:> SearchOutlined])
+                                             :on-click #(rf/dispatch [:roles/fetch (:roles/query-params @re-frame.db/app-db)])}]
+            [page-toolbar/round-tool-button {:title "刷新"
+                                             :icon (r/as-element [:> ReloadOutlined])
+                                             :on-click #(rf/dispatch [:roles/fetch {}])}]]}])
 
 ;; ─── 表格列定义 ──────────────────────────────────────────────────────
 

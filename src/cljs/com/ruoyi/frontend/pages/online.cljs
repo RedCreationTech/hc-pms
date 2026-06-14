@@ -6,7 +6,9 @@
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
    ["@ant-design/icons" :refer [SearchOutlined ReloadOutlined]]
-   [com.ruoyi.frontend.antd :as antd]))
+   [com.ruoyi.frontend.antd :as antd]
+   [com.ruoyi.frontend.components.page-search :as page-search]
+   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
 
 (defn- token-id-from-row
   "Antd render 第一个参数可能是文本/记录；兼容取 token-id。"
@@ -47,15 +49,29 @@
         loading? @(rf/subscribe [:online-users/loading?])]
     [:div
      ;; 搜索栏
-     [:div {:style {:display "flex" :gap 8 :marginBottom 12 :flexWrap "wrap" :alignItems "center"}}
-      [antd/input {:placeholder "用户名" :style {:width 200}
-                   :value uname :onChange #(set-uname! (-> % .-target .-value))}]
-      [antd/button {:type "primary" :icon (r/as-element [:> SearchOutlined])
-                    :on-click #(rf/dispatch [:online-users/search {:user_name uname}])}
-       "搜索"]
-      [antd/button {:icon (r/as-element [:> ReloadOutlined])
-                    :on-click #(do (set-uname! "") (rf/dispatch [:online-users/fetch {}]))}
-       "重置"]]
+     [page-search/page-search {:visible? true}
+      [page-search/search-row
+       [page-search/search-item
+        "用户名称"
+        [antd/input {:placeholder "请输入用户名称"
+                     :style page-search/input-style
+                     :value uname
+                     :onChange #(set-uname! (-> % .-target .-value))}]]
+       [page-search/search-actions
+        [page-toolbar/search-button {:icon (r/as-element [:> SearchOutlined])
+                                     :on-click #(rf/dispatch [:online-users/search {:user_name uname}])}]
+        [page-toolbar/reset-button {:icon (r/as-element [:> ReloadOutlined])
+                                    :on-click #(do (set-uname! "")
+                                                   (rf/dispatch [:online-users/fetch {}]))}]]]]
+     [page-toolbar/page-toolbar
+      {:left [page-toolbar/toolbar-left]
+       :right [page-toolbar/toolbar-right
+               [page-toolbar/round-tool-button {:title "搜索"
+                                                :icon (r/as-element [:> SearchOutlined])
+                                                :on-click #(rf/dispatch [:online-users/search {:user_name uname}])}]
+               [page-toolbar/round-tool-button {:title "刷新"
+                                                :icon (r/as-element [:> ReloadOutlined])
+                                                :on-click #(rf/dispatch [:online-users/fetch {}])}]]}]
      [antd/table {:scroll #js {:x "max-content"} :rowKey "token-id"
                   :loading loading?
                   :columns (online-columns)

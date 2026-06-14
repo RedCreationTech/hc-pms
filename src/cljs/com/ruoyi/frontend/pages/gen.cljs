@@ -8,7 +8,8 @@
    ["@ant-design/icons" :refer [ReloadOutlined CodeOutlined EyeOutlined DownloadOutlined SettingOutlined CloudUploadOutlined]]
    ["react-syntax-highlighter" :default SyntaxHighlighter]
    ["react-syntax-highlighter/dist/esm/styles/hljs/atom-one-dark" :default atom-one-dark]
-   [com.ruoyi.frontend.antd :as antd]))
+   [com.ruoyi.frontend.antd :as antd]
+   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
 
 ;; ─── 工具函数 ──────────────────────────────────────────────────────
 
@@ -90,26 +91,30 @@
         preview-table-name @(rf/subscribe [:gen/preview-table-name])]
     [:div
      ;; 工具栏
-     [antd/space {:style {:marginBottom 16}}
-      [antd/button {:icon (r/as-element [:> ReloadOutlined])
-                    :onClick #(rf/dispatch [:gen/fetch-tables])}
-       "刷新"]
-      [antd/button {:icon (r/as-element [:> SettingOutlined])
-                    :onClick #(rf/dispatch [:gen/open-config])}
-       "生成配置"]
-      (when (seq selected-tables)
-        [:<>
-         [antd/button {:type "primary"
-                       :icon (r/as-element [:> CodeOutlined])
-                       :onClick #(rf/dispatch [:gen/generate selected-tables])}
-          (str "批量生成 (" (count selected-tables) " 个表)")]
-         [antd/button {:icon (r/as-element [:> DownloadOutlined])
-                       :onClick #(rf/dispatch [:gen/download selected-tables])}
-          "下载ZIP"]
-         [antd/button {:type "primary" :ghost true
-                       :icon (r/as-element [:> CloudUploadOutlined])
-                       :onClick #(rf/dispatch [:gen/deploy selected-tables])}
-          (str "部署到项目 (" (count selected-tables) " 个表)")]])]
+     [page-toolbar/page-toolbar
+      {:left [page-toolbar/toolbar-left
+              [page-toolbar/toolbar-button {:kind :default
+                                            :icon (r/as-element [:> SettingOutlined])
+                                            :on-click #(rf/dispatch [:gen/open-config])
+                                            :label "生成配置"}]
+              (when (seq selected-tables)
+                [:<>
+                 [page-toolbar/toolbar-button {:kind :add
+                                               :icon (r/as-element [:> CodeOutlined])
+                                               :on-click #(rf/dispatch [:gen/generate selected-tables])
+                                               :label (str "批量生成 (" (count selected-tables) " 个表)")}]
+                 [page-toolbar/toolbar-button {:kind :export
+                                               :icon (r/as-element [:> DownloadOutlined])
+                                               :on-click #(rf/dispatch [:gen/download selected-tables])
+                                               :label "下载ZIP"}]
+                 [page-toolbar/toolbar-button {:kind :add
+                                               :icon (r/as-element [:> CloudUploadOutlined])
+                                               :on-click #(rf/dispatch [:gen/deploy selected-tables])
+                                               :label (str "部署到项目 (" (count selected-tables) " 个表)")}]])]
+       :right [page-toolbar/toolbar-right
+               [page-toolbar/round-tool-button {:title "刷新"
+                                                :icon (r/as-element [:> ReloadOutlined])
+                                                :on-click #(rf/dispatch [:gen/fetch-tables])}]]}]
 
      ;; 表格
      [antd/card {:title "数据库表"}

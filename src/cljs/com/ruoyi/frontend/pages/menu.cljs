@@ -7,6 +7,8 @@
    ["@ant-design/icons" :refer [PlusOutlined DownloadOutlined EditOutlined DeleteOutlined ReloadOutlined SearchOutlined]]
    [com.ruoyi.frontend.antd :as antd]
    [com.ruoyi.frontend.api :as api]
+   [com.ruoyi.frontend.components.page-search :as page-search]
+   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
    [com.ruoyi.frontend.components.icon-picker :as icon-picker]))
 
 ;; ─── 菜单类型标签 ──────────────────────────────────────────────────────
@@ -44,32 +46,51 @@
 (defn- search-bar []
   (let [[menu-name set-menu-name!] (hooks/use-state "")
         [status set-status!] (hooks/use-state nil)]
-    [:div {:style {:display "flex" :gap 8 :marginBottom 12 :flexWrap "wrap" :alignItems "center"}}
-     [antd/input {:placeholder "菜单名称" :style {:width 200}
-                  :value menu-name :onChange #(set-menu-name! (-> % .-target .-value))}]
-     [antd/select {:placeholder "状态" :style {:width 120} :allowClear true
-                   :value status :onChange #(set-status! %)}
-      [antd/select-option {:value "0"} "正常"]
-      [antd/select-option {:value "1"} "停用"]]
-     [antd/button {:type "primary" :icon (r/as-element [:> SearchOutlined])
-                   :on-click #(rf/dispatch [:menus/search {:menu_name menu-name :status status}])}
-      "搜索"]
-     [antd/button {:icon (r/as-element [:> ReloadOutlined])
-                   :on-click #(do (set-menu-name! "") (set-status! nil)
-                                  (rf/dispatch [:menus/fetch]))}
-      "重置"]]))
+    [page-search/page-search {:visible? true}
+     [page-search/search-row
+      [page-search/search-item
+       "菜单名称"
+       [antd/input {:placeholder "请输入菜单名称"
+                    :style page-search/input-style
+                    :value menu-name
+                    :onChange #(set-menu-name! (-> % .-target .-value))}]]
+      [page-search/search-item
+       "状态"
+       [antd/select {:placeholder "菜单状态"
+                     :style page-search/select-style
+                     :allowClear true
+                     :value status
+                     :onChange #(set-status! %)}
+        [antd/select-option {:value "0"} "正常"]
+        [antd/select-option {:value "1"} "停用"]]]
+      [page-search/search-actions
+       [page-toolbar/search-button {:icon (r/as-element [:> SearchOutlined])
+                                    :on-click #(rf/dispatch [:menus/search {:menu_name menu-name :status status}])}]
+       [page-toolbar/reset-button {:icon (r/as-element [:> ReloadOutlined])
+                                   :on-click #(do (set-menu-name! "")
+                                                  (set-status! nil)
+                                                  (rf/dispatch [:menus/fetch]))}]]]]))
 
 ;; ─── 工具栏 ────────────────────────────────────────────────────────
 
 (defn- toolbar []
-  [:div {:style {:display "flex" :gap 8 :marginBottom 16}}
-   [antd/button {:type "primary"
-                 :icon (r/as-element [:> PlusOutlined])
-                 :on-click #(rf/dispatch [:menus/open-modal])}
-    "新增菜单"]
-   [antd/button {:icon (r/as-element [:> ReloadOutlined])
-                 :on-click #(rf/dispatch [:menus/fetch])}
-    "刷新"]])
+  [page-toolbar/page-toolbar
+   {:left [page-toolbar/toolbar-left
+           [page-toolbar/toolbar-button {:kind :add
+                                         :icon (r/as-element [:> PlusOutlined])
+                                         :on-click #(rf/dispatch [:menus/open-modal])
+                                         :label "新增"}]
+           [page-toolbar/toolbar-button {:kind :export
+                                         :icon (r/as-element [:> DownloadOutlined])
+                                         :on-click #(api/export-menus {})
+                                         :label "导出"}]]
+    :right [page-toolbar/toolbar-right
+            [page-toolbar/round-tool-button {:title "搜索"
+                                             :icon (r/as-element [:> SearchOutlined])
+                                             :on-click #(rf/dispatch [:menus/search {}])}]
+            [page-toolbar/round-tool-button {:title "刷新"
+                                             :icon (r/as-element [:> ReloadOutlined])
+                                             :on-click #(rf/dispatch [:menus/fetch])}]]}])
 
 ;; ─── 表格列 ──────────────────────────────────────────────────────
 

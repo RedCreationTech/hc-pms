@@ -5,7 +5,8 @@
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
    ["@ant-design/icons" :refer [UploadOutlined DownloadOutlined DeleteOutlined ReloadOutlined FileTextOutlined]]
-   [com.ruoyi.frontend.antd :as antd]))
+   [com.ruoyi.frontend.antd :as antd]
+   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
 
 ;; ─── 工具函数 ──────────────────────────────────────────────────────
 
@@ -47,14 +48,18 @@
   (let [items @(rf/subscribe [:file/items])
         loading? @(rf/subscribe [:file/loading?])]
     [:div
-     [antd/space {:style {:marginBottom 16}}
-      [antd/upload {:showUploadList false
-                    :beforeUpload (fn [file]
-                                    (rf/dispatch [:file/upload file])
-                                    false)}
-       [antd/button {:icon (r/as-element [:> UploadOutlined])} "上传文件"]]
-      [antd/button {:icon (r/as-element [:> ReloadOutlined])
-                    :onClick #(rf/dispatch [:file/fetch])}
-       "刷新"]]
+     [page-toolbar/page-toolbar
+      {:left [page-toolbar/toolbar-left
+              [antd/upload {:showUploadList false
+                            :beforeUpload (fn [file]
+                                            (rf/dispatch [:file/upload file])
+                                            false)}
+               [page-toolbar/toolbar-button {:kind :import
+                                             :icon (r/as-element [:> UploadOutlined])
+                                             :label "上传"}]]]
+       :right [page-toolbar/toolbar-right
+               [page-toolbar/round-tool-button {:title "刷新"
+                                                :icon (r/as-element [:> ReloadOutlined])
+                                                :on-click #(rf/dispatch [:file/fetch])}]]}]
      [antd/table {:scroll #js {:x "max-content"} :rowKey "name" :loading loading? :columns (file-columns)
                   :dataSource (clj->js items) :pagination false}]]))

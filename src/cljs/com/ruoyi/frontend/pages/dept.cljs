@@ -7,6 +7,8 @@
    ["@ant-design/icons" :refer [PlusOutlined DownloadOutlined EditOutlined DeleteOutlined ReloadOutlined SearchOutlined]]
    [com.ruoyi.frontend.antd :as antd]
    [com.ruoyi.frontend.api :as api]
+   [com.ruoyi.frontend.components.page-search :as page-search]
+   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
    [com.ruoyi.frontend.components.dept-tree-select :refer [dept-tree-select]]))
 
 ;; ─── 辅助函数 ──────────────────────────────────────────────────────
@@ -27,30 +29,49 @@
 (defn- search-bar []
   (let [[dept-name set-dept-name!] (hooks/use-state "")
         [status set-status!] (hooks/use-state nil)]
-    [:div {:style {:display "flex" :gap 8 :marginBottom 12 :flexWrap "wrap" :alignItems "center"}}
-     [antd/input {:placeholder "部门名称" :style {:width 200}
-                  :value dept-name :onChange #(set-dept-name! (-> % .-target .-value))}]
-     [antd/select {:placeholder "状态" :style {:width 120} :allowClear true
-                   :value status :onChange #(set-status! %)}
-      [antd/select-option {:value "0"} "正常"]
-      [antd/select-option {:value "1"} "停用"]]
-     [antd/button {:type "primary" :icon (r/as-element [:> SearchOutlined])
-                   :on-click #(rf/dispatch [:depts/search {:dept_name dept-name :status status}])}
-      "搜索"]
-     [antd/button {:icon (r/as-element [:> ReloadOutlined])
-                   :on-click #(do (set-dept-name! "") (set-status! nil)
-                                  (rf/dispatch [:depts/fetch {}]))}
-      "重置"]]))
+    [page-search/page-search {:visible? true}
+     [page-search/search-row
+      [page-search/search-item
+       "部门名称"
+       [antd/input {:placeholder "请输入部门名称"
+                    :style page-search/input-style
+                    :value dept-name
+                    :onChange #(set-dept-name! (-> % .-target .-value))}]]
+      [page-search/search-item
+       "状态"
+       [antd/select {:placeholder "部门状态"
+                     :style page-search/select-style
+                     :allowClear true
+                     :value status
+                     :onChange #(set-status! %)}
+        [antd/select-option {:value "0"} "正常"]
+        [antd/select-option {:value "1"} "停用"]]]
+      [page-search/search-actions
+       [page-toolbar/search-button {:icon (r/as-element [:> SearchOutlined])
+                                    :on-click #(rf/dispatch [:depts/search {:dept_name dept-name :status status}])}]
+       [page-toolbar/reset-button {:icon (r/as-element [:> ReloadOutlined])
+                                   :on-click #(do (set-dept-name! "")
+                                                  (set-status! nil)
+                                                  (rf/dispatch [:depts/fetch {}]))}]]]]))
 
 (defn- toolbar []
-  [:div {:style {:display "flex" :gap 8 :marginBottom 16}}
-   [antd/button {:type "primary"
-                 :icon (r/as-element [:> PlusOutlined])
-                 :on-click #(rf/dispatch [:depts/open-modal])}
-    "新增部门"]
-   [antd/button {:icon (r/as-element [:> ReloadOutlined])
-                 :on-click #(rf/dispatch [:depts/fetch {}])}
-    "刷新"]])
+  [page-toolbar/page-toolbar
+   {:left [page-toolbar/toolbar-left
+           [page-toolbar/toolbar-button {:kind :add
+                                         :icon (r/as-element [:> PlusOutlined])
+                                         :on-click #(rf/dispatch [:depts/open-modal])
+                                         :label "新增"}]
+           [page-toolbar/toolbar-button {:kind :export
+                                         :icon (r/as-element [:> DownloadOutlined])
+                                         :on-click #(api/export-depts {})
+                                         :label "导出"}]]
+    :right [page-toolbar/toolbar-right
+            [page-toolbar/round-tool-button {:title "搜索"
+                                             :icon (r/as-element [:> SearchOutlined])
+                                             :on-click #(rf/dispatch [:depts/search {}])}]
+            [page-toolbar/round-tool-button {:title "刷新"
+                                             :icon (r/as-element [:> ReloadOutlined])
+                                             :on-click #(rf/dispatch [:depts/fetch {}])}]]}])
 
 ;; ─── 表格列 ──────────────────────────────────────────────────────
 

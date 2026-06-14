@@ -7,7 +7,9 @@
    [clojure.string :as str]
    ["@ant-design/icons" :refer [PlusOutlined SearchOutlined ReloadOutlined]]
    ["react-quill-new" :default ReactQuill]
-   [com.ruoyi.frontend.antd :as antd]))
+   [com.ruoyi.frontend.antd :as antd]
+   [com.ruoyi.frontend.components.page-search :as page-search]
+   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
 
 (defn- notice-columns []
   #js [#js {:title "ID" :dataIndex "notice_id" :key "notice_id" :width 80}
@@ -82,19 +84,33 @@
     [:div
      ;; 搜索栏
      (let [[title set-title!] (hooks/use-state "")]
-       [:div {:style {:display "flex" :gap 8 :marginBottom 12 :flexWrap "wrap" :alignItems "center"}}
-        [antd/input {:placeholder "公告标题" :style {:width 200}
-                     :value title :onChange #(set-title! (-> % .-target .-value))}]
-        [antd/button {:type "primary" :icon (r/as-element [:> SearchOutlined])
-                      :on-click #(rf/dispatch [:notices/search {:notice_title title}])}
-         "搜索"]
-        [antd/button {:icon (r/as-element [:> ReloadOutlined])
-                      :on-click #(do (set-title! "") (rf/dispatch [:notices/fetch {}]))}
-         "重置"]])
-     [antd/space {:style {:marginBottom 16}}
-      [antd/button {:type "primary"
-                    :on-click #(rf/dispatch [:notices/open-modal])}
-       "新增通知"]]
+       [page-search/page-search {:visible? true}
+        [page-search/search-row
+         [page-search/search-item
+          "公告标题"
+          [antd/input {:placeholder "请输入公告标题"
+                       :style page-search/input-style
+                       :value title
+                       :onChange #(set-title! (-> % .-target .-value))}]]
+         [page-search/search-actions
+          [page-toolbar/search-button {:icon (r/as-element [:> SearchOutlined])
+                                       :on-click #(rf/dispatch [:notices/search {:notice_title title}])}]
+          [page-toolbar/reset-button {:icon (r/as-element [:> ReloadOutlined])
+                                      :on-click #(do (set-title! "")
+                                                     (rf/dispatch [:notices/fetch {}]))}]]]])
+     [page-toolbar/page-toolbar
+      {:left [page-toolbar/toolbar-left
+              [page-toolbar/toolbar-button {:kind :add
+                                            :icon (r/as-element [:> PlusOutlined])
+                                            :on-click #(rf/dispatch [:notices/open-modal])
+                                            :label "新增"}]]
+       :right [page-toolbar/toolbar-right
+               [page-toolbar/round-tool-button {:title "搜索"
+                                                :icon (r/as-element [:> SearchOutlined])
+                                                :on-click #(rf/dispatch [:notices/fetch {}])}]
+               [page-toolbar/round-tool-button {:title "刷新"
+                                                :icon (r/as-element [:> ReloadOutlined])
+                                                :on-click #(rf/dispatch [:notices/fetch {}])}]]}]
      [antd/table {:scroll #js {:x "max-content"} :rowKey "notice_id"
                   :columns (notice-columns)
                   :dataSource (clj->js items)

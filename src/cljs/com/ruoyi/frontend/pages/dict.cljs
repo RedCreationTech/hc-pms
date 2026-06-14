@@ -6,7 +6,9 @@
    [re-frame.core :as rf]
    ["@ant-design/icons" :refer [PlusOutlined DownloadOutlined EditOutlined DeleteOutlined SearchOutlined ReloadOutlined]]
    [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.api :as api]))
+   [com.ruoyi.frontend.api :as api]
+   [com.ruoyi.frontend.components.page-search :as page-search]
+   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
 
 ;; ─── 字典类型 ─────────────────────────────────────────────────────────────────
 
@@ -71,23 +73,44 @@
         [editing set-editing!] (hooks/use-state nil)]
     (hooks/use-effect (fn [] (rf/dispatch [:dicts/fetch-types {}]) js/undefined) [])
     [:div
-     [:div {:style {:display "flex" :gap 8 :marginBottom 12 :flexWrap "wrap" :alignItems "center"}}
-      [antd/input {:placeholder "字典名称" :style {:width 200}
-                   :value dict-name :onChange #(set-dict-name! (-> % .-target .-value))}]
-      [antd/input {:placeholder "字典类型" :style {:width 200}
-                   :value dict-type :onChange #(set-dict-type! (-> % .-target .-value))}]
-      [antd/button {:type "primary" :icon (r/as-element [:> SearchOutlined])
-                    :on-click #(rf/dispatch [:dicts/search {:dict_name dict-name :dict_type dict-type}])}
-       "搜索"]
-      [antd/button {:icon (r/as-element [:> ReloadOutlined])
-                    :on-click #(do (set-dict-name! "") (set-dict-type! "") (rf/dispatch [:dicts/fetch-types {}]))}
-       "重置"]]
-     [:div {:style {:marginBottom 16}}
-      [antd/button {:type "primary" :onClick #(do (set-editing! nil) (set-modal-visible! true))}
-       "新增字典类型"]
-      [antd/button {:icon (r/as-element [:> DownloadOutlined])
-                    :on-click #(api/export-dicts {})}
-       "导出"]]
+     [page-search/page-search {:visible? true}
+      [page-search/search-row
+       [page-search/search-item
+        "字典名称"
+        [antd/input {:placeholder "请输入字典名称"
+                     :style page-search/input-style
+                     :value dict-name
+                     :onChange #(set-dict-name! (-> % .-target .-value))}]]
+       [page-search/search-item
+        "字典类型"
+        [antd/input {:placeholder "请输入字典类型"
+                     :style page-search/input-style
+                     :value dict-type
+                     :onChange #(set-dict-type! (-> % .-target .-value))}]]
+       [page-search/search-actions
+        [page-toolbar/search-button {:icon (r/as-element [:> SearchOutlined])
+                                     :on-click #(rf/dispatch [:dicts/search {:dict_name dict-name :dict_type dict-type}])}]
+        [page-toolbar/reset-button {:icon (r/as-element [:> ReloadOutlined])
+                                    :on-click #(do (set-dict-name! "")
+                                                   (set-dict-type! "")
+                                                   (rf/dispatch [:dicts/fetch-types {}]))}]]]]
+     [page-toolbar/page-toolbar
+      {:left [page-toolbar/toolbar-left
+              [page-toolbar/toolbar-button {:kind :add
+                                            :icon (r/as-element [:> PlusOutlined])
+                                            :on-click #(do (set-editing! nil) (set-modal-visible! true))
+                                            :label "新增"}]
+              [page-toolbar/toolbar-button {:kind :export
+                                            :icon (r/as-element [:> DownloadOutlined])
+                                            :on-click #(api/export-dicts {})
+                                            :label "导出"}]]
+       :right [page-toolbar/toolbar-right
+               [page-toolbar/round-tool-button {:title "搜索"
+                                                :icon (r/as-element [:> SearchOutlined])
+                                                :on-click #(rf/dispatch [:dicts/search {:dict_name dict-name :dict_type dict-type}])}]
+               [page-toolbar/round-tool-button {:title "刷新"
+                                                :icon (r/as-element [:> ReloadOutlined])
+                                                :on-click #(rf/dispatch [:dicts/fetch-types {}])}]]}]
      [antd/table {:rowKey "dict_id" :loading loading? :scroll #js {:x 700}
                   :columns (type-columns
                             #(rf/dispatch [:dicts/select-type %])
@@ -179,9 +202,16 @@
         [:h4 {:style {:margin 0}} (str "字典数据 — " (:dict_name dict-type) " (" (:dict_type dict-type) ")")]
         [antd/button {:type "link" :onClick #(rf/dispatch [:dicts/clear-selected-type])}
          "返回类型列表"]]
-       [:div {:style {:marginBottom 16}}
-        [antd/button {:type "primary" :onClick #(do (set-editing! nil) (set-modal-visible! true))}
-         "新增字典数据"]]
+       [page-toolbar/page-toolbar
+        {:left [page-toolbar/toolbar-left
+                [page-toolbar/toolbar-button {:kind :add
+                                              :icon (r/as-element [:> PlusOutlined])
+                                              :on-click #(do (set-editing! nil) (set-modal-visible! true))
+                                              :label "新增"}]]
+         :right [page-toolbar/toolbar-right
+                 [page-toolbar/round-tool-button {:title "刷新"
+                                                  :icon (r/as-element [:> ReloadOutlined])
+                                                  :on-click #(rf/dispatch [:dicts/fetch-data {:dict_type (:dict_type dict-type)}])}]]}]
        [antd/table {:rowKey "dict_code" :loading loading? :scroll #js {:x 600}
                     :columns (data-columns
                               #(do (set-editing! %) (set-modal-visible! true))
