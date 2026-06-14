@@ -260,8 +260,9 @@
     (hooks/use-effect
      (fn []
        (when visible?
+         (.resetFields form)
          (rf/dispatch [:users/fetch-options])
-         (let [base (merge {:status "0" :sex "0" :roles [] :posts []} form-data)
+         (let [base (merge {:status "0" :password "123456" :roles [] :posts []} form-data)
                initial (-> base
                            (assoc :roles (mapv :role_id (:roles form-data))
                                   :posts (mapv :post_id (:posts form-data))))]
@@ -271,64 +272,73 @@
     (when visible?
       [:div {:style {:position "fixed" :top 0 :left 0 :right 0 :bottom 0
                      :background "rgba(0,0,0,0.45)" :zIndex 1050
-                     :display "flex" :justifyContent "center" :alignItems "center"}}
-       [:div {:style {:background "var(--ant-color-bg-container, #fff)" :padding "24px" :borderRadius "8px" :width 600
-                      :maxHeight "90vh" :overflow "auto" :boxShadow "0 6px 16px rgba(0,0,0,0.08)"}}
+                     :display "flex" :justifyContent "center" :alignItems "flex-start"}}
+       [:div {:style {:background "var(--ant-color-bg-container, #fff)" :padding "32px 34px 34px" :borderRadius 4 :width 990 :marginTop 84
+                      :maxHeight "calc(100vh - 96px)" :overflow "auto" :boxShadow "0 2px 12px rgba(0,0,0,0.18)"}}
         [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center"
-                       :marginBottom 16 :paddingBottom 12 :borderBottom "1px solid var(--ant-color-border-secondary, #e8e8e8)"}}
-         [:h3 {:style {:margin 0 :fontSize 16}} (if editing "修改用户" "添加用户")]
-         [antd/button {:type "text" :size "small"
-                       :on-click #(rf/dispatch [:users/close-modal])} "✕"]]
+                       :marginBottom 28}}
+         [:h3 {:style {:margin 0 :fontSize 26 :fontWeight 500 :color "#303133"}} (if editing "修改用户" "添加用户")]
+         [antd/button {:type "text"
+                       :style {:fontSize 24 :color "#909399" :width 32 :height 32}
+                       :on-click #(rf/dispatch [:users/close-modal])} "×"]]
         [antd/form {:form form
-                    :layout "vertical"
+                    :layout "horizontal"
+                    :labelCol {:style {:width 114}}
+                    :wrapperCol {:style {:flex 1}}
                     :preserve false
                     :onFinish (fn [values]
                                 (rf/dispatch [:users/submit (js->clj values :keywordize-keys true)]))
-                    :initialValues (clj->js (let [base (merge {:status "0" :sex "0" :roles [] :posts []} form-data)]
+                    :initialValues (clj->js (let [base (merge {:status "0" :password "123456" :roles [] :posts []} form-data)]
                                               (assoc base
                                                      :roles (mapv :role_id (:roles form-data))
                                                      :posts (mapv :post_id (:posts form-data)))))}
-         [:div {:style {:display "grid" :gridTemplateColumns "1fr 1fr" :gap 12}}
-          [antd/form-item {:label "用户昵称" :name "nick_name"
+         [:div {:style {:display "grid" :gridTemplateColumns "1fr 1fr" :columnGap 34 :rowGap 55}}
+          [antd/form-item {:style {:marginBottom 0} :label "用户昵称" :name "nick_name"
                            :rules [{:required true :message "请输入用户昵称"}]}
-           [antd/input {:placeholder "请输入用户昵称"}]]
-          [antd/form-item {:label "归属部门"}
-           [dept-tree-select {:placeholder "请选择归属部门" :allow-clear? true
+           [antd/input {:placeholder "请输入用户昵称" :style {:height 42 :borderRadius 4}}]]
+          [antd/form-item {:style {:marginBottom 0} :label "归属部门"}
+           [dept-tree-select {:placeholder "请选择归属部门" :allow-clear? true :style {:height 42}
                               :value (.getFieldValue form "dept_id")
                               :on-change (fn [v] (.setFieldsValue form #js {"dept_id" v}))}]]
-          [antd/form-item {:label "手机号码" :name "phonenumber"}
-           [antd/input {:placeholder "请输入手机号码"}]]
-          [antd/form-item {:label "邮箱" :name "email"}
-           [antd/input {:placeholder "请输入邮箱"}]]
+          [antd/form-item {:style {:marginBottom 0} :label "手机号码" :name "phonenumber"}
+           [antd/input {:placeholder "请输入手机号码" :style {:height 42 :borderRadius 4}}]]
+          [antd/form-item {:style {:marginBottom 0} :label "邮箱" :name "email"}
+           [antd/input {:placeholder "请输入邮箱" :style {:height 42 :borderRadius 4}}]]
           (when-not editing
-            [antd/form-item {:label "用户名称" :name "user_name"
+            [antd/form-item {:style {:marginBottom 0} :label "用户名称" :name "user_name"
                              :rules [{:required true :message "请输入用户名称"}]}
-             [antd/input {:placeholder "请输入用户名称"}]])
+             [antd/input {:placeholder "请输入用户名称" :style {:height 42 :borderRadius 4}}]])
           (when-not editing
-            [antd/form-item {:label "用户密码" :name "password"
+            [antd/form-item {:style {:marginBottom 0} :label "用户密码" :name "password"
                              :rules [{:required true :message "请输入用户密码"}]}
-             [antd/password {:placeholder "请输入用户密码"}]])
-          [antd/form-item {:label "用户性别" :name "sex"}
-           [antd/select {:placeholder "请选择性别" :allowClear true}
+             [antd/password {:placeholder "请输入用户密码" :style {:height 42 :borderRadius 4}}]])
+          [antd/form-item {:style {:marginBottom 0} :label "用户性别" :name "sex"}
+           [antd/select {:placeholder "请选择性别" :allowClear true :style {:height 42}}
             [antd/select-option {:value "0"} "男"]
             [antd/select-option {:value "1"} "女"]
             [antd/select-option {:value "2"} "未知"]]]
-          [antd/form-item {:label "状态" :name "status"}
+          [antd/form-item {:style {:marginBottom 0} :label "状态" :name "status"}
            [antd/radio-group
             [antd/radio {:value "0"} "正常"]
             [antd/radio {:value "1"} "停用"]]]
-          [antd/form-item {:label "角色" :name "roles"}
-           [antd/select {:mode "multiple" :placeholder "请选择角色" :allowClear true}
+          [antd/form-item {:style {:marginBottom 0} :label "岗位" :name "posts"}
+           [antd/select {:mode "multiple" :placeholder "请选择岗位" :allowClear true :style {:minHeight 42}}
+            (for [post post-options]
+              ^{:key (:post_id post)} [antd/select-option {:value (:post_id post)} (:post_name post)])]]
+          [antd/form-item {:style {:marginBottom 0} :label "角色" :name "roles"}
+           [antd/select {:mode "multiple" :placeholder "请选择角色" :allowClear true :style {:minHeight 42}}
             (for [role role-options]
               ^{:key (:role_id role)} [antd/select-option {:value (:role_id role)} (:role_name role)])]]
-          [antd/form-item {:label "岗位" :name "posts"}
-           [antd/select {:mode "multiple" :placeholder "请选择岗位" :allowClear true}
-            (for [post post-options]
-              ^{:key (:post_id post)} [antd/select-option {:value (:post_id post)} (:post_name post)])]]]
-         [:div {:style {:display "flex" :justifyContent "flex-end" :gap 8 :marginTop 20 :paddingTop 16
-                        :borderTop "1px solid var(--ant-color-border-secondary, #e8e8e8)"}}
-          [antd/button {:on-click #(rf/dispatch [:users/close-modal])} "取消"]
-          [antd/button {:type "primary" :htmlType "submit"} "确定"]]]]])))
+          [antd/form-item {:style {:gridColumn "1 / -1" :marginBottom 0} :label "备注" :name "remark"}
+           [antd/text-area {:placeholder "请输入内容"
+                            :style {:height 86 :borderRadius 4 :resize "vertical"}}]]]
+         [:div {:style {:display "flex" :justifyContent "flex-end" :gap 12 :marginTop 64}}
+          [antd/button {:type "primary" :htmlType "submit"
+                        :style {:width 120 :height 44 :fontSize 18 :borderRadius 4 :background "#409eff"}}
+           "确定"]
+          [antd/button {:on-click #(rf/dispatch [:users/close-modal])
+                        :style {:width 120 :height 44 :fontSize 18 :borderRadius 4}}
+           "取消"]]]]])))
 
 ;; ─── 主页面 ────────────────────────────────────────────────────────
 

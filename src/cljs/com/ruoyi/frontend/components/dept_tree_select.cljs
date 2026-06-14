@@ -42,7 +42,7 @@
        js/undefined)
      [])
     [antd/tree-select
-     {:style {:width "100%"}
+     {:style (merge {:width "100%"} (:style props))
       :placeholder (or placeholder "请选择部门")
       :allowClear (if (false? allow-clear?) false true)
       :showSearch true
