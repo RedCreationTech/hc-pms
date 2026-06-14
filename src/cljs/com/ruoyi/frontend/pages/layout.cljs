@@ -554,7 +554,10 @@
         labels (merge (page-labels menus-with-integrant) route-labels)
         icons (merge (page-icons menus-with-integrant) route-icons)
         breadcrumbs (get page-breadcrumbs page ["首页"])]
-    [:> Layout {:style {:minHeight "100vh" :background "#fff"}}
+    [:> Layout {:style {:minHeight "100vh"
+                        :background "#fff"
+                        :fontFamily "\"Helvetica Neue\", Helvetica, \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", Arial, sans-serif"
+                        :fontSize 14}}
          ;; Tab 动画样式
          [tab-animation-styles]
          [:> Layout.Sider {:collapsible true
@@ -579,7 +582,7 @@
                     :mode "inline"
                     :inlineCollapsed collapsed
                     :style {:background "#172033"
-                            :fontSize 15
+                            :fontSize 14
                             :borderInlineEnd "none"}
                     :selectedKeys (clj->js [(or (page->menu-key page) (name page))])
                     :defaultOpenKeys #js ["system"]
@@ -612,7 +615,7 @@
              (if collapsed
                [:> MenuUnfoldOutlined]
                [:> MenuFoldOutlined])]
-            [:div {:style {:display "flex" :alignItems "center" :gap 10 :fontSize 15}}
+            [:div {:style {:display "flex" :alignItems "center" :gap 10 :fontSize 14}}
              (for [[idx crumb] (map-indexed vector breadcrumbs)]
                ^{:key (str "crumb-" idx)}
                [:<>
@@ -653,7 +656,7 @@
                                   :color "#fff"
                                   :fontWeight 700}}
                "若"]
-              [:span {:style {:fontSize 15 :fontWeight 600 :color "#303133"}} "若依"]]]]]
+              [:span {:style {:fontSize 14 :fontWeight 600 :color "#303133"}} "若依"]]]]]
           ;; Tab 栏
           [tab-bar]
           ;; 内容区（加 Error Boundary，避免单个页面崩溃导致整个布局白屏）

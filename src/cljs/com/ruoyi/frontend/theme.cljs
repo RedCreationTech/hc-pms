@@ -9,6 +9,9 @@
    :compact  #js [theme.compactAlgorithm]
    :dark-compact #js [theme.darkAlgorithm theme.compactAlgorithm]})
 
+(def ruoyi-font-family
+  "\"Helvetica Neue\", Helvetica, \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", Arial, sans-serif")
+
 (defn theme-config
   "根据当前主题设置构建 antd ConfigProvider 主题配置。"
   [{:keys [mode primary-color algorithm]
@@ -32,6 +35,7 @@
                            :colorBorder "#424242"
                            :colorBorderSecondary "#303030"
                            :fontSize 14
+                           :fontFamily ruoyi-font-family
                            :borderRadius 6}
                       #js {:colorPrimary primary-color
                            :colorBgBase "#fff"
@@ -44,6 +48,7 @@
                            :colorBorder "#d9d9d9"
                            :colorBorderSecondary "#f0f0f0"
                            :fontSize 14
+                           :fontFamily ruoyi-font-family
                            :borderRadius 6})
         components (if is-dark?
                      #js {:Layout #js {:headerBg "#141414" :bodyBg "#000" :triggerBg "#1f1f1f"}

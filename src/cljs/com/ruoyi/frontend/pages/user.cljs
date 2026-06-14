@@ -42,45 +42,46 @@
                    :height height
                    :opacity (if show-search? 1 0)
                    :transition "height 0.3s ease, opacity 0.3s ease"}}
-     [:div {:style {:background "#fff" :padding "14px 24px 4px 24px"}}
-      [:div {:style {:display "grid"
-                     :gridTemplateColumns "410px 410px minmax(320px, 1fr)"
+     [:div {:style {:background "#fff" :padding "8px 22px 4px 22px"}}
+      [:div {:style {:display "flex"
+                     :flexWrap "wrap"
                      :columnGap 24
-                     :rowGap 12
+                     :rowGap 8
                      :alignItems "center"}}
-       [:div {:style {:display "flex" :alignItems "center" :gap 10}}
-        [:span {:style {:whiteSpace "nowrap" :fontSize 15 :fontWeight 600 :color "#606266"}} "用户名称"]
+       [:div {:style {:display "flex" :alignItems "center" :gap 8 :width 322}}
+        [:span {:style {:whiteSpace "nowrap" :fontSize 14 :fontWeight 600 :color "#606266" :width 58 :textAlign "right"}} "用户名称"]
         [antd/input {:placeholder "请输入用户名称"
-                     :style {:width 320 :height 40 :borderRadius 4}
+                     :style {:width 250 :height 34 :borderRadius 4}
                      :value (:user_name query-params)
                      :on-change #(rf/dispatch [:users/update-query :user_name (.. % -target -value)])}]]
-       [:div {:style {:display "flex" :alignItems "center" :gap 10}}
-        [:span {:style {:whiteSpace "nowrap" :fontSize 15 :fontWeight 600 :color "#606266"}} "手机号码"]
+       [:div {:style {:display "flex" :alignItems "center" :gap 8 :width 322}}
+        [:span {:style {:whiteSpace "nowrap" :fontSize 14 :fontWeight 600 :color "#606266" :width 58 :textAlign "right"}} "手机号码"]
         [antd/input {:placeholder "请输入手机号码"
-                     :style {:width 320 :height 40 :borderRadius 4}
+                     :style {:width 250 :height 34 :borderRadius 4}
                      :value (:phonenumber query-params)
                      :on-change #(rf/dispatch [:users/update-query :phonenumber (.. % -target -value)])}]]
-       [:div {:style {:display "flex" :alignItems "center" :gap 10}}
-        [:span {:style {:whiteSpace "nowrap" :fontSize 15 :fontWeight 600 :color "#606266"}} "状态"]
+       [:div {:style {:display "flex" :alignItems "center" :gap 8 :width 286}}
+        [:span {:style {:whiteSpace "nowrap" :fontSize 14 :fontWeight 600 :color "#606266" :width 42 :textAlign "right"}} "状态"]
         [antd/select {:placeholder "用户状态"
-                      :style {:width 320 :height 40}
+                      :style {:width 230 :height 34}
                       :value (:status query-params)
                       :allowClear true
                       :on-change #(rf/dispatch [:users/update-query :status %])}
          [antd/select-option {:value "0"} "正常"]
          [antd/select-option {:value "1"} "停用"]]]
-       [:div {:style {:display "flex" :alignItems "center" :gap 10}}
-        [:span {:style {:whiteSpace "nowrap" :fontSize 15 :fontWeight 600 :color "#606266"}} "创建时间"]
+       [:div {:style {:flexBasis "100%" :height 0}}]
+       [:div {:style {:display "flex" :alignItems "center" :gap 8 :width 322}}
+        [:span {:style {:whiteSpace "nowrap" :fontSize 14 :fontWeight 600 :color "#606266" :width 58 :textAlign "right"}} "创建时间"]
         [range-picker {:placeholder #js ["开始日期" "结束日期"]
-                       :style {:width 320 :height 40 :borderRadius 4}}]]
-       [:div {:style {:display "flex" :gap 12 :alignItems "center"}}
+                       :style {:width 250 :height 34 :borderRadius 4}}]]
+       [:div {:style {:display "flex" :gap 10 :alignItems "center" :width 168}}
         [antd/button {:type "primary"
-                      :style {:height 38 :borderRadius 4 :background "#409eff"}
+                      :style {:height 34 :borderRadius 4 :background "#409eff"}
                       :icon (r/as-element [:> SearchOutlined])
                       :on-click #(rf/dispatch [:users/search])}
          "搜索"]
         [antd/button {:icon (r/as-element [:> ReloadOutlined])
-                      :style {:height 38 :borderRadius 4}
+                      :style {:height 34 :borderRadius 4}
                       :on-click #(rf/dispatch [:users/reset-query])}
          "重置"]]]]]))
 
@@ -90,32 +91,32 @@
   (let [show-search? @(rf/subscribe [:users/show-search?])
         columns @(rf/subscribe [:users/columns])]
     [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center"
-                   :padding "12px 24px 10px 24px" :background "#fff"}}
+                   :padding "8px 22px 8px 22px" :background "#fff"}}
      [:div {:style {:display "flex" :gap 8}}
       [antd/button {:type "primary" :ghost true
-                    :style {:height 38 :borderRadius 4 :color "#409eff" :borderColor "#a0cfff" :background "#ecf5ff"}
+                    :style {:height 34 :borderRadius 4 :color "#409eff" :borderColor "#a0cfff" :background "#ecf5ff"}
                     :icon (r/as-element [:> PlusOutlined])
                     :on-click #(rf/dispatch [:users/open-add])}
        "新增"]
       [antd/button {:ghost true
-                    :style {:height 38 :borderRadius 4 :color "#67c23a" :borderColor "#b3e19d" :background "#f0f9eb"}
+                    :style {:height 34 :borderRadius 4 :color "#67c23a" :borderColor "#b3e19d" :background "#f0f9eb"}
                     :icon (r/as-element [:> EditOutlined])
                     :disabled @(rf/subscribe [:users/selected-empty?])
                     :on-click #(rf/dispatch [:users/open-edit-selected])}
        "修改"]
       [antd/button {:danger true :ghost true
-                    :style {:height 38 :borderRadius 4 :color "#f56c6c" :borderColor "#fab6b6" :background "#fef0f0"}
+                    :style {:height 34 :borderRadius 4 :color "#f56c6c" :borderColor "#fab6b6" :background "#fef0f0"}
                     :icon (r/as-element [:> DeleteOutlined])
                     :disabled @(rf/subscribe [:users/selected-empty?])
                     :on-click #(rf/dispatch [:users/batch-delete])}
        "删除"]
       [antd/button {:ghost true
-                    :style {:height 38 :borderRadius 4 :color "#909399" :borderColor "#d3d4d6" :background "#f4f4f5"}
+                    :style {:height 34 :borderRadius 4 :color "#909399" :borderColor "#d3d4d6" :background "#f4f4f5"}
                     :icon (r/as-element [:> UploadOutlined])
                     :on-click #(rf/dispatch [:users/open-import])}
        "导入"]
       [antd/button {:ghost true
-                    :style {:height 38 :borderRadius 4 :color "#e6a23c" :borderColor "#f3d19e" :background "#fdf6ec"}
+                    :style {:height 34 :borderRadius 4 :color "#e6a23c" :borderColor "#f3d19e" :background "#fdf6ec"}
                     :icon (r/as-element [:> DownloadOutlined])
                     :on-click #(rf/dispatch [:users/export])}
        "导出"]]
@@ -123,13 +124,13 @@
       [antd/tooltip {:title "显示搜索"}
        [antd/button {:shape "circle"
                      :icon (r/as-element [:> SearchOutlined])
-                     :style {:width 40 :height 40 :borderColor "#dcdfe6" :color "#606266"
+                     :style {:width 38 :height 38 :borderColor "#dcdfe6" :color "#606266"
                              :background (if show-search? "#fff" "#f5f7fa")}
                      :on-click #(rf/dispatch [:users/toggle-search])}]]
       [antd/tooltip {:title "刷新"}
        [antd/button {:shape "circle"
                      :icon (r/as-element [:> ReloadOutlined])
-                     :style {:width 40 :height 40 :borderColor "#dcdfe6" :color "#606266"}
+                     :style {:width 38 :height 38 :borderColor "#dcdfe6" :color "#606266"}
                      :on-click #(rf/dispatch [:users/fetch-with-params])}]]
       [antd/tooltip {:title "显隐列"}
        [antd/dropdown {:menu {:items (clj->js
@@ -147,7 +148,7 @@
                        :trigger #js ["click"]}
         [antd/button {:shape "circle"
                       :icon (r/as-element [:> AppstoreOutlined])
-                      :style {:width 40 :height 40 :borderColor "#dcdfe6" :color "#606266"}}]]]]]))
+                      :style {:width 38 :height 38 :borderColor "#dcdfe6" :color "#606266"}}]]]]]))
 
 ;; ─── 用户表格 ──────────────────────────────────────────────────────
 
@@ -415,49 +416,52 @@
       (if collapsed? "»" "«")]
      (when-not collapsed?
        [:<>
-        [:div {:style {:height 52 :display "flex" :alignItems "center" :justifyContent "space-between"
+        [:div {:style {:height 50 :display "flex" :alignItems "center" :justifyContent "space-between"
                        :padding "0 14px" :borderBottom "1px solid #ebeef5"}}
          [:div {:style {:display "flex" :alignItems "center" :gap 8
-                        :fontWeight 700 :fontSize 16 :color "#303133"}}
+                        :fontWeight 700 :fontSize 15 :color "#303133"}}
           [:> FileTextOutlined {:style {:color "#409eff"}}]
           "组织机构"]
          [:div {:style {:display "flex" :alignItems "center" :gap 16 :color "#a8abb2"}}
           [:span {:style {:fontSize 18 :lineHeight 1 :cursor "pointer"}} "⌄"]
           [:> ReloadOutlined {:style {:fontSize 15 :cursor "pointer"}
                               :on-click #(rf/dispatch [:depts/fetch {}])}]]]
-        [:div {:style {:padding "14px 12px 10px"}}
+        [:div {:style {:padding "12px 12px 8px"}}
          [antd/input {:placeholder "请输入部门名称"
                       :prefix (r/as-element [:> SearchOutlined {:style {:color "#c0c4cc"}}])
-                      :style {:height 40 :borderRadius 4}}]]
-        [:div {:style {:flex 1 :overflow "auto" :fontSize 15 :padding "4px 8px 18px"}}
+                      :style {:height 36 :borderRadius 4 :fontSize 14}}]]
+        [:div {:style {:flex 1 :overflow "auto" :fontSize 14 :padding "4px 8px 18px"}}
          (for [d (flatten-visible-tree tree-items expanded-ids 0)]
            ^{:key (str "dept-" (:dept_id d) "-" (:_depth d))}
            [:div {:style {:display "flex" :alignItems "center"
-                          :height 36
-                          :padding "0 6px"
-                          :paddingLeft (str (+ 6 (* (:_depth d) 28)) "px")
+                          :height 34
+                          :padding "0 8px"
                           :cursor "pointer" :borderRadius 3
                           :background (if (= (:dept_id d) selected-dept-id) "#ecf5ff" "transparent")
                           :color (if (= (:dept_id d) selected-dept-id) "#409eff" "#606266")}
                   :on-click #(do (toggle! (:dept_id d))
                                  (rf/dispatch [:users/select-dept (:dept_id d)])
                                  (rf/dispatch [:users/fetch {:dept_id (:dept_id d)}]))}
+            [:span {:style {:display "inline-flex"
+                            :width (str (* (:_depth d) 24) "px")
+                            :flexShrink 0}}]
             ;; 展开/折叠箭头
             (if (seq (:children d))
-              [:span {:style {:display "inline-flex" :width 18 :fontSize 10
+              [:span {:style {:display "inline-flex" :width 14 :fontSize 10
                               :marginRight 4 :color "#a8abb2"
                               :transform (if (contains? expanded-ids (:dept_id d))
                                            "rotate(90deg)" "rotate(0deg)")
                               :transition "transform 0.2s"}}
                "▶"]
-              [:span {:style {:display "inline-flex" :width 18 :marginRight 4}} ""])
+              [:span {:style {:display "inline-flex" :width 14 :marginRight 4}} ""])
             ;; 图标
-            [:span {:style {:marginRight 8 :fontSize 16 :color (if (seq (:children d)) "#e6a23c" "#a8abb2")}}
+            [:span {:style {:display "inline-flex" :width 18 :marginRight 8
+                            :fontSize 16 :color (if (seq (:children d)) "#e6a23c" "#a8abb2")}}
              (if (seq (:children d))
                [:> FolderOpenOutlined]
                [:> FileTextOutlined])]
             ;; 名称
-            [:span (:dept_name d)]])]])]))
+            [:span {:style {:lineHeight "34px" :whiteSpace "nowrap"}} (:dept_name d)]])]])]))
 
 (defn- display-users
   "补齐演示数据，使默认用户管理页与 RuoYi 参考数据保持一致。"
