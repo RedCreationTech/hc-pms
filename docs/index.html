@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>若依 Clojure 全栈管理系统 - 文档</title>
+  <style>
+    :root {
+      --accent: #3eaf7c;
+      --accent-dark: #2c8f63;
+      --text: #2c3e50;
+      --text-light: #476582;
+      --bg: #ffffff;
+      --bg-sidebar: #f7f7f7;
+      --border: #eaecef;
+      --code-bg: #282c34;
+      --code-text: #abb2bf;
+      --tip-bg: #f3f5f7;
+      --warn-bg: #fff7e6;
+      --danger-bg: #ffe6e6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.7;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .page {
+      display: flex;
+      min-height: 100vh;
+    }
+    .sidebar {
+      width: 280px;
+      flex-shrink: 0;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border);
+      padding: 24px 0;
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      overflow-y: auto;
+    }
+    .sidebar-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      padding: 0 24px 16px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 12px;
+    }
+    .sidebar-title span {
+      display: block;
+      font-size: .75rem;
+      color: var(--text-light);
+      font-weight: 400;
+      margin-top: 4px;
+    }
+    .nav-group {
+      margin-top: 8px;
+    }
+    .nav-group-title {
+      padding: 8px 24px;
+      font-size: .75rem;
+      font-weight: 700;
+      color: var(--text-light);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+    .nav-link {
+      display: block;
+      padding: 8px 24px 8px 32px;
+      color: var(--text);
+      font-size: .9rem;
+      border-left: 3px solid transparent;
+    }
+    .nav-link:hover, .nav-link.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: rgba(62,175,124,.08);
+      text-decoration: none;
+    }
+    .main {
+      margin-left: 280px;
+      flex: 1;
+      padding: 32px 48px;
+      max-width: 900px;
+    }
+    h1, h2, h3, h4 { font-weight: 600; line-height: 1.25; }
+    h1 { font-size: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
+    h2 { font-size: 1.65rem; margin-top: 48px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 1.35rem; margin-top: 36px; }
+    h4 { font-size: 1.1rem; margin-top: 24px; }
+    p { margin: 16px 0; }
+    ul, ol { padding-left: 24px; }
+    li { margin: 6px 0; }
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+      background: rgba(27,31,35,.05);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: .9em;
+    }
+    pre {
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: .9rem;
+    }
+    pre code { background: transparent; color: inherit; padding: 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: .9rem;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 10px 14px;
+      text-align: left;
+    }
+    th { background: var(--bg-sidebar); font-weight: 600; }
+    tr:nth-child(even) { background: #fafafa; }
+    .tip, .warning, .danger {
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin: 20px 0;
+      border-left: 5px solid;
+    }
+    .tip { background: var(--tip-bg); border-color: var(--accent); }
+    .warning { background: var(--warn-bg); border-color: #faad14; }
+    .danger { background: var(--danger-bg); border-color: #f5222d; }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: .75rem;
+      font-weight: 600;
+      margin-right: 6px;
+    }
+    .badge-green { background: #f6ffed; color: #389e0d; }
+    .badge-yellow { background: #fffbe6; color: #d48806; }
+    .footer {
+      margin-top: 80px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      color: var(--text-light);
+      font-size: .85rem;
+    }
+    @media (max-width: 900px) {
+      .sidebar { display: none; }
+      .main { margin-left: 0; padding: 24px; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+  <aside class="sidebar">
+    <div class="sidebar-title">
+      若依 Clojure
+      <span>全栈管理系统文档</span>
+    </div>
+    <nav>
+      <div class="nav-group">
+        <div class="nav-group-title">起步</div>
+        <a class="nav-link" href="#intro">介绍</a>
+        <a class="nav-link" href="#requirements">系统需求</a>
+        <a class="nav-link" href="#tech-stack">技术选型</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">功能</div>
+        <a class="nav-link" href="#features">功能模块</a>
+        <a class="nav-link" href="#ruoyi-compare">对照 RuoYi-Vue</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">开发</div>
+        <a class="nav-link" href="#structure">项目结构</a>
+        <a class="nav-link" href="#quickstart">快速开始</a>
+        <a class="nav-link" href="#hot-reload">热重载</a>
+        <a class="nav-link" href="#frontend-spec">前端规范</a>
+        <a class="nav-link" href="#performance">性能调优</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">接口</div>
+        <a class="nav-link" href="#api">API 概览</a>
+        <a class="nav-link" href="#default-account">默认账号</a>
+      </div>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <h1 id="intro">若依 Clojure 全栈管理系统</h1>
+    <p>
+      基于 <strong>Kit 框架</strong> + <strong>ClojureScript</strong> + <strong>Reagent</strong> + <strong>Ant Design</strong>
+      构建的 Ruoyi 风格全栈管理后台，对齐原版若依框架核心功能。
+    </p>
+    <p>
+      项目目标：让开发者专注于业务，降低技术难度，缩短项目周期，并保证软件安全质量。
+      后端采用函数式、组件化的 Clojure 生态；前端使用 Reagent 2 + React 19 + Ant Design 6，
+      共享同一端口 <code>3000</code>。
+    </p>
+
+    <div class="tip">
+      <strong>提示</strong><br>
+      本系统参考 <a href="https://gitee.com/y_project/RuoYi-Vue" target="_blank">RuoYi-Vue</a> 进行功能对照实现，
+      在菜单、布局、按钮颜色、操作流程等方面尽量保持一致。
+    </div>
+
+    <h2 id="requirements">系统需求</h2>
+    <table>
+      <thead><tr><th>环境</th><th>版本要求</th></tr></thead>
+      <tbody>
+        <tr><td>JDK</td><td>17+（async-profiler 建议使用 JDK 21）</td></tr>
+        <tr><td>Clojure CLI</td><td>最新版</td></tr>
+        <tr><td>Node.js</td><td>18+</td></tr>
+        <tr><td>数据库</td><td>SQLite（默认）/ MySQL</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="tech-stack">技术选型</h2>
+    <table>
+      <thead><tr><th>层级</th><th>技术</th></tr></thead>
+      <tbody>
+        <tr><td>后端</td><td>Clojure 1.12, Kit, Integrant, Reitit, Ring, next.jdbc, Migratus</td></tr>
+        <tr><td>数据库</td><td>SQLite（默认）, 支持 MySQL</td></tr>
+        <tr><td>安全</td><td>Buddy（JWT + bcrypt）, XSS/CSRF 防护</td></tr>
+        <tr><td>前端</td><td>ClojureScript, Shadow-CLJS, Reagent 2.0, React 19, Ant Design 6, re-frame</td></tr>
+        <tr><td>任务调度</td><td>Quartz</td></tr>
+        <tr><td>代码生成</td><td>根据表结构自动生成前后端代码</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="features">功能模块</h2>
+
+    <h3>系统管理</h3>
+    <ul>
+      <li><strong>用户管理</strong>：配置系统用户，支持角色、部门、岗位关联</li>
+      <li><strong>角色管理</strong>：RBAC 权限模型，支持菜单/按钮权限、数据权限（部门级）</li>
+      <li><strong>菜单管理</strong>：树形菜单配置，支持路由、组件、权限标识</li>
+      <li><strong>部门管理</strong>：树形部门结构，支持数据权限范围控制</li>
+      <li><strong>岗位管理</strong>：岗位信息维护</li>
+      <li><strong>字典管理</strong>：字典类型与字典数据维护</li>
+      <li><strong>参数管理</strong>：系统运行参数配置</li>
+      <li><strong>通知公告</strong>：系统通知与公告发布</li>
+    </ul>
+
+    <h3>权限控制</h3>
+    <ul>
+      <li>JWT Token 认证</li>
+      <li>菜单权限、按钮权限（<code>perms</code> 字段控制）</li>
+      <li>数据权限：全部、自定义、本部门、本部门及以下</li>
+    </ul>
+
+    <h3>日志审计</h3>
+    <ul>
+      <li><strong>操作日志</strong>：记录请求方法、URL、参数、结果、耗时</li>
+      <li><strong>登录日志</strong>：记录登录 IP、浏览器、操作系统、登录结果</li>
+      <li><strong>在线用户</strong>：实时监控，支持强退</li>
+    </ul>
+
+    <h3>系统监控</h3>
+    <ul>
+      <li>服务监控：CPU、内存、JVM、操作系统、磁盘信息</li>
+      <li>数据源监控：HikariCP 连接池状态</li>
+      <li>缓存监控：缓存键值浏览与清除</li>
+      <li>Integrant 依赖图：组件依赖关系可视化与函数调用追踪</li>
+      <li>定时任务管理：CRON 表达式调度，支持暂停/恢复/立即执行</li>
+    </ul>
+
+    <h3>代码生成器</h3>
+    <p>根据数据库表结构一键生成：</p>
+    <ul>
+      <li>SQL 查询文件</li>
+      <li>Clojure 控制器模板</li>
+      <li>ClojureScript 前端页面模板</li>
+      <li>支持预览、下载 ZIP、直接部署到项目</li>
+    </ul>
+
+    <h2 id="ruoyi-compare">对照 RuoYi-Vue</h2>
+    <table>
+      <thead>
+        <tr><th>#</th><th>模块</th><th>对照要求</th><th>状态</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>用户管理</td><td>左侧部门树 + 搜索/工具栏/表格/分页 + 新增/编辑弹窗 + 详情抽屉 + 重置密码</td><td><span class="badge badge-green">基本完成</span></td></tr>
+        <tr><td>2</td><td>角色管理</td><td>列表 + 新增/编辑弹窗 + 权限分配树 + 数据权限 + 用户分配</td><td><span class="badge badge-green">基本完成</span></td></tr>
+        <tr><td>3</td><td>菜单管理</td><td>树形表格 + 新增/编辑弹窗 + 图标选择器</td><td><span class="badge badge-green">基本完成</span></td></tr>
+        <tr><td>4</td><td>部门管理</td><td>树形表格 + 新增/编辑弹窗</td><td><span class="badge badge-green">基本完成</span></td></tr>
+        <tr><td>5</td><td>岗位管理</td><td>列表 + 新增/编辑弹窗</td><td><span class="badge badge-green">基本完成</span></td></tr>
+        <tr><td>6</td><td>字典管理</td><td>字典类型列表(左) + 字典数据列表(右) + 新增/编辑弹窗</td><td><span class="badge badge-green">基本完成</span></td></tr>
+        <tr><td>7</td><td>参数管理</td><td>列表 + 新增/编辑弹窗</td><td><span class="badge badge-green">基本完成</span></td></tr>
+        <tr><td>8</td><td>通知公告</td><td>列表 + 新增/编辑弹窗</td><td><span class="badge badge-green">基本完成</span></td></tr>
+        <tr><td>9</td><td>操作日志</td><td>列表 + 详情弹窗 + 清空/导出</td><td><span class="badge badge-green">基本完成</span></td></tr>
+        <tr><td>10</td><td>登录日志</td><td>列表 + 详情弹窗 + 清空/导出</td><td><span class="badge badge-green">基本完成</span></td></tr>
+        <tr><td>11</td><td>在线用户</td><td>列表 + 强退确认</td><td><span class="badge badge-green">基本完成</span></td></tr>
+        <tr><td>12</td><td>定时任务</td><td>列表 + 新增/编辑/执行一次/暂停恢复/日志</td><td><span class="badge badge-green">基本完成</span></td></tr>
+        <tr><td>13</td><td>代码生成</td><td>配置 + 预览 + 部署 + ZIP 下载</td><td><span class="badge badge-green">基本完成</span></td></tr>
+        <tr><td>14</td><td>系统接口</td><td>Swagger 文档</td><td><span class="badge badge-green">基本完成</span></td></tr>
+        <tr><td>15</td><td>服务监控</td><td>CPU/内存/JVM/磁盘可视化</td><td><span class="badge badge-green">基本完成</span></td></tr>
+        <tr><td>16</td><td>缓存监控</td><td>内存缓存键值浏览/清除</td><td><span class="badge badge-green">基本完成</span></td></tr>
+        <tr><td>17</td><td>表单构建</td><td>拖拽设计器</td><td><span class="badge badge-green">基本完成</span></td></tr>
+        <tr><td>18</td><td>连接池监视</td><td>HikariCP 状态监控</td><td><span class="badge badge-green">基本完成</span></td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="structure">项目结构</h2>
+    <pre><code>.
+├── deps.edn                    # Clojure 依赖
+├── shadow-cljs.edn             # ClojureScript 构建配置
+├── package.json                # NPM 依赖 (React, Ant Design)
+├── resources/
+│   ├── system.edn              # Integrant 系统配置
+│   ├── migrations-sqlite/      # SQLite 迁移文件
+│   ├── migrations/             # MySQL 迁移文件
+│   ├── sql/                    # HugSQL 查询文件
+│   └── public/index.html       # 前端入口
+├── src/clj/com/ruoyi/          # 后端源码
+│   ├── core.clj                # 应用入口
+│   ├── infra/security.clj      # JWT / 密码加密
+│   ├── domain/system/          # 领域服务层
+│   ├── web/controllers/        # 控制器层
+│   ├── web/routes/             # 路由配置
+│   └── web/middleware/         # 中间件 (认证)
+├── src/cljs/com/ruoyi/frontend/  # 前端源码
+│   ├── app.cljs                # 前端入口
+│   ├── api.cljs                # HTTP 客户端
+│   ├── events.cljs             # re-frame 事件
+│   ├── subs.cljs               # re-frame 订阅
+│   ├── antd.cljs               # Ant Design 组件封装
+│   └── pages/                  # 页面组件
+└── test/                       # 测试代码
+</code></pre>
+
+    <h2 id="quickstart">快速开始</h2>
+
+    <h3>1. 启动后端</h3>
+    <p>默认使用 SQLite，自动迁移并初始化数据。</p>
+    <pre><code>clojure -M:dev -m com.ruoyi.core</code></pre>
+    <p>后端运行在 <a href="http://localhost:3000" target="_blank">http://localhost:3000</a>，nREPL 端口 <code>7000</code>。</p>
+
+    <p>如需使用 MySQL：</p>
+    <pre><code>JDBC_URL="jdbc:mysql://user:pass@host:3306/ruoyi?useSSL=false" \
+MIGRATION_DIR=migrations \
+clojure -M:dev -m com.ruoyi.core</code></pre>
+
+    <h3>2. 启动前端</h3>
+    <pre><code># 安装 NPM 依赖（首次）
+npm install
+
+# 开发模式（自动增量编译）
+npx shadow-cljs watch app</code></pre>
+    <p>前端由后端同一端口 <code>3000</code> 提供服务，编译产物输出到 <code>resources/public/js/</code>。</p>
+
+    <h3>3. 构建生产包</h3>
+    <pre><code># 前端发布
+npx shadow-cljs release app
+
+# 后端 Uberjar（包含前端静态文件）
+clj -T:build all
+
+# 运行
+java -jar target/rouyi-standalone.jar</code></pre>
+
+    <h2 id="hot-reload">热重载</h2>
+
+    <h3>后端（Clojure）</h3>
+    <p>通过 nREPL 端口 7000 热重载，无需重启进程：</p>
+    <pre><code>clj-nrepl-eval -p 7000 '(user/rd)'      ; 重载域服务
+clj-nrepl-eval -p 7000 '(user/rroutes)' ; 重载路由（需 rr 生效）
+clj-nrepl-eval -p 7000 '(user/ra)'      ; 重载所有命名空间
+clj-nrepl-eval -p 7000 '(user/rr)'      ; 完全重启系统</code></pre>
+
+    <h3>前端（ClojureScript）</h3>
+    <p>shadow-cljs watch 已自动编译，保存 .cljs 后刷新浏览器即可。</p>
+
+    <div class="warning">
+      <strong>注意</strong><br>
+      HugSQL <code>.sql</code> 文件、<code>resources/system.edn</code>、Integrant 组件结构变更后，需要 <code>(user/rr)</code> 或重启后端。
+    </div>
+
+    <h2 id="frontend-spec">前端组件规范</h2>
+    <ul>
+      <li>统一使用 Reagent 2 函数组件 + React Hooks，<strong>禁止使用 <code>reagent/atom</code></strong> 管理局部状态。</li>
+      <li>全局状态使用 re-frame subscription；局部状态使用 <code>hooks/use-state</code>。</li>
+      <li>Ant Design 6 组件必须先定义再使用，例如 <code>(def switch (r/adapt-react-class Switch))</code>。</li>
+      <li>Button 的 <code>:icon</code> 必须是 React 元素，不能传字符串。</li>
+      <li>Dropdown 的 <code>:label</code> 必须用 <code>r/as-element</code> 包裹。</li>
+      <li>颜色对齐 Element UI：新增 #409eff、修改 #67c23a、删除 #f56c6c、导入 #909399、导出 #e6a23c。</li>
+    </ul>
+
+    <h2 id="performance">性能调优（async-profiler）</h2>
+    <p>项目已集成 <code>clj-async-profiler</code> 与 <code>criterium</code>，可在 nREPL 中直接调用。</p>
+    <pre><code>(require 'user.profile-demo)
+(user.profile-demo/run-all)</code></pre>
+    <p>包含两个演示场景：</p>
+    <ul>
+      <li><strong>GC 场景</strong>：临时对象 <code>(vec (range 1000))</code> vs 基本类型数组 <code>long-array</code></li>
+      <li><strong>反射场景</strong>：无 type hint 的 <code>(.size %2)</code> vs 有 type hint 的版本</li>
+    </ul>
+    <p>运行后会生成 <code>target/profile-report.html</code>，包含 Chart.js 对比图表和 async-profiler 火焰图链接。</p>
+
+    <h2 id="api">API 概览</h2>
+    <table>
+      <thead><tr><th>路径</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><code>POST /api/auth/login</code></td><td>登录</td></tr>
+        <tr><td><code>GET /api/auth/getInfo</code></td><td>获取当前用户信息</td></tr>
+        <tr><td><code>GET /api/system/user</code></td><td>用户列表</td></tr>
+        <tr><td><code>GET /api/system/role</code></td><td>角色列表</td></tr>
+        <tr><td><code>GET /api/system/menu</code></td><td>菜单列表</td></tr>
+        <tr><td><code>GET /api/system/dept</code></td><td>部门列表</td></tr>
+        <tr><td><code>GET /api/system/post</code></td><td>岗位列表</td></tr>
+        <tr><td><code>GET /api/system/dict/type</code></td><td>字典类型</td></tr>
+        <tr><td><code>GET /api/system/dict/data</code></td><td>字典数据</td></tr>
+        <tr><td><code>GET /api/system/config</code></td><td>参数配置</td></tr>
+        <tr><td><code>GET /api/system/notice</code></td><td>通知公告</td></tr>
+        <tr><td><code>GET /api/system/oper-log</code></td><td>操作日志</td></tr>
+        <tr><td><code>GET /api/system/login-log</code></td><td>登录日志</td></tr>
+        <tr><td><code>GET /api/system/online</code></td><td>在线用户</td></tr>
+        <tr><td><code>GET /api/system/job</code></td><td>定时任务</td></tr>
+        <tr><td><code>GET /api/system/dashboard/stats</code></td><td>首页仪表盘统计</td></tr>
+        <tr><td><code>GET /api/system/server</code></td><td>服务器监控</td></tr>
+        <tr><td><code>GET /api/system/datasource</code></td><td>数据源监控</td></tr>
+        <tr><td><code>GET /api/system/cache</code></td><td>缓存信息</td></tr>
+        <tr><td><code>GET /api/tool/gen/tables</code></td><td>代码生成 - 表列表</td></tr>
+        <tr><td><code>GET /api/tool/gen/preview</code></td><td>代码生成 - 预览</td></tr>
+      </tbody>
+    </table>
+    <p>Swagger 文档：<a href="http://localhost:3000/api" target="_blank">http://localhost:3000/api</a></p>
+
+    <h2 id="default-account">默认账号</h2>
+    <table>
+      <thead><tr><th>账号</th><th>密码</th></tr></thead>
+      <tbody>
+        <tr><td><code>admin</code></td><td><code>admin123</code></td></tr>
+      </tbody>
+    </table>
+
+    <div class="footer">
+      文档生成于 2026-06-14 · 若依 Clojure 全栈管理系统
+    </div>
+  </main>
+</div>
+
+<script>
+  const links = document.querySelectorAll('.nav-link');
+  const sections = Array.from(links).map(a => document.querySelector(a.getAttribute('href')));
+  function onScroll() {
+    let current = '';
+    sections.forEach((sec, i) => {
+      if (sec && sec.getBoundingClientRect().top <= 120) current = links[i].getAttribute('href');
+    });
+    links.forEach(l => l.classList.toggle('active', l.getAttribute('href') === current));
+  }
+  window.addEventListener('scroll', onScroll);
+  onScroll();
+</script>
+</body>
+</html>
