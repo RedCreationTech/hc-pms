@@ -23,7 +23,8 @@
                                 LeftOutlined RightOutlined
                                 ReloadOutlined DownOutlined
                                 CompressOutlined LogoutOutlined
-                                MenuFoldOutlined MenuUnfoldOutlined]]
+                                MenuFoldOutlined MenuUnfoldOutlined
+                                FontSizeOutlined TranslationOutlined]]
    [com.ruoyi.frontend.router :as router]
    [com.ruoyi.frontend.components.theme-switcher :as theme-switcher]
    [com.ruoyi.frontend.components.error-boundary :as error-boundary]
@@ -92,23 +93,17 @@
                     :flex "0 0 auto"
                     :alignItems "center"
                     :height 30
-                    :padding "0 12px"
-                    :marginRight 4
-                    :background (if active?
-                                  "var(--ant-color-primary, #1677ff)"
-                                  "var(--ant-color-bg-container, #fff)")
-                    :color (if active? "#fff" "var(--ant-color-text-secondary, #666)")
-                    :borderRadius 6
+                    :padding "0 14px"
+                    :marginRight 2
+                    :background (if active? "#e8f3ff" "#fff")
+                    :color (if active? "#409eff" "#606266")
+                    :borderRadius "12px 12px 0 0"
                     :cursor "pointer"
                     :fontSize 13
-                    :transition "all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1)"
-                    :transform (when active? "scale(1.05)")
-                    :border (if active?
-                              "1px solid var(--ant-color-primary, #1677ff)"
-                              "1px solid var(--ant-color-border, #d9d9d9)")
-                    :boxShadow (if active?
-                                 "0 2px 8px rgba(24,144,255,0.35)"
-                                 "0 1px 2px rgba(0,0,0,0.03)")
+                    :transition "background 0.2s, color 0.2s"
+                    :border "1px solid #e4e7ed"
+                    :borderBottom (if active? "1px solid #e8f3ff" "1px solid #e4e7ed")
+                    :boxShadow "none"
                     :whiteSpace "nowrap"
                     :position "relative"
                     :overflow "hidden"}
@@ -121,7 +116,7 @@
                        :transform "translateX(-50%)"
                        :width "60%"
                        :height 2
-                       :background "#fff"
+                       :background "#409eff"
                        :borderRadius 1
                        :transition "all 0.3s"}}])
       ;; 图标
@@ -193,18 +188,23 @@
                  (set! (.-scrollLeft el) (- (+ el-left el-width) cw)))))))
        js/undefined)
      [active])
-    [:div {:style {:borderBottom "1px solid var(--ant-color-border-secondary, #f0f0f0)"
-                   :padding "6px 12px 0"
+    [:div {:style {:borderBottom "1px solid #dcdfe6"
+                   :padding "0 0 0 0"
                    :display "flex"
                    :alignItems "center"
                    :height 40
-                   :background "var(--ant-color-bg-container, #fff)"}}
+                   :background "#fff"}}
      ;; 左滚动按钮
      (when show-scroll
        [:div {:class "tab-scroll-btn tab-scroll-left"
               :style {:flex "0 0 auto"
                       :cursor (if can-left "pointer" "not-allowed")
-                      :padding "0 4px"
+                      :width 32
+                      :height 40
+                      :display "flex"
+                      :alignItems "center"
+                      :justifyContent "center"
+                      :borderRight "1px solid #ebeef5"
                       :color (if can-left "var(--ant-color-text-secondary, #666)" "var(--ant-color-border, #ccc)")
                       :fontSize 16
                       :userSelect "none"}
@@ -215,6 +215,8 @@
             :style {:flex 1
                     :display "flex"
                     :alignItems "flex-end"
+                    :height 40
+                    :paddingLeft 8
                     :overflowX "auto"
                     :overflowY "hidden"
                     :whiteSpace "nowrap"
@@ -230,22 +232,34 @@
        [:div {:class "tab-scroll-btn tab-scroll-right"
               :style {:flex "0 0 auto"
                       :cursor (if can-right "pointer" "not-allowed")
-                      :padding "0 4px"
+                      :width 32
+                      :height 40
+                      :display "flex"
+                      :alignItems "center"
+                      :justifyContent "center"
+                      :borderLeft "1px solid #ebeef5"
                       :color (if can-right "var(--ant-color-text-secondary, #666)" "var(--ant-color-border, #ccc)")
                       :fontSize 16
                       :userSelect "none"}
               :on-click #(when can-right (scroll-tabs container-ref 1))}
         [:> RightOutlined {:style {:fontSize 12}}]])
      ;; 操作按钮组
-     [:div {:style {:display "flex" :alignItems "center" :marginLeft 8 :gap 4}}
+     [:div {:style {:display "flex" :alignItems "center" :marginLeft 0 :height 40 :borderLeft "1px solid #ebeef5"}}
+      [antd/tooltip {:title "向左滚动"}
+       [:> LeftOutlined {:style {:cursor "pointer" :color "#909399"
+                                 :fontSize 13 :padding "13px 12px"
+                                 :borderRight "1px solid #ebeef5"}
+                         :on-click #(scroll-tabs container-ref -1)}]]
+      [antd/tooltip {:title "向右滚动"}
+       [:> RightOutlined {:style {:cursor "pointer" :color "#909399"
+                                  :fontSize 13 :padding "13px 12px"
+                                  :borderRight "1px solid #ebeef5"}
+                          :on-click #(scroll-tabs container-ref 1)}]]
       [antd/tooltip {:title "刷新当前页"}
-       [:> ReloadOutlined {:style {:cursor "pointer" :color "var(--ant-color-text-secondary, #999)"
-                                   :fontSize 14 :padding "4px"}
+       [:> ReloadOutlined {:style {:cursor "pointer" :color "#909399"
+                                   :fontSize 14 :padding "13px 12px"
+                                   :borderRight "1px solid #ebeef5"}
                            :on-click #(.reload js/location)}]]
-      [antd/tooltip {:title "全屏显示"}
-       [:> ExpandOutlined {:style {:cursor "pointer" :color "var(--ant-color-text-secondary, #999)"
-                                   :fontSize 14 :padding "4px"}
-                           :on-click #(rf/dispatch [:tabs/fullscreen])}]]
       [antd/dropdown {:menu {:items (clj->js [{:key "close-others" :label "关闭其他"}
                                                {:key "close-right" :label "关闭右侧"}
                                                {:key "close-all" :label "关闭全部"}
@@ -259,8 +273,8 @@
                                             "close-all" (rf/dispatch [:tabs/remove-all])
                                             "refresh" (.reload js/location)
                                             nil)))}}
-       [:> DownOutlined {:style {:cursor "pointer" :color "var(--ant-color-text-secondary, #999)"
-                                 :fontSize 12 :padding "4px"}}]]]]))
+       [:> DownOutlined {:style {:cursor "pointer" :color "#909399"
+                                 :fontSize 12 :padding "14px 12px"}}]]]]))
 
 ;; ─── 页面关键词到菜单路径映射 ─────────────────────────────────────────
 (def page->menu-key
@@ -294,6 +308,80 @@
    :build "tool/build"
    :profile "system/user/profile"
    :dashboard "dashboard"})
+
+(def standard-menu-tree
+  [{:path "dashboard" :menu_name "首页" :menu_type "C" :icon "dashboard"}
+   {:path "ai-chat" :menu_name "AI对话" :menu_type "C" :icon "user"}
+   {:path "system" :menu_name "系统管理" :menu_type "M" :icon "system"
+    :children [{:path "user" :menu_name "用户管理" :menu_type "C" :icon "user"}
+               {:path "role" :menu_name "角色管理" :menu_type "C" :icon "peoples"}
+               {:path "menu" :menu_name "菜单管理" :menu_type "C" :icon "tree-table"}
+               {:path "dept" :menu_name "部门管理" :menu_type "C" :icon "tree"}
+               {:path "post" :menu_name "岗位管理" :menu_type "C" :icon "post"}
+               {:path "dict" :menu_name "字典管理" :menu_type "C" :icon "dict"}
+               {:path "config" :menu_name "参数设置" :menu_type "C" :icon "edit"}
+               {:path "notice" :menu_name "通知公告" :menu_type "C" :icon "message"}
+               {:path "operlog" :menu_name "日志管理" :menu_type "M" :icon "form"
+                :children [{:path "operlog" :menu_name "操作日志" :menu_type "C" :icon "form"}
+                           {:path "logininfor" :menu_name "登录日志" :menu_type "C" :icon "logininfor"}]}]}
+   {:path "monitor" :menu_name "系统监控" :menu_type "M" :icon "monitor"
+    :children [{:path "online" :menu_name "在线用户" :menu_type "C" :icon "online"}
+               {:path "job" :menu_name "定时任务" :menu_type "C" :icon "job"}
+               {:path "server" :menu_name "服务监控" :menu_type "C" :icon "server"}
+               {:path "cache" :menu_name "缓存监控" :menu_type "C" :icon "cache"}
+               {:path "datasource" :menu_name "连接池监视" :menu_type "C" :icon "DatabaseOutlined"}]}
+   {:path "tool" :menu_name "系统工具" :menu_type "M" :icon "tool"
+    :children [{:path "build" :menu_name "表单构建" :menu_type "C" :icon "build"}
+               {:path "gen" :menu_name "代码生成" :menu_type "C" :icon "code"}
+               {:path "swagger" :menu_name "系统接口" :menu_type "C" :icon "swagger"}]}
+   {:path "https://ruoyi.vip" :menu_name "若依官网" :menu_type "C" :icon "LinkOutlined"}])
+
+(def page-breadcrumbs
+  {:dashboard ["首页"]
+   :user ["首页" "系统管理" "用户管理"]
+   :role ["首页" "系统管理" "角色管理"]
+   :menu ["首页" "系统管理" "菜单管理"]
+   :dept ["首页" "系统管理" "部门管理"]
+   :post ["首页" "系统管理" "岗位管理"]
+   :dict ["首页" "系统管理" "字典管理"]
+   :config ["首页" "系统管理" "参数设置"]
+   :notice ["首页" "系统管理" "通知公告"]
+   :oper-log ["首页" "系统管理" "日志管理" "操作日志"]
+   :login-log ["首页" "系统管理" "日志管理" "登录日志"]
+   :online ["首页" "系统监控" "在线用户"]
+   :job ["首页" "系统监控" "定时任务"]
+   :server ["首页" "系统监控" "服务监控"]
+   :cache ["首页" "系统监控" "缓存监控"]
+   :datasource ["首页" "系统监控" "连接池监视"]
+   :build ["首页" "系统工具" "表单构建"]
+   :gen ["首页" "系统工具" "代码生成"]
+   :swagger ["首页" "系统工具" "系统接口"]
+   :profile ["首页" "个人中心"]})
+
+(def route-labels
+  (into {} (map (fn [[k xs]] [k (last xs)]) page-breadcrumbs)))
+
+(def route-icons
+  {:dashboard "dashboard"
+   :user "user"
+   :role "peoples"
+   :menu "tree-table"
+   :dept "tree"
+   :post "post"
+   :dict "dict"
+   :config "edit"
+   :notice "message"
+   :oper-log "form"
+   :login-log "logininfor"
+   :online "online"
+   :job "job"
+   :server "server"
+   :cache "cache"
+   :datasource "database"
+   :build "build"
+   :gen "code"
+   :swagger "swagger"
+   :profile "profile"})
 
 ;; ─── 动态菜单构建 ──────────────────────────────────────────────────────
 
@@ -456,35 +544,42 @@
 
 (defn main-layout []
   (let [[collapsed set-collapsed!] (hooks/use-state false)
-        theme-mode @(rf/subscribe [:theme/mode])
         user @(rf/subscribe [:auth/user])
         page @(rf/subscribe [:page])
-        user-menus (or (seq (:menus user))
-                       [{:path "dashboard" :menu_name "首页" :icon "dashboard"}])
-        menus-with-integrant ((comp inject-integrant-menu inject-file-menu) user-menus)
+        menus-with-integrant standard-menu-tree
         filtered-menus (filter-visible-menus menus-with-integrant)
         menu-items (menu->antd-items filtered-menus)
-        labels (page-labels menus-with-integrant)
-        icons (page-icons menus-with-integrant)]
-    [:> Layout {:style {:minHeight "100vh"}}
+        labels (merge (page-labels menus-with-integrant) route-labels)
+        icons (merge (page-icons menus-with-integrant) route-icons)
+        breadcrumbs (get page-breadcrumbs page ["首页"])]
+    [:> Layout {:style {:minHeight "100vh" :background "#fff"}}
          ;; Tab 动画样式
          [tab-animation-styles]
          [:> Layout.Sider {:collapsible true
                            :collapsed collapsed
                            :onCollapse set-collapsed!
-                           :theme (if (= theme-mode :dark) "dark" "light")
-                           :width 220
-                           :trigger nil}
+                           :theme "dark"
+                           :width 280
+                           :trigger nil
+                           :style {:background "#172033"
+                                   :boxShadow "2px 0 8px rgba(0,0,0,0.18)"}}
           [:div {:style {:height 64 :display "flex" :alignItems "center"
-                         :justifyContent "center" :fontSize 18 :fontWeight 600
-                         :color (if (= theme-mode :dark) "#fff" "#000")
-                         :borderBottom "1px solid var(--ant-color-border-secondary, #f0f0f0)"}}
-           (if collapsed "RY" "若依管理系统")]
-          [:> Menu {:theme (if (= theme-mode :dark) "dark" "light")
+                         :justifyContent "center" :gap 12 :fontSize 18 :fontWeight 700
+                         :color "#fff"
+                         :background "#172033"}}
+           [:div {:style {:width 34 :height 34 :borderRadius "50%"
+                          :display "flex" :alignItems "center" :justifyContent "center"
+                          :color "#79e0c2" :fontSize 24 :fontWeight 300}}
+            "⌁"]
+           (when-not collapsed [:span "若依管理系统"])]
+          [:> Menu {:theme "dark"
                     :mode "inline"
                     :inlineCollapsed collapsed
+                    :style {:background "#172033"
+                            :fontSize 15
+                            :borderInlineEnd "none"}
                     :selectedKeys (clj->js [(or (page->menu-key page) (name page))])
-                    :defaultOpenKeys #js ["menu-1999" "system" "monitor" "tool"]
+                    :defaultOpenKeys #js ["system"]
                     :items menu-items
                     :onClick (fn [e]
                                (let [k (.-key e)
@@ -492,45 +587,55 @@
                                      matched (router/match-route (str "/" k))
                                      page (or (:handler matched) (keyword k))
                                      _ (js/console.log "Page:" (str page))]
-                                 (rf/dispatch [:navigate page])
-                                 (rf/dispatch [:tabs/add page (get labels page "页面") (get icons page)])))}]]
+                                 (when (:handler matched)
+                                   (rf/dispatch [:navigate page])
+                                   (rf/dispatch [:tabs/add page (get labels page "页面") (get icons page)]))))}]]
          ;; Main area
-         [:> Layout
-          [:> Layout.Header {:style {:padding "0 24px"
+         [:> Layout {:style {:background "#fff"}}
+          [:> Layout.Header {:style {:padding "0 18px"
                                      :display "flex" :justifyContent "space-between"
-                                     :alignItems "center" :height 64
-                                     :borderBottom "1px solid var(--ant-color-border-secondary, #f0f0f0)"}}
-           ;; Left: hamburger + title
+                                     :alignItems "center" :height 72
+                                     :background "#fff"
+                                     :borderBottom "1px solid #e4e7ed"
+                                     :boxShadow "0 1px 4px rgba(0,21,41,0.08)"}}
+           ;; Left: hamburger + breadcrumb
            [:div {:style {:display "flex" :alignItems "center" :gap 12}}
             ;; Hamburger toggle button
-            [:div {:style {:cursor "pointer" :padding "0 8px" :fontSize 20
+            [:div {:style {:cursor "pointer" :padding "0 6px" :fontSize 22
                            :display "flex" :alignItems "center"
-                           :color "var(--ant-color-text)"
+                           :color "#303133"
                            :transition "color 0.3s"}
                    :on-click #(set-collapsed! (not collapsed))}
              (if collapsed
                [:> MenuUnfoldOutlined]
                [:> MenuFoldOutlined])]
-            [:span {:style {:fontSize 16 :fontWeight 500}} "若依管理系统"]]
-           [:div {:style {:display "flex" :alignItems "center" :gap 4}}
+            [:div {:style {:display "flex" :alignItems "center" :gap 10 :fontSize 16}}
+             (for [[idx crumb] (map-indexed vector breadcrumbs)]
+               ^{:key (str "crumb-" idx)}
+               [:<>
+                (when (pos? idx)
+                  [:span {:style {:color "#c0c4cc"}} "/"])
+                [:span {:style {:color (if (= idx (dec (count breadcrumbs))) "#97a8be" "#303133")
+                                :fontWeight (if (= idx (dec (count breadcrumbs))) 400 500)}}
+                 crumb]])]]
+           [:div {:style {:display "flex" :alignItems "center" :gap 6}}
             ;; 搜索
-            [:> Button {:type "text" :icon (r/as-element [:> SearchOutlined])}]
+            [:> Button {:type "text" :style {:fontSize 20 :color "#606266"} :icon (r/as-element [:> SearchOutlined])}]
             ;; GitHub
-            [:> Button {:type "text" :icon (r/as-element [:> GithubOutlined])
+            [:> Button {:type "text" :style {:fontSize 20 :color "#606266"} :icon (r/as-element [:> GithubOutlined])
                         :onClick #(js/window.open "https://github.com/RedCreationTech/rouyi_clojure" "_blank")}]
             ;; 文档
-            [:> Button {:type "text" :icon (r/as-element [:> QuestionCircleOutlined])}]
+            [:> Button {:type "text" :style {:fontSize 20 :color "#606266"} :icon (r/as-element [:> QuestionCircleOutlined])}]
             ;; 全屏
-            [:> Button {:type "text" :icon (r/as-element [:> ExpandOutlined])
+            [:> Button {:type "text" :style {:fontSize 20 :color "#606266"} :icon (r/as-element [:> ExpandOutlined])
                         :onClick #(let [doc js/document.documentElement]
                                     (if (.-fullscreenElement js/document)
                                       (.exitFullscreen js/document)
                                       (.requestFullscreen doc)))}]
-            ;; 主题设置
-            [theme-switcher/theme-switcher-button]
+            [:> Button {:type "text" :style {:fontSize 20 :color "#606266"} :icon (r/as-element [:> FontSizeOutlined])}]
             ;; 通知
-            [:> Badge {:count 0 :size "small"}
-             [:> Button {:type "text" :icon (r/as-element [:> BellOutlined])}]]
+            [:> Badge {:count 3 :size "small"}
+             [:> Button {:type "text" :style {:fontSize 20 :color "#606266"} :icon (r/as-element [:> BellOutlined])}]]
             ;; 头像 + 下拉菜单
             [:> Dropdown {:menu {:items (clj->js [{:key "profile" :label "个人中心"}
                                                   {:key "logout" :label "退出登录" :danger true}])
@@ -539,13 +644,22 @@
                                               "profile" (rf/dispatch [:navigate :profile])
                                               "logout" (rf/dispatch [:auth/logout])
                                               nil))}}
-             [:div {:style {:display "flex" :alignItems "center" :gap 8 :cursor "pointer" :padding "0 8px"}}
-              [:> Avatar {:size 28 :icon (r/as-element [:> UserOutlined])}]
-              [:span {:style {:fontSize 14}} (get-in user [:user :nick_name] "管理员")]]]]]
+             [:div {:style {:display "flex" :alignItems "center" :gap 8 :cursor "pointer" :padding "0 6px"}}
+              [:> Avatar {:size 36
+                          :style {:background "linear-gradient(135deg,#f7d7c4,#9bc9ff)"
+                                  :color "#fff"
+                                  :fontWeight 700}}
+               "若"]
+              [:span {:style {:fontSize 16 :fontWeight 600 :color "#303133"}} "若依"]]]]]
           ;; Tab 栏
           [tab-bar]
           ;; 内容区（加 Error Boundary，避免单个页面崩溃导致整个布局白屏）
-          [:> Layout.Content {:style {:margin 24}
+          [:> Layout.Content {:style {:margin 0
+                                      :padding 0
+                                      :background "#fff"
+                                      :minHeight "calc(100vh - 112px)"
+                                      :paddingBottom 52
+                                      :position "relative"}
                               :key (name page)
                               :class "tab-content-enter"}
            [error-boundary/boundary
@@ -580,4 +694,17 @@
              :build [form-builder/form-builder-page]
              :file [file-manager/file-manager-page]
              [:div {:style {:padding 48 :textAlign "center" :color "#999" :fontSize 16}}
-              "页面建设中"])]]]]))
+              "页面建设中"])]
+           [:div {:style {:position "fixed" :right 16 :bottom 78
+                          :width 44 :height 44 :borderRadius "50%"
+                          :background "#e989aa" :color "#fff"
+                          :display "flex" :alignItems "center" :justifyContent "center"
+                          :fontSize 18 :fontWeight 700
+                          :boxShadow "0 4px 12px rgba(233,137,170,0.35)"
+                          :zIndex 20}}
+            "LA"]
+           [:div {:style {:position "fixed" :left (if collapsed 80 280) :right 0 :bottom 0
+                          :height 52 :display "flex" :alignItems "center" :justifyContent "flex-end"
+                          :padding "0 26px" :borderTop "1px solid #ebeef5"
+                          :color "#808080" :fontSize 16 :background "#fff" :zIndex 10}}
+            "Copyright © 2018-2026 RuoYi. All Rights Reserved."]]]]))

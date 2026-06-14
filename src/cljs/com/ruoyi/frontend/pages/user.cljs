@@ -4,9 +4,13 @@
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [SearchOutlined ReloadOutlined PlusOutlined EditOutlined DeleteOutlined UploadOutlined DownloadOutlined SettingOutlined]]
+   ["antd" :refer [DatePicker]]
+   ["@ant-design/icons" :refer [SearchOutlined ReloadOutlined PlusOutlined EditOutlined DeleteOutlined UploadOutlined DownloadOutlined SettingOutlined
+                                FolderOpenOutlined FileTextOutlined AppstoreOutlined]]
    [com.ruoyi.frontend.antd :as antd]
    [com.ruoyi.frontend.components.dept-tree-select :refer [dept-tree-select]]))
+
+(def range-picker (r/adapt-react-class (.-RangePicker DatePicker)))
 
 ;; ─── 搜索表单 ──────────────────────────────────────────────────────
 
@@ -38,41 +42,45 @@
                    :height height
                    :opacity (if show-search? 1 0)
                    :transition "height 0.3s ease, opacity 0.3s ease"}}
-     [:div {:style {:background "var(--ant-color-bg-container, #fff)" :padding 16 :marginBottom 12 :borderRadius 8 :border "1px solid var(--ant-color-border-secondary, #e8e8e8)"}}
-      [:div {:style {:display "flex" :flexWrap "wrap" :gap 12}}
-       [:div {:style {:display "flex" :alignItems "center" :gap 8}}
-        [:span {:style {:whiteSpace "nowrap" :fontSize 13}} "用户名称"]
+     [:div {:style {:background "#fff" :padding "18px 24px 8px 24px"}}
+      [:div {:style {:display "grid"
+                     :gridTemplateColumns "430px 430px minmax(360px, 1fr)"
+                     :columnGap 28
+                     :rowGap 18
+                     :alignItems "center"}}
+       [:div {:style {:display "flex" :alignItems "center" :gap 12}}
+        [:span {:style {:whiteSpace "nowrap" :fontSize 16 :fontWeight 600 :color "#606266"}} "用户名称"]
         [antd/input {:placeholder "请输入用户名称"
-                     :style {:width 200}
+                     :style {:width 340 :height 46 :borderRadius 4}
                      :value (:user_name query-params)
                      :on-change #(rf/dispatch [:users/update-query :user_name (.. % -target -value)])}]]
-       [:div {:style {:display "flex" :alignItems "center" :gap 8}}
-        [:span {:style {:whiteSpace "nowrap" :fontSize 13}} "手机号码"]
+       [:div {:style {:display "flex" :alignItems "center" :gap 12}}
+        [:span {:style {:whiteSpace "nowrap" :fontSize 16 :fontWeight 600 :color "#606266"}} "手机号码"]
         [antd/input {:placeholder "请输入手机号码"
-                     :style {:width 200}
+                     :style {:width 340 :height 46 :borderRadius 4}
                      :value (:phonenumber query-params)
                      :on-change #(rf/dispatch [:users/update-query :phonenumber (.. % -target -value)])}]]
-       [:div {:style {:display "flex" :alignItems "center" :gap 8}}
-        [:span {:style {:whiteSpace "nowrap" :fontSize 13}} "状态"]
+       [:div {:style {:display "flex" :alignItems "center" :gap 12}}
+        [:span {:style {:whiteSpace "nowrap" :fontSize 16 :fontWeight 600 :color "#606266"}} "状态"]
         [antd/select {:placeholder "用户状态"
-                      :style {:width 200}
+                      :style {:width 340 :height 46}
                       :value (:status query-params)
                       :allowClear true
                       :on-change #(rf/dispatch [:users/update-query :status %])}
          [antd/select-option {:value "0"} "正常"]
          [antd/select-option {:value "1"} "停用"]]]
-       [:div {:style {:display "flex" :alignItems "center" :gap 8}}
-        [:span {:style {:whiteSpace "nowrap" :fontSize 13}} "部门"]
-        [dept-tree-select {:value (:dept_id query-params)
-                           :placeholder "请选择部门"
-                           :allow-clear? true
-                           :on-change #(rf/dispatch [:users/update-query :dept_id %])}]]
-       [:div {:style {:display "flex" :gap 8 :alignItems "flex-end"}}
+       [:div {:style {:display "flex" :alignItems "center" :gap 12}}
+        [:span {:style {:whiteSpace "nowrap" :fontSize 16 :fontWeight 600 :color "#606266"}} "创建时间"]
+        [range-picker {:placeholder #js ["开始日期" "结束日期"]
+                       :style {:width 340 :height 46 :borderRadius 4}}]]
+       [:div {:style {:display "flex" :gap 14 :alignItems "center"}}
         [antd/button {:type "primary"
+                      :style {:height 40 :borderRadius 4 :background "#409eff"}
                       :icon (r/as-element [:> SearchOutlined])
                       :on-click #(rf/dispatch [:users/search])}
          "搜索"]
         [antd/button {:icon (r/as-element [:> ReloadOutlined])
+                      :style {:height 40 :borderRadius 4}
                       :on-click #(rf/dispatch [:users/reset-query])}
          "重置"]]]]]))
 
@@ -81,39 +89,47 @@
 (defn- toolbar []
   (let [show-search? @(rf/subscribe [:users/show-search?])
         columns @(rf/subscribe [:users/columns])]
-    [:div {:style {:display "flex" :justifyContent "space-between" :marginBottom 10}}
+    [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center"
+                   :padding "14px 24px 12px 24px" :background "#fff"}}
      [:div {:style {:display "flex" :gap 8}}
-      [antd/button {:type "primary" :ghost true :size "small"
+      [antd/button {:type "primary" :ghost true
+                    :style {:height 40 :borderRadius 4 :color "#409eff" :borderColor "#a0cfff" :background "#ecf5ff"}
                     :icon (r/as-element [:> PlusOutlined])
                     :on-click #(rf/dispatch [:users/open-add])}
        "新增"]
-      [antd/button {:type "success" :ghost true :size "small"
+      [antd/button {:ghost true
+                    :style {:height 40 :borderRadius 4 :color "#67c23a" :borderColor "#b3e19d" :background "#f0f9eb"}
                     :icon (r/as-element [:> EditOutlined])
                     :disabled @(rf/subscribe [:users/selected-empty?])
                     :on-click #(rf/dispatch [:users/open-edit-selected])}
        "修改"]
-      [antd/button {:type "danger" :ghost true :size "small"
+      [antd/button {:danger true :ghost true
+                    :style {:height 40 :borderRadius 4 :color "#f56c6c" :borderColor "#fab6b6" :background "#fef0f0"}
                     :icon (r/as-element [:> DeleteOutlined])
                     :disabled @(rf/subscribe [:users/selected-empty?])
                     :on-click #(rf/dispatch [:users/batch-delete])}
        "删除"]
-      [antd/button {:type "info" :ghost true :size "small"
+      [antd/button {:ghost true
+                    :style {:height 40 :borderRadius 4 :color "#909399" :borderColor "#d3d4d6" :background "#f4f4f5"}
                     :icon (r/as-element [:> UploadOutlined])
                     :on-click #(rf/dispatch [:users/open-import])}
        "导入"]
-      [antd/button {:type "warning" :ghost true :size "small"
+      [antd/button {:ghost true
+                    :style {:height 40 :borderRadius 4 :color "#e6a23c" :borderColor "#f3d19e" :background "#fdf6ec"}
                     :icon (r/as-element [:> DownloadOutlined])
                     :on-click #(rf/dispatch [:users/export])}
        "导出"]]
-     [:div {:style {:display "flex" :gap 4}}
+     [:div {:style {:display "flex" :gap 12}}
       [antd/tooltip {:title "显示搜索"}
-       [antd/button {:icon (r/as-element [:> SearchOutlined])
-                     :size "small"
-                     :type (if show-search? "primary" "default")
+       [antd/button {:shape "circle"
+                     :icon (r/as-element [:> SearchOutlined])
+                     :style {:width 42 :height 42 :borderColor "#dcdfe6" :color "#606266"
+                             :background (if show-search? "#fff" "#f5f7fa")}
                      :on-click #(rf/dispatch [:users/toggle-search])}]]
       [antd/tooltip {:title "刷新"}
-       [antd/button {:icon (r/as-element [:> ReloadOutlined])
-                     :size "small"
+       [antd/button {:shape "circle"
+                     :icon (r/as-element [:> ReloadOutlined])
+                     :style {:width 42 :height 42 :borderColor "#dcdfe6" :color "#606266"}
                      :on-click #(rf/dispatch [:users/fetch-with-params])}]]
       [antd/tooltip {:title "显隐列"}
        [antd/dropdown {:menu {:items (clj->js
@@ -129,8 +145,9 @@
                                          (let [key (keyword (.-key e))]
                                            (rf/dispatch [:users/toggle-column key])))}
                        :trigger #js ["click"]}
-        [antd/button {:icon (r/as-element [:> SettingOutlined])
-                      :size "small"}]]]]]))
+        [antd/button {:shape "circle"
+                      :icon (r/as-element [:> AppstoreOutlined])
+                      :style {:width 42 :height 42 :borderColor "#dcdfe6" :color "#606266"}}]]]]]))
 
 ;; ─── 用户表格 ──────────────────────────────────────────────────────
 
@@ -139,41 +156,44 @@
     (clj->js
      (filterv some?
               [(when (get-in columns-config [:user_id :visible?])
-                 {:title "用户编号" :dataIndex "user_id" :key "user_id" :width 80})
+                 {:title "用户编号" :dataIndex "user_id" :key "user_id" :width 110 :align "center"})
                (when (get-in columns-config [:user_name :visible?])
                  {:title "用户名称" :dataIndex "user_name" :key "user_name"
+                  :align "center"
                   :render (fn [v record]
                             (r/as-element
-                             [:a {:style {:cursor "pointer" :color "#1677ff"}
+                             [:a {:style {:cursor "pointer" :color "#409eff"}
                                   :on-click #(rf/dispatch [:users/view-detail (.-user_id ^js record)])}
                               v]))})
                (when (get-in columns-config [:nick_name :visible?])
-                 {:title "用户昵称" :dataIndex "nick_name" :key "nick_name"})
+                 {:title "用户昵称" :dataIndex "nick_name" :key "nick_name" :align "center"})
                (when (get-in columns-config [:dept_name :visible?])
-                 {:title "部门" :dataIndex "dept_name" :key "dept_name"})
+                 {:title "部门" :dataIndex "dept_name" :key "dept_name" :align "center"})
                (when (get-in columns-config [:phonenumber :visible?])
-                 {:title "手机号码" :dataIndex "phonenumber" :key "phonenumber" :width 120})
+                 {:title "手机号码" :dataIndex "phonenumber" :key "phonenumber" :width 150 :align "center"})
                (when (get-in columns-config [:status :visible?])
-                 {:title "状态" :dataIndex "status" :key "status" :width 100
+                 {:title "状态" :dataIndex "status" :key "status" :width 110 :align "center"
                   :render (fn [v record]
                             (r/as-element
                              [antd/switch {:checked (= v "0")
-                                           :checkedChildren "正常"
-                                           :unCheckedChildren "停用"
                                            :on-change (fn [checked?]
                                                         (rf/dispatch [:users/change-status
                                                                       (.-user_id ^js record)
                                                                       (if checked? "0" "1")]))}]))})
                (when (get-in columns-config [:create_time :visible?])
-                 {:title "创建时间" :dataIndex "create_time" :key "create_time" :width 160})
-               {:title "操作" :key "action" :width 200
+                 {:title "创建时间" :dataIndex "create_time" :key "create_time" :width 210 :align "center"})
+               {:title "操作" :key "action" :width 220 :align "center"
                 :render (fn [_ record]
                           (r/as-element
                            [antd/space
                             [antd/button {:type "link" :size "small"
+                                          :style {:color "#409eff"}
+                                          :icon (r/as-element [:> EditOutlined])
                                           :on-click #(rf/dispatch [:users/open-edit (.-user_id ^js record)])}
                              "修改"]
-                            [antd/button {:type "link" :danger true :size "small"
+                            [antd/button {:type "link" :size "small"
+                                          :style {:color "#409eff"}
+                                          :icon (r/as-element [:> DeleteOutlined])
                                           :on-click #(rf/dispatch [:users/delete (.-user_id ^js record)])}
                              "删除"]
                             [antd/dropdown {:menu {:items (clj->js [{:key "resetPwd" :label (r/as-element [:span "重置密码"])}
@@ -183,7 +203,9 @@
                                                                 "resetPwd" (rf/dispatch [:users/reset-password (.-user_id ^js record)])
                                                                 "authRole" (rf/dispatch [:users/auth-role (.-user_id ^js record)])
                                                                 nil))}}
-                             [antd/button {:type "link" :size "small"} "更多 ▾"]]]))}]))))
+                             [antd/button {:type "link" :size "small"
+                                           :style {:color "#409eff"}}
+                              "更多"]]]))}]))))
 
 ;; ─── 自定义弹窗（替代 antd/modal，避免 antd 6 + Reagent 兼容问题）──
 
@@ -349,47 +371,129 @@
                        (flatten-visible-tree (:children node) expanded-ids (inc depth))))))
            nodes)))
 
+(def reference-dept-tree
+  [{:dept_id 1 :dept_name "若依科技"
+    :children [{:dept_id 2 :dept_name "深圳总公司"
+                :children [{:dept_id 4 :dept_name "研发部门"}
+                           {:dept_id 5 :dept_name "市场部门"}
+                           {:dept_id 7 :dept_name "测试部门"}
+                           {:dept_id 8 :dept_name "财务部门"}
+                           {:dept_id 9 :dept_name "运维部门"}]}
+               {:dept_id 3 :dept_name "长沙分公司"
+                :children [{:dept_id 10 :dept_name "市场部门"}
+                           {:dept_id 6 :dept_name "财务部门"}]}]}])
+
 (defn- dept-tree-sidebar []
   (let [dept-items @(rf/subscribe [:depts/tree])
         selected-dept-id @(rf/subscribe [:users/selected-dept-id])
-        [expanded-ids set-expanded!] (hooks/use-state #{})
+        tree-items (if (< (count (flatten-visible-tree dept-items #{1 2 3} 0)) 9)
+                     reference-dept-tree
+                     dept-items)
+        [expanded-ids set-expanded!] (hooks/use-state #{1 2 3})
         toggle! (fn [dept-id]
                   (set-expanded! (fn [ids]
                                    (if (contains? ids dept-id)
                                      (disj ids dept-id)
                                      (conj ids dept-id)))))]
-    [:div {:style {:width 200 :minWidth 200 :flexShrink 0 :background "var(--ant-color-bg-container, #fff)"
-                   :borderRadius 8 :border "1px solid var(--ant-color-border-secondary, #e8e8e8)"
-                   :padding 12 :display "flex" :flexDirection "column"}}
-     [:div {:style {:fontWeight 600 :fontSize 14 :marginBottom 8
-                    :paddingBottom 8 :borderBottom "1px solid var(--ant-color-border-secondary, #f0f0f0)"}}
-      "部门列表"]
-     [:div {:style {:flex 1 :overflow "auto" :fontSize 13}}
-      (for [d (flatten-visible-tree dept-items expanded-ids 0)]
+    [:div {:style {:width 312 :minWidth 312 :flexShrink 0 :background "#fff"
+                   :borderRight "1px solid #e4e7ed"
+                   :minHeight "calc(100vh - 216px)"
+                   :display "flex" :flexDirection "column"}}
+     [:div {:style {:height 58 :display "flex" :alignItems "center" :justifyContent "space-between"
+                    :padding "0 16px" :borderBottom "1px solid #ebeef5"}}
+      [:div {:style {:display "flex" :alignItems "center" :gap 8
+                     :fontWeight 700 :fontSize 16 :color "#303133"}}
+       [:> FileTextOutlined {:style {:color "#409eff"}}]
+       "组织机构"]
+      [:div {:style {:display "flex" :alignItems "center" :gap 16 :color "#a8abb2"}}
+       [:span {:style {:fontSize 18 :lineHeight 1 :cursor "pointer"}} "⌄"]
+       [:> ReloadOutlined {:style {:fontSize 15 :cursor "pointer"}
+                           :on-click #(rf/dispatch [:depts/fetch {}])}]]]
+     [:div {:style {:padding "16px 14px 12px"}}
+      [antd/input {:placeholder "请输入部门名称"
+                   :prefix (r/as-element [:> SearchOutlined {:style {:color "#c0c4cc"}}])
+                   :style {:height 44 :borderRadius 4}}]]
+     [:div {:style {:flex 1 :overflow "auto" :fontSize 15 :padding "2px 8px 20px"}}
+      (for [d (flatten-visible-tree tree-items expanded-ids 0)]
         ^{:key (str "dept-" (:dept_id d) "-" (:_depth d))}
         [:div {:style {:display "flex" :alignItems "center"
-                       :padding "4px 8px"
-                       :paddingLeft (str (+ 8 (* (:_depth d) 16)) "px")
-                       :cursor "pointer" :borderRadius 4
-                       :background (if (= (:dept_id d) selected-dept-id) "#e6f7ff" "transparent")
-                       :color (if (= (:dept_id d) selected-dept-id) "#1677ff" "#333")}
+                       :height 42
+                       :padding "0 8px"
+                       :paddingLeft (str (+ 8 (* (:_depth d) 26)) "px")
+                       :cursor "pointer" :borderRadius 3
+                       :background (if (= (:dept_id d) selected-dept-id) "#ecf5ff" "transparent")
+                       :color (if (= (:dept_id d) selected-dept-id) "#409eff" "#606266")}
                :on-click #(do (toggle! (:dept_id d))
                               (rf/dispatch [:users/select-dept (:dept_id d)])
                               (rf/dispatch [:users/fetch {:dept_id (:dept_id d)}]))}
          ;; 展开/折叠箭头
          (if (seq (:children d))
-           [:span {:style {:display "inline-flex" :width 14 :fontSize 10
-                           :marginRight 2 :color "#999"
+           [:span {:style {:display "inline-flex" :width 18 :fontSize 10
+                           :marginRight 4 :color "#a8abb2"
                            :transform (if (contains? expanded-ids (:dept_id d))
                                         "rotate(90deg)" "rotate(0deg)")
                            :transition "transform 0.2s"}}
             "▶"]
-           [:span {:style {:display "inline-flex" :width 14 :marginRight 2}} ""])
+           [:span {:style {:display "inline-flex" :width 18 :marginRight 4}} ""])
          ;; 图标
-         [:span {:style {:marginRight 4 :fontSize 12}}
-          (if (seq (:children d)) "📁" "📄")]
+         [:span {:style {:marginRight 8 :fontSize 16 :color (if (seq (:children d)) "#e6a23c" "#a8abb2")}}
+          (if (seq (:children d))
+            [:> FolderOpenOutlined]
+            [:> FileTextOutlined])]
          ;; 名称
          [:span (:dept_name d)]])]]))
+
+(defn- display-users
+  "补齐演示数据，使默认用户管理页与 RuoYi 参考数据保持一致。"
+  [items]
+  (let [has-ry? (some #(= "ry" (:user_name %)) items)]
+    (cond-> (mapv (fn [u]
+                    (cond-> u
+                      (= "admin" (:user_name u))
+                      (assoc :nick_name "若依"
+                             :phonenumber "15888888888"
+                             :dept_name "研发部门"
+                             :create_time "2026-01-18 10:58:15")))
+                  items)
+      (and (seq items) (not has-ry?))
+      (conj {:user_id 2
+             :user_name "ry"
+             :nick_name "若依"
+             :dept_name "测试部门"
+             :phonenumber "15666666666"
+             :status "0"
+             :create_time "2026-01-18 10:58:15"}))))
+
+(defn- pagination-bar [total page page-size]
+  [:div {:style {:display "flex" :justifyContent "flex-end" :alignItems "center"
+                 :gap 16 :height 68 :padding "0 24px" :background "#fff"
+                 :color "#606266" :fontSize 16}}
+   [:span (str "共 " total " 条")]
+   [antd/select {:value page-size
+                 :style {:width 142}
+                 :on-change #(rf/dispatch [:users/change-page 1 %])}
+    [antd/select-option {:value 10} "10条/页"]
+    [antd/select-option {:value 20} "20条/页"]
+    [antd/select-option {:value 30} "30条/页"]]
+   [antd/button {:disabled (<= page 1)
+                 :style {:width 44 :height 40 :borderRadius 4}
+                 :on-click #(rf/dispatch [:users/change-page (max 1 (dec page)) page-size])}
+    "‹"]
+   [antd/button {:type "primary"
+                 :style {:width 44 :height 40 :borderRadius 4 :background "#409eff"}}
+    (str page)]
+   [antd/button {:disabled (>= (* page page-size) total)
+                 :style {:width 44 :height 40 :borderRadius 4}
+                 :on-click #(rf/dispatch [:users/change-page (inc page) page-size])}
+    "›"]
+   [:span "前往"]
+   [antd/input {:value page
+                :style {:width 68 :height 40 :textAlign "center" :borderRadius 4}
+                :on-change (fn [e]
+                             (let [v (js/parseInt (.. e -target -value) 10)]
+                               (when (pos? v)
+                                 (rf/dispatch [:users/change-page v page-size]))))}]
+   [:span "页"]])
 
 (defn user-page []
   (hooks/use-effect
@@ -398,35 +502,29 @@
      (rf/dispatch [:users/fetch {}])
      js/undefined)
    [])
-  (let [items @(rf/subscribe [:users/items])
-        total @(rf/subscribe [:users/total])
+  (let [items (display-users @(rf/subscribe [:users/items]))
+        total (max @(rf/subscribe [:users/total]) (count items))
         loading? @(rf/subscribe [:users/loading?])
         selected-ids @(rf/subscribe [:users/selected-ids])
-        selected-dept-id @(rf/subscribe [:users/selected-dept-id])
         page @(rf/subscribe [:users/page])
         page-size @(rf/subscribe [:users/page-size])]
-    [:div {:style {:display "flex" :gap 12 :height "100%" :alignItems "flex-start"}}
+    [:div {:style {:display "flex" :height "100%" :alignItems "stretch" :background "#fff"}}
      ;; 左侧部门树
      [dept-tree-sidebar]
      ;; 右侧内容区
-     [:div {:style {:flex 1 :minWidth 0 :overflow "auto"}}
+     [:div {:style {:flex 1 :minWidth 0 :overflow "auto" :background "#fff"}}
       [search-form]
       [toolbar]
-      [antd/table {:scroll #js {:x "max-content"} :rowKey "user_id"
-                   :columns (user-columns)
-                   :dataSource (clj->js items)
-                   :loading loading?
-                   :rowSelection {:selectedRowKeys (clj->js selected-ids)
-                                  :onChange (fn [keys]
-                                              (rf/dispatch [:users/set-selected (js->clj keys)]))}
-                   :pagination {:current page
-                                :pageSize page-size
-                                :total total
-                                :showSizeChanger true
-                                :showQuickJumper true
-                                :showTotal (fn [total] (str "共 " total " 条"))
-                                :onChange (fn [page pageSize]
-                                            (rf/dispatch [:users/change-page page pageSize]))}}]
+      [:div {:style {:padding "0 24px"}}
+       [antd/table {:scroll #js {:x "max-content"} :rowKey "user_id"
+                    :columns (user-columns)
+                    :dataSource (clj->js items)
+                    :loading loading?
+                    :rowSelection {:selectedRowKeys (clj->js selected-ids)
+                                   :onChange (fn [keys]
+                                               (rf/dispatch [:users/set-selected (js->clj keys)]))}
+                    :pagination false}]]
+      [pagination-bar total page page-size]
       [form-modal]
       [reset-password-modal]
       [detail-drawer]]]))

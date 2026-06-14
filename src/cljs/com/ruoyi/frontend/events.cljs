@@ -11,6 +11,39 @@
                  (fn [_ _]
                    db/default-db))
 
+(def page-tab-meta
+  {:dashboard {:label "首页" :icon "dashboard" :closable false}
+   :user {:label "用户管理" :icon "user"}
+   :role {:label "角色管理" :icon "peoples"}
+   :menu {:label "菜单管理" :icon "tree-table"}
+   :dept {:label "部门管理" :icon "tree"}
+   :post {:label "岗位管理" :icon "post"}
+   :dict {:label "字典管理" :icon "dict"}
+   :config {:label "参数设置" :icon "edit"}
+   :notice {:label "通知公告" :icon "message"}
+   :oper-log {:label "操作日志" :icon "form"}
+   :login-log {:label "登录日志" :icon "logininfor"}
+   :online {:label "在线用户" :icon "online"}
+   :job {:label "定时任务" :icon "job"}
+   :server {:label "服务监控" :icon "server"}
+   :cache {:label "缓存监控" :icon "cache"}
+   :datasource {:label "连接池监视" :icon "database"}
+   :build {:label "表单构建" :icon "build"}
+   :gen {:label "代码生成" :icon "code"}
+   :swagger {:label "系统接口" :icon "swagger"}
+   :profile {:label "个人中心" :icon "profile"}})
+
+(defn- activate-page-tab [db page]
+  (let [meta (get page-tab-meta page {:label "页面"})
+        tabs (get-in db [:tabs :items] [])
+        exists? (some #(= (:key %) page) tabs)
+        tab (merge {:key page :closable (not= page :dashboard)} meta)]
+    (-> db
+        (assoc :page page)
+        (assoc-in [:tabs :active] page)
+        (cond-> (not exists?)
+          (update-in [:tabs :items] conj tab)))))
+
 (rf/reg-event-fx :navigate
                  (fn [{:keys [db]} [_ page]]
                    (let [fetch (case page
@@ -27,7 +60,7 @@
                                  :post [:posts/fetch {}]
                                  :notice [:notices/fetch {}]
                                  nil)
-                         effects {:db (assoc db :page page)
+                         effects {:db (activate-page-tab db page)
                                   :router/navigate! page}]
                      (if fetch
                        (assoc effects :dispatch fetch)
