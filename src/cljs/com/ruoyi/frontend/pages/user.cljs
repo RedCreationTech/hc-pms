@@ -48,32 +48,32 @@
                      :columnGap 24
                      :rowGap 8
                      :alignItems "center"}}
-       [:div {:style {:display "flex" :alignItems "center" :gap 8 :width 322}}
+       [:div {:style {:display "flex" :alignItems "center" :gap 8 :width 300}}
         [:span {:style {:whiteSpace "nowrap" :fontSize 14 :fontWeight 600 :color "#606266" :width 58 :textAlign "right"}} "用户名称"]
         [antd/input {:placeholder "请输入用户名称"
-                     :style {:width 250 :height 34 :borderRadius 4}
+                     :style {:width 232 :height 34 :borderRadius 4}
                      :value (:user_name query-params)
                      :on-change #(rf/dispatch [:users/update-query :user_name (.. % -target -value)])}]]
-       [:div {:style {:display "flex" :alignItems "center" :gap 8 :width 322}}
+       [:div {:style {:display "flex" :alignItems "center" :gap 8 :width 300}}
         [:span {:style {:whiteSpace "nowrap" :fontSize 14 :fontWeight 600 :color "#606266" :width 58 :textAlign "right"}} "手机号码"]
         [antd/input {:placeholder "请输入手机号码"
-                     :style {:width 250 :height 34 :borderRadius 4}
+                     :style {:width 232 :height 34 :borderRadius 4}
                      :value (:phonenumber query-params)
                      :on-change #(rf/dispatch [:users/update-query :phonenumber (.. % -target -value)])}]]
-       [:div {:style {:display "flex" :alignItems "center" :gap 8 :width 286}}
+       [:div {:style {:display "flex" :alignItems "center" :gap 8 :width 260}}
         [:span {:style {:whiteSpace "nowrap" :fontSize 14 :fontWeight 600 :color "#606266" :width 42 :textAlign "right"}} "状态"]
         [antd/select {:placeholder "用户状态"
-                      :style {:width 230 :height 34}
+                      :style {:width 210 :height 34}
                       :value (:status query-params)
                       :allowClear true
                       :on-change #(rf/dispatch [:users/update-query :status %])}
          [antd/select-option {:value "0"} "正常"]
          [antd/select-option {:value "1"} "停用"]]]
        [:div {:style {:flexBasis "100%" :height 0}}]
-       [:div {:style {:display "flex" :alignItems "center" :gap 8 :width 322}}
+       [:div {:style {:display "flex" :alignItems "center" :gap 8 :width 300}}
         [:span {:style {:whiteSpace "nowrap" :fontSize 14 :fontWeight 600 :color "#606266" :width 58 :textAlign "right"}} "创建时间"]
         [range-picker {:placeholder #js ["开始日期" "结束日期"]
-                       :style {:width 250 :height 34 :borderRadius 4}}]]
+                       :style {:width 232 :height 34 :borderRadius 4}}]]
        [:div {:style {:display "flex" :gap 10 :alignItems "center" :width 168}}
         [antd/button {:type "primary"
                       :style {:height 34 :borderRadius 4 :background "#409eff"}
@@ -397,8 +397,8 @@
                                    (if (contains? ids dept-id)
                                      (disj ids dept-id)
                                      (conj ids dept-id)))))]
-    [:div {:style {:width (if collapsed? 0 300)
-                   :minWidth (if collapsed? 0 300)
+    [:div {:style {:width (if collapsed? 0 280)
+                   :minWidth (if collapsed? 0 280)
                    :flexShrink 0 :background "#fff"
                    :borderRight "1px solid #e4e7ed"
                    :minHeight "calc(100vh - 200px)"
