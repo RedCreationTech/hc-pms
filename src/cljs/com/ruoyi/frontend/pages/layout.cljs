@@ -546,8 +546,8 @@
   (let [[collapsed set-collapsed!] (hooks/use-state false)
         user @(rf/subscribe [:auth/user])
         page @(rf/subscribe [:page])
-        sider-width 220
-        collapsed-width 64
+        sider-width 196
+        collapsed-width 56
         menus-with-integrant standard-menu-tree
         filtered-menus (filter-visible-menus menus-with-integrant)
         menu-items (menu->antd-items filtered-menus)
@@ -570,10 +570,10 @@
                            :style {:background "#172033"
                                    :boxShadow "2px 0 8px rgba(0,0,0,0.18)"}}
           [:div {:style {:height 56 :display "flex" :alignItems "center"
-                         :justifyContent "center" :gap 10 :fontSize 17 :fontWeight 700
+                         :justifyContent "center" :gap 8 :fontSize 16 :fontWeight 700
                          :color "#fff"
                          :background "#172033"}}
-           [:div {:style {:width 28 :height 28 :borderRadius "50%"
+           [:div {:style {:width 24 :height 24 :borderRadius "50%"
                           :display "flex" :alignItems "center" :justifyContent "center"
                           :color "#79e0c2" :fontSize 20 :fontWeight 300}}
             "⌁"]
@@ -664,7 +664,7 @@
                                       :padding 0
                                       :background "#fff"
                                       :minHeight "calc(100vh - 96px)"
-                                      :paddingBottom 52
+                                      :paddingBottom 36
                                       :position "relative"}
                               :key (name page)
                               :class "tab-content-enter"}
@@ -701,8 +701,8 @@
              :file [file-manager/file-manager-page]
              [:div {:style {:padding 48 :textAlign "center" :color "#999" :fontSize 16}}
               "页面建设中"])]
-           [:div {:style {:position "fixed" :right 16 :bottom 78
-                          :width 44 :height 44 :borderRadius "50%"
+           [:div {:style {:position "fixed" :right 14 :bottom 54
+                          :width 42 :height 42 :borderRadius "50%"
                           :background "#e989aa" :color "#fff"
                           :display "flex" :alignItems "center" :justifyContent "center"
                           :fontSize 18 :fontWeight 700
@@ -710,7 +710,7 @@
                           :zIndex 20}}
             "LA"]
            [:div {:style {:position "fixed" :left (if collapsed collapsed-width sider-width) :right 0 :bottom 0
-                          :height 52 :display "flex" :alignItems "center" :justifyContent "flex-end"
-                          :padding "0 26px" :borderTop "1px solid #ebeef5"
-                          :color "#808080" :fontSize 16 :background "#fff" :zIndex 10}}
+                          :height 36 :display "flex" :alignItems "center" :justifyContent "flex-end"
+                          :padding "0 20px" :borderTop "1px solid #ebeef5"
+                          :color "#808080" :fontSize 14 :background "#fff" :zIndex 10}}
             "Copyright © 2018-2026 RuoYi. All Rights Reserved."]]]]))
