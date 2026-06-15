@@ -317,31 +317,6 @@
    :profile "system/user/profile"
    :dashboard "dashboard"})
 
-(def standard-menu-tree
-  [{:path "dashboard" :menu_name "首页" :menu_type "C" :icon "dashboard"}
-   {:path "system" :menu_name "系统管理" :menu_type "M" :icon "system"
-    :children [{:path "user" :menu_name "用户管理" :menu_type "C" :icon "user"}
-               {:path "role" :menu_name "角色管理" :menu_type "C" :icon "peoples"}
-               {:path "menu" :menu_name "菜单管理" :menu_type "C" :icon "tree-table"}
-               {:path "dept" :menu_name "部门管理" :menu_type "C" :icon "tree"}
-               {:path "post" :menu_name "岗位管理" :menu_type "C" :icon "post"}
-               {:path "dict" :menu_name "字典管理" :menu_type "C" :icon "dict"}
-               {:path "config" :menu_name "参数设置" :menu_type "C" :icon "edit"}
-               {:path "notice" :menu_name "通知公告" :menu_type "C" :icon "message"}
-               {:path "operlog" :menu_name "日志管理" :menu_type "M" :icon "form"
-                :children [{:path "operlog" :menu_name "操作日志" :menu_type "C" :icon "form"}
-                           {:path "logininfor" :menu_name "登录日志" :menu_type "C" :icon "logininfor"}]}]}
-   {:path "monitor" :menu_name "系统监控" :menu_type "M" :icon "monitor"
-    :children [{:path "online" :menu_name "在线用户" :menu_type "C" :icon "online"}
-               {:path "job" :menu_name "定时任务" :menu_type "C" :icon "job"}
-               {:path "server" :menu_name "服务监控" :menu_type "C" :icon "server"}
-               {:path "cache" :menu_name "缓存监控" :menu_type "C" :icon "cache"}
-               {:path "datasource" :menu_name "连接池监视" :menu_type "C" :icon "DatabaseOutlined"}]}
-   {:path "tool" :menu_name "系统工具" :menu_type "M" :icon "tool"
-    :children [{:path "build" :menu_name "表单构建" :menu_type "C" :icon "build"}
-               {:path "gen" :menu_name "代码生成" :menu_type "C" :icon "code"}
-               {:path "swagger" :menu_name "系统接口" :menu_type "C" :icon "swagger"}]}])
-
 (def page-breadcrumbs
   {:dashboard ["首页"]
    :user ["首页" "系统管理" "用户管理"]
@@ -474,37 +449,26 @@
            {}
            menus)))
 
-(defn- inject-integrant-menu [menus]
-  "在「系统监控」目录下动态注入 Integrant 依赖菜单（演示用）。"
-  (mapv (fn [m]
-          (if (= "monitor" (:path m))
-            (update m :children (fnil conj [])
-                    {:path "integrant"
-                     :menu_name "Integrant 依赖"
-                     :menu_type "C"
-                     :visible "0"
-                     :status "0"
-                     :icon "FunctionOutlined"})
-            (if (seq (:children m))
-              (update m :children inject-integrant-menu)
-              m)))
-        menus))
-
-(defn- inject-file-menu [menus]
-  "在「系统管理」目录下动态注入文件管理菜单。"
-  (mapv (fn [m]
-          (if (= "system" (:path m))
-            (update m :children (fnil conj [])
-                    {:path "file"
-                     :menu_name "文件管理"
-                     :menu_type "C"
-                     :visible "0"
-                     :status "0"
-                     :icon "FileTextOutlined"})
-            (if (seq (:children m))
-              (update m :children inject-file-menu)
-              m)))
-        menus))
+(defn- menu-open-keys
+  "从接口返回的菜单树中提取所有有子菜单的 Menu key，用于动态菜单到达后默认展开。"
+  ([menus] (menu-open-keys menus ""))
+  ([menus parent-path]
+   (->> menus
+        (mapcat (fn [m]
+                  (let [path (:path m)
+                        full-path (cond
+                                    (not (seq path)) parent-path
+                                    (seq parent-path) (str parent-path "/" path)
+                                    :else path)
+                        item-key (if (seq full-path)
+                                   full-path
+                                   (str "menu-" (:menu_id m)))
+                        children (:children m)]
+                    (if (seq children)
+                      (cons item-key (menu-open-keys children full-path))
+                      []))))
+        (remove empty?)
+        vec)))
 
 ;; ─── 主布局 ────────────────────────────────────────────────────────
 
@@ -591,11 +555,14 @@
         layout-settings @(rf/subscribe [:layout/settings])
         sider-width 196
         collapsed-width 56
-        menus-with-integrant standard-menu-tree
-        filtered-menus (filter-visible-menus menus-with-integrant)
+        auth-menus (vec (or (:menus user) []))
+        filtered-menus (filter-visible-menus auth-menus)
         menu-items (menu->antd-items filtered-menus)
-        labels (merge (page-labels menus-with-integrant) route-labels)
-        icons (merge (page-icons menus-with-integrant) route-icons)
+        open-menu-keys (menu-open-keys filtered-menus)
+        menu-instance-key (str "permission-menu-" (hash filtered-menus))
+        selected-menu-key (or (page->menu-key page) (name page))
+        labels (merge route-labels (page-labels filtered-menus))
+        icons (merge route-icons (page-icons filtered-menus))
         breadcrumbs (get page-breadcrumbs page ["首页"])
         nav-mode (get layout-settings :nav-mode "side")
         top-nav? (= nav-mode "top")
@@ -641,14 +608,15 @@
                               :color "#79e0c2" :fontSize 20 :fontWeight 300}}
                 "⌁"]
                (when-not collapsed [:span "若依管理系统"])])
-            [:> Menu {:theme "dark"
+            [:> Menu {:key (str "side-" menu-instance-key)
+                      :theme "dark"
                       :mode "inline"
                       :inlineCollapsed collapsed
                       :style {:background "#172033"
                               :fontSize 14
                               :borderInlineEnd "none"}
-                      :selectedKeys (clj->js [(or (page->menu-key page) (name page))])
-                      :defaultOpenKeys #js ["system"]
+                      :selectedKeys (clj->js [selected-menu-key])
+                      :defaultOpenKeys (clj->js open-menu-keys)
                       :items menu-items
                       :onClick handle-menu-click}]])
          ;; Main area
@@ -675,8 +643,9 @@
                                  :color "#23b99a" :fontSize 20 :fontWeight 300}}
                    "⌁"]
                   [:span "若依管理系统"]])
-               [:> Menu {:mode "horizontal"
-                         :selectedKeys (clj->js [(or (page->menu-key page) (name page))])
+               [:> Menu {:key (str "top-" menu-instance-key)
+                         :mode "horizontal"
+                         :selectedKeys (clj->js [selected-menu-key])
                          :items menu-items
                          :onClick handle-menu-click
                          :style {:flex 1 :minWidth 0 :height 56 :lineHeight "56px"

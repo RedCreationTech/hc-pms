@@ -72,6 +72,9 @@
 
 (rf/reg-event-fx :auth/set-user
                  (fn [{:keys [db]} [_ user]]
+                   (try
+                     (.setItem js/localStorage "ruoyi_user" (.stringify js/JSON (clj->js user)))
+                     (catch js/Error _))
                    (let [page (:page db)
                          effects {:db (assoc-in db [:auth :user] user)}
                          ;; 只在登录后或当前页面异常时导航到 dashboard
@@ -125,6 +128,8 @@
                    {:db (-> db
                             (assoc-in [:auth :token] nil)
                             (assoc-in [:auth :user] nil)
+                            (assoc-in [:menus :items] [])
+                            (assoc-in [:menus :tree-data] [])
                             (assoc :tabs {:items [{:key :dashboard :label "首页" :closable false}]
                                           :active :dashboard}))
                     :api/logout nil
