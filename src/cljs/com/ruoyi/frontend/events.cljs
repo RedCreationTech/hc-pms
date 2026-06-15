@@ -34,7 +34,8 @@
    :profile {:label "个人中心" :icon "profile"}})
 
 (defn- activate-page-tab [db page]
-  (let [meta (get page-tab-meta page {:label "页面"})
+  (let [meta (merge {:label (get router/page-names page "页面")}
+                    (get page-tab-meta page {}))
         tabs (get-in db [:tabs :items] [])
         exists? (some #(= (:key %) page) tabs)
         tab (merge {:key page :closable (not= page :dashboard)} meta)]
@@ -1939,9 +1940,17 @@
 (rf/reg-event-fx :tabs/add
                  (fn [{:keys [db]} [_ key label icon]]
                    (let [tabs (get-in db [:tabs :items] [])
-                         exists? (some #(= (:key %) key) tabs)]
+                         exists? (some #(= (:key %) key) tabs)
+                         refresh-tab (fn [tab]
+                                       (cond-> tab
+                                         (= (:key tab) key)
+                                         (merge (cond-> {}
+                                                  (seq label) (assoc :label label)
+                                                  icon (assoc :icon icon)))))]
                      (if exists?
-                       {:db (assoc-in db [:tabs :active] key)}
+                       {:db (-> db
+                                (update-in [:tabs :items] #(mapv refresh-tab %))
+                                (assoc-in [:tabs :active] key))}
                        {:db (-> db
                                 (update-in [:tabs :items] conj {:key key :label label :icon icon :closable (not= key :dashboard)})
                                 (assoc-in [:tabs :active] key))}))))
