@@ -374,7 +374,7 @@
   "获取服务器信息。"
   [on-success on-error]
   (request {:method :get :uri "/system/server"
-            :on-success on-success :on-error on-success}))
+            :on-success on-success :on-error on-error}))
 
 (defn get-dashboard-stats
   "获取首页仪表盘统计数据。"

@@ -1,183 +1,166 @@
 (ns com.ruoyi.frontend.pages.server
-  "服务器监控页面 — RuoYi 风格。"
+  "服务器监控页面，按 RuoYi-Vue 服务监控布局展示 CPU、内存、JVM 与磁盘状态。"
   (:require
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [ReloadOutlined]]
-   ["antd" :refer [Progress Table Spin]]
+   ["@ant-design/icons" :refer [CloudServerOutlined DatabaseOutlined DesktopOutlined HddOutlined LaptopOutlined ReloadOutlined]]
+   ["antd" :refer [Spin Table]]
    [com.ruoyi.frontend.antd :as antd]))
 
-;; ─── 进度条组件 ──────────────────────────────────────────────────────
+(def card-style
+  {:background "#fff"
+   :border "1px solid #e6ebf5"
+   :borderRadius 4
+   :boxShadow "0 2px 12px 0 rgba(0,0,0,0.06)"})
 
-(defn- usage-bar [{:keys [label used total unit color]}]
-  (let [percent (if (and total (pos? total))
-                  (min 100 (Math/round (* 100 (/ used total))))
-                  0)
-        color (or color
-                  (cond
-                    (> percent 80) "#ff4d4f"
-                    (> percent 60) "#faad14"
-                    :else "#52c41a"))]
-    [:div {:style {:marginBottom 20}}
-     [:div {:style {:display "flex" :justifyContent "space-between" :marginBottom 8}}
-      [:span {:style {:fontSize 14 :fontWeight 500}} label]
-      [:span {:style {:fontSize 14 :color "#666"}} (str percent "%")]]
-     [:> Progress {:percent percent :strokeColor color :showInfo false
-                   :size 10 :railColor "#f0f0f0"}]
-     [:div {:style {:display "flex" :justifyContent "space-between" :marginTop 4 :fontSize 12 :color "#999"}}
-      [:span (str "已用: " (if unit (unit used) used))]
-      [:span (str "总计: " (if unit (unit total) total))]]]))
+(defn- monitor-card
+  "渲染 RuoYi 监控页面的白底卡片。"
+  [{:keys [icon title style]} & children]
+  (into
+   [:div {:style (merge card-style style)}
+    [:div {:style {:height 48
+                   :display "flex"
+                   :alignItems "center"
+                   :gap 8
+                   :padding "0 18px"
+                   :borderBottom "1px solid #ebeef5"
+                   :fontSize 16
+                   :fontWeight 600
+                   :color "#303133"}}
+     icon
+     [:span title]]]
+   children))
 
-;; ─── 信息行组件 ──────────────────────────────────────────────────────
+(defn- value-cell
+  "渲染表格值单元格，超过阈值时使用 RuoYi 风险红色。"
+  ([value] (value-cell value false))
+  ([value danger?]
+   [:span {:style {:color (if danger? "#f56c6c" "#606266")}} (or value "-")]))
 
-(defn- info-row [{:keys [label value]}]
-  [:div {:style {:display "flex" :justifyContent "space-between" :padding "12px 0"
-                 :borderBottom "1px solid var(--ant-color-split, #f0f0f0)"}}
-   [:span {:style {:color "#666"}} label]
-   [:span {:style {:fontWeight 500 :color "#333"}} (or value "-")]])
+(defn- percent
+  "格式化百分比数字。"
+  [n]
+  (str (.toFixed (js/Number. (or n 0)) 2) "%"))
 
-;; ─── 格式化函数 ──────────────────────────────────────────────────────
+(defn- format-mb
+  "把 MB 数值格式化为 RuoYi 常用容量展示。"
+  [mb]
+  (let [n (js/Number. (or mb 0))]
+    (if (>= n 1024)
+      (str (.toFixed (/ n 1024) 2) "G")
+      (str (.toFixed n 1) "M"))))
 
-(defn- format-mb [mb]
-  (if (> mb 1024)
-    (str (Math/round (/ mb 1024)) " GB")
-    (str (Math/round mb) " MB")))
-
-(defn- format-bytes [bytes]
-  (cond
-    (> bytes 1073741824) (str (Math/round (/ bytes 1073741824)) " GB")
-    (> bytes 1048576) (str (Math/round (/ bytes 1048576)) " MB")
-    (> bytes 1024) (str (Math/round (/ bytes 1024)) " KB")
-    :else (str bytes " B")))
-
-(defn- format-runtime [ms]
-  (let [seconds (quot ms 1000)
-        minutes (quot seconds 60)
-        hours (quot minutes 60)
-        days (quot hours 24)]
+(defn- format-bytes
+  "把字节数格式化为磁盘容量。"
+  [bytes]
+  (let [n (js/Number. (or bytes 0))]
     (cond
-      (pos? days) (str days "天" (mod hours 24) "小时" (mod minutes 60) "分钟")
-      (pos? hours) (str hours "小时" (mod minutes 60) "分钟")
-      :else (str minutes "分钟"))))
+      (>= n 1073741824) (str (.toFixed (/ n 1073741824) 1) " GB")
+      (>= n 1048576) (str (.toFixed (/ n 1048576) 1) " MB")
+      (>= n 1024) (str (.toFixed (/ n 1024) 1) " KB")
+      :else (str n " B"))))
 
-;; ─── CPU 区域 ──────────────────────────────────────────────────────
+(defn- info-table
+  "用普通表格复刻 Element table 的细线和密度。"
+  [headers rows]
+  [:table {:style {:width "100%"
+                   :borderCollapse "collapse"
+                   :tableLayout "fixed"
+                   :fontSize 14
+                   :color "#606266"}}
+   [:thead
+    [:tr
+     (for [[idx h] (map-indexed vector headers)]
+       ^{:key idx}
+       [:th {:style {:height 44
+                     :padding "0 18px"
+                     :borderBottom "1px solid #ebeef5"
+                     :textAlign "left"
+                     :fontWeight 600
+                     :color "#909399"}}
+        h])]]
+   [:tbody
+    (for [[idx row] (map-indexed vector rows)]
+      ^{:key idx}
+      [:tr
+       (for [[cell-idx cell] (map-indexed vector row)]
+         ^{:key cell-idx}
+         [:td {:style {:height 45
+                       :padding "0 18px"
+                       :borderBottom "1px solid #ebeef5"
+                       :verticalAlign "middle"
+                       :wordBreak "break-all"
+                       :lineHeight "22px"}}
+          cell])])]])
 
-(defn- cpu-section [{:keys [cpu]}]
-  (let [cpu-num (:cpuNum cpu 0)
-        used (:used cpu 0)
-        sys (:sys cpu 0)
-        free (:free cpu 0)
-        wait (:wait cpu 0)]
-    [:div {:style {:background "var(--ant-color-bg-container)" :borderRadius 8 :padding 24 :marginBottom 16}}
-     [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center" :marginBottom 20}}
-      [:h4 {:style {:margin 0 :fontSize 16 :fontWeight 600 :display "flex" :alignItems "center" :gap 8}}
-       [:span {:style {:display "inline-block" :width 4 :height 20 :background "#1677ff" :borderRadius 2}}]
-       "CPU"]
-      [:span {:style {:fontSize 14 :color "#666"}} (str "核心数: " cpu-num)]]
-     [usage-bar {:label "总使用率" :used used :total 100 :unit #(str % "%")}]
-     [:div {:style {:display "grid" :gridTemplateColumns "1fr 1fr 1fr 1fr" :gap 16 :marginTop 16}}
-      [:div {:style {:textAlign "center" :padding 12 :background "#f6ffed" :borderRadius 8}}
-       [:div {:style {:fontSize 24 :fontWeight 600 :color "#52c41a"}} (str (Math/round free) "%")]
-       [:div {:style {:fontSize 12 :color "#999" :marginTop 4}} "空闲率"]]
-      [:div {:style {:textAlign "center" :padding 12 :background "#e6f7ff" :borderRadius 8}}
-       [:div {:style {:fontSize 24 :fontWeight 600 :color "#1677ff"}} (str (Math/round used) "%")]
-       [:div {:style {:fontSize 12 :color "#999" :marginTop 4}} "用户使用率"]]
-      [:div {:style {:textAlign "center" :padding 12 :background "#fff7e6" :borderRadius 8}}
-       [:div {:style {:fontSize 24 :fontWeight 600 :color "#faad14"}} (str (Math/round sys) "%")]
-       [:div {:style {:fontSize 12 :color "#999" :marginTop 4}} "系统使用率"]]
-      [:div {:style {:textAlign "center" :padding 12 :background "#fff1f0" :borderRadius 8}}
-       [:div {:style {:fontSize 24 :fontWeight 600 :color "#ff4d4f"}} (str (Math/round wait) "%")]
-       [:div {:style {:fontSize 12 :color "#999" :marginTop 4}} "等待率"]]]]))
+(defn- cpu-card
+  "渲染 CPU 信息卡片。"
+  [{:keys [cpu]}]
+  [monitor-card {:title "CPU" :icon (r/as-element [:> DesktopOutlined])}
+   [info-table ["属性" "值"]
+    [["核心数" [value-cell (:cpuNum cpu)]]
+     ["用户使用率" [value-cell (percent (:used cpu)) (> (or (:used cpu) 0) 80)]]
+     ["系统使用率" [value-cell (percent (:sys cpu)) (> (or (:sys cpu) 0) 80)]]
+     ["当前空闲率" [value-cell (percent (:free cpu))]]]]])
 
-;; ─── 内存区域 ──────────────────────────────────────────────────────
+(defn- memory-card
+  "渲染内存与 JVM 内存卡片。"
+  [{:keys [mem jvm]}]
+  (let [mem-usage (:usage mem 0)
+        jvm-usage (if (pos? (or (:max jvm) 0))
+                    (* 100 (/ (or (:used jvm) 0) (:max jvm)))
+                    0)]
+    [monitor-card {:title "内存" :icon (r/as-element [:> DatabaseOutlined])}
+     [info-table ["属性" "内存" "JVM"]
+      [["总内存" [value-cell (format-mb (:total mem))] [value-cell (format-mb (:max jvm))]]
+       ["已用内存" [value-cell (format-mb (:used mem))] [value-cell (format-mb (:used jvm))]]
+       ["剩余内存" [value-cell (format-mb (:free mem))] [value-cell (format-mb (:free jvm))]]
+       ["使用率" [value-cell (percent mem-usage) (> mem-usage 80)] [value-cell (percent jvm-usage) (> jvm-usage 80)]]]]]))
 
-(defn- memory-section [{:keys [mem jvm]}]
-  [:div {:style {:display "grid" :gridTemplateColumns "1fr 1fr" :gap 16 :marginBottom 16}}
-   ;; 系统内存
-   [:div {:style {:background "var(--ant-color-bg-container)" :borderRadius 8 :padding 24}}
-    [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center" :marginBottom 20}}
-     [:h4 {:style {:margin 0 :fontSize 16 :fontWeight 600 :display "flex" :alignItems "center" :gap 8}}
-      [:span {:style {:display "inline-block" :width 4 :height 20 :background "#52c41a" :borderRadius 2}}]
-      "内存"]
-     [:span {:style {:fontSize 14 :color "#666"}} (str "总计: " (format-mb (:total mem 0)))]]
-    [usage-bar {:label "使用率" :used (:used mem 0) :total (:total mem 1) :unit format-mb}]
-    [:div {:style {:display "flex" :justifyContent "space-between" :marginTop 8 :fontSize 13 :color "#999"}}
-     [:span (str "已用: " (format-mb (:used mem 0)))]
-     [:span (str "剩余: " (format-mb (:free mem 0)))]]]
-   ;; JVM 内存
-   [:div {:style {:background "var(--ant-color-bg-container)" :borderRadius 8 :padding 24}}
-    [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center" :marginBottom 20}}
-     [:h4 {:style {:margin 0 :fontSize 16 :fontWeight 600 :display "flex" :alignItems "center" :gap 8}}
-      [:span {:style {:display "inline-block" :width 4 :height 20 :background "#722ed1" :borderRadius 2}}]
-      "JVM"]
-     [:span {:style {:fontSize 14 :color "#666"}} (str "最大: " (format-mb (:max jvm 0)))]]
-    [usage-bar {:label "使用率" :used (:used jvm 0) :total (:max jvm 1) :unit format-mb}]
-    [:div {:style {:display "flex" :justifyContent "space-between" :marginTop 8 :fontSize 13 :color "#999"}}
-     [:span (str "已用: " (format-mb (:used jvm 0)))]
-     [:span (str "剩余: " (format-mb (max 0 (- (:max jvm 0) (:used jvm 0)))))]]]])
+(defn- server-info-card
+  "渲染服务器基本信息。"
+  [{:keys [sys]}]
+  [monitor-card {:title "服务器信息" :icon (r/as-element [:> LaptopOutlined])}
+   [info-table ["" "" "" ""]
+    [["服务器名称" [value-cell (:computerName sys)] "操作系统" [value-cell (:osName sys)]]
+     ["服务器IP" [value-cell (:computerIp sys)] "系统架构" [value-cell (:osArch sys)]]]]])
 
-;; ─── 服务器信息区域 ──────────────────────────────────────────────────────
+(defn- jvm-info-card
+  "渲染 Java 虚拟机信息。"
+  [{:keys [jvm sys]}]
+  [monitor-card {:title "Java虚拟机信息" :icon (r/as-element [:> CloudServerOutlined])}
+   [info-table ["" "" "" ""]
+    [["Java名称" [value-cell (:jvmName jvm)] "Java版本" [value-cell (:jvmVersion jvm)]]
+     ["启动时间" [value-cell (:startTime jvm)] "运行时长" [value-cell (:runTime jvm)]]
+     ["安装路径" [value-cell (:jvmHome jvm)] "" ""]
+     ["项目路径" [value-cell (:userDir sys)] "" ""]
+     ["运行参数" [:span {:style {:color "#606266" :lineHeight "22px"}} (or (:inputArgs jvm) "-")] "" ""]]]])
 
-(defn- server-info-section [{:keys [sys]}]
-  [:div {:style {:background "var(--ant-color-bg-container)" :borderRadius 8 :padding 24 :marginBottom 16}}
-   [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center" :marginBottom 20}}
-    [:h4 {:style {:margin 0 :fontSize 16 :fontWeight 600 :display "flex" :alignItems "center" :gap 8}}
-     [:span {:style {:display "inline-block" :width 4 :height 20 :background "#13c2c2" :borderRadius 2}}]
-     "服务器信息"]]
-   [:div {:style {:display "grid" :gridTemplateColumns "1fr 1fr" :gap 0}}
-    [info-row {:label "服务器名称" :value (:computerName sys)}]
-    [info-row {:label "操作系统" :value (:osName sys)}]
-    [info-row {:label "服务器IP" :value (:computerIp sys)}]
-    [info-row {:label "系统架构" :value (:osArch sys)}]]])
-
-;; ─── Java 虚拟机信息区域 ──────────────────────────────────────────────────────
-
-(defn- jvm-info-section [{:keys [jvm sys]}]
-  [:div {:style {:background "var(--ant-color-bg-container)" :borderRadius 8 :padding 24 :marginBottom 16}}
-   [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center" :marginBottom 20}}
-    [:h4 {:style {:margin 0 :fontSize 16 :fontWeight 600 :display "flex" :alignItems "center" :gap 8}}
-     [:span {:style {:display "inline-block" :width 4 :height 20 :background "#eb2f96" :borderRadius 2}}]
-     "Java虚拟机信息"]]
-   [:div {:style {:display "grid" :gridTemplateColumns "1fr 1fr" :gap 0}}
-    [info-row {:label "Java名称" :value (:jvmName jvm)}]
-    [info-row {:label "Java版本" :value (:jvmVersion jvm)}]
-    [info-row {:label "启动时间" :value (:startTime jvm)}]
-    [info-row {:label "运行时长" :value (:runTime jvm)}]
-    [info-row {:label "安装路径" :value (:jvmHome jvm)}]
-    [info-row {:label "项目路径" :value (:userDir sys)}]]])
-
-;; ─── 磁盘信息区域 ──────────────────────────────────────────────────────
-
-(defn- disk-section [{:keys [disk]}]
-  [:div {:style {:background "var(--ant-color-bg-container)" :borderRadius 8 :padding 24 :marginBottom 16}}
-   [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center" :marginBottom 20}}
-    [:h4 {:style {:margin 0 :fontSize 16 :fontWeight 600 :display "flex" :alignItems "center" :gap 8}}
-     [:span {:style {:display "inline-block" :width 4 :height 20 :background "#faad14" :borderRadius 2}}]
-     "磁盘状态"]]
-   [:> Table {:size "small" :pagination false :rowKey "dirName"
+(defn- disk-card
+  "渲染磁盘状态表格。"
+  [{:keys [disk]}]
+  [monitor-card {:title "磁盘状态" :icon (r/as-element [:> HddOutlined])}
+   [:> Table {:size "small"
+              :pagination false
+              :rowKey "dirName"
               :dataSource (clj->js (or disk []))
               :columns (clj->js
                         [{:title "盘符路径" :dataIndex "dirName" :key "dirName"}
                          {:title "文件系统" :dataIndex "sysTypeName" :key "sysTypeName"}
+                         {:title "盘符类型" :dataIndex "typeName" :key "typeName"}
                          {:title "总大小" :dataIndex "total" :key "total"
-                          :render (fn [v] (r/as-element [:span (format-bytes v)]))}
+                          :render (fn [v] (r/as-element [value-cell (format-bytes v)]))}
                          {:title "可用大小" :dataIndex "free" :key "free"
-                          :render (fn [v] (r/as-element [:span (format-bytes v)]))}
+                          :render (fn [v] (r/as-element [value-cell (format-bytes v)]))}
                          {:title "已用大小" :dataIndex "used" :key "used"
-                          :render (fn [v] (r/as-element [:span (format-bytes v)]))}
+                          :render (fn [v] (r/as-element [value-cell (format-bytes v)]))}
                          {:title "已用百分比" :dataIndex "usage" :key "usage"
-                          :render (fn [v]
-                                    (r/as-element
-                                     [:> Progress {:percent (Math/round v) :size "small"
-                                                   :strokeColor (cond
-                                                                  (> v 80) "#ff4d4f"
-                                                                  (> v 60) "#faad14"
-                                                                  :else "#52c41a")}]))}])}]])
+                          :render (fn [v] (r/as-element [value-cell (percent v) (> (or v 0) 80)]))}])}]])
 
-;; ─── 主页面 ──────────────────────────────────────────────────────
-
-(defn server-page []
+(defn server-page
+  "服务器监控入口组件，加载并展示服务运行状态。"
+  []
   (hooks/use-effect
    (fn []
      (rf/dispatch [:server/fetch])
@@ -185,19 +168,22 @@
    [])
   (let [server-data @(rf/subscribe [:server/data])
         loading? @(rf/subscribe [:server/loading?])]
-    [:div
-     [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center" :marginBottom 16}}
-      [:h3 {:style {:margin 0}} "服务监控"]
-      [antd/button {:icon (r/as-element [:> ReloadOutlined])
-                    :onClick #(rf/dispatch [:server/fetch])}
-       "刷新"]]
+    [:div {:style {:padding 16 :background "#f5f7fa" :minHeight "calc(100vh - 112px)"}}
+     [antd/button {:icon (r/as-element [:> ReloadOutlined])
+                   :style {:float "right" :marginBottom 12}
+                   :onClick #(rf/dispatch [:server/fetch])}
+      "刷新"]
+     [:div {:style {:clear "both"}}]
      (if loading?
-       [:div {:style {:textAlign "center" :padding 48}}
+       [:div {:style {:textAlign "center" :padding 48 :background "#fff"}}
         [:> Spin {:size "large"}]]
        (when server-data
-         [:div
-          [cpu-section server-data]
-          [memory-section server-data]
-          [server-info-section server-data]
-          [jvm-info-section server-data]
-          [disk-section server-data]]))]))
+         [:div {:style {:display "flex" :flexDirection "column" :gap 14}}
+          [:div {:style {:display "grid"
+                         :gridTemplateColumns "repeat(auto-fit, minmax(420px, 1fr))"
+                         :gap 14}}
+           [cpu-card server-data]
+           [memory-card server-data]]
+          [server-info-card server-data]
+          [jvm-info-card server-data]
+          [disk-card server-data]]))]))

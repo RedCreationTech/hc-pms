@@ -1379,7 +1379,7 @@
            (fn [_]
              (api/get-server-info
               (fn [r] (when (= 200 (:code r)) (rf/dispatch [:server/set-data (:data r)])))
-              (fn [_]))))
+              (fn [_] (rf/dispatch [:server/set-data nil])))))
 
 ;; ────── 缓存监控 ──────
 
@@ -1513,17 +1513,20 @@
 
 (rf/reg-event-db :server/set-datasource
                  (fn [db [_ data]]
-                   (assoc-in db [:server :datasource] data)))
+                   (-> db
+                       (assoc-in [:server :datasource] data)
+                       (assoc-in [:server :datasource-loading?] false))))
 
 (rf/reg-event-fx :server/fetch-datasource
                  (fn [{:keys [db]} _]
-                   {:db db :api/get-datasource nil}))
+                   {:db (assoc-in db [:server :datasource-loading?] true)
+                    :api/get-datasource nil}))
 
 (rf/reg-fx :api/get-datasource
            (fn [_]
              (api/get-datasource
               (fn [r] (when (= 200 (:code r)) (rf/dispatch [:server/set-datasource (:data r)])))
-              (fn [_]))))
+              (fn [_] (rf/dispatch [:server/set-datasource nil])))))
 
 ;; ────── Integrant 依赖监控 ──────
 

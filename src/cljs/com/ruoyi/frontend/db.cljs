@@ -59,7 +59,7 @@
      :job-logs {:loading? false :items [] :total 0}
      :profile {:loading? false}
      :dashboard {:loading? false :stats nil}
-     :server {:loading? false :data nil}
+     :server {:loading? false :data nil :datasource nil :datasource-loading? false}
      :integrant {:data nil :trace {}}
      :cache {:loading? false :data nil :names [] :selected-name nil :keys [] :value nil :value-visible? false}
      :file {:items [] :loading? false}

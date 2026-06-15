@@ -616,6 +616,10 @@
             (fn [db _]
               (get-in db [:server :datasource])))
 
+(rf/reg-sub :server/datasource-loading?
+            (fn [db _]
+              (get-in db [:server :datasource-loading?] false)))
+
 (rf/reg-sub :integrant/data
             (fn [db _]
               (get-in db [:integrant :data])))
