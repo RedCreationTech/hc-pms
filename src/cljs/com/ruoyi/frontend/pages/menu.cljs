@@ -110,7 +110,8 @@
 ;; ─── 表格列 ──────────────────────────────────────────────────────
 
 (defn- menu-columns []
-  #js [#js {:title "菜单名称" :dataIndex "menu_name" :key "menu_name" :width 260
+  #js [#js {:title "菜单名称" :dataIndex "menu_name" :key "menu_name" :width 280
+            :className "ruoyi-tree-name-cell"
             :render (fn [v ^js record]
                       (r/as-element
                        [:span {:style {:display "inline-flex"
@@ -125,7 +126,8 @@
                        [:span {:style {:display "inline-flex" :alignItems "center" :gap 8}}
                         (icon-picker/icon-element v {:style {:fontSize 16 :color "#606266"}})
                         [:span (or v "")]]))}
-       #js {:title "排序" :dataIndex "order_num" :key "order_num" :width 90}
+       #js {:title "排序" :dataIndex "order_num" :key "order_num" :width 80
+            :className "ruoyi-menu-sort-cell"}
        #js {:title "权限标识" :dataIndex "perms" :key "perms" :width 220
             :render (fn [v _] (or v ""))}
        #js {:title "组件路径" :dataIndex "component" :key "component" :width 240
@@ -138,15 +140,17 @@
                       (r/as-element
                        [antd/tag {:className "ruoyi-status-tag"}
                         (if (= v "0") "正常" "停用")]))}
-       #js {:title "操作" :key "action" :width 240
+       #js {:title "操作" :key "action" :width 300
+            :className "ruoyi-menu-action-cell"
             :render (fn [_ ^js record]
                       (r/as-element
-                       [antd/space {:size 4}
+                       [:div {:className "ruoyi-menu-actions"}
                         [antd/button {:type "link" :size "small"
                                       :icon (r/as-element [:> PlusOutlined])
                                       :on-click #(rf/dispatch [:menus/open-modal {:parent_id (.-menu_id record)}])}
                          "新增"]
-                        [antd/button {:icon (r/as-element [:> DownloadOutlined])
+                        [antd/button {:className "ruoyi-row-export-button"
+                                      :icon (r/as-element [:> DownloadOutlined])
                                       :on-click #(api/export-menus {})}
                          "导出"]
                         [antd/button {:type "link" :size "small"
