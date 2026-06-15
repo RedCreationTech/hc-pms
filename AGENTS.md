@@ -288,6 +288,8 @@ React 会警告 shorthand 与非 shorthand 属性冲突，应把颜色合并到 
 
 参考项目：https://gitee.com/y_project/RuoYi-Vue (master 分支, Spring Boot 4.x + Vue 3)
 
+UI 样式权威参考：https://gitee.com/y_project/RuoYi-Vue/tree/master/ruoyi-ui
+
 ### 核心要求
 
 - **功能 1:1** — 每个功能模块必须完整实现 RuoYi-Vue 的所有交互细节
@@ -297,8 +299,9 @@ React 会警告 shorthand 与非 shorthand 属性冲突，应把颜色合并到 
   - 左侧部门树 (200px) — 右侧内容区 (flex 1)
   - 搜索栏用 `:ghost true` 风格卡片
 - **视觉 1:1 复刻** — 任何 UI 修改任务都必须同时验证功能与视觉，不得只确认功能可用
+  - UI 样式必须优先参考 RuoYi-Vue 的 `ruoyi-ui` 源码目录，按对应页面的 `.vue` 组件、`scss/css` 样式、Element UI 组件配置、图标和 class 命名逐项追踪
   - 必须逐项对比 RuoYi 原版页面的组件边距、页面边距、组件宽高比例、字体、字号、颜色、图标、边框、圆角、阴影、对齐方式、行高、表格密度、按钮尺寸、弹窗/抽屉尺寸、分页位置等所有影响视觉观感的 UI 元素
-  - 交付前需要说明已对照的 RuoYi 页面或截图，并列出仍存在的视觉差异或确认无明显差异
+  - 交付前需要说明已对照的 RuoYi 页面、截图或 `ruoyi-ui` 源码文件，并列出仍存在的视觉差异或确认无明显差异
 - **操作流程** — 严格按 RuoYi 的交互顺序：确认对话框 → API 调用 → 成功提示 → 刷新列表
 
 ### 功能模块对照清单
