@@ -1,8 +1,10 @@
 (ns com.ruoyi.infra.db
   "数据库抽象层 — 支持 SQLite 和 MySQL。"
   (:require [clojure.string :as str]
+            [clojure.tools.logging :as log]
             [next.jdbc :as jdbc]
-            [next.jdbc.result-set :as rs]))
+            [next.jdbc.result-set :as rs]
+            [com.ruoyi.infra.datasource :as ds]))
 
 ;; ─── 数据库类型检测 ──────────────────────────────────────────────────────
 
@@ -186,3 +188,74 @@
                      ["SELECT table_name, IFNULL(table_comment, '') AS table_comment FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE' ORDER BY table_name"]
                      {:builder-fn rs/as-unqualified-lower-maps})
       [])))
+
+;; ─── 运行时数据库热切换 ──────────────────────────────────────────────
+
+(defn make-hikari-datasource
+  "根据 JDBC URL 创建 HikariCP 连接池。"
+  [jdbc-url & [{:keys [pool-size]}]]
+  (let [pool-size (or pool-size 5)
+        hc (doto (com.zaxxer.hikari.HikariConfig.)
+             (.setJdbcUrl jdbc-url)
+             (.setMaximumPoolSize
+               (int (if (.contains jdbc-url "sqlite") 1 pool-size)))
+             (.setMinimumIdle
+               (int (if (.contains jdbc-url "sqlite") 1 1)))
+             (.setConnectionTestQuery "SELECT 1")
+             (.setValidationTimeout 3000))]
+    (com.zaxxer.hikari.HikariDataSource. hc)))
+
+(defn run-migrations!
+  "对指定 DataSource 执行数据库迁移。"
+  [datasource migration-dir]
+  (let [config {:store :database
+                :db {:datasource datasource}
+                :migrate-on-init? false
+                :migration-dir migration-dir}]
+    (migratus.core/migrate config)))
+
+(defn swap-db!
+  "热切换数据库连接池。无需重启 JVM。用法: (swap-db! system jdbc-url opts)"
+  [system jdbc-url & [{:keys [migration-dir pool-size]}]]
+  (let [conn (:db.sql/connection system)]
+    (when-not (com.ruoyi.infra.datasource/swappable? conn)
+      (throw (ex-info "db.sql/connection 不是可热切换的 DataSource，请重启 Integrant 系统。"
+                      {:type (type conn)})))
+    (log/info "[swap-db!] 创建新连接池:" jdbc-url)
+    (let [new-ds (make-hikari-datasource jdbc-url {:pool-size pool-size})
+          migration-dir (or migration-dir
+                           (if (.contains jdbc-url "mysql") "migrations" "migrations-sqlite"))]
+      ;; 运行迁移
+      (log/info "[swap-db!] 运行迁移 (" migration-dir ")...")
+      (run-migrations! new-ds migration-dir)
+      ;; 替换底层 DataSource
+      (let [old-ds (ds/swap-delegate! conn new-ds)]
+        (log/info "[swap-db!] 连接池已替换，关闭旧连接池...")
+        (try (.close old-ds)
+             (catch Exception e
+               (log/warn "关闭旧连接池时出错:" (.getMessage e)))))
+      ;; 重新绑定 query-fn
+      (log/info "[swap-db!] 重新加载 query-fn...")
+      (let [set-dynamic! (resolve 'com.ruoyi.integrant.trace/set-dynamic!)
+            load-queries (fn []
+                           (require 'conman.core)
+                           (let [bind-fn (resolve 'conman.core/bind-connection-map)]
+                             (bind-fn conn {}
+                                      "queries.sql" "sql/system.sql" "sql/log.sql"
+                                      "sql/job.sql" "sql/gen.sql" "sql/generated.sql"
+                                      "sql/business.sql")))
+            new-qf (fn
+                     ([query params]
+                      (let [f (get (:fns (load-queries)) query)]
+                        (when-not f
+                          (throw (ex-info (str "Query not found: " query) {:query query})))
+                        ((:fn f) params)))
+                     ([conn query params & opts]
+                      (let [f (get (:fns (load-queries)) query)]
+                        (when-not f
+                          (throw (ex-info (str "Query not found: " query) {:query query})))
+                        (apply (:fn f) conn params opts))))]
+        (set-dynamic! :db.sql/query-fn new-qf))
+      (let [db-type (detect-db-type conn)]
+        (log/info "[swap-db!] 完成! 当前数据库类型:" db-type)
+        {:db-type db-type :jdbc-url jdbc-url :migration-dir migration-dir}))))

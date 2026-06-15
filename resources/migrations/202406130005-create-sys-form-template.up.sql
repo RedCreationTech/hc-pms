@@ -11,5 +11,5 @@ CREATE TABLE IF NOT EXISTS sys_form_template (
   update_time TIMESTAMP
 );
 --;;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_sys_form_template_key ON sys_form_template(form_key);
+-- Index already created by UNIQUE constraint on form_key
 --;;

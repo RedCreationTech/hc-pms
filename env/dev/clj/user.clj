@@ -57,6 +57,15 @@
 
 (def query-fn (:db.sql/query-fn state/system))
 
+;; ── Database hot-swap ───────────────────────────────────────────────
+
+(defn swap-db!
+  "热切换数据库。无需重启 JVM。用法: (swap-db! jdbc-url :migration-dir dir :pool-size n)"
+  [jdbc-url & opts]
+  (require 'com.ruoyi.infra.db :reload)
+  (let [swap-fn (resolve 'com.ruoyi.infra.db/swap-db!)]
+    (swap-fn state/system jdbc-url (apply hash-map opts))))
+
 ;; ── Classpath ─────────────────────────────────────────────────────
 
 (defn update-deps

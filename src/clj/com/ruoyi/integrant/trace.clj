@@ -3,6 +3,7 @@
   (:require
    [integrant.core :as ig]
    [com.ruoyi.integrant.state :as state]
+   [com.ruoyi.infra.datasource :as ds]
    [com.ruoyi.web.handler :as handler]
    [kit.edge.db.sql.conman]
    [clojure.string :as str]))
@@ -36,6 +37,34 @@
 ;; 覆盖 kit-sql-conman 的 query-fn，使其成为一个可动态替换的代理。
 ;; 这样启动后所有持有 :db.sql/query-fn 的服务仍然指向同一个函数对象，
 ;; 但函数对象内部会读取 atom，从而支持运行时切换追踪包装。
+;; ─── db.sql/connection: 包装为 DelegatingDataSource ────────────────
+;; 这样运行时可以通过 swap-db! 热切换底层连接池，
+;; 所有已持有引用的服务无需重新初始化。
+
+(def ^:private original-conn-init
+  (get-method ig/init-key :db.sql/connection))
+
+(defmethod ig/init-key :db.sql/connection
+  [_ pool-spec]
+  (let [real-ds (original-conn-init _ pool-spec)]
+    (ds/delegating-datasource real-ds)))
+
+;; 覆盖 halt-key! 以正确关闭 DelegatingDataSource（conman 只认 HikariDataSource）
+(def ^:private original-conn-halt
+  (get-method ig/halt-key! :db.sql/connection))
+
+(defmethod ig/halt-key! :db.sql/connection
+  [_ conn]
+  (if (com.ruoyi.infra.datasource/swappable? conn)
+    (do (when-let [delegate (com.ruoyi.infra.datasource/get-delegate conn)]
+          (when (instance? com.zaxxer.hikari.HikariDataSource delegate)
+            (when-not (.isClosed ^com.zaxxer.hikari.HikariDataSource delegate)
+              (.close ^com.zaxxer.hikari.HikariDataSource delegate))))
+        nil)
+    (original-conn-halt _ conn)))
+
+;; ─── db.sql/query-fn: 动态代理 ─────────────────────────────────────
+
 (def ^:private original-query-fn-init
   (get-method ig/init-key :db.sql/query-fn))
 
