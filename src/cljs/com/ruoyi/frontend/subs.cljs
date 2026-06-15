@@ -707,3 +707,10 @@
 (rf/reg-sub :users/expanded-dept-ids
             (fn [db _]
               (get-in db [:users :expanded-dept-ids] #{})))
+
+;; ─── Workflow subscriptions ───────────────────────────────────────
+
+(rf/reg-sub :workflow/definitions (fn [db] (:workflow/definitions db)))
+(rf/reg-sub :workflow/tasks (fn [db] (:workflow/tasks db)))
+(rf/reg-sub :workflow/instances (fn [db] (:workflow/instances db)))
+(rf/reg-sub :workflow/loading? (fn [db] (:workflow/loading? db false)))

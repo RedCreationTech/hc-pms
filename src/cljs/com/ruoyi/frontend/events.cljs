@@ -2868,3 +2868,80 @@
                                          (antd/error! "删除失败")
                                          (when (zero? (swap! remaining dec))
                                            (rf/dispatch [:projects/set-selected []])))))))))
+
+;; ══════════════════════════════════════════════════════════════════
+;; WORKFLOW (Flowable)
+;; ══════════════════════════════════════════════════════════════════
+
+(rf/reg-event-db :workflow/set-loading (fn [db [_ v]] (assoc db :workflow/loading? v)))
+(rf/reg-event-db :workflow/set-definitions (fn [db [_ data]] (assoc db :workflow/definitions data)))
+(rf/reg-event-db :workflow/set-tasks (fn [db [_ data]] (assoc db :workflow/tasks data)))
+(rf/reg-event-db :workflow/set-instances (fn [db [_ data]] (assoc db :workflow/instances data)))
+
+(rf/reg-event-fx :workflow/fetch-definitions
+  (fn [{:keys [db]} _]
+    {:db (assoc db :workflow/loading? true)
+     :http-xhrio {:method :get
+                   :uri "/api/workflow/definitions"
+                   :on-success [:workflow/on-definitions-ok]
+                   :on-failure [:workflow/on-api-error]}}))
+
+(rf/reg-event-db :workflow/on-definitions-ok
+  (fn [db [_ result]]
+    (assoc db :workflow/loading? false :workflow/definitions (:data result))))
+
+(rf/reg-event-fx :workflow/fetch-tasks
+  (fn [{:keys [db]} _]
+    {:db (assoc db :workflow/loading? true)
+     :http-xhrio {:method :get
+                   :uri "/api/workflow/tasks"
+                   :on-success [:workflow/on-tasks-ok]
+                   :on-failure [:workflow/on-api-error]}}))
+
+(rf/reg-event-db :workflow/on-tasks-ok
+  (fn [db [_ result]]
+    (assoc db :workflow/loading? false :workflow/tasks (get-in result [:data :items]))))
+
+(rf/reg-event-fx :workflow/deploy
+  (fn [_ [_ {:keys [name xml]}]]
+    {:http-xhrio {:method :post
+                   :uri (str "/api/workflow/deploy?name=" (js/encodeURIComponent name))
+                   :body xml
+                   :headers {"Content-Type" "application/xml"}
+                   :on-success [:workflow/on-deploy-ok]
+                   :on-failure [:workflow/on-api-error]}}))
+
+(rf/reg-event-fx :workflow/on-deploy-ok
+  (fn [_ _]
+    (antd/success! "部署成功")
+    {:dispatch [:workflow/fetch-definitions]}))
+
+(rf/reg-event-fx :workflow/delete-deployment
+  (fn [_ [_ id]]
+    {:http-xhrio {:method :delete
+                   :uri (str "/api/workflow/deployments/" id)
+                   :on-success [:workflow/on-delete-ok]
+                   :on-failure [:workflow/on-api-error]}}))
+
+(rf/reg-event-fx :workflow/on-delete-ok
+  (fn [_ _]
+    (antd/success! "删除成功")
+    {:dispatch [:workflow/fetch-definitions]}))
+
+(rf/reg-event-fx :workflow/complete-task
+  (fn [_ [_ task-id]]
+    {:http-xhrio {:method :post
+                   :uri "/api/workflow/tasks/complete"
+                   :body {:taskId task-id}
+                   :on-success [:workflow/on-complete-ok]
+                   :on-failure [:workflow/on-api-error]}}))
+
+(rf/reg-event-fx :workflow/on-complete-ok
+  (fn [_ _]
+    (antd/success! "任务完成")
+    {:dispatch [:workflow/fetch-tasks]}))
+
+(rf/reg-event-db :workflow/on-api-error
+  (fn [db [_ result]]
+    (antd/error! (or (:message result) "操作失败"))
+    (assoc db :workflow/loading? false)))

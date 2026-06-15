@@ -90,6 +90,10 @@
   :migrations #ig/ref :db.sql/migrations
   :db         #ig/ref :db.sql/connection}
 
+ :workflow/engine
+ {:jdbc-url #or [#env JDBC_URL "jdbc:sqlite:rouyi.db"]
+  :db-type  :sqlite}
+
  :reitit.routes/api
  {:base-path      "/api"
   :env            #ig/ref :system/env

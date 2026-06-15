@@ -53,6 +53,11 @@
 
            ;; Scheduler
            org.quartz-scheduler/quartz {:mvn/version "2.3.2"}
+
+           ;; Workflow (Flowable - modern Activiti fork)
+           org.flowable/flowable-engine {:mvn/version "7.1.0"}
+           org.flowable/flowable-spring {:mvn/version "7.1.0" :exclusions [org.springframework/spring-jdbc]}
+           com.h2database/h2 {:mvn/version "2.2.224"}
            }
  :aliases {:build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.12"}}
                    :ns-default build}

@@ -54,6 +54,9 @@
    [com.ruoyi.frontend.pages.integrant :as integrant]
    [com.ruoyi.frontend.pages.business :as business]
    [com.ruoyi.frontend.pages.project :as project]
+   [com.ruoyi.frontend.pages.workflow.designer :as workflow.designer]
+   [com.ruoyi.frontend.pages.workflow.definitions :as workflow.definitions]
+   [com.ruoyi.frontend.pages.workflow.tasks :as workflow.tasks]
    [com.ruoyi.frontend.components.icon-picker :as icon-picker]))
 
 ;; ─── Tab 组件 ──────────────────────────────────────────────────────
@@ -337,7 +340,10 @@
    :build ["首页" "系统工具" "表单构建"]
    :gen ["首页" "系统工具" "代码生成"]
    :swagger ["首页" "系统工具" "系统接口"]
-   :profile ["首页" "个人中心"]})
+   :profile ["首页" "个人中心"]
+   :workflow-designer ["首页" "工作流" "流程设计器"]
+   :workflow-definitions ["首页" "工作流" "流程定义"]
+   :workflow-tasks ["首页" "工作流" "待办任务"]})
 
 (def route-labels
   (into {} (map (fn [[k xs]] [k (last xs)]) page-breadcrumbs)))
@@ -362,6 +368,9 @@
    :build "build"
    :gen "code"
    :swagger "swagger"
+   :workflow-designer "ApartmentOutlined"
+   :workflow-definitions "DeploymentUnitOutlined"
+   :workflow-tasks "AuditOutlined"
    :profile "profile"})
 
 ;; ─── 动态菜单构建 ──────────────────────────────────────────────────────
@@ -753,6 +762,9 @@
              :swagger [swagger/swagger-page]
              :build [form-builder/form-builder-page]
              :file [file-manager/file-manager-page]
+             :workflow-designer [workflow.designer/bpmn-designer-page]
+             :workflow-definitions [workflow.definitions/definitions-page]
+             :workflow-tasks [workflow.tasks/tasks-page]
              [:div {:style {:padding 48 :textAlign "center" :color "#999" :fontSize 16}}
               "页面建设中"])]
            [:div {:style {:position "fixed" :right 14 :bottom 54

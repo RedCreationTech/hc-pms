@@ -7,6 +7,7 @@
    [com.ruoyi.web.routes.captcha :as captcha]
    [com.ruoyi.web.routes.common :as common]
    [com.ruoyi.web.routes.business :as business]
+   [com.ruoyi.web.routes.workflow :as workflow]
    [com.ruoyi.web.middleware.exception :as exception]
    [com.ruoyi.web.middleware.formats :as formats]
    [integrant.core :as ig]
@@ -41,7 +42,8 @@
    (common/common-routes opts)
    (business/business-routes opts)
    (gen/gen-routes opts)
-   (captcha/captcha-routes opts)])
+   (captcha/captcha-routes opts)
+   (workflow/routes)])
 
 (derive :reitit.routes/api :reitit/routes)
 

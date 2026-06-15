@@ -37,7 +37,10 @@
         "monitor/gen" :gen
         "monitor/swagger" :swagger
         "tool/build" :build
-        "system/user/profile" :profile}])
+        "system/user/profile" :profile
+        "workflow/designer" :workflow-designer
+        "workflow/definitions" :workflow-definitions
+        "workflow/tasks" :workflow-tasks}])
 
 ;; 路由匹配
 (defn match-route [path]
@@ -74,6 +77,9 @@
    :cache "缓存监控"
    :datasource "数据监控"
    :integrant "Integrant 依赖"
+   :workflow-designer "流程设计器"
+   :workflow-definitions "流程定义"
+   :workflow-tasks "待办任务"
    :gen "代码生成"
    :swagger "系统接口"
    :build "表单构建"
