@@ -271,18 +271,18 @@
                                    :fontSize 14 :padding "13px 12px"
                                    :borderRight "1px solid #ebeef5"}
                            :on-click #(.reload js/location)}]]
-      [antd/dropdown {:menu {:items (clj->js [{:key "refresh" :label "刷新页面"}
-                                               {:key "close-others" :label "关闭其他"}
-                                               {:key "close-right" :label "关闭右侧"}
-                                               {:key "close-all" :label "全部关闭"}])
+      [antd/dropdown {:menu {:items (let [active-idx (.indexOf (clj->js (mapv :key tabs)) active)]
+                                      (tab-context-menu active
+                                                        (> (count tabs) 1)
+                                                        (< active-idx (dec (count tabs)))))
                              :onClick (fn [e]
-                                        (let [active-tab @(rf/subscribe [:tabs/active])]
-                                          (case (.-key e)
-                                            "refresh" (.reload js/location)
-                                            "close-others" (rf/dispatch [:tabs/remove-others active-tab])
-                                            "close-right" (rf/dispatch [:tabs/remove-right active-tab])
-                                            "close-all" (rf/dispatch [:tabs/remove-all])
-                                            nil)))}}
+                                        (case (.-key e)
+                                          "refresh" (.reload js/location)
+                                          "close-current" (rf/dispatch [:tabs/close active])
+                                          "close-others" (rf/dispatch [:tabs/remove-others active])
+                                          "close-right" (rf/dispatch [:tabs/remove-right active])
+                                          "close-all" (rf/dispatch [:tabs/remove-all])
+                                          nil))}}
        [:> DownOutlined {:style {:cursor "pointer" :color "#909399"
                                  :fontSize 12 :padding "14px 12px"}}]]]]))
 
