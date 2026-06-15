@@ -1858,33 +1858,37 @@
                        (let [new-active (if-let [last-rem (last remaining)] (:key last-rem) :dashboard)]
                          {:db (-> db
                                   (assoc-in [:tabs :items] remaining)
-                                  (assoc-in [:tabs :active] new-active))})
+                                  (assoc-in [:tabs :active] new-active))
+                          :dispatch [:navigate new-active]})
                        {:db (assoc-in db [:tabs :items] remaining)}))))
 
-(rf/reg-event-db :tabs/remove-others
-                 (fn [db [_ key]]
+(rf/reg-event-fx :tabs/remove-others
+                 (fn [{:keys [db]} [_ key]]
                    (let [tabs (get-in db [:tabs :items] [])
                          home-tab (first (filter #(= (:key %) :dashboard) tabs))
                          keep-tab (first (filter #(= (:key %) key) tabs))]
-                     (-> db
-                         (assoc-in [:tabs :items] (filterv some? [home-tab keep-tab]))
-                         (assoc-in [:tabs :active] key)))))
+                     {:db (-> db
+                              (assoc-in [:tabs :items] (filterv some? [home-tab keep-tab]))
+                              (assoc-in [:tabs :active] key))
+                      :dispatch [:navigate key]})))
 
-(rf/reg-event-db :tabs/remove-all
-                 (fn [db _]
+(rf/reg-event-fx :tabs/remove-all
+                 (fn [{:keys [db]} _]
                    (let [home-tab (first (filter #(= (:key %) :dashboard) (get-in db [:tabs :items] [])))]
-                     (-> db
-                         (assoc-in [:tabs :items] (if home-tab [home-tab] []))
-                         (assoc-in [:tabs :active] :dashboard)))))
+                     {:db (-> db
+                              (assoc-in [:tabs :items] (if home-tab [home-tab] []))
+                              (assoc-in [:tabs :active] :dashboard))
+                      :dispatch [:navigate :dashboard]})))
 
-(rf/reg-event-db :tabs/remove-right
-                 (fn [db [_ key]]
+(rf/reg-event-fx :tabs/remove-right
+                 (fn [{:keys [db]} [_ key]]
                    (let [tabs (get-in db [:tabs :items] [])
                          idx (first (keep-indexed #(when (= (:key %2) key) %1) tabs))
                          remaining (if idx (subvec tabs 0 (inc idx)) tabs)]
-                     (-> db
-                         (assoc-in [:tabs :items] remaining)
-                         (assoc-in [:tabs :active] key)))))
+                     {:db (-> db
+                              (assoc-in [:tabs :items] remaining)
+                              (assoc-in [:tabs :active] key))
+                      :dispatch [:navigate key]})))
 
 (rf/reg-fx :tabs/fullscreen!
            (fn [_]
