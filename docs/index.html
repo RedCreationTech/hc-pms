@@ -181,6 +181,18 @@
         <a class="nav-link" href="#quickstart">快速开始</a>
         <a class="nav-link" href="#hot-reload">热重载</a>
         <a class="nav-link" href="#frontend-spec">前端规范</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Kit 框架</div>
+        <a class="nav-link" href="#kit-overview">Kit 概览</a>
+        <a class="nav-link" href="#kit-system">系统与配置</a>
+        <a class="nav-link" href="#kit-routes">Reitit 路由</a>
+        <a class="nav-link" href="#kit-middleware">中间件</a>
+        <a class="nav-link" href="#kit-database">数据库</a>
+        <a class="nav-link" href="#kit-repl">REPL 交互</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">调优</div>
         <a class="nav-link" href="#performance">性能调优</a>
       </div>
       <div class="nav-group">
@@ -390,6 +402,168 @@ clj-nrepl-eval -p 7000 '(user/rr)'      ; 完全重启系统</code></pre>
       <li>Dropdown 的 <code>:label</code> 必须用 <code>r/as-element</code> 包裹。</li>
       <li>颜色对齐 Element UI：新增 #409eff、修改 #67c23a、删除 #f56c6c、导入 #909399、导出 #e6a23c。</li>
     </ul>
+
+    <h2 id="kit-overview">Kit 框架概览</h2>
+    <p>
+      本项目后端基于 <strong>Kit</strong> 构建。Kit 是一个模块化的 Clojure Web 框架，核心仅提供最小程序基础，
+      大部分功能通过可选模块或库注入。它使用 <strong>Integrant</strong> 管理系统组件生命周期，
+      使用 <strong>Reitit</strong> 定义路由，使用 <strong>Ring</strong> 处理 HTTP 请求。
+    </p>
+
+    <h3>核心文件</h3>
+    <table>
+      <thead><tr><th>文件</th><th>作用</th></tr></thead>
+      <tbody>
+        <tr><td><code>deps.edn</code></td><td>deps 项目配置与依赖管理</td></tr>
+        <tr><td><code>build.clj</code></td><td>Clojure CLI 构建脚本</td></tr>
+        <tr><td><code>resources/system.edn</code></td><td>Integrant 系统组件配置</td></tr>
+        <tr><td><code>src/clj/com/ruoyi/core.clj</code></td><td>应用入口，启动/停止系统</td></tr>
+        <tr><td><code>src/clj/com/ruoyi/web/handler.clj</code></td><td>路由与请求处理入口</td></tr>
+        <tr><td><code>src/clj/com/ruoyi/web/routes/*.clj</code></td><td>各模块路由定义</td></tr>
+        <tr><td><code>src/clj/com/ruoyi/web/controllers/*.clj</code></td><td>控制器层</td></tr>
+        <tr><td><code>src/clj/com/ruoyi/web/middleware/*.clj</code></td><td>横切中间件</td></tr>
+      </tbody>
+    </table>
+
+    <h3>主要 Kit 库</h3>
+    <ul>
+      <li><code>kit-core</code>：基础工具函数</li>
+      <li><code>kit-undertow</code>：基于 luminus-undertow 的 HTTP 服务器绑定</li>
+      <li><code>kit-sql</code>：SQL 集成（conman、next.jdbc、HugSQL、Migratus）</li>
+      <li><code>kit-quartz</code>：基于 cronut 的 Quartz 调度器</li>
+      <li><code>kit-nrepl</code>：nREPL 组件</li>
+    </ul>
+
+    <h2 id="kit-system">系统与配置</h2>
+    <p>
+      系统资源（HTTP 端口、数据库连接、查询函数等）在 <code>resources/system.edn</code> 中声明。
+      Kit 使用 Integrant 读取该配置并启动/停止组件。
+    </p>
+    <pre><code>;; HTTP 服务器配置示例
+:server/http
+ {:port #long #or [#env PORT 3000]
+  :host #or [#env HTTP_HOST "0.0.0.0"]
+  :handler #ig/ref :handler/ring}</code></pre>
+    <p>
+      环境相关代码放在 <code>env/dev</code>、<code>env/test</code>、<code>env/prod</code> 下。
+      <code>env/dev/clj/user.clj</code> 提供 REPL 辅助命令，例如 <code>(go)</code>、<code>(halt)</code>、<code>(reset)</code>。
+    </p>
+
+    <h2 id="kit-routes">Reitit 路由</h2>
+    <p>
+      路由是请求处理的入口。每个路由都是 <code>[path handler-map]</code> 的向量，
+      handler-map 的键为 HTTP 方法，值为处理函数。
+    </p>
+    <pre><code>;; 基础路由示例
+["/" {:get (fn [request] {:status 200 :body "GET request"})
+      :post (fn [request] {:status 200 :body "POST request"})}]
+
+;; 带参数的 POST 路由
+["/foo/:bar" {:post (fn [{:keys [path-params query-params body-params]}]
+                       {:status 200
+                        :body (str "path: " path-params
+                                   "\nquery: " query-params
+                                   "\nbody: " body-params)})}]</code></pre>
+    <p>
+      静态资源默认由 <code>resources/public</code> 目录通过 <code>ring/create-resource-handler</code> 提供。
+      路由组织上，建议按业务模块拆分为独立的 <code>*-routes</code> 命名空间，再在 <code>handler.clj</code> 中聚合。
+    </p>
+
+    <h2 id="kit-middleware">中间件</h2>
+    <p>
+      Kit 使用 Ring / Reitit 中间件。中间件可以包装处理函数，在请求到达控制器前后添加行为。
+      Reitit 支持将中间件定义为数据，便于组合与追踪。
+    </p>
+    <pre><code>;; 数据中间件示例
+(def wrap-nocache
+  {:name ::wrap-nocache
+   :description "Adds Pragma: no-cache"
+   :wrap (fn [handler]
+           (fn [request]
+             (let [response (handler request)]
+               (assoc-in response [:headers "Pragma"] "no-cache"))))})</code></pre>
+    <p>
+      开发专用中间件应放在 <code>env/dev/clj/com/ruoyi/dev_middleware.clj</code> 的 <code>wrap-dev</code> 中，
+      避免打包到生产环境。中间件顺序很重要：
+    </p>
+    <pre><code>(-> handler wrap-formats wrap-defaults)
+;; 请求实际经过：wrap-defaults -> wrap-formats -> handler</code></pre>
+    <p>
+      而通过 Reitit 路由 <code>:middleware</code> 注册的中间件按书写顺序执行：
+    </p>
+    <pre><code>["/api" {:middleware [middleware-1 middleware-2]}]
+;; 执行顺序：middleware-1 -> middleware-2</code></pre>
+
+    <h2 id="kit-database">数据库</h2>
+    <p>
+      本项目使用 Kit-SQL 模块，以 <strong>Migratus</strong> 管理迁移、<strong>HugSQL</strong> 编写查询。
+      SQL 文件位于 <code>resources/sql/</code>，迁移文件位于 <code>resources/migrations-sqlite/</code> 或 <code>resources/migrations/</code>。
+    </p>
+
+    <h3>连接与迁移配置</h3>
+    <pre><code>:db.sql/connection
+ #profile {:dev  {:jdbc-url "jdbc:sqlite:rouyi.db"}
+           :test {}
+           :prod {:jdbc-url #env JDBC_URL}}
+
+:db.sql/migrations
+ {:store :database
+  :db {:datasource #ig/ref :db.sql/connection}
+  :migrate-on-init? true}
+
+:db.sql/query-fn
+ {:conn #ig/ref :db.sql/connection
+  :filename "queries.sql"}</code></pre>
+
+    <h3>常用迁移命令</h3>
+    <pre><code>;; 创建迁移
+(migratus.core/create (:db.sql/migrations state/system) "add-users-table")
+
+;; 运行待处理迁移
+(migratus.core/migrate (:db.sql/migrations state/system))
+
+;; 回滚最后一次迁移
+(migratus.core/rollback (:db.sql/migrations state/system))
+
+;; 重置数据库
+(migratus.core/reset (:db.sql/migrations state/system))</code></pre>
+
+    <h3>HugSQL 查询</h3>
+    <pre><code>-- :name get-user-by-id :? :1
+-- :doc 根据 id 查询用户
+SELECT * FROM sys_user WHERE user_id = :id
+
+-- :name add-user! :! :n
+INSERT INTO sys_user (user_name, password)
+VALUES (:user_name, :password)</code></pre>
+    <p>在控制器中通过 <code>query-fn</code> 调用：</p>
+    <pre><code>(query-fn :get-user-by-id {:id 1})</code></pre>
+    <p>事务中使用 <code>next.jdbc/with-transaction</code>：</p>
+    <pre><code>(let [conn (:db.sql/connection system)]
+  (next.jdbc/with-transaction [tx conn]
+    (query-fn tx :add-user! {:user-name "foo" :password "secret"})))</code></pre>
+
+    <h2 id="kit-repl">REPL 交互</h2>
+    <p>
+      REPL 是 Clojure 开发的核心。本项目已配置 nREPL，开发时连接后可通过 <code>user</code> 命名空间控制系统的启动、停止与重启。
+    </p>
+    <table>
+      <thead><tr><th>方式</th><th>命令 / 端口</th></tr></thead>
+      <tbody>
+        <tr><td>本地 REPL</td><td><code>clj -M:dev</code></td></tr>
+        <tr><td>nREPL</td><td><code>clj -M:dev:nrepl</code> 或默认端口 <code>7000</code></td></tr>
+        <tr><td>CIDER</td><td><code>clj -M:dev:cider</code></td></tr>
+      </tbody>
+    </table>
+    <p>进入 REPL 后：</p>
+    <pre><code>(go)    ;; 启动系统
+(halt)  ;; 停止系统
+(reset) ;; 刷新系统</code></pre>
+    <p>
+      本项目的 <code>user.clj</code> 还提供了更细粒度的热重载 helper：
+      <code>(user/rd)</code> 重载领域服务，<code>(user/rroutes)</code> 重载路由，
+      <code>(user/ra)</code> 重载所有命名空间，<code>(user/rr)</code> 完全重启系统。
+    </p>
 
     <h2 id="performance">性能调优（async-profiler）</h2>
     <p>项目已集成 <code>clj-async-profiler</code> 与 <code>criterium</code>，可在 nREPL 中直接调用。</p>
