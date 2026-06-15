@@ -22,6 +22,7 @@
                                 QuestionCircleOutlined ExpandOutlined
                                 LeftOutlined RightOutlined
                                 ReloadOutlined DownOutlined
+                                CloseCircleOutlined ArrowRightOutlined
                                 CompressOutlined LogoutOutlined
                                 MenuFoldOutlined MenuUnfoldOutlined
                                 FontSizeOutlined TranslationOutlined]]
@@ -57,16 +58,27 @@
 ;; ─── Tab 组件 ──────────────────────────────────────────────────────
 
 (defn- tab-context-menu
-  "标签页右键菜单项"
+  "标签页右键菜单项。"
   [key has-others? has-right?]
   (clj->js
-   [{:key "close-current" :label "关闭当前" :disabled (= key :dashboard)}
-    {:key "close-others" :label "关闭其他" :disabled (not has-others?)}
-    {:key "close-right" :label "关闭右侧" :disabled (not has-right?)}
-    {:key "close-all" :label "关闭全部"}
-    {:type "divider"}
-    {:key "fullscreen" :label "全屏显示"}
-    {:key "refresh" :label "刷新当前页"}]))
+   [{:key "refresh"
+     :label "刷新页面"
+     :icon (r/as-element [:> ReloadOutlined])}
+    {:key "close-current"
+     :label "关闭当前"
+     :icon (r/as-element [:> CloseOutlined])
+     :disabled (= key :dashboard)}
+    {:key "close-others"
+     :label "关闭其他"
+     :icon (r/as-element [:> CloseCircleOutlined])
+     :disabled (not has-others?)}
+    {:key "close-right"
+     :label "关闭右侧"
+     :icon (r/as-element [:> ArrowRightOutlined])
+     :disabled (not has-right?)}
+    {:key "close-all"
+     :label "全部关闭"
+     :icon (r/as-element [:> CloseCircleOutlined])}]))
 
 (defn- tab-item
   "单个Tab项组件"
@@ -83,7 +95,6 @@
                                       "close-others" (rf/dispatch [:tabs/remove-others key])
                                       "close-right" (rf/dispatch [:tabs/remove-right key])
                                       "close-all" (rf/dispatch [:tabs/remove-all])
-                                      "fullscreen" (rf/dispatch [:tabs/fullscreen])
                                       "refresh" (.reload js/location)
                                       nil))}
                   :trigger (clj->js ["contextMenu"])}
@@ -260,18 +271,17 @@
                                    :fontSize 14 :padding "13px 12px"
                                    :borderRight "1px solid #ebeef5"}
                            :on-click #(.reload js/location)}]]
-      [antd/dropdown {:menu {:items (clj->js [{:key "close-others" :label "关闭其他"}
+      [antd/dropdown {:menu {:items (clj->js [{:key "refresh" :label "刷新页面"}
+                                               {:key "close-others" :label "关闭其他"}
                                                {:key "close-right" :label "关闭右侧"}
-                                               {:key "close-all" :label "关闭全部"}
-                                               {:type "divider"}
-                                               {:key "refresh" :label "刷新当前页"}])
+                                               {:key "close-all" :label "全部关闭"}])
                              :onClick (fn [e]
                                         (let [active-tab @(rf/subscribe [:tabs/active])]
                                           (case (.-key e)
+                                            "refresh" (.reload js/location)
                                             "close-others" (rf/dispatch [:tabs/remove-others active-tab])
                                             "close-right" (rf/dispatch [:tabs/remove-right active-tab])
                                             "close-all" (rf/dispatch [:tabs/remove-all])
-                                            "refresh" (.reload js/location)
                                             nil)))}}
        [:> DownOutlined {:style {:cursor "pointer" :color "#909399"
                                  :fontSize 12 :padding "14px 12px"}}]]]]))
