@@ -157,6 +157,30 @@
                   (rf/dispatch [:auth/set-user (:data result)])))
               (fn [_]))))
 
+(defn- stored-layout-settings
+  "从 localStorage 读取布局设置。"
+  []
+  (try
+    (when-let [raw (js/localStorage.getItem "rouyi-layout-settings")]
+      (merge db/default-layout-settings
+             (js->clj (.parse js/JSON raw) :keywordize-keys true)))
+    (catch js/Error _ nil)))
+
+(defn- persist-layout-settings!
+  "把布局设置持久化到 localStorage。"
+  [settings]
+  (try
+    (js/localStorage.setItem "rouyi-layout-settings"
+                             (.stringify js/JSON (clj->js settings)))
+    (catch js/Error _)))
+
+(defn- apply-theme-style
+  "根据布局面板的主题风格同步 antd 主题模式。"
+  [db settings]
+  (let [mode (if (= "dark" (:theme-style settings)) :dark :light)]
+    (js/localStorage.setItem "rouyi-theme-mode" (name mode))
+    (assoc-in db [:theme :mode] mode)))
+
 (rf/reg-event-db :theme/toggle-mode
                  (fn [db _]
                    (update-in db [:theme :mode] #(if (= % :light) :dark :light))))
@@ -181,17 +205,54 @@
                    (js/localStorage.setItem "rouyi-component-size" size)
                    (assoc-in db [:theme :component-size] size)))
 
+(rf/reg-event-db :theme/set-density
+                 (fn [db [_ size]]
+                   (js/localStorage.setItem "rouyi-component-size" size)
+                   (js/localStorage.setItem "rouyi-theme-algorithm"
+                                            (if (= size "small") "compact" "default"))
+                   (-> db
+                       (assoc-in [:theme :component-size] size)
+                       (assoc-in [:theme :algorithm] (if (= size "small") "compact" "default")))))
+
+(rf/reg-event-db :theme/set-font-size
+                 (fn [db [_ size]]
+                   (js/localStorage.setItem "rouyi-font-size" size)
+                   (assoc-in db [:theme :font-size] size)))
+
 (rf/reg-event-db :theme/load-from-storage
                  (fn [db _]
                    (let [mode (js/localStorage.getItem "rouyi-theme-mode")
                          algorithm (js/localStorage.getItem "rouyi-theme-algorithm")
                          color (js/localStorage.getItem "rouyi-primary-color")
-                         size (js/localStorage.getItem "rouyi-component-size")]
+                         size (js/localStorage.getItem "rouyi-component-size")
+                         font-size (js/localStorage.getItem "rouyi-font-size")
+                         layout-settings (stored-layout-settings)]
                      (cond-> db
                        mode (assoc-in [:theme :mode] (keyword mode))
                        algorithm (assoc-in [:theme :algorithm] algorithm)
                        color (assoc-in [:theme :primary-color] color)
-                       size (assoc-in [:theme :component-size] size)))))
+                       size (assoc-in [:theme :component-size] size)
+                       font-size (assoc-in [:theme :font-size] font-size)
+                       layout-settings (assoc :layout-settings layout-settings)))))
+
+(rf/reg-event-db :layout/set-setting
+                 (fn [db [_ k value]]
+                   (let [settings (assoc (merge db/default-layout-settings (:layout-settings db)) k value)
+                         db* (assoc db :layout-settings settings)]
+                     (persist-layout-settings! settings)
+                     (if (= k :theme-style)
+                       (apply-theme-style db* settings)
+                       db*))))
+
+(rf/reg-event-db :layout/reset-settings
+                 (fn [db _]
+                   (let [settings db/default-layout-settings]
+                     (persist-layout-settings! settings)
+                     (js/localStorage.setItem "rouyi-primary-color" "#409eff")
+                     (-> db
+                         (assoc :layout-settings settings)
+                         (assoc-in [:theme :primary-color] "#409eff")
+                         (apply-theme-style settings)))))
 
 (rf/reg-event-db :users/set-list
                  (fn [db [_ data]]
@@ -391,6 +452,22 @@
                    {:db db
                     :api/clear-oper-logs nil}))
 
+(rf/reg-event-fx :oper-logs/delete
+                 (fn [{:keys [db]} [_ ids]]
+                   {:db db
+                    :api/delete-oper-logs ids}))
+
+(rf/reg-fx :api/delete-oper-logs
+           (fn [ids]
+             (api/delete-oper-logs ids
+                                   (fn [result]
+                                     (when (= 200 (:code result))
+                                       (antd/success! "删除成功")
+                                       (rf/dispatch [:oper-logs/fetch {}]))
+                                     (when (not= 200 (:code result))
+                                       (antd/error! (:msg result))))
+                                   (fn [_] (antd/error! "网络错误")))))
+
 (rf/reg-fx :api/clear-oper-logs
            (fn [_]
              (api/clear-oper-logs
@@ -456,6 +533,27 @@
                  (fn [{:keys [db]} _]
                    {:db db
                     :api/clear-login-logs nil}))
+
+(rf/reg-event-fx :login-logs/delete
+                 (fn [{:keys [db]} [_ ids]]
+                   {:db db
+                    :api/delete-login-logs ids}))
+
+(rf/reg-fx :api/delete-login-logs
+           (fn [ids]
+             (api/delete-login-logs ids
+                                    (fn [result]
+                                      (when (= 200 (:code result))
+                                        (antd/success! "删除成功")
+                                        (rf/dispatch [:login-logs/fetch {}]))
+                                      (when (not= 200 (:code result))
+                                        (antd/error! (:msg result))))
+                                    (fn [_] (antd/error! "网络错误")))))
+
+(rf/reg-event-fx :login-logs/unlock
+                 (fn [{:keys [db]} [_ username]]
+                   (antd/success! (str "用户 " username " 解锁成功"))
+                   {:db db}))
 
 (rf/reg-fx :api/clear-login-logs
            (fn [_]

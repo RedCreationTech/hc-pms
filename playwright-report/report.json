@@ -1,7 +1,7 @@
 {
   "config": {
-    "configFile": "/Users/kevinli/sandbox/rc/ruoyi_clojure/playwright.config.js",
-    "rootDir": "/Users/kevinli/sandbox/rc/ruoyi_clojure/tests/e2e",
+    "configFile": "/Users/mahaiqiang/git/redcreation/ruoyi_clojure/playwright.config.js",
+    "rootDir": "/Users/mahaiqiang/git/redcreation/ruoyi_clojure/tests/e2e",
     "forbidOnly": false,
     "fullyParallel": false,
     "globalSetup": null,
@@ -16,7 +16,7 @@
     "preserveOutput": "always",
     "projects": [
       {
-        "outputDir": "/Users/kevinli/sandbox/rc/ruoyi_clojure/test-results",
+        "outputDir": "/Users/mahaiqiang/git/redcreation/ruoyi_clojure/test-results",
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
@@ -24,7 +24,7 @@
         },
         "id": "chromium",
         "name": "chromium",
-        "testDir": "/Users/kevinli/sandbox/rc/ruoyi_clojure/tests/e2e",
+        "testDir": "/Users/mahaiqiang/git/redcreation/ruoyi_clojure/tests/e2e",
         "testIgnore": [],
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
@@ -66,57 +66,6 @@
   },
   "suites": [
     {
-      "title": "auth.spec.js",
-      "file": "auth.spec.js",
-      "column": 0,
-      "line": 0,
-      "specs": [],
-      "suites": [
-        {
-          "title": "认证流程",
-          "file": "auth.spec.js",
-          "line": 4,
-          "column": 6,
-          "specs": [
-            {
-              "title": "使用默认管理员账号登录并登出",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 2616,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-06-13T05:03:58.367Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "d5ed79a6b333c2ba7209-d954712dc74d917fd955",
-              "file": "auth.spec.js",
-              "line": 5,
-              "column": 3
-            }
-          ]
-        }
-      ]
-    },
-    {
       "title": "navigation.spec.js",
       "file": "navigation.spec.js",
       "column": 0,
@@ -138,12 +87,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1666,
+                  "duration": 2295,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-06-13T05:04:01.234Z",
+                  "startTime": "2026-06-15T02:05:16.242Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -153,7 +102,7 @@
           ],
           "id": "ce7c070a851ea64285fd-88c3839f19c61045ece0",
           "file": "navigation.spec.js",
-          "line": 31,
+          "line": 34,
           "column": 3
         },
         {
@@ -172,12 +121,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1628,
+                  "duration": 2207,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-06-13T05:04:02.905Z",
+                  "startTime": "2026-06-15T02:05:18.665Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -187,7 +136,7 @@
           ],
           "id": "ce7c070a851ea64285fd-332534a53eafb929dbcc",
           "file": "navigation.spec.js",
-          "line": 31,
+          "line": 34,
           "column": 3
         },
         {
@@ -206,12 +155,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1606,
+                  "duration": 2190,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-06-13T05:04:04.539Z",
+                  "startTime": "2026-06-15T02:05:20.890Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -221,7 +170,7 @@
           ],
           "id": "ce7c070a851ea64285fd-72096a2b479755868f4f",
           "file": "navigation.spec.js",
-          "line": 31,
+          "line": 34,
           "column": 3
         },
         {
@@ -240,12 +189,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1560,
+                  "duration": 2174,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-06-13T05:04:06.151Z",
+                  "startTime": "2026-06-15T02:05:23.089Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -255,7 +204,7 @@
           ],
           "id": "ce7c070a851ea64285fd-75581818a2d3fe8027ab",
           "file": "navigation.spec.js",
-          "line": 31,
+          "line": 34,
           "column": 3
         },
         {
@@ -274,12 +223,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1621,
+                  "duration": 2247,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-06-13T05:04:07.717Z",
+                  "startTime": "2026-06-15T02:05:25.271Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -289,7 +238,7 @@
           ],
           "id": "ce7c070a851ea64285fd-ded148bfea622add0d13",
           "file": "navigation.spec.js",
-          "line": 31,
+          "line": 34,
           "column": 3
         },
         {
@@ -308,12 +257,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1629,
+                  "duration": 2433,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-06-13T05:04:09.344Z",
+                  "startTime": "2026-06-15T02:05:27.526Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -323,7 +272,7 @@
           ],
           "id": "ce7c070a851ea64285fd-8a03f22fa72ebe7888b0",
           "file": "navigation.spec.js",
-          "line": 31,
+          "line": 34,
           "column": 3
         },
         {
@@ -342,12 +291,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1603,
+                  "duration": 2399,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-06-13T05:04:10.978Z",
+                  "startTime": "2026-06-15T02:05:29.967Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -357,7 +306,7 @@
           ],
           "id": "ce7c070a851ea64285fd-d7254b5e61549b1f304a",
           "file": "navigation.spec.js",
-          "line": 31,
+          "line": 34,
           "column": 3
         },
         {
@@ -376,12 +325,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1557,
+                  "duration": 2288,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-06-13T05:04:12.587Z",
+                  "startTime": "2026-06-15T02:05:32.376Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -391,7 +340,7 @@
           ],
           "id": "ce7c070a851ea64285fd-3c5b2247cfe2bc411800",
           "file": "navigation.spec.js",
-          "line": 31,
+          "line": 34,
           "column": 3
         },
         {
@@ -410,12 +359,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1639,
+                  "duration": 2284,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-06-13T05:04:14.150Z",
+                  "startTime": "2026-06-15T02:05:34.676Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -425,7 +374,7 @@
           ],
           "id": "ce7c070a851ea64285fd-969eaa93aa2ed84857a8",
           "file": "navigation.spec.js",
-          "line": 31,
+          "line": 34,
           "column": 3
         },
         {
@@ -444,12 +393,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1676,
+                  "duration": 2400,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-06-13T05:04:15.794Z",
+                  "startTime": "2026-06-15T02:05:36.970Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -459,7 +408,7 @@
           ],
           "id": "ce7c070a851ea64285fd-1b32d00f44c7a91ab4b0",
           "file": "navigation.spec.js",
-          "line": 31,
+          "line": 34,
           "column": 3
         },
         {
@@ -478,12 +427,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1696,
+                  "duration": 2474,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-06-13T05:04:17.476Z",
+                  "startTime": "2026-06-15T02:05:39.379Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -493,7 +442,7 @@
           ],
           "id": "ce7c070a851ea64285fd-2838fd795c8c517ff284",
           "file": "navigation.spec.js",
-          "line": 31,
+          "line": 34,
           "column": 3
         },
         {
@@ -512,12 +461,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1679,
+                  "duration": 2600,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-06-13T05:04:19.177Z",
+                  "startTime": "2026-06-15T02:05:41.863Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -527,7 +476,7 @@
           ],
           "id": "ce7c070a851ea64285fd-27ccce7ea4eac23cab99",
           "file": "navigation.spec.js",
-          "line": 31,
+          "line": 34,
           "column": 3
         },
         {
@@ -546,12 +495,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1567,
+                  "duration": 2173,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-06-13T05:04:20.862Z",
+                  "startTime": "2026-06-15T02:05:44.472Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -561,7 +510,7 @@
           ],
           "id": "ce7c070a851ea64285fd-847037964b9f6f4911ad",
           "file": "navigation.spec.js",
-          "line": 31,
+          "line": 34,
           "column": 3
         },
         {
@@ -580,12 +529,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1544,
+                  "duration": 2026,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-06-13T05:04:22.434Z",
+                  "startTime": "2026-06-15T02:05:46.654Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -595,7 +544,7 @@
           ],
           "id": "ce7c070a851ea64285fd-a3d2792e1737a7982284",
           "file": "navigation.spec.js",
-          "line": 31,
+          "line": 34,
           "column": 3
         },
         {
@@ -614,12 +563,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1546,
+                  "duration": 2041,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-06-13T05:04:23.984Z",
+                  "startTime": "2026-06-15T02:05:48.687Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -629,7 +578,7 @@
           ],
           "id": "ce7c070a851ea64285fd-0d0a94bef1e32a7b797f",
           "file": "navigation.spec.js",
-          "line": 31,
+          "line": 34,
           "column": 3
         },
         {
@@ -648,12 +597,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1574,
+                  "duration": 2210,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-06-13T05:04:25.535Z",
+                  "startTime": "2026-06-15T02:05:50.736Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -663,7 +612,7 @@
           ],
           "id": "ce7c070a851ea64285fd-e77a62b54991615d5dba",
           "file": "navigation.spec.js",
-          "line": 31,
+          "line": 34,
           "column": 3
         },
         {
@@ -682,12 +631,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1758,
+                  "duration": 2244,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-06-13T05:04:27.115Z",
+                  "startTime": "2026-06-15T02:05:52.952Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -697,7 +646,7 @@
           ],
           "id": "ce7c070a851ea64285fd-77bdd2886394e9bbb486",
           "file": "navigation.spec.js",
-          "line": 31,
+          "line": 34,
           "column": 3
         },
         {
@@ -716,12 +665,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1514,
+                  "duration": 2008,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-06-13T05:04:28.878Z",
+                  "startTime": "2026-06-15T02:05:55.202Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -731,68 +680,119 @@
           ],
           "id": "ce7c070a851ea64285fd-a5c41a45c66638e4a445",
           "file": "navigation.spec.js",
-          "line": 31,
+          "line": 34,
           "column": 3
-        }
-      ]
-    },
-    {
-      "title": "post-crud.spec.js",
-      "file": "post-crud.spec.js",
-      "column": 0,
-      "line": 0,
-      "specs": [],
-      "suites": [
+        },
         {
-          "title": "岗位管理 CRUD",
-          "file": "post-crud.spec.js",
-          "line": 4,
-          "column": 6,
-          "specs": [
+          "title": "导航到 /project/info",
+          "ok": true,
+          "tags": [],
+          "tests": [
             {
-              "title": "新增、修改并删除岗位",
-              "ok": true,
-              "tags": [],
-              "tests": [
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
                 {
-                  "timeout": 30000,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2175,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-06-15T02:05:57.216Z",
                   "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 3687,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-06-13T05:04:30.401Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
+                  "attachments": []
                 }
               ],
-              "id": "55f32f3d403b64524c49-02279633f11c34fabebd",
-              "file": "post-crud.spec.js",
-              "line": 11,
-              "column": 3
+              "status": "expected"
             }
-          ]
+          ],
+          "id": "ce7c070a851ea64285fd-4ea0307b12f0d3b7b0da",
+          "file": "navigation.spec.js",
+          "line": 34,
+          "column": 3
+        },
+        {
+          "title": "导航到 /solution",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2123,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-06-15T02:05:59.403Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ce7c070a851ea64285fd-806e5be7c6ce1c080491",
+          "file": "navigation.spec.js",
+          "line": 34,
+          "column": 3
+        },
+        {
+          "title": "导航到 /resource/standard",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2026,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-06-15T02:06:01.533Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ce7c070a851ea64285fd-8a48cf0ceec7015f7704",
+          "file": "navigation.spec.js",
+          "line": 34,
+          "column": 3
         }
       ]
     }
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-06-13T05:03:58.032Z",
-    "duration": 36092.729,
-    "expected": 20,
+    "startTime": "2026-06-15T02:05:15.879Z",
+    "duration": 47722.422,
+    "expected": 21,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0

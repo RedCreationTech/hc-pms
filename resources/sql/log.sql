@@ -2,6 +2,7 @@
 SELECT * FROM sys_oper_log WHERE 1=1
   AND (:title IS NULL OR INSTR(title, :title) > 0)
   AND (:oper_name IS NULL OR INSTR(oper_name, :oper_name) > 0)
+  AND (:oper_ip IS NULL OR INSTR(oper_ip, :oper_ip) > 0)
   AND (:business_type IS NULL OR business_type = :business_type)
   AND (:status IS NULL OR status = :status)
   AND (:begin_time IS NULL OR oper_time >= :begin_time)
@@ -13,6 +14,7 @@ LIMIT :page_size OFFSET :offset
 SELECT COUNT(*) AS total FROM sys_oper_log WHERE 1=1
   AND (:title IS NULL OR INSTR(title, :title) > 0)
   AND (:oper_name IS NULL OR INSTR(oper_name, :oper_name) > 0)
+  AND (:oper_ip IS NULL OR INSTR(oper_ip, :oper_ip) > 0)
   AND (:business_type IS NULL OR business_type = :business_type)
   AND (:status IS NULL OR status = :status)
   AND (:begin_time IS NULL OR oper_time >= :begin_time)
@@ -26,6 +28,9 @@ VALUES (:title, :business_type, :method, :request_method, :operator_type, :oper_
 DELETE FROM sys_oper_log WHERE 1=1
   AND (:begin_time IS NULL OR oper_time >= :begin_time)
   AND (:end_time IS NULL OR oper_time <= :end_time)
+
+-- :name delete-oper-log! :! :n
+DELETE FROM sys_oper_log WHERE oper_id = :oper_id
 
 -- :name list-login-logs :? :*
 SELECT * FROM sys_login_log WHERE 1=1
@@ -53,6 +58,9 @@ VALUES (:user_name, :ipaddr, :login_location, :browser, :os, :status, :msg, CURR
 DELETE FROM sys_login_log WHERE 1=1
   AND (:begin_time IS NULL OR login_time >= :begin_time)
   AND (:end_time IS NULL OR login_time <= :end_time)
+
+-- :name delete-login-log! :! :n
+DELETE FROM sys_login_log WHERE info_id = :info_id
 
 -- :name list-online-users :? :*
 SELECT * FROM sys_online WHERE 1=1

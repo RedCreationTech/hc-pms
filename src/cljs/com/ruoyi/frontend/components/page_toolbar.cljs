@@ -9,7 +9,7 @@
                         :justifyContent "space-between"
                         :alignItems "center"
                         :gap 12
-                        :padding "8px 22px 8px 22px"
+                        :padding "12px 22px 14px 22px"
                         :background "#fff"}
                        style)}
    left
@@ -21,14 +21,16 @@
    :delete {:color "#f56c6c" :border "1px solid #fab6b6" :background "#fef0f0"}
    :import {:color "#909399" :border "1px solid #d3d4d6" :background "#f4f4f5"}
    :export {:color "#e6a23c" :border "1px solid #f3d19e" :background "#fdf6ec"}
-   :default {:height 34 :borderRadius 4}})
+   :default {:height 36 :borderRadius 4}})
 
 (defn toolbar-button
   [{:keys [kind icon on-click disabled? children label]}]
   [antd/button {:icon icon
                 :disabled disabled?
                 :on-click on-click
-                :style (merge {:height 34
+                :style (merge {:height 36
+                               :minWidth 86
+                               :padding "0 15px"
                                :borderRadius 4
                                :fontSize 14}
                               (get button-colors kind)
@@ -37,13 +39,14 @@
    (or label children)])
 
 (defn toolbar-left [& children]
-  (into [:div {:style {:display "flex" :gap 8}}] children))
+  (into [:div {:style {:display "flex" :gap 10}}] children))
 
 (defn search-button [{:keys [icon on-click label]}]
   [antd/button {:type "primary"
                 :icon icon
                 :on-click on-click
-                :style {:height 34
+                :style {:height 36
+                        :minWidth 86
                         :borderRadius 4
                         :fontSize 14
                         :background "#409eff"
@@ -53,7 +56,8 @@
 (defn reset-button [{:keys [icon on-click label]}]
   [antd/button {:icon icon
                 :on-click on-click
-                :style {:height 34
+                :style {:height 36
+                        :minWidth 86
                         :borderRadius 4
                         :fontSize 14
                         :color "#606266"
@@ -65,8 +69,8 @@
    [antd/button {:shape "circle"
                  :icon icon
                  :on-click on-click
-                 :style {:width 38
-                         :height 38
+                 :style {:width 40
+                         :height 40
                          :display "inline-flex"
                          :alignItems "center"
                          :justifyContent "center"
@@ -75,4 +79,5 @@
                          :boxShadow "0 2px 8px rgba(0,0,0,0.06)"}}]])
 
 (defn toolbar-right [& children]
-  (into [:div {:style {:display "flex" :gap 12}}] children))
+  (into [:div {:style {:display "flex" :gap 12
+                         :alignItems "center"}}] children))

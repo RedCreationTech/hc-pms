@@ -109,6 +109,7 @@
                                                 :icon (r/as-element [:> ReloadOutlined])
                                                 :on-click #(rf/dispatch [:configs/fetch {}])}]]}]
       [antd/table {:rowKey "config_id" :loading loading? :scroll #js {:x 800}
+                   :rowSelection #js {}
                    :columns (config-columns
                              #(do (set-editing! %) (set-modal-visible! true))
                              #(rf/dispatch [:configs/delete %]))

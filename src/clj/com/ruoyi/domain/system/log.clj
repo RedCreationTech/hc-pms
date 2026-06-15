@@ -7,7 +7,7 @@
   (let [page-num (or (:page-num params) 1)
         page-size (or (:page-size params) 10)
         offset (* (dec page-num) page-size)
-        filters (merge {:title nil :oper_name nil :business_type nil :status nil :begin_time nil :end_time nil}
+        filters (merge {:title nil :oper_name nil :oper_ip nil :business_type nil :status nil :begin_time nil :end_time nil}
                        (-> params
                            (dissoc :page-num :page-size)
                            (assoc :offset offset :page_size page-size)))
@@ -24,6 +24,12 @@
   "清空操作日志。"
   [{:keys [query-fn]} params]
   (query-fn :clear-oper-logs! params))
+
+(defn delete-oper-logs!
+  "删除指定操作日志。"
+  [{:keys [query-fn]} ids]
+  (doseq [id ids]
+    (query-fn :delete-oper-log! {:oper_id id})))
 
 (defn list-login-logs
   "查询登录日志列表。"
@@ -48,6 +54,12 @@
   "清空登录日志。"
   [{:keys [query-fn]} params]
   (query-fn :clear-login-logs! params))
+
+(defn delete-login-logs!
+  "删除指定登录日志。"
+  [{:keys [query-fn]} ids]
+  (doseq [id ids]
+    (query-fn :delete-login-log! {:info_id id})))
 
 (defn list-online-users
   "查询在线用户列表。"

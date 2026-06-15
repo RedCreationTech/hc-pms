@@ -4,7 +4,7 @@
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [DownloadOutlined SearchOutlined ReloadOutlined PlusOutlined EditOutlined DeleteOutlined SafetyOutlined]]
+   ["@ant-design/icons" :refer [DownloadOutlined SearchOutlined ReloadOutlined PlusOutlined EditOutlined DeleteOutlined]]
    [com.ruoyi.frontend.antd :as antd]
    [com.ruoyi.frontend.api :as api]
    [com.ruoyi.frontend.components.page-search :as page-search]
@@ -132,26 +132,27 @@
        #js {:title "操作" :key "action" :width 260
             :render (fn [_ ^js record]
                       (r/as-element
-                       [:div
-                        [antd/button {:type "link" :size "small"
-                                      :on-click #(rf/dispatch [:roles/open-user-alloc (js->clj record :keywordize-keys true)])}
-                         "分配用户"]
-                        [antd/button {:type "link" :size "small"
-                                      :on-click #(rf/dispatch [:roles/open-data-scope (js->clj record :keywordize-keys true)])}
-                         "数据权限"]
-                        [antd/button {:type "link" :size "small"
-                                      :icon (r/as-element [:> SafetyOutlined])
-                                      :on-click #(rf/dispatch [:roles/open-permission (js->clj record :keywordize-keys true)])}
-                         "分配权限"]
+                       [:div {:className "ruoyi-menu-actions"}
                         [antd/button {:type "link" :size "small"
                                       :icon (r/as-element [:> EditOutlined])
                                       :on-click #(rf/dispatch [:roles/edit (js->clj record :keywordize-keys true)])}
-                         "编辑"]
+                         "修改"]
                         [antd/popconfirm {:title "确认删除该角色？"
                                           :onConfirm #(rf/dispatch [:roles/delete (.-role_id record)])}
                          [antd/button {:type "link" :danger true :size "small"
                                        :icon (r/as-element [:> DeleteOutlined])}
-                          "删除"]]]))}])
+                          "删除"]]
+                        [antd/dropdown {:menu {:items (clj->js [{:key "data" :label "数据权限"}
+                                                                 {:key "users" :label "分配用户"}
+                                                                 {:key "perm" :label "分配权限"}])
+                                               :onClick (fn [e]
+                                                          (case (.-key e)
+                                                            "data" (rf/dispatch [:roles/open-data-scope (js->clj record :keywordize-keys true)])
+                                                            "users" (rf/dispatch [:roles/open-user-alloc (js->clj record :keywordize-keys true)])
+                                                            "perm" (rf/dispatch [:roles/open-permission (js->clj record :keywordize-keys true)])
+                                                            nil))}}
+                         [antd/button {:type "link" :size "small"}
+                          "更多"]]]))}])
 
 ;; ─── 编辑弹窗 ──────────────────────────────────────────────────────
 
@@ -365,6 +366,7 @@
      [search-form]
      [toolbar]
      [antd/table {:scroll #js {:x "max-content"} :rowKey "role_id"
+                  :rowSelection #js {}
                   :columns (role-columns)
                   :dataSource (clj->js items)
                   :loading loading?

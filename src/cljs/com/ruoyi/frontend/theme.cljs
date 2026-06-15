@@ -14,9 +14,13 @@
 
 (defn theme-config
   "根据当前主题设置构建 antd ConfigProvider 主题配置。"
-  [{:keys [mode primary-color algorithm]
-    :or   {mode :light primary-color "#1677ff" algorithm "default"}}]
+  [{:keys [mode primary-color algorithm font-size]
+    :or   {mode :light primary-color "#1677ff" algorithm "default" font-size "middle"}}]
   (let [is-dark? (= mode :dark)
+        token-font-size (case font-size
+                          "small" 13
+                          "large" 16
+                          14)
         algo-key (cond
                    (and is-dark? (= algorithm "compact")) :dark-compact
                    is-dark? :dark
@@ -34,7 +38,7 @@
                            :colorTextSecondary "rgba(255,255,255,0.65)"
                            :colorBorder "#424242"
                            :colorBorderSecondary "#303030"
-                           :fontSize 14
+                           :fontSize token-font-size
                            :fontFamily ruoyi-font-family
                            :borderRadius 6}
                       #js {:colorPrimary primary-color
@@ -47,7 +51,7 @@
                            :colorTextSecondary "rgba(0,0,0,0.65)"
                            :colorBorder "#d9d9d9"
                            :colorBorderSecondary "#f0f0f0"
-                           :fontSize 14
+                           :fontSize token-font-size
                            :fontFamily ruoyi-font-family
                            :borderRadius 6})
         components (if is-dark?

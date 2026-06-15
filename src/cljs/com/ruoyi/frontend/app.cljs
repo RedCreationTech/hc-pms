@@ -29,7 +29,9 @@
         logged-in? @(rf/subscribe [:auth/logged-in?])
         theme-mode @(rf/subscribe [:theme/mode])
         primary-color @(rf/subscribe [:theme/primary-color])
-        algorithm @(rf/subscribe [:theme/algorithm])]
+        algorithm @(rf/subscribe [:theme/algorithm])
+        component-size @(rf/subscribe [:theme/component-size])
+        font-size @(rf/subscribe [:theme/font-size])]
     ;; 设置 body 背景色以匹配主题
     (hooks/use-effect
      (fn []
@@ -49,7 +51,9 @@
       [:> ConfigProvider {:theme (theme/theme-config
                                   {:mode theme-mode
                                    :primary-color primary-color
-                                   :algorithm algorithm})
+                                   :algorithm algorithm
+                                   :font-size font-size})
+                          :componentSize component-size
                           :locale zh-CN}
        [antd/app
         [message-init]

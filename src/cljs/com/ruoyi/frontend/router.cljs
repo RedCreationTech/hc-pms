@@ -24,6 +24,8 @@
         "system/dict" :dict
         "system/config" :config
         "system/notice" :notice
+        "system/operlog/operlog" :oper-log
+        "system/operlog/logininfor" :login-log
         "monitor/operlog" :oper-log
         "monitor/logininfor" :login-log
         "monitor/online" :online

@@ -325,6 +325,18 @@
             (fn [db _]
               (get-in db [:theme :component-size] "middle")))
 
+(rf/reg-sub :theme/font-size
+            (fn [db _]
+              (get-in db [:theme :font-size] "middle")))
+
+(rf/reg-sub :layout/settings
+            (fn [db _]
+              (:layout-settings db)))
+
+(rf/reg-sub :layout/setting
+            (fn [db [_ k]]
+              (get-in db [:layout-settings k])))
+
 ;; ─── Tabs ──────────────────────────────────────────────────────────
 
 (rf/reg-sub :tabs/items

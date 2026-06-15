@@ -73,6 +73,7 @@
                                                 :icon (r/as-element [:> ReloadOutlined])
                                                 :on-click #(rf/dispatch [:online-users/fetch {}])}]]}]
      [antd/table {:scroll #js {:x "max-content"} :rowKey "token-id"
+                  :rowSelection #js {}
                   :loading loading?
                   :columns (online-columns)
                   :dataSource (clj->js items)

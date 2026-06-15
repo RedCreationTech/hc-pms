@@ -112,6 +112,7 @@
                                                 :icon (r/as-element [:> ReloadOutlined])
                                                 :on-click #(rf/dispatch [:dicts/fetch-types {}])}]]}]
      [antd/table {:rowKey "dict_id" :loading loading? :scroll #js {:x 700}
+                  :rowSelection #js {}
                   :columns (type-columns
                             #(rf/dispatch [:dicts/select-type %])
                             #(do (set-editing! %) (set-modal-visible! true))
@@ -213,6 +214,7 @@
                                                   :icon (r/as-element [:> ReloadOutlined])
                                                   :on-click #(rf/dispatch [:dicts/fetch-data {:dict_type (:dict_type dict-type)}])}]]}]
        [antd/table {:rowKey "dict_code" :loading loading? :scroll #js {:x 600}
+                    :rowSelection #js {}
                     :columns (data-columns
                               #(do (set-editing! %) (set-modal-visible! true))
                               #(rf/dispatch [:dicts/delete-data %]))

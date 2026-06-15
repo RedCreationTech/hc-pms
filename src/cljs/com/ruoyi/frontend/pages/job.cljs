@@ -138,6 +138,7 @@
 
        ;; 表格
        [antd/table {:scroll #js {:x "max-content"} :rowKey "job_id"
+                    :rowSelection #js {}
                     :loading loading?
                     :columns (job-columns
                               on-edit
@@ -182,6 +183,7 @@
                      :style {:width 800}
                      :destroyOnHidden true}
         [antd/table {:scroll #js {:x "max-content"} :rowKey "job_log_id"
+                     :rowSelection #js {}
                      :loading log-loading?
                      :columns (clj->js
                                [{:title "日志ID" :dataIndex "job_log_id" :width 80}

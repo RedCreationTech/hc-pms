@@ -16,6 +16,18 @@
       (js->clj (.parse js/JSON s) :keywordize-keys true))
     (catch js/Error _ nil)))
 
+(def default-layout-settings
+  {:nav-mode "side"
+   :theme-style "light"
+   :open-tags? true
+   :cache-tags? true
+   :show-tab-icon? true
+   :tab-style "google"
+   :fixed-header? true
+   :show-logo? true
+   :dynamic-title? true
+   :show-footer? true})
+
 (def default-db
   (let [token (get-stored-token)
         user  (get-stored-user)]
@@ -23,7 +35,9 @@
      :tabs {:items [{:key :dashboard :label "首页" :closable false}]
             :active :dashboard}
      :auth {:token token :user user :loading? false}
-     :theme {:mode :light :primary-color "#1677ff" :compact? false}
+     :theme {:mode :light :primary-color "#409eff" :compact? false
+             :component-size "middle" :font-size "middle"}
+     :layout-settings default-layout-settings
      :users {:loading? false :items [] :total 0
              :query-params {} :page 1 :page-size 10
              :selected-ids [] :show-search? true

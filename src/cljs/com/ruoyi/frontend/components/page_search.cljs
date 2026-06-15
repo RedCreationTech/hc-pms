@@ -30,13 +30,13 @@
                    :opacity (if visible? 1 0)
                    :transition "height 0.3s ease, opacity 0.3s ease"}}
      (into [:div {:style {:background "#fff"
-                          :padding "8px 22px 4px 22px"}}]
+                          :padding "12px 22px 6px 22px"}}]
            children)]))
 
 (defn search-row [& children]
   (into [:div {:style {:display "flex"
                        :flexWrap "wrap"
-                       :columnGap 24
+                       :columnGap 18
                        :rowGap 8
                        :alignItems "center"}}]
         children))
@@ -47,18 +47,18 @@
    [:div {:style {:display "flex"
                   :alignItems "center"
                   :gap 8
-                  :width (or width 300)}}
+                  :width (or width 340)}}
     [:span {:style {:whiteSpace "nowrap"
                     :fontSize 14
-                    :fontWeight 600
+                    :fontWeight 700
                     :color "#606266"
-                    :width (or label-width 58)
+                    :width (or label-width 68)
                     :textAlign "right"}}
      label]
     child]))
 
-(def input-style {:width 232 :height 34 :borderRadius 4})
-(def select-style {:width 232 :height 34})
+(def input-style {:width 260 :height 34 :borderRadius 4})
+(def select-style {:width 260 :height 34})
 
 (defn search-actions [& children]
   (into [:div {:style {:display "flex"

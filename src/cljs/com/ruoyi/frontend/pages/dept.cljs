@@ -4,9 +4,8 @@
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [PlusOutlined DownloadOutlined EditOutlined DeleteOutlined ReloadOutlined SearchOutlined]]
+   ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined ReloadOutlined SearchOutlined CheckOutlined ColumnHeightOutlined]]
    [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.api :as api]
    [com.ruoyi.frontend.components.page-search :as page-search]
    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
    [com.ruoyi.frontend.components.dept-tree-select :refer [dept-tree-select]]))
@@ -62,9 +61,11 @@
                                          :on-click #(rf/dispatch [:depts/open-modal])
                                          :label "新增"}]
            [page-toolbar/toolbar-button {:kind :export
-                                         :icon (r/as-element [:> DownloadOutlined])
-                                         :on-click #(api/export-depts {})
-                                         :label "导出"}]]
+                                         :icon (r/as-element [:> CheckOutlined])
+                                         :label "保存排序"}]
+           [page-toolbar/toolbar-button {:kind :import
+                                         :icon (r/as-element [:> ColumnHeightOutlined])
+                                         :label "展开/折叠"}]]
     :right [page-toolbar/toolbar-right
             [page-toolbar/round-tool-button {:title "搜索"
                                              :icon (r/as-element [:> SearchOutlined])
@@ -91,16 +92,13 @@
                       (r/as-element
                        [antd/space
                         [antd/button {:type "link" :size "small"
+                                      :icon (r/as-element [:> EditOutlined])
+                                      :on-click #(rf/dispatch [:depts/edit (js->clj record :keywordize-keys true)])}
+                         "修改"]
+                        [antd/button {:type "link" :size "small"
                                       :icon (r/as-element [:> PlusOutlined])
                                       :on-click #(rf/dispatch [:depts/open-modal {:parent_id (.-dept_id record)}])}
                          "新增"]
-                        [antd/button {:icon (r/as-element [:> DownloadOutlined])
-                                      :on-click #(api/export-depts {})}
-                         "导出"]
-                        [antd/button {:type "link" :size "small"
-                                      :icon (r/as-element [:> EditOutlined])
-                                      :on-click #(rf/dispatch [:depts/edit (js->clj record :keywordize-keys true)])}
-                         "编辑"]
                         [antd/popconfirm {:title "确认删除该部门？"
                                           :onConfirm #(rf/dispatch [:depts/delete (.-dept_id record)])}
                          [antd/button {:type "link" :danger true :size "small"

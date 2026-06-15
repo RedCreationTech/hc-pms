@@ -112,6 +112,7 @@
                                                 :icon (r/as-element [:> ReloadOutlined])
                                                 :on-click #(rf/dispatch [:notices/fetch {}])}]]}]
      [antd/table {:scroll #js {:x "max-content"} :rowKey "notice_id"
+                  :rowSelection #js {}
                   :columns (notice-columns)
                   :dataSource (clj->js items)
                   :loading loading?

@@ -606,6 +606,12 @@
   (request {:method :delete :uri "/system/oper-log"
             :on-success on-success :on-error on-error}))
 
+(defn delete-oper-logs
+  "删除操作日志。"
+  [ids on-success on-error]
+  (request {:method :delete :uri (str "/system/oper-log/" ids)
+            :on-success on-success :on-error on-error}))
+
 
 ;; ─── 登录日志 ──────────────────────────────────────────────────────
 
@@ -613,6 +619,12 @@
   "清空登录日志。"
   [on-success on-error]
   (request {:method :delete :uri "/system/login-log"
+            :on-success on-success :on-error on-error}))
+
+(defn delete-login-logs
+  "删除登录日志。"
+  [ids on-success on-error]
+  (request {:method :delete :uri (str "/system/login-log/" ids)
             :on-success on-success :on-error on-error}))
 
 

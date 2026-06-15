@@ -207,14 +207,18 @@
 
                   :handler (partial log/list-oper-logs {:log-service log-service})}
          :delete {:summary "清空操作日志" :description "清空所有操作日志（需要确认）"
-                  :handler (partial log/clear-oper-logs {:log-service log-service})}}]]
+                  :handler (partial log/clear-oper-logs {:log-service log-service})}}]
+    ["/:ids" {:delete {:summary "删除操作日志" :description "删除指定操作日志"
+                       :handler (partial log/delete-oper-logs {:log-service log-service})}}]]
 
    ["/login-log"
     ["" {:get    {:summary "登录日志列表" :description "分页查询登录日志（只读）"
 
                   :handler (partial log/list-login-logs {:log-service log-service})}
          :delete {:summary "清空登录日志" :description "清空所有登录日志"
-                  :handler (partial log/clear-login-logs {:log-service log-service})}}]]
+                  :handler (partial log/clear-login-logs {:log-service log-service})}}]
+    ["/:ids" {:delete {:summary "删除登录日志" :description "删除指定登录日志"
+                       :handler (partial log/delete-login-logs {:log-service log-service})}}]]
 
    ["/online"
     ["" {:get {:summary "在线用户列表" :description "查询当前在线用户列表（只读）"

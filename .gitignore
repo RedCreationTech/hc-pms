@@ -24,3 +24,6 @@ CLAUDE.local.md
 # Playwright
 test-results/
 /.codex/
+
+# Dev logs
+/logs/
