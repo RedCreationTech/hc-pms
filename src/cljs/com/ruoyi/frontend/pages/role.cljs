@@ -124,15 +124,10 @@
        #js {:title "权限字符" :dataIndex "role_key" :key "role_key"}
        #js {:title "显示顺序" :dataIndex "role_sort" :key "role_sort" :width 100}
        #js {:title "状态" :dataIndex "status" :key "status" :width 100
-            :render (fn [v ^js record]
+            :render (fn [v _]
                       (r/as-element
-                       [antd/switch {:checked (= v "0")
-                                     :checkedChildren "正常"
-                                     :unCheckedChildren "停用"
-                                     :on-change (fn [checked?]
-                                                  (rf/dispatch [:roles/change-status
-                                                                (.-role_id record)
-                                                                (if checked? "0" "1")]))}]))}
+                       [antd/tag {:className "ruoyi-status-tag"}
+                        (if (= v "0") "正常" "停用")]))}
        #js {:title "创建时间" :dataIndex "create_time" :key "create_time" :width 180}
        #js {:title "操作" :key "action" :width 260
             :render (fn [_ ^js record]

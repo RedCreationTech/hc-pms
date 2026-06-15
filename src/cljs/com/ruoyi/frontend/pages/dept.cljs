@@ -81,15 +81,10 @@
        #js {:title "负责人" :dataIndex "leader" :key "leader" :width 120}
        #js {:title "电话" :dataIndex "phone" :key "phone" :width 150}
        #js {:title "状态" :dataIndex "status" :key "status" :width 100
-            :render (fn [v ^js record]
+            :render (fn [v _]
                       (r/as-element
-                       [antd/switch {:checked (= v "0")
-                                     :checkedChildren "正常"
-                                     :unCheckedChildren "停用"
-                                     :on-change (fn [checked?]
-                                                  (rf/dispatch [:depts/change-status
-                                                                (.-dept_id record)
-                                                                (if checked? "0" "1")]))}]))}
+                       [antd/tag {:className "ruoyi-status-tag"}
+                        (if (= v "0") "正常" "停用")]))}
        #js {:title "创建时间" :dataIndex "create_time" :key "create_time" :width 180}
        #js {:title "操作" :key "action" :width 220
             :render (fn [_ ^js record]

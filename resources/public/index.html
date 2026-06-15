@@ -12,9 +12,58 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { height: 100%; width: 100%; }
     #app { height: 100%; }
-    /* 表格单元格不折行 */
+    /* 若依列表页表格 */
     .ant-table-cell { white-space: nowrap; }
-    .ant-table-thead > tr > th { white-space: nowrap; }
+    .ant-table-wrapper .ant-table {
+      color: #606266;
+      font-size: 14px;
+    }
+    .ant-table-wrapper .ant-table-thead > tr > th {
+      height: 58px;
+      padding: 14px 8px;
+      background: #f8f8f9 !important;
+      color: #606266;
+      font-size: 14px;
+      font-weight: 600;
+      text-align: center !important;
+      border-bottom: 1px solid #ebeef5;
+      white-space: nowrap;
+    }
+    .ant-table-wrapper .ant-table-tbody > tr > td {
+      height: 62px;
+      padding: 14px 8px;
+      color: #606266;
+      font-size: 14px;
+      font-weight: 400;
+      text-align: center !important;
+      border-bottom: 1px solid #ebeef5;
+    }
+    .ant-table-wrapper .ant-table-tbody > tr:hover > td {
+      background: #fff;
+    }
+    .ant-table-wrapper .ant-btn-link {
+      height: 24px;
+      padding: 0 6px;
+      color: #409eff;
+      font-size: 14px;
+      font-weight: 400;
+    }
+    .ant-table-wrapper .ant-btn-link.ant-btn-dangerous {
+      color: #409eff;
+    }
+    .ruoyi-status-tag {
+      min-width: 54px;
+      height: 30px;
+      margin: 0;
+      padding: 0 12px;
+      border: 1px solid #d9ecff;
+      border-radius: 4px;
+      background: #ecf5ff;
+      color: #409eff;
+      font-size: 14px;
+      line-height: 28px;
+      text-align: center;
+    }
   </style>
 </head>
 <body>

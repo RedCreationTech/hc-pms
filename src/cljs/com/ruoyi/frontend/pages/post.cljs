@@ -76,17 +76,12 @@
   #js [#js {:title "岗位编号" :dataIndex "post_id" :key "post_id" :width 80}
        #js {:title "岗位编码" :dataIndex "post_code" :key "post_code" :width 120}
        #js {:title "岗位名称" :dataIndex "post_name" :key "post_name"}
-       #js {:title "排序" :dataIndex "post_sort" :key "post_sort" :width 80}
+       #js {:title "岗位排序" :dataIndex "post_sort" :key "post_sort" :width 100}
        #js {:title "状态" :dataIndex "status" :key "status" :width 100
-            :render (fn [v ^js record]
+            :render (fn [v _]
                       (r/as-element
-                       [antd/switch {:checked (= v "0")
-                                     :checkedChildren "正常"
-                                     :unCheckedChildren "停用"
-                                     :on-change (fn [checked?]
-                                                  (rf/dispatch [:posts/change-status
-                                                                (.-post_id record)
-                                                                (if checked? "0" "1")]))}]))}
+                       [antd/tag {:className "ruoyi-status-tag"}
+                        (if (= v "0") "正常" "停用")]))}
        #js {:title "创建时间" :dataIndex "create_time" :key "create_time" :width 180}
        #js {:title "操作" :key "action" :width 180
             :render (fn [_ ^js record]
@@ -139,11 +134,17 @@
 
 (defn post-page []
   (hooks/use-effect (fn [] (rf/dispatch [:posts/fetch {}]) js/undefined) [])
-  (let [items @(rf/subscribe [:posts/items]) total @(rf/subscribe [:posts/total]) loading? @(rf/subscribe [:posts/loading?])]
+  (let [items @(rf/subscribe [:posts/items])
+        total @(rf/subscribe [:posts/total])
+        loading? @(rf/subscribe [:posts/loading?])
+        [selected-ids set-selected-ids!] (hooks/use-state [])]
     [:div
      [search-form]
      [toolbar]
      [antd/table {:scroll #js {:x "max-content"} :rowKey "post_id" :loading loading? :columns (post-columns)
+                  :rowSelection #js {:selectedRowKeys (clj->js selected-ids)
+                                     :onChange (fn [keys _]
+                                                 (set-selected-ids! (js->clj keys)))}
                   :dataSource (clj->js items)
                   :pagination {:total total :pageSize 10 :showSizeChanger true
                                :showTotal (fn [total] (str "共 " total " 条"))}}]
