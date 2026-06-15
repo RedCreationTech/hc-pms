@@ -14,7 +14,8 @@
                                 ShopOutlined ShoppingOutlined TrophyOutlined BugOutlined
                                 ThunderboltOutlined FireOutlined ExperimentOutlined
                                 PieChartOutlined BarChartOutlined LineChartOutlined
-                                TableOutlined]]))
+                                TableOutlined ProjectOutlined FolderOpenOutlined
+                                PictureOutlined]]))
 
 ;; ─── 图标映射 ──────────────────────────────────────────────────────
 
@@ -61,7 +62,10 @@
    "PieChartOutlined" PieChartOutlined
    "BarChartOutlined" BarChartOutlined
    "LineChartOutlined" LineChartOutlined
-   "TableOutlined" TableOutlined})
+   "TableOutlined" TableOutlined
+   "ProjectOutlined" ProjectOutlined
+   "FolderOpenOutlined" FolderOpenOutlined
+   "PictureOutlined" PictureOutlined})
 
 (def icon-options
   "图标选择器展示的图标选项。"
