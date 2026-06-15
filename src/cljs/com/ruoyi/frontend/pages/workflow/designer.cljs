@@ -4,19 +4,12 @@
             [reagent.hooks :as hooks]
             [re-frame.core :as rf]
             ["@ant-design/icons" :refer [SaveOutlined UploadOutlined PlusOutlined]]
+            ["bpmn-js/lib/Modeler" :as BpmnModeler]
             [com.ruoyi.frontend.antd :as antd]))
 
 ;; ─── bpmn-js 实例管理 ──────────────────────────────────────────────
 
 (defonce modeler-instance (atom nil))
-
-(defn- create-modeler [container]
-  (let [BpmnModeler (-> (js/require "bpmn-js/lib/Modeler")
-                        (.-default))
-        modeler (BpmnModeler.
-                 #js {:container container
-                      :propertiesPanel nil})]
-    modeler))
 
 (def default-bpmn "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\"
@@ -75,14 +68,13 @@
 (defn bpmn-designer-page []
   (let [container-ref (r/atom nil)
         modeler-ref (r/atom nil)
-        [xml set-xml!] (hooks/use-state default-bpmn)
         [name set-name!] (hooks/use-state "新流程")
         [saving? set-saving!] (hooks/use-state false)]
     
     (hooks/use-effect
      (fn []
        (when @container-ref
-         (let [m (create-modeler @container-ref)]
+         (let [m (BpmnModeler. #js {:container @container-ref})]
            (reset! modeler-ref m)
            (-> m
                (.importXML default-bpmn)
@@ -136,7 +128,6 @@
                                                         (-> @modeler-ref
                                                             (.importXML xml)
                                                             (.then (fn []
-                                                                     (set! (.-value (.-title js/document)) (.-name file))
                                                                      (set-name! (.-name file)))))))))
                                             (.readAsText reader file))))
                                   (.click input)))}
