@@ -11,10 +11,6 @@
    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
    [com.ruoyi.frontend.components.icon-picker :as icon-picker]))
 
-;; ─── 菜单类型标签 ──────────────────────────────────────────────────────
-
-(def menu-type-map {"M" "目录" "C" "菜单" "F" "按钮"})
-
 ;; ─── 辅助：平铺菜单转树 ──────────────────────────────────────────────────────
 
 (defn- build-menu-tree
@@ -41,6 +37,22 @@
                 node)))
           menus)))
 
+(defn- expandable-menu-ids
+  [nodes]
+  (->> nodes
+       (filter #(seq (:children %)))
+       (mapcat #(cons (:menu_id %) (expandable-menu-ids (:children %))))
+       vec))
+
+(defn- menu-type-tag
+  [menu-type is-frame]
+  (let [label (cond
+                (= is-frame "1") "外链"
+                (= menu-type "M") "目录"
+                (= menu-type "F") "按钮"
+                :else "菜单")]
+    [antd/tag {:className "ruoyi-menu-type-tag"} label]))
+
 ;; ─── 搜索栏 ────────────────────────────────────────────────────────
 
 (defn- search-bar []
@@ -51,18 +63,20 @@
       [page-search/search-item
        "菜单名称"
        [antd/input {:placeholder "请输入菜单名称"
-                    :style page-search/input-style
+                    :style (merge page-search/input-style {:width 260})
                     :value menu-name
-                    :onChange #(set-menu-name! (-> % .-target .-value))}]]
+                    :onChange #(set-menu-name! (-> % .-target .-value))}]
+       {:width 360}]
       [page-search/search-item
        "状态"
        [antd/select {:placeholder "菜单状态"
-                     :style page-search/select-style
+                     :style (merge page-search/select-style {:width 260})
                      :allowClear true
                      :value status
                      :onChange #(set-status! %)}
         [antd/select-option {:value "0"} "正常"]
-        [antd/select-option {:value "1"} "停用"]]]
+        [antd/select-option {:value "1"} "停用"]]
+       {:width 340}]
       [page-search/search-actions
        [page-toolbar/search-button {:icon (r/as-element [:> SearchOutlined])
                                     :on-click #(rf/dispatch [:menus/search {:menu_name menu-name :status status}])}]
@@ -75,7 +89,8 @@
 
 (defn- toolbar []
   [page-toolbar/page-toolbar
-   {:left [page-toolbar/toolbar-left
+   {:style {:padding "8px 22px 10px 22px"}
+    :left [page-toolbar/toolbar-left
            [page-toolbar/toolbar-button {:kind :add
                                          :icon (r/as-element [:> PlusOutlined])
                                          :on-click #(rf/dispatch [:menus/open-modal])
@@ -95,34 +110,38 @@
 ;; ─── 表格列 ──────────────────────────────────────────────────────
 
 (defn- menu-columns []
-  #js [#js {:title "菜单名称" :dataIndex "menu_name" :key "menu_name" :width 220
+  #js [#js {:title "菜单名称" :dataIndex "menu_name" :key "menu_name" :width 260
             :render (fn [v ^js record]
                       (r/as-element
-                       [antd/space
-                        (icon-picker/icon-element (.-icon record) {:style {:fontSize 14}})
-                        [:span v]]))}
-       #js {:title "图标" :dataIndex "icon" :key "icon" :width 120
+                       [:span {:style {:display "inline-flex"
+                                       :alignItems "center"
+                                       :gap 8
+                                       :minWidth 0}}
+                        (icon-picker/icon-element (.-icon record) {:style {:fontSize 16 :color "#606266"}})
+                        [:span {:style {:overflow "hidden" :textOverflow "ellipsis" :whiteSpace "nowrap"}} v]]))}
+       #js {:title "图标" :dataIndex "icon" :key "icon" :width 140
             :render (fn [v _]
                       (r/as-element
-                       [antd/space
-                        (icon-picker/icon-element v {:style {:fontSize 14}})
-                        [:span (or v "-")]]))}
-       #js {:title "排序" :dataIndex "order_num" :key "order_num" :width 80}
-       #js {:title "权限标识" :dataIndex "perms" :key "perms" :width 150}
-       #js {:title "组件路径" :dataIndex "component" :key "component" :width 150}
-       #js {:title "类型" :dataIndex "menu_type" :key "menu_type" :width 80
-            :render (fn [v _]
-                      (r/as-element
-                       [antd/tag (get menu-type-map v "菜单")]))}
-       #js {:title "状态" :dataIndex "status" :key "status" :width 100
+                       [:span {:style {:display "inline-flex" :alignItems "center" :gap 8}}
+                        (icon-picker/icon-element v {:style {:fontSize 16 :color "#606266"}})
+                        [:span (or v "")]]))}
+       #js {:title "排序" :dataIndex "order_num" :key "order_num" :width 90}
+       #js {:title "权限标识" :dataIndex "perms" :key "perms" :width 220
+            :render (fn [v _] (or v ""))}
+       #js {:title "组件路径" :dataIndex "component" :key "component" :width 240
+            :render (fn [v _] (or v ""))}
+       #js {:title "类型" :dataIndex "menu_type" :key "menu_type" :width 110
+            :render (fn [v ^js record]
+                      (r/as-element [menu-type-tag v (.-is_frame record)]))}
+       #js {:title "状态" :dataIndex "status" :key "status" :width 120
             :render (fn [v _]
                       (r/as-element
                        [antd/tag {:className "ruoyi-status-tag"}
                         (if (= v "0") "正常" "停用")]))}
-       #js {:title "操作" :key "action" :width 220
+       #js {:title "操作" :key "action" :width 240
             :render (fn [_ ^js record]
                       (r/as-element
-                       [antd/space
+                       [antd/space {:size 4}
                         [antd/button {:type "link" :size "small"
                                       :icon (r/as-element [:> PlusOutlined])
                                       :on-click #(rf/dispatch [:menus/open-modal {:parent_id (.-menu_id record)}])}
@@ -231,15 +250,34 @@
    [])
   (let [items @(rf/subscribe [:menus/items])
         loading? @(rf/subscribe [:menus/loading?])
-        tree-data (build-menu-tree items 0)]
-    [:div
-     [search-bar]
-     [toolbar]
-     [antd/table {:scroll #js {:x "max-content"} :rowKey "menu_id"
-                  :loading loading?
-                  :columns (menu-columns)
-                  :dataSource (clj->js tree-data)
-                  :pagination false
-                  :defaultExpandAllRows true
-                  :childrenColumnName "children"}]
+        [expanded-keys set-expanded-keys!] (hooks/use-state :pending)
+        tree-data (build-menu-tree items 0)
+        expandable-ids (expandable-menu-ids tree-data)]
+    (hooks/use-effect
+     (fn []
+       (when (= expanded-keys :pending)
+         (set-expanded-keys! expandable-ids))
+       js/undefined)
+     [items])
+    [:div {:style {:padding "0 12px 24px 12px"}}
+     [:div {:style {:background "#fff"
+                    :minHeight "calc(100vh - 214px)"
+                    :padding "10px 8px 24px 8px"}}
+      [search-bar]
+      [toolbar]
+      [antd/table {:scroll #js {:x 1180}
+                   :rowKey "menu_id"
+                   :loading loading?
+                   :columns (menu-columns)
+                   :dataSource (clj->js tree-data)
+                   :pagination false
+                   :expandedRowKeys (clj->js (if (= expanded-keys :pending) expandable-ids expanded-keys))
+                   :onExpand (fn [expanded? ^js record]
+                               (let [id (.-menu_id record)
+                                     current (set (if (= expanded-keys :pending) expandable-ids expanded-keys))]
+                                 (set-expanded-keys!
+                                  (vec (if expanded?
+                                         (conj current id)
+                                         (disj current id))))))
+                   :childrenColumnName "children"}]]
      [edit-modal]]))
