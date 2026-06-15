@@ -13,9 +13,10 @@
    :asset-path "/js"
    :modules    {:app {:init-fn com.ruoyi.frontend.app/init}}
    :devtools   {:after-load com.ruoyi.frontend.app/reload}
-   :compiler-options {:output-feature-set :es8}
-   :js-options {:js-provider :import
-                :ignore-asset-requires true
+   :compiler-options {:output-feature-set :es8
+                      :language-in :es-next
+                      :language-out :es6}
+   :js-options {:ignore-asset-requires true
                 :resolve {"@rc-component/qrcode" false
                           "@ant-design/qrcode" false
                           "qrcode.react" false}}}}}

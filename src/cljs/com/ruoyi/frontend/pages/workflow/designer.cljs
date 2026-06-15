@@ -1,15 +1,12 @@
 (ns com.ruoyi.frontend.pages.workflow.designer
-  "BPMN 流程设计器页面 — 使用 bpmn-js 实现可视化编辑。"
+  "BPMN 流程设计器页面 — 使用 bpmn-js CDN 实现可视化编辑。"
   (:require [reagent.core :as r]
             [reagent.hooks :as hooks]
             [re-frame.core :as rf]
             ["@ant-design/icons" :refer [SaveOutlined UploadOutlined PlusOutlined]]
-            ["bpmn-js/lib/Modeler" :as BpmnModeler]
             [com.ruoyi.frontend.antd :as antd]))
 
-;; ─── bpmn-js 实例管理 ──────────────────────────────────────────────
-
-(defonce modeler-instance (atom nil))
+;; bpmn-js 通过 CDN 加载到 window.BpmnModeler
 
 (def default-bpmn "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\"
@@ -17,9 +14,7 @@
                   xmlns:dc=\"http://www.omg.org/spec/DD/20100524/DC\"
                   xmlns:di=\"http://www.omg.org/spec/DD/20100524/DI\"
                   id=\"Definitions_1\"
-                  targetNamespace=\"http://bpmn.io/schema/bpmn\"
-                  exporter=\"RuoYi Clojure\"
-                  exporterVersion=\"1.0\">
+                  targetNamespace=\"http://bpmn.io/schema/bpmn\">
   <bpmn:process id=\"Process_1\" isExecutable=\"true\">
     <bpmn:startEvent id=\"StartEvent_1\" name=\"开始\">
       <bpmn:outgoing>Flow_1</bpmn:outgoing>
@@ -36,20 +31,14 @@
   </bpmn:process>
   <bpmndi:BPMNDiagram id=\"BPMNDiagram_1\">
     <bpmndi:BPMNPlane id=\"BPMNPlane_1\" bpmnElement=\"Process_1\">
-      <bpmndi:BPMNShape id=\"_BPMNShape_StartEvent_2\" bpmnElement=\"StartEvent_1\">
+      <bpmndi:BPMNShape id=\"StartEvent_1_di\" bpmnElement=\"StartEvent_1\">
         <dc:Bounds x=\"179\" y=\"99\" width=\"36\" height=\"36\" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x=\"185\" y=\"142\" width=\"24\" height=\"14\" />
-        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id=\"UserTask_1_di\" bpmnElement=\"UserTask_1\">
         <dc:Bounds x=\"270\" y=\"77\" width=\"100\" height=\"80\" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id=\"EndEvent_1_di\" bpmnElement=\"EndEvent_1\">
         <dc:Bounds x=\"432\" y=\"99\" width=\"36\" height=\"36\" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x=\"438\" y=\"142\" width=\"24\" height=\"14\" />
-        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id=\"Flow_1_di\" bpmnElement=\"Flow_1\">
         <di:waypoint x=\"215\" y=\"117\" />
@@ -63,86 +52,67 @@
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>")
 
-;; ─── 主组件 ──────────────────────────────────────────────────────
+(defn- zoom-fit [modeler]
+  (-> modeler (.get "canvas") (.zoom "fit-viewport")))
 
 (defn bpmn-designer-page []
   (let [container-ref (r/atom nil)
         modeler-ref (r/atom nil)
         [name set-name!] (hooks/use-state "新流程")
         [saving? set-saving!] (hooks/use-state false)]
-    
     (hooks/use-effect
      (fn []
-       (when @container-ref
-         (let [m (BpmnModeler. #js {:container @container-ref})]
-           (reset! modeler-ref m)
-           (-> m
-               (.importXML default-bpmn)
-               (.then (fn []
-                        (let [canvas (.get m "canvas")]
-                          (.zoom canvas "fit-viewport"))))
-               (.catch (fn [err]
-                         (js/console.error "BPMN import error:" err))))))
-       #(when @modeler-ref
-          (.destroy @modeler-ref)
+       (when-let [el @container-ref]
+         (when-let [BpmnModeler (.-BpmnModeler js/window)]
+           (let [m (BpmnModeler. #js {:container el})]
+             (reset! modeler-ref m)
+             (-> m (.importXML default-bpmn)
+                 (.then (fn [] (zoom-fit m)))
+                 (.catch (fn [err] (js/console.error "BPMN error:" err)))))))
+       #(when-let [m @modeler-ref]
+          (.destroy m)
           (reset! modeler-ref nil)))
      [])
-    
     [:div {:style {:height "100vh" :display "flex" :flexDirection "column"}}
-     ;; 顶部工具栏
      [:div {:style {:padding "8px 16px" :background "#fff" :borderBottom "1px solid #f0f0f0"
                     :display "flex" :justifyContent "space-between" :alignItems "center"}}
       [:div {:style {:display "flex" :alignItems "center" :gap 12}}
-       [antd/input {:value name
-                    :onChange #(set-name! (.. % -target -value))
-                    :placeholder "流程名称"
-                    :style {:width 200}}]
-       [antd/button {:type "primary"
+       [antd/input {:value name :placeholder "流程名称" :style {:width 200}
+                    :onChange #(set-name! (.. % -target -value))}]
+       [antd/button {:type "primary" :loading saving?
                      :icon (r/as-element [:> SaveOutlined])
-                     :loading saving?
                      :onClick (fn []
-                                (when @modeler-ref
+                                (when-let [m @modeler-ref]
                                   (set-saving! true)
-                                  (-> (.saveXML @modeler-ref #js {:format true})
-                                      (.then (fn [result]
-                                               (let [xml (.-xml result)]
-                                                 (rf/dispatch [:workflow/deploy {:name name :xml xml}])
-                                                 (set-saving! false))))
-                                      (.catch (fn [err]
-                                                (js/console.error err)
-                                                (set-saving! false))))))}
+                                  (-> (.saveXML m #js {:format true})
+                                      (.then (fn [r]
+                                               (rf/dispatch [:workflow/deploy {:name name :xml (.-xml r)}])
+                                               (set-saving! false)))
+                                      (.catch (fn [e] (js/console.error e) (set-saving! false))))))}
         "部署"]
        [antd/button {:icon (r/as-element [:> UploadOutlined])
                      :onClick (fn []
-                                (let [input (.createElement js/document "input")]
-                                  (set! (.-type input) "file")
-                                  (set! (.-accept input) ".bpmn,.xml")
-                                  (set! (.-onchange input)
+                                (let [inp (.createElement js/document "input")]
+                                  (set! (.-type inp) "file")
+                                  (set! (.-accept inp) ".bpmn,.xml")
+                                  (set! (.-onchange inp)
                                         (fn [e]
-                                          (let [file (-> e .-target .-files (aget 0))
-                                                reader (js/FileReader.)]
-                                            (set! (.-onload reader)
-                                                  (fn [ev]
-                                                    (let [xml (-> ev .-target .-result)]
-                                                      (when @modeler-ref
-                                                        (-> @modeler-ref
-                                                            (.importXML xml)
-                                                            (.then (fn []
-                                                                     (set-name! (.-name file)))))))))
-                                            (.readAsText reader file))))
-                                  (.click input)))}
+                                          (when-let [f (-> e .-target .-files (aget 0))]
+                                            (let [r (js/FileReader.)]
+                                              (set! (.-onload r)
+                                                    (fn [ev]
+                                                      (when-let [m @modeler-ref]
+                                                        (-> m (.importXML (-> ev .-target .-result))
+                                                            (.then #(set-name! (.-name f)))))))
+                                              (.readAsText r f)))))
+                                  (.click inp)))}
         "打开文件"]]
       [antd/button {:type "dashed"
                     :icon (r/as-element [:> PlusOutlined])
                     :onClick (fn []
-                               (when @modeler-ref
-                                 (-> @modeler-ref
-                                     (.importXML default-bpmn)
-                                     (.then (fn []
-                                              (let [canvas (.get @modeler-ref "canvas")]
-                                                (.zoom canvas "fit-viewport")))))))}
+                               (when-let [m @modeler-ref]
+                                 (-> m (.importXML default-bpmn)
+                                     (.then (fn [] (zoom-fit m))))))}
        "新建"]]
-     
-     ;; BPMN 画布
      [:div {:ref #(reset! container-ref %)
             :style {:flex 1 :background "#fafafa"}}]]))
