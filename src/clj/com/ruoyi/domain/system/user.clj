@@ -34,9 +34,17 @@
   [{:keys [query-fn]} user-name]
   (query-fn :find-user-by-name {:user_name user-name}))
 
+(defn- ensure-unique-user-name!
+  [{:keys [query-fn]} user-name current-user-id]
+  (when-let [existing (and (seq user-name)
+                           (query-fn :find-user-by-name {:user_name user-name}))]
+    (when (not= (:user_id existing) current-user-id)
+      (throw (ex-info "登录账号不能重复" {:user_name user-name})))))
+
 (defn create-user!
   "创建新用户，自动加密密码。"
   [{:keys [query-fn db]} {:keys [password roles posts] :as params}]
+  (ensure-unique-user-name! {:query-fn query-fn} (:user_name params) nil)
   (let [hashed (security/hash-password password)]
     (let [user-id (db/insert-and-get-id! query-fn db :create-user!
                                          (-> params
@@ -53,6 +61,7 @@
 (defn update-user!
   "更新用户信息，可选更新密码。"
   [{:keys [query-fn]} {:keys [user-id password roles posts] :as params}]
+  (ensure-unique-user-name! {:query-fn query-fn} (:user_name params) user-id)
   (let [update-data (-> params
                         (dissoc :roles :posts :user-id)
                         (assoc :user_id user-id))
@@ -75,7 +84,10 @@
 (defn delete-user!
   "逻辑删除用户。"
   [{:keys [query-fn]} user-id]
-  (query-fn :delete-user! {:user_id user-id}))
+  (let [user (query-fn :find-user-by-id {:user_id user-id})]
+    (when (or (= 1 user-id) (= "admin" (:user_name user)))
+      (throw (ex-info "admin 用户不能删除" {:user_id user-id})))
+    (query-fn :delete-user! {:user_id user-id})))
 
 (defn get-user-roles
   "获取用户角色列表。"

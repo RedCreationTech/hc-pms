@@ -93,6 +93,19 @@
             :params {:password password}
             :on-success on-success :on-error on-error}))
 
+(defn get-user-roles
+  "获取用户已分配角色。"
+  [user-id on-success on-error]
+  (request {:method :get :uri (str "/system/user/" user-id "/authRole")
+            :on-success on-success :on-error on-error}))
+
+(defn update-user-roles
+  "更新用户角色。"
+  [user-id role-ids on-success on-error]
+  (request {:method :put :uri (str "/system/user/" user-id "/authRole")
+            :params {:role_ids role-ids}
+            :on-success on-success :on-error on-error}))
+
 
 (defn export-users
   "导出用户数据。"

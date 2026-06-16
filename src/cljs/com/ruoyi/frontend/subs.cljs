@@ -127,6 +127,18 @@
             (fn [db _]
               (get-in db [:users :import-file] nil)))
 
+(rf/reg-sub :users/auth-role-visible?
+            (fn [db _]
+              (get-in db [:users :auth-role-visible?] false)))
+
+(rf/reg-sub :users/auth-role-user
+            (fn [db _]
+              (get-in db [:users :auth-role-user])))
+
+(rf/reg-sub :users/auth-role-ids
+            (fn [db _]
+              (get-in db [:users :auth-role-ids] [])))
+
 ;; ─── 项目管理 ──────────────────────────────────────────────────────
 
 (rf/reg-sub :projects/items

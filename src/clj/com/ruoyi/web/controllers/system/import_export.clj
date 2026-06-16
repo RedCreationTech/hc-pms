@@ -103,6 +103,12 @@
    (:dept_id user)
    (:remark user)])
 
+(defn- parse-id-list [ids]
+  (->> (str/split (str ids) #",")
+       (map str/trim)
+       (remove str/blank?)
+       (mapv parse-long)))
+
 (defn export-users
   "导出用户为 CSV 文件（带数据权限过滤）。"
   [{:keys [user-service]} request]
@@ -114,7 +120,9 @@
                         (dissoc raw "page" "size")
                         (:params data-perm-filter))
           result (user-service/list-users user-service params)
-          rows (:rows result)
+          selected-ids (set (parse-id-list (get raw "ids")))
+          rows (cond->> (:rows result)
+                 (seq selected-ids) (filter #(contains? selected-ids (:user_id %))))
           header ["user_name" "nick_name" "email" "phonenumber" "sex" "status" "dept_id" "remark"]
           csv-lines (mapv user->csv-row rows)
           output (java.io.StringWriter.)]

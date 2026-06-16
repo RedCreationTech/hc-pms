@@ -42,6 +42,7 @@
              :query-params {} :page 1 :page-size 10
              :selected-ids [] :show-search? true
              :import-visible? false :import-loading? false :import-file nil
+             :auth-role-visible? false :auth-role-user nil :auth-role-ids []
              :columns {:user_id {:label "用户编号" :visible? true}
                        :user_name {:label "用户名称" :visible? true}
                        :nick_name {:label "用户昵称" :visible? true}

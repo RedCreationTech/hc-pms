@@ -9,8 +9,8 @@
 (defn- mock-query-fn [q p & rest]
   (case q
     :list-users {:rows mock-users :total 2}
-    :find-user-by-id (first mock-users)
-    :find-user-by-name (first mock-users)
+    :find-user-by-id (first (filter #(= (:user_id %) (:user_id p)) mock-users))
+    :find-user-by-name (first (filter #(= (:user_name %) (:user_name p)) mock-users))
     :create-user! [{:user_id 3}]
     :update-user! nil
     :delete-user! nil
@@ -49,8 +49,20 @@
 
 (deftest test-delete-user
   (testing "删除用户"
-    (let [result (user/delete-user! mock-service 1)]
+    (let [result (user/delete-user! mock-service 2)]
       (is (nil? result)))))
+
+(deftest test-delete-admin-user-denied
+  (testing "admin 用户不能删除"
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"admin 用户不能删除"
+                          (user/delete-user! mock-service 1)))))
+
+(deftest test-create-duplicate-user-denied
+  (testing "登录账号不能重复"
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"登录账号不能重复"
+                          (user/create-user! mock-service {:user_name "admin" :nick_name "管理员" :password "123456" :roles [] :posts []})))))
 
 (deftest test-get-user-roles
   (testing "获取用户角色"

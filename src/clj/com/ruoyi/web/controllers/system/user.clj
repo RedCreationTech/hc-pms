@@ -93,9 +93,12 @@
 (defn delete-user
   "删除用户。"
   [{:keys [user-service]} request]
-  (let [user-id (parse-long (get-in request [:path-params :id]))]
-    (user-service/delete-user! user-service user-id)
-    (ok "删除成功")))
+  (try
+    (let [user-id (parse-long (get-in request [:path-params :id]))]
+      (user-service/delete-user! user-service user-id)
+      (ok "删除成功"))
+    (catch Exception e
+      (fail (.getMessage e)))))
 
 (defn change-status
   "修改用户状态。"

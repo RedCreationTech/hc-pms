@@ -120,6 +120,7 @@
                        (assoc-in [:auth :loading?] false)
                        (assoc :notification {:type :error :message msg}))))
 
+
 (rf/reg-event-fx :auth/logout
                  (fn [{:keys [db]} _]
                    (try
@@ -1025,7 +1026,10 @@
 
 (rf/reg-event-fx :users/export
                  (fn [{:keys [db]} _]
-                   (let [params (get-in db [:users :query-params] {})]
+                   (let [params (get-in db [:users :query-params] {})
+                         ids (get-in db [:users :selected-ids] [])
+                         params (cond-> params
+                                  (seq ids) (assoc :ids (.join (clj->js ids) ",")))]
                      {:db db :api/export-users params})))
 
 (rf/reg-fx :api/export-users
@@ -2422,14 +2426,30 @@
 
 (rf/reg-event-fx :users/delete
                  (fn [{:keys [db]} [_ id]]
-                   {:api/delete-user id}))
+                   (let [user (first (filter #(= id (:user_id %)) (get-in db [:users :items] [])))]
+                     (if (or (= 1 id) (= "admin" (:user_name user)))
+                       (do (antd/error! "admin 用户不能删除")
+                           {:db db})
+                       {:api/delete-user id}))))
 
 (rf/reg-event-fx :users/batch-delete
                  (fn [{:keys [db]} _]
-                   (let [ids (get-in db [:users :selected-ids] [])]
-                     (if (seq ids)
+                   (let [ids (get-in db [:users :selected-ids] [])
+                         items (get-in db [:users :items] [])
+                         admin-ids (->> items
+                                        (filter #(= "admin" (:user_name %)))
+                                        (map :user_id)
+                                        set)]
+                     (cond
+                       (empty? ids)
+                       (do (antd/error! "请先选择要删除的用户") {})
+
+                       (some admin-ids ids)
+                       (do (antd/error! "admin 用户不能删除") {:db db})
+
+                       :else
                        {:api/batch-delete-users ids}
-                       (do (antd/error! "请先选择要删除的用户") {})))))
+                       ))))
 
 (rf/reg-event-db :users/toggle-select
                  (fn [db [_ id]]
@@ -2475,10 +2495,16 @@
                  (fn [db _]
                    (assoc-in db [:users :detail-visible?] false)))
 
-(rf/reg-event-db :users/auth-role
-                 (fn [db [_ user-id]]
-    ;; TODO: open role assignment dialog
-                   (do (.info js/antd.message "角色分配功能开发中") db)))
+(rf/reg-event-fx :users/auth-role
+                 (fn [{:keys [db]} [_ user-id]]
+                   {:db (-> db
+                            (assoc-in [:users :auth-role-visible?] true)
+                            (assoc-in [:users :auth-role-user]
+                                      (first (filter #(= user-id (:user_id %))
+                                                     (get-in db [:users :items] []))))
+                            (assoc-in [:users :auth-role-ids] []))
+                    :api/get-user-roles user-id
+                    :api/list-role-options nil}))
 
 ;; ─── API 注册 ─────────────────────────────────────────────────────────────────
 
@@ -2560,6 +2586,26 @@
                                           (antd/success! "密码重置成功")))
                                       (fn [_] (antd/error! "网络错误")))))
 
+(rf/reg-fx :api/get-user-roles
+           (fn [user-id]
+             (api/get-user-roles user-id
+                                 (fn [result]
+                                   (when (= 200 (:code result))
+                                     (rf/dispatch [:users/set-auth-role-ids (:data result)])))
+                                 (fn [_] (antd/error! "获取用户角色失败")))))
+
+(rf/reg-fx :api/update-user-roles
+           (fn [[user-id role-ids]]
+             (api/update-user-roles user-id role-ids
+                                    (fn [result]
+                                      (when (= 200 (:code result))
+                                        (antd/success! "角色分配成功")
+                                        (rf/dispatch [:users/close-auth-role])
+                                        (rf/dispatch [:users/fetch-with-params]))
+                                      (when (not= 200 (:code result))
+                                        (antd/error! (:msg result))))
+                                    (fn [_] (antd/error! "角色分配失败")))))
+
 ;; ─── 路由导航效果 ────────────────────────────────────────────────────────────
 
 (rf/reg-fx :router/navigate!
@@ -2578,6 +2624,24 @@
 (rf/reg-event-db :users/close-reset-password
                  (fn [db _]
                    (assoc-in db [:users :reset-pwd-visible?] false)))
+
+(rf/reg-event-db :users/close-auth-role
+                 (fn [db _]
+                   (assoc-in db [:users :auth-role-visible?] false)))
+
+(rf/reg-event-db :users/set-auth-role-ids
+                 (fn [db [_ roles]]
+                   (assoc-in db [:users :auth-role-ids] (mapv :role_id roles))))
+
+(rf/reg-event-db :users/set-auth-role-selection
+                 (fn [db [_ role-ids]]
+                   (assoc-in db [:users :auth-role-ids] (mapv #(js/parseInt % 10) role-ids))))
+
+(rf/reg-event-fx :users/submit-auth-role
+                 (fn [{:keys [db]} _]
+                   (let [user-id (:user_id (get-in db [:users :auth-role-user]))
+                         role-ids (get-in db [:users :auth-role-ids] [])]
+                     {:api/update-user-roles [user-id role-ids]})))
 
 ;; ─── 用户管理辅助事件 ─────────────────────────────────────────────────────────
 

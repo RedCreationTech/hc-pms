@@ -193,7 +193,12 @@
                                           :on-click #(rf/dispatch [:users/open-edit (.-user_id ^js record)])}
                              "修改"]
                             [antd/button {:type "link" :size "small"
-                                          :style {:color "#409eff"}
+                                          :disabled (or (= 1 (.-user_id ^js record))
+                                                        (= "admin" (.-user_name ^js record)))
+                                          :style {:color (if (or (= 1 (.-user_id ^js record))
+                                                                 (= "admin" (.-user_name ^js record)))
+                                                           "#c0c4cc"
+                                                           "#409eff")}
                                           :icon (r/as-element [:> DeleteOutlined])
                                           :on-click #(rf/dispatch [:users/delete (.-user_id ^js record)])}
                              "删除"]
@@ -474,25 +479,46 @@
             [:span {:style {:lineHeight "34px" :whiteSpace "nowrap"}} (:dept_name d)]])]])]))
 
 (defn- display-users
-  "补齐演示数据，使默认用户管理页与 RuoYi 参考数据保持一致。"
+  "返回真实接口数据，避免演示数据覆盖创建时间。"
   [items]
-  (let [has-ry? (some #(= "ry" (:user_name %)) items)]
-    (cond-> (mapv (fn [u]
-                    (cond-> u
-                      (= "admin" (:user_name u))
-                      (assoc :nick_name "若依"
-                             :phonenumber "15888888888"
-                             :dept_name "研发部门"
-                             :create_time "2026-01-18 10:58:15")))
-                  items)
-      (and (seq items) (not has-ry?))
-      (conj {:user_id 2
-             :user_name "ry"
-             :nick_name "若依"
-             :dept_name "测试部门"
-             :phonenumber "15666666666"
-             :status "0"
-             :create_time "2026-01-18 10:58:15"}))))
+  items)
+
+(defn- auth-role-modal []
+  (let [visible? @(rf/subscribe [:users/auth-role-visible?])
+        user @(rf/subscribe [:users/auth-role-user])
+        role-options @(rf/subscribe [:users/role-options])
+        selected-role-ids @(rf/subscribe [:users/auth-role-ids])]
+    (when visible?
+      [:div {:style {:position "fixed" :top 0 :left 0 :right 0 :bottom 0
+                     :background "rgba(0,0,0,0.45)" :zIndex 1060
+                     :display "flex" :justifyContent "center" :alignItems "center"}}
+       [:div {:style {:background "var(--ant-color-bg-container, #fff)" :padding 24 :borderRadius 4 :width 520
+                      :boxShadow "0 2px 12px rgba(0,0,0,0.18)"}}
+        [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center"
+                       :marginBottom 18}}
+         [:h3 {:style {:margin 0 :fontSize 18 :fontWeight 500 :color "#303133"}}
+          (str "分配角色 - " (or (:user_name user) ""))]
+         [antd/button {:type "text"
+                       :style {:fontSize 22 :color "#909399" :width 32 :height 32}
+                       :on-click #(rf/dispatch [:users/close-auth-role])}
+          "×"]]
+        [:div {:style {:display "flex" :flexDirection "column" :gap 10}}
+         [:span {:style {:fontSize 14 :color "#606266"}} "角色"]
+         [antd/select {:mode "multiple"
+                       :placeholder "请选择角色"
+                       :allowClear true
+                       :value selected-role-ids
+                       :style {:width "100%" :minHeight 40}
+                       :on-change #(rf/dispatch [:users/set-auth-role-selection (js->clj %)])}
+          (for [role role-options]
+            ^{:key (:role_id role)}
+            [antd/select-option {:value (:role_id role)} (:role_name role)])]]
+        [:div {:style {:display "flex" :justifyContent "flex-end" :gap 10 :marginTop 24}}
+         [antd/button {:on-click #(rf/dispatch [:users/close-auth-role])} "取消"]
+         [antd/button {:type "primary"
+                       :style {:background "#409eff"}
+                       :on-click #(rf/dispatch [:users/submit-auth-role])}
+          "确定"]]]])))
 
 (defn- pagination-bar [total page page-size]
   [:div {:style {:display "flex" :justifyContent "flex-end" :alignItems "center"
@@ -557,4 +583,5 @@
       [pagination-bar total page page-size]
       [form-modal]
       [reset-password-modal]
+      [auth-role-modal]
       [detail-drawer]]]))
