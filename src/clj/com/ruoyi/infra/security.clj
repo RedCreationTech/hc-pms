@@ -13,7 +13,7 @@
 (defn hash-password
   "使用 bcrypt 对明文密码进行哈希。"
   [plain-text]
-  (hashers/derive plain-text {:alg :bcrypt+blake2b-512}))
+  (hashers/derive plain-text {:alg :bcrypt+sha512}))
 
 (defn verify-password
   "验证明文密码与哈希值是否匹配。"
