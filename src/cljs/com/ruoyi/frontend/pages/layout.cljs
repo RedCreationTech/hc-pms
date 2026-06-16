@@ -199,7 +199,8 @@
                  (set! (.-scrollLeft el) (- (+ el-left el-width) cw)))))))
        js/undefined)
      [active])
-    [:div {:style {:borderBottom "1px solid #dcdfe6"
+    [:div {:class "app-tab-bar"
+           :style {:borderBottom "1px solid #dcdfe6"
                    :padding "0 0 0 0"
                    :display "flex"
                    :alignItems "center"
@@ -767,16 +768,18 @@
              :workflow-tasks [workflow.tasks/tasks-page]
              [:div {:style {:padding 48 :textAlign "center" :color "#999" :fontSize 16}}
               "页面建设中"])]
-           [:div {:style {:position "fixed" :right 14 :bottom 54
+           [:div {:class "app-layout-float"
+                  :style {:position "fixed" :right 14 :bottom 54
                           :width 42 :height 42 :borderRadius "50%"
                           :background "#e989aa" :color "#fff"
                           :display "flex" :alignItems "center" :justifyContent "center"
                           :fontSize 18 :fontWeight 700
                           :boxShadow "0 4px 12px rgba(233,137,170,0.35)"
                           :zIndex 20}}
-            "LA"]
+           "LA"]
            (when (get layout-settings :show-footer? true)
-             [:div {:style {:position "fixed" :left content-left :right 0 :bottom 0
+             [:div {:class "app-layout-footer"
+                    :style {:position "fixed" :left content-left :right 0 :bottom 0
                             :height 36 :display "flex" :alignItems "center" :justifyContent "flex-end"
                             :padding "0 20px" :borderTop "1px solid #ebeef5"
                             :color "#808080" :fontSize 14 :background "#fff" :zIndex 10}}

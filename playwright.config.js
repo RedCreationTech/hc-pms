@@ -1,5 +1,5 @@
 // @ts-check
-const { defineConfig, devices } = require('playwright/test');
+const { defineConfig, devices } = require('@playwright/test');
 
 /**
  * @see https://playwright.dev/docs/test-configuration
@@ -45,7 +45,12 @@ module.exports = defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        launchOptions: {
+          executablePath: '/Users/mahaiqiang/Library/Caches/ms-playwright/chromium-1223/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing',
+        },
+      },
     },
   ],
 

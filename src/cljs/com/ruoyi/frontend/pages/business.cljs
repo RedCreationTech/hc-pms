@@ -5,9 +5,6 @@
    [clojure.string :as str]
    [com.ruoyi.frontend.antd :as antd]
    [com.ruoyi.frontend.api :as api]
-   [com.ruoyi.frontend.components.page-search :refer [page-search]]
-   [com.ruoyi.frontend.components.page-toolbar :refer [page-toolbar]]
-   [com.ruoyi.frontend.components.right-toolbar :refer [right-toolbar]]
    [com.ruoyi.frontend.components.pagination :refer [pagination]]
    [com.ruoyi.frontend.components.status-tag :refer [status-tag]]
    [com.ruoyi.frontend.components.action-menu :refer [action-menu]]
@@ -15,6 +12,8 @@
    [com.ruoyi.frontend.components.form-section :refer [form-section] :rename {form-section generic-form-section}]
    [reagent.core :as r]
    [reagent.hooks :as hooks]))
+
+(declare chat-panel progress-panel solution-export-panel)
 
 (defn- ok?
   [result]
@@ -107,14 +106,19 @@
     [antd/input {:value (value form k)
                  :placeholder placeholder
                  :disabled readonly?
-                 :style {:height 36 :borderRadius "4px 0 0 4px"}
+                 :style {:height 36
+                         :flex 1
+                         :minWidth 0
+                         :borderRadius "4px 0 0 4px"}
                  :on-change #(when-not readonly? (set-form! (assoc form k (target-value %))))}]
     [:span {:style {:height 36
-                    :minWidth 48
+                    :minWidth 64
                     :padding "0 11px"
                     :display "inline-flex"
+                    :flex "0 0 auto"
                     :alignItems "center"
                     :justifyContent "center"
+                    :whiteSpace "nowrap"
                     :border "1px solid var(--ant-color-border, #d9d9d9)"
                     :borderLeft 0
                     :borderRadius "0 4px 4px 0"
@@ -252,10 +256,623 @@
 
 (defn- modal-size
   [width]
-  {:width width
-   :style {:top 24 :maxWidth "calc(100vw - 32px)"}
+  {:className "biz-modal"
+   :style {:top 24 :width width :maxWidth "calc(100vw - 32px)"}
    :styles {:body {:maxHeight "calc(100vh - 170px)" :overflowY "auto" :padding "14px 24px 18px"}
             :content {:overflow "hidden"}}})
+
+(defn use-business-shell! []
+  (hooks/use-effect
+   (fn []
+     (.add (.-classList js/document.body) "biz-shell-active")
+     (fn []
+       (.remove (.-classList js/document.body) "biz-shell-active")))
+   []))
+
+(defn business-shell-styles []
+  [:style
+   "
+body.biz-shell-active .ant-layout-sider,
+body.biz-shell-active .ant-layout-header,
+body.biz-shell-active .app-tab-bar,
+body.biz-shell-active .app-layout-footer,
+body.biz-shell-active .app-layout-float {
+  display: none !important;
+}
+
+body.biz-shell-active .ant-layout,
+body.biz-shell-active .ant-layout-content {
+  background: #f4f7fb !important;
+}
+
+.biz-page {
+  min-height: 100vh;
+  background: #f4f7fb;
+  color: #1f2937;
+  font-family: \"Helvetica Neue\", Helvetica, \"PingFang SC\", \"Microsoft YaHei\", Arial, sans-serif;
+}
+
+.biz-top-nav {
+  height: 72px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 64px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.biz-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #1e5fb8;
+  font-size: 20px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.biz-logo {
+  width: 42px;
+  height: 42px;
+  background: #2281c7;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  letter-spacing: 0;
+  font-size: 15px;
+}
+
+.biz-nav {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+
+.biz-nav a {
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #5d6675;
+  font-weight: 700;
+  text-decoration: none;
+  font-size: 16px;
+}
+
+.biz-nav a.active {
+  background: #e8f2ff;
+  color: #2f86f6;
+}
+
+.biz-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #5d6675;
+  font-size: 16px;
+}
+
+.biz-user-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #e8f2ff;
+  color: #2f86f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+}
+
+.biz-content {
+  max-width: 1460px;
+  margin: 0 auto;
+  padding: 34px 32px 56px;
+}
+
+.biz-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.biz-title {
+  margin: 0;
+  font-size: 28px;
+  line-height: 38px;
+  font-weight: 800;
+  color: #1f2937;
+}
+
+.biz-panel {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+  border: 1px solid #edf1f6;
+}
+
+.biz-search-panel {
+  padding: 28px 28px 24px;
+  margin-bottom: 24px;
+}
+
+.biz-search-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.biz-search-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 14px;
+  padding-top: 22px;
+  margin-top: 22px;
+  border-top: 1px solid #edf1f6;
+}
+
+.biz-field-label {
+  font-size: 15px;
+  line-height: 22px;
+  margin-bottom: 10px;
+  color: #566070;
+  font-weight: 700;
+}
+
+.biz-page .ant-input,
+.biz-page .ant-select-selector {
+  border-color: #d9e0ea !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+}
+
+.biz-page .ant-input,
+.biz-page .ant-select-single {
+  height: 40px;
+}
+
+.biz-primary-btn.ant-btn {
+  height: 42px;
+  min-width: 108px;
+  border-radius: 5px;
+  background: #2f86f6;
+  border-color: #2f86f6;
+  font-weight: 700;
+  box-shadow: 0 6px 12px rgba(47, 134, 246, 0.24);
+}
+
+.biz-soft-btn.ant-btn {
+  height: 42px;
+  min-width: 96px;
+  border-radius: 5px;
+  color: #5d6675;
+  border-color: #d9e0ea;
+  font-weight: 700;
+}
+
+.biz-table-panel {
+  overflow: hidden;
+  margin-top: 24px;
+}
+
+.biz-page .ant-table-thead > tr > th {
+  background: #fbfcfe !important;
+  color: #303846 !important;
+  font-weight: 800 !important;
+  border-bottom: 1px solid #edf1f6 !important;
+  padding: 18px 24px !important;
+}
+
+.biz-page .ant-table-tbody > tr > td {
+  padding: 20px 24px !important;
+  border-bottom: 1px solid #edf1f6 !important;
+  color: #2f3745;
+}
+
+.biz-modal .ant-modal-content {
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.biz-modal .ant-modal-header {
+  margin: 0;
+  padding: 18px 24px;
+  border-bottom: 1px solid #edf1f6;
+}
+
+.biz-modal .ant-modal-title {
+  font-weight: 800;
+  color: #1f2937;
+}
+
+.biz-modal .ant-modal-footer {
+  padding: 14px 24px;
+  border-top: 1px solid #edf1f6;
+}
+
+.biz-form-section {
+  background: #fff;
+  border-top: 10px solid #f5f8fc;
+  padding: 24px 18px 18px;
+}
+
+.biz-form-section-title {
+  border-left: 3px solid #2f86f6;
+  padding-left: 10px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #1f2937;
+  margin-bottom: 18px;
+}
+
+.biz-project-editor-modal.ant-modal {
+  width: min(1480px, calc(100vw - 40px)) !important;
+  max-width: none;
+  top: 32px !important;
+  margin: 0 auto;
+  padding-bottom: 24px;
+}
+
+.biz-project-editor-modal .ant-modal-content {
+  min-height: calc(100vh - 88px);
+  border-radius: 6px;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.16);
+}
+
+.biz-project-editor-modal .ant-modal-header {
+  height: 62px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #edf1f6;
+}
+
+.biz-project-editor-modal .ant-modal-title {
+  width: 100%;
+}
+
+.biz-project-editor-modal .ant-modal-body {
+  background: #f5f8fc;
+}
+
+.biz-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.biz-editor-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  color: #1f2937;
+  font-weight: 800;
+}
+
+.biz-editor-back {
+  border: 0;
+  background: transparent;
+  color: #566070;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+
+.biz-project-form-page {
+  display: grid;
+  gap: 18px;
+  max-width: 1420px;
+  margin: 0 auto;
+}
+
+.biz-inline-warning {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  background: #fff7e6;
+  border: 1px solid #ffd591;
+  color: #d46b08;
+  font-size: 13px;
+}
+
+.biz-resource-layout {
+  min-height: calc(100vh - 72px);
+  display: grid;
+  grid-template-columns: 190px 210px 1fr;
+  background: #fff;
+}
+
+.biz-resource-primary-side {
+  border-right: 1px solid #edf1f6;
+  background: #fff;
+}
+
+.biz-resource-secondary-side {
+  border-right: 1px solid #edf1f6;
+  background: #fff;
+}
+
+.biz-resource-menu-item {
+  height: 56px;
+  padding: 0 22px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #3f4652;
+  font-weight: 700;
+  text-decoration: none;
+  border-left: 4px solid transparent;
+}
+
+.biz-resource-menu-item.active {
+  background: #e7f6ff;
+  border-left-color: #1890ff;
+  color: #1890ff;
+}
+
+.biz-resource-type-title {
+  height: 58px;
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #303846;
+}
+
+.biz-resource-type-search {
+  padding: 0 14px 12px;
+}
+
+.biz-resource-category {
+  height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.biz-resource-category.active {
+  background: #dff5ff;
+  color: #1890ff;
+  font-weight: 800;
+}
+
+.biz-resource-main {
+  min-width: 0;
+  padding: 0 0 24px;
+}
+
+.biz-resource-title {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  border-bottom: 1px solid #edf1f6;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.biz-resource-body {
+  padding: 20px 18px;
+}
+
+.biz-project-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(260px, 1fr));
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.biz-project-card {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #edf1f6;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+}
+
+.biz-project-card-body {
+  padding: 24px 26px 22px;
+}
+
+.biz-project-card-title {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  min-height: 74px;
+}
+
+.biz-project-icon {
+  flex: 0 0 50px;
+  width: 50px;
+  height: 50px;
+  border-radius: 8px;
+  background: #e8f2ff;
+  color: #2f86f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.biz-project-name {
+  color: #1f2937;
+  font-size: 18px;
+  line-height: 28px;
+  font-weight: 800;
+}
+
+.biz-project-meta {
+  display: grid;
+  gap: 14px;
+  margin-top: 20px;
+  color: #5d6675;
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.biz-project-footer {
+  height: 66px;
+  border-top: 1px solid #edf1f6;
+  background: #fbfcfe;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  padding: 0 24px;
+}
+
+.biz-danger-btn.ant-btn {
+  height: 36px;
+  border-radius: 7px;
+  color: #ff4d4f;
+  background: #fff1f1;
+  border-color: #fff1f1;
+  font-weight: 700;
+}
+
+.biz-resource-drawer-modal.ant-modal {
+  width: 50vw !important;
+  max-width: 50vw;
+  top: 0 !important;
+  margin: 0 0 0 auto;
+  padding-bottom: 0;
+}
+
+.biz-resource-drawer-modal .ant-modal-content {
+  min-height: 100vh;
+  border-radius: 0;
+}
+
+.biz-resource-drawer-modal .ant-modal-body {
+  min-height: calc(100vh - 116px);
+}
+
+.biz-resource-drawer-modal .ant-upload {
+  display: block;
+  width: 100%;
+}
+
+.biz-resource-upload-wide {
+  min-height: 174px;
+  background: #f6f8fb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  margin: -14px -24px 22px;
+}
+
+.biz-atlas-upload {
+  height: 174px;
+  width: 100%;
+  background: #f6f8fb;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #9aa3af;
+  gap: 10px;
+  margin-bottom: 22px;
+  cursor: pointer;
+}
+
+.biz-atlas-upload-icon {
+  color: #0091ff;
+  font-size: 40px;
+  line-height: 1;
+}
+
+.biz-atlas-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: #3f4652;
+}
+
+.biz-atlas-detail-table th {
+  height: 42px;
+  text-align: left;
+  border-bottom: 1px solid #edf1f6;
+  font-weight: 800;
+  color: #566070;
+}
+
+.biz-atlas-detail-table td {
+  height: 48px;
+  border-bottom: 1px solid #edf1f6;
+}
+
+.biz-atlas-empty {
+  height: 360px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8c8c8c;
+}
+
+@media (max-width: 1100px) {
+  .biz-top-nav { padding: 0 24px; }
+  .biz-search-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .biz-resource-layout { grid-template-columns: 1fr; }
+  .biz-resource-primary-side,
+  .biz-resource-secondary-side { display: none; }
+  .biz-project-grid { grid-template-columns: 1fr; }
+}
+" ])
+
+(defn business-top-nav
+  [active]
+  [:div.biz-top-nav
+   [:div.biz-brand
+    [:div.biz-logo "CS"]
+    [:span "领睿·方案智能编制系统"]]
+   [:nav.biz-nav
+    [:a {:href "/solution" :class (when (= active :solution) "active")} "⌂" "首页"]
+    [:a {:href "/project/info" :class (when (= active :project) "active")} "▣" "项目信息管理"]
+    [:a {:href "/resource/standard" :class (when (= active :resource) "active")} "◈" "资源管理"]]
+   [:div.biz-user
+    [:div.biz-user-avatar "●"]
+    [:span "开发者1"]
+    [:span "⌄"]]])
+
+(defn business-page-shell
+  [active & children]
+  [:div.biz-page
+   [business-shell-styles]
+   [business-top-nav active]
+   (into [:div.biz-content] children)])
+
+(defn business-field
+  [label child]
+  [:div
+   [:div.biz-field-label label]
+   child])
+
+(defn business-primary-button
+  [props & children]
+  (into [antd/button (merge {:type "primary" :className "biz-primary-btn"} props)] children))
+
+(defn business-soft-button
+  [props & children]
+  (into [antd/button (merge {:className "biz-soft-btn"} props)] children))
+
+(defn business-form-section
+  [title & children]
+  (into [:div.biz-form-section
+         [:div.biz-form-section-title title]]
+        children))
 
 (def project-extra-keys
   [:engineering_industry :engineering_nature :province :construction_scale :contract_scope
@@ -409,13 +1026,23 @@
              ^{:key title} [antd/select-option {:value title} title])]]])]]))
 
 (defn- management-staff-form-item [form readonly?]
-  (let [staff (or (js->clj (.getFieldValue form "management_staff") :keywordize-keys true)
-                  (default-management-staff))]
+  (let [form-staff (or (js->clj (.getFieldValue form "management_staff") :keywordize-keys true)
+                       (default-management-staff))
+        form-staff-key (.stringify js/JSON (clj->js form-staff))
+        [staff set-staff!] (hooks/use-state form-staff)
+        update-staff! (fn [next-staff]
+                        (set-staff! next-staff)
+                        (.setFieldsValue form #js {:management_staff (clj->js next-staff)}))]
+    (hooks/use-effect
+     (fn []
+       (set-staff! form-staff)
+       js/undefined)
+     [form-staff-key])
     [antd/form-item {:name :management_staff :noStyle true}
      [management-staff-table
       {:value staff
        :readonly? readonly?
-       :on-change #(.setFieldsValue form #js {:management_staff (clj->js %)})}]]))
+       :on-change update-staff!}]]))
 
 (defn- subcontract-team-card
   [{:keys [teams idx readonly? on-change]}]
@@ -488,31 +1115,45 @@
             :on-change on-change}])])]))
 
 (defn- subcontract-teams-form-item [form readonly?]
-  (let [teams (or (js->clj (.getFieldValue form "subcontract_teams") :keywordize-keys true) [])]
+  (let [form-teams (or (js->clj (.getFieldValue form "subcontract_teams") :keywordize-keys true) [])
+        form-teams-key (.stringify js/JSON (clj->js form-teams))
+        [teams set-teams!] (hooks/use-state form-teams)
+        update-teams! (fn [next-teams]
+                        (set-teams! next-teams)
+                        (.setFieldsValue form #js {:subcontract_teams (clj->js next-teams)}))]
+    (hooks/use-effect
+     (fn []
+       (set-teams! form-teams)
+       js/undefined)
+     [form-teams-key])
     [antd/form-item {:name :subcontract_teams :noStyle true}
      [subcontract-teams-list
       {:value teams
        :readonly? readonly?
-       :on-change #(.setFieldsValue form #js {:subcontract_teams (clj->js %)})}]]))
+       :on-change update-teams!}]]))
 
 (defn project-form
   ([form] (project-form form {} (fn [_]) false))
   ([form readonly?] (project-form form {} (fn [_]) readonly?))
   ([form upload-files set-upload-files! readonly?]
-   [:div
-    [generic-form-section {:title "数据来源" :columns 2}
-     [pending-upload-box {:files (get upload-files :source_file [])
-                          :set-files! #(set-upload-files! (assoc upload-files :source_file %))
-                          :readonly? readonly?
-                          :text "支持 docx、pdf、json、xlsx，文件大小不超过 100M"}]
-     [pending-upload-box {:files (get upload-files :engineering_source [])
-                          :set-files! #(set-upload-files! (assoc upload-files :engineering_source %))
-                          :readonly? readonly?
-                          :text "从项目综合管理系统导入项目基础信息"}]]
-    [generic-form-section {:title "项目概况" :columns 3}
-     (for [field project-overview-fields]
-       ^{:key (name (:key field))}
-       [form-field (assoc field :form form :name (:key field) :disabled readonly?)])]
+   [:div.biz-project-form-page
+    [business-form-section "数据来源"
+     [:div {:style {:display "grid" :gridTemplateColumns "repeat(2, minmax(0, 1fr))" :gap 12}}
+      [pending-upload-box {:files (get upload-files :source_file [])
+                           :set-files! #(set-upload-files! (assoc upload-files :source_file %))
+                           :readonly? readonly?
+                           :text "支持 docx、pdf、json、xlsx，文件大小不超过 100M"}]
+      [pending-upload-box {:files (get upload-files :engineering_source [])
+                           :set-files! #(set-upload-files! (assoc upload-files :engineering_source %))
+                           :readonly? readonly?
+                           :text "从项目综合管理系统导入项目基础信息"}]]]
+    [:div.biz-inline-warning
+     "可通过施工组织设计方案解析，或从综合管理系统导入项目基础数据；人员组织可通过文件解析生成。"]
+    [business-form-section "项目概况"
+     [:div {:style {:display "grid" :gridTemplateColumns "repeat(3, minmax(0, 1fr))" :gap "16px 22px"}}
+      (for [field project-overview-fields]
+        ^{:key (name (:key field))}
+        [form-field (assoc field :form form :name (:key field) :disabled readonly?)])]]
     [management-staff-form-item form readonly?]
     [subcontract-teams-form-item form readonly?]]))
 
@@ -565,18 +1206,29 @@
              (set-attachments! []))))
        js/undefined)
      [open? editing])
-    [antd/modal (merge (modal-size 1180)
-                       (cond-> {:open open?
-                                :title (cond
-                                         readonly? "查看项目"
-                                         (:id editing) "编辑项目"
-                                         :else "新建项目")
-                                :okText "保存"
-                                :cancelText "取消"
-                                :destroyOnHidden true
-                                :on-ok #(when-not readonly? (.submit form))
-                                :on-cancel on-cancel}
-                         readonly? (assoc :footer nil)))
+    [antd/modal (merge (modal-size "100vw")
+                       {:className "biz-modal biz-project-editor-modal"
+                        :open open?
+                        :mask false
+                        :closable false
+                        :footer nil
+                        :title (r/as-element
+                                [:div.biz-editor-header
+                                 [:div.biz-editor-title
+                                  [:button.biz-editor-back {:type "button" :on-click on-cancel} "←"]
+                                  [:span (cond
+                                           readonly? "查看项目"
+                                           (:id editing) "编辑项目"
+                                           :else "新建项目")]]
+                                 (when-not readonly?
+                                   [business-primary-button {:on-click #(.submit form)}
+                                    "保存"])])
+                        :destroyOnHidden true
+                        :on-cancel on-cancel
+                        :styles {:body {:height "calc(100vh - 150px)"
+                                         :overflowY "auto"
+                                         :padding "22px 24px 30px"}
+                                 :content {:overflow "hidden"}}})
      [antd/form {:form form
                  :layout "vertical"
                  :disabled readonly?
@@ -655,12 +1307,14 @@
                                                   (fn [_] (set-loading! false))))]
     (hooks/use-effect (fn [] (load-section! section) js/undefined) [section])
     [page-card (str "编辑方案 - " (:solution_name solution))
-     [antd/space
+     [antd/space {:style {:display "flex" :gap 8 :alignItems "center" :flexWrap "wrap"}}
       [antd/button {:on-click on-back} "返回"]
       [antd/button {:type "primary" :on-click #(api/save-solution-section (:id solution) section {:content_json (stringify form)}
                                                                           (fn [result]
                                                                             (handle-result! result "保存成功" nil "保存失败"))
                                                                           (fn [_] (antd/error! "保存失败")))} "保存章节"]]
+       [solution-export-panel {:solution-id (:id solution) :solution-name (:solution_name solution)}]
+       [antd/button {:on-click #(set-section! "chat")} "AI问答"]
      [:div {:style {:display "grid" :gridTemplateColumns "220px 1fr" :gap 16}}
       [antd/card {:size "small"}
        (for [{:keys [key label]} section-labels]
@@ -691,9 +1345,7 @@
 
 (defn- solution-shell
   [& children]
-  (into [:div {:style {:background "var(--ant-color-bg-layout, #f5f5f5)" :minHeight "calc(100vh - 64px)" :padding "28px 32px"}}
-         [:div {:style {:maxWidth 1420 :margin "0 auto"}}]]
-        children))
+  (into [business-page-shell :solution] children))
 
 (defn- solution-filter-select
   [value placeholder options on-change]
@@ -720,8 +1372,10 @@
                            [:a {:style {:cursor "pointer" :color "var(--ant-color-primary, #1677ff)"}}
                             (or v "-")]))})
              (when (get-in columns-config [:solution_type :visible?])
-               {:title "方案类型" :dataIndex "remark" :key "solution_type"
-                :render (fn [v _] (or v "墙面工程"))})
+               {:title "方案类型" :dataIndex "solution_type" :key "solution_type"
+                :render (fn [v record]
+                          (let [row (js->clj record :keywordize-keys true)]
+                            (or v (:remark row) "墙面工程")))})
              (when (get-in columns-config [:project_name :visible?])
                {:title "所属项目" :dataIndex "project_name" :key "project_name"
                 :render (fn [v _] (or v "-"))})
@@ -1069,19 +1723,19 @@
 
 (defn solution-home-page
   []
+  (use-business-shell!)
   (let [[solutions set-solutions!] (hooks/use-state [])
         [projects set-projects!] (hooks/use-state [])
         [engineerings set-engineerings!] (hooks/use-state [])
         [editing set-editing!] (hooks/use-state nil)
         [query set-query!] (hooks/use-state {})
-        [show-search? set-show-search!] (hooks/use-state false)
-        [columns-config set-columns-config!] (hooks/use-state
-                                              {:solution_name {:label "方案名称" :visible? true}
-                                               :solution_type {:label "方案类型" :visible? true}
-                                               :project_name {:label "所属项目" :visible? true}
-                                               :solution_level {:label "方案级别" :visible? true}
-                                               :create_time {:label "生成时间" :visible? true}
-                                               :create_by {:label "编制人" :visible? true}})
+        [columns-config _set-columns-config!] (hooks/use-state
+                                               {:solution_name {:label "方案名称" :visible? true}
+                                                :solution_type {:label "方案类型" :visible? true}
+                                                :project_name {:label "所属项目" :visible? true}
+                                                :solution_level {:label "方案级别" :visible? true}
+                                                :create_time {:label "生成时间" :visible? true}
+                                                :create_by {:label "编制人" :visible? true}})
         [page set-page!] (hooks/use-state 1)
         [page-size set-page-size!] (hooks/use-state 10)
         [workflow set-workflow!] (hooks/use-state :list)
@@ -1093,6 +1747,7 @@
         [section-modal set-section-modal!] (hooks/use-state nil)
         [supplement-data set-supplement-data!] (hooks/use-state {})
         [supplement-files set-supplement-files!] (hooks/use-state {})
+        [generating-solution-id set-generating-solution-id!] (hooks/use-state nil)
         fetch! (fn []
                  (api/list-solutions query #(when (ok? %) (set-solutions! (rows %))) (fn [_]))
                  (api/list-projects {} #(when (ok? %) (set-projects! (rows %))) (fn [_]))
@@ -1111,9 +1766,13 @@
                                                 :engineering_name (:engineering_name selected-project)
                                                 :project_id (:id selected-project)
                                                 :project_name (:project_name selected-project)
+                                                :solution_type chosen-plan-title
+                                                :solution_level "一般"
+                                                :current_version 1
+                                                :recommend_scene (stringify {:schemeLevel "一般"})
                                                 :status "draft"
-                                                :progress 20
-                                                :remark chosen-plan-title}
+                                                :progress 0
+                                                :remark ""}
                                        persist-supplement! (fn [solution-id]
                                                              (doseq [[section data] supplement-data
                                                                      :let [section-key (solution-section-key section)]
@@ -1136,11 +1795,19 @@
                                                           nil
                                                           (fn [result]
                                                             (persist-supplement! (result-id result))
-                                                            (antd/success! "生成成功")
-                                                            (set-supplement-data! {})
-                                                            (set-supplement-files! {})
-                                                            (set-workflow! :list)
-                                                            (fetch!))
+                                                            (let [sol-id (result-id result)]
+                                                              (api/generate-solution
+                                                               sol-id
+                                                               (fn [gen-result]
+                                                                 (if (ok? gen-result)
+                                                                   (do (antd/success! "方案生成已启动")
+                                                                       (set-generating-solution-id! sol-id)
+                                                                       (set-workflow! :progress))
+                                                                   (do (antd/success! "方案创建成功")
+                                                                       (set-workflow! :list))))
+                                                               (fn [_]
+                                                                 (antd/success! "方案创建成功")
+                                                                 (set-workflow! :list)))))
                                                           "生成失败")
                                                         (fn [_] (antd/error! "生成失败"))))))]
         (case workflow
@@ -1286,6 +1953,20 @@
                                               (set-supplement-files! (assoc supplement-files section files)))
                                    :on-close #(set-section-modal! nil)}])]
 
+          :progress
+          [solution-shell
+           [:div {:style {:marginBottom 24}}
+            [antd/button {:on-click #(do (set-workflow! :list) (set-generating-solution-id! nil) (fetch!))} "← 返回列表"]]
+           [progress-panel {:solution-id generating-solution-id
+                            :on-close #(do (set-workflow! :list) (set-generating-solution-id! nil) (fetch!))}]]
+
+          :chat
+          [solution-shell
+           [:div {:style {:marginBottom 24}}
+            [antd/button {:on-click #(set-workflow! :list)} "← 返回列表"]]
+           [:div {:style {:height "calc(100vh - 180px)"}}
+            [chat-panel {:solution-id generating-solution-id}]]]
+
           (let [total (count solutions)
                 paginated-solutions (vec (take page-size (drop (* (dec page) page-size) solutions)))
                 columns (solution-columns
@@ -1295,40 +1976,42 @@
                                                (fn [_] (antd/success! "删除成功") (fetch!))
                                                (fn [_] (antd/error! "删除失败"))))]
             [solution-shell
-             [page-search {:visible? show-search?}
-              [:div {:style {:display "grid" :gridTemplateColumns "1.1fr 1.1fr 1.1fr 1.1fr 1.45fr" :gap 18}}
-               [form-item "方案名称" [antd/input {:placeholder "请输入方案名称" :value (value query :solution_name) :style {:height 40} :on-change #(set-query! (assoc query :solution_name (target-value %)))}]]
-               [form-item "所属项目" [solution-project-filter-select (:project_id query) projects #(set-query! (assoc query :project_id %))]]
-               [form-item "方案类型" [solution-filter-select (value query :solution_type) "全部" solution-type-options #(set-query! (assoc query :solution_type %))]]
-               [form-item "方案级别" [solution-filter-select (value query :solution_level) "全部" solution-level-options #(set-query! (assoc query :solution_level %))]]
-               [form-item "生成时间" [antd/input {:placeholder "请选择日期" :style {:height 40}}]]]
-              [:div {:style {:display "flex" :justifyContent "flex-end" :gap 12 :marginTop 24}}
-               [antd/button {:icon (r/as-element [antd/reload-icon])
-                             :on-click (fn []
-                                         (set-query! {})
-                                         (api/list-solutions {}
-                                                             (fn [result] (when (ok? result) (set-solutions! (rows result))))
-                                                             (fn [_])))}
+             [:div.biz-title-row
+              [:h1.biz-title "方案管理"]
+              [business-primary-button {:icon (r/as-element [antd/plus-icon])
+                                        :on-click #(set-workflow! :engineering)}
+               "新增编制"]]
+             [:div.biz-panel.biz-search-panel
+              [:div.biz-search-grid
+               [business-field "方案名称"
+                [antd/input {:placeholder "请输入方案名称"
+                             :value (value query :solution_name)
+                             :on-change #(set-query! (assoc query :solution_name (target-value %)))}]]
+               [business-field "所属项目"
+                [solution-project-filter-select (:project_id query) projects #(set-query! (assoc query :project_id %))]]
+               [business-field "方案类型"
+                [solution-filter-select (value query :solution_type) "全部" solution-type-options #(set-query! (assoc query :solution_type %))]]
+               [business-field "方案级别"
+                [solution-filter-select (value query :solution_level) "全部" solution-level-options #(set-query! (assoc query :solution_level %))]]
+               [business-field "生成时间"
+                [antd/input {:placeholder "请选择日期"}]]]
+              [:div.biz-search-actions
+               [business-soft-button {:icon (r/as-element [antd/reload-icon])
+                                      :on-click (fn []
+                                                  (set-query! {})
+                                                  (api/list-solutions {}
+                                                                      (fn [result] (when (ok? result) (set-solutions! (rows result))))
+                                                                      (fn [_])))}
                 "重置"]
-               [antd/button {:type "primary" :icon (r/as-element [antd/search-icon]) :on-click fetch!} "查询"]]]
-             [page-toolbar
-              {:left [:div {:style {:display "flex" :gap 8 :alignItems "center"}}
-                      [:span {:style {:fontSize 18 :fontWeight 600 :color "var(--ant-color-text, #1f2937)"}} "方案管理"]
-                      [antd/button {:type "primary" :size "small" :icon (r/as-element [antd/plus-icon])
-                                    :on-click #(set-workflow! :engineering)} "新增编制"]]
-               :right [right-toolbar {:show-search? show-search?
-                                      :columns columns-config
-                                      :on-toggle-search #(set-show-search! (not show-search?))
-                                      :on-refresh #(do (set-page! 1) (fetch!))
-                                      :on-toggle-column #(set-columns-config!
-                                                          (update-in columns-config [% :visible?] not))}]}]
-             [antd/table {:rowKey "id"
-                          :columns columns
-                          :dataSource (clj->js paginated-solutions)
-                          :scroll #js {:x "max-content"}
-                          :pagination false}]
+               [business-primary-button {:icon (r/as-element [antd/search-icon]) :on-click fetch!} "查询"]]]
+             [:div.biz-panel.biz-table-panel
+              [antd/table {:rowKey "id"
+                           :columns columns
+                           :dataSource (clj->js paginated-solutions)
+                           :scroll #js {:x "max-content"}
+                           :pagination false}]]
              (when (> total page-size)
-               [:div {:style {:display "flex" :justifyContent "flex-end" :marginTop 12}}
+               [:div {:style {:display "flex" :justifyContent "flex-end" :marginTop 18}}
                 [pagination {:page page
                              :page-size page-size
                              :total total
@@ -1344,13 +2027,14 @@
                :fields [[:attachment "上传文档" :upload] [:name "章节名称" :input]
                         [:category "适用方案类型" :select] [:tags "适用省份" :select]
                         [:vector_status "章节级别" :select]]}
-   :structured-kb {:type "structured-kb" :title "结构化知识库" :button "新增资源"
-                   :fields [[:name "知识名称" :input] [:category "知识分类" :select] [:structured_fields "属性字段" :textarea]
-                            [:content "内容" :textarea] [:status "状态" :status] [:remark "备注" :textarea]]}
+   :structured-kb {:type "structured-kb" :title "通用知识库 / 条目级" :button "添加资源"
+                   :fields [[:name "救援程序名称" :input] [:content "救援程序内容" :textarea]
+                            [:category "适用方案类型" :select] [:province "所属省份" :select]
+                            [:remark "备注" :textarea]]}
    :case {:type "case" :title "优秀案例库" :button "新增案例"
           :fields [[:name "方案名称" :input] [:related_project_name "项目名称" :input]
                    [:category "方案类型" :select] [:engineering_nature "工程性质" :select]
-                   [:engineering_industry "工程业态" :select] [:province "项目所在地区" :select]
+                   [:engineering_industry "工程业态" :select] [:province "项目所在地" :select]
                    [:approval_time "审核通过时间" :input] [:case_level "方案级别" :select]
                    [:attachment "上传文档" :upload]]}
    :atlas {:type "atlas" :title "通用图集库" :button "批量新增图集"
@@ -1359,15 +2043,17 @@
                     [:gallery "图库明细" :gallery] [:sort_order "排序" :input]]}})
 
 (def resource-nav
-  [{:kind :standard :label "标准规范" :path "/resource/standard"}
-   {:kind :vector-kb :label "通用知识库" :path "/resource/vector-kb"}
-   {:kind :case :label "优秀案例库" :path "/resource/case"}
-   {:kind :atlas :label "通用图集库" :path "/resource/atlas"}])
+  [{:kind :standard :label "标准规范" :path "/resource/standard" :icon "▤"}
+   {:kind :knowledge :label "通用知识库" :path "/resource/vector-kb" :icon "▣"
+    :children [{:kind :vector-kb :label "向量知识库" :path "/resource/vector-kb"}
+               {:kind :structured-kb :label "结构化知识库" :path "/resource/structured-kb"}]}
+   {:kind :case :label "优秀案例库" :path "/resource/case" :icon "◉"}
+   {:kind :atlas :label "通用图集库" :path "/resource/atlas" :icon "▰"}])
 
 (def resource-categories
   {:standard ["国家行政文件" "地方行政文件" "国家标准" "地方标准" "行业标准" "企业文件"]
-   :vector-kb ["墙面工程" "地面工程" "吊篮工程" "顶面工程"]
-   :structured-kb ["项目属性" "施工工艺" "技术参数" "验收标准"]
+   :vector-kb ["应急救援程序" "施工重难点及应对措施" "应急处置措施" "质量保证措施" "成品保证措施" "风险辨识与分级" "安全生产管理措施" "安全生产管理制度" "应急响应程序"]
+   :structured-kb ["应急救援程序" "施工重难点及应对措施" "应急处置措施" "质量保证措施" "成品保证措施" "风险辨识与分级" "安全生产管理措施" "安全生产管理制度" "应急响应程序"]
    :case ["顶面工程" "墙面工程" "地面工程" "基础设施"]
    :atlas ["墙面工程" "地面工程" "吊篮工程" "顶面工程"]})
 
@@ -1379,7 +2065,9 @@
    :vector_status ["一级标题" "二级标题" "三级标题"]})
 
 (def resource-extra-keys
-  [:engineering_nature :engineering_industry :province :approval_time :case_level])
+  [:engineering_nature :engineering_industry :province :approval_time :case_level
+   :project_location :engineering_status :submitter :vector_status :structured_fields
+   :rescue_content :atlas_region])
 
 (defn- hydrate-resource
   [row]
@@ -1470,21 +2158,25 @@
                 :tags {:label "适用省份" :visible? true}
                 :vector_status {:label "章节级别" :visible? true}
                 :create_time {:label "创建时间" :visible? true}}
-    :structured-kb {:name {:label "知识名称" :visible? true}
-                    :category {:label "知识分类" :visible? true}
-                    :structured_fields {:label "属性字段" :visible? true}
-                    :status {:label "状态" :visible? true}
+    :structured-kb {:name {:label "救援程序名称" :visible? true}
+                    :content {:label "救援程序内容" :visible? true}
+                    :category {:label "适用方案类型" :visible? true}
+                    :province {:label "所属省份" :visible? true}
                     :create_time {:label "创建时间" :visible? true}}
-    :case {:name {:label "案例名称" :visible? true}
-           :category {:label "案例分类" :visible? true}
+    :case {:name {:label "方案名称" :visible? true}
            :related_project_name {:label "项目名称" :visible? true}
-           :summary {:label "案例简介" :visible? true}
-           :create_time {:label "创建时间" :visible? true}}
+           :category {:label "方案类型" :visible? true}
+           :case_level {:label "方案级别" :visible? true}
+           :engineering_nature {:label "工程性质" :visible? true}
+           :engineering_industry {:label "工程业态" :visible? true}
+           :province {:label "项目所在地" :visible? true}
+           :approval_time {:label "审批通过时间" :visible? true}
+           :submitter {:label "提交人" :visible? true}}
     :atlas {:image {:label "图片" :visible? true}
             :name {:label "图片名称" :visible? true}
             :category {:label "所属方案类型" :visible? true}
             :tags {:label "适配地区" :visible? true}
-            :sort_order {:label "排序" :visible? true}}
+            :action {:label "操作" :visible? true}}
     {}))
 
 (defn- resource-columns
@@ -1493,16 +2185,19 @@
                 :render (fn [_ record]
                           (let [row (js->clj record :keywordize-keys true)]
                             (r/as-element
-                             [action-menu
-                              {:on-edit #(open-editor! row)
-                               :on-delete #(delete! row)
-                               :more-items [{:key :view :label "查看"
-                                             :on-click #(open-view! row)}]}])))}]
+                             [antd/space {:size 4}
+                              [antd/button {:type "link" :size "small" :on-click #(open-view! row)} "查看"]
+                              [antd/button {:type "link" :size "small" :on-click #(open-editor! row)} "编辑"]
+                              (when (= kind :case)
+                                [antd/button {:type "link" :size "small" :on-click #(open-view! row)} "预览"])
+                              [antd/button {:type "link" :danger true :size "small" :on-click #(delete! row)} "删除"]])))}]
     (clj->js
      (conj
-      (filterv some?
-               (case kind
-                 :standard [(when (get-in columns-config [:code :visible?])
+      (into [{:title "序号" :key "index" :width 70
+              :render (fn [_ _ idx] (inc idx))}]
+            (filterv some?
+                     (case kind
+                       :standard [(when (get-in columns-config [:code :visible?])
                               {:title "规范编码" :dataIndex "code" :key "code"})
                             (when (get-in columns-config [:name :visible?])
                               {:title "规范名称" :dataIndex "name" :key "name"})
@@ -1521,41 +2216,43 @@
                              (when (get-in columns-config [:create_time :visible?])
                                {:title "创建时间" :dataIndex "create_time" :key "create_time"})]
                  :structured-kb [(when (get-in columns-config [:name :visible?])
-                                   {:title "知识名称" :dataIndex "name" :key "name"})
+                                   {:title "救援程序名称" :dataIndex "name" :key "name"})
+                                 (when (get-in columns-config [:content :visible?])
+                                   {:title "救援程序内容" :dataIndex "content" :key "content"})
                                  (when (get-in columns-config [:category :visible?])
-                                   {:title "知识分类" :dataIndex "category" :key "category"})
-                                 (when (get-in columns-config [:structured_fields :visible?])
-                                   {:title "属性字段" :dataIndex "structured_fields" :key "structured_fields"})
-                                 (when (get-in columns-config [:status :visible?])
-                                   {:title "状态" :dataIndex "status" :key "status" :width 100
-                                    :render (fn [v _]
-                                              (r/as-element
-                                               [status-tag {:value v
-                                                            :options {"0" {:label "正常" :color "green"}
-                                                                      "1" {:label "停用" :color "red"}}}]))})
+                                   {:title "适用方案类型" :dataIndex "category" :key "category"})
+                                 (when (get-in columns-config [:province :visible?])
+                                   {:title "所属省份" :dataIndex "province" :key "province"})
                                  (when (get-in columns-config [:create_time :visible?])
                                    {:title "创建时间" :dataIndex "create_time" :key "create_time"})]
                  :case [(when (get-in columns-config [:name :visible?])
-                          {:title "案例名称" :dataIndex "name" :key "name"})
-                        (when (get-in columns-config [:category :visible?])
-                          {:title "案例分类" :dataIndex "category" :key "category"})
+                          {:title "方案名称" :dataIndex "name" :key "name" :width 320})
                         (when (get-in columns-config [:related_project_name :visible?])
-                          {:title "项目名称" :dataIndex "related_project_name" :key "related_project_name"})
-                        (when (get-in columns-config [:summary :visible?])
-                          {:title "案例简介" :dataIndex "summary" :key "summary"})
-                        (when (get-in columns-config [:create_time :visible?])
-                          {:title "创建时间" :dataIndex "create_time" :key "create_time"})]
+                          {:title "项目名称" :dataIndex "related_project_name" :key "related_project_name" :width 280})
+                        (when (get-in columns-config [:category :visible?])
+                          {:title "方案类型" :dataIndex "category" :key "category"})
+                        (when (get-in columns-config [:case_level :visible?])
+                          {:title "方案级别" :dataIndex "case_level" :key "case_level"})
+                        (when (get-in columns-config [:engineering_nature :visible?])
+                          {:title "工程性质" :dataIndex "engineering_nature" :key "engineering_nature"})
+                        (when (get-in columns-config [:engineering_industry :visible?])
+                          {:title "工程业态" :dataIndex "engineering_industry" :key "engineering_industry"})
+                        (when (get-in columns-config [:province :visible?])
+                          {:title "项目所在地" :dataIndex "province" :key "province"})
+                        (when (get-in columns-config [:approval_time :visible?])
+                          {:title "审批通过时间" :dataIndex "approval_time" :key "approval_time"})
+                        (when (get-in columns-config [:submitter :visible?])
+                          {:title "提交人" :dataIndex "submitter" :key "submitter"
+                           :render (fn [v _] (or v "开发者1"))})]
                  :atlas [(when (get-in columns-config [:image :visible?])
                            {:title "图片" :key "image" :width 80 :render (fn [] (r/as-element [:> PictureOutlined {:style {:fontSize 20 :color "var(--ant-color-primary, #1677ff)"}}]))})
                          (when (get-in columns-config [:name :visible?])
                            {:title "图片名称" :dataIndex "name" :key "name"})
                          (when (get-in columns-config [:category :visible?])
                            {:title "所属方案类型" :dataIndex "category" :key "category"})
-                         (when (get-in columns-config [:tags :visible?])
-                           {:title "适配地区" :dataIndex "tags" :key "tags"})
-                         (when (get-in columns-config [:sort_order :visible?])
-                           {:title "排序" :dataIndex "sort_order" :key "sort_order"})]
-                 []))
+                       (when (get-in columns-config [:tags :visible?])
+                         {:title "适配地区" :dataIndex "tags" :key "tags"})]
+                       [])))
       action))))
 
 (defn- gallery-grid
@@ -1574,14 +2271,91 @@
        [:div {:style {:fontSize 12}} (:image_title g)]
        (when (= "Y" (:is_cover g)) [antd/tag {:color "blue"} "封面"])])]])
 
+(defn- atlas-batch-form
+  [{:keys [files set-files! readonly?]}]
+  [:div
+   (if readonly?
+     [:div.biz-atlas-upload
+      [:div.biz-atlas-upload-icon "▰"]
+      [:div "图片附件"]
+      [:div {:style {:fontSize 12}} "文件类型：JPG、JPEG、PNG"]]
+     [antd/upload {:showUploadList false
+                   :multiple true
+                   :beforeUpload (fn [file]
+                                   (set-files! (conj (vec files) file))
+                                   false)}
+      [:div.biz-atlas-upload
+       [:div.biz-atlas-upload-icon "▰"]
+       [:div "点击或将文件拖拽至框内上传"]
+       [:div {:style {:fontSize 12}} "文件类型：JPG、JPEG、PNG"]]])
+   [:table.biz-atlas-detail-table
+    [:thead
+     [:tr
+      [:th {:style {:width 70}} "序号"]
+      [:th {:style {:width 100}} "图片"]
+      [:th "图片名称"]
+      [:th "所属方案类型"]
+      [:th "适配地区"]
+      [:th {:style {:width 90}} "操作"]]]
+    (into
+     [:tbody]
+     (if (seq files)
+       (for [[idx file] (map-indexed vector files)]
+         ^{:key idx}
+         [:tr
+          [:td (inc idx)]
+          [:td [:> PictureOutlined {:style {:fontSize 22 :color "#0091ff"}}]]
+          [:td (file-name file)]
+          [:td
+           [antd/select {:placeholder "请选择"
+                         :style {:width 160}
+                         :disabled readonly?}
+            (for [option (resource-options :atlas :category)]
+              ^{:key option} [antd/select-option {:value option} option])]]
+          [:td
+           [antd/select {:placeholder "请选择"
+                         :style {:width 140}
+                         :disabled readonly?}
+            (for [option (:province resource-select-options)]
+              ^{:key option} [antd/select-option {:value option} option])]]
+          [:td
+           (when-not readonly?
+             [antd/button {:type "link"
+                           :danger true
+                           :size "small"
+                           :on-click #(set-files! (vec (concat (subvec (vec files) 0 idx)
+                                                               (subvec (vec files) (inc idx)))))}
+              "删除"])]])
+       [[:tr
+         [:td {:colSpan 6}
+          [:div.biz-atlas-empty "暂无数据"]]]]))]])
+
 (defn- resource-modal-width
   [kind]
   (case kind
     :standard 520
-    :case 560
-    :vector-kb 1120
-    :atlas 1120
+    :case 600
+    :vector-kb "50vw"
+    :atlas "50vw"
     760))
+
+(defn- resource-modal-title
+  [kind viewing? editing title]
+  (cond
+    viewing? (str "查看" title)
+    (= kind :atlas) (if (:id editing) "编辑图集" "批量新增图集")
+    (= kind :case) (if (:id editing) "编辑案例" "新增案例")
+    (= kind :vector-kb) (if (:id editing) "编辑资源" "批量新增资源")
+    (:id editing) (str "编辑" title)
+    :else (str "新增" title)))
+
+(defn- resource-drawer-kind?
+  [kind]
+  (contains? #{:vector-kb :atlas} kind))
+
+(defn- resource-has-secondary?
+  [kind]
+  (contains? #{:standard :vector-kb :structured-kb} kind))
 
 (defn- resource-form-field*
   [kind form gallery pending-files set-pending-files! attachments delete-attachment! readonly? [k label field-type]]
@@ -1593,15 +2367,22 @@
       :upload [full-row
                [form-item label
                 [:div
-                 [attachment-list {:attachments attachments
-                                   :readonly? readonly?
-                                   :on-delete delete-attachment!}]
-                 (when-not readonly?
-                   [:div {:style {:marginTop 8}}
+                 (if (resource-drawer-kind? kind)
+                   [:div.biz-resource-upload-wide
                     [pending-upload-box {:files pending-files
                                          :set-files! set-pending-files!
-                                         :readonly? false
-                                         :text upload-text}]])]]]
+                                         :readonly? readonly?
+                                         :text upload-text}]]
+                   [:<>
+                    [attachment-list {:attachments attachments
+                                      :readonly? readonly?
+                                      :on-delete delete-attachment!}]
+                    (when-not readonly?
+                      [:div {:style {:marginTop 8}}
+                       [pending-upload-box {:files pending-files
+                                            :set-files! set-pending-files!
+                                            :readonly? false
+                                            :text upload-text}]])])]]]
       :gallery [full-row
                 [form-item label
                  (if (= kind :atlas) [gallery-grid gallery] [:span])]]
@@ -1612,8 +2393,48 @@
       :status [form-field {:type :status :form form :name k :label label :disabled readonly?}]
       [form-field {:type :input :form form :name k :label label :disabled readonly?}])))
 
+(defn- resource-filter-field
+  [kind query set-query! k label]
+  [business-field label
+   (cond
+     (= k :approval_time)
+     [antd/input {:placeholder "请选择"
+                  :style {:width 180}
+                  :value (value query k)
+                  :on-change #(set-query! (assoc query k (target-value %)))}]
+
+     (contains? #{:category :case_level :engineering_nature :engineering_industry :province :tags} k)
+     [solution-filter-select (value query k)
+      "请选择"
+      (case k
+        :category (or (seq (resource-options kind :category)) solution-type-options)
+        :case_level (:case_level resource-select-options)
+        :engineering_nature (:engineering_nature resource-select-options)
+        :engineering_industry (:engineering_industry resource-select-options)
+        :province (:province resource-select-options)
+        :tags (:province resource-select-options)
+        [])
+      #(set-query! (assoc query k %))]
+
+     :else
+     [antd/input {:placeholder (str "请输入" label)
+                  :style {:width 220}
+                  :value (value query k)
+                  :on-change #(set-query! (assoc query k (target-value %)))}])])
+
+(defn- resource-filter-fields
+  [kind]
+  (case kind
+    :vector-kb [[:name "章节名称"] [:category "适用方案类型"] [:tags "适用省份"]]
+    :structured-kb [[:category "适用方案类型"] [:province "所属省份"]]
+    :case [[:category "方案类型"] [:case_level "方案级别"] [:engineering_nature "工程性质"]
+           [:province "项目所在地区"] [:approval_time "审批通过时间"]]
+    :atlas [[:category "方案类型"] [:name "图片名称"] [:tags "地区"]]
+    [[:name "规范名称"] [:category "适用方案类型"]]))
+
 (defn resource-page
   [kind]
+  (use-business-shell!)
   (let [{:keys [type title fields button]} (get resource-config kind)
         [items set-items!] (hooks/use-state [])
         [modal? set-modal!] (hooks/use-state false)
@@ -1623,12 +2444,12 @@
         [gallery set-gallery!] (hooks/use-state [])
         [attachments set-attachments!] (hooks/use-state [])
         [pending-files set-pending-files!] (hooks/use-state [])
-        [show-search? set-show-search!] (hooks/use-state false)
-        [columns-config set-columns-config!] (hooks/use-state (resource-columns-config kind))
+        [query set-query!] (hooks/use-state {})
+        [columns-config _set-columns-config!] (hooks/use-state (resource-columns-config kind))
         [page set-page!] (hooks/use-state 1)
         [page-size set-page-size!] (hooks/use-state 10)
         fetch! (fn []
-                 (api/list-resources type {}
+                 (api/list-resources type query
                                      #(when (ok? %) (set-items! (rows %)))
                                      (fn [_])))]
     (hooks/use-effect (fn [] (fetch!) js/undefined) [type])
@@ -1674,47 +2495,90 @@
                                          (fn [_] (antd/error! "删除失败"))))
           columns (resource-columns kind columns-config open-view! open-editor! delete!)
           total (count items)
-          paginated-items (vec (take page-size (drop (* (dec page) page-size) items)))]
-      [:div
-       [page-search {:visible? show-search?}]
-       [page-toolbar
-        {:left [:div {:style {:display "flex" :gap 8 :alignItems "center"}}
-                [:span {:style {:fontSize 18 :fontWeight 600 :color "var(--ant-color-text, #1f2937)"}} (str "资源管理 - " title)]
-                [antd/button {:type "primary" :size "small" :icon (r/as-element [antd/plus-icon])
-                              :on-click #(do (set-editing! nil)
-                                             (set-viewing! false)
-                                             (set-gallery! [])
-                                             (set-attachments! [])
-                                             (set-pending-files! [])
-                                             (.resetFields form)
-                                             (.setFieldsValue form #js {:status "0"})
-                                             (set-modal! true))}
-                 (or button "新增")]]
-         :right [right-toolbar {:show-search? show-search?
-                                :columns columns-config
-                                :on-toggle-search #(set-show-search! (not show-search?))
-                                :on-refresh #(do (set-page! 1) (fetch!))
-                                :on-toggle-column #(set-columns-config!
-                                                    (update-in columns-config [% :visible?] not))}]}]
-       [antd/table {:rowKey "id"
-                    :columns columns
-                    :dataSource (clj->js paginated-items)
-                    :scroll #js {:x "max-content"}
-                    :pagination false}]
-       (when (> total page-size)
-         [:div {:style {:display "flex" :justifyContent "flex-end" :marginTop 12}}
-          [pagination {:page page
-                       :page-size page-size
-                       :total total
-                       :on-change (fn [p s]
-                                    (set-page! p)
-                                    (set-page-size! s))}]])
+          paginated-items (mapv hydrate-resource (take page-size (drop (* (dec page) page-size) items)))]
+      [:div.biz-page
+       [business-shell-styles]
+       [business-top-nav :resource]
+       [:div.biz-resource-layout {:style {:gridTemplateColumns (if (resource-has-secondary? kind)
+                                                                 "190px 210px 1fr"
+                                                                 "190px 1fr")}}
+        [:aside.biz-resource-primary-side
+         (for [{nav-kind :kind label :label path :path icon :icon children :children} resource-nav]
+           ^{:key (name nav-kind)}
+           [:div
+            [:a.biz-resource-menu-item {:href path
+                                        :class (when (or (= nav-kind kind)
+                                                         (some #(= (:kind %) kind) children))
+                                                 "active")}
+             icon label]
+            (when (seq children)
+              [:div
+               (for [{child-kind :kind child-label :label child-path :path} children]
+                 ^{:key (name child-kind)}
+                 [:a.biz-resource-menu-item {:href child-path
+                                             :class (when (= child-kind kind) "active")
+                                             :style {:height 40 :paddingLeft 48 :fontSize 13 :borderLeftWidth 4}}
+                  child-label])])])]
+        (when (resource-has-secondary? kind)
+          [:aside.biz-resource-secondary-side
+           [:div.biz-resource-type-title
+            (case kind
+              :standard "规范库类型"
+              :vector-kb "知识类型"
+              :structured-kb "知识类型"
+              "资源类型")]
+           [:div.biz-resource-type-search
+            [antd/input {:placeholder "搜索关键字"}]]
+           [:div
+            (for [[idx category] (map-indexed vector (get resource-categories kind []))]
+              ^{:key category}
+              [:div.biz-resource-category {:class (when (zero? idx) "active")}
+               category])]])
+        [:main.biz-resource-main
+         [:div.biz-resource-title title]
+         [:div.biz-resource-body
+          [:div {:style {:display "flex" :alignItems "flex-end" :gap 14 :marginBottom 20 :flexWrap "wrap"}}
+           (for [[field-key label] (resource-filter-fields kind)]
+             ^{:key (name field-key)}
+             [resource-filter-field kind query set-query! field-key label])
+           [business-primary-button {:icon (r/as-element [antd/search-icon])
+                                     :on-click #(do (set-page! 1) (fetch!))}
+            "查询"]
+           [business-soft-button {:on-click #(do (set-query! {})
+                                                 (api/list-resources type {}
+                                                                     (fn [result] (when (ok? result) (set-items! (rows result))))
+                                                                     (fn [_])))}
+            "重置"]
+           [business-primary-button {:icon (r/as-element [antd/plus-icon])
+                                     :on-click #(do (set-editing! nil)
+                                                    (set-viewing! false)
+                                                    (set-gallery! [])
+                                                    (set-attachments! [])
+                                                    (set-pending-files! [])
+                                                    (.resetFields form)
+                                                    (.setFieldsValue form #js {:status "0"})
+                                                    (set-modal! true))}
+            (or button "新增")]]
+          [:div.biz-table-panel
+           [antd/table {:rowKey "id"
+                        :columns columns
+                        :dataSource (clj->js paginated-items)
+                        :scroll #js {:x "max-content"}
+                        :pagination false}]]
+          (when (> total page-size)
+            [:div {:style {:display "flex" :justifyContent "flex-end" :marginTop 12}}
+             [pagination {:page page
+                          :page-size page-size
+                          :total total
+                          :on-change (fn [p s]
+                                       (set-page! p)
+                                       (set-page-size! s))}]])]]]
        [antd/modal (merge (modal-size (resource-modal-width kind))
-                          (cond-> {:open modal? :title (cond
-                                                         viewing? (str "查看" title)
-                                                         (:id editing) (str "编辑" title)
-                                                         :else (str "新增" title))
-                                   :okText "保存" :cancelText "取消"
+                          (cond-> {:open modal?
+                                   :className (str "biz-modal" (when (resource-drawer-kind? kind) " biz-resource-drawer-modal"))
+                                   :title (resource-modal-title kind viewing? editing title)
+                                   :okText (if (= kind :atlas) "批量保存" "确定")
+                                   :cancelText "取消"
                                    :destroyOnHidden true
                                    :on-cancel #(set-modal! false)
                                    :on-ok #(when-not viewing? (.submit form))}
@@ -1753,8 +2617,350 @@
                                                           (fn [result]
                                                             (handle-result! result nil (fn [saved] (upload-after-save! (result-id saved))) "保存失败"))
                                                           (fn [_] (antd/error! "保存失败"))))))}
-         (into [resource-form-grid kind]
-               (map (fn [field]
-                      ^{:key (name (first field))}
-                      [resource-form-field* kind form gallery pending-files set-pending-files! attachments delete-attachment! viewing? field])
-                    fields))]]])))
+         (if (= kind :atlas)
+           [atlas-batch-form {:files pending-files
+                              :set-files! set-pending-files!
+                              :readonly? viewing?}]
+           (into [resource-form-grid kind]
+                 (map (fn [field]
+                        ^{:key (name (first field))}
+                        [resource-form-field* kind form gallery pending-files set-pending-files! attachments delete-attachment! viewing? field])
+                      fields)))]]])))
+
+;; ========== 方案生成进度面板 ==========
+
+(defn- progress-status-label
+  "章节状态文字。"
+  [status]
+  (case status
+    -1 "等待生成"
+    0 "生成中"
+    1 "已完成"
+    2 "生成失败"
+    "未知"))
+
+(defn- progress-status-color
+  "章节状态颜色。"
+  [status]
+  (case status
+    -1 "default"
+    0 "processing"
+    1 "success"
+    2 "error"
+    "default"))
+
+(defn progress-panel
+  "方案生成进度面板。"
+  [{:keys [solution-id on-close]}]
+  (let [[status-data set-status-data!] (hooks/use-state nil)
+        [polling? set-polling!] (hooks/use-state false)
+        poll-ref (hooks/use-ref nil)]
+    (hooks/use-effect
+     (fn []
+       (let [fetch-status! (fn []
+                              (api/get-generate-status
+                               solution-id
+                               (fn [result]
+                                 (when (ok? result)
+                                   (set-status-data! (:data result))
+                                   (when (contains? #{"generating"} (get-in result [:data :status]))
+                                     (set-polling! true))
+                                   (when (contains? #{"complete" "failed"} (get-in result [:data :status]))
+                                     (set-polling! false))))
+                               (fn [_] nil)))]
+         (fetch-status!)
+         (fn []
+           (when-let [interval-id (.-current poll-ref)]
+             (js/clearInterval interval-id)))))
+     [solution-id])
+    (hooks/use-effect
+     (fn []
+       (if polling?
+        (let [interval-id (atom nil)
+              id (js/setInterval
+                  (fn []
+                    (api/get-generate-status
+                     solution-id
+                     (fn [result]
+                       (when (ok? result)
+                         (set-status-data! (:data result))
+                         (when (contains? #{"complete" "failed"} (get-in result [:data :status]))
+                           (set-polling! false)
+                           (when @interval-id
+                             (js/clearInterval @interval-id)))))
+                     (fn [_] nil)))
+                  3000)]
+          (reset! interval-id id)
+          (set! (.-current poll-ref) id)
+          (fn [] (js/clearInterval id)))
+        js/undefined))
+     [polling? solution-id])
+    (let [data status-data
+          chapters (or (:chapters data) [])
+          total (count chapters)
+          completed (count (filter #(= 1 (:status %)) chapters))
+          progress (if (pos? total) (js/Math.round (* 100 (/ completed total))) 0)]
+      [:div
+       [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center" :marginBottom 16}}
+        [:h3 {:style {:margin 0}} "方案生成进度"]
+        (when on-close [antd/button {:type "link" :on-click on-close} "关闭"])]
+       (when data
+         [:div
+          [:div {:style {:marginBottom 16}}
+           [antd/tag {:color (case (:status data) "complete" "success" "failed" "error" "processing")}
+            (case (:status data) "generating" "生成中" "complete" "已完成" "failed" "生成失败" (:status data))]
+           [:span {:style {:marginLeft 8}} "总进度: " progress "%"]]
+          [antd/progress {:percent progress :status (if (= "failed" (:status data)) "exception" "active")}]
+          (when (seq chapters)
+            [:div {:style {:marginTop 16}}
+             [:h4 "章节进度"]
+             (for [ch chapters]
+               ^{:key (:id ch)}
+               [:div {:style {:display "flex" :alignItems "center" :gap 8 :padding "6px 0" :borderBottom "1px solid #f0f0f0"}}
+                [antd/tag {:color (progress-status-color (:status ch)) :style {:minWidth 70 :textAlign "center"}}
+                 (progress-status-label (:status ch))]
+                [:span {:style {:flex 1}} (:chapter_name ch)]
+                (when (:error_msg ch)
+                  [:span {:style {:color "#ff4d4f" :fontSize 12}} (:error_msg ch)])])])])])))
+
+;; ========== AI对话面板 ==========
+
+(defn chat-panel
+  "方案AI问答对话面板。"
+  [{:keys [solution-id]}]
+  (let [[session set-session!] (hooks/use-state nil)
+        [messages set-messages!] (hooks/use-state [])
+        [input-text set-input-text!] (hooks/use-state "")
+        [sending? set-sending!] (hooks/use-state false)
+        messages-end-ref (hooks/use-ref nil)]
+    (hooks/use-effect
+     (fn []
+       (api/get-or-create-chat-session
+        solution-id
+        (fn [result]
+          (when (ok? result)
+            (let [sess (:data result)]
+              (set-session! sess)
+              (api/list-chat-messages
+               (:id sess)
+               (fn [msg-result]
+                 (when (ok? msg-result)
+                   (set-messages! (:data msg-result))))
+               (fn [_] nil)))))
+        (fn [_] nil)))
+     [solution-id])
+    (let [scroll-to-bottom! (fn []
+                              (when-let [el (.-current messages-end-ref)]
+                                (.-scrollIntoView el)))]
+      (hooks/use-effect (fn [] (scroll-to-bottom!) js/undefined) [(count messages)])
+      [:div {:style {:display "flex" :flexDirection "column" :height "100%"}}
+       [:div {:style {:flex 1 :overflowY "auto" :padding "16px" :display "grid" :gap 12}}
+        (if (empty? messages)
+          [:div {:style {:textAlign "center" :color "#8c8c8c" :padding 40}} "暂无对话记录，输入问题开始问答"]
+          (for [msg messages]
+            ^{:key (:id msg)}
+            [:div {:style {:display "flex" :justifyContent (if (= "user" (:role msg)) "flex-end" "flex-start")}}
+             [:div {:style {:maxWidth "80%"
+                            :padding "10px 14px"
+                            :borderRadius 8
+                            :background (if (= "user" (:role msg)) "#1677ff" "#f5f5f5")
+                            :color (if (= "user" (:role msg)) "#fff" "#333")}}
+              [:div {:style {:whiteSpace "pre-wrap" :fontSize 14}} (:content msg)]
+              (when (seq (:reasoning_content msg))
+                [:div {:style {:marginTop 6 :paddingTop 6 :borderTop "1px dashed rgba(0,0,0,0.1)"
+                               :fontSize 12 :opacity 0.7 :whiteSpace "pre-wrap"}}
+                 "思考过程: " (:reasoning_content msg)])]]))
+        [:div {:ref messages-end-ref}]]
+       [:div {:style {:borderTop "1px solid #f0f0f0" :padding "12px 16px" :display "flex" :gap 8}}
+        [antd/input {:value input-text
+                     :placeholder "请输入问题..."
+                     :on-change #(set-input-text! (target-value %))
+                     :on-press-enter (fn [e]
+                                       (when (and (seq input-text) (not sending?) session)
+                                         (let [user-msg {:role "user" :content input-text :id (str "temp-" (js/Date.now))}]
+                                           (set-messages! (conj messages user-msg))
+                                           (set-input-text! "")
+                                           (set-sending! true)
+                                           (api/save-chat-message
+                                            (:id session)
+                                            {:role "user" :content input-text}
+                                            (fn [_]
+                                              (api/save-chat-message
+                                               (:id session)
+                                               {:role "assistant" :content "收到您的问题，正在思考中...AI生成功能开发中，敬请期待。" :model_name "deepseek-r1"}
+                                               (fn [result]
+                                                 (set-sending! false)
+                                                 (when (ok? result)
+                                                   (api/list-chat-messages
+                                                    (:id session)
+                                                    (fn [r] (when (ok? r) (set-messages! (:data r))))
+                                                    (fn [_] nil))))
+                                               (fn [_] (set-sending! false))))
+                                            (fn [_] (set-sending! false))))))}]
+        [antd/button {:type "primary"
+                      :disabled (or (str/blank? input-text) sending?)}
+         (if sending? "发送中..." "发送")]]])))
+
+;; ========== 方案文件版本面板 ==========
+
+(defn solution-files-panel
+  "方案文件版本管理面板。"
+  [{:keys [solution-id]}]
+  (let [[files set-files!] (hooks/use-state [])
+        [loading? set-loading!] (hooks/use-state false)]
+    (hooks/use-effect
+     (fn []
+       (set-loading! true)
+       (api/list-solution-files
+        solution-id
+        (fn [result]
+          (set-loading! false)
+          (when (ok? result) (set-files! (:data result))))
+        (fn [_] (set-loading! false))))
+     [solution-id])
+    [:div
+     [:h4 "方案文件版本"]
+     [antd/table {:loading loading?
+                  :rowKey "id"
+                  :dataSource (clj->js files)
+                  :pagination false
+                  :columns (clj->js
+                            [{:title "版本" :dataIndex "version" :key "version" :width 80
+                              :render (fn [v _] (str "V" v))}
+                             {:title "文件名" :dataIndex "file_name" :key "file_name"}
+                             {:title "大小" :dataIndex "file_size" :key "file_size"
+                              :render (fn [v _] (if (and v (pos? v)) (str (js/Math.round (/ v 1024)) " KB") "-"))}
+                             {:title "创建时间" :dataIndex "create_time" :key "create_time"
+                              :render (fn [v _] (short-date v))}
+                             {:title "操作" :key "action" :width 100
+                              :render (fn [_ record]
+                                        (let [row (js->clj record :keywordize-keys true)]
+                                          (r/as-element
+                                           [antd/button {:type "link" :size "small"
+                                                         :on-click #(api/download-solution-file solution-id (:id row))} "下载"])))}])}]]))
+
+;; ========== 方案导出面板 ==========
+
+(defn solution-export-panel
+  "方案导出功能面板。"
+  [{:keys [solution-id solution-name]}]
+  (let [[exporting? set-exporting!] (hooks/use-state false)
+        handle-export! (fn []
+                         (set-exporting! true)
+                         (api/export-solution-html
+                          solution-id
+                          (fn [result]
+                            (set-exporting! false)
+                            (if (ok? result)
+                              (let [html (get-in result [:data :html])
+                                    blob (js/Blob. #js [html] #js {:type "text/html;charset=utf-8"})
+                                    url (js/URL.createObjectURL blob)
+                                    a (.createElement js/document "a")]
+                                (set! (.-href a) url)
+                                (set! (.-download a) (str (or solution-name "方案") ".html"))
+                                (.click a)
+                                (js/URL.revokeObjectURL url)
+                                (antd/success! "导出成功"))
+                              (antd/error! "导出失败")))
+                          (fn [_]
+                            (set-exporting! false)
+                            (antd/error! "导出失败"))))]
+    [:div {:style {:display "flex" :gap 8}}
+     [antd/button {:type "primary" :loading exporting? :on-click handle-export!} "导出HTML"]]))
+
+;; ========== 知识库搜索面板 ==========
+
+(defn knowledge-search-panel
+  "知识库全文搜索面板。"
+  []
+  (let [[keyword set-keyword!] (hooks/use-state "")
+        [results set-results!] (hooks/use-state [])
+        [loading? set-loading!] (hooks/use-state false)
+        do-search! (fn []
+                     (when (seq keyword)
+                       (set-loading! true)
+                       (api/search-knowledge
+                        keyword
+                        (fn [result]
+                          (set-loading! false)
+                          (when (ok? result) (set-results! (rows result))))
+                        (fn [_] (set-loading! false)))))]
+    [:div
+     [:div {:style {:display "flex" :gap 8 :marginBottom 16}}
+      [antd/input {:value keyword
+                   :placeholder "搜索知识库..."
+                   :on-change #(set-keyword! (target-value %))
+                   :on-press-enter do-search!}]
+      [antd/button {:type "primary" :loading loading? :on-click do-search!} "搜索"]]
+     (when (seq results)
+       [:div
+        [:div {:style {:marginBottom 8 :color "#666"}} (str "找到 " (count results) " 条结果")]
+        (for [item results]
+          ^{:key (:id item)}
+          [antd/card {:size "small" :style {:marginBottom 8}}
+           [:div {:style {:fontWeight 600}} (:name item)]
+           (when (:category item) [:div {:style {:color "#666" :fontSize 12}} (:category item)])
+           (when (:content item)
+             [:div {:style {:marginTop 8 :fontSize 13 :color "#333" :maxHeight 100 :overflow "hidden"}}
+              (subs (:content item) 0 (min 200 (count (:content item))))])])])]))
+
+;; ========== 资源关联管理面板 ==========
+
+(defn resource-relations-panel
+  "资源关联管理面板，管理方案类型和省份关联。"
+  [{:keys [resource-type resource-id]}]
+  (let [[relations set-relations!] (hooks/use-state [])
+        [loading? set-loading!] (hooks/use-state false)
+        [add-type set-add-type!] (hooks/use-state "scheme_type")
+        [add-value set-add-value!] (hooks/use-state "")
+        fetch! (fn []
+                 (set-loading! true)
+                 (api/list-resource-relations
+                  resource-type resource-id
+                  (fn [result]
+                    (set-loading! false)
+                    (when (ok? result) (set-relations! (:data result))))
+                  (fn [_] (set-loading! false))))]
+    (hooks/use-effect (fn [] (when resource-id (fetch!)) js/undefined) [resource-id])
+    (let [add-relation! (fn []
+                          (when (seq add-value)
+                            (let [new-relations (conj relations {:route_type add-type :route_value add-value})]
+                              (api/save-resource-relations
+                               resource-type resource-id new-relations
+                               (fn [result]
+                                 (when (ok? result)
+                                   (set-relations! new-relations)
+                                   (set-add-value! "")
+                                   (antd/success! "关联已保存")))
+                               (fn [_] (antd/error! "保存失败"))))))]
+      [:div
+       [:h4 "资源关联"]
+       [antd/table {:loading loading? :rowKey #(str (:route_type %) "-" (:route_value %))
+                    :dataSource (clj->js relations) :pagination false :size "small"
+                    :columns (clj->js
+                              [{:title "关联类型" :dataIndex "route_type" :key "route_type"
+                                :render (fn [v _] (if (= "scheme_type" v) "方案类型" "省份"))}
+                               {:title "关联值" :dataIndex "route_value" :key "route_value"}
+                               {:title "操作" :key "action" :width 80
+                                :render (fn [_ record]
+                                          (let [row (js->clj record :keywordize-keys true)]
+                                            (r/as-element
+                                             [antd/button {:type "link" :danger true :size "small"
+                                                           :on-click (fn []
+                                                                       (let [filtered (vec (remove #(and (= (:route_type %) (:route_type row))
+                                                                                                         (= (:route_value %) (:route_value row)))
+                                                                                                   relations))]
+                                                                         (api/save-resource-relations
+                                                                          resource-type resource-id filtered
+                                                                          (fn [result]
+                                                                            (when (ok? result) (set-relations! filtered)))
+                                                                          (fn [_] (antd/error! "删除失败")))))} "删除"])))}])}]
+       [:div {:style {:display "flex" :gap 8 :marginTop 8}}
+        [antd/select {:value add-type :style {:width 120}
+                      :on-change #(set-add-type! %)}
+         [antd/select-option {:value "scheme_type"} "方案类型"]
+         [antd/select-option {:value "region"} "省份"]]
+        [antd/input {:value add-value :placeholder "输入关联值" :style {:flex 1}
+                     :on-change #(set-add-value! (target-value %))
+                     :on-press-enter add-relation!}]
+        [antd/button {:type "primary" :on-click add-relation!} "添加"]]])))

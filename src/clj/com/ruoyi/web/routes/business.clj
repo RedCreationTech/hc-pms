@@ -22,6 +22,8 @@
                   [:project_name {:optional true} :string]
                   [:project_code {:optional true} :string]
                   [:solution_name {:optional true} :string]
+                  [:solution_type {:optional true} :string]
+                  [:solution_level {:optional true} :string]
                   [:engineering_name {:optional true} :string]
                   [:engineering_code {:optional true} :string]
                   [:engineering_id {:optional true} :int]
@@ -77,6 +79,10 @@
                    [:project_id {:optional true} [:maybe :int]]
                    [:engineering_name {:optional true} :string]
                    [:project_name {:optional true} :string]
+                   [:solution_type {:optional true} :string]
+                   [:solution_level {:optional true} :string]
+                   [:current_version {:optional true} :int]
+                   [:recommend_scene {:optional true} :string]
                    [:status {:optional true} :string]
                    [:progress {:optional true} :int]
                    [:remark {:optional true} :string]])
@@ -87,6 +93,15 @@
                   [:content {:optional true} :string]
                   [:sort_order {:optional true} :int]
                   [:remark {:optional true} :string]])
+
+(def GenerationResourceBody [:map
+                             [:schemeType {:optional true} :string]
+                             [:scheme_type {:optional true} :string]
+                             [:region {:optional true} :string]
+                             [:chapterName {:optional true} :string]
+                             [:chapter_name {:optional true} :string]
+                             [:resourceTable {:optional true} :string]
+                             [:resource_table {:optional true} :string]])
 
 (def ResourceBody [:map
                    [:name :string]
@@ -149,11 +164,41 @@
    ["/solution"
     ["" {:get {:summary "方案列表" :parameters {:query PagingQuery} :handler (partial biz/list-solutions {:business-service business-service})}
          :post {:summary "创建方案" :parameters {:body SolutionBody} :handler (partial biz/create-solution {:business-service business-service})}}]
+    ["/generating" {:get {:summary "检查是否有生成中方案"
+                          :handler (partial biz/check-generating {:business-service business-service})}}]
+    ["/expire-check" {:post {:summary "检测并标记超时方案为失败"
+                             :handler (partial biz/fail-expired-solutions {:business-service business-service})}}]
     ["/:id" {:get {:summary "方案详情" :parameters {:path PathId} :handler (partial biz/get-solution {:business-service business-service})}
              :put {:summary "更新方案" :parameters {:path PathId :body SolutionBody} :handler (partial biz/update-solution {:business-service business-service})}
              :delete {:summary "逻辑删除方案" :parameters {:path PathId} :handler (partial biz/delete-solution {:business-service business-service})}}]
+    ["/:id/generate" {:post {:summary "触发方案AI生成"
+                             :parameters {:path PathId}
+                             :handler (partial biz/generate-solution {:business-service business-service})}}]
+    ["/:id/generate-status" {:get {:summary "查询方案生成进度"
+                                   :parameters {:path PathId}
+                                   :handler (partial biz/get-generate-status {:business-service business-service})}}]
     ["/:id/sections/:section-key" {:get {:summary "方案章节详情" :parameters {:path SectionPath} :handler (partial biz/get-solution-section {:business-service business-service})}
-                                   :put {:summary "保存方案章节" :parameters {:path SectionPath :body SectionBody} :handler (partial biz/save-solution-section {:business-service business-service})}}]]
+                                   :put {:summary "保存方案章节" :parameters {:path SectionPath :body SectionBody} :handler (partial biz/save-solution-section {:business-service business-service})}}]
+    ["/:id/chat/session" {:get {:summary "获取或创建AI对话会话"
+                                :parameters {:path PathId}
+                                :handler (partial biz/get-or-create-chat-session {:business-service business-service})}}]
+    ["/:id/files" ["" {:get {:summary "查询方案文件版本" :parameters {:path PathId} :handler (partial biz/list-solution-files {:business-service business-service})}
+                       :post {:summary "创建方案文件版本" :parameters {:path PathId} :handler (partial biz/create-solution-file {:business-service business-service})}}]
+                 ["/:file-id/download" {:get {:summary "下载方案文件"
+                                             :parameters {:path [:map [:id [:re #"\d+"]] [:file-id [:re #"\d+"]]]}
+                                             :handler (partial biz/download-solution-file {:business-service business-service})}}]]
+    ["/:id/export" {:get {:summary "导出方案HTML"
+                          :parameters {:path PathId}
+                          :handler (partial biz/export-solution-html {:business-service business-service})}}]
+    ["/resource" {:post {:summary "获取生成资源"
+                          :parameters {:body GenerationResourceBody}
+                          :handler (partial biz/get-generation-resource {:business-service business-service})}}]
+    ["/resource-chapter" {:post {:summary "获取章节生成资源"
+                                  :parameters {:body GenerationResourceBody}
+                                  :handler (partial biz/get-resource-chapter {:business-service business-service})}}]]
+
+   ["/resource/match" {:get {:summary "根据方案类型/省份检索资源"
+                             :handler (partial biz/find-resources-by-route {:business-service business-service})}}]
 
    ["/resource/:type"
     ["" {:get {:summary "资源列表" :parameters {:path ResourcePath :query PagingQuery} :handler (partial biz/list-resources {:business-service business-service})}
@@ -171,4 +216,21 @@
     ["" {:get {:summary "附件列表" :parameters {:query AttachmentQuery} :handler (partial biz/list-attachments {:business-service business-service})}
          :post {:summary "上传附件" :handler (partial biz/upload-attachment {:business-service business-service})}}]
     ["/:id" {:delete {:summary "逻辑删除附件" :parameters {:path PathId} :handler (partial biz/delete-attachment {:business-service business-service})}}]
-    ["/:id/download" {:get {:summary "下载附件" :parameters {:path PathId} :handler (partial biz/download-attachment {:business-service business-service})}}]]])
+    ["/:id/download" {:get {:summary "下载附件" :parameters {:path PathId} :handler (partial biz/download-attachment {:business-service business-service})}}]]
+
+   ;; ========== 资源关联 ==========
+   ["/resource/:type/:id/relations"
+    ["" {:get {:summary "查询资源关联" :parameters {:path ResourceIdPath} :handler (partial biz/list-resource-relations {:business-service business-service})}
+         :post {:summary "保存资源关联" :parameters {:path ResourceIdPath} :handler (partial biz/save-resource-relations {:business-service business-service})}}]]
+   ;; ========== 知识库搜索 ==========
+   ["/knowledge/search" {:get {:summary "全文搜索知识库"
+                               :handler (partial biz/search-knowledge {:business-service business-service})}}]
+
+   ;; ========== AI对话 ==========
+   ["/chat/:session-id/messages"
+    ["" {:get {:summary "获取对话消息列表"
+               :parameters {:path [:map [:session-id [:re #"\d+"]]]}
+               :handler (partial biz/list-chat-messages {:business-service business-service})}
+         :post {:summary "保存对话消息"
+                :parameters {:path [:map [:session-id [:re #"\d+"]]]}
+                :handler (partial biz/save-chat-message {:business-service business-service})}}]]])

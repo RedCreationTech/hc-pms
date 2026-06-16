@@ -38,15 +38,19 @@
 
 (defn- form-unit [{:keys [name label rules unit placeholder disabled]}]
   [antd/form-item {:name name :label label :rules rules}
-   [:div {:style {:display "flex"}}
+   [:div {:style {:display "flex" :width "100%"}}
     [antd/input {:placeholder placeholder :disabled disabled
-                 :style {:borderRadius "4px 0 0 4px"}}]
+                 :style {:flex 1
+                         :minWidth 0
+                         :borderRadius "4px 0 0 4px"}}]
     [:span {:style {:height 32
-                    :minWidth 48
+                    :minWidth 64
                     :padding "0 11px"
                     :display "inline-flex"
+                    :flex "0 0 auto"
                     :alignItems "center"
                     :justifyContent "center"
+                    :whiteSpace "nowrap"
                     :border "1px solid var(--ant-color-border, #d9d9d9)"
                     :borderLeft 0
                     :borderRadius "0 4px 4px 0"

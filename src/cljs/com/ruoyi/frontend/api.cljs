@@ -1072,3 +1072,91 @@
        :headers (when-let [token (get-token)] {"Authorization" (str "Bearer " token)})
        :response-format (ajax/json-response-format {:keywords? true})
        :handler (fn [[ok result]] (if ok (on-success result) (on-error result)))})))
+
+;; ========== 方案生成 ==========
+
+(defn generate-solution
+  "触发方案AI生成。"
+  [solution-id on-success on-error]
+  (request {:method :post :uri (str "/business/solution/" solution-id "/generate") :on-success on-success :on-error on-error}))
+
+(defn get-generate-status
+  "查询方案生成进度。"
+  [solution-id on-success on-error]
+  (request {:method :get :uri (str "/business/solution/" solution-id "/generate-status") :on-success on-success :on-error on-error}))
+
+(defn check-generating
+  "检查当前用户是否有正在生成的方案。"
+  [on-success on-error]
+  (request {:method :get :uri "/business/solution/generating" :on-success on-success :on-error on-error}))
+
+(defn expire-check-solutions
+  "检测并标记超时方案为失败。"
+  [on-success on-error]
+  (request {:method :post :uri "/business/solution/expire-check" :on-success on-success :on-error on-error}))
+
+;; ========== 资源关联 ==========
+
+(defn list-resource-relations
+  "查询资源的关联关系。"
+  [resource-type resource-id on-success on-error]
+  (request {:method :get :uri (str "/business/resource/" resource-type "/" resource-id "/relations") :on-success on-success :on-error on-error}))
+
+(defn save-resource-relations
+  "保存资源的关联关系。"
+  [resource-type resource-id relations on-success on-error]
+  (request {:method :post :uri (str "/business/resource/" resource-type "/" resource-id "/relations")
+            :params {:relations relations} :on-success on-success :on-error on-error}))
+
+(defn find-resources-by-route
+  "根据方案类型或省份检索关联资源。"
+  [params on-success on-error]
+  (request {:method :get :uri "/business/resource/match" :params params :on-success on-success :on-error on-error}))
+
+;; ========== 知识库搜索 ==========
+
+(defn search-knowledge
+  "全文搜索知识库。"
+  [keyword on-success on-error]
+  (request {:method :get :uri "/business/knowledge/search" :params {:keyword keyword} :on-success on-success :on-error on-error}))
+
+;; ========== AI对话 ==========
+
+(defn get-or-create-chat-session
+  "获取或创建AI对话会话。"
+  [solution-id on-success on-error]
+  (request {:method :get :uri (str "/business/solution/" solution-id "/chat/session") :on-success on-success :on-error on-error}))
+
+(defn list-chat-messages
+  "获取对话消息列表。"
+  [session-id on-success on-error]
+  (request {:method :get :uri (str "/business/chat/" session-id "/messages") :on-success on-success :on-error on-error}))
+
+(defn save-chat-message
+  "保存对话消息。"
+  [session-id params on-success on-error]
+  (request {:method :post :uri (str "/business/chat/" session-id "/messages") :params params :on-success on-success :on-error on-error}))
+
+;; ========== 方案文件版本 ==========
+
+(defn list-solution-files
+  "查询方案文件版本列表。"
+  [solution-id on-success on-error]
+  (request {:method :get :uri (str "/business/solution/" solution-id "/files") :on-success on-success :on-error on-error}))
+
+(defn create-solution-file
+  "创建方案文件版本记录。"
+  [solution-id params on-success on-error]
+  (request {:method :post :uri (str "/business/solution/" solution-id "/files") :params params :on-success on-success :on-error on-error}))
+
+(defn download-solution-file
+  "下载方案文件。"
+  [solution-id file-id]
+  (js/window.open (str api-base "/business/solution/" solution-id "/files/" file-id "/download") "_blank"))
+
+;; ========== 方案导出 ==========
+
+(defn export-solution-html
+  "导出方案HTML。"
+  [solution-id on-success on-error]
+  (request {:method :get :uri (str "/business/solution/" solution-id "/export") :on-success on-success :on-error on-error}))
