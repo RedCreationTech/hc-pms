@@ -44,8 +44,23 @@
 
 (deftest test-create-role
   (testing "创建角色"
-    (let [result (role/create-role! mock-service {:role_name "新角色" :role_key "new" :menu-ids [1 2]})]
-      (is (some? result)))))
+    (let [captured (atom nil)
+          query-fn (fn [q p]
+                     (case q
+                       :create-role! (do (reset! captured p) nil)
+                       :last-insert-rowid {:last_insert_rowid 3}
+                       :insert-role-menu! nil
+                       []))
+          result (role/create-role! {:query-fn query-fn}
+                                    {:role_name "新角色"
+                                     :role_key "new"
+                                     :menu-ids [1 2]})]
+      (is (= 3 result))
+      (is (= "1" (:data_scope @captured)))
+      (is (= true (:menu_check_strictly @captured)))
+      (is (= true (:dept_check_strictly @captured)))
+      (is (= "0" (:status @captured)))
+      (is (contains? @captured :create_by)))))
 
 (deftest test-update-role
   (testing "更新角色"

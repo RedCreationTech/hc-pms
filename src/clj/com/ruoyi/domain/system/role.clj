@@ -15,10 +15,32 @@
   (when-let [role (query-fn :find-role-by-id {:role_id role-id})]
     (assoc role :menu-ids (mapv :menu_id (query-fn :list-menus-by-role-id {:role_id role-id})))))
 
+(def role-create-defaults
+  "创建角色时的默认字段，避免前端未提交隐藏字段导致 HugSQL 参数缺失。"
+  {:role_sort 0
+   :data_scope "1"
+   :menu_check_strictly true
+   :dept_check_strictly true
+   :status "0"
+   :create_by ""
+   :remark nil})
+
+(defn- apply-create-defaults
+  "补齐创建角色所需参数。必填默认字段为 nil 时也使用默认值，备注允许为空。"
+  [params]
+  (let [params (dissoc params :menu-ids)]
+    (reduce-kv (fn [acc k default-value]
+                 (if (and (contains? acc k)
+                          (or (= k :remark) (some? (get acc k))))
+                   acc
+                   (assoc acc k default-value)))
+               params
+               role-create-defaults)))
+
 (defn create-role!
   "创建角色并绑定菜单权限。"
   [{:keys [query-fn db]} {:keys [menu-ids] :as params}]
-  (let [role-id (db/insert-and-get-id! query-fn db :create-role! (dissoc params :menu-ids))]
+  (let [role-id (db/insert-and-get-id! query-fn db :create-role! (apply-create-defaults params))]
     (doseq [m-id menu-ids]
       (query-fn :insert-role-menu! {:role_id role-id :menu_id m-id}))
     role-id))
