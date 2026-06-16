@@ -1,0 +1,15 @@
+DROP TABLE IF EXISTS biz_gallery_item;
+--;;
+DROP TABLE IF EXISTS biz_attachment;
+--;;
+DROP TABLE IF EXISTS biz_resource;
+--;;
+DROP TABLE IF EXISTS biz_solution_section;
+--;;
+DROP TABLE IF EXISTS biz_solution;
+--;;
+DROP TABLE IF EXISTS biz_subcontract_team;
+--;;
+DROP TABLE IF EXISTS biz_project;
+--;;
+DROP TABLE IF EXISTS biz_engineering;
