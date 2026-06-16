@@ -40,6 +40,8 @@ cp -rf source dest          # NOT: cp -r source dest
 
 后端运行时通过 nREPL 端口 7000 热重载代码，**无需重启进程**：
 
+**修改任何 `.clj` 文件后，必须连接 nREPL 并执行相应 reload 命令让修改在运行中的后端生效。** 常规领域/控制器/服务逻辑优先用 `(user/rd)`，路由或系统结构相关变更按下方规则使用 `(user/rroutes)` / `(user/rr)`。
+
 ```bash
 # 单模块重载（最快，推荐日常开发）
 clj-nrepl-eval -p 7000 '(user/rd)'          # 重载域服务
@@ -488,6 +490,8 @@ open http://localhost:3000
 ### Hot-Reload Workflow
 
 #### Backend (Clojure) — nREPL hot-reload, no restart needed
+
+After editing any `.clj` file, connect to the running nREPL and run the matching reload command so the live backend uses the new code. Prefer `(user/rd)` for normal domain/controller/service changes; use `(user/rroutes)` / `(user/rr)` when routes or system wiring require it.
 
 ```bash
 # After editing .clj files:
