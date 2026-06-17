@@ -16,7 +16,6 @@
    [com.ruoyi.web.controllers.monitor :as monitor]
    [com.ruoyi.web.controllers.system.cache :as cache]
    [com.ruoyi.web.controllers.system.import-export :as im]
-   [com.ruoyi.web.controllers.system.file :as file]
    [com.ruoyi.web.controllers.system.form-template :as form-template]
    [com.ruoyi.web.middleware.auth :as auth-mw]
 
@@ -299,14 +298,4 @@
                         :handler (partial cache/clear-cache {})}}]
     ["/clearCacheName/:cacheName" {:delete {:summary "清除指定缓存" :handler (partial cache/clear-cache-name {})}}]
     ["/clearCacheKey/:cacheName/:cacheKey" {:delete {:summary "清除指定键" :handler (partial cache/clear-cache-key {})}}]
-    ["/clearCacheAll" {:delete {:summary "清除所有缓存" :handler (partial cache/clear-cache-all {})}}]]
-
-   ["/file"
-    ["" {:get {:summary "文件列表" :description "查询上传文件列表"
-               :handler (partial file/list-files {})}
-         :post {:summary "上传文件" :description "上传文件到服务器"
-                :handler (partial file/upload-file {})}}]
-    ["/:filename" {:get {:summary "下载文件" :description "下载指定文件"
-                         :handler (partial file/download-file {})}
-                   :delete {:summary "删除文件" :description "删除指定文件"
-                            :handler (partial file/delete-file {})}}]]])
+    ["/clearCacheAll" {:delete {:summary "清除所有缓存" :handler (partial cache/clear-cache-all {})}}]]])

@@ -139,76 +139,6 @@
             (fn [db _]
               (get-in db [:users :auth-role-ids] [])))
 
-;; ─── 项目管理 ──────────────────────────────────────────────────────
-
-(rf/reg-sub :projects/items
-            (fn [db _]
-              (get-in db [:projects :items])))
-
-(rf/reg-sub :projects/total
-            (fn [db _]
-              (get-in db [:projects :total])))
-
-(rf/reg-sub :projects/loading?
-            (fn [db _]
-              (get-in db [:projects :loading?] false)))
-
-(rf/reg-sub :projects/query-params
-            (fn [db _]
-              (get-in db [:projects :query-params] {})))
-
-(rf/reg-sub :projects/page
-            (fn [db _]
-              (get-in db [:projects :page] 1)))
-
-(rf/reg-sub :projects/page-size
-            (fn [db _]
-              (get-in db [:projects :page-size] 10)))
-
-(rf/reg-sub :projects/selected-ids
-            (fn [db _]
-              (get-in db [:projects :selected-ids] [])))
-
-(rf/reg-sub :projects/selected-empty?
-            (fn [db _]
-              (empty? (get-in db [:projects :selected-ids] []))))
-
-(rf/reg-sub :projects/show-search?
-            (fn [db _]
-              (get-in db [:projects :show-search?] true)))
-
-(rf/reg-sub :projects/columns
-            (fn [db _]
-              (get-in db [:projects :columns])))
-
-(rf/reg-sub :projects/modal-visible?
-            (fn [db _]
-              (get-in db [:projects :modal-visible?] false)))
-
-(rf/reg-sub :projects/editing
-            (fn [db _]
-              (get-in db [:projects :editing])))
-
-(rf/reg-sub :projects/form-data
-            (fn [db _]
-              (get-in db [:projects :form-data] {})))
-
-(rf/reg-sub :projects/detail-visible?
-            (fn [db _]
-              (get-in db [:projects :detail-visible?] false)))
-
-(rf/reg-sub :projects/detail-data
-            (fn [db _]
-              (get-in db [:projects :detail-data])))
-
-(rf/reg-sub :projects/team-visible?
-            (fn [db _]
-              (get-in db [:projects :team-visible?] false)))
-
-(rf/reg-sub :projects/team-project
-            (fn [db _]
-              (get-in db [:projects :team-project])))
-
 (rf/reg-sub :online-users/items
             (fn [db _]
               (get-in db [:online-users :items])))
@@ -581,33 +511,6 @@
 (rf/reg-sub :gen/preview-data (fn [db _] (get-in db [:gen :preview-data])))
 (rf/reg-sub :gen/preview-loading? (fn [db _] (get-in db [:gen :preview-loading?] false)))
 (rf/reg-sub :gen/preview-visible? (fn [db _] (get-in db [:gen :preview-visible?] false)))
-(rf/reg-sub :file/items (fn [db _] (get-in db [:file :items] [])))
-(rf/reg-sub :file/loading? (fn [db _] (get-in db [:file :loading?] false)))
-
-(rf/reg-sub :fb/items (fn [db _] (get-in db [:fb :items] [])))
-(rf/reg-sub :fb/selected-id (fn [db _] (get-in db [:fb :selected-id])))
-(rf/reg-sub :fb/code-visible? (fn [db _] (get-in db [:fb :code-visible?] false)))
-
-(rf/reg-sub :form-template/list
-            (fn [db _]
-              (get-in db [:form-templates :items] [])))
-
-(rf/reg-sub :form-template/loading?
-            (fn [db _]
-              (get-in db [:form-templates :loading?] false)))
-
-(rf/reg-sub :form-template/modal-visible?
-            (fn [db _]
-              (get-in db [:form-templates :modal-visible?] false)))
-
-(rf/reg-sub :form-template/drawer-visible?
-            (fn [db _]
-              (get-in db [:form-templates :drawer-visible?] false)))
-
-(rf/reg-sub :form-template/saving?
-            (fn [db _]
-              (get-in db [:form-templates :saving?] false)))
-
 (rf/reg-sub :gen/preview-table-name (fn [db _] (get-in db [:gen :preview-table-name])))
 (rf/reg-sub :gen/config-visible? (fn [db _] (get-in db [:gen :config-visible?] false)))
 (rf/reg-sub :gen/config (fn [db _] (get-in db [:gen :config] {:package-path "com.ruoyi" :module-name "system" :author "ruoyi" :table-prefix "sys_"})))

@@ -8,19 +8,11 @@
 (def routes
   ["/" {"" :dashboard
         "dashboard" :dashboard
-        "solution" :solution-home
-        "project/info" :project-info
-        "resource/standard" :resource-standard
-        "resource/vector-kb" :resource-vector-kb
-        "resource/structured-kb" :resource-structured-kb
-        "resource/case" :resource-case
-        "resource/atlas" :resource-atlas
         "system/user" :user
         "system/role" :role
         "system/menu" :menu
         "system/dept" :dept
         "system/post" :post
-        "system/file" :file
         "system/dict" :dict
         "system/config" :config
         "system/notice" :notice
@@ -36,7 +28,6 @@
         "monitor/integrant" :integrant
         "monitor/gen" :gen
         "monitor/swagger" :swagger
-        "tool/build" :build
         "system/user/profile" :profile
         "workflow/designer" :workflow-designer
         "workflow/definitions" :workflow-definitions
@@ -53,19 +44,11 @@
 ;; 页面名称映射
 (def page-names
   {:dashboard "首页"
-   :solution-home "方案管理"
-   :project-info "项目信息管理"
-   :resource-standard "标准规范"
-   :resource-vector-kb "向量知识库"
-   :resource-structured-kb "结构化知识库"
-   :resource-case "优秀案例库"
-   :resource-atlas "通用图集库"
    :user "用户管理"
    :role "角色管理"
    :menu "菜单管理"
    :dept "部门管理"
    :post "岗位管理"
-   :file "文件管理"
    :dict "字典管理"
    :config "参数管理"
    :notice "通知公告"
@@ -82,7 +65,6 @@
    :workflow-tasks "待办任务"
    :gen "代码生成"
    :swagger "系统接口"
-   :build "表单构建"
    :profile "个人中心"})
 
 ;; 状态标记

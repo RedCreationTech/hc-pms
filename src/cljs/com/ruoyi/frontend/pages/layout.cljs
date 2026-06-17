@@ -49,11 +49,7 @@
    [com.ruoyi.frontend.pages.datasource :as datasource]
    [com.ruoyi.frontend.pages.gen :as gen]
    [com.ruoyi.frontend.pages.swagger :as swagger]
-   [com.ruoyi.frontend.pages.form-builder :as form-builder]
-   [com.ruoyi.frontend.pages.file-manager :as file-manager]
    [com.ruoyi.frontend.pages.integrant :as integrant]
-   [com.ruoyi.frontend.pages.business :as business]
-   [com.ruoyi.frontend.pages.project :as project]
    [com.ruoyi.frontend.pages.workflow.designer :as workflow.designer]
    [com.ruoyi.frontend.pages.workflow.definitions :as workflow.definitions]
    [com.ruoyi.frontend.pages.workflow.tasks :as workflow.tasks]
@@ -291,19 +287,11 @@
 ;; ─── 页面关键词到菜单路径映射 ─────────────────────────────────────────
 (def page->menu-key
   "将路由关键词映射到菜单的 key（完整路径）。"
-  {:solution-home "solution"
-   :project-info "project/info"
-   :resource-standard "resource/standard"
-   :resource-vector-kb "resource/vector-kb"
-   :resource-structured-kb "resource/structured-kb"
-   :resource-case "resource/case"
-   :resource-atlas "resource/atlas"
-   :user "system/user"
+  {:user "system/user"
    :role "system/role"
    :menu "system/menu"
    :dept "system/dept"
    :post "system/post"
-   :file "system/file"
    :dict "system/dict"
    :config "system/config"
    :notice "system/notice"
@@ -317,7 +305,6 @@
    :integrant "monitor/integrant"
    :gen "monitor/gen"
    :swagger "monitor/swagger"
-   :build "tool/build"
    :profile "system/user/profile"
    :dashboard "dashboard"})
 
@@ -338,7 +325,6 @@
    :server ["首页" "系统监控" "服务监控"]
    :cache ["首页" "系统监控" "缓存监控"]
    :datasource ["首页" "系统监控" "连接池监视"]
-   :build ["首页" "系统工具" "表单构建"]
    :gen ["首页" "系统工具" "代码生成"]
    :swagger ["首页" "系统工具" "系统接口"]
    :profile ["首页" "个人中心"]
@@ -366,7 +352,6 @@
    :server "server"
    :cache "cache"
    :datasource "database"
-   :build "build"
    :gen "code"
    :swagger "swagger"
    :workflow-designer "ApartmentOutlined"
@@ -735,13 +720,6 @@
            [error-boundary/boundary
             (case page
               :dashboard [dashboard/dashboard-page]
-              :solution-home [business/solution-home-page]
-             :project-info [project/project-page]
-             :resource-standard [business/resource-page :standard]
-             :resource-vector-kb [business/resource-page :vector-kb]
-             :resource-structured-kb [business/resource-page :structured-kb]
-             :resource-case [business/resource-page :case]
-             :resource-atlas [business/resource-page :atlas]
              :user [user/user-page]
              :role [role/role-page]
              :menu [menu/menu-page]
@@ -761,8 +739,6 @@
              :integrant [integrant/integrant-page]
              :gen [gen/gen-page]
              :swagger [swagger/swagger-page]
-             :build [form-builder/form-builder-page]
-             :file [file-manager/file-manager-page]
              :workflow-designer [workflow.designer/bpmn-designer-page]
              :workflow-definitions [workflow.definitions/definitions-page]
              :workflow-tasks [workflow.tasks/tasks-page]
