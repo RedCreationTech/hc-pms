@@ -1,0 +1,7 @@
+packages:
+  - '.'
+nodeLinker: hoisted
+settings:
+  nodeLinker: hoisted
+  shamefullyHoist: true
+shamefullyHoist: true

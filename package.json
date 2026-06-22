@@ -12,8 +12,22 @@
     "react-syntax-highlighter": "^16.1.1"
   },
   "devDependencies": {
+    "@babel/runtime": "^8.0.0",
     "@playwright/test": "^1.52.0",
-    "shadow-cljs": "^2.28.0"
+    "@rc-component/util": "^1.11.1",
+    "assert": "^2.1.0",
+    "buffer": "^6.0.3",
+    "is-mobile": "^5.0.0",
+    "process": "^0.11.10",
+    "react-is": "^19.2.7",
+    "scheduler": "^0.27.0",
+    "shadow-cljs": "^2.28.2",
+    "stream-browserify": "^3.0.0",
+    "util": "^0.12.5"
+  },
+  "pnpm": {
+    "nodeLinker": "hoisted",
+    "shamefullyHoist": true
   },
   "scripts": {
     "watch": "pnpm exec shadow-cljs watch app",
