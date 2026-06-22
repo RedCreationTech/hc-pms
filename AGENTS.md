@@ -480,7 +480,7 @@ MIGRATION_DIR=migrations bb test
 clojure -M:dev -m com.ruoyi.core &
 
 # 2. Start frontend watch (auto-recompiles on .cljs changes)
-npx shadow-cljs watch app &
+pnpm exec shadow-cljs watch app &
 # First compilation takes ~2min, subsequent changes compile in seconds
 
 # 3. Access
@@ -533,7 +533,7 @@ Available helpers (defined in `env/dev/clj/user.clj`):
 ### Build Uberjar
 
 ```bash
-npx shadow-cljs release app    # Compile frontend for production
+pnpm exec shadow-cljs release app    # Compile frontend for production
 clojure -T:build all            # Build standalone jar (includes frontend)
 java -jar target/rouyi-standalone.jar  # Run (port 3000, SQLite)
 ```
@@ -544,13 +544,13 @@ java -jar target/rouyi-standalone.jar  # Run (port 3000, SQLite)
 
 ```bash
 # 安装浏览器（首次）
-npx playwright install chromium
+pnpm exec playwright install chromium
 
 # 运行全部 E2E 用例并生成 HTML/JSON 报告
-npm run test:e2e
+pnpm run test:e2e
 
 # 查看 HTML 报告
-npm run test:e2e:report
+pnpm run test:e2e:report
 ```
 
 测试目录：`tests/e2e/`

@@ -73,5 +73,5 @@ clojure -Sdeps '{:deps {cloverage/cloverage {:mvn/version "1.2.4"}
 
 ```bash
 # 确保后端在 localhost:3000 运行
-npx playwright test
+pnpm exec playwright test
 ```

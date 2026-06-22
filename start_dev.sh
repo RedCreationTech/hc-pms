@@ -128,7 +128,7 @@ echo "📦 启动前端 (shadow-cljs watch)..."
 kill_project_pids_on_port "$SHADOW_PORT" "shadow-cljs"
 require_free_port "$SHADOW_PORT" "shadow-cljs"
 rm -f logs/frontend.log
-npx shadow-cljs watch app > logs/frontend.log 2>&1 &
+pnpm exec shadow-cljs watch app > logs/frontend.log 2>&1 &
 FRONTEND_PID=$!
 
 # 等待首次编译完成

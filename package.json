@@ -16,9 +16,9 @@
     "shadow-cljs": "^2.28.0"
   },
   "scripts": {
-    "watch": "npx shadow-cljs watch app",
-    "release": "npx shadow-cljs release app",
-    "test:e2e": "npx playwright test",
-    "test:e2e:report": "npx playwright show-report"
+    "watch": "pnpm exec shadow-cljs watch app",
+    "release": "pnpm exec shadow-cljs release app",
+    "test:e2e": "pnpm exec playwright test",
+    "test:e2e:report": "pnpm exec playwright show-report"
   }
 }
