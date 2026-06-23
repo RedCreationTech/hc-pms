@@ -108,9 +108,8 @@
   (let [[active-id set-active-id!] (hooks/use-state nil)
         sensors (hooks/use-memo
                  (fn []
-                   [(.-useSensor dnd-kit-core/PointerSensor
-                      (clj->js {:activationConstraint {:distance 8}}))
-                    (.-useSensor dnd-kit-core/KeyboardSensor)])
+                   [(.useSensor dnd-kit-core/PointerSensor (clj->js {:activationConstraint {:distance 8}}))
+                    (.useSensor dnd-kit-core/KeyboardSensor)])
                  [])
         handle-drag-start (hooks/use-callback
                            (fn [event]
@@ -158,7 +157,7 @@
   "可拖拽的行，包裹 antd Table tr。"
   [{:keys [id children style]}]
   (let [{:keys [attributes listeners setNodeRef transform transition isDragging]}
-        (.-useSortable dnd-sortable (clj->js {:id id}))
+        (.useSortable dnd-sortable (clj->js {:id id}))
         row-style (merge (or style {})
                          (when transform
                            {:transform (.toString transform)
@@ -477,4 +476,5 @@
                      :onRow (fn [record]
                               (let [menu-id (:menu_id (js->clj record :keywordize-keys true))]
                                 #js {:data-row-key menu-id}))}]
+       ]
        [edit-modal]])))
