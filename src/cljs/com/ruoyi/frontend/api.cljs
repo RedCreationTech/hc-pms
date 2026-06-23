@@ -236,6 +236,12 @@
   (request {:method :put :uri (str "/system/menu/" id) :params {:status status}
             :on-success on-success :on-error on-error}))
 
+(defn save-menu-sort
+  "保存菜单排序。"
+  [items on-success on-error]
+  (request {:method :put :uri "/system/menu/sort" :params items
+            :on-success on-success :on-error on-error}))
+
 
 ;; ─── 部门管理 ──────────────────────────────────────────────────────
 

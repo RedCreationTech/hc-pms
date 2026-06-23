@@ -113,6 +113,8 @@
                       :handler (partial im/export-menus {:menu-service menu-service})}}]
     ["/treeselect" {:get {:summary "菜单树选项" :description "获取菜单树（用于角色权限选择）"
                           :handler (partial menu/menu-tree {:menu-service menu-service})}}]
+    ["/sort" {:put {:summary "保存菜单排序" :description "批量保存菜单拖拽排序后的 order_num"
+                     :handler (partial menu/save-sort {:menu-service menu-service})}}]
     ["/:id" {:get    {:summary "菜单详情" :parameters {:path PathId}
                       :handler (partial menu/get-menu {:menu-service menu-service})}
              :put    {:summary "更新菜单" :parameters {:path PathId}

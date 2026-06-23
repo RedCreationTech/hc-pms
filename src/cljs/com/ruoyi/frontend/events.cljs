@@ -1989,6 +1989,19 @@
                                          (rf/dispatch [:menus/fetch])))
                                      (fn [_] (antd/error! "网络错误")))))
 
+(rf/reg-event-fx :menus/save-sort
+                 (fn [_ [_ items]]
+                   {:api/save-menu-sort items}))
+
+(rf/reg-fx :api/save-menu-sort
+           (fn [items]
+             (api/save-menu-sort items
+                                 (fn [result]
+                                   (when (= 200 (:code result))
+                                     (antd/success! "排序保存成功")
+                                     (rf/dispatch [:menus/fetch])))
+                                 (fn [_] (antd/error! "网络错误")))))
+
 ;; ─── 字典类型 CRUD ────────────────────────────────────────────────────────────
 
 (rf/reg-event-fx :dicts/create-type

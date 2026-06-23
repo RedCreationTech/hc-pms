@@ -33,6 +33,12 @@
                                   :perms nil :icon nil :create_by nil :create_time nil :update_by nil}
                                  params)))
 
+(defn update-menu-order!
+  "批量更新菜单排序。"
+  [{:keys [query-fn]} items]
+  (doseq [{:keys [menu_id order_num]} items]
+    (query-fn :update-menu-order! {:menu_id menu_id :order_num order_num})))
+
 (defn delete-menu!
   "删除菜单。"
   [{:keys [query-fn]} menu-id]
