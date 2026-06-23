@@ -99,7 +99,13 @@
                                          :label "保存排序"}]
            [page-toolbar/toolbar-button {:kind :import
                                          :icon (r/as-element [:> ColumnHeightOutlined])
-                                         :label "展开/折叠"}]]
+                                         :label "展开/折叠"
+                                         :on-click (fn []
+                                                     (if all-expanded?
+                                                       (set-expanded-keys! [])
+                                                       (do
+                                                         (set-expanded-keys! expandable-ids)))
+                                                     (set-all-expanded! (not all-expanded?)))}]]
     :right [page-toolbar/toolbar-right
             [page-toolbar/round-tool-button {:title "搜索"
                                              :icon (r/as-element [:> SearchOutlined])
@@ -252,6 +258,7 @@
   (let [items @(rf/subscribe [:menus/items])
         loading? @(rf/subscribe [:menus/loading?])
         [expanded-keys set-expanded-keys!] (hooks/use-state :pending)
+        [all-expanded? set-all-expanded!] (hooks/use-state true)
         tree-data (build-menu-tree items 0)
         expandable-ids (expandable-menu-ids tree-data)]
     (hooks/use-effect
@@ -275,10 +282,11 @@
                    :expandedRowKeys (clj->js (if (= expanded-keys :pending) expandable-ids expanded-keys))
                    :onExpand (fn [expanded? ^js record]
                                (let [id (.-menu_id record)
-                                     current (set (if (= expanded-keys :pending) expandable-ids expanded-keys))]
-                                 (set-expanded-keys!
-                                  (vec (if expanded?
-                                         (conj current id)
-                                         (disj current id))))))
+                                     current-set (set (if (= expanded-keys :pending) expandable-ids expanded-keys))
+                                     new-keys (vec (if expanded?
+                                                    (conj current-set id)
+                                                    (disj current-set id)))]
+                                 (set-expanded-keys! new-keys)
+                                 (set-all-expanded! (= (set new-keys) (set expandable-ids)))))
                    :childrenColumnName "children"}]]
      [edit-modal]]))
