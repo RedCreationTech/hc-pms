@@ -103,8 +103,7 @@
 ;; ─── dnd-kit 行拖拽组件 ──────────────────────────────────────────────────────
 
 (defn- dnd-row-provider
-  "包装 antd Table body 的 DndContext + SortableContext。
-   使用 SortableStrategy 的 rectSwappingStrategy 以便在树形表中交换行位置。"
+  "包装 antd Table body 的 DndContext + SortableContext。"
   [{:keys [items on-sort-end children]}]
   (let [[active-id set-active-id!] (hooks/use-state nil)
         sensors (hooks/use-memo
@@ -152,7 +151,8 @@
                         :gap 8}
                :key (str "drag-overlay-" active-id)}
           [:> DragOutlined {:style {:color "#1677ff" :cursor "grab"}}]
-          [:span active-id]]])]])))
+          [:span active-id]]])])))
+
 
 (defn- sortable-row
   "可拖拽的行，包裹 antd Table tr。"
@@ -417,7 +417,7 @@
                      ;; 重新编号同级兄弟
                      (let [sibling-ids (filter #(= active-parent (:parent_id (get id->item %))) new-flat)
                            updated (reorder-siblings active-items active-parent sibling-ids)]
-                       (set-local-items! updated))))))
+                       (set-local-items! updated)))))))
            [items local-items])
 
           handle-save-sort

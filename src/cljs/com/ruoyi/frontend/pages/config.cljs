@@ -108,14 +108,14 @@
                [page-toolbar/round-tool-button {:title "刷新"
                                                 :icon (r/as-element [:> ReloadOutlined])
                                                 :on-click #(rf/dispatch [:configs/fetch {}])}]]}]
-      [antd/table {:rowKey "config_id" :loading loading? :scroll #js {:x 800}
-                   :rowSelection #js {}
-                   :columns (config-columns
-                             #(do (set-editing! %) (set-modal-visible! true))
-                             #(rf/dispatch [:configs/delete %]))
-                   :dataSource (clj->js items)
-                   :pagination {:pageSize 10 :total total
-                                :show-total (fn [t] (str "共 " t " 条"))}}]
+     [antd/table {:rowKey "config_id" :loading loading? :scroll #js {:x 800}
+                  :rowSelection #js {}
+                  :columns (config-columns
+                            #(do (set-editing! %) (set-modal-visible! true))
+                            #(rf/dispatch [:configs/delete %]))
+                  :dataSource (clj->js items)
+                  :pagination {:pageSize 10 :total total
+                               :show-total (fn [t] (str "共 " t " 条"))}}]
      [config-modal
       {:visible? modal-visible?
        :editing editing
