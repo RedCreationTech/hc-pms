@@ -27,3 +27,6 @@ test-results/
 
 # Dev logs
 /logs/
+# Polecat infrastructure (auto-generated)
+.beads/
+CLAUDE.md
