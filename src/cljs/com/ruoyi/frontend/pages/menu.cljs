@@ -102,56 +102,6 @@
 
 ;; ─── dnd-kit 行拖拽组件 ──────────────────────────────────────────────────────
 
-(defn- dnd-row-provider
-  "包装 antd Table body 的 DndContext + SortableContext。"
-  [{:keys [items on-sort-end children]}]
-  (let [[active-id set-active-id!] (hooks/use-state nil)
-        sensors (hooks/use-memo
-                 (fn []
-                   [(.useSensor dnd-kit-core/PointerSensor (clj->js {:activationConstraint {:distance 8}}))
-                    (.useSensor dnd-kit-core/KeyboardSensor)])
-                 [])
-        handle-drag-start (hooks/use-callback
-                           (fn [event]
-                             (set-active-id! (.. event -active -id)))
-                           [])
-        handle-drag-end (hooks/use-callback
-                         (fn [event]
-                           (set-active-id! nil)
-                           (let [active (.. event -active -id)
-                                 over (.. event -over -id)]
-                             (when (and active over (not= active over))
-                               (on-sort-end active over))))
-                         [on-sort-end])
-        handle-drag-cancel (hooks/use-callback
-                            (fn [_]
-                              (set-active-id! nil))
-                            [])]
-    (r/as-element
-     [:> (.-DndContext dnd-kit-core)
-      {:sensors sensors
-       :onDragStart handle-drag-start
-       :onDragEnd handle-drag-end
-       :onDragCancel handle-drag-cancel}
-      [:> (.-SortableContext dnd-sortable)
-       {:items (clj->js items)
-        :strategy (.-rectSwappingStrategy dnd-sortable)}
-       children]
-      (when active-id
-        [:> (.-DragOverlay dnd-kit-core)
-         {:dropAnimation nil}
-         [:div {:style {:background "#fff"
-                        :boxShadow "0 2px 8px rgba(0,0,0,0.15)"
-                        :padding "8px 16px"
-                        :borderRadius 4
-                        :cursor "grabbing"
-                        :display "inline-flex"
-                        :alignItems "center"
-                        :gap 8}
-               :key (str "drag-overlay-" active-id)}
-          [:> DragOutlined {:style {:color "#1677ff" :cursor "grab"}}]
-          [:span active-id]]])])))
-
 
 (defn- sortable-row
   "可拖拽的行，包裹 antd Table tr。"
@@ -435,7 +385,32 @@
                (do
                  (set-expanded-keys! expandable-ids)))
              (set-all-expanded! (not all-expanded?)))
-           [all-expanded? expandable-ids])]
+           [all-expanded? expandable-ids])
+
+          [drag-active-id set-drag-active-id!] (hooks/use-state nil)
+          
+          dnd-sensors (hooks/use-memo
+                       (fn []
+                         [(.useSensor dnd-kit-core/PointerSensor (clj->js {:activationConstraint {:distance 8}}))
+                          (.useSensor dnd-kit-core/KeyboardSensor)])
+                       [])
+          
+          handle-drag-start (hooks/use-callback
+                             (fn [event]
+                               (set-drag-active-id! (.. event -active -id)))
+                             [])
+          handle-drag-end-wrapper (hooks/use-callback
+                                   (fn [event]
+                                     (set-drag-active-id! nil)
+                                     (let [active (.. event -active -id)
+                                           over (.. event -over -id)]
+                                       (when (and active over (not= active over))
+                                         (handle-drag-end active over))))
+                                   [handle-drag-end])
+          handle-drag-cancel (hooks/use-callback
+                              (fn [_]
+                                (set-drag-active-id! nil))
+                              [])]
 
       [:div {:style {:padding "0 12px 24px 12px"}}
        [:div {:style {:background "#fff"
@@ -445,36 +420,56 @@
         [toolbar {:all-expanded? all-expanded?
                   :on-toggle-expand handle-toggle-expand
                   :on-save-sort handle-save-sort}]
-        [antd/table {:scroll #js {:x 1180}
-                     :rowKey "menu_id"
-                     :loading loading?
-                     :columns (menu-columns)
-                     :dataSource (clj->js tree-data)
-                     :pagination false
-                     :expandedRowKeys (clj->js (if (= expanded-keys :pending) expandable-ids expanded-keys))
-                     :onExpand (fn [expanded? ^js record]
-                                 (let [id (.-menu_id record)
-                                       current-set (set (if (= expanded-keys :pending) expandable-ids expanded-keys))
-                                       new-keys (vec (if expanded?
-                                                      (conj current-set id)
-                                                      (disj current-set id)))]
-                                   (set-expanded-keys! new-keys)
-                                   (set-all-expanded! (= (set new-keys) (set expandable-ids)))))
-                     :childrenColumnName "children"
-                     :components {:body {:row (fn [row-props]
-                                                (let [record (.. row-props -data-row-key)
-                                                      ;; 需要从 dataSource 中找到当前记录的 menu_id
-                                                      ;; 展平显示顺序 ID 列表用于 dnd
-                                                      id (when record
-                                                           (-> (js->clj record :keywordize-keys true)
-                                                               :menu_id))]
-                                                  (r/as-element
-                                                   [sortable-row
-                                                    (merge {:id (or id "unknown")
-                                                            :key (str "sortable-" id)}
-                                                           (js->clj row-props :keywordize-keys true))])))}}
-                     :onRow (fn [record]
-                              (let [menu-id (:menu_id (js->clj record :keywordize-keys true))]
-                                #js {:data-row-key menu-id}))}]
-       ]
-       [edit-modal]])))
+        [:> (.-DndContext dnd-kit-core)
+         {:sensors dnd-sensors
+          :onDragStart handle-drag-start
+          :onDragEnd handle-drag-end-wrapper
+          :onDragCancel handle-drag-cancel}
+         [:> (.-SortableContext dnd-sortable)
+          {:items (clj->js flat-ids)
+           :strategy (.-rectSwappingStrategy dnd-sortable)}
+          [antd/table {:scroll #js {:x 1180}
+                       :rowKey "menu_id"
+                       :loading loading?
+                       :columns (menu-columns)
+                       :dataSource (clj->js tree-data)
+                       :pagination false
+                       :expandedRowKeys (clj->js (if (= expanded-keys :pending) expandable-ids expanded-keys))
+                       :onExpand (fn [expanded? ^js record]
+                                   (let [id (.-menu_id record)
+                                         current-set (set (if (= expanded-keys :pending) expandable-ids expanded-keys))
+                                         new-keys (vec (if expanded?
+                                                        (conj current-set id)
+                                                        (disj current-set id)))]
+                                     (set-expanded-keys! new-keys)
+                                     (set-all-expanded! (= (set new-keys) (set expandable-ids)))))
+                       :childrenColumnName "children"
+                       :components {:body {:row (fn [row-props]
+                                                  (let [record (.. row-props -data-row-key)
+                                                        id (when record
+                                                             (-> (js->clj record :keywordize-keys true)
+                                                                 :menu_id))]
+                                                    (r/as-element
+                                                     [sortable-row
+                                                      (merge {:id (or id "unknown")
+                                                              :key (str "sortable-" id)}
+                                                             (js->clj row-props :keywordize-keys true))])))}}
+                       :onRow (fn [record]
+                                (let [menu-id (:menu_id (js->clj record :keywordize-keys true))]
+                                  #js {:data-row-key menu-id}))}]
+         ]
+         (when drag-active-id
+           [:> (.-DragOverlay dnd-kit-core)
+            {:dropAnimation nil}
+            [:div {:style {:background "#fff"
+                           :boxShadow "0 2px 8px rgba(0,0,0,0.15)"
+                           :padding "8px 16px"
+                           :borderRadius 4
+                           :cursor "grabbing"
+                           :display "inline-flex"
+                           :alignItems "center"
+                           :gap 8}
+                  :key (str "drag-overlay-" drag-active-id)}
+             [:> DragOutlined {:style {:color "#1677ff" :cursor "grab"}}]
+             [:span drag-active-id]]])]
+       [edit-modal]]])))
