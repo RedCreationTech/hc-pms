@@ -71,7 +71,7 @@ find_free_port() {
 
 HTTP_PORT="${PORT:-3000}"
 NREPL_PORT="${NREPL_PORT:-7000}"
-SHADOW_PORT="${SHADOW_PORT:-9630}"
+SHADOW_PORT=9631
 
 # 检查端口是否已被占用。只清理当前项目目录下启动的旧进程，避免误杀系统或其它应用。
 kill_project_pids_on_port "$HTTP_PORT" "HTTP"
