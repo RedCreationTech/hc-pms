@@ -110,8 +110,8 @@
                                             :icon (r/as-element [:> LockOutlined])
                                             :disabled? (empty? selected-ids)
                                             :on-click #(when-let [row (some (fn [item]
-                                                                             (when (= (:info_id item) (first selected-ids)) item))
-                                                                           items)]
+                                                                              (when (= (:info_id item) (first selected-ids)) item))
+                                                                            items)]
                                                          (rf/dispatch [:login-logs/unlock (:user_name row)]))
                                             :label "解锁"}]
               [page-toolbar/toolbar-button {:kind :export

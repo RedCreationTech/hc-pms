@@ -195,6 +195,9 @@ SET menu_name = COALESCE(:menu_name, menu_name),
     update_time = CURRENT_TIMESTAMP
 WHERE menu_id = :menu_id
 
+-- :name update-menu-order! :! :n
+UPDATE sys_menu SET order_num = :order_num, update_time = CURRENT_TIMESTAMP WHERE menu_id = :menu_id
+
 -- :name delete-menu! :! :n
 DELETE FROM sys_menu WHERE menu_id = :menu_id
 

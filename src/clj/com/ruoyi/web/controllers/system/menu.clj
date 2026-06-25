@@ -65,3 +65,12 @@
         status (get-in request [:body-params :status])]
     (menu-service/update-menu! menu-service {:menu_id menu-id :status status :update_by (current-user-name request)})
     (ok "状态修改成功")))
+
+(defn save-sort
+  "保存菜单排序。"
+  [{:keys [menu-service]} request]
+  (try
+    (let [items (:body-params request)]
+      (menu-service/update-menu-order! menu-service items)
+      (ok "排序保存成功"))
+    (catch Exception e (fail (.getMessage e)))))

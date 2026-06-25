@@ -51,10 +51,10 @@
                   {:not-found spa-not-found-handler
                    :method-not-allowed
                    (constantly (-> {:status 405, :body "Not allowed"}
-                                  (response/content-type "text/plain")))
+                                   (response/content-type "text/plain")))
                    :not-acceptable
                    (constantly (-> {:status 406, :body "Not acceptable"}
-                                  (response/content-type "text/plain")))}))
+                                   (response/content-type "text/plain")))}))
                 {:middleware [(middleware/wrap-base opts)]})]
     (reset! ring-handler-atom actual)
     ring-handler))

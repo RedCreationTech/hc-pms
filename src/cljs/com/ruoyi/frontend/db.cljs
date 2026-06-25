@@ -50,16 +50,6 @@
                        :phonenumber {:label "手机号码" :visible? true}
                        :status {:label "状态" :visible? true}
                        :create_time {:label "创建时间" :visible? true}}}
-     :projects {:loading? false :items [] :total 0
-                :query-params {} :page 1 :page-size 10
-                :selected-ids [] :show-search? true
-                :modal-visible? false :editing nil :form-data {}
-                :detail-visible? false :detail-data nil :team-visible? false :team-project nil
-                :columns {:project_name {:label "项目名称" :visible? true}
-                          :engineering_industry {:label "工程业态" :visible? true}
-                          :engineering_nature {:label "工程性质" :visible? true}
-                          :status {:label "状态" :visible? true}
-                          :create_time {:label "创建时间" :visible? true}}}
      :roles {:loading? false :items [] :query-params {}}
      :menus {:loading? false :items [] :tree []}
      :depts {:loading? false :items [] :tree []}
@@ -77,8 +67,5 @@
      :server {:loading? false :data nil :datasource nil :datasource-loading? false}
      :integrant {:data nil :trace {}}
      :cache {:loading? false :data nil :names [] :selected-name nil :keys [] :value nil :value-visible? false}
-     :file {:items [] :loading? false}
-     :fb {:items [] :selected-id nil :code-visible? false}
-     :form-templates {:items [] :loading? false :modal-visible? false :drawer-visible? false :saving? false}
      :gen {:tables-loading? false :tables [] :selected-tables [] :preview-loading? false :preview-visible? false}
      :notification nil}))

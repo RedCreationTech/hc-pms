@@ -1,14 +1,17 @@
 (ns com.ruoyi.frontend.pages.menu
-  "菜单管理页面 — 树形表格、CRUD、图标选择器。"
+  "菜单管理页面 — 树形表格、CRUD、图标选择器、行拖拽排序。"
   (:require
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined ReloadOutlined SearchOutlined CheckOutlined ColumnHeightOutlined]]
+   ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined ReloadOutlined SearchOutlined CheckOutlined ColumnHeightOutlined DragOutlined]]
    [com.ruoyi.frontend.antd :as antd]
    [com.ruoyi.frontend.components.page-search :as page-search]
    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
-   [com.ruoyi.frontend.components.icon-picker :as icon-picker]))
+   [com.ruoyi.frontend.components.icon-picker :as icon-picker]
+   ["@dnd-kit/core" :as dnd-kit-core]
+   ["@dnd-kit/sortable" :as dnd-sortable]
+   ["@dnd-kit/utilities" :refer [CSS]]))
 
 ;; ─── 辅助：平铺菜单转树 ──────────────────────────────────────────────────────
 
@@ -22,6 +25,19 @@
                  (if (seq children)
                    (assoc m :children children)
                    m))))))
+
+;; ─── 辅助：平铺转排序数组 ──────────────────────────────────────────────────────
+
+(defn- flatten-menu-keys
+  "将树形菜单平铺，按展平后的显示顺序返回 menu_id 列表，
+   保持现有的 parent-child 层级关系。"
+  [items]
+  (mapcat
+   (fn [item]
+     (if-let [children (seq (:children item))]
+       (cons (:menu_id item) (flatten-menu-keys children))
+       [(:menu_id item)]))
+   items))
 
 ;; ─── 辅助：菜单转树选项 ──────────────────────────────────────────────────────
 
@@ -84,9 +100,35 @@
                                                   (set-status! nil)
                                                   (rf/dispatch [:menus/fetch]))}]]]]))
 
+;; ─── dnd-kit 行拖拽组件 ──────────────────────────────────────────────────────
+
+
+(defn- sortable-row
+  "可拖拽的行，包裹 antd Table tr。"
+  [{:keys [id children style]}]
+  (let [{:keys [attributes listeners setNodeRef transform transition isDragging]}
+        (.useSortable dnd-sortable (clj->js {:id id}))
+        row-style (merge (or style {})
+                         (when transform
+                           {:transform (.toString transform)
+                            :transition (or transition "transform 200ms ease")})
+                         (when isDragging
+                           {:zIndex 9999
+                            :position "relative"
+                            :background "#fafafa"
+                            :boxShadow "0 0 0 1px #1677ff"}))]
+    (r/as-element
+     [:tr (merge {:ref setNodeRef :style row-style :key (str "sortable-row-" id)}
+                 attributes
+                 (when (not= (.-tag (.-type js/document)) "INPUT")
+                   listeners))
+      children])))
+
+;; ─── 保存排序按钮 ──────────────────────────────────────────────────────
+
 ;; ─── 工具栏 ────────────────────────────────────────────────────────
 
-(defn- toolbar []
+(defn- toolbar [{:keys [all-expanded? on-toggle-expand on-save-sort]}]
   [page-toolbar/page-toolbar
    {:style {:padding "8px 22px 10px 22px"}
     :left [page-toolbar/toolbar-left
@@ -96,9 +138,11 @@
                                          :label "新增"}]
            [page-toolbar/toolbar-button {:kind :export
                                          :icon (r/as-element [:> CheckOutlined])
+                                         :on-click on-save-sort
                                          :label "保存排序"}]
            [page-toolbar/toolbar-button {:kind :import
                                          :icon (r/as-element [:> ColumnHeightOutlined])
+                                         :on-click on-toggle-expand
                                          :label "展开/折叠"}]]
     :right [page-toolbar/toolbar-right
             [page-toolbar/round-tool-button {:title "搜索"
@@ -240,6 +284,30 @@
           [antd/radio {:value "0"} "显示"]
           [antd/radio {:value "1"} "隐藏"]]])]]))
 
+;; ─── 辅助：同级兄弟节点重新编号 ──────────────────────────────────────────────
+
+(defn- reorder-siblings
+  "给定平铺 items 列表，对同一 parent_id 的兄弟节点按指定顺序重排 order_num。"
+  [items parent-id ordered-ids]
+  (let [siblings (filter #(= parent-id (:parent_id %)) items)
+        id->order (into {} (map-indexed (fn [i id] [id (inc i)]) ordered-ids))]
+    (mapv (fn [item]
+            (if (contains? id->order (:menu_id item))
+              (assoc item :order_num (get id->order (:menu_id item)))
+              item))
+          items)))
+
+(defn- collect-order-changes
+  "遍历一组以展平顺序排列的 items（树中每层兄弟各自按显示顺序排序），
+   收集需要保存的 {menu_id, order_num} 变更。"
+  [items]
+  (let [flat (flatten-menu-keys items)
+        id-map (into {} (map (juxt :menu_id identity) (tree-seq :children :children items)))]
+    (->> flat
+         (keep (fn [menu-id]
+                 (when-let [item (get id-map menu-id)]
+                   {:menu_id menu-id :order_num (:order_num item)}))))))
+
 ;; ─── 主页面 ──────────────────────────────────────────────────────
 
 (defn menu-page []
@@ -251,34 +319,157 @@
    [])
   (let [items @(rf/subscribe [:menus/items])
         loading? @(rf/subscribe [:menus/loading?])
+        [local-items set-local-items!] (hooks/use-state nil)
         [expanded-keys set-expanded-keys!] (hooks/use-state :pending)
-        tree-data (build-menu-tree items 0)
-        expandable-ids (expandable-menu-ids tree-data)]
+        [all-expanded? set-all-expanded!] (hooks/use-state true)
+        items-source (or local-items items)
+        tree-data (build-menu-tree items-source 0)
+        expandable-ids (expandable-menu-ids tree-data)
+        ;; dnd-sort 用的展平 ID 列表（仅同级交换）
+        flat-ids (flatten-menu-keys tree-data)]
+
+    ;; 外部 items 变化时重置本地状态
+    (hooks/use-effect
+     (fn []
+       (set-local-items! nil)
+       js/undefined)
+     [items])
+
     (hooks/use-effect
      (fn []
        (when (= expanded-keys :pending)
          (set-expanded-keys! expandable-ids))
        js/undefined)
-     [items])
-    [:div {:style {:padding "0 12px 24px 12px"}}
-     [:div {:style {:background "#fff"
-                    :minHeight "calc(100vh - 214px)"
-                    :padding "10px 8px 24px 8px"}}
-      [search-bar]
-      [toolbar]
-      [antd/table {:scroll #js {:x 1180}
-                   :rowKey "menu_id"
-                   :loading loading?
-                   :columns (menu-columns)
-                   :dataSource (clj->js tree-data)
-                   :pagination false
-                   :expandedRowKeys (clj->js (if (= expanded-keys :pending) expandable-ids expanded-keys))
-                   :onExpand (fn [expanded? ^js record]
-                               (let [id (.-menu_id record)
-                                     current (set (if (= expanded-keys :pending) expandable-ids expanded-keys))]
-                                 (set-expanded-keys!
-                                  (vec (if expanded?
-                                         (conj current id)
-                                         (disj current id))))))
-                   :childrenColumnName "children"}]]
-     [edit-modal]]))
+     [items-source])
+
+    ;; ── 拖拽排序回调 ──
+    (let [handle-drag-end
+          (hooks/use-callback
+           (fn [active-id over-id]
+             (let [active-items (or local-items items)
+                   flat (flatten-menu-keys (build-menu-tree active-items 0))
+                   active-idx (.indexOf (clj->js flat) active-id)
+                   over-idx (.indexOf (clj->js flat) over-id)]
+               (when (and (>= active-idx 0) (>= over-idx 0) (not= active-idx over-idx))
+                 ;; 创建新顺序
+                 (let [new-flat (vec
+                                 (let [arr (to-array flat)]
+                                   (.splice arr active-idx 1)
+                                   (.splice arr over-idx 0 active-id)
+                                   (js->clj arr)))
+                       ;; 查找 active 和 over 的 parent_id
+                       id->item (into {} (map (juxt :menu_id identity) active-items))
+                       active-parent (:parent_id (get id->item active-id))
+                       over-parent (:parent_id (get id->item over-id))]
+                   ;; 只允许同级拖拽
+                   (when (= active-parent over-parent)
+                     ;; 重新编号同级兄弟
+                     (let [sibling-ids (filter #(= active-parent (:parent_id (get id->item %))) new-flat)
+                           updated (reorder-siblings active-items active-parent sibling-ids)]
+                       (set-local-items! updated)))))))
+           [items local-items])
+
+          handle-save-sort
+          (hooks/use-callback
+           (fn []
+             (let [current-items (or local-items items)
+                   tree (build-menu-tree current-items 0)]
+               (rf/dispatch [:menus/save-sort (collect-order-changes tree)])))
+           [items local-items])
+
+          handle-toggle-expand
+          (hooks/use-callback
+           (fn []
+             (if all-expanded?
+               (set-expanded-keys! [])
+               (do
+                 (set-expanded-keys! expandable-ids)))
+             (set-all-expanded! (not all-expanded?)))
+           [all-expanded? expandable-ids])
+
+          [drag-active-id set-drag-active-id!] (hooks/use-state nil)
+          
+          dnd-sensors (hooks/use-memo
+                       (fn []
+                         [(.useSensor dnd-kit-core/PointerSensor (clj->js {:activationConstraint {:distance 8}}))
+                          (.useSensor dnd-kit-core/KeyboardSensor)])
+                       [])
+          
+          handle-drag-start (hooks/use-callback
+                             (fn [event]
+                               (set-drag-active-id! (.. event -active -id)))
+                             [])
+          handle-drag-end-wrapper (hooks/use-callback
+                                   (fn [event]
+                                     (set-drag-active-id! nil)
+                                     (let [active (.. event -active -id)
+                                           over (.. event -over -id)]
+                                       (when (and active over (not= active over))
+                                         (handle-drag-end active over))))
+                                   [handle-drag-end])
+          handle-drag-cancel (hooks/use-callback
+                              (fn [_]
+                                (set-drag-active-id! nil))
+                              [])]
+
+      [:div {:style {:padding "0 12px 24px 12px"}}
+       [:div {:style {:background "#fff"
+                      :minHeight "calc(100vh - 214px)"
+                      :padding "10px 8px 24px 8px"}}
+        [search-bar]
+        [toolbar {:all-expanded? all-expanded?
+                  :on-toggle-expand handle-toggle-expand
+                  :on-save-sort handle-save-sort}]
+        [:> (.-DndContext dnd-kit-core)
+         {:sensors dnd-sensors
+          :onDragStart handle-drag-start
+          :onDragEnd handle-drag-end-wrapper
+          :onDragCancel handle-drag-cancel}
+         [:> (.-SortableContext dnd-sortable)
+          {:items (clj->js flat-ids)
+           :strategy (.-rectSwappingStrategy dnd-sortable)}
+          [antd/table {:scroll #js {:x 1180}
+                       :rowKey "menu_id"
+                       :loading loading?
+                       :columns (menu-columns)
+                       :dataSource (clj->js tree-data)
+                       :pagination false
+                       :expandedRowKeys (clj->js (if (= expanded-keys :pending) expandable-ids expanded-keys))
+                       :onExpand (fn [expanded? ^js record]
+                                   (let [id (.-menu_id record)
+                                         current-set (set (if (= expanded-keys :pending) expandable-ids expanded-keys))
+                                         new-keys (vec (if expanded?
+                                                        (conj current-set id)
+                                                        (disj current-set id)))]
+                                     (set-expanded-keys! new-keys)
+                                     (set-all-expanded! (= (set new-keys) (set expandable-ids)))))
+                       :childrenColumnName "children"
+                       :components {:body {:row (fn [row-props]
+                                                  (let [record (.. row-props -data-row-key)
+                                                        id (when record
+                                                             (-> (js->clj record :keywordize-keys true)
+                                                                 :menu_id))]
+                                                    (r/as-element
+                                                     [sortable-row
+                                                      (merge {:id (or id "unknown")
+                                                              :key (str "sortable-" id)}
+                                                             (js->clj row-props :keywordize-keys true))])))}}
+                       :onRow (fn [record]
+                                (let [menu-id (:menu_id (js->clj record :keywordize-keys true))]
+                                  #js {:data-row-key menu-id}))}]
+         ]
+         (when drag-active-id
+           [:> (.-DragOverlay dnd-kit-core)
+            {:dropAnimation nil}
+            [:div {:style {:background "#fff"
+                           :boxShadow "0 2px 8px rgba(0,0,0,0.15)"
+                           :padding "8px 16px"
+                           :borderRadius 4
+                           :cursor "grabbing"
+                           :display "inline-flex"
+                           :alignItems "center"
+                           :gap 8}
+                  :key (str "drag-overlay-" drag-active-id)}
+             [:> DragOutlined {:style {:color "#1677ff" :cursor "grab"}}]
+             [:span drag-active-id]]])]
+       [edit-modal]]])))

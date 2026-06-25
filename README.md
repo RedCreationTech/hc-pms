@@ -510,11 +510,11 @@ bb run
 ### 2. 启动前端 (开发模式)
 
 ```bash
-# 安装 NPM 依赖（首次）
-npm install
+# 安装依赖（首次）
+pnpm install
 
 # 开发模式（自动增量编译）
-npx shadow-cljs watch app
+pnpm exec shadow-cljs watch app
 ```
 
 前端由后端同一端口 (3000) 提供服务，编译产物输出到 `resources/public/js/`。
@@ -531,7 +531,7 @@ open http://localhost:3000
 
 ```bash
 # 前端发布
-npx shadow-cljs release app
+pnpm exec shadow-cljs release app
 
 # 后端 Uberjar（包含前端静态文件）
 bb uberjar   # 或: clojure -T:build all

@@ -25,8 +25,10 @@
 (defn clear-oper-logs
   "清空操作日志。"
   [{:keys [log-service]} request]
-  (log-service/clear-oper-logs! log-service (:query-params request))
-  (ok "清空成功"))
+  (let [params (or (:query-params request) {})]
+    (log-service/clear-oper-logs! log-service
+                                  (merge {:begin_time nil :end_time nil} params))
+    (ok "清空成功")))
 
 (defn delete-oper-logs
   "删除操作日志。"
@@ -43,8 +45,10 @@
 (defn clear-login-logs
   "清空登录日志。"
   [{:keys [log-service]} request]
-  (log-service/clear-login-logs! log-service (:query-params request))
-  (ok "清空成功"))
+  (let [params (or (:query-params request) {})]
+    (log-service/clear-login-logs! log-service
+                                   (merge {:begin_time nil :end_time nil} params))
+    (ok "清空成功")))
 
 (defn delete-login-logs
   "删除登录日志。"

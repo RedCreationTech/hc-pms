@@ -71,7 +71,7 @@ find_free_port() {
 
 HTTP_PORT="${PORT:-3000}"
 NREPL_PORT="${NREPL_PORT:-7000}"
-SHADOW_PORT=9630
+SHADOW_PORT=9631
 
 # 检查端口是否已被占用。只清理当前项目目录下启动的旧进程，避免误杀系统或其它应用。
 kill_project_pids_on_port "$HTTP_PORT" "HTTP"
@@ -128,7 +128,7 @@ echo "📦 启动前端 (shadow-cljs watch)..."
 kill_project_pids_on_port "$SHADOW_PORT" "shadow-cljs"
 require_free_port "$SHADOW_PORT" "shadow-cljs"
 rm -f logs/frontend.log
-npx shadow-cljs watch app > logs/frontend.log 2>&1 &
+pnpm exec shadow-cljs watch app > logs/frontend.log 2>&1 &
 FRONTEND_PID=$!
 
 # 等待首次编译完成

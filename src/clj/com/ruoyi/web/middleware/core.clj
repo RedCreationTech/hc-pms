@@ -3,6 +3,7 @@
    [cheshire.core :as json]
    [com.ruoyi.env :as env]
    [com.ruoyi.web.middleware.operlog :as operlog]
+   [com.ruoyi.web.middleware.auth :as auth]
    [ring.middleware.defaults :as defaults]
    [ring.middleware.session.cookie :as cookie]))
 
@@ -57,5 +58,6 @@
           wrap-cors
           handle-preflight
           operlog/wrap-oper-log
+          auth/wrap-jwt-auth
           (wrap-query-fn query-fn)
           wrap-json-body))))

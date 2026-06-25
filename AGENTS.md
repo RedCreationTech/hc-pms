@@ -268,6 +268,10 @@ MIGRATION_DIR=migrations bb test
 
 ### 7.1 使用 React Hooks，禁用 reagent/atom
 
+# 2. Start frontend watch (auto-recompiles on .cljs changes)
+pnpm exec shadow-cljs watch app &
+# First compilation takes ~2min, subsequent changes compile in seconds
+
 ```clojure
 ;; ❌ 错误
 (let [expanded? (r/atom false)]
@@ -311,6 +315,35 @@ MIGRATION_DIR=migrations bb test
 ;; ✅
 ;; 在 antd.cljs 中定义 use-app-message 获取 message-api atom
 ;; 然后调用 (antd/success! "成功")
+
+### When to Restart (not just reload)
+
+- HugSQL `.sql` file changes (queries are cached at startup)
+- `resources/system.edn` config changes
+- Integrant component structure changes
+- After these, run `clj-nrepl-eval -p 7000 '(user/rr)'` or restart the process
+
+### Build Uberjar
+
+```bash
+pnpm exec shadow-cljs release app    # Compile frontend for production
+clojure -T:build all            # Build standalone jar (includes frontend)
+java -jar target/rouyi-standalone.jar  # Run (port 3000, SQLite)
+```
+
+### E2E 测试 (Playwright)
+
+已接入 Playwright 对主要功能做端到端验证，默认跑在 `http://localhost:3000`。
+
+```bash
+# 安装浏览器（首次）
+pnpm exec playwright install chromium
+
+# 运行全部 E2E 用例并生成 HTML/JSON 报告
+pnpm run test:e2e
+
+# 查看 HTML 报告
+pnpm run test:e2e:report
 ```
 
 #### Card bodyStyle 改用 styles.body
