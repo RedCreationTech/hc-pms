@@ -1,416 +1,241 @@
-# Agent Instructions
+# RuoYi-Clojure Agent Instructions
 
-This project uses **bd** (beads) for issue tracking. Run `bd prime` for full workflow context.
+> **开发分支**: `ruoyi-template`
+> **仓库**: RedCreationTech/ruoyi_clojure (git@github.com:RedCreationTech/ruoyi_clojure.git)
+> **当前 Git**: 1 commit ahead of main (commit `af08efe` - "Fix user management actions")
+> **参考原版**: https://gitee.com/y_project/RuoYi-Vue (v3.9.2)
 
-## Quick Reference
+---
 
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work atomically
-bd close <id>         # Complete work
-bd dolt push          # Push beads data to remote
+## 一、项目概况
+
+RuoYi-Clojure 是基于 **Kit 框架** + **Reagent 2** + **Ant Design 6** 构建的 RuoYi 风格全栈管理后台。完整实现了 18 个 RuoYi-Vue 功能模块，完成度 ~95%。
+
+### 技术栈速查
+
+| 层 | 技术 | 端口/工具 |
+|----|------|-----------|
+| 后端 | Clojure 1.12 + Kit (Integrant, Reitit) | HTTP 3000, nREPL 7000 |
+| 数据库 | SQLite (默认) / MySQL / PostgreSQL | JDBC URL + MIGRATION_DIR 切换 |
+| 前端 | ClojureScript + Reagent 2 + re-frame + Ant Design 6 | shadow-cljs watch app |
+| CSS | 无独立 CSS 框架 — 全部通过 antd ConfigProvider token 和内联 style 控制 | — |
+| 构建 | shadow-cljs (前端) + tools.build uberjar (后端) | — |
+| 任务调度 | Quartz (kit-quartz 集成) | — |
+| 工作流 | Flowable 7.1 (BPMN 2.0) | 独立 H2 内嵌数据库 |
+| 测试 | clojure.test + Playwright E2E + Cloverage | bb test / npm run test:e2e |
+
+### 物理路径
+
+```
+/home/kevin/gt/ruoyi/                    ← 项目 rig 根目录
+  mayor/rig/                             ← 你在的目录（git 克隆）
+    src/clj/com/ruoyi/                   ← 后端源码
+    src/cljs/com/ruoyi/frontend/         ← 前端源码
+    resources/                           ← 配置、SQL、迁移、静态资源
+    test/clj/com/ruoyi/                  ← 测试
+    test/coverage-report.md              ← 覆盖率报告
+    env/dev/clj/user.clj                 ← 开发环境 REPL 工具函数
 ```
 
-## Non-Interactive Shell Commands
+---
 
-**ALWAYS use non-interactive flags** with file operations to avoid hanging on confirmation prompts.
+## 二、架构分层
 
-Shell commands like `cp`, `mv`, and `rm` may be aliased to include `-i` (interactive) mode on some systems, causing the agent to hang indefinitely waiting for y/n input.
+### 后端五层结构
 
-**Use these forms instead:**
-```bash
-# Force overwrite without prompting
-cp -f source dest           # NOT: cp source dest
-mv -f source dest           # NOT: mv source dest
-rm -f file                  # NOT: rm file
-
-# For recursive operations
-rm -rf directory            # NOT: rm -r directory
-cp -rf source dest          # NOT: cp -r source dest
+```
+route (web/routes/) → controller (web/controllers/) → domain service (domain/) → HugSQL SQL
+                                                                         ↑
+                                                                   infra/db.clj (数据库抽象)
 ```
 
-**Other commands that may prompt:**
-- `scp` - use `-o BatchMode=yes` for non-interactive
-- `ssh` - use `-o BatchMode=yes` to fail instead of prompting
-- `apt-get` - use `-y` flag
-- `brew` - use `HOMEBREW_NO_AUTO_UPDATE=1` env var
+### Integrant 组件链 (system.edn)
 
-## 后端热重载 (nREPL)
+```
+nrepl/server → server/http → handler/ring → router/core → routes/api
+                                                              ├── auth-routes
+                                                              ├── system-routes
+                                                              ├── gen-routes
+                                                              ├── business-routes
+                                                              ├── workflow-routes
+                                                              └── captcha-routes
+db.sql/migrations → db.sql/connection → db.sql/query-fn → 16+ domain services
+                                              workflow/engine (Flowable)
+```
 
-后端运行时通过 nREPL 端口 7000 热重载代码，**无需重启进程**：
+### 前端三层结构
 
-**修改任何 `.clj` 文件后，必须连接 nREPL 并执行相应 reload 命令让修改在运行中的后端生效。** 常规领域/控制器/服务逻辑优先用 `(user/rd)`，路由或系统结构相关变更按下方规则使用 `(user/rroutes)` / `(user/rr)`。
+```
+bidi router → pages (reagent component + re-frame) → api.cljs (fetch) → HTTP
+                                                          ↑
+                                              re-frame events/subs (状态管理)
+```
+
+### 权限模型 (RBAC)
+
+```
+用户 ── N:N ── 角色 ── N:N ── 菜单(含 perms 按钮权限标识)
+                  └── 数据权限范围: 全部/自定义/本部门/本部门及以下
+```
+
+### 中间件链 (RING)
+
+```
+请求 → 参数解析(ring-defaults) → wrap-jwt-auth(鉴权) → wrap-exception → wrap-operlog → muuntaja → 路由 → 控制器
+```
+
+---
+
+## 三、业务模块清单
+
+所有模块后端 API + 前端页面均已完成。以下是关键模块及其入口文件：
+
+### 系统管理 (都在 `web/controllers/system/` + `pages/`)
+
+| 模块 | 后端控制器 | 前端页面 | 关键路由路径 |
+|------|-----------|---------|-------------|
+| 用户管理 | `system/user.clj` | `pages/user.cljs` | `/system/user` |
+| 角色管理 | `system/role.clj` | `pages/role.cljs` | `/system/role` |
+| 菜单管理 | `system/menu.clj` | `pages/menu.cljs` | `/system/menu` |
+| 部门管理 | `system/dept.clj` | `pages/dept.cljs` | `/system/dept` |
+| 岗位管理 | `system/post.clj` | `pages/post.cljs` | `/system/post` |
+| 字典管理 | `system/dict.clj` | `pages/dict.cljs` | `/system/dict` |
+| 参数管理 | `system/config.clj` | `pages/config.cljs` | `/system/config` |
+| 通知公告 | `system/notice.clj` | `pages/notice.cljs` | `/system/notice` |
+| 文件管理 | `system/file.clj` | `pages/file_manager.cljs` | `/system/file` |
+| 个人中心 | `system/profile.clj` | `pages/profile.cljs` | `/system/user/profile` |
+
+### 日志监控 (都在 `controllers/monitor/` + `pages/`)
+
+| 模块 | 后端控制器 | 前端页面 | 路由路径 |
+|------|-----------|---------|---------|
+| 操作日志 | `controllers/monitor.clj` | `pages/oper_log.cljs` | `/monitor/operlog` |
+| 登录日志 | `controllers/monitor.clj` | `pages/login_log.cljs` | `/monitor/logininfor` |
+| 在线用户 | `system/online.clj` | `pages/online.cljs` | `/monitor/online` |
+| 定时任务 | `controllers/job.clj` | `pages/job.cljs` | `/monitor/job` |
+| 服务监控 | `controllers/monitor.clj` | `pages/server.cljs` | `/monitor/server` |
+| 缓存监控 | `system/cache.clj` | `pages/cache.cljs` | `/monitor/cache` |
+| 数据源监控 | `controllers/monitor.clj` | `pages/datasource.cljs` | `/monitor/datasource` |
+| Integrant 监控 | `controllers/monitor.clj` | `pages/integrant.cljs` | `/monitor/integrant` |
+
+### 工具与扩展
+
+| 模块 | 后端控制器 | 前端页面 | 路由路径 |
+|------|-----------|---------|---------|
+| 代码生成 | `controllers/gen.clj` | `pages/gen.cljs` | `/tool/build` |
+| 表单构建器 | `system/form_template.clj` | `pages/form_builder.cljs` | — |
+| Swagger 接口 | `controllers/common.clj` | `pages/swagger.cljs` | `/monitor/swagger` |
+| 工作流定义 | `controllers/workflow.clj` | `pages/workflow/definitions.cljs` | `/workflow/definitions` |
+| 工作流设计器 | — | `pages/workflow/designer.cljs` | `/workflow/designer` |
+| 待办任务 | `controllers/workflow.clj` | `pages/workflow/tasks.cljs` | `/workflow/tasks` |
+
+### 业务模块 (`controllers/business/` + `pages/`)
+
+| 模块 | 路由路径 |
+|------|---------|
+| 方案管理 | `/solution` |
+| 项目信息管理 | `/project/info` |
+| 标准规范 | `/resource/standard` |
+| 向量知识库 | `/resource/vector-kb` |
+| 结构化知识库 | `/resource/structured-kb` |
+| 优秀案例库 | `/resource/case` |
+| 通用图集库 | `/resource/atlas` |
+
+---
+
+## 四、默认账号
+
+| 账号 | 密码 | 角色 |
+|------|------|------|
+| admin | admin123 | 超级管理员 (所有权限) |
+| ry | admin123 | 普通用户 (只读) |
+
+---
+
+## 五、开发命令速查
+
+### 启动项目
 
 ```bash
-# 单模块重载（最快，推荐日常开发）
-clj-nrepl-eval -p 7000 '(user/rd)'          # 重载域服务
-clj-nrepl-eval -p 7000 '(user/rroutes)'     # 重载路由（需 rr 生效）
+# 后端 (port 3000, nREPL 7000, SQLite)
+cd /home/kevin/gt/ruoyi/mayor/rig
+clojure -M:dev -m com.ruoyi.core &
+    # 或: bb run
+
+# 前端 (watch 模式，增量编译)
+npx shadow-cljs watch app &
+
+# 访问
+open http://localhost:3000
+```
+
+### nREPL 热重载 (修改 .clj 文件后必须执行)
+
+```bash
+clj-nrepl-eval -p 7000 '(user/rd)'          # 重载域服务 (最快，推荐)
+clj-nrepl-eval -p 7000 '(user/rroutes)'     # 重载路由定义
 clj-nrepl-eval -p 7000 '(user/ra)'          # 重载所有命名空间
-
-# 全局重载（较慢，结构变更时使用）
-clj-nrepl-eval -p 7000 '(user/rr)'          # 完全重启系统 (halt → prep → go)
-
-# 数据库操作
-clj-nrepl-eval -p 7000 '(user/reset-db)'    # 重置数据库（清空重建）
+clj-nrepl-eval -p 7000 '(user/rr)'          # 完全重启 Integrant 系统 (halt → prep → go)
+clj-nrepl-eval -p 7000 '(user/reset-db)'    # 重置数据库
 clj-nrepl-eval -p 7000 '(user/migrate)'     # 运行迁移
 ```
 
-**何时需要重启（`(user/rr)`）：**
-- HugSQL `.sql` 文件变更（查询缓存在启动时加载）
+**何时需要 `rr` (完整重启)：**
+- HugSQL `.sql` 文件变更
 - `resources/system.edn` 配置变更
 - Integrant 组件结构变更
 
-**何时只需重载（`(user/rd)`）：**
+**何时只需 `rd` (重载 Domain)：**
 - 控制器、服务、域逻辑变更
-- 路由定义变更（需 `(user/rr)` 才能生效）
 
-## Frontend 组件规范
-
-### 使用 React Hooks，不用 reagent/atom
-
-项目统一使用 Reagent 2 的函数组件 + React Hooks 管理局部状态，**禁止使用 `reagent/atom`**。
-
-```clojure
-;; ❌ 错误 — 用 reagent/atom
-(let [expanded? (r/atom false)]
-  [:div {:on-click #(reset! expanded? true)} ...])
-
-;; ✅ 正确 — 用 hooks/use-state
-(let [[expanded? set-expanded!] (hooks/use-state false)]
-  [:div {:on-click #(set-expanded! true)} ...])
-```
-
-常用 hooks：
-| Hook | 用途 |
-|------|------|
-| `hooks/use-state` | 局部状态（替代 r/atom） |
-| `hooks/use-effect` | 副作用（替代 Form-2 的 `:component-did-mount`） |
-| `hooks/use-callback` | 缓存回调函数 |
-| `hooks/use-memo` | 缓存计算结果 |
-
-**原则**：能用 re-frame subscription 的全局状态用 re-frame，组件内部局部状态用 hooks，不要用 r/atom。
-
-## Frontend Ant Design 常见错误
-
-### 1. Button 的 `:icon` 属性必须是 React 元素，不能传字符串
-
-```clojure
-;; ❌ 错误（antd 6 不接受字符串 icon）
-[antd/button {:type "primary" :icon "search"} "搜索"]
-
-;; ✅ 正确
-[antd/button {:type "primary"
-              :icon (r/as-element [:> SearchOutlined])}
- "搜索"]
-```
-
-### 2. Dropdown menu 的 `:label` 必须用 `r/as-element` 包裹
-
-```clojure
-;; ❌ 错误（Objects are not valid as a React child）
-{:key "user_id" :label [:div {:onClick ...} [:span "用户编号"]]}
-
-;; ✅ 正确
-{:key "user_id"
- :label (r/as-element [:div {:onClick (fn [e] ...)}
-                        [:span "用户编号"]])}
-```
-
-### 3. 列显隐必须检查 `:visible?` 字段，不能直接取 key
-
-```clojure
-;; ❌ 错误（取 key 返回 map，永远是 truthy）
-(when (:user_id columns-config) ...)
-
-;; ✅ 正确
-(when (get-in columns-config [:user_id :visible?]) ...)
-```
-
-### 4. Drawer 的宽高用 `:size` 而不是 `:width`
-
-```clojure
-;; ❌ 错误（antd 6 告警 width deprecated）
-[antd/drawer {:width 500 ...}]
-
-;; ✅ 正确
-[antd/drawer {:size "default" ...}]
-;; 或 {:size "large"}
-;; 需要精确宽度时用 :style
-[antd/drawer {:style {:width 500} ...}]
-```
-
-### 5. 外部组件必须导入后定义，不能直接引用
-
-```clojure
-;; ❌ 错误（x.reagent_component undefined）
-[antd/switch]  ;; 未在 antd.cljs 中定义
-
-;; ✅ antd.cljs 中先定义
-(def switch (r/adapt-react-class Switch))
-;; 然后才能使用 [antd/switch]
-```
-
-### 6. `TextArea` 在 antd 6 中通过 `Input.TextArea` 访问
-
-```clojure
-;; ❌ 错误
-["antd" :refer [TextArea]]  ;; TextArea is undefined
-
-;; ✅ 正确
-(def text-area (r/adapt-react-class (.-TextArea Input)))
-```
-
-### 7. 路由初始化必须在 app 渲染之后，且 navigate! 需检查初始化状态
-
-```clojure
-;; navigate! 必须等 configure-navigation! 调用后方可执行
-;; 使用 initialized? 标志保护
-(defonce initialized? (volatile! false))
-
-(defn navigate! [page]
-  (when @initialized?
-    (accountant/navigate! (page-path page))))
-
-(defn init-routes! []
-  (accountant/configure-navigation! ...)
-  (vreset! initialized? true)
-  (accountant/dispatch-current!))
-```
-
-### 8. antd `message` 必须用 `App` 组件上下文，不能直接用静态方法
-
-```clojure
-;; ❌ 错误（antd 6 告警 Static function can not consume context）
-(.success js/antd.message "创建成功")
-
-;; ✅ 正确：在 antd.cljs 中通过 App.useApp 获取 message 实例
-(def app (r/adapt-react-class App))
-(defonce message-api (atom nil))
-
-(defn use-app-message []
-  (let [api (.useApp App)]
-    (reset! message-api (.-message api))))
-
-(defn success! [text]
-  (if-let [api @message-api]
-    (.success api text)
-    (.success message text)))
-
-;; app.cljs 中包裹应用
-[:> ConfigProvider {...}
- [antd/app
-  [message-init]   ;; 调用 use-app-message 的组件
-  [layout/main-layout]]]
-```
-
-### 9. Card 的 `bodyStyle` 已废弃，改用 `styles.body`
-
-```clojure
-;; ❌ 错误
-[antd/card {:title "xxx" :bodyStyle {:padding 12}} ...]
-
-;; ✅ 正确
-[antd/card {:title "xxx" :styles {:body {:padding 12}}} ...]
-```
-
-### 10. 自定义表单控件不要依赖 Form.Item 自动注入 value/onChange
-
-Reagent 函数组件作为 `Form.Item` 子元素时，antd 无法像对原生 Input/Select 那样自动注入
-`value` 和 `onChange`。需要手动通过 `Form.useForm` 实例读写字段。
-
-```clojure
-;; ❌ 错误（选中后表单无反应）
-[antd/form-item {:label "归属部门" :name "dept_id"}
- [dept-tree-select {:placeholder "请选择"}]]
-
-;; ✅ 正确
-(let [[form] (antd/form-use-form)]
-  [antd/form-item {:label "归属部门"}
-   [dept-tree-select {:placeholder "请选择"
-                      :value (.getFieldValue form "dept_id")
-                      :on-change (fn [v]
-                                   (.setFieldsValue form #js {"dept_id" v}))}]])
-```
-
-### 11. 后端分页参数使用 `page` / `size`
-
-前端传给后端列表接口的分页参数必须是 `page` 和 `size`，而不是 `pageNum`/`pageSize`/`page-num`/`page-size`。
-
-```clojure
-;; ✅ 正确
-{:api/list-users (merge params {:page page :size size})}
-```
-
-### 12. 不要同时设置 `:border` 和 `:borderColor`
-
-React 会警告 shorthand 与非 shorthand 属性冲突，应把颜色合并到 `:border` 中。
-
-```clojure
-;; ❌ 错误
-{:border "1px solid" :borderColor "#1677ff"}
-
-;; ✅ 正确
-{:border "1px solid #1677ff"}
-```
-
-### 13. Modal / Drawer 的 `:width` 已废弃，改用 `:style {:width N}`
-
-```clojure
-;; ❌ 错误
-[antd/modal {:width 700 ...}]
-[antd/drawer {:width 560 ...}]
-
-;; ✅ 正确
-[antd/modal {:style {:width 700} ...}]
-[antd/drawer {:style {:width 560} ...}]
-```
-
-### 14. Modal / Drawer 的 `:destroyOnClose` 已废弃，改用 `:destroyOnHidden`
-
-```clojure
-;; ❌ 错误
-[antd/modal {:destroyOnClose true ...}]
-
-;; ✅ 正确
-[antd/modal {:destroyOnHidden true ...}]
-```
-
-### 15. Progress 的 `strokeWidth` / `trailColor` 已废弃，改用 `size` / `railColor`
-
-```clojure
-;; ❌ 错误
-[:> Progress {:percent percent :strokeWidth 10 :trailColor "#f0f0f0"}]
-
-;; ✅ 正确
-[:> Progress {:percent percent :size 10 :railColor "#f0f0f0"}]
-```
-
-## RuoYi-Vue 对照参考
-
-参考项目：https://gitee.com/y_project/RuoYi-Vue (master 分支, Spring Boot 4.x + Vue 3)
-
-UI 样式权威参考：https://gitee.com/y_project/RuoYi-Vue/tree/master/ruoyi-ui
-
-### 核心要求
-
-- **功能 1:1** — 每个功能模块必须完整实现 RuoYi-Vue 的所有交互细节
-- **颜色一致** — 按钮、标签、状态颜色严格匹配 Element UI 默认色系
-  - 新增: Primary 蓝 `#409eff` / 修改: Success 绿 `#67c23a` / 删除: Danger 红 `#f56c6c` / 导入: Info 灰 `#909399` / 导出: Warning 橙 `#e6a23c`
-- **布局一致** — 搜索栏/工具栏/表格/分页的位置和间距与 RuoYi 一致
-  - 左侧部门树 (200px) — 右侧内容区 (flex 1)
-  - 搜索栏用 `:ghost true` 风格卡片
-- **视觉 1:1 复刻** — 任何 UI 修改任务都必须同时验证功能与视觉，不得只确认功能可用
-  - UI 样式必须优先参考 RuoYi-Vue 的 `ruoyi-ui` 源码目录，按对应页面的 `.vue` 组件、`scss/css` 样式、Element UI 组件配置、图标和 class 命名逐项追踪
-  - 必须逐项对比 RuoYi 原版页面的组件边距、页面边距、组件宽高比例、字体、字号、颜色、图标、边框、圆角、阴影、对齐方式、行高、表格密度、按钮尺寸、弹窗/抽屉尺寸、分页位置等所有影响视觉观感的 UI 元素
-  - 交付前需要说明已对照的 RuoYi 页面、截图或 `ruoyi-ui` 源码文件，并列出仍存在的视觉差异或确认无明显差异
-- **菜单权限逻辑不可写死** — 即使 UI 任务提供了 RuoYi 系统截图作为参考，左侧菜单也只是视觉参考，不能把截图中的菜单项写成静态数据
-  - 左侧菜单必须保持按当前登录用户角色/权限从接口动态获取的逻辑，代码修改不得绕过、替换或破坏权限菜单加载流程
-  - 需要复刻截图中的菜单外观时，只能调整菜单容器、缩进、图标、颜色、字号、hover/active 状态等视觉样式，菜单数据来源仍必须来自后端接口
-- **操作流程** — 严格按 RuoYi 的交互顺序：确认对话框 → API 调用 → 成功提示 → 刷新列表
-
-### 功能模块对照清单
-
-| # | 模块 | 对照要求 | 状态 |
-|---|------|---------|------|
-| 1 | 用户管理 | 左侧部门树 + 搜索栏(名称/手机/状态/日期) + 工具栏(新增/修改/删除/导入/导出/搜索/刷新/显隐列) + 表格(用户名可点/状态开关/更多菜单) + 新增/编辑弹窗(双列表单+部门树选+岗位角色多选) + 详情抽屉 + 重置密码 | 🟢 基本完成 |
-| 2 | 角色管理 | 列表 + 新增/编辑弹窗 + 权限分配树 + 数据权限 + 用户分配 | 🟢 基本完成 |
-| 3 | 菜单管理 | 树形表格 + 新增/编辑弹窗 + 图标选择器 | 🟢 基本完成 |
-| 4 | 部门管理 | 树形表格 + 新增/编辑弹窗 | 🟢 基本完成 |
-| 5 | 岗位管理 | 列表 + 新增/编辑弹窗 | 🟢 基本完成 |
-| 6 | 字典管理 | 字典类型列表(左) + 字典数据列表(右) + 新增/编辑弹窗 | 🟢 基本完成 |
-| 7 | 参数管理 | 列表 + 新增/编辑弹窗 | 🟢 基本完成 |
-| 8 | 通知公告 | 列表 + 新增/编辑弹窗 | 🟢 基本完成 |
-| 9 | 操作日志 | 列表 + 详情弹窗 + 清空/导出 | 🟢 基本完成 |
-| 10 | 登录日志 | 列表 + 详情弹窗 + 清空/导出 | 🟢 基本完成 |
-| 11 | 在线用户 | 列表 + 强退确认 | 🟢 基本完成 |
-| 12 | 定时任务 | 列表 + 新增/编辑/执行一次/暂停恢复/日志 | 🟢 基本完成 |
-| 13 | 代码生成 | 配置 + 预览 + 部署 + ZIP 下载 | 🟢 基本完成 |
-| 14 | 系统接口 | Swagger 文档 | 🟢 基本完成 |
-| 15 | 服务监控 | CPU/内存/JVM/磁盘可视化 | 🟢 基本完成 |
-| 16 | 缓存监控 | 内存缓存键值浏览/清除 | 🟢 基本完成 |
-| 17 | 表单构建 | 拖拽设计器 | 🟢 基本完成 |
-| 18 | 连接池监视 | HikariCP 状态监控 | 🟢 基本完成 |
-
-> 🟢 = 基本对齐  🟡 = 部分实现  🔴 = 未实现
-
-
-<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
-## Beads Issue Tracker
-
-This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
-
-### Quick Reference
+### 测试
 
 ```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>         # Complete work
+# 后端测试 (SQLite)
+bb test
+
+# E2E (需要后端运行中)
+npm run test:e2e
+
+# 覆盖率
+bb coverage
+# 查看: target/coverage/index.html
 ```
 
-### Rules
+### 构建
 
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
-- Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
-
-## Session Completion
-
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
-
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   bd dolt push
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
-
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
-<!-- END BEADS INTEGRATION -->
-
-## Development Workflow
-
-### Architecture
-
-```
-Backend  (Clojure, port 3000)    — API + serves static frontend
-Frontend (ClojureScript)          — SPA via shadow-cljs, compiled to resources/public/js/
-Database (SQLite)                 — rouyi.db, auto-migrated on startup
+```bash
+npx shadow-cljs release app          # 前端生产构建
+clojure -T:build all                  # 后端 uberjar (含前端静态文件)
+java -jar target/rouyi-standalone.jar # 运行
 ```
 
-Both frontend and backend share port **3000**. The backend serves both API and static files.
+### Git 操作
 
-### Database Compatibility (SQLite / MySQL)
+```bash
+git checkout ruoyi-template    # 开发分支
+git push origin ruoyi-template # 推送
+```
 
-项目同时支持 SQLite 和 MySQL，切换靠两个环境变量：
+---
 
-| 环境变量 | 默认值 | MySQL 用法 |
-|----------|--------|------------|
-| `JDBC_URL` | `jdbc:sqlite:rouyi.db` | `jdbc:mysql://user:pass@host:port/db?useSSL=false&allowPublicKeyRetrieval=true` |
+## 六、数据库兼容规则 (SQLite / MySQL)
+
+项目同时支持 SQLite 和 MySQL，通过两个环境变量切换：
+
+| 环境变量 | SQLite 默认值 | MySQL 用法 |
+|----------|--------------|------------|
+| `JDBC_URL` | `jdbc:sqlite:rouyi.db` | `jdbc:mysql://user:pass@host:3306/ruoyi?useSSL=false` |
 | `MIGRATION_DIR` | `migrations-sqlite` | `migrations` |
 
-#### Migration 必须完全分开
+### 迁移文件
 
-DDL 差异无法兼容，因此有两套目录：
+```
+resources/migrations-sqlite/     ← SQLite DDL
+resources/migrations/            ← MySQL DDL
+```
 
-- `resources/migrations-sqlite/` —— SQLite 专用
-- `resources/migrations/` —— MySQL 专用
-
-新增/修改表时，**两个目录必须同步更新**。常见差异：
+两个目录必须同步。关键差异：
 
 | 场景 | SQLite | MySQL |
 |------|--------|-------|
@@ -418,153 +243,179 @@ DDL 差异无法兼容，因此有两套目录：
 | 时间字段 | `TEXT DEFAULT CURRENT_TIMESTAMP` | `TIMESTAMP DEFAULT CURRENT_TIMESTAMP` |
 | 布尔/状态 | `CHAR(1)` / `INTEGER` | `CHAR(1)` / `TINYINT` |
 
-#### 查询 SQL 优先共用，必要时分支
+### SQL 查询规则
 
-业务查询统一放在 `resources/sql/*.sql`，由 `conman` 加载。原则：
+1. **优先共用语法**: 用 `INSTR` 不要用 `||`，用 `LIMIT/OFFSET` 不要用 `ROWNUM`
+2. **函数名不同时提供命名变体**: 在 HugSQL 文件中给两个名字，在 Clojure 层通过 `detect-db-type` 选择
+3. **元数据在 Clojure 层分支**: `com.ruoyi.infra.db` 中 `get-tables`、`paginate-query` 等按 `:sqlite` / `:mysql` 分情况处理
 
-1. **优先用两库都支持的语法**
-
-   ```sql
-   -- ✅ 推荐：两库都支持
-   AND (:job_name IS NULL OR INSTR(job_name, :job_name) > 0)
-   LIMIT :page_size OFFSET :offset
-   ```
-
-2. **禁止在共用 SQL 里写 SQLite-only 语法**
-
-   ```sql
-   -- ❌ 错误：|| 在 MySQL 默认 sql_mode 下是逻辑 OR
-   AND (:user_name IS NULL OR user_name LIKE '%' || :user_name || '%')
-
-   -- ✅ 正确
-   AND (:user_name IS NULL OR INSTR(user_name, :user_name) > 0)
-   ```
-
-3. **函数名不同就提供命名变体，在 Clojure 层选择**
-
-   例如 `resources/sql/system.sql`：
-
-   ```sql
-   -- :name last-insert-rowid :? :1
-   SELECT last_insert_rowid() AS last_insert_rowid
-
-   -- :name last-insert-rowid-mysql :? :1
-   SELECT LAST_INSERT_ID() AS last_insert_rowid
-   ```
-
-   由 `com.ruoyi.infra.db/detect-db-type` 判断后调用对应名字。
-
-4. **元数据/动态查询在 Clojure 层分支**
-
-   `com.ruoyi.infra.db` 里对 `get-tables`、`get-table-columns`、`paginate-query` 等按 `:sqlite` / `:mysql` 分情况处理，不要把 `PRAGMA`、`sqlite_master`、`information_schema` 混进共用 `.sql`。
-
-#### 修改后必须双库跑测试
-
-任何 `resources/migrations*` 或 `resources/sql/*.sql` 改动，都要验证两套数据库：
+### 修改后必须双库测试
 
 ```bash
 # SQLite
 rm -f rouyi.db && bb test
 
-# MySQL（先清空数据库）
+# MySQL
 docker exec ruoyi-mysql mysql -uroot -ppassword -e \
-  "DROP DATABASE IF EXISTS ruoyi; CREATE DATABASE ruoyi CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+  "DROP DATABASE IF EXISTS ruoyi; CREATE DATABASE ruoyi CHARACTER SET utf8mb4;"
 JDBC_URL="jdbc:mysql://root:password@127.0.0.1:3308/ruoyi?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true" \
 MIGRATION_DIR=migrations bb test
 ```
 
-### Starting Dev Environment
+---
 
-```bash
-# 1. Start backend (port 3000, nREPL port 7000)
-clojure -M:dev -m com.ruoyi.core &
+## 七、前端开发规范 (重要)
 
-# 2. Start frontend watch (auto-recompiles on .cljs changes)
-npx shadow-cljs watch app &
-# First compilation takes ~2min, subsequent changes compile in seconds
+### 7.1 使用 React Hooks，禁用 reagent/atom
 
-# 3. Access
-open http://localhost:3000
+```clojure
+;; ❌ 错误
+(let [expanded? (r/atom false)]
+  [:div {:on-click #(reset! expanded? true)} ...])
+
+;; ✅ 正确
+(let [[expanded? set-expanded!] (hooks/use-state false)]
+  [:div {:on-click #(set-expanded! true)} ...])
 ```
 
-### Hot-Reload Workflow
+### 7.2 Ant Design 6 常见错误
 
-#### Backend (Clojure) — nREPL hot-reload, no restart needed
-
-After editing any `.clj` file, connect to the running nREPL and run the matching reload command so the live backend uses the new code. Prefer `(user/rd)` for normal domain/controller/service changes; use `(user/rroutes)` / `(user/rr)` when routes or system wiring require it.
-
-```bash
-# After editing .clj files:
-clj-nrepl-eval -p 7000 '(user/rd)'          # Reload domain services (fastest)
-clj-nrepl-eval -p 7000 '(user/rroutes)'     # Reload routes (needs system reset to apply)
-clj-nrepl-eval -p 7000 '(user/ra)'          # Reload all namespaces
-clj-nrepl-eval -p 7000 '(user/rr)'          # Full Integrant reset (halt + go)
+#### Button icon 必须是 React 元素
+```clojure
+;; ❌
+[antd/button {:icon "search"} "搜索"]
+;; ✅
+[antd/button {:icon (r/as-element [:> SearchOutlined])} "搜索"]
 ```
 
-Available helpers (defined in `env/dev/clj/user.clj`):
-
-| Helper | Short | What it reloads |
-|--------|-------|-----------------|
-| `reload-domain` | `rd` | Domain services (user, role, menu, dept, dict, config, log, gen) |
-| `reload-middleware` | `rm` | Ring middleware (auth, exception, operlog, core) |
-| `reload-routes` | `rroutes` | Route definitions (needs `rr` to apply) |
-| `reload-controllers` | — | Web controllers |
-| `reload-infra` | — | Security, online, data-perm |
-| `reload-all` | `ra` | All of the above |
-| `reload-system` | `rr` | Full system reset (halt → prep → go) |
-
-**Note**: Route changes require a full system reset (`rr`) because routes are compiled once at startup. If `(user/rr)` fails with `BindException: Address already in use` (Undertow can't rebind), kill the process and restart with `clojure -M:dev -m com.ruoyi.core`.
-
-#### Frontend (ClojureScript) — shadow-cljs auto-compiles
-
-```bash
-# shadow-cljs watch is running in background
-# Edit .cljs files → watch auto-detects → incremental compile (~5s)
-# Just refresh browser to see changes
+#### Dropdown menu label 必须 r/as-element
+```clojure
+;; ❌
+{:key "id" :label [:div {:onClick f} [:span "文本"]]}
+;; ✅
+{:key "id" :label (r/as-element [:div {:onClick f} [:span "文本"]])}
 ```
 
-### When to Restart (not just reload)
-
-- HugSQL `.sql` file changes (queries are cached at startup)
-- `resources/system.edn` config changes
-- Integrant component structure changes
-- After these, run `clj-nrepl-eval -p 7000 '(user/rr)'` or restart the process
-
-### Build Uberjar
-
-```bash
-npx shadow-cljs release app    # Compile frontend for production
-clojure -T:build all            # Build standalone jar (includes frontend)
-java -jar target/rouyi-standalone.jar  # Run (port 3000, SQLite)
+#### Modal/Drawer 属性迁移
+```clojure
+;; ❌ 旧 API
+[:width 700 :destroyOnClose true]
+;; ✅ 新 API
+{:style {:width 700} :destroyOnHidden true}
 ```
 
-### E2E 测试 (Playwright)
-
-已接入 Playwright 对主要功能做端到端验证，默认跑在 `http://localhost:3000`。
-
-```bash
-# 安装浏览器（首次）
-npx playwright install chromium
-
-# 运行全部 E2E 用例并生成 HTML/JSON 报告
-npm run test:e2e
-
-# 查看 HTML 报告
-npm run test:e2e:report
+#### message 必须通过 App.useApp 获取
+```clojure
+;; ❌
+(.success js/antd.message "成功")
+;; ✅
+;; 在 antd.cljs 中定义 use-app-message 获取 message-api atom
+;; 然后调用 (antd/success! "成功")
 ```
 
-测试目录：`tests/e2e/`
+#### Card bodyStyle 改用 styles.body
+```clojure
+;; ❌
+{:bodyStyle {:padding 12}}
+;; ✅
+{:styles {:body {:padding 12}}}
+```
 
-- `auth.spec.js` — 管理员登录/登出
-- `navigation.spec.js` — 系统管理、系统监控、系统工具等核心菜单可访问性
-- `post-crud.spec.js` — 岗位管理新增/修改/删除示例
-- `auth-helper.js` — 登录/登出公共辅助
+#### Progress 属性迁移
+```clojure
+;; ❌
+{:strokeWidth 10 :trailColor "#f0f0f0"}
+;; ✅
+{:size 10 :railColor "#f0f0f0"}
+```
 
-报告输出：`playwright-report/`
+### 7.3 后端分页参数
 
-### API Access
+前端传给后端的列表接口分页参数必须是 `page` / `size`（不是 `pageNum`/`pageSize`/`page-num`/`page-size`）。
 
-- Swagger UI: `http://localhost:3000/api`
-- Health: `GET /api/health`
-- Login: `POST /api/auth/login` with `{"username":"admin","password":"admin123"}`
-- Most endpoints require `Authorization: Bearer <token>` header
+### 7.4 菜单权限不可写死
+
+左侧菜单必须从接口动态获取，按当前登录用户角色/权限动态构建。任何修改代码不得绕过、替换或破坏权限菜单加载流程。需要复刻截图外观时只能调整视觉样式。
+
+### 7.5 自定义表单项需要手动读写
+
+antd 无法自动向 Reagent 函数组件注入 `value`/`onChange`，需要通过 `Form.useForm` 实例手动读写：
+
+```clojure
+(let [[form] (antd/form-use-form)]
+  [antd/form-item {:label "归属部门"}
+   [dept-tree-select {:value (.getFieldValue form "dept_id")
+                      :on-change #(.setFieldsValue form #js {"dept_id" %})}]])
+```
+
+### 7.6 列显隐检查
+
+```clojure
+;; ❌
+(when (:user_id columns-config) ...)  ;; map 永远 truthy
+;; ✅
+(when (get-in columns-config [:user_id :visible?]) ...)
+```
+
+### 7.7 外部组件必须先导入再定义
+
+```clojure
+;; 在 antd.cljs 中:
+(def switch (r/adapt-react-class Switch))
+;; 然后才能在页面中用 [antd/switch]
+```
+
+---
+
+## 八、项目文档索引
+
+| 文档 | 内容 |
+|------|------|
+| [README.md](./README.md) | 完整项目调研文档（推荐新人先看此文档） |
+| [ROADMAP.md](./ROADMAP.md) | 功能齐平路线图（面向 RuoYi-Vue 封面规划） |
+| [GAP_ANALYSIS.md](./GAP_ANALYSIS.md) | RuoYi-Vue 逐项对比分析（95% 完成） |
+| [REMAINING.md](./REMAINING.md) | 剩余工作清单（按 Phase 划分） |
+| [RUOYI_VUE_COMPARISON.md](./RUOYI_VUE_COMPARISON.md) | 更详细的功能对比（同上但更细） |
+| [build.clj](./build.clj) | Uberjar 构建配置 |
+| [docs/training/](./docs/training/) | 5 节开发培训 HTML 课件 |
+| [test/coverage-report.md](./test/coverage-report.md) | 最新覆盖率报告 |
+
+---
+
+## 九、UI 视觉复刻规则
+
+当需要参考 RuoYi-Vue 并进行 UI 复刻时：
+
+1. **参考源码**: https://gitee.com/y_project/RuoYi-Vue/tree/master/ruoyi-ui
+2. **颜色对应**:
+   - 主色 (Primary): `#409eff` (Element UI 蓝)
+   - 成功 (Success): `#67c23a`
+   - 危险 (Danger): `#f56c6c`
+   - 信息 (Info): `#909399`
+   - 警告 (Warning): `#e6a23c`
+3. **布局**:
+   - 左侧部门树 200px，右侧内容区 flex: 1
+   - 搜索栏用 `:ghost true` 风格卡片
+   - 操作顺序: 确认对话框 → API 调用 → 成功提示 → 刷新列表
+
+---
+
+## 十、性能与安全注意事项
+
+- **JWT 密钥** (`JWT_SECRET`): 生产环境必须通过环境变量设置，不要使用默认值
+- **数据库**: 生产环境推荐 MySQL/PostgreSQL，SQLite 仅用于开发
+- **日志**: 操作日志自动记录请求/响应，无需手动插入
+- **认证**: 所有 `/api/system/*` 和 `/api/monitor/*` 路由通过 `require-auth` 中间件保护
+- **缓存**: 使用内存缓存，重启后清除。缓存键按模块命名空间隔离
+
+---
+
+## 会话结束检查清单
+
+```
+[ ] git status                              # 检查变更
+[ ] git add <files> && git commit -m "..."  # 提交代码
+[ ] git push origin ruoyi-template          # 推送到远程
+[ ] 检查后端是否正常运行                    # curl http://localhost:3000/api/health
+[ ] HANDOFF（若工作未完成）                 # gt mail send...
+```
