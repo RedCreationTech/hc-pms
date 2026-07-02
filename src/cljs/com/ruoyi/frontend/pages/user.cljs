@@ -192,26 +192,26 @@
                                           :icon (r/as-element [:> EditOutlined])
                                           :on-click #(rf/dispatch [:users/open-edit (.-user_id ^js record)])}
                              "修改"]
-                            [antd/button {:type "link" :size "small"
-                                          :disabled (or (= 1 (.-user_id ^js record))
-                                                        (= "admin" (.-user_name ^js record)))
-                                          :style {:color (if (or (= 1 (.-user_id ^js record))
-                                                                 (= "admin" (.-user_name ^js record)))
-                                                           "#c0c4cc"
-                                                           "#409eff")}
-                                          :icon (r/as-element [:> DeleteOutlined])
-                                          :on-click #(rf/dispatch [:users/delete (.-user_id ^js record)])}
-                             "删除"]
-                            [antd/dropdown {:menu {:items (clj->js [{:key "resetPwd" :label (r/as-element [:span "重置密码"])}
-                                                                    {:key "authRole" :label (r/as-element [:span "分配角色"])}])
-                                                   :onClick (fn [e]
-                                                              (case (.-key e)
-                                                                "resetPwd" (rf/dispatch [:users/reset-password (.-user_id ^js record)])
-                                                                "authRole" (rf/dispatch [:users/auth-role (.-user_id ^js record)])
-                                                                nil))}}
-                             [antd/button {:type "link" :size "small"
-                                           :style {:color "#409eff"}}
-                              "更多"]]]))}]))))
+                            (when (not= "admin" (.-user_name ^js record))
+                              [:<>
+                               [antd/button {:type "link" :size "small"
+                                             :disabled (= 1 (.-user_id ^js record))
+                                             :style {:color (if (= 1 (.-user_id ^js record)) "#c0c4cc" "#409eff")}
+                                             :icon (r/as-element [:> DeleteOutlined])
+                                             :on-click #(rf/dispatch [:users/delete (.-user_id ^js record)])}
+                                "删除"]
+                               [antd/dropdown {:menu {:items (clj->js [{:key "resetPwd" :label (r/as-element [:span "重置密码"])}
+                                                                       {:key "authRole" :label (r/as-element [:span "分配角色"])}])
+                                                      :onClick (fn [e]
+                                                                 (case (.-key e)
+                                                                   "resetPwd" (rf/dispatch [:users/reset-password (.-user_id ^js record)])
+                                                                   "authRole" (rf/dispatch [:users/auth-role (.-user_id ^js record)])
+                                                                   nil))}}
+                                [antd/button {:type "link" :size "small"
+                                              :style {:color "#409eff"}}
+                                 "更多"]]])
+                            (when (= "admin" (.-user_name ^js record))
+                              [:div {:style {:color "#c0c4cc" :fontSize "12px"}} "—"])]))}]))))
 
 ;; ─── 自定义弹窗（替代 antd/modal，避免 antd 6 + Reagent 兼容问题）──
 
