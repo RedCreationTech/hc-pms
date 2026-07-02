@@ -72,6 +72,8 @@ find_free_port() {
 HTTP_PORT="${PORT:-3000}"
 NREPL_PORT="${NREPL_PORT:-7000}"
 SHADOW_PORT=9631
+NREPL_PORT_FILE="$PROJECT_DIR/.nrepl-port"
+export PORT="$HTTP_PORT"
 
 # 检查端口是否已被占用。只清理当前项目目录下启动的旧进程，避免误杀系统或其它应用。
 kill_project_pids_on_port "$HTTP_PORT" "HTTP"
@@ -86,6 +88,7 @@ if [ -n "$(pids_on_port "$NREPL_PORT")" ]; then
 else
   export NREPL_PORT
 fi
+printf "%s\n" "$NREPL_PORT" > "$NREPL_PORT_FILE"
 
 kill_project_pids_on_port "$SHADOW_PORT" "shadow-cljs"
 require_free_port "$SHADOW_PORT" "shadow-cljs"
@@ -115,6 +118,25 @@ for i in $(seq 1 30); do
   fi
   if [ $i -eq 30 ]; then
     echo "❌ 后端启动超时，查看 logs/backend.log"
+    tail -40 logs/backend.log
+    exit 1
+  fi
+  sleep 1
+done
+
+echo "⏳ 检查 nREPL..."
+for i in $(seq 1 30); do
+  if [ -n "$(pids_on_port "$NREPL_PORT")" ]; then
+    echo "✅ nREPL 启动成功 (port: $NREPL_PORT)"
+    break
+  fi
+  if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+    echo "❌ 后端进程已退出，nREPL 未启动，查看 logs/backend.log"
+    tail -40 logs/backend.log
+    exit 1
+  fi
+  if [ $i -eq 30 ]; then
+    echo "❌ nREPL 启动超时，预期端口 $NREPL_PORT，查看 logs/backend.log"
     tail -40 logs/backend.log
     exit 1
   fi
@@ -168,6 +190,9 @@ cleanup() {
   echo "🛑 正在停止服务..."
   kill $BACKEND_PID 2>/dev/null || true
   kill $FRONTEND_PID 2>/dev/null || true
+  if [ -f "$NREPL_PORT_FILE" ] && [ "$(cat "$NREPL_PORT_FILE" 2>/dev/null)" = "$NREPL_PORT" ]; then
+    rm -f "$NREPL_PORT_FILE"
+  fi
   kill_project_pids_on_port "$HTTP_PORT" "HTTP"
   kill_project_pids_on_port "$NREPL_PORT" "nREPL"
   kill_project_pids_on_port "$SHADOW_PORT" "shadow-cljs"

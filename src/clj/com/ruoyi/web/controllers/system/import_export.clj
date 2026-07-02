@@ -52,13 +52,45 @@
     (with-open [reader (io/reader tempfile :encoding "UTF-8")]
       (doall (csv/read-csv reader)))))
 
+(defn- update-support?
+  "判断导入请求是否允许覆盖已有用户。"
+  [request]
+  (let [v (or (get-in request [:query-params "updateSupport"])
+              (get-in request [:params "updateSupport"])
+              (get-in request [:body-params :updateSupport]))]
+    (contains? #{"1" "true" "on" true 1} v)))
+
+(defn- import-one-user!
+  "导入单个用户，按 updateSupport 决定新增或覆盖。"
+  [user-service identity update-support? default-password row-user]
+  (when (str/blank? (:user_name row-user))
+    (throw (Exception. "用户名不能为空")))
+  (when (str/blank? (:nick_name row-user))
+    (throw (Exception. "用户昵称不能为空")))
+  (if-let [existing (user-service/find-user-by-name user-service (:user_name row-user))]
+    (if update-support?
+      (user-service/update-user! user-service
+                                 (assoc row-user
+                                        :user-id (:user_id existing)
+                                        :roles []
+                                        :posts []
+                                        :update_by (:user_name identity "")))
+      (throw (Exception. "登录账号不能重复")))
+    (user-service/create-user! user-service
+                               (assoc row-user
+                                      :password default-password
+                                      :roles []
+                                      :posts []
+                                      :create_by (:user_name identity "")))))
+
 (defn import-users
-  "批量导入用户（multipart CSV）。"
+  "批量导入用户（multipart CSV），支持 updateSupport 覆盖已有用户。"
   [{:keys [user-service]} request]
   (try
     (let [multipart-params (:multipart-params request)
           file (get multipart-params "file")
           identity (:identity request)
+          update-support? (update-support? request)
           _ (when (or (nil? file) (str/blank? (:filename file "")))
               (throw (Exception. "请选择要上传的文件")))
           rows (read-csv-rows file)
@@ -68,16 +100,7 @@
           results (mapv (fn [row]
                           (try
                             (let [user (csv-row->user headers row)]
-                              (when (str/blank? (:user_name user))
-                                (throw (Exception. "用户名不能为空")))
-                              (when (str/blank? (:nick_name user))
-                                (throw (Exception. "用户昵称不能为空")))
-                              (user-service/create-user! user-service
-                                                         (assoc user
-                                                                :password default-password
-                                                                :roles []
-                                                                :posts []
-                                                                :create_by (:user_name identity "")))
+                              (import-one-user! user-service identity update-support? default-password user)
                               {:user_name (:user_name user) :status "success"})
                             (catch Exception e
                               {:user_name (first row) :status "failed" :msg (.getMessage e)})))

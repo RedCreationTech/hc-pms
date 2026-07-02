@@ -32,6 +32,7 @@
                     [:order_by {:optional true} :string] [:is_asc {:optional true} :string]])
 
 (def PathId [:map [:id [:re #"\d+"]]])
+(def UserIds [:map [:id [:re #"\d+(,\d+)*"]]])
 
 ;; ── Routes ──────────────────────────────────────────────────────────
 (defn system-routes [{:keys [user-service role-service menu-service dept-service post-service dict-service config-service log-service online-service query-fn datasource]}]
@@ -64,7 +65,7 @@
                       :handler (partial user/get-user {:user-service user-service})}
              :put    {:summary "更新用户" :parameters {:path PathId}
                       :handler (partial user/update-user {:user-service user-service})}
-             :delete {:summary "删除用户" :parameters {:path PathId}
+             :delete {:summary "删除用户" :parameters {:path UserIds}
                       :handler (partial user/delete-user {:user-service user-service})}}]
     ["/:id/status/:status" {:put {:summary "修改用户状态"
                                   :handler (partial user/change-status {:user-service user-service})}}]

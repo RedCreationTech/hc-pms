@@ -10,7 +10,10 @@ WHERE u.del_flag = '0'
   AND (:user_name IS NULL OR INSTR(u.user_name, :user_name) > 0)
   AND (:phonenumber IS NULL OR INSTR(u.phonenumber, :phonenumber) > 0)
   AND (:status IS NULL OR u.status = :status)
-  AND (:dept_id IS NULL OR u.dept_id = :dept_id)
+  AND (:begin_time IS NULL OR u.create_time >= :begin_time)
+  AND (:end_time IS NULL OR u.create_time <= :end_time)
+  AND (:dept_filter_enabled = 0 OR u.dept_id IN (:v*:dept_ids))
+  AND (:data_user_id IS NULL OR u.user_id = :data_user_id)
 ORDER BY u.user_id
 LIMIT :page_size OFFSET :offset
 
@@ -18,11 +21,15 @@ LIMIT :page_size OFFSET :offset
 -- :doc 统计用户数量
 SELECT COUNT(*) AS total
 FROM sys_user u
+LEFT JOIN sys_dept d ON u.dept_id = d.dept_id
 WHERE u.del_flag = '0'
   AND (:user_name IS NULL OR INSTR(u.user_name, :user_name) > 0)
   AND (:phonenumber IS NULL OR INSTR(u.phonenumber, :phonenumber) > 0)
   AND (:status IS NULL OR u.status = :status)
-  AND (:dept_id IS NULL OR u.dept_id = :dept_id)
+  AND (:begin_time IS NULL OR u.create_time >= :begin_time)
+  AND (:end_time IS NULL OR u.create_time <= :end_time)
+  AND (:dept_filter_enabled = 0 OR u.dept_id IN (:v*:dept_ids))
+  AND (:data_user_id IS NULL OR u.user_id = :data_user_id)
 
 -- :name find-user-by-id :? :1
 -- :doc 根据ID查询用户
@@ -33,6 +40,14 @@ WHERE user_id = :user_id AND del_flag = '0'
 -- :name find-user-by-name :? :1
 -- :doc 根据用户名查询用户
 SELECT * FROM sys_user WHERE user_name = :user_name AND del_flag = '0'
+
+-- :name find-user-by-phone :? :1
+-- :doc 根据手机号查询用户
+SELECT * FROM sys_user WHERE phonenumber = :phonenumber AND phonenumber <> '' AND del_flag = '0'
+
+-- :name find-user-by-email :? :1
+-- :doc 根据邮箱查询用户
+SELECT * FROM sys_user WHERE email = :email AND email <> '' AND del_flag = '0'
 
 -- :name create-user! :! :n
 -- :doc 新增用户

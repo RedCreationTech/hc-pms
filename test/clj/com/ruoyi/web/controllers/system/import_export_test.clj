@@ -25,6 +25,10 @@
                      :dept_id 1
                      :remark ""}]
        :count-users {:total 1}
+       :find-user-by-name nil
+       :find-user-by-phone nil
+       :find-user-by-email nil
+       :list-depts [{:dept_id 1 :parent_id 0 :ancestors "0"}]
        :create-user! nil
        :last-insert-rowid {:last_insert_rowid 2}
        :insert-user-role! nil

@@ -3,6 +3,7 @@
   (:require
    [com.ruoyi.domain.system.user :as user-service]
    [com.ruoyi.infra.data-perm :as data-perm]
+   [clojure.string :as str]
    [ring.util.response :as response]))
 
 (defn- ok
@@ -14,29 +15,43 @@
 (defn- parse-int [v]
   (when v (Integer/parseInt v)))
 
-(defn- page-params [request]
-  (let [q (:query-params request)]
-    {:page-num (or (parse-int (get q "page")) 1)
-     :page-size (or (parse-int (get q "size")) 10)
-     :user_name (get q "user_name")
-     :phonenumber (get q "phonenumber")
-     :status (get q "status")
-     :dept_id (get q "dept_id")}))
+(defn- parse-id-list
+  "解析 RuoYi 风格逗号分隔用户 ID。"
+  [ids]
+  (->> (str/split (str ids) #",")
+       (map str/trim)
+       (remove str/blank?)
+       (mapv parse-long)))
+
+(defn- current-user
+  "读取当前登录用户详情，用于列表数据权限判断。"
+  [user-service identity]
+  (when-let [user-id (:user-id identity)]
+    (user-service/find-user-by-id user-service user-id)))
+
+(defn- user-list-query
+  "把 HTTP 字符串查询参数转换为用户列表领域查询参数。"
+  [raw current-user]
+  {:page-num (or (parse-int (get raw "page")) 1)
+   :page-size (or (parse-int (get raw "size")) 10)
+   :user_name (get raw "user_name")
+   :phonenumber (get raw "phonenumber")
+   :status (get raw "status")
+   :dept_id (get raw "dept_id")
+   :beginTime (get raw "beginTime")
+   :endTime (get raw "endTime")
+   :current-user current-user})
 
 (defn- fail [msg]
   (-> (response/response {:code 500 :msg msg})
       (response/content-type "application/json")))
 
 (defn list-users
-  "查询用户列表（带数据权限过滤）。"
+  "查询用户列表（带时间范围、部门下级和数据权限过滤）。"
   [{:keys [user-service]} request]
   (let [raw (:query-params request)
         identity (:identity request)
-        data-perm-filter (data-perm/data-perm-filter identity "default" :alias "u")
-        params (merge {:page-num (or (parse-int (get raw "page")) 1)
-                       :page-size (or (parse-int (get raw "size")) 10)}
-                      (dissoc raw "page" "size")
-                      (:params data-perm-filter))
+        params (user-list-query raw (current-user user-service identity))
         result (user-service/list-users user-service params)]
     (ok {:total (:total result) :rows (:rows result)})))
 
@@ -91,11 +106,13 @@
       (fail (.getMessage e)))))
 
 (defn delete-user
-  "删除用户。"
+  "删除一个或多个用户，路径参数兼容逗号分隔 ID。"
   [{:keys [user-service]} request]
   (try
-    (let [user-id (parse-long (get-in request [:path-params :id]))]
-      (user-service/delete-user! user-service user-id)
+    (let [user-ids (parse-id-list (get-in request [:path-params :id]))]
+      (when (empty? user-ids)
+        (throw (Exception. "请选择要删除的用户")))
+      (user-service/delete-users! user-service user-ids)
       (ok "删除成功"))
     (catch Exception e
       (fail (.getMessage e)))))

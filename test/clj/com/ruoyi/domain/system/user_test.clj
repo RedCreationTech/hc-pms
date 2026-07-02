@@ -11,6 +11,10 @@
     :list-users {:rows mock-users :total 2}
     :find-user-by-id (first (filter #(= (:user_id %) (:user_id p)) mock-users))
     :find-user-by-name (first (filter #(= (:user_name %) (:user_name p)) mock-users))
+    :find-user-by-phone (first (filter #(= (:phonenumber %) (:phonenumber p)) mock-users))
+    :find-user-by-email (first (filter #(= (:email %) (:email p)) mock-users))
+    :list-depts [{:dept_id 1 :parent_id 0 :ancestors "0"}
+                 {:dept_id 2 :parent_id 1 :ancestors "0,1"}]
     :create-user! [{:user_id 3}]
     :update-user! nil
     :delete-user! nil

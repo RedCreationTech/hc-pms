@@ -4,13 +4,36 @@
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
+   [clojure.string :as str]
    ["antd" :refer [DatePicker]]
+   ["dayjs" :as dayjs]
    ["@ant-design/icons" :refer [SearchOutlined ReloadOutlined PlusOutlined EditOutlined DeleteOutlined UploadOutlined DownloadOutlined SettingOutlined
                                 FolderOpenOutlined FileTextOutlined AppstoreOutlined]]
    [com.ruoyi.frontend.antd :as antd]
    [com.ruoyi.frontend.components.dept-tree-select :refer [dept-tree-select]]))
 
 (def range-picker (r/adapt-react-class (.-RangePicker DatePicker)))
+
+(defn- dayjs->date-string
+  "把 dayjs 日期格式化为 yyyy-MM-dd。"
+  [d]
+  (when d
+    (.format d "YYYY-MM-DD")))
+
+(defn- search-date-range
+  "根据查询参数生成 RangePicker 受控值。"
+  [{:keys [beginTime endTime]}]
+  (when (or beginTime endTime)
+    #js [(when beginTime (dayjs beginTime))
+         (when endTime (dayjs endTime))]))
+
+(def phone-pattern
+  "RuoYi 手机号校验规则。"
+  (js/RegExp. "^1[3-9][0-9]\\\\d{8}$"))
+
+(def password-pattern
+  "RuoYi 密码非法字符校验规则。"
+  (js/RegExp. "^[^<>\\\"\\x27|\\\\\\\\]+$"))
 
 ;; ─── 搜索表单 ──────────────────────────────────────────────────────
 
@@ -52,13 +75,13 @@
         [:span {:style {:whiteSpace "nowrap" :fontSize 14 :fontWeight 600 :color "var(--ant-color-text-secondary, #606266)" :width 58 :textAlign "right"}} "用户名称"]
         [antd/input {:placeholder "请输入用户名称"
                      :style {:width 232 :height 34 :borderRadius 4}
-                     :value (:user_name query-params)
+                     :value (or (:user_name query-params) "")
                      :on-change #(rf/dispatch [:users/update-query :user_name (.. % -target -value)])}]]
        [:div {:style {:display "flex" :alignItems "center" :gap 8 :width 300}}
         [:span {:style {:whiteSpace "nowrap" :fontSize 14 :fontWeight 600 :color "var(--ant-color-text-secondary, #606266)" :width 58 :textAlign "right"}} "手机号码"]
         [antd/input {:placeholder "请输入手机号码"
                      :style {:width 232 :height 34 :borderRadius 4}
-                     :value (:phonenumber query-params)
+                     :value (or (:phonenumber query-params) "")
                      :on-change #(rf/dispatch [:users/update-query :phonenumber (.. % -target -value)])}]]
        [:div {:style {:display "flex" :alignItems "center" :gap 8 :width 260}}
         [:span {:style {:whiteSpace "nowrap" :fontSize 14 :fontWeight 600 :color "var(--ant-color-text-secondary, #606266)" :width 42 :textAlign "right"}} "状态"]
@@ -69,11 +92,16 @@
                       :on-change #(rf/dispatch [:users/update-query :status %])}
          [antd/select-option {:value "0"} "正常"]
          [antd/select-option {:value "1"} "停用"]]]
-       [:div {:style {:flexBasis "100%" :height 0}}]
        [:div {:style {:display "flex" :alignItems "center" :gap 8 :width 300}}
         [:span {:style {:whiteSpace "nowrap" :fontSize 14 :fontWeight 600 :color "var(--ant-color-text-secondary, #606266)" :width 58 :textAlign "right"}} "创建时间"]
         [range-picker {:placeholder #js ["开始日期" "结束日期"]
-                       :style {:width 232 :height 34 :borderRadius 4}}]]
+                       :style {:width 232 :height 34 :borderRadius 4}
+                       :value (search-date-range query-params)
+                       :on-change (fn [dates _]
+                                    (let [begin (when dates (dayjs->date-string (aget dates 0)))
+                                          end (when dates (dayjs->date-string (aget dates 1)))]
+                                      (rf/dispatch [:users/update-query :beginTime begin])
+                                      (rf/dispatch [:users/update-query :endTime end])))}]]
        [:div {:style {:display "flex" :gap 10 :alignItems "center" :width 168}}
         [antd/button {:type "primary"
                       :style {:height 34 :borderRadius 4 :background "#409eff"}
@@ -307,24 +335,29 @@
                                                      :posts (mapv :post_id (:posts form-data)))))}
          [:div {:style {:display "grid" :gridTemplateColumns "1fr 1fr" :columnGap 24 :rowGap 28}}
           [antd/form-item {:style {:marginBottom 0} :label "用户昵称" :name "nick_name"
-                           :rules [{:required true :message "请输入用户昵称"}]}
+                           :rules [{:required true :message "用户昵称不能为空"}]}
            [antd/input {:placeholder "请输入用户昵称" :style {:height 42 :borderRadius 4}}]]
           [antd/form-item {:style {:marginBottom 0} :label "归属部门"}
            [dept-tree-select {:placeholder "请选择归属部门" :allow-clear? true :style {:height 42}
                               :value (.getFieldValue form "dept_id")
                               :on-change (fn [v] (.setFieldsValue form #js {"dept_id" v}))}]]
-          [antd/form-item {:style {:marginBottom 0} :label "手机号码" :name "phonenumber"}
-           [antd/input {:placeholder "请输入手机号码" :style {:height 42 :borderRadius 4}}]]
-          [antd/form-item {:style {:marginBottom 0} :label "邮箱" :name "email"}
-           [antd/input {:placeholder "请输入邮箱" :style {:height 42 :borderRadius 4}}]]
+          [antd/form-item {:style {:marginBottom 0} :label "手机号码" :name "phonenumber"
+                           :rules [{:pattern phone-pattern :message "请输入正确的手机号码"}]}
+           [antd/input {:placeholder "请输入手机号码" :maxLength 11 :style {:height 42 :borderRadius 4}}]]
+          [antd/form-item {:style {:marginBottom 0} :label "邮箱" :name "email"
+                           :rules [{:type "email" :message "请输入正确的邮箱地址"}]}
+           [antd/input {:placeholder "请输入邮箱" :maxLength 50 :style {:height 42 :borderRadius 4}}]]
           (when-not editing
             [antd/form-item {:style {:marginBottom 0} :label "用户名称" :name "user_name"
-                             :rules [{:required true :message "请输入用户名称"}]}
+                             :rules [{:required true :message "用户名称不能为空"}
+                                     {:min 2 :max 20 :message "用户名称长度必须介于 2 和 20 之间"}]}
              [antd/input {:placeholder "请输入用户名称" :style {:height 42 :borderRadius 4}}]])
           (when-not editing
             [antd/form-item {:style {:marginBottom 0} :label "用户密码" :name "password"
-                             :rules [{:required true :message "请输入用户密码"}]}
-             [antd/password {:placeholder "请输入用户密码" :style {:height 42 :borderRadius 4}}]])
+                             :rules [{:required true :message "用户密码不能为空"}
+                                     {:min 5 :max 20 :message "用户密码长度必须介于 5 和 20 之间"}
+                                     {:pattern password-pattern :message "密码不能包含非法字符"}]}
+             [antd/password {:placeholder "请输入用户密码" :maxLength 20 :style {:height 42 :borderRadius 4}}]])
           [antd/form-item {:style {:marginBottom 0} :label "用户性别" :name "sex"}
            [antd/select {:placeholder "请选择性别" :allowClear true :style {:height 42}}
             [antd/select-option {:value "0"} "男"]
@@ -379,8 +412,10 @@
                                 (rf/dispatch [:users/submit-reset-password (js->clj values :keywordize-keys true)]))
                     :initialValues #js {}}
          [antd/form-item {:label "新密码" :name "password"
-                          :rules [{:required true :message "请输入新密码"}]}
-          [antd/password {:placeholder "请输入新密码"}]]
+                          :rules [{:required true :message "请输入新密码"}
+                                  {:min 5 :max 20 :message "用户密码长度必须介于 5 和 20 之间"}
+                                  {:pattern password-pattern :message "密码不能包含非法字符"}]}
+          [antd/password {:placeholder "请输入新密码" :maxLength 20}]]
          [:div {:style {:display "flex" :justifyContent "flex-end" :gap 8 :marginTop 16}}
           [antd/button {:on-click #(rf/dispatch [:users/close-reset-password])} "取消"]
           [antd/button {:type "primary" :htmlType "submit"} "确定"]]]]])))
@@ -395,24 +430,25 @@
                        (flatten-visible-tree (:children node) expanded-ids (inc depth))))))
            nodes)))
 
-(def reference-dept-tree
-  [{:dept_id 1 :dept_name "若依科技"
-    :children [{:dept_id 2 :dept_name "深圳总公司"
-                :children [{:dept_id 4 :dept_name "研发部门"}
-                           {:dept_id 5 :dept_name "市场部门"}
-                           {:dept_id 7 :dept_name "测试部门"}
-                           {:dept_id 8 :dept_name "财务部门"}
-                           {:dept_id 9 :dept_name "运维部门"}]}
-               {:dept_id 3 :dept_name "长沙分公司"
-                :children [{:dept_id 10 :dept_name "市场部门"}
-                           {:dept_id 6 :dept_name "财务部门"}]}]}])
+(defn- filter-dept-tree
+  "按部门名称过滤部门树，并保留命中的祖先节点。"
+  [nodes keyword]
+  (let [kw (some-> keyword str str/lower-case)]
+    (if (empty? kw)
+      nodes
+      (->> nodes
+           (keep (fn [node]
+                   (let [children (filter-dept-tree (:children node) keyword)
+                         name (str/lower-case (or (:dept_name node) ""))]
+                     (when (or (str/includes? name kw) (seq children))
+                       (assoc node :children children)))))
+           vec))))
 
 (defn- dept-tree-sidebar []
   (let [dept-items @(rf/subscribe [:depts/tree])
         selected-dept-id @(rf/subscribe [:users/selected-dept-id])
-        tree-items (if (< (count (flatten-visible-tree dept-items #{1 2 3} 0)) 9)
-                     reference-dept-tree
-                     dept-items)
+        [dept-filter set-dept-filter!] (hooks/use-state "")
+        tree-items (filter-dept-tree dept-items dept-filter)
         [collapsed? set-collapsed!] (hooks/use-state false)
         [expanded-ids set-expanded!] (hooks/use-state #{1 2 3})
         toggle! (fn [dept-id]
@@ -452,39 +488,78 @@
         [:div {:style {:padding "12px 12px 8px"}}
          [antd/input {:placeholder "请输入部门名称"
                       :prefix (r/as-element [:> SearchOutlined {:style {:color "#c0c4cc"}}])
+                      :allowClear true
+                      :value dept-filter
+                      :on-change #(set-dept-filter! (.. % -target -value))
                       :style {:height 36 :borderRadius 4 :fontSize 14}}]]
         [:div {:style {:flex 1 :overflow "auto" :fontSize 14 :padding "4px 8px 18px"}}
          (for [d (flatten-visible-tree tree-items expanded-ids 0)]
            ^{:key (str "dept-" (:dept_id d) "-" (:_depth d))}
            [:div {:style {:display "flex" :alignItems "center"
-                          :height 34
-                          :padding "0 8px"
+                          :height 34 :padding "0 8px"
                           :cursor "pointer" :borderRadius 3
                           :background (if (= (:dept_id d) selected-dept-id) "#ecf5ff" "transparent")
                           :color (if (= (:dept_id d) selected-dept-id) "#409eff" "#606266")}
-                  :on-click #(do (toggle! (:dept_id d))
-                                 (rf/dispatch [:users/select-dept (:dept_id d)])
+                  :on-click #(do (rf/dispatch [:users/select-dept (:dept_id d)])
                                  (rf/dispatch [:users/fetch {:dept_id (:dept_id d)}]))}
             [:span {:style {:display "inline-flex"
                             :width (str (* (:_depth d) 24) "px")
                             :flexShrink 0}}]
-            ;; 展开/折叠箭头
             (if (seq (:children d))
               [:span {:style {:display "inline-flex" :width 14 :fontSize 10
                               :marginRight 4 :color "#a8abb2"
+                              :cursor "pointer"
                               :transform (if (contains? expanded-ids (:dept_id d))
                                            "rotate(90deg)" "rotate(0deg)")
-                              :transition "transform 0.2s"}}
+                              :transition "transform 0.2s"}
+                      :on-click (fn [e]
+                                  (.stopPropagation e)
+                                  (toggle! (:dept_id d)))}
                "▶"]
               [:span {:style {:display "inline-flex" :width 14 :marginRight 4}} ""])
-            ;; 图标
             [:span {:style {:display "inline-flex" :width 18 :marginRight 8
                             :fontSize 16 :color (if (seq (:children d)) "#e6a23c" "#a8abb2")}}
              (if (seq (:children d))
                [:> FolderOpenOutlined]
                [:> FileTextOutlined])]
-            ;; 名称
             [:span {:style {:lineHeight "34px" :whiteSpace "nowrap"}} (:dept_name d)]])]])]))
+
+(defn- import-modal
+  "用户导入弹窗。"
+  []
+  (let [visible? @(rf/subscribe [:users/import-visible?])
+        loading? @(rf/subscribe [:users/import-loading?])
+        file @(rf/subscribe [:users/import-file])
+        update-support? @(rf/subscribe [:users/import-update-support?])]
+    (when visible?
+      [:div {:style {:position "fixed" :top 0 :left 0 :right 0 :bottom 0
+                     :background "rgba(0,0,0,0.45)" :zIndex 1060
+                     :display "flex" :justifyContent "center" :alignItems "center"}}
+       [:div {:style {:background "var(--ant-color-bg-container, #fff)" :padding 24 :borderRadius 4 :width 420
+                      :boxShadow "0 2px 12px rgba(0,0,0,0.18)"}}
+        [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center" :marginBottom 18}}
+         [:h3 {:style {:margin 0 :fontSize 18 :fontWeight 500 :color "#303133"}} "用户导入"]
+         [antd/button {:type "text" :style {:fontSize 22 :color "#909399" :width 32 :height 32}
+                       :on-click #(rf/dispatch [:users/close-import])} "×"]]
+        [:label {:style {:display "flex" :height 150 :border "1px dashed #dcdfe6" :borderRadius 4
+                         :alignItems "center" :justifyContent "center" :flexDirection "column"
+                         :gap 10 :cursor "pointer" :color "#606266"}}
+         [:> UploadOutlined {:style {:fontSize 32 :color "#909399"}}]
+         [:span (if file (.-name file) "将文件拖到此处，或点击选择 CSV 文件")]
+         [:input {:type "file" :accept ".csv" :style {:display "none"}
+                  :on-change #(when-let [f (aget (.. % -target -files) 0)]
+                                (rf/dispatch [:users/set-import-file f]))}]]
+        [:label {:style {:display "flex" :alignItems "center" :gap 8 :marginTop 14 :fontSize 13 :color "#606266"}}
+         [:input {:type "checkbox" :checked update-support?
+                  :on-change #(rf/dispatch [:users/set-import-update-support (.. % -target -checked)])}]
+         [:span "是否更新已经存在的用户数据"]]
+        [:div {:style {:fontSize 12 :color "#909399" :marginTop 8}}
+         "当前导入管线支持 CSV；模板字段与导出字段一致。"]
+        [:div {:style {:display "flex" :justifyContent "flex-end" :gap 10 :marginTop 22}}
+         [antd/button {:on-click #(rf/dispatch [:users/close-import])} "取消"]
+         [antd/button {:type "primary" :loading loading? :disabled (nil? file)
+                       :style {:background "#409eff"}
+                       :on-click #(rf/dispatch [:users/import])} "确定"]]]])))
 
 (defn- display-users
   "返回真实接口数据，避免演示数据覆盖创建时间。"
@@ -590,6 +665,7 @@
                     :pagination false}]]
       [pagination-bar total page page-size]
       [form-modal]
+      [import-modal]
       [reset-password-modal]
       [auth-role-modal]
       [detail-drawer]]]))

@@ -648,12 +648,13 @@
 
 (defn import-users-csv
   "导入用户CSV。"
-  [file on-success on-error]
+  [file update-support? on-success on-error]
   (let [form-data (js/FormData.)]
     (.append form-data "file" file)
     (ajax/ajax-request
       {:method :post
        :uri (str api-base "/system/user/import")
+       :params {:updateSupport (if update-support? 1 0)}
        :body form-data
        :headers (when-let [token (get-token)] {"Authorization" (str "Bearer " token)})
        :response-format (ajax/json-response-format {:keywords? true})

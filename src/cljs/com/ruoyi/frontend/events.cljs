@@ -988,7 +988,8 @@
                  (fn [db _]
                    (-> db
                        (assoc-in [:users :import-visible?] true)
-                       (assoc-in [:users :import-file] nil))))
+                       (assoc-in [:users :import-file] nil)
+                       (assoc-in [:users :import-update-support?] false))))
 
 (rf/reg-event-db :users/close-import
                  (fn [db _]
@@ -1002,17 +1003,22 @@
                  (fn [db [_ loading?]]
                    (assoc-in db [:users :import-loading?] loading?)))
 
+(rf/reg-event-db :users/set-import-update-support
+                 (fn [db [_ update-support?]]
+                   (assoc-in db [:users :import-update-support?] update-support?)))
+
 (rf/reg-event-fx :users/import
                  (fn [{:keys [db]} _]
-                   (let [file (get-in db [:users :import-file])]
+                   (let [file (get-in db [:users :import-file])
+                         update-support? (get-in db [:users :import-update-support?] false)]
                      (if file
                        {:db (assoc-in db [:users :import-loading?] true)
-                        :api/import-users file}
+                        :api/import-users [file update-support?]}
                        {:db db}))))
 
 (rf/reg-fx :api/import-users
-           (fn [file]
-             (api/import-users-csv file
+           (fn [[file update-support?]]
+             (api/import-users-csv file update-support?
                                    (fn [r]
                                      (rf/dispatch [:users/set-import-loading false])
                                      (when (= 200 (:code r))
@@ -2161,6 +2167,7 @@
                  (fn [{:keys [db]} _]
                    {:db (-> db
                             (assoc-in [:users :query-params] {})
+                            (assoc-in [:users :selected-dept-id] nil)
                             (assoc-in [:users :selected-ids] [])
                             (assoc-in [:users :page] 1)
                             (assoc-in [:users :page-size] 10))
@@ -2326,13 +2333,14 @@
 
 (rf/reg-fx :api/batch-delete-users
            (fn [ids]
-             (doseq [id ids]
-               (api/delete-user id
-                                (fn [result]
-                                  (when (= 200 (:code result))
-                                    (antd/success! "删除成功")))
-                                (fn [_] (antd/error! "网络错误"))))
-             (rf/dispatch [:users/fetch {}])))
+             (api/delete-user (.join (clj->js ids) ",")
+                              (fn [result]
+                                (when (= 200 (:code result))
+                                  (antd/success! "删除成功")
+                                  (rf/dispatch [:users/fetch {}]))
+                                (when (not= 200 (:code result))
+                                  (antd/error! (:msg result))))
+                              (fn [_] (antd/error! "网络错误")))))
 
 (rf/reg-fx :api/change-user-status
            (fn [[user-id status]]

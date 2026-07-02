@@ -17,6 +17,10 @@
                                    :dept_id 1 :user_type "00" :email "admin@ruoyi.vip"
                                    :phonenumber "13800138000" :sex "0" :avatar ""
                                    :status "0" :remark "" :password "hashed"}
+                 :find-user-by-name nil
+                 :find-user-by-phone nil
+                 :find-user-by-email nil
+                 :list-depts [{:dept_id 1 :parent_id 0 :ancestors "0"}]
                  :create-user! nil
                  :last-insert-rowid {:last_insert_rowid 2}
                  :update-user! nil
@@ -35,6 +39,35 @@
           response (user/list-users {:user-service mock-user-service} request)]
       (is (map? response))
       (is (= 200 (:status response))))))
+
+(deftest test-list-users-filter-query
+  (testing "用户管理所有检索条件会传给领域 SQL 参数"
+    (let [captured (atom nil)
+          service {:query-fn (fn [q p]
+                               (case q
+                                 :find-user-by-id {:user_id 1 :user_name "admin" :roles [{:role_key "admin"}]}
+                                 :list-depts [{:dept_id 4 :parent_id 2 :ancestors "0,1,2"}]
+                                 :list-users (do (reset! captured p) [])
+                                 :count-users {:total 0}
+                                 []))}
+          request {:query-params {"user_name" "admin"
+                                  "phonenumber" "158"
+                                  "status" "0"
+                                  "dept_id" "4"
+                                  "beginTime" "2026-06-02"
+                                  "endTime" "2026-06-30"
+                                  "page" "1"
+                                  "size" "10"}
+                   :identity admin-identity}
+          response (user/list-users {:user-service service} request)]
+      (is (= 200 (:status response)))
+      (is (= "admin" (:user_name @captured)))
+      (is (= "158" (:phonenumber @captured)))
+      (is (= "0" (:status @captured)))
+      (is (= 1 (:dept_filter_enabled @captured)))
+      (is (= [4] (:dept_ids @captured)))
+      (is (= "2026-06-02" (:begin_time @captured)))
+      (is (= "2026-06-30 23:59:59" (:end_time @captured))))))
 
 (deftest test-get-user
   (testing "获取用户详情"

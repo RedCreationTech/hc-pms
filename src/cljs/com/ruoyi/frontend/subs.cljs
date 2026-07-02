@@ -105,7 +105,8 @@
 
 (rf/reg-sub :users/selected-dept-id
             (fn [db _]
-              (get-in db [:users :query-params :dept_id])))
+              (or (get-in db [:users :selected-dept-id])
+                  (get-in db [:users :query-params :dept_id]))))
 
 (rf/reg-sub :users/show-search?
             (fn [db _]
@@ -126,6 +127,10 @@
 (rf/reg-sub :users/import-file
             (fn [db _]
               (get-in db [:users :import-file] nil)))
+
+(rf/reg-sub :users/import-update-support?
+            (fn [db _]
+              (get-in db [:users :import-update-support?] false)))
 
 (rf/reg-sub :users/auth-role-visible?
             (fn [db _]
