@@ -72,5 +72,19 @@
                    :identity admin-identity}
           response (menu/change-status {:menu-service mock-menu-service} request)]
       (is (map? response))
-      (is (= 200 (:status response))
-      (is (= "状态修改成功" (:data (:body response))))))))
+      (is (= 200 (:status response)))
+      (is (= "状态修改成功" (:data (:body response)))))))
+
+(deftest test-save-sort-uses-ruoyi-params
+  (testing "保存排序支持 RuoYi-Vue 的 menuIds/orderNums 参数"
+    (let [calls (atom [])
+          service {:query-fn (fn [q p]
+                               (when (= q :update-menu-order!)
+                                 (swap! calls conj p)))}
+          request {:body-params {:menuIds "10,20" :orderNums "3,4"}}
+          response (menu/save-sort {:menu-service service} request)]
+      (is (= 200 (:status response)))
+      (is (= "排序保存成功" (:data (:body response))))
+      (is (= [{:menu_id 10 :order_num 3}
+              {:menu_id 20 :order_num 4}]
+             @calls)))))

@@ -77,7 +77,7 @@
         [antd/select-option {:value "1"} "停用"]]]
       [page-search/search-actions
        [page-toolbar/search-button {:icon (r/as-element [:> SearchOutlined])
-                                    :on-click #(rf/dispatch [:roles/fetch (:roles/query-params @re-frame.db/app-db)])}]
+                                    :on-click #(rf/dispatch [:roles/fetch query-params])}]
        [page-toolbar/reset-button {:icon (r/as-element [:> ReloadOutlined])
                                    :on-click #(do (rf/dispatch [:roles/reset-query])
                                                   (rf/dispatch [:roles/fetch {}]))}]]]]))
@@ -85,31 +85,32 @@
 ;; ─── 工具栏 ────────────────────────────────────────────────────────
 
 (defn- toolbar []
-  [page-toolbar/page-toolbar
-   {:left [page-toolbar/toolbar-left
-           [page-toolbar/toolbar-button {:kind :add
-                                         :icon (r/as-element [:> PlusOutlined])
-                                         :on-click #(rf/dispatch [:roles/open-modal])
-                                         :label "新增"}]
-           [page-toolbar/toolbar-button {:kind :edit
-                                         :icon (r/as-element [:> EditOutlined])
-                                         :disabled? true
-                                         :label "修改"}]
-           [page-toolbar/toolbar-button {:kind :delete
-                                         :icon (r/as-element [:> DeleteOutlined])
-                                         :disabled? true
-                                         :label "删除"}]
-           [page-toolbar/toolbar-button {:kind :export
-                                         :icon (r/as-element [:> DownloadOutlined])
-                                         :on-click #(api/export-roles {})
-                                         :label "导出"}]]
-    :right [page-toolbar/toolbar-right
-            [page-toolbar/round-tool-button {:title "搜索"
-                                             :icon (r/as-element [:> SearchOutlined])
-                                             :on-click #(rf/dispatch [:roles/fetch (:roles/query-params @re-frame.db/app-db)])}]
-            [page-toolbar/round-tool-button {:title "刷新"
-                                             :icon (r/as-element [:> ReloadOutlined])
-                                             :on-click #(rf/dispatch [:roles/fetch {}])}]]}])
+  (let [query-params @(rf/subscribe [:roles/query-params])]
+    [page-toolbar/page-toolbar
+     {:left [page-toolbar/toolbar-left
+             [page-toolbar/toolbar-button {:kind :add
+                                           :icon (r/as-element [:> PlusOutlined])
+                                           :on-click #(rf/dispatch [:roles/open-modal])
+                                           :label "新增"}]
+             [page-toolbar/toolbar-button {:kind :edit
+                                           :icon (r/as-element [:> EditOutlined])
+                                           :disabled? true
+                                           :label "修改"}]
+             [page-toolbar/toolbar-button {:kind :delete
+                                           :icon (r/as-element [:> DeleteOutlined])
+                                           :disabled? true
+                                           :label "删除"}]
+             [page-toolbar/toolbar-button {:kind :export
+                                           :icon (r/as-element [:> DownloadOutlined])
+                                           :on-click #(api/export-roles {})
+                                           :label "导出"}]]
+      :right [page-toolbar/toolbar-right
+              [page-toolbar/round-tool-button {:title "搜索"
+                                               :icon (r/as-element [:> SearchOutlined])
+                                               :on-click #(rf/dispatch [:roles/fetch query-params])}]
+              [page-toolbar/round-tool-button {:title "刷新"
+                                               :icon (r/as-element [:> ReloadOutlined])
+                                               :on-click #(rf/dispatch [:roles/fetch {}])}]]}]))
 
 ;; ─── 表格列定义 ──────────────────────────────────────────────────────
 
@@ -231,7 +232,7 @@
         [antd/radio {:value "5"} "仅本人数据权限"]]]
       (when (= "2" (:data_scope role "1"))
         [antd/form-item {:label "数据权限" :name "dept_ids"}
-         [antd/tree-select {:treeData (clj->js (mapv dept->tree-node @(rf/subscribe [:roles/dept-tree])))
+         [antd/tree-select {:treeData (clj->js (mapv dept->tree-node @(rf/subscribe [:roles/data-scope-dept-tree])))
                             :multiple true
                             :placeholder "请选择部门"
                             :treeCheckable true
@@ -242,7 +243,7 @@
 (defn- user-alloc-modal []
   (let [visible? @(rf/subscribe [:roles/user-alloc-visible?])
         role @(rf/subscribe [:roles/user-alloc-role])
-        selected-users @(rf/subscribe [:roles/selected-users])]
+        selected-users @(rf/subscribe [:roles/allocated-selected])]
     [antd/modal {:title (str "分配用户 - " (:role_name role))
                  :open visible?
                  :onOk #(rf/dispatch [:roles/save-user-alloc (:role_id role) selected-users])
@@ -250,7 +251,7 @@
                  :destroyOnHidden true
                  :width 800}
      [antd/table {:columns (user-columns "取消授权" #(rf/dispatch [:roles/unauth-user (:role_id role) %]))
-                  :dataSource (clj->js @(rf/subscribe [:roles/alloc-user-list]))
+                  :dataSource (clj->js @(rf/subscribe [:roles/allocated-items]))
                   :rowKey "user_id"
                   :pagination {:pageSize 10}}]]))
 
@@ -259,7 +260,7 @@
 (defn- permission-modal []
   (let [visible? @(rf/subscribe [:roles/permission-visible?])
         role @(rf/subscribe [:roles/permission-role])
-        selected-keys @(rf/subscribe [:roles/selected-menu-keys])]
+        selected-keys @(rf/subscribe [:roles/checked-keys])]
     [antd/modal {:title (str "分配菜单权限 - " (:role_name role))
                  :open visible?
                  :onOk #(rf/dispatch [:roles/save-permission (:role_id role) selected-keys])
@@ -277,7 +278,7 @@
    [search-form]
    [toolbar]
    [antd/table {:columns (role-columns)
-                :dataSource (clj->js @(rf/subscribe [:roles/list]))
+                :dataSource (clj->js @(rf/subscribe [:roles/items]))
                 :rowKey "role_id"
                 :loading @(rf/subscribe [:roles/loading?])
                 :pagination {:pageSize 10 :showSizeChanger true}

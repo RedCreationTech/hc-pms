@@ -1,6 +1,7 @@
 (ns com.ruoyi.web.controllers.system.menu
   "菜单管理控制器。"
   (:require
+   [clojure.string :as str]
    [com.ruoyi.domain.system.menu :as menu-service]
    [ring.util.response :as response]))
 
@@ -66,11 +67,24 @@
     (menu-service/update-menu! menu-service {:menu_id menu-id :status status :update_by (current-user-name request)})
     (ok "状态修改成功")))
 
+(defn- sort-params->items [params]
+  (let [menu-ids (or (:menuIds params) (get params "menuIds"))
+        order-nums (or (:orderNums params) (get params "orderNums"))
+        ids (str/split (str menu-ids) #",")
+        nums (str/split (str order-nums) #",")]
+    (when (not= (count ids) (count nums))
+      (throw (ex-info "菜单ID与排序数量不一致" {:menuIds menu-ids :orderNums order-nums})))
+    (mapv (fn [menu-id order-num]
+            {:menu_id (parse-long menu-id)
+             :order_num (parse-long order-num)})
+          ids
+          nums)))
+
 (defn save-sort
   "保存菜单排序。"
   [{:keys [menu-service]} request]
   (try
-    (let [items (:body-params request)]
+    (let [items (sort-params->items (:body-params request))]
       (menu-service/update-menu-order! menu-service items)
       (ok "排序保存成功"))
     (catch Exception e (fail (.getMessage e)))))

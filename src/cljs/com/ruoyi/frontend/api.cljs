@@ -2,6 +2,7 @@
   "HTTP API 客户端封装。"
   (:require
     [ajax.core :as ajax]
+    [clojure.string :as str]
     [re-frame.db :as rf-db]))
 
 
@@ -237,10 +238,14 @@
             :on-success on-success :on-error on-error}))
 
 (defn save-menu-sort
-  "保存菜单排序。"
+  "保存菜单排序。与 RuoYi-Vue 保持一致，只提交变化项的 menuIds/orderNums 字符串。"
   [items on-success on-error]
-  (request {:method :put :uri "/system/menu/sort" :params items
-            :on-success on-success :on-error on-error}))
+  (request {:method :put
+            :uri "/system/menu/sort"
+            :params {:menuIds (str/join "," (map :menu_id items))
+                     :orderNums (str/join "," (map :order_num items))}
+            :on-success on-success
+            :on-error on-error}))
 
 
 ;; ─── 部门管理 ──────────────────────────────────────────────────────

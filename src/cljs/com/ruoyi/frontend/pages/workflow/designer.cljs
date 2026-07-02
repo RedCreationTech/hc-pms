@@ -52,7 +52,7 @@
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>")
 
-(defn- zoom-fit [modeler]
+(defn- zoom-fit [^js modeler]
   (-> modeler (.get "canvas") (.zoom "fit-viewport")))
 
 (defn bpmn-designer-page []
@@ -64,12 +64,12 @@
      (fn []
        (when-let [el @container-ref]
          (when-let [BpmnModeler (.-BpmnModeler js/window)]
-           (let [m (BpmnModeler. #js {:container el})]
+           (let [^js m (BpmnModeler. #js {:container el})]
              (reset! modeler-ref m)
              (-> m (.importXML default-bpmn)
                  (.then (fn [] (zoom-fit m)))
                  (.catch (fn [err] (js/console.error "BPMN error:" err)))))))
-       #(when-let [m @modeler-ref]
+       #(when-let [^js m @modeler-ref]
           (.destroy m)
           (reset! modeler-ref nil)))
      [])
@@ -82,7 +82,7 @@
        [antd/button {:type "primary" :loading saving?
                      :icon (r/as-element [:> SaveOutlined])
                      :onClick (fn []
-                                (when-let [m @modeler-ref]
+                                (when-let [^js m @modeler-ref]
                                   (set-saving! true)
                                   (-> (.saveXML m #js {:format true})
                                       (.then (fn [r]
@@ -100,8 +100,8 @@
                                           (when-let [f (-> e .-target .-files (aget 0))]
                                             (let [r (js/FileReader.)]
                                               (set! (.-onload r)
-                                                    (fn [ev]
-                                                      (when-let [m @modeler-ref]
+                                                    (fn [^js ev]
+                                                      (when-let [^js m @modeler-ref]
                                                         (-> m (.importXML (-> ev .-target .-result))
                                                             (.then #(set-name! (.-name f)))))))
                                               (.readAsText r f)))))
@@ -110,7 +110,7 @@
       [antd/button {:type "dashed"
                     :icon (r/as-element [:> PlusOutlined])
                     :onClick (fn []
-                               (when-let [m @modeler-ref]
+                               (when-let [^js m @modeler-ref]
                                  (-> m (.importXML default-bpmn)
                                      (.then (fn [] (zoom-fit m))))))}
        "新建"]]

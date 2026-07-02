@@ -2,7 +2,7 @@
   "Ant Design 组件 Reagent 封装。"
   (:require
    [reagent.core :as r]
-   ["antd" :refer [App Button Card ConfigProvider DatePicker Descriptions Drawer Dropdown Empty Form Input Layout Menu Modal Pagination Popconfirm Popover Progress Radio Select Space Spin Switch Table Tabs Tag Tooltip Tree TreeSelect Upload message]]
+   ["antd" :refer [App Button Card ConfigProvider DatePicker Descriptions Drawer Dropdown Empty Form Input InputNumber Layout Menu Modal Pagination Popconfirm Popover Progress Radio Select Space Spin Switch Table Tabs Tag Tooltip Tree TreeSelect Upload message]]
    ["@ant-design/icons" :refer [LockOutlined UserOutlined DashboardOutlined TeamOutlined SettingOutlined SafetyOutlined FileTextOutlined EditOutlined DeleteOutlined PlusOutlined DownloadOutlined EyeOutlined SearchOutlined ReloadOutlined UploadOutlined MoreOutlined]]))
 
 (def app (r/adapt-react-class App))
@@ -18,6 +18,7 @@
 (def form-item (r/adapt-react-class (.-Item Form)))
 (def form-use-form (.-useForm Form))
 (def input (r/adapt-react-class Input))
+(def input-number (r/adapt-react-class InputNumber))
 (def password (r/adapt-react-class (.-Password Input)))
 (def text-area (r/adapt-react-class (.-TextArea Input)))
 (def layout (r/adapt-react-class Layout))
