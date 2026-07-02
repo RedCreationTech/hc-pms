@@ -74,18 +74,25 @@
    (or label "重置")])
 
 (defn round-tool-button [{:keys [icon on-click title]}]
-  [antd/tooltip {:title title}
-   [antd/button {:shape "circle"
-                 :icon icon
-                 :on-click on-click
-                 :style {:width 40
-                         :height 40
-                         :display "inline-flex"
-                         :alignItems "center"
-                         :justifyContent "center"
-                         :color "#606266"
-                         :border "1px solid #dcdfe6"
-                         :boxShadow "0 2px 8px rgba(0,0,0,0.06)"}}]])
+  (let [toggle-search? (= title "搜索")
+        handle-click (fn [event]
+                       (when on-click (on-click event))
+                       (when toggle-search?
+                         (js/setTimeout
+                          #(.dispatchEvent js/window (js/CustomEvent. "ruoyi-toggle-search"))
+                          0)))]
+    [antd/tooltip {:title title}
+     [antd/button {:shape "circle"
+                   :icon icon
+                   :on-click handle-click
+                   :style {:width 40
+                           :height 40
+                           :display "inline-flex"
+                           :alignItems "center"
+                           :justifyContent "center"
+                           :color "#606266"
+                           :border "1px solid #dcdfe6"
+                           :boxShadow "0 2px 8px rgba(0,0,0,0.06)"}}]]))
 
 (defn toolbar-right [& children]
   (into [:div {:style {:display "flex" :gap 12

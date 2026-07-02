@@ -89,10 +89,10 @@
 
 ;; ─── 搜索栏 ────────────────────────────────────────────────────────
 
-(defn- search-bar []
+(defn- search-bar [{:keys [visible?]}]
   (let [[menu-name set-menu-name!] (hooks/use-state "")
         [status set-status!] (hooks/use-state nil)]
-    [page-search/page-search {:visible? true}
+    [page-search/page-search {:visible? visible?}
      [page-search/search-row
       [page-search/search-item
        "菜单名称"
@@ -155,7 +155,7 @@
 
 ;; ─── 工具栏 ────────────────────────────────────────────────────────
 
-(defn- toolbar [{:keys [all-expanded? on-toggle-expand on-save-sort]}]
+(defn- toolbar [{:keys [all-expanded? on-toggle-expand on-save-sort on-toggle-search]}]
   [page-toolbar/page-toolbar
    {:style {:padding "8px 22px 10px 22px"}
     :left [page-toolbar/toolbar-left
@@ -172,9 +172,9 @@
                                          :on-click on-toggle-expand
                                          :label "展开/折叠"}]]
     :right [page-toolbar/toolbar-right
-            [page-toolbar/round-tool-button {:title "搜索"
+            [page-toolbar/round-tool-button {:title "显示/隐藏搜索"
                                              :icon (r/as-element [:> SearchOutlined])
-                                             :on-click #(rf/dispatch [:menus/search {}])}]
+                                             :on-click on-toggle-search}]
             [page-toolbar/round-tool-button {:title "刷新"
                                              :icon (r/as-element [:> ReloadOutlined])
                                              :on-click #(rf/dispatch [:menus/fetch])}]]}])
@@ -509,6 +509,7 @@
         [expanded-keys set-expanded-keys!] (hooks/use-state :pending)
         [all-expanded? set-all-expanded!] (hooks/use-state true)
         [delete-target set-delete-target!] (hooks/use-state nil)
+        [show-search? set-show-search!] (hooks/use-state true)
         items-source (or local-items items)
         tree-data (build-menu-tree items-source 0)
         expandable-ids (expandable-menu-ids tree-data)
@@ -628,10 +629,11 @@
        [:div {:style {:background "transparent"
                       :minHeight "calc(100vh - 214px)"
                       :padding "10px 8px 24px 8px"}}
-        [search-bar]
+        [search-bar {:visible? show-search?}]
         [toolbar {:all-expanded? all-expanded?
                   :on-toggle-expand handle-toggle-expand
-                  :on-save-sort handle-save-sort}]
+                  :on-save-sort handle-save-sort
+                  :on-toggle-search #(set-show-search! (not show-search?))}]
         [:> (.-DndContext dnd-kit-core)
          {:sensors dnd-sensors
           :onDragStart handle-drag-start

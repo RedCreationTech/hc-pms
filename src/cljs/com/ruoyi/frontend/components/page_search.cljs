@@ -5,10 +5,19 @@
 
 (defn page-search [{:keys [visible?]} & children]
   (let [form-ref (hooks/use-ref nil)
-        [height set-height!] (hooks/use-state (if visible? "auto" "0px"))]
+        [manual-visible? set-manual-visible!] (hooks/use-state true)
+        effective-visible? (and visible? manual-visible?)
+        [height set-height!] (hooks/use-state (if effective-visible? "auto" "0px"))]
     (hooks/use-effect
      (fn []
-       (if visible?
+       (let [handler (fn [_]
+                       (set-manual-visible! (not manual-visible?)))]
+         (.addEventListener js/window "ruoyi-toggle-search" handler)
+         (fn [] (.removeEventListener js/window "ruoyi-toggle-search" handler))))
+     [manual-visible?])
+    (hooks/use-effect
+     (fn []
+       (if effective-visible?
          (when-let [el (.-current form-ref)]
            (set-height! "0px")
            (js/setTimeout
@@ -23,11 +32,12 @@
                 (fn [] (set-height! "0px"))
                 10))))
        js/undefined)
-     [visible?])
+     [effective-visible?])
     [:div {:ref form-ref
+           :className "ruoyi-page-search"
            :style {:overflow "hidden"
                    :height height
-                   :opacity (if visible? 1 0)
+                   :opacity (if effective-visible? 1 0)
                    :transition "height 0.3s ease, opacity 0.3s ease"}}
      (into [:div {:style {:background "transparent"
                           :padding "12px 22px 6px 22px"}}]
