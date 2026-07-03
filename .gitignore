@@ -1,13 +1,14 @@
 .nrepl-port
 .shadow-cljs/
 node_modules/
+package-lock.json
 target/
 resources/public/js/
 *.jar
 *.class
 .DS_Store
 *.log
-cpcache/
+.cpcache/
 
 # Beads / Dolt files (added by bd init)
 .dolt/
@@ -16,13 +17,12 @@ cpcache/
 .pi/
 .runtime/
 CLAUDE.local.md
-.cpcache/
 .clj-kondo/
-.lsp/.cache/
 .lsp/.cache/
 
 # Playwright
 test-results/
+playwright-report/
 /.codex/
 
 # Dev logs

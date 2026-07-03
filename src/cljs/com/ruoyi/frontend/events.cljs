@@ -113,11 +113,12 @@
                               (assoc-in [:auth :loading?] false))
                       :dispatch-n [[:navigate :dashboard] [:auth/fetch-info]]})))
 
-(rf/reg-event-db :auth/login-failure
-                 (fn [db [_ msg]]
-                   (-> db
-                       (assoc-in [:auth :loading?] false)
-                       (assoc :notification {:type :error :message msg}))))
+(rf/reg-event-fx :auth/login-failure
+                 (fn [{:keys [db]} [_ msg]]
+                   (antd/error! msg)
+                   {:db (-> db
+                            (assoc-in [:auth :loading?] false)
+                            (assoc :notification {:type :error :message msg}))}))
 
 
 (rf/reg-event-fx :auth/logout

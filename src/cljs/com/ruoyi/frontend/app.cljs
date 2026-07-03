@@ -47,18 +47,18 @@
        (.locale dayjs "zh-cn")
        js/undefined)
      [])
-    (if logged-in?
-      [:> ConfigProvider {:theme (theme/theme-config
-                                  {:mode theme-mode
-                                   :primary-color primary-color
-                                   :algorithm algorithm
-                                   :font-size font-size})
-                          :componentSize component-size
-                          :locale zh-CN}
-       [antd/app
-        [message-init]
-        [layout/main-layout]]]
-      [login/login-page])))
+    [:> ConfigProvider {:theme (theme/theme-config
+                                {:mode theme-mode
+                                 :primary-color primary-color
+                                 :algorithm algorithm
+                                 :font-size font-size})
+                        :componentSize component-size
+                        :locale zh-CN}
+     [antd/app
+      [message-init]
+      (if logged-in?
+        [layout/main-layout]
+        [login/login-page])]]))
 
 (defn app []
   [error-boundary/boundary [current-page]])

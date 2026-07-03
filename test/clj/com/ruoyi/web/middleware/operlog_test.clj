@@ -22,7 +22,7 @@
           log-entry (second (first @calls))]
       (is (= 200 (:status response)))
       (is (= :create-oper-log! (ffirst @calls)))
-      (is (= "post /api/system/user" (:title log-entry)))
+      (is (= "用户管理" (:title log-entry)))
       (is (= "admin" (:oper_name log-entry)))
       (is (= 0 (:status log-entry)))
       (is (= "127.0.0.1" (:oper_ip log-entry))))))
