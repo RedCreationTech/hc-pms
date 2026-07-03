@@ -38,13 +38,13 @@
     (.fillRect g 0 0 width height)
 
     ;; 设置字体
-    (.setFont g (Font. "Arial" Font/BOLD 36))
+    (.setFont g (Font. "Arial" Font/BOLD 34))
     (.setRenderingHint g RenderingHints/KEY_ANTIALIASING RenderingHints/VALUE_ANTIALIAS_ON)
 
     ;; 绘制验证码字符
     (dotimes [i (count code)]
       (.setColor g (generate-color 50 180))
-      (.drawString g (str (nth code i)) (+ 15 (* i 40)) (+ 35 (.nextInt random 10))))
+      (.drawString g (str (nth code i)) (+ 18 (* i 36)) (+ 35 (.nextInt random 10))))
 
     ;; 绘制干扰线
     (dotimes [_ 6]
@@ -64,7 +64,7 @@
   "生成验证码图片并返回。"
   [_ request]
   (let [code (generate-code 4)
-        image (create-captcha-image code 150 50)
+        image (create-captcha-image code 200 50)
         baos (ByteArrayOutputStream.)]
     (ImageIO/write image "png" baos)
     (let [uuid (or (get-in request [:query-params "r"])
