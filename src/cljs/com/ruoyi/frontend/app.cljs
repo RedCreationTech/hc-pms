@@ -32,13 +32,17 @@
         algorithm @(rf/subscribe [:theme/algorithm])
         component-size @(rf/subscribe [:theme/component-size])
         font-size @(rf/subscribe [:theme/font-size])]
-    ;; 设置 body 背景色以匹配主题
+    ;; 设置 body 背景色与 dark 类以匹配主题
     (hooks/use-effect
      (fn []
        (let [body (.-body js/document)
              is-dark? (= theme-mode :dark)]
          (set! (.-backgroundColor (.-style body))
                (if is-dark? "#000" "#f5f5f5"))
+         (when body
+           (if is-dark?
+             (.add (.-classList body) "dark")
+             (.remove (.-classList body) "dark")))
          js/undefined))
      [theme-mode])
     ;; 确保日期、时间等组件使用中文
@@ -65,7 +69,17 @@
 
 (defn init []
   (rf/dispatch-sync [:initialize-db])
-  ;; 从 localStorage 加载主题设置
+  ;; 从 localStorage 读取主题模式并在初始化时同步应用
+  (let [stored-mode (when js/localStorage (.getItem js/localStorage "ruoyi-theme-mode"))
+        mode (if stored-mode (keyword stored-mode) :light)
+        is-dark? (= mode :dark)]
+    (rf/dispatch-sync [:theme/set-mode mode])
+    ;; 给 body 添加/移除 dark 类，供全局 CSS 选择器使用
+    (when-let [body (.-body js/document)]
+      (if is-dark?
+        (.add (.-classList body) "dark")
+        (.remove (.-classList body) "dark"))))
+  ;; 加载其他主题/布局设置
   (rf/dispatch [:theme/load-from-storage])
   ;; 先在渲染前初始化路由（只 configure，不 dispatch）
   (router/init-routes!)
