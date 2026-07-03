@@ -65,10 +65,6 @@
  {:query-fn #ig/ref :db.sql/query-fn
   :db       #ig/ref :db.sql/connection}
 
- :app.system/form-template-service
- {:query-fn #ig/ref :db.sql/query-fn
-  :db       #ig/ref :db.sql/connection}
-
  :app.system/log-service
  {:query-fn #ig/ref :db.sql/query-fn
   :db       #ig/ref :db.sql/connection}
@@ -95,7 +91,6 @@
   :post-service   #ig/ref :app.system/post-service
   :dict-service   #ig/ref :app.system/dict-service
   :config-service       #ig/ref :app.system/config-service
-  :form-template-service #ig/ref :app.system/form-template-service
   :log-service          #ig/ref :app.system/log-service
   :online-service       #ig/ref :app.system/online-service}
 

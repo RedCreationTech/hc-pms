@@ -33,10 +33,6 @@
   [_ {:keys [query-fn db]}]
   {:query-fn query-fn :db db})
 
-(defmethod ig/init-key :app.system/form-template-service
-  [_ {:keys [query-fn db]}]
-  {:query-fn query-fn :db db})
-
 (defmethod ig/init-key :app.system/log-service
   [_ {:keys [query-fn db]}]
   {:query-fn query-fn :db db})

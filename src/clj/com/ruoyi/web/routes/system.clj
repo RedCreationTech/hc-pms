@@ -16,7 +16,6 @@
    [com.ruoyi.web.controllers.monitor :as monitor]
    [com.ruoyi.web.controllers.system.cache :as cache]
    [com.ruoyi.web.controllers.system.import-export :as im]
-   [com.ruoyi.web.controllers.system.form-template :as form-template]
    [com.ruoyi.web.middleware.auth :as auth-mw]
 
    [malli.util :as mu]))
@@ -35,7 +34,7 @@
 (def PathId [:map [:id [:re #"\d+"]]])
 
 ;; ── Routes ──────────────────────────────────────────────────────────
-(defn system-routes [{:keys [user-service role-service menu-service dept-service post-service dict-service config-service log-service online-service form-template-service query-fn datasource]}]
+(defn system-routes [{:keys [user-service role-service menu-service dept-service post-service dict-service config-service log-service online-service query-fn datasource]}]
   ["/system"
    {:middleware [(auth-mw/auth-middleware {:required? true})]
     :swagger {:tags ["系统管理"]}}
@@ -193,17 +192,6 @@
                       :handler (partial config/update-config {:config-service config-service})}
              :delete {:summary "删除参数" :parameters {:path PathId}
                       :handler (partial config/delete-config {:config-service config-service})}}]]
-
-   ["/form-template"
-    ["" {:get  {:summary "表单模板列表" :parameters {:query PagingQuery}
-                :handler (partial form-template/list-form-templates {:form-template-service form-template-service})}
-         :post {:summary "新增表单模板" :handler (partial form-template/create-form-template {:form-template-service form-template-service})}}]
-    ["/:id" {:get    {:summary "表单模板详情" :parameters {:path PathId}
-                      :handler (partial form-template/get-form-template {:form-template-service form-template-service})}
-             :put    {:summary "更新表单模板" :parameters {:path PathId}
-                      :handler (partial form-template/update-form-template {:form-template-service form-template-service})}
-             :delete {:summary "删除表单模板" :parameters {:path PathId}
-                      :handler (partial form-template/delete-form-template {:form-template-service form-template-service})}}]]
 
    ["/oper-log"
     ["" {:get    {:summary "操作日志列表" :description "分页查询操作日志（只读）"
