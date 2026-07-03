@@ -62,7 +62,6 @@
     (re-find #"/system/job" uri)         "定时任务"
     (re-find #"/system/oper-log" uri)    "操作日志"
     (re-find #"/system/login-log" uri)   "登录日志"
-    (re-find #"/tool/gen" uri)           "代码生成"
     (re-find #"/auth/login" uri)         "登录"
     (re-find #"/auth/logout" uri)        "退出"
     (re-find #"/auth/getInfo" uri)       "获取用户信息"

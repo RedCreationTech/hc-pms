@@ -3,10 +3,8 @@
    [com.ruoyi.web.controllers.health :as health]
    [com.ruoyi.web.routes.auth :as auth]
    [com.ruoyi.web.routes.system :as system]
-   [com.ruoyi.web.routes.gen :as gen]
    [com.ruoyi.web.routes.captcha :as captcha]
    [com.ruoyi.web.routes.common :as common]
-   [com.ruoyi.web.routes.workflow :as workflow]
    [com.ruoyi.web.middleware.exception :as exception]
    [com.ruoyi.web.middleware.formats :as formats]
    [integrant.core :as ig]
@@ -39,9 +37,7 @@
    (auth/auth-routes opts)
    (system/system-routes opts)
    (common/common-routes opts)
-   (gen/gen-routes opts)
-   (captcha/captcha-routes opts)
-   (workflow/routes)])
+   (captcha/captcha-routes opts)])
 
 (derive :reitit.routes/api :reitit/routes)
 

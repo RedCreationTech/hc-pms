@@ -77,19 +77,11 @@
  {:query-fn #ig/ref :db.sql/query-fn
   :db       #ig/ref :db.sql/connection}
 
- :app.system/gen-service
- {:query-fn #ig/ref :db.sql/query-fn
-  :db       #ig/ref :db.sql/connection}
-
  :app.system/job-scheduler
  {:scheduler  #ig/ref :cronut/scheduler
   :query-fn   #ig/ref :db.sql/query-fn
   :migrations #ig/ref :db.sql/migrations
   :db         #ig/ref :db.sql/connection}
-
- :workflow/engine
- {:jdbc-url #or [#env JDBC_URL "jdbc:sqlite:rouyi.db"]
-  :db-type  :sqlite}
 
  :reitit.routes/api
  {:base-path      "/api"
@@ -105,8 +97,7 @@
   :config-service       #ig/ref :app.system/config-service
   :form-template-service #ig/ref :app.system/form-template-service
   :log-service          #ig/ref :app.system/log-service
-  :online-service       #ig/ref :app.system/online-service
-  :gen-service    #ig/ref :app.system/gen-service}
+  :online-service       #ig/ref :app.system/online-service}
 
  :router/routes
  {:routes #ig/refset :reitit/routes}
@@ -147,7 +138,7 @@
  :db.sql/query-fn
  {:conn      #ig/ref :db.sql/connection
   :options   {}
-  :filenames ["queries.sql" "sql/system.sql" "sql/log.sql" "sql/job.sql" "sql/gen.sql" "sql/generated.sql"]
+  :filenames ["queries.sql" "sql/system.sql" "sql/log.sql" "sql/job.sql"]
   :env       #ig/ref :system/env}
 
  :db.sql/migrations

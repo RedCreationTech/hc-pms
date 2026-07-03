@@ -53,11 +53,6 @@
 
            ;; Scheduler
            org.quartz-scheduler/quartz {:mvn/version "2.3.2"}
-
-           ;; Workflow (Flowable - modern Activiti fork)
-           org.flowable/flowable-engine {:mvn/version "7.1.0"}
-           org.flowable/flowable-spring {:mvn/version "7.1.0" :exclusions [org.springframework/spring-jdbc]}
-           com.h2database/h2 {:mvn/version "2.2.224"}
            }
  :aliases {:build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.12"}}
                    :ns-default build}
@@ -72,7 +67,6 @@
                                 pjstadig/humane-test-output     {:mvn/version "0.11.0"}
                                 ring/ring-devel                 {:mvn/version "1.15.3"}
                                 ring/ring-mock                  {:mvn/version "0.6.2"}
-                                io.github.kit-clj/kit-generator {:mvn/version "0.2.9"}
                                 org.clojure/tools.namespace     {:mvn/version "1.5.1"}
                                 }
                   :extra-paths ["env/dev/clj" "env/dev/resources" "test/clj"]
@@ -92,7 +86,6 @@
                                 pjstadig/humane-test-output          {:mvn/version "0.11.0"}
                                 ring/ring-devel                      {:mvn/version "1.15.3"}
                                 ring/ring-mock                       {:mvn/version "0.6.2"}
-                                io.github.kit-clj/kit-generator      {:mvn/version "0.2.9"}
                                 org.clojure/tools.namespace          {:mvn/version "1.5.0"}
                                 peridot/peridot                      {:mvn/version "0.5.4"}
                                 org.clj-commons/byte-streams         {:mvn/version "0.3.4"}
@@ -109,7 +102,6 @@
                                     pjstadig/humane-test-output          {:mvn/version "0.11.0"}
                                     ring/ring-devel                      {:mvn/version "1.15.3"}
                                     ring/ring-mock                       {:mvn/version "0.6.2"}
-                                    io.github.kit-clj/kit-generator      {:mvn/version "0.2.9"}
                                     org.clojure/tools.namespace          {:mvn/version "1.5.0"}
                                     peridot/peridot                      {:mvn/version "0.5.4"}
                                     org.clj-commons/byte-streams         {:mvn/version "0.3.4"}

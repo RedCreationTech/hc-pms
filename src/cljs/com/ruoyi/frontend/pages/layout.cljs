@@ -47,12 +47,8 @@
    [com.ruoyi.frontend.pages.server :as server]
    [com.ruoyi.frontend.pages.cache :as cache]
    [com.ruoyi.frontend.pages.datasource :as datasource]
-   [com.ruoyi.frontend.pages.gen :as gen]
    [com.ruoyi.frontend.pages.swagger :as swagger]
    [com.ruoyi.frontend.pages.integrant :as integrant]
-   [com.ruoyi.frontend.pages.workflow.designer :as workflow.designer]
-   [com.ruoyi.frontend.pages.workflow.definitions :as workflow.definitions]
-   [com.ruoyi.frontend.pages.workflow.tasks :as workflow.tasks]
    [com.ruoyi.frontend.components.icon-picker :as icon-picker]))
 
 ;; ─── Tab 组件 ──────────────────────────────────────────────────────
@@ -303,7 +299,6 @@
    :cache "monitor/cache"
    :datasource "monitor/datasource"
    :integrant "monitor/integrant"
-   :gen "monitor/gen"
    :swagger "monitor/swagger"
    :profile "system/user/profile"
    :dashboard "dashboard"})
@@ -325,12 +320,8 @@
    :server ["首页" "系统监控" "服务监控"]
    :cache ["首页" "系统监控" "缓存监控"]
    :datasource ["首页" "系统监控" "连接池监视"]
-   :gen ["首页" "系统工具" "代码生成"]
    :swagger ["首页" "系统工具" "系统接口"]
-   :profile ["首页" "个人中心"]
-   :workflow-designer ["首页" "工作流" "流程设计器"]
-   :workflow-definitions ["首页" "工作流" "流程定义"]
-   :workflow-tasks ["首页" "工作流" "待办任务"]})
+   :profile ["首页" "个人中心"]})
 
 (def route-labels
   (into {} (map (fn [[k xs]] [k (last xs)]) page-breadcrumbs)))
@@ -352,11 +343,7 @@
    :server "server"
    :cache "cache"
    :datasource "database"
-   :gen "code"
    :swagger "swagger"
-   :workflow-designer "ApartmentOutlined"
-   :workflow-definitions "DeploymentUnitOutlined"
-   :workflow-tasks "AuditOutlined"
    :profile "profile"})
 
 ;; ─── 动态菜单构建 ──────────────────────────────────────────────────────
@@ -737,11 +724,7 @@
              :cache [cache/cache-page]
              :datasource [datasource/datasource-page]
              :integrant [integrant/integrant-page]
-             :gen [gen/gen-page]
              :swagger [swagger/swagger-page]
-             :workflow-designer [workflow.designer/bpmn-designer-page]
-             :workflow-definitions [workflow.definitions/definitions-page]
-             :workflow-tasks [workflow.tasks/tasks-page]
              [:div {:style {:padding 48 :textAlign "center" :color "#999" :fontSize 16}}
               "页面建设中"])]
            [:div {:class "app-layout-float"

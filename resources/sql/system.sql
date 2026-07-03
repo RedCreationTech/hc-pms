@@ -422,16 +422,6 @@ INSERT INTO sys_user_role (user_id, role_id) VALUES (:user_id, :role_id)
 -- :name delete-user-roles! :! :n
 DELETE FROM sys_user_role WHERE user_id = :user_id
 
--- :name gen-tables :? :*
--- :doc 查询数据库中的所有表
-SELECT name as table_name, COALESCE(name, '') as table_comment
-FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'
-ORDER BY name
-
--- :name gen-columns :? :*
--- :doc 查询指定表的列信息
-SELECT * FROM pragma_table_info(:table-name)
-
 -- :name list-menus-by-role-ids :? :*
 -- :doc 根据角色ID列表查询菜单（包含父菜单）
 SELECT DISTINCT m.menu_id, m.menu_name, m.parent_id, m.order_num, m.path,

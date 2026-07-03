@@ -505,16 +505,6 @@
             (fn [db _]
               (get-in db [:posts :editing])))
 
-(rf/reg-sub :gen/tables (fn [db _] (get-in db [:gen :tables])))
-(rf/reg-sub :gen/tables-loading? (fn [db _] (get-in db [:gen :tables-loading?] false)))
-(rf/reg-sub :gen/selected-tables (fn [db _] (get-in db [:gen :selected-tables] [])))
-(rf/reg-sub :gen/preview-data (fn [db _] (get-in db [:gen :preview-data])))
-(rf/reg-sub :gen/preview-loading? (fn [db _] (get-in db [:gen :preview-loading?] false)))
-(rf/reg-sub :gen/preview-visible? (fn [db _] (get-in db [:gen :preview-visible?] false)))
-(rf/reg-sub :gen/preview-table-name (fn [db _] (get-in db [:gen :preview-table-name])))
-(rf/reg-sub :gen/config-visible? (fn [db _] (get-in db [:gen :config-visible?] false)))
-(rf/reg-sub :gen/config (fn [db _] (get-in db [:gen :config] {:package-path "com.ruoyi" :module-name "system" :author "ruoyi" :table-prefix "sys_"})))
-
 (rf/reg-sub :posts/form-data
             (fn [db _]
               (get-in db [:posts :form-data] {})))
@@ -623,9 +613,4 @@
             (fn [db _]
               (get-in db [:users :expanded-dept-ids] #{})))
 
-;; ─── Workflow subscriptions ───────────────────────────────────────
 
-(rf/reg-sub :workflow/definitions (fn [db] (:workflow/definitions db)))
-(rf/reg-sub :workflow/tasks (fn [db] (:workflow/tasks db)))
-(rf/reg-sub :workflow/instances (fn [db] (:workflow/instances db)))
-(rf/reg-sub :workflow/loading? (fn [db] (:workflow/loading? db false)))

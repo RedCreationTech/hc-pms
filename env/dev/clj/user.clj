@@ -18,7 +18,6 @@
    [integrant.core :as ig]
    [integrant.repl :refer [clear go halt prep init reset reset-all]]
    [integrant.repl.state :as state]
-   [kit.api :as kit]
    [lambdaisland.classpath :as licp]
    [com.ruoyi.core :refer [start-app]]))
 
@@ -91,7 +90,6 @@
   (require 'com.ruoyi.domain.system.dict :reload)
   (require 'com.ruoyi.domain.system.config :reload)
   (require 'com.ruoyi.domain.system.log :reload)
-  (require 'com.ruoyi.domain.gen :reload)
   (log/info "Domain services reloaded."))
 
 (defn reload-middleware
@@ -110,7 +108,6 @@
   (log/info "Reloading routes...")
   (require 'com.ruoyi.web.routes.auth :reload)
   (require 'com.ruoyi.web.routes.system :reload)
-  (require 'com.ruoyi.web.routes.gen :reload)
   (require 'com.ruoyi.web.routes.api :reload)
   (require 'com.ruoyi.web.handler :reload)
   (log/info "Routes reloaded. Run (user/reset-system) to apply."))
@@ -122,7 +119,6 @@
   (require 'com.ruoyi.web.controllers.auth :reload)
   (require 'com.ruoyi.web.controllers.job :reload)
   (require 'com.ruoyi.web.controllers.monitor :reload)
-  (require 'com.ruoyi.web.controllers.gen :reload)
   (require 'com.ruoyi.web.controllers.system.user :reload)
   (require 'com.ruoyi.web.controllers.system.role :reload)
   (require 'com.ruoyi.web.controllers.system.menu :reload)

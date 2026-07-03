@@ -21,7 +21,6 @@ RuoYi-Clojure 是基于 **Kit 框架** + **Reagent 2** + **Ant Design 6** 构建
 | CSS      | 无独立 CSS 框架 — 全部通过 antd ConfigProvider token 和内联 style 控制 | —                             |
 | 构建     | shadow-cljs (前端) + tools.build uberjar (后端)                        | —                             |
 | 任务调度 | Quartz (kit-quartz 集成)                                               | —                             |
-| 工作流   | Flowable 7.1 (BPMN 2.0)                                                | 独立 H2 内嵌数据库            |
 | 测试     | clojure.test + Playwright E2E + Cloverage                              | bb test / npm run test:e2e    |
 
 ### 物理路径
@@ -55,12 +54,9 @@ route (web/routes/) → controller (web/controllers/) → domain service (domain
 nrepl/server → server/http → handler/ring → router/core → routes/api
                                                               ├── auth-routes
                                                               ├── system-routes
-                                                              ├── gen-routes
                                                               ├── business-routes
-                                                              ├── workflow-routes
                                                               └── captcha-routes
 db.sql/migrations → db.sql/connection → db.sql/query-fn → 16+ domain services
-                                              workflow/engine (Flowable)
 ```
 
 ### 前端三层结构
@@ -120,14 +116,10 @@ bidi router → pages (reagent component + re-frame) → api.cljs (fetch) → HT
 
 ### 工具与扩展
 
-| 模块         | 后端控制器                 | 前端页面                          | 路由路径                |
-|--------------|----------------------------|-----------------------------------|-------------------------|
-| 代码生成     | `controllers/gen.clj`      | `pages/gen.cljs`                  | `/tool/build`           |
-| 表单构建器   | `system/form_template.clj` | `pages/form_builder.cljs`         | —                       |
-| Swagger 接口 | `controllers/common.clj`   | `pages/swagger.cljs`              | `/monitor/swagger`      |
-| 工作流定义   | `controllers/workflow.clj` | `pages/workflow/definitions.cljs` | `/workflow/definitions` |
-| 工作流设计器 | —                          | `pages/workflow/designer.cljs`    | `/workflow/designer`    |
-| 待办任务     | `controllers/workflow.clj` | `pages/workflow/tasks.cljs`       | `/workflow/tasks`       |
+| 模块         | 后端控制器                 | 前端页面                  | 路由路径           |
+|--------------|----------------------------|---------------------------|--------------------|
+| 表单构建器   | `system/form_template.clj` | `pages/form_builder.cljs` | —                  |
+| Swagger 接口 | `controllers/common.clj`   | `pages/swagger.cljs`      | `/monitor/swagger` |
 
 ### 业务模块 (`controllers/business/` + `pages/`)
 

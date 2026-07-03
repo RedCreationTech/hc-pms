@@ -28,7 +28,6 @@
    [com.ruoyi.domain.system.dict]
    [com.ruoyi.domain.system.config]
    [com.ruoyi.domain.system.log]
-   [com.ruoyi.domain.gen]
 
     ;; Middleware
    [com.ruoyi.web.middleware.auth]
@@ -36,8 +35,7 @@
     ;; Routes
    [com.ruoyi.web.routes.api]
    [com.ruoyi.web.routes.auth]
-   [com.ruoyi.web.routes.system]
-   [com.ruoyi.web.routes.gen])
+   [com.ruoyi.web.routes.system])
   (:gen-class))
 
 ;; log uncaught exceptions in threads

@@ -67,5 +67,4 @@
      :server {:loading? false :data nil :datasource nil :datasource-loading? false}
      :integrant {:data nil :trace {}}
      :cache {:loading? false :data nil :names [] :selected-name nil :keys [] :value nil :value-visible? false}
-     :gen {:tables-loading? false :tables [] :selected-tables [] :preview-loading? false :preview-visible? false}
      :notification nil}))

@@ -28,7 +28,6 @@
    :server {:label "服务监控" :icon "server"}
    :cache {:label "缓存监控" :icon "cache"}
    :datasource {:label "连接池监视" :icon "database"}
-   :gen {:label "代码生成" :icon "code"}
    :swagger {:label "系统接口" :icon "swagger"}
    :profile {:label "个人中心" :icon "profile"}})
 
@@ -1678,86 +1677,6 @@
               (fn [r] (when (= 200 (:code r)) (rf/dispatch [:integrant/set-trace key (:data r)])))
               (fn [_]))))
 
-;; ────── 代码生成器 ──────
-
-(rf/reg-event-db :gen/set-tables
-                 (fn [db [_ data]]
-                   (-> db (assoc-in [:gen :tables] data) (assoc-in [:gen :tables-loading?] false))))
-
-(rf/reg-event-fx :gen/fetch-tables
-                 (fn [{:keys [db]} _]
-                   {:db (assoc-in db [:gen :tables-loading?] true) :api/gen-tables nil}))
-
-(rf/reg-fx :api/gen-tables
-           (fn [_] (api/gen-tables (fn [r] (when (= 200 (:code r)) (rf/dispatch [:gen/set-tables (:data r)]))) (fn [_]))))
-
-(rf/reg-event-db :gen/set-selected-tables
-                 (fn [db [_ tables]]
-                   (assoc-in db [:gen :selected-tables] tables)))
-
-(rf/reg-event-db :gen/set-preview
-                 (fn [db [_ data table-name]]
-                   (-> db (assoc-in [:gen :preview-data] data) (assoc-in [:gen :preview-table-name] table-name)
-                       (assoc-in [:gen :preview-loading?] false) (assoc-in [:gen :preview-visible?] true))))
-
-(rf/reg-event-fx :gen/preview
-                 (fn [{:keys [db]} [_ table-name]]
-                   {:db (-> db (assoc-in [:gen :preview-loading?] true) (assoc-in [:gen :preview-visible?] true)
-                            (assoc-in [:gen :preview-table-name] table-name))
-                    :api/gen-preview table-name}))
-
-(rf/reg-fx :api/gen-preview
-           (fn [table-name] (api/gen-preview table-name (fn [r] (when (= 200 (:code r)) (rf/dispatch [:gen/set-preview (:data r) table-name]))) (fn [_]))))
-
-(rf/reg-event-db :gen/close-preview
-                 (fn [db _] (assoc-in db [:gen :preview-visible?] false)))
-
-(rf/reg-event-fx :gen/generate
-                 (fn [{:keys [db]} [_ tables]]
-                   {:db db :api/gen-generate tables}))
-
-(rf/reg-fx :api/gen-generate
-           (fn [tables] (api/gen-generate tables (fn [r] (when (= 200 (:code r)) (antd/success! "代码生成成功"))) (fn [_] (antd/error! "生成失败")))))
-
-;; ── 代码生成配置 ──
-
-(rf/reg-event-db :gen/open-config
-                 (fn [db _]
-                   (assoc-in db [:gen :config-visible?] true)))
-
-(rf/reg-event-db :gen/close-config
-                 (fn [db _]
-                   (assoc-in db [:gen :config-visible?] false)))
-
-(rf/reg-event-db :gen/update-config
-                 (fn [db [_ key value]]
-                   (assoc-in db [:gen :config key] value)))
-
-;; ── 代码下载 ──
-
-(rf/reg-event-fx :gen/download
-                 (fn [{:keys [db]} [_ tables]]
-                   {:db db :api/gen-download tables}))
-
-(rf/reg-fx :api/gen-download
-           (fn [tables]
-             (when (seq tables)
-               (api/gen-download tables))))
-
-;; ────── 代码部署 ──────
-
-(rf/reg-event-fx :gen/deploy
-                 (fn [{:keys [db]} [_ tables]]
-                   {:db db :api/gen-deploy (first tables)}))
-
-(rf/reg-fx :api/gen-deploy
-           (fn [table-name]
-             (api/gen-deploy table-name
-                             (fn [r]
-                               (when (= 200 (:code r))
-                                 (antd/success! (str "部署成功: " (get-in r [:data :message])))))
-                             (fn [_] (antd/error! "部署失败")))))
-
 ;; ────── 操作日志详情 ──────
 
 (rf/reg-event-db :oper-logs/set-detail
@@ -2561,79 +2480,4 @@
                  (fn [db _]
                    (assoc-in db [:users :expanded-dept-ids] #{})))
 
-;; ══════════════════════════════════════════════════════════════════
-;; WORKFLOW (Flowable)
-;; ══════════════════════════════════════════════════════════════════
 
-(rf/reg-event-db :workflow/set-loading (fn [db [_ v]] (assoc db :workflow/loading? v)))
-(rf/reg-event-db :workflow/set-definitions (fn [db [_ data]] (assoc db :workflow/definitions data)))
-(rf/reg-event-db :workflow/set-tasks (fn [db [_ data]] (assoc db :workflow/tasks data)))
-(rf/reg-event-db :workflow/set-instances (fn [db [_ data]] (assoc db :workflow/instances data)))
-
-(rf/reg-event-fx :workflow/fetch-definitions
-  (fn [{:keys [db]} _]
-    {:db (assoc db :workflow/loading? true)
-     :http-xhrio {:method :get
-                   :uri "/api/workflow/definitions"
-                   :on-success [:workflow/on-definitions-ok]
-                   :on-failure [:workflow/on-api-error]}}))
-
-(rf/reg-event-db :workflow/on-definitions-ok
-  (fn [db [_ result]]
-    (assoc db :workflow/loading? false :workflow/definitions (:data result))))
-
-(rf/reg-event-fx :workflow/fetch-tasks
-  (fn [{:keys [db]} _]
-    {:db (assoc db :workflow/loading? true)
-     :http-xhrio {:method :get
-                   :uri "/api/workflow/tasks"
-                   :on-success [:workflow/on-tasks-ok]
-                   :on-failure [:workflow/on-api-error]}}))
-
-(rf/reg-event-db :workflow/on-tasks-ok
-  (fn [db [_ result]]
-    (assoc db :workflow/loading? false :workflow/tasks (get-in result [:data :items]))))
-
-(rf/reg-event-fx :workflow/deploy
-  (fn [_ [_ {:keys [name xml]}]]
-    {:http-xhrio {:method :post
-                   :uri (str "/api/workflow/deploy?name=" (js/encodeURIComponent name))
-                   :body xml
-                   :headers {"Content-Type" "application/xml"}
-                   :on-success [:workflow/on-deploy-ok]
-                   :on-failure [:workflow/on-api-error]}}))
-
-(rf/reg-event-fx :workflow/on-deploy-ok
-  (fn [_ _]
-    (antd/success! "部署成功")
-    {:dispatch [:workflow/fetch-definitions]}))
-
-(rf/reg-event-fx :workflow/delete-deployment
-  (fn [_ [_ id]]
-    {:http-xhrio {:method :delete
-                   :uri (str "/api/workflow/deployments/" id)
-                   :on-success [:workflow/on-delete-ok]
-                   :on-failure [:workflow/on-api-error]}}))
-
-(rf/reg-event-fx :workflow/on-delete-ok
-  (fn [_ _]
-    (antd/success! "删除成功")
-    {:dispatch [:workflow/fetch-definitions]}))
-
-(rf/reg-event-fx :workflow/complete-task
-  (fn [_ [_ task-id]]
-    {:http-xhrio {:method :post
-                   :uri "/api/workflow/tasks/complete"
-                   :body {:taskId task-id}
-                   :on-success [:workflow/on-complete-ok]
-                   :on-failure [:workflow/on-api-error]}}))
-
-(rf/reg-event-fx :workflow/on-complete-ok
-  (fn [_ _]
-    (antd/success! "任务完成")
-    {:dispatch [:workflow/fetch-tasks]}))
-
-(rf/reg-event-db :workflow/on-api-error
-  (fn [db [_ result]]
-    (antd/error! (or (:message result) "操作失败"))
-    (assoc db :workflow/loading? false)))

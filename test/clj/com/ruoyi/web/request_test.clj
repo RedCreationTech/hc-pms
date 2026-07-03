@@ -161,13 +161,6 @@
       (is (pos? (count (get-in all-log-body [:data :rows]))))
       (is (pos? (count (get-in log-body [:data :rows])))))))
 
-;; ─── 代码生成 ──────────────────────────────────────────────────────
-
-(deftest gen-tables-test
-  (testing "代码生成-表列表 API"
-    (let [resp (GET (handler) "/api/tool/gen/tables" {} (auth-headers (login-token)))]
-      (is (= 200 (:status resp))))))
-
 ;; ─── 导出 ──────────────────────────────────────────────────────────
 
 (deftest export-role-test

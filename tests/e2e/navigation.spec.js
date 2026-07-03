@@ -22,11 +22,8 @@ const cases = [
   { path: '/monitor/server', text: 'CPU' },
   { path: '/monitor/cache', text: '缓存名称' },
   { path: '/monitor/datasource', text: '连接池' },
-  { path: '/monitor/gen', text: '生成' },
   { path: '/monitor/swagger', text: 'Swagger' },
   { path: '/tool/build', text: '表单' },
-  { path: '/project/info', text: '项目名称' },
-  { path: '/solution', text: '方案管理' },
   { path: '/resource/standard', text: '标准规范' },
 ];
 
