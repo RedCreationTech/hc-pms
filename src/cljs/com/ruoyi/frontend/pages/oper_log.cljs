@@ -22,7 +22,6 @@
    "5" "导出"
    "6" "导入"
    "7" "强退"
-   "8" "生成代码"
    "9" "清空"})
 
 (defn- business-label [v]
@@ -36,7 +35,6 @@
                 "3" "red"
                 "5" "gold"
                 "6" "gold"
-                "8" "gold"
                 "default")]
     [antd/tag {:color color} text]))
 

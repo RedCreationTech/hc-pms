@@ -23,7 +23,6 @@ const cases = [
   { path: '/monitor/cache', text: '缓存名称' },
   { path: '/monitor/datasource', text: '连接池' },
   { path: '/monitor/swagger', text: 'Swagger' },
-  { path: '/tool/build', text: '表单' },
   { path: '/resource/standard', text: '标准规范' },
 ];
 

@@ -20,7 +20,7 @@
 ;;
 ;;   0 = 其他    1 = 新增    2 = 修改    3 = 删除
 ;;   4 = 授权    5 = 导出    6 = 导入    7 = 强退
-;;   8 = 生成代码  9 = 清空
+;;   9 = 清空
 
 (defn- infer-business-type
   "根据 HTTP 方法和 URI 推测业务类型。"
@@ -29,7 +29,6 @@
     :post (cond
             (re-find #"/auth/logout" uri)      7   ;; 强退
             (re-find #"/import" uri)           6   ;; 导入
-            (re-find #"/generate|/deploy|/download" uri) 8 ;; 生成代码
             :else                              1)  ;; 新增
     :put  (cond
             (re-find #"/run" uri)              0   ;; 执行一次

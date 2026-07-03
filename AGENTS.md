@@ -118,7 +118,6 @@ bidi router → pages (reagent component + re-frame) → api.cljs (fetch) → HT
 
 | 模块         | 后端控制器                 | 前端页面                  | 路由路径           |
 |--------------|----------------------------|---------------------------|--------------------|
-| 表单构建器   | `system/form_template.clj` | `pages/form_builder.cljs` | —                  |
 | Swagger 接口 | `controllers/common.clj`   | `pages/swagger.cljs`      | `/monitor/swagger` |
 
 ### 业务模块 (`controllers/business/` + `pages/`)
@@ -183,7 +182,6 @@ open http://localhost:3000
 | nREPL        | `7000`   | `NREPL_PORT` 环境变量 / `system.edn` `:nrepl/server` | **动态开发/测试的核心入口**   |
 | shadow-cljs  | `9631`   | `start_dev.sh` 硬编码                                | 前端 watch/devtools 服务      |
 | MySQL (可选) | `3306`   | `resources/config.edn` / `JDBC_URL`                  | 切到 MySQL 时才需要外部实例   |
-| Flowable H2  | —        | `jdbc:h2:mem:flowable`                               | 内存模式，**不监听 TCP 端口** |
 
 **使用 `start_dev.sh` 一键启动时**：脚本会自动处理端口冲突——只杀掉当前项目目录下的旧进程；如果端口仍被外部占用，HTTP 与 shadow-cljs 会报错退出，nREPL 会自动向后找空闲端口（如 7001、7002）。因此用脚本启动后，**务必以脚本输出的 nREPL 端口为准**。
 
