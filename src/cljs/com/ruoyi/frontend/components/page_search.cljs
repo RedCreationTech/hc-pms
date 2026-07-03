@@ -29,7 +29,7 @@
                    :height height
                    :opacity (if visible? 1 0)
                    :transition "height 0.3s ease, opacity 0.3s ease"}}
-     (into [:div {:style {:background "#fff"
+     (into [:div {:style {:background "transparent"
                           :padding "12px 22px 6px 22px"}}]
            children)]))
 
@@ -51,7 +51,7 @@
     [:span {:style {:whiteSpace "nowrap"
                     :fontSize 14
                     :fontWeight 700
-                    :color "#606266"
+                    :color "var(--ant-color-text-secondary, #606266)"
                     :width (or label-width 68)
                     :textAlign "right"}}
      label]

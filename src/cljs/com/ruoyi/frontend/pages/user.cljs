@@ -42,26 +42,26 @@
                    :height height
                    :opacity (if show-search? 1 0)
                    :transition "height 0.3s ease, opacity 0.3s ease"}}
-     [:div {:style {:background "#fff" :padding "8px 22px 4px 22px"}}
+     [:div {:style {:background "transparent" :padding "8px 22px 4px 22px"}}
       [:div {:style {:display "flex"
                      :flexWrap "wrap"
                      :columnGap 24
                      :rowGap 8
                      :alignItems "center"}}
        [:div {:style {:display "flex" :alignItems "center" :gap 8 :width 300}}
-        [:span {:style {:whiteSpace "nowrap" :fontSize 14 :fontWeight 600 :color "#606266" :width 58 :textAlign "right"}} "用户名称"]
+        [:span {:style {:whiteSpace "nowrap" :fontSize 14 :fontWeight 600 :color "var(--ant-color-text-secondary, #606266)" :width 58 :textAlign "right"}} "用户名称"]
         [antd/input {:placeholder "请输入用户名称"
                      :style {:width 232 :height 34 :borderRadius 4}
                      :value (:user_name query-params)
                      :on-change #(rf/dispatch [:users/update-query :user_name (.. % -target -value)])}]]
        [:div {:style {:display "flex" :alignItems "center" :gap 8 :width 300}}
-        [:span {:style {:whiteSpace "nowrap" :fontSize 14 :fontWeight 600 :color "#606266" :width 58 :textAlign "right"}} "手机号码"]
+        [:span {:style {:whiteSpace "nowrap" :fontSize 14 :fontWeight 600 :color "var(--ant-color-text-secondary, #606266)" :width 58 :textAlign "right"}} "手机号码"]
         [antd/input {:placeholder "请输入手机号码"
                      :style {:width 232 :height 34 :borderRadius 4}
                      :value (:phonenumber query-params)
                      :on-change #(rf/dispatch [:users/update-query :phonenumber (.. % -target -value)])}]]
        [:div {:style {:display "flex" :alignItems "center" :gap 8 :width 260}}
-        [:span {:style {:whiteSpace "nowrap" :fontSize 14 :fontWeight 600 :color "#606266" :width 42 :textAlign "right"}} "状态"]
+        [:span {:style {:whiteSpace "nowrap" :fontSize 14 :fontWeight 600 :color "var(--ant-color-text-secondary, #606266)" :width 42 :textAlign "right"}} "状态"]
         [antd/select {:placeholder "用户状态"
                       :style {:width 210 :height 34}
                       :value (:status query-params)
@@ -71,7 +71,7 @@
          [antd/select-option {:value "1"} "停用"]]]
        [:div {:style {:flexBasis "100%" :height 0}}]
        [:div {:style {:display "flex" :alignItems "center" :gap 8 :width 300}}
-        [:span {:style {:whiteSpace "nowrap" :fontSize 14 :fontWeight 600 :color "#606266" :width 58 :textAlign "right"}} "创建时间"]
+        [:span {:style {:whiteSpace "nowrap" :fontSize 14 :fontWeight 600 :color "var(--ant-color-text-secondary, #606266)" :width 58 :textAlign "right"}} "创建时间"]
         [range-picker {:placeholder #js ["开始日期" "结束日期"]
                        :style {:width 232 :height 34 :borderRadius 4}}]]
        [:div {:style {:display "flex" :gap 10 :alignItems "center" :width 168}}
@@ -91,7 +91,7 @@
   (let [show-search? @(rf/subscribe [:users/show-search?])
         columns @(rf/subscribe [:users/columns])]
     [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center"
-                   :padding "8px 22px 8px 22px" :background "#fff"}}
+                   :padding "8px 22px 8px 22px" :background "transparent"}}
      [:div {:style {:display "flex" :gap 8}}
       [antd/button {:type "primary" :ghost true
                     :style {:height 34 :borderRadius 4 :color "#409eff" :borderColor "#a0cfff" :background "#ecf5ff"}
@@ -124,13 +124,13 @@
       [antd/tooltip {:title "显示搜索"}
        [antd/button {:shape "circle"
                      :icon (r/as-element [:> SearchOutlined])
-                     :style {:width 38 :height 38 :borderColor "#dcdfe6" :color "#606266"
-                             :background (if show-search? "#fff" "#f5f7fa")}
+                     :style {:width 38 :height 38 :borderColor "var(--ant-color-border, #dcdfe6)" :color "var(--ant-color-text-secondary, #606266)"
+                             :background (if show-search? "var(--ant-color-bg-container, #fff)" "var(--ant-color-fill-tertiary, #f5f7fa)")}
                      :on-click #(rf/dispatch [:users/toggle-search])}]]
       [antd/tooltip {:title "刷新"}
        [antd/button {:shape "circle"
                      :icon (r/as-element [:> ReloadOutlined])
-                     :style {:width 38 :height 38 :borderColor "#dcdfe6" :color "#606266"}
+                     :style {:width 38 :height 38 :borderColor "var(--ant-color-border, #dcdfe6)" :color "var(--ant-color-text-secondary, #606266)"}
                      :on-click #(rf/dispatch [:users/fetch-with-params])}]]
       [antd/tooltip {:title "显隐列"}
        [antd/dropdown {:menu {:items (clj->js
@@ -148,7 +148,7 @@
                        :trigger #js ["click"]}
         [antd/button {:shape "circle"
                       :icon (r/as-element [:> AppstoreOutlined])
-                      :style {:width 38 :height 38 :borderColor "#dcdfe6" :color "#606266"}}]]]]]))
+                      :style {:width 38 :height 38 :borderColor "var(--ant-color-border, #dcdfe6)" :color "var(--ant-color-text-secondary, #606266)"}}]]]]]))
 
 ;; ─── 用户表格 ──────────────────────────────────────────────────────
 
@@ -411,8 +411,8 @@
                                      (conj ids dept-id)))))]
     [:div {:style {:width (if collapsed? 0 280)
                    :minWidth (if collapsed? 0 280)
-                   :flexShrink 0 :background "#fff"
-                   :borderRight "1px solid #e4e7ed"
+                   :flexShrink 0 :background "transparent"
+                   :borderRight "1px solid var(--ant-color-border, #e4e7ed)"
                    :minHeight "calc(100vh - 200px)"
                    :display "flex" :flexDirection "column"
                    :position "relative"
@@ -420,7 +420,7 @@
      [:button {:type "button"
                :style {:position "absolute" :right -12 :top 450
                        :width 24 :height 36 :border "1px solid #ebeef5"
-                       :borderRadius "4px 0 0 4px" :background "#fff"
+                       :borderRadius "4px 0 0 4px" :background "var(--ant-color-bg-container, #fff)"
                        :boxShadow "0 2px 8px rgba(0,0,0,0.08)"
                        :display "flex" :alignItems "center" :justifyContent "center"
                        :color "#a8abb2" :fontSize 20 :cursor "pointer" :zIndex 12}
@@ -431,7 +431,7 @@
         [:div {:style {:height 50 :display "flex" :alignItems "center" :justifyContent "space-between"
                        :padding "0 14px" :borderBottom "1px solid #ebeef5"}}
          [:div {:style {:display "flex" :alignItems "center" :gap 8
-                        :fontWeight 700 :fontSize 15 :color "#303133"}}
+                        :fontWeight 700 :fontSize 15 :color "var(--ant-color-text, #303133)"}}
           [:> FileTextOutlined {:style {:color "#409eff"}}]
           "组织机构"]
          [:div {:style {:display "flex" :alignItems "center" :gap 16 :color "#a8abb2"}}
@@ -519,8 +519,8 @@
 
 (defn- pagination-bar [total page page-size]
   [:div {:style {:display "flex" :justifyContent "flex-end" :alignItems "center"
-                 :gap 16 :height 68 :padding "0 24px" :background "#fff"
-                 :color "#606266" :fontSize 16}}
+                 :gap 16 :height 68 :padding "0 24px" :background "transparent"
+                 :color "var(--ant-color-text-secondary, #606266)" :fontSize 16}}
    [:span (str "共 " total " 条")]
    [antd/select {:value page-size
                  :style {:width 142}
@@ -561,11 +561,11 @@
         selected-ids @(rf/subscribe [:users/selected-ids])
         page @(rf/subscribe [:users/page])
         page-size @(rf/subscribe [:users/page-size])]
-    [:div {:style {:display "flex" :height "100%" :alignItems "stretch" :background "#fff"}}
+    [:div {:style {:display "flex" :height "100%" :alignItems "stretch" :background "transparent"}}
      ;; 左侧部门树
      [dept-tree-sidebar]
      ;; 右侧内容区
-     [:div {:style {:flex 1 :minWidth 0 :overflow "auto" :background "#fff"}}
+     [:div {:style {:flex 1 :minWidth 0 :overflow "auto" :background "transparent"}}
       [search-form]
       [toolbar]
       [:div {:style {:padding "0 24px"}}

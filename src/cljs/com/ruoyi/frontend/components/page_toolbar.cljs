@@ -10,7 +10,7 @@
                         :alignItems "center"
                         :gap 12
                         :padding "12px 22px 14px 22px"
-                        :background "#fff"}
+                        :background "transparent"}
                        style)}
    left
    right])

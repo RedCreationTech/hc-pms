@@ -625,7 +625,7 @@
 
       [:div {:style {:padding "0 12px 24px 12px"}}
        [menu-style-overrides]
-       [:div {:style {:background "#fff"
+       [:div {:style {:background "transparent"
                       :minHeight "calc(100vh - 214px)"
                       :padding "10px 8px 24px 8px"}}
         [search-bar]
@@ -670,7 +670,7 @@
          (when drag-active-id
            [:> (.-DragOverlay dnd-kit-core)
             {:dropAnimation nil}
-            [:div {:style {:background "#fff"
+            [:div {:style {:background "var(--ant-color-bg-container, #fff)"
                            :boxShadow "0 2px 8px rgba(0,0,0,0.15)"
                            :padding "8px 16px"
                            :borderRadius 4

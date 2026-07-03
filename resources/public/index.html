@@ -90,6 +90,30 @@
     .ant-table-wrapper .ant-table-tbody > tr:hover > td {
       background: #fff;
     }
+    /* 暗色主题下让 antd 表格使用自身 token，避免 hardcode 浅色覆盖 */
+    body.dark .ant-layout-content > div > .ant-table-wrapper,
+    body.dark .ant-layout-content > div > div > .ant-table-wrapper {
+      background: transparent;
+    }
+    body.dark .ant-table-wrapper .ant-table {
+      color: var(--ant-color-text, rgba(255,255,255,0.88));
+      background: transparent;
+    }
+    body.dark .ant-table-wrapper .ant-table-thead > tr > th {
+      background: var(--ant-color-fill-tertiary, rgba(255,255,255,0.04)) !important;
+      color: var(--ant-color-text, rgba(255,255,255,0.88));
+      border-bottom-color: var(--ant-color-border-secondary, #303030);
+    }
+    body.dark .ant-table-wrapper .ant-table-tbody > tr > td {
+      color: var(--ant-color-text, rgba(255,255,255,0.88));
+      border-bottom-color: var(--ant-color-border-secondary, #303030);
+    }
+    body.dark .ant-table-wrapper .ant-table-tbody > tr:hover > td {
+      background: var(--ant-color-fill-tertiary, rgba(255,255,255,0.04));
+    }
+    body.dark .ant-table-wrapper .ant-pagination {
+      color: var(--ant-color-text, rgba(255,255,255,0.88));
+    }
     .ant-table-wrapper .ant-table-tbody > tr > td.ruoyi-tree-name-cell {
       text-align: left !important;
       padding-left: 12px;

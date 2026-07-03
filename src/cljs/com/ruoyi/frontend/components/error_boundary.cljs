@@ -6,7 +6,7 @@
 (defn- fallback-ui [error _info]
   [:div {:style {:padding 48
                  :textAlign "center"
-                 :background "#fff"
+                 :background "var(--ant-color-bg-container, #fff)"
                  :borderRadius 8
                  :boxShadow "0 2px 8px rgba(0,0,0,0.06)"}}
    [:div {:style {:fontSize 48 :marginBottom 16}} "⚠️"]
