@@ -89,34 +89,45 @@
 
 (defn- toolbar []
   (let [show-search? @(rf/subscribe [:users/show-search?])
-        columns @(rf/subscribe [:users/columns])]
+        columns @(rf/subscribe [:users/columns])
+        is-dark? (= @(rf/subscribe [:theme/mode]) :dark)
+        btn-style (fn [color border bg dark-color dark-border dark-bg]
+                    {:height 34 :borderRadius 4
+                     :color (if is-dark? dark-color color)
+                     :borderColor (if is-dark? dark-border border)
+                     :background (if is-dark? dark-bg bg)})]
     [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center"
                    :padding "8px 22px 8px 22px" :background "transparent"}}
      [:div {:style {:display "flex" :gap 8}}
       [antd/button {:type "primary" :ghost true
-                    :style {:height 34 :borderRadius 4 :color "#409eff" :borderColor "#a0cfff" :background "#ecf5ff"}
+                    :style (btn-style "#409eff" "#a0cfff" "#ecf5ff"
+                                      "#70b8ff" "rgba(64,158,255,0.45)" "rgba(64,158,255,0.15)")
                     :icon (r/as-element [:> PlusOutlined])
                     :on-click #(rf/dispatch [:users/open-add])}
        "新增"]
       [antd/button {:ghost true
-                    :style {:height 34 :borderRadius 4 :color "#67c23a" :borderColor "#b3e19d" :background "#f0f9eb"}
+                    :style (btn-style "#67c23a" "#b3e19d" "#f0f9eb"
+                                      "#85ce61" "rgba(103,194,58,0.45)" "rgba(103,194,58,0.15)")
                     :icon (r/as-element [:> EditOutlined])
                     :disabled @(rf/subscribe [:users/selected-empty?])
                     :on-click #(rf/dispatch [:users/open-edit-selected])}
        "修改"]
       [antd/button {:danger true :ghost true
-                    :style {:height 34 :borderRadius 4 :color "#f56c6c" :borderColor "#fab6b6" :background "#fef0f0"}
+                    :style (btn-style "#f56c6c" "#fab6b6" "#fef0f0"
+                                      "#f78989" "rgba(245,108,108,0.45)" "rgba(245,108,108,0.15)")
                     :icon (r/as-element [:> DeleteOutlined])
                     :disabled @(rf/subscribe [:users/selected-empty?])
                     :on-click #(rf/dispatch [:users/batch-delete])}
        "删除"]
       [antd/button {:ghost true
-                    :style {:height 34 :borderRadius 4 :color "#909399" :borderColor "#d3d4d6" :background "#f4f4f5"}
+                    :style (btn-style "#909399" "#d3d4d6" "#f4f4f5"
+                                      "#a6a9ad" "rgba(144,147,153,0.45)" "rgba(144,147,153,0.15)")
                     :icon (r/as-element [:> UploadOutlined])
                     :on-click #(rf/dispatch [:users/open-import])}
        "导入"]
       [antd/button {:ghost true
-                    :style {:height 34 :borderRadius 4 :color "#e6a23c" :borderColor "#f3d19e" :background "#fdf6ec"}
+                    :style (btn-style "#e6a23c" "#f3d19e" "#fdf6ec"
+                                      "#ebb563" "rgba(230,162,60,0.45)" "rgba(230,162,60,0.15)")
                     :icon (r/as-element [:> DownloadOutlined])
                     :on-click #(rf/dispatch [:users/export])}
        "导出"]]
