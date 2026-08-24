@@ -308,3 +308,42 @@ WHERE meeting_id = :meeting_id
 -- :name oa/delete-meeting :! :n
 DELETE FROM biz_oa_meeting WHERE meeting_id = :meeting_id
 --;;
+
+-- ============================ CRM 客户 ============================
+-- :name crm/customer-list :? :*
+SELECT customer_id, name, phone, email, company, level, source, owner_id, status, remark, create_by, create_time
+FROM biz_crm_customer
+WHERE (:name IS NULL OR INSTR(name, :name) > 0)
+  AND (:level IS NULL OR level = :level)
+  AND (:owner_id IS NULL OR owner_id = :owner_id)
+ORDER BY customer_id DESC
+LIMIT :page_size OFFSET :offset
+--;;
+
+-- :name crm/customer-count :? :1
+SELECT COUNT(*) AS total FROM biz_crm_customer
+WHERE (:name IS NULL OR INSTR(name, :name) > 0)
+  AND (:level IS NULL OR level = :level)
+  AND (:owner_id IS NULL OR owner_id = :owner_id)
+--;;
+
+-- :name crm/find-customer-by-id :? :1
+SELECT * FROM biz_crm_customer WHERE customer_id = :customer_id
+--;;
+
+-- :name crm/insert-customer :! :n
+INSERT INTO biz_crm_customer (name, phone, email, company, level, source, owner_id, status, remark, create_by, create_time)
+VALUES (:name, :phone, :email, :company, :level, :source, :owner_id, :status, :remark, :create_by, datetime('now'))
+--;;
+
+-- :name crm/update-customer :! :n
+UPDATE biz_crm_customer
+SET name = :name, phone = :phone, email = :email, company = :company,
+    level = :level, source = :source, owner_id = :owner_id, status = :status,
+    remark = :remark, update_by = :update_by, update_time = datetime('now')
+WHERE customer_id = :customer_id
+--;;
+
+-- :name crm/delete-customer :! :n
+DELETE FROM biz_crm_customer WHERE customer_id = :customer_id
+--;;

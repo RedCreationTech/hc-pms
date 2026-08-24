@@ -4,9 +4,10 @@
    [com.ruoyi.web.controllers.business.bpm :as bpm]
    [com.ruoyi.web.controllers.business.hrm :as hrm]
    [com.ruoyi.web.controllers.business.oa :as oa]
+   [com.ruoyi.web.controllers.business.crm :as crm]
    [com.ruoyi.web.middleware.auth :as auth-mw]))
 
-(defn business-routes [{:keys [bpm-service hrm-service oa-service]}]
+(defn business-routes [{:keys [bpm-service hrm-service oa-service crm-service]}]
   ["/business"
    {:middleware [(auth-mw/auth-middleware {:required? true})]
     :swagger {:tags ["办公" "BPM"]}}
@@ -72,4 +73,12 @@
          :post {:summary "新增会议" :handler (partial oa/create-meeting {:oa-service oa-service})}}]
     ["/:id" {:get    {:summary "会议详情" :handler (partial oa/get-meeting {:oa-service oa-service})}
               :put    {:summary "更新会议" :handler (partial oa/update-meeting {:oa-service oa-service})}
-              :delete {:summary "删除会议" :handler (partial oa/delete-meeting {:oa-service oa-service})}}]]])
+              :delete {:summary "删除会议" :handler (partial oa/delete-meeting {:oa-service oa-service})}}]]
+
+   ;; ── CRM 客户 ──
+   ["/crm/customer"
+    ["" {:get  {:summary "客户列表" :handler (partial crm/list-customers {:crm-service crm-service})}
+         :post {:summary "新增客户" :handler (partial crm/create-customer {:crm-service crm-service})}}]
+    ["/:id" {:get    {:summary "客户详情" :handler (partial crm/get-customer {:crm-service crm-service})}
+              :put    {:summary "更新客户" :handler (partial crm/update-customer {:crm-service crm-service})}
+              :delete {:summary "删除客户" :handler (partial crm/delete-customer {:crm-service crm-service})}}]]])
