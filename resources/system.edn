@@ -79,6 +79,11 @@
   :migrations #ig/ref :db.sql/migrations
   :db         #ig/ref :db.sql/connection}
 
+ :app.bpm/engine
+ {:jdbc-url               #or [#env FLOWABLE_JDBC_URL "jdbc:h2:file:./flowable;MODE=MySQL;DB_CLOSE_ON_EXIT=FALSE"]
+  :database-schema-update "true"
+  :async?                 #or [#env FLOWABLE_ASYNC false]}
+
  :reitit.routes/api
  {:base-path      "/api"
   :env            #ig/ref :system/env

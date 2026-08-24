@@ -18,6 +18,9 @@
    [com.ruoyi.web.handler]
    [com.ruoyi.integrant.trace]
 
+    ;; BPM engine
+   [com.ruoyi.bpm.engine]
+
     ;; Domain services
    [com.ruoyi.domain.system]
    [com.ruoyi.domain.system.user]

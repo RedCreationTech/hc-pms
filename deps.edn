@@ -47,6 +47,10 @@
            com.mysql/mysql-connector-j {:mvn/version "8.3.0"}
            com.zaxxer/HikariCP {:mvn/version "5.1.0"}
 
+           ;; BPM workflow engine (embedded Flowable, standalone on H2)
+           org.flowable/flowable-engine {:mvn/version "8.0.0"}
+           com.h2database/h2 {:mvn/version "1.4.200"}
+
            ;; CSV
            org.clojure/data.csv {:mvn/version "1.1.0"}
            org.clojure/data.json {:mvn/version "2.4.0"}
