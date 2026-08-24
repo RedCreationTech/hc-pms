@@ -127,6 +127,10 @@
   [{:keys [bpm-service]} request]
   (wrap-err #(ok (bpm/instance-history bpm-service (get-in request [:path-params :pid])))))
 
+(defn instance-diagram
+  [{:keys [bpm-service]} request]
+  (wrap-err #(ok (bpm/instance-diagram bpm-service (get-in request [:path-params :pid])))))
+
 ;; ── 任务（待办/已办/审批）────────────────────────────────────────────
 (defn list-todo
   [{:keys [bpm-service]} request]

@@ -1,11 +1,12 @@
 (ns com.ruoyi.frontend.pages.business.bpm-instance
-  "我的流程。"
+  "我的流程 —— 含流程图高亮。"
   (:require
    [reagent.core :as r]
    [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [ReloadOutlined]]
+   ["@ant-design/icons" :refer [ReloadOutlined EyeOutlined]]
    [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
+   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+   [com.ruoyi.frontend.components.bpmn-viewer :as bpmn-viewer]))
 
 (defn- status-tag [v]
   (let [[label color] (case v
@@ -21,10 +22,32 @@
             :width 90 :render (fn [v] (r/as-element (if v [antd/tag {:color "blue"} v] "-")))}
        #js {:title "业务键" :dataIndex "business_key" :key "business_key" :width 130}
        #js {:title "发起人" :dataIndex "starter_id" :key "starter_id" :width 100}
-       #js {:title "当前任务" :dataIndex "current_task" :key "current_task"}
        #js {:title "状态" :dataIndex "status" :key "status" :width 100
             :render (fn [v] (r/as-element (status-tag v)))}
-       #js {:title "发起时间" :dataIndex "create_time" :key "create_time" :width 170}])
+       #js {:title "发起时间" :dataIndex "create_time" :key "create_time" :width 170}
+       #js {:title "操作" :key "action" :width 100
+            :render (fn [_ ^js record]
+                      (let [pid (.-process_instance_id ^js record)]
+                        (r/as-element
+                         [antd/button {:type "link" :size "small"
+                                       :icon (r/as-element [:> EyeOutlined])
+                                       :on-click #(rf/dispatch [:bpm/diagram-open pid])}
+                          "流程图"])))}])
+
+(defn- diagram-modal []
+  (let [visible? @(rf/subscribe [:bpm-diagram/visible?])
+        data @(rf/subscribe [:bpm-diagram/data])
+        loading? @(rf/subscribe [:bpm-diagram/loading?])]
+    [antd/modal {:title (str "流程进度 · " (:model-name data))
+                 :open visible? :width 900 :footer nil
+                 :onCancel #(rf/dispatch [:bpm/diagram-close])}
+     (if loading?
+       [:div {:style {:padding 48 :textAlign "center"}} "加载中..."]
+       [bpmn-viewer/bpmn-viewer
+        {:xml (:bpmn-xml data)
+         :active-ids (vec (:active-activity-ids data))
+         :completed-ids (vec (:completed-activity-ids data))
+         :on-error (fn [e] (antd/error! e))}])]))
 
 (defn bpm-instance-page []
   (let [items @(rf/subscribe [:bpm-instance/items])
@@ -43,4 +66,5 @@
                   :dataSource (clj->js items)
                   :loading loading?
                   :pagination {:total total :pageSize 10 :showSizeChanger true
-                               :showTotal (fn [total] (str "共 " total " 条"))}}]]))
+                               :showTotal (fn [total] (str "共 " total " 条"))}}]
+     [diagram-modal]]))

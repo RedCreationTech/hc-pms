@@ -1,0 +1,15 @@
+/* bpmn-js 进度高亮：进行中(红) / 已完成(绿) */
+.djs-element.highlight-active .djs-visual > :first-child {
+  stroke: #f56c6c !important;
+  stroke-width: 3px !important;
+  fill: rgba(245, 108, 108, 0.18) !important;
+}
+.djs-element.highlight-active .djs-outline {
+  stroke: #f56c6c !important;
+  stroke-width: 2px !important;
+}
+.djs-element.highlight-done .djs-visual > :first-child {
+  stroke: #67c23a !important;
+  stroke-width: 2px !important;
+  fill: rgba(103, 194, 58, 0.15) !important;
+}

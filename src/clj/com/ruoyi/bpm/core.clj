@@ -253,3 +253,20 @@
              :duration (when (and (.getStartTime h) (.getEndTime h))
                          (str (.getDurationInMillis h)))})
           (.list q))))
+
+;; ── 流程图示 (diagram) ─────────────────────────────────────────────────
+
+(defn active-activity-ids
+  "流程实例当前正在执行的活动节点 id。"
+  [^ProcessEngine engine process-instance-id]
+  (vec (.getActiveActivityIds (.getRuntimeService engine) process-instance-id)))
+
+(defn completed-activity-ids
+  "流程实例已结束的活动节点 id（按历史去重）。"
+  [^ProcessEngine engine process-instance-id]
+  (->> (history-of engine process-instance-id)
+       (filter :end-time)
+       (map :activity-id)
+       (remove nil?)
+       distinct
+       vec))

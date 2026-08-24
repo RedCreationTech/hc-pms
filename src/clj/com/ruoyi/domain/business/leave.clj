@@ -56,6 +56,12 @@
               {:user_id (or user-id 0) :user_name (or user-name "")
                :days (or days 0) :reason (or reason "")
                :process_instance_id pid :status "1"})
+    ;; 同步写入流程实例映射，供 我的流程/流程图高亮 使用
+    (query-fn :bpm/insert-instance
+              {:process_instance_id pid :model_id (:model_id model)
+               :model_key default-model-key :business_key biz-key
+               :form_data_json "{}" :starter_id (or user-name "")
+               :status "1" :current_task ""})
     {:leave-process-instance-id pid :business-key biz-key :model-key default-model-key}))
 
 (defn sync-status!

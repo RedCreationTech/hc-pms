@@ -681,3 +681,8 @@
 (rf/reg-sub :bpm-designer/current (fn [db _] (get-in db [:bpm-designer :current] nil)))
 (rf/reg-sub :bpm-designer/bpmn-xml (fn [db _] (get-in db [:bpm-designer :bpmn-xml] nil)))
 (rf/reg-sub :bpm-designer/loading? (fn [db _] (get-in db [:bpm-designer :loading?] false)))
+
+;; ─── BPM 流程图高亮 ──────────────────────────────────────────────────
+(rf/reg-sub :bpm-diagram/visible? (fn [db _] (get-in db [:bpm-diagram :visible?] false)))
+(rf/reg-sub :bpm-diagram/data (fn [db _] (get-in db [:bpm-diagram :data] nil)))
+(rf/reg-sub :bpm-diagram/loading? (fn [db _] (get-in db [:bpm-diagram :loading?] false)))

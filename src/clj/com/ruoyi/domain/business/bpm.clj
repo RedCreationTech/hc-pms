@@ -183,3 +183,18 @@
     {:instance (row->json biz [:form_data_json])
      :activities (bpm/history-of engine pid)
      :running? (pos? (bpm/todo-count engine (or (:starter_id biz) "")))}))
+
+(defn instance-diagram
+  "流程实例的图示数据：BPMN XML + 进行中/已完成节点 id，供前端 bpmn-js 高亮。"
+  [{:keys [engine query-fn]} pid]
+  (let [biz (query-fn :bpm/find-instance-by-pid {:process_instance_id pid})
+        _ (when-not biz (throw (ex-info "流程实例不存在" {:pid pid})))
+        model (query-fn :bpm/find-model-by-id {:model_id (:model_id biz)})
+        active (bpm/active-activity-ids engine pid)
+        completed (bpm/completed-activity-ids engine pid)]
+    {:process-instance-id pid
+     :model-name (:model_name model)
+     :bpmn-xml (:bpmn_xml model)
+     :active-activity-ids active
+     :completed-activity-ids completed
+     :running? (seq active)}))

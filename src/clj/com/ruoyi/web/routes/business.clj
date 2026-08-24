@@ -42,7 +42,8 @@
    ["/bpm/instance"
     ["" {:get  {:summary "流程实例列表" :handler (partial bpm/list-instances {:bpm-service bpm-service})}
          :post {:summary "发起流程实例" :handler (partial bpm/start-instance {:bpm-service bpm-service})}}]
-    ["/history/:pid" {:get {:summary "实例历史轨迹" :handler (partial bpm/instance-history {:bpm-service bpm-service})}}]]
+    ["/history/:pid" {:get {:summary "实例历史轨迹" :handler (partial bpm/instance-history {:bpm-service bpm-service})}}]
+    ["/diagram/:pid" {:get {:summary "实例流程图(高亮)" :handler (partial bpm/instance-diagram {:bpm-service bpm-service})}}]]
 
    ;; ── 任务 ──
    ["/bpm/todo"    {:get {:summary "我的待办" :handler (partial bpm/list-todo {:bpm-service bpm-service})}}]

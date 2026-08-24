@@ -2768,3 +2768,27 @@
                                              (antd/success! "流程保存成功")
                                              (rf/dispatch [:bpm/model-fetch {}])))
                                    (fn [_] (antd/error! "保存失败")))))
+
+;; ─── BPM 流程图高亮 ──────────────────────────────────────────────────
+(rf/reg-event-fx :bpm/diagram-open
+                 (fn [{:keys [db]} [_ pid]]
+                   {:db (-> db (assoc-in [:bpm-diagram :visible?] true)
+                            (assoc-in [:bpm-diagram :loading?] true))
+                    :api/bpm-instance-diagram pid}))
+
+(rf/reg-fx :api/bpm-instance-diagram
+           (fn [pid]
+             (api/bpm-instance-diagram pid
+                                       (fn [r] (when (= 200 (:code r))
+                                                 (rf/dispatch [:bpm/diagram-set (:data r)])))
+                                       (fn [_] (antd/error! "加载流程图失败")))))
+
+(rf/reg-event-db :bpm/diagram-set
+                 (fn [db [_ data]]
+                   (-> db
+                       (assoc-in [:bpm-diagram :data] data)
+                       (assoc-in [:bpm-diagram :loading?] false))))
+
+(rf/reg-event-db :bpm/diagram-close
+                 (fn [db _]
+                   (assoc-in db [:bpm-diagram :visible?] false)))
