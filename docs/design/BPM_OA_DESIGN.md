@@ -225,8 +225,9 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 - [x] 建 `bpm/engine.clj` Integrant 组件并接线 system.edn
   - [x] 后端启动即启动 Flowable（独立 `./flowable.db`，async 默认关）
   - [x] nREPL 实测：部署 BPMN → 发起流程 → 查询待办任务 ✅
-- [ ] 建 `biz_attachment` 通用附件表（SQLite+MySQL 双迁移）
-- [ ] 建 `business.clj` 路由骨架 + 动态菜单
+- [x] BPM 业务表迁移 + 动态菜单（`biz_bpm_*`/`biz_attachment`，SQLite+MySQL 双份）
+- [x] BPM 后端垂直切片完成（分类/模型/表单/实例/任务），REST 实测通过
+- [ ] 建 `business.clj` 路由骨架 + 动态菜单（已完成 BPM 菜单，OA/HRM 待加）
 
 ### Phase 1 — 旗舰：BPM 审批流 + OA（核心差异化）
 - [ ] BPM 完整 API 封装（部署/发起/审批/驳回/转办/待办/已办）
@@ -260,6 +261,10 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-24 (4)** BPM 后端垂直切片完成并 REST 实测：分类→模型→部署(Flowable)→发起→待办→审批/驳回→已办→历史 全链路通过。
+  新增 `bpm/core.clj` 高层 API、`domain/business/bpm.clj`、`controllers/business/bpm.clj`、`routes/business.clj`、
+  `sql/business.sql`、`biz_bpm_*` 迁移与动态菜单。
+- **2026-08-24 (3)** BPM 核心 API 完成并 nREPL 实测：`bpm/core.clj`（部署/发起/待办/审批/驳回/转办/历史）。
 - **2026-08-24 (2)** Phase 0 集成完成并实测：Flowable 8.0.0 + H2 1.4.200 已加入 deps.edn，
   `bpm/engine.clj` 以 `:app.bpm/engine` Integrant 组件启动（独立 `./flowable.db`，
   async 默认关），system.edn + core.clj 已接线。nREPL 实测部署 BPMN、发起流程、
