@@ -918,3 +918,12 @@
 (defn crm-delete-customer [id on-success on-error]
   (request {:method :delete :uri (str "/business/crm/customer/" id)
             :on-success on-success :on-error on-error}))
+
+;; ─── BPM 模型详情/更新 ─────────────────────────────────────────────
+(defn bpm-get-model [id on-success on-error]
+  (request {:method :get :uri (str "/business/bpm/model/" id)
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-update-model [id params on-success on-error]
+  (request {:method :put :uri (str "/business/bpm/model/" id) :params params
+            :on-success on-success :on-error on-error}))
