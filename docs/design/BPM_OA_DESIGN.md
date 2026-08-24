@@ -219,15 +219,25 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## 7. 分阶段实施路线
 
-### Phase 0 — 底座（✅ 进行中）
+### Phase 0 — 底座（✅ 完成）
 - [x] Flowable 可行性 spike（JDK 26 + H2 1.4.200，端到端跑通）
 - [x] 加 Flowable + H2 依赖（deps.edn）
 - [x] 建 `bpm/engine.clj` Integrant 组件并接线 system.edn
-  - [x] 后端启动即启动 Flowable（独立 `./flowable.db`，async 默认关）
-  - [x] nREPL 实测：部署 BPMN → 发起流程 → 查询待办任务 ✅
 - [x] BPM 业务表迁移 + 动态菜单（`biz_bpm_*`/`biz_attachment`，SQLite+MySQL 双份）
 - [x] BPM 后端垂直切片完成（分类/模型/表单/实例/任务），REST 实测通过
-- [ ] 建 `business.clj` 路由骨架 + 动态菜单（已完成 BPM 菜单，OA/HRM 待加）
+
+### Phase 1 — 旗舰：BPM 审批流 + OA（✅ 后端完成）
+- [x] BPM 核心 API 封装（`bpm/core.clj`）：部署/发起/待办/审批/驳回/转办/已办/历史
+- [x] BPM 单元测试（内存 H2，22 断言全过）
+- [x] 动态菜单（办公目录含 BPM/HRM/OA）
+- [x] OA：日程 + 会议（`biz_oa_calendar`/`biz_oa_meeting`）
+- [ ] bpmn-js 建模器前端 / 审批面板（前端待做）
+
+### Phase 2 — HRM / CRM / 报表
+- [x] HRM：员工档案（`biz_hrm_employee`，含部门联表）
+- [ ] HRM：考勤/请假(审批)/薪资
+- [ ] CRM：客户/商机/跟进/合同(审批)
+- [ ] 数据报表统计看板
 
 ### Phase 1 — 旗舰：BPM 审批流 + OA（核心差异化）
 - [ ] BPM 完整 API 封装（部署/发起/审批/驳回/转办/待办/已办）
@@ -261,6 +271,9 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-24 (6)** OA 日程+会议模块、HRM 员工模块完成并实测；办公菜单含 BPM/HRM/OA。
+  全量冒烟测试（BPM+HRM+OA）通过。BPM 单元测试 22 断言全过。
+- **2026-08-24 (5)** BPM 动态菜单 + HRM 员工模块（`biz_hrm_employee`）。
 - **2026-08-24 (4)** BPM 后端垂直切片完成并 REST 实测：分类→模型→部署(Flowable)→发起→待办→审批/驳回→已办→历史 全链路通过。
   新增 `bpm/core.clj` 高层 API、`domain/business/bpm.clj`、`controllers/business/bpm.clj`、`routes/business.clj`、
   `sql/business.sql`、`biz_bpm_*` 迁移与动态菜单。
