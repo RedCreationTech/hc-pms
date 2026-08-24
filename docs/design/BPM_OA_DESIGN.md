@@ -272,9 +272,10 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
-- **2026-08-24 (7)** CRM 客户模块完成（`biz_crm_customer` + 服务/控制器/路由/菜单）。
-  办公菜单现含 **BPM/HRM/OA/CRM** 四大子系统；全模块冒烟（bpm/hrm/oa/crm）全部 200。
-  新增 BPM REST 集成测试（15 断言全过）。
+- **2026-08-25 (8)** **全量测试套件转绿**：修复 obs 既有测试问题（`*trace*` 符号/结构错误/spans 多余括号
+  /`replay` diff 逻辑/异常类名等），修复应用生命周期 bug（`stop-app` 停后重置 atom，解决多次
+  start/stop 复用已关闭 HikariCP），`test_utils/system-state` 修正。结果 **349 测试 / 881 断言 / 0 失败**。
+- **2026-08-24 (7)** CRM 客户模块完成；办公菜单含 BPM/HRM/OA/CRM；BPM REST 集成测试（15 断言全过）。
 - **2026-08-24 (6)** OA 日程+会议模块、HRM 员工模块完成并实测；办公菜单含 BPM/HRM/OA。
   全量冒烟测试（BPM+HRM+OA）通过。BPM 单元测试 22 断言全过。
 - **2026-08-24 (5)** BPM 动态菜单 + HRM 员工模块（`biz_hrm_employee`）。
