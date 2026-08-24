@@ -28,5 +28,11 @@ playwright-report/
 # Dev logs
 /logs/
 # Polecat infrastructure (auto-generated)
-.beads/
 CLAUDE.md
+
+# Beads / Dolt files (added by bd init)
+.beads/proxieddb/
+
+# Gas City
+.beads/*
+!.beads/identity.toml

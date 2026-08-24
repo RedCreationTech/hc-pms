@@ -31,7 +31,7 @@ async function login(page, username = 'admin', password = 'admin123') {
  */
 async function logout(page) {
   // 点击头像下拉
-  await page.locator('.ant-layout-header').getByText('管理员').click();
+  await page.locator('.ant-layout-header').getByText('若依').click();
   await page.getByText('退出登录').click();
   await page.getByRole('button', { name: /登\s*录/ }).waitFor();
 }

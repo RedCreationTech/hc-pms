@@ -52,33 +52,40 @@
                            [antd/button {:type "link" :danger true :size "small"} "删除"]]])))}])
 
 (defn- config-modal [{:keys [visible? editing on-ok on-cancel]}]
-  (let [[form set-form!] (hooks/use-state {})]
+  (let [[form] (antd/form-use-form)]
     (hooks/use-effect
-     (fn [] (set-form! (or editing {})) js/undefined)
-     #js [visible?])
+     (fn []
+       (when visible?
+         (.resetFields form)
+         (.setFieldsValue form (clj->js (merge {:config_type "Y"} editing))))
+       js/undefined)
+     [visible? editing])
     [antd/modal {:open visible?
                  :title (if editing "编辑参数" "新增参数")
-                 :on-ok #(on-ok form)
-                 :on-cancel on-cancel
+                 :onOk #(.submit form)
+                 :onCancel on-cancel
                  :okText "确定" :cancelText "取消"}
-     [:div {:style {:display "flex" :flexDirection "column" :gap 12}}
-      [:div [:span {:style {:color "red"}} "*"] " 参数名称: "]
-      [antd/input {:value (:config_name form "")
-                   :on-change #(set-form! (assoc form :config_name (.. % -target -value)))}]
-      [:div [:span {:style {:color "red"}} "*"] " 参数键名: "]
-      [antd/input {:value (:config_key form "")
-                   :on-change #(set-form! (assoc form :config_key (.. % -target -value)))}]
-      [:div [:span {:style {:color "red"}} "*"] " 参数键值: "]
-      [antd/input {:value (:config_value form "")
-                   :on-change #(set-form! (assoc form :config_value (.. % -target -value)))}]
-      [:div "系统内置:"]
-      [antd/radio-group {:value (:config_type form "Y")
-                         :on-change #(set-form! (assoc form :config_type (.. % -target -value)))}
-       [antd/radio {:value "Y"} "是"]
-       [antd/radio {:value "N"} "否"]]
-      [:div "备注:"]
-      [antd/text-area {:value (:remark form "") :rows 3
-                       :on-change #(set-form! (assoc form :remark (.. % -target -value)))}]]]))
+     [antd/form {:form form
+                 :layout "vertical"
+                 :preserve false
+                 :onFinish (fn [values]
+                             (on-ok (js->clj values :keywordize-keys true)))
+                 :initialValues (clj->js (merge {:config_type "Y"} editing))}
+      [antd/form-item {:label "参数名称" :name "config_name"
+                       :rules [{:required true :message "请输入参数名称"}]}
+       [antd/input {:placeholder "请输入参数名称"}]]
+      [antd/form-item {:label "参数键名" :name "config_key"
+                       :rules [{:required true :message "请输入参数键名"}]}
+       [antd/input {:placeholder "请输入参数键名"}]]
+      [antd/form-item {:label "参数键值" :name "config_value"
+                       :rules [{:required true :message "请输入参数键值"}]}
+       [antd/input {:placeholder "请输入参数键值"}]]
+      [antd/form-item {:label "系统内置" :name "config_type"}
+       [antd/radio-group
+        [antd/radio {:value "Y"} "是"]
+        [antd/radio {:value "N"} "否"]]]
+      [antd/form-item {:label "备注" :name "remark"}
+       [antd/text-area {:placeholder "请输入备注" :rows 3}]]]]))
 
 (defn config-page []
   (let [items @(rf/subscribe [:configs/items])
@@ -120,9 +127,10 @@
       {:visible? modal-visible?
        :editing editing
        :on-ok (fn [form]
-                (if (:config_id form)
-                  (rf/dispatch [:configs/update (:config_id form) form])
-                  (rf/dispatch [:configs/create form]))
-                (set-modal-visible! false)
-                (set-editing! nil))
+                (let [form (merge editing form)]
+                  (if (:config_id form)
+                    (rf/dispatch [:configs/update (:config_id form) form])
+                    (rf/dispatch [:configs/create form]))
+                  (set-modal-visible! false)
+                  (set-editing! nil)))
        :on-cancel #(do (set-modal-visible! false) (set-editing! nil))}]]))

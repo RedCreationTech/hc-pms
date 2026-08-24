@@ -13,30 +13,37 @@
 ;; ─── 字典类型 ─────────────────────────────────────────────────────────────────
 
 (defn- type-form-modal [{:keys [visible? editing on-ok on-cancel]}]
-  (let [[form set-form!] (hooks/use-state {})]
+  (let [[form] (antd/form-use-form)]
     (hooks/use-effect
-     (fn [] (set-form! (or editing {})) js/undefined)
-     #js [visible?])
+     (fn []
+       (when visible?
+         (.resetFields form)
+         (.setFieldsValue form (clj->js (merge {:status "0"} editing))))
+       js/undefined)
+     [visible? editing])
     [antd/modal {:open visible?
                  :title (if editing "编辑字典类型" "新增字典类型")
-                 :on-ok #(on-ok form)
-                 :on-cancel on-cancel
+                 :onOk #(.submit form)
+                 :onCancel on-cancel
                  :okText "确定" :cancelText "取消"}
-     [:div {:style {:display "flex" :flexDirection "column" :gap 12}}
-      [:div [:span {:style {:color "red"}} "*"] " 字典名称:"]
-      [antd/input {:value (:dict_name form "")
-                   :on-change #(set-form! (assoc form :dict_name (.. % -target -value)))}]
-      [:div [:span {:style {:color "red"}} "*"] " 字典类型:"]
-      [antd/input {:value (:dict_type form "")
-                   :on-change #(set-form! (assoc form :dict_type (.. % -target -value)))}]
-      [:div "状态:"]
-      [antd/radio-group {:value (:status form "0")
-                         :on-change #(set-form! (assoc form :status (.. % -target -value)))}
-       [antd/radio {:value "0"} "正常"]
-       [antd/radio {:value "1"} "停用"]]
-      [:div "备注:"]
-      [antd/text-area {:value (:remark form "") :rows 3
-                       :on-change #(set-form! (assoc form :remark (.. % -target -value)))}]]]))
+     [antd/form {:form form
+                 :layout "vertical"
+                 :preserve false
+                 :onFinish (fn [values]
+                             (on-ok (js->clj values :keywordize-keys true)))
+                 :initialValues (clj->js (merge {:status "0"} editing))}
+      [antd/form-item {:label "字典名称" :name "dict_name"
+                       :rules [{:required true :message "请输入字典名称"}]}
+       [antd/input {:placeholder "请输入字典名称"}]]
+      [antd/form-item {:label "字典类型" :name "dict_type"
+                       :rules [{:required true :message "请输入字典类型"}]}
+       [antd/input {:placeholder "请输入字典类型"}]]
+      [antd/form-item {:label "状态" :name "status"}
+       [antd/radio-group
+        [antd/radio {:value "0"} "正常"]
+        [antd/radio {:value "1"} "停用"]]]
+      [antd/form-item {:label "备注" :name "remark"}
+       [antd/text-area {:placeholder "请输入备注" :rows 3}]]]]))
 
 (defn- type-columns [on-select on-edit on-delete]
   #js [#js {:title "字典编号" :dataIndex "dict_id" :key "dict_id" :width 80}
@@ -123,43 +130,51 @@
       {:visible? modal-visible?
        :editing editing
        :on-ok (fn [form]
-                (if (:dict_id form)
-                  (rf/dispatch [:dicts/update-type (:dict_id form) form])
-                  (rf/dispatch [:dicts/create-type form]))
-                (set-modal-visible! false)
-                (set-editing! nil))
+                (let [form (merge editing form)]
+                  (if (:dict_id form)
+                    (rf/dispatch [:dicts/update-type (:dict_id form) form])
+                    (rf/dispatch [:dicts/create-type form]))
+                  (set-modal-visible! false)
+                  (set-editing! nil)))
        :on-cancel #(do (set-modal-visible! false) (set-editing! nil))}]]))
 
 ;; ─── 字典数据 ─────────────────────────────────────────────────────────────────
 
 (defn- data-form-modal [{:keys [visible? editing dict-type on-ok on-cancel]}]
-  (let [[form set-form!] (hooks/use-state {})]
+  (let [[form] (antd/form-use-form)]
     (hooks/use-effect
-     (fn [] (set-form! (or editing {})) js/undefined)
-     #js [visible?])
+     (fn []
+       (when visible?
+         (.resetFields form)
+         (.setFieldsValue form (clj->js (merge {:status "0" :dict_sort 0} editing))))
+       js/undefined)
+     [visible? editing])
     [antd/modal {:open visible?
                  :title (if editing "编辑字典数据" "新增字典数据")
-                 :on-ok #(on-ok form)
-                 :on-cancel on-cancel
+                 :onOk #(.submit form)
+                 :onCancel on-cancel
                  :okText "确定" :cancelText "取消"}
-     [:div {:style {:display "flex" :flexDirection "column" :gap 12}}
-      [:div [:span {:style {:color "red"}} "*"] " 字典标签:"]
-      [antd/input {:value (:dict_label form "")
-                   :on-change #(set-form! (assoc form :dict_label (.. % -target -value)))}]
-      [:div [:span {:style {:color "red"}} "*"] " 字典键值:"]
-      [antd/input {:value (:dict_value form "")
-                   :on-change #(set-form! (assoc form :dict_value (.. % -target -value)))}]
-      [:div "排序:"]
-      [antd/input {:value (str (:dict_sort form 0))
-                   :on-change #(set-form! (assoc form :dict_sort (js/parseInt (.. % -target -value) 10)))}]
-      [:div "状态:"]
-      [antd/radio-group {:value (:status form "0")
-                         :on-change #(set-form! (assoc form :status (.. % -target -value)))}
-       [antd/radio {:value "0"} "正常"]
-       [antd/radio {:value "1"} "停用"]]
-      [:div "备注:"]
-      [antd/text-area {:value (:remark form "") :rows 2
-                       :on-change #(set-form! (assoc form :remark (.. % -target -value)))}]]]))
+     [antd/form {:form form
+                 :layout "vertical"
+                 :preserve false
+                 :onFinish (fn [values]
+                             (let [values (js->clj values :keywordize-keys true)]
+                               (on-ok (update values :dict_sort #(if (number? %) % (js/parseInt % 10))))))
+                 :initialValues (clj->js (merge {:status "0" :dict_sort 0} editing))}
+      [antd/form-item {:label "字典标签" :name "dict_label"
+                       :rules [{:required true :message "请输入字典标签"}]}
+       [antd/input {:placeholder "请输入字典标签"}]]
+      [antd/form-item {:label "字典键值" :name "dict_value"
+                       :rules [{:required true :message "请输入字典键值"}]}
+       [antd/input {:placeholder "请输入字典键值"}]]
+      [antd/form-item {:label "排序" :name "dict_sort"}
+       [antd/input-number {:placeholder "请输入排序" :min 0}]]
+      [antd/form-item {:label "状态" :name "status"}
+       [antd/radio-group
+        [antd/radio {:value "0"} "正常"]
+        [antd/radio {:value "1"} "停用"]]]
+      [antd/form-item {:label "备注" :name "remark"}
+       [antd/text-area {:placeholder "请输入备注" :rows 2}]]]]))
 
 (defn- data-columns [on-edit on-delete]
   #js [#js {:title "字典编码" :dataIndex "dict_code" :key "dict_code" :width 80}
@@ -225,7 +240,8 @@
          :editing editing
          :dict-type dict-type
          :on-ok (fn [form]
-                  (let [params (assoc form :dict_type (:dict_type dict-type))]
+                  (let [form (merge editing form)
+                        params (assoc form :dict_type (:dict_type dict-type))]
                     (if (:dict_code params)
                       (rf/dispatch [:dicts/update-data (:dict_code params) params])
                       (rf/dispatch [:dicts/create-data params]))

@@ -1,5 +1,6 @@
 const { test, expect } = require('playwright/test');
 const { login } = require('./auth-helper');
+const { fillInput, clickOk } = require('./dom-helper');
 
 test.describe('参数配置 CRUD', () => {
   test.beforeEach(async ({ page }) => {
@@ -18,13 +19,13 @@ test.describe('参数配置 CRUD', () => {
     const modal = page.getByRole('dialog', { name: '新增参数' });
     await expect(modal).toBeVisible();
 
-    // 填写表单 — 输入框按顺序：参数名称、参数键名、参数键值
-    const inputs = modal.locator('input');
+    // 填写表单
+    const inputs = modal.locator('input[type="text"]');
     await inputs.nth(0).fill(configName);
     await inputs.nth(1).fill(configKey);
     await inputs.nth(2).fill(configValue);
 
-    await modal.getByRole('button', { name: '确定' }).click();
+    await modal.getByRole('button', { name: /确\s*定/ }).click();
     await expect(modal).toBeHidden();
 
     // 验证列表出现新记录
@@ -43,11 +44,11 @@ test.describe('参数配置 CRUD', () => {
     await page.getByRole('button', { name: '新增' }).click();
     const addModal = page.getByRole('dialog', { name: '新增参数' });
     await expect(addModal).toBeVisible();
-    const addInputs = addModal.locator('input');
+    const addInputs = addModal.locator('input[type="text"]');
     await addInputs.nth(0).fill(configName);
     await addInputs.nth(1).fill(configKey);
     await addInputs.nth(2).fill(configValue);
-    await addModal.getByRole('button', { name: '确定' }).click();
+    await addModal.getByRole('button', { name: /确\s*定/ }).click();
     await expect(addModal).toBeHidden();
 
     const row = page.locator('table tbody tr', { hasText: configName });
@@ -57,8 +58,8 @@ test.describe('参数配置 CRUD', () => {
     await row.getByRole('button', { name: '编辑' }).click();
     const editModal = page.getByRole('dialog', { name: '编辑参数' });
     await expect(editModal).toBeVisible();
-    await editModal.locator('input').nth(0).fill(updatedName);
-    await editModal.getByRole('button', { name: '确定' }).click();
+    await editModal.locator('input[type="text"]').nth(0).fill(updatedName);
+    await editModal.getByRole('button', { name: /确\s*定/ }).click();
     await expect(editModal).toBeHidden();
 
     const updatedRow = page.locator('table tbody tr', { hasText: updatedName });
@@ -75,11 +76,11 @@ test.describe('参数配置 CRUD', () => {
     await page.getByRole('button', { name: '新增' }).click();
     const addModal = page.getByRole('dialog', { name: '新增参数' });
     await expect(addModal).toBeVisible();
-    const inputs = addModal.locator('input');
+    const inputs = addModal.locator('input[type="text"]');
     await inputs.nth(0).fill(configName);
     await inputs.nth(1).fill(configKey);
     await inputs.nth(2).fill(configValue);
-    await addModal.getByRole('button', { name: '确定' }).click();
+    await addModal.getByRole('button', { name: /确\s*定/ }).click();
     await expect(addModal).toBeHidden();
 
     const row = page.locator('table tbody tr', { hasText: configName });
@@ -87,7 +88,7 @@ test.describe('参数配置 CRUD', () => {
 
     // 删除
     await row.getByRole('button', { name: '删除' }).click();
-    await page.locator('.ant-popconfirm').getByRole('button', { name: '确认' }).click();
+    await page.locator('.ant-popconfirm').getByRole('button', { name: /确\s*认/ }).click();
     await expect(row).toBeHidden({ timeout: 10000 });
   });
 });
