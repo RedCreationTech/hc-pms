@@ -236,7 +236,8 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 ### Phase 2 — HRM / CRM / 报表
 - [x] HRM：员工档案（`biz_hrm_employee`，含部门联表）
 - [ ] HRM：考勤/请假(审批)/薪资
-- [ ] CRM：客户/商机/跟进/合同(审批)
+- [x] CRM：客户管理（`biz_crm_customer`）
+- [ ] CRM：商机/跟进/合同(审批)
 - [ ] 数据报表统计看板
 
 ### Phase 1 — 旗舰：BPM 审批流 + OA（核心差异化）
@@ -271,6 +272,9 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-24 (7)** CRM 客户模块完成（`biz_crm_customer` + 服务/控制器/路由/菜单）。
+  办公菜单现含 **BPM/HRM/OA/CRM** 四大子系统；全模块冒烟（bpm/hrm/oa/crm）全部 200。
+  新增 BPM REST 集成测试（15 断言全过）。
 - **2026-08-24 (6)** OA 日程+会议模块、HRM 员工模块完成并实测；办公菜单含 BPM/HRM/OA。
   全量冒烟测试（BPM+HRM+OA）通过。BPM 单元测试 22 断言全过。
 - **2026-08-24 (5)** BPM 动态菜单 + HRM 员工模块（`biz_hrm_employee`）。
