@@ -272,6 +272,9 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-25 (13)** **报销审批模块**：复用"业务记录+BPM+前端+流程图"链路，新增 `biz_oa_reimburse`
+  + 内置 `reimburseApproval` 模型(502)。发起入流/惰性状态同步/删除，前端页+路由+菜单。
+  修 `active-activity-ids` 处理已结束流程（execution 不存在）。实测 发起→审批通过=2。
 - **2026-08-25 (12)** **审批流程图高亮**：我的流程页"流程图"弹窗 → bpmn-js Viewer 渲染 BPMN
   + canvas.addMarker 高亮（进行中=红 / 已完成=绿）。后端 `instance-diagram` 端点返回 BPMN+节点状态，
   `bpm/core` 增加 active/completed-activity-ids。请假发起同步写 `biz_bpm_instance`。
