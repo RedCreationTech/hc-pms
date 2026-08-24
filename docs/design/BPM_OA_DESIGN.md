@@ -272,6 +272,9 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-25 (9)** **请假申请 + BPM 审批流集成（旗舰示例）**：`biz_oa_leave` 业务表 + 内置
+  `leaveApproval` 流程模型。发起请假→入 Flowable 审批流→审批通过/驳回后状态自动同步
+  （已通过=2 / 已驳回=3）。REST 实测通过，证明“业务记录 + 工作流”集成模式。
 - **2026-08-25 (8)** **全量测试套件转绿**：修复 obs 既有测试问题（`*trace*` 符号/结构错误/spans 多余括号
   /`replay` diff 逻辑/异常类名等），修复应用生命周期 bug（`stop-app` 停后重置 atom，解决多次
   start/stop 复用已关闭 HikariCP），`test_utils/system-state` 修正。结果 **349 测试 / 881 断言 / 0 失败**。
