@@ -868,3 +868,53 @@
 (defn oa-delete-leave [id on-success on-error]
   (request {:method :delete :uri (str "/business/oa/leave/" id)
             :on-success on-success :on-error on-error}))
+
+;; ─── HRM 员工 ──────────────────────────────────────────────────────
+(defn hrm-list-employees [params on-success on-error]
+  (request {:method :get :uri "/business/hrm/employee" :params params
+            :on-success on-success :on-error on-error}))
+(defn hrm-create-employee [params on-success on-error]
+  (request {:method :post :uri "/business/hrm/employee" :params params
+            :on-success on-success :on-error on-error}))
+(defn hrm-update-employee [id params on-success on-error]
+  (request {:method :put :uri (str "/business/hrm/employee/" id) :params params
+            :on-success on-success :on-error on-error}))
+(defn hrm-delete-employee [id on-success on-error]
+  (request {:method :delete :uri (str "/business/hrm/employee/" id)
+            :on-success on-success :on-error on-error}))
+
+;; ─── OA 日程 ──────────────────────────────────────────────────────
+(defn oa-list-calendars [params on-success on-error]
+  (request {:method :get :uri "/business/oa/calendar" :params params
+            :on-success on-success :on-error on-error}))
+(defn oa-create-calendar [params on-success on-error]
+  (request {:method :post :uri "/business/oa/calendar" :params params
+            :on-success on-success :on-error on-error}))
+(defn oa-delete-calendar [id on-success on-error]
+  (request {:method :delete :uri (str "/business/oa/calendar/" id)
+            :on-success on-success :on-error on-error}))
+
+;; ─── OA 会议 ──────────────────────────────────────────────────────
+(defn oa-list-meetings [params on-success on-error]
+  (request {:method :get :uri "/business/oa/meeting" :params params
+            :on-success on-success :on-error on-error}))
+(defn oa-create-meeting [params on-success on-error]
+  (request {:method :post :uri "/business/oa/meeting" :params params
+            :on-success on-success :on-error on-error}))
+(defn oa-delete-meeting [id on-success on-error]
+  (request {:method :delete :uri (str "/business/oa/meeting/" id)
+            :on-success on-success :on-error on-error}))
+
+;; ─── CRM 客户 ──────────────────────────────────────────────────────
+(defn crm-list-customers [params on-success on-error]
+  (request {:method :get :uri "/business/crm/customer" :params params
+            :on-success on-success :on-error on-error}))
+(defn crm-create-customer [params on-success on-error]
+  (request {:method :post :uri "/business/crm/customer" :params params
+            :on-success on-success :on-error on-error}))
+(defn crm-update-customer [id params on-success on-error]
+  (request {:method :put :uri (str "/business/crm/customer/" id) :params params
+            :on-success on-success :on-error on-error}))
+(defn crm-delete-customer [id on-success on-error]
+  (request {:method :delete :uri (str "/business/crm/customer/" id)
+            :on-success on-success :on-error on-error}))

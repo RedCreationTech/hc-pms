@@ -63,6 +63,10 @@
                                  :bpm-done [:bpm/done-fetch]
                                  :bpm-instance [:bpm/instance-fetch {}]
                                  :bpm-model [:bpm/model-fetch {}]
+                                 :hrm-employee [:hrm/fetch {}]
+                                 :oa-calendar [:oa-calendar/fetch {}]
+                                 :oa-meeting [:oa-meeting/fetch {}]
+                                 :crm-customer [:crm/fetch {}]
                                  nil)
                          effects {:db (activate-page-tab db page)
                                   :router/navigate! page}]
@@ -2676,3 +2680,50 @@
                                              (antd/success! "部署成功")
                                              (rf/dispatch [:bpm/model-fetch {}])))
                                    (fn [_] (antd/error! "部署失败")))))
+
+;; ─── 办公：HRM 员工 ──────────────────────────────────────────────────
+(rf/reg-event-fx :hrm/fetch (fn [{:keys [db]} [_ p]] {:db (assoc-in db [:hrm :loading?] true) :api/hrm-list p}))
+(rf/reg-fx :api/hrm-list (fn [p] (api/hrm-list-employees p (fn [r] (when (= 200 (:code r)) (rf/dispatch [:hrm/set-list (:data r)]))) (fn [_] (antd/error! "加载员工失败")))))
+(rf/reg-event-db :hrm/set-list (fn [db [_ d]] (let [items (if (sequential? d) d (:rows d []))] (assoc db :hrm {:items items :total (:total d 0) :loading? false :modal-visible? false :editing nil :form-data {}}))))
+(rf/reg-event-db :hrm/open (fn [db _] (assoc db :hrm {:items (get-in db [:hrm :items] []) :total (get-in db [:hrm :total] 0) :loading? false :modal-visible? true :editing nil :form-data {}})))
+(rf/reg-event-db :hrm/edit (fn [db [_ it]] (-> db (assoc-in [:hrm :modal-visible?] true) (assoc-in [:hrm :editing] it) (assoc-in [:hrm :form-data] it))))
+(rf/reg-event-db :hrm/close (fn [db _] (assoc-in db [:hrm :modal-visible?] false)))
+(rf/reg-event-fx :hrm/submit (fn [{:keys [db]} [_ v]] (let [e (get-in db [:hrm :editing])] (if e {:api/hrm-create v} {:api/hrm-create v}))))
+(rf/reg-fx :api/hrm-create (fn [p] (api/hrm-create-employee p (fn [r] (when (= 200 (:code r)) (rf/dispatch [:hrm/close]) (antd/success! "保存成功") (rf/dispatch [:hrm/fetch {}]))) (fn [_] (antd/error! "保存失败")))))
+(rf/reg-event-fx :hrm/delete (fn [_ [_ id]] {:api/hrm-del id}))
+(rf/reg-fx :api/hrm-del (fn [id] (api/hrm-delete-employee id (fn [r] (when (= 200 (:code r)) (antd/success! "删除成功") (rf/dispatch [:hrm/fetch {}]))) (fn [_] (antd/error! "删除失败")))))
+
+;; ─── 办公：OA 日程 ──────────────────────────────────────────────────
+(rf/reg-event-fx :oa-calendar/fetch (fn [{:keys [db]} [_ p]] {:db (assoc-in db [:oa-calendar :loading?] true) :api/oa-calendar-list p}))
+(rf/reg-fx :api/oa-calendar-list (fn [p] (api/oa-list-calendars p (fn [r] (when (= 200 (:code r)) (rf/dispatch [:oa-calendar/set-list (:data r)]))) (fn [_] (antd/error! "加载日程失败")))))
+(rf/reg-event-db :oa-calendar/set-list (fn [db [_ d]] (let [items (if (sequential? d) d (:rows d []))] (assoc db :oa-calendar {:items items :total (:total d 0) :loading? false :modal-visible? false :form-data {}}))))
+(rf/reg-event-db :oa-calendar/open (fn [db _] (assoc db :oa-calendar {:items (get-in db [:oa-calendar :items] []) :total (get-in db [:oa-calendar :total] 0) :loading? false :modal-visible? true :form-data {}})))
+(rf/reg-event-db :oa-calendar/close (fn [db _] (assoc-in db [:oa-calendar :modal-visible?] false)))
+(rf/reg-event-fx :oa-calendar/submit (fn [_ [_ v]] {:api/oa-calendar-create v}))
+(rf/reg-fx :api/oa-calendar-create (fn [p] (api/oa-create-calendar p (fn [r] (when (= 200 (:code r)) (rf/dispatch [:oa-calendar/close]) (antd/success! "已添加") (rf/dispatch [:oa-calendar/fetch {}]))) (fn [_] (antd/error! "添加失败")))))
+(rf/reg-event-fx :oa-calendar/delete (fn [_ [_ id]] {:api/oa-calendar-del id}))
+(rf/reg-fx :api/oa-calendar-del (fn [id] (api/oa-delete-calendar id (fn [r] (when (= 200 (:code r)) (antd/success! "删除成功") (rf/dispatch [:oa-calendar/fetch {}]))) (fn [_] (antd/error! "删除失败")))))
+
+;; ─── 办公：OA 会议 ──────────────────────────────────────────────────
+(rf/reg-event-fx :oa-meeting/fetch (fn [{:keys [db]} [_ p]] {:db (assoc-in db [:oa-meeting :loading?] true) :api/oa-meeting-list p}))
+(rf/reg-fx :api/oa-meeting-list (fn [p] (api/oa-list-meetings p (fn [r] (when (= 200 (:code r)) (rf/dispatch [:oa-meeting/set-list (:data r)]))) (fn [_] (antd/error! "加载会议失败")))))
+(rf/reg-event-db :oa-meeting/set-list (fn [db [_ d]] (let [items (if (sequential? d) d (:rows d []))] (assoc db :oa-meeting {:items items :total (:total d 0) :loading? false :modal-visible? false :form-data {}}))))
+(rf/reg-event-db :oa-meeting/open (fn [db _] (assoc db :oa-meeting {:items (get-in db [:oa-meeting :items] []) :total (get-in db [:oa-meeting :total] 0) :loading? false :modal-visible? true :form-data {}})))
+(rf/reg-event-db :oa-meeting/close (fn [db _] (assoc-in db [:oa-meeting :modal-visible?] false)))
+(rf/reg-event-fx :oa-meeting/submit (fn [_ [_ v]] {:api/oa-meeting-create v}))
+(rf/reg-fx :api/oa-meeting-create (fn [p] (api/oa-create-meeting p (fn [r] (when (= 200 (:code r)) (rf/dispatch [:oa-meeting/close]) (antd/success! "已创建") (rf/dispatch [:oa-meeting/fetch {}]))) (fn [_] (antd/error! "创建失败")))))
+(rf/reg-event-fx :oa-meeting/delete (fn [_ [_ id]] {:api/oa-meeting-del id}))
+(rf/reg-fx :api/oa-meeting-del (fn [id] (api/oa-delete-meeting id (fn [r] (when (= 200 (:code r)) (antd/success! "删除成功") (rf/dispatch [:oa-meeting/fetch {}]))) (fn [_] (antd/error! "删除失败")))))
+
+;; ─── 办公：CRM 客户 ──────────────────────────────────────────────────
+(rf/reg-event-fx :crm/fetch (fn [{:keys [db]} [_ p]] {:db (assoc-in db [:crm :loading?] true) :api/crm-list p}))
+(rf/reg-fx :api/crm-list (fn [p] (api/crm-list-customers p (fn [r] (when (= 200 (:code r)) (rf/dispatch [:crm/set-list (:data r)]))) (fn [_] (antd/error! "加载客户失败")))))
+(rf/reg-event-db :crm/set-list (fn [db [_ d]] (let [items (if (sequential? d) d (:rows d []))] (assoc db :crm {:items items :total (:total d 0) :loading? false :modal-visible? false :editing nil :form-data {}}))))
+(rf/reg-event-db :crm/open (fn [db _] (assoc db :crm {:items (get-in db [:crm :items] []) :total (get-in db [:crm :total] 0) :loading? false :modal-visible? true :editing nil :form-data {}})))
+(rf/reg-event-db :crm/edit (fn [db [_ it]] (-> db (assoc-in [:crm :modal-visible?] true) (assoc-in [:crm :editing] it) (assoc-in [:crm :form-data] it))))
+(rf/reg-event-db :crm/close (fn [db _] (assoc-in db [:crm :modal-visible?] false)))
+(rf/reg-event-fx :crm/submit (fn [{:keys [db]} [_ v]] (let [e (get-in db [:crm :editing])] (if e {:api/crm-update [(:customer_id e) v]} {:api/crm-create v}))))
+(rf/reg-fx :api/crm-create (fn [p] (api/crm-create-customer p (fn [r] (when (= 200 (:code r)) (rf/dispatch [:crm/close]) (antd/success! "保存成功") (rf/dispatch [:crm/fetch {}]))) (fn [_] (antd/error! "保存失败")))))
+(rf/reg-fx :api/crm-update (fn [[id p]] (api/crm-update-customer id p (fn [r] (when (= 200 (:code r)) (rf/dispatch [:crm/close]) (antd/success! "保存成功") (rf/dispatch [:crm/fetch {}]))) (fn [_] (antd/error! "保存失败")))))
+(rf/reg-event-fx :crm/delete (fn [_ [_ id]] {:api/crm-del id}))
+(rf/reg-fx :api/crm-del (fn [id] (api/crm-delete-customer id (fn [r] (when (= 200 (:code r)) (antd/success! "删除成功") (rf/dispatch [:crm/fetch {}]))) (fn [_] (antd/error! "删除失败")))))

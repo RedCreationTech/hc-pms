@@ -650,3 +650,28 @@
 (rf/reg-sub :bpm-model/items (fn [db _] (get-in db [:bpm-model :items] [])))
 (rf/reg-sub :bpm-model/total (fn [db _] (get-in db [:bpm-model :total] 0)))
 (rf/reg-sub :bpm-model/loading? (fn [db _] (get-in db [:bpm-model :loading?] false)))
+
+;; ─── 办公：HRM / OA / CRM ──────────────────────────────────────────
+(rf/reg-sub :hrm/items (fn [db _] (get-in db [:hrm :items] [])))
+(rf/reg-sub :hrm/total (fn [db _] (get-in db [:hrm :total] 0)))
+(rf/reg-sub :hrm/loading? (fn [db _] (get-in db [:hrm :loading?] false)))
+(rf/reg-sub :hrm/modal-visible? (fn [db _] (get-in db [:hrm :modal-visible?] false)))
+(rf/reg-sub :hrm/form-data (fn [db _] (get-in db [:hrm :form-data] {})))
+
+(rf/reg-sub :oa-calendar/items (fn [db _] (get-in db [:oa-calendar :items] [])))
+(rf/reg-sub :oa-calendar/total (fn [db _] (get-in db [:oa-calendar :total] 0)))
+(rf/reg-sub :oa-calendar/loading? (fn [db _] (get-in db [:oa-calendar :loading?] false)))
+(rf/reg-sub :oa-calendar/modal-visible? (fn [db _] (get-in db [:oa-calendar :modal-visible?] false)))
+(rf/reg-sub :oa-calendar/form-data (fn [db _] (get-in db [:oa-calendar :form-data] {})))
+
+(rf/reg-sub :oa-meeting/items (fn [db _] (get-in db [:oa-meeting :items] [])))
+(rf/reg-sub :oa-meeting/total (fn [db _] (get-in db [:oa-meeting :total] 0)))
+(rf/reg-sub :oa-meeting/loading? (fn [db _] (get-in db [:oa-meeting :loading?] false)))
+(rf/reg-sub :oa-meeting/modal-visible? (fn [db _] (get-in db [:oa-meeting :modal-visible?] false)))
+(rf/reg-sub :oa-meeting/form-data (fn [db _] (get-in db [:oa-meeting :form-data] {})))
+
+(rf/reg-sub :crm/items (fn [db _] (get-in db [:crm :items] [])))
+(rf/reg-sub :crm/total (fn [db _] (get-in db [:crm :total] 0)))
+(rf/reg-sub :crm/loading? (fn [db _] (get-in db [:crm :loading?] false)))
+(rf/reg-sub :crm/modal-visible? (fn [db _] (get-in db [:crm :modal-visible?] false)))
+(rf/reg-sub :crm/form-data (fn [db _] (get-in db [:crm :form-data] {})))

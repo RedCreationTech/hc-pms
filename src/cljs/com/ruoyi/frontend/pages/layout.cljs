@@ -42,6 +42,10 @@
    [com.ruoyi.frontend.pages.business.bpm-done :as bpm-done]
    [com.ruoyi.frontend.pages.business.bpm-instance :as bpm-instance]
    [com.ruoyi.frontend.pages.business.bpm-model :as bpm-model]
+   [com.ruoyi.frontend.pages.business.hrm :as hrm]
+   [com.ruoyi.frontend.pages.business.oa-calendar :as oa-calendar]
+   [com.ruoyi.frontend.pages.business.oa-meeting :as oa-meeting]
+   [com.ruoyi.frontend.pages.business.crm :as crm]
    [com.ruoyi.frontend.pages.online :as online]
    [com.ruoyi.frontend.pages.job :as job]
    [com.ruoyi.frontend.pages.profile :as profile]
@@ -750,6 +754,10 @@
           :bpm-instance [bpm-instance/bpm-instance-page]
           :leave [leave-page/leave-page]
           :bpm-model [bpm-model/bpm-model-page]
+          :hrm-employee [hrm/hrm-employee-page]
+          :oa-calendar [oa-calendar/oa-calendar-page]
+          :oa-meeting [oa-meeting/oa-meeting-page]
+          :crm-customer [crm/crm-customer-page]
           [:div {:style {:padding 48 :textAlign "center" :color "#999" :fontSize 16}}
            "页面建设中"])]
        [:div {:class "app-layout-float"
