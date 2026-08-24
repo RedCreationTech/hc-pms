@@ -58,7 +58,8 @@
 
 (defn stop-app []
   ((or (:stop defaults) (fn [])))
-  (some-> (deref system) (ig/halt!)))
+  (some-> (deref system) (ig/halt!))
+  (reset! system nil))
 
 (defn start-app [& [params]]
   ((or (:start params) (:start defaults) (fn [])))
