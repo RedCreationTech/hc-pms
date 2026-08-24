@@ -27,7 +27,16 @@
         "monitor/datasource" :datasource
         "monitor/integrant" :integrant
         "monitor/swagger" :swagger
-        "system/user/profile" :profile}])
+        "system/user/profile" :profile
+        "office/bpm/model" :bpm-model
+        "office/bpm/instance" :bpm-instance
+        "office/bpm/todo" :bpm-todo
+        "office/bpm/done" :bpm-done
+        "office/oa/leave" :leave
+        "office/oa/calendar" :oa-calendar
+        "office/oa/meeting" :oa-meeting
+        "office/hrm/employee" :hrm-employee
+        "office/crm/customer" :crm-customer}])
 
 ;; 路由匹配
 (defn match-route [path]
@@ -57,7 +66,17 @@
    :datasource "数据监控"
    :integrant "Integrant 依赖"
    :swagger "系统接口"
-   :profile "个人中心"})
+   :profile "个人中心"
+   :office "办公"
+   :bpm-model "流程模型"
+   :bpm-instance "我的流程"
+   :bpm-todo "我的待办"
+   :bpm-done "我的已办"
+   :leave "请假申请"
+   :oa-calendar "日程管理"
+   :oa-meeting "会议管理"
+   :hrm-employee "员工管理"
+   :crm-customer "客户管理"})
 
 ;; 状态标记
 (defonce initialized? (volatile! false))

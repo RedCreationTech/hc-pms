@@ -813,3 +813,58 @@
   (request {:method :get :uri (str "/system/role/" id)
             :on-success on-success :on-error on-error}))
 
+
+;; ─── BPM 流程 ──────────────────────────────────────────────────────
+
+(defn bpm-list-models [params on-success on-error]
+  (request {:method :get :uri "/business/bpm/model" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-deploy-model [id on-success on-error]
+  (request {:method :post :uri (str "/business/bpm/model/deploy/" id)
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-list-instances [params on-success on-error]
+  (request {:method :get :uri "/business/bpm/instance" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-start-instance [params on-success on-error]
+  (request {:method :post :uri "/business/bpm/instance" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-list-todo [on-success on-error]
+  (request {:method :get :uri "/business/bpm/todo"
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-list-done [on-success on-error]
+  (request {:method :get :uri "/business/bpm/done"
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-approve-task [task-id comment on-success on-error]
+  (request {:method :post :uri (str "/business/bpm/task/" task-id "/approve")
+            :params {:comment comment}
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-reject-task [task-id comment on-success on-error]
+  (request {:method :post :uri (str "/business/bpm/task/" task-id "/reject")
+            :params {:comment comment}
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-task-history [pid on-success on-error]
+  (request {:method :get :uri (str "/business/bpm/instance/history/" pid)
+            :on-success on-success :on-error on-error}))
+
+
+;; ─── OA 请假 ──────────────────────────────────────────────────────
+
+(defn oa-list-leaves [params on-success on-error]
+  (request {:method :get :uri "/business/oa/leave" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn oa-start-leave [params on-success on-error]
+  (request {:method :post :uri "/business/oa/leave" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn oa-delete-leave [id on-success on-error]
+  (request {:method :delete :uri (str "/business/oa/leave/" id)
+            :on-success on-success :on-error on-error}))

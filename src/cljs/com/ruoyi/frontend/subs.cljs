@@ -619,3 +619,29 @@
               (get-in db [:users :expanded-dept-ids] #{})))
 
 
+
+;; ─── 办公：请假 ──────────────────────────────────────────────────────
+(rf/reg-sub :leave/items (fn [db _] (get-in db [:leave :items] [])))
+(rf/reg-sub :leave/total (fn [db _] (get-in db [:leave :total] 0)))
+(rf/reg-sub :leave/loading? (fn [db _] (get-in db [:leave :loading?] false)))
+(rf/reg-sub :leave/modal-visible? (fn [db _] (get-in db [:leave :modal-visible?] false)))
+(rf/reg-sub :leave/submitting? (fn [db _] (get-in db [:leave :submitting?] false)))
+
+;; ─── 办公：BPM 待办 ──────────────────────────────────────────────────
+(rf/reg-sub :bpm-todo/items (fn [db _] (get-in db [:bpm-todo :items] [])))
+(rf/reg-sub :bpm-todo/total (fn [db _] (get-in db [:bpm-todo :total] 0)))
+(rf/reg-sub :bpm-todo/loading? (fn [db _] (get-in db [:bpm-todo :loading?] false)))
+(rf/reg-sub :bpm-todo/modal-visible? (fn [db _] (get-in db [:bpm-todo :modal-visible?] false)))
+(rf/reg-sub :bpm-todo/current (fn [db _] (get-in db [:bpm-todo :current] nil)))
+(rf/reg-sub :bpm-todo/action (fn [db _] (get-in db [:bpm-todo :action] nil)))
+(rf/reg-sub :bpm-todo/submitting? (fn [db _] (get-in db [:bpm-todo :submitting?] false)))
+
+;; ─── 办公：BPM 已办 ──────────────────────────────────────────────────
+(rf/reg-sub :bpm-done/items (fn [db _] (get-in db [:bpm-done :items] [])))
+(rf/reg-sub :bpm-done/total (fn [db _] (get-in db [:bpm-done :total] 0)))
+(rf/reg-sub :bpm-done/loading? (fn [db _] (get-in db [:bpm-done :loading?] false)))
+
+;; ─── 办公：我的流程 ──────────────────────────────────────────────────
+(rf/reg-sub :bpm-instance/items (fn [db _] (get-in db [:bpm-instance :items] [])))
+(rf/reg-sub :bpm-instance/total (fn [db _] (get-in db [:bpm-instance :total] 0)))
+(rf/reg-sub :bpm-instance/loading? (fn [db _] (get-in db [:bpm-instance :loading?] false)))

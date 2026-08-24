@@ -58,6 +58,10 @@
                                  :dept [:depts/fetch {}]
                                  :post [:posts/fetch {}]
                                  :notice [:notices/fetch {}]
+                                 :leave [:leave/fetch {}]
+                                 :bpm-todo [:bpm/todo-fetch]
+                                 :bpm-done [:bpm/done-fetch]
+                                 :bpm-instance [:bpm/instance-fetch {}]
                                  nil)
                          effects {:db (activate-page-tab db page)
                                   :router/navigate! page}]
@@ -2489,3 +2493,153 @@
                    (assoc-in db [:users :expanded-dept-ids] #{})))
 
 
+
+;; ─── 办公：请假申请 ──────────────────────────────────────────────────
+(rf/reg-event-fx :leave/fetch
+                 (fn [{:keys [db]} [_ params]]
+                   {:db (assoc-in db [:leave :loading?] true)
+                    :api/oa-list-leaves (or params {})}))
+
+(rf/reg-fx :api/oa-list-leaves
+           (fn [params]
+             (api/oa-list-leaves params
+                                 (fn [r] (when (= 200 (:code r))
+                                           (rf/dispatch [:leave/set-list (:data r)])))
+                                 (fn [_] (antd/error! "加载请假单失败")))))
+
+(rf/reg-event-db :leave/set-list
+                 (fn [db [_ data]]
+                   (let [items (if (sequential? data) data (:rows data []))
+                         total (if (sequential? data) (count data) (:total data 0))]
+                     (assoc db :leave {:items items :total total :loading? false
+                                       :modal-visible? false :submitting? false}))))
+
+(rf/reg-event-db :leave/open-modal
+                 (fn [db _]
+                   (assoc db :leave {:items (get-in db [:leave :items] [])
+                                     :total (get-in db [:leave :total] 0)
+                                     :loading? false :modal-visible? true :submitting? false})))
+
+(rf/reg-event-db :leave/close-modal
+                 (fn [db _]
+                   (assoc-in db [:leave :modal-visible?] false)))
+
+(rf/reg-event-fx :leave/submit
+                 (fn [{:keys [db]} [_ values]]
+                   {:db (assoc-in db [:leave :submitting?] true)
+                    :api/oa-start-leave values}))
+
+(rf/reg-fx :api/oa-start-leave
+           (fn [params]
+             (api/oa-start-leave params
+                                 (fn [r]
+                                   (when (= 200 (:code r))
+                                     (rf/dispatch [:leave/close-modal])
+                                     (antd/success! "请假申请已提交，进入审批")
+                                     (rf/dispatch [:leave/fetch {}])))
+                                 (fn [_] (antd/error! "提交失败")))))
+
+(rf/reg-event-fx :leave/delete
+                 (fn [_ [_ id]]
+                   {:api/oa-delete-leave id}))
+
+(rf/reg-fx :api/oa-delete-leave
+           (fn [id]
+             (api/oa-delete-leave id
+                                  (fn [r] (when (= 200 (:code r))
+                                            (antd/success! "删除成功")
+                                            (rf/dispatch [:leave/fetch {}])))
+                                  (fn [_] (antd/error! "删除失败")))))
+
+
+;; ─── 办公：BPM 待办/已办 ────────────────────────────────────────────
+(rf/reg-event-fx :bpm/todo-fetch
+                 (fn [{:keys [db]} _]
+                   {:db (assoc-in db [:bpm-todo :loading?] true)
+                    :api/bpm-list-todo nil}))
+
+(rf/reg-fx :api/bpm-list-todo
+           (fn [_]
+             (api/bpm-list-todo
+              (fn [r] (when (= 200 (:code r))
+                        (rf/dispatch [:bpm/todo-set-list (:data r)])))
+              (fn [_] (antd/error! "加载待办失败")))))
+
+(rf/reg-event-db :bpm/todo-set-list
+                 (fn [db [_ data]]
+                   (let [rows (:rows data [])]
+                     (assoc db :bpm-todo {:items rows :total (:total data 0)
+                                          :loading? false :modal-visible? false
+                                          :current nil :submitting? false}))))
+
+(rf/reg-event-db :bpm/todo-open-approve
+                 (fn [db [_ task]]
+                   (assoc db :bpm-todo {:items (get-in db [:bpm-todo :items] [])
+                                        :total (get-in db [:bpm-todo :total] 0)
+                                        :loading? false :modal-visible? true
+                                        :current task :action "approve" :submitting? false})))
+
+(rf/reg-event-db :bpm/todo-open-reject
+                 (fn [db [_ task]]
+                   (assoc db :bpm-todo {:items (get-in db [:bpm-todo :items] [])
+                                        :total (get-in db [:bpm-todo :total] 0)
+                                        :loading? false :modal-visible? true
+                                        :current task :action "reject" :submitting? false})))
+
+(rf/reg-event-db :bpm/todo-close
+                 (fn [db _]
+                   (assoc-in db [:bpm-todo :modal-visible?] false)))
+
+(rf/reg-event-fx :bpm/todo-submit
+                 (fn [{:keys [db]} [_ comment]]
+                   (let [task (get-in db [:bpm-todo :current])
+                         action (get-in db [:bpm-todo :action])]
+                     {:db (assoc-in db [:bpm-todo :submitting?] true)
+                      :api/bpm-approve-task [(:task-id task) comment action]})))
+
+(rf/reg-fx :api/bpm-approve-task
+           (fn [[task-id comment action]]
+             (let [f (if (= action "approve") api/bpm-approve-task api/bpm-reject-task)]
+               (f task-id comment
+                  (fn [r] (when (= 200 (:code r))
+                            (rf/dispatch [:bpm/todo-close])
+                            (antd/success! (if (= action "approve") "审批通过" "已驳回"))
+                            (rf/dispatch [:bpm/todo-fetch])))
+                  (fn [_] (antd/error! "操作失败"))))))
+
+(rf/reg-event-fx :bpm/done-fetch
+                 (fn [{:keys [db]} _]
+                   {:db (assoc-in db [:bpm-done :loading?] true)
+                    :api/bpm-list-done nil}))
+
+(rf/reg-fx :api/bpm-list-done
+           (fn [_]
+             (api/bpm-list-done
+              (fn [r] (when (= 200 (:code r))
+                        (rf/dispatch [:bpm/done-set-list (:data r)])))
+              (fn [_] (antd/error! "加载已办失败")))))
+
+(rf/reg-event-db :bpm/done-set-list
+                 (fn [db [_ data]]
+                   (let [rows (:rows data [])]
+                     (assoc db :bpm-done {:items rows :total (count rows) :loading? false}))))
+
+
+;; ─── 办公：我的流程 ──────────────────────────────────────────────────
+(rf/reg-event-fx :bpm/instance-fetch
+                 (fn [{:keys [db]} [_ params]]
+                   {:db (assoc-in db [:bpm-instance :loading?] true)
+                    :api/bpm-list-instances (or params {})}))
+
+(rf/reg-fx :api/bpm-list-instances
+           (fn [params]
+             (api/bpm-list-instances params
+                                     (fn [r] (when (= 200 (:code r))
+                                               (rf/dispatch [:bpm/instance-set-list (:data r)])))
+                                     (fn [_] (antd/error! "加载流程失败")))))
+
+(rf/reg-event-db :bpm/instance-set-list
+                 (fn [db [_ data]]
+                   (let [items (if (sequential? data) data (:rows data []))
+                         total (if (sequential? data) (count data) (:total data 0))]
+                     (assoc db :bpm-instance {:items items :total total :loading? false}))))

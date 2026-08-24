@@ -37,6 +37,10 @@
    [com.ruoyi.frontend.pages.dept :as dept]
    [com.ruoyi.frontend.pages.post :as post]
    [com.ruoyi.frontend.pages.notice :as notice]
+   [com.ruoyi.frontend.pages.business.leave :as leave-page]
+   [com.ruoyi.frontend.pages.business.bpm-todo :as bpm-todo]
+   [com.ruoyi.frontend.pages.business.bpm-done :as bpm-done]
+   [com.ruoyi.frontend.pages.business.bpm-instance :as bpm-instance]
    [com.ruoyi.frontend.pages.online :as online]
    [com.ruoyi.frontend.pages.job :as job]
    [com.ruoyi.frontend.pages.profile :as profile]
@@ -740,6 +744,10 @@
           :datasource [datasource/datasource-page]
           :integrant [integrant/integrant-page]
           :swagger [swagger/swagger-page]
+          :bpm-todo [bpm-todo/bpm-todo-page]
+          :bpm-done [bpm-done/bpm-done-page]
+          :bpm-instance [bpm-instance/bpm-instance-page]
+          :leave [leave-page/leave-page]
           [:div {:style {:padding 48 :textAlign "center" :color "#999" :fontSize 16}}
            "页面建设中"])]
        [:div {:class "app-layout-float"
