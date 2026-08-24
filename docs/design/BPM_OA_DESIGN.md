@@ -272,6 +272,10 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-25 (14)** **报销模块收尾 + 关键修复**：新增 `business/util kquery` 修复所有业务列表的
+  分页/过滤失效（系统 `:query-params` 是 string key，服务用 keyword 读取 → 分页/搜索一直没生效）。
+  6 个业务控制器改用 `bu/kquery`。bpm 集成测试加固（兼容历史遗留流程，修 BPMN key 与 model_key 不一致 bug）。
+  全量 **349 测试 / 882 断言 / 0 失败**。
 - **2026-08-25 (13)** **报销审批模块**：复用"业务记录+BPM+前端+流程图"链路，新增 `biz_oa_reimburse`
   + 内置 `reimburseApproval` 模型(502)。发起入流/惰性状态同步/删除，前端页+路由+菜单。
   修 `active-activity-ids` 处理已结束流程（execution 不存在）。实测 发起→审批通过=2。
