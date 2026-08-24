@@ -272,6 +272,9 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-25 (11)** **bpmn-js 流程建模器完成**：流程模型页新增"设计"按钮 → 弹窗 bpmn-js 在线画布
+  （importXML/saveXML），保存回写模型。规避 shadow-cljs Closure 无法输出 ES2018 的限制
+  （改用 UMD 外置加载 + 全局 BpmnJS）。CSS/UMD 服务到 public/vendor，0 警告。
 - **2026-08-25 (10)** **前端页面完成**：办公目录 9 个业务模块全部有 Reagent/antd 页面
   （请假申请/我的待办+审批/我的已办/我的流程/流程模型+部署/员工/日程/会议/客户）。
   shadow-cljs 0 警告，后端服务新 bundle，动态菜单可导航。
