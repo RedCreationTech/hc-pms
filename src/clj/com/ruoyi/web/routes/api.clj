@@ -3,6 +3,7 @@
    [com.ruoyi.web.controllers.health :as health]
    [com.ruoyi.web.routes.auth :as auth]
    [com.ruoyi.web.routes.system :as system]
+   [com.ruoyi.web.routes.business :as business]
    [com.ruoyi.web.routes.captcha :as captcha]
    [com.ruoyi.web.routes.common :as common]
    [com.ruoyi.web.middleware.exception :as exception]
@@ -37,7 +38,8 @@
    (auth/auth-routes opts)
    (system/system-routes opts)
    (common/common-routes opts)
-   (captcha/captcha-routes opts)])
+   (captcha/captcha-routes opts)
+   (business/business-routes opts)])
 
 (derive :reitit.routes/api :reitit/routes)
 

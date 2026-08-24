@@ -20,9 +20,11 @@
 
     ;; BPM engine
    [com.ruoyi.bpm.engine]
+   [com.ruoyi.bpm.core]
 
     ;; Domain services
    [com.ruoyi.domain.system]
+   [com.ruoyi.domain.business.bpm]
    [com.ruoyi.domain.system.user]
    [com.ruoyi.domain.system.role]
    [com.ruoyi.domain.system.menu]
@@ -38,6 +40,7 @@
     ;; Routes
    [com.ruoyi.web.routes.api]
    [com.ruoyi.web.routes.auth]
+   [com.ruoyi.web.routes.business]
    [com.ruoyi.web.routes.system])
   (:gen-class))
 

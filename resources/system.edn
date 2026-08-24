@@ -84,6 +84,11 @@
   :database-schema-update "true"
   :async?                 #or [#env FLOWABLE_ASYNC false]}
 
+ :app.business/bpm-service
+ {:engine   #ig/ref :app.bpm/engine
+  :query-fn #ig/ref :db.sql/query-fn
+  :db       #ig/ref :db.sql/connection}
+
  :reitit.routes/api
  {:base-path      "/api"
   :env            #ig/ref :system/env
@@ -97,7 +102,8 @@
   :dict-service   #ig/ref :app.system/dict-service
   :config-service       #ig/ref :app.system/config-service
   :log-service          #ig/ref :app.system/log-service
-  :online-service       #ig/ref :app.system/online-service}
+  :online-service       #ig/ref :app.system/online-service
+  :bpm-service          #ig/ref :app.business/bpm-service}
 
  :router/routes
  {:routes #ig/refset :reitit/routes}
@@ -138,7 +144,7 @@
  :db.sql/query-fn
  {:conn      #ig/ref :db.sql/connection
   :options   {}
-  :filenames ["queries.sql" "sql/system.sql" "sql/log.sql" "sql/job.sql"]
+  :filenames ["queries.sql" "sql/system.sql" "sql/log.sql" "sql/job.sql" "sql/business.sql"]
   :env       #ig/ref :system/env}
 
  :db.sql/migrations
