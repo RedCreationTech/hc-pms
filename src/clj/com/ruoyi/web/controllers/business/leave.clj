@@ -2,7 +2,8 @@
   "请假申请控制器 —— 业务 + BPM 集成。"
   (:require
    [com.ruoyi.domain.business.leave :as leave]
-   [ring.util.response :as response]))
+   [ring.util.response :as response]
+   [com.ruoyi.web.controllers.business.util :as bu]))
 
 (defn- ok
   ([data] (ok 200 "操作成功" data))
@@ -29,7 +30,7 @@
   (get-in request [:identity :user-id]))
 
 (defn list-leaves [{:keys [leave-service]} request]
-  (wrap-err #(ok (leave/leave-list leave-service (:query-params request)))))
+  (wrap-err #(ok (leave/leave-list leave-service (bu/kquery request)))))
 
 (defn get-leave [{:keys [leave-service]} request]
   (wrap-err #(if-let [l (leave/leave-get leave-service (parse-id request))]

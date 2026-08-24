@@ -2,7 +2,8 @@
   "CRM 客户管理控制器。"
   (:require
    [com.ruoyi.domain.business.crm :as crm]
-   [ring.util.response :as response]))
+   [ring.util.response :as response]
+   [com.ruoyi.web.controllers.business.util :as bu]))
 
 (defn- ok
   ([data] (ok 200 "操作成功" data))
@@ -26,7 +27,7 @@
   (get-in request [:identity :user-name]))
 
 (defn list-customers [{:keys [crm-service]} request]
-  (wrap-err #(ok (crm/customer-list crm-service (:query-params request)))))
+  (wrap-err #(ok (crm/customer-list crm-service (bu/kquery request)))))
 (defn get-customer [{:keys [crm-service]} request]
   (wrap-err #(if-let [c (crm/customer-get crm-service (parse-id request))]
                (ok c) (fail 404 "客户不存在"))))

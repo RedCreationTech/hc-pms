@@ -2,7 +2,8 @@
   "报销申请控制器 —— 业务 + BPM 集成。"
   (:require
    [com.ruoyi.domain.business.reimburse :as reimburse]
-   [ring.util.response :as response]))
+   [ring.util.response :as response]
+   [com.ruoyi.web.controllers.business.util :as bu]))
 
 (defn- ok
   ([data] (ok 200 "操作成功" data))
@@ -29,7 +30,7 @@
   (get-in request [:identity :user-id]))
 
 (defn list-reimburses [{:keys [reimburse-service]} request]
-  (wrap-err #(ok (reimburse/reimburse-list reimburse-service (:query-params request)))))
+  (wrap-err #(ok (reimburse/reimburse-list reimburse-service (bu/kquery request)))))
 
 (defn get-reimburse [{:keys [reimburse-service]} request]
   (wrap-err #(if-let [r (reimburse/reimburse-get reimburse-service (parse-id request))]

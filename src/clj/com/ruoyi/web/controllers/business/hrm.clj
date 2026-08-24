@@ -2,7 +2,8 @@
   "HRM 人力资源控制器。"
   (:require
    [com.ruoyi.domain.business.hrm :as hrm]
-   [ring.util.response :as response]))
+   [ring.util.response :as response]
+   [com.ruoyi.web.controllers.business.util :as bu]))
 
 (defn- ok
   ([data] (ok 200 "操作成功" data))
@@ -27,7 +28,7 @@
   (get-in request [:identity :user-name]))
 
 (defn list-employees [{:keys [hrm-service]} request]
-  (wrap-err #(ok (hrm/employee-list hrm-service (:query-params request)))))
+  (wrap-err #(ok (hrm/employee-list hrm-service (bu/kquery request)))))
 
 (defn get-employee [{:keys [hrm-service]} request]
   (wrap-err #(if-let [e (hrm/employee-get hrm-service (parse-id request))]

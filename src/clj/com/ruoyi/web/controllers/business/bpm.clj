@@ -3,7 +3,8 @@
   (:require
    [com.ruoyi.bpm.core :as bpm-core]
    [com.ruoyi.domain.business.bpm :as bpm]
-   [ring.util.response :as response]))
+   [ring.util.response :as response]
+   [com.ruoyi.web.controllers.business.util :as bu]))
 
 (defn- ok
   "构造成功响应。"
@@ -38,7 +39,7 @@
 ;; ── 流程分类 ──────────────────────────────────────────────────────────
 (defn list-categories
   [{:keys [bpm-service]} request]
-  (wrap-err #(ok (bpm/category-list bpm-service (:query-params request)))))
+  (wrap-err #(ok (bpm/category-list bpm-service (bu/kquery request)))))
 
 (defn get-category
   [{:keys [bpm-service]} request]
@@ -62,7 +63,7 @@
 ;; ── 流程模型 ──────────────────────────────────────────────────────────
 (defn list-models
   [{:keys [bpm-service]} request]
-  (wrap-err #(ok (bpm/model-list bpm-service (:query-params request)))))
+  (wrap-err #(ok (bpm/model-list bpm-service (bu/kquery request)))))
 
 (defn get-model
   [{:keys [bpm-service]} request]
@@ -91,7 +92,7 @@
 ;; ── 动态表单 ──────────────────────────────────────────────────────────
 (defn list-forms
   [{:keys [bpm-service]} request]
-  (wrap-err #(ok (bpm/form-list bpm-service (:query-params request)))))
+  (wrap-err #(ok (bpm/form-list bpm-service (bu/kquery request)))))
 
 (defn get-form
   [{:keys [bpm-service]} request]
@@ -121,7 +122,7 @@
 
 (defn list-instances
   [{:keys [bpm-service]} request]
-  (wrap-err #(ok (bpm/instance-list bpm-service (:query-params request)))))
+  (wrap-err #(ok (bpm/instance-list bpm-service (bu/kquery request)))))
 
 (defn instance-history
   [{:keys [bpm-service]} request]
