@@ -124,7 +124,7 @@
       ((query-fn) :delete-online-user! {:session_id "__cleanup__"})
       (catch Exception _))
     ;; 由于 HugSQL 没有动态 WHERE，这里简单列出后逐条删除
-    (let [expired (->> ((query-fn) :list-online-users {:page_size 10000 :offset 0})
+    (let [expired (->> ((query-fn) :list-online-users {:ipaddr nil :login_name nil :page_size 10000 :offset 0})
                        (filter #(< (:last_access_time %) threshold)))]
       (doseq [s expired]
         (try

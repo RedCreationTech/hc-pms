@@ -29,7 +29,7 @@
 
 (def phone-pattern
   "RuoYi 手机号校验规则。"
-  (js/RegExp. "^1[3-9][0-9]\\\\d{8}$"))
+  (js/RegExp. "^1[3-9][0-9]\\d{8}$"))
 
 (def password-pattern
   "RuoYi 密码非法字符校验规则。"

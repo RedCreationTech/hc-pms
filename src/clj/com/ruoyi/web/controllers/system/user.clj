@@ -73,7 +73,16 @@
                          :email "" :phonenumber "" :avatar "" :remark ""
                          :create_by (:user_name identity "")
                          :roles [] :posts []}
-                        body)]
+                        body)
+          ;; 空字符串表单值会被 muuntaja 解析为 nil，需 or 兜底避免覆盖默认值
+          params (-> params
+                     (update :email #(or % ""))
+                     (update :phonenumber #(or % ""))
+                     (update :avatar #(or % ""))
+                     (update :remark #(or % ""))
+                     (update :user_type #(or % "00"))
+                     (update :sex #(or % "0"))
+                     (update :status #(or % "0")))]
       (when-not (:user_name params)
         (throw (Exception. "用户名不能为空")))
       (when-not (:nick_name params)

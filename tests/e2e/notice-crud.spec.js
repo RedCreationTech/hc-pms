@@ -1,6 +1,24 @@
 const { test, expect } = require('playwright/test');
 const { login } = require('./auth-helper');
 
+async function fillNoticeForm(page, modal, title) {
+  // 填写标题（类型默认"通知"、状态默认"正常"，无需再选）
+  await modal.locator('input[type="text"]').first().fill(title);
+
+  // 显式选择类型"通知"，确保表单值正确注册
+  // antd Select 下拉选项渲染在 body 级 portal 中，需用 page 级定位
+  const typeSelect = modal.locator('.ant-select').first();
+  await typeSelect.click();
+  await page.locator('.ant-select-item-option').filter({ hasText: '通知' }).click();
+}
+
+async function submitNoticeModal(page, modal) {
+  // 通过 form.requestSubmit 提交，兼容 antd Modal 在自定义事件下的提交
+  await modal.locator('form').evaluate(form => form.requestSubmit());
+  await expect(page.getByText('创建成功').or(page.getByText('操作成功'))).toBeVisible({ timeout: 10000 });
+  await expect(modal).toBeHidden({ timeout: 10000 });
+}
+
 test.describe('通知公告 CRUD', () => {
   test.beforeEach(async ({ page }) => {
     await login(page);
@@ -16,23 +34,11 @@ test.describe('通知公告 CRUD', () => {
     const modal = page.getByRole('dialog', { name: /新增通知公告/ });
     await expect(modal).toBeVisible();
 
-    // 填写标题
-    await modal.getByPlaceholder('请输入公告标题').fill(title);
-
-    // 选择类型
-    await modal.locator('.ant-select-selector').first().click();
-    // 等待下拉选项出现，选择"通知"
-    const option = page.locator('.ant-select-item-option').filter({ hasText: '通知' });
-    await option.click();
-
-    // 选择状态—默认是"正常"(radio)，不需要改
-
-    // 提交
-    await modal.getByRole('button', { name: 'OK' }).click();
-    await expect(modal).toBeHidden();
+    await fillNoticeForm(page, modal, title);
+    await submitNoticeModal(page, modal);
 
     // 验证出现新记录
-    const newRow = page.locator('table tbody tr', { hasText: title });
+    const newRow = page.locator('table tbody tr:not(.ant-table-measure-row)', { hasText: title });
     await expect(newRow).toBeVisible({ timeout: 10000 });
   });
 
@@ -45,29 +51,27 @@ test.describe('通知公告 CRUD', () => {
     await page.getByRole('button', { name: '新增' }).click();
     const addModal = page.getByRole('dialog', { name: /新增通知公告/ });
     await expect(addModal).toBeVisible();
-    await addModal.getByPlaceholder('请输入公告标题').fill(title);
-    await addModal.locator('.ant-select-selector').first().click();
-    await page.locator('.ant-select-item-option').filter({ hasText: '通知' }).click();
-    await addModal.getByRole('button', { name: 'OK' }).click();
-    await expect(addModal).toBeHidden();
+    await fillNoticeForm(page, addModal, title);
+    await submitNoticeModal(page, addModal);
 
-    const row = page.locator('table tbody tr', { hasText: title });
+    const row = page.locator('table tbody tr:not(.ant-table-measure-row)', { hasText: title });
     await expect(row).toBeVisible({ timeout: 10000 });
 
-    // 编辑
-    await row.getByRole('button', { name: '编辑' }).click();
+    // 编辑（notice 操作列按钮文本为"编辑"）
+    await row.locator('button').filter({ hasText: '编辑' }).click();
     const editModal = page.getByRole('dialog', { name: /编辑通知公告/ });
     await expect(editModal).toBeVisible();
 
     // 修改标题
-    const titleInput = editModal.getByPlaceholder('请输入公告标题');
+    const titleInput = editModal.locator('input[type="text"]').first();
     await titleInput.clear();
     await titleInput.fill(updatedTitle);
 
-    await editModal.getByRole('button', { name: 'OK' }).click();
-    await expect(editModal).toBeHidden();
+    await editModal.locator('form').evaluate(form => form.requestSubmit());
+    await expect(page.getByText('更新成功').or(page.getByText('操作成功'))).toBeVisible({ timeout: 10000 });
+    await expect(editModal).toBeHidden({ timeout: 10000 });
 
-    const updatedRow = page.locator('table tbody tr', { hasText: updatedTitle });
+    const updatedRow = page.locator('table tbody tr:not(.ant-table-measure-row)', { hasText: updatedTitle });
     await expect(updatedRow).toBeVisible({ timeout: 10000 });
   });
 
@@ -79,18 +83,15 @@ test.describe('通知公告 CRUD', () => {
     await page.getByRole('button', { name: '新增' }).click();
     const addModal = page.getByRole('dialog', { name: /新增通知公告/ });
     await expect(addModal).toBeVisible();
-    await addModal.getByPlaceholder('请输入公告标题').fill(title);
-    await addModal.locator('.ant-select-selector').first().click();
-    await page.locator('.ant-select-item-option').filter({ hasText: '通知' }).click();
-    await addModal.getByRole('button', { name: 'OK' }).click();
-    await expect(addModal).toBeHidden();
+    await fillNoticeForm(page, addModal, title);
+    await submitNoticeModal(page, addModal);
 
-    const row = page.locator('table tbody tr', { hasText: title });
+    const row = page.locator('table tbody tr:not(.ant-table-measure-row)', { hasText: title });
     await expect(row).toBeVisible({ timeout: 10000 });
 
     // 删除 — 注意 notice 页面的删除按钮是 danger button，没有 popconfirm
     // 注意：公告删除没有确认弹窗，直接调用 API 删除
-    await row.getByRole('button', { name: '删除' }).click();
+    await row.locator('button').filter({ hasText: '删除' }).click();
     await expect(row).toBeHidden({ timeout: 10000 });
   });
 });

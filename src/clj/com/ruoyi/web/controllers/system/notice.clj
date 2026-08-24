@@ -51,12 +51,13 @@
   (try
     (let [body (:body-params request)
           identity (:identity request)
-          params {:notice_name (:notice_name body)
-                  :notice_type (:notice_type body "1")
-                  :status      (:status body "0")
-                  :create_by   (:user-name identity "")
-                  :notice_content (:notice_content body "")
-                  :remark      (:remark body "")}]
+          ;; 空字符串表单值会被 muuntaja 解析为 nil，需用 or 兜底避免 NOT NULL 约束失败
+          params {:notice_name (or (:notice_name body) "")
+                  :notice_type (or (:notice_type body) "1")
+                  :status      (or (:status body) "0")
+                  :create_by   (or (:user-name identity) "")
+                  :notice_content (or (:notice_content body) "")
+                  :remark      (or (:remark body) "")}]
       (query-fn :create-notice! params)
       (ok "创建成功"))
     (catch Exception e (fail (.getMessage e)))))
@@ -68,12 +69,12 @@
     (let [notice-id (parse-int (get-in request [:path-params :id]))
           body (:body-params request)
           params {:notice_id   notice-id
-                  :notice_name (:notice_name body)
-                  :notice_type (:notice_type body)
-                  :status      (:status body)
-                  :notice_content (:notice_content body)
-                  :update_by   (get-in request [:identity :user-name] "")
-                  :remark      (:remark body)}]
+                  :notice_name (or (:notice_name body) "")
+                  :notice_type (or (:notice_type body) "1")
+                  :status      (or (:status body) "0")
+                  :notice_content (or (:notice_content body) "")
+                  :update_by   (or (get-in request [:identity :user-name]) "")
+                  :remark      (or (:remark body) "")}]
       (query-fn :update-notice! params)
       (ok "更新成功"))
     (catch Exception e (fail (.getMessage e)))))
