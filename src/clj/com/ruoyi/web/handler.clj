@@ -19,6 +19,20 @@
 
 (defonce ^:private ring-handler-atom (atom nil))
 
+(defn- wrap-no-cache-static
+  "非 API 的 GET 响应统一加 Cache-Control: no-cache。
+   静态资源响应没有显式缓存指令时浏览器会做启发式缓存，shadow-cljs watch
+   重启后可能继续用旧的 app.js，触发 Stale Output 警告。no-cache 强制浏览器
+   每次重新校验（未变化时返回 304，开销很小）。"
+  [handler]
+  (fn [request]
+    (let [resp (handler request)]
+      (if (and (some? resp)
+               (= :get (:request-method request))
+               (not (str/starts-with? (or (:uri request) "") "/api/")))
+        (response/header resp "Cache-Control" "no-cache")
+        resp))))
+
 (defn ring-handler
   "动态 Ring handler 入口。追踪功能可以通过更新 atom 来切换实际处理函数。"
   [request]
@@ -55,7 +69,8 @@
                    :not-acceptable
                    (constantly (-> {:status 406, :body "Not acceptable"}
                                    (response/content-type "text/plain")))}))
-                {:middleware [(middleware/wrap-base opts)]})]
+                {:middleware [(middleware/wrap-base opts)]})
+        actual (wrap-no-cache-static actual)]
     (reset! ring-handler-atom actual)
     ring-handler))
 

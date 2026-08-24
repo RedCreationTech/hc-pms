@@ -151,6 +151,9 @@ bidi router → pages (reagent component + re-frame) → api.cljs (fetch) → HT
 # 方式 1：一键启动前后端（推荐开发使用，自动处理端口冲突）
 ./start_dev.sh
 
+# 停止所有服务（按 .dev-pids 精确停止，端口扫描兜底，不误杀外部进程）
+./stop_dev.sh
+
 # 方式 2：手动分步启动
 # 后端 (HTTP 3000, nREPL 7000, SQLite)
 cd /home/kevin/gt/ruoyi/mayor/rig
@@ -168,7 +171,7 @@ npx shadow-cljs watch app &
 open http://localhost:3000
 ```
 
-> **端口冲突提示**：`start_dev.sh` 会自动检测并清理当前项目旧进程；若 `3000` / `9631` 被外部进程占用会报错退出，nREPL 则会自动向后寻找空闲端口（如 `7001`）。手动启动时若遇到 `BindException`，请通过 `NREPL_PORT` / `PORT` 环境变量换端口。
+> **端口冲突提示**：`start_dev.sh` 会自动检测并清理当前项目旧进程；HTTP 与 nREPL 端口若被外部进程占用会自动向后寻找空闲端口（如 `3001` / `7001`）；shadow-cljs 默认从 `9630` 起监听，被占用时自动顺延，脚本从 `logs/frontend.log` 解析实际端口。手动启动时若遇到 `BindException`，请通过 `NREPL_PORT` / `PORT` 环境变量换端口。
 >
 > **脚本启动后务必看输出**：`start_dev.sh` 最后会打印 `📡 nREPL: localhost:$NREPL_PORT`，所有后续 `clj-nrepl-eval` 命令都必须使用该端口，而不是默认的 7000。
 
@@ -180,10 +183,10 @@ open http://localhost:3000
 |--------------|----------|------------------------------------------------------|-------------------------------|
 | HTTP 后端    | `3000`   | `PORT` 环境变量 / `system.edn` `:server/http`        | 前端静态资源也由同一端口提供  |
 | nREPL        | `7000`   | `NREPL_PORT` 环境变量 / `system.edn` `:nrepl/server` | **动态开发/测试的核心入口**   |
-| shadow-cljs  | `9631`   | `start_dev.sh` 硬编码                                | 前端 watch/devtools 服务      |
+| shadow-cljs  | `9630` 起 | 被占用时自动顺延；`start_dev.sh` 从日志解析实际端口 | 前端 watch/devtools 服务      |
 | MySQL (可选) | `3306`   | `resources/config.edn` / `JDBC_URL`                  | 切到 MySQL 时才需要外部实例   |
 
-**使用 `start_dev.sh` 一键启动时**：脚本会自动处理端口冲突——只杀掉当前项目目录下的旧进程；如果端口仍被外部占用，HTTP 与 shadow-cljs 会报错退出，nREPL 会自动向后找空闲端口（如 7001、7002）。因此用脚本启动后，**务必以脚本输出的 nREPL 端口为准**。
+**使用 `start_dev.sh` 一键启动时**：脚本会自动处理端口冲突——只杀掉当前项目目录下的旧进程；如果端口仍被外部占用，HTTP 与 nREPL 会自动向后找空闲端口（如 3001、7001），shadow-cljs 自动顺延并记录实际端口。因此用脚本启动后，**务必以脚本输出的 HTTP / nREPL 端口为准**。停止服务统一用 `./stop_dev.sh`（优先按 `.dev-pids` 精确停止，端口扫描兜底）。
 
 ### 找到 nREPL 端口 (每次开发前先确认)
 
@@ -322,7 +325,7 @@ bb coverage
 | 不知道端口是多少                    | 按上方"找到 nREPL 端口"步骤，优先 `cat .nrepl-port` 或 `grep nrepl log/backend.log`                                                                             |
 | 热重载后行为未变                    | 确认修改的是 `src/clj` 下的源文件；若改的是 HugSQL `.sql` 或 `system.edn`，必须用 `rr`                                                                          |
 | 端口 7000 被占用                    | 方案 A：启动时换端口 `NREPL_PORT=7001 clojure -M:dev -m com.ruoyi.core`；方案 B：使用 `start_dev.sh` 自动寻找空闲端口；之后所有 `clj-nrepl-eval` 必须使用该端口 |
-| HTTP 3000 / shadow-cljs 9631 被占用 | 使用 `start_dev.sh` 会自动清理当前项目旧进程；若被外部占用，需手动释放或换 `PORT` / 修改脚本中的 `SHADOW_PORT`                                                  |
+| HTTP 3000 / shadow-cljs 9630+ 被占用 | 使用 `start_dev.sh` 会自动清理当前项目旧进程；HTTP 被外部占用会自动换端口，shadow-cljs 会自动顺延，均无需手动处理                                                  |
 | nREPL 未启动                        | 检查 `resources/system.edn` 中 `:nrepl/server` 是否被注释；检查 `:dev` profile 是否包含 nREPL 依赖                                                              |
 
 ### 构建
