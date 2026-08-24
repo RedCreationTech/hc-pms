@@ -41,6 +41,7 @@
    [com.ruoyi.frontend.pages.business.bpm-todo :as bpm-todo]
    [com.ruoyi.frontend.pages.business.bpm-done :as bpm-done]
    [com.ruoyi.frontend.pages.business.bpm-instance :as bpm-instance]
+   [com.ruoyi.frontend.pages.business.bpm-model :as bpm-model]
    [com.ruoyi.frontend.pages.online :as online]
    [com.ruoyi.frontend.pages.job :as job]
    [com.ruoyi.frontend.pages.profile :as profile]
@@ -748,6 +749,7 @@
           :bpm-done [bpm-done/bpm-done-page]
           :bpm-instance [bpm-instance/bpm-instance-page]
           :leave [leave-page/leave-page]
+          :bpm-model [bpm-model/bpm-model-page]
           [:div {:style {:padding 48 :textAlign "center" :color "#999" :fontSize 16}}
            "页面建设中"])]
        [:div {:class "app-layout-float"

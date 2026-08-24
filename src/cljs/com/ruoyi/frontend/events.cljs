@@ -62,6 +62,7 @@
                                  :bpm-todo [:bpm/todo-fetch]
                                  :bpm-done [:bpm/done-fetch]
                                  :bpm-instance [:bpm/instance-fetch {}]
+                                 :bpm-model [:bpm/model-fetch {}]
                                  nil)
                          effects {:db (activate-page-tab db page)
                                   :router/navigate! page}]
@@ -2643,3 +2644,35 @@
                    (let [items (if (sequential? data) data (:rows data []))
                          total (if (sequential? data) (count data) (:total data 0))]
                      (assoc db :bpm-instance {:items items :total total :loading? false}))))
+
+;; ─── 办公：流程模型 ──────────────────────────────────────────────────
+(rf/reg-event-fx :bpm/model-fetch
+                 (fn [{:keys [db]} [_ params]]
+                   {:db (assoc-in db [:bpm-model :loading?] true)
+                    :api/bpm-list-models (or params {})}))
+
+(rf/reg-fx :api/bpm-list-models
+           (fn [params]
+             (api/bpm-list-models params
+                                  (fn [r] (when (= 200 (:code r))
+                                            (rf/dispatch [:bpm/model-set-list (:data r)])))
+                                  (fn [_] (antd/error! "加载流程模型失败")))))
+
+(rf/reg-event-db :bpm/model-set-list
+                 (fn [db [_ data]]
+                   (let [items (if (sequential? data) data (:rows data []))
+                         total (if (sequential? data) (count data) (:total data 0))]
+                     (assoc db :bpm-model {:items items :total total :loading? false}))))
+
+(rf/reg-event-fx :bpm/model-deploy
+                 (fn [{:keys [db]} [_ model-id]]
+                   {:db (assoc-in db [:bpm-model :deploying?] true)
+                    :api/bpm-deploy-model model-id}))
+
+(rf/reg-fx :api/bpm-deploy-model
+           (fn [model-id]
+             (api/bpm-deploy-model model-id
+                                   (fn [r] (when (= 200 (:code r))
+                                             (antd/success! "部署成功")
+                                             (rf/dispatch [:bpm/model-fetch {}])))
+                                   (fn [_] (antd/error! "部署失败")))))

@@ -645,3 +645,8 @@
 (rf/reg-sub :bpm-instance/items (fn [db _] (get-in db [:bpm-instance :items] [])))
 (rf/reg-sub :bpm-instance/total (fn [db _] (get-in db [:bpm-instance :total] 0)))
 (rf/reg-sub :bpm-instance/loading? (fn [db _] (get-in db [:bpm-instance :loading?] false)))
+
+;; ─── 办公：流程模型 ──────────────────────────────────────────────────
+(rf/reg-sub :bpm-model/items (fn [db _] (get-in db [:bpm-model :items] [])))
+(rf/reg-sub :bpm-model/total (fn [db _] (get-in db [:bpm-model :total] 0)))
+(rf/reg-sub :bpm-model/loading? (fn [db _] (get-in db [:bpm-model :loading?] false)))
