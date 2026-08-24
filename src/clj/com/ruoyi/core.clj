@@ -25,6 +25,7 @@
     ;; Domain services
    [com.ruoyi.domain.system]
    [com.ruoyi.domain.business.bpm]
+   [com.ruoyi.domain.business.hrm]
    [com.ruoyi.domain.system.user]
    [com.ruoyi.domain.system.role]
    [com.ruoyi.domain.system.menu]

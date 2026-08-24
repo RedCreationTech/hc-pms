@@ -2,9 +2,10 @@
   "业务模块路由聚合（BPM / OA / HRM / CRM）。"
   (:require
    [com.ruoyi.web.controllers.business.bpm :as bpm]
+   [com.ruoyi.web.controllers.business.hrm :as hrm]
    [com.ruoyi.web.middleware.auth :as auth-mw]))
 
-(defn business-routes [{:keys [bpm-service]}]
+(defn business-routes [{:keys [bpm-service hrm-service]}]
   ["/business"
    {:middleware [(auth-mw/auth-middleware {:required? true})]
     :swagger {:tags ["办公" "BPM"]}}
@@ -46,4 +47,12 @@
    ["/bpm/task/:id/approve" {:post {:summary "审批通过" :handler (partial bpm/approve-task {:bpm-service bpm-service})}}]
    ["/bpm/task/:id/reject"  {:post {:summary "审批驳回" :handler (partial bpm/reject-task {:bpm-service bpm-service})}}]
    ["/bpm/task/:id/claim"   {:post {:summary "认领任务" :handler (partial bpm/claim-task {:bpm-service bpm-service})}}]
-   ["/bpm/task/:id/transfer" {:post {:summary "转办任务" :handler (partial bpm/transfer-task {:bpm-service bpm-service})}}]])
+   ["/bpm/task/:id/transfer" {:post {:summary "转办任务" :handler (partial bpm/transfer-task {:bpm-service bpm-service})}}]
+
+   ;; ── HRM 员工 ──
+   ["/hrm/employee"
+    ["" {:get  {:summary "员工列表" :handler (partial hrm/list-employees {:hrm-service hrm-service})}
+         :post {:summary "新增员工" :handler (partial hrm/create-employee {:hrm-service hrm-service})}}]
+    ["/:id" {:get    {:summary "员工详情" :handler (partial hrm/get-employee {:hrm-service hrm-service})}
+              :put    {:summary "更新员工" :handler (partial hrm/update-employee {:hrm-service hrm-service})}
+              :delete {:summary "删除员工" :handler (partial hrm/delete-employee {:hrm-service hrm-service})}}]]])

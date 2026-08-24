@@ -89,6 +89,10 @@
   :query-fn #ig/ref :db.sql/query-fn
   :db       #ig/ref :db.sql/connection}
 
+ :app.business/hrm-service
+ {:query-fn #ig/ref :db.sql/query-fn
+  :db       #ig/ref :db.sql/connection}
+
  :reitit.routes/api
  {:base-path      "/api"
   :env            #ig/ref :system/env
@@ -103,7 +107,8 @@
   :config-service       #ig/ref :app.system/config-service
   :log-service          #ig/ref :app.system/log-service
   :online-service       #ig/ref :app.system/online-service
-  :bpm-service          #ig/ref :app.business/bpm-service}
+  :bpm-service          #ig/ref :app.business/bpm-service
+  :hrm-service          #ig/ref :app.business/hrm-service}
 
  :router/routes
  {:routes #ig/refset :reitit/routes}

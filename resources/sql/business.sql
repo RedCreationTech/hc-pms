@@ -190,3 +190,51 @@ DELETE FROM biz_attachment WHERE attachment_id = :attachment_id
 -- :name bpm/delete-attachments-by-biz :! :n
 DELETE FROM biz_attachment WHERE biz_type = :biz_type AND biz_id = :biz_id
 --;;
+
+-- ============================ HRM 员工 ============================
+-- :name hrm/employee-list :? :*
+SELECT e.employee_id, e.emp_no, e.name, e.dept_id, e.post_id, e.gender,
+       e.phone, e.email, e.id_card, e.hire_date, e.status, e.salary_base,
+       e.remark, e.create_time,
+       d.dept_name
+FROM biz_hrm_employee e
+LEFT JOIN sys_dept d ON e.dept_id = d.dept_id
+WHERE (:name IS NULL OR INSTR(e.name, :name) > 0)
+  AND (:dept_id IS NULL OR e.dept_id = :dept_id)
+  AND (:status IS NULL OR e.status = :status)
+ORDER BY e.employee_id DESC
+LIMIT :page_size OFFSET :offset
+--;;
+
+-- :name hrm/employee-count :? :1
+SELECT COUNT(*) AS total FROM biz_hrm_employee e
+WHERE (:name IS NULL OR INSTR(e.name, :name) > 0)
+  AND (:dept_id IS NULL OR e.dept_id = :dept_id)
+  AND (:status IS NULL OR e.status = :status)
+--;;
+
+-- :name hrm/find-employee-by-id :? :1
+SELECT * FROM biz_hrm_employee WHERE employee_id = :employee_id
+--;;
+
+-- :name hrm/insert-employee :! :n
+INSERT INTO biz_hrm_employee (emp_no, name, dept_id, post_id, gender, phone, email,
+                              id_card, hire_date, status, salary_base, remark,
+                              create_by, create_time)
+VALUES (:emp_no, :name, :dept_id, :post_id, :gender, :phone, :email,
+        :id_card, :hire_date, :status, :salary_base, :remark,
+        :create_by, datetime('now'))
+--;;
+
+-- :name hrm/update-employee :! :n
+UPDATE biz_hrm_employee
+SET emp_no = :emp_no, name = :name, dept_id = :dept_id, post_id = :post_id,
+    gender = :gender, phone = :phone, email = :email, id_card = :id_card,
+    hire_date = :hire_date, status = :status, salary_base = :salary_base,
+    remark = :remark, update_by = :update_by, update_time = datetime('now')
+WHERE employee_id = :employee_id
+--;;
+
+-- :name hrm/delete-employee :! :n
+DELETE FROM biz_hrm_employee WHERE employee_id = :employee_id
+--;;
