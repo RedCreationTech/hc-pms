@@ -382,3 +382,38 @@ WHERE process_instance_id = :process_instance_id
 -- :name oa/delete-leave :! :n
 DELETE FROM biz_oa_leave WHERE leave_id = :leave_id
 --;;
+
+-- ============================ OA 报销 ============================
+-- :name oa/reimburse-list :? :*
+SELECT reimburse_id, user_id, user_name, amount, reason, process_instance_id, status, create_time, update_time
+FROM biz_oa_reimburse
+WHERE (:user_id IS NULL OR user_id = :user_id)
+  AND (:status IS NULL OR status = :status)
+ORDER BY reimburse_id DESC
+LIMIT :page_size OFFSET :offset
+--;;
+
+-- :name oa/reimburse-count :? :1
+SELECT COUNT(*) AS total FROM biz_oa_reimburse
+WHERE (:user_id IS NULL OR user_id = :user_id)
+  AND (:status IS NULL OR status = :status)
+--;;
+
+-- :name oa/find-reimburse-by-id :? :1
+SELECT * FROM biz_oa_reimburse WHERE reimburse_id = :reimburse_id
+--;;
+
+-- :name oa/insert-reimburse :! :n
+INSERT INTO biz_oa_reimburse (user_id, user_name, amount, reason, process_instance_id, status, create_time)
+VALUES (:user_id, :user_name, :amount, :reason, :process_instance_id, :status, datetime('now'))
+--;;
+
+-- :name oa/update-reimburse-status :! :n
+UPDATE biz_oa_reimburse
+SET status = :status, update_time = datetime('now')
+WHERE process_instance_id = :process_instance_id
+--;;
+
+-- :name oa/delete-reimburse :! :n
+DELETE FROM biz_oa_reimburse WHERE reimburse_id = :reimburse_id
+--;;

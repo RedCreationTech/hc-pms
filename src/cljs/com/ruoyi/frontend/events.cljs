@@ -59,6 +59,7 @@
                                  :post [:posts/fetch {}]
                                  :notice [:notices/fetch {}]
                                  :leave [:leave/fetch {}]
+                                 :reimburse [:reimburse/fetch {}]
                                  :bpm-todo [:bpm/todo-fetch]
                                  :bpm-done [:bpm/done-fetch]
                                  :bpm-instance [:bpm/instance-fetch {}]
@@ -2792,3 +2793,14 @@
 (rf/reg-event-db :bpm/diagram-close
                  (fn [db _]
                    (assoc-in db [:bpm-diagram :visible?] false)))
+
+;; ─── 办公：报销审批 ──────────────────────────────────────────────────
+(rf/reg-event-fx :reimburse/fetch (fn [{:keys [db]} [_ p]] {:db (assoc-in db [:reimburse :loading?] true) :api/oa-reimburse-list (or p {})}))
+(rf/reg-fx :api/oa-reimburse-list (fn [p] (api/oa-list-reimburses p (fn [r] (when (= 200 (:code r)) (rf/dispatch [:reimburse/set-list (:data r)]))) (fn [_] (antd/error! "加载报销单失败")))))
+(rf/reg-event-db :reimburse/set-list (fn [db [_ d]] (let [items (if (sequential? d) d (:rows d []))] (assoc db :reimburse {:items items :total (:total d 0) :loading? false :modal-visible? false :submitting? false}))))
+(rf/reg-event-db :reimburse/open (fn [db _] (assoc db :reimburse {:items (get-in db [:reimburse :items] []) :total (get-in db [:reimburse :total] 0) :loading? false :modal-visible? true :submitting? false})))
+(rf/reg-event-db :reimburse/close (fn [db _] (assoc-in db [:reimburse :modal-visible?] false)))
+(rf/reg-event-fx :reimburse/submit (fn [{:keys [db]} [_ v]] {:db (assoc-in db [:reimburse :submitting?] true) :api/oa-reimburse-create v}))
+(rf/reg-fx :api/oa-reimburse-create (fn [p] (api/oa-start-reimburse p (fn [r] (when (= 200 (:code r)) (rf/dispatch [:reimburse/close]) (antd/success! "报销申请已提交，进入审批") (rf/dispatch [:reimburse/fetch {}]))) (fn [_] (antd/error! "提交失败")))))
+(rf/reg-event-fx :reimburse/delete (fn [_ [_ id]] {:api/oa-reimburse-del id}))
+(rf/reg-fx :api/oa-reimburse-del (fn [id] (api/oa-delete-reimburse id (fn [r] (when (= 200 (:code r)) (antd/success! "删除成功") (rf/dispatch [:reimburse/fetch {}]))) (fn [_] (antd/error! "删除失败")))))

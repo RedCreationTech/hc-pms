@@ -686,3 +686,10 @@
 (rf/reg-sub :bpm-diagram/visible? (fn [db _] (get-in db [:bpm-diagram :visible?] false)))
 (rf/reg-sub :bpm-diagram/data (fn [db _] (get-in db [:bpm-diagram :data] nil)))
 (rf/reg-sub :bpm-diagram/loading? (fn [db _] (get-in db [:bpm-diagram :loading?] false)))
+
+;; ─── 办公：报销审批 ────────────────────────────────────────────────
+(rf/reg-sub :reimburse/items (fn [db _] (get-in db [:reimburse :items] [])))
+(rf/reg-sub :reimburse/total (fn [db _] (get-in db [:reimburse :total] 0)))
+(rf/reg-sub :reimburse/loading? (fn [db _] (get-in db [:reimburse :loading?] false)))
+(rf/reg-sub :reimburse/modal-visible? (fn [db _] (get-in db [:reimburse :modal-visible?] false)))
+(rf/reg-sub :reimburse/submitting? (fn [db _] (get-in db [:reimburse :submitting?] false)))

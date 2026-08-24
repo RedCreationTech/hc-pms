@@ -33,6 +33,7 @@
         "office/bpm/todo" :bpm-todo
         "office/bpm/done" :bpm-done
         "office/oa/leave" :leave
+        "office/oa/reimburse" :reimburse
         "office/oa/calendar" :oa-calendar
         "office/oa/meeting" :oa-meeting
         "office/hrm/employee" :hrm-employee
@@ -73,6 +74,7 @@
    :bpm-todo "我的待办"
    :bpm-done "我的已办"
    :leave "请假申请"
+   :reimburse "报销申请"
    :oa-calendar "日程管理"
    :oa-meeting "会议管理"
    :hrm-employee "员工管理"

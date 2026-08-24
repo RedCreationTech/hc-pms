@@ -257,9 +257,11 @@
 ;; ── 流程图示 (diagram) ─────────────────────────────────────────────────
 
 (defn active-activity-ids
-  "流程实例当前正在执行的活动节点 id。"
+  "流程实例当前正在执行的活动节点 id。流程已结束时返回空。"
   [^ProcessEngine engine process-instance-id]
-  (vec (.getActiveActivityIds (.getRuntimeService engine) process-instance-id)))
+  (try
+    (vec (.getActiveActivityIds (.getRuntimeService engine) process-instance-id))
+    (catch Exception _ [])))
 
 (defn completed-activity-ids
   "流程实例已结束的活动节点 id（按历史去重）。"

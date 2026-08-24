@@ -5,10 +5,11 @@
    [com.ruoyi.web.controllers.business.hrm :as hrm]
    [com.ruoyi.web.controllers.business.oa :as oa]
    [com.ruoyi.web.controllers.business.leave :as leave]
+   [com.ruoyi.web.controllers.business.reimburse :as reimburse]
    [com.ruoyi.web.controllers.business.crm :as crm]
    [com.ruoyi.web.middleware.auth :as auth-mw]))
 
-(defn business-routes [{:keys [bpm-service hrm-service oa-service crm-service leave-service]}]
+(defn business-routes [{:keys [bpm-service hrm-service oa-service crm-service leave-service reimburse-service]}]
   ["/business"
    {:middleware [(auth-mw/auth-middleware {:required? true})]
     :swagger {:tags ["办公" "BPM"]}}
@@ -90,4 +91,11 @@
     ["" {:get  {:summary "请假单列表(自动同步审批状态)" :handler (partial leave/list-leaves {:leave-service leave-service})}
          :post {:summary "发起请假申请(入审批流)" :handler (partial leave/start-leave {:leave-service leave-service})}}]
     ["/:id" {:get    {:summary "请假单详情" :handler (partial leave/get-leave {:leave-service leave-service})}
-              :delete {:summary "删除请假单" :handler (partial leave/delete-leave {:leave-service leave-service})}}]]])
+              :delete {:summary "删除请假单" :handler (partial leave/delete-leave {:leave-service leave-service})}}]]
+
+   ;; ── OA 报销（业务 + BPM 集成）──
+   ["/oa/reimburse"
+    ["" {:get  {:summary "报销单列表(自动同步审批状态)" :handler (partial reimburse/list-reimburses {:reimburse-service reimburse-service})}
+         :post {:summary "发起报销申请(入审批流)" :handler (partial reimburse/start-reimburse {:reimburse-service reimburse-service})}}]
+    ["/:id" {:get    {:summary "报销单详情" :handler (partial reimburse/get-reimburse {:reimburse-service reimburse-service})}
+              :delete {:summary "删除报销单" :handler (partial reimburse/delete-reimburse {:reimburse-service reimburse-service})}}]]])

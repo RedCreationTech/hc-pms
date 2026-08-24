@@ -931,3 +931,14 @@
 (defn bpm-instance-diagram [pid on-success on-error]
   (request {:method :get :uri (str "/business/bpm/instance/diagram/" pid)
             :on-success on-success :on-error on-error}))
+
+;; ─── OA 报销 ──────────────────────────────────────────────────────
+(defn oa-list-reimburses [params on-success on-error]
+  (request {:method :get :uri "/business/oa/reimburse" :params params
+            :on-success on-success :on-error on-error}))
+(defn oa-start-reimburse [params on-success on-error]
+  (request {:method :post :uri "/business/oa/reimburse" :params params
+            :on-success on-success :on-error on-error}))
+(defn oa-delete-reimburse [id on-success on-error]
+  (request {:method :delete :uri (str "/business/oa/reimburse/" id)
+            :on-success on-success :on-error on-error}))

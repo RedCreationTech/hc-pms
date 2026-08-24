@@ -28,6 +28,7 @@
    [com.ruoyi.domain.business.hrm]
    [com.ruoyi.domain.business.oa]
    [com.ruoyi.domain.business.leave]
+   [com.ruoyi.domain.business.reimburse]
    [com.ruoyi.domain.business.crm]
    [com.ruoyi.domain.system.user]
    [com.ruoyi.domain.system.role]
