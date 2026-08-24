@@ -4,10 +4,11 @@
    [com.ruoyi.web.controllers.business.bpm :as bpm]
    [com.ruoyi.web.controllers.business.hrm :as hrm]
    [com.ruoyi.web.controllers.business.oa :as oa]
+   [com.ruoyi.web.controllers.business.leave :as leave]
    [com.ruoyi.web.controllers.business.crm :as crm]
    [com.ruoyi.web.middleware.auth :as auth-mw]))
 
-(defn business-routes [{:keys [bpm-service hrm-service oa-service crm-service]}]
+(defn business-routes [{:keys [bpm-service hrm-service oa-service crm-service leave-service]}]
   ["/business"
    {:middleware [(auth-mw/auth-middleware {:required? true})]
     :swagger {:tags ["办公" "BPM"]}}
@@ -81,4 +82,11 @@
          :post {:summary "新增客户" :handler (partial crm/create-customer {:crm-service crm-service})}}]
     ["/:id" {:get    {:summary "客户详情" :handler (partial crm/get-customer {:crm-service crm-service})}
               :put    {:summary "更新客户" :handler (partial crm/update-customer {:crm-service crm-service})}
-              :delete {:summary "删除客户" :handler (partial crm/delete-customer {:crm-service crm-service})}}]]])
+              :delete {:summary "删除客户" :handler (partial crm/delete-customer {:crm-service crm-service})}}]]
+
+   ;; ── OA 请假（业务 + BPM 集成）──
+   ["/oa/leave"
+    ["" {:get  {:summary "请假单列表(自动同步审批状态)" :handler (partial leave/list-leaves {:leave-service leave-service})}
+         :post {:summary "发起请假申请(入审批流)" :handler (partial leave/start-leave {:leave-service leave-service})}}]
+    ["/:id" {:get    {:summary "请假单详情" :handler (partial leave/get-leave {:leave-service leave-service})}
+              :delete {:summary "删除请假单" :handler (partial leave/delete-leave {:leave-service leave-service})}}]]])

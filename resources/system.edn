@@ -101,6 +101,11 @@
  {:query-fn #ig/ref :db.sql/query-fn
   :db       #ig/ref :db.sql/connection}
 
+ :app.business/leave-service
+ {:engine   #ig/ref :app.bpm/engine
+  :query-fn #ig/ref :db.sql/query-fn
+  :db       #ig/ref :db.sql/connection}
+
  :reitit.routes/api
  {:base-path      "/api"
   :env            #ig/ref :system/env
@@ -118,7 +123,8 @@
   :bpm-service          #ig/ref :app.business/bpm-service
   :hrm-service          #ig/ref :app.business/hrm-service
   :oa-service           #ig/ref :app.business/oa-service
-  :crm-service          #ig/ref :app.business/crm-service}
+  :crm-service          #ig/ref :app.business/crm-service
+  :leave-service        #ig/ref :app.business/leave-service}
 
  :router/routes
  {:routes #ig/refset :reitit/routes}

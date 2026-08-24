@@ -347,3 +347,38 @@ WHERE customer_id = :customer_id
 -- :name crm/delete-customer :! :n
 DELETE FROM biz_crm_customer WHERE customer_id = :customer_id
 --;;
+
+-- ============================ OA 请假 ============================
+-- :name oa/leave-list :? :*
+SELECT leave_id, user_id, user_name, days, reason, process_instance_id, status, create_time, update_time
+FROM biz_oa_leave
+WHERE (:user_id IS NULL OR user_id = :user_id)
+  AND (:status IS NULL OR status = :status)
+ORDER BY leave_id DESC
+LIMIT :page_size OFFSET :offset
+--;;
+
+-- :name oa/leave-count :? :1
+SELECT COUNT(*) AS total FROM biz_oa_leave
+WHERE (:user_id IS NULL OR user_id = :user_id)
+  AND (:status IS NULL OR status = :status)
+--;;
+
+-- :name oa/find-leave-by-id :? :1
+SELECT * FROM biz_oa_leave WHERE leave_id = :leave_id
+--;;
+
+-- :name oa/insert-leave :! :n
+INSERT INTO biz_oa_leave (user_id, user_name, days, reason, process_instance_id, status, create_time)
+VALUES (:user_id, :user_name, :days, :reason, :process_instance_id, :status, datetime('now'))
+--;;
+
+-- :name oa/update-leave-status :! :n
+UPDATE biz_oa_leave
+SET status = :status, update_time = datetime('now')
+WHERE process_instance_id = :process_instance_id
+--;;
+
+-- :name oa/delete-leave :! :n
+DELETE FROM biz_oa_leave WHERE leave_id = :leave_id
+--;;
