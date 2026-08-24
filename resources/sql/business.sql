@@ -238,3 +238,73 @@ WHERE employee_id = :employee_id
 -- :name hrm/delete-employee :! :n
 DELETE FROM biz_hrm_employee WHERE employee_id = :employee_id
 --;;
+
+-- ============================ OA 日程 ============================
+-- :name oa/calendar-list :? :*
+SELECT calendar_id, title, content, start_time, end_time, all_day, color, user_id, create_by, create_time
+FROM biz_oa_calendar
+WHERE (:user_id IS NULL OR user_id = :user_id)
+ORDER BY start_time
+LIMIT :page_size OFFSET :offset
+--;;
+
+-- :name oa/calendar-count :? :1
+SELECT COUNT(*) AS total FROM biz_oa_calendar
+WHERE (:user_id IS NULL OR user_id = :user_id)
+--;;
+
+-- :name oa/find-calendar-by-id :? :1
+SELECT * FROM biz_oa_calendar WHERE calendar_id = :calendar_id
+--;;
+
+-- :name oa/insert-calendar :! :n
+INSERT INTO biz_oa_calendar (title, content, start_time, end_time, all_day, color, user_id, create_by, create_time)
+VALUES (:title, :content, :start_time, :end_time, :all_day, :color, :user_id, :create_by, datetime('now'))
+--;;
+
+-- :name oa/update-calendar :! :n
+UPDATE biz_oa_calendar
+SET title = :title, content = :content, start_time = :start_time, end_time = :end_time,
+    all_day = :all_day, color = :color, user_id = :user_id,
+    update_by = :update_by, update_time = datetime('now')
+WHERE calendar_id = :calendar_id
+--;;
+
+-- :name oa/delete-calendar :! :n
+DELETE FROM biz_oa_calendar WHERE calendar_id = :calendar_id
+--;;
+
+-- ============================ OA 会议 ============================
+-- :name oa/meeting-list :? :*
+SELECT meeting_id, subject, location, start_time, end_time, participants, content, status, create_by, create_time
+FROM biz_oa_meeting
+WHERE (:subject IS NULL OR INSTR(subject, :subject) > 0)
+ORDER BY start_time DESC
+LIMIT :page_size OFFSET :offset
+--;;
+
+-- :name oa/meeting-count :? :1
+SELECT COUNT(*) AS total FROM biz_oa_meeting
+WHERE (:subject IS NULL OR INSTR(subject, :subject) > 0)
+--;;
+
+-- :name oa/find-meeting-by-id :? :1
+SELECT * FROM biz_oa_meeting WHERE meeting_id = :meeting_id
+--;;
+
+-- :name oa/insert-meeting :! :n
+INSERT INTO biz_oa_meeting (subject, location, start_time, end_time, participants, content, status, create_by, create_time)
+VALUES (:subject, :location, :start_time, :end_time, :participants, :content, :status, :create_by, datetime('now'))
+--;;
+
+-- :name oa/update-meeting :! :n
+UPDATE biz_oa_meeting
+SET subject = :subject, location = :location, start_time = :start_time, end_time = :end_time,
+    participants = :participants, content = :content, status = :status,
+    update_by = :update_by, update_time = datetime('now')
+WHERE meeting_id = :meeting_id
+--;;
+
+-- :name oa/delete-meeting :! :n
+DELETE FROM biz_oa_meeting WHERE meeting_id = :meeting_id
+--;;

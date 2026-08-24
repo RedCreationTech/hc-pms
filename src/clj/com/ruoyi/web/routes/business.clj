@@ -3,9 +3,10 @@
   (:require
    [com.ruoyi.web.controllers.business.bpm :as bpm]
    [com.ruoyi.web.controllers.business.hrm :as hrm]
+   [com.ruoyi.web.controllers.business.oa :as oa]
    [com.ruoyi.web.middleware.auth :as auth-mw]))
 
-(defn business-routes [{:keys [bpm-service hrm-service]}]
+(defn business-routes [{:keys [bpm-service hrm-service oa-service]}]
   ["/business"
    {:middleware [(auth-mw/auth-middleware {:required? true})]
     :swagger {:tags ["办公" "BPM"]}}
@@ -55,4 +56,20 @@
          :post {:summary "新增员工" :handler (partial hrm/create-employee {:hrm-service hrm-service})}}]
     ["/:id" {:get    {:summary "员工详情" :handler (partial hrm/get-employee {:hrm-service hrm-service})}
               :put    {:summary "更新员工" :handler (partial hrm/update-employee {:hrm-service hrm-service})}
-              :delete {:summary "删除员工" :handler (partial hrm/delete-employee {:hrm-service hrm-service})}}]]])
+              :delete {:summary "删除员工" :handler (partial hrm/delete-employee {:hrm-service hrm-service})}}]]
+
+   ;; ── OA 日程 ──
+   ["/oa/calendar"
+    ["" {:get  {:summary "日程列表" :handler (partial oa/list-calendars {:oa-service oa-service})}
+         :post {:summary "新增日程" :handler (partial oa/create-calendar {:oa-service oa-service})}}]
+    ["/:id" {:get    {:summary "日程详情" :handler (partial oa/get-calendar {:oa-service oa-service})}
+              :put    {:summary "更新日程" :handler (partial oa/update-calendar {:oa-service oa-service})}
+              :delete {:summary "删除日程" :handler (partial oa/delete-calendar {:oa-service oa-service})}}]]
+
+   ;; ── OA 会议 ──
+   ["/oa/meeting"
+    ["" {:get  {:summary "会议列表" :handler (partial oa/list-meetings {:oa-service oa-service})}
+         :post {:summary "新增会议" :handler (partial oa/create-meeting {:oa-service oa-service})}}]
+    ["/:id" {:get    {:summary "会议详情" :handler (partial oa/get-meeting {:oa-service oa-service})}
+              :put    {:summary "更新会议" :handler (partial oa/update-meeting {:oa-service oa-service})}
+              :delete {:summary "删除会议" :handler (partial oa/delete-meeting {:oa-service oa-service})}}]]])
