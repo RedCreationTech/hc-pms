@@ -272,6 +272,10 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-25 (12)** **审批流程图高亮**：我的流程页"流程图"弹窗 → bpmn-js Viewer 渲染 BPMN
+  + canvas.addMarker 高亮（进行中=红 / 已完成=绿）。后端 `instance-diagram` 端点返回 BPMN+节点状态，
+  `bpm/core` 增加 active/completed-activity-ids。请假发起同步写 `biz_bpm_instance`。
+  实测运行中实例 active=['approve'] completed=['start','f1']。
 - **2026-08-25 (11)** **bpmn-js 流程建模器完成**：流程模型页新增"设计"按钮 → 弹窗 bpmn-js 在线画布
   （importXML/saveXML），保存回写模型。规避 shadow-cljs Closure 无法输出 ES2018 的限制
   （改用 UMD 外置加载 + 全局 BpmnJS）。CSS/UMD 服务到 public/vendor，0 警告。
