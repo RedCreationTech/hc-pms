@@ -1,13 +1,16 @@
 (ns com.ruoyi.frontend.components.bpm-flow-designer
   "纯 HTML/CSS flex 流程编辑器（对齐 vben simple-process-design）。
-   节点树: {:id :type :name :child-node :condition-nodes}
-   垂直 flex 布局 + 卡片节点 + 灰线箭头 + 蓝色'＋'按钮 + 分支横向展开。"
+   节点树: {:id :type :name :config :child-node :condition-nodes}
+   垂直 flex 布局 + 卡片节点 + 灰线箭头 + 蓝色'＋'按钮 + 分支横向展开。
+   点击节点打开配置抽屉：审批人/抄送/条件/延迟等设置（对齐 vben nodes-config）。"
   (:require
    [clojure.walk :as walk]
    [clojure.string :as str]
    [reagent.core :as r]
    [com.ruoyi.frontend.antd :as antd]
    [com.ruoyi.frontend.api :as api]))
+
+;; ── 节点类型常量（颜色/图标/名称）───────────────────────────────────
 
 (def ^:private node-color
   {"USER_TASK_NODE" "#ff943e" "COPY_TASK_NODE" "#3296fa" "CONDITION_BRANCH_NODE" "#67c23a"
@@ -26,6 +29,179 @@
   {"USER_TASK_NODE" "审批人" "COPY_TASK_NODE" "抄送" "CONDITION_BRANCH_NODE" "条件分支"
    "PARALLEL_BRANCH_NODE" "并行分支" "INCLUSIVE_BRANCH_NODE" "包容分支" "DELAY_TIMER_NODE" "延迟器"
    "TRIGGER_NODE" "触发器" "CHILD_PROCESS_NODE" "子流程" "START_USER_NODE" "发起人" "END_EVENT_NODE" "结束"})
+
+;; ── 配置枚举（对齐 vben consts.ts）─────────────────────────────────
+
+(def ^:private approve-types
+  [{:value "USER" :label "人工审批"} {:value "AUTO_PASS" :label "自动通过"} {:value "AUTO_REJECT" :label "自动拒绝"}])
+
+(def ^:private candidate-strategies
+  [{:value "USER" :label "指定用户"} {:value "ROLE" :label "指定角色"}
+   {:value "DEPT_MEMBER" :label "指定部门成员"} {:value "DEPT_LEADER" :label "指定部门负责人"}
+   {:value "POST" :label "指定岗位"} {:value "START_USER_DEPT_LEADER" :label "发起人部门负责人"}
+   {:value "MULTI_LEVEL_DEPT_LEADER" :label "发起人部门负责人及上级"}])
+
+(def ^:private candidate-strategy-label
+  (into {} (map (juxt :value :label)) candidate-strategies))
+
+(def ^:private approve-methods
+  [{:value "SEQUENTIAL" :label "依次审批"} {:value "ANY" :label "或签（一人同意即可）"}
+   {:value "ALL" :label "会签（所有人同意）"} {:value "RATIO" :label "按比例通过"}])
+
+(def ^:private reject-handler-types
+  [{:value "FINISH_PROCESS" :label "终止流程"} {:value "RETURN_USER_TASK" :label "驳回到指定节点"}])
+
+(def ^:private timeout-handler-types
+  [{:value "REMINDER" :label "自动提醒"} {:value "AUTO_PASS" :label "自动通过"} {:value "AUTO_REJECT" :label "自动拒绝"}])
+
+(def ^:private assign-empty-handler-types
+  [{:value "AUTO_PASS" :label "自动通过"} {:value "AUTO_REJECT" :label "自动拒绝"}
+   {:value "TRANSFER_ADMIN" :label "转交管理员"} {:value "ASSIGN_USER" :label "指定用户"}])
+
+(def ^:private assign-start-user-handler-types
+  [{:value "TRANSFER_ADMIN" :label "转交管理员"} {:value "AUTO_APPROVE" :label "自动通过"} {:value "AUTO_REJECT" :label "自动拒绝"}])
+
+(def ^:private time-unit-types
+  [{:value "MINUTE" :label "分钟"} {:value "HOUR" :label "小时"} {:value "DAY" :label "天"}])
+
+(def ^:private default-user-config
+  {:approve-type "USER"
+   :candidate-strategy "USER"
+   :candidate-param {:user-ids []}
+   :approve-method "SEQUENTIAL"
+   :reject-handler {:type "FINISH_PROCESS" :return-node-id nil}
+   :timeout-handler {:enable false :type "REMINDER" :time-duration 6 :time-unit "HOUR" :max-remind-count 1}
+   :assign-empty-handler {:type "AUTO_PASS" :user-ids []}
+   :assign-start-user-handler-type "TRANSFER_ADMIN"
+   :sign-enable false :reason-require false :skip-expression ""})
+
+;; ── 配置表单辅助函数 ────────────────────────────────────────────────
+
+(defn- f-label
+  ([s] [:div.bpm-f-label s])
+  ([style s] [:div.bpm-f-label style s]))
+
+(defn- opt-user [users]
+  (doall (for [u @users] ^{:key (:user_id u)}
+           [antd/select-option {:value (:user_id u)} (:nick_name u)])))
+
+(defn- opt-role [roles]
+  (doall (for [ro @roles] ^{:key (:role_id ro)}
+           [antd/select-option {:value (:role_id ro)} (:role_name ro)])))
+
+(defn- opt-dept [depts]
+  (doall (for [d @depts] ^{:key (:dept_id d)}
+           [antd/select-option {:value (:dept_id d)} (:dept_name d)])))
+
+(defn- opt-post [posts]
+  (doall (for [po @posts] ^{:key (:post_id po)}
+           [antd/select-option {:value (:post_id po)} (:post_name po)])))
+
+(defn- multi-select
+  "通用多选下拉。opts 为已构建的 select-option 序列。"
+  [placeholder value on-change opts]
+  [antd/select {:mode "multiple" :allowClear true :style {:width "100%" :marginTop 8}
+                :placeholder placeholder :value (or value []) :onChange on-change}
+   opts])
+
+(defn- user-candidate-editor
+  "审批人设置：按候选策略渲染参数编辑器。"
+  [cfg users roles depts posts]
+  (let [s (:candidate-strategy @cfg)
+        pi (fn [k v] (swap! cfg assoc-in [:candidate-param k] v))]
+    (case s
+      "USER"
+      (multi-select "请选择用户" (get-in @cfg [:candidate-param :user-ids])
+                    #(pi :user-ids (vec %)) (opt-user users))
+      "ROLE"
+      (multi-select "请选择角色" (get-in @cfg [:candidate-param :role-ids])
+                    #(pi :role-ids (vec %)) (opt-role roles))
+      ("DEPT_MEMBER" "DEPT_LEADER")
+      (multi-select "请选择部门" (get-in @cfg [:candidate-param :dept-ids])
+                    #(pi :dept-ids (vec %)) (opt-dept depts))
+      "MULTI_LEVEL_DEPT_LEADER"
+      [:div
+       (multi-select "请选择部门（发起人部门向上取级）" (get-in @cfg [:candidate-param :dept-ids])
+                     #(pi :dept-ids (vec %)) (opt-dept depts))
+       [:div {:style {:marginTop 8}}
+        (f-label "向上层级")
+        [antd/select {:style {:width "100%"}
+                      :value (or (get-in @cfg [:candidate-param :dept-level]) 1)
+                      :onChange #(pi :dept-level (or % 1))}
+         (doall (for [i (range 1 6)]
+                  ^{:key i} [antd/select-option {:value i} (str "向上 " i " 级")]))]]]
+      "POST"
+      (multi-select "请选择岗位" (get-in @cfg [:candidate-param :post-ids])
+                    #(pi :post-ids (vec %)) (opt-post posts))
+      [antd/input {:disabled true :style {:marginTop 8} :value "审批人为发起人的部门负责人"}])))
+
+(defn- user-reject-editor
+  "审批人拒绝时设置。"
+  [cfg node user-task-nodes]
+  [:div
+   (f-label "审批人拒绝时")
+   [antd/radio-group {:value (get-in @cfg [:reject-handler :type])
+                      :onChange #(swap! cfg assoc-in [:reject-handler :type] (-> % .-target .-value))}
+    (doall (for [{:keys [value label]} reject-handler-types]
+             ^{:key value} [antd/radio {:value value} label]))]
+   (when (= (get-in @cfg [:reject-handler :type]) "RETURN_USER_TASK")
+     [:div {:style {:marginTop 8}}
+      (f-label "驳回节点")
+      [antd/select {:allowClear true :style {:width "100%"} :placeholder "选择驳回目标节点"
+                    :value (get-in @cfg [:reject-handler :return-node-id])
+                    :onChange #(swap! cfg assoc-in [:reject-handler :return-node-id] %)}
+       (doall (for [{:keys [id name]} user-task-nodes]
+                (when (not= id (:id node))
+                  ^{:key id} [antd/select-option {:value id} name])))]])])
+
+(defn- user-timeout-editor
+  "审批人超时未处理设置。"
+  [cfg]
+  [:div
+   (f-label "审批人超时未处理")
+   [antd/switch {:checked (get-in @cfg [:timeout-handler :enable])
+                 :checkedChildren "开" :unCheckedChildren "关"
+                 :onChange #(swap! cfg assoc-in [:timeout-handler :enable] %)}]
+   (when (get-in @cfg [:timeout-handler :enable])
+     [:div {:style {:marginTop 8}}
+      [antd/radio-group {:value (get-in @cfg [:timeout-handler :type])
+                         :onChange #(swap! cfg assoc-in [:timeout-handler :type] (-> % .-target .-value))}
+       (doall (for [{:keys [value label]} timeout-handler-types]
+                ^{:key value} [antd/radio {:value value} label]))]
+      [:div {:style {:display "flex" :gap 8 :marginTop 8}}
+       [:div {:style {:flex 1}}
+        (f-label "超时时间")
+        [antd/input-number {:style {:width "100%"} :min 1
+                            :value (get-in @cfg [:timeout-handler :time-duration])
+                            :onChange #(swap! cfg assoc-in [:timeout-handler :time-duration] (or % 1))}]]
+       [:div {:style {:flex 1}}
+        (f-label "时间单位")
+        [antd/select {:style {:width "100%"} :value (get-in @cfg [:timeout-handler :time-unit])
+                      :onChange #(swap! cfg assoc-in [:timeout-handler :time-unit] %)}
+         (doall (for [{:keys [value label]} time-unit-types]
+                  ^{:key value} [antd/select-option {:value value} label]))]]]
+      (when (= (get-in @cfg [:timeout-handler :type]) "REMINDER")
+        [:div {:style {:marginTop 8}}
+         (f-label "最大提醒次数")
+         [antd/input-number {:style {:width "100%"} :min 1 :max 10
+                             :value (get-in @cfg [:timeout-handler :max-remind-count])
+                             :onChange #(swap! cfg assoc-in [:timeout-handler :max-remind-count] (or % 1))}]])])])
+
+(defn- user-empty-editor
+  "审批人为空时设置。"
+  [cfg users]
+  [:div
+   (f-label "审批人为空时")
+   [antd/radio-group {:value (get-in @cfg [:assign-empty-handler :type])
+                      :onChange #(swap! cfg assoc-in [:assign-empty-handler :type] (-> % .-target .-value))}
+    (doall (for [{:keys [value label]} assign-empty-handler-types]
+             ^{:key value} [antd/radio {:value value} label]))]
+   (when (= (get-in @cfg [:assign-empty-handler :type]) "ASSIGN_USER")
+     [:div {:style {:marginTop 8}}
+      (f-label "指定用户")
+      (multi-select "请选择用户" (get-in @cfg [:assign-empty-handler :user-ids])
+                    #(swap! cfg assoc-in [:assign-empty-handler :user-ids] (vec %))
+                    (opt-user users))])])
 
 ;; ── 节点渲染（递归，path 用于定位编辑）──────────────────────────────
 
@@ -90,6 +266,26 @@
           (render-connector #(on-add (conj path :child-node)))
           (render-node child (conj path :child-node) on-edit on-add on-delete)])])))
 
+;; ── 配置辅助函数 ─────────────────────────────────────────────────────
+
+(defn- user-show-text
+  "审批/抄送节点 → 卡片内容区文本。"
+  [t cfg]
+  (let [at (:approve-type cfg)]
+    (cond
+      (= t "COPY_TASK_NODE")
+      (str "抄送 " (count (or (:copy-user-ids cfg) [])) " 人")
+      (not= at "USER")
+      (case at "AUTO_PASS" "自动通过" "AUTO_REJECT" "自动拒绝" "自动审批")
+      :else
+      (get candidate-strategy-label (:candidate-strategy cfg) "指定用户"))))
+
+(defn- delay-show-text
+  "延迟器 → 卡片内容区文本。"
+  [{:keys [time-duration time-unit]}]
+  (when time-duration
+    (str "延迟 " time-duration (get {"MINUTE" "分钟" "HOUR" "小时" "DAY" "天"} time-unit "小时"))))
+
 ;; ── 设计器组件（r/atom + with-let component-did-mount）────────────────
 
 (def ^:private add-node-types
@@ -105,18 +301,32 @@
   [{:keys [model-id on-saved]}]
   (r/with-let [tree (r/atom nil)
                loading (r/atom true)
-               edit-path (r/atom nil)
-               edit-name (r/atom "")
+               config-path (r/atom nil)
+               node-name (r/atom "")
+               cfg (r/atom nil)
                add-path (r/atom nil)
                scale (r/atom 1)
+               users (r/atom [])
+               roles (r/atom [])
+               depts (r/atom [])
+               posts (r/atom [])
+               rows-or-vec (fn [res]
+                              (let [d (:data res)]
+                                (if (map? d) (:rows d) d)))
                _ (when model-id
                    (api/bpm-model-tree model-id
                                        (fn [res]
                                          (reset! tree (walk/keywordize-keys (:data res)))
                                          (reset! loading false))
                                        (fn [e] (reset! loading false) (antd/error! (str "加载流程失败: " e)))))
-               open-edit (fn [path] (reset! edit-path path) (reset! edit-name (get-in @tree (conj path :name))))
-               apply-edit (fn [] (when-let [p @edit-path] (swap! tree assoc-in (conj p :name) @edit-name)) (reset! edit-path nil))
+               _ (api/list-users {:page 1 :size 1000}
+                                 #(reset! users (walk/keywordize-keys (rows-or-vec %))) #())
+               _ (api/list-roles {:page 1 :size 1000}
+                                 #(reset! roles (walk/keywordize-keys (rows-or-vec %))) #())
+               _ (api/list-depts {:page 1 :size 1000}
+                                 #(reset! depts (walk/keywordize-keys (rows-or-vec %))) #())
+               _ (api/list-posts {:page 1 :size 1000}
+                                 #(reset! posts (walk/keywordize-keys (rows-or-vec %))) #())
                delete-node (fn [path]
                              (when (seq path)
                                (let [child (:child-node (get-in @tree path))]
@@ -131,6 +341,65 @@
                           (if (:child-node node)
                             (find-end (:child-node node) (conj path :child-node))
                             (conj path :child-node)))
+               open-config (fn [path]
+                             (let [node (get-in @tree path)]
+                               (reset! config-path path)
+                               (reset! node-name (:name node))
+                               (reset! cfg
+                                       (case (:type node)
+                                         "CONDITION_BRANCH_NODE"
+                                         {:conditions (mapv (fn [cn] {:name (:name cn)
+                                                                      :expression (or (:expression cn) "${approved == true}")})
+                                                            (:condition-nodes node))}
+                                         "DELAY_TIMER_NODE"
+                                         (merge {:time-duration 6 :time-unit "HOUR"} (:config node))
+                                         "COPY_TASK_NODE"
+                                         (merge {:copy-user-ids [] :copy-role-ids []} (:config node))
+                                         "USER_TASK_NODE"
+                                         (let [c (:config node)]
+                                           (merge default-user-config
+                                                  (cond-> c
+                                                    (:candidate-param c)
+                                                    (update :candidate-param
+                                                            (fn [p] (into {} (map (fn [[k v]] [k (if (coll? v) (filterv some? v) v)])) p))))))
+                                         nil))))
+               cfg-set! (fn [k v] (swap! cfg assoc k v))
+               user-task-nodes (fn []
+                                 (let [acc (atom [])]
+                                   (letfn [(walk-n [n]
+                                             (when n
+                                               (when (#{"USER_TASK_NODE" "COPY_TASK_NODE"} (:type n))
+                                                 (swap! acc conj {:id (:id n) :name (:name n)}))
+                                               (when-let [c (:child-node n)] (walk-n c))
+                                               (doseq [cn (:condition-nodes n)]
+                                                 (when-let [c (:child-node cn)] (walk-n c)))))]
+                                     (walk-n @tree))
+                                   @acc))
+               save-config (fn []
+                             (when-let [p @config-path]
+                               (let [node (get-in @tree p)
+                                     t (:type node)]
+                                 (cond
+                                   (= t "CONDITION_BRANCH_NODE")
+                                   (swap! tree assoc-in p
+                                          (assoc node :name @node-name
+                                                 :condition-nodes
+                                                 (mapv (fn [cn c] (merge cn (select-keys c [:name :expression])))
+                                                       (:condition-nodes node) (:conditions @cfg))))
+                                   (= t "DELAY_TIMER_NODE")
+                                   (swap! tree assoc-in p
+                                          (assoc node :name @node-name
+                                                 :config (select-keys @cfg [:time-duration :time-unit])
+                                                 :show-text (delay-show-text @cfg)))
+                                   (or (= t "USER_TASK_NODE") (= t "COPY_TASK_NODE"))
+                                   (swap! tree assoc-in p
+                                          (assoc node :name @node-name
+                                                 :config @cfg
+                                                 :show-text (user-show-text t @cfg)))
+                                   :else
+                                   (swap! tree assoc-in p (assoc node :name @node-name))))
+                               (reset! config-path nil)
+                               (reset! cfg nil)))
                save-tree (fn [] (when (and model-id @tree)
                                   (api/bpm-save-model-tree model-id @tree
                                                            (fn [_] (antd/success! "流程已保存") (when on-saved (on-saved)))
@@ -150,11 +419,102 @@
        [:div.bpm-flow-root
         (when-let [t @tree]
           [:div {:style {:transform (str "scale(" @scale ")") :transformOrigin "50% 0"}}
-           (render-node t [] open-edit (fn [path] (reset! add-path path)) delete-node)])])
-     [antd/modal {:title "编辑节点" :open (boolean @edit-path) :footer nil
-                  :width 420 :onCancel #(reset! edit-path nil)}
-      [antd/input {:value @edit-name :onChange (fn [e] (reset! edit-name (-> e .-target .-value)))}]
-      [antd/button {:type "primary" :block true :style {:marginTop 12} :on-click apply-edit} "确定"]]
+           (render-node t [] open-config (fn [path] (reset! add-path path)) delete-node)])])
+     ;; ── 节点配置抽屉（对齐 vben Drawer 配置面板）──────────────────
+     [antd/drawer {:open (boolean @config-path)
+                   :onClose #(reset! config-path nil)
+                   :title (str "节点配置 · " (get node-type-label (get-in @tree (conj @config-path :type)) ""))
+                   :size 460
+                   :destroyOnHidden true}
+      (when-let [p @config-path]
+        (let [node (get-in @tree p)
+              t (:type node)]
+          [:div.bpm-config
+           (f-label "节点名称")
+           [antd/input {:value @node-name
+                        :onChange (fn [e] (reset! node-name (-> e .-target .-value)))}]
+           (cond
+             (= t "CONDITION_BRANCH_NODE")
+             (doall
+              (for [[i c] (map-indexed vector (or (:conditions @cfg) []))]
+                ^{:key i}
+                [:div {:style {:marginTop 16}}
+                 (f-label (str "条件 " (inc i)))
+                 [antd/input {:value (:name c) :placeholder "条件名称" :style {:marginBottom 8}
+                              :onChange (fn [e] (swap! cfg assoc-in [:conditions i :name] (-> e .-target .-value)))}]
+                 [antd/text-area {:value (:expression c) :placeholder "如 ${days} > 3" :rows 2
+                                  :onChange (fn [e] (swap! cfg assoc-in [:conditions i :expression] (-> e .-target .-value)))}]]))
+             (= t "DELAY_TIMER_NODE")
+             [:div {:style {:marginTop 16}}
+              (f-label "延迟时间")
+              [:div {:style {:display "flex" :gap 8}}
+               [antd/input-number {:style {:width "50%"} :min 1 :value (:time-duration @cfg)
+                                   :onChange #(swap! cfg assoc :time-duration (or % 1))}]
+               [antd/select {:style {:width "50%"} :value (:time-unit @cfg)
+                             :onChange #(swap! cfg assoc :time-unit %)}
+                (doall (for [{:keys [value label]} time-unit-types]
+                         ^{:key value} [antd/select-option {:value value} label]))]]]
+             (= t "COPY_TASK_NODE")
+             [:div {:style {:marginTop 16}}
+              (f-label "抄送人（用户）")
+              (multi-select "请选择抄送用户" (:copy-user-ids @cfg)
+                            #(cfg-set! :copy-user-ids (vec %)) (opt-user users))
+              (f-label {:style {:marginTop 12}} "抄送人（角色）")
+              (multi-select "请选择抄送角色" (:copy-role-ids @cfg)
+                            #(cfg-set! :copy-role-ids (vec %)) (opt-role roles))]
+             (= t "USER_TASK_NODE")
+             [:div
+              (when (not= (:approve-type @cfg) "USER")
+                [:div.bpm-cfg-tip "当前为自动审批，保存后卡片显示自动通过/拒绝。"])
+              (f-label {:style {:marginTop 12}} "审批类型")
+              [antd/radio-group {:value (:approve-type @cfg)
+                                 :onChange #(cfg-set! :approve-type (-> % .-target .-value))}
+               (doall (for [{:keys [value label]} approve-types]
+                        ^{:key value} [antd/radio {:value value} label]))]
+              (when (= (:approve-type @cfg) "USER")
+                [:div {:style {:marginTop 14}}
+                 (f-label "审批人设置")
+                 [antd/radio-group {:value (:candidate-strategy @cfg)
+                                    :onChange #(do (cfg-set! :candidate-strategy (-> % .-target .-value))
+                                                   (cfg-set! :candidate-param
+                                                             {:user-ids [] :role-ids [] :dept-ids [] :post-ids [] :dept-level 1}))}
+                  (doall (for [{:keys [value label]} candidate-strategies]
+                           ^{:key value} [antd/radio {:value value} label]))]
+                 (user-candidate-editor cfg users roles depts posts)
+                 (f-label {:style {:marginTop 14}} "多人审批方式")
+                 [antd/radio-group {:value (:approve-method @cfg)
+                                    :onChange #(cfg-set! :approve-method (-> % .-target .-value))}
+                  (doall (for [{:keys [value label]} approve-methods]
+                           ^{:key value} [antd/radio {:value value} label]))]
+                 (when (= (:approve-method @cfg) "RATIO")
+                   [:div {:style {:marginTop 8}}
+                    (f-label "通过比例（%）")
+                    [antd/input-number {:style {:width "100%"} :min 10 :max 100 :step 10
+                                        :value (:approve-ratio @cfg)
+                                        :onChange #(cfg-set! :approve-ratio (or % 100))}]])
+                 (user-reject-editor cfg node (user-task-nodes))
+                 (user-timeout-editor cfg)
+                 (user-empty-editor cfg users)
+                 (f-label {:style {:marginTop 14}} "审批人与提交人为同一人时")
+                 [antd/radio-group {:value (:assign-start-user-handler-type @cfg)
+                                    :onChange #(cfg-set! :assign-start-user-handler-type (-> % .-target .-value))}
+                  (doall (for [{:keys [value label]} assign-start-user-handler-types]
+                           ^{:key value} [antd/radio {:value value} label]))]
+                 [:div {:style {:display "flex" :gap 24 :marginTop 14}}
+                  [:div (f-label "是否需要签名")
+                   [antd/switch {:checked (:sign-enable @cfg) :checkedChildren "是" :unCheckedChildren "否"
+                                 :onChange #(cfg-set! :sign-enable %)}]]
+                  [:div (f-label "审批意见")
+                   [antd/switch {:checked (:reason-require @cfg) :checkedChildren "必填" :unCheckedChildren "非必填"
+                                 :onChange #(cfg-set! :reason-require %)}]]]
+                 (f-label {:style {:marginTop 14}} "跳过表达式")
+                 [antd/text-area {:value (:skip-expression @cfg) :rows 2
+                                  :placeholder "填写后满足条件则自动跳过本节点"
+                                  :onChange #(cfg-set! :skip-expression (-> % .-target .-value))}]])]
+             :else nil)
+           [:div {:style {:marginTop 16}}
+            [antd/button {:type "primary" :block true :on-click save-config} "保存配置"]]]))]
+     ;; ── 添加节点对话框 ─────────────────────────────────────────────
      [antd/modal {:title "在此添加节点" :open (boolean @add-path) :footer nil
                   :width 480 :onCancel #(reset! add-path nil)}
       [:div.bpm-addmenu

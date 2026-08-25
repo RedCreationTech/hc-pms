@@ -259,3 +259,28 @@
   color: #333;
   text-align: center;
 }
+
+/* 节点配置抽屉（对齐 vben nodes-config） */
+.bpm-config { padding: 0 2px; }
+.bpm-f-label {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+}
+.bpm-cfg-tip {
+  padding: 6px 10px;
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #e6a23c;
+  background: #fdf6ec;
+  border: 1px solid #faecd8;
+  border-radius: 4px;
+}
+.bpm-config .ant-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bpm-config .ant-radio-wrapper { margin-inline-end: 0; }
+.bpm-config .ant-select, .bpm-config .ant-input, .bpm-config .ant-input-number { width: 100%; }

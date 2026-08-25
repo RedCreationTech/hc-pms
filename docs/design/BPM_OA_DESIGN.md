@@ -272,6 +272,23 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-25 (32)** **HTML/flex 流程设计器——节点配置抽屉（移植 vben nodes-config 核心）**：
+  · 点击节点打开右侧配置抽屉（antd Drawer），按类型渲染配置表单
+  · **审批人节点**：审批类型(人工/自动通过/自动拒绝)、审批人设置(指定用户/角色/部门成员/
+    部门负责人/岗位/发起人部门负责人及上级+向上层级)、多人审批方式(依次/或签/会签/按比例)、
+    审批人拒绝时(终止/驳回到指定节点)、超时未处理(开关/自动提醒/通过/拒绝+时长+提醒次数)、
+    审批人为空时(自动通过/拒绝/转交管理员/指定用户)、审批人与提交人相同时、签名/审批意见、
+    跳过表达式
+  · **抄送节点**：抄送人(用户/角色多选)；**条件分支**：条件名称+表达式(如 ${days} > 3)；
+    **延迟器**：时长+单位；发起/结束/触发器/分支：改名
+  · **配置持久化 round-trip**：config 以 <flowable:property name="nodeConfig" value="JSON"/>
+    内嵌 BPMN 元素；审批人落地 flowable:candidateUsers/Groups 运行时可用；条件表达式解析
+    (修复 with-body 正则误吞自闭合 sequenceFlow 的 bug + XML 实体 unescape 保证往返稳定)
+  · 修复：antd v6 Drawer width→size、opt-* 迭代 atom 而非 deref(ISeqable 崩溃)、
+    list-roles/depts/posts 响应为数组(兼容 rows-or-vec)、字段 snake_case 键名
+  · 实测：配置指定角色→选中超级管理员→保存→卡片显示"指定角色"→后端 role-ids [1] 持久化；
+    BPM E2E 5通过；后端349测试0失败
+
 - **2026-08-25 (31)** **HTML/flex 流程设计器完善工具栏/居中/添加节点**：
   · 流程整体水平居中（.bpm-flow-root align-items:center + width:100%，实测卡片/胶囊中心=页面中心）
   · 顶部工具栏(.bpm-toolbar)：流程标题 + 添加节点/缩放±/百分比/重置/保存按钮
