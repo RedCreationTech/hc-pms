@@ -11,6 +11,18 @@
    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
    [com.ruoyi.frontend.components.bpmn-modeler :as bpmn]))
 
+;; 连线加号可追加的节点类型（对齐 yudao simple-process-design）
+(def ^:private node-types
+  [{:label "审批人" :type "bpmn:UserTask" :name "审批人"}
+   {:label "经办人" :type "bpmn:UserTask" :name "经办人"}
+   {:label "抄送" :type "bpmn:UserTask" :name "抄送"}
+   {:label "条件分支" :type "bpmn:ExclusiveGateway" :name "条件分支"}
+   {:label "并行分支" :type "bpmn:ParallelGateway" :name "并行分支"}
+   {:label "包容分支" :type "bpmn:InclusiveGateway" :name "包容分支"}
+   {:label "延时器" :type "bpmn:IntermediateCatchEvent" :name "延时器"}
+   {:label "触发器" :type "bpmn:CallActivity" :name "触发器"}
+   {:label "子流程" :type "bpmn:SubProcess" :name "子流程"}])
+
 (defn- model-columns []
   #js [#js {:title "ID" :dataIndex "model_id" :key "model_id" :width 70}
        #js {:title "流程key" :dataIndex "model_key" :key "model_key" :width 150}
@@ -96,13 +108,13 @@
                       :onChange (fn [e] (set-mform-json! (-> e .-target .-value)))}]]]])
 
 (defn- process-design-tab
-  [{:keys [xml modeler-ref on-save on-close on-select selected sp nname set-nname! cand set-cand! cond set-cond!]}]
+  [{:keys [xml modeler-ref on-save on-close on-select on-add-node selected sp nname set-nname! cand set-cand! cond set-cond!]}]
   [:div {:style {:display "flex" :flexDirection "column"}}
    [designer-toolbar {:modeler-ref modeler-ref :on-save on-save :on-close on-close}]
    [:div {:style {:display "flex" :marginTop 8}}
     [:div {:style {:flex 1 :marginRight 12}}
      [bpmn/bpmn-modeler {:xml xml :modeler-ref modeler-ref :on-error (fn [e] (antd/error! e))
-                         :on-select on-select}]]
+                         :on-select on-select :on-add-node on-add-node}]]
     [props-panel {:selected selected :sp sp :name nname :set-name! set-nname!
                   :cand cand :set-cand! set-cand! :cond cond :set-cond! set-cond!
                   :on-apply #(do (bpmn/update-selected! (.-current modeler-ref) selected
@@ -127,6 +139,7 @@
         [nname set-nname!] (hooks/use-state "")
         [cand set-cand!] (hooks/use-state "")
         [cond set-cond!] (hooks/use-state "")
+        [add-conn set-add-conn!] (hooks/use-state nil)
         [mname set-mname!] (hooks/use-state "")
         [mkey set-mkey!] (hooks/use-state "")
         [mcat set-mcat!] (hooks/use-state "")
@@ -163,9 +176,10 @@
            (set-cond! (or (:condition p) ""))))
        js/undefined)
      [selected])
-    [antd/modal {:title (str "流程模型 · " (:model_name current))
-                 :open visible? :width 1300 :destroyOnHidden true :footer nil
-                 :onCancel #(rf/dispatch [:bpm/designer-close])}
+    [:div
+     [antd/modal {:title (str "流程模型 · " (:model_name current))
+                  :open visible? :width 1300 :destroyOnHidden true :footer nil
+                  :onCancel #(rf/dispatch [:bpm/designer-close])}
      (if loading?
        [:div {:style {:padding 48 :textAlign "center"}} "加载中..."]
        [:div
@@ -183,11 +197,32 @@
           "form" [form-design-tab mform-json set-mform-json!]
           "process" [process-design-tab {:xml xml :modeler-ref modeler-ref :on-save save-model
                                          :on-close #(rf/dispatch [:bpm/designer-close])
+                                         :on-add-node set-add-conn!
                                          :on-select (fn [el] (set-selected! el)
                                                               (set-sp! (when el (bpmn/selected-props el))))
                                          :selected selected :sp sp :nname nname :set-nname! set-nname!
                                          :cand cand :set-cand! set-cand! :cond cond :set-cond! set-cond!}]
-          "extra" [extra-tab mremark set-mremark!])])]))
+          "extra" [extra-tab mremark set-mremark!])])]
+     ;; 加号添加节点选择弹窗
+     [antd/modal {:title "在此添加节点" :open (boolean add-conn)
+                  :footer nil :width 480 :onCancel #(set-add-conn! nil)}
+      [:div {:style {:display "flex" :flexWrap "wrap" :gap 8}}
+       (doall
+        (for [{:keys [label type name]} node-types]
+          ^{:key label}
+          [antd/button {:style {:margin 4}
+                        :on-click (fn []
+                                    (let [m (.-current modeler-ref)]
+                                      (bpmn/insert-node! m add-conn type name (fn [e] (antd/error! e))
+                                                        #(bpmn/add-plus-overlays! m set-add-conn!)))
+                                    (set-add-conn! nil)
+                                    (antd/success! (str "已添加" label)))}
+           label]))]]]))
+
+
+
+
+
 
 (defn bpm-model-page []
   (let [items @(rf/subscribe [:bpm-model/items])

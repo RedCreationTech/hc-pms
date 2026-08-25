@@ -272,6 +272,16 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-25 (22)** **流程设计画布对齐 yudao/vben 连线上"+"节点添加**：
+  · 画布仍用 bpmn-js；每条连线中点加"+"浮层按钮，点击弹出 10 种节点菜单
+    （经办人/审批人/抄送→UserTask，条件/并行/包容分支→Exclusive/Parallel/InclusiveGateway，
+    延时器→IntermediateCatchEvent，触发器→CallActivity，子流程→SubProcess）
+  · 选类型后在连线中间拆分：源→新节点→目标，重算 BPMNDI 后 XML 重新导入
+  · 关键取舍：bpmn-js `modeling.createShape` 在 v18.25.1 报 `BpmnOrderingProvider`
+    "reading 'children'"，故改为**保存当前 XML→字符串插节点+拆边→重新 importXML**（可靠）
+  · 插入后自动重建全部"+"浮层，可连续添加；保存/重载均持久化
+  · 实测：节点添加 6→8 元素、浮层重建、保存成功、重载持久化；后端 349 测试 0 失败
+
 - **2026-08-25 (21)** **修复 2 个前端 bug（对齐 yudao 模型编辑器）**：
   · 修流程图高亮 `Cannot read markers` 报错（addMarker 前校验元素在注册表）
   · 流程模型编辑器重构为 **4 Tab**：基本信息(名/Key/分类/表单类型) / 表单设计(JSON) /

@@ -93,8 +93,10 @@ test('流程模型页与设计器', async ({ page }) => {
   // 打开设计器（bpmn-js 画布）——已修复 BPMNDI 渲染
   await page.locator('table tbody tr:not(.ant-table-measure-row)').first()
     .getByRole('button', { name: '设计' }).click();
-  const designer = page.getByRole('dialog', { name: /流程设计/ });
+  const designer = page.getByRole('dialog', { name: /流程模型/ });
   await expect(designer).toBeVisible({ timeout: 15000 });
+  // 4-tab 设计器默认打开“基本信息”，需切到“流程设计”才渲染画布
+  await page.getByText('流程设计', { exact: true }).first().click();
   await expect(page.locator('.djs-container svg').first()).toBeVisible({ timeout: 15000 });
   await page.waitForTimeout(1500); // 等 bpmn-js 渲染
   await shot(page, '14-流程设计器bpmn-js');

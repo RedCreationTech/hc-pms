@@ -304,8 +304,36 @@
             (.updateProperties modeling element #js {:conditionExpression ce}))))
       (.updateProperties modeling element #js {:name name}))))
 
+(defn- connection-midpoint
+  [^js conn]
+  (let [^js waypoints (.-waypoints conn)
+        f (aget waypoints 0)
+        l (aget waypoints (dec (.-length waypoints)))]
+    {:x (/ (+ (.-x f) (.-x l)) 2)
+     :y (/ (+ (.-y f) (.-y l)) 2)}))
+
+(defn add-plus-overlays!
+  "在所有连线上加 '+' 按钮，点击回调 (on-add conn)。"
+  [^js modeler on-add]
+  (when modeler
+    (let [^js registry (.get modeler "elementRegistry")
+          ^js overlays (.get modeler "overlays")
+          conns (filter (fn [^js el] (.-waypoints el)) (array-seq (.getAll registry)))]
+      (doseq [^js conn conns]
+        (let [{:keys [x y]} (connection-midpoint conn)
+              html (js/document.createElement "button")
+              _ (set! (.-innerHTML html) "+")
+              _ (set! (.-style html) "cursor:pointer;width:22px;height:22px;border-radius:50%;"
+                                     "border:1px solid #409eff;background:#fff;color:#409eff;"
+                                     "font-size:16px;line-height:20px;text-align:center;padding:0;box-shadow:0 1px 3px rgba(0,0,0,.2);")
+              _ (set! (.-title html) "在此添加节点")
+              _ (.addEventListener html "click" (fn [e] (.stopPropagation e) (when on-add (on-add conn))))]
+          (.add overlays (.-id conn) #js {:position #js {:x (- x 11) :y (- y 11)} :html html}))))))
+
+
+
 (defn- import-with-fallback
-  "导入 BPMN，失败（如缺 BPMNDI）时回退空白画布。返回 promise。"
+  "导入 BPMN，失败（如缺 BPMNDI）时回退空白画布。"
   [^js modeler xml on-error]
   (let [p (.importXML modeler xml)]
     (.catch p
@@ -315,8 +343,8 @@
               (.importXML modeler (empty-bpmn))))))
 
 (defn bpmn-modeler
-  "渲染 bpmn-js 建模器。参数: {:xml 现有BPMN :modeler-ref use-ref(存实例) :on-error fn :on-select fn}"
-  [{:keys [xml modeler-ref on-error on-select]}]
+  "渲染 bpmn-js 建模器。参数: {:xml :modeler-ref :on-error :on-select :on-add-node}"
+  [{:keys [xml modeler-ref on-error on-select on-add-node]}]
   (let [host-ref (hooks/use-ref nil)]
     (hooks/use-effect
      (fn []
@@ -337,6 +365,7 @@
                           el (when (and sel (.-length sel)) (aget sel 0))]
                       (when on-select (on-select el)))))
              (import-with-fallback m xml on-error)
+             (js/setTimeout #(add-plus-overlays! m on-add-node) 800)
              (fn []
                (set! (.-current modeler-ref) nil)
                (.destroy m)
@@ -375,3 +404,48 @@
 (defn fit-viewport!
   [^js modeler]
   (when modeler (.zoom (.get modeler "canvas") "fit-viewport")))
+
+
+(defn- bpmn-tag [bpmn-type]
+  (case bpmn-type
+    "bpmn:ExclusiveGateway" "exclusiveGateway"
+    "bpmn:ParallelGateway" "parallelGateway"
+    "bpmn:InclusiveGateway" "inclusiveGateway"
+    "bpmn:IntermediateCatchEvent" "intermediateCatchEvent"
+    "bpmn:CallActivity" "callActivity"
+    "bpmn:SubProcess" "subProcess"
+    "userTask"))
+
+(defn insert-node!
+  "在连线中间插入节点（XML 操作 + 重新导入）。返回 promise。on-imported 在重新导入成功后回调。"
+  [^js modeler ^js conn bpmn-type name on-error on-imported]
+  (when (and modeler conn)
+    (let [p (.saveXML modeler #js {:format true})]
+      (-> (.then p
+                 (fn [result]
+                   (let [xml (.-xml result)
+                         src-id (.-id (.-source conn))
+                         tgt-id (.-id (.-target conn))
+                         flow-id (.-id (.-businessObject conn))
+                         new-id (str "n" (subs (str (random-uuid)) 0 8))
+                         tag (bpmn-tag bpmn-type)
+                         sx (.-x (.-source conn)) sy (.-y (.-source conn))
+                         tx (.-x (.-target conn)) ty (.-y (.-target conn))
+                         mid-x (int (/ (+ sx tx) 2)) mid-y (int (/ (+ sy ty) 2))
+                         node-xml (str "<" tag " id=\"" new-id "\" name=\"" name "\"/>")
+                         f1-id (str new-id "_f1") f2-id (str new-id "_f2")
+                         f1-xml (str "<sequenceFlow id=\"" f1-id "\" sourceRef=\"" src-id "\" targetRef=\"" new-id "\"/>")
+                         f2-xml (str "<sequenceFlow id=\"" f2-id "\" sourceRef=\"" new-id "\" targetRef=\"" tgt-id "\"/>")
+                         re-flow (js/RegExp
+                                  (str "(<[a-zA-Z0-9:]*sequenceFlow[^>]*id=\"" flow-id "\"[^>]*/>"
+                                       "|<[a-zA-Z0-9:]*sequenceFlow[^>]*id=\"" flow-id "\"[^>]*>.*?</[a-zA-Z0-9:]*sequenceFlow>)")
+                                  "s")
+                         xml2 (str/replace xml re-flow (str node-xml f1-xml f2-xml))
+                         shape-di (str "<bpmndi:BPMNShape id=\"" new-id "_di\" bpmnElement=\"" new-id "\"><dc:Bounds x=\"" (- mid-x 50) "\" y=\"" (- mid-y 40) "\" width=\"100\" height=\"80\"/></bpmndi:BPMNShape>")
+                         e1-di (str "<bpmndi:BPMNEdge id=\"" new-id "_e1_di\" bpmnElement=\"" f1-id "\"><di:waypoint x=\"" sx "\" y=\"" sy "\"/><di:waypoint x=\"" mid-x "\" y=\"" mid-y "\"/></bpmndi:BPMNEdge>")
+                         e2-di (str "<bpmndi:BPMNEdge id=\"" new-id "_e2_di\" bpmnElement=\"" f2-id "\"><di:waypoint x=\"" mid-x "\" y=\"" mid-y "\"/><di:waypoint x=\"" tx "\" y=\"" ty "\"/></bpmndi:BPMNEdge>")
+                         xml3 (str/replace xml2 "</bpmndi:BPMNPlane>"
+                                             (str shape-di e1-di e2-di "</bpmndi:BPMNPlane>"))]
+                     (-> (.importXML modeler xml3)
+                         (.then (fn [] (when on-imported (on-imported))))))))
+          (.catch (fn [err] (when on-error (on-error (str "添加节点失败: " (.-message err))))))))))
