@@ -2,12 +2,16 @@
   "Ant Design 组件 Reagent 封装。"
   (:require
    [reagent.core :as r]
-   ["antd" :refer [App Button Card ConfigProvider DatePicker Descriptions Divider Drawer Dropdown Empty Form Input InputNumber Layout Menu Modal Pagination Popconfirm Popover Progress Radio Select Space Spin Statistic Switch Table Tabs Tag Tooltip Tree TreeSelect Upload message Row Col]]
+   ["antd" :refer [App Button Card Checkbox ConfigProvider DatePicker Descriptions Divider Drawer Dropdown Empty Form Input InputNumber Layout Menu Modal Pagination Popconfirm Popover Progress Radio Rate Select Space Spin Statistic Switch Table Tabs Tag TimePicker Tooltip Tree TreeSelect Upload message Row Col]]
    ["@ant-design/icons" :refer [LockOutlined UserOutlined DashboardOutlined TeamOutlined SettingOutlined SafetyOutlined FileTextOutlined EditOutlined DeleteOutlined PlusOutlined DownloadOutlined EyeOutlined SearchOutlined ReloadOutlined UploadOutlined MoreOutlined]]))
 
 (def app (r/adapt-react-class App))
 (def button (r/adapt-react-class Button))
 (def card (r/adapt-react-class Card))
+(def checkbox (r/adapt-react-class Checkbox))
+(def checkbox-group (r/adapt-react-class (.-Group Checkbox)))
+(def rate (r/adapt-react-class Rate))
+(def time-picker (r/adapt-react-class TimePicker))
 (def statistic (r/adapt-react-class Statistic))
 (def row (r/adapt-react-class Row))
 (def col (r/adapt-react-class Col))
@@ -53,6 +57,14 @@
 (def upload (r/adapt-react-class Upload))
 
 (defonce message-api (atom nil))
+
+(defn modal-confirm!
+  "确认对话框。on-ok 为确认回调。"
+  [on-ok & [opts]]
+  (.confirm Modal
+            (clj->js (merge {:title "确认操作" :content "确定执行该操作吗？"
+                             :okText "确定" :cancelText "取消" :onOk on-ok}
+                            opts))))
 
 (defn use-app-message []
   "在 App 组件内部调用，获取 message 实例。"

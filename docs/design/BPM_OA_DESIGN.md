@@ -272,6 +272,23 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-25 (33)** **流程模型对齐 vben：表单自定义（设计器+关联+预览）**：
+  · 后端：biz_bpm_model 加 form_id/form_custom_create_path/form_custom_view_path（sqlite+mysql
+    迁移，migratus 需 --;; 分隔）；model CRUD 支持；form-list 返回 form_json 且支持 status 过滤；
+    update-model 用 COALESCE 保护 bpmn_xml（元数据保存不覆盖流程 XML）
+  · **表单设计器** form_designer.cljs（对齐 vben @form-create 的 conf/fields JSON）：
+    三栏布局（组件库12种/画布/属性配置），画布卡片可选中/上移/下移/复制/删除，
+    属性含标题/字段名/占位符/必填/默认值/选项编辑；流程表单列表行加"设计"按钮
+  · **表单渲染器** form_render.cljs：conf/fields → antd 表单（input/textarea/number/date/time/
+    radio/checkbox/select/switch/rate/user/dept），供预览与后续发起流程复用
+  · **模型表单 Tab 重做**（对齐 vben form-design.vue）：表单类型 Radio(无/动态/自定义) +
+    动态表单从表单库选择 + 只读预览 + 自定义表单提交路由/查看地址
+  · 模型编辑 modal 顶部加"保存"按钮（保存元数据，与流程树保存独立）
+  · 修复：antd 加 checkbox/time-picker/rate/modal-confirm!；form_json 兼容字符串/对象
+    (row->json 已解析)；get-in 传数字路径崩溃；模型 tab 保存按钮/流程设计器与元数据保存分离
+  · 实测：设计器添加3组件→保存→重开持久化；模型选动态表单→预览3字段→保存→DB form_id=1；
+    BPM E2E 5通过；后端349测试0失败
+
 - **2026-08-25 (32)** **HTML/flex 流程设计器——节点配置抽屉（移植 vben nodes-config 核心）**：
   · 点击节点打开右侧配置抽屉（antd Drawer），按类型渲染配置表单
   · **审批人节点**：审批类型(人工/自动通过/自动拒绝)、审批人设置(指定用户/角色/部门成员/

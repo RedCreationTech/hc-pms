@@ -38,7 +38,8 @@ DELETE FROM biz_bpm_category WHERE category_id = :category_id
 -- ============================ 流程模型 ============================
 -- :name bpm/model-list :? :*
 SELECT m.model_id, m.model_key, m.model_name, m.category_id, m.version,
-       m.form_type, m.status, m.create_by, m.create_time, m.remark,
+       m.form_type, m.form_id, m.form_custom_create_path, m.form_custom_view_path,
+       m.status, m.create_by, m.create_time, m.remark,
        c.name AS category_name
 FROM biz_bpm_model m
 LEFT JOIN biz_bpm_category c ON m.category_id = c.category_id
@@ -64,9 +65,11 @@ SELECT * FROM biz_bpm_model WHERE model_key = :model_key ORDER BY version DESC L
 
 -- :name bpm/insert-model :! :n
 INSERT INTO biz_bpm_model (model_key, model_name, category_id, version, form_type,
+                           form_id, form_custom_create_path, form_custom_view_path,
                            form_json, bpmn_xml, deployment_id, status,
                            create_by, create_time, remark)
 VALUES (:model_key, :model_name, :category_id, :version, :form_type,
+        :form_id, :form_custom_create_path, :form_custom_view_path,
         :form_json, :bpmn_xml, :deployment_id, :status,
         :create_by, CURRENT_TIMESTAMP, :remark)
 --;;
@@ -74,7 +77,10 @@ VALUES (:model_key, :model_name, :category_id, :version, :form_type,
 -- :name bpm/update-model :! :n
 UPDATE biz_bpm_model
 SET model_name = :model_name, category_id = :category_id, form_type = :form_type,
-    form_json = :form_json, bpmn_xml = :bpmn_xml, deployment_id = :deployment_id,
+    form_id = :form_id, form_custom_create_path = :form_custom_create_path,
+    form_custom_view_path = :form_custom_view_path,
+    form_json = :form_json, bpmn_xml = COALESCE(:bpmn_xml, bpmn_xml),
+    deployment_id = COALESCE(:deployment_id, deployment_id),
     status = :status, update_by = :update_by, update_time = CURRENT_TIMESTAMP,
     remark = :remark
 WHERE model_id = :model_id
@@ -93,9 +99,10 @@ DELETE FROM biz_bpm_model WHERE model_id = :model_id
 
 -- ============================ 动态表单 ============================
 -- :name bpm/form-list :? :*
-SELECT form_id, form_name, form_key, status, create_time, remark
+SELECT form_id, form_name, form_key, form_json, status, create_time, remark
 FROM biz_bpm_form
 WHERE (:form_name IS NULL OR INSTR(form_name, :form_name) > 0)
+  AND (:status IS NULL OR status = :status)
 ORDER BY form_id DESC
 LIMIT :page_size OFFSET :offset
 --;;

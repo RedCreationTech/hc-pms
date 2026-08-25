@@ -968,6 +968,9 @@
 (defn bpmmgmt-delete [module id on-success on-error]
   (request {:method :delete :uri (str "/business/bpm/" module "/" id)
             :on-success on-success :on-error on-error}))
+(defn bpmmgmt-get [module id on-success on-error]
+  (request {:method :get :uri (str "/business/bpm/" module "/" id)
+            :on-success on-success :on-error on-error}))
 
 ;; ─── BPM 任务管理 / 实例运维 ──────────────────────────────────────
 (defn bpm-all-tasks [on-success on-error]

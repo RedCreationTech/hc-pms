@@ -85,6 +85,9 @@
             {:model_key (:model_key params) :model_name (:model_name params)
              :category_id (or (:category_id params) 0) :version 1
              :form_type (or (:form_type params) "0")
+             :form_id (or (:form_id params) 0)
+             :form_custom_create_path (or (:form_custom_create_path params) "")
+             :form_custom_view_path (or (:form_custom_view_path params) "")
              :form_json (:form_json params) :bpmn_xml (:bpmn_xml params)
              :deployment_id (:deployment_id params) :status (or (:status params) "1")
              :create_by (or user "") :remark (or (:remark params) "")}))
@@ -94,6 +97,9 @@
   (query-fn :bpm/update-model
             {:model_id (:model_id params) :model_name (:model_name params)
              :category_id (or (:category_id params) 0) :form_type (:form_type params)
+             :form_id (or (:form_id params) 0)
+             :form_custom_create_path (or (:form_custom_create_path params) "")
+             :form_custom_view_path (or (:form_custom_view_path params) "")
              :form_json (:form_json params) :bpmn_xml (:bpmn_xml params)
              :deployment_id (:deployment_id params) :status (:status params)
              :update_by (or user "") :remark (:remark params)}))
@@ -140,7 +146,8 @@
 (defn form-list
   [{:keys [query-fn]} params]
   (let [{:keys [offset size]} (page-params params)
-        p {:form_name (get params :form_name) :page_size size :offset offset}]
+        p {:form_name (get params :form_name) :status (get params :status)
+           :page_size size :offset offset}]
     {:rows (mapv #(row->json % [:form_json]) (query-fn :bpm/form-list p))
      :total (:total (query-fn :bpm/form-count p))}))
 

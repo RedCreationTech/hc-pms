@@ -1,12 +1,16 @@
 (ns com.ruoyi.frontend.pages.business.bpm-admin
-  "BPM 管理套件通用 CRUD 页面（流程表单/分类/用户分组/监听器/表达式/设置）。"
+  "BPM 管理套件通用 CRUD 页面（流程表单/分类/用户分组/监听器/表达式/设置）。
+   form 模块额外支持表单设计器（对齐 vben @form-create 设计器）。"
   (:require
    [reagent.core :as r]
    [re-frame.core :as rf]
    [reagent.hooks :as hooks]
-   ["@ant-design/icons" :refer [PlusOutlined ReloadOutlined]]
+   ["@ant-design/icons" :refer [PlusOutlined ReloadOutlined EditOutlined DeleteOutlined]]
+   [clojure.walk :as walk]
    [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
+   [com.ruoyi.frontend.api :as api]
+   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+   [com.ruoyi.frontend.components.form-designer :as fdm]))
 
 ;; 各模块配置：标题 / 列 / 表单字段
 (def ^:private admin-config
@@ -52,14 +56,29 @@
     [antd/tag {:color "green"} "启用"]
     [antd/tag {:color "red"} "停用"]))
 
-(defn- columns-for [cfg]
-  (into-array
-   (mapv (fn [[title key w]]
-           (if (= key "status")
-             (clj->js {:title title :dataIndex key :key key :width w
-                       :render (fn [v] (r/as-element (status-tag v)))})
-             (clj->js {:title title :dataIndex key :key key :width w})))
-         (:columns cfg))))
+(defn- columns-for
+  "构建列定义。form 模块附加操作列（设计/编辑/删除）。"
+  [cfg {:keys [on-design on-edit on-delete]}]
+  (let [base (mapv (fn [[title key w]]
+                     (if (= key "status")
+                       (clj->js {:title title :dataIndex key :key key :width w
+                                 :render (fn [v] (r/as-element (status-tag v)))})
+                       (clj->js {:title title :dataIndex key :key key :width w})))
+                   (:columns cfg))]
+    (into-array
+     (if on-design
+       (conj base
+             (clj->js {:title "操作" :key "action" :width 170
+                       :render (fn [_ record]
+                                 (let [m (js->clj record :keywordize-keys true)
+                                       id (:form_id m)]
+                                   (r/as-element
+                                    [antd/space {:size 2}
+                                     [antd/button {:type "link" :size "small" :on-click #(on-design m)} "设计"]
+                                     [antd/button {:type "link" :size "small" :on-click #(on-edit m)} "编辑"]
+                                     [antd/button {:type "link" :size "small" :danger true
+                                                   :on-click #(on-delete id)} "删除"]])))}))
+       base))))
 
 (defn- form-modal [{:keys [module cfg]}]
   (let [visible? @(rf/subscribe [:bpmmgmt/modal-visible? module])
@@ -87,11 +106,51 @@
               [antd/text-area {:placeholder label :rows 3}]
               [antd/input {:placeholder label}])])))]]))
 
+;; 表单设计器弹窗（form 模块专用，加载/保存 conf+fields）
+(defn- designer-modal [{:keys [record set-record! on-saved]}]
+  (let [[schema set-schema!] (hooks/use-state nil)
+        [loading set-loading!] (hooks/use-state false)
+        id (:form_id record)]
+    (hooks/use-effect
+     (fn []
+       (when id
+         (set-loading! true)
+         (api/bpmmgmt-get "form" id
+                          (fn [res]
+                            (let [d (:data res)]
+                              (set-schema!
+                               (merge {:form-name (or (:form_name d) "")}
+                                      (or (when-let [j (:form_json d)]
+                                            (if (string? j)
+                                              (js->clj (js/JSON.parse j) :keywordize-keys true)
+                                              (walk/keywordize-keys j)))
+                                          {:fields []})))
+                              (set-loading! false)))
+                          (fn [_] (set-loading! false) (antd/error! "加载表单失败")))))
+     [id])
+    [antd/modal {:title (str "表单设计 · " (:form_name record)) :open (boolean record)
+                 :width 1180 :destroyOnHidden true :footer nil
+                 :onCancel #(set-record! nil)}
+     (if loading
+       [:div {:style {:padding 40 :textAlign "center"}} "加载中..."]
+       [fdm/form-designer
+        {:schema schema
+         :on-save (fn [s]
+                    (api/bpmmgmt-update "form" id
+                                        (merge (select-keys record [:form_key :status :remark])
+                                               {:form_name (:form-name s)
+                                                :form_json (js/JSON.stringify (clj->js (dissoc s :form-name)))})
+                                        (fn [_] (antd/success! "表单已保存")
+                                          (set-record! nil) (on-saved))
+                                        (fn [e] (antd/error! (str "保存失败: " e)))))}])]))
+
 (defn bpm-admin-page [{:keys [module]}]
   (let [cfg (get admin-config module)
         items @(rf/subscribe [:bpmmgmt/items module])
         total @(rf/subscribe [:bpmmgmt/total module])
-        loading? @(rf/subscribe [:bpmmgmt/loading? module])]
+        loading? @(rf/subscribe [:bpmmgmt/loading? module])
+        [designer-record set-designer-record!] (hooks/use-state nil)
+        refresh (fn [] (rf/dispatch [:bpmmgmt/fetch module {}]))]
     [:div
      [page-toolbar/page-toolbar
       {:left [page-toolbar/toolbar-left
@@ -100,9 +159,21 @@
                                             :label (str "新增" (:title cfg))}]]
        :right [page-toolbar/toolbar-right
                [page-toolbar/round-tool-button {:title "刷新" :icon (r/as-element [:> ReloadOutlined])
-                                                :on-click #(rf/dispatch [:bpmmgmt/fetch module {}])}]]}]
-     [antd/table {:rowKey (:id cfg) :columns (columns-for cfg)
+                                                :on-click refresh}]]}]
+     [antd/table {:rowKey (:id cfg)
+                  :columns (columns-for cfg
+                                        (when (= module "form")
+                                          {:on-design set-designer-record!
+                                           :on-edit #(rf/dispatch [:bpmmgmt/edit module %])
+                                           :on-delete (fn [id]
+                                                        (antd/modal-confirm!
+                                                         (fn [] (api/bpmmgmt-delete "form" id
+                                                                                     (fn [_] (antd/success! "已删除") (refresh))
+                                                                                     (fn [e] (antd/error! e))))))}))
                   :dataSource (clj->js items) :loading loading?
                   :pagination {:total total :pageSize 10 :showSizeChanger true
                                :showTotal (fn [t] (str "共 " t " 条"))}}]
-     [form-modal {:module module :cfg cfg}]]))
+     [form-modal {:module module :cfg cfg}]
+     (when (= module "form")
+       [designer-modal {:record designer-record :set-record! set-designer-record!
+                        :on-saved refresh}])]))

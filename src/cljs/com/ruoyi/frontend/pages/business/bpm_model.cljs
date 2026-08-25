@@ -8,10 +8,13 @@
                                 UndoOutlined RedoOutlined ZoomInOutlined ZoomOutOutlined
                                 CompressOutlined DownloadOutlined EyeOutlined FolderOpenOutlined
                                 AlignLeftOutlined ClearOutlined]]
+   [clojure.walk :as walk]
    [com.ruoyi.frontend.antd :as antd]
+   [com.ruoyi.frontend.api :as api]
    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
    [com.ruoyi.frontend.components.bpmn-modeler :as bpmn]
-   [com.ruoyi.frontend.components.bpm-flow-designer :as bpmfd]))
+   [com.ruoyi.frontend.components.bpm-flow-designer :as bpmfd]
+   [com.ruoyi.frontend.components.form-render :as fr]))
 
 ;; 连线加号可追加的节点类型（对齐 yudao simple-process-design）
 (defn- model-columns []
@@ -133,12 +136,44 @@
       [antd/select-option {:value "0"} "无表单"]
       [antd/select-option {:value "1"} "动态表单"]]]]])
 
-(defn- form-design-tab [mform-json set-mform-json!]
-  [:div {:style {:padding 16}}
-   [antd/form {:layout "vertical"}
-    [antd/form-item {:label "表单 JSON (动态表单字段定义)"}
-     [antd/text-area {:value mform-json :rows 16 :style {:fontFamily "monospace"}
-                      :onChange (fn [e] (set-mform-json! (-> e .-target .-value)))}]]]])
+(defn- form-design-tab
+  "表单设计 Tab —— 对齐 vben form-design.vue：表单类型(无/动态/自定义) + 表单选择 + 只读预览。"
+  [mform-type set-mform-type! mform-id set-mform-id! form-list
+   mcustom-create set-mcustom-create! mcustom-view set-mcustom-view!]
+  (let [sel-form (first (filter #(= (:form_id %) mform-id) form-list))
+        schema (or (when-let [j (:form_json sel-form)]
+                     (if (string? j)
+                       (js->clj (js/JSON.parse j) :keywordize-keys true)
+                       (walk/keywordize-keys j)))
+                   {:fields []})]
+    [:div {:style {:padding 16}}
+     [antd/form {:layout "vertical"}
+      [antd/form-item {:label "表单类型"}
+       [antd/radio-group {:value mform-type
+                          :onChange (fn [e] (set-mform-type! (str (-> e .-target .-value))))}
+        [antd/radio {:value "0"} "无表单"]
+        [antd/radio {:value "1"} "动态表单"]
+        [antd/radio {:value "2"} "自定义表单"]]]
+      (when (= mform-type "1")
+        [antd/form-item {:label "流程表单"}
+         [antd/select {:value mform-id :style {:width "100%"} :allowClear true
+                       :placeholder "请选择表单" :onChange set-mform-id!}
+          (doall (for [f form-list] ^{:key (:form_id f)}
+                   [antd/select-option {:value (:form_id f)} (:form_name f)]))]])
+      (when (= mform-type "2")
+        (doall
+         [[antd/form-item {:label "表单提交路由"}
+           [antd/input {:value mcustom-create :placeholder "如 /bpm/oa/leave/create"
+                        :onChange (fn [e] (set-mcustom-create! (-> e .-target .-value)))}]]
+          [antd/form-item {:label "表单查看地址"}
+           [antd/input {:value mcustom-view :placeholder "如 /bpm/oa/leave/detail"
+                        :onChange (fn [e] (set-mcustom-view! (-> e .-target .-value)))}]]]))
+      (when (and (= mform-type "1") mform-id sel-form)
+        [:div {:style {:border "1px solid #eee" :borderRadius 6 :padding 16 :marginTop 8}}
+         [:div {:style {:display "flex" :alignItems "center" :marginBottom 12}}
+          [:div {:style {:width 4 :height 16 :background "#409eff" :marginRight 8}}]
+          [:span {:style {:fontWeight 600}} "表单预览"]]
+[fr/form-render {:schema schema :disabled? true}]])]]))
 
 (defn- process-design-tab
   [{:keys [model-id on-close]}]
@@ -174,19 +209,22 @@
         [mkey set-mkey!] (hooks/use-state "")
         [mcat set-mcat!] (hooks/use-state "")
         [mform-type set-mform-type!] (hooks/use-state "0")
+        [mform-id set-mform-id!] (hooks/use-state nil)
         [mform-json set-mform-json!] (hooks/use-state "")
+        [mcustom-create set-mcustom-create!] (hooks/use-state "")
+        [mcustom-view set-mcustom-view!] (hooks/use-state "")
+        [form-list set-form-list!] (hooks/use-state [])
         [mremark set-mremark!] (hooks/use-state "")
         tabs [{:key "basic" :label "基本信息"} {:key "form" :label "表单设计"}
               {:key "process" :label "流程设计"} {:key "extra" :label "更多设置"}]
         save-model (fn []
-                     (bpmn/save-bpmn! (.-current modeler-ref)
-                                      (fn [x]
-                                        (rf/dispatch [:bpm/designer-save
-                                                      {:model_name mname :model_key mkey
-                                                       :category_id (some-> mcat js/Number) :form_type mform-type
-                                                       :form_json mform-json :remark mremark
-                                                       :bpmn_xml x}]))
-                                      (fn [e] (antd/error! e))))
+                     (rf/dispatch [:bpm/designer-save
+                                   {:model_name mname :model_key mkey
+                                    :category_id (some-> mcat js/Number) :form_type mform-type
+                                    :form_id (some-> mform-id js/Number)
+                                    :form_custom_create_path mcustom-create
+                                    :form_custom_view_path mcustom-view
+                                    :form_json mform-json :remark mremark}]))
         ;; 连线加号浮层菜单回调：直接插入节点并重建浮层（对齐 vben，无需居中 Modal）
         add-handle (atom nil)
         _ (reset! add-handle
@@ -237,8 +275,18 @@
          (set-mkey! (or (:model_key current) ""))
          (set-mcat! (or (:category_id current) ""))
          (set-mform-type! (or (:form_type current) "0"))
+         (set-mform-id! (or (:form_id current) nil))
          (set-mform-json! (or (:form_json current) ""))
+         (set-mcustom-create! (or (:form_custom_create_path current) ""))
+         (set-mcustom-view! (or (:form_custom_view_path current) ""))
          (set-mremark! (or (:remark current) ""))))
+     [visible?])
+    (hooks/use-effect
+     (fn []
+       (when visible?
+         (api/bpmmgmt-list "form" {:page 1 :size 1000}
+                           #(set-form-list! (walk/keywordize-keys (get-in % [:data :rows])))
+                           #())))
      [visible?])
     (hooks/use-effect
      (fn []
@@ -256,18 +304,22 @@
      (if loading?
        [:div {:style {:padding 48 :textAlign "center"}} "加载中..."]
        [:div
-        [:div {:style {:display "flex" :gap 4 :padding "0 12px" :borderBottom "1px solid #eee"}}
-         (doall
-          (for [{:keys [key label]} tabs]
-            ^{:key key}
-            [:div {:style {:padding "10px 16px" :cursor "pointer" :fontSize 14
-                           :borderBottom (if (= key tab) "2px solid #409eff" "2px solid transparent")
-                           :color (if (= key tab) "#409eff" "#666")}
-                   :on-click #(set-tab! key)}
-             label]))]
+        [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center"
+                       :padding "0 12px" :borderBottom "1px solid #eee"}}
+         [:div {:style {:display "flex" :gap 4}}
+          (doall
+           (for [{:keys [key label]} tabs]
+             ^{:key key}
+             [:div {:style {:padding "10px 16px" :cursor "pointer" :fontSize 14
+                            :borderBottom (if (= key tab) "2px solid #409eff" "2px solid transparent")
+                            :color (if (= key tab) "#409eff" "#666")}
+                    :on-click #(set-tab! key)}
+              label]))]
+         [antd/button {:type "primary" :size "small" :on-click save-model} "保存"]]
         (case tab
           "basic" [basic-info-tab mname set-mname! mkey set-mkey! mcat set-mcat! mform-type set-mform-type!]
-          "form" [form-design-tab mform-json set-mform-json!]
+          "form" [form-design-tab mform-type set-mform-type! mform-id set-mform-id! form-list
+                       mcustom-create set-mcustom-create! mcustom-view set-mcustom-view!]
           "process" [process-design-tab {:model-id (:model_id current)
                                          :on-close #(rf/dispatch [:bpm/designer-close])}]
           "extra" [extra-tab mremark set-mremark!])])]
