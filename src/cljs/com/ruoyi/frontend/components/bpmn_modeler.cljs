@@ -373,22 +373,32 @@
                                      "box-shadow:0 1px 3px rgba(0,0,0,.2);z-index:200;")
               _ (set! (.-title html) "在此添加节点")
               menu-state (atom nil)
+              hide-timer (atom nil)
+              schedule-hide (fn []
+                              (js/clearTimeout @hide-timer)
+                              (reset! hide-timer
+                                     (js/setTimeout
+                                      (fn []
+                                        (when-let [[_ h] @menu-state]
+                                          (h)))
+                                      800)))
               show-menu (fn []
+                          (js/clearTimeout @hide-timer)
                           (let [rect (.getBoundingClientRect html)
                                 [menu hide] (if-let [[m h] @menu-state] [m h] (build-plus-menu! conn on-add))
                                 _ (when-not @menu-state
                                     (reset! menu-state [menu hide])
-                                    (.appendChild js/document.body menu))]
+                                    (.appendChild js/document.body menu)
+                                    (.addEventListener menu "mouseenter"
+                                                       (fn [] (js/clearTimeout @hide-timer)))
+                                    (.addEventListener menu "mouseleave"
+                                                       (fn [] (schedule-hide))))]
                             (set! (.-left (.-style menu)) (str (+ (.-left rect) 10) "px"))
                             (set! (.-top (.-style menu)) (str (+ (.-bottom rect) 4) "px"))
                             (set! (.-display (.-style menu)) "flex")))]
           (.addEventListener html "mouseenter" (fn [e] (.stopPropagation e) (show-menu)))
           (.addEventListener html "mouseleave"
-                             (fn [] (js/setTimeout
-                                     (fn []
-                                       (when-let [[_ h] @menu-state]
-                                         (h)))
-                                     300)))
+                             (fn [] (schedule-hide)))
           (.add overlays (.-id conn) #js {:position #js {:x (- x 12) :y (- y 12)} :html html}))))))
 
 (defn- import-with-fallback
@@ -579,8 +589,11 @@
                          flow-id (.-id (.-businessObject conn))
                          new-id (str "n" (subs (str (random-uuid)) 0 8))
                          tag (bpmn-tag bpmn-type)
-                         sx (.-x (.-source conn)) sy (.-y (.-source conn))
-                         tx (.-x (.-target conn)) ty (.-y (.-target conn))
+                         waypoints (.-waypoints conn)
+                         spt (aget waypoints 0)
+                         tpt (aget waypoints (dec (.-length waypoints)))
+                         sx (.-x spt) sy (.-y spt)
+                         tx (.-x tpt) ty (.-y tpt)
                          mid-x (int (/ (+ sx tx) 2)) mid-y (int (/ (+ sy ty) 2))
                          node-xml (str "<" tag " id=\"" new-id "\" name=\"" name "\"/>")
                          f1-id (str new-id "_f1") f2-id (str new-id "_f2")
