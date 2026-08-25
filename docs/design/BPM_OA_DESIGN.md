@@ -272,6 +272,10 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-25 (17)** **uberjar 生产构建验证完成**：`shadow-cljs release`(5.4MB前端) + `clojure -T:build all`
+  打包出 101MB 独立 jar（含 Flowable/H2/前端静态资源）。实测在干净临时目录以 prod 启动：
+  健康检查、前端资产、登录、迁移+内置模型、请假流程、报表、动态菜单全部正常。
+  修复 db.clj 未 require migratus.core 导致的 uberjar 编译失败。**平台可交付为独立 jar**。
 - **2026-08-25 (16)** **办公报表看板**：`GET /business/report/stats` 聚合请假/报销/流程/员工/客户统计，
   前端 Statistic 卡片页（13 项指标）+ 菜单。antd.cljs 补 Statistic/Row/Col。
   修复报销总额计算。shadow-cljs 0 警告。
