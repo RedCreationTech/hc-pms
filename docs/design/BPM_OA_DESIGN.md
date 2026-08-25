@@ -272,6 +272,14 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-25 (28)** **内置流程模型改为 vben 式从上到下垂直布局**：
+  · 重写 leaveApproval/reimburseApproval 的 BPMNDI：主链节点从上到下垂直排列
+    （start→审批→网关→…→end，X 居中，Y 递增），驳回终点(rejectEnd)放右侧侧边
+  · 连线改为垂直（上节点底→下节点顶），驳回分支水平折线到侧边终点
+  · 同步更新 SQLite + MySQL 迁移文件，新环境部署同样为垂直布局
+  · 实测：leave 9节点/ reimburse 7节点从上到下依次排列，rejectEnd 侧边，import 0 错误；
+    BPM E2E 5通过（语义不变仅视觉）；后端349测试0失败
+
 - **2026-08-25 (27)** **画布节点样式与布局参照 vben simple-process-design**：
   · 新增 `style-nodes!`：import 后遍历 elementRegistry，按 BPMN 类型给每个 shape 加
     `bpmn-node-<type>` 类（UserTask/Gateway/Event/CallActivity/SubProcess 等）
