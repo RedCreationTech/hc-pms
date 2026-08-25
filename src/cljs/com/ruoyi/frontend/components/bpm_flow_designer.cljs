@@ -30,6 +30,22 @@
    "PARALLEL_BRANCH_NODE" "并行分支" "INCLUSIVE_BRANCH_NODE" "包容分支" "DELAY_TIMER_NODE" "延迟器"
    "TRIGGER_NODE" "触发器" "CHILD_PROCESS_NODE" "子流程" "START_USER_NODE" "发起人" "END_EVENT_NODE" "结束"})
 
+(def ^:private condition-operators
+  [{:value "==" :label "等于"} {:value "!=" :label "不等于"}
+   {:value ">" :label "大于"} {:value ">=" :label "大于等于"}
+   {:value "<" :label "小于"} {:value "<=" :label "小于等于"}])
+
+(defn- rules->expression
+  "条件规则列表 → Flowable 表达式字符串（${days > 3 && amount < 100}）。"
+  [rules]
+  (when (seq rules)
+    (let [parts (keep (fn [{:keys [left-side op-code right-side]}]
+                        (when (and (seq left-side) (seq op-code))
+                          (str left-side " " op-code " " (or right-side ""))))
+                      rules)]
+      (when (seq parts)
+        (str "${" (str/join " && " parts) "}")))))
+
 ;; ── 配置枚举（对齐 vben consts.ts）─────────────────────────────────
 
 (def ^:private approve-types
@@ -243,7 +259,7 @@
           ^{:key (:id cn)}
           [:div.bpm-branch-item {:class (str (when first? "first ") (when last? "last"))}
            [:div.bpm-branch-line-top]
-           [:div.bpm-branch-label
+           [:div.bpm-branch-label {:on-click #(on-edit path) :title "编辑条件"}
             [:span.bpm-branch-label-name (:name cn)]
             (when-let [expr (:expression cn)]
               [:span.bpm-branch-label-expr expr])]
@@ -352,8 +368,12 @@
                                (reset! cfg
                                        (case (:type node)
                                          "CONDITION_BRANCH_NODE"
-                                         {:conditions (mapv (fn [cn] {:name (:name cn)
-                                                                      :expression (or (:expression cn) "${approved == true}")})
+                                         {:conditions (mapv (fn [cn]
+                                                              (let [expr (or (:expression cn) "${approved == true}")]
+                                                                {:name (:name cn)
+                                                                 :expression expr
+                                                                 :condition-type (if (str/includes? expr "&&") "RULE" "EXPRESSION")
+                                                                 :rules [{:left-side "" :op-code ">" :right-side ""}]}))
                                                             (:condition-nodes node))}
                                          "DELAY_TIMER_NODE"
                                          (merge {:time-duration 6 :time-unit "HOUR"} (:config node))
@@ -388,7 +408,12 @@
                                    (swap! tree assoc-in p
                                           (assoc node :name @node-name
                                                  :condition-nodes
-                                                 (mapv (fn [cn c] (merge cn (select-keys c [:name :expression])))
+                                                 (mapv (fn [cn c]
+                                                         (let [expr (if (= (:condition-type c) "RULE")
+                                                                      (rules->expression (:rules c))
+                                                                      (:expression c))]
+                                                           (merge cn (select-keys c [:name])
+                                                                  {:expression (or expr (:expression cn))})))
                                                        (:condition-nodes node) (:conditions @cfg))))
                                    (= t "DELAY_TIMER_NODE")
                                    (swap! tree assoc-in p
@@ -485,13 +510,38 @@
              (= t "CONDITION_BRANCH_NODE")
              (doall
               (for [[i c] (map-indexed vector (or (:conditions @cfg) []))]
-                ^{:key i}
-                [:div {:style {:marginTop 16}}
-                 (f-label (str "条件 " (inc i)))
-                 [antd/input {:value (:name c) :placeholder "条件名称" :style {:marginBottom 8}
-                              :onChange (fn [e] (swap! cfg assoc-in [:conditions i :name] (-> e .-target .-value)))}]
-                 [antd/text-area {:value (:expression c) :placeholder "如 ${days} > 3" :rows 2
-                                  :onChange (fn [e] (swap! cfg assoc-in [:conditions i :expression] (-> e .-target .-value)))}]]))
+                (let [rule-mode? (= (:condition-type c) "RULE")]
+                  ^{:key i}
+                  [:div {:style {:marginTop 16}}
+                   (f-label (str "条件 " (inc i)))
+                   [antd/input {:value (:name c) :placeholder "条件名称" :style {:marginBottom 8}
+                                :onChange (fn [e] (swap! cfg assoc-in [:conditions i :name] (-> e .-target .-value)))}]
+                   [antd/select {:style {:width "100%" :marginBottom 8} :size "small"
+                                 :value (or (:condition-type c) "EXPRESSION")
+                                 :onChange #(swap! cfg assoc-in [:conditions i :condition-type] %)}
+                    [antd/select-option {:value "EXPRESSION"} "条件表达式"]
+                    [antd/select-option {:value "RULE"} "条件规则"]]
+                   (if rule-mode?
+                     [:div
+                      (doall
+                       (for [[ri r] (map-indexed vector (or (:rules c) [{:left-side "" :op-code ">" :right-side ""}]))]
+                         ^{:key ri}
+                         [:div {:style {:display "flex" :gap 6 :marginBottom 6}}
+                          [antd/input {:style {:flex 1} :size "small" :value (:left-side r) :placeholder "字段如 days"
+                                       :onChange (fn [e] (swap! cfg assoc-in [:conditions i :rules ri :left-side] (-> e .-target .-value)))}]
+                          [antd/select {:style {:width 90} :size "small" :value (or (:op-code r) ">")
+                                        :onChange #(swap! cfg assoc-in [:conditions i :rules ri :op-code] %)}
+                           (doall (for [{:keys [value label]} condition-operators]
+                                    ^{:key value} [antd/select-option {:value value} label]))]
+                          [antd/input {:style {:flex 1} :size "small" :value (:right-side r) :placeholder "值如 3"
+                                       :onChange (fn [e] (swap! cfg assoc-in [:conditions i :rules ri :right-side] (-> e .-target .-value)))}]]))
+                      (let [gen (rules->expression (:rules c))]
+                        (when gen
+                          [:div {:style {:fontSize 12 :color "#909399" :background "#f8f9fa"
+                                         :padding "6px 8px" :borderRadius 4 :marginTop 4}}
+                           gen]))]
+                     [antd/text-area {:value (:expression c) :placeholder "如 ${days} > 3" :rows 2
+                                      :onChange (fn [e] (swap! cfg assoc-in [:conditions i :expression] (-> e .-target .-value)))}])])))
              (= t "DELAY_TIMER_NODE")
              [:div {:style {:marginTop 16}}
               (f-label "延迟时间")
