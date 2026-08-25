@@ -2767,9 +2767,9 @@
                    (assoc-in db [:bpm-designer :visible?] false)))
 
 (rf/reg-event-fx :bpm/designer-save
-                 (fn [{:keys [db]} [_ xml]]
+                 (fn [{:keys [db]} [_ updates]]
                    (let [model (get-in db [:bpm-designer :current])]
-                     {:api/bpm-update-model [(:model_id model) (assoc model :bpmn_xml xml)]})))
+                     {:api/bpm-update-model [(:model_id model) (merge model updates)]})))
 
 (rf/reg-fx :api/bpm-update-model
            (fn [[model-id params]]

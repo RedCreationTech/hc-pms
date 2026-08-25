@@ -21,7 +21,11 @@
              (-> (.importXML viewer xml)
                  (.then (fn []
                           (let [^js canvas (.get viewer "canvas")
-                                add-marker (fn [id cls] (when (and id cls) (.addMarker canvas id cls)))]
+                                ^js registry (.get viewer "elementRegistry")
+                                add-marker (fn [id cls]
+                                             ;; 只对图中存在的元素加高亮，避免 id 不存在时报 markers 错误
+                                             (when (and id cls (.get registry id))
+                                               (.addMarker canvas id cls)))]
                             (doseq [id completed-ids] (add-marker id "highlight-done"))
                             (doseq [id active-ids] (add-marker id "highlight-active"))
                             (.zoom canvas "fit-viewport"))))
