@@ -272,6 +272,19 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-25 (23)** **流程设计画布工具栏对齐 vben `bpmn-process-designer`**：
+  · 顶部工具栏重构为 vben 分组：文件控制(打开/下载XML·SVG·BPMN/预览XML·JSON)、
+    对齐控制(左/右/上/下/水平/垂直居中)、缩放控制(缩小/百分比/放大/重置)、
+    撤销/恢复/重新绘制
+  · 新增服务：`save-svg!`/`export-bpmn!`(下载)/`align-elements!`(选中多元素对齐，
+    不足 2 个提示)、`import-local-file!`(打开本地 XML)/`new-diagram!`(重新绘制)/
+    `preview`(XML 高亮弹窗 + JSON 节点概况)
+  · 画布缩放实时百分比显示（`canvas.viewbox.changed` → on-zoom-change）
+  · 修复 React error#130：图标须用原始 `[:> IconOutlined]`（ns 直接 refer），
+    不能用 `[:> antd/icon-wrapper]`（适配类对象引发）；`alignElements.trigger` 已实测
+  · 实测：工具栏 6 按钮组全渲染、预览 XML/JSON 弹窗、下载 diagram.xml、
+    无选择对齐弹警告、重新绘制；后端 349 测试 0 失败
+
 - **2026-08-25 (22)** **流程设计画布对齐 yudao/vben 连线上"+"节点添加**：
   · 画布仍用 bpmn-js；每条连线中点加"+"浮层按钮，点击弹出 10 种节点菜单
     （经办人/审批人/抄送→UserTask，条件/并行/包容分支→Exclusive/Parallel/InclusiveGateway，

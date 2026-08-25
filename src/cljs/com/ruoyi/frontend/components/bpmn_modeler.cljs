@@ -343,8 +343,8 @@
               (.importXML modeler (empty-bpmn))))))
 
 (defn bpmn-modeler
-  "渲染 bpmn-js 建模器。参数: {:xml :modeler-ref :on-error :on-select :on-add-node}"
-  [{:keys [xml modeler-ref on-error on-select on-add-node]}]
+  "渲染 bpmn-js 建模器。参数: {:xml :modeler-ref :on-error :on-select :on-add-node :on-zoom-change}"
+  [{:keys [xml modeler-ref on-error on-select on-add-node on-zoom-change]}]
   (let [host-ref (hooks/use-ref nil)]
     (hooks/use-effect
      (fn []
@@ -364,6 +364,12 @@
                     (let [sel (aget e "newSelection")
                           el (when (and sel (.-length sel)) (aget sel 0))]
                       (when on-select (on-select el)))))
+             (.on m "canvas.viewbox.changed"
+                  (fn []
+                    (when on-zoom-change
+                      (let [^js canvas (.get m "canvas")
+                            scale (.-scale (.viewbox canvas))]
+                        (on-zoom-change (str (int (* (or scale 1) 100)) "%"))))))
              (import-with-fallback m xml on-error)
              (js/setTimeout #(add-plus-overlays! m on-add-node) 800)
              (fn []
@@ -404,6 +410,91 @@
 (defn fit-viewport!
   [^js modeler]
   (when modeler (.zoom (.get modeler "canvas") "fit-viewport")))
+
+(defn save-svg!
+  "保存为 SVG 字符串，回调 (on-saved svg)。"
+  [^js modeler on-saved on-error]
+  (when modeler
+    (-> (.saveSVG modeler)
+        (.then (fn [result] (on-saved (.-svg result))))
+        (.catch (fn [err] (when on-error (on-error (str "保存SVG失败: " (.-message err)))))))))
+
+(defn- download-file!
+  "触发浏览器下载。"
+  [filename href]
+  (let [a (.createElement js/document "a")]
+    (set! (.-download a) filename)
+    (set! (.-href a) href)
+    (.click a)
+    (.revokeObjectURL js/URL href)))
+
+(defn export-bpmn!
+  "导出为文件。type ∈ :xml | :svg | :bpmn。"
+  [^js modeler type on-error]
+  (when modeler
+    (if (= type :svg)
+      (save-svg! modeler
+                 (fn [svg]
+                   (let [encoded (js/encodeURIComponent svg)
+                         href (str "data:application/text/xml;charset=UTF-8," encoded)]
+                     (download-file! (str "diagram." (name type)) href)))
+                 on-error)
+      (save-bpmn! modeler
+                  (fn [xml]
+                    (let [encoded (js/encodeURIComponent xml)
+                          href (str "data:application/bpmn20-xml;charset=UTF-8," encoded)]
+                      (download-file! (str "diagram." (name type)) href)))
+                  on-error))))
+
+(defn align-elements!
+  "对齐选中的多个元素。align ∈ left|right|top|bottom|center|middle。返回是否执行。"
+  [^js modeler align]
+  (when modeler
+    (let [^js selection (.get modeler "selection")
+          els (.get selection)]
+      (if (or (nil? els) (<= (.-length els) 1))
+        false
+        (do (.trigger (.get modeler "alignElements") (array-seq els) align)
+            true)))))
+
+(defn import-xml!
+  "导入 XML 字符串，重新渲染画布。"
+  [^js modeler xml on-imported on-error]
+  (when modeler
+    (-> (.importXML modeler xml)
+        (.then (fn [] (when on-imported (on-imported))))
+        (.catch (fn [err] (when on-error (on-error (str "导入BPMN失败: " (.-message err)))))))))
+
+(defn import-local-file!
+  "读取本地 XML/BPMN 文件并导入。返回 promise。"
+  [^js modeler file on-imported on-error]
+  (let [reader (js/FileReader.)]
+    (.addEventListener reader "load"
+                       (fn [] (import-xml! modeler (.-result reader) on-imported on-error)))
+    (.readAsText reader file)))
+
+(defn new-diagram!
+  "重新绘制空白流程图。"
+  [^js modeler on-imported on-error]
+  (when modeler
+    (-> (.importXML modeler (empty-bpmn))
+        (.then (fn [] (when on-imported (on-imported))))
+        (.catch (fn [err] (when on-error (on-error (str "重新绘制失败: " (.-message err)))))))))
+
+(defn preview-xml!
+  "预览 XML，回调 (on-preview xml)。"
+  [^js modeler on-preview on-error]
+  (when modeler
+    (-> (.saveXML modeler #js {:format true})
+        (.then (fn [result] (on-preview (.-xml result))))
+        (.catch (fn [err] (when on-error (on-error (str "预览失败: " (.-message err)))))))))
+
+(defn selected-count
+  "当前选中的元素数量。"
+  [^js modeler]
+  (if modeler
+    (.-length (.get (.get modeler "selection")))
+    0))
 
 
 (defn- bpmn-tag [bpmn-type]

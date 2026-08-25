@@ -6,7 +6,8 @@
    [reagent.hooks :as hooks]
    ["@ant-design/icons" :refer [ReloadOutlined PlayCircleOutlined EditOutlined SaveOutlined
                                 UndoOutlined RedoOutlined ZoomInOutlined ZoomOutOutlined
-                                CompressOutlined]]
+                                CompressOutlined DownloadOutlined EyeOutlined FolderOpenOutlined
+                                AlignLeftOutlined ClearOutlined]]
    [com.ruoyi.frontend.antd :as antd]
    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
    [com.ruoyi.frontend.components.bpmn-modeler :as bpmn]))
@@ -50,19 +51,61 @@
                            "部署"]])))}])
 
 (defn- designer-toolbar
-  [{:keys [modeler-ref on-save on-close]}]
-  [:div {:style {:display "flex" :alignItems "center" :gap 8 :padding "8px 12px"
-                 :borderBottom "1px solid #eee" :background "#fafafa"}}
-   [antd/space {:size 4}
-    [antd/button {:size "small" :icon (r/as-element [:> UndoOutlined]) :on-click #(bpmn/undo! (.-current modeler-ref))}]
-    [antd/button {:size "small" :icon (r/as-element [:> RedoOutlined]) :on-click #(bpmn/redo! (.-current modeler-ref))}]
-    [antd/divider {:type "vertical"}]
-    [antd/button {:size "small" :icon (r/as-element [:> ZoomInOutlined]) :on-click #(bpmn/zoom-in! (.-current modeler-ref))}]
-    [antd/button {:size "small" :icon (r/as-element [:> ZoomOutOutlined]) :on-click #(bpmn/zoom-out! (.-current modeler-ref))}]
-    [antd/button {:size "small" :icon (r/as-element [:> CompressOutlined]) :on-click #(bpmn/fit-viewport! (.-current modeler-ref))}]
-    [antd/divider {:type "vertical"}]
-    [antd/button {:size "small" :on-click on-close} "取消"]
-    [antd/button {:size "small" :type "primary" :icon (r/as-element [:> SaveOutlined]) :on-click on-save} "保存流程"]]])
+  [{:keys [modeler-ref on-save on-close on-preview on-export on-import-file on-restart on-align zoom-text]}
+   file-ref]
+  (let [align-items (fn []
+                      (clj->js [{:key "left" :label (r/as-element [:div {:on-click #(on-align "left")} [:span "向左对齐"]])}
+                                {:key "right" :label (r/as-element [:div {:on-click #(on-align "right")} [:span "向右对齐"]])}
+                                {:key "top" :label (r/as-element [:div {:on-click #(on-align "top")} [:span "向上对齐"]])}
+                                {:key "bottom" :label (r/as-element [:div {:on-click #(on-align "bottom")} [:span "向下对齐"]])}
+                                {:key "center" :label (r/as-element [:div {:on-click #(on-align "center")} [:span "水平居中"]])}
+                                {:key "middle" :label (r/as-element [:div {:on-click #(on-align "middle")} [:span "垂直居中"]])}]))
+        export-items (fn []
+                       (clj->js [{:key "xml" :label (r/as-element [:div {:on-click #(on-export :xml)} [:span "下载为XML文件"]])}
+                                 {:key "svg" :label (r/as-element [:div {:on-click #(on-export :svg)} [:span "下载为SVG文件"]])}
+                                 {:key "bpmn" :label (r/as-element [:div {:on-click #(on-export :bpmn)} [:span "下载为BPMN文件"]])}]))
+        preview-items (fn []
+                        (clj->js [{:key "xml" :label (r/as-element [:div {:on-click #(on-preview :xml)} [:span "预览XML"]])}
+                                  {:key "json" :label (r/as-element [:div {:on-click #(on-preview :json)} [:span "预览JSON"]])}]))]
+    [:div {:style {:display "flex" :alignItems "center" :flexWrap "wrap" :gap 6 :padding "8px 12px"
+                   :borderBottom "1px solid #eee" :background "#fafafa"}}
+     ;; 文件控制：打开/下载/预览
+     [antd/space {:size 4}
+      [antd/button {:size "small" :icon (r/as-element [:> FolderOpenOutlined]) :title "打开文件"
+                    :on-click #(when-let [^js f (some-> file-ref .-current)] (.click f))}]
+      [antd/dropdown {:menu {:items (export-items)}}
+       [antd/button {:size "small" :icon (r/as-element [:> DownloadOutlined]) :title "下载文件"}]]
+      [antd/dropdown {:menu {:items (preview-items)}}
+       [antd/button {:size "small" :icon (r/as-element [:> EyeOutlined]) :title "预览"}]]]
+     [antd/divider {:type "vertical"}]
+     ;; 对齐控制
+     [antd/space {:size 4}
+      [antd/button {:size "small" :icon (r/as-element [:> AlignLeftOutlined]) :title "向左对齐" :on-click #(on-align "left")}]
+      [antd/button {:size "small" :icon (r/as-element [:> AlignLeftOutlined]) :title "向右对齐" :on-click #(on-align "right")}]
+      [antd/button {:size "small" :icon (r/as-element [:> AlignLeftOutlined]) :title "向上对齐" :on-click #(on-align "top")}]
+      [antd/button {:size "small" :icon (r/as-element [:> AlignLeftOutlined]) :title "向下对齐" :on-click #(on-align "bottom")}]
+      [antd/button {:size "small" :icon (r/as-element [:> AlignLeftOutlined]) :title "水平居中" :on-click #(on-align "center")}]
+      [antd/button {:size "small" :icon (r/as-element [:> AlignLeftOutlined]) :title "垂直居中" :on-click #(on-align "middle")}]]
+     [antd/divider {:type "vertical"}]
+     ;; 缩放控制
+     [antd/space {:size 4}
+      [antd/button {:size "small" :icon (r/as-element [:> ZoomOutOutlined]) :title "缩小视图" :on-click #(bpmn/zoom-out! (.-current modeler-ref))}]
+      [:span {:style {:fontSize 12 :width 46 :textAlign "center"}} zoom-text]
+      [antd/button {:size "small" :icon (r/as-element [:> ZoomInOutlined]) :title "放大视图" :on-click #(bpmn/zoom-in! (.-current modeler-ref))}]
+      [antd/button {:size "small" :icon (r/as-element [:> CompressOutlined]) :title "重置视图并居中" :on-click #(bpmn/fit-viewport! (.-current modeler-ref))}]]
+     [antd/divider {:type "vertical"}]
+     ;; 撤销/恢复/重新绘制
+     [antd/space {:size 4}
+      [antd/button {:size "small" :icon (r/as-element [:> UndoOutlined]) :title "撤销" :on-click #(bpmn/undo! (.-current modeler-ref))}]
+      [antd/button {:size "small" :icon (r/as-element [:> RedoOutlined]) :title "恢复" :on-click #(bpmn/redo! (.-current modeler-ref))}]
+      [antd/button {:size "small" :icon (r/as-element [:> ClearOutlined]) :title "重新绘制" :on-click on-restart}]
+      [antd/divider {:type "vertical"}]
+      [antd/button {:size "small" :on-click on-close} "取消"]
+      [antd/button {:size "small" :type "primary" :icon (r/as-element [:> SaveOutlined]) :on-click on-save} "保存流程"]]
+     ;; 隐藏文件输入（打开本地文件）
+     [:input {:type "file" :ref file-ref :accept ".xml,.bpmn" :style {:display "none"}
+              :on-change (fn [e] (let [f (-> e .-target .-files (aget 0))]
+                                   (when f (on-import-file f))))}]]))
 
 (defn- props-panel
   [{:keys [selected sp name set-name! cand set-cand! cond set-cond! on-apply]}]
@@ -94,7 +137,7 @@
     [antd/form-item {:label "分类ID"}
      [antd/input-number {:value (some-> mcat js/Number) :style {:width "100%"}}
                         ;; onChange 需手动绑定 value
-                        ]]
+      ]]
     [antd/form-item {:label "表单类型"}
      [antd/select {:value mform-type :style {:width "100%"} :onChange (fn [v] (set-mform-type! (str v)))}
       [antd/select-option {:value "0"} "无表单"]
@@ -108,13 +151,17 @@
                       :onChange (fn [e] (set-mform-json! (-> e .-target .-value)))}]]]])
 
 (defn- process-design-tab
-  [{:keys [xml modeler-ref on-save on-close on-select on-add-node selected sp nname set-nname! cand set-cand! cond set-cond!]}]
+  [{:keys [xml modeler-ref on-save on-close on-select on-add-node selected sp nname set-nname! cand set-cand! cond set-cond!
+           file-ref on-preview on-export on-import-file on-restart on-align zoom-text on-zoom-change]}]
   [:div {:style {:display "flex" :flexDirection "column"}}
-   [designer-toolbar {:modeler-ref modeler-ref :on-save on-save :on-close on-close}]
+   [designer-toolbar {:modeler-ref modeler-ref :on-save on-save :on-close on-close
+                      :on-preview on-preview :on-export on-export :on-import-file on-import-file
+                      :on-restart on-restart :on-align on-align :zoom-text zoom-text}
+    file-ref]
    [:div {:style {:display "flex" :marginTop 8}}
     [:div {:style {:flex 1 :marginRight 12}}
      [bpmn/bpmn-modeler {:xml xml :modeler-ref modeler-ref :on-error (fn [e] (antd/error! e))
-                         :on-select on-select :on-add-node on-add-node}]]
+                         :on-select on-select :on-add-node on-add-node :on-zoom-change on-zoom-change}]]
     [props-panel {:selected selected :sp sp :name nname :set-name! set-nname!
                   :cand cand :set-cand! set-cand! :cond cond :set-cond! set-cond!
                   :on-apply #(do (bpmn/update-selected! (.-current modeler-ref) selected
@@ -133,6 +180,7 @@
         xml @(rf/subscribe [:bpm-designer/bpmn-xml])
         loading? @(rf/subscribe [:bpm-designer/loading?])
         modeler-ref (hooks/use-ref nil)
+        file-ref (hooks/use-ref nil)
         [tab set-tab!] (hooks/use-state "basic")
         [selected set-selected!] (hooks/use-state nil)
         [sp set-sp!] (hooks/use-state nil)
@@ -140,6 +188,10 @@
         [cand set-cand!] (hooks/use-state "")
         [cond set-cond!] (hooks/use-state "")
         [add-conn set-add-conn!] (hooks/use-state nil)
+        [preview-open set-preview-open!] (hooks/use-state false)
+        [preview-content set-preview-content!] (hooks/use-state "")
+        [preview-type set-preview-type!] (hooks/use-state :xml)
+        [zoom-text set-zoom-text!] (hooks/use-state "100%")
         [mname set-mname!] (hooks/use-state "")
         [mkey set-mkey!] (hooks/use-state "")
         [mcat set-mcat!] (hooks/use-state "")
@@ -156,7 +208,37 @@
                                                        :category_id (some-> mcat js/Number) :form_type mform-type
                                                        :form_json mform-json :remark mremark
                                                        :bpmn_xml x}]))
-                                      (fn [e] (antd/error! e))))]
+                                      (fn [e] (antd/error! e))))
+        handle-preview (fn [ptype]
+                         (set-preview-type! ptype)
+                         (bpmn/save-bpmn! (.-current modeler-ref)
+                                          (fn [xml]
+                                            (set-preview-content!
+                                             (if (= ptype :json)
+                                               (let [blocks (map second (re-seq #"<(startEvent|endEvent|userTask|exclusiveGateway|parallelGateway|inclusiveGateway|serviceTask|subProcess|callActivity)[^>]*id=\"([a-zA-Z0-9_]+)\"" xml))
+                                                     flows (map second (re-seq #"<sequenceFlow[^>]*id=\"([a-zA-Z0-9_]+)\"" xml))
+                                                     grouped (-> {:nodes blocks :flows flows}
+                                                                 (update :nodes (fn [v] (remove nil? v)))
+                                                                 (update :flows (fn [v] (remove nil? v))))]
+                                                 (js/JSON.stringify (clj->js grouped) nil 2))
+                                               xml))
+                                            (set-preview-open! true))
+                                          (fn [e] (antd/error! e))))
+        handle-align (fn [align]
+                       (if (bpmn/align-elements! (.-current modeler-ref) align)
+                         (antd/success! "已对齐")
+                         (antd/warning! "请按住 Shift 键选择多个元素对齐")))
+        handle-export (fn [type]
+                        (bpmn/export-bpmn! (.-current modeler-ref) type
+                                           (fn [e] (antd/error! e))))
+        handle-import-file (fn [file]
+                             (bpmn/import-local-file! (.-current modeler-ref) file
+                                                      #(bpmn/add-plus-overlays! (.-current modeler-ref) set-add-conn!)
+                                                      (fn [e] (antd/error! e))))
+        handle-restart (fn []
+                         (bpmn/new-diagram! (.-current modeler-ref)
+                                            #(bpmn/add-plus-overlays! (.-current modeler-ref) set-add-conn!)
+                                            (fn [e] (antd/error! e))))]
     (hooks/use-effect
      (fn []
        (when (and current (seq (:model_name current)))
@@ -198,11 +280,24 @@
           "process" [process-design-tab {:xml xml :modeler-ref modeler-ref :on-save save-model
                                          :on-close #(rf/dispatch [:bpm/designer-close])
                                          :on-add-node set-add-conn!
-                                         :on-select (fn [el] (set-selected! el)
-                                                              (set-sp! (when el (bpmn/selected-props el))))
+                                         :file-ref file-ref
+                                         :on-preview handle-preview :on-export handle-export
+                                         :on-import-file handle-import-file :on-restart handle-restart
+                                         :on-align handle-align :zoom-text zoom-text
+                                         :on-zoom-change set-zoom-text!
+                                         :on-select (fn [el] (set-selected! el
+                                                                            (set-sp! (when el (bpmn/selected-props el)))))
                                          :selected selected :sp sp :nname nname :set-nname! set-nname!
                                          :cand cand :set-cand! set-cand! :cond cond :set-cond! set-cond!}]
           "extra" [extra-tab mremark set-mremark!])])]
+     ;; 预览弹窗（对齐 vben 预览 XML/JSON）
+     [antd/modal {:title (if (= preview-type :json) "预览JSON" "预览XML")
+                  :open preview-open :width 900 :destroyOnHidden true :footer nil
+                  :onCancel #(set-preview-open! false)}
+      [:pre {:style {:background "#f6f8fa" :padding 12 :borderRadius 4 :maxHeight 520
+                     :overflow "auto" :fontSize 12 :lineHeight "1.6"}}
+       [:code {:style {:fontFamily "monospace" :whiteSpace "pre-wrap" :wordBreak "break-all"}}
+        preview-content]]]
      ;; 加号添加节点选择弹窗
      [antd/modal {:title "在此添加节点" :open (boolean add-conn)
                   :footer nil :width 480 :onCancel #(set-add-conn! nil)}
@@ -214,15 +309,10 @@
                         :on-click (fn []
                                     (let [m (.-current modeler-ref)]
                                       (bpmn/insert-node! m add-conn type name (fn [e] (antd/error! e))
-                                                        #(bpmn/add-plus-overlays! m set-add-conn!)))
+                                                         #(bpmn/add-plus-overlays! m set-add-conn!)))
                                     (set-add-conn! nil)
                                     (antd/success! (str "已添加" label)))}
            label]))]]]))
-
-
-
-
-
 
 (defn bpm-model-page []
   (let [items @(rf/subscribe [:bpm-model/items])
