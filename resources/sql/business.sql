@@ -21,13 +21,13 @@ FROM biz_bpm_category WHERE category_id = :category_id
 
 -- :name bpm/insert-category :! :n
 INSERT INTO biz_bpm_category (name, code, sort, status, create_by, create_time, remark)
-VALUES (:name, :code, :sort, :status, :create_by, datetime('now'), :remark)
+VALUES (:name, :code, :sort, :status, :create_by, CURRENT_TIMESTAMP, :remark)
 --;;
 
 -- :name bpm/update-category :! :n
 UPDATE biz_bpm_category
 SET name = :name, code = :code, sort = :sort, status = :status,
-    update_by = :update_by, update_time = datetime('now'), remark = :remark
+    update_by = :update_by, update_time = CURRENT_TIMESTAMP, remark = :remark
 WHERE category_id = :category_id
 --;;
 
@@ -68,14 +68,14 @@ INSERT INTO biz_bpm_model (model_key, model_name, category_id, version, form_typ
                            create_by, create_time, remark)
 VALUES (:model_key, :model_name, :category_id, :version, :form_type,
         :form_json, :bpmn_xml, :deployment_id, :status,
-        :create_by, datetime('now'), :remark)
+        :create_by, CURRENT_TIMESTAMP, :remark)
 --;;
 
 -- :name bpm/update-model :! :n
 UPDATE biz_bpm_model
 SET model_name = :model_name, category_id = :category_id, form_type = :form_type,
     form_json = :form_json, bpmn_xml = :bpmn_xml, deployment_id = :deployment_id,
-    status = :status, update_by = :update_by, update_time = datetime('now'),
+    status = :status, update_by = :update_by, update_time = CURRENT_TIMESTAMP,
     remark = :remark
 WHERE model_id = :model_id
 --;;
@@ -83,7 +83,7 @@ WHERE model_id = :model_id
 -- :name bpm/update-model-deployment :! :n
 UPDATE biz_bpm_model
 SET deployment_id = :deployment_id, version = :version, status = :status,
-    update_time = datetime('now')
+    update_time = CURRENT_TIMESTAMP
 WHERE model_id = :model_id
 --;;
 
@@ -111,13 +111,13 @@ SELECT * FROM biz_bpm_form WHERE form_id = :form_id
 
 -- :name bpm/insert-form :! :n
 INSERT INTO biz_bpm_form (form_name, form_key, form_json, status, create_by, create_time, remark)
-VALUES (:form_name, :form_key, :form_json, :status, :create_by, datetime('now'), :remark)
+VALUES (:form_name, :form_key, :form_json, :status, :create_by, CURRENT_TIMESTAMP, :remark)
 --;;
 
 -- :name bpm/update-form :! :n
 UPDATE biz_bpm_form
 SET form_name = :form_name, form_key = :form_key, form_json = :form_json,
-    status = :status, update_by = :update_by, update_time = datetime('now'), remark = :remark
+    status = :status, update_by = :update_by, update_time = CURRENT_TIMESTAMP, remark = :remark
 WHERE form_id = :form_id
 --;;
 
@@ -156,12 +156,12 @@ SELECT * FROM biz_bpm_instance WHERE process_instance_id = :process_instance_id
 INSERT INTO biz_bpm_instance (process_instance_id, model_id, model_key, business_key,
                               form_data_json, starter_id, status, current_task, create_time)
 VALUES (:process_instance_id, :model_id, :model_key, :business_key,
-        :form_data_json, :starter_id, :status, :current_task, datetime('now'))
+        :form_data_json, :starter_id, :status, :current_task, CURRENT_TIMESTAMP)
 --;;
 
 -- :name bpm/update-instance-status :! :n
 UPDATE biz_bpm_instance
-SET status = :status, current_task = :current_task, update_time = datetime('now')
+SET status = :status, current_task = :current_task, update_time = CURRENT_TIMESTAMP
 WHERE process_instance_id = :process_instance_id
 --;;
 
@@ -180,7 +180,7 @@ ORDER BY attachment_id DESC
 
 -- :name bpm/insert-attachment :! :n
 INSERT INTO biz_attachment (file_name, file_path, file_size, file_type, biz_type, biz_id, upload_by, create_time)
-VALUES (:file_name, :file_path, :file_size, :file_type, :biz_type, :biz_id, :upload_by, datetime('now'))
+VALUES (:file_name, :file_path, :file_size, :file_type, :biz_type, :biz_id, :upload_by, CURRENT_TIMESTAMP)
 --;;
 
 -- :name bpm/delete-attachment :! :n
@@ -223,7 +223,7 @@ INSERT INTO biz_hrm_employee (emp_no, name, dept_id, post_id, gender, phone, ema
                               create_by, create_time)
 VALUES (:emp_no, :name, :dept_id, :post_id, :gender, :phone, :email,
         :id_card, :hire_date, :status, :salary_base, :remark,
-        :create_by, datetime('now'))
+        :create_by, CURRENT_TIMESTAMP)
 --;;
 
 -- :name hrm/update-employee :! :n
@@ -231,7 +231,7 @@ UPDATE biz_hrm_employee
 SET emp_no = :emp_no, name = :name, dept_id = :dept_id, post_id = :post_id,
     gender = :gender, phone = :phone, email = :email, id_card = :id_card,
     hire_date = :hire_date, status = :status, salary_base = :salary_base,
-    remark = :remark, update_by = :update_by, update_time = datetime('now')
+    remark = :remark, update_by = :update_by, update_time = CURRENT_TIMESTAMP
 WHERE employee_id = :employee_id
 --;;
 
@@ -259,14 +259,14 @@ SELECT * FROM biz_oa_calendar WHERE calendar_id = :calendar_id
 
 -- :name oa/insert-calendar :! :n
 INSERT INTO biz_oa_calendar (title, content, start_time, end_time, all_day, color, user_id, create_by, create_time)
-VALUES (:title, :content, :start_time, :end_time, :all_day, :color, :user_id, :create_by, datetime('now'))
+VALUES (:title, :content, :start_time, :end_time, :all_day, :color, :user_id, :create_by, CURRENT_TIMESTAMP)
 --;;
 
 -- :name oa/update-calendar :! :n
 UPDATE biz_oa_calendar
 SET title = :title, content = :content, start_time = :start_time, end_time = :end_time,
     all_day = :all_day, color = :color, user_id = :user_id,
-    update_by = :update_by, update_time = datetime('now')
+    update_by = :update_by, update_time = CURRENT_TIMESTAMP
 WHERE calendar_id = :calendar_id
 --;;
 
@@ -294,14 +294,14 @@ SELECT * FROM biz_oa_meeting WHERE meeting_id = :meeting_id
 
 -- :name oa/insert-meeting :! :n
 INSERT INTO biz_oa_meeting (subject, location, start_time, end_time, participants, content, status, create_by, create_time)
-VALUES (:subject, :location, :start_time, :end_time, :participants, :content, :status, :create_by, datetime('now'))
+VALUES (:subject, :location, :start_time, :end_time, :participants, :content, :status, :create_by, CURRENT_TIMESTAMP)
 --;;
 
 -- :name oa/update-meeting :! :n
 UPDATE biz_oa_meeting
 SET subject = :subject, location = :location, start_time = :start_time, end_time = :end_time,
     participants = :participants, content = :content, status = :status,
-    update_by = :update_by, update_time = datetime('now')
+    update_by = :update_by, update_time = CURRENT_TIMESTAMP
 WHERE meeting_id = :meeting_id
 --;;
 
@@ -333,14 +333,14 @@ SELECT * FROM biz_crm_customer WHERE customer_id = :customer_id
 
 -- :name crm/insert-customer :! :n
 INSERT INTO biz_crm_customer (name, phone, email, company, level, source, owner_id, status, remark, create_by, create_time)
-VALUES (:name, :phone, :email, :company, :level, :source, :owner_id, :status, :remark, :create_by, datetime('now'))
+VALUES (:name, :phone, :email, :company, :level, :source, :owner_id, :status, :remark, :create_by, CURRENT_TIMESTAMP)
 --;;
 
 -- :name crm/update-customer :! :n
 UPDATE biz_crm_customer
 SET name = :name, phone = :phone, email = :email, company = :company,
     level = :level, source = :source, owner_id = :owner_id, status = :status,
-    remark = :remark, update_by = :update_by, update_time = datetime('now')
+    remark = :remark, update_by = :update_by, update_time = CURRENT_TIMESTAMP
 WHERE customer_id = :customer_id
 --;;
 
@@ -370,12 +370,12 @@ SELECT * FROM biz_oa_leave WHERE leave_id = :leave_id
 
 -- :name oa/insert-leave :! :n
 INSERT INTO biz_oa_leave (user_id, user_name, days, reason, process_instance_id, status, create_time)
-VALUES (:user_id, :user_name, :days, :reason, :process_instance_id, :status, datetime('now'))
+VALUES (:user_id, :user_name, :days, :reason, :process_instance_id, :status, CURRENT_TIMESTAMP)
 --;;
 
 -- :name oa/update-leave-status :! :n
 UPDATE biz_oa_leave
-SET status = :status, update_time = datetime('now')
+SET status = :status, update_time = CURRENT_TIMESTAMP
 WHERE process_instance_id = :process_instance_id
 --;;
 
@@ -405,12 +405,12 @@ SELECT * FROM biz_oa_reimburse WHERE reimburse_id = :reimburse_id
 
 -- :name oa/insert-reimburse :! :n
 INSERT INTO biz_oa_reimburse (user_id, user_name, amount, reason, process_instance_id, status, create_time)
-VALUES (:user_id, :user_name, :amount, :reason, :process_instance_id, :status, datetime('now'))
+VALUES (:user_id, :user_name, :amount, :reason, :process_instance_id, :status, CURRENT_TIMESTAMP)
 --;;
 
 -- :name oa/update-reimburse-status :! :n
 UPDATE biz_oa_reimburse
-SET status = :status, update_time = datetime('now')
+SET status = :status, update_time = CURRENT_TIMESTAMP
 WHERE process_instance_id = :process_instance_id
 --;;
 

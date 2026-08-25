@@ -4,18 +4,18 @@
 CREATE TABLE IF NOT EXISTS biz_oa_reimburse (
   reimburse_id       BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id            BIGINT DEFAULT 0,
-  user_name          TEXT NOT NULL DEFAULT '',
+  user_name          VARCHAR(64) NOT NULL DEFAULT '',
   amount             DECIMAL(12,2) DEFAULT 0,
-  reason             TEXT NOT NULL DEFAULT '',
-  process_instance_id TEXT NOT NULL DEFAULT '',
-  status             TEXT NOT NULL DEFAULT '1',
+  reason             VARCHAR(500) NOT NULL DEFAULT '',
+  process_instance_id VARCHAR(64) NOT NULL DEFAULT '',
+  status             CHAR(1) NOT NULL DEFAULT '1',
   create_time        TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
   update_time        TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 --;;
-CREATE INDEX IF NOT EXISTS idx_oa_reimburse_user ON biz_oa_reimburse(user_id);
+CREATE INDEX idx_oa_reimburse_user ON biz_oa_reimburse(user_id);
 --;;
-CREATE INDEX IF NOT EXISTS idx_oa_reimburse_pid ON biz_oa_reimburse(process_instance_id);
+CREATE INDEX idx_oa_reimburse_pid ON biz_oa_reimburse(process_instance_id);
 --;;
 
 -- 默认报销审批流程模型
