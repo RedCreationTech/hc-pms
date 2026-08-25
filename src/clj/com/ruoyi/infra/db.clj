@@ -4,7 +4,8 @@
             [clojure.tools.logging :as log]
             [next.jdbc :as jdbc]
             [next.jdbc.result-set :as rs]
-            [com.ruoyi.infra.datasource :as ds]))
+            [com.ruoyi.infra.datasource :as ds]
+            [migratus.core]))
 
 ;; ─── 数据库类型检测 ──────────────────────────────────────────────────────
 
