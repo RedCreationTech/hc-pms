@@ -29,6 +29,26 @@
                                        :on-click #(open-start model)}
                           "发起"])))}])
 
+(defn- collect-start-select
+  "遍历流程树收集 START_USER_SELECT 节点（发起人自选审批人）。"
+  [node]
+  (let [cfg (:config node)
+        me (when (and cfg (= "START_USER_SELECT" (get-in cfg [:candidate-strategy])))
+             [{:id (:id node) :name (:name node)}])
+        child (when-let [c (:child-node node)] (collect-start-select c))
+        conds (mapcat collect-start-select (or (:condition-nodes node) []))]
+    (vec (concat me child conds))))
+
+(defn- render-start-select
+  "发起人自选审批人：用户多选。"
+  [{:keys [users sel-value set-value!]}]
+  [:div {:style {:marginBottom 12}}
+   [:div.bpm-f-label "审批人自选"]
+   [antd/select {:mode "multiple" :style {:width "100%"} :placeholder "请选择审批人"
+                 :value sel-value :onChange set-value!}
+    (doall (for [u users] ^{:key (:user_id u)}
+             [antd/select-option {:value (:user_id u)} (:nick_name u)]))]])
+
 (defn bpm-start-page []
   (r/with-let [models (r/atom [])
                total (r/atom 0)
@@ -39,6 +59,9 @@
                values (r/atom {})
                business-key (r/atom "")
                submitting? (r/atom false)
+               start-select-nodes (r/atom [])
+               start-select-value (r/atom [])
+               users (r/atom [])
                refresh (fn []
                          (reset! loading? true)
                          (api/bpm-list-models {:page 1 :size 1000}
@@ -53,6 +76,18 @@
                             (reset! values {})
                             (reset! business-key "")
                             (reset! form-schema nil)
+                            (reset! start-select-nodes [])
+                            (reset! start-select-value [])
+                            (api/bpm-model-tree (:model_id model)
+                                                (fn [res]
+                                                  (let [nodes (collect-start-select (:data res))]
+                                                    (when (seq nodes)
+                                                      (reset! start-select-nodes nodes)
+                                                      (when (empty? @users)
+                                                        (api/list-users {:page 1 :size 1000}
+                                                                        (fn [r] (reset! users (or (:rows (:data r)) [])))
+                                                                        (fn [_] nil))))))
+                                                (fn [_] nil))
                             (when (and (= "1" (:form_type model)) (:form_id model))
                               (reset! form-loading? true)
                               (api/bpm-get-form (:form_id model)
@@ -70,7 +105,7 @@
                           (reset! submitting? true)
                           (api/bpm-start-instance {:model_id (:model_id model)
                                                    :business_key (str "start-" (js/Date.now))
-                                                   :form_data @values}
+                                                   :form_data (assoc @values :startUserSelected @start-select-value)}
                                                   (fn [_]
                                                     (reset! submitting? false)
                                                     (antd/success! "流程发起成功")
@@ -104,6 +139,9 @@
             [:div {:style {:padding 48 :textAlign "center"}} "表单加载中..."]
             (if-let [schema @form-schema]
               [:div {:style {:padding 8}}
+               (when (seq @start-select-nodes)
+                 [render-start-select {:users @users :sel-value @start-select-value
+                                       :set-value! #(reset! start-select-value (vec %))}])
                [form-render/form-render {:schema schema
                                          :values @values
                                          :on-change (fn [v] (reset! values v))}]
@@ -112,4 +150,7 @@
                 [antd/input {:placeholder "业务备注(可选)" :value @business-key
                              :onChange (fn [e] (reset! business-key (-> e .-target .-value)))}]]]
               [:div {:style {:padding 48 :textAlign "center" :color "#909399"}}
+               (when (seq @start-select-nodes)
+                 [render-start-select {:users @users :sel-value @start-select-value
+                                       :set-value! #(reset! start-select-value (vec %))}])
                "该模型未配置动态表单，将直接发起"]))))]]))

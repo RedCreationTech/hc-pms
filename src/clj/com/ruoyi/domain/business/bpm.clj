@@ -39,11 +39,15 @@
                         (inc n)
                         (concat acc (leaders-of did)))))))
          "START_USER_SELECT"
-         (let [v (.getVariable ^org.flowable.task.service.delegate.DelegateTask task "startUserSelected")]
-           (when (sequential? v) (map str v)))
+         (let [v (some-> (.getVariable ^org.flowable.task.service.delegate.DelegateTask task "startUserSelected") seq)]
+           (when (seq v)
+             (let [ids (set (map str v))]
+               (map :user_name (filter #(contains? ids (str (:user_id %))) users)))))
          "APPROVE_USER_SELECT"
-         (let [v (.getVariable ^org.flowable.task.service.delegate.DelegateTask task "approveUserSelected")]
-           (when (sequential? v) (map str v)))
+         (let [v (some-> (.getVariable ^org.flowable.task.service.delegate.DelegateTask task "approveUserSelected") seq)]
+           (when (seq v)
+             (let [ids (set (map str v))]
+               (map :user_name (filter #(contains? ids (str (:user_id %))) users)))))
          nil))))
   {:engine engine :query-fn query-fn :db db})
 
@@ -236,7 +240,10 @@
             (throw (ex-info "模型未部署，请先部署" {:model_id model-id :key (:model_key m)})))
         biz-key (or business-key (str "biz-" (System/currentTimeMillis)))
         started (bpm/start! engine (:model_key m) biz-key
-                            {"formData" (json/generate-string (or form-data {}))})
+                            (cond-> {"formData" (json/generate-string (or form-data {}))
+                                     "startUserId" (or starter "")}
+                              (seq (get form-data :startUserSelected))
+                              (assoc "startUserSelected" (vec (get form-data :startUserSelected)))))
         pid (:process-instance-id started)]
     (query-fn :bpm/insert-instance
               {:process_instance_id pid :model_id model-id :model_key (:model_key m)
