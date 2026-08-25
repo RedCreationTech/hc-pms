@@ -272,6 +272,13 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-25 (30)** **HTML/flex 流程设计器样式完善（对齐 vben node-box）**：
+  · 卡片加内容区(.bpm-node-content)：显示 showText 或"请配置X"提示(对齐 vben node-content)
+  · 卡片 hover 显示工具栏(.bpm-node-toolbar)：红色删除按钮(可删除节点，子节点上提)
+  · 条件分支节点改为独立分支卡片(.bpm-branch-card 150px圆角)，横向展开条件
+  · 修正删除逻辑(删除节点用其 child-node 上提)
+  · 实测：内容区/分支卡片/删除按钮齐全，删除 2→1 生效；BPM E2E 5通过；后端349测试0失败
+
 - **2026-08-25 (29)** **流程编辑器改用纯 HTML/CSS flex 模式（对齐 vben simple-process-design）**：
   · 放弃 bpmn-js 渲染，改用 vben 式 HTML 卡片节点 + flex 垂直布局
   · 后端新增 `bpm_flow.clj`：BPMN XML ↔ 流程节点树双向转换（childNode 主链 +

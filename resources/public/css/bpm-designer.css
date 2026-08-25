@@ -141,3 +141,64 @@
   border-radius: 4px;
 }
 .bpm-branch-item.primary .bpm-branch-label { color: #0089ff; background: #e6f4ff; }
+
+/* 节点内容区 + 工具栏（对齐 vben node-content / node-toolbar） */
+.bpm-node-card { position: relative; }
+.bpm-node-content {
+  margin-top: 6px;
+  padding: 6px 8px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.bpm-node-text {
+  margin: 0;
+  font-size: 12px;
+  color: #909399;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* hover 工具栏（删除按钮） */
+.bpm-node-toolbar {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.bpm-node-card:hover .bpm-node-toolbar { opacity: 1; }
+.bpm-node-del {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  background: #f56c6c;
+  border-radius: 50%;
+}
+.bpm-node-del:hover { transform: scale(1.1); }
+/* 分支节点卡片 */
+.bpm-branch {
+  display: flex;
+  align-items: flex-start;
+  margin-top: 8px;
+}
+.bpm-branch-node { display: flex; flex-direction: column; align-items: center; padding-top: 30px; }
+.bpm-branch-card {
+  width: 150px;
+  padding: 10px 12px;
+  text-align: center;
+  cursor: pointer;
+  background: #fff;
+  border: 2px solid #dedede;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(10,30,65,0.16);
+}
+.bpm-branch-card:hover { border-color: #0089ff; }
+.bpm-branch-card .bpm-node-name { font-size: 13px; }

@@ -36,20 +36,32 @@
    [:button.bpm-plus-btn {:title "在此添加节点" :on-click (fn [e] (.stopPropagation e) (on-add))} "+"]
    [:div.bpm-connector-arrow "▼"]])
 
-(defn- render-card [node on-edit]
+(defn- render-card [node path on-edit on-delete]
   (let [color (get node-color (:type node) "#909399")
-        icon (get node-icon (:type node) "bpmn-icon-task")]
-    [:div.bpm-node-card {:on-click on-edit}
+        icon (get node-icon (:type node) "bpmn-icon-task")
+        hint (get node-type-label (:type node))
+        text (:show-text node)]
+    [:div.bpm-node-card {:on-click #(on-edit path)}
      [:div.bpm-node-title-row
       [:div.bpm-node-icon {:style {:color color}} [:i {:class (str "iconfont " icon)}]]
       [:div.bpm-node-name (:name node)]]
-     [:div.bpm-node-text (get node-type-label (:type node))]]))
+     [:div.bpm-node-content {:on-click #(on-edit path)}
+      [:div.bpm-node-text (if (seq text) text (str "请配置" hint))]]
+     [:div.bpm-node-toolbar
+      [:span.bpm-node-del {:title "删除"
+                           :on-click (fn [e] (.stopPropagation e) (on-delete path))} "✕"]]]))
 
 (defn- render-capsule [node end? on-edit]
   [:div.bpm-capsule {:class (when end? "end") :on-click on-edit} (:name node)])
 
-(defn- render-branch [node path on-edit on-add]
+(defn- render-branch [node path on-edit on-add on-delete]
   [:div.bpm-branch
+   [:div.bpm-branch-node
+    [:div.bpm-branch-card {:on-click #(on-edit path)}
+     [:div.bpm-node-title-row
+      [:div.bpm-node-icon {:style {:color (get node-color (:type node) "#67c23a")}}
+       [:i {:class (str "iconfont " (get node-icon (:type node) "bpmn-icon-gateway-none"))}]]
+      [:div.bpm-node-name (:name node)]]]]
    (doall
     (for [[i cn] (map-indexed vector (or (:condition-nodes node) []))]
       ^{:key (:id cn)}
@@ -57,12 +69,12 @@
        [:div.bpm-branch-label (:name cn)]
        (when-let [child (:child-node cn)]
          [:div.bpm-node-column
-          (render-node child (conj path :condition-nodes i :child-node) on-edit on-add)
+          (render-node child (conj path :condition-nodes i :child-node) on-edit on-add on-delete)
           (render-connector #(on-add (conj path :condition-nodes i :child-node)))])]))])
 
 (defn render-node
   "递归渲染节点树。path 为从根到当前节点的 assoc-in 路径。"
-  [node path on-edit on-add]
+  [node path on-edit on-add on-delete]
   (if (nil? node)
     [:div]
     (let [type (:type node)]
@@ -71,12 +83,12 @@
          (= type "START_USER_NODE") (render-capsule node false #(on-edit path))
          (= type "END_EVENT_NODE") (render-capsule node true #(on-edit path))
          (and (str/includes? (or type "") "BRANCH") (seq (:condition-nodes node)))
-         (render-branch node path on-edit on-add)
-         :else (render-card node #(on-edit path)))
+         (render-branch node path on-edit on-add on-delete)
+         :else (render-card node path on-edit on-delete))
        (when-let [child (:child-node node)]
          [:div.bpm-node-column
           (render-connector #(on-add (conj path :child-node)))
-          (render-node child (conj path :child-node) on-edit on-add)])])))
+          (render-node child (conj path :child-node) on-edit on-add on-delete)])])))
 
 ;; ── 设计器组件（r/atom + with-let component-did-mount）────────────────
 
@@ -96,6 +108,10 @@
                                        (fn [e] (reset! loading false) (antd/error! (str "加载流程失败: " e)))))
                open-edit (fn [path] (reset! edit-path path) (reset! edit-name (get-in @tree (conj path :name))))
                apply-edit (fn [] (when-let [p @edit-path] (swap! tree assoc-in (conj p :name) @edit-name)) (reset! edit-path nil))
+               delete-node (fn [path]
+                             (when (and (seq path) (not (empty? path)))
+                               (let [child (:child-node (get-in @tree path))]
+                                 (swap! tree assoc-in (vec path) child))))
                save-tree (fn [] (when (and model-id @tree)
                                   (api/bpm-save-model-tree model-id @tree
                                                            (fn [_] (antd/success! "流程已保存") (when on-saved (on-saved)))
@@ -107,7 +123,7 @@
        [:div {:style {:padding 48 :textAlign "center"}} "加载中..."]
        [:div.bpm-flow-root
         (when-let [t @tree]
-          (render-node t [] open-edit (fn [path] (reset! add-path path))))])
+          (render-node t [] open-edit (fn [path] (reset! add-path path)) delete-node))])
      [antd/modal {:title "编辑节点" :open (boolean @edit-path) :footer nil
                   :width 420 :onCancel #(reset! edit-path nil)}
       [antd/input {:value @edit-name :onChange (fn [e] (reset! edit-name (-> e .-target .-value)))}]
