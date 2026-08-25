@@ -352,7 +352,7 @@
              BpmnJS (bpmn-js)]
          (if (and host BpmnJS (seq xml))
            (let [container (js/document.createElement "div")
-                 _ (set! (.-style.height container) "620px")
+                 _ (set! (.-style.height container) "780px")
                  _ (set! (.-style.width container) "100%")
                  _ (.appendChild host container)
                  m (BpmnJS. #js {:container container
@@ -378,7 +378,7 @@
                (.removeChild host container)))
            (fn []))))
      [xml])
-    [:div {:ref host-ref :style {:height "620px" :width "100%"
+    [:div {:ref host-ref :style {:height "780px" :width "100%"
                                  :border "1px solid #dcdfe6" :borderRadius 4 :background "#fff"}}]))
 
 (defn save-bpmn!

@@ -1,0 +1,76 @@
+/* ==========================================================================
+   bpmn-js 设计器画布样式 —— 对齐 ruoyi-office-vben bpmn-process-designer
+   参考: package/theme/process-designer.scss + index.scss
+   ========================================================================== */
+
+/* 画布 40px 网格背景（与 vben 一致的 base64 SVG 网格） */
+.djs-container {
+  background: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImEiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTTAgMTBoNDBNMTAgMHY0ME0wIDIwaDQwTTIwIDB2NDBNMCAzMGg0ME0zMCAwdjQwIiBmaWxsPSJub25lIiBzdHJva2U9IiNlMGUwZTAiIG9wYWNpdHk9Ii4yIi8+PHBhdGggZD0iTTQwIDBIMHY0MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZTBlMGUwIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2EpIi8+PC9zdmc+')
+    repeat !important;
+}
+
+/* 调色板背景/边框/圆角（对齐 vben process-designer.scss） */
+.djs-palette {
+  background: #fff;
+  border: solid 1px #d9d9d9 !important;
+  border-radius: 2px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+}
+
+/* 调色板条目 hover 时右侧显示 title 提示（对齐 vben） */
+.djs-palette-entries {
+  div.entry {
+    position: relative;
+
+    &:hover::after {
+      position: absolute;
+      top: 0;
+      right: -8px;
+      bottom: 0;
+      z-index: 100;
+      box-sizing: border-box;
+      display: inline-block;
+      width: max-content;
+      padding: 0 12px;
+      overflow: hidden;
+      font-size: 12px;
+      font-variant: normal;
+      vertical-align: text-bottom;
+      text-transform: none;
+      text-decoration: inherit;
+      content: attr(title);
+      background: #fafafa;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-shadow: 0 0 6px #eee;
+      transform: translateX(100%);
+      line-height: 28px;
+      white-space: nowrap;
+    }
+  }
+}
+
+/* 调色板条目图标垂直居中 */
+.djs-palette-entries div[class^='bpmn-icon-']::before,
+.djs-palette-entries div[class*='bpmn-icon-']::before {
+  line-height: unset;
+}
+
+/* 选中节点/元素高亮描边：主色 #409eff（对齐 vben --primary-color） */
+.djs-shape.selected .djs-visual > :nth-child(1),
+.djs-shape.hover .djs-visual > :nth-child(1),
+.djs-connection.selected .djs-visual > path {
+  stroke: #409eff !important;
+}
+
+.djs-connection.selected .djs-visual > path {
+  stroke-dasharray: 4 !important;
+  stroke-dashoffset: 0 !important;
+}
+
+/* 连接线默认颜色对齐 vben（bpmn-js 默认 #000）保留，仅选中态覆盖 */
+.djs-element .djs-outline {
+  stroke: #409eff;
+}
+
+/* 待办/加号添加节点按钮浮层圆点（对齐 vben 主色） */

@@ -272,6 +272,15 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-25 (24)** **流程画布视觉样式对齐 vben bpmn-process-designer**：
+  · 新增 `css/bpmn-designer.css`：画布 40px 网格纸背景(与 vben 同款 base64 SVG)、
+    调色板白底/1px边框/圆角2px/阴影、调色板条目 hover 右侧 title 提示
+  · 画布高度 620→780px（vben 为 800px）
+  · 查看器高亮配色对齐 vben(theme/index.scss)：进行中→蓝 #409eff(原红)、
+    已完成→绿 #4eb819、新增被拒绝→红 #f56c6c、已取消→灰 #909399，连线随状态变色
+  · 实测：网格背景生效、设计器节点选中/属性面板/连线上+加节点(6→8)均正常；
+    构建 0 警告；BPM E2E 5 通过；模型未污染
+
 - **2026-08-25 (23)** **流程设计画布工具栏对齐 vben `bpmn-process-designer`**：
   · 顶部工具栏重构为 vben 分组：文件控制(打开/下载XML·SVG·BPMN/预览XML·JSON)、
     对齐控制(左/右/上/下/水平/垂直居中)、缩放控制(缩小/百分比/放大/重置)、
