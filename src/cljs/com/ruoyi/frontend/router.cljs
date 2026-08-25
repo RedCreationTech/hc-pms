@@ -40,6 +40,7 @@
         "office/bpm/task-manager" :bpm-task-manager
         "office/bpm/instance-ops" :bpm-instance-ops
         "office/bpm/todo" :bpm-todo
+        "office/bpm/start" :bpm-start
         "office/bpm/done" :bpm-done
         "office/oa/leave" :leave
         "office/oa/reimburse" :reimburse
@@ -91,6 +92,7 @@
    :bpm-task-manager "流程任务管理"
    :bpm-instance-ops "流程实例运维"
    :bpm-todo "我的待办"
+   :bpm-start "发起流程"
    :bpm-done "我的已办"
    :leave "请假申请"
    :reimburse "报销申请"

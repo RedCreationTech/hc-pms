@@ -820,6 +820,14 @@
   (request {:method :get :uri "/business/bpm/model" :params params
             :on-success on-success :on-error on-error}))
 
+(defn bpm-get-form [id on-success on-error]
+  (request {:method :get :uri (str "/business/bpm/form/" id)
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-list-forms [params on-success on-error]
+  (request {:method :get :uri "/business/bpm/form" :params params
+            :on-success on-success :on-error on-error}))
+
 (defn bpm-deploy-model [id on-success on-error]
   (request {:method :post :uri (str "/business/bpm/model/deploy/" id)
             :on-success on-success :on-error on-error}))
