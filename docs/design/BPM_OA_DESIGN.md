@@ -270,6 +270,30 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ---
 
+- **2026-08-26 (43)** **覆盖率 + 收尾**：Cloverage 行62.57%/分支74.75%(target/coverage/index.html)；
+  双库(SQLite/MySQL) 349 测试 0 失败；BPM E2E 5 通过；开发环境恢复 SQLite。
+- **2026-08-26 (42)** **MySQL 双库测试通过 + 兼容性修复**：bpm-mgmt 迁移 MySQL 版 TEXT NOT NULL DEFAULT
+  → VARCHAR(255)；202608260001 迁移按 `--;;` 分隔每条 ALTER(MySQL JDBC 单语句)；list-users dept_ids
+  空数组→[0] 哨兵(HugSQL :v* 空数组生成 IN () 语法错误)；MySQL 本地实例 349 测试 0 失败。
+- **2026-08-26 (41)** **字段权限：模型表单字段 隐藏/只读/编辑**：biz_bpm_model 加 fields_permission 列；
+  模型表单 tab 字段权限配置表格；form_render 支持 :field-permissions(hidden 不渲染/readonly 禁用)；
+  发起页应用；修复 js->clj keywordize 导致权限 key 与字段名不匹配；实测 readonly 禁用/hidden 隐藏。
+- **2026-08-26 (40)** **条件规则编辑器 + 网关配置入口修复**：条件分支配置支持表达式/规则双模式
+  (字段+运算符+值，&& 组合自动生成表达式)；修复重构后网关失去编辑入口(条件标签可点击打开配置)。
+- **2026-08-26 (39)** **发起全链路(二)：审批人自选**：发起页检测 START_USER_SELECT 节点渲染用户多选；
+  提交注入 startUserSelected；后端注入 startUserId/startUserSelected 变量；TaskListener resolver
+  ids→user_name(修正 sequential? 对 ArrayList 为 false)；实测被选用户待办可见。
+- **2026-08-26 (38)** **流程详情页：表单回显+审批历史+流程图追踪**：bpm_instance 重做详情抽屉
+  (Descriptions 基本信息/form_render 表单回显/审批历史时间线含意见/流程图高亮)；instance-history 增强；
+  新增 task-history-of(comment/approved 任务局部变量)；修复 r/with-let 中 dataSource 传 atom 崩溃。
+- **2026-08-26 (37)** **发起流程全链路：通用发起页+动态表单渲染**：bpm_start.cljs(菜单302"发起流程"
+  挂 path=bpm/start)；模型列表→发起弹窗→动态表单渲染(form_render 复用)→填表提交；form_type=1 按
+  form_id 从表单库加载 schema；修复 CLJS System/currentTimeMillis→js/Date.now。
+- **2026-08-26 (36)** **BPMN 修改流程自洽(二)：默认线+抄送+驳回+动态策略**：网关 default 属性+无条件
+  默认线(此前条件不满足卡住)；抄送节点 candidateUsers/Groups 运行时；驳回 RETURN_USER_TASK 用
+  ChangeActivityStateBuilder 迁移回目标节点(驳回到自身=重新激活)；动态策略 TaskListener(engine 注册
+  bpmTaskListener bean + bpm-service 注入 resolver，发起人部门负责人实测)；修复 nodeConfig 解析用本地名
+  properties/property；DelegateTask 用 Flowable8 新包名。
 - **2026-08-26 (35)** **BPMN 修改流程自洽：process id + Flowable identity 同步**：
   · tree->bpmn 支持 model-key 参数：BPMN process id 用模型 key（此前固定 "p" 导致多模型部署 key 冲突）
   · 候选策略运行时映射：USER→candidateUsers(用户名)，ROLE/DEPT_MEMBER/POST→candidateGroups(role:id/dept:id/post:id)，
