@@ -8,6 +8,8 @@
    [clojure.string :as str]
    [reagent.hooks :as hooks]))
 
+(declare style-nodes!)
+
 (defn- empty-bpmn
   "空白 BPMN 定义（含 start + 结束事件，并带 BPMNDI 图元，bpmn-js 才能渲染）。"
   []
@@ -440,6 +442,7 @@
                             scale (.-scale (.viewbox canvas))]
                         (on-zoom-change (str (int (* (or scale 1) 100)) "%"))))))
              (import-with-fallback m xml on-error)
+             (js/setTimeout #(style-nodes! m) 800)
              (js/setTimeout #(add-plus-overlays! m on-add-node) 800)
              (fn []
                (set! (.-current modeler-ref) nil)
@@ -479,6 +482,28 @@
 (defn fit-viewport!
   [^js modeler]
   (when modeler (.zoom (.get modeler "canvas") "fit-viewport")))
+
+(defn style-nodes!
+  "按 BPMN 元素类型给画布节点着色（参照 vben simple-process-design 节点配色）。
+   给每个 shape 的 DOM 元素加 bpmn-node-<type> 类，配合 CSS 着色。"
+  [^js modeler]
+  (when modeler
+    (let [^js registry (.get modeler "elementRegistry")
+          ^js canvas (.get modeler "canvas")]
+      (doseq [^js el (array-seq (.getAll registry))]
+        (let [bo (.-businessObject el)
+              t (when bo (.-$type bo))]
+          (when (and t (not (clojure.string/includes? (str t) "SequenceFlow"))
+                     (not (clojure.string/includes? (str t) "Process"))
+                     (not (clojure.string/includes? (str t) "Collaboration")))
+            (let [gfx (.getGraphics canvas (.-id el))
+                  cls (-> (str t)
+                          (clojure.string/replace #"^bpmn:" "")
+                          (clojure.string/replace #"([a-z0-9])([A-Z])" "$1-$2")
+                          clojure.string/lower-case)]
+              (when gfx
+                (let [existing (or (.getAttribute gfx "class") "")]
+                  (.setAttribute gfx "class" (str existing " bpmn-node-" cls)))))))))))
 
 (defn save-svg!
   "保存为 SVG 字符串，回调 (on-saved svg)。"

@@ -272,6 +272,18 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-25 (27)** **画布节点样式与布局参照 vben simple-process-design**：
+  · 新增 `style-nodes!`：import 后遍历 elementRegistry，按 BPMN 类型给每个 shape 加
+    `bpmn-node-<type>` 类（UserTask/Gateway/Event/CallActivity/SubProcess 等）
+  · CSS 节点配色对齐 vben：审批人/办理人/抄送(橙 #ff943e)、条件(绿 #67c23a)、
+    并行(紫 #626aef)、包容(蓝 #345da2)、延迟(红 #e47470)、触发(蓝 #3373d2)、
+    子流程(棕 #996633)、开始/结束(灰 #676565)；UserTask/CallActivity/SubProcess
+    圆角 8px 卡片；节点 hover 边框蓝 #0089ff
+  · 插入/导入/重绘后重新调用 style-nodes!，新节点同样着色
+  · 布局固定：插入节点固定尺寸(任务100x80/网关50x50/事件36x36)且位于连线中点
+  · 实测：所有节点含 class 并正确着色(审批人橙/网关绿/事件灰)，新插入网关也着色；
+    BPM E2E 5通过；后端349测试0失败
+
 - **2026-08-25 (26)** **修复连线上'+'浮层菜单与插入节点两个 bug**：
   · 浮层菜单显示时间太短：改为 hide-timer(800ms) + 菜单自身 hover 保持显示、
     离开菜单才延迟隐藏（原 300ms setTimeout，鼠标从'+'移到菜单时易消失）

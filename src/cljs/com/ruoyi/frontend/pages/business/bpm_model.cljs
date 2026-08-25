@@ -203,8 +203,13 @@
                   (fn [conn type name]
                     (bpmn/insert-node! (.-current modeler-ref) conn type name
                                        (fn [e] (antd/error! e))
-                                       #(bpmn/add-plus-overlays! (.-current modeler-ref) @add-handle))
+                                       #(do (bpmn/add-plus-overlays! (.-current modeler-ref) @add-handle)
+                                            (bpmn/style-nodes! (.-current modeler-ref))))
                     (antd/success! (str "已添加" name))))
+        ;; 导入/重绘/插入后：重建浮层并重新着色
+        after-import (fn []
+                       (bpmn/add-plus-overlays! (.-current modeler-ref) @add-handle)
+                       (bpmn/style-nodes! (.-current modeler-ref)))
         handle-preview (fn [ptype]
                          (set-preview-type! ptype)
                          (bpmn/save-bpmn! (.-current modeler-ref)
@@ -229,11 +234,11 @@
                                            (fn [e] (antd/error! e))))
         handle-import-file (fn [file]
                              (bpmn/import-local-file! (.-current modeler-ref) file
-                                                      #(bpmn/add-plus-overlays! (.-current modeler-ref) @add-handle)
+                                                      #(after-import)
                                                       (fn [e] (antd/error! e))))
         handle-restart (fn []
                          (bpmn/new-diagram! (.-current modeler-ref)
-                                            #(bpmn/add-plus-overlays! (.-current modeler-ref) @add-handle)
+                                            #(after-import)
                                             (fn [e] (antd/error! e))))]
     (hooks/use-effect
      (fn []
