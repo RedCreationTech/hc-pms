@@ -17,7 +17,7 @@
            start-user (some-> (.getVariable ^org.flowable.task.service.delegate.DelegateTask task "startUserId") str)
            users (query-fn :list-users {:user_name nil :phonenumber nil :status nil
                                         :begin_time nil :end_time nil :dept_filter_enabled 0
-                                        :dept_ids [] :data_user_id nil :page_size 100000 :offset 0})
+                                        :dept_ids [0] :data_user_id nil :page_size 100000 :offset 0})
            depts (query-fn :list-all-depts {})
            user-dept (fn [uname] (:dept_id (first (filter #(= uname (str (:user_name %))) users))))
            leaders-of (fn [dept-id]
@@ -158,7 +158,7 @@
   [query-fn]
   {:users (query-fn :list-users {:user_name nil :phonenumber nil :status nil
                                  :begin_time nil :end_time nil :dept_filter_enabled 0
-                                 :dept_ids [] :data_user_id nil :page_size 100000 :offset 0})
+                                 :dept_ids [0] :data_user_id nil :page_size 100000 :offset 0})
    :roles (query-fn :list-roles {:role_name nil :role_key nil :status nil})
    :depts (query-fn :list-all-depts {})
    :posts (query-fn :list-posts {:post_code nil :post_name nil :status nil})
@@ -190,7 +190,7 @@
   (let [m (query-fn :bpm/find-model-by-id {:model_id id})
         users (query-fn :list-users {:user_name nil :phonenumber nil :status nil
                                      :begin_time nil :end_time nil :dept_filter_enabled 0
-                                     :dept_ids [] :data_user_id nil :page_size 100000 :offset 0})
+                                     :dept_ids [0] :data_user_id nil :page_size 100000 :offset 0})
         user-map (into {} (map (juxt (comp str :user_id) :user_name)) users)
         xml (bpm-flow/tree->bpmn (clojure.walk/keywordize-keys tree) (:model_key m) user-map)]
     (query-fn :bpm/update-model
