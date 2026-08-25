@@ -32,24 +32,33 @@
       (aget js/window "BpmnJS")))
 
 (defn selected-props
-  "读取选中元素属性，返回 {:id :type :name :candidate-users}。"
+  "读取选中元素属性，返回 {:id :type :name :candidate-users :condition}。"
   [^js element]
   (when element
-    (let [bo (.-businessObject element)]
+    (let [bo (.-businessObject element)
+          ce (.-conditionExpression bo)]
       {:id (.-id element)
        :type (.-$type bo)
        :name (.-name bo)
-       :candidate-users (aget (.-$attrs bo) "flowable:candidateUsers")})))
+       :candidate-users (aget (.-$attrs bo) "flowable:candidateUsers")
+       :condition (when ce (.-body ce))})))
 
 (defn update-selected!
-  "更新选中元素属性（名称/审批人）。candidate-users 写 flowable:candidateUsers 属性。"
-  [^js modeler ^js element {:keys [name candidate-users]}]
+  "更新选中元素属性（名称/审批人/条件）。candidate-users 写 flowable:candidateUsers；condition 写 conditionExpression.body。"
+  [^js modeler ^js element {:keys [name candidate-users condition]}]
   (when element
     (let [modeling (.get modeler "modeling")
           bo (.-businessObject element)
           attrs (.-$attrs bo)]
       (when (and candidate-users (not= candidate-users (aget attrs "flowable:candidateUsers")))
         (aset attrs "flowable:candidateUsers" candidate-users))
+      (when condition
+        (if-let [ce (.-conditionExpression bo)]
+          (set! (.-body ce) condition)
+          ;; 无 conditionExpression 时，用 bpmn factory 创建
+          (let [moddle (.get modeler "moddle")
+                ce (.create moddle "bpmn:FormalExpression" #js {:body condition})]
+            (.updateProperties modeling element #js {:conditionExpression ce}))))
       (.updateProperties modeling element #js {:name name}))))
 
 (defn- import-with-fallback
@@ -99,3 +108,25 @@
     (let [p (.saveXML modeler #js {:format true})]
       (-> (.then p (fn [result] (on-saved (.-xml result))))
           (.catch (fn [err] (when on-error (on-error (str "保存BPMN失败: " (.-message err))))))))))
+
+;; ── 工具栏操作 ──────────────────────────────────────────────────────
+
+(defn undo!
+  [^js modeler]
+  (when modeler (.undo (.get modeler "commandStack"))))
+
+(defn redo!
+  [^js modeler]
+  (when modeler (.redo (.get modeler "commandStack"))))
+
+(defn zoom-in!
+  [^js modeler]
+  (when modeler (.zoom (.get modeler "canvas") 1.25)))
+
+(defn zoom-out!
+  [^js modeler]
+  (when modeler (.zoom (.get modeler "canvas") 0.8)))
+
+(defn fit-viewport!
+  [^js modeler]
+  (when modeler (.zoom (.get modeler "canvas") "fit-viewport")))
