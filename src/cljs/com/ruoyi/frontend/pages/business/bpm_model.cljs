@@ -33,15 +33,46 @@
                                         :on-click #(rf/dispatch [:bpm/model-deploy (:model_id model)])}
                            "部署"]])))}])
 
+;; 右侧属性面板：编辑选中审批节点的名称/审批人
+(defn- props-panel
+  [{:keys [selected sp name set-name! cand set-cand! on-apply]}]
+  [:div {:style {:width 300 :border "1px solid #eee" :borderRadius 4 :padding 12 :background "#fff"}}
+   (if (and selected (= "bpmn:UserTask" (:type sp)))
+     [:div
+      [:h4 {:style {:margin "0 0 12px"}} "审批节点属性"]
+      [antd/form {:layout "vertical"}
+       [antd/form-item {:label "节点名称"}
+        [antd/input {:value name :placeholder "如: 部门经理审批"
+                     :onChange (fn [e] (set-name! (-> e .-target .-value)))}]]
+       [antd/form-item {:label "审批人 (登录名, 逗号分隔)"}
+        [antd/input {:value cand :placeholder "如: admin,manager"
+                     :onChange (fn [e] (set-cand! (-> e .-target .-value)))}]]
+       [antd/button {:type "primary" :block true :on-click on-apply}
+        "应用到节点"]]]
+     [:div {:style {:color "#999" :textAlign "center" :paddingTop 40}}
+      (if selected "请选择审批节点(UserTask)" "点击审批节点编辑属性")])])
+
 (defn- designer-modal []
   (let [visible? @(rf/subscribe [:bpm-designer/visible?])
         current @(rf/subscribe [:bpm-designer/current])
         xml @(rf/subscribe [:bpm-designer/bpmn-xml])
         loading? @(rf/subscribe [:bpm-designer/loading?])
-        modeler-ref (hooks/use-ref nil)]
+        modeler-ref (hooks/use-ref nil)
+        [selected set-selected!] (hooks/use-state nil)
+        [sp set-sp!] (hooks/use-state nil)
+        [name set-name!] (hooks/use-state "")
+        [cand set-cand!] (hooks/use-state "")]
+    (hooks/use-effect
+     (fn []
+       (when selected
+         (let [p (bpmn/selected-props selected)]
+           (set-name! (or (:name p) ""))
+           (set-cand! (or (:candidate-users p) ""))))
+       js/undefined)
+     [selected])
     [antd/modal {:title (str "流程设计 · " (:model_name current))
                  :open visible?
-                 :width 1000
+                 :width 1200
                  :destroyOnHidden true
                  :footer (r/as-element
                           [antd/space
@@ -50,12 +81,23 @@
                                          :icon (r/as-element [:> SaveOutlined])
                                          :on-click #(bpmn/save-bpmn! (.-current modeler-ref)
                                                                      (fn [x] (rf/dispatch [:bpm/designer-save x]))
-                                                                     (fn [e] (antd/error! e)))} "保存流程"]])
+                                                                     (fn [e] (antd/error! e)))}
+                            "保存流程"]])
                  :onCancel #(rf/dispatch [:bpm/designer-close])}
      (if loading?
        [:div {:style {:padding 48 :textAlign "center"}} "加载中..."]
-       [bpmn/bpmn-modeler {:xml xml :modeler-ref modeler-ref
-                           :on-error (fn [e] (antd/error! e))}])]))
+       [:div {:style {:display "flex"}}
+        [:div {:style {:flex 1 :marginRight 12}}
+         [bpmn/bpmn-modeler {:xml xml :modeler-ref modeler-ref
+                             :on-error (fn [e] (antd/error! e))
+                             :on-select (fn [el]
+                                          (set-selected! el)
+                                          (set-sp! (when el (bpmn/selected-props el))))}]]
+        [props-panel {:selected selected :sp sp :name name :set-name! set-name!
+                      :cand cand :set-cand! set-cand!
+                      :on-apply #(do (bpmn/update-selected! (.-current modeler-ref) selected
+                                                             {:name name :candidate-users cand})
+                                     (antd/success! "已应用到当前节点"))}]])]))
 
 (defn bpm-model-page []
   (let [items @(rf/subscribe [:bpm-model/items])

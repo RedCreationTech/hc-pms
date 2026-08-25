@@ -1,7 +1,8 @@
 (ns com.ruoyi.frontend.components.bpmn-modeler
   "bpmn-js 流程建模器封装（Reagent hook 组件）。
    通过 index.html 引入 UMD 构建，使用全局 BpmnJS，避免 shadow-cljs 打包 bpmn-js。
-   容器 div 用命令式创建并挂到 host 下，规避 React 对 ref 容器 reconciliation 造成 bpmn-js 内部错误。"
+   容器 div 用命令式创建并挂到 host 下，规避 React 对 ref 容器 reconciliation 造成 bpmn-js 内部错误。
+   支持选中节点(on-select)回调，供外部属性面板编辑。"
   (:require
    [reagent.hooks :as hooks]))
 
@@ -30,6 +31,27 @@
   (or (js* "globalThis.BpmnJS")
       (aget js/window "BpmnJS")))
 
+(defn selected-props
+  "读取选中元素属性，返回 {:id :type :name :candidate-users}。"
+  [^js element]
+  (when element
+    (let [bo (.-businessObject element)]
+      {:id (.-id element)
+       :type (.-$type bo)
+       :name (.-name bo)
+       :candidate-users (aget (.-$attrs bo) "flowable:candidateUsers")})))
+
+(defn update-selected!
+  "更新选中元素属性（名称/审批人）。candidate-users 写 flowable:candidateUsers 属性。"
+  [^js modeler ^js element {:keys [name candidate-users]}]
+  (when element
+    (let [modeling (.get modeler "modeling")
+          bo (.-businessObject element)
+          attrs (.-$attrs bo)]
+      (when (and candidate-users (not= candidate-users (aget attrs "flowable:candidateUsers")))
+        (aset attrs "flowable:candidateUsers" candidate-users))
+      (.updateProperties modeling element #js {:name name}))))
+
 (defn- import-with-fallback
   "导入 BPMN，失败（如缺 BPMNDI）时回退空白画布。返回 promise。"
   [^js modeler xml on-error]
@@ -41,8 +63,8 @@
               (.importXML modeler (empty-bpmn))))))
 
 (defn bpmn-modeler
-  "渲染 bpmn-js 建模器。参数: {:xml 现有BPMN :modeler-ref use-ref(存实例) :on-error fn}"
-  [{:keys [xml modeler-ref on-error]}]
+  "渲染 bpmn-js 建模器。参数: {:xml 现有BPMN :modeler-ref use-ref(存实例) :on-error fn :on-select fn}"
+  [{:keys [xml modeler-ref on-error on-select]}]
   (let [host-ref (hooks/use-ref nil)]
     (hooks/use-effect
      (fn []
@@ -55,6 +77,11 @@
                  _ (.appendChild host container)
                  m (BpmnJS. #js {:container container})]
              (set! (.-current modeler-ref) m)
+             (.on m "selection.changed"
+                  (fn [^js e]
+                    (let [sel (aget e "newSelection")
+                          el (when (and sel (.-length sel)) (aget sel 0))]
+                      (when on-select (on-select el)))))
              (import-with-fallback m xml on-error)
              (fn []
                (set! (.-current modeler-ref) nil)
