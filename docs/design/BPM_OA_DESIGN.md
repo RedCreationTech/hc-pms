@@ -272,6 +272,16 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-25 (31)** **HTML/flex 流程设计器完善工具栏/居中/添加节点**：
+  · 流程整体水平居中（.bpm-flow-root align-items:center + width:100%，实测卡片/胶囊中心=页面中心）
+  · 顶部工具栏(.bpm-toolbar)：流程标题 + 添加节点/缩放±/百分比/重置/保存按钮
+  · 实现添加节点：工具栏"添加"或连线蓝色"＋" → 弹窗列 9 种节点(圆形图标+文字，对齐 vben handler-item)，
+    选中在末尾/该位置插入新节点(原节点作为其 child)
+  · 修复："添加"用 find-end 定位末尾，避免错误替换 root；
+    修正误判为"靠左/缺分支"——实为 E2E 遗留 itLeave 简化模型排前所致
+  · 实测：reimburseApproval 完整渲染 start→审批→gw0(横向财务/驳回)→end，居中，
+    添加节点 1→2；BPM E2E 5通过；后端349测试0失败
+
 - **2026-08-25 (30)** **HTML/flex 流程设计器样式完善（对齐 vben node-box）**：
   · 卡片加内容区(.bpm-node-content)：显示 showText 或"请配置X"提示(对齐 vben node-content)
   · 卡片 hover 显示工具栏(.bpm-node-toolbar)：红色删除按钮(可删除节点，子节点上提)

@@ -92,6 +92,14 @@
 
 ;; ── 设计器组件（r/atom + with-let component-did-mount）────────────────
 
+(def ^:private add-node-types
+  "可添加的节点类型（对齐 vben node-handler）。"
+  [{:type "USER_TASK_NODE" :label "审批人"} {:type "USER_TASK_NODE" :label "办理人"}
+   {:type "COPY_TASK_NODE" :label "抄送"} {:type "CONDITION_BRANCH_NODE" :label "条件分支"}
+   {:type "PARALLEL_BRANCH_NODE" :label "并行分支"} {:type "INCLUSIVE_BRANCH_NODE" :label "包容分支"}
+   {:type "DELAY_TIMER_NODE" :label "延迟器"} {:type "TRIGGER_NODE" :label "触发器"}
+   {:type "CHILD_PROCESS_NODE" :label "子流程"}])
+
 (defn bpm-flow-designer
   "HTML/flex 流程编辑器。参数 {:model-id :on-saved}。"
   [{:keys [model-id on-saved]}]
@@ -100,6 +108,7 @@
                edit-path (r/atom nil)
                edit-name (r/atom "")
                add-path (r/atom nil)
+               scale (r/atom 1)
                _ (when model-id
                    (api/bpm-model-tree model-id
                                        (fn [res]
@@ -109,25 +118,50 @@
                open-edit (fn [path] (reset! edit-path path) (reset! edit-name (get-in @tree (conj path :name))))
                apply-edit (fn [] (when-let [p @edit-path] (swap! tree assoc-in (conj p :name) @edit-name)) (reset! edit-path nil))
                delete-node (fn [path]
-                             (when (and (seq path) (not (empty? path)))
+                             (when (seq path)
                                (let [child (:child-node (get-in @tree path))]
                                  (swap! tree assoc-in (vec path) child))))
+               add-node (fn [path type label]
+                          (when path
+                            (let [new-node {:id (str "n" (subs (str (random-uuid)) 0 8)) :type type :name label}]
+                              (swap! tree update-in (vec path)
+                                     (fn [existing] (assoc new-node :child-node existing))))
+                            (reset! add-path nil)))
+               find-end (fn find-end [node path]
+                          (if (:child-node node)
+                            (find-end (:child-node node) (conj path :child-node))
+                            (conj path :child-node)))
                save-tree (fn [] (when (and model-id @tree)
                                   (api/bpm-save-model-tree model-id @tree
                                                            (fn [_] (antd/success! "流程已保存") (when on-saved (on-saved)))
                                                            (fn [e] (antd/error! (str "保存失败: " e))))))]
     [:div
-     [:div {:style {:display "flex" :justifyContent "flex-end" :gap 8 :marginBottom 8}}
-      [antd/button {:size "small" :type "primary" :on-click save-tree} "保存流程"]]
+     [:div.bpm-toolbar
+      [:span.bpm-toolbar-title "流程设计"]
+      [:div.bpm-toolbar-right
+       [antd/button {:size "small" :on-click #(reset! add-path (find-end @tree []))} "＋ 添加节点"]
+       [antd/button {:size "small" :on-click #(swap! scale (fn [s] (max 0.5 (- s 0.1))))} "−"]
+       [:span.bpm-zoom (str (int (* @scale 100)) "%")]
+       [antd/button {:size "small" :on-click #(swap! scale (fn [s] (min 2 (+ s 0.1))))} "＋"]
+       [antd/button {:size "small" :on-click #(reset! scale 1)} "重置"]
+       [antd/button {:size "small" :type "primary" :on-click save-tree} "保存流程"]]]
      (if @loading
        [:div {:style {:padding 48 :textAlign "center"}} "加载中..."]
        [:div.bpm-flow-root
         (when-let [t @tree]
-          (render-node t [] open-edit (fn [path] (reset! add-path path)) delete-node))])
+          [:div {:style {:transform (str "scale(" @scale ")") :transformOrigin "50% 0"}}
+           (render-node t [] open-edit (fn [path] (reset! add-path path)) delete-node)])])
      [antd/modal {:title "编辑节点" :open (boolean @edit-path) :footer nil
                   :width 420 :onCancel #(reset! edit-path nil)}
       [antd/input {:value @edit-name :onChange (fn [e] (reset! edit-name (-> e .-target .-value)))}]
       [antd/button {:type "primary" :block true :style {:marginTop 12} :on-click apply-edit} "确定"]]
      [antd/modal {:title "在此添加节点" :open (boolean @add-path) :footer nil
-                  :width 400 :onCancel #(reset! add-path nil)}
-      [:div {:style {:color "#666"}} "添加节点功能开发中。"]]]))
+                  :width 480 :onCancel #(reset! add-path nil)}
+      [:div.bpm-addmenu
+       (doall
+        (for [{:keys [type label]} add-node-types]
+          ^{:key label}
+          [:div.bpm-addmenu-item {:on-click #(add-node @add-path type label)}
+           [:div.bpm-addmenu-icon {:style {:color (get node-color type "#909399")}}
+            [:i {:class (str "iconfont " (get node-icon type "bpmn-icon-task"))}]]
+           [:span label]]))]]]))
