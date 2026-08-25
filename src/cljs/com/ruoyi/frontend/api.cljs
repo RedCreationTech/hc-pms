@@ -946,3 +946,25 @@
 (defn business-report-stats [on-success on-error]
   (request {:method :get :uri "/business/report/stats"
             :on-success on-success :on-error on-error}))
+
+;; ─── BPM 管理套件（通用 CRUD）─────────────────────────────────────
+(defn bpmmgmt-list [module params on-success on-error]
+  (request {:method :get :uri (str "/business/bpm/" module) :params params
+            :on-success on-success :on-error on-error}))
+(defn bpmmgmt-create [module params on-success on-error]
+  (request {:method :post :uri (str "/business/bpm/" module) :params params
+            :on-success on-success :on-error on-error}))
+(defn bpmmgmt-update [module id params on-success on-error]
+  (request {:method :put :uri (str "/business/bpm/" module "/" id) :params params
+            :on-success on-success :on-error on-error}))
+(defn bpmmgmt-delete [module id on-success on-error]
+  (request {:method :delete :uri (str "/business/bpm/" module "/" id)
+            :on-success on-success :on-error on-error}))
+
+;; ─── BPM 任务管理 / 实例运维 ──────────────────────────────────────
+(defn bpm-all-tasks [on-success on-error]
+  (request {:method :get :uri "/business/bpm/task/all"
+            :on-success on-success :on-error on-error}))
+(defn bpm-instance-op [pid op on-success on-error]
+  (request {:method :post :uri (str "/business/bpm/instance/" pid "/" op) :params {:reason "运维"}
+            :on-success on-success :on-error on-error}))

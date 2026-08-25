@@ -443,3 +443,91 @@ SELECT COUNT(*) AS total FROM biz_hrm_employee
 -- :name stats/customer-total :? :1
 SELECT COUNT(*) AS total FROM biz_crm_customer
 --;;
+
+-- ================= BPM 管理：用户分组 =================
+-- :name bpmmgmt/group-list :? :*
+SELECT group_id, name, description, user_ids, status, create_time, remark FROM biz_bpm_user_group
+WHERE (:name IS NULL OR INSTR(name, :name) > 0) ORDER BY group_id DESC LIMIT :page_size OFFSET :offset
+--;;
+-- :name bpmmgmt/group-count :? :1
+SELECT COUNT(*) AS total FROM biz_bpm_user_group WHERE (:name IS NULL OR INSTR(name, :name) > 0)
+--;;
+-- :name bpmmgmt/find-group-by-id :? :1
+SELECT * FROM biz_bpm_user_group WHERE group_id = :group_id
+--;;
+-- :name bpmmgmt/insert-group :! :n
+INSERT INTO biz_bpm_user_group (name, description, user_ids, status, create_by, create_time, remark)
+VALUES (:name, :description, :user_ids, :status, :create_by, CURRENT_TIMESTAMP, :remark)
+--;;
+-- :name bpmmgmt/update-group :! :n
+UPDATE biz_bpm_user_group SET name=:name, description=:description, user_ids=:user_ids, status=:status, update_by=:update_by, update_time=CURRENT_TIMESTAMP, remark=:remark WHERE group_id=:group_id
+--;;
+-- :name bpmmgmt/delete-group :! :n
+DELETE FROM biz_bpm_user_group WHERE group_id = :group_id
+--;;
+
+-- ================= BPM 管理：流程监听器 =================
+-- :name bpmmgmt/listener-list :? :*
+SELECT listener_id, name, type, event, listener, status, create_time, remark FROM biz_bpm_listener
+WHERE (:name IS NULL OR INSTR(name, :name) > 0) AND (:type IS NULL OR type = :type) ORDER BY listener_id DESC LIMIT :page_size OFFSET :offset
+--;;
+-- :name bpmmgmt/listener-count :? :1
+SELECT COUNT(*) AS total FROM biz_bpm_listener WHERE (:name IS NULL OR INSTR(name, :name) > 0) AND (:type IS NULL OR type = :type)
+--;;
+-- :name bpmmgmt/find-listener-by-id :? :1
+SELECT * FROM biz_bpm_listener WHERE listener_id = :listener_id
+--;;
+-- :name bpmmgmt/insert-listener :! :n
+INSERT INTO biz_bpm_listener (name, type, event, listener, status, create_by, create_time, remark)
+VALUES (:name, :type, :event, :listener, :status, :create_by, CURRENT_TIMESTAMP, :remark)
+--;;
+-- :name bpmmgmt/update-listener :! :n
+UPDATE biz_bpm_listener SET name=:name, type=:type, event=:event, listener=:listener, status=:status, update_by=:update_by, update_time=CURRENT_TIMESTAMP, remark=:remark WHERE listener_id=:listener_id
+--;;
+-- :name bpmmgmt/delete-listener :! :n
+DELETE FROM biz_bpm_listener WHERE listener_id = :listener_id
+--;;
+
+-- ================= BPM 管理：流程表达式 =================
+-- :name bpmmgmt/expression-list :? :*
+SELECT expression_id, name, format, expression, status, create_time, remark FROM biz_bpm_expression
+WHERE (:name IS NULL OR INSTR(name, :name) > 0) ORDER BY expression_id DESC LIMIT :page_size OFFSET :offset
+--;;
+-- :name bpmmgmt/expression-count :? :1
+SELECT COUNT(*) AS total FROM biz_bpm_expression WHERE (:name IS NULL OR INSTR(name, :name) > 0)
+--;;
+-- :name bpmmgmt/find-expression-by-id :? :1
+SELECT * FROM biz_bpm_expression WHERE expression_id = :expression_id
+--;;
+-- :name bpmmgmt/insert-expression :! :n
+INSERT INTO biz_bpm_expression (name, format, expression, status, create_by, create_time, remark)
+VALUES (:name, :format, :expression, :status, :create_by, CURRENT_TIMESTAMP, :remark)
+--;;
+-- :name bpmmgmt/update-expression :! :n
+UPDATE biz_bpm_expression SET name=:name, format=:format, expression=:expression, status=:status, update_by=:update_by, update_time=CURRENT_TIMESTAMP, remark=:remark WHERE expression_id=:expression_id
+--;;
+-- :name bpmmgmt/delete-expression :! :n
+DELETE FROM biz_bpm_expression WHERE expression_id = :expression_id
+--;;
+
+-- ================= BPM 管理：流程设置 =================
+-- :name bpmmgmt/settings-list :? :*
+SELECT settings_id, name, value, description, status, create_time, remark FROM biz_bpm_settings
+WHERE (:name IS NULL OR INSTR(name, :name) > 0) ORDER BY settings_id DESC LIMIT :page_size OFFSET :offset
+--;;
+-- :name bpmmgmt/settings-count :? :1
+SELECT COUNT(*) AS total FROM biz_bpm_settings WHERE (:name IS NULL OR INSTR(name, :name) > 0)
+--;;
+-- :name bpmmgmt/find-settings-by-id :? :1
+SELECT * FROM biz_bpm_settings WHERE settings_id = :settings_id
+--;;
+-- :name bpmmgmt/insert-settings :! :n
+INSERT INTO biz_bpm_settings (name, value, description, status, create_by, create_time, remark)
+VALUES (:name, :value, :description, :status, :create_by, CURRENT_TIMESTAMP, :remark)
+--;;
+-- :name bpmmgmt/update-settings :! :n
+UPDATE biz_bpm_settings SET name=:name, value=:value, description=:description, status=:status, update_by=:update_by, update_time=CURRENT_TIMESTAMP, remark=:remark WHERE settings_id=:settings_id
+--;;
+-- :name bpmmgmt/delete-settings :! :n
+DELETE FROM biz_bpm_settings WHERE settings_id = :settings_id
+--;;

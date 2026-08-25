@@ -30,6 +30,15 @@
         "system/user/profile" :profile
         "office/bpm/model" :bpm-model
         "office/bpm/instance" :bpm-instance
+        "office/bpm/form" :bpm-form
+        "office/bpm/category" :bpm-category
+        "office/bpm/user-group" :bpm-user-group
+        "office/bpm/listener" :bpm-listener
+        "office/bpm/expression" :bpm-expression
+        "office/bpm/settings" :bpm-settings
+        "office/bpm/instance-manager" :bpm-instance-manager
+        "office/bpm/task-manager" :bpm-task-manager
+        "office/bpm/instance-ops" :bpm-instance-ops
         "office/bpm/todo" :bpm-todo
         "office/bpm/done" :bpm-done
         "office/oa/leave" :leave
@@ -72,6 +81,15 @@
    :office "办公"
    :bpm-model "流程模型"
    :bpm-instance "我的流程"
+   :bpm-form "流程表单"
+   :bpm-category "流程分类"
+   :bpm-user-group "用户分组"
+   :bpm-listener "流程监听器"
+   :bpm-expression "流程表达式"
+   :bpm-settings "流程设置"
+   :bpm-instance-manager "流程实例管理"
+   :bpm-task-manager "流程任务管理"
+   :bpm-instance-ops "流程实例运维"
    :bpm-todo "我的待办"
    :bpm-done "我的已办"
    :leave "请假申请"

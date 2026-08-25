@@ -272,3 +272,14 @@
        (remove nil?)
        distinct
        vec))
+
+(defn all-tasks
+  "全部运行中任务（管理员视图）。"
+  [^ProcessEngine engine]
+  (mapv task->map (.list (.createTaskQuery (.getTaskService engine)))))
+
+(defn terminate!
+  "终止流程实例（运维操作）。"
+  [^ProcessEngine engine process-instance-id reason]
+  (.deleteProcessInstance (.getRuntimeService engine) process-instance-id (or reason "运维终止"))
+  true)

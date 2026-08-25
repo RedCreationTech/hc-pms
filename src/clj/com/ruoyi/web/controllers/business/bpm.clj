@@ -176,3 +176,25 @@
                    to-user (get-in request [:body-params :to_user])]
                (bpm-core/transfer! (:engine bpm-service) task-id (current-user request) to-user)
                (ok nil))))
+
+;; ── 流程任务管理 / 流程实例运维 ─────────────────────────────────────
+(defn list-all-tasks
+  "全部运行中任务（管理员）。"
+  [{:keys [bpm-service]} request]
+  (wrap-err #(ok {:rows (bpm-core/all-tasks (:engine bpm-service))})))
+
+(defn suspend-instance
+  [{:keys [bpm-service]} request]
+  (wrap-err #(do (bpm-core/suspend! (:engine bpm-service) (get-in request [:path-params :pid]))
+                 (ok nil))))
+
+(defn activate-instance
+  [{:keys [bpm-service]} request]
+  (wrap-err #(do (bpm-core/activate! (:engine bpm-service) (get-in request [:path-params :pid]))
+                 (ok nil))))
+
+(defn terminate-instance
+  [{:keys [bpm-service]} request]
+  (wrap-err #(do (bpm-core/terminate! (:engine bpm-service) (get-in request [:path-params :pid])
+                                      (get-in request [:body-params :reason]))
+                 (ok nil))))

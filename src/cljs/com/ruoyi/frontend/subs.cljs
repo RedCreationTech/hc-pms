@@ -697,3 +697,15 @@
 ;; ─── 办公报表统计 ──────────────────────────────────────────────────
 (rf/reg-sub :report/data (fn [db _] (get-in db [:report :data] nil)))
 (rf/reg-sub :report/loading? (fn [db _] (get-in db [:report :loading?] false)))
+
+;; ─── BPM 管理套件 ──────────────────────────────────────────────────
+(rf/reg-sub :bpmmgmt/items (fn [db [_ m]] (get-in db [:bpmmgmt m :items] [])))
+(rf/reg-sub :bpmmgmt/total (fn [db [_ m]] (get-in db [:bpmmgmt m :total] 0)))
+(rf/reg-sub :bpmmgmt/loading? (fn [db [_ m]] (get-in db [:bpmmgmt m :loading?] false)))
+(rf/reg-sub :bpmmgmt/modal-visible? (fn [db [_ m]] (get-in db [:bpmmgmt m :modal-visible?] false)))
+(rf/reg-sub :bpmmgmt/form-data (fn [db [_ m]] (get-in db [:bpmmgmt m :form-data] {})))
+
+;; ─── BPM 任务管理 ──────────────────────────────────────────────────
+(rf/reg-sub :bpm-all-tasks/items (fn [db _] (get-in db [:bpm-all-tasks :items] [])))
+(rf/reg-sub :bpm-all-tasks/total (fn [db _] (get-in db [:bpm-all-tasks :total] 0)))
+(rf/reg-sub :bpm-all-tasks/loading? (fn [db _] (get-in db [:bpm-all-tasks :loading?] false)))

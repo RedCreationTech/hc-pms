@@ -65,6 +65,15 @@
                                  :bpm-done [:bpm/done-fetch]
                                  :bpm-instance [:bpm/instance-fetch {}]
                                  :bpm-model [:bpm/model-fetch {}]
+                                 :bpm-form [:bpmmgmt/fetch "form" {}]
+                                 :bpm-category [:bpmmgmt/fetch "category" {}]
+                                 :bpm-user-group [:bpmmgmt/fetch "user-group" {}]
+                                 :bpm-listener [:bpmmgmt/fetch "listener" {}]
+                                 :bpm-expression [:bpmmgmt/fetch "expression" {}]
+                                 :bpm-settings [:bpmmgmt/fetch "settings" {}]
+                                 :bpm-instance-manager [:bpm/instance-fetch {}]
+                                 :bpm-task-manager [:bpm/all-tasks-fetch]
+                                 :bpm-instance-ops [:bpm/instance-fetch {}]
                                  :hrm-employee [:hrm/fetch {}]
                                  :oa-calendar [:oa-calendar/fetch {}]
                                  :oa-meeting [:oa-meeting/fetch {}]
@@ -2810,3 +2819,77 @@
 (rf/reg-event-fx :report/fetch (fn [{:keys [db]} _] {:db (assoc-in db [:report :loading?] true) :api/business-report-stats nil}))
 (rf/reg-fx :api/business-report-stats (fn [_] (api/business-report-stats (fn [r] (when (= 200 (:code r)) (rf/dispatch [:report/set (:data r)]))) (fn [_] (antd/error! "加载统计失败")))))
 (rf/reg-event-db :report/set (fn [db [_ d]] (assoc db :report {:data d :loading? false})))
+
+;; ─── BPM 管理套件（通用 CRUD，按模块动态存取）─────────────────────
+(rf/reg-event-fx :bpmmgmt/fetch
+                 (fn [{:keys [db]} [_ module params]]
+                   {:db (assoc-in db [:bpmmgmt module :loading?] true)
+                    :api/bpmmgmt-list [module (or params {})]}))
+(rf/reg-fx :api/bpmmgmt-list
+           (fn [[module params]]
+             (api/bpmmgmt-list module params
+                               (fn [r] (when (= 200 (:code r))
+                                         (rf/dispatch [:bpmmgmt/set-list module (:data r)])))
+                               (fn [_] (antd/error! "加载失败")))))
+(rf/reg-event-db :bpmmgmt/set-list
+                 (fn [db [_ module data]]
+                   (let [items (if (sequential? data) data (:rows data []))]
+                     (assoc-in db [:bpmmgmt module]
+                               {:items items :total (:total data 0) :loading? false
+                                :modal-visible? false :editing nil :form-data {}}))))
+(rf/reg-event-db :bpmmgmt/open
+                 (fn [db [_ module]]
+                   (assoc-in db [:bpmmgmt module :modal-visible?] true)))
+(rf/reg-event-db :bpmmgmt/edit
+                 (fn [db [_ module item]]
+                   (-> db (assoc-in [:bpmmgmt module :modal-visible?] true)
+                       (assoc-in [:bpmmgmt module :editing] item)
+                       (assoc-in [:bpmmgmt module :form-data] item))))
+(rf/reg-event-db :bpmmgmt/close
+                 (fn [db [_ module]]
+                   (assoc-in db [:bpmmgmt module :modal-visible?] false)))
+(rf/reg-event-fx :bpmmgmt/submit
+                 (fn [{:keys [db]} [_ module values]]
+                   (let [editing (get-in db [:bpmmgmt module :editing])]
+                     (if editing
+                       {:api/bpmmgmt-update [module (get editing (case module
+                                                                   "user-group" :group_id
+                                                                   "listener" :listener_id
+                                                                   "expression" :expression_id
+                                                                   "settings" :settings_id
+                                                                   "category" :category_id
+                                                                   "form" :form_id)) values]}
+                       {:api/bpmmgmt-create [module values]}))))
+(rf/reg-fx :api/bpmmgmt-create
+           (fn [[module p]]
+             (api/bpmmgmt-create module p
+                                 (fn [r] (when (= 200 (:code r))
+                                           (rf/dispatch [:bpmmgmt/close module])
+                                           (antd/success! "保存成功")
+                                           (rf/dispatch [:bpmmgmt/fetch module {}])))
+                                 (fn [_] (antd/error! "保存失败")))))
+(rf/reg-fx :api/bpmmgmt-update
+           (fn [[module id p]]
+             (api/bpmmgmt-update module id p
+                                 (fn [r] (when (= 200 (:code r))
+                                           (rf/dispatch [:bpmmgmt/close module])
+                                           (antd/success! "保存成功")
+                                           (rf/dispatch [:bpmmgmt/fetch module {}])))
+                                 (fn [_] (antd/error! "保存失败")))))
+(rf/reg-event-fx :bpmmgmt/delete
+                 (fn [_ [_ module id]]
+                   {:api/bpmmgmt-del [module id]}))
+(rf/reg-fx :api/bpmmgmt-del
+           (fn [[module id]]
+             (api/bpmmgmt-delete module id
+                                 (fn [r] (when (= 200 (:code r))
+                                           (antd/success! "删除成功")
+                                           (rf/dispatch [:bpmmgmt/fetch module {}])))
+                                 (fn [_] (antd/error! "删除失败")))))
+
+;; ─── BPM 任务管理 / 实例管理 / 实例运维 ──────────────────────────
+(rf/reg-event-fx :bpm/all-tasks-fetch (fn [{:keys [db]} _] {:db (assoc-in db [:bpm-all-tasks :loading?] true) :api/bpm-all-tasks nil}))
+(rf/reg-fx :api/bpm-all-tasks (fn [_] (api/bpm-all-tasks (fn [r] (when (= 200 (:code r)) (rf/dispatch [:bpm/all-tasks-set (:data r)]))) (fn [_] (antd/error! "加载任务失败")))))
+(rf/reg-event-db :bpm/all-tasks-set (fn [db [_ d]] (let [rows (:rows d [])] (assoc db :bpm-all-tasks {:items rows :total (count rows) :loading? false}))))
+(rf/reg-event-fx :bpm/instance-op (fn [_ [_ pid op]] {:api/bpm-instance-op [pid op]}))
+(rf/reg-fx :api/bpm-instance-op (fn [[pid op]] (api/bpm-instance-op pid op (fn [r] (when (= 200 (:code r)) (antd/success! "操作成功") (rf/dispatch [:bpm/instance-fetch {}]))) (fn [_] (antd/error! "操作失败")))))

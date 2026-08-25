@@ -7,9 +7,10 @@
    [com.ruoyi.web.controllers.business.leave :as leave]
    [com.ruoyi.web.controllers.business.reimburse :as reimburse]
    [com.ruoyi.web.controllers.business.crm :as crm]
+   [com.ruoyi.web.controllers.business.bpm-mgmt :as mgmt]
    [com.ruoyi.web.middleware.auth :as auth-mw]))
 
-(defn business-routes [{:keys [bpm-service hrm-service oa-service crm-service leave-service reimburse-service]}]
+(defn business-routes [{:keys [bpm-service hrm-service oa-service crm-service leave-service reimburse-service mgmt-service]}]
   ["/business"
    {:middleware [(auth-mw/auth-middleware {:required? true})]
     :swagger {:tags ["办公" "BPM"]}}
@@ -54,8 +55,22 @@
    ["/bpm/task/:id/claim"   {:post {:summary "认领任务" :handler (partial bpm/claim-task {:bpm-service bpm-service})}}]
    ["/bpm/task/:id/transfer" {:post {:summary "转办任务" :handler (partial bpm/transfer-task {:bpm-service bpm-service})}}]
 
+   ;; ── 流程任务管理 / 流程实例运维 ──
+   ["/bpm/task/all" {:get {:summary "全部任务(管理员)" :handler (partial bpm/list-all-tasks {:bpm-service bpm-service})}}]
+   ["/bpm/instance/:pid/suspend"  {:post {:summary "挂起流程实例" :handler (partial bpm/suspend-instance {:bpm-service bpm-service})}}]
+   ["/bpm/instance/:pid/activate" {:post {:summary "激活流程实例" :handler (partial bpm/activate-instance {:bpm-service bpm-service})}}]
+   ["/bpm/instance/:pid/terminate" {:post {:summary "终止流程实例" :handler (partial bpm/terminate-instance {:bpm-service bpm-service})}}]
+
    ;; ── 办公报表 ──
    ["/report/stats" {:get {:summary "办公一体化统计看板" :handler (partial bpm/office-stats {:bpm-service bpm-service})}}]
+
+   ;; ── BPM 管理：用户分组/监听器/表达式/设置（通用 CRUD）──
+   ["/bpm/:module"
+    ["" {:get  {:summary "BPM管理列表" :handler (partial mgmt/list-items {:mgmt-service mgmt-service})}
+         :post {:summary "BPM管理新增" :handler (partial mgmt/create-item {:mgmt-service mgmt-service})}}]
+    ["/:id" {:get    {:summary "BPM管理详情" :handler (partial mgmt/get-item {:mgmt-service mgmt-service})}
+              :put    {:summary "BPM管理更新" :handler (partial mgmt/update-item {:mgmt-service mgmt-service})}
+              :delete {:summary "BPM管理删除" :handler (partial mgmt/delete-item {:mgmt-service mgmt-service})}}]]
 
    ;; ── HRM 员工 ──
    ["/hrm/employee"
