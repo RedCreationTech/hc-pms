@@ -54,6 +54,9 @@
    ["/bpm/task/:id/claim"   {:post {:summary "认领任务" :handler (partial bpm/claim-task {:bpm-service bpm-service})}}]
    ["/bpm/task/:id/transfer" {:post {:summary "转办任务" :handler (partial bpm/transfer-task {:bpm-service bpm-service})}}]
 
+   ;; ── 办公报表 ──
+   ["/report/stats" {:get {:summary "办公一体化统计看板" :handler (partial bpm/office-stats {:bpm-service bpm-service})}}]
+
    ;; ── HRM 员工 ──
    ["/hrm/employee"
     ["" {:get  {:summary "员工列表" :handler (partial hrm/list-employees {:hrm-service hrm-service})}

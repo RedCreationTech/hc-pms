@@ -417,3 +417,29 @@ WHERE process_instance_id = :process_instance_id
 -- :name oa/delete-reimburse :! :n
 DELETE FROM biz_oa_reimburse WHERE reimburse_id = :reimburse_id
 --;;
+
+-- ============================ 报表统计 ============================
+-- :name stats/leave-by-status :? :*
+SELECT status, COUNT(*) AS cnt FROM biz_oa_leave GROUP BY status
+--;;
+
+-- :name stats/reimburse-by-status :? :*
+SELECT status, COUNT(*) AS cnt, COALESCE(SUM(amount),0) AS total_amount
+FROM biz_oa_reimburse GROUP BY status
+--;;
+
+-- :name stats/leave-total :? :1
+SELECT COUNT(*) AS total FROM biz_oa_leave
+--;;
+
+-- :name stats/reimburse-total :? :1
+SELECT COUNT(*) AS total FROM biz_oa_reimburse
+--;;
+
+-- :name stats/employee-total :? :1
+SELECT COUNT(*) AS total FROM biz_hrm_employee
+--;;
+
+-- :name stats/customer-total :? :1
+SELECT COUNT(*) AS total FROM biz_crm_customer
+--;;

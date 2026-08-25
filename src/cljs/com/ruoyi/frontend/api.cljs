@@ -942,3 +942,7 @@
 (defn oa-delete-reimburse [id on-success on-error]
   (request {:method :delete :uri (str "/business/oa/reimburse/" id)
             :on-success on-success :on-error on-error}))
+
+(defn business-report-stats [on-success on-error]
+  (request {:method :get :uri "/business/report/stats"
+            :on-success on-success :on-error on-error}))

@@ -198,3 +198,33 @@
      :active-activity-ids active
      :completed-activity-ids completed
      :running? (seq active)}))
+
+(defn office-stats
+  "办公一体化统计看板数据：请假/报销/流程/员工/客户。"
+  [{:keys [engine query-fn]} user]
+  (let [leave-status (query-fn :stats/leave-by-status {})
+        reimburse-status (query-fn :stats/reimburse-by-status {})
+        leave-total (get (query-fn :stats/leave-total {}) :total 0)
+        reimburse-total (get (query-fn :stats/reimburse-total {}) :total 0)
+        employee-total (get (query-fn :stats/employee-total {}) :total 0)
+        customer-total (get (query-fn :stats/customer-total {}) :total 0)
+        st (fn [rows k] (or (some #(= k (:status %)) rows) 0))
+        cnt (fn [rows k] (:cnt (first (filter #(= k (:status %)) rows)) 0))
+        reimb-amount (fn [rows k] (or (:total_amount (first (filter #(= k (:status %)) rows))) 0))
+        total-amount (reduce + (map #(or (:total_amount %) 0) reimburse-status))]
+    {:leave {:total leave-total
+             :pending (cnt leave-status "1")
+             :approved (cnt leave-status "2")
+             :rejected (cnt leave-status "3")}
+     :reimburse {:total reimburse-total
+                 :pending (cnt reimburse-status "1")
+                 :approved (cnt reimburse-status "2")
+                 :rejected (cnt reimburse-status "3")
+                 :total-amount total-amount
+                 :pending-amount (reimb-amount reimburse-status "1")
+                 :approved-amount (reimb-amount reimburse-status "2")}
+     :process {:running (bpm/instance-count engine)
+               :definitions (count (bpm/definitions engine))
+               :my-todo (bpm/todo-count engine (or user ""))}
+     :hrm {:employee-total employee-total}
+     :crm {:customer-total customer-total}}))

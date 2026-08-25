@@ -1,0 +1,3 @@
+DELETE FROM sys_role_menu WHERE menu_id IN (42);
+--;;
+DELETE FROM sys_menu WHERE menu_id IN (42);

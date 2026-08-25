@@ -693,3 +693,7 @@
 (rf/reg-sub :reimburse/loading? (fn [db _] (get-in db [:reimburse :loading?] false)))
 (rf/reg-sub :reimburse/modal-visible? (fn [db _] (get-in db [:reimburse :modal-visible?] false)))
 (rf/reg-sub :reimburse/submitting? (fn [db _] (get-in db [:reimburse :submitting?] false)))
+
+;; ─── 办公报表统计 ──────────────────────────────────────────────────
+(rf/reg-sub :report/data (fn [db _] (get-in db [:report :data] nil)))
+(rf/reg-sub :report/loading? (fn [db _] (get-in db [:report :loading?] false)))

@@ -60,6 +60,7 @@
                                  :notice [:notices/fetch {}]
                                  :leave [:leave/fetch {}]
                                  :reimburse [:reimburse/fetch {}]
+                                 :report [:report/fetch]
                                  :bpm-todo [:bpm/todo-fetch]
                                  :bpm-done [:bpm/done-fetch]
                                  :bpm-instance [:bpm/instance-fetch {}]
@@ -2804,3 +2805,8 @@
 (rf/reg-fx :api/oa-reimburse-create (fn [p] (api/oa-start-reimburse p (fn [r] (when (= 200 (:code r)) (rf/dispatch [:reimburse/close]) (antd/success! "报销申请已提交，进入审批") (rf/dispatch [:reimburse/fetch {}]))) (fn [_] (antd/error! "提交失败")))))
 (rf/reg-event-fx :reimburse/delete (fn [_ [_ id]] {:api/oa-reimburse-del id}))
 (rf/reg-fx :api/oa-reimburse-del (fn [id] (api/oa-delete-reimburse id (fn [r] (when (= 200 (:code r)) (antd/success! "删除成功") (rf/dispatch [:reimburse/fetch {}]))) (fn [_] (antd/error! "删除失败")))))
+
+;; ─── 办公报表统计 ──────────────────────────────────────────────────
+(rf/reg-event-fx :report/fetch (fn [{:keys [db]} _] {:db (assoc-in db [:report :loading?] true) :api/business-report-stats nil}))
+(rf/reg-fx :api/business-report-stats (fn [_] (api/business-report-stats (fn [r] (when (= 200 (:code r)) (rf/dispatch [:report/set (:data r)]))) (fn [_] (antd/error! "加载统计失败")))))
+(rf/reg-event-db :report/set (fn [db [_ d]] (assoc db :report {:data d :loading? false})))

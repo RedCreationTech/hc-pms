@@ -34,6 +34,7 @@
         "office/bpm/done" :bpm-done
         "office/oa/leave" :leave
         "office/oa/reimburse" :reimburse
+        "office/report" :report
         "office/oa/calendar" :oa-calendar
         "office/oa/meeting" :oa-meeting
         "office/hrm/employee" :hrm-employee
@@ -75,6 +76,7 @@
    :bpm-done "我的已办"
    :leave "请假申请"
    :reimburse "报销申请"
+   :report "办公报表"
    :oa-calendar "日程管理"
    :oa-meeting "会议管理"
    :hrm-employee "员工管理"
