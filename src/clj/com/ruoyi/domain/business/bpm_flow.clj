@@ -101,7 +101,7 @@
                        (fn [i c]
                          (when-let [ct (get nodes (:tgt c))]
                            {:id (str "cond-" node-id "-" i)
-                            :name (if (str/blank? (:name ct)) (str "条件" (inc i)) (:name ct))
+                            :name (str "条件" (inc i))
                             :expression (:expr c)
                             :child-node (recurse (:tgt c))}))
                        conds))

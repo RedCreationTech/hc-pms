@@ -272,6 +272,17 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-26 (34)** **流程设计器视觉与交互优化**：
+  · 分支布局改为 vben 风格：网关以左侧"添加条件"小按钮呈现，条件分支用虚线分组容器横向排列
+  · 条件节点默认命名"条件1/条件2"（不再取子节点名造成重复）；条件标签改为蓝色/绿色胶囊，显示表达式小字
+  · 连线加粗至 2.5px、颜色加深，底部箭头改为 CSS 三角，更清晰
+  · 节点卡片副标题实时推导：审批人策略/自动审批/延迟/抄送等，未配置时显示"请配置审批人"
+  · 新增"添加条件"按钮实时插入条件分支（已验证 before 4 → after 5）
+  · 修复：render-node/render-branch/render-card 签名传递 show-text-fn；add-condition! 正确更新 :condition-nodes
+  · 实测：流程图结构清晰；BPM E2E 5通过；后端349测试0失败
+
+
+
 - **2026-08-25 (33)** **流程模型对齐 vben：表单自定义（设计器+关联+预览）**：
   · 后端：biz_bpm_model 加 form_id/form_custom_create_path/form_custom_view_path（sqlite+mysql
     迁移，migratus 需 --;; 分隔）；model CRUD 支持；form-list 返回 form_json 且支持 status 过滤；

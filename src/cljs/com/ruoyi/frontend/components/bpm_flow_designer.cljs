@@ -212,7 +212,7 @@
    [:button.bpm-plus-btn {:title "在此添加节点" :on-click (fn [e] (.stopPropagation e) (on-add))} "+"]
    [:div.bpm-connector-arrow "▼"]])
 
-(defn- render-card [node path on-edit on-delete]
+(defn- render-card [node path on-edit on-delete show-text-fn]
   (let [color (get node-color (:type node) "#909399")
         icon (get node-icon (:type node) "bpmn-icon-task")
         hint (get node-type-label (:type node))
@@ -222,7 +222,7 @@
       [:div.bpm-node-icon {:style {:color color}} [:i {:class (str "iconfont " icon)}]]
       [:div.bpm-node-name (:name node)]]
      [:div.bpm-node-content {:on-click #(on-edit path)}
-      [:div.bpm-node-text (if (seq text) text (str "请配置" hint))]]
+      [:div.bpm-node-text (if (seq text) text (or (show-text-fn node) (str "请配置" hint)))]]
      [:div.bpm-node-toolbar
       [:span.bpm-node-del {:title "删除"
                            :on-click (fn [e] (.stopPropagation e) (on-delete path))} "✕"]]]))
@@ -230,27 +230,31 @@
 (defn- render-capsule [node end? on-edit]
   [:div.bpm-capsule {:class (when end? "end") :on-click on-edit} (:name node)])
 
-(defn- render-branch [node path on-edit on-add on-delete]
-  [:div.bpm-branch
-   [:div.bpm-branch-node
-    [:div.bpm-branch-card {:on-click #(on-edit path)}
-     [:div.bpm-node-title-row
-      [:div.bpm-node-icon {:style {:color (get node-color (:type node) "#67c23a")}}
-       [:i {:class (str "iconfont " (get node-icon (:type node) "bpmn-icon-gateway-none"))}]]
-      [:div.bpm-node-name (:name node)]]]]
-   (doall
-    (for [[i cn] (map-indexed vector (or (:condition-nodes node) []))]
-      ^{:key (:id cn)}
-      [:div.bpm-branch-item {:class (if (= i 0) "primary" "")}
-       [:div.bpm-branch-label (:name cn)]
-       (when-let [child (:child-node cn)]
-         [:div.bpm-node-column
-          (render-node child (conj path :condition-nodes i :child-node) on-edit on-add on-delete)
-          (render-connector #(on-add (conj path :condition-nodes i :child-node)))])]))])
+(defn- render-branch [node path on-edit on-add on-delete add-condition! show-text-fn]
+  (let [conditions (or (:condition-nodes node) [])]
+    [:div.bpm-branch-wrapper
+     [:div.bpm-branch-container
+      [:div.bpm-branch-add {:on-click #(add-condition! path) :title "添加条件分支"}
+       [:div.bpm-branch-add-icon "+"]
+       [:div.bpm-branch-add-text "添加条件"]]
+      (for [[i cn] (map-indexed vector conditions)]
+        (let [first? (= i 0)
+              last? (= i (dec (count conditions)))]
+          ^{:key (:id cn)}
+          [:div.bpm-branch-item {:class (str (when first? "first ") (when last? "last"))}
+           [:div.bpm-branch-line-top]
+           [:div.bpm-branch-label
+            [:span.bpm-branch-label-name (:name cn)]
+            (when-let [expr (:expression cn)]
+              [:span.bpm-branch-label-expr expr])]
+           (when-let [child (:child-node cn)]
+             [:div.bpm-node-column
+              (render-node child (conj path :condition-nodes i :child-node) on-edit on-add on-delete add-condition! show-text-fn)
+              (render-connector #(on-add (conj path :condition-nodes i :child-node)))])]))]]))
 
 (defn render-node
   "递归渲染节点树。path 为从根到当前节点的 assoc-in 路径。"
-  [node path on-edit on-add on-delete]
+  [node path on-edit on-add on-delete add-condition! show-text-fn]
   (if (nil? node)
     [:div]
     (let [type (:type node)]
@@ -259,12 +263,12 @@
          (= type "START_USER_NODE") (render-capsule node false #(on-edit path))
          (= type "END_EVENT_NODE") (render-capsule node true #(on-edit path))
          (and (str/includes? (or type "") "BRANCH") (seq (:condition-nodes node)))
-         (render-branch node path on-edit on-add on-delete)
-         :else (render-card node path on-edit on-delete))
+         (render-branch node path on-edit on-add on-delete add-condition! show-text-fn)
+         :else (render-card node path on-edit on-delete show-text-fn))
        (when-let [child (:child-node node)]
          [:div.bpm-node-column
           (render-connector #(on-add (conj path :child-node)))
-          (render-node child (conj path :child-node) on-edit on-add on-delete)])])))
+          (render-node child (conj path :child-node) on-edit on-add on-delete add-condition! show-text-fn)])])))
 
 ;; ── 配置辅助函数 ─────────────────────────────────────────────────────
 
@@ -403,7 +407,51 @@
                save-tree (fn [] (when (and model-id @tree)
                                   (api/bpm-save-model-tree model-id @tree
                                                            (fn [_] (antd/success! "流程已保存") (when on-saved (on-saved)))
-                                                           (fn [e] (antd/error! (str "保存失败: " e))))))]
+                                                           (fn [e] (antd/error! (str "保存失败: " e))))))
+               add-condition! (fn [path]
+                                (let [cond-path (conj path :condition-nodes)
+                                      conds (or (get-in @tree cond-path) [])]
+                                  (swap! tree assoc-in cond-path
+                                         (conj (vec conds)
+                                               {:id (str "cond_" (random-uuid))
+                                                :name (str "条件" (inc (count conds)))
+                                                :type "condition"
+                                                :child-node nil}))))
+               show-text-of (fn [node]
+                               (or (:show-text node)
+                                   (let [t (:type node) cfg (:config node)]
+                                     (case t
+                                       "COPY_TASK_NODE"
+                                       (let [uc (count (or (:copy-user-ids cfg) []))
+                                             rc (count (or (:copy-role-ids cfg) []))]
+                                         (str "抄送" (when (pos? uc) (str " " uc " 用户"))
+                                              (when (and (pos? uc) (pos? rc)) " +")
+                                              (when (pos? rc) (str " " rc " 角色"))))
+                                       "DELAY_TIMER_NODE"
+                                       (when-let [d (:time-duration cfg)]
+                                         (str "延迟 " d (get {"MINUTE" "分钟" "HOUR" "小时" "DAY" "天"} (:time-unit cfg) "小时")))
+                                       ("USER_TASK_NODE" "TRANSACTOR_NODE")
+                                       (let [at (:approve-type cfg)]
+                                         (cond
+                                           (nil? at) "请配置审批人"
+                                           (= at "USER")
+                                           (case (:candidate-strategy cfg)
+                                             "USER" (let [ids (set (get-in cfg [:candidate-param :user-ids]))]
+                                                      (str "指定用户：" (str/join "," (take 3 (map :nick_name (filter #(ids (:user_id %)) @users))))))
+                                             "ROLE" (let [ids (set (get-in cfg [:candidate-param :role-ids]))]
+                                                      (str "指定角色：" (str/join "," (take 3 (map :role_name (filter #(ids (:role_id %)) @roles))))))
+                                             "DEPT_MEMBER" (let [ids (set (get-in cfg [:candidate-param :dept-ids]))]
+                                                             (str "部门成员：" (str/join "," (take 3 (map :dept_name (filter #(ids (:dept_id %)) @depts))))))
+                                             "POST" (let [ids (set (get-in cfg [:candidate-param :post-ids]))]
+                                                      (str "指定岗位：" (str/join "," (take 3 (map :post_name (filter #(ids (:post_id %)) @posts))))))
+                                             "DEPT_LEADER" "部门负责人"
+                                             "START_USER_DEPT_LEADER" "发起人部门负责人"
+                                             "MULTI_LEVEL_DEPT_LEADER" (str "发起人部门负责人及上级 向上 " (get-in cfg [:candidate-param :dept-level] 1) " 级")
+                                             (get candidate-strategy-label (:candidate-strategy cfg) "请配置审批人"))
+                                           (= at "AUTO_PASS") "自动通过"
+                                           (= at "AUTO_REJECT") "自动拒绝"
+                                           :else "自动审批"))
+                                       nil))))]
     [:div
      [:div.bpm-toolbar
       [:span.bpm-toolbar-title "流程设计"]
@@ -419,7 +467,7 @@
        [:div.bpm-flow-root
         (when-let [t @tree]
           [:div {:style {:transform (str "scale(" @scale ")") :transformOrigin "50% 0"}}
-           (render-node t [] open-config (fn [path] (reset! add-path path)) delete-node)])])
+           (render-node t [] open-config (fn [path] (reset! add-path path)) delete-node add-condition! show-text-of)])])
      ;; ── 节点配置抽屉（对齐 vben Drawer 配置面板）──────────────────
      [antd/drawer {:open (boolean @config-path)
                    :onClose #(reset! config-path nil)

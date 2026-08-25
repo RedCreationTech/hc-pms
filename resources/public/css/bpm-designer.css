@@ -76,32 +76,34 @@
   font-size: 12px;
   color: #999;
 }
-/* 连线：灰色竖线 + 底部箭头 + 蓝色 + 按钮 */
+/* 连线：加深竖线 + CSS 三角箭头 + 蓝色 + 按钮 */
 .bpm-connector {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 70px;
+  height: 56px;
   user-select: none;
 }
 .bpm-connector::before {
   position: absolute;
   top: 0;
   content: '';
-  width: 2px;
+  width: 2.5px;
   height: 100%;
-  background: #dedede;
+  background: #c8cdd4;
 }
 .bpm-connector-arrow {
   position: absolute;
-  bottom: 0;
+  bottom: 2px;
   left: 50%;
   transform: translateX(-50%);
-  color: #dedede;
-  font-size: 16px;
-  line-height: 10px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid #a8b0ba;
 }
 .bpm-plus-btn {
   position: relative;
@@ -119,32 +121,124 @@
   border: none;
 }
 .bpm-plus-btn:hover { transform: scale(1.1); }
-/* 分支横向展开 */
-.bpm-branch {
+/* 分支容器：网关下方水平线 + 条件分支横向排列 + 左侧添加条件 */
+.bpm-branch-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  margin-top: 4px;
+}
+.bpm-branch-container {
+  position: relative;
   display: flex;
   align-items: flex-start;
-  margin-top: 8px;
+  justify-content: center;
+  min-width: 320px;
+  padding: 0 12px 16px;
+  background: #fbfcfd;
+  border: 1px dashed #d8dde3;
+  border-radius: 8px;
+}
+.bpm-branch-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 70px;
+  right: 24px;
+  height: 2px;
+  background: #c8cdd4;
+}
+.bpm-branch-add {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 56px;
+  padding-top: 8px;
+  margin-right: 8px;
+  cursor: pointer;
+}
+.bpm-branch-add-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: #0089ff;
+  font-size: 18px;
+  font-weight: 500;
+  background: #fff;
+  border: 2px solid #0089ff;
+  border-radius: 50%;
+  transition: all .2s;
+}
+.bpm-branch-add:hover .bpm-branch-add-icon {
+  color: #fff;
+  background: #0089ff;
+  transform: scale(1.1);
+}
+.bpm-branch-add-text {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #0089ff;
 }
 .bpm-branch-item {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: 280px;
-  padding: 20px 40px;
-  border-top: 2px solid #dedede;
-  border-bottom: 2px solid #dedede;
-  margin: 0 -1px;
+  min-width: 260px;
+  max-width: 340px;
+  padding: 0 12px 8px;
+}
+.bpm-branch-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #c8cdd4;
+}
+.bpm-branch-item.first::before { left: 50%; }
+.bpm-branch-item.last::before { right: 50%; }
+.bpm-branch-line-top {
+  width: 2.5px;
+  height: 18px;
+  background: #c8cdd4;
 }
 .bpm-branch-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 3px 12px;
+  margin-top: 6px;
+  margin-bottom: 8px;
   font-size: 12px;
-  color: #67c23a;
-  margin-bottom: 6px;
-  padding: 2px 8px;
-  background: #f0f9eb;
-  border-radius: 4px;
+  font-weight: 500;
+  white-space: nowrap;
+  border-radius: 12px;
 }
-.bpm-branch-item.primary .bpm-branch-label { color: #0089ff; background: #e6f4ff; }
+.bpm-branch-item.first .bpm-branch-label {
+  color: #0089ff;
+  background: #e6f4ff;
+  border: 1px solid #b7e1ff;
+}
+.bpm-branch-item:not(.first) .bpm-branch-label {
+  color: #67c23a;
+  background: #f0f9eb;
+  border: 1px solid #d3efc5;
+}
+.bpm-branch-label-expr {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 400;
+  opacity: .85;
+}
 
 /* 节点内容区 + 工具栏（对齐 vben node-content / node-toolbar） */
 .bpm-node-card { position: relative; }
@@ -187,25 +281,6 @@
   border-radius: 50%;
 }
 .bpm-node-del:hover { transform: scale(1.1); }
-/* 分支节点卡片 */
-.bpm-branch {
-  display: flex;
-  align-items: flex-start;
-  margin-top: 8px;
-}
-.bpm-branch-node { display: flex; flex-direction: column; align-items: center; padding-top: 30px; }
-.bpm-branch-card {
-  width: 150px;
-  padding: 10px 12px;
-  text-align: center;
-  cursor: pointer;
-  background: #fff;
-  border: 2px solid #dedede;
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(10,30,65,0.16);
-}
-.bpm-branch-card:hover { border-color: #0089ff; }
-.bpm-branch-card .bpm-node-name { font-size: 13px; }
 
 /* 设计器工具栏 */
 .bpm-toolbar {
