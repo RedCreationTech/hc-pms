@@ -29,10 +29,10 @@
                            "驳回"]])))}])
 
 (defn- approve-modal []
-  (let [visible? @(rf/subscribe [:bpm/todo-modal-visible?])
-        current @(rf/subscribe [:bpm/todo-current])
-        action @(rf/subscribe [:bpm/todo-action])
-        submitting? @(rf/subscribe [:bpm/todo-submitting?])
+  (let [visible? @(rf/subscribe [:bpm-todo/modal-visible?])
+        current @(rf/subscribe [:bpm-todo/current])
+        action @(rf/subscribe [:bpm-todo/action])
+        submitting? @(rf/subscribe [:bpm-todo/submitting?])
         [form] (antd/form-use-form)]
     [antd/modal {:title (str (if (= action "approve") "审批通过" "审批驳回") " · " (:name current))
                  :open visible? :confirmLoading submitting?

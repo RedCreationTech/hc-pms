@@ -81,6 +81,9 @@
         (.remove (.-classList body) "dark"))))
   ;; 加载其他主题/布局设置
   (rf/dispatch [:theme/load-from-storage])
+  ;; 从 localStorage 同步恢复 token，供首屏数据请求鉴权使用
+  (when-let [token (try (.getItem js/localStorage "ruoyi_token") (catch js/Error _ nil))]
+    (rf/dispatch-sync [:auth/set-token token]))
   ;; 先在渲染前初始化路由（只 configure，不 dispatch）
   (router/init-routes!)
   ;; 如果 localStorage 中有 token，获取用户信息
