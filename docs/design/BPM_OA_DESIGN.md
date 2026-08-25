@@ -272,10 +272,16 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-25 (15)** **MySQL 双库验证完成**：用 brew MySQL 26.7 实测，全量测试套件在 MySQL 上
+  **349 测试 / 882 断言 / 0 失败**。修复多个 SQLite-only 问题：
+  · `business.sql` 22处 `datetime('now')`(SQLite-only)→`CURRENT_TIMESTAMP`(双库通用)
+  · 补缺失的 MySQL 迁移 `add-notice-content`
+  · 修 `obsolete-tool-menus` 迁移中文乱码 + `--;;` 分隔符
+  · 修 reimburse MySQL 迁移：TEXT带DEFAULT(MySQL8拒绝)→VARCHAR/CHAR；`CREATE INDEX IF NOT EXISTS`(MySQL不支持)→去掉
+  实测迁移/登录/请假/报销/HRM/OA/CRM/部署/流程图全通过。**双库兼容地基已夯实**。
 - **2026-08-25 (14)** **报销模块收尾 + 关键修复**：新增 `business/util kquery` 修复所有业务列表的
   分页/过滤失效（系统 `:query-params` 是 string key，服务用 keyword 读取 → 分页/搜索一直没生效）。
   6 个业务控制器改用 `bu/kquery`。bpm 集成测试加固（兼容历史遗留流程，修 BPMN key 与 model_key 不一致 bug）。
-  全量 **349 测试 / 882 断言 / 0 失败**。
 - **2026-08-25 (13)** **报销审批模块**：复用"业务记录+BPM+前端+流程图"链路，新增 `biz_oa_reimburse`
   + 内置 `reimburseApproval` 模型(502)。发起入流/惰性状态同步/删除，前端页+路由+菜单。
   修 `active-activity-ids` 处理已结束流程（execution 不存在）。实测 发起→审批通过=2。
