@@ -13,17 +13,6 @@
    [com.ruoyi.frontend.components.bpmn-modeler :as bpmn]))
 
 ;; 连线加号可追加的节点类型（对齐 yudao simple-process-design）
-(def ^:private node-types
-  [{:label "审批人" :type "bpmn:UserTask" :name "审批人"}
-   {:label "经办人" :type "bpmn:UserTask" :name "经办人"}
-   {:label "抄送" :type "bpmn:UserTask" :name "抄送"}
-   {:label "条件分支" :type "bpmn:ExclusiveGateway" :name "条件分支"}
-   {:label "并行分支" :type "bpmn:ParallelGateway" :name "并行分支"}
-   {:label "包容分支" :type "bpmn:InclusiveGateway" :name "包容分支"}
-   {:label "延时器" :type "bpmn:IntermediateCatchEvent" :name "延时器"}
-   {:label "触发器" :type "bpmn:CallActivity" :name "触发器"}
-   {:label "子流程" :type "bpmn:SubProcess" :name "子流程"}])
-
 (defn- model-columns []
   #js [#js {:title "ID" :dataIndex "model_id" :key "model_id" :width 70}
        #js {:title "流程key" :dataIndex "model_key" :key "model_key" :width 150}
@@ -187,7 +176,6 @@
         [nname set-nname!] (hooks/use-state "")
         [cand set-cand!] (hooks/use-state "")
         [cond set-cond!] (hooks/use-state "")
-        [add-conn set-add-conn!] (hooks/use-state nil)
         [preview-open set-preview-open!] (hooks/use-state false)
         [preview-content set-preview-content!] (hooks/use-state "")
         [preview-type set-preview-type!] (hooks/use-state :xml)
@@ -209,6 +197,14 @@
                                                        :form_json mform-json :remark mremark
                                                        :bpmn_xml x}]))
                                       (fn [e] (antd/error! e))))
+        ;; 连线加号浮层菜单回调：直接插入节点并重建浮层（对齐 vben，无需居中 Modal）
+        add-handle (atom nil)
+        _ (reset! add-handle
+                  (fn [conn type name]
+                    (bpmn/insert-node! (.-current modeler-ref) conn type name
+                                       (fn [e] (antd/error! e))
+                                       #(bpmn/add-plus-overlays! (.-current modeler-ref) @add-handle))
+                    (antd/success! (str "已添加" name))))
         handle-preview (fn [ptype]
                          (set-preview-type! ptype)
                          (bpmn/save-bpmn! (.-current modeler-ref)
@@ -233,11 +229,11 @@
                                            (fn [e] (antd/error! e))))
         handle-import-file (fn [file]
                              (bpmn/import-local-file! (.-current modeler-ref) file
-                                                      #(bpmn/add-plus-overlays! (.-current modeler-ref) set-add-conn!)
+                                                      #(bpmn/add-plus-overlays! (.-current modeler-ref) @add-handle)
                                                       (fn [e] (antd/error! e))))
         handle-restart (fn []
                          (bpmn/new-diagram! (.-current modeler-ref)
-                                            #(bpmn/add-plus-overlays! (.-current modeler-ref) set-add-conn!)
+                                            #(bpmn/add-plus-overlays! (.-current modeler-ref) @add-handle)
                                             (fn [e] (antd/error! e))))]
     (hooks/use-effect
      (fn []
@@ -279,7 +275,7 @@
           "form" [form-design-tab mform-json set-mform-json!]
           "process" [process-design-tab {:xml xml :modeler-ref modeler-ref :on-save save-model
                                          :on-close #(rf/dispatch [:bpm/designer-close])
-                                         :on-add-node set-add-conn!
+                                         :on-add-node @add-handle
                                          :file-ref file-ref
                                          :on-preview handle-preview :on-export handle-export
                                          :on-import-file handle-import-file :on-restart handle-restart
@@ -297,22 +293,7 @@
       [:pre {:style {:background "#f6f8fa" :padding 12 :borderRadius 4 :maxHeight 520
                      :overflow "auto" :fontSize 12 :lineHeight "1.6"}}
        [:code {:style {:fontFamily "monospace" :whiteSpace "pre-wrap" :wordBreak "break-all"}}
-        preview-content]]]
-     ;; 加号添加节点选择弹窗
-     [antd/modal {:title "在此添加节点" :open (boolean add-conn)
-                  :footer nil :width 480 :onCancel #(set-add-conn! nil)}
-      [:div {:style {:display "flex" :flexWrap "wrap" :gap 8}}
-       (doall
-        (for [{:keys [label type name]} node-types]
-          ^{:key label}
-          [antd/button {:style {:margin 4}
-                        :on-click (fn []
-                                    (let [m (.-current modeler-ref)]
-                                      (bpmn/insert-node! m add-conn type name (fn [e] (antd/error! e))
-                                                         #(bpmn/add-plus-overlays! m set-add-conn!)))
-                                    (set-add-conn! nil)
-                                    (antd/success! (str "已添加" label)))}
-           label]))]]]))
+        preview-content]]]]))
 
 (defn bpm-model-page []
   (let [items @(rf/subscribe [:bpm-model/items])

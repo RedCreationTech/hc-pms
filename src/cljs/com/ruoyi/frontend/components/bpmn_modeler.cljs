@@ -312,8 +312,52 @@
     {:x (/ (+ (.-x f) (.-x l)) 2)
      :y (/ (+ (.-y f) (.-y l)) 2)}))
 
+(def ^:private plus-node-types
+  "连线上加号浮层可追加的节点类型（对齐 vben simple-process-design 的圆形图标菜单）。"
+  [{:label "审批人" :bpmn-type "bpmn:UserTask" :icon "bpmn-icon-user-task" :color "#ff943e"}
+   {:label "办理人" :bpmn-type "bpmn:UserTask" :icon "bpmn-icon-user-task" :color "#330099"}
+   {:label "抄送" :bpmn-type "bpmn:UserTask" :icon "bpmn-icon-user-task" :color "#3296fa"}
+   {:label "条件分支" :bpmn-type "bpmn:ExclusiveGateway" :icon "bpmn-icon-gateway-none" :color "#67c23a"}
+   {:label "并行分支" :bpmn-type "bpmn:ParallelGateway" :icon "bpmn-icon-gateway-parallel" :color "#626aef"}
+   {:label "包容分支" :bpmn-type "bpmn:InclusiveGateway" :icon "bpmn-icon-gateway-or" :color "#345da2"}
+   {:label "延迟器" :bpmn-type "bpmn:IntermediateCatchEvent" :icon "bpmn-icon-intermediate-event-catch-timer" :color "#e47470"}
+   {:label "路由分支" :bpmn-type "bpmn:ExclusiveGateway" :icon "bpmn-icon-gateway-xor" :color "#ca3a31"}
+   {:label "触发器" :bpmn-type "bpmn:CallActivity" :icon "bpmn-icon-call-activity" :color "#3373d2"}
+   {:label "子流程" :bpmn-type "bpmn:SubProcess" :icon "bpmn-icon-subprocess-expanded" :color "#996633"}])
+
+(defn- build-plus-menu!
+  "构建连线上加号旁的浮动圆形图标菜单（对齐 vben simple-process-design handler 浮层）。
+   返回 [menu-el hide-fn]，on-add 签名为 (on-add conn bpmn-type name)。"
+  [conn on-add]
+  (let [wrap (js/document.createElement "div")
+        hide (fn [] (set! (.-display (.-style wrap)) "none"))]
+    (set! (.-className wrap) "bpmn-plus-menu")
+    (set! (.-style wrap)
+          (str "position:absolute;z-index:3000;width:320px;display:flex;flex-wrap:wrap;"
+               "background:#fff;border:1px solid #e2e2e2;border-radius:8px;padding:10px;"
+               "box-shadow:0 4px 16px rgba(0,0,0,.15);cursor:pointer;"))
+    (doseq [{:keys [label bpmn-type icon color]} plus-node-types]
+      (let [item (js/document.createElement "div")
+            ico (js/document.createElement "span")
+            txt (js/document.createElement "div")]
+        (set! (.-className ico) (str "bpmn-icon " icon))
+        (set! (.-style ico)
+              (str "width:50px;height:50px;display:block;text-align:center;user-select:none;background:#fff;"
+                   "border:1px solid #e2e2e2;border-radius:50%;font-size:25px;line-height:50px;color:" color ";"))
+        (set! (.-textContent txt) label)
+        (set! (.-style txt) "width:80px;margin-top:4px;font-size:13px;text-align:center;color:#333;")
+        (set! (.-style item) "display:flex;flex-direction:column;align-items:center;margin:6px;")
+        (.appendChild item ico)
+        (.appendChild item txt)
+        (.appendChild wrap item)
+        (.addEventListener ico "click" (fn [e] (.stopPropagation e) (hide) (on-add conn bpmn-type label)))
+        (.addEventListener item "mouseenter" (fn [] (set! (.-background (.-style ico)) "#e2e2e2")))
+        (.addEventListener item "mouseleave" (fn [] (set! (.-background (.-style ico)) "#fff")))))
+    [wrap hide]))
+
 (defn add-plus-overlays!
-  "在所有连线上加 '+' 按钮，点击回调 (on-add conn)。"
+  "在所有连线上加 '+' 按钮；hover 按钮弹出圆形图标节点菜单（对齐 vben），
+   点击菜单项回调 (on-add conn bpmn-type name)。"
   [^js modeler on-add]
   (when modeler
     (let [^js registry (.get modeler "elementRegistry")
@@ -323,14 +367,29 @@
         (let [{:keys [x y]} (connection-midpoint conn)
               html (js/document.createElement "button")
               _ (set! (.-innerHTML html) "+")
-              _ (set! (.-style html) "cursor:pointer;width:22px;height:22px;border-radius:50%;"
+              _ (set! (.-style html) "cursor:pointer;width:24px;height:24px;border-radius:50%;"
                                      "border:1px solid #409eff;background:#fff;color:#409eff;"
-                                     "font-size:16px;line-height:20px;text-align:center;padding:0;box-shadow:0 1px 3px rgba(0,0,0,.2);")
+                                     "font-size:17px;line-height:22px;text-align:center;padding:0;"
+                                     "box-shadow:0 1px 3px rgba(0,0,0,.2);z-index:200;")
               _ (set! (.-title html) "在此添加节点")
-              _ (.addEventListener html "click" (fn [e] (.stopPropagation e) (when on-add (on-add conn))))]
-          (.add overlays (.-id conn) #js {:position #js {:x (- x 11) :y (- y 11)} :html html}))))))
-
-
+              menu-state (atom nil)
+              show-menu (fn []
+                          (let [rect (.getBoundingClientRect html)
+                                [menu hide] (if-let [[m h] @menu-state] [m h] (build-plus-menu! conn on-add))
+                                _ (when-not @menu-state
+                                    (reset! menu-state [menu hide])
+                                    (.appendChild js/document.body menu))]
+                            (set! (.-left (.-style menu)) (str (+ (.-left rect) 10) "px"))
+                            (set! (.-top (.-style menu)) (str (+ (.-bottom rect) 4) "px"))
+                            (set! (.-display (.-style menu)) "flex")))]
+          (.addEventListener html "mouseenter" (fn [e] (.stopPropagation e) (show-menu)))
+          (.addEventListener html "mouseleave"
+                             (fn [] (js/setTimeout
+                                     (fn []
+                                       (when-let [[_ h] @menu-state]
+                                         (h)))
+                                     300)))
+          (.add overlays (.-id conn) #js {:position #js {:x (- x 12) :y (- y 12)} :html html}))))))
 
 (defn- import-with-fallback
   "导入 BPMN，失败（如缺 BPMNDI）时回退空白画布。"

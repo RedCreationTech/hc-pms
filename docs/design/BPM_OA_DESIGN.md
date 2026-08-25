@@ -272,6 +272,19 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-25 (25)** **连线上'+'操作过程对齐 vben/yudao `simple-process-design`**：
+  · '+'由 click→居中 Modal 改为 **hover→'+'旁弹出 320px 圆形彩色图标浮层菜单**（对齐 vben
+    node-handler 的 Popover）：10 种节点——审批人/办理人/抄送/条件分支/并行分支/包容分支/
+    延迟器/路由分支/触发器/子流程，每个为 50px 圆形图标(用 bpmn-js 自带图标配 vben 配色)+
+    文字，点击直接拆分连线插入(源→新节点→目标)
+  · 节点类型与 vben 对齐(含"办理人"，原来只有"经办人")，图标配色对应 vben
+    (approve橙/条件绿/并行紫/包容蓝/延迟红/路由红/触发蓝/子流程棕等)
+  · 修复内置模型 BPMNDI：网关 shape 的 bpmnElement 与语义 id 不匹配
+    (gwapprove/gwleader/gwhr/gwfinance → gw0/gw1/gw2)，画布现在完整显示所有网关节点
+    (leaveApproval 9节点 / reimburseApproval 7节点，import 0 错误)
+  · 实测：hover 弹出 10 图标菜单、点击插入 6→8；leave/reimburse 画布完整无报错；
+    BPM E2E 5通过；后端349测试0失败
+
 - **2026-08-25 (24)** **流程画布视觉样式对齐 vben bpmn-process-designer**：
   · 新增 `css/bpmn-designer.css`：画布 40px 网格纸背景(与 vben 同款 base64 SVG)、
     调色板白底/1px边框/圆角2px/阴影、调色板条目 hover 右侧 title 提示
