@@ -62,6 +62,7 @@
                start-select-nodes (r/atom [])
                start-select-value (r/atom [])
                users (r/atom [])
+               fields-perm (r/atom {})
                refresh (fn []
                          (reset! loading? true)
                          (api/bpm-list-models {:page 1 :size 1000}
@@ -78,6 +79,16 @@
                             (reset! form-schema nil)
                             (reset! start-select-nodes [])
                             (reset! start-select-value [])
+                            (reset! fields-perm {})
+                            (api/bpm-get-model (:model_id model)
+                                               (fn [res]
+                                                 (let [fp (:fields_permission (:data res))]
+                                                   (when fp
+                                                     (reset! fields-perm
+                                                             (if (string? fp)
+                                                               (js->clj (js/JSON.parse fp))
+                                                               fp)))))
+                                               (fn [_] nil))
                             (api/bpm-model-tree (:model_id model)
                                                 (fn [res]
                                                   (let [nodes (collect-start-select (:data res))]
@@ -144,6 +155,7 @@
                                        :set-value! #(reset! start-select-value (vec %))}])
                [form-render/form-render {:schema schema
                                          :values @values
+                                         :field-permissions @fields-perm
                                          :on-change (fn [v] (reset! values v))}]
                [:div {:style {:marginTop 8}}
                 [:div.bpm-f-label "业务备注"]

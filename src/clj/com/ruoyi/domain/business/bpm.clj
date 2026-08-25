@@ -127,7 +127,8 @@
              :form_id (or (:form_id params) 0)
              :form_custom_create_path (or (:form_custom_create_path params) "")
              :form_custom_view_path (or (:form_custom_view_path params) "")
-             :form_json (:form_json params) :bpmn_xml (:bpmn_xml params)
+             :form_json (:form_json params) :fields_permission (:fields_permission params)
+             :bpmn_xml (:bpmn_xml params)
              :deployment_id (:deployment_id params) :status (or (:status params) "1")
              :create_by (or user "") :remark (or (:remark params) "")}))
 
@@ -139,7 +140,8 @@
              :form_id (or (:form_id params) 0)
              :form_custom_create_path (or (:form_custom_create_path params) "")
              :form_custom_view_path (or (:form_custom_view_path params) "")
-             :form_json (:form_json params) :bpmn_xml (:bpmn_xml params)
+             :form_json (:form_json params) :fields_permission (:fields_permission params)
+             :bpmn_xml (:bpmn_xml params)
              :deployment_id (:deployment_id params) :status (:status params)
              :update_by (or user "") :remark (:remark params)}))
 
@@ -194,7 +196,11 @@
     (query-fn :bpm/update-model
               {:model_id id :model_name (:model_name m)
                :category_id (:category_id m) :form_type (:form_type m)
-               :form_json (:form_json m) :bpmn_xml xml :deployment_id nil
+               :form_id (or (:form_id m) 0)
+               :form_custom_create_path (or (:form_custom_create_path m) "")
+               :form_custom_view_path (or (:form_custom_view_path m) "")
+               :form_json (:form_json m) :fields_permission (:fields_permission m)
+               :bpmn_xml xml :deployment_id nil
                :status "1" :update_by (or user "") :remark (:remark m)})
     {:bpmn_xml xml}))
 

@@ -72,21 +72,27 @@
 
 (defn form-render
   "渲染动态表单。schema: {:conf {} :fields [...]}。
-   options: {:disabled? bool :values {field value} :on-change (fn [{field value}])}
+   options: {:disabled? bool :values {field value} :on-change (fn [{field value}])
+             :field-permissions {field hidden|readonly|edit}}
    values/on-change 由父组件管理（可编辑模式）。"
-  [{:keys [schema disabled? values on-change layout]}]
+  [{:keys [schema disabled? values on-change layout field-permissions]}]
   (let [fields (or (:fields schema) [])
         vals (or values {})
+        perms (or field-permissions {})
         on-field-change (fn [field v]
                           (when on-change (on-change (assoc vals field v))))]
     [antd/form {:layout (or layout "vertical")}
      (doall
-      (for [f fields]
-        (let [field (:field f)
-              value (get vals field (:value f))
-              required? (some (fn [v] (:required v)) (or (:validate f) []))
-              label (:title f)]
-          ^{:key (or field (str "f-" (random-uuid)))}
-          [antd/form-item {:label (if (str/blank? label) (:type f) label)
-                           :required required?}
-           (render-field f disabled? value on-field-change)])))]))
+      (keep (fn [f]
+              (let [field (:field f)
+                    value (get vals field (:value f))
+                    required? (some (fn [v] (:required v)) (or (:validate f) []))
+                    label (:title f)
+                    perm (get perms field)]
+                (when-not (= perm "hidden")
+                  ^{:key (or field (str "f-" (random-uuid)))}
+                  [antd/form-item {:label (if (str/blank? label) (:type f) label)
+                                   :required (and required? (not= perm "readonly"))}
+                   (render-field f (or disabled? (= perm "readonly")) value on-field-change)])))
+            fields))]))
+

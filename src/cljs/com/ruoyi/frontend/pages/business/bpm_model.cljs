@@ -139,7 +139,8 @@
 (defn- form-design-tab
   "表单设计 Tab —— 对齐 vben form-design.vue：表单类型(无/动态/自定义) + 表单选择 + 只读预览。"
   [mform-type set-mform-type! mform-id set-mform-id! form-list
-   mcustom-create set-mcustom-create! mcustom-view set-mcustom-view!]
+   mcustom-create set-mcustom-create! mcustom-view set-mcustom-view!
+   mfields-perm set-mfields-perm!]
   (let [sel-form (first (filter #(= (:form_id %) mform-id) form-list))
         schema (or (when-let [j (:form_json sel-form)]
                      (if (string? j)
@@ -173,7 +174,26 @@
          [:div {:style {:display "flex" :alignItems "center" :marginBottom 12}}
           [:div {:style {:width 4 :height 16 :background "#409eff" :marginRight 8}}]
           [:span {:style {:fontWeight 600}} "表单预览"]]
-[fr/form-render {:schema schema :disabled? true}]])]]))
+[fr/form-render {:schema schema :disabled? true}]])
+      (when (and (= mform-type "1") (seq (:fields schema)))
+        [:div {:style {:marginTop 16}}
+         [:div {:style {:display "flex" :alignItems "center" :marginBottom 8}}
+          [:div {:style {:width 4 :height 16 :background "#626aef" :marginRight 8}}]
+          [:span {:style {:fontWeight 600}} "字段权限"]]
+         [:div {:style {:border "1px solid #f0f0f0" :borderRadius 6}}
+          (doall
+           (for [f (:fields schema)]
+             (let [field (:field f)]
+               ^{:key (or field (str "f-" (random-uuid)))}
+               [:div {:style {:display "flex" :alignItems "center" :justifyContent "space-between"
+                              :padding "6px 10px" :borderBottom "1px solid #f5f5f5"}}
+                [:span (:title f)]
+                [antd/select {:style {:width 110} :size "small"
+                              :value (or (get mfields-perm field) "edit")
+                              :onChange #(set-mfields-perm! (assoc mfields-perm field %))}
+                 [antd/select-option {:value "edit"} "可编辑"]
+                 [antd/select-option {:value "readonly"} "只读"]
+                 [antd/select-option {:value "hidden"} "隐藏"]]])))]])]]))
 
 (defn- process-design-tab
   [{:keys [model-id on-close]}]
@@ -215,6 +235,7 @@
         [mcustom-view set-mcustom-view!] (hooks/use-state "")
         [form-list set-form-list!] (hooks/use-state [])
         [mremark set-mremark!] (hooks/use-state "")
+        [mfields-perm set-mfields-perm!] (hooks/use-state {})
         tabs [{:key "basic" :label "基本信息"} {:key "form" :label "表单设计"}
               {:key "process" :label "流程设计"} {:key "extra" :label "更多设置"}]
         save-model (fn []
@@ -224,7 +245,8 @@
                                     :form_id (some-> mform-id js/Number)
                                     :form_custom_create_path mcustom-create
                                     :form_custom_view_path mcustom-view
-                                    :form_json mform-json :remark mremark}]))
+                                    :form_json mform-json :remark mremark
+                                    :fields_permission (js/JSON.stringify (clj->js mfields-perm))}]))
         ;; 连线加号浮层菜单回调：直接插入节点并重建浮层（对齐 vben，无需居中 Modal）
         add-handle (atom nil)
         _ (reset! add-handle
@@ -279,7 +301,12 @@
          (set-mform-json! (or (:form_json current) ""))
          (set-mcustom-create! (or (:form_custom_create_path current) ""))
          (set-mcustom-view! (or (:form_custom_view_path current) ""))
-         (set-mremark! (or (:remark current) ""))))
+         (set-mremark! (or (:remark current) ""))
+         (set-mfields-perm!
+          (or (when-let [fp (:fields_permission current)]
+                (if (string? fp) (js->clj (js/JSON.parse fp) :keywordize-keys true)
+                    (walk/keywordize-keys fp)))
+              {}))))
      [visible?])
     (hooks/use-effect
      (fn []
@@ -319,7 +346,8 @@
         (case tab
           "basic" [basic-info-tab mname set-mname! mkey set-mkey! mcat set-mcat! mform-type set-mform-type!]
           "form" [form-design-tab mform-type set-mform-type! mform-id set-mform-id! form-list
-                       mcustom-create set-mcustom-create! mcustom-view set-mcustom-view!]
+                       mcustom-create set-mcustom-create! mcustom-view set-mcustom-view!
+                       mfields-perm set-mfields-perm!]
           "process" [process-design-tab {:model-id (:model_id current)
                                          :on-close #(rf/dispatch [:bpm/designer-close])}]
           "extra" [extra-tab mremark set-mremark!])])]

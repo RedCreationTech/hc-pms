@@ -66,11 +66,11 @@ SELECT * FROM biz_bpm_model WHERE model_key = :model_key ORDER BY version DESC L
 -- :name bpm/insert-model :! :n
 INSERT INTO biz_bpm_model (model_key, model_name, category_id, version, form_type,
                            form_id, form_custom_create_path, form_custom_view_path,
-                           form_json, bpmn_xml, deployment_id, status,
+                           form_json, fields_permission, bpmn_xml, deployment_id, status,
                            create_by, create_time, remark)
 VALUES (:model_key, :model_name, :category_id, :version, :form_type,
         :form_id, :form_custom_create_path, :form_custom_view_path,
-        :form_json, :bpmn_xml, :deployment_id, :status,
+        :form_json, :fields_permission, :bpmn_xml, :deployment_id, :status,
         :create_by, CURRENT_TIMESTAMP, :remark)
 --;;
 
@@ -79,7 +79,8 @@ UPDATE biz_bpm_model
 SET model_name = :model_name, category_id = :category_id, form_type = :form_type,
     form_id = :form_id, form_custom_create_path = :form_custom_create_path,
     form_custom_view_path = :form_custom_view_path,
-    form_json = :form_json, bpmn_xml = COALESCE(:bpmn_xml, bpmn_xml),
+    form_json = :form_json, fields_permission = :fields_permission,
+    bpmn_xml = COALESCE(:bpmn_xml, bpmn_xml),
     deployment_id = COALESCE(:deployment_id, deployment_id),
     status = :status, update_by = :update_by, update_time = CURRENT_TIMESTAMP,
     remark = :remark
