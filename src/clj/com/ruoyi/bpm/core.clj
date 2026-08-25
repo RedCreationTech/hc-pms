@@ -11,6 +11,7 @@
       流程模型需用排他网关(exclusiveGateway)按该变量分流
     · 引擎状态全在 Flowable(H2)，业务记录在 app 库，通过 business-key 关联
   "
+  (:require [clojure.tools.logging :as log])
   (:import
    (org.flowable.engine ProcessEngine)
    (org.flowable.engine.history HistoricActivityInstance)
@@ -189,6 +190,40 @@
                                 (str "post:" (str-id (:post_id up))))
              (catch Exception _ nil))))
     true))
+(declare node-config-of)
+
+(defonce ^:private engine-ref (atom nil))
+(defn register-engine! [engine] (reset! engine-ref engine))
+
+(defonce ^:private candidate-resolver (atom nil))
+
+(defn set-candidate-resolver!
+  "注册动态候选策略解析器。f 签名: (fn [strategy task] -> 用户id列表/用户名列表)
+   用于 START_USER_DEPT_LEADER / MULTI_LEVEL_DEPT_LEADER / START_USER_SELECT / APPROVE_USER_SELECT 等
+   无法在部署时确定的候选策略。"
+  [f]
+  (reset! candidate-resolver f))
+
+(defn make-task-listener
+  "构建一个 Flowable TaskListener（create 事件），在任务创建时解析动态候选策略并设置候选人。"
+  []
+  (let [resolve (fn [^org.flowable.task.service.delegate.DelegateTask task]
+                  (try
+                    (when-let [f @candidate-resolver]
+                      (let [node-config (when-let [^ProcessEngine engine @engine-ref]
+                                          (node-config-of engine task))
+                            strategy (get-in node-config [:candidate-strategy])]
+                        (when (and strategy
+                                   (contains? #{"START_USER_DEPT_LEADER" "MULTI_LEVEL_DEPT_LEADER"
+                                                "START_USER_SELECT" "APPROVE_USER_SELECT"} strategy))
+                          (when-let [users (f strategy task)]
+                            (when (seq users)
+                              (.addCandidateUsers task (java.util.ArrayList. users)))))))
+                    (catch Exception e
+                      (log/error "[bpm-tasklistener] 解析动态候选人失败:" (.getMessage e)))))]
+    (proxy [org.flowable.engine.delegate.TaskListener] []
+      (notify [task] (resolve task)))))
+
 (defn- task->map
   "把 Flowable Task 对象转成 Clojure map。"
   [^Task t]
@@ -287,18 +322,63 @@
                                    comment (assoc :comment comment)))
   true)
 
-(defn reject!
-  "审批驳回：完成任务，写入 approved=false（模型需按该变量走排他网关）。"
-  [^ProcessEngine engine task-id user comment]
-  (complete* engine task-id user (cond-> {:approved false}
-                                   comment (assoc :comment comment)))
-  true)
-
 (defn complete!
   "通用完成任务（自定义变量）。"
   [^ProcessEngine engine task-id user variables]
   (complete* engine task-id user variables)
   true)
+
+(defn- node-config-of
+  "从任务对应 BPMN 节点的 extensionElements 读取 nodeConfig JSON（config round-trip 数据）。"
+  [^ProcessEngine engine task]
+  (try
+    (let [repo (.getRepositoryService engine)
+          bpmn (.getBpmnModel repo (.getProcessDefinitionId task))
+          el (.getFlowElement bpmn (.getTaskDefinitionKey task))
+          ext (when el (.getExtensionElements el))
+          props-list (when ext (or (.get ext "flowable:properties") (.get ext "properties")))
+          props (when (and props-list (seq props-list)) (first props-list))
+          children (when props (.getChildElements props))
+          props-children (when children (or (.get children "flowable:property") (.get children "property")))]
+      (some (fn [^org.flowable.bpmn.model.ExtensionElement p]
+              (when (= "nodeConfig" (.getAttributeValue p nil "name"))
+                (when-let [v (.getAttributeValue p nil "value")]
+                  (try (cheshire.core/parse-string v true) (catch Exception _ nil)))))
+            (or props-children [])))
+    (catch Exception _ nil)))
+
+(defn- move-to-activity!
+  "把流程实例从当前活动迁移到目标活动（驳回到指定节点）。"
+  [^ProcessEngine engine process-instance-id from-activity-id to-activity-id]
+  (-> (.createChangeActivityStateBuilder (.getRuntimeService engine))
+      (.processInstanceId process-instance-id)
+      (.moveActivityIdTo from-activity-id to-activity-id)
+      .changeState)
+  true)
+
+(defn reject!
+  "审批驳回：完成任务，写入 approved=false。
+   若任务节点配置了\u201c驳回到指定节点\u201d(reject-handler.type=RETURN_USER_TASK)，
+   则把流程实例迁移回目标节点重新审批；否则走网关条件分流(approved=false)。"
+  [^ProcessEngine engine task-id user comment]
+  (let [ts (.getTaskService engine)
+        t (some-> (.taskId (.createTaskQuery ts) task-id) .singleResult)
+        node-config (when t (node-config-of engine t))
+        reject-handler (:reject-handler node-config)
+        return-node (:return-node-id reject-handler)]
+    (if (and t (= "RETURN_USER_TASK" (:type reject-handler)) return-node)
+      ;; 驳回到指定节点：不 complete，直接迁移流程实例（changeState 自动处理当前任务；
+      ;; 驳回到自身时 moveActivityIdTo 同节点 = 重新激活当前审批）
+      (do
+        (when comment
+          (let [rt (.getRuntimeService engine)]
+            (.setVariable rt (.getProcessInstanceId t) "comment" comment)))
+        (move-to-activity! engine (.getProcessInstanceId t)
+                           (.getTaskDefinitionKey t) return-node))
+      ;; 终止流程(FINISH_PROCESS)或无条件：complete + approved=false 走网关
+      (complete* engine task-id user (cond-> {:approved false}
+                                       comment (assoc :comment comment))))
+    true))
 
 ;; ── 历史 (History) ─────────────────────────────────────────────────────
 

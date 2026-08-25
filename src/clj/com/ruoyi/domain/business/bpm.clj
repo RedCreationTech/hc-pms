@@ -10,6 +10,41 @@
 ;; ── Integrant 组件 ────────────────────────────────────────────────────
 (defmethod ig/init-key :app.business/bpm-service
   [_ {:keys [engine query-fn db]}]
+  ;; 注入动态候选策略解析器（TaskListener 在任务创建时调用）
+  (bpm/set-candidate-resolver!
+   (fn [strategy task]
+     (let [pid (.getProcessInstanceId ^org.flowable.task.service.delegate.DelegateTask task)
+           start-user (some-> (.getVariable ^org.flowable.task.service.delegate.DelegateTask task "startUserId") str)
+           users (query-fn :list-users {:user_name nil :phonenumber nil :status nil
+                                        :begin_time nil :end_time nil :dept_filter_enabled 0
+                                        :dept_ids [] :data_user_id nil :page_size 100000 :offset 0})
+           depts (query-fn :list-all-depts {})
+           user-dept (fn [uname] (:dept_id (first (filter #(= uname (str (:user_name %))) users))))
+           leaders-of (fn [dept-id]
+                        (when-let [d (first (filter #(= dept-id (:dept_id %)) depts))]
+                          (when-let [leader (:leader d)]
+                            (map :user_name (filter #(= (str leader) (str (:user_id %))) users)))))]
+       (case strategy
+         "START_USER_DEPT_LEADER"
+         (when start-user
+           (leaders-of (user-dept start-user)))
+         "MULTI_LEVEL_DEPT_LEADER"
+         (when start-user
+           (let [node-config (get-in (meta task) [])]
+             ;; 向上层级从 config 读，这里简化向上取 3 级
+             (loop [did (user-dept start-user) n 0 acc []]
+               (if (or (nil? did) (>= n 3))
+                 (distinct acc)
+                 (recur (:parent_id (first (filter #(= did (:dept_id %)) depts)))
+                        (inc n)
+                        (concat acc (leaders-of did)))))))
+         "START_USER_SELECT"
+         (let [v (.getVariable ^org.flowable.task.service.delegate.DelegateTask task "startUserSelected")]
+           (when (sequential? v) (map str v)))
+         "APPROVE_USER_SELECT"
+         (let [v (.getVariable ^org.flowable.task.service.delegate.DelegateTask task "approveUserSelected")]
+           (when (sequential? v) (map str v)))
+         nil))))
   {:engine engine :query-fn query-fn :db db})
 
 ;; ── 分页工具 ──────────────────────────────────────────────────────────

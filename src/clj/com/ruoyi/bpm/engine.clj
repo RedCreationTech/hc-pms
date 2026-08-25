@@ -14,6 +14,7 @@
   (:require
    [clojure.string :as str]
    [clojure.tools.logging :as log]
+   [com.ruoyi.bpm.core :as bpm-core]
    [integrant.core :as ig])
   (:import
    (org.flowable.engine ProcessEngine ProcessEngineConfiguration)))
@@ -36,7 +37,10 @@
         _   (.setAsyncExecutorActivate cfg async?)
         _   (.setJdbcMaxActiveConnections cfg 3)
         _   (.setJdbcMaxIdleConnections cfg 2)
-        engine (.buildProcessEngine cfg)]
+        _   (when (some? (requiring-resolve 'com.ruoyi.bpm.core/make-task-listener))
+              (.setBeans cfg {"bpmTaskListener" (bpm-core/make-task-listener)}))
+        engine (.buildProcessEngine cfg)
+        _   (when engine (bpm-core/register-engine! engine))]
     (log/info "[bpm/engine] Flowable ProcessEngine 启动完成:" (.getName engine)
               "| async:" async?)
     engine))

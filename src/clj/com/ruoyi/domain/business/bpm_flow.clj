@@ -153,20 +153,27 @@
    USER                   → candidateUsers (逗号分隔用户名)
    ROLE/DEPT_MEMBER/POST  → candidateGroups (role:id / dept:id / post:id)
    DEPT_LEADER/MULTI...   → candidateGroups (dept-leader:id)
+   抄送节点(copy-user-ids/copy-role-ids) → candidateUsers / candidateGroups(role:)
    动态策略(发起人自选等) 暂由前端 config 保存，运行时通过扩展表达式或 listener 处理。"
   [config users]
-  (let [{:keys [candidate-strategy candidate-param]} config
+  (let [{:keys [candidate-strategy candidate-param copy-user-ids copy-role-ids]} config
         param (or candidate-param {})
         ids (fn [k] (or (get param k) []))
         unames (fn [k] (str/join "," (keep #(get users (str %)) (ids k))))]
-    (case candidate-strategy
-      "USER" (str " flowable:candidateUsers=\"" (escape-xml (unames :user-ids)) "\"")
-      "ROLE" (str " flowable:candidateGroups=\"" (escape-xml (group-ids "role" (ids :role-ids))) "\"")
-      "DEPT_MEMBER" (str " flowable:candidateGroups=\"" (escape-xml (group-ids "dept" (ids :dept-ids))) "\"")
-      "DEPT_LEADER" (str " flowable:candidateGroups=\"" (escape-xml (group-ids "dept-leader" (ids :dept-ids))) "\"")
-      "MULTI_LEVEL_DEPT_LEADER" (str " flowable:candidateGroups=\"" (escape-xml (group-ids "dept-leader" (ids :dept-ids))) "\"")
-      "POST" (str " flowable:candidateGroups=\"" (escape-xml (group-ids "post" (ids :post-ids))) "\"")
-      "")))
+    (cond
+      (seq copy-user-ids)
+      (str " flowable:candidateUsers=\"" (escape-xml (str/join "," (keep #(get users (str %)) copy-user-ids))) "\"")
+      (seq copy-role-ids)
+      (str " flowable:candidateGroups=\"" (escape-xml (group-ids "role" copy-role-ids)) "\"")
+      :else
+      (case candidate-strategy
+        "USER" (str " flowable:candidateUsers=\"" (escape-xml (unames :user-ids)) "\"")
+        "ROLE" (str " flowable:candidateGroups=\"" (escape-xml (group-ids "role" (ids :role-ids))) "\"")
+        "DEPT_MEMBER" (str " flowable:candidateGroups=\"" (escape-xml (group-ids "dept" (ids :dept-ids))) "\"")
+        "DEPT_LEADER" (str " flowable:candidateGroups=\"" (escape-xml (group-ids "dept-leader" (ids :dept-ids))) "\"")
+        "MULTI_LEVEL_DEPT_LEADER" (str " flowable:candidateGroups=\"" (escape-xml (group-ids "dept-leader" (ids :dept-ids))) "\"")
+        "POST" (str " flowable:candidateGroups=\"" (escape-xml (group-ids "post" (ids :post-ids))) "\"")
+        ""))))
 (defn- delay-iso
   "延迟器 config → ISO8601 时长（如 PT6H）。"
   [{:keys [time-duration time-unit]}]
@@ -194,11 +201,30 @@
                              (str/starts-with? (or id "") "cond-")
                              (str "gw" (swap! gw-counter inc))
                              :else id)
-                     attrs (str " id=\"" el-id "\" name=\"" (escape-xml (or name id)) "\"")
+                     branch? (and (str/includes? (or type "") "BRANCH") (seq condition-nodes))
                      cand (config->candidate-attrs config users)
+                     ;; 先递归子节点拿到出线目标 id（网关 default 属性需要默认线 id）
+                     cond-flows (when branch?
+                                  (mapv (fn [cn]
+                                          (let [cid (emit (:child-node cn) nil)]
+                                            {:src el-id :tgt cid :cond? true
+                                             :expr (or (:expression cn) "${approved == true}")}))
+                                        condition-nodes))
+                     default-cid (when (and branch? child-node)
+                                   (emit child-node nil))
+                     attrs (str " id=\"" el-id "\" name=\"" (escape-xml (or name id)) "\""
+                                (when default-cid
+                                  (str " default=\"" el-id "_" default-cid "\"")))
+                     dynamic-strategy? (contains? #{"START_USER_DEPT_LEADER" "MULTI_LEVEL_DEPT_LEADER"
+                                                    "START_USER_SELECT" "APPROVE_USER_SELECT"}
+                                                  (get-in config [:candidate-strategy]))
+                     listener-el (when (and (#{"USER_TASK_NODE"} type) dynamic-strategy?)
+                                   "<flowable:taskListener event=\"create\" delegateExpression=\"${bpmTaskListener}\"/>")
                      body (cond
                             (and (#{"USER_TASK_NODE" "COPY_TASK_NODE"} type) (seq config))
-                            (str "<extensionElements><flowable:properties>"
+                            (str "<extensionElements>"
+                                 (when listener-el listener-el)
+                                 "<flowable:properties>"
                                  "<flowable:property name=\"nodeConfig\" value=\""
                                  (escape-xml (json/generate-string config))
                                  "\"/></flowable:properties></extensionElements>")
@@ -212,11 +238,11 @@
                           (str "<" tag attrs cand "/>")))
                  (when parent-id
                    (swap! flows conj {:src parent-id :tgt el-id :cond? false}))
-                 (if (and (str/includes? (or type "") "BRANCH") (seq condition-nodes))
-                   (doseq [cn condition-nodes]
-                     (let [cid (emit (:child-node cn) nil)]
-                       (swap! flows conj {:src el-id :tgt cid :cond? true
-                                          :expr (or (:expression cn) "${approved == true}")})))
+                 (if branch?
+                   (do
+                     (doseq [f cond-flows] (swap! flows conj f))
+                     (when default-cid
+                       (swap! flows conj {:src el-id :tgt default-cid :cond? false})))
                    (when child-node
                      (emit child-node el-id)))
                  el-id))]
