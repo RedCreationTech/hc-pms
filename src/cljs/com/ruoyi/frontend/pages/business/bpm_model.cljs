@@ -38,7 +38,7 @@
         current @(rf/subscribe [:bpm-designer/current])
         xml @(rf/subscribe [:bpm-designer/bpmn-xml])
         loading? @(rf/subscribe [:bpm-designer/loading?])
-        modeler-atom (hooks/use-state nil)]
+        modeler-ref (hooks/use-ref nil)]
     [antd/modal {:title (str "流程设计 · " (:model_name current))
                  :open visible?
                  :width 1000
@@ -48,13 +48,13 @@
                            [antd/button {:on-click #(rf/dispatch [:bpm/designer-close])} "取消"]
                            [antd/button {:type "primary"
                                          :icon (r/as-element [:> SaveOutlined])
-                                         :on-click #(bpmn/save-bpmn! @modeler-atom
+                                         :on-click #(bpmn/save-bpmn! (.-current modeler-ref)
                                                                      (fn [x] (rf/dispatch [:bpm/designer-save x]))
                                                                      (fn [e] (antd/error! e)))} "保存流程"]])
                  :onCancel #(rf/dispatch [:bpm/designer-close])}
      (if loading?
        [:div {:style {:padding 48 :textAlign "center"}} "加载中..."]
-       [bpmn/bpmn-modeler {:xml xml :modeler-atom modeler-atom
+       [bpmn/bpmn-modeler {:xml xml :modeler-ref modeler-ref
                            :on-error (fn [e] (antd/error! e))}])]))
 
 (defn bpm-model-page []

@@ -40,7 +40,7 @@
     (fn [_this] nil)
     :component-did-catch
     (fn [this error info]
-      (js/console.error "ErrorBoundary caught error:" error info)
+      (js/console.error "ErrorBoundary caught error:" error info "STACK=" (when error (.-stack error)))
       (r/set-state this {:error error :info info}))
     :reagent-render
     (fn [child]

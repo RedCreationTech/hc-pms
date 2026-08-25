@@ -117,6 +117,7 @@
                                     "-s" "test/clj"
                                     "-o" "target/coverage"
                                     "--html" "--text"
-                                    "-r" ".*core.*"
+                                    "-e" "com.ruoyi.integrant.trace"
+                                    "-e" "com.ruoyi.obs.trace"
                                     "--runner" "clojure.test"]}}
  }
