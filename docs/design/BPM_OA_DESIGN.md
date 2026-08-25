@@ -272,6 +272,12 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-25 (19)** **BPM 设计器对齐参考系统 + 多级审批流程**：
+  · 请假流程改为**三级审批**（部门经理→分管领导→HR），报销为二级（部门经理→财务），各级可驳回
+  · 内置模型补齐 BPMNDI，修正边 ID/startEvent，实测多级审批链路 + 设计器可渲染
+  · **设计器新增右侧属性面板**：选中审批节点可编辑 节点名称 + 审批人(candidateUsers)，
+    应用到节点→modeling.updateProperties，保存→XML 持久化（实测 admin→admin,manager）
+  · E2E 适配多级审批（单级审批后仍为审批中）。全量 E2E 41 通过 / 后端 349 测试 0 失败
 - **2026-08-25 (18)** **Playwright E2E 完整通过**：新增 `business-flow.spec.js`（登录→发起请假→待办审批→
   状态变已通过 + 办公报表加载），全量 E2E **38 passed / 0 failed**。修复 2 个前端 bug：
   · `app.cljs` init 从 localStorage 同步恢复 token（否则刷新后首屏请求 401 空表）
