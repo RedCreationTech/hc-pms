@@ -255,11 +255,21 @@
      :total (:total (query-fn :bpm/instance-count p))}))
 
 (defn instance-history
-  "流程实例的完整历史轨迹（引擎侧 + 业务侧）。"
+  "流程实例的完整历史轨迹：业务侧 + 活动轨迹 + 任务级审批历史 + 表单回显数据。"
   [{:keys [engine query-fn]} pid]
-  (let [biz (query-fn :bpm/find-instance-by-pid {:process_instance_id pid})]
-    {:instance (row->json biz [:form_data_json])
+  (let [biz (query-fn :bpm/find-instance-by-pid {:process_instance_id pid})
+        _ (when-not biz (throw (ex-info "流程实例不存在" {:pid pid})))
+        model (query-fn :bpm/find-model-by-id {:model_id (:model_id biz)})
+        form (when-let [fid (:form_id model)]
+               (query-fn :bpm/find-form-by-id {:form_id fid}))
+        inst (row->json biz [:form_data_json])]
+    {:instance inst
+     :model {:model_name (:model_name model) :model_key (:model_key model) :form_type (:form_type model)}
+     :form {:schema (when-let [fj (:form_json form)]
+                      (if (string? fj) (json/parse-string fj true) fj))
+            :values (get inst :form_data_json)}
      :activities (bpm/history-of engine pid)
+     :task-history (bpm/task-history-of engine pid)
      :running? (pos? (bpm/todo-count engine (or (:starter_id biz) "")))}))
 
 (defn instance-diagram

@@ -2,7 +2,7 @@
   "Ant Design 组件 Reagent 封装。"
   (:require
    [reagent.core :as r]
-   ["antd" :refer [App Button Card Checkbox ConfigProvider DatePicker Descriptions Divider Drawer Dropdown Empty Form Input InputNumber Layout Menu Modal Pagination Popconfirm Popover Progress Radio Rate Select Space Spin Statistic Switch Table Tabs Tag TimePicker Tooltip Tree TreeSelect Upload message Row Col]]
+   ["antd" :refer [App Button Card Checkbox ConfigProvider DatePicker Descriptions Divider Drawer Dropdown Empty Form Input InputNumber Layout Menu Modal Pagination Popconfirm Popover Progress Radio Rate Select Space Spin Statistic Switch Table Tabs Tag TimePicker Timeline Tooltip Tree TreeSelect Upload message Row Col]]
    ["@ant-design/icons" :refer [LockOutlined UserOutlined DashboardOutlined TeamOutlined SettingOutlined SafetyOutlined FileTextOutlined EditOutlined DeleteOutlined PlusOutlined DownloadOutlined EyeOutlined SearchOutlined ReloadOutlined UploadOutlined MoreOutlined]]))
 
 (def app (r/adapt-react-class App))
@@ -12,6 +12,7 @@
 (def checkbox-group (r/adapt-react-class (.-Group Checkbox)))
 (def rate (r/adapt-react-class Rate))
 (def time-picker (r/adapt-react-class TimePicker))
+(def timeline (r/adapt-react-class Timeline))
 (def statistic (r/adapt-react-class Statistic))
 (def row (r/adapt-react-class Row))
 (def col (r/adapt-react-class Col))

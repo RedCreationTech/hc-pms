@@ -13,6 +13,7 @@
   "
   (:require [clojure.tools.logging :as log])
   (:import
+   (org.flowable.task.api.history HistoricTaskInstance)
    (org.flowable.engine ProcessEngine)
    (org.flowable.engine.history HistoricActivityInstance)
    (org.flowable.engine.repository ProcessDefinition)
@@ -312,7 +313,11 @@
           (throw (ex-info "无权办理该任务(非本人)" {:task-id task-id :assignee cur :user user})))
         (when (and user (nil? cur))
           (.claim ts task-id user))))
-    (.complete ts task-id (vars-map (or variables {}))))
+    (when-let [c (:comment variables)]
+      (.setVariableLocal ts task-id "comment" c))
+    (when-let [a (contains? variables :approved)]
+      (.setVariableLocal ts task-id "approved" (boolean (:approved variables))))
+    (.complete ts task-id (vars-map (dissoc variables :comment))))
   true)
 
 (defn approve!
@@ -399,6 +404,25 @@
              :end-time (timestamp->str (.getEndTime h))
              :duration (when (and (.getStartTime h) (.getEndTime h))
                          (str (.getDurationInMillis h)))})
+          (.list q))))
+
+(defn task-history-of
+  "某流程实例的任务级审批历史（含任务局部变量 comment/approved，按结束时间倒序）。"
+  [^ProcessEngine engine process-instance-id]
+  (let [hs (.getHistoryService engine)
+        q (-> (.createHistoricTaskInstanceQuery hs)
+              (.processInstanceId process-instance-id)
+              (.orderByHistoricTaskInstanceEndTime)
+              (.desc))]
+    (mapv (fn [^HistoricTaskInstance t]
+            (let [locals (try (.getTaskLocalVariables t) (catch Exception _ nil))]
+              {:task-id (.getId t)
+               :name (.getName t)
+               :assignee (.getAssignee t)
+               :start-time (timestamp->str (.getStartTime t))
+               :end-time (timestamp->str (.getEndTime t))
+               :comment (get locals "comment")
+               :approved (get locals "approved")}))
           (.list q))))
 
 ;; ── 流程图示 (diagram) ─────────────────────────────────────────────────
