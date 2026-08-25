@@ -75,6 +75,14 @@ WHERE user_id = :user_id
 -- :doc 逻辑删除用户
 UPDATE sys_user SET del_flag = '2', update_time = CURRENT_TIMESTAMP WHERE user_id = :user_id
 
+-- :name list-user-roles :? :*
+-- :doc 查询所有用户-角色关联（用于 Flowable identity 同步）
+SELECT user_id, role_id FROM sys_user_role
+
+-- :name list-user-posts :? :*
+-- :doc 查询所有用户-岗位关联（用于 Flowable identity 同步）
+SELECT user_id, post_id FROM sys_user_post
+
 -- :name list-roles-by-user-id :? :*
 -- :doc 查询用户的角色列表
 SELECT r.role_id, r.role_name, r.role_key, r.role_sort, r.data_scope,
@@ -135,6 +143,10 @@ SET parent_id = COALESCE(:parent_id, parent_id),
     update_by = :update_by,
     update_time = CURRENT_TIMESTAMP
 WHERE dept_id = :dept_id
+
+-- :name list-all-depts :? :*
+-- :doc 查询所有部门（用于 Flowable identity 同步）
+SELECT dept_id, parent_id, dept_name, leader, status FROM sys_dept WHERE del_flag = '0'
 
 -- :name list-depts-by-parent :? :*
 SELECT * FROM sys_dept WHERE parent_id = :parent_id AND del_flag = '0'

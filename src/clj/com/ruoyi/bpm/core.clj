@@ -121,9 +121,76 @@
   (.activateProcessInstanceById (.getRuntimeService engine process-instance-id))
   true)
 
-;; ── 任务 (Task) ────────────────────────────────────────────────────────
-
+(defn sync-identity!
+  "把系统用户/角色/部门/岗位同步到 Flowable identity 表，
+   使 candidateGroups(role:id / dept:id / post:id / dept-leader:id) 运行时能被正确匹配。
+   data-map 结构: {:users [...] :roles [...] :depts [...] :posts [...]
+                   :user-roles [{:user_id :role_id}] :user-posts [{:user_id :post_id}]}"
+  [^ProcessEngine engine data]
+  (let [id-svc (.getIdentityService engine)
+        users (:users data)
+        roles (:roles data)
+        depts (:depts data)
+        posts (:posts data)
+        user-roles (:user-roles data)
+        user-posts (:user-posts data)
+        str-id (fn [x] (str (or x "")))
+        uname (fn [u] (str (or (:user_name u) (:nick_name u) (:user_id u))))
+        existing-group (fn [id] (some-> (.createGroupQuery id-svc) (.groupId id) .singleResult))
+        existing-user (fn [id] (some-> (.createUserQuery id-svc) (.userId id) .singleResult))]
+    ;; 1) groups
+    (doseq [r roles]
+      (let [gid (str "role:" (str-id (:role_id r)))]
+        (when-not (existing-group gid)
+          (let [g (.newGroup id-svc gid)]
+            (.setName g (str (:role_name r)))
+            (.saveGroup id-svc g)))))
+    (doseq [d depts]
+      (let [gid (str "dept:" (str-id (:dept_id d)))]
+        (when-not (existing-group gid)
+          (let [g (.newGroup id-svc gid)]
+            (.setName g (str (:dept_name d)))
+            (.saveGroup id-svc g))))
+      (let [gid (str "dept-leader:" (str-id (:dept_id d)))]
+        (when-not (existing-group gid)
+          (let [g (.newGroup id-svc gid)]
+            (.setName g (str (:dept_name d) "-负责人"))
+            (.saveGroup id-svc g)))))
+    (doseq [p posts]
+      (let [gid (str "post:" (str-id (:post_id p)))]
+        (when-not (existing-group gid)
+          (let [g (.newGroup id-svc gid)]
+            (.setName g (str (:post_name p)))
+            (.saveGroup id-svc g)))))
+    ;; 2) users
+    (doseq [u users]
+      (let [uid (uname u)]
+        (when-not (existing-user uid)
+          (let [user (.newUser id-svc uid)]
+            (.setFirstName user (str (or (:nick_name u) (:user_name u) (:user_id u))))
+            (.saveUser id-svc user)))))
+    ;; 3) memberships（忽略重复，保证幂等）
+    (doseq [ur user-roles]
+      (when (and (:user_id ur) (:role_id ur))
+        (try (.createMembership id-svc (uname (first (filter #(= (:user_id ur) (:user_id %)) users)))
+                                (str "role:" (str-id (:role_id ur))))
+             (catch Exception _ nil))))
+    (doseq [u users]
+      (when (:dept_id u)
+        (try (.createMembership id-svc (uname u) (str "dept:" (str-id (:dept_id u))))
+             (catch Exception _ nil))
+        (when-let [d (first (filter #(= (:dept_id u) (:dept_id %)) depts))]
+          (when (= (str-id (:user_id u)) (str-id (:leader d)))
+            (try (.createMembership id-svc (uname u) (str "dept-leader:" (str-id (:dept_id u))))
+                 (catch Exception _ nil))))))
+    (doseq [up user-posts]
+      (when (and (:user_id up) (:post_id up))
+        (try (.createMembership id-svc (uname (first (filter #(= (:user_id up) (:user_id %)) users)))
+                                (str "post:" (str-id (:post_id up))))
+             (catch Exception _ nil))))
+    true))
 (defn- task->map
+  "把 Flowable Task 对象转成 Clojure map。"
   [^Task t]
   {:task-id (.getId t)
    :name (.getName t)

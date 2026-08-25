@@ -142,21 +142,31 @@
       (str/replace ">" "&gt;")
       (str/replace "\"" "&quot;")))
 
+(defn- group-ids
+  "把 id 列表转成 Flowable identity group 格式：prefix:id1,prefix:id2。"
+  [prefix ids]
+  (str/join "," (map #(str prefix ":" %) ids)))
+
 (defn- config->candidate-attrs
-  "节点 config → Flowable 候选人属性（审批人设置落地为运行时可用）。"
-  [config]
+  "节点 config → Flowable 候选人属性（审批人设置落地为运行时可用）。
+   候选策略映射：
+   USER                   → candidateUsers (逗号分隔用户名)
+   ROLE/DEPT_MEMBER/POST  → candidateGroups (role:id / dept:id / post:id)
+   DEPT_LEADER/MULTI...   → candidateGroups (dept-leader:id)
+   动态策略(发起人自选等) 暂由前端 config 保存，运行时通过扩展表达式或 listener 处理。"
+  [config users]
   (let [{:keys [candidate-strategy candidate-param]} config
         param (or candidate-param {})
-        ids (fn [k] (str/join "," (or (get param k) [])))]
+        ids (fn [k] (or (get param k) []))
+        unames (fn [k] (str/join "," (keep #(get users (str %)) (ids k))))]
     (case candidate-strategy
-      "USER" (str " flowable:candidateUsers=\"" (escape-xml (ids :user-ids)) "\"")
-      "ROLE" (str " flowable:candidateGroups=\"" (escape-xml (ids :role-ids)) "\"")
-      "POST" (str " flowable:candidateGroups=\"" (escape-xml (ids :post-ids)) "\"")
-      "DEPT_MEMBER" (str " flowable:candidateGroups=\"" (escape-xml (ids :dept-ids)) "\"")
-      "DEPT_LEADER" (str " flowable:candidateGroups=\"" (escape-xml (ids :dept-ids)) "\"")
-      "MULTI_LEVEL_DEPT_LEADER" (str " flowable:candidateGroups=\"" (escape-xml (ids :dept-ids)) "\"")
+      "USER" (str " flowable:candidateUsers=\"" (escape-xml (unames :user-ids)) "\"")
+      "ROLE" (str " flowable:candidateGroups=\"" (escape-xml (group-ids "role" (ids :role-ids))) "\"")
+      "DEPT_MEMBER" (str " flowable:candidateGroups=\"" (escape-xml (group-ids "dept" (ids :dept-ids))) "\"")
+      "DEPT_LEADER" (str " flowable:candidateGroups=\"" (escape-xml (group-ids "dept-leader" (ids :dept-ids))) "\"")
+      "MULTI_LEVEL_DEPT_LEADER" (str " flowable:candidateGroups=\"" (escape-xml (group-ids "dept-leader" (ids :dept-ids))) "\"")
+      "POST" (str " flowable:candidateGroups=\"" (escape-xml (group-ids "post" (ids :post-ids))) "\"")
       "")))
-
 (defn- delay-iso
   "延迟器 config → ISO8601 时长（如 PT6H）。"
   [{:keys [time-duration time-unit]}]
@@ -165,8 +175,11 @@
       (str "PT" time-duration suf))))
 
 (defn tree->bpmn
-  "流程节点树 → BPMN XML 字符串。"
-  [root]
+  "流程节点树 → BPMN XML 字符串。
+   model-key 作为 BPMN process id，保证部署后流程定义 key 与模型 key 一致。
+   users 是 {user-id user-name} 映射，用于 USER 策略生成 candidateUsers 用户名。"
+  ([root model-key] (tree->bpmn root model-key nil))
+  ([root model-key users]
   (let [parts (atom [])
         flows (atom [])
         gw-counter (atom 0)
@@ -182,7 +195,7 @@
                              (str "gw" (swap! gw-counter inc))
                              :else id)
                      attrs (str " id=\"" el-id "\" name=\"" (escape-xml (or name id)) "\"")
-                     cand (config->candidate-attrs config)
+                     cand (config->candidate-attrs config users)
                      body (cond
                             (and (#{"USER_TASK_NODE" "COPY_TASK_NODE"} type) (seq config))
                             (str "<extensionElements><flowable:properties>"
@@ -216,7 +229,7 @@
          " xmlns:dc=\"http://www.omg.org/spec/DD/20100524/DC\""
          " xmlns:di=\"http://www.omg.org/spec/DD/20100524/DI\""
          " id=\"def\" targetNamespace=\"http://bpmn.io/schema/bpmn\">"
-         "<process id=\"p\" isExecutable=\"true\">"
+         "<process id=\"" (escape-xml (or model-key "p")) "\" isExecutable=\"true\">"
          (apply str @parts)
          (apply str (map (fn [{:keys [src tgt cond? expr]}]
                            (if cond?
@@ -226,4 +239,4 @@
                                   "</conditionExpression></sequenceFlow>")
                              (str "<sequenceFlow id=\"" src "_" tgt "\" sourceRef=\"" src "\" targetRef=\"" tgt "\"/>")))
                          @flows))
-         "</process></definitions>")))
+         "</process></definitions>"))))

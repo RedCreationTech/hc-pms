@@ -112,12 +112,25 @@
            (catch Exception _ nil)))
     (query-fn :bpm/delete-model {:model_id id})))
 
+(defn- load-identity-data
+  "加载系统用户/角色/部门/岗位关系，用于同步到 Flowable identity。"
+  [query-fn]
+  {:users (query-fn :list-users {:user_name nil :phonenumber nil :status nil
+                                 :begin_time nil :end_time nil :dept_filter_enabled 0
+                                 :dept_ids [] :data_user_id nil :page_size 100000 :offset 0})
+   :roles (query-fn :list-roles {:role_name nil :role_key nil :status nil})
+   :depts (query-fn :list-all-depts {})
+   :posts (query-fn :list-posts {:post_code nil :post_name nil :status nil})
+   :user-roles (query-fn :list-user-roles {})
+   :user-posts (query-fn :list-user-posts {})})
+
 (defn model-deploy!
   "部署流程模型到 Flowable，并回写 deployment_id。返回新 deployment-id。"
   [{:keys [engine query-fn]} id]
   (let [m (query-fn :bpm/find-model-by-id {:model_id id})
         _ (when-not m (throw (ex-info "流程模型不存在" {:model_id id})))
         _ (when-not (:bpmn_xml m) (throw (ex-info "模型未定义 BPMN" {:model_id id})))
+        _ (bpm/sync-identity! engine (load-identity-data query-fn))
         dep-id (bpm/deploy! engine (:bpmn_xml m) (:model_key m) (:model_name m))
         new-version (inc (or (:version m) 1))]
     (query-fn :bpm/update-model-deployment
@@ -134,7 +147,11 @@
   "保存流程节点树：转回 BPMN XML 并更新模型。返回新 XML。"
   [{:keys [query-fn]} id tree user]
   (let [m (query-fn :bpm/find-model-by-id {:model_id id})
-        xml (bpm-flow/tree->bpmn (clojure.walk/keywordize-keys tree))]
+        users (query-fn :list-users {:user_name nil :phonenumber nil :status nil
+                                     :begin_time nil :end_time nil :dept_filter_enabled 0
+                                     :dept_ids [] :data_user_id nil :page_size 100000 :offset 0})
+        user-map (into {} (map (juxt (comp str :user_id) :user_name)) users)
+        xml (bpm-flow/tree->bpmn (clojure.walk/keywordize-keys tree) (:model_key m) user-map)]
     (query-fn :bpm/update-model
               {:model_id id :model_name (:model_name m)
                :category_id (:category_id m) :form_type (:form_type m)

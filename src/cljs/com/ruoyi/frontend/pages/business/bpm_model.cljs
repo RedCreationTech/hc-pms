@@ -161,13 +161,13 @@
           (doall (for [f form-list] ^{:key (:form_id f)}
                    [antd/select-option {:value (:form_id f)} (:form_name f)]))]])
       (when (= mform-type "2")
-        (doall
-         [[antd/form-item {:label "表单提交路由"}
-           [antd/input {:value mcustom-create :placeholder "如 /bpm/oa/leave/create"
-                        :onChange (fn [e] (set-mcustom-create! (-> e .-target .-value)))}]]
-          [antd/form-item {:label "表单查看地址"}
-           [antd/input {:value mcustom-view :placeholder "如 /bpm/oa/leave/detail"
-                        :onChange (fn [e] (set-mcustom-view! (-> e .-target .-value)))}]]]))
+        [:<> 
+         [antd/form-item {:label "表单提交路由"}
+          [antd/input {:value mcustom-create :placeholder "如 /bpm/oa/leave/create"
+                       :onChange (fn [e] (set-mcustom-create! (-> e .-target .-value)))}]]
+         [antd/form-item {:label "表单查看地址"}
+          [antd/input {:value mcustom-view :placeholder "如 /bpm/oa/leave/detail"
+                       :onChange (fn [e] (set-mcustom-view! (-> e .-target .-value)))}]]])
       (when (and (= mform-type "1") mform-id sel-form)
         [:div {:style {:border "1px solid #eee" :borderRadius 6 :padding 16 :marginTop 8}}
          [:div {:style {:display "flex" :alignItems "center" :marginBottom 12}}

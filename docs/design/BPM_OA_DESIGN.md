@@ -270,7 +270,17 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ---
 
-## Changelog
+- **2026-08-26 (35)** **BPMN 修改流程自洽：process id + Flowable identity 同步**：
+  · tree->bpmn 支持 model-key 参数：BPMN process id 用模型 key（此前固定 "p" 导致多模型部署 key 冲突）
+  · 候选策略运行时映射：USER→candidateUsers(用户名)，ROLE/DEPT_MEMBER/POST→candidateGroups(role:id/dept:id/post:id)，
+    DEPT_LEADER/MULTI_LEVEL→candidateGroups(dept-leader:id)
+  · 新增 Flowable identity 同步（bpm/core.clj sync-identity!）：部署时把系统用户/角色/部门/岗位及 membership
+    同步到 Flowable identity 表（幂等 create-or-skip）；用户 id 用 user_name 与任务查询对齐
+  · system.sql 新增 list-user-roles/list-user-posts/list-all-depts；bpm.clj 新增 load-identity-data
+  · 修复迁移文件 `;--;;` 行内分隔符导致 form_id/form_custom_create_path 列丢失（sqlite+mysql 同步修正）
+  · 修复 bpm_model.cljs 自定义表单 tab `(doall [[..][..]])` 导致 antd "Key must be integer"（改 fragment）
+  · 实测 ROLE 策略全链路：保存→部署(candidateGroups=role:1)→发起→admin待办可见→审批→条件分流→财务审核→结束
+  · BPM E2E 5通过；后端349测试0失败
 
 - **2026-08-26 (34)** **流程设计器视觉与交互优化**：
   · 分支布局改为 vben 风格：网关以左侧"添加条件"小按钮呈现，条件分支用虚线分组容器横向排列
