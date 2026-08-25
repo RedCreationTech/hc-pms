@@ -272,6 +272,11 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-25 (18)** **Playwright E2E 完整通过**：新增 `business-flow.spec.js`（登录→发起请假→待办审批→
+  状态变已通过 + 办公报表加载），全量 E2E **38 passed / 0 failed**。修复 2 个前端 bug：
+  · `app.cljs` init 从 localStorage 同步恢复 token（否则刷新后首屏请求 401 空表）
+  · `bpm_todo.cljs` 4 处订阅名与 subs 不一致（`bpm/todo-*` → `bpm-todo/*`）导致 ErrorBoundary 崩溃
+  补缺失 `dom-helper.js`（修复 config-crud 模块找不到）。
 - **2026-08-25 (17)** **uberjar 生产构建验证完成**：`shadow-cljs release`(5.4MB前端) + `clojure -T:build all`
   打包出 101MB 独立 jar（含 Flowable/H2/前端静态资源）。实测在干净临时目录以 prod 启动：
   健康检查、前端资产、登录、迁移+内置模型、请假流程、报表、动态菜单全部正常。
