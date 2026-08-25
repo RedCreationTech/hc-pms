@@ -30,12 +30,11 @@ test.describe('办公一体化业务流', () => {
     await expect(newRow).toBeVisible({ timeout: 10000 });
     await expect(newRow.getByText('审批中')).toBeVisible();
 
-    // 4. 进入我的待办，找到该流程任务并审批通过
+    // 4. 进入我的待办，审批通过第 1 级（部门经理）
     await page.goto('/office/bpm/todo');
     await expect(page.getByText('我的待办').first()).toBeVisible();
-    // 审批面板：点"通过"打开弹窗
-    await page.locator('table tbody tr:not(.ant-table-measure-row)', { hasText: '部门经理审批' }).first()
-      .getByRole('button', { name: '通过' }).click();
+    const firstTask = page.locator('table tbody tr:not(.ant-table-measure-row)', { hasText: '部门经理审批' }).first();
+    await firstTask.getByRole('button', { name: '通过' }).click();
     const approveModal = page.getByRole('dialog', { name: /审批通过/ });
     await expect(approveModal).toBeVisible();
     await approveModal.locator('textarea').fill('E2E同意');
@@ -43,10 +42,14 @@ test.describe('办公一体化业务流', () => {
     await expect(page.getByText('审批通过').first()).toBeVisible({ timeout: 10000 });
     await expect(approveModal).toBeHidden({ timeout: 10000 });
 
-    // 5. 回请假列表验证状态变为"已通过"
+    // 5. 回请假列表：多级审批中，状态仍为"审批中"（下一级分管领导待审）
     await page.goto('/office/oa/leave');
     await expect(page.getByText(`E2E测试请假_${ts}`).first()).toBeVisible();
-    await expect(page.getByText('已通过').first()).toBeVisible();
+    await expect(page.getByText('审批中').first()).toBeVisible();
+    // 进入我的流程，能看到该流程仍进行中
+    await page.goto('/office/bpm/instance');
+    await expect(page.getByText('我的流程').first()).toBeVisible();
+    await expect(page.getByText('审批中').first()).toBeVisible();
   });
 
   test('办公报表加载', async ({ page }) => {
