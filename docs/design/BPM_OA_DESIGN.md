@@ -279,7 +279,9 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
     选中在末尾/该位置插入新节点(原节点作为其 child)
   · 修复："添加"用 find-end 定位末尾，避免错误替换 root；
     修正误判为"靠左/缺分支"——实为 E2E 遗留 itLeave 简化模型排前所致
-  · 实测：reimburseApproval 完整渲染 start→审批→gw0(横向财务/驳回)→end，居中，
+  · 修复：`index.html` 漏引入 `bpm-designer.css` 导致画布/添加节点弹窗样式全部未生效，已补上
+
+ start→审批→gw0(横向财务/驳回)→end，居中，
     添加节点 1→2；BPM E2E 5通过；后端349测试0失败
 
 - **2026-08-25 (30)** **HTML/flex 流程设计器样式完善（对齐 vben node-box）**：
