@@ -272,6 +272,9 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-25 (16)** **办公报表看板**：`GET /business/report/stats` 聚合请假/报销/流程/员工/客户统计，
+  前端 Statistic 卡片页（13 项指标）+ 菜单。antd.cljs 补 Statistic/Row/Col。
+  修复报销总额计算。shadow-cljs 0 警告。
 - **2026-08-25 (15)** **MySQL 双库验证完成**：用 brew MySQL 26.7 实测，全量测试套件在 MySQL 上
   **349 测试 / 882 断言 / 0 失败**。修复多个 SQLite-only 问题：
   · `business.sql` 22处 `datetime('now')`(SQLite-only)→`CURRENT_TIMESTAMP`(双库通用)
