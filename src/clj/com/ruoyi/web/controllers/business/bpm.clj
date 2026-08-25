@@ -198,3 +198,14 @@
   (wrap-err #(do (bpm-core/terminate! (:engine bpm-service) (get-in request [:path-params :pid])
                                       (get-in request [:body-params :reason]))
                  (ok nil))))
+
+(defn model-tree
+  "获取流程节点树（HTML/flex 编辑器工作模型）。"
+  [{:keys [bpm-service]} request]
+  (wrap-err #(ok (bpm/model-tree bpm-service (parse-id request)))))
+
+(defn model-save-tree
+  "保存流程节点树（转回 BPMN XML）。"
+  [{:keys [bpm-service]} request]
+  (wrap-err #(ok (bpm/model-save-tree! bpm-service (parse-id request)
+                                        (:body-params request) (current-user request)))))

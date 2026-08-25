@@ -4,6 +4,7 @@
   (:require
    [cheshire.core :as json]
    [com.ruoyi.bpm.core :as bpm]
+   [com.ruoyi.domain.business.bpm-flow :as bpm-flow]
    [integrant.core :as ig]))
 
 ;; ── Integrant 组件 ────────────────────────────────────────────────────
@@ -116,6 +117,24 @@
     (query-fn :bpm/update-model-deployment
               {:model_id id :deployment_id dep-id :version new-version :status "1"})
     {:deployment-id dep-id :version new-version}))
+
+(defn model-tree
+  "把模型 BPMN 转为流程节点树（HTML/flex 编辑器工作模型）。"
+  [{:keys [query-fn]} id]
+  (let [m (query-fn :bpm/find-model-by-id {:model_id id})]
+    (bpm-flow/bpmn->tree (:bpmn_xml m))))
+
+(defn model-save-tree!
+  "保存流程节点树：转回 BPMN XML 并更新模型。返回新 XML。"
+  [{:keys [query-fn]} id tree user]
+  (let [m (query-fn :bpm/find-model-by-id {:model_id id})
+        xml (bpm-flow/tree->bpmn (clojure.walk/keywordize-keys tree))]
+    (query-fn :bpm/update-model
+              {:model_id id :model_name (:model_name m)
+               :category_id (:category_id m) :form_type (:form_type m)
+               :form_json (:form_json m) :bpmn_xml xml :deployment_id nil
+               :status "1" :update_by (or user "") :remark (:remark m)})
+    {:bpmn_xml xml}))
 
 ;; ── 动态表单 ──────────────────────────────────────────────────────────
 (defn form-list

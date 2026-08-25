@@ -10,7 +10,8 @@
                                 AlignLeftOutlined ClearOutlined]]
    [com.ruoyi.frontend.antd :as antd]
    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
-   [com.ruoyi.frontend.components.bpmn-modeler :as bpmn]))
+   [com.ruoyi.frontend.components.bpmn-modeler :as bpmn]
+   [com.ruoyi.frontend.components.bpm-flow-designer :as bpmfd]))
 
 ;; 连线加号可追加的节点类型（对齐 yudao simple-process-design）
 (defn- model-columns []
@@ -140,22 +141,11 @@
                       :onChange (fn [e] (set-mform-json! (-> e .-target .-value)))}]]]])
 
 (defn- process-design-tab
-  [{:keys [xml modeler-ref on-save on-close on-select on-add-node selected sp nname set-nname! cand set-cand! cond set-cond!
-           file-ref on-preview on-export on-import-file on-restart on-align zoom-text on-zoom-change]}]
-  [:div {:style {:display "flex" :flexDirection "column"}}
-   [designer-toolbar {:modeler-ref modeler-ref :on-save on-save :on-close on-close
-                      :on-preview on-preview :on-export on-export :on-import-file on-import-file
-                      :on-restart on-restart :on-align on-align :zoom-text zoom-text}
-    file-ref]
-   [:div {:style {:display "flex" :marginTop 8}}
-    [:div {:style {:flex 1 :marginRight 12}}
-     [bpmn/bpmn-modeler {:xml xml :modeler-ref modeler-ref :on-error (fn [e] (antd/error! e))
-                         :on-select on-select :on-add-node on-add-node :on-zoom-change on-zoom-change}]]
-    [props-panel {:selected selected :sp sp :name nname :set-name! set-nname!
-                  :cand cand :set-cand! set-cand! :cond cond :set-cond! set-cond!
-                  :on-apply #(do (bpmn/update-selected! (.-current modeler-ref) selected
-                                                         {:name nname :candidate-users cand :condition cond})
-                                 (antd/success! "已应用到当前节点"))}]]])
+  [{:keys [model-id on-close]}]
+  [:div
+   [:div {:style {:display "flex" :justifyContent "flex-end" :marginBottom 8}}
+    [antd/button {:size "small" :on-click on-close} "关闭"]]
+   [bpmfd/bpm-flow-designer {:model-id model-id}]])
 
 (defn- extra-tab [mremark set-mremark!]
   [:div {:style {:padding 16 :maxWidth 500}}
@@ -278,18 +268,8 @@
         (case tab
           "basic" [basic-info-tab mname set-mname! mkey set-mkey! mcat set-mcat! mform-type set-mform-type!]
           "form" [form-design-tab mform-json set-mform-json!]
-          "process" [process-design-tab {:xml xml :modeler-ref modeler-ref :on-save save-model
-                                         :on-close #(rf/dispatch [:bpm/designer-close])
-                                         :on-add-node @add-handle
-                                         :file-ref file-ref
-                                         :on-preview handle-preview :on-export handle-export
-                                         :on-import-file handle-import-file :on-restart handle-restart
-                                         :on-align handle-align :zoom-text zoom-text
-                                         :on-zoom-change set-zoom-text!
-                                         :on-select (fn [el] (set-selected! el
-                                                                            (set-sp! (when el (bpmn/selected-props el)))))
-                                         :selected selected :sp sp :nname nname :set-nname! set-nname!
-                                         :cand cand :set-cand! set-cand! :cond cond :set-cond! set-cond!}]
+          "process" [process-design-tab {:model-id (:model_id current)
+                                         :on-close #(rf/dispatch [:bpm/designer-close])}]
           "extra" [extra-tab mremark set-mremark!])])]
      ;; 预览弹窗（对齐 vben 预览 XML/JSON）
      [antd/modal {:title (if (= preview-type :json) "预览JSON" "预览XML")

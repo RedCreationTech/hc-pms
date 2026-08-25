@@ -28,6 +28,8 @@
     ["" {:get  {:summary "流程模型列表" :handler (partial bpm/list-models {:bpm-service bpm-service})}
          :post {:summary "新增流程模型" :handler (partial bpm/create-model {:bpm-service bpm-service})}}]
     ["/deploy/:id" {:post {:summary "部署流程模型" :handler (partial bpm/deploy-model {:bpm-service bpm-service})}}]
+    ["/:id/tree" {:get  {:summary "流程节点树" :handler (partial bpm/model-tree {:bpm-service bpm-service})}
+                   :post {:summary "保存流程节点树" :handler (partial bpm/model-save-tree {:bpm-service bpm-service})}}]
     ["/:id" {:get    {:summary "模型详情" :handler (partial bpm/get-model {:bpm-service bpm-service})}
              :put    {:summary "更新模型" :handler (partial bpm/update-model {:bpm-service bpm-service})}
              :delete {:summary "删除模型" :handler (partial bpm/delete-model {:bpm-service bpm-service})}}]]

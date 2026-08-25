@@ -272,6 +272,18 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ## Changelog
 
+- **2026-08-25 (29)** **流程编辑器改用纯 HTML/CSS flex 模式（对齐 vben simple-process-design）**：
+  · 放弃 bpmn-js 渲染，改用 vben 式 HTML 卡片节点 + flex 垂直布局
+  · 后端新增 `bpm_flow.clj`：BPMN XML ↔ 流程节点树双向转换（childNode 主链 +
+    conditionNodes 分支），网关多条件出线→条件分支，默认线目标已被条件覆盖则不重复；
+    `GET/POST /api/business/bpm/model/:id/tree` 读写树
+  · 前端新增 `bpm-flow-designer` 组件：发起/结束椭圆胶囊、审批卡片(200px圆角+彩色图标)、
+    灰线箭头连线+蓝色#0089ff圆钮(对齐vben)、条件分支横向展开、节点点击改名称、
+    保存(树→BPMN)。流程设计 tab 已替换 bpmn-js
+  · CSS `bpm-designer.css` 增 flex 布局（垂直 column + 卡片 + 连线 + 分支横向）
+  · 实测：reimburseApproval 垂直渲染 start→审批→条件分支(横向财务/驳回)→end；
+    BPM E2E 5通过；后端349测试0失败
+
 - **2026-08-25 (28)** **内置流程模型改为 vben 式从上到下垂直布局**：
   · 重写 leaveApproval/reimburseApproval 的 BPMNDI：主链节点从上到下垂直排列
     （start→审批→网关→…→end，X 居中，Y 递增），驳回终点(rejectEnd)放右侧侧边

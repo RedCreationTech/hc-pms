@@ -1,0 +1,143 @@
+
+/* ==========================================================================
+   纯 HTML/CSS flex 流程编辑器 —— 对齐 vben simple-process-design 布局
+   ========================================================================== */
+.bpm-flow-root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+  min-height: 100%;
+  background: #fafafa url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImEiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTTAgMTBoNDBNMTAgMHY0ME0wIDIwaDQwTTIwIDB2NDBNMCAzMGg0ME0zMCAwdjQwIiBmaWxsPSJub25lIiBzdHJva2U9IiNlMGUwZTAiIG9wYWNpdHk9Ii4yIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2EpIi8+PC9zdmc+') repeat;
+  overflow: auto;
+}
+.bpm-node-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+/* 发起/结束 椭圆胶囊 */
+.bpm-capsule {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 90px;
+  height: 36px;
+  padding: 3px 8px;
+  font-size: 13px;
+  color: #212121;
+  background: #fafafa;
+  border-radius: 30px;
+  box-shadow: 0 1px 5px rgba(10, 30, 65, 0.08);
+  cursor: pointer;
+  border: 2px solid transparent;
+}
+.bpm-capsule.end { background: #fff; }
+.bpm-capsule:hover { border-color: #0089ff; }
+/* 普通节点卡片 */
+.bpm-node-card {
+  width: 200px;
+  min-height: 70px;
+  padding: 8px 12px;
+  cursor: pointer;
+  background: #fff;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(10, 30, 65, 0.16);
+  transition: all 0.1s;
+  box-sizing: border-box;
+}
+.bpm-node-card:hover { border-color: #0089ff; }
+.bpm-node-title-row {
+  display: flex;
+  align-items: center;
+  padding: 2px;
+}
+.bpm-node-icon {
+  width: 24px;
+  height: 24px;
+  margin-right: 8px;
+  font-size: 16px;
+  text-align: center;
+  line-height: 24px;
+}
+.bpm-node-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #212121;
+  flex: 1;
+}
+.bpm-node-text {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #999;
+}
+/* 连线：灰色竖线 + 底部箭头 + 蓝色 + 按钮 */
+.bpm-connector {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 70px;
+  user-select: none;
+}
+.bpm-connector::before {
+  position: absolute;
+  top: 0;
+  content: '';
+  width: 2px;
+  height: 100%;
+  background: #dedede;
+}
+.bpm-connector-arrow {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #dedede;
+  font-size: 16px;
+  line-height: 10px;
+}
+.bpm-plus-btn {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 25px;
+  height: 25px;
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  background: #0089ff;
+  border-radius: 50%;
+  border: none;
+}
+.bpm-plus-btn:hover { transform: scale(1.1); }
+/* 分支横向展开 */
+.bpm-branch {
+  display: flex;
+  align-items: flex-start;
+  margin-top: 8px;
+}
+.bpm-branch-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 280px;
+  padding: 20px 40px;
+  border-top: 2px solid #dedede;
+  border-bottom: 2px solid #dedede;
+  margin: 0 -1px;
+}
+.bpm-branch-label {
+  font-size: 12px;
+  color: #67c23a;
+  margin-bottom: 6px;
+  padding: 2px 8px;
+  background: #f0f9eb;
+  border-radius: 4px;
+}
+.bpm-branch-item.primary .bpm-branch-label { color: #0089ff; background: #e6f4ff; }
