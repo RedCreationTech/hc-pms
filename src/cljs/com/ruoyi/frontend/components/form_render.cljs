@@ -157,31 +157,33 @@
         on-field-change (fn [field v]
                           (when on-change (on-change (assoc vals field v))))]
     [antd/form {:layout (or layout "vertical")}
-     (doall
-      (keep (fn [f]
-              (let [field (:field f)
-                    value (get vals field (:value f))
-                    required? (some (fn [v] (:required v)) (or (:validate f) []))
-                    label (:title f)
-                    perm (or (get perms field) (get perms (keyword field)))
-                    relation (get-in f [:props :relation])
-                    relation-ok? (if (and relation (seq (:field relation)))
-                                   (= (get vals (:field relation)) (:value relation))
-                                   true)]
-                (if (= "divider" (:type f))
-                  (render-divider f)
-                  (when (and relation-ok?
-                             (not (or (= perm "hidden") (get-in f [:props :hidden]))))
-                  (let [v (or (:validate f) [])
-                        rules (cond-> []
-                                (some :required v)
-                                (conj {:required true :message (str "请填写" label)})
-                                (some :pattern v)
-                                (conj {:pattern (re-pattern (str (get (first (filter :pattern v)) :pattern)))
-                                       :message (get (first (filter :pattern v)) :message (str "格式不正确"))}))]
-                    ^{:key (or field (str "f-" (random-uuid)))}
-                    [antd/form-item {:label (if (str/blank? label) (:type f) label)
-                                     :rules (clj->js rules)}
-                     (render-field f (or disabled? (= perm "readonly")) value on-field-change)])))))
-            fields))]))
-
+     [antd/row {:gutter 16}
+      (doall
+       (keep (fn [f]
+               (let [field (:field f)
+                     value (get vals field (:value f))
+                     required? (some (fn [v] (:required v)) (or (:validate f) []))
+                     label (:title f)
+                     perm (or (get perms field) (get perms (keyword field)))
+                     relation (get-in f [:props :relation])
+                     relation-ok? (if (and relation (seq (:field relation)))
+                                    (= (get vals (:field relation)) (:value relation))
+                                    true)
+                     span (or (get-in f [:props :col-span]) 24)]
+                 (if (= "divider" (:type f))
+                   [antd/col {:span 24} (render-divider f)]
+                   (when (and relation-ok?
+                              (not (or (= perm "hidden") (get-in f [:props :hidden]))))
+                     (let [v (or (:validate f) [])
+                           rules (cond-> []
+                                   (some :required v)
+                                   (conj {:required true :message (str "请填写" label)})
+                                   (some :pattern v)
+                                   (conj {:pattern (re-pattern (str (get (first (filter :pattern v)) :pattern)))
+                                          :message (get (first (filter :pattern v)) :message (str "格式不正确"))}))]
+                       ^{:key (or field (str "f-" (random-uuid)))}
+                       [antd/col {:span span}
+                        [antd/form-item {:label (if (str/blank? label) (:type f) label)
+                                         :rules (clj->js rules)}
+                         (render-field f (or disabled? (= perm "readonly")) value on-field-change)]])))))
+             fields))]]))

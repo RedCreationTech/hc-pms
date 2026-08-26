@@ -43,9 +43,20 @@
   (get f :value (if (= (:type f) "switch") false "")))
 
 (defn- field-caret
-  "画布字段卡片。"
-  [f idx selected? on-select on-op]
+  "画布字段卡片（支持拖拽排序）。"
+  [f idx selected? on-select on-op drag-idx]
   [:div.bpm-fd-card {:class (when selected? "active")
+                     :draggable true
+                     :on-drag-start (fn [e] (.setData (.-dataTransfer e) "text/plain" (str "card:" idx))
+                                     (reset! drag-idx idx))
+                     :on-drag-over (fn [e] (.preventDefault e))
+                     :on-drop (fn [e]
+                                (.preventDefault e)
+                                (.stopPropagation e)
+                                (let [from @drag-idx]
+                                  (when (and (some? from) (not= from idx))
+                                    (on-op :move from idx)))
+                                (reset! drag-idx nil))
                      :on-click #(on-select idx)}
    [:div.bpm-fd-card-head
     [:span.bpm-fd-card-title (:title f)]
@@ -139,6 +150,14 @@
          [antd/switch {:size "small" :checked (get-in f [:props :hidden])
                        :onChange (fn [v] (swap! fields assoc-in [idx :props :hidden] v))}]]]
        [:div {:style {:marginTop 10}}
+        [:div.bpm-f-label "占列宽(栅格)"]
+        [antd/select {:size "small" :style {:width "100%"} :value (or (get-in f [:props :col-span]) 24)
+                      :onChange #(swap! fields assoc-in [idx :props :col-span] (or % 24))}
+         [antd/select-option {:value 24} "整行(24)"]
+         [antd/select-option {:value 12} "半行(12)"]
+         [antd/select-option {:value 8} "1/3行(8)"]
+         [antd/select-option {:value 16} "2/3行(16)"]]]
+       [:div {:style {:marginTop 10}}
         [:div.bpm-f-label "显示条件(联动)"]
         [:div {:style {:display "flex" :gap 6}}
          [antd/select {:size "small" :style {:width "50%"} :allowClear true
@@ -181,13 +200,19 @@
   (r/with-let [fields (r/atom [])
                selected (r/atom nil)
                form-name (r/atom "")
+               drag-idx (r/atom nil)
                _ (when schema
                    (reset! fields (or (:fields schema) []))
                    (reset! form-name (or (:form-name schema) "")))
                select-field (fn [idx] (reset! selected idx))
-               field-op (fn [op idx]
+               field-op (fn [op idx & [to-idx]]
                           (let [fs @fields]
                             (case op
+                              :move (let [item (get fs idx)
+                                          without (vec (concat (subvec fs 0 idx) (subvec fs (inc idx))))
+                                          to (if (< idx to-idx) (dec to-idx) to-idx)]
+                                      (swap! fields (fn [_] (vec (concat (subvec without 0 to) [item] (subvec without to)))))
+                                      (reset! selected to))
                               :up (when (> idx 0)
                                     (swap! fields assoc idx (get fs (dec idx)) (dec idx) (get fs idx))
                                     (reset! selected (dec idx)))
@@ -217,16 +242,24 @@
         (for [{:keys [type label]} component-types]
           ^{:key type}
           [:div.bpm-fd-lib-item
-           {:on-click #(do (swap! fields conj (new-field type (inc (count @fields))))
+           {:draggable true
+            :on-drag-start (fn [e] (.setData (.-dataTransfer e) "text/plain" type))
+            :on-click #(do (swap! fields conj (new-field type (inc (count @fields))))
                            (reset! selected (dec (count @fields))))}
            label]))]
       ;; 中：画布
-      [:div.bpm-fd-canvas
+      [:div.bpm-fd-canvas {:on-drag-over (fn [e] (.preventDefault e))
+                        :on-drop (fn [e]
+                                   (.preventDefault e)
+                                   (let [type (.getData (.-dataTransfer e) "text/plain")]
+                                     (when (and (seq type) (not (str/starts-with? type "card:")))
+                                       (swap! fields conj (new-field type (inc (count @fields))))
+                                       (reset! selected (dec (count @fields))))))}
        (if (seq @fields)
          (doall
           (for [[idx f] (map-indexed vector @fields)]
             ^{:key (str (:field f) idx)}
-            (field-caret f idx (= idx @selected) select-field field-op)))
+            (field-caret f idx (= idx @selected) select-field field-op drag-idx)))
          [:div {:style {:color "#bbb" :textAlign "center" :paddingTop 60}}
           "从左侧组件库点击添加字段"])]
       ;; 右：属性配置
