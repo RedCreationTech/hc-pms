@@ -537,6 +537,19 @@
             :on-success on-success :on-error on-error}))
 
 
+(defn upload-file
+  "通用文件上传（multipart FormData）。"
+  [form-data on-success on-error]
+  (ajax/ajax-request
+    {:method :post
+     :uri (str api-base "/common/upload")
+     :body form-data
+     :headers (when-let [token (get-token)]
+                {"Authorization" (str "Bearer " token)})
+     :response-format (ajax/json-response-format {:keywords? true})
+     :handler (fn [[ok result]]
+                (if ok (on-success result) (on-error result)))}))
+
 (defn upload-avatar
   "上传头像。"
   [form-data on-success on-error]

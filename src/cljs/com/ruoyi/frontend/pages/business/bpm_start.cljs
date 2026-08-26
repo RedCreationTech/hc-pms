@@ -47,12 +47,12 @@
                fields)))
 
 (defn- build-dept-tree
-  "部门列表 → antd tree-data（两级）。"
+  "部门列表 → antd tree-data（两级，含 key）。"
   [depts]
   (mapv (fn [d]
-          {:title (:dept_name d) :value (:dept_id d)
+          {:key (:dept_id d) :title (:dept_name d) :value (:dept_id d)
            :children (mapv (fn [c]
-                             {:title (:dept_name c) :value (:dept_id c)})
+                             {:key (:dept_id c) :title (:dept_name c) :value (:dept_id c)})
                            (filter #(= (:dept_id d) (:parent_id %)) depts))})
         (filter #(= 0 (:parent_id %)) depts)))
 
@@ -152,20 +152,20 @@
                                                                        (fn [dr]
                                                                          (reset! form-schema
                                                                                  (fill-field-data schema "tree-select" :tree-data
-                                                                                                  (build-dept-tree (walk/keywordize-keys (or (:data dr) []))))))
+                                                                                                  (build-dept-tree (walk/keywordize-keys (or (:rows (:data dr)) (:data dr) []))))))
                                                                        #()))
-                                                     (when (seq dict-fields)
-                                                       (doseq [df dict-fields]
-                                                         (when-let [dt (get-in df [:props :dict-type])]
-                                                           (api/list-dict-data {:dict_type dt}
-                                                                               (fn [dr]
-                                                                                 (let [opts (mapv (fn [it] {:label (:dict_label it) :value (:dict_value it)})
-                                                                                                  (walk/keywordize-keys (or (:data dr) [])))]
-                                                                                   (reset! form-schema (fill-field-data schema "dict-select" :options opts))))
-                                                                               #())))))
+                                                     (doseq [df dict-fields]
+                                                       (when-let [dt (get-in df [:props :dict-type])]
+                                                         (api/list-dict-data {:dict_type dt}
+                                                                             (fn [dr]
+                                                                               (let [opts (mapv (fn [it] {:label (:dict_label it) :value (:dict_value it)})
+                                                                                                (walk/keywordize-keys (or (:data dr) [])))
+                                                                                     base (or @form-schema schema)]
+                                                                                 (reset! form-schema (fill-field-data base "dict-select" :options opts))))
+                                                                             #())))
                                                      (reset! form-schema schema)
                                                      (reset! form-loading? false)))
-                                                 (fn [_] (reset! form-loading? false) (antd/error! "加载表单失败"))))
+                                                 (fn [_] (reset! form-loading? false) (antd/error! "加载表单失败")))))
                submit (fn []
                         (if-let [err (validate-fields (:fields @form-schema) @values)]
                           (antd/error! err)

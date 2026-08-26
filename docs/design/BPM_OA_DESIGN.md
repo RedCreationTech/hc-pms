@@ -270,6 +270,14 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ---
 
+- **2026-08-26 (56)** **P-C 组件库 18→20 种：上传/图片上传**：
+  · 组件库 +文件上传(upload)/图片上传(upload-image)，antd Upload + /common/upload 通用上传 API
+  · 值模型 url 数组；文件/图片(卡片)两种展示；onRemove 删除
+  · 修复：Reagent kebab props 不匹配 antd camelCase(fileList/customRequest/treeData 等)
+  · 修复 bpm_start on-success 缺括号导致 bpm-get-form 回调不执行(fn-arity 误判)
+  · tree-select 改用 antd/select 拉平树选项(带层级缩进)——antd v6 TreeSelect 在 modal 内渲染异常
+  · 实测：文件/图片上传控件渲染、部门选择层级缩进、字典按类型过滤
+
 - **2026-08-26 (55)** **P-C 组件库齐平（14→18 种）**：
   · 新增 滑块(slider)/级联(cascader)/部门树选择(tree-select)/字典选择(dict-select)
   · 发起页数据注入：tree-select 加载部门树，dict-select 按 dict-type 拉取系统字典选项

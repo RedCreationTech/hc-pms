@@ -6,7 +6,8 @@
   (:require
    [clojure.string :as str]
    [reagent.core :as r]
-   [com.ruoyi.frontend.antd :as antd]))
+   [com.ruoyi.frontend.antd :as antd]
+   [com.ruoyi.frontend.api :as api]))
 
 (def ^:private default-props
   {"input" {:placeholder "请输入"} "textarea" {:placeholder "请输入" :rows 3}
@@ -22,6 +23,14 @@
   [:div {:style {:margin "4px 0"}}
    [antd/divider {:orientation "left" :plain true :style {:fontSize 14 :fontWeight 600 :color "#303133"}}
     (or (:title f) "")]])
+
+(defn- flatten-tree-options
+  "树节点 → 拉平 select 选项（带层级缩进）。"
+  [nodes depth]
+  (mapcat (fn [n]
+            (cons {:label (str (apply str (repeat depth "　")) (:title n)) :value (:value n)}
+                  (flatten-tree-options (:children n) (inc depth))))
+          (or nodes [])))
 
 (defn- render-options
   "渲染 options 序列（label/value）。"
@@ -95,10 +104,37 @@
                       :allowClear true :placeholder (:placeholder props)
                       :options (clj->js (or opts [])) :onChange change}]
       "tree-select"
-      [antd/tree-select {:style {:width "100%"} :value value :disabled disabled?
-                         :allowClear true :placeholder (:placeholder props)
-                         :tree-data (clj->js (or (:tree-data props) []))
-                         :treeDefaultExpandAll true :onChange change}]
+      [antd/select {:style {:width "100%"} :value value :disabled disabled?
+                    :allowClear true :placeholder (:placeholder props)
+                    :onChange change}
+       (doall (for [{:keys [label value]} (flatten-tree-options (:tree-data props) 0)]
+                ^{:key value}
+                [antd/select-option {:value value} label]))]
+      "upload"
+      (let [files (if (coll? value) value (if (seq value) [(str value)] []))
+            is-img? (= (:type f) "upload-image")
+            render-files (mapv (fn [u]
+                                 {:uid u :name (last (str/split (str u) #"/"))
+                                  :url (str u) :status "done"
+                                  :thumb-url (str u)})
+                               files)]
+        [antd/upload {:fileList (clj->js render-files)
+                      :accept (:accept props)
+                      :disabled disabled?
+                      :listType (if is-img? "picture-card" "text")
+                      :customRequest (fn [opt]
+                                       (let [fd (js/FormData.)]
+                                         (.append fd "file" (.-file opt))
+                                         (api/upload-file fd
+                                                          (fn [res]
+                                                            (when-let [url (:url (:data res))]
+                                                              (change (vec (conj files url)))
+                                                              (.onSuccess opt #js {})))
+                                                          (fn [e] (.onError opt e)))))
+                      :onRemove (fn [file]
+                                  (let [u (:url (js->clj file :keywordize-keys true))]
+                                    (change (vec (remove #(= u %) files)))))
+                      :onChange (fn [_] nil)}])
       "dict-select"
       [antd/select {:style {:width "100%"} :value value :disabled disabled?
                     :allowClear true :placeholder (:placeholder props)

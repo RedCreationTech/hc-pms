@@ -20,6 +20,7 @@
    {:type "user" :label "用户选择"} {:type "dept" :label "部门选择"}
    {:type "slider" :label "滑块"} {:type "cascader" :label "级联选择"}
    {:type "tree-select" :label "部门树选择"} {:type "dict-select" :label "字典选择"}
+   {:type "upload" :label "文件上传"} {:type "upload-image" :label "图片上传"}
    {:type "divider" :label "分割线"}])
 
 (def ^:private options-types #{"radio" "checkbox" "select" "cascader" "dict-select"})

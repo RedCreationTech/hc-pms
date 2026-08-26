@@ -54,10 +54,10 @@
 (def tree (r/adapt-react-class Tree))
 (def slider (r/adapt-react-class Slider))
 (def cascader (r/adapt-react-class Cascader))
+(def upload (r/adapt-react-class Upload))
 (def tabs (r/adapt-react-class Tabs))
 (def tooltip (r/adapt-react-class Tooltip))
 (def tree-select (r/adapt-react-class TreeSelect))
-(def upload (r/adapt-react-class Upload))
 
 (defonce message-api (atom nil))
 
