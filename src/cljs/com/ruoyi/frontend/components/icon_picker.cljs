@@ -16,7 +16,10 @@
                                 ThunderboltOutlined FireOutlined ExperimentOutlined
                                 PieChartOutlined BarChartOutlined LineChartOutlined
                                 TableOutlined ProjectOutlined FolderOpenOutlined
-                                PictureOutlined]]))
+                                PictureOutlined DeploymentUnitOutlined ClusterOutlined
+                                AuditOutlined HistoryOutlined RocketOutlined
+                                CalendarOutlined CustomerServiceOutlined
+                                MoneyCollectOutlined]]))
 
 ;; ─── 图标映射 ──────────────────────────────────────────────────────
 
@@ -66,7 +69,15 @@
    "TableOutlined" TableOutlined
    "ProjectOutlined" ProjectOutlined
    "FolderOpenOutlined" FolderOpenOutlined
-   "PictureOutlined" PictureOutlined})
+   "PictureOutlined" PictureOutlined
+   "DeploymentUnitOutlined" DeploymentUnitOutlined
+   "ClusterOutlined" ClusterOutlined
+   "AuditOutlined" AuditOutlined
+   "HistoryOutlined" HistoryOutlined
+   "RocketOutlined" RocketOutlined
+   "CalendarOutlined" CalendarOutlined
+   "CustomerServiceOutlined" CustomerServiceOutlined
+   "MoneyCollectOutlined" MoneyCollectOutlined})
 
 (def ruoyi-icon-names
   "RuoYi-Vue src/assets/icons/svg 下的图标名称。"

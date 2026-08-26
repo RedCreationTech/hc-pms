@@ -347,7 +347,8 @@
         inst-data (row->json inst [:form_data_json])
         node-config (bpm/node-config-of engine task-obj)]
     {:task task
-     :model {:model_name (:model_name model) :model_key (:model_key model)}
+     :model {:model-id (:model_id model)
+             :model_name (:model_name model) :model_key (:model_key model)}
      :fields-permission (or (:fields-permission node-config) {})
      :form {:schema schema :values (:form_data_json inst-data)}}))
 

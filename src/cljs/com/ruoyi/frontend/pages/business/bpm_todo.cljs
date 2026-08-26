@@ -4,13 +4,14 @@
    [clojure.walk :as walk]
    [reagent.core :as r]
    [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [ReloadOutlined CheckOutlined CloseOutlined SwapOutlined SendOutlined]]
+   ["@ant-design/icons" :refer [ReloadOutlined CheckOutlined CloseOutlined SwapOutlined SendOutlined EyeOutlined]]
    [com.ruoyi.frontend.antd :as antd]
    [com.ruoyi.frontend.api :as api]
    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
-   [com.ruoyi.frontend.components.form-render :as fr]))
+   [com.ruoyi.frontend.components.form-render :as fr]
+   [com.ruoyi.frontend.components.bpm-flow-designer :as bpmfd]))
 
-(defn- task-columns [open-ops]
+(defn- task-columns [open-ops open-detail]
   #js [#js {:title "任务" :dataIndex "name" :key "name"}
        #js {:title "流程定义" :dataIndex "process-definition-id" :key "process-definition-id"
             :width 180 :ellipsis true}
@@ -22,6 +23,10 @@
                       (let [task (js->clj record :keywordize-keys true)]
                         (r/as-element
                          [antd/space
+                          [antd/button {:size "small"
+                                        :icon (r/as-element [:> EyeOutlined])
+                                        :on-click #(open-detail task)}
+                           "详情"]
                           [antd/button {:type "primary" :size "small"
                                         :icon (r/as-element [:> CheckOutlined])
                                         :on-click #(rf/dispatch [:bpm/todo-open-approve task])}
@@ -73,6 +78,67 @@
       [antd/form-item {:label "审批意见" :name "comment"}
        [antd/text-area {:placeholder "请输入审批意见(可选)" :rows 3}]]]]))
 
+(defn- todo-detail-drawer [{:keys [task visible? set-visible! form-data diagram history]}]
+  (let [form (:form form-data)
+        schema (or (:schema form) {:fields []})
+        values (or (:values form) {})
+        model (:model form-data)
+        task-name (:name task)
+        form-block (fn []
+                     (if (seq (:fields schema))
+                       [:div {:style {:marginBottom 16}}
+                        [:div {:style {:display "flex" :alignItems "center" :marginBottom 8}}
+                         [:div {:style {:width 4 :height 16 :background "#409eff" :marginRight 8}}]
+                         [:span {:style {:fontWeight 600}} "申请表单"]]
+                        [fr/form-render {:schema schema :values values :disabled? true
+                                         :field-permissions (:fields-permission form-data)}]]
+                       [:div {:style {:color "#c0c4cc" :padding "12px 0"}} "该流程未配置动态表单"]))
+        diagram-block (fn []
+                        [:div {:style {:marginBottom 16}}
+                         [:div {:style {:display "flex" :alignItems "center" :marginBottom 8}}
+                          [:div {:style {:width 4 :height 16 :background "#e6a23c" :marginRight 8}}]
+                          [:span {:style {:fontWeight 600}} "流程图"]]
+                         (if-let [mid (:model-id model)]
+                           [bpmfd/bpm-flow-designer {:model-id mid :read-only? true
+                                                     :active-ids (vec (:active-activity-ids @diagram))
+                                                     :completed-ids (vec (:completed-activity-ids @diagram))}]
+                           [:div {:style {:color "#c0c4cc"}} "暂无流程图"])])
+        history-block (fn []
+                        [:div
+                         [:div {:style {:display "flex" :alignItems "center" :marginBottom 8}}
+                          [:div {:style {:width 4 :height 16 :background "#67c23a" :marginRight 8}}]
+                          [:span {:style {:fontWeight 600}} "审批历史"]]
+                         (if (seq @history)
+                           (doall
+                            (for [t @history]
+                              (let [color (if (true? (:approved t)) "#67c23a"
+                                              (if (false? (:approved t)) "#f56c6c" "#409eff"))]
+                                ^{:key (:task-id t)}
+                                [:div {:style {:padding "8px 12px" :borderLeft "3px solid"
+                                               :borderColor color :background "#fafafa"
+                                               :marginBottom 8 :borderRadius "0 6px 6px 0"}}
+                                 [:div {:style {:display "flex" :alignItems "center"}}
+                                  [:b (:name t)]
+                                  (when (:assignee t)
+                                    [:span {:style {:color "#909399" :marginLeft 8}} (:assignee t)])
+                                  (when (:end-time t)
+                                    [:span {:style {:color "#c0c4cc" :marginLeft 8 :fontSize 12}}
+                                     (subs (:end-time t) 0 16)])]
+                                 (when (:comment t)
+                                   [:div {:style {:color "#606266" :marginTop 2}} (str "意见：" (:comment t))])])))
+                           [:div {:style {:color "#c0c4cc" :padding "12px 0"}} "暂无审批记录"])])]
+    [antd/drawer {:title (str "待办详情 · " task-name)
+                  :open visible? :size 900
+                  :onClose #(set-visible! false)}
+     [:div
+      [antd/descriptions {:column 3 :size "small" :bordered true :style {:marginBottom 16}}
+       [antd/descriptions-item {:label "流程模型"} (:model_name model)]
+       [antd/descriptions-item {:label "任务"} task-name]
+       [antd/descriptions-item {:label "流程实例"} (:process-instance-id task)]]
+      [form-block]
+      [diagram-block]
+      [history-block]]]))
+
 (defn- ops-modal [{:keys [task-type to-user set-to-user! users visible? set-visible!] :as props}]
   (let [op (or (:type props) "transfer")
         title (if (= op "transfer") "转办" "委派")]
@@ -102,6 +168,11 @@
                  ops-task (r/atom nil)
                  ops-type (r/atom "transfer")
                  ops-user (r/atom nil)
+                 detail-visible (r/atom false)
+                 detail-task (r/atom nil)
+                 detail-form (r/atom nil)
+                 detail-diagram (r/atom nil)
+                 detail-history (r/atom [])
                  users (r/atom [])
                  _ (api/list-users {:page 1 :size 1000}
                                    #(reset! users (walk/keywordize-keys (or (:rows (:data %)) [])))
@@ -110,7 +181,23 @@
                             (reset! ops-task task)
                             (reset! ops-type type)
                             (reset! ops-user nil)
-                            (reset! ops-visible true))]
+                            (reset! ops-visible true))
+                 open-detail (fn [task]
+                               (reset! detail-task task)
+                               (reset! detail-form nil)
+                               (reset! detail-diagram nil)
+                               (reset! detail-history [])
+                               (reset! detail-visible true)
+                               (api/bpm-task-detail (:task-id task)
+                                                    (fn [res] (reset! detail-form (:data res)))
+                                                    (fn [_] nil))
+                               (api/bpm-instance-diagram (:process-instance-id task)
+                                                         (fn [res] (reset! detail-diagram (:data res)))
+                                                         (fn [_] nil))
+                               (api/bpm-task-history (:process-instance-id task)
+                                                     (fn [res]
+                                                       (reset! detail-history (or (:task-history (:data res)) [])))
+                                                     (fn [_] nil)))]
       [:div
        [page-toolbar/page-toolbar
         {:left [page-toolbar/toolbar-left
@@ -120,7 +207,7 @@
                                                   :icon (r/as-element [:> ReloadOutlined])
                                                   :on-click #(rf/dispatch [:bpm/todo-fetch])}]]}]
        [antd/table {:scroll #js {:x "max-content"} :rowKey "task-id"
-                    :columns (task-columns open-ops)
+                    :columns (task-columns open-ops open-detail)
                     :dataSource (clj->js items)
                     :loading loading?
                     :pagination {:total total :pageSize 10 :showSizeChanger true
@@ -128,4 +215,8 @@
        [approve-modal]
        [ops-modal {:task @ops-task :type @ops-type :to-user @ops-user
                    :users @users :visible? @ops-visible
-                   :set-to-user! #(reset! ops-user %) :set-visible! #(reset! ops-visible %)}]])))
+                   :set-to-user! #(reset! ops-user %) :set-visible! #(reset! ops-visible %)}]
+       [todo-detail-drawer {:task @detail-task :visible? @detail-visible
+                            :set-visible! #(reset! detail-visible %)
+                            :form-data @detail-form :diagram detail-diagram
+                            :history detail-history}]])))
