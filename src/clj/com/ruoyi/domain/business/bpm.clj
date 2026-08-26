@@ -237,6 +237,34 @@
   (query-fn :bpm/delete-form {:form_id id}))
 
 ;; ── 流程实例（发起 + 运行）────────────────────────────────────────────
+(defn- candidate-names
+  "按候选策略把配置 ids 转用户名列表。"
+  [config users]
+  (let [ids (fn [k] (or (get-in config [:candidate-param k]) []))
+        names (case (:candidate-strategy config)
+                "USER" (keep #(when (contains? (set (map str (ids :user-ids))) (str (:user_id %))) (:user_name %)) users)
+                "ROLE" (keep #(when (some (set (map str (ids :role-ids))) (map str (:role_ids %))) (:user_name %)) users)
+                "DEPT_MEMBER" (keep #(when (contains? (set (map str (ids :dept-ids))) (str (:dept_id %))) (:user_name %)) users)
+                "POST" (keep #(when (some (set (map str (ids :post-ids))) (map str (:post_ids %))) (:user_name %)) users)
+                nil)]
+    (distinct (vec (keep identity names)))))
+
+(defn- collect-multi-nodes
+  "收集流程树中多实例审批节点（approve-method 非 SEQUENTIAL）。返回 [{:id :config}]。"
+  [tree]
+  (let [walk (fn walk [node acc]
+               (if (nil? node)
+                 acc
+                 (let [cfg (:config node)
+                       acc' (if (and cfg (= "USER" (:approve-type cfg))
+                                    (not= "SEQUENTIAL" (or (:approve-method cfg) "SEQUENTIAL")))
+                              (conj acc {:id (:id node) :config cfg})
+                              acc)]
+                   (-> acc'
+                       (into (walk (:child-node node) []))
+                       (into (mapcat #(walk % []) (or (:condition-nodes node) [])))))))]
+    (vec (walk tree []))))
+
 (defn instance-start!
   "发起流程：用模型部署的 key 启动 Flowable 实例，写入 biz_bpm_instance。"
   [{:keys [engine query-fn]} model-id business-key form-data starter]
@@ -252,10 +280,18 @@
                                   (when (not= (name k) "startUserSelected")
                                     [(name k) v])))
                           fd)
+        users (query-fn :list-users {:user_name nil :phonenumber nil :status nil
+                                     :begin_time nil :end_time nil :dept_filter_enabled 0
+                                     :dept_ids [0] :data_user_id nil :page_size 100000 :offset 0})
+        tree (bpm-flow/bpmn->tree (:bpmn_xml m))
+        multi-vars (into {}
+                           (map (fn [{:keys [id config]}]
+                                  [(str "approverList_" id) (candidate-names config users)]))
+                           (collect-multi-nodes tree))
         started (bpm/start! engine (:model_key m) biz-key
                             (cond-> (merge {"formData" (json/generate-string fd)
                                             "startUserId" (or starter "")}
-                                           field-vars)
+                                           field-vars multi-vars)
                               (seq (get fd :startUserSelected))
                               (assoc "startUserSelected" (vec (get fd :startUserSelected)))))
         pid (:process-instance-id started)]

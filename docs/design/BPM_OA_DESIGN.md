@@ -270,6 +270,14 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ---
 
+- **2026-08-26 (47)** **P-A3 多实例审批运行时（或签/会签/比例）**：
+  · tree->bpmn 生成 multiInstanceLoopCharacteristics：collection 按节点 id(approverList_<id>)、
+    elementVariable=approver、assignee=${approver}、completionCondition(ANY 任一完成/ALL 全部/RATIO 比例)
+  · 发起时 collect-multi-nodes 收集多实例节点，candidate-names 按候选策略展开用户 → 注入集合变量
+  · 修复 collect-multi-nodes walk nil 无限递归/StackOverflow
+  · 实测：会签2人(admin/ry)生成2实例任务 assignee 正确，admin审批后等ry，全部审批后流程结束
+  · 测试：审批弹窗多 form 导致 strict violation，改用 .last()
+
 - **2026-08-26 (46)** **P-A 集成断点：表单字段→流程变量 + 审批表单回显**：
   · 发起时表单字段展开为流程变量（days/reason 等可直接用于条件表达式 ${days > 3}），formData 保留完整 JSON
   · 新增 task-detail API：任务信息+实例表单数据+表单 schema；审批弹窗显示只读"申请表单"

@@ -181,6 +181,26 @@
     (let [suf (case (or time-unit "HOUR") "MINUTE" "M" "DAY" "D" "H")]
       (str "PT" time-duration suf))))
 
+(defn- multi-completion-condition
+  "多实例审批完成条件：ANY 或签(任一完成)/ALL 会签(全部)/RATIO 按比例。"
+  [method ratio]
+  (case method
+    "ANY" "${nrOfCompletedInstances >= 1}"
+    "RATIO" (str "${nrOfCompletedInstances / nrOfInstances >= " (or ratio 0.6) "}")
+    "${nrOfCompletedInstances >= nrOfInstances}"))
+
+(defn- multi-instance-el
+  "多实例审批元素：collection 按节点 id 命名（发起时注入 approverList_<id>）。"
+  [el-id config]
+  (when (and (= "USER" (:approve-type config))
+             (not= "SEQUENTIAL" (or (:approve-method config) "SEQUENTIAL")))
+    (str "<multiInstanceLoopCharacteristics isSequential=\"false\""
+         " flowable:collection=\"${approverList_" el-id "}\""
+         " flowable:elementVariable=\"approver\">"
+         "<completionCondition>"
+         (multi-completion-condition (:approve-method config) (:approve-ratio config))
+         "</completionCondition></multiInstanceLoopCharacteristics>")))
+
 (defn tree->bpmn
   "流程节点树 → BPMN XML 字符串。
    model-key 作为 BPMN process id，保证部署后流程定义 key 与模型 key 一致。
@@ -212,7 +232,11 @@
                                         condition-nodes))
                      default-cid (when (and branch? child-node)
                                    (emit child-node nil))
+                     multi-el (when (= type "USER_TASK_NODE") (multi-instance-el el-id config))
+                     multi-assignee (when multi-el
+                                        " flowable:assignee=\"${approver}\"")
                      attrs (str " id=\"" el-id "\" name=\"" (escape-xml (or name id)) "\""
+                                multi-assignee
                                 (when default-cid
                                   (str " default=\"" el-id "_" default-cid "\"")))
                      dynamic-strategy? (contains? #{"START_USER_DEPT_LEADER" "MULTI_LEVEL_DEPT_LEADER"
@@ -227,7 +251,8 @@
                                  "<flowable:properties>"
                                  "<flowable:property name=\"nodeConfig\" value=\""
                                  (escape-xml (json/generate-string config))
-                                 "\"/></flowable:properties></extensionElements>")
+                                 "\"/></flowable:properties></extensionElements>"
+                                 (when multi-el multi-el))
                             (and (= type "DELAY_TIMER_NODE") (delay-iso config))
                             (str "<timerEventDefinition><timeDuration xsi:type=\"tFormalExpression\">"
                                  (delay-iso config) "</timeDuration></timerEventDefinition>")

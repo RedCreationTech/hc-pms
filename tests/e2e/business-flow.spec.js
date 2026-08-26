@@ -38,7 +38,7 @@ test.describe('办公一体化业务流', () => {
     const approveModal = page.getByRole('dialog', { name: /审批通过/ });
     await expect(approveModal).toBeVisible();
     await approveModal.locator('textarea').fill('E2E同意');
-    await approveModal.locator('form').evaluate(form => form.requestSubmit());
+    await approveModal.locator('form').last().evaluate(form => form.requestSubmit());
     await expect(page.getByText('审批通过').first()).toBeVisible({ timeout: 10000 });
     await expect(approveModal).toBeHidden({ timeout: 10000 });
 

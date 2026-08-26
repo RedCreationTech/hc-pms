@@ -59,7 +59,7 @@ test('前端功能截图报告', async ({ page }) => {
   await expect(approveModal).toBeVisible();
   await shot(page, '08-审批通过弹窗');
   await approveModal.locator('textarea').fill('同意');
-  await approveModal.locator('form').evaluate(form => form.requestSubmit());
+  await approveModal.locator('form').last().evaluate(form => form.requestSubmit());
   await expect(approveModal).toBeHidden({ timeout: 10000 });
 
   // 7. 我的已办
