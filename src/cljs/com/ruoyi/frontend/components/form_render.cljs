@@ -9,6 +9,48 @@
    [com.ruoyi.frontend.antd :as antd]
    [com.ruoyi.frontend.api :as api]))
 
+(defn- rich-text-editor
+  "轻量富文本编辑器（contenteditable + execCommand，兼容 React 19）。"
+  [{:keys [value on-change]}]
+  (r/with-let [el (r/atom nil)
+               exec (fn [cmd]
+                      (when @el
+                        (.focus @el)
+                        (if (= cmd "createLink")
+                          (let [url (js/prompt "输入链接地址" "https://")]
+                            (when url (js/document.execCommand cmd false url)))
+                          (if (= cmd "formatBlock")
+                            (js/document.execCommand cmd false "p")
+                            (js/document.execCommand cmd false nil)))
+                        (when on-change (on-change (.-innerHTML @el)))))
+               buttons [["bold" "B" "700"] ["italic" "I" "400" "italic"]
+                        ["underline" "U" "400" "underline"]
+                        ["insertUnorderedList" "• 列表" "400" ""]
+                        ["insertOrderedList" "1. 列表" "400" ""]
+                        ["createLink" "链接" "400" ""]
+                        ["formatBlock" "段落" "400" ""]
+                        ["removeFormat" "清除" "400" ""]]]
+    [:div {:style {:border "1px solid #d9d9d9" :borderRadius 6 :overflow "hidden"}}
+     [:div {:style {:padding "4px 6px" :background "#fafafa" :borderBottom "1px solid #d9d9d9"
+                    :display "flex" :gap 2 :flexWrap "wrap"}}
+      (doall
+       (for [[cmd title weight style] buttons]
+         ^{:key cmd}
+         [:span {:title title
+                 :style {:display "inline-block" :padding "1px 8px" :cursor "pointer"
+                         :fontWeight (js/parseInt weight)
+                         :fontStyle (if (= style "italic") "italic" "normal")
+                         :textDecoration (if (= style "underline") "underline" "none")
+                         :borderRadius 4}
+                 :on-mouse-down (fn [e] (.preventDefault e))
+                 :on-click #(exec cmd)}
+          title]))]
+     [:div {:ref #(reset! el %)
+            :contentEditable true
+            :dangerouslySetInnerHTML {:__html (or value "")}
+            :style {:minHeight 120 :padding 8 :fontSize 13 :outline "none"}
+            :onInput (fn [e] (when on-change (on-change (.-innerHTML (.-currentTarget e)))))}]]))
+
 (def ^:private default-props
   {"input" {:placeholder "请输入"} "textarea" {:placeholder "请输入" :rows 3}
    "number" {:placeholder "请输入数字"} "date" {:placeholder "请选择日期"}
@@ -110,6 +152,12 @@
        (doall (for [{:keys [label value]} (flatten-tree-options (:tree-data props) 0)]
                 ^{:key value}
                 [antd/select-option {:value value} label]))]
+      "editor"
+      (if disabled?
+        [:div {:style {:padding 8 :border "1px solid #d9d9d9" :borderRadius 6 :minHeight 120
+                       :background "#f5f5f5" :fontSize 13}}
+         (when value [:span {:dangerouslySetInnerHTML {:__html value}}])]
+        [rich-text-editor {:value value :on-change change}])
       "upload"
       (let [files (if (coll? value) value (if (seq value) [(str value)] []))
             is-img? (= (:type f) "upload-image")

@@ -223,6 +223,7 @@
                [form-render/form-render {:schema schema
                                          :values @values
                                          :field-permissions @fields-perm
+                                         :layout (or (get-in schema [:conf :form :layout]) "vertical")
                                          :on-change (fn [v] (reset! values v))}]
                [:div {:style {:marginTop 8}}
                 [:div.bpm-f-label "业务备注"]

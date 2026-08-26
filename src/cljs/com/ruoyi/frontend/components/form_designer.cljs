@@ -21,7 +21,7 @@
    {:type "slider" :label "滑块"} {:type "cascader" :label "级联选择"}
    {:type "tree-select" :label "部门树选择"} {:type "dict-select" :label "字典选择"}
    {:type "upload" :label "文件上传"} {:type "upload-image" :label "图片上传"}
-   {:type "divider" :label "分割线"}])
+   {:type "editor" :label "富文本"} {:type "divider" :label "分割线"}])
 
 (def ^:private options-types #{"radio" "checkbox" "select" "cascader" "dict-select"})
 
@@ -235,9 +235,13 @@
                selected (r/atom nil)
                form-name (r/atom "")
                drag-idx (r/atom nil)
+               form-label-width (r/atom 100)
+               form-layout (r/atom "vertical")
                _ (when schema
                    (reset! fields (or (:fields schema) []))
-                   (reset! form-name (or (:form-name schema) "")))
+                   (reset! form-name (or (:form-name schema) ""))
+                   (reset! form-label-width (or (get-in schema [:conf :form :labelWidth]) 100))
+                   (reset! form-layout (or (get-in schema [:conf :form :layout]) "vertical")))
                select-field (fn [idx] (reset! selected idx))
                field-op (fn [op idx & [to-idx]]
                           (let [fs @fields]
@@ -259,14 +263,23 @@
                               (reset! selected (when (seq fs) (min (or idx 0) (dec (count fs))))))))
                save! (fn [] (when on-save
                               (on-save {:form-name @form-name
-                                        :conf {:form {:labelWidth 100}}
+                                        :conf {:form {:labelWidth @form-label-width
+                                                      :layout @form-layout}}
                                         :fields @fields})))]
     [:div.bpm-fd
      [:div.bpm-fd-header
       [:div {:style {:fontWeight 600}} "表单设计器"]
-      [:div {:style {:display "flex" :gap 8 :alignItems "center"}}
-       [antd/input {:style {:width 200} :size "small" :placeholder "表单名称"
+      [:div {:style {:display "flex" :gap 8 :alignItems "center" :flexWrap "wrap"}}
+       [antd/input {:style {:width 180} :size "small" :placeholder "表单名称"
                     :value @form-name :onChange (fn [e] (reset! form-name (-> e .-target .-value)))}]
+       [:span {:style {:fontSize 12 :color "#909399"}} "标签宽度"]
+       [antd/input-number {:size "small" :style {:width 90} :min 40 :max 300 :value @form-label-width
+                           :onChange #(reset! form-label-width (or % 100))}]
+       [:span {:style {:fontSize 12 :color "#909399"}} "布局"]
+       [antd/radio-group {:size "small" :value @form-layout
+                          :onChange (fn [e] (reset! form-layout (-> e .-target .-value)))}
+        [antd/radio {:value "vertical"} "纵向"]
+        [antd/radio {:value "horizontal"} "横向"]]
        [antd/button {:size "small" :type "primary" :on-click save!} "保存表单"]]]
      [:div.bpm-fd-body
       ;; 左：组件库

@@ -58,7 +58,7 @@
 
 (defn- columns-for
   "构建列定义。form 模块附加操作列（设计/编辑/删除）。"
-  [cfg {:keys [on-design on-edit on-delete]}]
+  [cfg {:keys [on-design on-edit on-delete on-copy]}]
   (let [base (mapv (fn [[title key w]]
                      (if (= key "status")
                        (clj->js {:title title :dataIndex key :key key :width w
@@ -68,13 +68,14 @@
     (into-array
      (if on-design
        (conj base
-             (clj->js {:title "操作" :key "action" :width 170
+             (clj->js {:title "操作" :key "action" :width 200
                        :render (fn [_ record]
                                  (let [m (js->clj record :keywordize-keys true)
                                        id (:form_id m)]
                                    (r/as-element
                                     [antd/space {:size 2}
                                      [antd/button {:type "link" :size "small" :on-click #(on-design m)} "设计"]
+                                     [antd/button {:type "link" :size "small" :on-click #(on-copy m)} "复制"]
                                      [antd/button {:type "link" :size "small" :on-click #(on-edit m)} "编辑"]
                                      [antd/button {:type "link" :size "small" :danger true
                                                    :on-click #(on-delete id)} "删除"]])))}))
@@ -164,6 +165,18 @@
                   :columns (columns-for cfg
                                         (when (= module "form")
                                           {:on-design set-designer-record!
+                                           :on-copy (fn [m]
+                                                      (api/bpmmgmt-get "form" (:form_id m)
+                                                                       (fn [res]
+                                                                         (let [d (:data res)]
+                                                                           (api/bpmmgmt-create "form"
+                                                                                               {:form_name (str (:form_name d) "_副本")
+                                                                                                :form_key (str (:form_key d) "_copy")
+                                                                                                :form_json (:form_json d)
+                                                                                                :status "0"}
+                                                                                               (fn [_] (antd/success! "复制成功") (refresh))
+                                                                                               (fn [e] (antd/error! (str "复制失败: " e))))))
+                                                                       (fn [_] (antd/error! "加载表单失败"))))
                                            :on-edit #(rf/dispatch [:bpmmgmt/edit module %])
                                            :on-delete (fn [id]
                                                         (antd/modal-confirm!
