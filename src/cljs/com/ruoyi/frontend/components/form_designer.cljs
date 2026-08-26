@@ -10,6 +10,26 @@
    [com.ruoyi.frontend.antd :as antd]
    [com.ruoyi.frontend.components.form-render :as fr]))
 
+(def ^:private form-templates
+  "内置表单模板（一键填充画布）。"
+  [{:name "请假申请"
+    :fields [{:type "input" :field "reason" :title "请假事由" :value "" :props {} :validate [{:required true}]}
+             {:type "number" :field "days" :title "请假天数" :value 1 :props {} :validate [{:required true}]}
+             {:type "textarea" :field "memo" :title "备注说明" :value "" :props {} :validate []}]}
+   {:name "报销申请"
+    :fields [{:type "input" :field "reason" :title "报销事由" :value "" :props {} :validate [{:required true}]}
+             {:type "number" :field "amount" :title "报销金额" :value 0 :props {} :validate [{:required true}]}
+             {:type "subform" :field "items" :title "费用明细" :value []
+              :props {:sub-fields [{:title "项目" :field "name" :type "input"}
+                                   {:title "金额" :field "amount" :type "number"}]}
+              :validate []}]}
+   {:name "通用申请"
+    :fields [{:type "input" :field "title" :title "申请标题" :value "" :props {} :validate [{:required true}]}
+             {:type "textarea" :field "content" :title "申请内容" :value "" :props {} :validate []}
+             {:type "select" :field "priority" :title "优先级" :value "" :props {}
+              :options [{:label "高" :value "high"} {:label "中" :value "mid"} {:label "低" :value "low"}]
+              :validate []}]}])
+
 (def ^:private component-types
   [{:type "input" :label "单行文本"} {:type "textarea" :label "多行文本"}
    {:type "number" :label "数字"} {:type "date" :label "日期"}
@@ -22,7 +42,7 @@
    {:type "tree-select" :label "部门树选择"} {:type "dict-select" :label "字典选择"}
    {:type "upload" :label "文件上传"} {:type "upload-image" :label "图片上传"}
    {:type "editor" :label "富文本"} {:type "divider" :label "分割线"}
-   {:type "subform" :label "子表单"}])
+   {:type "subform" :label "子表单"} {:type "area" :label "地区选择"}])
 
 (def ^:private options-types #{"radio" "checkbox" "select" "cascader" "dict-select"})
 
@@ -303,6 +323,14 @@
      [:div.bpm-fd-header
       [:div {:style {:fontWeight 600}} "表单设计器"]
       [:div {:style {:display "flex" :gap 8 :alignItems "center" :flexWrap "wrap"}}
+       [:span {:style {:fontSize 12 :color "#909399"}} "模板"]
+       [antd/select {:size "small" :style {:width 110} :placeholder "一键套用"
+                     :onChange (fn [v]
+                                 (when-let [tpl (first (filter #(= (:name %) v) form-templates))]
+                                   (swap! fields (fn [_] (mapv #(assoc % :field (str (:field %) "_" (random-uuid))) (:fields tpl))))
+                                   (reset! selected 0)))}
+        (doall (for [{:keys [name]} form-templates]
+                 ^{:key name} [antd/select-option {:value name} name]))]
        [antd/input {:style {:width 180} :size "small" :placeholder "表单名称"
                     :value @form-name :onChange (fn [e] (reset! form-name (-> e .-target .-value)))}]
        [:span {:style {:fontSize 12 :color "#909399"}} "标签宽度"]

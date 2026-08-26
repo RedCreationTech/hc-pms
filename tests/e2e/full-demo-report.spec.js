@@ -46,7 +46,7 @@ test('完整流程演示：配置表单+流程 → 发起 → 审批通过', asy
   const fp = page.locator('.ant-modal-wrap .ant-modal-body, .ant-drawer-body').first();
   const titleInputs = page.locator('input').all();
   // 标题输入（属性面板第一个 input）
-  const propInputs = page.locator('.bpm-fd').locator('input');
+  const propInputs = page.locator('.bpm-fd-props').locator('input');
   await propInputs.first().fill('备注说明');
   await page.waitForTimeout(400);
   await shot(page, '04-字段属性配置(标题/必填)');
@@ -98,17 +98,24 @@ test('完整流程演示：配置表单+流程 → 发起 → 审批通过', asy
   await page.waitForTimeout(2200);
   await shot(page, '11-动态表单发起弹窗');
 
-  // 填表
-  const inp = page.locator('.ant-modal input');
-  const ta = page.locator('.ant-modal textarea');
-  await inp.nth(0).fill('出差广州参加客户会议');
-  await inp.nth(1).fill('3');
-  if (await ta.count()) await ta.first().fill('客户现场演示系统');
-  await page.waitForTimeout(500);
+  // 填表（按 label 精确定位，兼容 input-number/textarea）
+  const formItem = page.locator('.ant-modal .ant-form-item');
+  const reasonInp = formItem.filter({ hasText: '请假事由' }).first().locator('input');
+  await reasonInp.click();
+  await reasonInp.pressSequentially('出差广州参加客户会议');
+  const daysInp = formItem.filter({ hasText: '请假天数' }).first().locator('input');
+  await daysInp.click();
+  await daysInp.pressSequentially('3');
+  const ta = formItem.filter({ hasText: '备注' }).first().locator('textarea');
+  if (await ta.count()) { await ta.first().click(); await ta.first().pressSequentially('客户现场演示系统'); }
+  await page.waitForTimeout(800);
   await shot(page, '12-填表完成');
 
   const ts = Date.now().toString().slice(-6);
   await page.getByRole('button', { name: /确\s*定/ }).click();
+  await page.waitForTimeout(2500);
+  const msgs = await page.locator('.ant-message-notice').allInnerTexts();
+  console.log('提交提示:', JSON.stringify(msgs));
   await expect(page.getByText('流程发起成功')).toBeVisible({ timeout: 10000 });
   await shot(page, '13-提交成功');
 

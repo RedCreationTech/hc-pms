@@ -33,8 +33,12 @@ test('BPM 发起流程 + 流程详情截图', async ({ page }) => {
 
   // 3. 填表提交
   const ts = Date.now().toString();
-  await modal.locator('input').first().fill(`前端BPM截图_${ts}`);
-  await modal.locator('input[role="spinbutton"], input[type="number"]').first().fill('2');
+  const reasonInp = modal.locator('input').first();
+  await reasonInp.click();
+  await reasonInp.pressSequentially(`前端BPM截图_${ts}`);
+  const daysInp = modal.locator('input[role="spinbutton"], input[type="number"]').first();
+  await daysInp.click();
+  await daysInp.pressSequentially('2');
   await page.waitForTimeout(400);
   await shot(page, '20-填表完成');
   await modal.getByRole('button', { name: /确\s*定/ }).click();

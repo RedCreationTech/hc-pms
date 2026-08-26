@@ -9,6 +9,33 @@
    [com.ruoyi.frontend.antd :as antd]
    [com.ruoyi.frontend.api :as api]))
 
+(def ^:private area-data
+  "内置中国常用省市区数据（级联选择）。"
+  [{:label "北京市" :value "110000" :children [{:label "北京市" :value "110100"}]}
+   {:label "上海市" :value "310000" :children [{:label "上海市" :value "310100"}]}
+   {:label "天津市" :value "120000" :children [{:label "天津市" :value "120100"}]}
+   {:label "重庆市" :value "500000" :children [{:label "重庆市" :value "500100"}]}
+   {:label "广东省" :value "440000" :children [{:label "广州市" :value "440100"}
+                                              {:label "深圳市" :value "440300"}
+                                              {:label "珠海市" :value "440400"}
+                                              {:label "佛山市" :value "440600"}]}
+   {:label "浙江省" :value "330000" :children [{:label "杭州市" :value "330100"}
+                                              {:label "宁波市" :value "330200"}
+                                              {:label "温州市" :value "330300"}]}
+   {:label "江苏省" :value "320000" :children [{:label "南京市" :value "320100"}
+                                              {:label "苏州市" :value "320500"}
+                                              {:label "无锡市" :value "320200"}]}
+   {:label "四川省" :value "510000" :children [{:label "成都市" :value "510100"}
+                                              {:label "绵阳市" :value "510700"}]}
+   {:label "湖北省" :value "420000" :children [{:label "武汉市" :value "420100"}
+                                              {:label "宜昌市" :value "420500"}]}
+   {:label "湖南省" :value "430000" :children [{:label "长沙市" :value "430100"}
+                                              {:label "株洲市" :value "430200"}]}
+   {:label "福建省" :value "350000" :children [{:label "福州市" :value "350100"}
+                                              {:label "厦门市" :value "350200"}]}
+   {:label "山东省" :value "370000" :children [{:label "济南市" :value "370100"}
+                                              {:label "青岛市" :value "370200"}]}])
+
 (defn- rich-text-editor
   "轻量富文本编辑器（contenteditable + execCommand，兼容 React 19）。"
   [{:keys [value on-change]}]
@@ -158,6 +185,10 @@
                        :background "#f5f5f5" :fontSize 13}}
          (when value [:span {:dangerouslySetInnerHTML {:__html value}}])]
         [rich-text-editor {:value value :on-change change}])
+      "area"
+      [antd/cascader {:style {:width "100%"} :value value :disabled disabled?
+                      :allowClear true :placeholder "请选择省/市"
+                      :options (clj->js area-data) :onChange change}]
       "subform"
       (let [rows (if (coll? value) value (if (seq value) [value] []))
             sub-fields (or (get-in f [:props :sub-fields]) [])
