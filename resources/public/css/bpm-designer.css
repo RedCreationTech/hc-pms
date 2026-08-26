@@ -387,3 +387,11 @@
 .bpm-fd-op.del:hover { color: #f56c6c; }
 .bpm-fd-props { width: 280px; border-left: 1px solid #eee; padding: 12px; overflow: auto; background: #fafafa; }
 .bpm-fd-props .bpm-f-label { font-size: 12px; font-weight: 500; color: #555; margin-bottom: 4px; }
+
+/* 只读模式：节点高亮（流程追踪） */
+.bpm-node-card.is-active { border-color: #f56c6c; box-shadow: 0 0 0 2px rgba(245,108,108,.2); }
+.bpm-node-card.is-completed { border-color: #67c23a; box-shadow: 0 0 0 2px rgba(103,194,58,.18); }
+.bpm-node-card.is-active .bpm-node-name { color: #f56c6c; }
+.bpm-node-card.is-completed .bpm-node-name { color: #67c23a; }
+.bpm-capsule.is-active { border-color: #f56c6c; box-shadow: 0 0 0 2px rgba(245,108,108,.2); }
+.bpm-capsule.is-completed { border-color: #67c23a; box-shadow: 0 0 0 2px rgba(103,194,58,.18); }

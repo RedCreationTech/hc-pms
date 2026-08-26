@@ -277,7 +277,8 @@
                (query-fn :bpm/find-form-by-id {:form_id fid}))
         inst (row->json biz [:form_data_json])]
     {:instance inst
-     :model {:model_name (:model_name model) :model_key (:model_key model) :form_type (:form_type model)}
+     :model {:model_id (:model_id model) :model_name (:model_name model)
+             :model_key (:model_key model) :form_type (:form_type model)}
      :form {:schema (when-let [fj (:form_json form)]
                       (if (string? fj) (json/parse-string fj true) fj))
             :values (get inst :form_data_json)}

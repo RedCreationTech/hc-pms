@@ -223,68 +223,78 @@
 
 (declare render-node)
 
-(defn- render-connector [on-add]
+(defn- render-connector [on-add read-only?]
   [:div.bpm-connector
-   [:button.bpm-plus-btn {:title "在此添加节点" :on-click (fn [e] (.stopPropagation e) (on-add))} "+"]
+   (when-not read-only?
+     [:button.bpm-plus-btn {:title "在此添加节点" :on-click (fn [e] (.stopPropagation e) (on-add))} "+"])
    [:div.bpm-connector-arrow "▼"]])
 
-(defn- render-card [node path on-edit on-delete show-text-fn]
+(defn- render-card [node path on-edit on-delete show-text-fn {:keys [read-only? active-ids completed-ids]}]
   (let [color (get node-color (:type node) "#909399")
         icon (get node-icon (:type node) "bpmn-icon-task")
         hint (get node-type-label (:type node))
-        text (:show-text node)]
-    [:div.bpm-node-card {:on-click #(on-edit path)}
+        text (:show-text node)
+        cls (str "bpm-node-card"
+                 (when (contains? active-ids (:id node)) " is-active")
+                 (when (contains? completed-ids (:id node)) " is-completed"))]
+    [:div {:class cls :on-click (when-not read-only? #(on-edit path))}
      [:div.bpm-node-title-row
       [:div.bpm-node-icon {:style {:color color}} [:i {:class (str "iconfont " icon)}]]
       [:div.bpm-node-name (:name node)]]
-     [:div.bpm-node-content {:on-click #(on-edit path)}
+     [:div.bpm-node-content {:on-click (when-not read-only? #(on-edit path))}
       [:div.bpm-node-text (if (seq text) text (or (show-text-fn node) (str "请配置" hint)))]]
-     [:div.bpm-node-toolbar
-      [:span.bpm-node-del {:title "删除"
-                           :on-click (fn [e] (.stopPropagation e) (on-delete path))} "✕"]]]))
+     (when-not read-only?
+       [:div.bpm-node-toolbar
+        [:span.bpm-node-del {:title "删除"
+                             :on-click (fn [e] (.stopPropagation e) (on-delete path))} "✕"]])]))
 
-(defn- render-capsule [node end? on-edit]
-  [:div.bpm-capsule {:class (when end? "end") :on-click on-edit} (:name node)])
+(defn- render-capsule [node end? on-edit {:keys [read-only? active-ids completed-ids]}]
+  (let [cls (str "bpm-capsule"
+                 (when end? " end")
+                 (when (contains? active-ids (:id node)) " is-active")
+                 (when (contains? completed-ids (:id node)) " is-completed"))]
+    [:div {:class cls :on-click (when-not read-only? on-edit)} (:name node)]))
 
-(defn- render-branch [node path on-edit on-add on-delete add-condition! show-text-fn]
+(defn- render-branch [node path on-edit on-add on-delete add-condition! show-text-fn opts]
   (let [conditions (or (:condition-nodes node) [])]
     [:div.bpm-branch-wrapper
      [:div.bpm-branch-container
-      [:div.bpm-branch-add {:on-click #(add-condition! path) :title "添加条件分支"}
-       [:div.bpm-branch-add-icon "+"]
-       [:div.bpm-branch-add-text "添加条件"]]
+      (when-not (:read-only? opts)
+        [:div.bpm-branch-add {:on-click #(add-condition! path) :title "添加条件分支"}
+         [:div.bpm-branch-add-icon "+"]
+         [:div.bpm-branch-add-text "添加条件"]])
       (for [[i cn] (map-indexed vector conditions)]
         (let [first? (= i 0)
               last? (= i (dec (count conditions)))]
           ^{:key (:id cn)}
           [:div.bpm-branch-item {:class (str (when first? "first ") (when last? "last"))}
            [:div.bpm-branch-line-top]
-           [:div.bpm-branch-label {:on-click #(on-edit path) :title "编辑条件"}
+           [:div.bpm-branch-label {:on-click (when-not (:read-only? opts) #(on-edit path)) :title "编辑条件"}
             [:span.bpm-branch-label-name (:name cn)]
             (when-let [expr (:expression cn)]
               [:span.bpm-branch-label-expr expr])]
            (when-let [child (:child-node cn)]
              [:div.bpm-node-column
-              (render-node child (conj path :condition-nodes i :child-node) on-edit on-add on-delete add-condition! show-text-fn)
-              (render-connector #(on-add (conj path :condition-nodes i :child-node)))])]))]]))
+              (render-node child (conj path :condition-nodes i :child-node) on-edit on-add on-delete add-condition! show-text-fn opts)
+              (render-connector #(on-add (conj path :condition-nodes i :child-node)) (:read-only? opts))])]))]]))
 
 (defn render-node
-  "递归渲染节点树。path 为从根到当前节点的 assoc-in 路径。"
-  [node path on-edit on-add on-delete add-condition! show-text-fn]
+  "递归渲染节点树。path 为从根到当前节点的 assoc-in 路径。opts: {:read-only? :active-ids :completed-ids}"
+  [node path on-edit on-add on-delete add-condition! show-text-fn opts]
   (if (nil? node)
     [:div]
     (let [type (:type node)]
       [:div.bpm-node-column
        (cond
-         (= type "START_USER_NODE") (render-capsule node false #(on-edit path))
-         (= type "END_EVENT_NODE") (render-capsule node true #(on-edit path))
+         (= type "START_USER_NODE") (render-capsule node false #(on-edit path) opts)
+         (= type "END_EVENT_NODE") (render-capsule node true #(on-edit path) opts)
          (and (str/includes? (or type "") "BRANCH") (seq (:condition-nodes node)))
-         (render-branch node path on-edit on-add on-delete add-condition! show-text-fn)
-         :else (render-card node path on-edit on-delete show-text-fn))
+         (render-branch node path on-edit on-add on-delete add-condition! show-text-fn opts)
+         :else (render-card node path on-edit on-delete show-text-fn opts))
        (when-let [child (:child-node node)]
          [:div.bpm-node-column
-          (render-connector #(on-add (conj path :child-node)))
-          (render-node child (conj path :child-node) on-edit on-add on-delete add-condition! show-text-fn)])])))
+          (render-connector #(on-add (conj path :child-node)) (:read-only? opts))
+          (render-node child (conj path :child-node) on-edit on-add on-delete add-condition! show-text-fn opts)])])))
 
 ;; ── 配置辅助函数 ─────────────────────────────────────────────────────
 
@@ -317,8 +327,9 @@
    {:type "CHILD_PROCESS_NODE" :label "子流程"}])
 
 (defn bpm-flow-designer
-  "HTML/flex 流程编辑器。参数 {:model-id :on-saved}。"
-  [{:keys [model-id on-saved]}]
+  "HTML/flex 流程编辑器。参数 {:model-id :on-saved :read-only? :active-ids :completed-ids}
+   只读模式（read-only?）用于流程详情/追踪：隐藏添加/删除/编辑，节点高亮进行中/已完成。"
+  [{:keys [model-id on-saved read-only? active-ids completed-ids]}]
   (r/with-let [tree (r/atom nil)
                loading (r/atom true)
                config-path (r/atom nil)
@@ -479,20 +490,25 @@
                                        nil))))]
     [:div
      [:div.bpm-toolbar
-      [:span.bpm-toolbar-title "流程设计"]
+      [:span.bpm-toolbar-title (if read-only? "流程追踪" "流程设计")]
       [:div.bpm-toolbar-right
-       [antd/button {:size "small" :on-click #(reset! add-path (find-end @tree []))} "＋ 添加节点"]
+       (when-not read-only?
+         [antd/button {:size "small" :on-click #(reset! add-path (find-end @tree []))} "＋ 添加节点"])
        [antd/button {:size "small" :on-click #(swap! scale (fn [s] (max 0.5 (- s 0.1))))} "−"]
        [:span.bpm-zoom (str (int (* @scale 100)) "%")]
        [antd/button {:size "small" :on-click #(swap! scale (fn [s] (min 2 (+ s 0.1))))} "＋"]
        [antd/button {:size "small" :on-click #(reset! scale 1)} "重置"]
-       [antd/button {:size "small" :type "primary" :on-click save-tree} "保存流程"]]]
+       (when-not read-only?
+         [antd/button {:size "small" :type "primary" :on-click save-tree} "保存流程"])]]
      (if @loading
        [:div {:style {:padding 48 :textAlign "center"}} "加载中..."]
        [:div.bpm-flow-root
         (when-let [t @tree]
           [:div {:style {:transform (str "scale(" @scale ")") :transformOrigin "50% 0"}}
-           (render-node t [] open-config (fn [path] (reset! add-path path)) delete-node add-condition! show-text-of)])])
+           (render-node t [] open-config (fn [path] (reset! add-path path)) delete-node add-condition! show-text-of
+                        {:read-only? read-only?
+                         :active-ids (set (or active-ids []))
+                         :completed-ids (set (or completed-ids []))})])])
      ;; ── 节点配置抽屉（对齐 vben Drawer 配置面板）──────────────────
      [antd/drawer {:open (boolean @config-path)
                    :onClose #(reset! config-path nil)

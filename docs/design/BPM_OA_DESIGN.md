@@ -270,6 +270,13 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ---
 
+- **2026-08-26 (44)** **流程详情流程图改用 HTML/flex 只读设计器（与编辑界面一致）**：
+  · bpm-flow-designer 增加只读模式(read-only?)：隐藏添加节点/删除/编辑/保存，标题"流程追踪"
+  · 节点高亮：is-active(红)/is-completed(绿)，capsule 同样支持（对齐 bpmn-viewer 高亮语义）
+  · 详情抽屉流程图 block 改用 bpm-flow-designer 渲染（model-tree + active/completed ids）
+  · 后端 instance-history :model 补 model_id
+  · 实测：详情页节点卡片+active(部门经理审批红)/completed(start绿)高亮，0 报错
+
 - **2026-08-26 (43)** **覆盖率 + 收尾**：Cloverage 行62.57%/分支74.75%(target/coverage/index.html)；
   双库(SQLite/MySQL) 349 测试 0 失败；BPM E2E 5 通过；开发环境恢复 SQLite。
 - **2026-08-26 (42)** **MySQL 双库测试通过 + 兼容性修复**：bpm-mgmt 迁移 MySQL 版 TEXT NOT NULL DEFAULT

@@ -8,7 +8,7 @@
    [com.ruoyi.frontend.api :as api]
    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
    [com.ruoyi.frontend.components.form-render :as form-render]
-   [com.ruoyi.frontend.components.bpmn-viewer :as bpmn-viewer]))
+   [com.ruoyi.frontend.components.bpm-flow-designer :as bpm-flow-designer]))
 
 (defn- status-tag [v]
   (let [[label color] (case v
@@ -82,12 +82,11 @@
                          [:div {:style {:display "flex" :alignItems "center" :marginBottom 8}}
                           [:div {:style {:width 4 :height 16 :background "#e6a23c" :marginRight 8}}]
                           [:span {:style {:fontWeight 600}} "流程图"]]
-                         (if (:bpmn-xml @diagram)
-                           [bpmn-viewer/bpmn-viewer
-                            {:xml (:bpmn-xml @diagram)
+                         (if-let [mid (:model_id model)]
+                           [bpm-flow-designer/bpm-flow-designer
+                            {:model-id mid :read-only? true
                              :active-ids (vec (:active-activity-ids @diagram))
-                             :completed-ids (vec (:completed-activity-ids @diagram))
-                             :on-error (fn [e] (antd/error! e))}]
+                             :completed-ids (vec (:completed-activity-ids @diagram))}]
                            [:div {:style {:color "#c0c4cc"}} "暂无流程图"])])]
     [antd/drawer {:title (str "流程详情 · " (:model_name model))
                   :open (boolean @pid) :size 900
