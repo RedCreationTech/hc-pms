@@ -135,6 +135,22 @@
          [:div.bpm-f-label "隐藏"]
          [antd/switch {:size "small" :checked (get-in f [:props :hidden])
                        :onChange (fn [v] (swap! fields assoc-in [idx :props :hidden] v))}]]]
+       [:div {:style {:marginTop 10}}
+        [:div.bpm-f-label "显示条件(联动)"]
+        [:div {:style {:display "flex" :gap 6}}
+         [antd/select {:size "small" :style {:width "50%"} :allowClear true
+                       :value (get-in f [:props :relation :field])
+                       :placeholder "选择字段"
+                       :onChange (fn [v]
+                                   (swap! fields assoc-in [idx :props :relation :field] (or v "")))}
+          (doall (for [other @fields
+                       :when (not= (:field other) (:field f))
+                       :when (not= (:type other) "divider")]
+                   ^{:key (:field other)}
+                   [antd/select-option {:value (:field other)} (:title other)]))]
+         [antd/input {:size "small" :style {:width "50%"} :value (get-in f [:props :relation :value])
+                      :placeholder "等于值(如 出差)"
+                      :onChange (fn [e] (swap! fields assoc-in [idx :props :relation :value] (-> e .-target .-value)))}]]]
        [:div.bpm-f-label {:style {:marginTop 10}} "默认值"]
        [fr/render-field f false (field-value f)
         (fn [_ v] (swap! fields assoc-in [idx :value] v))]

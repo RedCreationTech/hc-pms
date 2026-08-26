@@ -108,10 +108,15 @@
                     value (get vals field (:value f))
                     required? (some (fn [v] (:required v)) (or (:validate f) []))
                     label (:title f)
-                    perm (or (get perms field) (get perms (keyword field)))]
+                    perm (or (get perms field) (get perms (keyword field)))
+                    relation (get-in f [:props :relation])
+                    relation-ok? (if (and relation (seq (:field relation)))
+                                   (= (get vals (:field relation)) (:value relation))
+                                   true)]
                 (if (= "divider" (:type f))
                   (render-divider f)
-                  (when-not (or (= perm "hidden") (get-in f [:props :hidden]))
+                  (when (and relation-ok?
+                             (not (or (= perm "hidden") (get-in f [:props :hidden]))))
                   (let [v (or (:validate f) [])
                         rules (cond-> []
                                 (some :required v)
