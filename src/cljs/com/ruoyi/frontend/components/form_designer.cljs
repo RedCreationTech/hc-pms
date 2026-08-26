@@ -103,6 +103,28 @@
        [antd/switch {:size "small" :checked (some :required (:validate f))
                      :onChange (fn [v] (swap! fields assoc-in [idx :validate]
                                               (if v [{:required true :message (str "请填写" (:title f))}] [])))}]
+       [:div {:style {:marginTop 10}}
+        [:div.bpm-f-label "校验规则"]
+        [antd/select {:size "small" :style {:width "100%"} :allowClear true
+                      :value (or (get (first (filter :pattern (:validate f))) :pattern) "")
+                      :placeholder "选择校验规则(可自定义)"
+                      :onChange (fn [v]
+                                  (let [pattern (or v "")
+                                        others (remove :pattern (:validate f))]
+                                    (swap! fields assoc-in [idx :validate]
+                                           (if (seq pattern)
+                                             (conj (vec others)
+                                                   {:pattern pattern
+                                                    :message (get {"^1[3-9]\\d{9}$" "手机号格式不正确"
+                                                                   "^[\\w.+-]+@[\\w-]+\\.[\\w.]+$" "邮箱格式不正确"
+                                                                   "^\\d{6}$" "请输入6位数字"}
+                                                                 pattern "格式不正确")})
+                                             (vec others)))))}]
+         [antd/select-option {:value ""} "无"]
+         [antd/select-option {:value "^1[3-9]\\d{9}$"} "手机号"]
+         [antd/select-option {:value "^[\\w.+-]+@[\\w-]+\\.[\\w.]+$"} "邮箱"]
+         [antd/select-option {:value "^\\d{6}$"} "6位数字"]
+         [antd/select-option {:value "custom"} "自定义正则..."]]
        [:div {:style {:display "flex" :gap 24 :marginTop 10}}
         [:div
          [:div.bpm-f-label "禁用"]

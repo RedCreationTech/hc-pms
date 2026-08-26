@@ -1,6 +1,7 @@
 (ns com.ruoyi.frontend.pages.business.bpm-start
   "发起流程 —— 选择模型 → 动态表单渲染 → 提交（对齐 vben 流程中心发起）。"
   (:require
+   [clojure.string :as str]
    [clojure.walk :as walk]
    [reagent.core :as r]
    ["@ant-design/icons" :refer [ReloadOutlined PlayCircleOutlined]]
@@ -28,6 +29,22 @@
                                        :icon (r/as-element [:> PlayCircleOutlined])
                                        :on-click #(open-start model)}
                           "发起"])))}])
+
+(defn- validate-fields
+  "前端校验表单字段（必填 + 正则 pattern）。返回错误消息或 nil。"
+  [fields values]
+  (first (keep (fn [f]
+                 (let [v (get values (:field f))
+                       vstr (if (nil? v) "" (str v))]
+                   (cond
+                     (and (some :required (or (:validate f) [])) (str/blank? vstr))
+                     (str "请填写" (:title f))
+                     (some :pattern (or (:validate f) []))
+                     (let [rule (first (filter :pattern (:validate f)))
+                           pattern (re-pattern (:pattern rule))]
+                       (when-not (re-matches pattern vstr)
+                         (or (:message rule) "格式不正确"))))))
+               fields)))
 
 (defn- collect-start-select
   "遍历流程树收集 START_USER_SELECT 节点（发起人自选审批人）。"
@@ -112,18 +129,20 @@
                                                      (reset! form-loading? false)))
                                                  (fn [_] (reset! form-loading? false) (antd/error! "加载表单失败")))))
                submit (fn []
-                        (when-let [model @start-model]
-                          (reset! submitting? true)
-                          (api/bpm-start-instance {:model_id (:model_id model)
-                                                   :business_key (str "start-" (js/Date.now))
-                                                   :form_data (assoc @values :startUserSelected @start-select-value)}
-                                                  (fn [_]
-                                                    (reset! submitting? false)
-                                                    (antd/success! "流程发起成功")
-                                                    (reset! start-model nil))
-                                                  (fn [e]
-                                                    (reset! submitting? false)
-                                                    (antd/error! (str "发起失败: " e))))))]
+                        (if-let [err (validate-fields (:fields @form-schema) @values)]
+                          (antd/error! err)
+                          (when-let [model @start-model]
+                            (reset! submitting? true)
+                            (api/bpm-start-instance {:model_id (:model_id model)
+                                                     :business_key (str "start-" (js/Date.now))
+                                                     :form_data (assoc @values :startUserSelected @start-select-value)}
+                                                    (fn [_]
+                                                      (reset! submitting? false)
+                                                      (antd/success! "流程发起成功")
+                                                      (reset! start-model nil))
+                                                    (fn [e]
+                                                      (reset! submitting? false)
+                                                      (antd/error! (str "发起失败: " e)))))))]
     [:div
      [page-toolbar/page-toolbar
       {:left [page-toolbar/toolbar-left [:div {:style {:fontSize 15 :fontWeight 600}} "发起流程"]]

@@ -103,9 +103,16 @@
                     label (:title f)
                     perm (or (get perms field) (get perms (keyword field)))]
                 (when-not (or (= perm "hidden") (get-in f [:props :hidden]))
-                  ^{:key (or field (str "f-" (random-uuid)))}
-                  [antd/form-item {:label (if (str/blank? label) (:type f) label)
-                                   :required (and required? (not= perm "readonly"))}
-                   (render-field f (or disabled? (= perm "readonly")) value on-field-change)])))
+                  (let [v (or (:validate f) [])
+                        rules (cond-> []
+                                (some :required v)
+                                (conj {:required true :message (str "请填写" label)})
+                                (some :pattern v)
+                                (conj {:pattern (re-pattern (str (get (first (filter :pattern v)) :pattern)))
+                                       :message (get (first (filter :pattern v)) :message (str "格式不正确"))}))]
+                    ^{:key (or field (str "f-" (random-uuid)))}
+                    [antd/form-item {:label (if (str/blank? label) (:type f) label)
+                                     :rules (clj->js rules)}
+                     (render-field f (or disabled? (= perm "readonly")) value on-field-change)]))))
             fields))]))
 
