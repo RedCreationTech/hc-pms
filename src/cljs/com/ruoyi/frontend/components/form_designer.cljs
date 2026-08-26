@@ -21,7 +21,8 @@
    {:type "slider" :label "滑块"} {:type "cascader" :label "级联选择"}
    {:type "tree-select" :label "部门树选择"} {:type "dict-select" :label "字典选择"}
    {:type "upload" :label "文件上传"} {:type "upload-image" :label "图片上传"}
-   {:type "editor" :label "富文本"} {:type "divider" :label "分割线"}])
+   {:type "editor" :label "富文本"} {:type "divider" :label "分割线"}
+   {:type "subform" :label "子表单"}])
 
 (def ^:private options-types #{"radio" "checkbox" "select" "cascader" "dict-select"})
 
@@ -33,7 +34,10 @@
      :field (str type "_" idx)
      :title default-title
      :value (if (= type "switch") false "")
-     :props {}
+     :props (if (= type "subform")
+              {:sub-fields [{:title "子字段一" :field "sub1" :type "input"}
+                            {:title "子字段二" :field "sub2" :type "input"}]}
+              {})
      :options (when (options-types type) [{:label "选项一" :value "1"} {:label "选项二" :value "2"}])
      :validate []}))
 
@@ -218,6 +222,35 @@
           [:div {:style {:flex 1}} [:div.bpm-f-label "最大值"]
            [antd/input-number {:size "small" :style {:width "100%"} :value (get-in f [:props :max] 100)
                                :onChange #(swap! fields assoc-in [idx :props :max] (or % 100))}]]])
+       (when (= (:type f) "subform")
+         [:div {:style {:marginTop 10}}
+          [:div.bpm-f-label "子字段管理"]
+          [:div {:style {:border "1px solid #f0f0f0" :borderRadius 6}}
+           (doall
+            (for [[si sf] (map-indexed vector (or (get-in f [:props :sub-fields]) []))]
+              ^{:key si}
+              [:div {:style {:padding "6px 8px" :borderBottom "1px solid #f5f5f5"}}
+               [:div {:style {:display "flex" :gap 4}}
+                [antd/input {:size "small" :style {:flex 1} :placeholder "标题" :value (:title sf)
+                             :onChange (fn [e] (swap! fields assoc-in [idx :props :sub-fields si :title] (-> e .-target .-value)))}]
+                [antd/input {:size "small" :style {:flex 1} :placeholder "字段名" :value (:field sf)
+                             :onChange (fn [e] (swap! fields assoc-in [idx :props :sub-fields si :field] (-> e .-target .-value)))}]
+                [antd/select {:size "small" :style {:width 90} :value (:type sf)
+                              :onChange #(swap! fields assoc-in [idx :props :sub-fields si :type] (or % "input"))}
+                 [antd/select-option {:value "input"} "文本"]
+                 [antd/select-option {:value "number"} "数字"]
+                 [antd/select-option {:value "date"} "日期"]
+                 [antd/select-option {:value "select"} "下拉"]]
+                [antd/button {:size "small" :type "text" :danger true
+                              :on-click #(swap! fields assoc-in [idx :props :sub-fields]
+                                               (fn [sfs] (vec (concat (subvec (or sfs []) 0 si) (subvec (or sfs []) (inc si))))))}
+                 "✕"]]]))
+          [antd/button {:size "small" :block true :style {:marginTop 6}
+                        :on-click #(swap! fields assoc-in [idx :props :sub-fields]
+                                          (fn [sfs] (conj (or sfs []) {:title (str "子字段" (inc (count (or sfs []))))
+                                                                       :field (str "sub" (inc (count (or sfs []))))
+                                                                       :type "input"})))}
+           "+ 添加子字段"]]])
        (when (= (:type f) "dict-select")
          [:div {:style {:marginTop 10}}
           [:div.bpm-f-label "字典类型"]

@@ -158,6 +158,40 @@
                        :background "#f5f5f5" :fontSize 13}}
          (when value [:span {:dangerouslySetInnerHTML {:__html value}}])]
         [rich-text-editor {:value value :on-change change}])
+      "subform"
+      (let [rows (if (coll? value) value (if (seq value) [value] []))
+            sub-fields (or (get-in f [:props :sub-fields]) [])
+            render-sub (fn [sf v on-c]
+                         (case (:type sf)
+                           "number" [antd/input-number {:style {:width "100%"} :size "small" :value v
+                                                        :onChange on-c}]
+                           "date" [antd/input {:size "small" :value (or v "") :placeholder "日期"
+                                               :onChange (fn [e] (on-c (-> e .-target .-value)))}]
+                           "select" [antd/select {:size "small" :style {:width "100%"} :value v
+                                                  :onChange on-c}
+                                     (render-options (or (:options sf) []) :select)]
+                           [antd/input {:size "small" :value (or v "") :placeholder (:title sf)
+                                        :onChange (fn [e] (on-c (-> e .-target .-value)))}]))]
+        [:div
+         (doall
+          (for [[ri row] (map-indexed vector rows)]
+            ^{:key ri}
+            [:div {:style {:display "flex" :gap 6 :marginBottom 6 :alignItems "center"
+                           :background "#fafafa" :padding "6px 8px" :borderRadius 6}}
+             (doall
+              (for [sf sub-fields]
+                ^{:key (:field sf)}
+                [:div {:style {:flex 1}}
+                 [:div {:style {:fontSize 11 :color "#909399" :marginBottom 2}} (:title sf)]
+                 (render-sub sf (get row (:field sf))
+                             (fn [v] (change (assoc-in rows [ri (:field sf)] v))))]))
+             [antd/button {:size "small" :type "text" :danger true
+                           :on-click #(change (vec (concat (subvec rows 0 ri) (subvec rows (inc ri)))))}
+              "✕"]]))
+         (when (seq sub-fields)
+           [antd/button {:size "small" :type "dashed" :block true
+                         :on-click #(change (conj rows {}))}
+            "+ 添加一行"])])
       "upload"
       (let [files (if (coll? value) value (if (seq value) [(str value)] []))
             is-img? (= (:type f) "upload-image")
