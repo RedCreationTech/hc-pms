@@ -270,6 +270,14 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ---
 
+- **2026-08-26 (55)** **P-C 组件库齐平（14→18 种）**：
+  · 新增 滑块(slider)/级联(cascader)/部门树选择(tree-select)/字典选择(dict-select)
+  · 发起页数据注入：tree-select 加载部门树，dict-select 按 dict-type 拉取系统字典选项
+  · 修复系统 bug：dict 接口 query-params string keys 导致 dict_type 过滤失效(keywordize)
+  · 实测：滑块渲染；部门树展开；字典选项按类型过滤(是/否)；字段联动/分割线/校验前序完成
+  · 组件清单：input/textarea/number/date/date-range/datetime/time/radio/checkbox/select/switch/rate/
+    slider/cascader/tree-select/dict-select/user/dept/divider = 18 种
+
 - **2026-08-26 (54)** **P-C 字段联动显隐（对齐 vben showControl）**：
   · 字段 props.relation={field,value}：该字段值等于 value 时显示本字段，否则隐藏
   · 设计器属性面板加"显示条件(联动)"：字段 select + 等于值 input

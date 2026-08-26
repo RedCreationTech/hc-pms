@@ -1,6 +1,7 @@
 (ns com.ruoyi.web.controllers.system.dict
   "字典管理控制器。"
   (:require
+   [clojure.walk :as walk]
    [com.ruoyi.domain.system.dict :as dict-service]
    [com.ruoyi.infra.data-perm :as data-perm]
    [ring.util.response :as response]))
@@ -20,7 +21,7 @@
 (defn list-dict-types
   "查询字典类型列表（带数据权限过滤）。"
   [{:keys [dict-service]} request]
-  (let [params (:query-params request)
+  (let [params (walk/keywordize-keys (:query-params request))
         identity (:identity request)
         data-perm-filter (data-perm/data-perm-filter identity "default" :alias "u")
         params (merge params (:params data-perm-filter))]
@@ -61,7 +62,7 @@
 (defn list-dict-data
   "查询字典数据列表（带数据权限过滤）。"
   [{:keys [dict-service]} request]
-  (let [params (:query-params request)
+  (let [params (walk/keywordize-keys (:query-params request))
         identity (:identity request)
         data-perm-filter (data-perm/data-perm-filter identity "default" :alias "u")
         params (merge params (:params data-perm-filter))]

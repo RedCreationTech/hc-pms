@@ -13,7 +13,8 @@
    "number" {:placeholder "请输入数字"} "date" {:placeholder "请选择日期"}
    "time" {:placeholder "请选择时间"} "select" {:placeholder "请选择"}
    "date-range" {:placeholder "开始日期"} "datetime" {:placeholder "如 2026-01-01 12:00"}
-   "user" {:placeholder "请选择用户"} "dept" {:placeholder "请选择部门"}})
+   "user" {:placeholder "请选择用户"} "dept" {:placeholder "请选择部门"}
+   "slider" {:min 0 :max 100 :step 1} "cascader" {:placeholder "请选择"} "tree-select" {:placeholder "请选择"}})
 
 (defn- render-divider
   "分割线字段：antd Divider + 标题。"
@@ -85,6 +86,24 @@
          [antd/input {:style {:flex 1} :value end :disabled disabled?
                       :placeholder "结束日期"
                       :onChange (fn [e] (change (str start "~" (-> e .-target .-value))))}]])
+      "slider"
+      [antd/slider {:value (or value (:min props 0)) :disabled disabled?
+                    :min (:min props 0) :max (or (:max props) 100) :step (or (:step props) 1)
+                    :onChange change}]
+      "cascader"
+      [antd/cascader {:style {:width "100%"} :value value :disabled disabled?
+                      :allowClear true :placeholder (:placeholder props)
+                      :options (clj->js (or opts [])) :onChange change}]
+      "tree-select"
+      [antd/tree-select {:style {:width "100%"} :value value :disabled disabled?
+                         :allowClear true :placeholder (:placeholder props)
+                         :tree-data (clj->js (or (:tree-data props) []))
+                         :treeDefaultExpandAll true :onChange change}]
+      "dict-select"
+      [antd/select {:style {:width "100%"} :value value :disabled disabled?
+                    :allowClear true :placeholder (:placeholder props)
+                    :onChange change}
+       (render-options opts :select)]
       ;; input / date / time（字符串值模型，date/time 用文本框）
       [antd/input {:value (or value "") :disabled disabled?
                    :placeholder (:placeholder props)

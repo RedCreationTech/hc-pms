@@ -46,6 +46,26 @@
                          (or (:message rule) "格式不正确"))))))
                fields)))
 
+(defn- build-dept-tree
+  "部门列表 → antd tree-data（两级）。"
+  [depts]
+  (mapv (fn [d]
+          {:title (:dept_name d) :value (:dept_id d)
+           :children (mapv (fn [c]
+                             {:title (:dept_name c) :value (:dept_id c)})
+                           (filter #(= (:dept_id d) (:parent_id %)) depts))})
+        (filter #(= 0 (:parent_id %)) depts)))
+
+(defn- fill-field-data
+  "为 tree-select/dict-select 字段注入数据源。"
+  [schema field-type data-key data]
+  (update schema :fields
+          (fn [fs] (mapv (fn [f]
+                           (if (= field-type (:type f))
+                             (assoc-in f [:props data-key] data)
+                             f))
+                         fs))))
+
 (defn- collect-start-select
   "遍历流程树收集 START_USER_SELECT 节点（发起人自选审批人）。"
   [node]
@@ -124,10 +144,28 @@
                                                          j (:form_json d)
                                                          schema (if (string? j)
                                                                   (js->clj (js/JSON.parse j) :keywordize-keys true)
-                                                                  (walk/keywordize-keys j))]
+                                                                  (walk/keywordize-keys j))
+                                                         tree-fields (filter #(= "tree-select" (:type %)) (:fields schema))
+                                                         dict-fields (filter #(= "dict-select" (:type %)) (:fields schema))]
+                                                     (when (seq tree-fields)
+                                                       (api/list-depts {:parent_id 0}
+                                                                       (fn [dr]
+                                                                         (reset! form-schema
+                                                                                 (fill-field-data schema "tree-select" :tree-data
+                                                                                                  (build-dept-tree (walk/keywordize-keys (or (:data dr) []))))))
+                                                                       #()))
+                                                     (when (seq dict-fields)
+                                                       (doseq [df dict-fields]
+                                                         (when-let [dt (get-in df [:props :dict-type])]
+                                                           (api/list-dict-data {:dict_type dt}
+                                                                               (fn [dr]
+                                                                                 (let [opts (mapv (fn [it] {:label (:dict_label it) :value (:dict_value it)})
+                                                                                                  (walk/keywordize-keys (or (:data dr) [])))]
+                                                                                   (reset! form-schema (fill-field-data schema "dict-select" :options opts))))
+                                                                               #())))))
                                                      (reset! form-schema schema)
                                                      (reset! form-loading? false)))
-                                                 (fn [_] (reset! form-loading? false) (antd/error! "加载表单失败")))))
+                                                 (fn [_] (reset! form-loading? false) (antd/error! "加载表单失败"))))
                submit (fn []
                         (if-let [err (validate-fields (:fields @form-schema) @values)]
                           (antd/error! err)

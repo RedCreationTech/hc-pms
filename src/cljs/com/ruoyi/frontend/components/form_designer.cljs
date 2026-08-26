@@ -18,9 +18,11 @@
    {:type "checkbox" :label "多选框"} {:type "select" :label "下拉选择"}
    {:type "switch" :label "开关"} {:type "rate" :label "评分"}
    {:type "user" :label "用户选择"} {:type "dept" :label "部门选择"}
+   {:type "slider" :label "滑块"} {:type "cascader" :label "级联选择"}
+   {:type "tree-select" :label "部门树选择"} {:type "dict-select" :label "字典选择"}
    {:type "divider" :label "分割线"}])
 
-(def ^:private options-types #{"radio" "checkbox" "select"})
+(def ^:private options-types #{"radio" "checkbox" "select" "cascader" "dict-select"})
 
 (defn- new-field
   "按类型生成默认字段。"
@@ -154,6 +156,19 @@
        [:div.bpm-f-label {:style {:marginTop 10}} "默认值"]
        [fr/render-field f false (field-value f)
         (fn [_ v] (swap! fields assoc-in [idx :value] v))]
+       (when (= (:type f) "slider")
+         [:div {:style {:display "flex" :gap 8 :marginTop 10}}
+          [:div {:style {:flex 1}} [:div.bpm-f-label "最小值"]
+           [antd/input-number {:size "small" :style {:width "100%"} :value (get-in f [:props :min] 0)
+                               :onChange #(swap! fields assoc-in [idx :props :min] (or % 0))}]]
+          [:div {:style {:flex 1}} [:div.bpm-f-label "最大值"]
+           [antd/input-number {:size "small" :style {:width "100%"} :value (get-in f [:props :max] 100)
+                               :onChange #(swap! fields assoc-in [idx :props :max] (or % 100))}]]])
+       (when (= (:type f) "dict-select")
+         [:div {:style {:marginTop 10}}
+          [:div.bpm-f-label "字典类型"]
+          [antd/input {:size "small" :value (get-in f [:props :dict-type]) :placeholder "如 sys_normal_disable"
+                       :onChange (fn [e] (swap! fields assoc-in [idx :props :dict-type] (-> e .-target .-value)))}]])
        (when (options-types (:type f))
          [:div
           [:div.bpm-f-label {:style {:marginTop 12}} "选项设置"]
