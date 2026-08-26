@@ -57,6 +57,7 @@
    ["/bpm/task/:id/reject"  {:post {:summary "审批驳回" :handler (partial bpm/reject-task {:bpm-service bpm-service})}}]
    ["/bpm/task/:id/claim"   {:post {:summary "认领任务" :handler (partial bpm/claim-task {:bpm-service bpm-service})}}]
    ["/bpm/task/:id/transfer" {:post {:summary "转办任务" :handler (partial bpm/transfer-task {:bpm-service bpm-service})}}]
+   ["/bpm/task/:id/delegate" {:post {:summary "委派任务" :handler (partial bpm/delegate-task {:bpm-service bpm-service})}}]
 
    ;; ── 流程任务管理 / 流程实例运维 ──
    ["/bpm/task/all" {:get {:summary "全部任务(管理员)" :handler (partial bpm/list-all-tasks {:bpm-service bpm-service})}}]

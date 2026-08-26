@@ -270,6 +270,11 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ---
 
+- **2026-08-26 (51)** **P-D 审批操作按钮：转办/委派**：
+  · 待办行加"转办/委派"按钮 → 目标用户选择弹窗（复用 list-users）
+  · 后端新增 delegate 路由/controller（transfer 已有）；api.cljs 加 bpm-transfer-task/bpm-delegate-task
+  · 实测：转办给 ry 成功，任务 assignee 变为 ry
+
 - **2026-08-26 (50)** **P-C 表单校验规则（对照 vben @form-create 补强）**：
   · 差距分析：vben 用 @form-create(25+组件/规则/联动/布局)，我们 14 组件+基础属性；核心闭环已通
   · 表单设计器属性面板加"校验规则"：手机号/邮箱/6位数字/自定义(暂占位)

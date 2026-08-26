@@ -857,6 +857,16 @@
             :params {:comment comment}
             :on-success on-success :on-error on-error}))
 
+(defn bpm-transfer-task [task-id to-user on-success on-error]
+  (request {:method :post :uri (str "/business/bpm/task/" task-id "/transfer")
+            :params {:to_user to-user}
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-delegate-task [task-id to-user on-success on-error]
+  (request {:method :post :uri (str "/business/bpm/task/" task-id "/delegate")
+            :params {:to_user to-user}
+            :on-success on-success :on-error on-error}))
+
 (defn bpm-reject-task [task-id comment on-success on-error]
   (request {:method :post :uri (str "/business/bpm/task/" task-id "/reject")
             :params {:comment comment}

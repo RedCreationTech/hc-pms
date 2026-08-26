@@ -181,6 +181,14 @@
                (bpm-core/transfer! (:engine bpm-service) task-id (current-user request) to-user)
                (ok nil))))
 
+(defn delegate-task
+  "委派。body: {:to_user x}"
+  [{:keys [bpm-service]} request]
+  (wrap-err #(let [task-id (get-in request [:path-params :id])
+                   to-user (get-in request [:body-params :to_user])]
+               (bpm-core/delegate! (:engine bpm-service) task-id to-user)
+               (ok nil))))
+
 ;; ── 流程任务管理 / 流程实例运维 ─────────────────────────────────────
 (defn list-all-tasks
   "全部运行中任务（管理员）。"

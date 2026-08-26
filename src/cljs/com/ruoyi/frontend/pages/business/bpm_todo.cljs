@@ -1,21 +1,23 @@
 (ns com.ruoyi.frontend.pages.business.bpm-todo
-  "我的待办 —— 审批面板。"
+  "我的待办 —— 审批面板（通过/驳回/转办/委派）。"
   (:require
+   [clojure.walk :as walk]
    [reagent.core :as r]
    [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [ReloadOutlined CheckOutlined CloseOutlined]]
+   ["@ant-design/icons" :refer [ReloadOutlined CheckOutlined CloseOutlined SwapOutlined SendOutlined]]
    [com.ruoyi.frontend.antd :as antd]
+   [com.ruoyi.frontend.api :as api]
    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
    [com.ruoyi.frontend.components.form-render :as fr]))
 
-(defn- task-columns []
+(defn- task-columns [open-ops]
   #js [#js {:title "任务" :dataIndex "name" :key "name"}
        #js {:title "流程定义" :dataIndex "process-definition-id" :key "process-definition-id"
-            :width 220 :ellipsis true}
+            :width 180 :ellipsis true}
        #js {:title "流程实例" :dataIndex "process-instance-id" :key "process-instance-id"
-            :width 90 :render (fn [v] (r/as-element (if v [antd/tag {:color "blue"} v] "-")))}
-       #js {:title "创建时间" :dataIndex "create-time" :key "create-time" :width 180}
-       #js {:title "操作" :key "action" :width 160
+            :width 80 :render (fn [v] (r/as-element (if v [antd/tag {:color "blue"} v] "-")))}
+       #js {:title "创建时间" :dataIndex "create-time" :key "create-time" :width 160}
+       #js {:title "操作" :key "action" :width 260
             :render (fn [_ ^js record]
                       (let [task (js->clj record :keywordize-keys true)]
                         (r/as-element
@@ -27,7 +29,15 @@
                           [antd/button {:danger true :size "small"
                                         :icon (r/as-element [:> CloseOutlined])
                                         :on-click #(rf/dispatch [:bpm/todo-open-reject task])}
-                           "驳回"]])))}])
+                           "驳回"]
+                          [antd/button {:size "small"
+                                        :icon (r/as-element [:> SwapOutlined])
+                                        :on-click #(open-ops task "transfer")}
+                           "转办"]
+                          [antd/button {:size "small"
+                                        :icon (r/as-element [:> SendOutlined])
+                                        :on-click #(open-ops task "delegate")}
+                           "委派"]])))}])
 
 (defn- approve-modal []
   (let [visible? @(rf/subscribe [:bpm-todo/modal-visible?])
@@ -63,22 +73,59 @@
       [antd/form-item {:label "审批意见" :name "comment"}
        [antd/text-area {:placeholder "请输入审批意见(可选)" :rows 3}]]]]))
 
+(defn- ops-modal [{:keys [task-type to-user set-to-user! users visible? set-visible!] :as props}]
+  (let [op (or (:type props) "transfer")
+        title (if (= op "transfer") "转办" "委派")]
+    [antd/modal {:title (str title "任务")
+                 :open visible? :width 420
+                 :onOk #(let [task (:task props)]
+                          (when task
+                            (let [f (if (= op "transfer") api/bpm-transfer-task api/bpm-delegate-task)]
+                              (f (:task-id task) to-user
+                                 (fn [_] (set-visible! false) (set-to-user! nil)
+                                   (antd/success! (str title "成功"))
+                                   (rf/dispatch [:bpm/todo-fetch]))
+                                 (fn [_] (antd/error! (str title "失败")))))))
+                 :onCancel #(do (set-visible! false) (set-to-user! nil))}
+     [:div
+      [:div.bpm-f-label (str title "给（用户）")]
+      [antd/select {:style {:width "100%"} :placeholder "请选择目标用户" :value to-user
+                    :onChange set-to-user!}
+       (doall (for [u users] ^{:key (:user_name u)}
+                [antd/select-option {:value (:user_name u)} (:nick_name u)]))]]]))
+
 (defn bpm-todo-page []
   (let [items @(rf/subscribe [:bpm-todo/items])
         total @(rf/subscribe [:bpm-todo/total])
         loading? @(rf/subscribe [:bpm-todo/loading?])]
-    [:div
-     [page-toolbar/page-toolbar
-      {:left [page-toolbar/toolbar-left
-              [:div {:style {:fontSize 15 :fontWeight 600}} "我的待办"]]
-       :right [page-toolbar/toolbar-right
-               [page-toolbar/round-tool-button {:title "刷新"
-                                                :icon (r/as-element [:> ReloadOutlined])
-                                                :on-click #(rf/dispatch [:bpm/todo-fetch])}]]}]
-     [antd/table {:scroll #js {:x "max-content"} :rowKey "task-id"
-                  :columns (task-columns)
-                  :dataSource (clj->js items)
-                  :loading loading?
-                  :pagination {:total total :pageSize 10 :showSizeChanger true
-                               :showTotal (fn [total] (str "共 " total " 条"))}}]
-     [approve-modal]]))
+    (r/with-let [ops-visible (r/atom false)
+                 ops-task (r/atom nil)
+                 ops-type (r/atom "transfer")
+                 ops-user (r/atom nil)
+                 users (r/atom [])
+                 _ (api/list-users {:page 1 :size 1000}
+                                   #(reset! users (walk/keywordize-keys (or (:rows (:data %)) [])))
+                                   #())
+                 open-ops (fn [task type]
+                            (reset! ops-task task)
+                            (reset! ops-type type)
+                            (reset! ops-user nil)
+                            (reset! ops-visible true))]
+      [:div
+       [page-toolbar/page-toolbar
+        {:left [page-toolbar/toolbar-left
+                [:div {:style {:fontSize 15 :fontWeight 600}} "我的待办"]]
+         :right [page-toolbar/toolbar-right
+                 [page-toolbar/round-tool-button {:title "刷新"
+                                                  :icon (r/as-element [:> ReloadOutlined])
+                                                  :on-click #(rf/dispatch [:bpm/todo-fetch])}]]}]
+       [antd/table {:scroll #js {:x "max-content"} :rowKey "task-id"
+                    :columns (task-columns open-ops)
+                    :dataSource (clj->js items)
+                    :loading loading?
+                    :pagination {:total total :pageSize 10 :showSizeChanger true
+                                 :showTotal (fn [total] (str "共 " total " 条"))}}]
+       [approve-modal]
+       [ops-modal {:task @ops-task :type @ops-type :to-user @ops-user
+                   :users @users :visible? @ops-visible
+                   :set-to-user! #(reset! ops-user %) :set-visible! #(reset! ops-visible %)}]])))
