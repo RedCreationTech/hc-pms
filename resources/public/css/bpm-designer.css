@@ -395,3 +395,30 @@
 .bpm-node-card.is-completed .bpm-node-name { color: #67c23a; }
 .bpm-capsule.is-active { border-color: #f56c6c; box-shadow: 0 0 0 2px rgba(245,108,108,.2); }
 .bpm-capsule.is-completed { border-color: #67c23a; box-shadow: 0 0 0 2px rgba(103,194,58,.18); }
+
+/* 设计器强制浅色（dark 主题下也保持浅色画布） */
+.bpm-flow-wrap {
+  background: #fff !important;
+  color: #303133 !important;
+  border-radius: 8px;
+}
+.bpm-flow-wrap .bpm-toolbar {
+  background: #fafafa !important;
+  color: #303133 !important;
+}
+.bpm-flow-wrap .bpm-config {
+  background: #fff !important;
+  color: #303133 !important;
+}
+.bpm-flow-wrap .bpm-config .ant-select,
+.bpm-flow-wrap .bpm-config .ant-input,
+.bpm-flow-wrap .bpm-config .ant-input-number,
+.bpm-flow-wrap .bpm-config textarea {
+  background: #fff !important;
+  color: #303133 !important;
+}
+
+/* 流程模型 modal 内容强制浅色 */
+body.dark .bpm-flow-wrap,
+body.dark .bpm-flow-wrap .bpm-toolbar,
+body.dark .bpm-flow-root { background: #fbfcfd !important; color: #303133 !important; }

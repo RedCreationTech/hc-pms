@@ -603,27 +603,27 @@
        [:> Layout.Sider {:collapsible true
                          :collapsed collapsed
                          :onCollapse set-collapsed!
-                         :theme "dark"
+                         :theme "light"
                          :width sider-width
                          :collapsedWidth collapsed-width
                          :trigger nil
-                         :style {:background "#172033"
-                                 :boxShadow "2px 0 8px rgba(0,0,0,0.18)"}}
+                         :style {:background "#ffffff"
+                                 :boxShadow "2px 0 8px rgba(0,0,0,0.06)"}}
         (when (get layout-settings :show-logo? true)
           [:div {:style {:height 56 :display "flex" :alignItems "center"
                          :justifyContent "center" :gap 8 :fontSize 16 :fontWeight 700
-                         :color "#fff"
-                         :background "#172033"}}
+                         :color "#303133"
+                         :background "#ffffff"}}
            [:div {:style {:width 24 :height 24 :borderRadius "50%"
                           :display "flex" :alignItems "center" :justifyContent "center"
                           :color "#79e0c2" :fontSize 20 :fontWeight 300}}
             "⌁"]
            (when-not collapsed [:span "若依管理系统"])])
         [:> Menu {:key (str "side-" menu-instance-key)
-                  :theme "dark"
+                  :theme "light"
                   :mode "inline"
                   :inlineCollapsed collapsed
-                  :style {:background "#172033"
+                  :style {:background "#ffffff"
                           :fontSize 14
                           :borderInlineEnd "none"}
                   :selectedKeys (clj->js [selected-menu-key])
@@ -648,7 +648,7 @@
            (when (get layout-settings :show-logo? true)
              [:div {:style {:display "flex" :alignItems "center" :gap 8
                             :height 56 :paddingRight 16 :fontSize 16 :fontWeight 700
-                            :color "#172033" :whiteSpace "nowrap"}}
+                            :color "#303133" :whiteSpace "nowrap"}}
               [:div {:style {:width 24 :height 24 :borderRadius "50%"
                              :display "flex" :alignItems "center" :justifyContent "center"
                              :color "#23b99a" :fontSize 20 :fontWeight 300}}

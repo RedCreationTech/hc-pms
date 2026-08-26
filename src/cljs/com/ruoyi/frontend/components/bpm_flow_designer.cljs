@@ -504,7 +504,7 @@
                                            (= at "AUTO_REJECT") "自动拒绝"
                                            :else "自动审批"))
                                        nil))))]
-    [:div
+    [:div.bpm-flow-wrap
      [:div.bpm-toolbar
       [:span.bpm-toolbar-title (if read-only? "流程追踪" "流程设计")]
       [:div.bpm-toolbar-right
