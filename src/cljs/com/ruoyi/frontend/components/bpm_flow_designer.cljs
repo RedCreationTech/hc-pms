@@ -559,8 +559,16 @@
                        (for [[ri r] (map-indexed vector (or (:rules c) [{:left-side "" :op-code ">" :right-side ""}]))]
                          ^{:key ri}
                          [:div {:style {:display "flex" :gap 6 :marginBottom 6}}
-                          [antd/input {:style {:flex 1} :size "small" :value (:left-side r) :placeholder "字段如 days"
-                                       :onChange (fn [e] (swap! cfg assoc-in [:conditions i :rules ri :left-side] (-> e .-target .-value)))}]
+                          [antd/select {:style {:flex 1} :size "small" :value (:left-side r)
+                                        :placeholder "选择字段" :allowClear true
+                                        :onChange #(swap! cfg assoc-in [:conditions i :rules ri :left-side] (or % ""))}
+                           (doall
+                            (for [ff @form-fields]
+                              (when-let [fld (:field ff)]
+                                ^{:key fld}
+                                [antd/select-option {:value fld} (:title ff)])))
+                           [antd/select-option {:value "approved"} "审批结果 approved"]
+                           [antd/select-option {:value "startUserId"} "发起人"]]
                           [antd/select {:style {:width 90} :size "small" :value (or (:op-code r) ">")
                                         :onChange #(swap! cfg assoc-in [:conditions i :rules ri :op-code] %)}
                            (doall (for [{:keys [value label]} condition-operators]
