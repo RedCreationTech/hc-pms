@@ -148,6 +148,10 @@
   [{:keys [bpm-service]} request]
   (wrap-err #(ok {:rows (bpm-core/done-list (:engine bpm-service) (current-user request))})))
 
+(defn task-detail
+  [{:keys [bpm-service]} request]
+  (wrap-err #(ok (bpm/task-detail bpm-service (get-in request [:path-params :id])))))
+
 (defn approve-task
   "审批通过。path: :id (task-id), body: {:comment x}"
   [{:keys [bpm-service]} request]

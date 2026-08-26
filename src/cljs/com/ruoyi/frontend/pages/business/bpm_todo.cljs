@@ -5,7 +5,8 @@
    [re-frame.core :as rf]
    ["@ant-design/icons" :refer [ReloadOutlined CheckOutlined CloseOutlined]]
    [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
+   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+   [com.ruoyi.frontend.components.form-render :as fr]))
 
 (defn- task-columns []
   #js [#js {:title "任务" :dataIndex "name" :key "name"}
@@ -33,16 +34,33 @@
         current @(rf/subscribe [:bpm-todo/current])
         action @(rf/subscribe [:bpm-todo/action])
         submitting? @(rf/subscribe [:bpm-todo/submitting?])
+        form-data @(rf/subscribe [:bpm-todo/form-data])
+        form-loading? @(rf/subscribe [:bpm-todo/form-loading?])
         [form] (antd/form-use-form)]
     [antd/modal {:title (str (if (= action "approve") "审批通过" "审批驳回") " · " (:name current))
-                 :open visible? :confirmLoading submitting?
+                 :open visible? :confirmLoading submitting? :width 640
                  :onOk #(.submit form)
                  :onCancel #(rf/dispatch [:bpm/todo-close])}
+     [:div {:style {:maxHeight 420 :overflow "auto" :marginBottom 12}}
+      (if form-loading?
+        [:div {:style {:padding 24 :textAlign "center" :color "#909399"}} "表单加载中..."]
+        (if-let [form (:form form-data)]
+          (let [schema (:schema form)
+                values (or (:values form) {})]
+            (if (seq (:fields schema))
+              [:div
+               [:div {:style {:display "flex" :alignItems "center" :marginBottom 8}}
+                [:div {:style {:width 4 :height 16 :background "#409eff" :marginRight 8}}]
+                [:span {:style {:fontWeight 600}} "申请表单"]]
+               [fr/form-render {:schema schema :values values :disabled? true}]]
+              [:div {:style {:color "#c0c4cc" :textAlign "center" :padding 12}}
+               "该流程未配置动态表单"]))
+          [:div {:style {:color "#c0c4cc" :textAlign "center" :padding 12}} "暂无表单数据"]))]
      [antd/form {:form form :layout "vertical" :preserve false
                  :onFinish (fn [values]
                              (rf/dispatch [:bpm/todo-submit (:comment values)]))}
       [antd/form-item {:label "审批意见" :name "comment"}
-       [antd/text-area {:placeholder "请输入审批意见(可选)" :rows 4}]]]]))
+       [antd/text-area {:placeholder "请输入审批意见(可选)" :rows 3}]]]]))
 
 (defn bpm-todo-page []
   (let [items @(rf/subscribe [:bpm-todo/items])

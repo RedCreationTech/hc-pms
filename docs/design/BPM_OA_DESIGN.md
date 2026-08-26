@@ -270,6 +270,12 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ---
 
+- **2026-08-26 (46)** **P-A 集成断点：表单字段→流程变量 + 审批表单回显**：
+  · 发起时表单字段展开为流程变量（days/reason 等可直接用于条件表达式 ${days > 3}），formData 保留完整 JSON
+  · 新增 task-detail API：任务信息+实例表单数据+表单 schema；审批弹窗显示只读"申请表单"
+  · 修复 events bpm/todo-set-form 两个 assoc-in 独立导致 form-data 丢失
+  · 实测：API 发起后 days=5/reason 变量生效；审批弹窗显示请假事由/天数只读回显
+
 - **2026-08-26 (45)** **动态表单补强：日期范围/日期时间组件 + 字段禁用/隐藏属性**：
   · 组件库 12 → 14 种（+日期范围/日期时间）；date-range 双 input 组合值 "start~end"
   · 属性面板 + 禁用/隐藏开关（写入 props.disabled/props.hidden）

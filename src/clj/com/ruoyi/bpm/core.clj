@@ -238,6 +238,12 @@
    :create-time (timestamp->str (.getCreateTime t))
    :due-date (timestamp->str (.getDueDate t))})
 
+(defn task-of
+  "按任务 id 查单个任务（含实例 id/定义 id）。"
+  [^ProcessEngine engine task-id]
+  (some-> (.singleResult (.taskId (.createTaskQuery (.getTaskService engine)) task-id))
+          task->map))
+
 (defn todo-list
   "某人待办：候选人或已认领的任务。"
   [^ProcessEngine engine user]

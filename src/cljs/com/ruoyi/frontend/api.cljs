@@ -848,6 +848,10 @@
   (request {:method :get :uri "/business/bpm/done"
             :on-success on-success :on-error on-error}))
 
+(defn bpm-task-detail [task-id on-success on-error]
+  (request {:method :get :uri (str "/business/bpm/task/" task-id "/detail")
+            :on-success on-success :on-error on-error}))
+
 (defn bpm-approve-task [task-id comment on-success on-error]
   (request {:method :post :uri (str "/business/bpm/task/" task-id "/approve")
             :params {:comment comment}

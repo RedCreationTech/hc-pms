@@ -2588,19 +2588,36 @@
                                           :loading? false :modal-visible? false
                                           :current nil :submitting? false}))))
 
-(rf/reg-event-db :bpm/todo-open-approve
-                 (fn [db [_ task]]
-                   (assoc db :bpm-todo {:items (get-in db [:bpm-todo :items] [])
-                                        :total (get-in db [:bpm-todo :total] 0)
-                                        :loading? false :modal-visible? true
-                                        :current task :action "approve" :submitting? false})))
+(defn- todo-open-form
+  [db task action]
+  (assoc db :bpm-todo {:items (get-in db [:bpm-todo :items] [])
+                       :total (get-in db [:bpm-todo :total] 0)
+                       :loading? false :modal-visible? true
+                       :current task :action action :submitting? false
+                       :form-data nil :form-loading? true}))
 
-(rf/reg-event-db :bpm/todo-open-reject
-                 (fn [db [_ task]]
-                   (assoc db :bpm-todo {:items (get-in db [:bpm-todo :items] [])
-                                        :total (get-in db [:bpm-todo :total] 0)
-                                        :loading? false :modal-visible? true
-                                        :current task :action "reject" :submitting? false})))
+(rf/reg-event-fx :bpm/todo-open-approve
+                 (fn [{:keys [db]} [_ task]]
+                   {:db (todo-open-form db task "approve")
+                    :api/bpm-task-detail [(:task-id task)]}))
+
+(rf/reg-event-fx :bpm/todo-open-reject
+                 (fn [{:keys [db]} [_ task]]
+                   {:db (todo-open-form db task "reject")
+                    :api/bpm-task-detail [(:task-id task)]}))
+
+(rf/reg-fx :api/bpm-task-detail
+           (fn [[task-id]]
+             (api/bpm-task-detail task-id
+                                  (fn [res]
+                                    (rf/dispatch [:bpm/todo-set-form (:data res)]))
+                                  (fn [_] (rf/dispatch [:bpm/todo-set-form nil])))))
+
+(rf/reg-event-db :bpm/todo-set-form
+                 (fn [db [_ form]]
+                   (-> db
+                       (assoc-in [:bpm-todo :form-data] form)
+                       (assoc-in [:bpm-todo :form-loading?] false))))
 
 (rf/reg-event-db :bpm/todo-close
                  (fn [db _]

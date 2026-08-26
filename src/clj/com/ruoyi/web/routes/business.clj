@@ -52,7 +52,8 @@
    ;; ── 任务 ──
    ["/bpm/todo"    {:get {:summary "我的待办" :handler (partial bpm/list-todo {:bpm-service bpm-service})}}]
    ["/bpm/done"    {:get {:summary "我的已办" :handler (partial bpm/list-done {:bpm-service bpm-service})}}]
-   ["/bpm/task/:id/approve" {:post {:summary "审批通过" :handler (partial bpm/approve-task {:bpm-service bpm-service})}}]
+   ["/bpm/task/:id/detail" {:get {:summary "任务详情(表单回显)" :handler (partial bpm/task-detail {:bpm-service bpm-service})}}]
+  ["/bpm/task/:id/approve" {:post {:summary "审批通过" :handler (partial bpm/approve-task {:bpm-service bpm-service})}}]
    ["/bpm/task/:id/reject"  {:post {:summary "审批驳回" :handler (partial bpm/reject-task {:bpm-service bpm-service})}}]
    ["/bpm/task/:id/claim"   {:post {:summary "认领任务" :handler (partial bpm/claim-task {:bpm-service bpm-service})}}]
    ["/bpm/task/:id/transfer" {:post {:summary "转办任务" :handler (partial bpm/transfer-task {:bpm-service bpm-service})}}]

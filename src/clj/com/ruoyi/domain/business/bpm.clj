@@ -245,11 +245,19 @@
         _ (when-not (:deployment_id m)
             (throw (ex-info "模型未部署，请先部署" {:model_id model-id :key (:model_key m)})))
         biz-key (or business-key (str "biz-" (System/currentTimeMillis)))
+        fd (or form-data {})
+        ;; 表单字段展开为流程变量（条件表达式 ${days > 3} 可直接引用），formData 保留完整 JSON
+        field-vars (into {}
+                          (keep (fn [[k v]]
+                                  (when (not= (name k) "startUserSelected")
+                                    [(name k) v])))
+                          fd)
         started (bpm/start! engine (:model_key m) biz-key
-                            (cond-> {"formData" (json/generate-string (or form-data {}))
-                                     "startUserId" (or starter "")}
-                              (seq (get form-data :startUserSelected))
-                              (assoc "startUserSelected" (vec (get form-data :startUserSelected)))))
+                            (cond-> (merge {"formData" (json/generate-string fd)
+                                            "startUserId" (or starter "")}
+                                           field-vars)
+                              (seq (get fd :startUserSelected))
+                              (assoc "startUserSelected" (vec (get fd :startUserSelected)))))
         pid (:process-instance-id started)]
     (query-fn :bpm/insert-instance
               {:process_instance_id pid :model_id model-id :model_key (:model_key m)
@@ -266,6 +274,23 @@
            :page_size size :offset offset}]
     {:rows (mapv #(row->json % [:form_data_json]) (query-fn :bpm/instance-list p))
      :total (:total (query-fn :bpm/instance-count p))}))
+
+(defn task-detail
+  "任务详情：任务信息 + 实例表单数据 + 表单 schema（审批弹窗表单回显）。"
+  [{:keys [engine query-fn]} task-id]
+  (let [task (bpm/task-of engine task-id)
+        _ (when-not task (throw (ex-info "任务不存在" {:task-id task-id})))
+        pid (:process-instance-id task)
+        inst (query-fn :bpm/find-instance-by-pid {:process_instance_id pid})
+        model (query-fn :bpm/find-model-by-id {:model_id (:model_id inst)})
+        form (when-let [fid (:form_id model)]
+               (query-fn :bpm/find-form-by-id {:form_id fid}))
+        schema (when-let [fj (:form_json form)]
+                 (if (string? fj) (json/parse-string fj true) fj))
+        inst-data (row->json inst [:form_data_json])]
+    {:task task
+     :model {:model_name (:model_name model) :model_key (:model_key model)}
+     :form {:schema schema :values (:form_data_json inst-data)}}))
 
 (defn instance-history
   "流程实例的完整历史轨迹：业务侧 + 活动轨迹 + 任务级审批历史 + 表单回显数据。"

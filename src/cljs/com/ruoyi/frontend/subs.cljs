@@ -635,6 +635,8 @@
 (rf/reg-sub :bpm-todo/current (fn [db _] (get-in db [:bpm-todo :current] nil)))
 (rf/reg-sub :bpm-todo/action (fn [db _] (get-in db [:bpm-todo :action] nil)))
 (rf/reg-sub :bpm-todo/submitting? (fn [db _] (get-in db [:bpm-todo :submitting?] false)))
+(rf/reg-sub :bpm-todo/form-data (fn [db _] (get-in db [:bpm-todo :form-data] nil)))
+(rf/reg-sub :bpm-todo/form-loading? (fn [db _] (get-in db [:bpm-todo :form-loading?] false)))
 
 ;; ─── 办公：BPM 已办 ──────────────────────────────────────────────────
 (rf/reg-sub :bpm-done/items (fn [db _] (get-in db [:bpm-done :items] [])))
