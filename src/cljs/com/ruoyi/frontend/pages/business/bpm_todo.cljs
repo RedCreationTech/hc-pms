@@ -52,7 +52,8 @@
                [:div {:style {:display "flex" :alignItems "center" :marginBottom 8}}
                 [:div {:style {:width 4 :height 16 :background "#409eff" :marginRight 8}}]
                 [:span {:style {:fontWeight 600}} "申请表单"]]
-               [fr/form-render {:schema schema :values values :disabled? true}]]
+               [fr/form-render {:schema schema :values values :disabled? true
+                                 :field-permissions (:fields-permission form-data)}]]
               [:div {:style {:color "#c0c4cc" :textAlign "center" :padding 12}}
                "该流程未配置动态表单"]))
           [:div {:style {:color "#c0c4cc" :textAlign "center" :padding 12}} "暂无表单数据"]))]

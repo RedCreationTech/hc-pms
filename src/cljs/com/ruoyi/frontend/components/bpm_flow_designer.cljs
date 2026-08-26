@@ -89,7 +89,7 @@
    :timeout-handler {:enable false :type "REMINDER" :time-duration 6 :time-unit "HOUR" :max-remind-count 1}
    :assign-empty-handler {:type "AUTO_PASS" :user-ids []}
    :assign-start-user-handler-type "TRANSFER_ADMIN"
-   :sign-enable false :reason-require false :skip-expression ""})
+   :sign-enable false :reason-require false :skip-expression "" :fields-permission {}})
 
 ;; ── 配置表单辅助函数 ────────────────────────────────────────────────
 
@@ -341,6 +341,7 @@
                roles (r/atom [])
                depts (r/atom [])
                posts (r/atom [])
+               form-fields (r/atom [])
                rows-or-vec (fn [res]
                               (let [d (:data res)]
                                 (if (map? d) (:rows d) d)))
@@ -350,6 +351,21 @@
                                          (reset! tree (walk/keywordize-keys (:data res)))
                                          (reset! loading false))
                                        (fn [e] (reset! loading false) (antd/error! (str "加载流程失败: " e)))))
+               _ (when model-id
+                   (api/bpm-get-model model-id
+                                      (fn [res]
+                                        (let [d (:data res)
+                                              fid (:form_id d)]
+                                          (when (and (= "1" (:form_type d)) fid)
+                                            (api/bpm-get-form fid
+                                                              (fn [fr]
+                                                                (let [j (:form_json (:data fr))
+                                                                      schema (if (string? j)
+                                                                               (js->clj (js/JSON.parse j) :keywordize-keys true)
+                                                                               (walk/keywordize-keys j))]
+                                                                  (reset! form-fields (or (:fields schema) []))))
+                                                              #()))))
+                                      #()))
                _ (api/list-users {:page 1 :size 1000}
                                  #(reset! users (walk/keywordize-keys (rows-or-vec %))) #())
                _ (api/list-roles {:page 1 :size 1000}
@@ -624,7 +640,25 @@
                  (f-label {:style {:marginTop 14}} "跳过表达式")
                  [antd/text-area {:value (:skip-expression @cfg) :rows 2
                                   :placeholder "填写后满足条件则自动跳过本节点"
-                                  :onChange #(cfg-set! :skip-expression (-> % .-target .-value))}]])]
+                                  :onChange #(cfg-set! :skip-expression (-> % .-target .-value))}]
+                 (when (seq @form-fields)
+                   [:div {:style {:marginTop 14}}
+                    (f-label "表单字段权限")
+                    [:div {:style {:border "1px solid #f0f0f0" :borderRadius 6}}
+                     (doall
+                      (for [f @form-fields]
+                        (let [field (:field f)]
+                          ^{:key (or field (str "fp-" (random-uuid)))}
+                          [:div {:style {:display "flex" :alignItems "center" :justifyContent "space-between"
+                                         :padding "5px 10px" :borderBottom "1px solid #f5f5f5"}}
+                           [:span {:style {:fontSize 13}} (:title f)]
+                           [antd/select {:style {:width 110} :size "small"
+                                         :value (or (get-in @cfg [:fields-permission field]) "edit")
+                                         :onChange #(cfg-set! :fields-permission
+                                                              (assoc (or (get-in @cfg [:fields-permission]) {}) field %))}
+                            [antd/select-option {:value "edit"} "可编辑"]
+                            [antd/select-option {:value "readonly"} "只读"]
+                            [antd/select-option {:value "hidden"} "隐藏"]]])))]])])]
              :else nil)
            [:div {:style {:marginTop 16}}
             [antd/button {:type "primary" :block true :on-click save-config} "保存配置"]]]))]

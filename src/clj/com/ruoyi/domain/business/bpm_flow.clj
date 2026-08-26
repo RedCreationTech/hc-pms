@@ -235,8 +235,10 @@
                      multi-el (when (= type "USER_TASK_NODE") (multi-instance-el el-id config))
                      multi-assignee (when multi-el
                                         " flowable:assignee=\"${approver}\"")
+                     skip-expr (when (and (= type "USER_TASK_NODE") (seq (get-in config [:skip-expression])))
+                                 (str " flowable:skipExpression=\"" (escape-xml (get-in config [:skip-expression])) "\""))
                      attrs (str " id=\"" el-id "\" name=\"" (escape-xml (or name id)) "\""
-                                multi-assignee
+                                multi-assignee skip-expr
                                 (when default-cid
                                   (str " default=\"" el-id "_" default-cid "\"")))
                      dynamic-strategy? (contains? #{"START_USER_DEPT_LEADER" "MULTI_LEVEL_DEPT_LEADER"

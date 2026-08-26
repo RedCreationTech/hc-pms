@@ -314,8 +314,9 @@
 (defn task-detail
   "任务详情：任务信息 + 实例表单数据 + 表单 schema（审批弹窗表单回显）。"
   [{:keys [engine query-fn]} task-id]
-  (let [task (bpm/task-of engine task-id)
-        _ (when-not task (throw (ex-info "任务不存在" {:task-id task-id})))
+  (let [task-obj (some-> (.taskId (.createTaskQuery (.getTaskService engine)) task-id) .singleResult)
+        _ (when-not task-obj (throw (ex-info "任务不存在" {:task-id task-id})))
+        task (bpm/task->map* task-obj)
         pid (:process-instance-id task)
         inst (query-fn :bpm/find-instance-by-pid {:process_instance_id pid})
         model (query-fn :bpm/find-model-by-id {:model_id (:model_id inst)})
@@ -323,9 +324,11 @@
                (query-fn :bpm/find-form-by-id {:form_id fid}))
         schema (when-let [fj (:form_json form)]
                  (if (string? fj) (json/parse-string fj true) fj))
-        inst-data (row->json inst [:form_data_json])]
+        inst-data (row->json inst [:form_data_json])
+        node-config (bpm/node-config-of engine task-obj)]
     {:task task
      :model {:model_name (:model_name model) :model_key (:model_key model)}
+     :fields-permission (or (:fields-permission node-config) {})
      :form {:schema schema :values (:form_data_json inst-data)}}))
 
 (defn instance-history

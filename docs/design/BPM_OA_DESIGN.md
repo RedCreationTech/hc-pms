@@ -270,6 +270,13 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ---
 
+- **2026-08-26 (48)** **P-C 节点级字段权限：审批节点配置字段可见性，运行时审批应用**：
+  · 设计器审批节点配置抽屉加"表单字段权限"（加载模型关联表单字段，每字段 可编辑/只读/隐藏）→ 存 config.fields-permission
+  · 后端 task-detail 返回任务节点字段权限（修复：传 Task 对象而非 map，node-config-of 才能读 BPMN）
+  · 审批弹窗 form-render 应用 field-permissions（修复 keyword/字符串 key 匹配）
+  · 实测：节点配置 days=hidden → 审批弹窗只显示请假事由，天数隐藏
+  · 附带：node-config-of 改 public、task->map* 公开、NREPL 7000 被 ControlCenter 占用改用 7001
+
 - **2026-08-26 (47)** **P-A3 多实例审批运行时（或签/会签/比例）**：
   · tree->bpmn 生成 multiInstanceLoopCharacteristics：collection 按节点 id(approverList_<id>)、
     elementVariable=approver、assignee=${approver}、completionCondition(ANY 任一完成/ALL 全部/RATIO 比例)

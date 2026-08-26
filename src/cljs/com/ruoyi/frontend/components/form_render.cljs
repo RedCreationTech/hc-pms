@@ -101,7 +101,7 @@
                     value (get vals field (:value f))
                     required? (some (fn [v] (:required v)) (or (:validate f) []))
                     label (:title f)
-                    perm (get perms field)]
+                    perm (or (get perms field) (get perms (keyword field)))]
                 (when-not (or (= perm "hidden") (get-in f [:props :hidden]))
                   ^{:key (or field (str "f-" (random-uuid)))}
                   [antd/form-item {:label (if (str/blank? label) (:type f) label)

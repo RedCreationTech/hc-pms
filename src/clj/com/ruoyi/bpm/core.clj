@@ -238,6 +238,11 @@
    :create-time (timestamp->str (.getCreateTime t))
    :due-date (timestamp->str (.getDueDate t))})
 
+(defn task->map*
+  "把 Flowable Task 对象转成 Clojure map（公开，供外部构造任务 map）。"
+  [^Task t]
+  (task->map t))
+
 (defn task-of
   "按任务 id 查单个任务（含实例 id/定义 id）。"
   [^ProcessEngine engine task-id]
@@ -339,7 +344,7 @@
   (complete* engine task-id user variables)
   true)
 
-(defn- node-config-of
+(defn node-config-of
   "从任务对应 BPMN 节点的 extensionElements 读取 nodeConfig JSON（config round-trip 数据）。"
   [^ProcessEngine engine task]
   (try
