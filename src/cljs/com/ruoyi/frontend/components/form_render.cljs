@@ -154,8 +154,13 @@
   (let [fields (or (:fields schema) [])
         vals (or values {})
         perms (or field-permissions {})
-        on-field-change (fn [field v]
-                          (when on-change (on-change (assoc vals field v))))]
+        on-field-change (fn [f v]
+                          (when on-change
+                            (let [oc (get-in f [:props :on-change])
+                                  base (assoc vals (:field f) v)]
+                              (if (and oc (:set-field oc))
+                                (on-change (assoc base (:set-field oc) (:set-value oc)))
+                                (on-change base)))))]
     [antd/form {:layout (or layout "vertical")}
      [antd/row {:gutter 16}
       (doall
@@ -180,10 +185,19 @@
                                    (conj {:required true :message (str "请填写" label)})
                                    (some :pattern v)
                                    (conj {:pattern (re-pattern (str (get (first (filter :pattern v)) :pattern)))
-                                          :message (get (first (filter :pattern v)) :message (str "格式不正确"))}))]
+                                          :message (get (first (filter :pattern v)) :message (str "格式不正确"))})
+                                   (some :min v)
+                                   (conj {:min (get (first (filter :min v)) :min)
+                                          :message (or (get (first (filter :min v)) :message)
+                                                       (str "长度不能小于" (get (first (filter :min v)) :min)))})
+                                   (some :max v)
+                                   (conj {:max (get (first (filter :max v)) :max)
+                                          :message (or (get (first (filter :max v)) :message)
+                                                       (str "长度不能超过" (get (first (filter :max v)) :max)))}))]
                        ^{:key (or field (str "f-" (random-uuid)))}
                        [antd/col {:span span}
                         [antd/form-item {:label (if (str/blank? label) (:type f) label)
                                          :rules (clj->js rules)}
-                         (render-field f (or disabled? (= perm "readonly")) value on-field-change)]])))))
+                         (render-field f (or disabled? (= perm "readonly")) value
+                                          (fn [field v] (on-field-change f v)))]])))))
              fields))]]))

@@ -43,7 +43,17 @@
                      (let [rule (first (filter :pattern (:validate f)))
                            pattern (re-pattern (:pattern rule))]
                        (when-not (re-matches pattern vstr)
-                         (or (:message rule) "格式不正确"))))))
+                         (or (:message rule) "格式不正确")))
+                     (some :min (or (:validate f) []))
+                     (let [rule (first (filter :min (:validate f)))
+                           min (or (:min rule) 0)]
+                       (when (< (count vstr) min)
+                         (or (:message rule) (str "长度不能小于" min))))
+                     (some :max (or (:validate f) []))
+                     (let [rule (first (filter :max (:validate f)))
+                           max (or (:max rule) 0)]
+                       (when (> (count vstr) max)
+                         (or (:message rule) (str "长度不能超过" max)))))))
                fields)))
 
 (defn- build-dept-tree

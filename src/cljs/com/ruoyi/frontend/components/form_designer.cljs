@@ -118,6 +118,24 @@
        [antd/switch {:size "small" :checked (some :required (:validate f))
                      :onChange (fn [v] (swap! fields assoc-in [idx :validate]
                                               (if v [{:required true :message (str "请填写" (:title f))}] [])))}]
+       (when (#{"input" "textarea"} (:type f))
+         [:div {:style {:display "flex" :gap 8 :marginTop 10}}
+          [:div {:style {:flex 1}} [:div.bpm-f-label "最小长度"]
+           [antd/input-number {:size "small" :style {:width "100%"} :min 0
+                               :value (get (first (filter :min (:validate f))) :min)
+                               :onChange (fn [v]
+                                           (let [others (remove :min (:validate f))]
+                                             (swap! fields assoc-in [idx :validate]
+                                                    (if (nil? v) (vec others)
+                                                        (conj (vec others) {:min (or v 0)})))))}]]
+          [:div {:style {:flex 1}} [:div.bpm-f-label "最大长度"]
+           [antd/input-number {:size "small" :style {:width "100%"} :min 0
+                               :value (get (first (filter :max (:validate f))) :max)
+                               :onChange (fn [v]
+                                           (let [others (remove :max (:validate f))]
+                                             (swap! fields assoc-in [idx :validate]
+                                                    (if (nil? v) (vec others)
+                                                        (conj (vec others) {:max (or v 0)})))))}]]])
        [:div {:style {:marginTop 10}}
         [:div.bpm-f-label "校验规则"]
         [antd/select {:size "small" :style {:width "100%"} :allowClear true
@@ -157,6 +175,22 @@
          [antd/select-option {:value 12} "半行(12)"]
          [antd/select-option {:value 8} "1/3行(8)"]
          [antd/select-option {:value 16} "2/3行(16)"]]]
+       [:div {:style {:marginTop 10}}
+        [:div.bpm-f-label "变更时设置字段(事件)"]
+        [:div {:style {:display "flex" :gap 6}}
+         [antd/select {:size "small" :style {:width "50%"} :allowClear true
+                       :value (get-in f [:props :on-change :set-field])
+                       :placeholder "选择目标字段"
+                       :onChange (fn [v]
+                                   (swap! fields assoc-in [idx :props :on-change :set-field] (or v "")))}
+          (doall (for [other @fields
+                       :when (not= (:field other) (:field f))
+                       :when (not= (:type other) "divider")]
+                   ^{:key (:field other)}
+                   [antd/select-option {:value (:field other)} (:title other)]))]
+         [antd/input {:size "small" :style {:width "50%"} :value (get-in f [:props :on-change :set-value])
+                      :placeholder "设置值"
+                      :onChange (fn [e] (swap! fields assoc-in [idx :props :on-change :set-value] (-> e .-target .-value)))}]]]
        [:div {:style {:marginTop 10}}
         [:div.bpm-f-label "显示条件(联动)"]
         [:div {:style {:display "flex" :gap 6}}
