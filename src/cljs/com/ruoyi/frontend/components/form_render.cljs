@@ -15,6 +15,13 @@
    "date-range" {:placeholder "开始日期"} "datetime" {:placeholder "如 2026-01-01 12:00"}
    "user" {:placeholder "请选择用户"} "dept" {:placeholder "请选择部门"}})
 
+(defn- render-divider
+  "分割线字段：antd Divider + 标题。"
+  [f]
+  [:div {:style {:margin "4px 0"}}
+   [antd/divider {:orientation "left" :plain true :style {:fontSize 14 :fontWeight 600 :color "#303133"}}
+    (or (:title f) "")]])
+
 (defn- render-options
   "渲染 options 序列（label/value）。"
   [opts mode]
@@ -102,7 +109,9 @@
                     required? (some (fn [v] (:required v)) (or (:validate f) []))
                     label (:title f)
                     perm (or (get perms field) (get perms (keyword field)))]
-                (when-not (or (= perm "hidden") (get-in f [:props :hidden]))
+                (if (= "divider" (:type f))
+                  (render-divider f)
+                  (when-not (or (= perm "hidden") (get-in f [:props :hidden]))
                   (let [v (or (:validate f) [])
                         rules (cond-> []
                                 (some :required v)
@@ -113,6 +122,6 @@
                     ^{:key (or field (str "f-" (random-uuid)))}
                     [antd/form-item {:label (if (str/blank? label) (:type f) label)
                                      :rules (clj->js rules)}
-                     (render-field f (or disabled? (= perm "readonly")) value on-field-change)]))))
+                     (render-field f (or disabled? (= perm "readonly")) value on-field-change)])))))
             fields))]))
 

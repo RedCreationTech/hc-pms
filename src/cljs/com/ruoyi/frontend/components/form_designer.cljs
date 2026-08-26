@@ -17,7 +17,8 @@
    {:type "time" :label "时间"} {:type "radio" :label "单选框"}
    {:type "checkbox" :label "多选框"} {:type "select" :label "下拉选择"}
    {:type "switch" :label "开关"} {:type "rate" :label "评分"}
-   {:type "user" :label "用户选择"} {:type "dept" :label "部门选择"}])
+   {:type "user" :label "用户选择"} {:type "dept" :label "部门选择"}
+   {:type "divider" :label "分割线"}])
 
 (def ^:private options-types #{"radio" "checkbox" "select"})
 
