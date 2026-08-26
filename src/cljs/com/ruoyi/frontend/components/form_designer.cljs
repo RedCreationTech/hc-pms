@@ -13,6 +13,7 @@
 (def ^:private component-types
   [{:type "input" :label "单行文本"} {:type "textarea" :label "多行文本"}
    {:type "number" :label "数字"} {:type "date" :label "日期"}
+   {:type "date-range" :label "日期范围"} {:type "datetime" :label "日期时间"}
    {:type "time" :label "时间"} {:type "radio" :label "单选框"}
    {:type "checkbox" :label "多选框"} {:type "select" :label "下拉选择"}
    {:type "switch" :label "开关"} {:type "rate" :label "评分"}
@@ -102,6 +103,15 @@
        [antd/switch {:size "small" :checked (some :required (:validate f))
                      :onChange (fn [v] (swap! fields assoc-in [idx :validate]
                                               (if v [{:required true :message (str "请填写" (:title f))}] [])))}]
+       [:div {:style {:display "flex" :gap 24 :marginTop 10}}
+        [:div
+         [:div.bpm-f-label "禁用"]
+         [antd/switch {:size "small" :checked (get-in f [:props :disabled])
+                       :onChange (fn [v] (swap! fields assoc-in [idx :props :disabled] v))}]]
+        [:div
+         [:div.bpm-f-label "隐藏"]
+         [antd/switch {:size "small" :checked (get-in f [:props :hidden])
+                       :onChange (fn [v] (swap! fields assoc-in [idx :props :hidden] v))}]]]
        [:div.bpm-f-label {:style {:marginTop 10}} "默认值"]
        [fr/render-field f false (field-value f)
         (fn [_ v] (swap! fields assoc-in [idx :value] v))]

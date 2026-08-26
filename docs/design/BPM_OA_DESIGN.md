@@ -270,6 +270,12 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ---
 
+- **2026-08-26 (45)** **动态表单补强：日期范围/日期时间组件 + 字段禁用/隐藏属性**：
+  · 组件库 12 → 14 种（+日期范围/日期时间）；date-range 双 input 组合值 "start~end"
+  · 属性面板 + 禁用/隐藏开关（写入 props.disabled/props.hidden）
+  · form_render 支持字段级 disabled（props.disabled）与 hidden（props.hidden），与字段权限叠加
+  · 实测：设计器添加日期范围/属性开关；发起页 4 字段渲染、days 禁用、日期范围双 input
+
 - **2026-08-26 (44)** **流程详情流程图改用 HTML/flex 只读设计器（与编辑界面一致）**：
   · bpm-flow-designer 增加只读模式(read-only?)：隐藏添加节点/删除/编辑/保存，标题"流程追踪"
   · 节点高亮：is-active(红)/is-completed(绿)，capsule 同样支持（对齐 bpmn-viewer 高亮语义）

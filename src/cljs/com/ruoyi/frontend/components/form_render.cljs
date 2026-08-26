@@ -12,6 +12,7 @@
   {"input" {:placeholder "请输入"} "textarea" {:placeholder "请输入" :rows 3}
    "number" {:placeholder "请输入数字"} "date" {:placeholder "请选择日期"}
    "time" {:placeholder "请选择时间"} "select" {:placeholder "请选择"}
+   "date-range" {:placeholder "开始日期"} "datetime" {:placeholder "如 2026-01-01 12:00"}
    "user" {:placeholder "请选择用户"} "dept" {:placeholder "请选择部门"}})
 
 (defn- render-options
@@ -30,6 +31,7 @@
   [f disabled? value on-change]
   (let [props (merge (get default-props (:type f) {}) (:props f))
         opts (or (:options f) (get props :options))
+        disabled? (or disabled? (get props :disabled))
         change (fn [v] (when on-change (on-change (:field f) v)))]
     (case (:type f)
       "textarea"
@@ -65,6 +67,17 @@
                     :allowClear true :placeholder (:placeholder props) :onChange change}
        (doall (for [d (or (:dept-options props) [])]
                 ^{:key (:value d)} [antd/select-option {:value (:value d)} (:label d)]))]
+      "date-range"
+      (let [parts (str/split (or (str value) "") #"~")
+            start (nth parts 0 "")
+            end (nth parts 1 "")]
+        [:div {:style {:display "flex" :gap 6}}
+         [antd/input {:style {:flex 1} :value start :disabled disabled?
+                      :placeholder (:placeholder props)
+                      :onChange (fn [e] (change (str (-> e .-target .-value) "~" end)))}]
+         [antd/input {:style {:flex 1} :value end :disabled disabled?
+                      :placeholder "结束日期"
+                      :onChange (fn [e] (change (str start "~" (-> e .-target .-value))))}]])
       ;; input / date / time（字符串值模型，date/time 用文本框）
       [antd/input {:value (or value "") :disabled disabled?
                    :placeholder (:placeholder props)
@@ -89,7 +102,7 @@
                     required? (some (fn [v] (:required v)) (or (:validate f) []))
                     label (:title f)
                     perm (get perms field)]
-                (when-not (= perm "hidden")
+                (when-not (or (= perm "hidden") (get-in f [:props :hidden]))
                   ^{:key (or field (str "f-" (random-uuid)))}
                   [antd/form-item {:label (if (str/blank? label) (:type f) label)
                                    :required (and required? (not= perm "readonly"))}
