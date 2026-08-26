@@ -270,6 +270,12 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 
 ---
 
+- **2026-08-26 (52)** **P-B 为空/与提交人相同处理（运行时）**：
+  · TaskListener resolver 扩展：与提交人相同(SKIP 移除发起人 / ASSIGN_DEPT_LEADER 转部门负责人)、
+    为空处理(ASSIGN_USER 指定用户 / TRANSFER_ADMIN 转管理员)
+  · SKIP 且候选人为空时 listener 自动 complete 跳过节点（避免任务卡住）
+  · 实测：SKIP 发起人=审批人自动跳过(任务0)；为空 ASSIGN_USER 指定 ry 可见
+
 - **2026-08-26 (51)** **P-D 审批操作按钮：转办/委派**：
   · 待办行加"转办/委派"按钮 → 目标用户选择弹窗（复用 list-users）
   · 后端新增 delegate 路由/controller（transfer 已有）；api.cljs 加 bpm-transfer-task/bpm-delegate-task

@@ -23,32 +23,52 @@
            leaders-of (fn [dept-id]
                         (when-let [d (first (filter #(= dept-id (:dept_id %)) depts))]
                           (when-let [leader (:leader d)]
-                            (map :user_name (filter #(= (str leader) (str (:user_id %))) users)))))]
-       (case strategy
-         "START_USER_DEPT_LEADER"
-         (when start-user
-           (leaders-of (user-dept start-user)))
-         "MULTI_LEVEL_DEPT_LEADER"
-         (when start-user
-           (let [node-config (get-in (meta task) [])]
-             ;; 向上层级从 config 读，这里简化向上取 3 级
-             (loop [did (user-dept start-user) n 0 acc []]
-               (if (or (nil? did) (>= n 3))
-                 (distinct acc)
-                 (recur (:parent_id (first (filter #(= did (:dept_id %)) depts)))
-                        (inc n)
-                        (concat acc (leaders-of did)))))))
-         "START_USER_SELECT"
-         (let [v (some-> (.getVariable ^org.flowable.task.service.delegate.DelegateTask task "startUserSelected") seq)]
-           (when (seq v)
-             (let [ids (set (map str v))]
-               (map :user_name (filter #(contains? ids (str (:user_id %))) users)))))
-         "APPROVE_USER_SELECT"
-         (let [v (some-> (.getVariable ^org.flowable.task.service.delegate.DelegateTask task "approveUserSelected") seq)]
-           (when (seq v)
-             (let [ids (set (map str v))]
-               (map :user_name (filter #(contains? ids (str (:user_id %))) users)))))
-         nil))))
+                            (map :user_name (filter #(= (str leader) (str (:user_id %))) users)))))
+           base (case strategy
+                  "START_USER_DEPT_LEADER"
+                  (when start-user (leaders-of (user-dept start-user)))
+                  "MULTI_LEVEL_DEPT_LEADER"
+                  (when start-user
+                    (loop [did (user-dept start-user) n 0 acc []]
+                      (if (or (nil? did) (>= n 3))
+                        (distinct acc)
+                        (recur (:parent_id (first (filter #(= did (:dept_id %)) depts)))
+                               (inc n)
+                               (concat acc (leaders-of did))))))
+                  "START_USER_SELECT"
+                  (let [v (some-> (.getVariable ^org.flowable.task.service.delegate.DelegateTask task "startUserSelected") seq)]
+                    (when (seq v)
+                      (let [ids (set (map str v))]
+                        (map :user_name (filter #(contains? ids (str (:user_id %))) users)))))
+                  "APPROVE_USER_SELECT"
+                  (let [v (some-> (.getVariable ^org.flowable.task.service.delegate.DelegateTask task "approveUserSelected") seq)]
+                    (when (seq v)
+                      (let [ids (set (map str v))]
+                        (map :user_name (filter #(contains? ids (str (:user_id %))) users)))))
+                  nil)
+           base-v (distinct (vec (keep identity base)))
+           node-config (bpm/node-config-of engine task)
+           start-handler (get-in node-config [:assign-start-user-handler-type])
+           after-start (cond
+                         (= start-handler "SKIP")
+                         (remove #(= start-user %) base-v)
+                         (= start-handler "ASSIGN_DEPT_LEADER")
+                         (if (some #(= start-user %) base-v)
+                           (concat (remove #(= start-user %) base-v)
+                                   (when start-user (leaders-of (user-dept start-user))))
+                           base-v)
+                         :else base-v)
+           empty-handler (get-in node-config [:assign-empty-handler])
+           after-empty (if (empty? after-start)
+                         (case (get-in empty-handler [:type])
+                           "ASSIGN_USER"
+                           (let [ids (set (map str (get-in empty-handler [:user-ids])))]
+                             (map :user_name (filter #(contains? ids (str (:user_id %))) users)))
+                           "TRANSFER_ADMIN"
+                           (map :user_name (filter #(= "admin" (str (:user_name %))) users))
+                           after-start)
+                         after-start)]
+       (distinct after-empty))))
   {:engine engine :query-fn query-fn :db db})
 
 ;; ── 分页工具 ──────────────────────────────────────────────────────────

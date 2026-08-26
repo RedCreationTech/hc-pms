@@ -218,8 +218,15 @@
                                    (contains? #{"START_USER_DEPT_LEADER" "MULTI_LEVEL_DEPT_LEADER"
                                                 "START_USER_SELECT" "APPROVE_USER_SELECT"} strategy))
                           (when-let [users (f strategy task)]
-                            (when (seq users)
-                              (.addCandidateUsers task (java.util.ArrayList. users)))))))
+                            (if (seq users)
+                              (.addCandidateUsers task (java.util.ArrayList. users))
+                              ;; 候选人为空(如 SKIP 移除发起人)：自动完成跳过本节点
+                              (when (and (= "SKIP" (get-in node-config [:assign-start-user-handler-type]))
+                                         @engine-ref)
+                                (try
+                                  (.complete (.getTaskService ^ProcessEngine @engine-ref)
+                                             (.getId task) (java.util.HashMap.))
+                                  (catch Exception _ nil))))))))
                     (catch Exception e
                       (log/error "[bpm-tasklistener] 解析动态候选人失败:" (.getMessage e)))))]
     (proxy [org.flowable.engine.delegate.TaskListener] []
