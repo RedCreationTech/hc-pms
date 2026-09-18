@@ -40,6 +40,8 @@ DELETE FROM biz_bpm_category WHERE category_id = :category_id
 SELECT m.model_id, m.model_key, m.model_name, m.category_id, m.version,
        m.form_type, m.form_id, m.form_custom_create_path, m.form_custom_view_path,
        m.status, m.create_by, m.create_time, m.remark,
+       m.process_id_rule, m.auto_approval_type, m.name_rule, m.summary_fields,
+       m.print_template_enable, m.print_template_html,
        c.name AS category_name
 FROM biz_bpm_model m
 LEFT JOIN biz_bpm_category c ON m.category_id = c.category_id
@@ -67,10 +69,14 @@ SELECT * FROM biz_bpm_model WHERE model_key = :model_key ORDER BY version DESC L
 INSERT INTO biz_bpm_model (model_key, model_name, category_id, version, form_type,
                            form_id, form_custom_create_path, form_custom_view_path,
                            form_json, fields_permission, bpmn_xml, deployment_id, status,
+                           process_id_rule, auto_approval_type, name_rule, summary_fields,
+                           print_template_enable, print_template_html,
                            create_by, create_time, remark)
 VALUES (:model_key, :model_name, :category_id, :version, :form_type,
         :form_id, :form_custom_create_path, :form_custom_view_path,
         :form_json, :fields_permission, :bpmn_xml, :deployment_id, :status,
+        :process_id_rule, :auto_approval_type, :name_rule, :summary_fields,
+        :print_template_enable, :print_template_html,
         :create_by, CURRENT_TIMESTAMP, :remark)
 --;;
 
@@ -83,7 +89,13 @@ SET model_name = :model_name, category_id = :category_id, form_type = :form_type
     bpmn_xml = COALESCE(:bpmn_xml, bpmn_xml),
     deployment_id = COALESCE(:deployment_id, deployment_id),
     status = :status, update_by = :update_by, update_time = CURRENT_TIMESTAMP,
-    remark = :remark
+    remark = :remark,
+    process_id_rule = COALESCE(:process_id_rule, process_id_rule),
+    auto_approval_type = COALESCE(:auto_approval_type, auto_approval_type),
+    name_rule = COALESCE(:name_rule, name_rule),
+    summary_fields = COALESCE(:summary_fields, summary_fields),
+    print_template_enable = COALESCE(:print_template_enable, print_template_enable),
+    print_template_html = COALESCE(:print_template_html, print_template_html)
 WHERE model_id = :model_id
 --;;
 
@@ -137,7 +149,8 @@ DELETE FROM biz_bpm_form WHERE form_id = :form_id
 -- :name bpm/instance-list :? :*
 SELECT i.instance_id, i.process_instance_id, i.model_id, i.model_key,
        i.business_key, i.form_data_json, i.starter_id, i.status, i.current_task,
-       i.create_time, m.model_name
+       i.name, i.bill_code, i.create_time,
+       m.model_name, m.summary_fields, m.form_id
 FROM biz_bpm_instance i
 LEFT JOIN biz_bpm_model m ON i.model_id = m.model_id
 WHERE (:starter_id IS NULL OR i.starter_id = :starter_id)
@@ -162,9 +175,11 @@ SELECT * FROM biz_bpm_instance WHERE process_instance_id = :process_instance_id
 
 -- :name bpm/insert-instance :! :n
 INSERT INTO biz_bpm_instance (process_instance_id, model_id, model_key, business_key,
-                              form_data_json, starter_id, status, current_task, create_time)
+                              form_data_json, starter_id, status, current_task,
+                              name, bill_code, create_time)
 VALUES (:process_instance_id, :model_id, :model_key, :business_key,
-        :form_data_json, :starter_id, :status, :current_task, CURRENT_TIMESTAMP)
+        :form_data_json, :starter_id, :status, :current_task,
+        :name, :bill_code, CURRENT_TIMESTAMP)
 --;;
 
 -- :name bpm/update-instance-status :! :n
@@ -549,7 +564,8 @@ VALUES (:user_id, :process_instance_id, :activity_id, :activity_name, :reason, :
 -- :name bpm/copy-page :? :*
 SELECT c.copy_id, c.user_id, c.process_instance_id, c.activity_id, c.activity_name,
        c.reason, c.create_by, c.create_time,
-       m.model_name, i.model_key, i.starter_id, i.status AS instance_status
+       m.model_name, i.model_key, i.starter_id, i.status AS instance_status,
+       i.name AS instance_name, i.bill_code, i.form_data_json, m.summary_fields, m.form_id
 FROM biz_bpm_copy c
 LEFT JOIN biz_bpm_instance i ON c.process_instance_id = i.process_instance_id
 LEFT JOIN biz_bpm_model m ON i.model_id = m.model_id
@@ -560,4 +576,43 @@ LIMIT :page_size OFFSET :offset
 
 -- :name bpm/copy-count :? :1
 SELECT COUNT(*) AS total FROM biz_bpm_copy WHERE user_id = :user_id
+--;;
+
+-- ============================ BPM 治理能力（Phase 3）=====================
+-- 单号当日递增：取该模型下以 base 前缀的最大单号（定长数字尾部，字典序即可）
+-- :name bpm/max-bill-code :? :1
+SELECT MAX(i.bill_code) AS max_code
+FROM biz_bpm_instance i
+WHERE i.model_id = :model_id
+  AND (:like_pattern IS NULL OR i.bill_code LIKE :like_pattern)
+--;;
+
+-- :name bpm/restore-model :! :n
+UPDATE biz_bpm_model
+SET bpmn_xml = :bpmn_xml, deployment_id = NULL, update_time = CURRENT_TIMESTAMP
+WHERE model_id = :model_id
+--;;
+
+-- :name bpm/clear-model-deployment :! :n
+UPDATE biz_bpm_model
+SET deployment_id = NULL, update_time = CURRENT_TIMESTAMP
+WHERE model_id = :model_id
+--;;
+
+-- :name bpm/update-model-status :! :n
+UPDATE biz_bpm_model
+SET status = :status, update_by = :update_by, update_time = CURRENT_TIMESTAMP
+WHERE model_id = :model_id
+--;;
+
+-- :name bpm/instances-by-model-key :? :*
+SELECT process_instance_id FROM biz_bpm_instance WHERE model_key = :model_key
+--;;
+
+-- :name bpm/delete-instances-by-model-key :! :n
+DELETE FROM biz_bpm_instance WHERE model_key = :model_key
+--;;
+
+-- :name bpm/delete-copies-by-pids :! :n
+DELETE FROM biz_bpm_copy WHERE process_instance_id IN (:v*:pids)
 --;;

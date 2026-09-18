@@ -29,9 +29,11 @@
        #js {:title "状态" :dataIndex "status" :key "status" :width 80
             :render (fn [v] (r/as-element (if (= v "1") [antd/tag {:color "green"} "启用"] [antd/tag {:color "red"} "停用"])))}
        #js {:title "创建时间" :dataIndex "create_time" :key "create_time" :width 170}
-       #js {:title "操作" :key "action" :width 190
+       #js {:title "操作" :key "action" :width 340
             :render (fn [_ ^js record]
-                      (let [model (js->clj record :keywordize-keys true)]
+                      (let [model (js->clj record :keywordize-keys true)
+                            mid (:model_id model)
+                            running? (= "1" (:status model))]
                         (r/as-element
                          [antd/space
                           [antd/button {:type "link" :size "small"
@@ -40,8 +42,23 @@
                            "设计"]
                           [antd/button {:type "link" :size "small"
                                         :icon (r/as-element [:> PlayCircleOutlined])
-                                        :on-click #(rf/dispatch [:bpm/model-deploy (:model_id model)])}
-                           "部署"]])))}])
+                                        :on-click #(rf/dispatch [:bpm/model-deploy mid])}
+                           "部署"]
+                          [antd/button {:type "link" :size "small"
+                                        :on-click #(rf/dispatch [:bpm/definition-open model])}
+                           "历史"]
+                          [antd/popconfirm {:title (if running? "确认挂起该流程？挂起后不可发起" "确认激活该流程？")
+                                            :on-confirm #(rf/dispatch [:bpm/model-state mid (if running? "2" "1")])}
+                           [antd/button {:type "link" :size "small"}
+                            (if running? "挂起" "激活")]]
+                          [antd/popconfirm {:title "确认复制该模型？"
+                                            :on-confirm #(rf/dispatch [:bpm/model-copy mid])}
+                           [antd/button {:type "link" :size "small"} "复制"]]
+                          [antd/popconfirm {:title "确认清理该流程全部历史实例与部署？不可恢复"
+                                            :ok-button-props #js {:danger true}
+                                            :on-confirm #(rf/dispatch [:bpm/model-clean mid])}
+                           [antd/button {:type "link" :size "small" :danger true} "清理"]]])))}])
+
 
 (defn- designer-toolbar
   [{:keys [modeler-ref on-save on-close on-preview on-export on-import-file on-restart on-align zoom-text]}
@@ -202,11 +219,75 @@
     [antd/button {:size "small" :on-click on-close} "关闭"]]
    [bpmfd/bpm-flow-designer {:model-id model-id}]])
 
-(defn- extra-tab [mremark set-mremark!]
-  [:div {:style {:padding 16 :maxWidth 500}}
-   [antd/form {:layout "vertical"}
-    [antd/form-item {:label "备注"}
-     [antd/text-area {:value mremark :rows 6 :onChange (fn [e] (set-mremark! (-> e .-target .-value)))}]]]])
+(defn- extra-tab
+  "更多设置：备注 + Phase 3 治理能力（编号规则/自动去重/标题规则/摘要字段/打印模板）。"
+  [{:keys [mremark set-mremark! mauto-type set-mauto-type! mname-rule set-mname-rule!
+           mprocess-rule set-mprocess-rule! msummary-fields set-msummary-fields!
+           mprint-enable set-mprint-enable! mprint-html set-mprint-html!
+           form-fields]}]
+  (let [rule-enabled? (boolean (:enable mprocess-rule))
+        upd-rule! (fn [k v] (set-mprocess-rule! (assoc mprocess-rule k v)))
+        section (fn [title] [:div {:style {:display "flex" :alignItems "center" :margin "16px 0 8px"}}
+                             [:div {:style {:width 4 :height 16 :background "#409eff" :marginRight 8}}]
+                             [:span {:style {:fontWeight 600}} title]])]
+    [:div {:style {:padding 16 :maxWidth 640}}
+     [antd/form {:layout "vertical"}
+      [antd/form-item {:label "备注"}
+       [antd/text-area {:value mremark :rows 3 :onChange (fn [e] (set-mremark! (-> e .-target .-value)))}]]
+      (section "流程编号规则")
+      [:div {:style {:marginBottom 12}}
+       [antd/space {:align "center"}
+        [antd/switch {:checked rule-enabled? :onChange #(upd-rule! :enable (boolean %))}]
+        [:span {:style {:color "#606266"}} "启用流程单号（前缀+日期中缀+当日递增流水号）"]]]
+      (when rule-enabled?
+        [:div {:style {:display "grid" :gridTemplateColumns "1fr 1fr" :gap 12}}
+         [antd/form-item {:label "前缀"}
+          [antd/input {:value (or (:prefix mprocess-rule) "") :placeholder "如 CG-"
+                       :onChange #(upd-rule! :prefix (-> % .-target .-value))}]]
+         [antd/form-item {:label "后缀"}
+          [antd/input {:value (or (:suffix mprocess-rule) "") :placeholder "如 -"
+                       :onChange #(upd-rule! :suffix (-> % .-target .-value))}]]
+         [antd/form-item {:label "日期中缀"}
+          [antd/select {:value (or (:infix mprocess-rule) "DAY") :style {:width "100%"}
+                        :onChange #(upd-rule! :infix %)}
+           [antd/select-option {:value "NONE"} "无"]
+           [antd/select-option {:value "DAY"} "日(yyyyMMdd)"]
+           [antd/select-option {:value "HOUR"} "时(yyyyMMddHH)"]
+           [antd/select-option {:value "MINUTE"} "分(yyyyMMddHHmm)"]
+           [antd/select-option {:value "SECOND"} "秒(yyyyMMddHHmmss)"]]]
+         [antd/form-item {:label "流水号长度(≥5)"}
+          [antd/input-number {:value (or (:length mprocess-rule) 5) :min 5 :max 10
+                              :style {:width "100%"}
+                              :onChange #(upd-rule! :length (js/Number %))}]]])
+      (section "自动去重")
+      [antd/form-item {:label "同一审批人重复出现时"}
+       [antd/select {:value (or mauto-type "NONE") :style {:width "100%"}
+                     :onChange set-mauto-type!}
+        [antd/select-option {:value "NONE"} "不处理"]
+        [antd/select-option {:value "APPROVE_ONCE"} "只审一次（后续节点自动通过）"]
+        [antd/select-option {:value "CONSECUTIVE"} "连续重复节点自动通过"]]]
+      (section "自定义标题")
+      [antd/form-item {:label "标题模板（支持 {字段id}、{发起人}、{发起时间}、{流程名称}）"}
+       [antd/input {:value (or mname-rule "") :placeholder "如 {发起人}的{days}天请假申请"
+                    :onChange #(set-mname-rule! (-> % .-target .-value))}]]
+      (section "摘要字段")
+      [antd/form-item {:label "实例/待办/抄送列表展示的摘要（需绑定动态表单）"}
+       [antd/select {:value (clj->js (or msummary-fields [])) :mode "multiple"
+                     :style {:width "100%"} :placeholder "选择表单字段"
+                     :onChange #(set-msummary-fields! (vec (js->clj %)))}
+        (doall (for [f form-fields]
+                 ^{:key (:field f)}
+                 [antd/select-option {:value (:field f)} (:title f)]))]]
+      (section "打印模板")
+      [:div {:style {:marginBottom 12}}
+       [antd/space {:align "center"}
+        [antd/switch {:checked mprint-enable :onChange #(set-mprint-enable! (boolean %))}]
+        [:span {:style {:color "#606266"}} "启用打印模板（占位符：{{字段}}、{{流程记录}}）"]]]
+      (when mprint-enable
+        [antd/form-item {:label "打印 HTML 模板"}
+         [antd/text-area {:value (or mprint-html "") :rows 8
+                          :placeholder "<h2>{{reason}} 审批单</h2>..."
+                          :onChange #(set-mprint-html! (-> % .-target .-value))}]])]]))
 
 (defn- designer-modal []
   (let [visible? @(rf/subscribe [:bpm-designer/visible?])
@@ -236,6 +317,20 @@
         [form-list set-form-list!] (hooks/use-state [])
         [mremark set-mremark!] (hooks/use-state "")
         [mfields-perm set-mfields-perm!] (hooks/use-state {})
+        ;; Phase 3 治理能力设置
+        [mauto-type set-mauto-type!] (hooks/use-state "NONE")
+        [mname-rule set-mname-rule!] (hooks/use-state "")
+        [mprocess-rule set-mprocess-rule!] (hooks/use-state {:enable false :prefix "" :infix "DAY" :suffix "" :length 5})
+        [msummary-fields set-msummary-fields!] (hooks/use-state [])
+        [mprint-enable set-mprint-enable!] (hooks/use-state false)
+        [mprint-html set-mprint-html!] (hooks/use-state "")
+        form-fields (let [sel-form (first (filter #(= (:form_id %) mform-id) form-list))
+                          schema (or (when-let [j (:form_json sel-form)]
+                                       (if (string? j)
+                                         (js->clj (js/JSON.parse j) :keywordize-keys true)
+                                         (walk/keywordize-keys j)))
+                                     {:fields []})]
+                      (filter :field (:fields schema)))
         tabs [{:key "basic" :label "基本信息"} {:key "form" :label "表单设计"}
               {:key "process" :label "流程设计"} {:key "extra" :label "更多设置"}]
         save-model (fn []
@@ -246,7 +341,13 @@
                                     :form_custom_create_path mcustom-create
                                     :form_custom_view_path mcustom-view
                                     :form_json mform-json :remark mremark
-                                    :fields_permission (js/JSON.stringify (clj->js mfields-perm))}]))
+                                    :fields_permission (js/JSON.stringify (clj->js mfields-perm))
+                                    :auto_approval_type mauto-type
+                                    :name_rule mname-rule
+                                    :process_id_rule (js/JSON.stringify (clj->js mprocess-rule))
+                                    :summary_fields (js/JSON.stringify (clj->js msummary-fields))
+                                    :print_template_enable (if mprint-enable "1" "0")
+                                    :print_template_html mprint-html}]))
         ;; 连线加号浮层菜单回调：直接插入节点并重建浮层（对齐 vben，无需居中 Modal）
         add-handle (atom nil)
         _ (reset! add-handle
@@ -306,7 +407,20 @@
           (or (when-let [fp (:fields_permission current)]
                 (if (string? fp) (js->clj (js/JSON.parse fp) :keywordize-keys true)
                     (walk/keywordize-keys fp)))
-              {}))))
+              {}))
+         (set-mauto-type! (or (:auto_approval_type current) "NONE"))
+         (set-mname-rule! (or (:name_rule current) ""))
+         (set-mprocess-rule!
+          (or (when-let [pr (:process_id_rule current)]
+                (if (string? pr) (js->clj (js/JSON.parse pr) :keywordize-keys true)
+                    (walk/keywordize-keys pr)))
+              {:enable false :prefix "" :infix "DAY" :suffix "" :length 5}))
+         (set-msummary-fields!
+          (or (when-let [sf (:summary_fields current)]
+                (if (string? sf) (js->clj (js/JSON.parse sf)) (walk/keywordize-keys sf)))
+              []))
+         (set-mprint-enable! (= "1" (str (:print_template_enable current))))
+         (set-mprint-html! (or (:print_template_html current) ""))))
      [visible?])
     (hooks/use-effect
      (fn []
@@ -350,7 +464,14 @@
                        mfields-perm set-mfields-perm!]
           "process" [process-design-tab {:model-id (:model_id current)
                                          :on-close #(rf/dispatch [:bpm/designer-close])}]
-          "extra" [extra-tab mremark set-mremark!])])]
+          "extra" [extra-tab {:mremark mremark :set-mremark! set-mremark!
+                              :mauto-type mauto-type :set-mauto-type! set-mauto-type!
+                              :mname-rule mname-rule :set-mname-rule! set-mname-rule!
+                              :mprocess-rule mprocess-rule :set-mprocess-rule! set-mprocess-rule!
+                              :msummary-fields msummary-fields :set-msummary-fields! set-msummary-fields!
+                              :mprint-enable mprint-enable :set-mprint-enable! set-mprint-enable!
+                              :mprint-html mprint-html :set-mprint-html! set-mprint-html!
+                              :form-fields form-fields}])])]
      ;; 预览弹窗（对齐 vben 预览 XML/JSON）
      [antd/modal {:title (if (= preview-type :json) "预览JSON" "预览XML")
                   :open preview-open :width 900 :destroyOnHidden true :footer nil

@@ -1,15 +1,61 @@
 (ns com.ruoyi.frontend.pages.business.bpm-instance
-  "我的流程 —— 流程详情（基本信息/表单回显/审批历史/流程图高亮）。"
+  "我的流程 —— 流程详情（基本信息/表单回显/审批历史/流程图高亮/打印）。"
   (:require
    [reagent.core :as r]
    [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [ReloadOutlined EyeOutlined RollbackOutlined StopOutlined]]
+   ["@ant-design/icons" :refer [ReloadOutlined EyeOutlined RollbackOutlined StopOutlined PrinterOutlined]]
+   [clojure.string :as str]
    [reagent.hooks :as hooks]
    [com.ruoyi.frontend.antd :as antd]
    [com.ruoyi.frontend.api :as api]
    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
    [com.ruoyi.frontend.components.form-render :as form-render]
    [com.ruoyi.frontend.components.bpm-flow-designer :as bpm-flow-designer]))
+
+(defn- summary-text [summary]
+  (if (seq summary)
+    (str/join "　" (map #(str (:label %) "：" (:value %)) summary))
+    "-"))
+
+(defn- do-print!
+  "按模型打印模板（占位符 {{字段}}、{{流程记录}}）或默认样式拼 HTML，新窗口打开并调用打印。"
+  [data]
+  (let [inst (:instance data)
+        model (:model data)
+        values (or (:values (:form data)) {})
+        fields (or (get-in data [:form :schema :fields]) [])
+        esc #(str (or % ""))
+        record-html (str/join "<br/>"
+                              (map (fn [t]
+                                     (str (:name t) " · " (:assignee t)
+                                          (when (:comment t) (str " · 意见：" (:comment t)))
+                                          (when (:sign-pic-url t) (str " · <img src='" (:sign-pic-url t) "' style='height:32px'/>"))
+                                          (when (:end-time t) (str " · " (subs (:end-time t) 0 19)))))
+                                   (:task-history data)))
+        default-html (str "<h2 style='text-align:center'>" (esc (:model_name model)) "</h2>"
+                          "<p>单号：" (esc (:bill_code inst)) "　发起人：" (esc (:starter_id inst))
+                          "　发起时间：" (esc (:create_time inst)) "</p>"
+                          "<table border='1' cellspacing='0' cellpadding='6' style='border-collapse:collapse;width:100%'>"
+                          (str/join (for [f fields]
+                                      (str "<tr><th style='text-align:left;background:#f5f5f5;width:30%'>"
+                                           (esc (:title f)) "</th><td>"
+                                           (esc (get values (keyword (:field f)))) "</td></tr>")))
+                          "</table>"
+                          "<h3>审批记录</h3><div style='line-height:1.8'>" record-html "</div>")
+        html (if (and (= "1" (str (:print_template_enable model)))
+                      (seq (:print_template_html model)))
+               (-> (:print_template_html model)
+                   (str/replace #"\{\{([\w-]+)\}\}"
+                                (fn [[_ k]] (esc (get values (keyword k) (get values k "")))))
+                   (str/replace "{{流程记录}}" record-html))
+               default-html)]
+    (when-let [w (js/window.open "" "_blank")]
+      (doto (.-document w)
+        (.write (str "<!DOCTYPE html><html><head><meta charset='utf-8'><title>打印 - "
+                     (esc (:name inst)) "</title></head><body style='font-family:sans-serif;padding:24px'>"
+                     html
+                     "<script>window.onload=function(){window.print()}</script></body></html>"))
+        (.close)))))
 
 (defn- status-tag [v]
   (let [[label color] (case v
@@ -30,7 +76,15 @@
                       :onChange #(set-reason! (.. % -target -value))}]]))
 
 (defn- instance-columns [open-detail on-withdraw-to-start on-cancel]
-  #js [#js {:title "模型" :dataIndex "model_name" :key "model_name" :width 140}
+  #js [#js {:title "模型" :dataIndex "model_name" :key "model_name" :width 120}
+       #js {:title "流程名称" :dataIndex "name" :key "name" :width 180 :ellipsis true
+            :render (fn [v] (r/as-element [:span (if (seq v) v "-")]))}
+       #js {:title "单号" :dataIndex "bill_code" :key "bill_code" :width 140
+            :render (fn [v] (r/as-element (if v [antd/tag {:color "geekblue"} v] "-")))}
+       #js {:title "摘要" :dataIndex "summary" :key "summary" :width 180 :ellipsis true
+            :render (fn [v]
+                      (let [s (summary-text (js->clj v :keywordize-keys true))]
+                        (r/as-element [:span {:style {:color (if (= "-" s) "#c0c4cc" "#606266")}} s])))}
        #js {:title "流程实例" :dataIndex "process_instance_id" :key "process_instance_id"
             :width 90 :render (fn [v] (r/as-element (if v [antd/tag {:color "blue"} v] "-")))}
        #js {:title "业务键" :dataIndex "business_key" :key "business_key" :width 130}
@@ -114,12 +168,26 @@
                            [:div {:style {:color "#c0c4cc"}} "暂无流程图"])])]
     [antd/drawer {:title (str "流程详情 · " (:model_name model))
                   :open (boolean @pid) :size 900
+                  :extra (r/as-element
+                          [antd/button {:size "small"
+                                        :icon (r/as-element [:> PrinterOutlined])
+                                        :on-click (fn []
+                                                    (let [iid (:instance_id (:instance data-val))]
+                                                      (api/bpm-print-data
+                                                       iid
+                                                       (fn [res] (if (= 200 (:code res))
+                                                                   (do-print! (:data res))
+                                                                   (antd/error! (str "加载打印数据失败: " (:msg res)))))
+                                                       (fn [_] (antd/error! "加载打印数据失败")))))}
+                           "打印"])
                   :onClose #(reset! pid nil)}
      (if @loading?
        [:div {:style {:padding 48 :textAlign "center"}} "加载中..."]
        [:div
         [antd/descriptions {:column 3 :size "small" :bordered true :style {:marginBottom 16}}
          [antd/descriptions-item {:label "流程模型"} (:model_name model)]
+         [antd/descriptions-item {:label "流程名称"} (:name base)]
+         [antd/descriptions-item {:label "单号"} (:bill_code base)]
          [antd/descriptions-item {:label "发起人"} (:starter_id base)]
          [antd/descriptions-item {:label "状态"} (status-tag (:status base))]
          [antd/descriptions-item {:label "流程实例"} (:process_instance_id base)]

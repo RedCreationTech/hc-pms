@@ -101,6 +101,46 @@
   [{:keys [bpm-service]} request]
   (wrap-err #(ok (bpm/model-deploy! bpm-service (parse-id request)))))
 
+;; ── Phase 3 治理能力：定义版本页 / 模型启停·清理·复制 ────────────────────
+(defn definition-page
+  "流程定义分页。query: page size modelKey"
+  [{:keys [bpm-service]} request]
+  (wrap-err #(ok (bpm/definition-page bpm-service (bu/kquery request)))))
+
+(defn definition-xml
+  "流程定义 BPMN XML。query: definitionId"
+  [{:keys [bpm-service]} request]
+  (wrap-err #(ok (bpm/definition-xml bpm-service (get (bu/kquery request) :definitionId)))))
+
+(defn definition-restore
+  "历史定义 BPMN 反写回模型。body: {:definitionId x}"
+  [{:keys [bpm-service]} request]
+  (wrap-err #(ok (bpm/definition-restore! bpm-service (get (:body-params request) :definitionId)))))
+
+(defn model-set-state
+  "挂起/激活该 key 最新定义。body: {:id x :state 1|2}"
+  [{:keys [bpm-service]} request]
+  (wrap-err #(let [{:keys [id state]} (:body-params request)]
+               (ok (bpm/model-set-state! bpm-service id state (current-user request))))))
+
+(defn model-clean
+  "清理该流程全部历史实例+部署。query/body: {:id x}"
+  [{:keys [bpm-service]} request]
+  (wrap-err #(let [{:keys [id]} (body-or-query request)]
+               (ok (bpm/model-clean! bpm-service id)))))
+
+(defn model-copy
+  "复制模型（名称+副本，key+_copy）。query/body: {:id x}"
+  [{:keys [bpm-service]} request]
+  (wrap-err #(let [{:keys [id]} (body-or-query request)]
+               (ok (bpm/model-copy! bpm-service id (current-user request))))))
+
+(defn print-data
+  "打印数据。query: id(biz_bpm_instance.instance_id)"
+  [{:keys [bpm-service]} request]
+  (wrap-err #(ok (bpm/instance-print-data bpm-service
+                                          (some-> (get (bu/kquery request) :id) Integer/parseInt)))))
+
 ;; ── 动态表单 ──────────────────────────────────────────────────────────
 (defn list-forms
   [{:keys [bpm-service]} request]

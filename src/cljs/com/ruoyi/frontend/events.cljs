@@ -2880,6 +2880,112 @@
                                              (rf/dispatch [:bpm/model-fetch {}])))
                                    (fn [_] (antd/error! "部署失败")))))
 
+;; ─── BPM Phase 3：流程定义版本页 / 模型启停·清理·复制 ──────────────────
+(rf/reg-event-fx :bpm/definition-open
+                 (fn [{:keys [db]} [_ model]]
+                   {:db (-> db
+                            (assoc-in [:bpm-definition :model] model)
+                            (assoc-in [:bpm-definition :items] [])
+                            (assoc-in [:bpm-definition :total] 0)
+                            (assoc-in [:bpm-definition :loading?] true))
+                    :dispatch [:navigate :bpm-definition]
+                    :api/bpm-definition-page {:modelKey (:model_key model) :page 1 :size 10}}))
+
+(rf/reg-fx :api/bpm-definition-page
+           (fn [params]
+             (api/bpm-definition-page params
+                                      (fn [r] (when (= 200 (:code r))
+                                                (rf/dispatch [:bpm/definition-set-list (:data r)])))
+                                      (fn [_] (antd/error! "加载流程定义失败")))))
+
+(rf/reg-event-db :bpm/definition-set-list
+                 (fn [db [_ data]]
+                   (-> db
+                       (assoc-in [:bpm-definition :items] (:rows data []))
+                       (assoc-in [:bpm-definition :total] (:total data 0))
+                       (assoc-in [:bpm-definition :loading?] false))))
+
+(rf/reg-event-fx :bpm/definition-fetch
+                 (fn [{:keys [db]} [_ params]]
+                   (let [model (get-in db [:bpm-definition :model])]
+                     {:db (assoc-in db [:bpm-definition :loading?] true)
+                      :api/bpm-definition-page (merge {:modelKey (:model_key model) :page 1 :size 10}
+                                                      params)})))
+
+(rf/reg-event-fx :bpm/definition-xml-open
+                 (fn [{:keys [db]} [_ definition-id]]
+                   {:db (assoc-in db [:bpm-definition :xml-loading?] true)
+                    :api/bpm-definition-xml definition-id}))
+
+(rf/reg-fx :api/bpm-definition-xml
+           (fn [definition-id]
+             (api/bpm-definition-xml definition-id
+                                     (fn [r] (when (= 200 (:code r))
+                                               (rf/dispatch [:bpm/definition-xml-set (:data r)])))
+                                     (fn [_] (antd/error! "加载定义 XML 失败")))))
+
+(rf/reg-event-db :bpm/definition-xml-set
+                 (fn [db [_ data]]
+                   (-> db
+                       (assoc-in [:bpm-definition :xml] (:xml data))
+                       (assoc-in [:bpm-definition :xml-loading?] false)
+                       (assoc-in [:bpm-definition :xml-open?] true))))
+
+(rf/reg-event-db :bpm/definition-xml-close
+                 (fn [db _]
+                   (assoc-in db [:bpm-definition :xml-open?] false)))
+
+(rf/reg-event-fx :bpm/definition-restore
+                 (fn [_ [_ definition-id]]
+                   {:api/bpm-definition-restore definition-id}))
+
+(rf/reg-fx :api/bpm-definition-restore
+           (fn [definition-id]
+             (api/bpm-definition-restore definition-id
+                                         (fn [r] (if (= 200 (:code r))
+                                                   (antd/success! "已恢复回模型，可重新编辑部署")
+                                                   (antd/error! (str "恢复失败: " (:msg r)))))
+                                         (fn [_] (antd/error! "恢复失败")))))
+
+(rf/reg-event-fx :bpm/model-state
+                 (fn [_ [_ id state]]
+                   {:api/bpm-model-state [id state]}))
+
+(rf/reg-fx :api/bpm-model-state
+           (fn [[id state]]
+             (api/bpm-model-state id state
+                                  (fn [r] (if (= 200 (:code r))
+                                            (do (antd/success! (if (= "2" (str state)) "已挂起" "已激活"))
+                                                (rf/dispatch [:bpm/model-fetch {}]))
+                                            (antd/error! (str "操作失败: " (:msg r)))))
+                                  (fn [_] (antd/error! "操作失败")))))
+
+(rf/reg-event-fx :bpm/model-clean
+                 (fn [_ [_ id]]
+                   {:api/bpm-model-clean id}))
+
+(rf/reg-fx :api/bpm-model-clean
+           (fn [id]
+             (api/bpm-model-clean id
+                                  (fn [r] (if (= 200 (:code r))
+                                            (do (antd/success! "已清理历史实例与部署")
+                                                (rf/dispatch [:bpm/model-fetch {}]))
+                                            (antd/error! (str "清理失败: " (:msg r)))))
+                                  (fn [_] (antd/error! "清理失败")))))
+
+(rf/reg-event-fx :bpm/model-copy
+                 (fn [_ [_ id]]
+                   {:api/bpm-model-copy id}))
+
+(rf/reg-fx :api/bpm-model-copy
+           (fn [id]
+             (api/bpm-model-copy id
+                                 (fn [r] (if (= 200 (:code r))
+                                           (do (antd/success! "已复制模型")
+                                               (rf/dispatch [:bpm/model-fetch {}]))
+                                           (antd/error! (str "复制失败: " (:msg r)))))
+                                 (fn [_] (antd/error! "复制失败")))))
+
 ;; ─── 办公：HRM 员工 ──────────────────────────────────────────────────
 (rf/reg-event-fx :hrm/fetch (fn [{:keys [db]} [_ p]] {:db (assoc-in db [:hrm :loading?] true) :api/hrm-list p}))
 (rf/reg-fx :api/hrm-list (fn [p] (api/hrm-list-employees p (fn [r] (when (= 200 (:code r)) (rf/dispatch [:hrm/set-list (:data r)]))) (fn [_] (antd/error! "加载员工失败")))))

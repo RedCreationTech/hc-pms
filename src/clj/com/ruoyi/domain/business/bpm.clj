@@ -94,6 +94,54 @@
                          :begin_time nil :end_time nil :dept_filter_enabled 0
                          :dept_ids [0] :data_user_id nil :page_size 100000 :offset 0}))
 
+;; ── Phase 3 自动去重（模型级 auto_approval_type）────────────────────────
+
+(defn- model-auto-approval-type
+  "任务所属流程模型的 auto_approval_type（NONE/APPROVE_ONCE/CONSECUTIVE）。"
+  [engine query-fn ^org.flowable.task.service.delegate.DelegateTask task]
+  (let [pd (some-> (.getRepositoryService engine)
+                   (.createProcessDefinitionQuery)
+                   (.processDefinitionId (.getProcessDefinitionId task))
+                   .singleResult)]
+    (when pd
+      (or (some-> (query-fn :bpm/find-model-by-key {:model_key (.getKey pd)})
+                  :auto_approval_type)
+          "NONE"))))
+
+(defn- auto-approved?
+  "按去重类型判断当前节点是否应自动通过（依据 complete* 维护的流程变量，同命令内可见）：
+   APPROVE_ONCE — 任一办理人在本实例已完成过任务；
+   CONSECUTIVE  — 本实例最近一个已办任务的办理人与当前办理人相同。"
+  [^org.flowable.task.service.delegate.DelegateTask task users auto-type]
+  (let [approved-users (vec (or (.getVariable task "bpmApprovedUsers") []))
+        last-approver (some-> (.getVariable task "bpmLastApprover") str)
+        user-set (set (map str users))]
+    (case auto-type
+      "APPROVE_ONCE"
+      (boolean (some #(contains? user-set (str %)) approved-users))
+      "CONSECUTIVE"
+      (boolean (and (seq last-approver) (contains? user-set last-approver)))
+      false)))
+
+(defn- apply-auto-approval
+  "把节点 create 处理器算出的 action 再经过模型级自动去重过滤：
+   命中去重规则时覆盖为 [:complete true]（自动通过）；否则原样返回。
+   action 为 nil（静态候选由引擎烘焙）时，用任务的候选人 identityLink 判断。"
+  [engine query-fn ^org.flowable.task.service.delegate.DelegateTask task action]
+  (let [auto-type (model-auto-approval-type engine query-fn task)]
+    (if (= "NONE" auto-type)
+      action
+      (let [users (cond
+                    (and (vector? action)
+                         (contains? #{:assign :candidates} (first action))) (seq (second action))
+                    (nil? action) (seq (keep (fn [^org.flowable.identitylink.api.IdentityLink l]
+                                                 (.getUserId l))
+                                               (.getCandidates task)))
+                    :else nil)]
+        (if (and (seq users) (auto-approved? task users auto-type))
+          [:complete true]
+          action)))))
+
 (defn- make-node-create-handler
   "构建节点 create 事件处理器（Phase 2 节点配置补全的核心）：
    按 candidate-strategy 解析候选人（含 5 种新策略），随后依次应用：
@@ -190,7 +238,9 @@
             random? (= "RANDOM" method)
             users* (delay (list-all-users query-fn))
             depts* (delay (query-fn :list-all-depts {}))]
-        (when-not (contains? multi-instance-methods method)
+        (apply-auto-approval
+         engine query-fn task
+         (when-not (contains? multi-instance-methods method)
           (if (contains? dynamic-strategies strategy)
             ;; ── 动态解析策略（含 5 种新策略）：create 时解析候选人 ──
             (let [users @users*
@@ -232,7 +282,7 @@
                   (if (seq cands)
                     (if random? [:assign [(rand-nth cands)]] nil)
                     (empty-action node-config users)))
-                :else (empty-action node-config @users*)))))))))
+                :else (empty-action node-config @users*))))))))))
 
 (defmethod ig/init-key :app.business/bpm-service
   [_ {:keys [engine query-fn db]}]
@@ -260,6 +310,80 @@
               (assoc m k (try (json/parse-string v true) (catch Exception _ v)))
               m))
           row ks))
+
+;; ── Phase 3 治理能力：编号规则 / 标题渲染 / 摘要计算 ────────────────────
+
+(defn- parse-json-field
+  "解析 JSON 文本字段（已是数据则原样返回）。"
+  [v]
+  (cond
+    (nil? v) nil
+    (string? v) (try (json/parse-string v true) (catch Exception _ nil))
+    :else v))
+
+(defn- form-fields-of
+  "动态表单 schema 的字段列表 [{:field :title}]。"
+  [query-fn form-id]
+  (when-let [form (and form-id (query-fn :bpm/find-form-by-id {:form_id form-id}))]
+    (:fields (parse-json-field (:form_json form)))))
+
+(defn summary-of
+  "按模型 summary_fields（表单字段 id 列表）计算实例摘要，
+   返回 [{:key :value :label}]；未配置或无表单数据时返回 nil。"
+  [query-fn summary-fields form-id form-data]
+  (let [fields (seq (parse-json-field summary-fields))]
+    (when (and (seq fields) (map? form-data))
+      (let [labels (into {}
+                         (keep (fn [f]
+                                 (when-let [fid (or (:field f) (:id f))]
+                                   [(name fid) (or (:title f) (:label f) (name fid))])))
+                         (or (form-fields-of query-fn form-id) []))]
+        (vec (keep (fn [fid]
+                     (let [k (name fid)]
+                       (when (contains? form-data (keyword k))
+                         {:key k
+                          :value (str (get form-data (keyword k)))
+                          :label (str (get labels k k))})))
+                   fields))))))
+
+(defn- gen-bill-code
+  "按模型 process_id_rule 生成流程单号：前缀+日期中缀+后缀+当日递增流水号（长度≥5）。
+   规则未启用时返回 nil。"
+  [query-fn model]
+  (let [rule (parse-json-field (:process_id_rule model))]
+    (when (:enable rule)
+      (let [now (java.time.LocalDateTime/now)
+            full (.format now (java.time.format.DateTimeFormatter/ofPattern "yyyyMMddHHmmss"))
+            infix (case (or (:infix rule) "DAY")
+                    "DAY" (subs full 0 8)
+                    "HOUR" (subs full 0 10)
+                    "MINUTE" (subs full 0 12)
+                    "SECOND" full
+                    "")
+            base (str (or (:prefix rule) "") infix (or (:suffix rule) ""))
+            length (max 5 (long (or (:length rule) 5)))
+            max-code (:max_code (query-fn :bpm/max-bill-code {:model_id (:model_id model)
+                                                              :like_pattern (str base "%")}))
+            tail (when max-code (re-find #"\d+$" max-code))
+            seq-n (if tail (inc (Long/parseLong tail)) 1)]
+        (str base (format (str "%0" length "d") seq-n))))))
+
+(defn- render-instance-name
+  "按模型 name_rule 渲染实例名。模板支持 {字段id}、{发起人}、{发起时间}、{流程名称}；
+   未配置时回退为模型名。"
+  [model form-data starter]
+  (let [tpl (:name_rule model)]
+    (if (seq tpl)
+      (let [fmap (into {} (map (fn [[k v]] [(name k) v])) (or form-data {}))
+            now (java.time.LocalDateTime/now)
+            fmt (java.time.format.DateTimeFormatter/ofPattern "yyyy-MM-dd HH:mm")]
+        (-> (str tpl)
+            (str/replace #"\{([\w-]+)\}"
+                         (fn [[_ k]] (str (get fmap k (str "{" k "}")))))
+            (str/replace "{发起人}" (or starter ""))
+            (str/replace "{发起时间}" (.format now fmt))
+            (str/replace "{流程名称}" (or (:model_name model) ""))))
+      (or (:model_name model) ""))))
 
 ;; ── 流程分类 ──────────────────────────────────────────────────────────
 (defn category-list
@@ -323,6 +447,11 @@
              :form_json (:form_json params) :fields_permission (:fields_permission params)
              :bpmn_xml (:bpmn_xml params)
              :deployment_id (:deployment_id params) :status (or (:status params) "1")
+             :process_id_rule (:process_id_rule params)
+             :auto_approval_type (or (:auto_approval_type params) "NONE")
+             :name_rule (:name_rule params) :summary_fields (:summary_fields params)
+             :print_template_enable (or (:print_template_enable params) "0")
+             :print_template_html (:print_template_html params)
              :create_by (or user "") :remark (or (:remark params) "")}))
 
 (defn model-update
@@ -336,6 +465,11 @@
              :form_json (:form_json params) :fields_permission (:fields_permission params)
              :bpmn_xml (:bpmn_xml params)
              :deployment_id (:deployment_id params) :status (:status params)
+             :process_id_rule (:process_id_rule params)
+             :auto_approval_type (:auto_approval_type params)
+             :name_rule (:name_rule params) :summary_fields (:summary_fields params)
+             :print_template_enable (:print_template_enable params)
+             :print_template_html (:print_template_html params)
              :update_by (or user "") :remark (:remark params)}))
 
 (defn model-delete
@@ -398,6 +532,11 @@
                :form_custom_view_path (or (:form_custom_view_path m) "")
                :form_json (:form_json m) :fields_permission (:fields_permission m)
                :bpmn_xml xml :deployment_id nil
+               :process_id_rule (:process_id_rule m)
+               :auto_approval_type (:auto_approval_type m)
+               :name_rule (:name_rule m) :summary_fields (:summary_fields m)
+               :print_template_enable (:print_template_enable m)
+               :print_template_html (:print_template_html m)
                :status "1" :update_by (or user "") :remark (:remark m)})
     {:bpmn_xml xml}))
 
@@ -471,6 +610,8 @@
         _ (when-not m (throw (ex-info "流程模型不存在" {:model_id model-id})))
         _ (when-not (:deployment_id m)
             (throw (ex-info "模型未部署，请先部署" {:model_id model-id :key (:model_key m)})))
+        _ (when (:suspended? (bpm/latest-definition engine (:model_key m)))
+            (throw (ex-info "流程定义已挂起，不可发起" {:model_id model-id :key (:model_key m)})))
         biz-key (or business-key (str "biz-" (System/currentTimeMillis)))
         fd (or form-data {})
         ;; 表单字段展开为流程变量（条件表达式 ${days > 3} 可直接引用），formData 保留完整 JSON
@@ -493,21 +634,28 @@
                                            field-vars multi-vars)
                               (seq (get fd :startUserSelected))
                               (assoc "startUserSelected" (vec (get fd :startUserSelected)))))
-        pid (:process-instance-id started)]
+        pid (:process-instance-id started)
+        bill-code (gen-bill-code query-fn m)
+        inst-name (render-instance-name m fd starter)]
     (query-fn :bpm/insert-instance
               {:process_instance_id pid :model_id model-id :model_key (:model_key m)
                :business_key biz-key
                :form_data_json (json/generate-string (or form-data {}))
                :starter_id (or starter "") :status "1"
+               :name inst-name :bill_code bill-code
                :current_task (-> (first (bpm/todo-list engine (or starter ""))) :name (or ""))})
-    {:process-instance-id pid :business-key biz-key}))
+    {:process-instance-id pid :business-key biz-key :bill-code bill-code :name inst-name}))
 
 (defn instance-list
   [{:keys [query-fn]} params]
   (let [{:keys [offset size]} (page-params params)
         p {:starter_id (get params :starter_id) :model_key (get params :model_key)
            :page_size size :offset offset}]
-    {:rows (mapv #(row->json % [:form_data_json]) (query-fn :bpm/instance-list p))
+    {:rows (mapv (fn [row]
+                   (let [data (row->json row [:form_data_json])]
+                     (assoc data :summary (summary-of query-fn (:summary_fields data)
+                                                      (:form_id data) (:form_data_json data)))))
+                 (query-fn :bpm/instance-list p))
      :total (:total (query-fn :bpm/instance-count p))}))
 
 (defn task-detail
@@ -539,13 +687,22 @@
      :form {:schema schema :values (:form_data_json inst-data)}}))
 
 (defn todo-list-with-buttons
-  "某人待办（候选人或已认领），每行附带当前节点操作按钮配置(Buttons)。"
-  [{:keys [engine]} user]
+  "某人待办（候选人或已认领），每行附带当前节点操作按钮配置(Buttons)、
+   实例名/单号与模型摘要(summary)。"
+  [{:keys [engine query-fn]} user]
   (let [ts (.getTaskService engine)
         tasks (.list (.taskCandidateOrAssigned (.createTaskQuery ts) user))]
     (mapv (fn [^org.flowable.task.api.Task t]
-            (assoc (bpm/task->map* t)
-                   :buttons (bpm/buttons-of (bpm/node-config-of engine t))))
+            (let [inst (row->json (query-fn :bpm/find-instance-by-pid
+                                            {:process_instance_id (.getProcessInstanceId t)})
+                                  [:form_data_json])
+                  model (when inst (query-fn :bpm/find-model-by-id {:model_id (:model_id inst)}))]
+              (assoc (bpm/task->map* t)
+                     :buttons (bpm/buttons-of (bpm/node-config-of engine t))
+                     :instance-name (:name inst)
+                     :bill-code (:bill_code inst)
+                     :summary (summary-of query-fn (:summary_fields model)
+                                          (:form_id model) (:form_data_json inst)))))
           tasks)))
 
 (defn- reason-required?
@@ -706,5 +863,137 @@
   [{:keys [query-fn]} params user]
   (let [{:keys [offset size]} (page-params params)
         p {:user_id user :page_size size :offset offset}]
-    {:rows (query-fn :bpm/copy-page p)
+    {:rows (mapv (fn [row]
+                   (let [data (row->json row [:form_data_json])]
+                     (assoc data :summary (summary-of query-fn (:summary_fields data)
+                                                      (:form_id data) (:form_data_json data)))))
+                 (query-fn :bpm/copy-page p))
      :total (:total (query-fn :bpm/copy-count p))}))
+
+;; ── Phase 3 治理能力：定义版本页 / 模型启停·清理·复制 / 打印 ─────────────
+
+(defn definition-page
+  "流程定义分页（Flowable 侧，全部版本倒序）。按 modelKey 过滤；
+   附带模型表单绑定（form_type/form_id/form_name）与部署时间。"
+  [{:keys [engine query-fn]} params]
+  (let [{:keys [offset size]} (page-params params)
+        key (get params :modelKey)
+        result (bpm/definition-page engine key offset size)
+        model (when (seq key) (query-fn :bpm/find-model-by-key {:model_key key}))
+        form (when-let [fid (:form_id model)]
+               (query-fn :bpm/find-form-by-id {:form_id fid}))]
+    {:total (:total result)
+     :rows (mapv (fn [row]
+                   (assoc row
+                          :model_name (:model_name model)
+                          :form_type (:form_type model)
+                          :form_id (:form_id model)
+                          :form_name (:form_name form)))
+                 (:rows result))}))
+
+(defn definition-xml
+  "流程定义的 BPMN XML（查看/恢复用）。"
+  [{:keys [engine]} definition-id]
+  (let [key (bpm/definition-key-of engine definition-id)]
+    (when-not key
+      (throw (ex-info "流程定义不存在" {:definition-id definition-id})))
+    {:definition-id definition-id
+     :model-key key
+     :xml (bpm/definition-xml engine definition-id)}))
+
+(defn definition-restore!
+  "把历史流程定义的 BPMN 反写回模型（bpmn_xml），清空 deployment_id 以便重新编辑部署。"
+  [{:keys [engine query-fn]} definition-id]
+  (let [key (bpm/definition-key-of engine definition-id)]
+    (when-not key
+      (throw (ex-info "流程定义不存在" {:definition-id definition-id})))
+    (let [xml (bpm/definition-xml engine definition-id)]
+      (when-not (seq xml)
+        (throw (ex-info "无法读取定义 BPMN" {:definition-id definition-id})))
+      (let [model (query-fn :bpm/find-model-by-key {:model_key key})]
+        (when-not model
+          (throw (ex-info "找不到对应流程模型" {:model-key key})))
+        (query-fn :bpm/restore-model {:model_id (:model_id model) :bpmn_xml xml})
+        {:model_id (:model_id model) :model_key key}))))
+
+(defn model-set-state!
+  "挂起/激活该 key 的全部流程定义（state=2 挂起，1 激活；挂起后不可发起）。"
+  [{:keys [engine query-fn]} id state user]
+  (let [m (query-fn :bpm/find-model-by-id {:model_id id})]
+    (when-not m
+      (throw (ex-info "流程模型不存在" {:model_id id})))
+    (let [key (:model_key m)
+          suspend? (= "2" (str state))]
+      (if suspend?
+        (bpm/suspend-definition-by-key! engine key)
+        (bpm/activate-definition-by-key! engine key))
+      (query-fn :bpm/update-model-status {:model_id id
+                                          :status (if suspend? "2" "1")
+                                          :update_by (or user "")})
+      {:model_key key :suspended? suspend?})))
+
+(defn model-clean!
+  "清理该流程：删除全部历史实例+部署（Flowable 级联），并清理业务实例/抄送记录。"
+  [{:keys [engine query-fn]} id]
+  (let [m (query-fn :bpm/find-model-by-id {:model_id id})]
+    (when-not m
+      (throw (ex-info "流程模型不存在" {:model_id id})))
+    (let [key (:model_key m)
+          pids (mapv :process_instance_id (query-fn :bpm/instances-by-model-key {:model_key key}))
+          deployments (bpm/delete-deployments-by-key! engine key)]
+      (when (seq pids)
+        (query-fn :bpm/delete-copies-by-pids {:pids pids}))
+      (query-fn :bpm/delete-instances-by-model-key {:model_key key})
+      (query-fn :bpm/clear-model-deployment {:model_id id})
+      {:deleted-deployments deployments
+       :deleted-instances (count pids)})))
+
+(defn model-copy!
+  "复制模型：名称+“副本”，key+_copy（冲突时追加），BPMN/表单/规则配置一并复制。"
+  [{:keys [query-fn]} id user]
+  (let [m (query-fn :bpm/find-model-by-id {:model_id id})]
+    (when-not m
+      (throw (ex-info "流程模型不存在" {:model_id id})))
+    (let [new-key (loop [k (str (:model_key m) "_copy")]
+                    (if (query-fn :bpm/find-model-by-key {:model_key k})
+                      (recur (str k "_copy"))
+                      k))]
+      (query-fn :bpm/insert-model
+                {:model_key new-key
+                 :model_name (str (:model_name m) "副本")
+                 :category_id (or (:category_id m) 0) :version 1
+                 :form_type (or (:form_type m) "0")
+                 :form_id (or (:form_id m) 0)
+                 :form_custom_create_path (or (:form_custom_create_path m) "")
+                 :form_custom_view_path (or (:form_custom_view_path m) "")
+                 :form_json (:form_json m) :fields_permission (:fields_permission m)
+                 :bpmn_xml (:bpmn_xml m) :deployment_id nil :status "1"
+                 :process_id_rule (:process_id_rule m)
+                 :auto_approval_type (or (:auto_approval_type m) "NONE")
+                 :name_rule (:name_rule m) :summary_fields (:summary_fields m)
+                 :print_template_enable (or (:print_template_enable m) "0")
+                 :print_template_html (:print_template_html m)
+                 :create_by (or user "") :remark (or (:remark m) "")})
+      (let [copied (query-fn :bpm/find-model-by-key {:model_key new-key})]
+        {:model_id (:model_id copied)
+         :model_key new-key
+         :model_name (str (:model_name m) "副本")}))))
+
+(defn instance-print-data
+  "打印数据：实例（含单号/名称/表单值）+ 任务审批记录（意见/签名图/时间）+ 打印模板。"
+  [{:keys [engine query-fn]} instance-id]
+  (let [biz (query-fn :bpm/find-instance-by-id {:instance_id instance-id})]
+    (when-not biz
+      (throw (ex-info "流程实例不存在" {:instance-id instance-id})))
+    (let [model (query-fn :bpm/find-model-by-id {:model_id (:model_id biz)})
+          form (when-let [fid (:form_id model)]
+                 (query-fn :bpm/find-form-by-id {:form_id fid}))
+          inst (row->json biz [:form_data_json])]
+      {:instance inst
+       :model {:model_id (:model_id model)
+               :model_name (:model_name model)
+               :print_template_enable (:print_template_enable model)
+               :print_template_html (:print_template_html model)}
+       :form {:schema (parse-json-field (:form_json form))
+              :values (:form_data_json inst)}
+       :task-history (bpm/task-history-of engine (:process_instance_id biz))})))

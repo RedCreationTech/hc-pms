@@ -1022,6 +1022,41 @@
   (request {:method :get :uri (str "/business/bpm/instance/diagram/" pid)
             :on-success on-success :on-error on-error}))
 
+;; ─── BPM Phase 3 治理能力：定义版本 / 模型启停·清理·复制 / 打印 ────────
+(defn bpm-definition-page [params on-success on-error]
+  (request {:method :get :uri "/business/bpm/definition/page" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-definition-xml [definition-id on-success on-error]
+  (request {:method :get :uri "/business/bpm/definition/xml"
+            :params {:definitionId definition-id}
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-definition-restore [definition-id on-success on-error]
+  (request {:method :put :uri "/business/bpm/definition/restore"
+            :params {:definitionId definition-id}
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-model-state [id state on-success on-error]
+  (request {:method :put :uri "/business/bpm/model/state"
+            :params {:id id :state state}
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-model-clean [id on-success on-error]
+  (request {:method :delete :uri "/business/bpm/model/clean"
+            :params {:id id}
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-model-copy [id on-success on-error]
+  (request {:method :post :uri "/business/bpm/model/copy"
+            :params {:id id}
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-print-data [instance-id on-success on-error]
+  (request {:method :get :uri "/business/bpm/instance/print-data"
+            :params {:id instance-id}
+            :on-success on-success :on-error on-error}))
+
 (defn bpm-model-tree [id on-success on-error]
   (request {:method :get :uri (str "/business/bpm/model/" id "/tree")
             :on-success on-success :on-error on-error}))

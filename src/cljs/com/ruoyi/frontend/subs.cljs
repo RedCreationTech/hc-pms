@@ -658,6 +658,15 @@
 (rf/reg-sub :bpm-model/total (fn [db _] (get-in db [:bpm-model :total] 0)))
 (rf/reg-sub :bpm-model/loading? (fn [db _] (get-in db [:bpm-model :loading?] false)))
 
+;; ─── BPM Phase 3：流程定义版本页 ──────────────────────────────────────
+(rf/reg-sub :bpm-definition/model (fn [db _] (get-in db [:bpm-definition :model])))
+(rf/reg-sub :bpm-definition/items (fn [db _] (get-in db [:bpm-definition :items] [])))
+(rf/reg-sub :bpm-definition/total (fn [db _] (get-in db [:bpm-definition :total] 0)))
+(rf/reg-sub :bpm-definition/loading? (fn [db _] (get-in db [:bpm-definition :loading?] false)))
+(rf/reg-sub :bpm-definition/xml (fn [db _] (get-in db [:bpm-definition :xml] "")))
+(rf/reg-sub :bpm-definition/xml-open? (fn [db _] (get-in db [:bpm-definition :xml-open?] false)))
+(rf/reg-sub :bpm-definition/xml-loading? (fn [db _] (get-in db [:bpm-definition :xml-loading?] false)))
+
 ;; ─── 办公：HRM / OA / CRM ──────────────────────────────────────────
 (rf/reg-sub :hrm/items (fn [db _] (get-in db [:hrm :items] [])))
 (rf/reg-sub :hrm/total (fn [db _] (get-in db [:hrm :total] 0)))

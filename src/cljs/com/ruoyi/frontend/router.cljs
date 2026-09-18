@@ -29,6 +29,7 @@
         "monitor/swagger" :swagger
         "system/user/profile" :profile
         "office/bpm/model" :bpm-model
+        "office/bpm/definition" :bpm-definition
         "office/bpm/instance" :bpm-instance
         "office/bpm/form" :bpm-form
         "office/bpm/category" :bpm-category
@@ -82,6 +83,7 @@
    :profile "个人中心"
    :office "办公"
    :bpm-model "流程模型"
+   :bpm-definition "流程定义版本"
    :bpm-instance "我的流程"
    :bpm-form "流程表单"
    :bpm-category "流程分类"

@@ -4,6 +4,7 @@
    [reagent.core :as r]
    [re-frame.core :as rf]
    ["@ant-design/icons" :refer [ReloadOutlined EyeOutlined]]
+   [clojure.string]
    [com.ruoyi.frontend.antd :as antd]
    [com.ruoyi.frontend.api :as api]
    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
@@ -19,8 +20,21 @@
                         ["未知" "default"])]
     [antd/tag {:color color} label]))
 
+(defn- summary-text [summary]
+  (if (seq summary)
+    (clojure.string/join "　" (map #(str (:label %) "：" (:value %)) summary))
+    "-"))
+
 (defn- copy-columns [open-detail]
-  #js [#js {:title "流程" :dataIndex "model_name" :key "model_name" :width 140}
+  #js [#js {:title "流程" :dataIndex "model_name" :key "model_name" :width 120}
+       #js {:title "流程名称" :dataIndex "instance_name" :key "instance_name" :width 160 :ellipsis true
+            :render (fn [v] (r/as-element [:span (if (seq v) v "-")]))}
+       #js {:title "单号" :dataIndex "bill_code" :key "bill_code" :width 130
+            :render (fn [v] (r/as-element (if v [antd/tag {:color "geekblue"} v] "-")))}
+       #js {:title "摘要" :dataIndex "summary" :key "summary" :width 160 :ellipsis true
+            :render (fn [v]
+                      (let [s (summary-text (js->clj v :keywordize-keys true))]
+                        (r/as-element [:span {:style {:color (if (= "-" s) "#c0c4cc" "#606266")}} s])))}
        #js {:title "流程实例" :dataIndex "process_instance_id" :key "process_instance_id"
             :width 90 :render (fn [v] (r/as-element (if v [antd/tag {:color "blue"} v] "-")))}
        #js {:title "抄送节点" :dataIndex "activity_name" :key "activity_name" :width 110}

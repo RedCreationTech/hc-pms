@@ -28,11 +28,19 @@
     ["" {:get  {:summary "流程模型列表" :handler (partial bpm/list-models {:bpm-service bpm-service})}
          :post {:summary "新增流程模型" :handler (partial bpm/create-model {:bpm-service bpm-service})}}]
     ["/deploy/:id" {:post {:summary "部署流程模型" :handler (partial bpm/deploy-model {:bpm-service bpm-service})}}]
+    ["/state" {:put {:summary "挂起/激活流程定义" :handler (partial bpm/model-set-state {:bpm-service bpm-service})}}]
+    ["/clean" {:delete {:summary "清理流程历史实例与部署" :handler (partial bpm/model-clean {:bpm-service bpm-service})}}]
+    ["/copy" {:post {:summary "复制流程模型" :handler (partial bpm/model-copy {:bpm-service bpm-service})}}]
     ["/:id/tree" {:get  {:summary "流程节点树" :handler (partial bpm/model-tree {:bpm-service bpm-service})}
                    :post {:summary "保存流程节点树" :handler (partial bpm/model-save-tree {:bpm-service bpm-service})}}]
     ["/:id" {:get    {:summary "模型详情" :handler (partial bpm/get-model {:bpm-service bpm-service})}
              :put    {:summary "更新模型" :handler (partial bpm/update-model {:bpm-service bpm-service})}
              :delete {:summary "删除模型" :handler (partial bpm/delete-model {:bpm-service bpm-service})}}]]
+
+   ;; ── Phase 3 治理能力：流程定义版本 ──
+   ["/bpm/definition/page" {:get {:summary "流程定义分页(版本)" :handler (partial bpm/definition-page {:bpm-service bpm-service})}}]
+   ["/bpm/definition/xml" {:get {:summary "流程定义BPMN XML" :handler (partial bpm/definition-xml {:bpm-service bpm-service})}}]
+   ["/bpm/definition/restore" {:put {:summary "历史定义恢复回模型" :handler (partial bpm/definition-restore {:bpm-service bpm-service})}}]
 
    ;; ── 动态表单 ──
    ["/bpm/form"
@@ -47,7 +55,8 @@
     ["" {:get  {:summary "流程实例列表" :handler (partial bpm/list-instances {:bpm-service bpm-service})}
          :post {:summary "发起流程实例" :handler (partial bpm/start-instance {:bpm-service bpm-service})}}]
     ["/history/:pid" {:get {:summary "实例历史轨迹" :handler (partial bpm/instance-history {:bpm-service bpm-service})}}]
-    ["/diagram/:pid" {:get {:summary "实例流程图(高亮)" :handler (partial bpm/instance-diagram {:bpm-service bpm-service})}}]]
+    ["/diagram/:pid" {:get {:summary "实例流程图(高亮)" :handler (partial bpm/instance-diagram {:bpm-service bpm-service})}}]
+    ["/print-data" {:get {:summary "实例打印数据" :handler (partial bpm/print-data {:bpm-service bpm-service})}}]]
 
    ;; ── 任务 ──
    ["/bpm/todo"    {:get {:summary "我的待办" :handler (partial bpm/list-todo {:bpm-service bpm-service})}}]

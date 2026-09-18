@@ -3,6 +3,7 @@
    Phase 2：按节点 buttons 配置显隐/改名操作按钮，支持手写签名(signEnable)与意见必填(reasonRequire)。"
   (:require
    [clojure.walk :as walk]
+   [clojure.string]
    [reagent.core :as r]
    [reagent.hooks :as hooks]
    [re-frame.core :as rf]
@@ -29,6 +30,17 @@
 
 (defn- task-columns [open-ops open-detail]
   #js [#js {:title "任务" :dataIndex "name" :key "name"}
+       #js {:title "流程名称" :dataIndex "instance-name" :key "instance-name" :width 160 :ellipsis true
+            :render (fn [v] (r/as-element [:span (if (seq v) v "-")]))}
+       #js {:title "单号" :dataIndex "bill-code" :key "bill-code" :width 130
+            :render (fn [v] (r/as-element (if v [antd/tag {:color "geekblue"} v] "-")))}
+       #js {:title "摘要" :dataIndex "summary" :key "summary" :width 160 :ellipsis true
+            :render (fn [v]
+                      (let [s (if (seq v)
+                                (clojure.string/join "　" (map #(str (:label %) "：" (:value %))
+                                                               (js->clj v :keywordize-keys true)))
+                                "-")]
+                        (r/as-element [:span {:style {:color (if (= "-" s) "#c0c4cc" "#606266")}} s])))}
        #js {:title "流程定义" :dataIndex "process-definition-id" :key "process-definition-id"
             :width 180 :ellipsis true}
        #js {:title "流程实例" :dataIndex "process-instance-id" :key "process-instance-id"

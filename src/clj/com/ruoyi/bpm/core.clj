@@ -77,6 +77,85 @@
        :name (.getName pd)
        :version (.getVersion pd)})))
 
+;; ── Phase 3 治理能力：流程定义版本 / 启停 / 清理 ───────────────────────
+
+(defn latest-definition
+  "某 key 最新版本的流程定义（含挂起状态）。"
+  [^ProcessEngine engine key]
+  (let [repo (.getRepositoryService engine)
+        q (-> (.createProcessDefinitionQuery repo)
+              (.processDefinitionKey key)
+              (.latestVersion))]
+    (when-let [pd (.singleResult q)]
+      {:id (.getId pd)
+       :key (.getKey pd)
+       :name (.getName pd)
+       :version (.getVersion pd)
+       :suspended? (.isSuspended pd)})))
+
+(defn definition-page
+  "流程定义分页（全部版本，按版本号倒序）。返回 {:rows [...] :total n}。
+   每行含 version / suspended? / deployment-id / deploy-time。"
+  [^ProcessEngine engine key offset size]
+  (let [repo (.getRepositoryService engine)
+        q0 (.createProcessDefinitionQuery repo)
+        q1 (if (seq key) (.processDefinitionKey q0 key) q0)
+        q (.desc (.orderByProcessDefinitionVersion q1))
+        total (.count q)
+        deploy-time (fn [^String dep-id]
+                      (some-> (.createDeploymentQuery repo)
+                              (.deploymentId dep-id)
+                              .singleResult
+                              (.getDeploymentTime)
+                              (timestamp->str)))]
+    {:total total
+     :rows (mapv (fn [^ProcessDefinition pd]
+                   {:id (.getId pd)
+                    :key (.getKey pd)
+                    :name (.getName pd)
+                    :version (.getVersion pd)
+                    :deployment-id (.getDeploymentId pd)
+                    :suspended? (.isSuspended pd)
+                    :deploy-time (deploy-time (.getDeploymentId pd))})
+                 (.listPage q (int offset) (int size)))}))
+
+(defn definition-key-of
+  "按定义 id 查流程定义 key。"
+  [^ProcessEngine engine definition-id]
+  (some-> (.getRepositoryService engine)
+          (.createProcessDefinitionQuery)
+          (.processDefinitionId definition-id)
+          .singleResult
+          (.getKey)))
+
+(defn definition-xml
+  "读取流程定义的 BPMN XML 文本。"
+  [^ProcessEngine engine definition-id]
+  (with-open [is (.getProcessModel (.getRepositoryService engine) definition-id)]
+    (when is (slurp is))))
+
+(defn suspend-definition-by-key!
+  "挂起某 key 的全部流程定义（挂起后不可发起新实例）。"
+  [^ProcessEngine engine key]
+  (.suspendProcessDefinitionByKey (.getRepositoryService engine) key true nil)
+  true)
+
+(defn activate-definition-by-key!
+  "激活某 key 的全部流程定义。"
+  [^ProcessEngine engine key]
+  (.activateProcessDefinitionByKey (.getRepositoryService engine) key true nil)
+  true)
+
+(defn delete-deployments-by-key!
+  "删除某 key 的全部部署（级联删除运行中/历史实例与定义）。返回删除的部署数。"
+  [^ProcessEngine engine key]
+  (let [repo (.getRepositoryService engine)
+        deps (.list (-> (.createDeploymentQuery repo)
+                        (.processDefinitionKey key)))]
+    (doseq [^org.flowable.engine.repository.Deployment d deps]
+      (.deleteDeployment repo (.getId d) true))
+    (count deps)))
+
 ;; ── 流程实例 (ProcessInstance) ────────────────────────────────────────
 
 (defn start!
@@ -260,10 +339,11 @@
                       (when (and (= "COPY_TASK" (get-in node-config [:nodeType]))
                                  @copy-handler)
                         (@copy-handler task node-config))
-                      (when (and node-config
-                                 (not= "COPY_TASK" (get-in node-config [:nodeType]))
+                      (when (and (not= "COPY_TASK" (get-in node-config [:nodeType]))
                                  @node-create-handler)
-                        (when-let [action (@node-create-handler task node-config)]
+                        ;; 无 nodeConfig 的节点传 {}（静态候选由引擎烘焙，
+                        ;; 监听器只做 RANDOM/为空兜底/模型级自动去重）
+                        (when-let [action (@node-create-handler task (or node-config {}))]
                           (apply-action task action))))
                     (catch Exception e
                       (log/error "[bpm-tasklistener] 解析任务监听器失败:" (.getMessage e)))))]
@@ -381,7 +461,8 @@
   (count (child-sign-tasks engine task-id)))
 
 (defn- complete*
-  "完成任务并写入变量。若任务未认领且给定 user，则先认领给该用户（保证已办/历史可追踪）。"
+  "完成任务并写入变量。若任务未认领且给定 user，则先认领给该用户（保证已办/历史可追踪）。
+   同时维护流程变量 bpmApprovedUsers/bpmLastApprover（模型级自动去重依据，同命令内可见）。"
   [^ProcessEngine engine task-id user variables]
   (let [ts (.getTaskService engine)
         q (.taskId (.createTaskQuery ts) task-id)
@@ -391,7 +472,14 @@
         (when (and cur (not= cur user))
           (throw (ex-info "无权办理该任务(非本人)" {:task-id task-id :assignee cur :user user})))
         (when (and user (nil? cur))
-          (.claim ts task-id user))))
+          (.claim ts task-id user))
+        ;; 记录已审人（自动去重：APPROVE_ONCE / CONSECUTIVE）
+        (when (and user (.getProcessInstanceId t))
+          (let [rt (.getRuntimeService engine)
+                pid (.getProcessInstanceId t)
+                cur-users (vec (or (.getVariable rt pid "bpmApprovedUsers") []))]
+            (.setVariable rt pid "bpmApprovedUsers" (conj cur-users (str user)))
+            (.setVariable rt pid "bpmLastApprover" (str user))))))
     (when-let [c (:comment variables)]
       (.setVariableLocal ts task-id "comment" c))
     (when-let [a (contains? variables :approved)]
