@@ -36,3 +36,4 @@ CLAUDE.md
 # Gas City
 .beads/*
 !.beads/identity.toml
+.dev-pids
