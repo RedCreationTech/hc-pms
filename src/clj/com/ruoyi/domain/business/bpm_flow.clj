@@ -88,10 +88,13 @@
           dflt (first (remove :cond? outs))
           m-type (if (= "COPY" (:node-kind config))
                      "COPY_TASK_NODE"
-                     (if (and (= "exclusiveGateway" type) (seq (:groups config)))
-                       ;; 路由分支节点展开生成的排他网关（带 :groups 配置）回读时还原为路由节点
-                       "ROUTER_BRANCH_NODE"
-                       (type-map type)))
+                     (if (= "TRANSACTOR" (:nodeType config))
+                       ;; 办理人节点（生成时 nodeConfig 标 nodeType=TRANSACTOR）回读还原
+                       "TRANSACTOR_NODE"
+                       (if (and (= "exclusiveGateway" type) (seq (:groups config)))
+                         ;; 路由分支节点展开生成的排他网关（带 :groups 配置）回读时还原为路由节点
+                         "ROUTER_BRANCH_NODE"
+                         (type-map type))))
           base (cond-> {:id node-id :type m-type :name (if (str/blank? name) node-id name)}
                  config (assoc :config config))
           recurse (fn [id] (build-tree nodes flows id (conj seen node-id)))]
@@ -131,6 +134,7 @@
     "START_USER_NODE" "startEvent"
     "END_EVENT_NODE" "endEvent"
     "USER_TASK_NODE" "userTask"
+    "TRANSACTOR_NODE" "userTask"
     "COPY_TASK_NODE" "userTask"
     "TRIGGER_NODE" "serviceTask"
     "CONDITION_BRANCH_NODE" "exclusiveGateway"
@@ -292,10 +296,12 @@
                                         condition-nodes))
                      default-cid (when (and branch? child-node)
                                    (emit child-node nil))
-                     multi-el (when (= type "USER_TASK_NODE") (multi-instance-el el-id config))
+                     ;; 审批/办理人节点支持多实例与跳过表达式（办理人配置同构，仅 nodeType 不同）
+                     user-task-like? (contains? #{"USER_TASK_NODE" "TRANSACTOR_NODE"} type)
+                     multi-el (when user-task-like? (multi-instance-el el-id config))
                      multi-assignee (when multi-el
                                         " flowable:assignee=\"${approver}\"")
-                     skip-expr (when (and (= type "USER_TASK_NODE") (seq (get-in config [:skip-expression])))
+                     skip-expr (when (and user-task-like? (seq (get-in config [:skip-expression])))
                                  (str " flowable:skipExpression=\"" (escape-xml (get-in config [:skip-expression])) "\""))
                      attrs (str " id=\"" el-id "\" name=\"" (escape-xml (or name id)) "\""
                                 multi-assignee skip-expr
@@ -311,17 +317,19 @@
                      ;; 所有带配置的人工节点都挂 create 监听器：
                      ;; 候选解析/为空策略/随机审批统一在 TaskListener 处理；
                      ;; 配置了 nodeConfig.listeners 的节点额外挂 assignment/complete 监听器
-                     listener-el (when (and (#{"USER_TASK_NODE" "COPY_TASK_NODE"} type)
+                     listener-el (when (and (#{"USER_TASK_NODE" "TRANSACTOR_NODE" "COPY_TASK_NODE"} type)
                                             (seq config))
                                    (str "<flowable:taskListener event=\"create\" delegateExpression=\"${bpmTaskListener}\"/>"
                                         (when (listener-enabled? (:listeners config) "assign")
                                           "<flowable:taskListener event=\"assignment\" delegateExpression=\"${bpmTaskListener}\"/>")
                                         (when (listener-enabled? (:listeners config) "complete")
                                           "<flowable:taskListener event=\"complete\" delegateExpression=\"${bpmTaskListener}\"/>")))
-                     ;; 抄送节点在 nodeConfig 标 nodeType=COPY_TASK，TaskListener create 时自动抄送并完成
+                     ;; 抄送节点标 nodeType=COPY_TASK、办理人节点标 nodeType=TRANSACTOR，
+                     ;; TaskListener create 时按标记分发（抄送自动完成/办理人默认按钮）
                      out-config (cond-> config
-                                  (= "COPY_TASK_NODE" type) (assoc :nodeType "COPY_TASK"))
-                     timeout-el (when (= type "USER_TASK_NODE") (timeout-boundary-el el-id config))
+                                  (= "COPY_TASK_NODE" type) (assoc :nodeType "COPY_TASK")
+                                  (= "TRANSACTOR_NODE" type) (assoc :nodeType "TRANSACTOR"))
+                     timeout-el (when user-task-like? (timeout-boundary-el el-id config))
                      ;; 触发器节点：nodeConfig 供 bpmTriggerDelegate 按 trigger-type 分发
                      trigger-body (when (and (= type "TRIGGER_NODE") (seq config))
                                     (str "<extensionElements>"
@@ -366,7 +374,7 @@
                             trigger-body
                             child-body
                             child-body
-                            (and (#{"USER_TASK_NODE" "COPY_TASK_NODE"} type) (seq out-config))
+                            (and (#{"USER_TASK_NODE" "TRANSACTOR_NODE" "COPY_TASK_NODE"} type) (seq out-config))
                             (str "<extensionElements>"
                                  (when listener-el listener-el)
                                  "<flowable:properties>"

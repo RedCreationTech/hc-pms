@@ -18,10 +18,11 @@
             :render (fn [_ ^js record]
                       (let [task (js->clj record :keywordize-keys true)]
                         (r/as-element
-                         [antd/popconfirm {:title "确认撤回该已办任务?"
-                                           :on-confirm #(rf/dispatch [:bpm/done-withdraw (:task-id task)])}
-                          [antd/button {:size "small" :icon (r/as-element [:> RollbackOutlined])}
-                           "撤回"]])))}])
+                         (when (= "1" (str (:allow_withdraw task)))
+                           [antd/popconfirm {:title "确认撤回该已办任务?"
+                                             :on-confirm #(rf/dispatch [:bpm/done-withdraw (:task-id task)])}
+                            [antd/button {:size "small" :icon (r/as-element [:> RollbackOutlined])}
+                             "撤回"]]))))}])
 
 (defn bpm-done-page []
   (let [items @(rf/subscribe [:bpm-done/items])

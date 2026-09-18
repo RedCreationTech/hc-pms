@@ -7,7 +7,7 @@
    ["@ant-design/icons" :refer [ReloadOutlined PlayCircleOutlined EditOutlined SaveOutlined
                                 UndoOutlined RedoOutlined ZoomInOutlined ZoomOutOutlined
                                 CompressOutlined DownloadOutlined EyeOutlined FolderOpenOutlined
-                                AlignLeftOutlined ClearOutlined]]
+                                AlignLeftOutlined ClearOutlined PlusOutlined]]
    [clojure.walk :as walk]
    [com.ruoyi.frontend.antd :as antd]
    [com.ruoyi.frontend.api :as api]
@@ -137,17 +137,20 @@
      [:div {:style {:color "#999" :textAlign "center" :paddingTop 40}} "点击节点/连线编辑属性"])])
 
 ;; Tab 页内容组件（避免深层嵌套，拆成独立函数）
-(defn- basic-info-tab [mname set-mname! mkey set-mkey! mcat set-mcat! mform-type set-mform-type!]
+(defn- basic-info-tab [mname set-mname! mkey set-mkey! mcat set-mcat! mform-type set-mform-type! categories]
   [:div {:style {:padding 16 :maxWidth 500}}
    [antd/form {:layout "vertical"}
     [antd/form-item {:label "流程名称"}
      [antd/input {:value mname :onChange (fn [e] (set-mname! (-> e .-target .-value)))}]]
     [antd/form-item {:label "流程Key"}
      [antd/input {:value mkey :onChange (fn [e] (set-mkey! (-> e .-target .-value)))}]]
-    [antd/form-item {:label "分类ID"}
-     [antd/input-number {:value (some-> mcat js/Number) :style {:width "100%"}}
-                        ;; onChange 需手动绑定 value
-      ]]
+    [antd/form-item {:label "流程分类"}
+     [antd/select {:value (when (seq (str mcat)) (js/Number mcat))
+                   :style {:width "100%"} :allowClear true
+                   :placeholder "请选择分类"
+                   :onChange (fn [v] (set-mcat! (or v "")))}
+      (doall (for [c categories] ^{:key (:category_id c)}
+               [antd/select-option {:value (:category_id c)} (:name c)]))]]
     [antd/form-item {:label "表单类型"}
      [antd/select {:value mform-type :style {:width "100%"} :onChange (fn [v] (set-mform-type! (str v)))}
       [antd/select-option {:value "0"} "无表单"]
@@ -250,10 +253,12 @@
     "＋ 添加一行"]])
 
 (defn- extra-tab
-  "更多设置：备注 + Phase 3/4 治理能力（编号规则/自动去重/标题规则/摘要字段/打印模板/Webhook）。"
+  "更多设置：备注 + Phase 3/4 治理能力（编号规则/自动去重/标题规则/摘要字段/打印模板/Webhook）
+   + P0-4 提交人/审批人权限开关。"
   [{:keys [mwebhooks set-mwebhooks! mremark set-mremark! mauto-type set-mauto-type! mname-rule set-mname-rule!
            mprocess-rule set-mprocess-rule! msummary-fields set-msummary-fields!
            mprint-enable set-mprint-enable! mprint-html set-mprint-html!
+           mallow-cancel set-mallow-cancel! mallow-withdraw set-mallow-withdraw!
            form-fields]}]
   (let [rule-enabled? (boolean (:enable mprocess-rule))
         upd-rule! (fn [k v] (set-mprocess-rule! (assoc mprocess-rule k v)))
@@ -264,6 +269,17 @@
      [antd/form {:layout "vertical"}
       [antd/form-item {:label "备注"}
        [antd/text-area {:value mremark :rows 3 :onChange (fn [e] (set-mremark! (-> e .-target .-value)))}]]
+      (section "提交人 / 审批人权限")
+      [:div {:style {:marginBottom 8}}
+       [antd/space {:align "center"}
+        [antd/switch {:checked (= "1" (str mallow-cancel))
+                      :onChange #(set-mallow-cancel! (if % "1" "0"))}]
+        [:span {:style {:color "#606266"}} "提交人权限：允许撤销审批中的申请"]]]
+      [:div {:style {:marginBottom 12}}
+       [antd/space {:align "center"}
+        [antd/switch {:checked (= "1" (str mallow-withdraw))
+                      :onChange #(set-mallow-withdraw! (if % "1" "0"))}]
+        [:span {:style {:color "#606266"}} "审批人权限：允许审批人撤回"]]]
       (section "流程编号规则")
       [:div {:style {:marginBottom 12}}
        [antd/space {:align "center"}
@@ -374,6 +390,10 @@
         [mprint-enable set-mprint-enable!] (hooks/use-state false)
         [mprint-html set-mprint-html!] (hooks/use-state "")
         [mwebhooks set-mwebhooks!] (hooks/use-state {})
+        [categories set-categories!] (hooks/use-state [])
+        ;; P0-4 提交人/审批人权限开关
+        [mallow-cancel set-mallow-cancel!] (hooks/use-state "1")
+        [mallow-withdraw set-mallow-withdraw!] (hooks/use-state "1")
         form-fields (let [sel-form (first (filter #(= (:form_id %) mform-id) form-list))
                           schema (or (when-let [j (:form_json sel-form)]
                                        (if (string? j)
@@ -398,7 +418,9 @@
                                     :summary_fields (js/JSON.stringify (clj->js msummary-fields))
                                     :print_template_enable (if mprint-enable "1" "0")
                                     :print_template_html mprint-html
-                                    :webhooks (js/JSON.stringify (clj->js mwebhooks))}]))
+                                    :webhooks (js/JSON.stringify (clj->js mwebhooks))
+                                    :allow_cancel mallow-cancel
+                                    :allow_withdraw mallow-withdraw}]))
         ;; 连线加号浮层菜单回调：直接插入节点并重建浮层（对齐 vben，无需居中 Modal）
         add-handle (atom nil)
         _ (reset! add-handle
@@ -476,14 +498,19 @@
                                (if (string? w)
                                  (js->clj (js/JSON.parse w) :keywordize-keys true)
                                  (walk/keywordize-keys w)))
-                             {}))))
+                             {}))
+         (set-mallow-cancel! (or (:allow_cancel current) "1"))
+         (set-mallow-withdraw! (or (:allow_withdraw current) "1"))))
      [visible?])
     (hooks/use-effect
      (fn []
        (when visible?
          (api/bpmmgmt-list "form" {:page 1 :size 1000}
                            #(set-form-list! (walk/keywordize-keys (get-in % [:data :rows])))
-                           #())))
+                           #())
+         (api/bpm-list-categories {:page 1 :size 1000}
+                                  #(set-categories! (walk/keywordize-keys (get-in % [:data :rows])))
+                                  #())))
      [visible?])
     (hooks/use-effect
      (fn []
@@ -514,7 +541,7 @@
               label]))]
          [antd/button {:type "primary" :size "small" :on-click save-model} "保存"]]
         (case tab
-          "basic" [basic-info-tab mname set-mname! mkey set-mkey! mcat set-mcat! mform-type set-mform-type!]
+          "basic" [basic-info-tab mname set-mname! mkey set-mkey! mcat set-mcat! mform-type set-mform-type! categories]
           "form" [form-design-tab mform-type set-mform-type! mform-id set-mform-id! form-list
                        mcustom-create set-mcustom-create! mcustom-view set-mcustom-view!
                        mfields-perm set-mfields-perm!]
@@ -528,6 +555,8 @@
                               :msummary-fields msummary-fields :set-msummary-fields! set-msummary-fields!
                               :mprint-enable mprint-enable :set-mprint-enable! set-mprint-enable!
                               :mprint-html mprint-html :set-mprint-html! set-mprint-html!
+                              :mallow-cancel mallow-cancel :set-mallow-cancel! set-mallow-cancel!
+                              :mallow-withdraw mallow-withdraw :set-mallow-withdraw! set-mallow-withdraw!
                               :form-fields form-fields}])])]
      ;; 预览弹窗（对齐 vben 预览 XML/JSON）
      [antd/modal {:title (if (= preview-type :json) "预览JSON" "预览XML")
@@ -538,15 +567,85 @@
        [:code {:style {:fontFamily "monospace" :whiteSpace "pre-wrap" :wordBreak "break-all"}}
         preview-content]]]]))
 
+(defn- create-model-modal [{:keys [visible? on-close on-created]}]
+  (let [[form] (antd/form-use-form)
+        [categories set-categories!] (hooks/use-state [])
+        [submitting? set-submitting!] (hooks/use-state false)
+        key-pattern #"^[a-zA-Z_][-\w.$]*$"]
+    (hooks/use-effect
+     (fn []
+       (when visible?
+         (api/bpm-list-categories {:page 1 :size 1000}
+                                  #(set-categories! (walk/keywordize-keys (get-in % [:data :rows])))
+                                  #())))
+     [visible?])
+    [antd/modal {:title "新建模型" :open visible? :width 480
+                 :confirmLoading submitting?
+                 :onCancel on-close
+                 :onOk #(.submit form)}
+     [antd/form {:form form :layout "vertical" :preserve false
+                 :onFinish (fn [values]
+                             (let [v (js->clj values :keywordize-keys true)]
+                               (set-submitting! true)
+                               (api/bpm-create-model
+                                {:model_name (:model_name v)
+                                 :model_key (:model_key v)
+                                 :category_id (:category_id v)
+                                 :remark (:remark v)}
+                                (fn [res]
+                                  (set-submitting! false)
+                                  (if (= 200 (:code res))
+                                    (do (antd/success! "模型创建成功，请继续设计流程")
+                                        (on-close)
+                                        (on-created (:model_key v)))
+                                    (antd/error! (str "创建失败: " (:msg res)))))
+                                (fn [_]
+                                  (set-submitting! false)
+                                  (antd/error! "创建失败")))))}
+      [antd/form-item {:label "流程名称" :name "model_name"
+                       :rules [{:required true :message "请输入流程名称"}]}
+       [antd/input {:placeholder "如：请假审批"}]]
+      [antd/form-item {:label "流程Key" :name "model_key"
+                       :rules [{:required true :message "请输入流程Key"}
+                               {:pattern key-pattern
+                                :message "须以字母或下划线开头，只能包含字母、数字、_ - . $"}]}
+       [antd/input {:placeholder "如：oa_leave"}]]
+      [antd/form-item {:label "流程分类" :name "category_id"}
+       [antd/select {:style {:width "100%"} :allowClear true :placeholder "请选择分类"}
+        (doall (for [c categories] ^{:key (:category_id c)}
+                 [antd/select-option {:value (:category_id c)} (:name c)]))]]
+      [antd/form-item {:label "备注" :name "remark"}
+       [antd/text-area {:rows 2 :placeholder "备注(可选)"}]]]]))
+
 (defn bpm-model-page []
   (let [items @(rf/subscribe [:bpm-model/items])
         total @(rf/subscribe [:bpm-model/total])
-        loading? @(rf/subscribe [:bpm-model/loading?])]
+        loading? @(rf/subscribe [:bpm-model/loading?])
+        [create-open? set-create-open!] (hooks/use-state false)
+        [categories set-categories!] (hooks/use-state [])
+        [cat-filter set-cat-filter!] (hooks/use-state nil)]
+    (hooks/use-effect
+     (fn []
+       (api/bpm-list-categories {:page 1 :size 1000}
+                                #(set-categories! (walk/keywordize-keys (get-in % [:data :rows])))
+                                #()))
+     [])
     [:div
      [page-toolbar/page-toolbar
       {:left [page-toolbar/toolbar-left
               [:div {:style {:fontSize 15 :fontWeight 600}} "流程模型"]]
        :right [page-toolbar/toolbar-right
+               [antd/select {:value cat-filter :style {:width 160} :allowClear true
+                             :placeholder "按分类筛选"
+                             :onChange (fn [v]
+                                         (set-cat-filter! v)
+                                         (rf/dispatch [:bpm/model-fetch (if v {:category_id v} {})]))}
+                (doall (for [c categories] ^{:key (:category_id c)}
+                         [antd/select-option {:value (:category_id c)} (:name c)]))]
+               [antd/button {:type "primary"
+                             :icon (r/as-element [:> PlusOutlined])
+                             :on-click #(set-create-open! true)}
+                "新建模型"]
                [page-toolbar/round-tool-button {:title "刷新"
                                                 :icon (r/as-element [:> ReloadOutlined])
                                                 :on-click #(rf/dispatch [:bpm/model-fetch {}])}]]}]
@@ -556,4 +655,14 @@
                   :loading loading?
                   :pagination {:total total :pageSize 10 :showSizeChanger true
                                :showTotal (fn [total] (str "共 " total " 条"))}}]
+     [create-model-modal {:visible? create-open?
+                          :on-close #(set-create-open! false)
+                          :on-created (fn [mkey]
+                                        (rf/dispatch [:bpm/model-fetch {}])
+                                        (api/bpm-list-models {:model_key mkey :page 1 :size 1}
+                                                             (fn [res]
+                                                               (when-let [m (first (get-in res [:data :rows]))]
+                                                                 (rf/dispatch [:bpm/model-open-designer
+                                                                               (walk/keywordize-keys m)])))
+                                                             #()))}]
      [designer-modal]]))

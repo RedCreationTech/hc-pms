@@ -198,7 +198,7 @@
 
 (defn list-done
   [{:keys [bpm-service]} request]
-  (wrap-err #(ok {:rows (bpm-core/done-list (:engine bpm-service) (current-user request))})))
+  (wrap-err #(ok {:rows (bpm/done-list-with-model-flags bpm-service (current-user request))})))
 
 (defn task-detail
   [{:keys [bpm-service]} request]

@@ -13,13 +13,13 @@
 ;; ── 节点类型常量（颜色/图标/名称）───────────────────────────────────
 
 (def ^:private node-color
-  {"USER_TASK_NODE" "#ff943e" "COPY_TASK_NODE" "#3296fa" "CONDITION_BRANCH_NODE" "#67c23a"
+  {"USER_TASK_NODE" "#ff943e" "TRANSACTOR_NODE" "#13c2c2" "COPY_TASK_NODE" "#3296fa" "CONDITION_BRANCH_NODE" "#67c23a"
    "PARALLEL_BRANCH_NODE" "#626aef" "INCLUSIVE_BRANCH_NODE" "#345da2" "DELAY_TIMER_NODE" "#e47470"
    "TRIGGER_NODE" "#3373d2" "CHILD_PROCESS_NODE" "#996633" "ROUTER_BRANCH_NODE" "#13a8a8"
    "START_USER_NODE" "#676565" "END_EVENT_NODE" "#676565"})
 
 (def ^:private node-icon
-  {"USER_TASK_NODE" "bpmn-icon-user-task" "COPY_TASK_NODE" "bpmn-icon-user-task"
+  {"USER_TASK_NODE" "bpmn-icon-user-task" "TRANSACTOR_NODE" "bpmn-icon-user-task" "COPY_TASK_NODE" "bpmn-icon-user-task"
    "CONDITION_BRANCH_NODE" "bpmn-icon-gateway-none" "PARALLEL_BRANCH_NODE" "bpmn-icon-gateway-parallel"
    "INCLUSIVE_BRANCH_NODE" "bpmn-icon-gateway-or" "DELAY_TIMER_NODE" "bpmn-icon-intermediate-event-catch-timer"
    "TRIGGER_NODE" "bpmn-icon-service-task" "CHILD_PROCESS_NODE" "bpmn-icon-subprocess-expanded"
@@ -27,7 +27,7 @@
    "END_EVENT_NODE" "bpmn-icon-end-event-none"})
 
 (def ^:private node-type-label
-  {"USER_TASK_NODE" "审批人" "COPY_TASK_NODE" "抄送" "CONDITION_BRANCH_NODE" "条件分支"
+  {"USER_TASK_NODE" "审批人" "TRANSACTOR_NODE" "办理人" "COPY_TASK_NODE" "抄送" "CONDITION_BRANCH_NODE" "条件分支"
    "PARALLEL_BRANCH_NODE" "并行分支" "INCLUSIVE_BRANCH_NODE" "包容分支" "DELAY_TIMER_NODE" "延迟器"
    "TRIGGER_NODE" "触发器" "CHILD_PROCESS_NODE" "子流程" "ROUTER_BRANCH_NODE" "路由分支"
    "START_USER_NODE" "发起人" "END_EVENT_NODE" "结束"})
@@ -60,7 +60,15 @@
    {:value "MULTI_LEVEL_DEPT_LEADER" :label "发起人部门负责人及上级"}
    {:value "INITIATOR_SELF" :label "发起人本人"} {:value "USER_GROUP" :label "用户组"}
    {:value "FORM_USER" :label "表单内用户字段"} {:value "FORM_DEPT_LEADER" :label "表单内部门负责人"}
-   {:value "EXPRESSION" :label "流程表达式"}])
+   {:value "EXPRESSION" :label "流程表达式"}
+   {:value "START_USER_SELECT" :label "发起人自选"} {:value "APPROVE_USER_SELECT" :label "审批人自选"}])
+
+(def ^:private copy-candidate-strategies
+  "抄送节点策略（复用审批人的 user-candidate-editor 参数编辑器；自选类策略不适用抄送）。"
+  [{:value "USER" :label "指定用户"} {:value "ROLE" :label "指定角色"}
+   {:value "DEPT_MEMBER" :label "指定部门成员"} {:value "DEPT_LEADER" :label "指定部门负责人"}
+   {:value "POST" :label "指定岗位"} {:value "USER_GROUP" :label "用户组"}
+   {:value "FORM_USER" :label "表单内用户字段"} {:value "EXPRESSION" :label "流程表达式"}])
 
 (def ^:private candidate-strategy-label
   (into {} (map (juxt :value :label)) candidate-strategies))
@@ -105,6 +113,16 @@
              "delegate" {"enable" true "displayName" "委派"}
              "add-sign" {"enable" true "displayName" "加签"}
              "return" {"enable" true "displayName" "退回"}}})
+
+(def ^:private default-transactor-config
+  "办理人节点默认配置：与审批人同构，但按钮默认只开「办理」（其余操作隐藏）。"
+  (assoc default-user-config
+         :buttons {"approve" {"enable" true "displayName" "办理"}
+                   "reject" {"enable" false "displayName" "驳回"}
+                   "transfer" {"enable" false "displayName" "转办"}
+                   "delegate" {"enable" false "displayName" "委派"}
+                   "add-sign" {"enable" false "displayName" "加签"}
+                   "return" {"enable" false "displayName" "退回"}}))
 
 (def ^:private button-config-items
   "可配置的操作按钮（nodeConfig.buttons）。"
@@ -308,6 +326,12 @@
        (doall (for [e @expressions] ^{:key (:expression_id e)}
                 [antd/select-option {:value (:expression_id e)}
                  (str (:name e) " (" (:expression e) ")")]))]
+      "START_USER_SELECT"
+      [:div {:style {:marginTop 8 :color "#909399" :fontSize 12}}
+       "发起人在发起流程时自行选择审批人（无需在此配置，发起页将提供选择器）"]
+      "APPROVE_USER_SELECT"
+      [:div {:style {:marginTop 8 :color "#909399" :fontSize 12}}
+       "当前审批人在办理时自行指定下一节点审批人（无需在此配置）"]
       "INITIATOR_SELF"
       [:div {:style {:marginTop 8 :color "#909399" :fontSize 12}}
        "审批人为流程发起人本人（运行时解析，无需配置）"]
@@ -481,12 +505,14 @@
 ;; ── 配置辅助函数 ─────────────────────────────────────────────────────
 
 (defn- user-show-text
-  "审批/抄送节点 → 卡片内容区文本。"
+  "审批/办理/抄送节点 → 卡片内容区文本。"
   [t cfg]
   (let [at (:approve-type cfg)]
     (cond
       (= t "COPY_TASK_NODE")
-      (str "抄送 " (count (or (:copy-user-ids cfg) [])) " 人")
+      (if-let [s (:candidate-strategy cfg)]
+        (str "抄送 · " (get candidate-strategy-label s "指定用户"))
+        (str "抄送 " (count (or (:copy-user-ids cfg) [])) " 人"))
       (not= at "USER")
       (case at "AUTO_PASS" "自动通过" "AUTO_REJECT" "自动拒绝" "自动审批")
       :else
@@ -502,7 +528,7 @@
 
 (def ^:private add-node-types
   "可添加的节点类型（对齐 vben node-handler）。"
-  [{:type "USER_TASK_NODE" :label "审批人"} {:type "USER_TASK_NODE" :label "办理人"}
+  [{:type "USER_TASK_NODE" :label "审批人"} {:type "TRANSACTOR_NODE" :label "办理人"}
    {:type "COPY_TASK_NODE" :label "抄送"} {:type "CONDITION_BRANCH_NODE" :label "条件分支"}
    {:type "PARALLEL_BRANCH_NODE" :label "并行分支"} {:type "INCLUSIVE_BRANCH_NODE" :label "包容分支"}
    {:type "DELAY_TIMER_NODE" :label "延迟器"} {:type "TRIGGER_NODE" :label "触发器"}
@@ -614,6 +640,13 @@
                                                     (:candidate-param c)
                                                     (update :candidate-param
                                                             (fn [p] (into {} (map (fn [[k v]] [k (if (coll? v) (filterv some? v) v)])) p))))))
+                                         "TRANSACTOR_NODE"
+                                         (let [c (:config node)]
+                                           (merge default-transactor-config
+                                                  (cond-> c
+                                                    (:candidate-param c)
+                                                    (update :candidate-param
+                                                            (fn [p] (into {} (map (fn [[k v]] [k (if (coll? v) (filterv some? v) v)])) p))))))
                                          nil))))
                cfg-set! (fn [k v] (swap! cfg assoc k v))
                defs (r/atom [])
@@ -635,7 +668,7 @@
                                  (let [acc (atom [])]
                                    (letfn [(walk-n [n]
                                              (when n
-                                               (when (#{"USER_TASK_NODE" "COPY_TASK_NODE"} (:type n))
+                                               (when (#{"USER_TASK_NODE" "TRANSACTOR_NODE" "COPY_TASK_NODE"} (:type n))
                                                  (swap! acc conj {:id (:id n) :name (:name n)}))
                                                (when-let [c (:child-node n)] (walk-n c))
                                                (doseq [cn (:condition-nodes n)]
@@ -663,7 +696,7 @@
                                           (assoc node :name @node-name
                                                  :config (select-keys @cfg [:time-duration :time-unit])
                                                  :show-text (delay-show-text @cfg)))
-                                   (or (= t "USER_TASK_NODE") (= t "COPY_TASK_NODE"))
+                                   (#{"USER_TASK_NODE" "TRANSACTOR_NODE" "COPY_TASK_NODE"} t)
                                    (swap! tree assoc-in p
                                           (assoc node :name @node-name
                                                  :config @cfg
@@ -705,11 +738,13 @@
                                    (let [t (:type node) cfg (:config node)]
                                      (case t
                                        "COPY_TASK_NODE"
-                                       (let [uc (count (or (:copy-user-ids cfg) []))
-                                             rc (count (or (:copy-role-ids cfg) []))]
-                                         (str "抄送" (when (pos? uc) (str " " uc " 用户"))
-                                              (when (and (pos? uc) (pos? rc)) " +")
-                                              (when (pos? rc) (str " " rc " 角色"))))
+                                       (if-let [s (:candidate-strategy cfg)]
+                                         (str "抄送 · " (get candidate-strategy-label s "指定用户"))
+                                         (let [uc (count (or (:copy-user-ids cfg) []))
+                                               rc (count (or (:copy-role-ids cfg) []))]
+                                           (str "抄送" (when (pos? uc) (str " " uc " 用户"))
+                                                (when (and (pos? uc) (pos? rc)) " +")
+                                                (when (pos? rc) (str " " rc " 角色")))))
                                        "DELAY_TIMER_NODE"
                                        (when-let [d (:time-duration cfg)]
                                          (str "延迟 " d (get {"MINUTE" "分钟" "HOUR" "小时" "DAY" "天"} (:time-unit cfg) "小时")))
@@ -830,12 +865,25 @@
                          ^{:key value} [antd/select-option {:value value} label]))]]]
              (= t "COPY_TASK_NODE")
              [:div {:style {:marginTop 16}}
-              (f-label "抄送人（用户）")
-              (multi-select "请选择抄送用户" (:copy-user-ids @cfg)
-                            #(cfg-set! :copy-user-ids (vec %)) (opt-user users))
-              (f-label {:style {:marginTop 12}} "抄送人（角色）")
-              (multi-select "请选择抄送角色" (:copy-role-ids @cfg)
-                            #(cfg-set! :copy-role-ids (vec %)) (opt-role roles))]
+              (let [legacy? (and (str/blank? (str (:candidate-strategy @cfg)))
+                                 (or (seq (:copy-user-ids @cfg)) (seq (:copy-role-ids @cfg))))]
+                (if legacy?
+                  [:div
+                   (f-label "抄送人（用户）")
+                   (multi-select "请选择抄送用户" (:copy-user-ids @cfg)
+                                 #(cfg-set! :copy-user-ids (vec %)) (opt-user users))
+                   (f-label {:style {:marginTop 12}} "抄送人（角色）")
+                   (multi-select "请选择抄送角色" (:copy-role-ids @cfg)
+                                 #(cfg-set! :copy-role-ids (vec %)) (opt-role roles))]
+                  [:div
+                   (f-label "抄送策略")
+                   [antd/select {:style {:width "100%"} :value (or (:candidate-strategy @cfg) "USER")
+                                 :onChange #(do (cfg-set! :candidate-strategy %)
+                                                (cfg-set! :candidate-param {}))}
+                    (doall (for [{:keys [value label]} copy-candidate-strategies]
+                             ^{:key value} [antd/select-option {:value value} label]))]
+                   (f-label {:style {:marginTop 8}} "抄送对象")
+                   [user-candidate-editor cfg users roles depts posts groups expressions form-fields]]))]
              (= t "TRIGGER_NODE")
              [:div {:style {:marginTop 16}}
               (f-label "触发器类型")
@@ -929,6 +977,57 @@
                                                     {:target-node-id nil
                                                      :rules [{:left-side "" :op-code ">" :right-side ""}]}))}
                "＋ 添加路由分支"]]
+             (= t "TRANSACTOR_NODE")
+             [:div {:style {:marginTop 16}}
+              (f-label "办理人设置")
+              [antd/radio-group {:value (:candidate-strategy @cfg)
+                                 :onChange #(do (cfg-set! :candidate-strategy (-> % .-target .-value))
+                                                (cfg-set! :candidate-param
+                                                          {:user-ids [] :role-ids [] :dept-ids [] :post-ids []
+                                                           :dept-level 1 :user-group-ids []
+                                                           :form-user-field nil :form-dept-field nil
+                                                           :expression-id nil}))}
+               (doall (for [{:keys [value label]} candidate-strategies]
+                        ^{:key value} [antd/radio {:value value} label]))]
+              (user-candidate-editor cfg users roles depts posts groups expressions form-fields)
+              (f-label {:style {:marginTop 14}} "多人办理方式")
+              [antd/radio-group {:value (:approve-method @cfg)
+                                 :onChange #(cfg-set! :approve-method (-> % .-target .-value))}
+               (doall (for [{:keys [value label]} approve-methods]
+                        ^{:key value} [antd/radio {:value value} label]))]
+              (when (= (:approve-method @cfg) "RATIO")
+                [:div {:style {:marginTop 8}}
+                 (f-label "通过比例（%）")
+                 [antd/input-number {:style {:width "100%"} :min 10 :max 100 :step 10
+                                     :value (:approve-ratio @cfg)
+                                     :onChange #(cfg-set! :approve-ratio (or % 100))}]])
+              (user-empty-editor cfg users)
+              (user-buttons-editor cfg)
+              [:div {:style {:display "flex" :gap 24 :marginTop 14}}
+               [:div (f-label "是否需要签名")
+                [antd/switch {:checked (:sign-enable @cfg) :checkedChildren "是" :unCheckedChildren "否"
+                              :onChange #(cfg-set! :sign-enable %)}]]
+               [:div (f-label "办理意见")
+                [antd/switch {:checked (:reason-require @cfg) :checkedChildren "必填" :unCheckedChildren "非必填"
+                              :onChange #(cfg-set! :reason-require %)}]]]
+              (when (seq @form-fields)
+                [:div {:style {:marginTop 14}}
+                 (f-label "表单字段权限")
+                 [:div {:style {:border "1px solid #f0f0f0" :borderRadius 6}}
+                  (doall
+                   (for [f @form-fields]
+                     (let [field (:field f)]
+                       ^{:key (or field (str "fp-" (random-uuid)))}
+                       [:div {:style {:display "flex" :alignItems "center" :justifyContent "space-between"
+                                      :padding "5px 10px" :borderBottom "1px solid #f5f5f5"}}
+                        [:span {:style {:fontSize 13}} (:title f)]
+                        [antd/select {:style {:width 110} :size "small"
+                                      :value (or (get-in @cfg [:fields-permission field]) "edit")
+                                      :onChange #(cfg-set! :fields-permission
+                                                           (assoc (or (get-in @cfg [:fields-permission]) {}) field %))}
+                         [antd/select-option {:value "edit"} "可编辑"]
+                         [antd/select-option {:value "readonly"} "只读"]
+                         [antd/select-option {:value "hidden"} "隐藏"]]])))]])]
              (= t "USER_TASK_NODE")
              [:div
               (when (not= (:approve-type @cfg) "USER")

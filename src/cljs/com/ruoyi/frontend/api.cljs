@@ -833,6 +833,14 @@
   (request {:method :get :uri "/business/bpm/model" :params params
             :on-success on-success :on-error on-error}))
 
+(defn bpm-create-model [params on-success on-error]
+  (request {:method :post :uri "/business/bpm/model" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-list-categories [params on-success on-error]
+  (request {:method :get :uri "/business/bpm/category" :params params
+            :on-success on-success :on-error on-error}))
+
 (defn bpm-get-form [id on-success on-error]
   (request {:method :get :uri (str "/business/bpm/form/" id)
             :on-success on-success :on-error on-error}))

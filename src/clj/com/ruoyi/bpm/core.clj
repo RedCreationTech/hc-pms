@@ -464,6 +464,18 @@
   (some-> (.singleResult (.taskId (.createTaskQuery (.getTaskService engine)) task-id))
           task->map))
 
+(defn historic-task-of
+  "按任务 id 查历史任务（含已完成任务的实例 id/办理人/节点 key），撤回等已办场景使用。"
+  [^ProcessEngine engine task-id]
+  (when-let [ht (some-> (.createHistoricTaskInstanceQuery (.getHistoryService engine))
+                        (.taskId task-id)
+                        .singleResult)]
+    {:task-id (.getId ^HistoricTaskInstance ht)
+     :name (.getName ^HistoricTaskInstance ht)
+     :assignee (.getAssignee ^HistoricTaskInstance ht)
+     :process-instance-id (.getProcessInstanceId ^HistoricTaskInstance ht)
+     :task-definition-key (.getTaskDefinitionKey ^HistoricTaskInstance ht)}))
+
 (defn todo-list
   "某人待办：候选人或已认领的任务。"
   [^ProcessEngine engine user]
@@ -637,21 +649,32 @@
    "add-sign"   {"enable" true "displayName" "加签"}
    "return"     {"enable" true "displayName" "退回"}})
 
+(def default-transactor-buttons
+  "办理人节点（nodeType=TRANSACTOR）默认按钮：只开「办理」，其余操作隐藏。"
+  {"approve"    {"enable" true "displayName" "办理"}
+   "reject"     {"enable" false "displayName" "驳回"}
+   "transfer"   {"enable" false "displayName" "转办"}
+   "delegate"   {"enable" false "displayName" "委派"}
+   "add-sign"   {"enable" false "displayName" "加签"}
+   "return"     {"enable" false "displayName" "退回"}})
+
 (defn buttons-of
   "合并节点 buttons 配置与默认配置，返回 {btn-key {\"enable\" bool \"displayName\" str}}。
-   nodeConfig JSON 解析后按钮 key/字段可能是 keyword 或字符串，两者都兼容；未配置时全部启用。"
-  [node-config]
-  (let [configured (or (:buttons node-config) {})
-        get-btn (fn [k] (let [b (or (get configured k) (get configured (keyword k)))]
-                          (if (map? b) b {})))]
-    (into {}
-          (map (fn [[k default-v]]
-                 (let [b (get-btn k)]
-                   [k {"enable" (let [v (or (find b :enable) (find b "enable"))]
-                                 (if v (boolean (val v)) true))
-                      "displayName" (or (:displayName b) (:display-name b)
-                                        (get b "displayName") (get default-v "displayName"))}])))
-          default-buttons)))
+   nodeConfig JSON 解析后按钮 key/字段可能是 keyword 或字符串，两者都兼容；
+   未配置时用 defaults（默认 default-buttons，办理人节点传 default-transactor-buttons）。"
+  ([node-config] (buttons-of node-config default-buttons))
+  ([node-config defaults]
+   (let [configured (or (:buttons node-config) {})
+         get-btn (fn [k] (let [b (or (get configured k) (get configured (keyword k)))]
+                           (if (map? b) b {})))]
+     (into {}
+           (map (fn [[k default-v]]
+                  (let [b (get-btn k)]
+                    [k {"enable" (let [v (or (find b :enable) (find b "enable"))]
+                                  (if v (boolean (val v)) (boolean (get default-v "enable"))))
+                       "displayName" (or (:displayName b) (:display-name b)
+                                         (get b "displayName") (get default-v "displayName"))}])))
+           defaults))))
 
 (defn- element-node-config
   "读取任意 FlowElement 的 nodeConfig 属性 JSON。"

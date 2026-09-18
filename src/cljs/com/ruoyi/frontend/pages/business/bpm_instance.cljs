@@ -96,26 +96,28 @@
             :render (fn [_ ^js record]
                       (let [instance (js->clj record :keywordize-keys true)
                             pid (:process_instance_id instance)
-                            running? (= "1" (:status instance))]
+                            running? (= "1" (:status instance))
+                            allow-cancel? (= "1" (str (:allow_cancel instance)))
+                            allow-withdraw? (= "1" (str (:allow_withdraw instance)))]
                         (r/as-element
                          [antd/space
                           [antd/button {:type "link" :size "small"
                                         :icon (r/as-element [:> EyeOutlined])
                                         :on-click #(open-detail pid)}
                            "详情"]
-                          (when running?
+                          (when (and running? allow-withdraw?)
                             [antd/popconfirm {:title "确认撤回到起始节点重新编辑?"
                                               :on-confirm #(on-withdraw-to-start pid)}
                              [antd/button {:type "link" :size "small"
                                            :icon (r/as-element [:> RollbackOutlined])}
                               "撤回"]])
-                          (when running?
+                          (when (and running? allow-cancel?)
                             [antd/button {:type "link" :size "small" :danger true
                                           :icon (r/as-element [:> StopOutlined])
                                           :on-click #(on-cancel pid)}
                              "取消"])])))}])
 
-(defn- detail-drawer [{:keys [pid data loading? diagram]}]
+(defn- detail-drawer [{:keys [pid data loading? diagram on-cancel]}]
   (let [data-val (or @data {})
         instance (or (:instance data-val) {})
         form (:form data-val)
@@ -169,17 +171,23 @@
     [antd/drawer {:title (str "流程详情 · " (:model_name model))
                   :open (boolean @pid) :size 900
                   :extra (r/as-element
-                          [antd/button {:size "small"
-                                        :icon (r/as-element [:> PrinterOutlined])
-                                        :on-click (fn []
-                                                    (let [iid (:instance_id (:instance data-val))]
-                                                      (api/bpm-print-data
-                                                       iid
-                                                       (fn [res] (if (= 200 (:code res))
-                                                                   (do-print! (:data res))
-                                                                   (antd/error! (str "加载打印数据失败: " (:msg res)))))
-                                                       (fn [_] (antd/error! "加载打印数据失败")))))}
-                           "打印"])
+                          [antd/space
+                           (when (and (:running? data-val) (= "1" (str (:allow_cancel model))))
+                             [antd/button {:size "small" :danger true
+                                           :icon (r/as-element [:> StopOutlined])
+                                           :on-click #(on-cancel pid)}
+                              "取消"])
+                           [antd/button {:size "small"
+                                         :icon (r/as-element [:> PrinterOutlined])
+                                         :on-click (fn []
+                                                     (let [iid (:instance_id (:instance data-val))]
+                                                       (api/bpm-print-data
+                                                        iid
+                                                        (fn [res] (if (= 200 (:code res))
+                                                                    (do-print! (:data res))
+                                                                    (antd/error! (str "加载打印数据失败: " (:msg res)))))
+                                                        (fn [_] (antd/error! "加载打印数据失败")))))}
+                            "打印"]])
                   :onClose #(reset! pid nil)}
      (if @loading?
        [:div {:style {:padding 48 :textAlign "center"}} "加载中..."]
@@ -254,4 +262,5 @@
                                                           (do (antd/success! "已取消") (reset! cancel-pid nil) (refresh))
                                                           (antd/error! (str "取消失败: " (:msg res)))))
                                                       (fn [_] (antd/error! "取消失败"))))}]
-     [detail-drawer {:pid detail-pid :data detail-data :loading? detail-loading? :diagram detail-diagram}]]))
+     [detail-drawer {:pid detail-pid :data detail-data :loading? detail-loading? :diagram detail-diagram
+                     :on-cancel (fn [pid] (reset! cancel-pid pid))}]]))

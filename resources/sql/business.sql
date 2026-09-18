@@ -42,6 +42,7 @@ SELECT m.model_id, m.model_key, m.model_name, m.category_id, m.version,
        m.status, m.create_by, m.create_time, m.remark,
        m.process_id_rule, m.auto_approval_type, m.name_rule, m.summary_fields,
        m.print_template_enable, m.print_template_html, m.webhooks,
+       m.allow_cancel, m.allow_withdraw,
        c.name AS category_name
 FROM biz_bpm_model m
 LEFT JOIN biz_bpm_category c ON m.category_id = c.category_id
@@ -71,12 +72,14 @@ INSERT INTO biz_bpm_model (model_key, model_name, category_id, version, form_typ
                            form_json, fields_permission, bpmn_xml, deployment_id, status,
                            process_id_rule, auto_approval_type, name_rule, summary_fields,
                            print_template_enable, print_template_html, webhooks,
+                           allow_cancel, allow_withdraw,
                            create_by, create_time, remark)
 VALUES (:model_key, :model_name, :category_id, :version, :form_type,
         :form_id, :form_custom_create_path, :form_custom_view_path,
         :form_json, :fields_permission, :bpmn_xml, :deployment_id, :status,
         :process_id_rule, :auto_approval_type, :name_rule, :summary_fields,
         :print_template_enable, :print_template_html, :webhooks,
+        :allow_cancel, :allow_withdraw,
         :create_by, CURRENT_TIMESTAMP, :remark)
 --;;
 
@@ -96,7 +99,9 @@ SET model_name = :model_name, category_id = :category_id, form_type = :form_type
     summary_fields = COALESCE(:summary_fields, summary_fields),
     print_template_enable = COALESCE(:print_template_enable, print_template_enable),
     print_template_html = COALESCE(:print_template_html, print_template_html),
-    webhooks = COALESCE(:webhooks, webhooks)
+    webhooks = COALESCE(:webhooks, webhooks),
+    allow_cancel = COALESCE(:allow_cancel, allow_cancel),
+    allow_withdraw = COALESCE(:allow_withdraw, allow_withdraw)
 WHERE model_id = :model_id
 --;;
 
@@ -151,7 +156,7 @@ DELETE FROM biz_bpm_form WHERE form_id = :form_id
 SELECT i.instance_id, i.process_instance_id, i.model_id, i.model_key,
        i.business_key, i.form_data_json, i.starter_id, i.status, i.current_task,
        i.name, i.bill_code, i.create_time,
-       m.model_name, m.summary_fields, m.form_id
+       m.model_name, m.summary_fields, m.form_id, m.allow_cancel, m.allow_withdraw
 FROM biz_bpm_instance i
 LEFT JOIN biz_bpm_model m ON i.model_id = m.model_id
 WHERE (:starter_id IS NULL OR i.starter_id = :starter_id)

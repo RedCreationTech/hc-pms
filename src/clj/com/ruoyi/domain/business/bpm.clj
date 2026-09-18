@@ -12,6 +12,8 @@
 
 ;; ── 抄送节点处理器（COPY_TASK）─────────────────────────────────────────
 
+(declare resolve-candidate-users list-all-users)
+
 (defn- expand-copy-candidates
   "把抄送节点配置(copy-user-ids/copy-role-ids)展开为用户名列表。"
   [node-config users]
@@ -51,21 +53,25 @@
 
 (defn- copy-task-handler
   "COPY_TASK 节点 create 事件处理：为每个候选人插 biz_bpm_copy 记录，然后自动完成任务。
-   候选人优先取 nodeConfig 的 copy-user-ids/copy-role-ids，否则从 identityLink 展开。"
+   候选人解析优先级：nodeConfig 抄送策略(candidate-strategy，策略制，复用审批人解析器)
+   → 旧键 copy-user-ids/copy-role-ids 兼容回退 → BPMN 候选人 identityLink 展开。"
   [engine query-fn ^org.flowable.task.service.delegate.DelegateTask task node-config]
   (let [ts (.getTaskService ^org.flowable.engine.ProcessEngine engine)
         tid (.getId task)
         pid (.getProcessInstanceId task)
-        users (query-fn :list-users {:user_name nil :phonenumber nil :status nil
-                                     :begin_time nil :end_time nil :dept_filter_enabled 0
-                                     :dept_ids [0] :data_user_id nil :page_size 100000 :offset 0})
-        from-config (expand-copy-candidates node-config users)
-        candidates (if (seq from-config)
-                     from-config
-                     (candidates-from-links task users
-                                            (query-fn :list-all-depts {})
-                                            (query-fn :list-user-roles {})
-                                            (query-fn :list-user-posts {})))
+        users (list-all-users query-fn)
+        depts (query-fn :list-all-depts {})
+        strategy (some-> (:candidate-strategy node-config) str)
+        resolved (when (seq strategy)
+                   (resolve-candidate-users engine query-fn task strategy
+                                            (or (:candidate-param node-config) {})
+                                            node-config users depts))
+        legacy (expand-copy-candidates node-config users)
+        candidates (or (seq resolved)
+                       (seq legacy)
+                       (candidates-from-links task users depts
+                                              (query-fn :list-user-roles {})
+                                              (query-fn :list-user-posts {})))
         create-by (or (some-> (.getVariable task "startUserId") str) "")]
     (doseq [u candidates]
       (query-fn :bpm/insert-copy
@@ -94,6 +100,81 @@
   (query-fn :list-users {:user_name nil :phonenumber nil :status nil
                          :begin_time nil :end_time nil :dept_filter_enabled 0
                          :dept_ids [0] :data_user_id nil :page_size 100000 :offset 0}))
+
+(defn- resolve-candidate-users
+  "按候选策略解析用户名列表（审批/办理节点 create 与抄送节点共用的策略解析器）。
+   返回 nil 表示解析不到候选（调用方决定为空策略/兼容回退）。"
+  [engine query-fn ^org.flowable.task.service.delegate.DelegateTask task strategy param node-config users depts]
+  (let [start-user (some-> (.getVariable task "startUserId") str)
+        user-name-of (fn [id]
+                       (:user_name (first (filter #(= (str id) (str (:user_id %))) users))))
+        user-names-of (fn [ids] (distinct (vec (keep user-name-of ids))))
+        leaders-of (fn [dept-id]
+                     (when-let [d (first (filter #(= (str dept-id) (str (:dept_id %))) depts))]
+                       (when-let [leader (:leader d)]
+                         (user-names-of [leader]))))]
+    (case strategy
+      "INITIATOR_SELF"
+      (when (seq start-user) [start-user])
+      "USER_GROUP"
+      (let [gids (set (map str (:user-group-ids param)))
+            groups (query-fn :bpmmgmt/group-list {:name nil :page_size 100000 :offset 0})
+            ids (distinct (mapcat #(str/split (str (:user_ids %)) #"[,\s]+")
+                                  (filter #(contains? gids (str (:group_id %))) groups)))]
+        (user-names-of ids))
+      "FORM_USER"
+      (let [f (:form-user-field param)
+            v (when f (.getVariable task (name f)))]
+        (cond
+          (and (coll? v) (seq v)) (user-names-of v)
+          (and (string? v) (seq v))
+          (if (some #(= v (:user_name %)) users) [v] (user-names-of [v]))
+          (some? v) (user-names-of [v])
+          :else nil))
+      "FORM_DEPT_LEADER"
+      (let [f (:form-dept-field param)
+            v (when f (.getVariable task (name f)))]
+        (leaders-of v))
+      "EXPRESSION"
+      (let [expr (or (:expression node-config)
+                     (when-let [eid (:expression-id node-config)]
+                       (:expression (query-fn :bpmmgmt/find-expression-by-id
+                                              {:expression_id eid}))))
+            execution (when-let [pid (.getProcessInstanceId task)]
+                        (some-> (.createExecutionQuery (.getRuntimeService engine))
+                                (.processInstanceId pid)
+                                (.singleResult)))]
+        (when (and expr execution)
+          (let [v (try
+                    (-> (.getExpressionManager (.getProcessEngineConfiguration engine))
+                        (.createExpression expr)
+                        (.getValue execution))
+                    (catch Exception e
+                      (log/warn "[bpm-node] 表达式求值失败:" (.getMessage e))))]
+            (cond
+              (and (coll? v) (seq v)) (mapv str v)
+              (and (string? v) (seq v)) [v]
+              (nil? v) nil
+              :else [(str v)]))))
+      "START_USER_DEPT_LEADER"
+      (when start-user
+        (leaders-of (:dept_id (first (filter #(= start-user (str (:user_name %))) users)))))
+      "MULTI_LEVEL_DEPT_LEADER"
+      (when start-user
+        (loop [did (:dept_id (first (filter #(= start-user (str (:user_name %))) users)))
+               n 0 acc []]
+          (if (or (nil? did) (>= n 3))
+            (distinct acc)
+            (recur (:parent_id (first (filter #(= did (:dept_id %)) depts)))
+                   (inc n)
+                   (concat acc (leaders-of did))))))
+      "START_USER_SELECT"
+      (let [v (some-> (.getVariable task "startUserSelected") seq)]
+        (when (seq v) (user-names-of v)))
+      "APPROVE_USER_SELECT"
+      (let [v (some-> (.getVariable task "approveUserSelected") seq)]
+        (when (seq v) (user-names-of v)))
+      nil)))
 
 ;; ── Phase 3 自动去重（模型级 auto_approval_type）────────────────────────
 
@@ -152,9 +233,10 @@
         AUTO_PASS 自动通过 / AUTO_REJECT 自动驳回 / ASSIGN_USER 指定成员 / TO_ADMIN(默认) 转交管理员
    数据库查询按需延迟执行：静态策略且候选已烘焙时零查询。"
   [engine query-fn]
-  (let [user-name-of (fn [users id]
-                       (:user_name (first (filter #(= (str id) (str (:user_id %))) users))))
-        user-names-of (fn [users ids] (distinct (vec (keep #(user-name-of users %) ids))))
+  (let [user-names-of (fn [users ids]
+                        (distinct (vec (keep (fn [id]
+                                               (:user_name (first (filter #(= (str id) (str (:user_id %))) users))))
+                                             ids))))
         empty-action (fn [node-config users]
                        (let [eh (:assign-empty-handler node-config)
                              etype (or (:type eh) "TO_ADMIN")]
@@ -163,75 +245,7 @@
                            "AUTO_REJECT" [:complete false]
                            "ASSIGN_USER" (let [names (user-names-of users (:user-ids eh))]
                                            (if (seq names) [:assign names] [:assign ["admin"]]))
-                           [:assign ["admin"]])))
-        resolve-strategy (fn [task strategy param node-config users depts]
-                           (let [start-user (some-> (.getVariable task "startUserId") str)
-                                 leaders-of (fn [dept-id]
-                                              (when-let [d (first (filter #(= (str dept-id) (str (:dept_id %))) depts))]
-                                                (when-let [leader (:leader d)]
-                                                  (user-names-of users [leader]))))]
-                             (case strategy
-                               "INITIATOR_SELF"
-                               (when (seq start-user) [start-user])
-                               "USER_GROUP"
-                               (let [gids (set (map str (:user-group-ids param)))
-                                     groups (query-fn :bpmmgmt/group-list {:name nil :page_size 100000 :offset 0})
-                                     ids (distinct (mapcat #(str/split (str (:user_ids %)) #"[,\s]+")
-                                                           (filter #(contains? gids (str (:group_id %))) groups)))]
-                                 (user-names-of users ids))
-                               "FORM_USER"
-                               (let [f (:form-user-field param)
-                                     v (when f (.getVariable task (name f)))]
-                                 (cond
-                                   (and (coll? v) (seq v)) (user-names-of users v)
-                                   (and (string? v) (seq v))
-                                   (if (some #(= v (:user_name %)) users) [v] (user-names-of users [v]))
-                                   (some? v) (user-names-of users [v])
-                                   :else nil))
-                               "FORM_DEPT_LEADER"
-                               (let [f (:form-dept-field param)
-                                     v (when f (.getVariable task (name f)))]
-                                 (leaders-of v))
-                               "EXPRESSION"
-                               (let [expr (or (:expression node-config)
-                                              (when-let [eid (:expression-id node-config)]
-                                                (:expression (query-fn :bpmmgmt/find-expression-by-id
-                                                                       {:expression_id eid}))))
-                                     execution (when-let [pid (.getProcessInstanceId task)]
-                                                 (some-> (.createExecutionQuery (.getRuntimeService engine))
-                                                         (.processInstanceId pid)
-                                                         (.singleResult)))]
-                                 (when (and expr execution)
-                                   (let [v (try
-                                             (-> (.getExpressionManager (.getProcessEngineConfiguration engine))
-                                                 (.createExpression expr)
-                                                 (.getValue execution))
-                                             (catch Exception e
-                                               (log/warn "[bpm-node] 表达式求值失败:" (.getMessage e))))]
-                                     (cond
-                                       (and (coll? v) (seq v)) (mapv str v)
-                                       (and (string? v) (seq v)) [v]
-                                       (nil? v) nil
-                                       :else [(str v)]))))
-                               "START_USER_DEPT_LEADER"
-                               (when start-user
-                                 (leaders-of (:dept_id (first (filter #(= start-user (str (:user_name %))) users)))))
-                               "MULTI_LEVEL_DEPT_LEADER"
-                               (when start-user
-                                 (loop [did (:dept_id (first (filter #(= start-user (str (:user_name %))) users)))
-                                        n 0 acc []]
-                                   (if (or (nil? did) (>= n 3))
-                                     (distinct acc)
-                                     (recur (:parent_id (first (filter #(= did (:dept_id %)) depts)))
-                                            (inc n)
-                                            (concat acc (leaders-of did))))))
-                               "START_USER_SELECT"
-                               (let [v (some-> (.getVariable task "startUserSelected") seq)]
-                                 (when (seq v) (user-names-of users v)))
-                               "APPROVE_USER_SELECT"
-                               (let [v (some-> (.getVariable task "approveUserSelected") seq)]
-                                 (when (seq v) (user-names-of users v)))
-                               nil)))]
+                           [:assign ["admin"]])))]
     (fn [^org.flowable.task.service.delegate.DelegateTask task node-config]
       (let [strategy (:candidate-strategy node-config)
             param (or (:candidate-param node-config) {})
@@ -242,48 +256,48 @@
         (apply-auto-approval
          engine query-fn task
          (when-not (contains? multi-instance-methods method)
-          (if (contains? dynamic-strategies strategy)
-            ;; ── 动态解析策略（含 5 种新策略）：create 时解析候选人 ──
-            (let [users @users*
-                  depts @depts*
-                  start-user (some-> (.getVariable task "startUserId") str)
-                  leaders-of (fn [dept-id]
-                               (when-let [d (first (filter #(= (str dept-id) (str (:dept_id %))) depts))]
-                                 (when-let [leader (:leader d)]
-                                   (user-names-of users [leader]))))
-                  base (resolve-strategy task strategy param node-config users depts)
-                  start-handler (:assign-start-user-handler-type node-config)
-                  candidates (distinct (vec (keep identity base)))
-                  candidates (cond
-                               (= start-handler "SKIP") (remove #(= start-user %) candidates)
-                               (= start-handler "ASSIGN_DEPT_LEADER")
-                               (if (some #(= start-user %) candidates)
-                                 (concat (remove #(= start-user %) candidates)
-                                         (when start-user
-                                           (leaders-of (:dept_id (first (filter #(= start-user (str (:user_name %))) users))))))
-                                 candidates)
-                               :else candidates)]
-              (cond
-                (seq candidates) (if random? [:assign [(rand-nth candidates)]] [:candidates candidates])
-                (= start-handler "SKIP") [:complete nil]
-                :else (empty-action node-config users)))
-            ;; ── 静态策略：候选由引擎从 BPMN 属性烘焙，监听器只做 RANDOM/为空兜底 ──
-            (let [links (seq (.getCandidates task))
-                  user-links (vec (keep (fn [^org.flowable.identitylink.api.IdentityLink l]
-                                          (.getUserId l))
-                                        links))]
-              (cond
-                (seq user-links)
-                (if random? [:assign [(rand-nth user-links)]] nil)
-                (seq links)
-                (let [users @users*
-                      cands (candidates-from-links task users @depts*
-                                                   (query-fn :list-user-roles {})
-                                                   (query-fn :list-user-posts {}))]
-                  (if (seq cands)
-                    (if random? [:assign [(rand-nth cands)]] nil)
-                    (empty-action node-config users)))
-                :else (empty-action node-config @users*))))))))))
+           (if (contains? dynamic-strategies strategy)
+             ;; ── 动态解析策略（含 5 种新策略）：create 时解析候选人 ──
+             (let [users @users*
+                   depts @depts*
+                   start-user (some-> (.getVariable task "startUserId") str)
+                   leaders-of (fn [dept-id]
+                                (when-let [d (first (filter #(= (str dept-id) (str (:dept_id %))) depts))]
+                                  (when-let [leader (:leader d)]
+                                    (user-names-of users [leader]))))
+                   base (resolve-candidate-users engine query-fn task strategy param node-config users depts)
+                   start-handler (:assign-start-user-handler-type node-config)
+                   candidates (distinct (vec (keep identity base)))
+                   candidates (cond
+                                (= start-handler "SKIP") (remove #(= start-user %) candidates)
+                                (= start-handler "ASSIGN_DEPT_LEADER")
+                                (if (some #(= start-user %) candidates)
+                                  (concat (remove #(= start-user %) candidates)
+                                          (when start-user
+                                            (leaders-of (:dept_id (first (filter #(= start-user (str (:user_name %))) users))))))
+                                  candidates)
+                                :else candidates)]
+               (cond
+                 (seq candidates) (if random? [:assign [(rand-nth candidates)]] [:candidates candidates])
+                 (= start-handler "SKIP") [:complete nil]
+                 :else (empty-action node-config users)))
+             ;; ── 静态策略：候选由引擎从 BPMN 属性烘焙，监听器只做 RANDOM/为空兜底 ──
+             (let [links (seq (.getCandidates task))
+                   user-links (vec (keep (fn [^org.flowable.identitylink.api.IdentityLink l]
+                                           (.getUserId l))
+                                         links))]
+               (cond
+                 (seq user-links)
+                 (if random? [:assign [(rand-nth user-links)]] nil)
+                 (seq links)
+                 (let [users @users*
+                       cands (candidates-from-links task users @depts*
+                                                    (query-fn :list-user-roles {})
+                                                    (query-fn :list-user-posts {}))]
+                   (if (seq cands)
+                     (if random? [:assign [(rand-nth cands)]] nil)
+                     (empty-action node-config users)))
+                 :else (empty-action node-config @users*))))))))))
 
 (declare fire-webhooks! fire-node-listener!)
 
@@ -446,25 +460,52 @@
   (-> (query-fn :bpm/find-model-by-key {:model_key key})
       (row->json [:form_json :bpmn_xml :webhooks])))
 
+(def ^:private model-key-pattern
+  "流程 key 校验：字母/下划线开头，可含字母数字 _ - . $。"
+  #"^[a-zA-Z_][-\w.$]*$")
+
+(defn- default-model-bpmn
+  "新建模型的默认 BPMN 骨架（发起人 → 结束），设计器打开即可继续添加节点。"
+  [model-key]
+  (str "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+       "<definitions xmlns=\"http://www.omg.org/spec/BPMN/20100524/MODEL\""
+       " xmlns:flowable=\"http://flowable.org/bpmn\" id=\"def\" targetNamespace=\"http://bpmn.io/schema/bpmn\">"
+       "<process id=\"" model-key "\" name=\"流程\" isExecutable=\"true\">"
+       "<startEvent id=\"start\" name=\"发起人\"/>"
+       "<endEvent id=\"end\" name=\"结束\"/>"
+       "<sequenceFlow id=\"f1\" sourceRef=\"start\" targetRef=\"end\"/>"
+       "</process></definitions>"))
+
 (defn model-create
+  "新建流程模型：校验 key 格式(字母/下划线开头，可含字母数字与 _ - . $)与重名，
+   缺省字段补默认值（默认 BPMN 骨架、allow_cancel/allow_withdraw 默认 '1'）。"
   [{:keys [query-fn]} params user]
-  (query-fn :bpm/insert-model
-            {:model_key (:model_key params) :model_name (:model_name params)
-             :category_id (or (:category_id params) 0) :version 1
-             :form_type (or (:form_type params) "0")
-             :form_id (or (:form_id params) 0)
-             :form_custom_create_path (or (:form_custom_create_path params) "")
-             :form_custom_view_path (or (:form_custom_view_path params) "")
-             :form_json (:form_json params) :fields_permission (:fields_permission params)
-             :bpmn_xml (:bpmn_xml params)
-             :deployment_id (:deployment_id params) :status (or (:status params) "1")
-             :process_id_rule (:process_id_rule params)
-             :auto_approval_type (or (:auto_approval_type params) "NONE")
-             :name_rule (:name_rule params) :summary_fields (:summary_fields params)
-             :print_template_enable (or (:print_template_enable params) "0")
-              :webhooks (:webhooks params)
-             :print_template_html (:print_template_html params)
-             :create_by (or user "") :remark (or (:remark params) "")}))
+  (let [key (some-> (:model_key params) str str/trim)]
+    (when (str/blank? key)
+      (throw (ex-info "流程key不能为空" {:model_key (:model_key params)})))
+    (when-not (re-matches model-key-pattern key)
+      (throw (ex-info "流程key格式不正确：须以字母或下划线开头，只能包含字母、数字、_ - . $" {})))
+    (when (query-fn :bpm/find-model-by-key {:model_key key})
+      (throw (ex-info (str "流程key已存在：" key) {:model_key key})))
+    (query-fn :bpm/insert-model
+              {:model_key key :model_name (or (:model_name params) key)
+               :category_id (or (:category_id params) 0) :version 1
+               :form_type (or (:form_type params) "0")
+               :form_id (or (:form_id params) 0)
+               :form_custom_create_path (or (:form_custom_create_path params) "")
+               :form_custom_view_path (or (:form_custom_view_path params) "")
+               :form_json (:form_json params) :fields_permission (:fields_permission params)
+               :bpmn_xml (or (:bpmn_xml params) (default-model-bpmn key))
+               :deployment_id (:deployment_id params) :status (or (:status params) "1")
+               :process_id_rule (:process_id_rule params)
+               :auto_approval_type (or (:auto_approval_type params) "NONE")
+               :name_rule (:name_rule params) :summary_fields (:summary_fields params)
+               :print_template_enable (or (:print_template_enable params) "0")
+               :webhooks (:webhooks params)
+               :print_template_html (:print_template_html params)
+               :allow_cancel (or (:allow_cancel params) "1")
+               :allow_withdraw (or (:allow_withdraw params) "1")
+               :create_by (or user "") :remark (or (:remark params) "")})))
 
 (defn model-update
   [{:keys [query-fn]} params user]
@@ -483,6 +524,8 @@
              :print_template_enable (:print_template_enable params)
              :webhooks (:webhooks params)
              :print_template_html (:print_template_html params)
+             :allow_cancel (:allow_cancel params)
+             :allow_withdraw (:allow_withdraw params)
              :update_by (or user "") :remark (:remark params)}))
 
 (defn model-delete
@@ -551,6 +594,8 @@
                :print_template_enable (:print_template_enable m)
                :print_template_html (:print_template_html m)
                :webhooks (:webhooks m)
+               :allow_cancel (:allow_cancel m)
+               :allow_withdraw (:allow_withdraw m)
                :status "1" :update_by (or user "") :remark (:remark m)})
     {:bpmn_xml xml}))
 
@@ -677,7 +722,8 @@
 
 (defn task-detail
   "任务详情：任务信息 + 实例表单数据 + 表单 schema（审批弹窗表单回显）。
-   Phase 2：附带当前节点操作按钮配置(buttons)、签名/意见必填/默认驳回节点配置。"
+   Phase 2：附带当前节点操作按钮配置(buttons)、签名/意见必填/默认驳回节点配置。
+   P0：办理人节点(TRANSACTOR)默认按钮为「办理」；模型权限开关 allow_cancel/allow_withdraw 一并返回。"
   [{:keys [engine query-fn]} task-id]
   (let [task-obj (some-> (.taskId (.createTaskQuery (.getTaskService engine)) task-id) .singleResult)
         _ (when-not task-obj (throw (ex-info "任务不存在" {:task-id task-id})))
@@ -691,12 +737,16 @@
                  (if (string? fj) (json/parse-string fj true) fj))
         inst-data (row->json inst [:form_data_json])
         node-config (bpm/node-config-of engine task-obj)
-        reject-handler (:reject-handler node-config)]
+        reject-handler (:reject-handler node-config)
+        transactor? (= "TRANSACTOR" (get-in node-config [:nodeType]))]
     {:task task
      :model {:model-id (:model_id model)
-             :model_name (:model_name model) :model_key (:model_key model)}
+             :model_name (:model_name model) :model_key (:model_key model)
+             :allow_cancel (:allow_cancel model) :allow_withdraw (:allow_withdraw model)}
      :fields-permission (or (:fields-permission node-config) {})
-     :buttons (bpm/buttons-of node-config)
+     :buttons (if transactor?
+                (bpm/buttons-of node-config bpm/default-transactor-buttons)
+                (bpm/buttons-of node-config))
      :sign-enable (boolean (or (:sign-enable node-config) (:signEnable node-config)))
      :reason-require (boolean (or (:reason-require node-config) (:reasonRequire node-config)))
      :reject-return-node (or (:return-node-id reject-handler) (:return-node reject-handler)
@@ -705,7 +755,7 @@
 
 (defn todo-list-with-buttons
   "某人待办（候选人或已认领），每行附带当前节点操作按钮配置(Buttons)、
-   实例名/单号与模型摘要(summary)。"
+   实例名/单号与模型摘要(summary)；办理人节点默认按钮为「办理」。"
   [{:keys [engine query-fn]} user]
   (let [ts (.getTaskService engine)
         tasks (.list (.taskCandidateOrAssigned (.createTaskQuery ts) user))]
@@ -713,14 +763,29 @@
             (let [inst (row->json (query-fn :bpm/find-instance-by-pid
                                             {:process_instance_id (.getProcessInstanceId t)})
                                   [:form_data_json])
-                  model (when inst (query-fn :bpm/find-model-by-id {:model_id (:model_id inst)}))]
+                  model (when inst (query-fn :bpm/find-model-by-id {:model_id (:model_id inst)}))
+                  node-config (bpm/node-config-of engine t)]
               (assoc (bpm/task->map* t)
-                     :buttons (bpm/buttons-of (bpm/node-config-of engine t))
+                     :buttons (if (= "TRANSACTOR" (get-in node-config [:nodeType]))
+                                (bpm/buttons-of node-config bpm/default-transactor-buttons)
+                                (bpm/buttons-of node-config))
                      :instance-name (:name inst)
                      :bill-code (:bill_code inst)
                      :summary (summary-of query-fn (:summary_fields model)
                                           (:form_id model) (:form_data_json inst)))))
           tasks)))
+
+(defn done-list-with-model-flags
+  "某人已办（Flowable 历史），每行附带所属模型的权限开关 allow_cancel/allow_withdraw
+   （P0-4：前端据此显隐撤回按钮）。实例/模型缺失时默认允许。"
+  [{:keys [engine query-fn]} user]
+  (mapv (fn [row]
+          (let [inst (query-fn :bpm/find-instance-by-pid {:process_instance_id (:process-instance-id row)})
+                model (when inst (query-fn :bpm/find-model-by-id {:model_id (:model_id inst)}))]
+            (assoc row
+                   :allow_cancel (or (:allow_cancel model) "1")
+                   :allow_withdraw (or (:allow_withdraw model) "1"))))
+        (bpm/done-list engine user)))
 
 (defn- reason-required?
   "任务节点是否配置审批意见必填。"
@@ -744,7 +809,8 @@
   (bpm/reject! engine task-id user comment return-node-id sign-pic-url))
 
 (defn instance-history
-  "流程实例的完整历史轨迹：业务侧 + 活动轨迹 + 任务级审批历史 + 表单回显数据。"
+  "流程实例的完整历史轨迹：业务侧 + 活动轨迹 + 任务级审批历史 + 表单回显数据。
+   P0-4：模型权限开关 allow_cancel/allow_withdraw 随模型返回，前端据此显隐取消/撤回按钮。"
   [{:keys [engine query-fn]} pid]
   (let [biz (query-fn :bpm/find-instance-by-pid {:process_instance_id pid})
         _ (when-not biz (throw (ex-info "流程实例不存在" {:pid pid})))
@@ -754,7 +820,8 @@
         inst (row->json biz [:form_data_json])]
     {:instance inst
      :model {:model_id (:model_id model) :model_name (:model_name model)
-             :model_key (:model_key model) :form_type (:form_type model)}
+             :model_key (:model_key model) :form_type (:form_type model)
+             :allow_cancel (:allow_cancel model) :allow_withdraw (:allow_withdraw model)}
      :form {:schema (when-let [fj (:form_json form)]
                       (if (string? fj) (json/parse-string fj true) fj))
             :values (get inst :form_data_json)}
@@ -840,19 +907,36 @@
   (bpm/return-list engine task-id))
 
 (defn instance-cancel!
-  "取消流程实例：发起人或管理员。业务状态置为 CANCELED。"
+  "取消流程实例：发起人或管理员。业务状态置为 CANCELED。
+   P0-4：模型 allow_cancel=0 时发起人不可撤销审批中的申请（管理员不受限）。"
   [{:keys [engine query-fn]} process-instance-id reason user admin?]
   (let [inst (query-fn :bpm/find-instance-by-pid {:process_instance_id process-instance-id})]
     (when-not inst (throw (ex-info "流程实例不存在" {:process-instance-id process-instance-id})))
     (when-not (or admin? (= user (:starter_id inst)))
       (throw (ex-info "只有发起人或管理员可以取消流程" {:process-instance-id process-instance-id})))
+    (when-not admin?
+      (let [model (query-fn :bpm/find-model-by-id {:model_id (:model_id inst)})]
+        (when (and model (= "0" (str (:allow_cancel model))))
+          (throw (ex-info "该流程模型已禁止发起人撤销审批中的申请"
+                          {:process-instance-id process-instance-id})))))
     (bpm/cancel-instance! engine process-instance-id reason)
     (query-fn :bpm/update-instance-status {:process_instance_id process-instance-id
                                            :status "CANCELED" :current_task ""})))
 
+(defn- check-model-withdraw-allowed!
+  "模型 allow_withdraw=0 时禁止审批人撤回（P0-4 审批人权限开关）。"
+  [query-fn pid]
+  (let [inst (query-fn :bpm/find-instance-by-pid {:process_instance_id pid})
+        model (when inst (query-fn :bpm/find-model-by-id {:model_id (:model_id inst)}))]
+    (when (and model (= "0" (str (:allow_withdraw model))))
+      (throw (ex-info "该流程模型已禁止审批人撤回" {:process-instance-id pid})))))
+
 (defn task-withdraw!
   "审批人撤回自己刚审完的任务（要求下一节点任务未完成）。"
-  [{:keys [engine]} task-id user]
+  [{:keys [engine query-fn]} task-id user]
+  (let [ht (bpm/historic-task-of engine task-id)]
+    (when ht
+      (check-model-withdraw-allowed! query-fn (:process-instance-id ht))))
   (bpm/withdraw! engine task-id user))
 
 (defn task-withdraw-to-start!
@@ -862,7 +946,9 @@
     (when-not inst (throw (ex-info "流程实例不存在" {:process-instance-id process-instance-id})))
     (when-not (or admin? (= user (:starter_id inst)))
       (throw (ex-info "只有发起人或管理员可以撤回流程" {:process-instance-id process-instance-id})))
+    (check-model-withdraw-allowed! query-fn process-instance-id)
     (bpm/withdraw-to-start! engine process-instance-id)))
+
 
 (defn task-copy!
   "手动抄送：为每个抄送人插 biz_bpm_copy 记录。"
@@ -991,6 +1077,8 @@
                  :print_template_enable (or (:print_template_enable m) "0")
                  :webhooks (:webhooks m)
                  :print_template_html (:print_template_html m)
+                 :allow_cancel (or (:allow_cancel m) "1")
+                 :allow_withdraw (or (:allow_withdraw m) "1")
                  :create_by (or user "") :remark (or (:remark m) "")})
       (let [copied (query-fn :bpm/find-model-by-key {:model_key new-key})]
         {:model_id (:model_id copied)
