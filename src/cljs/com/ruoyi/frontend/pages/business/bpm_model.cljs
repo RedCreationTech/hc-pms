@@ -114,7 +114,7 @@
       [antd/button {:size "small" :type "primary" :icon (r/as-element [:> SaveOutlined]) :on-click on-save} "保存流程"]]
      ;; 隐藏文件输入（打开本地文件）
      [:input {:type "file" :ref file-ref :accept ".xml,.bpmn" :style {:display "none"}
-              :on-change (fn [e] (let [f (-> e .-target .-files (aget 0))]
+              :onChange (fn [e] (let [f (-> e .-target .-files (aget 0))]
                                    (when f (on-import-file f))))}]]))
 
 (defn- props-panel
@@ -219,9 +219,39 @@
     [antd/button {:size "small" :on-click on-close} "关闭"]]
    [bpmfd/bpm-flow-designer {:model-id model-id}]])
 
+(def ^:private webhook-events
+  [{:key "process_start" :label "流程发起 (process_start)"}
+   {:key "process_end" :label "流程结束 (process_end)"}
+   {:key "task_start" :label "任务创建 (task_start)"}
+   {:key "task_end" :label "任务完成 (task_end)"}])
+
+(defn- kv-editor
+  "key-value 行编辑器（Webhook headers / bodyParams）。"
+  [label rows on-change]
+  [:div {:style {:marginTop 6}}
+   [:div {:style {:fontSize 12 :color "#909399" :marginBottom 4}} label]
+   (doall
+    (for [[i row] (map-indexed vector (or rows []))]
+      ^{:key i}
+      [:div {:style {:display "flex" :gap 6 :marginBottom 4}}
+       [:input {:style {:flex 1 :padding "4px 8px" :border "1px solid #d9d9d9" :borderRadius 4}
+                :placeholder "参数名" :value (:key row)
+                :onChange #(on-change (assoc (vec (or rows [])) i
+                                              (assoc row :key (-> % .-target .-value))))}]
+       [:input {:style {:flex 1 :padding "4px 8px" :border "1px solid #d9d9d9" :borderRadius 4}
+                :placeholder "值（支持 ${字段}）" :value (:value row)
+                :onChange #(on-change (assoc (vec (or rows [])) i
+                                              (assoc row :value (-> % .-target .-value))))}]
+       [:a {:style {:color "#f56c6c" :fontSize 12}
+            :on-click #(on-change (vec (keep-indexed (fn [j r] (when (not= j i) r)) (or rows []))))}
+        "删除"]]))
+   [:a {:style {:fontSize 12 :color "#409eff"}
+        :on-click #(on-change (conj (vec (or rows [])) {:key "" :value ""}))}
+    "＋ 添加一行"]])
+
 (defn- extra-tab
-  "更多设置：备注 + Phase 3 治理能力（编号规则/自动去重/标题规则/摘要字段/打印模板）。"
-  [{:keys [mremark set-mremark! mauto-type set-mauto-type! mname-rule set-mname-rule!
+  "更多设置：备注 + Phase 3/4 治理能力（编号规则/自动去重/标题规则/摘要字段/打印模板/Webhook）。"
+  [{:keys [mwebhooks set-mwebhooks! mremark set-mremark! mauto-type set-mauto-type! mname-rule set-mname-rule!
            mprocess-rule set-mprocess-rule! msummary-fields set-msummary-fields!
            mprint-enable set-mprint-enable! mprint-html set-mprint-html!
            form-fields]}]
@@ -278,6 +308,25 @@
         (doall (for [f form-fields]
                  ^{:key (:field f)}
                  [antd/select-option {:value (:field f)} (:title f)]))]]
+      (section "流程 Webhook（HTTP 回调）")
+      (doall
+       (for [{:keys [key label]} webhook-events]
+         (let [hook (get mwebhooks (keyword key) {})
+               enabled? (boolean (:enable hook))
+               upd! (fn [k v] (set-mwebhooks! (assoc mwebhooks (keyword key) (assoc hook k v))))]
+           ^{:key key}
+           [:div {:style {:border "1px solid #f0f0f0" :borderRadius 6 :padding 10 :marginBottom 8}}
+            [:div {:style {:display "flex" :gap 8 :alignItems "center"}}
+             [antd/switch {:size "small" :checked enabled?
+                           :onChange #(upd! :enable (boolean %))}]
+             [:span {:style {:fontSize 13 :fontWeight 500}} label]]
+            (when enabled?
+              [:div {:style {:marginTop 8}}
+               [:input {:style {:width "100%" :padding "5px 8px" :border "1px solid #d9d9d9" :borderRadius 4}
+                        :placeholder "回调 URL（POST）" :value (or (:url hook) "")
+                        :onChange #(upd! :url (-> % .-target .-value))}]
+               [kv-editor "Headers" (:headers hook) #(upd! :headers %)]
+               [kv-editor "Body 参数" (:bodyParams hook) #(upd! :bodyParams %)]])])))
       (section "打印模板")
       [:div {:style {:marginBottom 12}}
        [antd/space {:align "center"}
@@ -324,6 +373,7 @@
         [msummary-fields set-msummary-fields!] (hooks/use-state [])
         [mprint-enable set-mprint-enable!] (hooks/use-state false)
         [mprint-html set-mprint-html!] (hooks/use-state "")
+        [mwebhooks set-mwebhooks!] (hooks/use-state {})
         form-fields (let [sel-form (first (filter #(= (:form_id %) mform-id) form-list))
                           schema (or (when-let [j (:form_json sel-form)]
                                        (if (string? j)
@@ -347,7 +397,8 @@
                                     :process_id_rule (js/JSON.stringify (clj->js mprocess-rule))
                                     :summary_fields (js/JSON.stringify (clj->js msummary-fields))
                                     :print_template_enable (if mprint-enable "1" "0")
-                                    :print_template_html mprint-html}]))
+                                    :print_template_html mprint-html
+                                    :webhooks (js/JSON.stringify (clj->js mwebhooks))}]))
         ;; 连线加号浮层菜单回调：直接插入节点并重建浮层（对齐 vben，无需居中 Modal）
         add-handle (atom nil)
         _ (reset! add-handle
@@ -420,7 +471,12 @@
                 (if (string? sf) (js->clj (js/JSON.parse sf)) (walk/keywordize-keys sf)))
               []))
          (set-mprint-enable! (= "1" (str (:print_template_enable current))))
-         (set-mprint-html! (or (:print_template_html current) ""))))
+         (set-mprint-html! (or (:print_template_html current) ""))
+         (set-mwebhooks! (or (when-let [w (:webhooks current)]
+                               (if (string? w)
+                                 (js->clj (js/JSON.parse w) :keywordize-keys true)
+                                 (walk/keywordize-keys w)))
+                             {}))))
      [visible?])
     (hooks/use-effect
      (fn []
@@ -464,7 +520,8 @@
                        mfields-perm set-mfields-perm!]
           "process" [process-design-tab {:model-id (:model_id current)
                                          :on-close #(rf/dispatch [:bpm/designer-close])}]
-          "extra" [extra-tab {:mremark mremark :set-mremark! set-mremark!
+          "extra" [extra-tab {:mwebhooks mwebhooks :set-mwebhooks! set-mwebhooks!
+                              :mremark mremark :set-mremark! set-mremark!
                               :mauto-type mauto-type :set-mauto-type! set-mauto-type!
                               :mname-rule mname-rule :set-mname-rule! set-mname-rule!
                               :mprocess-rule mprocess-rule :set-mprocess-rule! set-mprocess-rule!

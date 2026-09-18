@@ -3,6 +3,7 @@
    提供流程分类/模型/表单/实例 的 CRUD 与流程运行操作。"
   (:require
    [cheshire.core :as json]
+   [clj-http.client :as http]
    [clojure.string :as str]
    [clojure.tools.logging :as log]
    [com.ruoyi.bpm.core :as bpm]
@@ -284,15 +285,25 @@
                     (empty-action node-config users)))
                 :else (empty-action node-config @users*))))))))))
 
+(declare fire-webhooks! fire-node-listener!)
+
 (defmethod ig/init-key :app.business/bpm-service
   [_ {:keys [engine query-fn db]}]
-  ;; 注入节点 create 处理器（TaskListener 在任务创建时调用：候选解析/为空策略/随机审批）
-  (bpm/set-node-create-handler! (make-node-create-handler engine query-fn))
-  ;; 注册抄送节点处理器（TaskListener create 时自动插抄送记录并完成任务）
-  (bpm/set-copy-handler!
-   (fn [task node-config]
-     (copy-task-handler engine query-fn task node-config)))
-  {:engine engine :query-fn query-fn :db db})
+  (let [service {:engine engine :query-fn query-fn :db db}]
+    ;; 注入节点 create 处理器（TaskListener 在任务创建时调用：候选解析/为空策略/随机审批）
+    (bpm/set-node-create-handler! (make-node-create-handler engine query-fn))
+    ;; 注册抄送节点处理器（TaskListener create 时自动插抄送记录并完成任务）
+    (bpm/set-copy-handler!
+     (fn [task node-config]
+       (copy-task-handler engine query-fn task node-config)))
+    ;; Phase 4：模型级 Webhook + 节点监听器分发器（引擎封装层统一触发点转发到这里）
+    (bpm/set-webhook-dispatcher!
+     (fn [event info]
+       (fire-webhooks! event service info)))
+    (bpm/set-node-listener-dispatcher!
+     (fn [event-name task]
+       (fire-node-listener! service event-name task)))
+    service))
 
 ;; ── 分页工具 ──────────────────────────────────────────────────────────
 (defn- page-params
@@ -421,19 +432,19 @@
   (let [{:keys [offset size]} (page-params params)
         p {:model_name (get params :model_name) :category_id (get params :category_id)
            :page_size size :offset offset}]
-    {:rows (mapv #(row->json % [:form_json :bpmn_xml])
+    {:rows (mapv #(row->json % [:form_json :bpmn_xml :webhooks])
                  (query-fn :bpm/model-list p))
      :total (:total (query-fn :bpm/model-count p))}))
 
 (defn model-get
   [{:keys [query-fn]} id]
   (-> (query-fn :bpm/find-model-by-id {:model_id id})
-      (row->json [:form_json :bpmn_xml])))
+      (row->json [:form_json :bpmn_xml :webhooks])))
 
 (defn model-get-by-key
   [{:keys [query-fn]} key]
   (-> (query-fn :bpm/find-model-by-key {:model_key key})
-      (row->json [:form_json :bpmn_xml])))
+      (row->json [:form_json :bpmn_xml :webhooks])))
 
 (defn model-create
   [{:keys [query-fn]} params user]
@@ -451,6 +462,7 @@
              :auto_approval_type (or (:auto_approval_type params) "NONE")
              :name_rule (:name_rule params) :summary_fields (:summary_fields params)
              :print_template_enable (or (:print_template_enable params) "0")
+              :webhooks (:webhooks params)
              :print_template_html (:print_template_html params)
              :create_by (or user "") :remark (or (:remark params) "")}))
 
@@ -469,6 +481,7 @@
              :auto_approval_type (:auto_approval_type params)
              :name_rule (:name_rule params) :summary_fields (:summary_fields params)
              :print_template_enable (:print_template_enable params)
+             :webhooks (:webhooks params)
              :print_template_html (:print_template_html params)
              :update_by (or user "") :remark (:remark params)}))
 
@@ -537,6 +550,7 @@
                :name_rule (:name_rule m) :summary_fields (:summary_fields m)
                :print_template_enable (:print_template_enable m)
                :print_template_html (:print_template_html m)
+               :webhooks (:webhooks m)
                :status "1" :update_by (or user "") :remark (:remark m)})
     {:bpmn_xml xml}))
 
@@ -644,6 +658,9 @@
                :starter_id (or starter "") :status "1"
                :name inst-name :bill_code bill-code
                :current_task (-> (first (bpm/todo-list engine (or starter ""))) :name (or ""))})
+    ;; Phase 4 Webhook：流程发起钩子
+    (fire-webhooks! "process_start" {:engine engine :query-fn query-fn}
+                    {:process-instance-id pid})
     {:process-instance-id pid :business-key biz-key :bill-code bill-code :name inst-name}))
 
 (defn instance-list
@@ -972,6 +989,7 @@
                  :auto_approval_type (or (:auto_approval_type m) "NONE")
                  :name_rule (:name_rule m) :summary_fields (:summary_fields m)
                  :print_template_enable (or (:print_template_enable m) "0")
+                 :webhooks (:webhooks m)
                  :print_template_html (:print_template_html m)
                  :create_by (or user "") :remark (or (:remark m) "")})
       (let [copied (query-fn :bpm/find-model-by-key {:model_key new-key})]
@@ -997,3 +1015,107 @@
        :form {:schema (parse-json-field (:form_json form))
               :values (:form_data_json inst)}
        :task-history (bpm/task-history-of engine (:process_instance_id biz))})))
+
+;; ── Phase 4 进阶能力：模型级 Webhook + 节点监听器 ─────────────────────────
+
+(defn- instance-vars
+  "流程实例变量 → 字符串 key 的 Clojure map（运行中取，结束后取历史）。
+   供 ${字段} 占位符解析（表单字段在发起时已展开为流程变量）。"
+  [engine pid]
+  (let [rt (.getRuntimeService ^org.flowable.engine.ProcessEngine engine)
+        running (try (into {} (.getVariables rt pid)) (catch Exception _ {}))]
+    (if (seq running)
+      running
+      (try
+        (into {}
+              (map (fn [^org.flowable.variable.api.history.HistoricVariableInstance hvi]
+                     [(.getVariableName hvi) (.getValue hvi)]))
+              (.list (.processInstanceId
+                      (.createHistoricVariableInstanceQuery (.getHistoryService
+                                                             ^org.flowable.engine.ProcessEngine engine))
+                      pid)))
+        (catch Exception _ {})))))
+
+(defn- find-biz-instance
+  "查询业务实例（带短重试）：task_start 钩子在 Flowable 命令内触发，
+   可能略早于业务行 insert 提交，重试最多 10 次 ×100ms。"
+  [query-fn pid]
+  (loop [n 10]
+    (let [inst (try (query-fn :bpm/find-instance-by-pid
+                              {:process_instance_id pid})
+                    (catch Exception _ nil))]
+      (cond
+        inst inst
+        (zero? n) nil
+        :else (do (Thread/sleep 100)
+                  (recur (dec n)))))))
+
+(defn- fire-webhooks!
+  "按模型级 webhooks 配置触发 HTTP POST（4 钩子：process_start/process_end/task_start/task_end）。
+   headers[]/bodyParams[] 的值支持固定值或 ${字段} 占位（流程变量 + 事件信息）。
+   失败只记日志，绝不影响流程。实例无业务记录（绕过业务层直接起实例）时不触发。"
+  [event {:keys [engine query-fn]} {:keys [task-id process-instance-id task-name]}]
+  (when (and query-fn (seq (str process-instance-id)))
+    (when-let [inst (find-biz-instance query-fn process-instance-id)]
+      (let [model (try (query-fn :bpm/find-model-by-id {:model_id (:model_id inst)})
+                       (catch Exception _ nil))
+            hooks (parse-json-field (:webhooks model))
+            hook (or (get hooks (keyword event)) (get hooks event))]
+        (when (and (map? hook) (seq (str (:url hook))))
+          (let [vars (merge (instance-vars engine process-instance-id)
+                            {"processInstanceId" (str process-instance-id)
+                             "taskId" (str (or task-id ""))
+                             "event" event
+                             "taskName" (str (or task-name ""))})
+                headers (into {}
+                              (keep (fn [{:keys [key value]}]
+                                      (when (seq (str key))
+                                        [(str key) (str (bpm/resolve-placeholders value vars))])))
+                              (:headers hook))
+                body (into {}
+                           (keep (fn [{:keys [key value]}]
+                                   (when (seq (str key))
+                                     [(keyword (str key)) (bpm/resolve-placeholders value vars)])))
+                           (:bodyParams hook))]
+            (try
+              (http/post (str (:url hook))
+                         {:headers headers
+                          :form-params body
+                          :content-type :json
+                          :socket-timeout 5000
+                          :conn-timeout 5000})
+              (log/info "[bpm-webhook]" event "→" (:url hook))
+              (catch Exception e
+                (log/error "[bpm-webhook]" event "POST 失败:" (:url hook) (.getMessage e))))))))))
+
+(defn- fire-node-listener!
+  "节点监听器（nodeConfig.listeners 的 Create/Assign/Complete 三事件）：
+   触发配置的 HTTP POST，params[] 的值支持固定值或 ${字段}（流程变量 + taskId/实例等）。
+   失败只记日志，绝不影响流程。"
+  [{:keys [engine]} event-name ^org.flowable.task.service.delegate.DelegateTask task]
+  (let [node-config (bpm/node-config-of engine task)
+        listeners (:listeners node-config)
+        cfg (or (get listeners (keyword event-name)) (get listeners event-name))
+        cfg (if (map? cfg) cfg {})]
+    (when (and (:enable cfg) (seq (str (:url cfg))))
+      (let [pid (.getProcessInstanceId task)
+            vars (merge (instance-vars engine pid)
+                        {"taskId" (.getId task)
+                         "processInstanceId" (str pid)
+                         "taskName" (str (.getName task))
+                         "event" (str event-name)})
+            body (into {}
+                       (keep (fn [{:keys [key value]}]
+                               (when (seq (str key))
+                                 [(keyword (str key)) (bpm/resolve-placeholders value vars)])))
+                       (:params cfg))]
+        (try
+          (http/post (str (:url cfg))
+                     {:form-params body
+                      :content-type :json
+                      :socket-timeout 5000
+                      :conn-timeout 5000})
+          (log/info "[bpm-node-listener]" event-name "→" (:url cfg) "任务" (.getId task))
+          (catch Exception e
+            (log/error "[bpm-node-listener]" event-name "POST 失败:"
+                       (:url cfg) (.getMessage e))))))))

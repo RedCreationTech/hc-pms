@@ -40,7 +40,8 @@
         _   (.setJdbcMaxIdleConnections cfg 2)
         _   (when (some? (requiring-resolve 'com.ruoyi.bpm.core/make-task-listener))
               (.setBeans cfg {"bpmTaskListener" (bpm-core/make-task-listener)
-                              "bpmTimeoutHandler" (bpm-core/make-timeout-handler)}))
+                              "bpmTimeoutHandler" (bpm-core/make-timeout-handler)
+                              "bpmTriggerDelegate" (bpm-core/make-trigger-delegate)}))
         engine (.buildProcessEngine cfg)
         _   (when engine (bpm-core/register-engine! engine))]
     (log/info "[bpm/engine] Flowable ProcessEngine 启动完成:" (.getName engine)

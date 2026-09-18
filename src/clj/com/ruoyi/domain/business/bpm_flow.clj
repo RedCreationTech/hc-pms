@@ -86,7 +86,12 @@
           outs (filter #(= node-id (:src %)) flows)
           conds (filter :cond? outs)
           dflt (first (remove :cond? outs))
-          m-type (if (= "COPY" (:node-kind config)) "COPY_TASK_NODE" (type-map type))
+          m-type (if (= "COPY" (:node-kind config))
+                     "COPY_TASK_NODE"
+                     (if (and (= "exclusiveGateway" type) (seq (:groups config)))
+                       ;; 路由分支节点展开生成的排他网关（带 :groups 配置）回读时还原为路由节点
+                       "ROUTER_BRANCH_NODE"
+                       (type-map type)))
           base (cond-> {:id node-id :type m-type :name (if (str/blank? name) node-id name)}
                  config (assoc :config config))
           recurse (fn [id] (build-tree nodes flows id (conj seen node-id)))]
@@ -132,8 +137,29 @@
     "PARALLEL_BRANCH_NODE" "parallelGateway"
     "INCLUSIVE_BRANCH_NODE" "inclusiveGateway"
     "DELAY_TIMER_NODE" "intermediateCatchEvent"
-    "CHILD_PROCESS_NODE" "subProcess"
+    "CHILD_PROCESS_NODE" "callActivity"
+    "ROUTER_BRANCH_NODE" "exclusiveGateway"
     "userTask"))
+
+(defn- rules->expression
+  "条件规则列表 → Flowable 表达式字符串（${days > 3 && amount < 100}）。
+   后端独立实现（与设计器 cljs 同名函数保持一致），供路由分支节点展开使用。"
+  [rules]
+  (when (seq rules)
+    (let [parts (keep (fn [{:keys [left-side op-code right-side]}]
+                        (when (and (seq (str left-side)) (seq (str op-code)))
+                          (str left-side " " op-code " " (or right-side ""))))
+                      rules)]
+      (when (seq parts)
+        (str "${" (str/join " && " parts) "}")))))
+
+(defn- listener-enabled?
+  "nodeConfig.listeners 中某事件是否启用（兼容 keyword / 字符串 key）。"
+  [listeners event]
+  (boolean (or (get-in listeners [(keyword event) :enable])
+               (get-in listeners [(keyword event) "enable"])
+               (get-in listeners [event :enable])
+               (get-in listeners [event "enable"]))))
 
 (defn- escape-xml [s]
   (-> (or s "")
@@ -243,12 +269,15 @@
         gw-counter (atom 0)
         emit (fn emit [node parent-id]
                (let [{:keys [id type name child-node condition-nodes config]} node
-                     tag (tree-node-type->bpmn type)
+                     ;; 路由分支节点：展开为排他网关（条件出线指向树中已有节点，默认走 child-node）
+                     router? (= type "ROUTER_BRANCH_NODE")
+                     tag (if router? "exclusiveGateway" (tree-node-type->bpmn type))
                      is-end (= type "END_EVENT_NODE")
+                     ;; 结束节点保留原 id（设计器 id 天然唯一，路由分支可指向指定 end）；
+                     ;; 仅驳回类结束节点(reject 前缀)重命名避免冲突，cond- 前缀(旧条件分支)转网关
                      el-id (cond
                              (and is-end (str/starts-with? (or id "") "reject"))
                              (str "rejectEnd" (swap! gw-counter inc))
-                             is-end "end"
                              (str/starts-with? (or id "") "cond-")
                              (str "gw" (swap! gw-counter inc))
                              :else id)
@@ -270,18 +299,73 @@
                                  (str " flowable:skipExpression=\"" (escape-xml (get-in config [:skip-expression])) "\""))
                      attrs (str " id=\"" el-id "\" name=\"" (escape-xml (or name id)) "\""
                                 multi-assignee skip-expr
+                                ;; 触发器节点：统一 JavaDelegate 入口
+                                (when (= type "TRIGGER_NODE")
+                                  " flowable:delegateExpression=\"${bpmTriggerDelegate}\"")
+                                ;; 子流程节点：callActivity 指向已部署的子流程定义 key
+                                (when (and (= type "CHILD_PROCESS_NODE") (seq (:child-process-key config)))
+                                  (str " flowable:calledElement=\""
+                                       (escape-xml (str (:child-process-key config))) "\""))
                                 (when default-cid
                                   (str " default=\"" el-id "_" default-cid "\"")))
                      ;; 所有带配置的人工节点都挂 create 监听器：
-                     ;; 候选解析/为空策略/随机审批统一在 TaskListener 处理
+                     ;; 候选解析/为空策略/随机审批统一在 TaskListener 处理；
+                     ;; 配置了 nodeConfig.listeners 的节点额外挂 assignment/complete 监听器
                      listener-el (when (and (#{"USER_TASK_NODE" "COPY_TASK_NODE"} type)
                                             (seq config))
-                                   "<flowable:taskListener event=\"create\" delegateExpression=\"${bpmTaskListener}\"/>")
+                                   (str "<flowable:taskListener event=\"create\" delegateExpression=\"${bpmTaskListener}\"/>"
+                                        (when (listener-enabled? (:listeners config) "assign")
+                                          "<flowable:taskListener event=\"assignment\" delegateExpression=\"${bpmTaskListener}\"/>")
+                                        (when (listener-enabled? (:listeners config) "complete")
+                                          "<flowable:taskListener event=\"complete\" delegateExpression=\"${bpmTaskListener}\"/>")))
                      ;; 抄送节点在 nodeConfig 标 nodeType=COPY_TASK，TaskListener create 时自动抄送并完成
                      out-config (cond-> config
                                   (= "COPY_TASK_NODE" type) (assoc :nodeType "COPY_TASK"))
                      timeout-el (when (= type "USER_TASK_NODE") (timeout-boundary-el el-id config))
+                     ;; 触发器节点：nodeConfig 供 bpmTriggerDelegate 按 trigger-type 分发
+                     trigger-body (when (and (= type "TRIGGER_NODE") (seq config))
+                                    (str "<extensionElements>"
+                                         "<flowable:properties><flowable:property name=\"nodeConfig\" value=\""
+                                         (escape-xml (json/generate-string config))
+                                         "\"/></flowable:properties></extensionElements>"))
+                     ;; 子流程节点：主→子 / 子→主 变量映射（发起人策略=START_USER 时自动透传 startUserId）
+                     child-body (when (= type "CHILD_PROCESS_NODE")
+                                  (let [cfg (or config {})
+                                        in-mappings (vec (:in-mappings cfg))
+                                        in-mappings (if (and (= "START_USER" (:initiator-strategy cfg))
+                                                             (not (some #(= "startUserId" (str (:source %))) in-mappings)))
+                                                      (conj in-mappings {:source "startUserId" :target "startUserId"})
+                                                      in-mappings)
+                                        out-mappings (vec (:out-mappings cfg))]
+                                    (str "<extensionElements>"
+                                         (apply str
+                                                (map (fn [{:keys [source target]}]
+                                                       (when (and (seq (str source)) (seq (str target)))
+                                                         (str "<flowable:in source=\"" (escape-xml (str source))
+                                                              "\" target=\"" (escape-xml (str target)) "\"/>")))
+                                                     in-mappings))
+                                         (apply str
+                                                (map (fn [{:keys [source target]}]
+                                                       (when (and (seq (str source)) (seq (str target)))
+                                                         (str "<flowable:out source=\"" (escape-xml (str source))
+                                                              "\" target=\"" (escape-xml (str target)) "\"/>")))
+                                                     out-mappings))
+                                         "<flowable:properties><flowable:property name=\"nodeConfig\" value=\""
+                                         (escape-xml (json/generate-string (assoc cfg :in-mappings in-mappings)))
+                                         "\"/></flowable:properties></extensionElements>")))
+                     ;; 路由分支节点：:groups 配置写入网关 nodeConfig（保存后可回读还原）
+                     router-body (when (and router? (seq config))
+                                   (str "<extensionElements>"
+                                        "<flowable:properties><flowable:property name=\"nodeConfig\" value=\""
+                                        (escape-xml (json/generate-string (select-keys config [:groups])))
+                                        "\"/></flowable:properties></extensionElements>"))
                      body (cond
+                            router-body
+                            router-body
+                            trigger-body
+                            trigger-body
+                            child-body
+                            child-body
                             (and (#{"USER_TASK_NODE" "COPY_TASK_NODE"} type) (seq out-config))
                             (str "<extensionElements>"
                                  (when listener-el listener-el)
@@ -306,8 +390,18 @@
                      (doseq [f cond-flows] (swap! flows conj f))
                      (when default-cid
                        (swap! flows conj {:src el-id :tgt default-cid :cond? false})))
-                   (when child-node
-                     (emit child-node el-id)))
+                   (do
+                     ;; 路由分支：每组 目标节点+条件规则 → 一条条件出线（目标是树中已有节点，
+                     ;; 不再重复生成元素）；默认走 child-node 的无线条件出线
+                     (when router?
+                       (doseq [{:keys [target-node-id rules]} (:groups config)]
+                         (when (seq (str target-node-id))
+                           (swap! flows conj {:src el-id :tgt (str target-node-id)
+                                              :cond? true
+                                              :expr (or (rules->expression rules)
+                                                        "${approved == true}")}))))
+                     (when child-node
+                       (emit child-node el-id))))
                  el-id))]
     (emit root nil)
     (str "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"

@@ -41,7 +41,7 @@ SELECT m.model_id, m.model_key, m.model_name, m.category_id, m.version,
        m.form_type, m.form_id, m.form_custom_create_path, m.form_custom_view_path,
        m.status, m.create_by, m.create_time, m.remark,
        m.process_id_rule, m.auto_approval_type, m.name_rule, m.summary_fields,
-       m.print_template_enable, m.print_template_html,
+       m.print_template_enable, m.print_template_html, m.webhooks,
        c.name AS category_name
 FROM biz_bpm_model m
 LEFT JOIN biz_bpm_category c ON m.category_id = c.category_id
@@ -70,13 +70,13 @@ INSERT INTO biz_bpm_model (model_key, model_name, category_id, version, form_typ
                            form_id, form_custom_create_path, form_custom_view_path,
                            form_json, fields_permission, bpmn_xml, deployment_id, status,
                            process_id_rule, auto_approval_type, name_rule, summary_fields,
-                           print_template_enable, print_template_html,
+                           print_template_enable, print_template_html, webhooks,
                            create_by, create_time, remark)
 VALUES (:model_key, :model_name, :category_id, :version, :form_type,
         :form_id, :form_custom_create_path, :form_custom_view_path,
         :form_json, :fields_permission, :bpmn_xml, :deployment_id, :status,
         :process_id_rule, :auto_approval_type, :name_rule, :summary_fields,
-        :print_template_enable, :print_template_html,
+        :print_template_enable, :print_template_html, :webhooks,
         :create_by, CURRENT_TIMESTAMP, :remark)
 --;;
 
@@ -95,7 +95,8 @@ SET model_name = :model_name, category_id = :category_id, form_type = :form_type
     name_rule = COALESCE(:name_rule, name_rule),
     summary_fields = COALESCE(:summary_fields, summary_fields),
     print_template_enable = COALESCE(:print_template_enable, print_template_enable),
-    print_template_html = COALESCE(:print_template_html, print_template_html)
+    print_template_html = COALESCE(:print_template_html, print_template_html),
+    webhooks = COALESCE(:webhooks, webhooks)
 WHERE model_id = :model_id
 --;;
 

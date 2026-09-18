@@ -15,20 +15,22 @@
 (def ^:private node-color
   {"USER_TASK_NODE" "#ff943e" "COPY_TASK_NODE" "#3296fa" "CONDITION_BRANCH_NODE" "#67c23a"
    "PARALLEL_BRANCH_NODE" "#626aef" "INCLUSIVE_BRANCH_NODE" "#345da2" "DELAY_TIMER_NODE" "#e47470"
-   "TRIGGER_NODE" "#3373d2" "CHILD_PROCESS_NODE" "#996633" "START_USER_NODE" "#676565"
-   "END_EVENT_NODE" "#676565"})
+   "TRIGGER_NODE" "#3373d2" "CHILD_PROCESS_NODE" "#996633" "ROUTER_BRANCH_NODE" "#13a8a8"
+   "START_USER_NODE" "#676565" "END_EVENT_NODE" "#676565"})
 
 (def ^:private node-icon
   {"USER_TASK_NODE" "bpmn-icon-user-task" "COPY_TASK_NODE" "bpmn-icon-user-task"
    "CONDITION_BRANCH_NODE" "bpmn-icon-gateway-none" "PARALLEL_BRANCH_NODE" "bpmn-icon-gateway-parallel"
    "INCLUSIVE_BRANCH_NODE" "bpmn-icon-gateway-or" "DELAY_TIMER_NODE" "bpmn-icon-intermediate-event-catch-timer"
-   "TRIGGER_NODE" "bpmn-icon-call-activity" "CHILD_PROCESS_NODE" "bpmn-icon-subprocess-expanded"
-   "START_USER_NODE" "bpmn-icon-user" "END_EVENT_NODE" "bpmn-icon-end-event-none"})
+   "TRIGGER_NODE" "bpmn-icon-service-task" "CHILD_PROCESS_NODE" "bpmn-icon-subprocess-expanded"
+   "ROUTER_BRANCH_NODE" "bpmn-icon-gateway-xor" "START_USER_NODE" "bpmn-icon-user"
+   "END_EVENT_NODE" "bpmn-icon-end-event-none"})
 
 (def ^:private node-type-label
   {"USER_TASK_NODE" "审批人" "COPY_TASK_NODE" "抄送" "CONDITION_BRANCH_NODE" "条件分支"
    "PARALLEL_BRANCH_NODE" "并行分支" "INCLUSIVE_BRANCH_NODE" "包容分支" "DELAY_TIMER_NODE" "延迟器"
-   "TRIGGER_NODE" "触发器" "CHILD_PROCESS_NODE" "子流程" "START_USER_NODE" "发起人" "END_EVENT_NODE" "结束"})
+   "TRIGGER_NODE" "触发器" "CHILD_PROCESS_NODE" "子流程" "ROUTER_BRANCH_NODE" "路由分支"
+   "START_USER_NODE" "发起人" "END_EVENT_NODE" "结束"})
 
 (def ^:private condition-operators
   [{:value "==" :label "等于"} {:value "!=" :label "不等于"}
@@ -94,6 +96,9 @@
    :assign-empty-handler {:type "AUTO_PASS" :user-ids []}
    :assign-start-user-handler-type "TRANSFER_ADMIN"
    :sign-enable false :reason-require false :skip-expression "" :fields-permission {}
+   :listeners {"create" {:enable false :url "" :params []}
+                "assign" {:enable false :url "" :params []}
+                "complete" {:enable false :url "" :params []}}
    :buttons {"approve" {"enable" true "displayName" "通过"}
              "reject" {"enable" true "displayName" "驳回"}
              "transfer" {"enable" true "displayName" "转办"}
@@ -135,6 +140,109 @@
   [antd/select {:mode "multiple" :allowClear true :style {:width "100%" :marginTop 8}
                 :placeholder placeholder :value (or value []) :onChange on-change}
    opts])
+
+(def ^:private trigger-types
+  [{:value "HTTP_REQUEST" :label "HTTP 请求"}
+   {:value "HTTP_CALLBACK" :label "HTTP 回调（等待外部触发）"}
+   {:value "UPDATE_FORM" :label "修改表单数据"}
+   {:value "DELETE_FORM" :label "删除表单数据"}])
+
+(def ^:private listener-events
+  [{:key "create" :label "Create（任务创建）"}
+   {:key "assign" :label "Assign（任务分配）"}
+   {:key "complete" :label "Complete（任务完成）"}])
+
+(defn- remove-idx
+  "按序号移除集合中的元素。"
+  [coll i]
+  (vec (keep-indexed (fn [j row] (when (not= j i) row)) (or coll []))))
+
+(defn- kv-rows-editor
+  "通用 key-value 行编辑器（headers / bodyParams / params / 变量映射）。
+   coll: [{:key :value} ...]；on-change 回写整列。"
+  [label coll on-change]
+  [:div {:style {:marginTop 8}}
+   (f-label label)
+   (doall
+    (for [[i row] (map-indexed vector (or coll []))]
+      ^{:key i}
+      [:div {:style {:display "flex" :gap 6 :marginBottom 6}}
+       [antd/input {:style {:flex 1} :size "small" :placeholder "参数名"
+                    :value (:key row)
+                    :onChange #(on-change (assoc (vec (or coll [])) i
+                                                 (assoc row :key (-> % .-target .-value))))}]
+       [antd/input {:style {:flex 1} :size "small" :placeholder "值（支持 ${字段}）"
+                    :value (:value row)
+                    :onChange #(on-change (assoc (vec (or coll [])) i
+                                                 (assoc row :value (-> % .-target .-value))))}]
+       [antd/button {:size "small" :type "text" :danger true
+                     :on-click #(on-change (remove-idx coll i))}
+        "✕"]]))
+   [antd/button {:size "small" :type "dashed" :block true
+                 :on-click #(on-change (conj (vec (or coll [])) {:key "" :value ""}))}
+    "＋ 添加一行"]])
+
+(defn- rule-rows-editor
+  "条件规则行编辑器（left-side 字段 / op / right-side 值），更新 (swap! cfg assoc-in path rows)。"
+  [cfg path form-fields]
+  (let [rules (or (get-in @cfg path) [])]
+    [:div
+     (doall
+      (for [[i r] (map-indexed vector rules)]
+        ^{:key i}
+        [:div {:style {:display "flex" :gap 6 :marginBottom 6}}
+         [antd/select {:style {:flex 1} :size "small" :value (:left-side r)
+                       :placeholder "选择字段" :allowClear true
+                       :onChange #(swap! cfg assoc-in (conj path i :left-side) (or % ""))}
+          (doall
+           (for [ff @form-fields]
+             (when-let [fld (:field ff)]
+               ^{:key fld}
+               [antd/select-option {:value fld} (:title ff)])))
+          [antd/select-option {:value "approved"} "审批结果 approved"]
+          [antd/select-option {:value "startUserId"} "发起人"]]
+         [antd/select {:style {:width 90} :size "small" :value (or (:op-code r) ">")
+                       :onChange #(swap! cfg assoc-in (conj path i :op-code) %)}
+          (doall (for [{:keys [value label]} condition-operators]
+                   ^{:key value} [antd/select-option {:value value} label]))]
+         [antd/input {:style {:flex 1} :size "small" :value (:right-side r)
+                      :placeholder "值如 3"
+                      :onChange #(swap! cfg assoc-in (conj path i :right-side) (-> % .-target .-value))}]
+         [antd/button {:size "small" :type "text" :danger true
+                       :on-click #(swap! cfg assoc-in path (remove-idx rules i))}
+          "✕"]]))
+     (let [gen (rules->expression rules)]
+       (when gen
+         [:div {:style {:fontSize 12 :color "#909399" :background "#f8f9fa"
+                        :padding "6px 8px" :borderRadius 4 :marginBottom 6}}
+          gen]))
+     [antd/button {:size "small" :type "dashed" :block true
+                   :on-click #(swap! cfg assoc-in path
+                                     (conj (vec rules) {:left-side "" :op-code ">" :right-side ""}))}
+      "＋ 添加条件"]]))
+
+(defn- listeners-editor
+  "节点监听器（Create/Assign/Complete HTTP 回调）配置面板，存 nodeConfig.listeners。"
+  [cfg]
+  [:div {:style {:marginTop 14}}
+   (f-label "节点监听器（HTTP 回调）")
+   (doall
+    (for [{:keys [key label]} listener-events]
+      (let [lc (get-in @cfg [:listeners key])
+            enabled? (boolean (:enable lc))]
+        ^{:key key}
+        [:div {:style {:border "1px solid #f0f0f0" :borderRadius 6 :padding 10 :marginBottom 8}}
+         [:div {:style {:display "flex" :gap 8 :alignItems "center"}}
+          [antd/switch {:size "small" :checked enabled?
+                        :onChange #(swap! cfg assoc-in [:listeners key :enable] (boolean %))}]
+          [:span {:style {:fontSize 13 :fontWeight 500}} label]]
+         (when enabled?
+           [:div {:style {:marginTop 8}}
+            [antd/input {:size "small" :placeholder "回调 URL（POST）"
+                         :value (or (:url lc) "")
+                         :onChange #(swap! cfg assoc-in [:listeners key :url] (-> % .-target .-value))}]
+            [kv-rows-editor "回调参数" (:params lc)
+             #(swap! cfg assoc-in [:listeners key :params] %)]])]))) ])
 
 (defn- user-candidate-editor
   "审批人设置：按候选策略渲染参数编辑器。
@@ -398,7 +506,7 @@
    {:type "COPY_TASK_NODE" :label "抄送"} {:type "CONDITION_BRANCH_NODE" :label "条件分支"}
    {:type "PARALLEL_BRANCH_NODE" :label "并行分支"} {:type "INCLUSIVE_BRANCH_NODE" :label "包容分支"}
    {:type "DELAY_TIMER_NODE" :label "延迟器"} {:type "TRIGGER_NODE" :label "触发器"}
-   {:type "CHILD_PROCESS_NODE" :label "子流程"}])
+   {:type "CHILD_PROCESS_NODE" :label "子流程"} {:type "ROUTER_BRANCH_NODE" :label "路由分支"}])
 
 (defn bpm-flow-designer
   "HTML/flex 流程编辑器。参数 {:model-id :on-saved :read-only? :active-ids :completed-ids}
@@ -486,6 +594,19 @@
                                          (merge {:time-duration 6 :time-unit "HOUR"} (:config node))
                                          "COPY_TASK_NODE"
                                          (merge {:copy-user-ids [] :copy-role-ids []} (:config node))
+                                         "TRIGGER_NODE"
+                                         (merge {:trigger-type "HTTP_REQUEST" :url "" :method "POST"
+                                                 :headers [] :body-params [] :response-mappings []}
+                                                (:config node))
+                                         "CHILD_PROCESS_NODE"
+                                         (merge {:child-process-key nil :initiator-strategy "START_USER"
+                                                 :in-mappings [] :out-mappings []}
+                                                (:config node))
+                                         "ROUTER_BRANCH_NODE"
+                                         {:groups (mapv (fn [g]
+                                                          {:target-node-id (:target-node-id g)
+                                                           :rules (or (:rules g) [])})
+                                                        (or (:groups (:config node)) []))}
                                          "USER_TASK_NODE"
                                          (let [c (:config node)]
                                            (merge default-user-config
@@ -495,6 +616,21 @@
                                                             (fn [p] (into {} (map (fn [[k v]] [k (if (coll? v) (filterv some? v) v)])) p))))))
                                          nil))))
                cfg-set! (fn [k v] (swap! cfg assoc k v))
+               defs (r/atom [])
+               all-nodes (fn []
+                           (let [acc (atom [])]
+                             (letfn [(walk-n [n]
+                                       (when n
+                                         (when (#{"USER_TASK_NODE" "COPY_TASK_NODE" "TRIGGER_NODE"
+                                                 "CHILD_PROCESS_NODE" "END_EVENT_NODE"} (:type n))
+                                           (swap! acc conj {:id (:id n) :name (:name n)}))
+                                         (when-let [c (:child-node n)] (walk-n c))
+                                         (doseq [cn (:condition-nodes n)]
+                                           (when-let [c (:child-node cn)] (walk-n c)))))]
+                               (walk-n @tree))
+                             @acc))
+               _ (api/bpm-definition-page {:page 1 :size 100}
+                                          #(reset! defs (walk/keywordize-keys (get-in % [:data :rows]))) #())
                user-task-nodes (fn []
                                  (let [acc (atom [])]
                                    (letfn [(walk-n [n]
@@ -532,6 +668,21 @@
                                           (assoc node :name @node-name
                                                  :config @cfg
                                                  :show-text (user-show-text t @cfg)))
+                                   (= t "TRIGGER_NODE")
+                                   (swap! tree assoc-in p
+                                          (assoc node :name @node-name :config @cfg
+                                                 :show-text (some #(when (= (:value %) (:trigger-type @cfg)) (:label %))
+                                                                  trigger-types)))
+                                   (= t "CHILD_PROCESS_NODE")
+                                   (swap! tree assoc-in p
+                                          (assoc node :name @node-name :config @cfg
+                                                 :show-text (str "子流程 "
+                                                                 (or (:child-process-key @cfg) "未选择"))))
+                                   (= t "ROUTER_BRANCH_NODE")
+                                   (swap! tree assoc-in p
+                                          (assoc node :name @node-name
+                                                 :config (select-keys @cfg [:groups])
+                                                 :show-text (str (count (or (:groups @cfg) [])) " 组路由分支")))
                                    :else
                                    (swap! tree assoc-in p (assoc node :name @node-name))))
                                (reset! config-path nil)
@@ -685,6 +836,99 @@
               (f-label {:style {:marginTop 12}} "抄送人（角色）")
               (multi-select "请选择抄送角色" (:copy-role-ids @cfg)
                             #(cfg-set! :copy-role-ids (vec %)) (opt-role roles))]
+             (= t "TRIGGER_NODE")
+             [:div {:style {:marginTop 16}}
+              (f-label "触发器类型")
+              [antd/select {:style {:width "100%" :marginBottom 8}
+                            :value (or (:trigger-type @cfg) "HTTP_REQUEST")
+                            :onChange #(cfg-set! :trigger-type %)}
+               (doall (for [{:keys [value label]} trigger-types]
+                        ^{:key value} [antd/select-option {:value value} label]))]
+              (case (or (:trigger-type @cfg) "HTTP_REQUEST")
+                "HTTP_REQUEST"
+                [:div
+                 [antd/input {:value (or (:url @cfg) "")
+                              :placeholder "请求 URL（支持 ${字段}）"
+                              :onChange #(cfg-set! :url (-> % .-target .-value))}]
+                 [:div {:style {:marginTop 8}}
+                  [antd/select {:style {:width "100%"} :size "small"
+                                :value (or (:method @cfg) "POST")
+                                :onChange #(cfg-set! :method %)}
+                   [antd/select-option {:value "POST"} "POST"]
+                   [antd/select-option {:value "GET"} "GET"]]]
+                 [kv-rows-editor "请求头 Headers" (:headers @cfg) #(cfg-set! :headers %)]
+                 [kv-rows-editor "请求体 Body 参数" (:body-params @cfg) #(cfg-set! :body-params %)]
+                 [kv-rows-editor "响应回写（JSON 路径 → 流程变量/表单字段）" (:response-mappings @cfg)
+                  #(cfg-set! :response-mappings %)]]
+                "HTTP_CALLBACK"
+                [:div.bpm-cfg-tip "等待外部系统回调触发（本期降级：节点进入时记录日志后直接通过，不阻塞流程）。"]
+                "UPDATE_FORM"
+                [:div
+                 (f-label "满足以下条件时（全部 AND，留空则始终执行）")
+                 [rule-rows-editor cfg [:conditions] form-fields]
+                 (f-label {:style {:marginTop 8}} "更新字段（字段 = 值，支持 ${字段}）")
+                 [kv-rows-editor "字段 = 值" (:fields @cfg) #(cfg-set! :fields %)]]
+                "DELETE_FORM"
+                [:div
+                 (f-label "清除以下表单字段（流程变量）")
+                 [antd/select {:mode "multiple" :style {:width "100%"} :allowClear true
+                               :placeholder "选择要清除的字段"
+                               :value (or (:fields @cfg) [])
+                               :onChange #(cfg-set! :fields (vec %))}
+                  (doall
+                   (for [ff @form-fields]
+                     (when-let [fld (:field ff)]
+                       ^{:key fld}
+                       [antd/select-option {:value fld} (:title ff)])))]])]
+             (= t "CHILD_PROCESS_NODE")
+             [:div {:style {:marginTop 16}}
+              (f-label "子流程定义（已部署）")
+              [antd/select {:style {:width "100%"} :allowClear true
+                            :placeholder "选择子流程定义"
+                            :value (:child-process-key @cfg)
+                            :onChange #(cfg-set! :child-process-key %)}
+               (doall (for [d @defs] ^{:key (:id d)}
+                        [antd/select-option {:value (:key d)}
+                         (str (:name d) "（" (:key d) " v" (:version d) "）")]))]
+              (f-label {:style {:marginTop 12}} "子流程发起人策略")
+              [antd/radio-group {:value (or (:initiator-strategy @cfg) "START_USER")
+                                 :onChange #(cfg-set! :initiator-strategy (-> % .-target .-value))}
+               [antd/radio {:value "START_USER"} "主流程发起人（透传 startUserId）"]
+               [antd/radio {:value "NONE"} "不处理"]]
+              (f-label {:style {:marginTop 12}} "主 → 子 变量映射")
+              [kv-rows-editor "主流程变量 → 子流程变量" (:in-mappings @cfg)
+               #(cfg-set! :in-mappings %)]
+              (f-label {:style {:marginTop 12}} "子 → 主 变量映射")
+              [kv-rows-editor "子流程变量 → 主流程变量" (:out-mappings @cfg)
+               #(cfg-set! :out-mappings %)]]
+             (= t "ROUTER_BRANCH_NODE")
+             [:div {:style {:marginTop 16}}
+              (f-label "路由分支（按条件跳转到目标节点，均不满足时走默认连线）")
+              (doall
+               (for [[i g] (map-indexed vector (or (:groups @cfg) []))]
+                 ^{:key i}
+                 [:div {:style {:border "1px solid #f0f0f0" :borderRadius 6 :padding 10 :marginBottom 10}}
+                  [:div {:style {:display "flex" :gap 6 :marginBottom 8}}
+                   [:div {:style {:flex 1}}
+                    (f-label "目标节点")
+                    [antd/select {:style {:width "100%"} :size "small" :allowClear true
+                                  :placeholder "跳转目标节点"
+                                  :value (:target-node-id g)
+                                  :onChange #(swap! cfg assoc-in [:groups i :target-node-id] %)}
+                     (doall (for [n (all-nodes)]
+                              (when (not= (:id n) (:id node))
+                                ^{:key (:id n)}
+                                [antd/select-option {:value (:id n)} (:name n)])))]]
+                   [antd/button {:size "small" :type "text" :danger true
+                                 :on-click #(swap! cfg assoc :groups (remove-idx (:groups @cfg) i))}
+                    "删除"]]
+                  (rule-rows-editor cfg [:groups i :rules] form-fields)]))
+              [antd/button {:size "small" :type "dashed" :block true
+                            :on-click #(swap! cfg assoc :groups
+                                              (conj (vec (or (:groups @cfg) []))
+                                                    {:target-node-id nil
+                                                     :rules [{:left-side "" :op-code ">" :right-side ""}]}))}
+               "＋ 添加路由分支"]]
              (= t "USER_TASK_NODE")
              [:div
               (when (not= (:approve-type @cfg) "USER")
@@ -738,6 +982,7 @@
                  [antd/text-area {:value (:skip-expression @cfg) :rows 2
                                   :placeholder "填写后满足条件则自动跳过本节点"
                                   :onChange #(cfg-set! :skip-expression (-> % .-target .-value))}]
+                 [listeners-editor cfg]
                  (when (seq @form-fields)
                    [:div {:style {:marginTop 14}}
                     (f-label "表单字段权限")

@@ -11,7 +11,11 @@
       流程模型需用排他网关(exclusiveGateway)按该变量分流
     · 引擎状态全在 Flowable(H2)，业务记录在 app 库，通过 business-key 关联
   "
-  (:require [clojure.tools.logging :as log])
+
+  (:require [clj-http.client :as http]
+            [cheshire.core :as json]
+            [clojure.string :as str]
+            [clojure.tools.logging :as log])
   (:import
    (org.flowable.task.api.history HistoricTaskInstance)
    (org.flowable.engine ProcessEngine)
@@ -275,6 +279,69 @@
 (defonce ^:private engine-ref (atom nil))
 (defn register-engine! [engine] (reset! engine-ref engine))
 
+;; ── Phase 4：Webhook / 节点监听器 分发器 ────────────────────────────────
+;;
+;; 引擎封装层（TaskListener/complete* 等）不直接访问业务库，
+;; 由 domain 层注册具体实现（关闭 query-fn），这里只做统一触发点的转发。
+;; event ∈ #{"process_start" "process_end" "task_start" "task_end"}，
+;; info 为 {:task-id :process-instance-id :task-name}。
+
+(defonce ^:private webhook-dispatcher (atom nil))
+
+(defn set-webhook-dispatcher!
+  "注册模型级 Webhook 触发器。f 签名: (fn [event info])。
+   HTTP 失败只记日志不影响流程（domain 层保证）。"
+  [f]
+  (reset! webhook-dispatcher f))
+
+(defonce ^:private node-listener-dispatcher (atom nil))
+
+(defn set-node-listener-dispatcher!
+  "注册节点监听器（nodeConfig.listeners）触发器。
+   f 签名: (fn [event-name ^DelegateTask task])，event-name ∈ create/assign/complete。"
+  [f]
+  (reset! node-listener-dispatcher f))
+
+;; ── Phase 4：${字段} 占位符解析 ───────────────────────────────────────
+
+(defn resolve-placeholders
+  "把字符串中的 ${field} 占位符按 vars（字符串 key 的 map）替换；非字符串原样返回。"
+  [v vars]
+  (if (string? v)
+    (str/replace v #"\$\{([^}]+)\}"
+                 (fn [[_ k]]
+                   (str (get vars k (get vars (keyword k) (str "${" k "}"))))))
+    v))
+
+(defn- execution-vars
+  "DelegateExecution 的流程变量 → 字符串 key 的 Clojure map。"
+  [^org.flowable.engine.delegate.DelegateExecution execution]
+  (try
+    (into {} (.getVariables execution))
+    (catch Exception _ {})))
+
+(defn- process-running?
+  "流程实例是否仍在运行。"
+  [^ProcessEngine engine process-instance-id]
+  (pos? (.count (.processInstanceId (.createProcessInstanceQuery (.getRuntimeService engine))
+                                    process-instance-id))))
+
+(defn- fire-webhook!
+  "转发 Webhook 事件（忽略未注册与异常，绝不影响主流程）。"
+  [event info]
+  (when-let [f @webhook-dispatcher]
+    (try (f event info)
+         (catch Exception e
+           (log/error "[bpm-webhook] 触发失败:" event (.getMessage e))))))
+
+(defn- fire-node-listener!
+  "转发节点监听器事件（create/assign/complete）。"
+  [event-name ^org.flowable.task.service.delegate.DelegateTask task]
+  (when-let [f @node-listener-dispatcher]
+    (try (f event-name task)
+         (catch Exception e
+           (log/error "[bpm-node-listener] 触发失败:" event-name (.getMessage e))))))
+
 (defonce ^:private node-create-handler (atom nil))
 
 (defn set-node-create-handler!
@@ -346,9 +413,32 @@
                         (when-let [action (@node-create-handler task (or node-config {}))]
                           (apply-action task action))))
                     (catch Exception e
-                      (log/error "[bpm-tasklistener] 解析任务监听器失败:" (.getMessage e)))))]
+                      (log/error "[bpm-tasklistener] 解析任务监听器失败:" (.getMessage e)))))
+        task-info (fn [^org.flowable.task.service.delegate.DelegateTask task]
+                    {:task-id (.getId task)
+                     :process-instance-id (.getProcessInstanceId task)
+                     :task-name (.getName task)})]
     (proxy [org.flowable.engine.delegate.TaskListener] []
-      (notify [task] (resolve task)))))
+      (notify [^org.flowable.task.service.delegate.DelegateTask task]
+        ;; 同一个代理处理 create/assignment/complete 三个事件：
+        ;; create → 候选解析 + Webhook task_start + 节点监听器 create
+        ;; assignment → 节点监听器 assign
+        ;; complete → 节点监听器 complete + Webhook task_end（见 complete*）
+        (case (str (.getEventName task))
+          "create"
+          (do (resolve task)
+              ;; task_start 在 Flowable 命令内触发，此时业务行尚未落库，
+              ;; 同步投递必然查不到实例 → 守护线程异步投递（domain 层带重试）
+              (when @webhook-dispatcher
+                (doto (Thread. ^Runnable (fn [] (fire-webhook! "task_start" (task-info task))))
+                  (.setDaemon true)
+                  (.start)))
+              (fire-node-listener! "create" task))
+          "assignment"
+          (fire-node-listener! "assign" task)
+          "complete"
+          (fire-node-listener! "complete" task)
+          nil)))))
 
 (defn- task->map
   "把 Flowable Task 对象转成 Clojure map。"
@@ -466,7 +556,10 @@
   [^ProcessEngine engine task-id user variables]
   (let [ts (.getTaskService engine)
         q (.taskId (.createTaskQuery ts) task-id)
-        t (.singleResult q)]
+        t (.singleResult q)
+        task-info (when t {:task-id (.getId ^Task t)
+                           :process-instance-id (.getProcessInstanceId ^Task t)
+                           :task-name (.getName ^Task t)})]
     (when t
       (let [cur (.getAssignee t)]
         (when (and cur (not= cur user))
@@ -486,7 +579,13 @@
       (.setVariableLocal ts task-id "approved" (boolean (:approved variables))))
     (when-let [s (or (:sign-pic-url variables) (:signPicUrl variables))]
       (.setVariableLocal ts task-id "signPicUrl" (str s)))
-    (.complete ts task-id (vars-map (dissoc variables :comment :sign-pic-url :signPicUrl))))
+    (.complete ts task-id (vars-map (dissoc variables :comment :sign-pic-url :signPicUrl)))
+    ;; Phase 4 Webhook：task_end 统一触发点（失败只记日志）；
+    ;; 若这是最后一个任务，实例随之结束 → 触发 process_end
+    (when task-info
+      (fire-webhook! "task_end" task-info)
+      (when-not (process-running? engine (:process-instance-id task-info))
+        (fire-webhook! "process_end" task-info))))
   true)
 
 (defn approve!
@@ -619,6 +718,148 @@
         (catch Exception e
           (log/error "[bpm-timeout] 超时处理失败:" (.getMessage e)))))))
 
+;; ── Phase 4 触发器节点（serviceTask + bpmTriggerDelegate）────────────────
+
+(defn- get-in-path
+  "按 a.b.0 路径从解析后的 JSON 取值（map keyword / vector 下标）。"
+  [m path]
+  (reduce (fn [acc k]
+            (cond
+              (nil? acc) nil
+              (and (sequential? acc) (re-matches #"\d+" (str k)))
+              (nth acc (Integer/parseInt (str k)) nil)
+              (map? acc) (get acc (keyword (str k)) (get acc (str k)))
+              :else nil))
+          m (str/split (str path) #"\.")))
+
+(defn- coerce-num
+  [v]
+  (cond
+    (number? v) (double v)
+    (nil? v) nil
+    :else (try (Double/parseDouble (str v)) (catch Exception _ nil))))
+
+(defn- cmp-values
+  "条件比较：两端都能解析为数字则数值比较，否则字符串比较。"
+  [op lv rv]
+  (let [ln (coerce-num lv) rn (coerce-num rv)]
+    (if (and ln rn)
+      (case (str op)
+        ">"  (> ln rn)
+        ">=" (>= ln rn)
+        "<"  (< ln rn)
+        "<=" (<= ln rn)
+        "!=" (not= ln rn)
+        (= ln rn))
+      (if (= "!=" (str op))
+        (not= (str lv) (str rv))
+        (= (str lv) (str rv))))))
+
+(defn- eval-trigger-conditions
+  "UPDATE_FORM 触发器的条件规则（全部 AND，空规则视为 true）。
+   left-side 为流程变量名，right-side 支持 ${field} 占位与数字字面量。"
+  [rules vars]
+  (every? (fn [{:keys [left-side op-code right-side]}]
+            (let [lv (get vars (str left-side) (get vars (keyword (str left-side))))
+                  rv (resolve-placeholders right-side vars)]
+              (cmp-values (or op-code "==") lv rv)))
+          (or rules [])))
+
+(defn- trigger-http!
+  "HTTP_REQUEST 触发器：发请求（失败只记日志），2xx 时按 response-mappings
+   把响应 JSON 的字段回写为流程变量（供后续条件/表单使用）。"
+  [^org.flowable.engine.delegate.DelegateExecution execution cfg]
+  (let [url (:url cfg)]
+    (if (str/blank? (str url))
+      (log/warn "[bpm-trigger] HTTP_REQUEST 缺少 url，跳过")
+      (let [vars (execution-vars execution)
+            headers (into {}
+                          (keep (fn [{:keys [key value]}]
+                                  (when (seq (str key))
+                                    [(str key) (str (resolve-placeholders value vars))])))
+                          (:headers cfg))
+            body (into {}
+                       (keep (fn [{:keys [key value]}]
+                               (when (seq (str key))
+                                 [(keyword (str key)) (resolve-placeholders value vars)])))
+                       (:body-params cfg))
+            method (str/lower-case (str (or (:method cfg) "POST")))
+            req (cond-> {:headers headers
+                         :socket-timeout 10000
+                         :conn-timeout 5000
+                         :throw-exceptions false}
+                  (seq body) (assoc :form-params body :content-type :json))
+            resp (case method
+                   "get" (http/get (str url) req)
+                   (http/post (str url) req))
+            status (long (or (:status resp) 0))]
+        (if (<= 200 status 299)
+          (let [parsed (try (json/parse-string (str (:body resp)) true)
+                            (catch Exception _ nil))]
+            (doseq [{:keys [source target]} (:response-mappings cfg)]
+              (when (and (seq (str source)) (seq (str target)))
+                (.setVariable execution (str target)
+                              (get-in-path parsed (str source)))))
+            (log/info "[bpm-trigger] HTTP_REQUEST" url "->" status
+                        "回写" (count (:response-mappings cfg)) "个变量"))
+          (log/error "[bpm-trigger] HTTP_REQUEST" url "返回非 2xx:" status))))))
+
+(defn- parse-form-value
+  "表单字段值：${} 占位解析后，数字字面量转数值，其余保留字符串。"
+  [v vars]
+  (let [r (resolve-placeholders v vars)]
+    (if (string? r)
+      (if-let [n (and (re-matches #"-?\d+(\.\d+)?" r) (coerce-num r))]
+        (if (re-matches #"-?\d+" r) (long n) n)
+        r)
+      r)))
+
+(defn- trigger-update-form!
+  "UPDATE_FORM 触发器：条件满足时把多组 字段=值 写入流程变量（值支持 ${field}）。"
+  [^org.flowable.engine.delegate.DelegateExecution execution cfg]
+  (let [vars (execution-vars execution)]
+    (when (eval-trigger-conditions (:conditions cfg) vars)
+      (doseq [{:keys [field value]} (:fields cfg)]
+        (when (seq (str field))
+          (.setVariable execution (str field) (parse-form-value value vars))))
+      (log/info "[bpm-trigger] UPDATE_FORM 已更新" (count (:fields cfg)) "个字段"))))
+
+(defn- trigger-delete-form!
+  "DELETE_FORM 触发器：清除指定字段的流程变量。"
+  [^org.flowable.engine.delegate.DelegateExecution execution cfg]
+  (doseq [f (:fields cfg)]
+    (when (seq (str f))
+      (.setVariable execution (str f) nil)
+      (log/info "[bpm-trigger] DELETE_FORM 清除字段" f))))
+
+(defn make-trigger-delegate
+  "触发器节点统一 JavaDelegate（nodeConfig.trigger-type 分发）：
+    HTTP_REQUEST   发 HTTP 请求，响应按 response-mappings 回写流程变量/表单字段
+    HTTP_CALLBACK  本期降级：等待外部回调 → 仅记日志后直接通过
+    UPDATE_FORM    条件+多组 字段=值 更新表单数据（流程变量）
+    DELETE_FORM    清除多选字段
+   任何失败只记日志，不阻断流程。"
+  []
+  (proxy [org.flowable.engine.delegate.JavaDelegate] []
+    (execute [^org.flowable.engine.delegate.DelegateExecution execution]
+      (try
+        (when-let [^ProcessEngine engine @engine-ref]
+          (let [repo (.getRepositoryService engine)
+                bpmn (.getBpmnModel repo (.getProcessDefinitionId execution))
+                el (.getFlowElement bpmn (.getCurrentActivityId execution))
+                cfg (element-node-config el)
+                ttype (str (or (:trigger-type cfg) (:type cfg) "HTTP_REQUEST"))]
+            (case ttype
+              "HTTP_REQUEST" (trigger-http! execution cfg)
+              "HTTP_CALLBACK" (log/info "[bpm-trigger] HTTP 回调节点（降级）："
+                                        "不等待外部回调，流程继续。实例="
+                                        (.getProcessInstanceId execution))
+              "UPDATE_FORM" (trigger-update-form! execution cfg)
+              "DELETE_FORM" (trigger-delete-form! execution cfg)
+              (log/warn "[bpm-trigger] 未知触发器类型:" ttype))))
+        (catch Exception e
+          (log/error "[bpm-trigger] 触发器执行失败:" (.getMessage e)))))))
+
 (defn- move-to-activity!
   "把流程实例从当前活动迁移到目标活动（驳回到指定节点）。"
   [^ProcessEngine engine process-instance-id from-activity-id to-activity-id]
@@ -732,6 +973,8 @@
   "终止流程实例（运维操作）。"
   [^ProcessEngine engine process-instance-id reason]
   (.deleteProcessInstance (.getRuntimeService engine) process-instance-id (or reason "运维终止"))
+  (fire-webhook! "process_end" {:process-instance-id process-instance-id
+                                 :task-name "运维终止"})
   true)
 
 ;; ── 加签 / 减签 ────────────────────────────────────────────────────────
@@ -806,6 +1049,8 @@
   [^ProcessEngine engine process-instance-id reason]
   (.deleteProcessInstance (.getRuntimeService engine)
                           process-instance-id (or reason "取消申请"))
+  (fire-webhook! "process_end" {:process-instance-id process-instance-id
+                                 :task-name "取消申请"})
   true)
 
 (defn- active-activity-ids-safe
