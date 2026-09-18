@@ -244,15 +244,19 @@
                      dynamic-strategy? (contains? #{"START_USER_DEPT_LEADER" "MULTI_LEVEL_DEPT_LEADER"
                                                     "START_USER_SELECT" "APPROVE_USER_SELECT"}
                                                   (get-in config [:candidate-strategy]))
-                     listener-el (when (and (#{"USER_TASK_NODE"} type) dynamic-strategy?)
+                     listener-el (when (and (#{"USER_TASK_NODE" "COPY_TASK_NODE"} type)
+                                            (or dynamic-strategy? (= "COPY_TASK_NODE" type)))
                                    "<flowable:taskListener event=\"create\" delegateExpression=\"${bpmTaskListener}\"/>")
+                     ;; 抄送节点在 nodeConfig 标 nodeType=COPY_TASK，TaskListener create 时自动抄送并完成
+                     out-config (cond-> config
+                                  (= "COPY_TASK_NODE" type) (assoc :nodeType "COPY_TASK"))
                      body (cond
-                            (and (#{"USER_TASK_NODE" "COPY_TASK_NODE"} type) (seq config))
+                            (and (#{"USER_TASK_NODE" "COPY_TASK_NODE"} type) (seq out-config))
                             (str "<extensionElements>"
                                  (when listener-el listener-el)
                                  "<flowable:properties>"
                                  "<flowable:property name=\"nodeConfig\" value=\""
-                                 (escape-xml (json/generate-string config))
+                                 (escape-xml (json/generate-string out-config))
                                  "\"/></flowable:properties></extensionElements>"
                                  (when multi-el multi-el))
                             (and (= type "DELAY_TIMER_NODE") (delay-iso config))

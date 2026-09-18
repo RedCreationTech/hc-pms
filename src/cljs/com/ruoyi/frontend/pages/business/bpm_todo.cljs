@@ -4,7 +4,7 @@
    [clojure.walk :as walk]
    [reagent.core :as r]
    [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [ReloadOutlined CheckOutlined CloseOutlined SwapOutlined SendOutlined EyeOutlined]]
+   ["@ant-design/icons" :refer [ReloadOutlined CheckOutlined CloseOutlined SwapOutlined SendOutlined EyeOutlined UserAddOutlined MailOutlined RollbackOutlined]]
    [com.ruoyi.frontend.antd :as antd]
    [com.ruoyi.frontend.api :as api]
    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
@@ -42,41 +42,118 @@
                           [antd/button {:size "small"
                                         :icon (r/as-element [:> SendOutlined])
                                         :on-click #(open-ops task "delegate")}
-                           "委派"]])))}])
+                           "委派"]
+                          [antd/button {:size "small"
+                                        :icon (r/as-element [:> UserAddOutlined])
+                                        :on-click #(rf/dispatch [:bpm/todo-open-sign task])}
+                           "加签"]
+                          [antd/button {:size "small"
+                                        :icon (r/as-element [:> MailOutlined])
+                                        :on-click #(rf/dispatch [:bpm/todo-open-copy task])}
+                           "抄送"]
+                          [antd/button {:size "small"
+                                        :icon (r/as-element [:> RollbackOutlined])
+                                        :on-click #(rf/dispatch [:bpm/todo-open-reject task])}
+                           "退回"]])))}])
 
-(defn- approve-modal []
+(defn- comment-item
+  [label]
+  [antd/form-item {:label label :name "comment"}
+   [antd/text-area {:placeholder "请输入意见(可选)" :rows 3}]])
+
+(defn- user-select [users]
+  [antd/select {:mode "multiple" :style {:width "100%"}
+                :placeholder "请选择用户(可多选)"
+                :options (clj->js (mapv (fn [u]
+                                          {:value (:user_name u)
+                                           :label (str (:nick_name u) " (" (:user_name u) ")")})
+                                        users))}])
+
+(defn- sign-children-block [task]
+  (let [signs @(rf/subscribe [:bpm-todo/sign-list])]
+    (if (empty? signs)
+      [:div {:style {:color "#c0c4cc" :padding "4px 0" :marginTop 8}} "暂无加签子任务"]
+      [:div {:style {:marginTop 8}}
+       [:div {:style {:fontWeight 600 :marginBottom 6}} "加签子任务（可减签）"]
+       (doall
+        (for [sgn signs]
+          ^{:key (:task-id sgn)}
+          [:div {:style {:display "flex" :alignItems "center" :justifyContent "space-between"
+                         :padding "4px 0" :borderBottom "1px solid #f0f0f0"}}
+           [:span
+            [:b (:assignee sgn)]
+            [:span {:style {:color "#909399" :marginLeft 8}}
+             (if (= "RUNNING" (:status sgn)) "进行中" "已完成")]]
+           (when (= "RUNNING" (:status sgn))
+             [antd/popconfirm {:title (str "确认对 " (:assignee sgn) " 减签?")
+                               :on-confirm #(rf/dispatch [:bpm/todo-delete-sign (:task-id task) (:assignee sgn)])}
+              [antd/button {:danger true :size "small"} "减签"]])]))])))
+
+(defn- approve-modal [users]
   (let [visible? @(rf/subscribe [:bpm-todo/modal-visible?])
         current @(rf/subscribe [:bpm-todo/current])
         action @(rf/subscribe [:bpm-todo/action])
         submitting? @(rf/subscribe [:bpm-todo/submitting?])
         form-data @(rf/subscribe [:bpm-todo/form-data])
         form-loading? @(rf/subscribe [:bpm-todo/form-loading?])
-        [form] (antd/form-use-form)]
-    [antd/modal {:title (str (if (= action "approve") "审批通过" "审批驳回") " · " (:name current))
+        return-list @(rf/subscribe [:bpm-todo/return-list])
+        [form] (antd/form-use-form)
+        title (case action
+                "approve" "审批通过"
+                "reject" "审批驳回"
+                "sign" "加签"
+                "copy" "抄送"
+                "审批")]
+    [antd/modal {:title (str title " · " (:name current))
                  :open visible? :confirmLoading submitting? :width 640
                  :onOk #(.submit form)
                  :onCancel #(rf/dispatch [:bpm/todo-close])}
-     [:div {:style {:maxHeight 420 :overflow "auto" :marginBottom 12}}
-      (if form-loading?
-        [:div {:style {:padding 24 :textAlign "center" :color "#909399"}} "表单加载中..."]
-        (if-let [form (:form form-data)]
-          (let [schema (:schema form)
-                values (or (:values form) {})]
-            (if (seq (:fields schema))
-              [:div
-               [:div {:style {:display "flex" :alignItems "center" :marginBottom 8}}
-                [:div {:style {:width 4 :height 16 :background "#409eff" :marginRight 8}}]
-                [:span {:style {:fontWeight 600}} "申请表单"]]
-               [fr/form-render {:schema schema :values values :disabled? true
-                                 :field-permissions (:fields-permission form-data)}]]
-              [:div {:style {:color "#c0c4cc" :textAlign "center" :padding 12}}
-               "该流程未配置动态表单"]))
-          [:div {:style {:color "#c0c4cc" :textAlign "center" :padding 12}} "暂无表单数据"]))]
+     (when (#{"approve" "reject"} action)
+       [:div {:style {:maxHeight 420 :overflow "auto" :marginBottom 12}}
+        (if form-loading?
+          [:div {:style {:padding 24 :textAlign "center" :color "#909399"}} "表单加载中..."]
+          (if-let [form (:form form-data)]
+            (let [schema (:schema form)
+                  values (or (:values form) {})]
+              (if (seq (:fields schema))
+                [:div
+                 [:div {:style {:display "flex" :alignItems "center" :marginBottom 8}}
+                  [:div {:style {:width 4 :height 16 :background "#409eff" :marginRight 8}}]
+                  [:span {:style {:fontWeight 600}} "申请表单"]]
+                 [fr/form-render {:schema schema :values values :disabled? true
+                                   :field-permissions (:fields-permission form-data)}]]
+                [:div {:style {:color "#c0c4cc" :textAlign "center" :padding 12}}
+                 "该流程未配置动态表单"]))
+            [:div {:style {:color "#c0c4cc" :textAlign "center" :padding 12}} "暂无表单数据"]))])
      [antd/form {:form form :layout "vertical" :preserve false
                  :onFinish (fn [values]
-                             (rf/dispatch [:bpm/todo-submit (:comment values)]))}
-      [antd/form-item {:label "审批意见" :name "comment"}
-       [antd/text-area {:placeholder "请输入审批意见(可选)" :rows 3}]]]]))
+                             (rf/dispatch [:bpm/todo-submit (js->clj values :keywordize-keys true)]))}
+      (case action
+        "reject" [:<>
+                 (when (seq return-list)
+                   [antd/form-item {:label "退回到节点" :name "return_node_id"
+                                    :initialValue (:activity-id (first return-list))}
+                    [antd/select {:style {:width "100%"}
+                                  :options (clj->js (mapv (fn [n]
+                                                            {:value (:activity-id n)
+                                                             :label (:activity-name n)})
+                                                          return-list))}]])
+                 [comment-item "审批意见"]]
+        "sign" [:<>
+                [antd/form-item {:label "加签人" :name "userIds"
+                                 :rules [{:required true :message "请选择加签人"}]}
+                 (user-select users)]
+                [antd/form-item {:label "加签方式" :name "type" :initialValue "after"}
+                 [antd/radio-group {:options (clj->js [{:value "before" :label "前加签"}
+                                                       {:value "after" :label "后加签"}])}]]
+                [comment-item "加签原因"]
+                [sign-children-block current]]
+        "copy" [:<>
+                [antd/form-item {:label "抄送人" :name "userIds"
+                                 :rules [{:required true :message "请选择抄送人"}]}
+                 (user-select users)]
+                [comment-item "抄送说明"]]
+        [comment-item "审批意见"])]]))
 
 (defn- todo-detail-drawer [{:keys [task visible? set-visible! form-data diagram history]}]
   (let [form (:form form-data)
@@ -212,7 +289,7 @@
                     :loading loading?
                     :pagination {:total total :pageSize 10 :showSizeChanger true
                                  :showTotal (fn [total] (str "共 " total " 条"))}}]
-       [approve-modal]
+       [approve-modal @users]
        [ops-modal {:task @ops-task :type @ops-type :to-user @ops-user
                    :users @users :visible? @ops-visible
                    :set-to-user! #(reset! ops-user %) :set-visible! #(reset! ops-visible %)}]

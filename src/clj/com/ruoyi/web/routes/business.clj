@@ -59,6 +59,17 @@
    ["/bpm/task/:id/transfer" {:post {:summary "转办任务" :handler (partial bpm/transfer-task {:bpm-service bpm-service})}}]
    ["/bpm/task/:id/delegate" {:post {:summary "委派任务" :handler (partial bpm/delegate-task {:bpm-service bpm-service})}}]
 
+   ;; ── Phase 1 审批闭环：加签/减签/抄送/撤回/可退回节点 ──
+   ["/bpm/task/create-sign" {:post {:summary "加签" :handler (partial bpm/create-sign {:bpm-service bpm-service})}}]
+   ["/bpm/task/delete-sign" {:delete {:summary "减签" :handler (partial bpm/delete-sign {:bpm-service bpm-service})}}]
+   ["/bpm/task/sign-list" {:get {:summary "加签子任务列表" :handler (partial bpm/sign-list {:bpm-service bpm-service})}}]
+   ["/bpm/task/return-list" {:get {:summary "可退回节点列表" :handler (partial bpm/return-list {:bpm-service bpm-service})}}]
+   ["/bpm/task/copy" {:post {:summary "任务抄送" :handler (partial bpm/copy-task {:bpm-service bpm-service})}}]
+   ["/bpm/task/copy/page" {:get {:summary "我的抄送分页" :handler (partial bpm/copy-page {:bpm-service bpm-service})}}]
+   ["/bpm/task/withdraw" {:put {:summary "撤回已办任务" :handler (partial bpm/withdraw-task {:bpm-service bpm-service})}}]
+   ["/bpm/task/withdraw-to-start" {:put {:summary "撤回到起始节点" :handler (partial bpm/withdraw-to-start {:bpm-service bpm-service})}}]
+   ["/bpm/instance/cancel" {:delete {:summary "取消流程实例(发起人或管理员)" :handler (partial bpm/cancel-instance {:bpm-service bpm-service})}}]
+
    ;; ── 流程任务管理 / 流程实例运维 ──
    ["/bpm/task/all" {:get {:summary "全部任务(管理员)" :handler (partial bpm/list-all-tasks {:bpm-service bpm-service})}}]
    ["/bpm/instance/:pid/suspend"  {:post {:summary "挂起流程实例" :handler (partial bpm/suspend-instance {:bpm-service bpm-service})}}]

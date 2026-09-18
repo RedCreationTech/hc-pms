@@ -3,7 +3,8 @@
   (:require
    [reagent.core :as r]
    [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [ReloadOutlined EyeOutlined]]
+   ["@ant-design/icons" :refer [ReloadOutlined EyeOutlined RollbackOutlined StopOutlined]]
+   [reagent.hooks :as hooks]
    [com.ruoyi.frontend.antd :as antd]
    [com.ruoyi.frontend.api :as api]
    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
@@ -15,10 +16,20 @@
                         "1" ["审批中" "processing"]
                         "2" ["已结束" "success"]
                         "3" ["已驳回" "error"]
+                        "CANCELED" ["已取消" "warning"]
                         ["未知" "default"])]
     [antd/tag {:color color} label]))
 
-(defn- instance-columns [open-detail]
+(defn- cancel-modal [{:keys [pid visible? on-close on-ok]}]
+  (let [[reason set-reason!] (hooks/use-state "")]
+    [antd/modal {:title "取消流程" :open visible? :width 420
+                 :onOk (fn [] (on-ok pid reason))
+                 :onCancel on-close}
+     [:div {:style {:marginBottom 8}} "确认取消该流程实例？取消后流程终止，不可恢复。"]
+     [antd/text-area {:value reason :rows 3 :placeholder "取消原因(可选)"
+                      :onChange #(set-reason! (.. % -target -value))}]]))
+
+(defn- instance-columns [open-detail on-withdraw-to-start on-cancel]
   #js [#js {:title "模型" :dataIndex "model_name" :key "model_name" :width 140}
        #js {:title "流程实例" :dataIndex "process_instance_id" :key "process_instance_id"
             :width 90 :render (fn [v] (r/as-element (if v [antd/tag {:color "blue"} v] "-")))}
@@ -27,15 +38,28 @@
        #js {:title "状态" :dataIndex "status" :key "status" :width 100
             :render (fn [v] (r/as-element (status-tag v)))}
        #js {:title "发起时间" :dataIndex "create_time" :key "create_time" :width 170}
-       #js {:title "操作" :key "action" :width 100
+       #js {:title "操作" :key "action" :width 220
             :render (fn [_ ^js record]
                       (let [instance (js->clj record :keywordize-keys true)
-                            pid (:process_instance_id instance)]
+                            pid (:process_instance_id instance)
+                            running? (= "1" (:status instance))]
                         (r/as-element
-                         [antd/button {:type "link" :size "small"
-                                       :icon (r/as-element [:> EyeOutlined])
-                                       :on-click #(open-detail pid)}
-                          "详情"])))}])
+                         [antd/space
+                          [antd/button {:type "link" :size "small"
+                                        :icon (r/as-element [:> EyeOutlined])
+                                        :on-click #(open-detail pid)}
+                           "详情"]
+                          (when running?
+                            [antd/popconfirm {:title "确认撤回到起始节点重新编辑?"
+                                              :on-confirm #(on-withdraw-to-start pid)}
+                             [antd/button {:type "link" :size "small"
+                                           :icon (r/as-element [:> RollbackOutlined])}
+                              "撤回"]])
+                          (when running?
+                            [antd/button {:type "link" :size "small" :danger true
+                                          :icon (r/as-element [:> StopOutlined])
+                                          :on-click #(on-cancel pid)}
+                             "取消"])])))}])
 
 (defn- detail-drawer [{:keys [pid data loading? diagram]}]
   (let [data-val (or @data {})
@@ -108,6 +132,7 @@
   (r/with-let [items (r/atom [])
                total (r/atom 0)
                loading? (r/atom true)
+               cancel-pid (r/atom nil)
                detail-pid (r/atom nil)
                detail-loading? (r/atom false)
                detail-data (r/atom nil)
@@ -144,9 +169,21 @@
                                                 :icon (r/as-element [:> ReloadOutlined])
                                                 :on-click refresh}]]}]
      [antd/table {:scroll #js {:x "max-content"} :rowKey "instance_id"
-                  :columns (instance-columns open-detail)
+                  :columns (instance-columns open-detail
+                                             (fn [pid] (api/bpm-withdraw-to-start pid refresh (fn [_] nil)))
+                                             (fn [pid] (reset! cancel-pid pid)))
                   :dataSource (clj->js @items)
                   :loading @loading?
                   :pagination {:total @total :pageSize 10 :showSizeChanger true
                                :showTotal (fn [total] (str "共 " total " 条"))}}]
+     [cancel-modal {:pid @cancel-pid
+                    :visible? (some? @cancel-pid)
+                    :on-close #(reset! cancel-pid nil)
+                    :on-ok (fn [pid reason]
+                             (api/bpm-cancel-instance {:id pid :reason reason}
+                                                      (fn [res]
+                                                        (if (= 200 (:code res))
+                                                          (do (antd/success! "已取消") (reset! cancel-pid nil) (refresh))
+                                                          (antd/error! (str "取消失败: " (:msg res)))))
+                                                      (fn [_] (antd/error! "取消失败"))))}]
      [detail-drawer {:pid detail-pid :data detail-data :loading? detail-loading? :diagram detail-diagram}]]))

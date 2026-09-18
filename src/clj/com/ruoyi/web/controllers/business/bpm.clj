@@ -36,6 +36,18 @@
   [request]
   (get-in request [:identity :user-name]))
 
+(defn- admin?
+  "是否超级管理员：admin 用户或角色 1。"
+  [request]
+  (let [id (:identity request)]
+    (or (= "admin" (:user-name id))
+        (some #(= "1" (str %)) (:roles id)))))
+
+(defn- body-or-query
+  "合并 query-params 与 body-params（DELETE 请求体可能不被解析）。"
+  [request]
+  (merge (bu/kquery request) (:body-params request)))
+
 ;; ── 流程分类 ──────────────────────────────────────────────────────────
 (defn list-categories
   [{:keys [bpm-service]} request]
@@ -161,11 +173,71 @@
                (ok nil))))
 
 (defn reject-task
-  "审批驳回。"
+  "审批驳回。body: {:comment x :return_node_id 可选(从 return-list 选择的退回节点)}"
   [{:keys [bpm-service]} request]
   (wrap-err #(let [task-id (get-in request [:path-params :id])
-                   comment (get-in request [:body-params :comment])]
-               (bpm-core/reject! (:engine bpm-service) task-id (current-user request) comment)
+                   comment (get-in request [:body-params :comment])
+                   return-node (get-in request [:body-params :return_node_id])]
+               (bpm-core/reject! (:engine bpm-service) task-id (current-user request) comment return-node)
+               (ok nil))))
+
+;; ── Phase 1 审批闭环：加签 / 减签 / 抄送 / 取消 / 撤回 / 可退回节点 ─────
+(defn create-sign
+  "加签。body: {:taskId x :userIds [] :type before|after :reason x}"
+  [{:keys [bpm-service]} request]
+  (wrap-err #(let [{:keys [taskId userIds type reason]} (:body-params request)]
+               (bpm/task-create-sign! bpm-service taskId userIds type reason (current-user request))
+               (ok nil))))
+
+(defn delete-sign
+  "减签。body: {:taskId x :userIds [] :reason x}"
+  [{:keys [bpm-service]} request]
+  (wrap-err #(let [{:keys [taskId userIds reason]} (body-or-query request)]
+               (bpm/task-delete-sign! bpm-service taskId userIds reason (current-user request))
+               (ok nil))))
+
+(defn sign-list
+  "加签子任务列表。query: taskId="
+  [{:keys [bpm-service]} request]
+  (wrap-err #(ok {:rows (bpm/task-sign-list bpm-service (get (bu/kquery request) :taskId))})))
+
+(defn return-list
+  "可退回节点列表。query: taskId="
+  [{:keys [bpm-service]} request]
+  (wrap-err #(ok {:rows (bpm/task-return-list bpm-service (get (bu/kquery request) :taskId))})))
+
+(defn copy-task
+  "手动抄送。body: {:processInstanceId x :userIds [] :reason x :activityId? :activityName?}"
+  [{:keys [bpm-service]} request]
+  (wrap-err #(let [{:keys [processInstanceId userIds reason activityId activityName]} (:body-params request)]
+               (bpm/task-copy! bpm-service processInstanceId userIds reason activityId activityName
+                               (current-user request))
+               (ok nil))))
+
+(defn copy-page
+  "我的抄送分页。query: page size"
+  [{:keys [bpm-service]} request]
+  (wrap-err #(ok (bpm/copy-page bpm-service (bu/kquery request) (current-user request)))))
+
+(defn cancel-instance
+  "取消流程实例（发起人或管理员）。body/query: {:id(实例process_instance_id) :reason}"
+  [{:keys [bpm-service]} request]
+  (wrap-err #(let [{:keys [id reason]} (body-or-query request)]
+               (bpm/instance-cancel! bpm-service id reason (current-user request) (admin? request))
+               (ok nil))))
+
+(defn withdraw-task
+  "审批人撤回自己刚审完的任务。body: {:taskId x}"
+  [{:keys [bpm-service]} request]
+  (wrap-err #(let [task-id (get (:body-params request) :taskId)]
+               (bpm/task-withdraw! bpm-service task-id (current-user request))
+               (ok nil))))
+
+(defn withdraw-to-start
+  "发起人撤回到起始节点。body: {:processInstanceId x}"
+  [{:keys [bpm-service]} request]
+  (wrap-err #(let [pid (get (:body-params request) :processInstanceId)]
+               (bpm/task-withdraw-to-start! bpm-service pid (current-user request) (admin? request))
                (ok nil))))
 
 (defn claim-task

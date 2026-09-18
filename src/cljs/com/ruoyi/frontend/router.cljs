@@ -42,6 +42,7 @@
         "office/bpm/todo" :bpm-todo
         "office/bpm/start" :bpm-start
         "office/bpm/done" :bpm-done
+        "office/bpm/copy" :bpm-copy
         "office/oa/leave" :leave
         "office/oa/reimburse" :reimburse
         "office/report" :report
@@ -94,6 +95,7 @@
    :bpm-todo "我的待办"
    :bpm-start "发起流程"
    :bpm-done "我的已办"
+   :bpm-copy "抄送我的"
    :leave "请假申请"
    :reimburse "报销申请"
    :report "办公报表"

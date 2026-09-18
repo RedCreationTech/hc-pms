@@ -880,9 +880,56 @@
             :params {:to_user to-user}
             :on-success on-success :on-error on-error}))
 
-(defn bpm-reject-task [task-id comment on-success on-error]
-  (request {:method :post :uri (str "/business/bpm/task/" task-id "/reject")
-            :params {:comment comment}
+(defn bpm-reject-task
+  "审批驳回。return-node-id 可选：从 return-list 选择的退回节点。"
+  ([task-id comment on-success on-error]
+   (bpm-reject-task task-id comment nil on-success on-error))
+  ([task-id comment return-node-id on-success on-error]
+   (request {:method :post :uri (str "/business/bpm/task/" task-id "/reject")
+             :params (cond-> {:comment comment}
+                       return-node-id (assoc :return_node_id return-node-id))
+             :on-success on-success :on-error on-error})))
+
+;; ─── BPM Phase 1 审批闭环 ──────────────────────────────────────────
+
+(defn bpm-create-sign [params on-success on-error]
+  (request {:method :post :uri "/business/bpm/task/create-sign"
+            :params params :on-success on-success :on-error on-error}))
+
+(defn bpm-delete-sign [params on-success on-error]
+  (request {:method :delete :uri "/business/bpm/task/delete-sign"
+            :params params :on-success on-success :on-error on-error}))
+
+(defn bpm-sign-list [task-id on-success on-error]
+  (request {:method :get :uri "/business/bpm/task/sign-list"
+            :params {:taskId task-id}
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-return-list [task-id on-success on-error]
+  (request {:method :get :uri "/business/bpm/task/return-list"
+            :params {:taskId task-id}
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-copy-task [params on-success on-error]
+  (request {:method :post :uri "/business/bpm/task/copy"
+            :params params :on-success on-success :on-error on-error}))
+
+(defn bpm-copy-page [params on-success on-error]
+  (request {:method :get :uri "/business/bpm/task/copy/page"
+            :params params :on-success on-success :on-error on-error}))
+
+(defn bpm-cancel-instance [params on-success on-error]
+  (request {:method :delete :uri "/business/bpm/instance/cancel"
+            :params params :on-success on-success :on-error on-error}))
+
+(defn bpm-withdraw-task [task-id on-success on-error]
+  (request {:method :put :uri "/business/bpm/task/withdraw"
+            :params {:taskId task-id}
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-withdraw-to-start [process-instance-id on-success on-error]
+  (request {:method :put :uri "/business/bpm/task/withdraw-to-start"
+            :params {:processInstanceId process-instance-id}
             :on-success on-success :on-error on-error}))
 
 (defn bpm-task-history [pid on-success on-error]

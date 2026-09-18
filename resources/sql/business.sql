@@ -539,3 +539,25 @@ UPDATE biz_bpm_settings SET name=:name, value=:value, description=:description, 
 -- :name bpmmgmt/delete-settings :! :n
 DELETE FROM biz_bpm_settings WHERE settings_id = :settings_id
 --;;
+
+-- ============================ BPM 抄送（Phase 1）========================
+-- :name bpm/insert-copy :! :n
+INSERT INTO biz_bpm_copy (user_id, process_instance_id, activity_id, activity_name, reason, create_by, create_time)
+VALUES (:user_id, :process_instance_id, :activity_id, :activity_name, :reason, :create_by, CURRENT_TIMESTAMP)
+--;;
+
+-- :name bpm/copy-page :? :*
+SELECT c.copy_id, c.user_id, c.process_instance_id, c.activity_id, c.activity_name,
+       c.reason, c.create_by, c.create_time,
+       m.model_name, i.model_key, i.starter_id, i.status AS instance_status
+FROM biz_bpm_copy c
+LEFT JOIN biz_bpm_instance i ON c.process_instance_id = i.process_instance_id
+LEFT JOIN biz_bpm_model m ON i.model_id = m.model_id
+WHERE c.user_id = :user_id
+ORDER BY c.copy_id DESC
+LIMIT :page_size OFFSET :offset
+--;;
+
+-- :name bpm/copy-count :? :1
+SELECT COUNT(*) AS total FROM biz_bpm_copy WHERE user_id = :user_id
+--;;

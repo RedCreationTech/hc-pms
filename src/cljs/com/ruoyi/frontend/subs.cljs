@@ -637,6 +637,11 @@
 (rf/reg-sub :bpm-todo/submitting? (fn [db _] (get-in db [:bpm-todo :submitting?] false)))
 (rf/reg-sub :bpm-todo/form-data (fn [db _] (get-in db [:bpm-todo :form-data] nil)))
 (rf/reg-sub :bpm-todo/form-loading? (fn [db _] (get-in db [:bpm-todo :form-loading?] false)))
+(rf/reg-sub :bpm-todo/sign-list (fn [db _] (get-in db [:bpm-todo :sign-list] [])))
+(rf/reg-sub :bpm-todo/return-list (fn [db _] (get-in db [:bpm-todo :return-list] [])))
+(rf/reg-sub :bpm-copy/items (fn [db _] (get-in db [:bpm-copy :items] [])))
+(rf/reg-sub :bpm-copy/total (fn [db _] (get-in db [:bpm-copy :total] 0)))
+(rf/reg-sub :bpm-copy/loading? (fn [db _] (get-in db [:bpm-copy :loading?] false)))
 
 ;; ─── 办公：BPM 已办 ──────────────────────────────────────────────────
 (rf/reg-sub :bpm-done/items (fn [db _] (get-in db [:bpm-done :items] [])))

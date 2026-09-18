@@ -3,9 +3,79 @@
    提供流程分类/模型/表单/实例 的 CRUD 与流程运行操作。"
   (:require
    [cheshire.core :as json]
+   [clojure.string :as str]
+   [clojure.tools.logging :as log]
    [com.ruoyi.bpm.core :as bpm]
    [com.ruoyi.domain.business.bpm-flow :as bpm-flow]
    [integrant.core :as ig]))
+
+;; ── 抄送节点处理器（COPY_TASK）─────────────────────────────────────────
+
+(defn- expand-copy-candidates
+  "把抄送节点配置(copy-user-ids/copy-role-ids)展开为用户名列表。"
+  [node-config users]
+  (let [user-ids (set (map str (:copy-user-ids node-config)))
+        role-ids (set (map str (:copy-role-ids node-config)))
+        names (concat (map :user_name (filter #(contains? user-ids (str (:user_id %))) users))
+                      (map :user_name (filter #(some (fn [rid] (contains? role-ids (str rid)))
+                                                     (:role_ids %))
+                                              users)))]
+    (distinct (vec (keep identity names)))))
+
+(defn- candidates-from-links
+  "从 DelegateTask 的候选人(内存 identityLink)展开抄送用户：
+   userId 直取；group 按 role:/dept:/post:/dept-leader: 展开。"
+  [^org.flowable.task.service.delegate.DelegateTask task users depts user-roles user-posts]
+  (let [expand (fn [^org.flowable.identitylink.api.IdentityLink l]
+                 (if-let [u (.getUserId l)]
+                   [u]
+                   (when-let [g (.getGroupId l)]
+                     (let [[prefix did] (str/split g #":" 2)]
+                       (case prefix
+                         "role" (map :user_name (filter #(= did (str (:role_id %))) user-roles))
+                         "dept" (map :user_name (filter #(= did (str (:dept_id %))) users))
+                         "post" (map :user_name (filter #(some (fn [up]
+                                                                 (and (= did (str (:post_id up)))
+                                                                      (= (str (:user_id %)) (str (:user_id up)))))
+                                                               user-posts)
+                                                        users))
+                         "dept-leader" (map :user_name
+                                            (filter (fn [u]
+                                                      (some #(and (= did (str (:dept_id %)))
+                                                                  (= (str (:user_id u)) (str (:leader %))))
+                                                            depts))
+                                                    users))
+                         [])))))]
+    (distinct (vec (keep identity (mapcat expand (.getCandidates task)))))))
+
+(defn- copy-task-handler
+  "COPY_TASK 节点 create 事件处理：为每个候选人插 biz_bpm_copy 记录，然后自动完成任务。
+   候选人优先取 nodeConfig 的 copy-user-ids/copy-role-ids，否则从 identityLink 展开。"
+  [engine query-fn ^org.flowable.task.service.delegate.DelegateTask task node-config]
+  (let [ts (.getTaskService ^org.flowable.engine.ProcessEngine engine)
+        tid (.getId task)
+        pid (.getProcessInstanceId task)
+        users (query-fn :list-users {:user_name nil :phonenumber nil :status nil
+                                     :begin_time nil :end_time nil :dept_filter_enabled 0
+                                     :dept_ids [0] :data_user_id nil :page_size 100000 :offset 0})
+        from-config (expand-copy-candidates node-config users)
+        candidates (if (seq from-config)
+                     from-config
+                     (candidates-from-links task users
+                                            (query-fn :list-all-depts {})
+                                            (query-fn :list-user-roles {})
+                                            (query-fn :list-user-posts {})))
+        create-by (or (some-> (.getVariable task "startUserId") str) "")]
+    (doseq [u candidates]
+      (query-fn :bpm/insert-copy
+                {:user_id u :process_instance_id pid
+                 :activity_id (str (.getTaskDefinitionKey task))
+                 :activity_name (str (.getName task))
+                 :reason "" :create_by create-by}))
+    (try
+      (.complete ts tid (java.util.HashMap.))
+      (catch Exception e
+        (log/error "[bpm-copy] 自动完成抄送任务失败:" (.getMessage e))))))
 
 ;; ── Integrant 组件 ────────────────────────────────────────────────────
 (defmethod ig/init-key :app.business/bpm-service
@@ -69,6 +139,10 @@
                            after-start)
                          after-start)]
        (distinct after-empty))))
+  ;; 注册抄送节点处理器（TaskListener create 时自动插抄送记录并完成任务）
+  (bpm/set-copy-handler!
+   (fn [task node-config]
+     (copy-task-handler engine query-fn task node-config)))
   {:engine engine :query-fn query-fn :db db})
 
 ;; ── 分页工具 ──────────────────────────────────────────────────────────
@@ -415,3 +489,77 @@
                :my-todo (bpm/todo-count engine (or user ""))}
      :hrm {:employee-total employee-total}
      :crm {:customer-total customer-total}}))
+
+;; ── Phase 1 审批闭环：加签 / 减签 / 取消 / 撤回 / 抄送 / 可退回节点 ─────
+
+(defn task-create-sign!
+  "加签：仅任务当前办理人可操作。"
+  [{:keys [engine]} task-id user-names sign-type reason user]
+  (let [t (bpm/task-of engine task-id)]
+    (when-not t (throw (ex-info "任务不存在" {:task-id task-id})))
+    (when (and (:assignee t) (not= (:assignee t) user))
+      (throw (ex-info "只有任务办理人可以加签" {:task-id task-id}))))
+  (bpm/create-sign! engine task-id user-names sign-type reason))
+
+(defn task-delete-sign!
+  "减签：仅任务当前办理人可操作。"
+  [{:keys [engine]} task-id user-names reason user]
+  (let [t (bpm/task-of engine task-id)]
+    (when-not t (throw (ex-info "任务不存在" {:task-id task-id})))
+    (when (and (:assignee t) (not= (:assignee t) user))
+      (throw (ex-info "只有任务办理人可以减签" {:task-id task-id}))))
+  (bpm/delete-sign! engine task-id user-names reason))
+
+(defn task-sign-list
+  "某任务的加签子任务列表。"
+  [{:keys [engine]} task-id]
+  (bpm/sign-list engine task-id))
+
+(defn task-return-list
+  "当前任务之前已完成的用户任务节点列表（驳回可选目标）。"
+  [{:keys [engine]} task-id]
+  (bpm/return-list engine task-id))
+
+(defn instance-cancel!
+  "取消流程实例：发起人或管理员。业务状态置为 CANCELED。"
+  [{:keys [engine query-fn]} process-instance-id reason user admin?]
+  (let [inst (query-fn :bpm/find-instance-by-pid {:process_instance_id process-instance-id})]
+    (when-not inst (throw (ex-info "流程实例不存在" {:process-instance-id process-instance-id})))
+    (when-not (or admin? (= user (:starter_id inst)))
+      (throw (ex-info "只有发起人或管理员可以取消流程" {:process-instance-id process-instance-id})))
+    (bpm/cancel-instance! engine process-instance-id reason)
+    (query-fn :bpm/update-instance-status {:process_instance_id process-instance-id
+                                           :status "CANCELED" :current_task ""})))
+
+(defn task-withdraw!
+  "审批人撤回自己刚审完的任务（要求下一节点任务未完成）。"
+  [{:keys [engine]} task-id user]
+  (bpm/withdraw! engine task-id user))
+
+(defn task-withdraw-to-start!
+  "发起人撤回到起始节点重新编辑：发起人或管理员。"
+  [{:keys [engine query-fn]} process-instance-id user admin?]
+  (let [inst (query-fn :bpm/find-instance-by-pid {:process_instance_id process-instance-id})]
+    (when-not inst (throw (ex-info "流程实例不存在" {:process-instance-id process-instance-id})))
+    (when-not (or admin? (= user (:starter_id inst)))
+      (throw (ex-info "只有发起人或管理员可以撤回流程" {:process-instance-id process-instance-id})))
+    (bpm/withdraw-to-start! engine process-instance-id)))
+
+(defn task-copy!
+  "手动抄送：为每个抄送人插 biz_bpm_copy 记录。"
+  [{:keys [query-fn]} process-instance-id user-names reason activity-id activity-name user]
+  (when (empty? (seq user-names))
+    (throw (ex-info "抄送人不能为空" {:process-instance-id process-instance-id})))
+  (doseq [u user-names]
+    (query-fn :bpm/insert-copy
+              {:user_id (str u) :process_instance_id process-instance-id
+               :activity_id (or activity-id "") :activity_name (or activity-name "")
+               :reason (or reason "") :create_by (or user "")})))
+
+(defn copy-page
+  "我的抄送分页（当前登录用户）。"
+  [{:keys [query-fn]} params user]
+  (let [{:keys [offset size]} (page-params params)
+        p {:user_id user :page_size size :offset offset}]
+    {:rows (query-fn :bpm/copy-page p)
+     :total (:total (query-fn :bpm/copy-count p))}))

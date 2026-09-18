@@ -205,30 +205,47 @@
   [f]
   (reset! candidate-resolver f))
 
+;; ── 抄送（COPY_TASK 节点自动抄送处理器注册）────────────────────────────
+
+(defonce ^:private copy-handler (atom nil))
+
+(defn set-copy-handler!
+  "注册抄送节点处理器。f 签名: (fn [^DelegateTask task node-config])，
+   由 domain 层实现：插入 biz_bpm_copy 记录并自动完成任务。"
+  [f]
+  (reset! copy-handler f))
+
 (defn make-task-listener
-  "构建一个 Flowable TaskListener（create 事件），在任务创建时解析动态候选策略并设置候选人。"
+  "构建一个 Flowable TaskListener（create 事件）：
+   1) 抄送节点(nodeType=COPY_TASK)：调用注册的抄送处理器（插 biz_bpm_copy + 自动完成任务）
+   2) 动态候选策略节点：解析候选人并设置；候选为空且配置 SKIP 时自动完成跳过。"
   []
   (let [resolve (fn [^org.flowable.task.service.delegate.DelegateTask task]
                   (try
-                    (when-let [f @candidate-resolver]
-                      (let [node-config (when-let [^ProcessEngine engine @engine-ref]
-                                          (node-config-of engine task))
-                            strategy (get-in node-config [:candidate-strategy])]
-                        (when (and strategy
-                                   (contains? #{"START_USER_DEPT_LEADER" "MULTI_LEVEL_DEPT_LEADER"
-                                                "START_USER_SELECT" "APPROVE_USER_SELECT"} strategy))
-                          (when-let [users (f strategy task)]
-                            (if (seq users)
-                              (.addCandidateUsers task (java.util.ArrayList. users))
-                              ;; 候选人为空(如 SKIP 移除发起人)：自动完成跳过本节点
-                              (when (and (= "SKIP" (get-in node-config [:assign-start-user-handler-type]))
-                                         @engine-ref)
-                                (try
-                                  (.complete (.getTaskService ^ProcessEngine @engine-ref)
-                                             (.getId task) (java.util.HashMap.))
-                                  (catch Exception _ nil))))))))
+                    (let [node-config (when-let [^ProcessEngine engine @engine-ref]
+                                        (node-config-of engine task))]
+                      ;; 抄送节点：插入抄送记录并自动完成任务
+                      (when (and (= "COPY_TASK" (get-in node-config [:nodeType]))
+                                 @copy-handler)
+                        (@copy-handler task node-config))
+                      ;; 动态候选策略解析（原有逻辑）
+                      (when-let [f @candidate-resolver]
+                        (let [strategy (get-in node-config [:candidate-strategy])]
+                          (when (and strategy
+                                     (contains? #{"START_USER_DEPT_LEADER" "MULTI_LEVEL_DEPT_LEADER"
+                                                  "START_USER_SELECT" "APPROVE_USER_SELECT"} strategy))
+                            (when-let [users (f strategy task)]
+                              (if (seq users)
+                                (.addCandidateUsers task (java.util.ArrayList. users))
+                                ;; 候选人为空(如 SKIP 移除发起人)：自动完成跳过本节点
+                                (when (and (= "SKIP" (get-in node-config [:assign-start-user-handler-type]))
+                                           @engine-ref)
+                                  (try
+                                    (.complete (.getTaskService ^ProcessEngine @engine-ref)
+                                               (.getId task) (java.util.HashMap.))
+                                    (catch Exception _ nil)))))))))
                     (catch Exception e
-                      (log/error "[bpm-tasklistener] 解析动态候选人失败:" (.getMessage e)))))]
+                      (log/error "[bpm-tasklistener] 解析任务监听器失败:" (.getMessage e)))))]
     (proxy [org.flowable.engine.delegate.TaskListener] []
       (notify [task] (resolve task)))))
 
@@ -319,6 +336,29 @@
   (.resolveTask (.getTaskService engine) task-id)
   true)
 
+(defn- task-entity
+  "按任务 id 查运行中任务实体，不存在则抛错。"
+  [^ProcessEngine engine task-id]
+  (let [t (some-> (.taskId (.createTaskQuery (.getTaskService engine)) task-id)
+                  .singleResult)]
+    (when-not t
+      (throw (ex-info "任务不存在或已完成" {:task-id task-id})))
+    t))
+
+(defn- child-sign-tasks
+  "某任务的未完成（运行中）加签子任务。Flowable8 运行期 TaskQuery 无 taskParentTaskId，
+   按 processInstanceId 查询后用 getParentTaskId 过滤。"
+  [^ProcessEngine engine task-id]
+  (let [t (task-entity engine task-id)
+        ts (.getTaskService engine)]
+    (filter #(= task-id (.getParentTaskId ^Task %))
+            (.list (.processInstanceId (.createTaskQuery ts) (.getProcessInstanceId t))))))
+
+(defn- open-sign-count
+  "某任务的未完成加签子任务数。"
+  [^ProcessEngine engine task-id]
+  (count (child-sign-tasks engine task-id)))
+
 (defn- complete*
   "完成任务并写入变量。若任务未认领且给定 user，则先认领给该用户（保证已办/历史可追踪）。"
   [^ProcessEngine engine task-id user variables]
@@ -339,8 +379,10 @@
   true)
 
 (defn approve!
-  "审批通过：完成任务，写入 approved=true。"
+  "审批通过：完成任务，写入 approved=true。父任务通过前校验无未完成加签子任务。"
   [^ProcessEngine engine task-id user comment]
+  (when (pos? (open-sign-count engine task-id))
+    (throw (ex-info "加签任务未完成" {:task-id task-id})))
   (complete* engine task-id user (cond-> {:approved true}
                                    comment (assoc :comment comment)))
   true)
@@ -381,27 +423,30 @@
 
 (defn reject!
   "审批驳回：完成任务，写入 approved=false。
-   若任务节点配置了\u201c驳回到指定节点\u201d(reject-handler.type=RETURN_USER_TASK)，
+   若显式传入 return-node-id（前端从 return-list 选择）或任务节点配置了
+   “驳回到指定节点”(reject-handler.type=RETURN_USER_TASK),
    则把流程实例迁移回目标节点重新审批；否则走网关条件分流(approved=false)。"
-  [^ProcessEngine engine task-id user comment]
-  (let [ts (.getTaskService engine)
-        t (some-> (.taskId (.createTaskQuery ts) task-id) .singleResult)
-        node-config (when t (node-config-of engine t))
-        reject-handler (:reject-handler node-config)
-        return-node (:return-node-id reject-handler)]
-    (if (and t (= "RETURN_USER_TASK" (:type reject-handler)) return-node)
-      ;; 驳回到指定节点：不 complete，直接迁移流程实例（changeState 自动处理当前任务；
-      ;; 驳回到自身时 moveActivityIdTo 同节点 = 重新激活当前审批）
-      (do
-        (when comment
-          (let [rt (.getRuntimeService engine)]
-            (.setVariable rt (.getProcessInstanceId t) "comment" comment)))
-        (move-to-activity! engine (.getProcessInstanceId t)
-                           (.getTaskDefinitionKey t) return-node))
-      ;; 终止流程(FINISH_PROCESS)或无条件：complete + approved=false 走网关
-      (complete* engine task-id user (cond-> {:approved false}
-                                       comment (assoc :comment comment))))
-    true))
+  ([^ProcessEngine engine task-id user comment]
+   (reject! engine task-id user comment nil))
+  ([^ProcessEngine engine task-id user comment return-node-id]
+   (let [ts (.getTaskService engine)
+         t (some-> (.taskId (.createTaskQuery ts) task-id) .singleResult)
+         node-config (when t (node-config-of engine t))
+         reject-handler (:reject-handler node-config)
+         return-node (or return-node-id (:return-node-id reject-handler))]
+     (if (and t return-node)
+       ;; 驳回到指定节点：不 complete，直接迁移流程实例（changeState 自动处理当前任务；
+       ;; 驳回到自身时 moveActivityIdTo 同节点 = 重新激活当前审批）
+       (do
+         (when comment
+           (let [rt (.getRuntimeService engine)]
+             (.setVariable rt (.getProcessInstanceId t) "comment" comment)))
+         (move-to-activity! engine (.getProcessInstanceId t)
+                            (.getTaskDefinitionKey t) return-node))
+       ;; 终止流程(FINISH_PROCESS)或无条件：complete + approved=false 走网关
+       (complete* engine task-id user (cond-> {:approved false}
+                                        comment (assoc :comment comment))))
+     true)))
 
 ;; ── 历史 (History) ─────────────────────────────────────────────────────
 
@@ -472,3 +517,163 @@
   [^ProcessEngine engine process-instance-id reason]
   (.deleteProcessInstance (.getRuntimeService engine) process-instance-id (or reason "运维终止"))
   true)
+
+;; ── 加签 / 减签 ────────────────────────────────────────────────────────
+
+
+
+
+
+(defn create-sign!
+  "加签：为当前任务创建子任务（parentTaskId=当前任务），每个加签人一条。
+   type 为 before/after（仅前端展示语义，子任务都须先完成）；reason 存子任务局部变量。"
+  [^ProcessEngine engine task-id user-names sign-type reason]
+  (let [t (task-entity engine task-id)
+        ts (.getTaskService engine)]
+    (when (empty? (seq user-names))
+      (throw (ex-info "加签人不能为空" {:task-id task-id})))
+    (doseq [u user-names]
+      (let [child (.newTask ts)]
+        (.setName child (str (.getName t)))
+        (.setParentTaskId child task-id)
+        (.setAssignee child (str u))
+        (.setProcessInstanceId child (.getProcessInstanceId t))
+        (.setTaskDefinitionKey child (.getTaskDefinitionKey t))
+        (.saveTask ts child)
+        (when sign-type
+          (.setVariableLocal ts (.getId child) "signType" (str sign-type)))
+        (when reason
+          (.setVariableLocal ts (.getId child) "signReason" (str reason)))))
+    true))
+
+(defn delete-sign!
+  "减签：删除指定加签人的未完成子任务，reason 记录到父任务评论。"
+  [^ProcessEngine engine task-id user-names reason]
+  (let [t (task-entity engine task-id)
+        ts (.getTaskService engine)
+        user-set (set (map str user-names))
+        children (filter #(contains? user-set (str (.getAssignee ^Task %)))
+                         (child-sign-tasks engine task-id))]
+    (when (empty? children)
+      (throw (ex-info "没有可减签的加签任务" {:task-id task-id :users user-names})))
+    (doseq [^Task c children]
+      (.deleteTask ts (.getId c) true))
+    (when reason
+      (.addComment ts task-id (.getProcessInstanceId t) (str "减签: " reason)))
+    true))
+
+(defn sign-list
+  "某任务的加签子任务列表（含 assignee/status/reason，按创建时间升序）。"
+  [^ProcessEngine engine task-id]
+  (let [hs (.getHistoryService engine)
+        q (-> (.createHistoricTaskInstanceQuery hs)
+              (.taskParentTaskId task-id)
+              (.orderByHistoricTaskInstanceStartTime)
+              (.asc))]
+    (mapv (fn [^HistoricTaskInstance h]
+            (let [locals (try (.getTaskLocalVariables h) (catch Exception _ nil))]
+              {:task-id (.getId h)
+               :name (.getName h)
+               :assignee (.getAssignee h)
+               :status (if (.getEndTime h) "FINISHED" "RUNNING")
+               :sign-type (get locals "signType")
+               :reason (get locals "signReason")
+               :create-time (timestamp->str (.getStartTime h))
+               :end-time (timestamp->str (.getEndTime h))}))
+          (.list q))))
+
+;; ── 取消 / 撤回 ────────────────────────────────────────────────────────
+
+(defn cancel-instance!
+  "取消流程实例（发起人/管理员）。"
+  [^ProcessEngine engine process-instance-id reason]
+  (.deleteProcessInstance (.getRuntimeService engine)
+                          process-instance-id (or reason "取消申请"))
+  true)
+
+(defn- active-activity-ids-safe
+  [^ProcessEngine engine process-instance-id]
+  (try
+    (vec (.getActiveActivityIds (.getRuntimeService engine) process-instance-id))
+    (catch Exception _ [])))
+
+(defn withdraw!
+  "撤回：审批人把自己刚审完的任务撤回（要求下一节点任务未完成）。
+   把流程实例从下一活动迁移回本任务节点，并把新任务指派人还原为原审批人。"
+  [^ProcessEngine engine task-id user]
+  (let [hs (.getHistoryService engine)
+        ht (some-> (.createHistoricTaskInstanceQuery hs)
+                   (.taskId task-id) .singleResult)]
+    (when-not ht
+      (throw (ex-info "任务不存在" {:task-id task-id})))
+    (when-not (= (str user) (str (.getAssignee ht)))
+      (throw (ex-info "只能撤回本人审批的任务" {:task-id task-id :user user})))
+    (let [pid (.getProcessInstanceId ht)
+          act (.getTaskDefinitionKey ht)
+          active (active-activity-ids-safe engine pid)]
+      (when (empty? active)
+        (throw (ex-info "流程已结束，无法撤回" {:process-instance-id pid})))
+      (let [next-acts (remove #(= act %) active)]
+        (when (empty? next-acts)
+          (throw (ex-info "没有可撤回的后续节点" {:process-instance-id pid})))
+        (move-to-activity! engine pid (first next-acts) act)
+        ;; 迁移后重新生成的本节点任务指派人还原为原审批人
+        (let [ts (.getTaskService engine)
+              new-tasks (filter #(and (= pid (.getProcessInstanceId ^Task %))
+                                      (= act (.getTaskDefinitionKey ^Task %)))
+                                (.list (.createTaskQuery ts)))]
+          (doseq [^Task nt new-tasks]
+            (.setAssignee ts (.getId nt) (str user))))
+        true))))
+
+(defn withdraw-to-start!
+  "发起人撤回到起始节点：把所有活动迁移回 startEvent，流程重新走线。"
+  [^ProcessEngine engine process-instance-id]
+  (let [hs (.getHistoryService engine)
+        start-act (some-> (.createHistoricActivityInstanceQuery hs)
+                          (.processInstanceId process-instance-id)
+                          (.activityType "startEvent")
+                          (.orderByHistoricActivityInstanceStartTime)
+                          (.asc)
+                          .list first (.getActivityId))
+        active (active-activity-ids-safe engine process-instance-id)]
+    (when (empty? active)
+      (throw (ex-info "流程已结束，无法撤回" {:process-instance-id process-instance-id})))
+    (when-not start-act
+      (throw (ex-info "找不到流程起始节点" {:process-instance-id process-instance-id})))
+    (let [rt (.getRuntimeService engine)
+          builder (.createChangeActivityStateBuilder rt)]
+      (.processInstanceId builder process-instance-id)
+      (doseq [act active]
+        (.moveActivityIdTo builder act start-act))
+      (.changeState builder))
+    true))
+
+;; ── 可退回节点列表 ─────────────────────────────────────────────────────
+
+(defn return-list
+  "当前任务之前（按 BPMN 文档顺序）已至少完成过一次的同名用户任务节点列表，
+   排除当前及之后节点、排除网关/开始。基于流程定义顺序而非时间戳，
+   避免撤回/驳回造成的历史活动实例干扰。"
+  [^ProcessEngine engine task-id]
+  (let [t (task-entity engine task-id)
+        pid (.getProcessInstanceId t)
+        cur-key (.getTaskDefinitionKey t)
+        repo (.getRepositoryService engine)
+        bpmn (.getBpmnModel repo (.getProcessDefinitionId t))
+        proc (.getMainProcess bpmn)
+        order (mapv (fn [^org.flowable.bpmn.model.UserTask ut]
+                      [(.getId ut) (or (.getName ut) (.getId ut))])
+                    (filter #(instance? org.flowable.bpmn.model.UserTask %)
+                            (.getFlowElements ^org.flowable.bpmn.model.Process proc)))
+        idx (or (first (keep-indexed (fn [i [id _]] (when (= id cur-key) i)) order))
+                0)
+        hs (.getHistoryService engine)
+        completed (set (map (fn [^HistoricActivityInstance h] (.getActivityId h))
+                            (filter #(.getEndTime ^HistoricActivityInstance %)
+                                    (.list (.processInstanceId
+                                            (.createHistoricActivityInstanceQuery hs)
+                                            pid)))))]
+    (->> (take idx order)
+         (filter (fn [[id _]] (contains? completed id)))
+         (mapv (fn [[id name]] {:activity-id id :activity-name name})))))

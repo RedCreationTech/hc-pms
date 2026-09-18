@@ -13,6 +13,7 @@
                         "1" ["审批中" "processing"]
                         "2" ["已结束" "success"]
                         "3" ["已驳回" "error"]
+                        "CANCELED" ["已取消" "warning"]
                         ["未知" "default"])]
     [antd/tag {:color color} label]))
 
@@ -37,7 +38,12 @@
                           [antd/button {:type "link" :size "small" :icon (r/as-element [:> PlayCircleOutlined])
                                         :on-click #(rf/dispatch [:bpm/instance-op pid "activate"])} "激活"]
                           [antd/button {:danger true :type "link" :size "small" :icon (r/as-element [:> StopOutlined])
-                                        :on-click #(rf/dispatch [:bpm/instance-op pid "terminate"])} "终止"]])))}])
+                                        :on-click #(rf/dispatch [:bpm/instance-op pid "terminate"])} "终止"]
+                          [antd/popconfirm {:title "确认取消该流程实例?"
+                                            :on-confirm #(rf/dispatch [:bpm/instance-cancel pid "管理员取消"])}
+                           [antd/button {:type "link" :size "small" :danger true
+                                         :icon (r/as-element [:> StopOutlined])}
+                            "取消"]]])))}])
 
 (defn- task-columns []
   #js [#js {:title "任务" :dataIndex "name" :key "name"}

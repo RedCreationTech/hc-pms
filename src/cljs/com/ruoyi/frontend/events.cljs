@@ -63,6 +63,7 @@
                                  :report [:report/fetch]
                                  :bpm-todo [:bpm/todo-fetch]
                                  :bpm-done [:bpm/done-fetch]
+                                 :bpm-copy [:bpm/copy-fetch {}]
                                  :bpm-instance [:bpm/instance-fetch {}]
                                  :bpm-model [:bpm/model-fetch {}]
                                  :bpm-form [:bpmmgmt/fetch "form" {}]
@@ -2604,7 +2605,17 @@
 (rf/reg-event-fx :bpm/todo-open-reject
                  (fn [{:keys [db]} [_ task]]
                    {:db (todo-open-form db task "reject")
-                    :api/bpm-task-detail [(:task-id task)]}))
+                    :api/bpm-task-detail [(:task-id task)]
+                    :api/bpm-return-list (:task-id task)}))
+
+(rf/reg-event-fx :bpm/todo-open-sign
+                 (fn [{:keys [db]} [_ task]]
+                   {:db (assoc-in (todo-open-form db task "sign") [:bpm-todo :sign-list] [])
+                    :api/bpm-sign-list (:task-id task)}))
+
+(rf/reg-event-fx :bpm/todo-open-copy
+                 (fn [{:keys [db]} [_ task]]
+                   {:db (todo-open-form db task "copy")}))
 
 (rf/reg-fx :api/bpm-task-detail
            (fn [[task-id]]
@@ -2623,22 +2634,149 @@
                  (fn [db _]
                    (assoc-in db [:bpm-todo :modal-visible?] false)))
 
+(rf/reg-event-db :bpm/todo-unsubmit
+                 (fn [db _]
+                   (assoc-in db [:bpm-todo :submitting?] false)))
+
 (rf/reg-event-fx :bpm/todo-submit
-                 (fn [{:keys [db]} [_ comment]]
+                 (fn [{:keys [db]} [_ values]]
                    (let [task (get-in db [:bpm-todo :current])
                          action (get-in db [:bpm-todo :action])]
                      {:db (assoc-in db [:bpm-todo :submitting?] true)
-                      :api/bpm-approve-task [(:task-id task) comment action]})))
+                      :api/bpm-todo-submit [task action values]})))
 
-(rf/reg-fx :api/bpm-approve-task
-           (fn [[task-id comment action]]
-             (let [f (if (= action "approve") api/bpm-approve-task api/bpm-reject-task)]
-               (f task-id comment
-                  (fn [r] (when (= 200 (:code r))
-                            (rf/dispatch [:bpm/todo-close])
-                            (antd/success! (if (= action "approve") "审批通过" "已驳回"))
-                            (rf/dispatch [:bpm/todo-fetch])))
-                  (fn [_] (antd/error! "操作失败"))))))
+(rf/reg-fx :api/bpm-todo-submit
+           (fn [[task action values]]
+             (let [task-id (:task-id task)
+                   ok (fn [msg]
+                        (fn [r]
+                          (if (= 200 (:code r))
+                            (do (rf/dispatch [:bpm/todo-close])
+                                (antd/success! msg)
+                                (rf/dispatch [:bpm/todo-fetch]))
+                            (do (rf/dispatch [:bpm/todo-unsubmit])
+                                (antd/error! (:msg r "操作失败"))))))
+                   err (fn [_]
+                         (rf/dispatch [:bpm/todo-unsubmit])
+                         (antd/error! "操作失败"))]
+               (case action
+                 "approve" (api/bpm-approve-task task-id (:comment values) (ok "审批通过") err)
+                 "reject" (api/bpm-reject-task task-id (:comment values) (:return_node_id values)
+                                               (ok "已驳回") err)
+                 "sign" (api/bpm-create-sign {:taskId task-id
+                                              :userIds (:userIds values)
+                                              :type (:type values)
+                                              :reason (:comment values)}
+                                             (ok "加签成功") err)
+                 "copy" (api/bpm-copy-task {:processInstanceId (:process-instance-id task)
+                                             :userIds (:userIds values)
+                                             :reason (:comment values)}
+                                           (ok "已抄送") err)
+                 (err nil)))))
+
+;; ─── 加签子任务列表 / 减签 ──────────────────────────────────────────
+(rf/reg-fx :api/bpm-sign-list
+           (fn [task-id]
+             (api/bpm-sign-list task-id
+                                (fn [r] (when (= 200 (:code r))
+                                          (rf/dispatch [:bpm/todo-set-sign-list (:rows (:data r))])))
+                                (fn [_] nil))))
+
+(rf/reg-event-db :bpm/todo-set-sign-list
+                 (fn [db [_ rows]]
+                   (assoc-in db [:bpm-todo :sign-list] rows)))
+
+(rf/reg-event-fx :bpm/todo-delete-sign
+                 (fn [_ [_ task-id user]]
+                   {:api/bpm-delete-sign [task-id user]}))
+
+(rf/reg-fx :api/bpm-delete-sign
+           (fn [[task-id user]]
+             (api/bpm-delete-sign {:taskId task-id :userIds [user] :reason "减签"}
+                                  (fn [r]
+                                    (if (= 200 (:code r))
+                                      (do (antd/success! "减签成功")
+                                          (rf/dispatch [:bpm/todo-refresh-sign-list task-id]))
+                                      (antd/error! (:msg r "减签失败"))))
+                                  (fn [_] (antd/error! "减签失败")))))
+
+(rf/reg-event-fx :bpm/todo-refresh-sign-list
+                 (fn [_ [_ task-id]]
+                   {:api/bpm-sign-list task-id}))
+
+(rf/reg-fx :api/bpm-return-list
+           (fn [task-id]
+             (api/bpm-return-list task-id
+                                  (fn [r] (when (= 200 (:code r))
+                                            (rf/dispatch [:bpm/todo-set-return-list (:rows (:data r))])))
+                                  (fn [_] nil))))
+
+(rf/reg-event-db :bpm/todo-set-return-list
+                 (fn [db [_ rows]]
+                   (assoc-in db [:bpm-todo :return-list] rows)))
+
+;; ─── 已办撤回 / 我的流程撤回+取消 ────────────────────────────────────
+(rf/reg-event-fx :bpm/done-withdraw
+                 (fn [_ [_ task-id]]
+                   {:api/bpm-withdraw-task task-id}))
+
+(rf/reg-fx :api/bpm-withdraw-task
+           (fn [task-id]
+             (api/bpm-withdraw-task task-id
+                                    (fn [r]
+                                      (if (= 200 (:code r))
+                                        (do (antd/success! "已撤回")
+                                            (rf/dispatch [:bpm/done-fetch])
+                                            (rf/dispatch [:bpm/todo-fetch]))
+                                        (antd/error! (:msg r "撤回失败"))))
+                                    (fn [_] (antd/error! "撤回失败")))))
+
+(rf/reg-event-fx :bpm/instance-cancel
+                 (fn [_ [_ pid reason]]
+                   {:api/bpm-cancel-instance [pid reason]}))
+
+(rf/reg-fx :api/bpm-cancel-instance
+           (fn [[pid reason]]
+             (api/bpm-cancel-instance {:id pid :reason (or reason "")}
+                                      (fn [r]
+                                        (if (= 200 (:code r))
+                                          (do (antd/success! "已取消")
+                                              (rf/dispatch [:bpm/instance-fetch {}]))
+                                          (antd/error! (:msg r "取消失败"))))
+                                      (fn [_] (antd/error! "取消失败")))))
+
+(rf/reg-event-fx :bpm/instance-withdraw-to-start
+                 (fn [_ [_ pid]]
+                   {:api/bpm-withdraw-to-start pid}))
+
+(rf/reg-fx :api/bpm-withdraw-to-start
+           (fn [pid]
+             (api/bpm-withdraw-to-start pid
+                                        (fn [r]
+                                          (if (= 200 (:code r))
+                                            (do (antd/success! "已撤回到起点")
+                                                (rf/dispatch [:bpm/instance-fetch {}]))
+                                            (antd/error! (:msg r "撤回失败"))))
+                                        (fn [_] (antd/error! "撤回失败")))))
+
+;; ─── 抄送我的 ────────────────────────────────────────────────────────
+(rf/reg-event-fx :bpm/copy-fetch
+                 (fn [{:keys [db]} [_ params]]
+                   {:db (assoc-in db [:bpm-copy :loading?] true)
+                    :api/bpm-copy-page (or params {})}))
+
+(rf/reg-fx :api/bpm-copy-page
+           (fn [params]
+             (api/bpm-copy-page params
+                                (fn [r] (when (= 200 (:code r))
+                                          (rf/dispatch [:bpm/copy-set-list (:data r)])))
+                                (fn [_] (antd/error! "加载抄送列表失败")))))
+
+(rf/reg-event-db :bpm/copy-set-list
+                 (fn [db [_ data]]
+                   (assoc db :bpm-copy {:items (:rows data [])
+                                        :total (:total data 0)
+                                        :loading? false})))
 
 (rf/reg-event-fx :bpm/done-fetch
                  (fn [{:keys [db]} _]
