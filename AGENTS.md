@@ -369,6 +369,15 @@ resources/migrations/            ← MySQL DDL
 | 时间字段  | `TEXT DEFAULT CURRENT_TIMESTAMP` | `TIMESTAMP DEFAULT CURRENT_TIMESTAMP` |
 | 布尔/状态 | `CHAR(1)` / `INTEGER`            | `CHAR(1)` / `TINYINT`                 |
 
+**⚠️ Migratus 语句分隔符（`--;;`）**：JDBC 单次只能执行一条语句，迁移文件中的
+**每一条** SQL 语句之后都必须紧跟一行 `--;;` 分隔符（不是只在文件末尾放一个）。
+漏写不会报错——只静默执行第一条语句，且迁移仍被标记为已完成，后续查询报
+`no such column` 之类错误时很难排查。写多语句迁移（多条 ALTER/INSERT/CREATE）后
+务必核对每条语句后都有 `--;;`，并新建数据库验证 schema 完整。
+
+> 踩坑实录：`202608260001-bpm-model-form-fields` 的 SQLite 版 3 条 ALTER 共用
+> 一个结尾分隔符，只有第一条生效，导致 `/office/bpm/model` 页面因缺列一直加载。
+
 ### SQL 查询规则
 
 1. **优先共用语法**: 用 `INSTR` 不要用 `||`，用 `LIMIT/OFFSET` 不要用 `ROWNUM`

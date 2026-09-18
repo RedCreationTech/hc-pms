@@ -10,7 +10,10 @@ CREATE TABLE IF NOT EXISTS sys_notice (
   update_time TEXT,
   remark      TEXT    NOT NULL DEFAULT ''
 );
+--;;
 
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_sys_notice_type ON sys_notice(notice_type);
+--;;
 CREATE INDEX IF NOT EXISTS idx_sys_notice_status ON sys_notice(status);
+--;;
