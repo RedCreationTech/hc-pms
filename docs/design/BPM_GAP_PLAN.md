@@ -2,6 +2,8 @@
 
 > 参考仓库：https://github.com/yuqing2026/ruoyi-office-vben （纯前端，Vben+Vue3，功能源自芋道 ruoyi-vue-pro）
 > 本文档是 Phase 1-4 全部实现的规格约定，所有子任务必须遵循。
+>
+> ✅ **实施状态（2026-09-18）：Phase 1-4 全部完成并提交**（commit 09a3d13 / 002de55 / 6342f6e / 9ed5610），测试 372 项全绿。
 
 ## 0. 全局约定
 

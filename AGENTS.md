@@ -546,6 +546,7 @@ antd 无法自动向 Reagent 函数组件注入 `value`/`onChange`，需要通�
 | [RUOYI_VUE_COMPARISON.md](./RUOYI_VUE_COMPARISON.md) | 更详细的功能对比（同上但更细）            |
 | [build.clj](./build.clj)                             | Uberjar 构建配置                          |
 | [docs/training/](./docs/training/)                   | 5 节开发培训 HTML 课件                    |
+| [docs/design/BPM_GAP_PLAN.md](./docs/design/BPM_GAP_PLAN.md) | BPM 对齐 ruoyi-office-vben 的差距补全规格（Phase 1-4 已完成） |
 | [test/coverage-report.md](./test/coverage-report.md) | 最新覆盖率报告                            |
 
 ---
