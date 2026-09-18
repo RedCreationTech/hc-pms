@@ -38,7 +38,7 @@ INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component,
 (15, '系统接口', 2, 5, 'swagger', 'tool/swagger/index', 'C', '0', '0', 'tool:swagger:list', 'swagger'),
 (17, '服务监控', 2, 7, 'server', 'monitor/server/index', 'C', '0', '0', 'monitor:server:list', 'server'),
 (18, '缓存监控', 2, 8, 'cache', 'monitor/cache/index', 'C', '0', '0', 'monitor:cache:list', 'cache'),
-(19, '数据监控', 2, 9, 'datasource', 'monitor/datasource/index', 'C', '0', '0', 'monitor:datasource:list', 'database');
+(19, '数据监控', 2, 9, 'datasource', 'monitor/datasource/index', 'C', '0', '0', 'monitor:datasource:list', 'druid');
 --;;
 -- 用户查询
 INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, menu_type, visible, status, perms, icon) VALUES
