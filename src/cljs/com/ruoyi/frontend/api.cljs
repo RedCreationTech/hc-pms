@@ -865,10 +865,15 @@
   (request {:method :get :uri (str "/business/bpm/task/" task-id "/detail")
             :on-success on-success :on-error on-error}))
 
-(defn bpm-approve-task [task-id comment on-success on-error]
-  (request {:method :post :uri (str "/business/bpm/task/" task-id "/approve")
-            :params {:comment comment}
-            :on-success on-success :on-error on-error}))
+(defn bpm-approve-task
+  "审批通过。sign-pic-url 可选：手写签名图 URL。"
+  ([task-id comment on-success on-error]
+   (bpm-approve-task task-id comment nil on-success on-error))
+  ([task-id comment sign-pic-url on-success on-error]
+   (request {:method :post :uri (str "/business/bpm/task/" task-id "/approve")
+             :params (cond-> {:comment comment}
+                       sign-pic-url (assoc :sign_pic_url sign-pic-url))
+             :on-success on-success :on-error on-error})))
 
 (defn bpm-transfer-task [task-id to-user on-success on-error]
   (request {:method :post :uri (str "/business/bpm/task/" task-id "/transfer")
@@ -881,13 +886,16 @@
             :on-success on-success :on-error on-error}))
 
 (defn bpm-reject-task
-  "审批驳回。return-node-id 可选：从 return-list 选择的退回节点。"
+  "审批驳回。return-node-id 可选：从 return-list 选择的退回节点；sign-pic-url 可选：手写签名图 URL。"
   ([task-id comment on-success on-error]
-   (bpm-reject-task task-id comment nil on-success on-error))
+   (bpm-reject-task task-id comment nil nil on-success on-error))
   ([task-id comment return-node-id on-success on-error]
+   (bpm-reject-task task-id comment return-node-id nil on-success on-error))
+  ([task-id comment return-node-id sign-pic-url on-success on-error]
    (request {:method :post :uri (str "/business/bpm/task/" task-id "/reject")
              :params (cond-> {:comment comment}
-                       return-node-id (assoc :return_node_id return-node-id))
+                       return-node-id (assoc :return_node_id return-node-id)
+                       sign-pic-url (assoc :sign_pic_url sign-pic-url))
              :on-success on-success :on-error on-error})))
 
 ;; ─── BPM Phase 1 审批闭环 ──────────────────────────────────────────

@@ -8,7 +8,8 @@
   关键点：
     · H2 必须用 1.4.200（Flowable 的 IDENTITY 方言不兼容 H2 2.x）
     · 数据库双轨：业务数据存 app 库，引擎状态（ACT_*）存 H2
-    · 异步执行器可通过 FLOWABLE_ASYNC=true 开启（timer/async 任务），默认关闭
+    · 异步执行器默认开启（超时边界定时事件等 timer 任务依赖它），
+      可通过 FLOWABLE_ASYNC=false 关闭
     · 生产可把 Flowable 库切到外部 MySQL/PostgreSQL（仅改 JDBC URL）
   "
   (:require
@@ -30,7 +31,7 @@
   "构建并启动一个 Flowable ProcessEngine（standalone，独立 H2 文件）。
    返回 ProcessEngine 实例。"
   [{:keys [jdbc-url database-schema-update async?]}]
-  (let [async? (as-bool async?)
+  (let [async? (if (nil? async?) true (as-bool async?))
         cfg (ProcessEngineConfiguration/createStandaloneProcessEngineConfiguration)
         _   (.setJdbcUrl cfg (or jdbc-url "jdbc:h2:file:./flowable;MODE=MySQL;DB_CLOSE_ON_EXIT=FALSE"))
         _   (.setDatabaseSchemaUpdate cfg (or database-schema-update "true"))
@@ -38,7 +39,8 @@
         _   (.setJdbcMaxActiveConnections cfg 3)
         _   (.setJdbcMaxIdleConnections cfg 2)
         _   (when (some? (requiring-resolve 'com.ruoyi.bpm.core/make-task-listener))
-              (.setBeans cfg {"bpmTaskListener" (bpm-core/make-task-listener)}))
+              (.setBeans cfg {"bpmTaskListener" (bpm-core/make-task-listener)
+                              "bpmTimeoutHandler" (bpm-core/make-timeout-handler)}))
         engine (.buildProcessEngine cfg)
         _   (when engine (bpm-core/register-engine! engine))]
     (log/info "[bpm/engine] Flowable ProcessEngine 启动完成:" (.getName engine)

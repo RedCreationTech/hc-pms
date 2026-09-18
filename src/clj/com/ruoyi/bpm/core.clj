@@ -196,14 +196,17 @@
 (defonce ^:private engine-ref (atom nil))
 (defn register-engine! [engine] (reset! engine-ref engine))
 
-(defonce ^:private candidate-resolver (atom nil))
+(defonce ^:private node-create-handler (atom nil))
 
-(defn set-candidate-resolver!
-  "注册动态候选策略解析器。f 签名: (fn [strategy task] -> 用户id列表/用户名列表)
-   用于 START_USER_DEPT_LEADER / MULTI_LEVEL_DEPT_LEADER / START_USER_SELECT / APPROVE_USER_SELECT 等
-   无法在部署时确定的候选策略。"
+(defn set-node-create-handler!
+  "注册节点 create 事件处理器。f 签名: (fn [task node-config] -> action)
+   action 取值:
+     [:candidates users]  添加候选人
+     [:assign users]      指定办理人（清掉候选，第一人为 assignee）
+     [:complete approved] 自动完成任务（approved 为 boolean 或 nil 表示不带变量）
+   由 domain 层实现具体策略（候选解析 / 审批人为空策略 / 随机审批）。"
   [f]
-  (reset! candidate-resolver f))
+  (reset! node-create-handler f))
 
 ;; ── 抄送（COPY_TASK 节点自动抄送处理器注册）────────────────────────────
 
@@ -218,32 +221,50 @@
 (defn make-task-listener
   "构建一个 Flowable TaskListener（create 事件）：
    1) 抄送节点(nodeType=COPY_TASK)：调用注册的抄送处理器（插 biz_bpm_copy + 自动完成任务）
-   2) 动态候选策略节点：解析候选人并设置；候选为空且配置 SKIP 时自动完成跳过。"
+   2) 其他人工节点：调用节点 create 处理器，按其返回 action 设置候选人/办理人或自动完成
+      （覆盖新候选策略解析、审批人为空策略 AUTO_PASS/AUTO_REJECT/ASSIGN_USER/TO_ADMIN、
+        随机审批 RANDOM 等）。"
   []
-  (let [resolve (fn [^org.flowable.task.service.delegate.DelegateTask task]
+  (let [clear-candidates!
+        (fn [^org.flowable.task.service.delegate.DelegateTask task]
+          (doseq [^org.flowable.identitylink.api.IdentityLink l
+                  (seq (.getCandidates task))]
+            (if-let [u (.getUserId l)]
+              (.deleteCandidateUser task u)
+              (when-let [g (.getGroupId l)]
+                (.deleteCandidateGroup task g)))))
+        apply-action
+        (fn [^org.flowable.task.service.delegate.DelegateTask task action]
+          (when (and action (vector? action))
+            (case (first action)
+              :candidates (.addCandidateUsers task (java.util.ArrayList. ^java.util.List (vec (second action))))
+              :assign (let [users (mapv str (second action))]
+                        (clear-candidates! task)
+                        (when (seq users)
+                          (.setAssignee task (first users))
+                          (when (seq (rest users))
+                            (.addCandidateUsers task (java.util.ArrayList. ^java.util.List (vec (rest users)))))))
+              :complete (when-let [^ProcessEngine engine @engine-ref]
+                          (let [vars (java.util.HashMap.)]
+                            (when (boolean? (second action))
+                              (.put vars "approved" ^boolean (second action)))
+                            (try
+                              (.complete (.getTaskService engine) (.getId task) vars)
+                              (catch Exception e
+                                (log/error "[bpm-tasklistener] 自动完成节点失败:" (.getMessage e))))))
+              (log/warn "[bpm-tasklistener] 未知 action:" (pr-str action)))))
+        resolve (fn [^org.flowable.task.service.delegate.DelegateTask task]
                   (try
                     (let [node-config (when-let [^ProcessEngine engine @engine-ref]
                                         (node-config-of engine task))]
-                      ;; 抄送节点：插入抄送记录并自动完成任务
                       (when (and (= "COPY_TASK" (get-in node-config [:nodeType]))
                                  @copy-handler)
                         (@copy-handler task node-config))
-                      ;; 动态候选策略解析（原有逻辑）
-                      (when-let [f @candidate-resolver]
-                        (let [strategy (get-in node-config [:candidate-strategy])]
-                          (when (and strategy
-                                     (contains? #{"START_USER_DEPT_LEADER" "MULTI_LEVEL_DEPT_LEADER"
-                                                  "START_USER_SELECT" "APPROVE_USER_SELECT"} strategy))
-                            (when-let [users (f strategy task)]
-                              (if (seq users)
-                                (.addCandidateUsers task (java.util.ArrayList. users))
-                                ;; 候选人为空(如 SKIP 移除发起人)：自动完成跳过本节点
-                                (when (and (= "SKIP" (get-in node-config [:assign-start-user-handler-type]))
-                                           @engine-ref)
-                                  (try
-                                    (.complete (.getTaskService ^ProcessEngine @engine-ref)
-                                               (.getId task) (java.util.HashMap.))
-                                    (catch Exception _ nil)))))))))
+                      (when (and node-config
+                                 (not= "COPY_TASK" (get-in node-config [:nodeType]))
+                                 @node-create-handler)
+                        (when-let [action (@node-create-handler task node-config)]
+                          (apply-action task action))))
                     (catch Exception e
                       (log/error "[bpm-tasklistener] 解析任务监听器失败:" (.getMessage e)))))]
     (proxy [org.flowable.engine.delegate.TaskListener] []
@@ -375,17 +396,23 @@
       (.setVariableLocal ts task-id "comment" c))
     (when-let [a (contains? variables :approved)]
       (.setVariableLocal ts task-id "approved" (boolean (:approved variables))))
-    (.complete ts task-id (vars-map (dissoc variables :comment))))
+    (when-let [s (or (:sign-pic-url variables) (:signPicUrl variables))]
+      (.setVariableLocal ts task-id "signPicUrl" (str s)))
+    (.complete ts task-id (vars-map (dissoc variables :comment :sign-pic-url :signPicUrl))))
   true)
 
 (defn approve!
-  "审批通过：完成任务，写入 approved=true。父任务通过前校验无未完成加签子任务。"
-  [^ProcessEngine engine task-id user comment]
-  (when (pos? (open-sign-count engine task-id))
-    (throw (ex-info "加签任务未完成" {:task-id task-id})))
-  (complete* engine task-id user (cond-> {:approved true}
-                                   comment (assoc :comment comment)))
-  true)
+  "审批通过：完成任务，写入 approved=true。父任务通过前校验无未完成加签子任务。
+   可选 sign-pic-url 作为任务局部变量存储手写签名图 URL。"
+  ([^ProcessEngine engine task-id user comment]
+   (approve! engine task-id user comment nil))
+  ([^ProcessEngine engine task-id user comment sign-pic-url]
+   (when (pos? (open-sign-count engine task-id))
+     (throw (ex-info "加签任务未完成" {:task-id task-id})))
+   (complete* engine task-id user (cond-> {:approved true}
+                                    comment (assoc :comment comment)
+                                    sign-pic-url (assoc :sign-pic-url sign-pic-url)))
+   true))
 
 (defn complete!
   "通用完成任务（自定义变量）。"
@@ -412,6 +439,98 @@
             (or props-children [])))
     (catch Exception _ nil)))
 
+;; ── 操作按钮配置（nodeConfig.buttons）────────────────────────────────────
+
+(def default-buttons
+  "审批操作按钮默认配置：全部启用 + 默认名称。"
+  {"approve"    {"enable" true "displayName" "通过"}
+   "reject"     {"enable" true "displayName" "驳回"}
+   "transfer"   {"enable" true "displayName" "转办"}
+   "delegate"   {"enable" true "displayName" "委派"}
+   "add-sign"   {"enable" true "displayName" "加签"}
+   "return"     {"enable" true "displayName" "退回"}})
+
+(defn buttons-of
+  "合并节点 buttons 配置与默认配置，返回 {btn-key {\"enable\" bool \"displayName\" str}}。
+   nodeConfig JSON 解析后按钮 key/字段可能是 keyword 或字符串，两者都兼容；未配置时全部启用。"
+  [node-config]
+  (let [configured (or (:buttons node-config) {})
+        get-btn (fn [k] (let [b (or (get configured k) (get configured (keyword k)))]
+                          (if (map? b) b {})))]
+    (into {}
+          (map (fn [[k default-v]]
+                 (let [b (get-btn k)]
+                   [k {"enable" (let [v (or (find b :enable) (find b "enable"))]
+                                 (if v (boolean (val v)) true))
+                      "displayName" (or (:displayName b) (:display-name b)
+                                        (get b "displayName") (get default-v "displayName"))}])))
+          default-buttons)))
+
+(defn- element-node-config
+  "读取任意 FlowElement 的 nodeConfig 属性 JSON。"
+  [^org.flowable.bpmn.model.FlowElement el]
+  (try
+    (let [ext (.getExtensionElements el)
+          props-list (when ext (or (.get ext "flowable:properties") (.get ext "properties")))
+          props (when (and props-list (seq props-list)) (first props-list))
+          children (when props (.getChildElements props))
+          props-children (when children (or (.get children "flowable:property") (.get children "property")))]
+      (some (fn [^org.flowable.bpmn.model.ExtensionElement p]
+              (when (= "nodeConfig" (.getAttributeValue p nil "name"))
+                (when-let [v (.getAttributeValue p nil "value")]
+                  (try (cheshire.core/parse-string v true) (catch Exception _ nil)))))
+            (or props-children [])))
+    (catch Exception _ nil)))
+
+;; ── 超时处理（boundary timer → TimeoutHandler）───────────────────────────
+
+(defn make-timeout-handler
+  "构建超时执行监听器：挂在 userTask 的非中断边界定时事件上，触发时按 nodeConfig 里的
+   timeout 配置执行：REMINDER 记录提醒日志 / AUTO_PASS 自动通过 / AUTO_REJECT 自动驳回
+   （完成当前节点任务并写 approved 变量，由网关按正常出线流转）。"
+  []
+  (proxy [org.flowable.engine.delegate.ExecutionListener] []
+    (notify [^org.flowable.engine.delegate.DelegateExecution execution]
+      (try
+        (when-let [^ProcessEngine engine @engine-ref]
+          (let [repo (.getRepositoryService engine)
+                bpmn (.getBpmnModel repo (.getProcessDefinitionId execution))
+                el (some-> bpmn (.getFlowElement (.getCurrentActivityId execution)))
+                ^org.flowable.bpmn.model.BoundaryEvent be
+                (when (instance? org.flowable.bpmn.model.BoundaryEvent el) el)
+                cfg (when be (element-node-config be))
+                timeout (or (:timeout cfg) (:timeout-handler cfg) {})
+                action (str (or (:action timeout) (:type timeout) "REMINDER"))
+                pid (.getProcessInstanceId execution)
+                attached-id (some-> be .getAttachedToRef .getId)
+                ts (.getTaskService engine)
+                tasks (if attached-id
+                        (.list (-> (.createTaskQuery ts)
+                                   (.processInstanceId pid)
+                                   (.taskDefinitionKey attached-id)))
+                        '())]
+            (case action
+              "REMINDER"
+              (log/info "[bpm-timeout] 流程" pid "节点" attached-id "超时未处理，提醒相关办理人")
+              ("AUTO_PASS" "AUTO_REJECT")
+              (let [approved? (= action "AUTO_PASS")
+                    vars (doto (java.util.HashMap.) (.put "approved" approved?))]
+                (doseq [^Task t tasks]
+                  (try
+                    ;; 任务局部变量（时间轴/流转记录展示），与 complete* 行为一致
+                    (.setVariableLocal ts (.getId t) "approved" approved?)
+                    (.setVariableLocal ts (.getId t) "comment"
+                                       (str "超时自动" (if approved? "通过" "驳回")))
+                    ;; 流程变量驱动排他网关 approved 分流
+                    (.complete ts (.getId t) vars)
+                    (log/info "[bpm-timeout] 流程" pid "节点" attached-id
+                              (if approved? "超时自动通过" "超时自动驳回"))
+                    (catch Exception e
+                      (log/error "[bpm-timeout] 自动处理失败:" (.getMessage e))))))
+              (log/warn "[bpm-timeout] 未知超时动作:" action))))
+        (catch Exception e
+          (log/error "[bpm-timeout] 超时处理失败:" (.getMessage e)))))))
+
 (defn- move-to-activity!
   "把流程实例从当前活动迁移到目标活动（驳回到指定节点）。"
   [^ProcessEngine engine process-instance-id from-activity-id to-activity-id]
@@ -429,11 +548,17 @@
   ([^ProcessEngine engine task-id user comment]
    (reject! engine task-id user comment nil))
   ([^ProcessEngine engine task-id user comment return-node-id]
+   (reject! engine task-id user comment return-node-id nil))
+  ([^ProcessEngine engine task-id user comment return-node-id sign-pic-url]
    (let [ts (.getTaskService engine)
          t (some-> (.taskId (.createTaskQuery ts) task-id) .singleResult)
          node-config (when t (node-config-of engine t))
-         reject-handler (:reject-handler node-config)
-         return-node (or return-node-id (:return-node-id reject-handler))]
+         reject-handler (or (:reject-handler node-config) (:rejectHandler node-config))
+         return-node (or return-node-id
+                         (:return-node-id reject-handler)
+                         (:return-node reject-handler)
+                         (:reject-return-node node-config)
+                         (:rejectReturnNode node-config))]
      (if (and t return-node)
        ;; 驳回到指定节点：不 complete，直接迁移流程实例（changeState 自动处理当前任务；
        ;; 驳回到自身时 moveActivityIdTo 同节点 = 重新激活当前审批）
@@ -445,7 +570,8 @@
                             (.getTaskDefinitionKey t) return-node))
        ;; 终止流程(FINISH_PROCESS)或无条件：complete + approved=false 走网关
        (complete* engine task-id user (cond-> {:approved false}
-                                        comment (assoc :comment comment))))
+                                        comment (assoc :comment comment)
+                                        sign-pic-url (assoc :sign-pic-url sign-pic-url))))
      true)))
 
 ;; ── 历史 (History) ─────────────────────────────────────────────────────
@@ -475,6 +601,7 @@
   (let [hs (.getHistoryService engine)
         q (-> (.createHistoricTaskInstanceQuery hs)
               (.processInstanceId process-instance-id)
+              (.includeTaskLocalVariables)
               (.orderByHistoricTaskInstanceEndTime)
               (.desc))]
     (mapv (fn [^HistoricTaskInstance t]
@@ -485,7 +612,8 @@
                :start-time (timestamp->str (.getStartTime t))
                :end-time (timestamp->str (.getEndTime t))
                :comment (get locals "comment")
-               :approved (get locals "approved")}))
+               :approved (get locals "approved")
+               :sign-pic-url (get locals "signPicUrl")}))
           (.list q))))
 
 ;; ── 流程图示 (diagram) ─────────────────────────────────────────────────
@@ -568,6 +696,7 @@
   (let [hs (.getHistoryService engine)
         q (-> (.createHistoricTaskInstanceQuery hs)
               (.taskParentTaskId task-id)
+              (.includeTaskLocalVariables)
               (.orderByHistoricTaskInstanceStartTime)
               (.asc))]
     (mapv (fn [^HistoricTaskInstance h]

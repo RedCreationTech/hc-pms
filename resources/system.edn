@@ -82,7 +82,7 @@
  :app.bpm/engine
  {:jdbc-url               #or [#env FLOWABLE_JDBC_URL "jdbc:h2:file:./flowable;MODE=MySQL;DB_CLOSE_ON_EXIT=FALSE"]
   :database-schema-update "true"
-  :async?                 #or [#env FLOWABLE_ASYNC false]}
+  :async?                 #or [#env FLOWABLE_ASYNC true]}
 
  :app.business/bpm-service
  {:engine   #ig/ref :app.bpm/engine

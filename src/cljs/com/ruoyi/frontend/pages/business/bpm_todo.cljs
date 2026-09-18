@@ -1,15 +1,31 @@
 (ns com.ruoyi.frontend.pages.business.bpm-todo
-  "我的待办 —— 审批面板（通过/驳回/转办/委派）。"
+  "我的待办 —— 审批面板（通过/驳回/转办/委派/加签/抄送）。
+   Phase 2：按节点 buttons 配置显隐/改名操作按钮，支持手写签名(signEnable)与意见必填(reasonRequire)。"
   (:require
    [clojure.walk :as walk]
    [reagent.core :as r]
+   [reagent.hooks :as hooks]
    [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [ReloadOutlined CheckOutlined CloseOutlined SwapOutlined SendOutlined EyeOutlined UserAddOutlined MailOutlined RollbackOutlined]]
+   ["@ant-design/icons" :refer [ReloadOutlined CheckOutlined CloseOutlined SwapOutlined SendOutlined EyeOutlined UserAddOutlined MailOutlined RollbackOutlined EditOutlined]]
    [com.ruoyi.frontend.antd :as antd]
    [com.ruoyi.frontend.api :as api]
    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
    [com.ruoyi.frontend.components.form-render :as fr]
    [com.ruoyi.frontend.components.bpm-flow-designer :as bpmfd]))
+
+;; ── 节点按钮配置（task-detail / todo 行附带，未配置默认全启用）────────────────
+
+(defn- button-cfg
+  "取任务某按钮配置 → {:enable? bool :label str}。keys: approve/reject/transfer/delegate/add-sign/return"
+  [task k default-label]
+  (let [buttons (:buttons task)
+        b (or (get buttons k) (get buttons (keyword k)))]
+    {:enable? (if (and (map? b) (some? (:enable b)))
+                (boolean (:enable b))
+                true)
+     :label (if (and (map? b) (seq (:displayName b)))
+              (:displayName b)
+              default-label)}))
 
 (defn- task-columns [open-ops open-detail]
   #js [#js {:title "任务" :dataIndex "name" :key "name"}
@@ -18,48 +34,118 @@
        #js {:title "流程实例" :dataIndex "process-instance-id" :key "process-instance-id"
             :width 80 :render (fn [v] (r/as-element (if v [antd/tag {:color "blue"} v] "-")))}
        #js {:title "创建时间" :dataIndex "create-time" :key "create-time" :width 160}
-       #js {:title "操作" :key "action" :width 260
+       #js {:title "操作" :key "action" :width 300
             :render (fn [_ ^js record]
-                      (let [task (js->clj record :keywordize-keys true)]
+                      (let [task (js->clj record :keywordize-keys true)
+                            approve (button-cfg task "approve" "通过")
+                            reject (button-cfg task "reject" "驳回")
+                            transfer (button-cfg task "transfer" "转办")
+                            delegate (button-cfg task "delegate" "委派")
+                            add-sign (button-cfg task "add-sign" "加签")
+                            return (button-cfg task "return" "退回")]
                         (r/as-element
-                         [antd/space
-                          [antd/button {:size "small"
-                                        :icon (r/as-element [:> EyeOutlined])
-                                        :on-click #(open-detail task)}
-                           "详情"]
-                          [antd/button {:type "primary" :size "small"
-                                        :icon (r/as-element [:> CheckOutlined])
-                                        :on-click #(rf/dispatch [:bpm/todo-open-approve task])}
-                           "通过"]
-                          [antd/button {:danger true :size "small"
-                                        :icon (r/as-element [:> CloseOutlined])
-                                        :on-click #(rf/dispatch [:bpm/todo-open-reject task])}
-                           "驳回"]
-                          [antd/button {:size "small"
-                                        :icon (r/as-element [:> SwapOutlined])
-                                        :on-click #(open-ops task "transfer")}
-                           "转办"]
-                          [antd/button {:size "small"
-                                        :icon (r/as-element [:> SendOutlined])
-                                        :on-click #(open-ops task "delegate")}
-                           "委派"]
-                          [antd/button {:size "small"
-                                        :icon (r/as-element [:> UserAddOutlined])
-                                        :on-click #(rf/dispatch [:bpm/todo-open-sign task])}
-                           "加签"]
-                          [antd/button {:size "small"
-                                        :icon (r/as-element [:> MailOutlined])
-                                        :on-click #(rf/dispatch [:bpm/todo-open-copy task])}
-                           "抄送"]
-                          [antd/button {:size "small"
-                                        :icon (r/as-element [:> RollbackOutlined])
-                                        :on-click #(rf/dispatch [:bpm/todo-open-reject task])}
-                           "退回"]])))}])
+                         (into [antd/space]
+                               (concat
+                                [[antd/button {:size "small"
+                                               :icon (r/as-element [:> EyeOutlined])
+                                               :on-click #(open-detail task)}
+                                  "详情"]
+                                 (when (:enable? approve)
+                                   [[antd/button {:type "primary" :size "small"
+                                                  :icon (r/as-element [:> CheckOutlined])
+                                                  :on-click #(rf/dispatch [:bpm/todo-open-approve task])}
+                                     (:label approve)]])
+                                 (when (:enable? reject)
+                                   [[antd/button {:danger true :size "small"
+                                                  :icon (r/as-element [:> CloseOutlined])
+                                                  :on-click #(rf/dispatch [:bpm/todo-open-reject task])}
+                                     (:label reject)]])
+                                 (when (:enable? transfer)
+                                   [[antd/button {:size "small"
+                                                  :icon (r/as-element [:> SwapOutlined])
+                                                  :on-click #(open-ops task "transfer")}
+                                     (:label transfer)]])
+                                 (when (:enable? delegate)
+                                   [[antd/button {:size "small"
+                                                  :icon (r/as-element [:> SendOutlined])
+                                                  :on-click #(open-ops task "delegate")}
+                                     (:label delegate)]])
+                                 (when (:enable? add-sign)
+                                   [[antd/button {:size "small"
+                                                  :icon (r/as-element [:> UserAddOutlined])
+                                                  :on-click #(rf/dispatch [:bpm/todo-open-sign task])}
+                                     (:label add-sign)]])
+                                 [antd/button {:size "small"
+                                               :icon (r/as-element [:> MailOutlined])
+                                               :on-click #(rf/dispatch [:bpm/todo-open-copy task])}
+                                  "抄送"]]
+                                 (when (:enable? return)
+                                   [[antd/button {:size "small"
+                                                  :icon (r/as-element [:> RollbackOutlined])
+                                                  :on-click #(rf/dispatch [:bpm/todo-open-reject task])}
+                                     (:label return)]]))))))}])
+
+;; ── 手写签名画布 ──────────────────────────────────────────────────────────
+
+(defn- signature-pad
+  "canvas 手写签名板：签名结果以 dataURL 形式通过 on-change 回调传出。"
+  [{:keys [on-change]}]
+  (let [canvas-ref (hooks/use-ref nil)
+        drawing? (hooks/use-ref false)
+        [empty? set-empty!] (hooks/use-state true)
+        ctx (fn [] (some-> @canvas-ref (.getContext "2d")))
+        pos (fn [e]
+              (let [rect (.getBoundingClientRect @canvas-ref)
+                    t (.-touches e)
+                    client-x (if t (some-> t (aget 0) .-clientX) (.-clientX e))
+                    client-y (if t (some-> t (aget 0) .-clientY) (.-clientY e))]
+                [(- client-x (.-left rect)) (- client-y (.-top rect))]))
+        start (fn [e]
+                (.preventDefault e)
+                (reset! drawing? true)
+                (when-let [c (ctx)]
+                  (let [[x y] (pos e)]
+                    (.beginPath c)
+                    (.moveTo c x y))))
+        move (fn [e]
+               (when @drawing?
+                 (.preventDefault e)
+                 (when-let [c (ctx)]
+                   (let [[x y] (pos e)]
+                     (.lineTo c x y)
+                     (.stroke c)
+                     (set-empty! false)))))
+        end (fn [e]
+              (when @drawing?
+                (.preventDefault e)
+                (reset! drawing? false)
+                (when-let [cv @canvas-ref]
+                  (on-change (.toDataURL cv "image/png")))))
+        clear (fn []
+                (when-let [c (ctx)]
+                  (.clearRect c 0 0 (.-width @canvas-ref) (.-height @canvas-ref))
+                  (set-empty! true)
+                  (on-change nil)))]
+    [:div
+     [:canvas {:ref canvas-ref :width 560 :height 160
+               :style {:border "1px dashed #d9d9d9" :borderRadius 6 :width "100%"
+                       :touchAction "none" :background "#fff"}
+               :on-mouse-down start :on-mouse-move move
+               :on-mouse-up end :on-mouse-leave end
+               :on-touch-start start :on-touch-move move :on-touch-end end}]
+     [:div {:style {:marginTop 4 :display "flex" :justifyContent "space-between" :alignItems "center"}}
+      [:span {:style {:color "#c0c4cc" :fontSize 12}}
+       (if empty? "请在上方区域手写签名" "已签名，可重新书写")]
+      [antd/button {:size "small" :icon (r/as-element [:> EditOutlined]) :on-click clear} "清除"]]]))
+
+;; ── 审批弹窗 ──────────────────────────────────────────────────────────────
 
 (defn- comment-item
-  [label]
-  [antd/form-item {:label label :name "comment"}
-   [antd/text-area {:placeholder "请输入意见(可选)" :rows 3}]])
+  ([label] (comment-item label false))
+  ([label required?]
+   [antd/form-item {:label label :name "comment"
+                    :rules (when required? [{:required true :message "当前节点要求填写审批意见"}])}
+    [antd/text-area {:placeholder (if required? "请输入审批意见(必填)" "请输入意见(可选)") :rows 3}]]))
 
 (defn- user-select [users]
   [antd/select {:mode "multiple" :style {:width "100%"}
@@ -98,15 +184,30 @@
         form-loading? @(rf/subscribe [:bpm-todo/form-loading?])
         return-list @(rf/subscribe [:bpm-todo/return-list])
         [form] (antd/form-use-form)
+        [sign-data set-sign-data!] (hooks/use-state nil)
+        sign-enable? (boolean (and visible?
+                                   (:sign-enable form-data)
+                                   (#{"approve" "reject"} action)))
+        reason-required? (boolean (:reason-require form-data))
+        default-return (or (some #(when (= (:reject-return-node form-data) (:activity-id %)) (:activity-id %))
+                                 return-list)
+                           (:activity-id (first return-list)))
         title (case action
-                "approve" "审批通过"
+                "approve" (str (or (get-in current [:buttons :approve :displayName]) "审批通过"))
                 "reject" "审批驳回"
                 "sign" "加签"
                 "copy" "抄送"
                 "审批")]
+    (hooks/use-effect
+     (fn [] (set-sign-data! nil))
+     [visible? (:task-id current)])
     [antd/modal {:title (str title " · " (:name current))
                  :open visible? :confirmLoading submitting? :width 640
-                 :onOk #(.submit form)
+                 :onOk (fn []
+                         (cond
+                           (and sign-enable? (not sign-data))
+                           (antd/warning! "请先手写签名")
+                           :else (.submit form)))
                  :onCancel #(rf/dispatch [:bpm/todo-close])}
      (when (#{"approve" "reject"} action)
        [:div {:style {:maxHeight 420 :overflow "auto" :marginBottom 12}}
@@ -127,18 +228,23 @@
             [:div {:style {:color "#c0c4cc" :textAlign "center" :padding 12}} "暂无表单数据"]))])
      [antd/form {:form form :layout "vertical" :preserve false
                  :onFinish (fn [values]
-                             (rf/dispatch [:bpm/todo-submit (js->clj values :keywordize-keys true)]))}
+                             (rf/dispatch [:bpm/todo-submit
+                                           (assoc (js->clj values :keywordize-keys true)
+                                                  :sign_data sign-data)]))}
       (case action
         "reject" [:<>
                  (when (seq return-list)
                    [antd/form-item {:label "退回到节点" :name "return_node_id"
-                                    :initialValue (:activity-id (first return-list))}
+                                    :initialValue default-return}
                     [antd/select {:style {:width "100%"}
                                   :options (clj->js (mapv (fn [n]
                                                             {:value (:activity-id n)
                                                              :label (:activity-name n)})
                                                           return-list))}]])
-                 [comment-item "审批意见"]]
+                 [comment-item "审批意见" reason-required?]
+                 (when sign-enable?
+                   [antd/form-item {:label "手写签名" :required true}
+                    [signature-pad {:on-change set-sign-data!}]])]
         "sign" [:<>
                 [antd/form-item {:label "加签人" :name "userIds"
                                  :rules [{:required true :message "请选择加签人"}]}
@@ -153,7 +259,11 @@
                                  :rules [{:required true :message "请选择抄送人"}]}
                  (user-select users)]
                 [comment-item "抄送说明"]]
-        [comment-item "审批意见"])]]))
+        [:<>
+         [comment-item "审批意见" reason-required?]
+         (when sign-enable?
+           [antd/form-item {:label "手写签名" :required true}
+            [signature-pad {:on-change set-sign-data!}]])])]]))
 
 (defn- todo-detail-drawer [{:keys [task visible? set-visible! form-data diagram history]}]
   (let [form (:form form-data)
@@ -202,7 +312,13 @@
                                     [:span {:style {:color "#c0c4cc" :marginLeft 8 :fontSize 12}}
                                      (subs (:end-time t) 0 16)])]
                                  (when (:comment t)
-                                   [:div {:style {:color "#606266" :marginTop 2}} (str "意见：" (:comment t))])])))
+                                   [:div {:style {:color "#606266" :marginTop 2}} (str "意见：" (:comment t))])
+                                 (when (:sign-pic-url t)
+                                   [:div {:style {:marginTop 4}}
+                                    [:div {:style {:color "#909399" :fontSize 12 :marginBottom 2}} "手写签名："]
+                                    [:img {:src (:sign-pic-url t) :alt "签名"
+                                           :style {:maxWidth 180 :border "1px solid #ebeef5"
+                                                   :borderRadius 4 :background "#fff"}}]])])))
                            [:div {:style {:color "#c0c4cc" :padding "12px 0"}} "暂无审批记录"])])]
     [antd/drawer {:title (str "待办详情 · " task-name)
                   :open visible? :size 900

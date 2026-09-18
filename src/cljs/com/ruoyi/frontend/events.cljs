@@ -7,6 +7,35 @@
    [com.ruoyi.frontend.antd :as antd]
    [com.ruoyi.frontend.router :as router]))
 
+(defn- data-url->blob
+  "canvas dataURL → PNG Blob（手写签名上传用）。"
+  [data-url]
+  (when (and data-url (clojure.string/includes? data-url ","))
+    (let [b64 (second (clojure.string/split data-url #"," 2))
+          bin (js/atob b64)
+          len (.-length bin)
+          arr (js/Uint8Array. len)]
+      (dotimes [i len]
+        (aset arr i (.charCodeAt bin i)))
+      (js/Blob. #js [arr] #js {:type "image/png"}))))
+
+(defn- upload-sign!
+  "有签名图时先上传拿 URL，再执行后续操作 f(url)。"
+  [sign-data f]
+  (if-let [blob (data-url->blob sign-data)]
+    (let [fd (js/FormData.)]
+      (.append fd "file" blob "sign.png")
+      (api/upload-file fd
+                       (fn [r]
+                         (if (= 200 (:code r))
+                           (f (get-in r [:data :url]))
+                           (do (rf/dispatch [:bpm/todo-unsubmit])
+                               (antd/error! (str "签名上传失败: " (:msg r ""))))))
+                       (fn [_]
+                         (rf/dispatch [:bpm/todo-unsubmit])
+                         (antd/error! "签名上传失败"))))
+    (f nil)))
+
 (rf/reg-event-db :initialize-db
                  (fn [_ _]
                    db/default-db))
@@ -2660,9 +2689,13 @@
                          (rf/dispatch [:bpm/todo-unsubmit])
                          (antd/error! "操作失败"))]
                (case action
-                 "approve" (api/bpm-approve-task task-id (:comment values) (ok "审批通过") err)
-                 "reject" (api/bpm-reject-task task-id (:comment values) (:return_node_id values)
-                                               (ok "已驳回") err)
+                 "approve" (upload-sign! (:sign_data values)
+                                         #(api/bpm-approve-task task-id (:comment values) %
+                                                                (ok "审批通过") err))
+                 "reject" (upload-sign! (:sign_data values)
+                                        #(api/bpm-reject-task task-id (:comment values)
+                                                              (:return_node_id values) %
+                                                              (ok "已驳回") err))
                  "sign" (api/bpm-create-sign {:taskId task-id
                                               :userIds (:userIds values)
                                               :type (:type values)

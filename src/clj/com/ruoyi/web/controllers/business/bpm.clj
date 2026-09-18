@@ -151,10 +151,10 @@
 ;; ── 任务（待办/已办/审批）────────────────────────────────────────────
 (defn list-todo
   [{:keys [bpm-service]} request]
-  (wrap-err #(let [engine (:engine bpm-service)
-                   user (current-user request)]
-               (ok {:rows (bpm-core/todo-list engine user)
-                    :total (bpm-core/todo-count engine user)}))))
+  (wrap-err #(let [user (current-user request)
+                   rows (bpm/todo-list-with-buttons bpm-service user)]
+               (ok {:rows rows
+                    :total (count rows)}))))
 
 (defn list-done
   [{:keys [bpm-service]} request]
@@ -165,20 +165,22 @@
   (wrap-err #(ok (bpm/task-detail bpm-service (get-in request [:path-params :id])))))
 
 (defn approve-task
-  "审批通过。path: :id (task-id), body: {:comment x}"
-  [{:keys [bpm-service]} request]
-  (wrap-err #(let [task-id (get-in request [:path-params :id])
-                   comment (get-in request [:body-params :comment])]
-               (bpm-core/approve! (:engine bpm-service) task-id (current-user request) comment)
-               (ok nil))))
-
-(defn reject-task
-  "审批驳回。body: {:comment x :return_node_id 可选(从 return-list 选择的退回节点)}"
+  "审批通过。path: :id (task-id), body: {:comment x :sign_pic_url 可选}"
   [{:keys [bpm-service]} request]
   (wrap-err #(let [task-id (get-in request [:path-params :id])
                    comment (get-in request [:body-params :comment])
-                   return-node (get-in request [:body-params :return_node_id])]
-               (bpm-core/reject! (:engine bpm-service) task-id (current-user request) comment return-node)
+                   sign-pic-url (get-in request [:body-params :sign_pic_url])]
+               (bpm/task-approve! bpm-service task-id (current-user request) comment sign-pic-url)
+               (ok nil))))
+
+(defn reject-task
+  "审批驳回。body: {:comment x :return_node_id 可选(从 return-list 选择的退回节点) :sign_pic_url 可选}"
+  [{:keys [bpm-service]} request]
+  (wrap-err #(let [task-id (get-in request [:path-params :id])
+                   comment (get-in request [:body-params :comment])
+                   return-node (get-in request [:body-params :return_node_id])
+                   sign-pic-url (get-in request [:body-params :sign_pic_url])]
+               (bpm/task-reject! bpm-service task-id (current-user request) comment return-node sign-pic-url)
                (ok nil))))
 
 ;; ── Phase 1 审批闭环：加签 / 减签 / 抄送 / 取消 / 撤回 / 可退回节点 ─────

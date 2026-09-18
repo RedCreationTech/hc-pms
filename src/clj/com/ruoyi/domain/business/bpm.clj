@@ -78,67 +78,166 @@
         (log/error "[bpm-copy] 自动完成抄送任务失败:" (.getMessage e))))))
 
 ;; ── Integrant 组件 ────────────────────────────────────────────────────
+
+(def ^:private dynamic-strategies
+  "create 事件需要运行时解析的候选策略。"
+  #{"START_USER_DEPT_LEADER" "MULTI_LEVEL_DEPT_LEADER"
+    "START_USER_SELECT" "APPROVE_USER_SELECT"
+    "INITIATOR_SELF" "USER_GROUP" "FORM_USER" "FORM_DEPT_LEADER" "EXPRESSION"})
+
+(def ^:private multi-instance-methods
+  "多实例审批方式（由 collection 驱动，create 监听器不干预候选人）。"
+  #{"ANY" "ALL" "RATIO"})
+
+(defn- list-all-users [query-fn]
+  (query-fn :list-users {:user_name nil :phonenumber nil :status nil
+                         :begin_time nil :end_time nil :dept_filter_enabled 0
+                         :dept_ids [0] :data_user_id nil :page_size 100000 :offset 0}))
+
+(defn- make-node-create-handler
+  "构建节点 create 事件处理器（Phase 2 节点配置补全的核心）：
+   按 candidate-strategy 解析候选人（含 5 种新策略），随后依次应用：
+     1) 多实例方式(ANY/ALL/RATIO) → 不干预（返回 nil）
+     2) RANDOM 随机审批 → 从候选中随机指定一人为 assignee
+     3) 审批人为空策略 assign-empty-handler：
+        AUTO_PASS 自动通过 / AUTO_REJECT 自动驳回 / ASSIGN_USER 指定成员 / TO_ADMIN(默认) 转交管理员
+   数据库查询按需延迟执行：静态策略且候选已烘焙时零查询。"
+  [engine query-fn]
+  (let [user-name-of (fn [users id]
+                       (:user_name (first (filter #(= (str id) (str (:user_id %))) users))))
+        user-names-of (fn [users ids] (distinct (vec (keep #(user-name-of users %) ids))))
+        empty-action (fn [node-config users]
+                       (let [eh (:assign-empty-handler node-config)
+                             etype (or (:type eh) "TO_ADMIN")]
+                         (case etype
+                           "AUTO_PASS" [:complete true]
+                           "AUTO_REJECT" [:complete false]
+                           "ASSIGN_USER" (let [names (user-names-of users (:user-ids eh))]
+                                           (if (seq names) [:assign names] [:assign ["admin"]]))
+                           [:assign ["admin"]])))
+        resolve-strategy (fn [task strategy param node-config users depts]
+                           (let [start-user (some-> (.getVariable task "startUserId") str)
+                                 leaders-of (fn [dept-id]
+                                              (when-let [d (first (filter #(= (str dept-id) (str (:dept_id %))) depts))]
+                                                (when-let [leader (:leader d)]
+                                                  (user-names-of users [leader]))))]
+                             (case strategy
+                               "INITIATOR_SELF"
+                               (when (seq start-user) [start-user])
+                               "USER_GROUP"
+                               (let [gids (set (map str (:user-group-ids param)))
+                                     groups (query-fn :bpmmgmt/group-list {:name nil :page_size 100000 :offset 0})
+                                     ids (distinct (mapcat #(str/split (str (:user_ids %)) #"[,\s]+")
+                                                           (filter #(contains? gids (str (:group_id %))) groups)))]
+                                 (user-names-of users ids))
+                               "FORM_USER"
+                               (let [f (:form-user-field param)
+                                     v (when f (.getVariable task (name f)))]
+                                 (cond
+                                   (and (coll? v) (seq v)) (user-names-of users v)
+                                   (and (string? v) (seq v))
+                                   (if (some #(= v (:user_name %)) users) [v] (user-names-of users [v]))
+                                   (some? v) (user-names-of users [v])
+                                   :else nil))
+                               "FORM_DEPT_LEADER"
+                               (let [f (:form-dept-field param)
+                                     v (when f (.getVariable task (name f)))]
+                                 (leaders-of v))
+                               "EXPRESSION"
+                               (let [expr (or (:expression node-config)
+                                              (when-let [eid (:expression-id node-config)]
+                                                (:expression (query-fn :bpmmgmt/find-expression-by-id
+                                                                       {:expression_id eid}))))
+                                     execution (when-let [pid (.getProcessInstanceId task)]
+                                                 (some-> (.createExecutionQuery (.getRuntimeService engine))
+                                                         (.processInstanceId pid)
+                                                         (.singleResult)))]
+                                 (when (and expr execution)
+                                   (let [v (try
+                                             (-> (.getExpressionManager (.getProcessEngineConfiguration engine))
+                                                 (.createExpression expr)
+                                                 (.getValue execution))
+                                             (catch Exception e
+                                               (log/warn "[bpm-node] 表达式求值失败:" (.getMessage e))))]
+                                     (cond
+                                       (and (coll? v) (seq v)) (mapv str v)
+                                       (and (string? v) (seq v)) [v]
+                                       (nil? v) nil
+                                       :else [(str v)]))))
+                               "START_USER_DEPT_LEADER"
+                               (when start-user
+                                 (leaders-of (:dept_id (first (filter #(= start-user (str (:user_name %))) users)))))
+                               "MULTI_LEVEL_DEPT_LEADER"
+                               (when start-user
+                                 (loop [did (:dept_id (first (filter #(= start-user (str (:user_name %))) users)))
+                                        n 0 acc []]
+                                   (if (or (nil? did) (>= n 3))
+                                     (distinct acc)
+                                     (recur (:parent_id (first (filter #(= did (:dept_id %)) depts)))
+                                            (inc n)
+                                            (concat acc (leaders-of did))))))
+                               "START_USER_SELECT"
+                               (let [v (some-> (.getVariable task "startUserSelected") seq)]
+                                 (when (seq v) (user-names-of users v)))
+                               "APPROVE_USER_SELECT"
+                               (let [v (some-> (.getVariable task "approveUserSelected") seq)]
+                                 (when (seq v) (user-names-of users v)))
+                               nil)))]
+    (fn [^org.flowable.task.service.delegate.DelegateTask task node-config]
+      (let [strategy (:candidate-strategy node-config)
+            param (or (:candidate-param node-config) {})
+            method (:approve-method node-config)
+            random? (= "RANDOM" method)
+            users* (delay (list-all-users query-fn))
+            depts* (delay (query-fn :list-all-depts {}))]
+        (when-not (contains? multi-instance-methods method)
+          (if (contains? dynamic-strategies strategy)
+            ;; ── 动态解析策略（含 5 种新策略）：create 时解析候选人 ──
+            (let [users @users*
+                  depts @depts*
+                  start-user (some-> (.getVariable task "startUserId") str)
+                  leaders-of (fn [dept-id]
+                               (when-let [d (first (filter #(= (str dept-id) (str (:dept_id %))) depts))]
+                                 (when-let [leader (:leader d)]
+                                   (user-names-of users [leader]))))
+                  base (resolve-strategy task strategy param node-config users depts)
+                  start-handler (:assign-start-user-handler-type node-config)
+                  candidates (distinct (vec (keep identity base)))
+                  candidates (cond
+                               (= start-handler "SKIP") (remove #(= start-user %) candidates)
+                               (= start-handler "ASSIGN_DEPT_LEADER")
+                               (if (some #(= start-user %) candidates)
+                                 (concat (remove #(= start-user %) candidates)
+                                         (when start-user
+                                           (leaders-of (:dept_id (first (filter #(= start-user (str (:user_name %))) users))))))
+                                 candidates)
+                               :else candidates)]
+              (cond
+                (seq candidates) (if random? [:assign [(rand-nth candidates)]] [:candidates candidates])
+                (= start-handler "SKIP") [:complete nil]
+                :else (empty-action node-config users)))
+            ;; ── 静态策略：候选由引擎从 BPMN 属性烘焙，监听器只做 RANDOM/为空兜底 ──
+            (let [links (seq (.getCandidates task))
+                  user-links (vec (keep (fn [^org.flowable.identitylink.api.IdentityLink l]
+                                          (.getUserId l))
+                                        links))]
+              (cond
+                (seq user-links)
+                (if random? [:assign [(rand-nth user-links)]] nil)
+                (seq links)
+                (let [users @users*
+                      cands (candidates-from-links task users @depts*
+                                                   (query-fn :list-user-roles {})
+                                                   (query-fn :list-user-posts {}))]
+                  (if (seq cands)
+                    (if random? [:assign [(rand-nth cands)]] nil)
+                    (empty-action node-config users)))
+                :else (empty-action node-config @users*)))))))))
+
 (defmethod ig/init-key :app.business/bpm-service
   [_ {:keys [engine query-fn db]}]
-  ;; 注入动态候选策略解析器（TaskListener 在任务创建时调用）
-  (bpm/set-candidate-resolver!
-   (fn [strategy task]
-     (let [pid (.getProcessInstanceId ^org.flowable.task.service.delegate.DelegateTask task)
-           start-user (some-> (.getVariable ^org.flowable.task.service.delegate.DelegateTask task "startUserId") str)
-           users (query-fn :list-users {:user_name nil :phonenumber nil :status nil
-                                        :begin_time nil :end_time nil :dept_filter_enabled 0
-                                        :dept_ids [0] :data_user_id nil :page_size 100000 :offset 0})
-           depts (query-fn :list-all-depts {})
-           user-dept (fn [uname] (:dept_id (first (filter #(= uname (str (:user_name %))) users))))
-           leaders-of (fn [dept-id]
-                        (when-let [d (first (filter #(= dept-id (:dept_id %)) depts))]
-                          (when-let [leader (:leader d)]
-                            (map :user_name (filter #(= (str leader) (str (:user_id %))) users)))))
-           base (case strategy
-                  "START_USER_DEPT_LEADER"
-                  (when start-user (leaders-of (user-dept start-user)))
-                  "MULTI_LEVEL_DEPT_LEADER"
-                  (when start-user
-                    (loop [did (user-dept start-user) n 0 acc []]
-                      (if (or (nil? did) (>= n 3))
-                        (distinct acc)
-                        (recur (:parent_id (first (filter #(= did (:dept_id %)) depts)))
-                               (inc n)
-                               (concat acc (leaders-of did))))))
-                  "START_USER_SELECT"
-                  (let [v (some-> (.getVariable ^org.flowable.task.service.delegate.DelegateTask task "startUserSelected") seq)]
-                    (when (seq v)
-                      (let [ids (set (map str v))]
-                        (map :user_name (filter #(contains? ids (str (:user_id %))) users)))))
-                  "APPROVE_USER_SELECT"
-                  (let [v (some-> (.getVariable ^org.flowable.task.service.delegate.DelegateTask task "approveUserSelected") seq)]
-                    (when (seq v)
-                      (let [ids (set (map str v))]
-                        (map :user_name (filter #(contains? ids (str (:user_id %))) users)))))
-                  nil)
-           base-v (distinct (vec (keep identity base)))
-           node-config (bpm/node-config-of engine task)
-           start-handler (get-in node-config [:assign-start-user-handler-type])
-           after-start (cond
-                         (= start-handler "SKIP")
-                         (remove #(= start-user %) base-v)
-                         (= start-handler "ASSIGN_DEPT_LEADER")
-                         (if (some #(= start-user %) base-v)
-                           (concat (remove #(= start-user %) base-v)
-                                   (when start-user (leaders-of (user-dept start-user))))
-                           base-v)
-                         :else base-v)
-           empty-handler (get-in node-config [:assign-empty-handler])
-           after-empty (if (empty? after-start)
-                         (case (get-in empty-handler [:type])
-                           "ASSIGN_USER"
-                           (let [ids (set (map str (get-in empty-handler [:user-ids])))]
-                             (map :user_name (filter #(contains? ids (str (:user_id %))) users)))
-                           "TRANSFER_ADMIN"
-                           (map :user_name (filter #(= "admin" (str (:user_name %))) users))
-                           after-start)
-                         after-start)]
-       (distinct after-empty))))
+  ;; 注入节点 create 处理器（TaskListener 在任务创建时调用：候选解析/为空策略/随机审批）
+  (bpm/set-node-create-handler! (make-node-create-handler engine query-fn))
   ;; 注册抄送节点处理器（TaskListener create 时自动插抄送记录并完成任务）
   (bpm/set-copy-handler!
    (fn [task node-config]
@@ -286,7 +385,11 @@
                                      :begin_time nil :end_time nil :dept_filter_enabled 0
                                      :dept_ids [0] :data_user_id nil :page_size 100000 :offset 0})
         user-map (into {} (map (juxt (comp str :user_id) :user_name)) users)
-        xml (bpm-flow/tree->bpmn (clojure.walk/keywordize-keys tree) (:model_key m) user-map)]
+        groups (into {} (map (fn [g]
+                               [(str (:group_id g))
+                                (remove str/blank? (str/split (str (:user_ids g)) #"[,\s]+"))]))
+                             (query-fn :bpmmgmt/group-list {:name nil :page_size 100000 :offset 0}))
+        xml (bpm-flow/tree->bpmn (clojure.walk/keywordize-keys tree) (:model_key m) user-map groups)]
     (query-fn :bpm/update-model
               {:model_id id :model_name (:model_name m)
                :category_id (:category_id m) :form_type (:form_type m)
@@ -344,14 +447,16 @@
     (distinct (vec (keep identity names)))))
 
 (defn- collect-multi-nodes
-  "收集流程树中多实例审批节点（approve-method 非 SEQUENTIAL）。返回 [{:id :config}]。"
+  "收集流程树中多实例审批节点（approve-method 为 ANY/ALL/RATIO）。
+   RANDOM 随机审批不是多实例，由 TaskListener 在 create 时指定 assignee，不注入 approverList。"
   [tree]
   (let [walk (fn walk [node acc]
                (if (nil? node)
                  acc
                  (let [cfg (:config node)
                        acc' (if (and cfg (= "USER" (:approve-type cfg))
-                                    (not= "SEQUENTIAL" (or (:approve-method cfg) "SEQUENTIAL")))
+                                    (contains? #{"ANY" "ALL" "RATIO"}
+                                               (or (:approve-method cfg) "SEQUENTIAL")))
                               (conj acc {:id (:id node) :config cfg})
                               acc)]
                    (-> acc'
@@ -406,7 +511,8 @@
      :total (:total (query-fn :bpm/instance-count p))}))
 
 (defn task-detail
-  "任务详情：任务信息 + 实例表单数据 + 表单 schema（审批弹窗表单回显）。"
+  "任务详情：任务信息 + 实例表单数据 + 表单 schema（审批弹窗表单回显）。
+   Phase 2：附带当前节点操作按钮配置(buttons)、签名/意见必填/默认驳回节点配置。"
   [{:keys [engine query-fn]} task-id]
   (let [task-obj (some-> (.taskId (.createTaskQuery (.getTaskService engine)) task-id) .singleResult)
         _ (when-not task-obj (throw (ex-info "任务不存在" {:task-id task-id})))
@@ -419,12 +525,49 @@
         schema (when-let [fj (:form_json form)]
                  (if (string? fj) (json/parse-string fj true) fj))
         inst-data (row->json inst [:form_data_json])
-        node-config (bpm/node-config-of engine task-obj)]
+        node-config (bpm/node-config-of engine task-obj)
+        reject-handler (:reject-handler node-config)]
     {:task task
      :model {:model-id (:model_id model)
              :model_name (:model_name model) :model_key (:model_key model)}
      :fields-permission (or (:fields-permission node-config) {})
+     :buttons (bpm/buttons-of node-config)
+     :sign-enable (boolean (or (:sign-enable node-config) (:signEnable node-config)))
+     :reason-require (boolean (or (:reason-require node-config) (:reasonRequire node-config)))
+     :reject-return-node (or (:return-node-id reject-handler) (:return-node reject-handler)
+                             (:reject-return-node node-config) (:rejectReturnNode node-config))
      :form {:schema schema :values (:form_data_json inst-data)}}))
+
+(defn todo-list-with-buttons
+  "某人待办（候选人或已认领），每行附带当前节点操作按钮配置(Buttons)。"
+  [{:keys [engine]} user]
+  (let [ts (.getTaskService engine)
+        tasks (.list (.taskCandidateOrAssigned (.createTaskQuery ts) user))]
+    (mapv (fn [^org.flowable.task.api.Task t]
+            (assoc (bpm/task->map* t)
+                   :buttons (bpm/buttons-of (bpm/node-config-of engine t))))
+          tasks)))
+
+(defn- reason-required?
+  "任务节点是否配置审批意见必填。"
+  [engine task-id]
+  (let [t (some-> (.taskId (.createTaskQuery (.getTaskService engine)) task-id) .singleResult)
+        cfg (when t (bpm/node-config-of engine t))]
+    (boolean (or (:reason-require cfg) (:reasonRequire cfg)))))
+
+(defn task-approve!
+  "审批通过：意见必填校验（nodeConfig.reason-require）+ 手写签名存任务局部变量。"
+  [{:keys [engine]} task-id user comment sign-pic-url]
+  (when (and (reason-required? engine task-id) (str/blank? (or comment "")))
+    (throw (ex-info "当前节点要求填写审批意见" {:task-id task-id})))
+  (bpm/approve! engine task-id user comment sign-pic-url))
+
+(defn task-reject!
+  "审批驳回：意见必填校验 + 手写签名存任务局部变量。"
+  [{:keys [engine]} task-id user comment return-node-id sign-pic-url]
+  (when (and (reason-required? engine task-id) (str/blank? (or comment "")))
+    (throw (ex-info "当前节点要求填写审批意见" {:task-id task-id})))
+  (bpm/reject! engine task-id user comment return-node-id sign-pic-url))
 
 (defn instance-history
   "流程实例的完整历史轨迹：业务侧 + 活动轨迹 + 任务级审批历史 + 表单回显数据。"
@@ -493,12 +636,14 @@
 ;; ── Phase 1 审批闭环：加签 / 减签 / 取消 / 撤回 / 抄送 / 可退回节点 ─────
 
 (defn task-create-sign!
-  "加签：仅任务当前办理人可操作。"
+  "加签：仅任务当前办理人可操作。节点配置意见必填时 reason 不能为空。"
   [{:keys [engine]} task-id user-names sign-type reason user]
   (let [t (bpm/task-of engine task-id)]
     (when-not t (throw (ex-info "任务不存在" {:task-id task-id})))
     (when (and (:assignee t) (not= (:assignee t) user))
       (throw (ex-info "只有任务办理人可以加签" {:task-id task-id}))))
+  (when (and (reason-required? engine task-id) (str/blank? (or reason "")))
+    (throw (ex-info "当前节点要求填写审批意见" {:task-id task-id})))
   (bpm/create-sign! engine task-id user-names sign-type reason))
 
 (defn task-delete-sign!

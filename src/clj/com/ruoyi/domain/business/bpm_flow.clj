@@ -153,13 +153,19 @@
    USER                   → candidateUsers (逗号分隔用户名)
    ROLE/DEPT_MEMBER/POST  → candidateGroups (role:id / dept:id / post:id)
    DEPT_LEADER/MULTI...   → candidateGroups (dept-leader:id)
+   USER_GROUP             → candidateUsers (分组 user_ids 展开为用户名，groups 为 {group-id [user-id]})
    抄送节点(copy-user-ids/copy-role-ids) → candidateUsers / candidateGroups(role:)
-   动态策略(发起人自选等) 暂由前端 config 保存，运行时通过扩展表达式或 listener 处理。"
-  [config users]
+   INITIATOR_SELF/FORM_USER/FORM_DEPT_LEADER/EXPRESSION 等运行时策略
+                          → 不生成静态候选，由 TaskListener create 事件解析(nodeConfig 保存配置)"
+  [config users groups]
   (let [{:keys [candidate-strategy candidate-param copy-user-ids copy-role-ids]} config
         param (or candidate-param {})
         ids (fn [k] (or (get param k) []))
-        unames (fn [k] (str/join "," (keep #(get users (str %)) (ids k))))]
+        unames (fn [k] (str/join "," (keep #(get users (str %)) (ids k))))
+        group-unames (fn []
+                       (str/join "," (keep users
+                                           (distinct (mapcat #(get groups (str %) [])
+                                                             (map str (:user-group-ids param)))))))]
     (cond
       (seq copy-user-ids)
       (str " flowable:candidateUsers=\"" (escape-xml (str/join "," (keep #(get users (str %)) copy-user-ids))) "\"")
@@ -168,6 +174,7 @@
       :else
       (case candidate-strategy
         "USER" (str " flowable:candidateUsers=\"" (escape-xml (unames :user-ids)) "\"")
+        "USER_GROUP" (str " flowable:candidateUsers=\"" (escape-xml (group-unames)) "\"")
         "ROLE" (str " flowable:candidateGroups=\"" (escape-xml (group-ids "role" (ids :role-ids))) "\"")
         "DEPT_MEMBER" (str " flowable:candidateGroups=\"" (escape-xml (group-ids "dept" (ids :dept-ids))) "\"")
         "DEPT_LEADER" (str " flowable:candidateGroups=\"" (escape-xml (group-ids "dept-leader" (ids :dept-ids))) "\"")
@@ -175,10 +182,11 @@
         "POST" (str " flowable:candidateGroups=\"" (escape-xml (group-ids "post" (ids :post-ids))) "\"")
         ""))))
 (defn- delay-iso
-  "延迟器 config → ISO8601 时长（如 PT6H）。"
+  "延迟/超时 config → ISO8601 时长（如 PT6H、PT10S）。"
   [{:keys [time-duration time-unit]}]
   (when time-duration
-    (let [suf (case (or time-unit "HOUR") "MINUTE" "M" "DAY" "D" "H")]
+    (let [suf (case (or time-unit "HOUR")
+                "SECOND" "S" "MINUTE" "M" "DAY" "D" "H")]
       (str "PT" time-duration suf))))
 
 (defn- multi-completion-condition
@@ -190,10 +198,12 @@
     "${nrOfCompletedInstances >= nrOfInstances}"))
 
 (defn- multi-instance-el
-  "多实例审批元素：collection 按节点 id 命名（发起时注入 approverList_<id>）。"
+  "多实例审批元素：collection 按节点 id 命名（发起时注入 approverList_<id>）。
+   RANDOM 随机一人不是多实例，由 TaskListener create 时指定 assignee，不生成该元素。"
   [el-id config]
   (when (and (= "USER" (:approve-type config))
-             (not= "SEQUENTIAL" (or (:approve-method config) "SEQUENTIAL")))
+             (not= "SEQUENTIAL" (or (:approve-method config) "SEQUENTIAL"))
+             (not= "RANDOM" (:approve-method config)))
     (str "<multiInstanceLoopCharacteristics isSequential=\"false\""
          " flowable:collection=\"${approverList_" el-id "}\""
          " flowable:elementVariable=\"approver\">"
@@ -201,12 +211,33 @@
          (multi-completion-condition (:approve-method config) (:approve-ratio config))
          "</completionCondition></multiInstanceLoopCharacteristics>")))
 
+(defn- timeout-boundary-el
+  "节点超时配置 → 非中断边界定时事件（触发时由 bpmTimeoutHandler 执行 REMINDER/AUTO_PASS/AUTO_REJECT）。
+   超时动作存边界事件自己的 nodeConfig 属性，TimeoutHandler 直接读取。"
+  [el-id config]
+  (let [timeout (:timeout-handler config)]
+    (when (and (:enable timeout)
+               (pos? (or (:time-duration timeout) 0))
+               (contains? #{"REMINDER" "AUTO_PASS" "AUTO_REJECT"} (:type timeout)))
+      (str "<boundaryEvent id=\"timeout_" el-id "\" attachedToRef=\"" el-id "\" cancelActivity=\"false\">"
+           "<extensionElements>"
+           "<flowable:executionListener event=\"start\" delegateExpression=\"${bpmTimeoutHandler}\"/>"
+           "<flowable:properties><flowable:property name=\"nodeConfig\" value=\""
+           (escape-xml (json/generate-string {:timeout {:action (:type timeout)}}))
+           "\"/></flowable:properties>"
+           "</extensionElements>"
+           "<timerEventDefinition><timeDuration xsi:type=\"tFormalExpression\">"
+           (delay-iso timeout) "</timeDuration></timerEventDefinition>"
+           "</boundaryEvent>"))))
+
 (defn tree->bpmn
   "流程节点树 → BPMN XML 字符串。
    model-key 作为 BPMN process id，保证部署后流程定义 key 与模型 key 一致。
-   users 是 {user-id user-name} 映射，用于 USER 策略生成 candidateUsers 用户名。"
+   users 是 {user-id user-name} 映射，用于 USER/USER_GROUP/抄送策略生成 candidateUsers 用户名。
+   groups 是 {group-id [user-id ...]} 映射（可选），用于 USER_GROUP 策略展开。"
   ([root model-key] (tree->bpmn root model-key nil))
-  ([root model-key users]
+  ([root model-key users] (tree->bpmn root model-key users nil))
+  ([root model-key users groups]
   (let [parts (atom [])
         flows (atom [])
         gw-counter (atom 0)
@@ -222,7 +253,7 @@
                              (str "gw" (swap! gw-counter inc))
                              :else id)
                      branch? (and (str/includes? (or type "") "BRANCH") (seq condition-nodes))
-                     cand (config->candidate-attrs config users)
+                     cand (config->candidate-attrs config users groups)
                      ;; 先递归子节点拿到出线目标 id（网关 default 属性需要默认线 id）
                      cond-flows (when branch?
                                   (mapv (fn [cn]
@@ -241,15 +272,15 @@
                                 multi-assignee skip-expr
                                 (when default-cid
                                   (str " default=\"" el-id "_" default-cid "\"")))
-                     dynamic-strategy? (contains? #{"START_USER_DEPT_LEADER" "MULTI_LEVEL_DEPT_LEADER"
-                                                    "START_USER_SELECT" "APPROVE_USER_SELECT"}
-                                                  (get-in config [:candidate-strategy]))
+                     ;; 所有带配置的人工节点都挂 create 监听器：
+                     ;; 候选解析/为空策略/随机审批统一在 TaskListener 处理
                      listener-el (when (and (#{"USER_TASK_NODE" "COPY_TASK_NODE"} type)
-                                            (or dynamic-strategy? (= "COPY_TASK_NODE" type)))
+                                            (seq config))
                                    "<flowable:taskListener event=\"create\" delegateExpression=\"${bpmTaskListener}\"/>")
                      ;; 抄送节点在 nodeConfig 标 nodeType=COPY_TASK，TaskListener create 时自动抄送并完成
                      out-config (cond-> config
                                   (= "COPY_TASK_NODE" type) (assoc :nodeType "COPY_TASK"))
+                     timeout-el (when (= type "USER_TASK_NODE") (timeout-boundary-el el-id config))
                      body (cond
                             (and (#{"USER_TASK_NODE" "COPY_TASK_NODE"} type) (seq out-config))
                             (str "<extensionElements>"
@@ -267,6 +298,7 @@
                         (if body
                           (str "<" tag attrs cand ">" body "</" tag ">")
                           (str "<" tag attrs cand "/>")))
+                 (when timeout-el (swap! parts conj timeout-el))
                  (when parent-id
                    (swap! flows conj {:src parent-id :tgt el-id :cond? false}))
                  (if branch?

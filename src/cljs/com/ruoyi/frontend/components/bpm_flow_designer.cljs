@@ -55,14 +55,18 @@
   [{:value "USER" :label "指定用户"} {:value "ROLE" :label "指定角色"}
    {:value "DEPT_MEMBER" :label "指定部门成员"} {:value "DEPT_LEADER" :label "指定部门负责人"}
    {:value "POST" :label "指定岗位"} {:value "START_USER_DEPT_LEADER" :label "发起人部门负责人"}
-   {:value "MULTI_LEVEL_DEPT_LEADER" :label "发起人部门负责人及上级"}])
+   {:value "MULTI_LEVEL_DEPT_LEADER" :label "发起人部门负责人及上级"}
+   {:value "INITIATOR_SELF" :label "发起人本人"} {:value "USER_GROUP" :label "用户组"}
+   {:value "FORM_USER" :label "表单内用户字段"} {:value "FORM_DEPT_LEADER" :label "表单内部门负责人"}
+   {:value "EXPRESSION" :label "流程表达式"}])
 
 (def ^:private candidate-strategy-label
   (into {} (map (juxt :value :label)) candidate-strategies))
 
 (def ^:private approve-methods
   [{:value "SEQUENTIAL" :label "依次审批"} {:value "ANY" :label "或签（一人同意即可）"}
-   {:value "ALL" :label "会签（所有人同意）"} {:value "RATIO" :label "按比例通过"}])
+   {:value "ALL" :label "会签（所有人同意）"} {:value "RATIO" :label "按比例通过"}
+   {:value "RANDOM" :label "随机一人审批"}])
 
 (def ^:private reject-handler-types
   [{:value "FINISH_PROCESS" :label "终止流程"} {:value "RETURN_USER_TASK" :label "驳回到指定节点"}])
@@ -89,7 +93,19 @@
    :timeout-handler {:enable false :type "REMINDER" :time-duration 6 :time-unit "HOUR" :max-remind-count 1}
    :assign-empty-handler {:type "AUTO_PASS" :user-ids []}
    :assign-start-user-handler-type "TRANSFER_ADMIN"
-   :sign-enable false :reason-require false :skip-expression "" :fields-permission {}})
+   :sign-enable false :reason-require false :skip-expression "" :fields-permission {}
+   :buttons {"approve" {"enable" true "displayName" "通过"}
+             "reject" {"enable" true "displayName" "驳回"}
+             "transfer" {"enable" true "displayName" "转办"}
+             "delegate" {"enable" true "displayName" "委派"}
+             "add-sign" {"enable" true "displayName" "加签"}
+             "return" {"enable" true "displayName" "退回"}}})
+
+(def ^:private button-config-items
+  "可配置的操作按钮（nodeConfig.buttons）。"
+  [{:key "approve" :label "通过"} {:key "reject" :label "驳回"}
+   {:key "transfer" :label "转办"} {:key "delegate" :label "委派"}
+   {:key "add-sign" :label "加签"} {:key "return" :label "退回"}])
 
 ;; ── 配置表单辅助函数 ────────────────────────────────────────────────
 
@@ -121,10 +137,14 @@
    opts])
 
 (defn- user-candidate-editor
-  "审批人设置：按候选策略渲染参数编辑器。"
-  [cfg users roles depts posts]
+  "审批人设置：按候选策略渲染参数编辑器。
+   静态策略(USER/ROLE/DEPT/POST)直接生成 BPMN 候选属性；
+   动态/新策略(INITIATOR_SELF/USER_GROUP/FORM_USER/FORM_DEPT_LEADER/EXPRESSION 等)配置进
+   nodeConfig，运行时由 TaskListener create 事件解析。"
+  [cfg users roles depts posts groups expressions form-fields]
   (let [s (:candidate-strategy @cfg)
-        pi (fn [k v] (swap! cfg assoc-in [:candidate-param k] v))]
+        pi (fn [k v] (swap! cfg assoc-in [:candidate-param k] v)
+             (when (nil? v) (swap! cfg update :candidate-param dissoc k)))]
     (case s
       "USER"
       (multi-select "请选择用户" (get-in @cfg [:candidate-param :user-ids])
@@ -149,7 +169,61 @@
       "POST"
       (multi-select "请选择岗位" (get-in @cfg [:candidate-param :post-ids])
                     #(pi :post-ids (vec %)) (opt-post posts))
+      "USER_GROUP"
+      [antd/select {:mode "multiple" :style {:width "100%" :marginTop 8} :allowClear true
+                    :placeholder "请选择用户组"
+                    :value (or (get-in @cfg [:candidate-param :user-group-ids]) [])
+                    :onChange #(pi :user-group-ids (vec %))}
+       (doall (for [g @groups] ^{:key (:group_id g)}
+                [antd/select-option {:value (:group_id g)} (:name g)]))]
+      "FORM_USER"
+      [antd/select {:style {:width "100%" :marginTop 8} :allowClear true
+                    :placeholder "请选择表单用户字段（发起时该字段值为用户名/用户ID）"
+                    :value (get-in @cfg [:candidate-param :form-user-field])
+                    :onChange #(pi :form-user-field %)}
+       (doall (for [ff @form-fields]
+                (when-let [fld (:field ff)]
+                  ^{:key fld} [antd/select-option {:value fld} (:title ff)])))]
+      "FORM_DEPT_LEADER"
+      [antd/select {:style {:width "100%" :marginTop 8} :allowClear true
+                    :placeholder "请选择表单部门字段（发起时该字段值为部门ID）"
+                    :value (get-in @cfg [:candidate-param :form-dept-field])
+                    :onChange #(pi :form-dept-field %)}
+       (doall (for [ff @form-fields]
+                (when-let [fld (:field ff)]
+                  ^{:key fld} [antd/select-option {:value fld} (:title ff)])))]
+      "EXPRESSION"
+      [antd/select {:style {:width "100%" :marginTop 8} :allowClear true
+                    :placeholder "请选择流程表达式（求值结果为用户名列表）"
+                    :value (get-in @cfg [:candidate-param :expression-id])
+                    :onChange #(pi :expression-id %)}
+       (doall (for [e @expressions] ^{:key (:expression_id e)}
+                [antd/select-option {:value (:expression_id e)}
+                 (str (:name e) " (" (:expression e) ")")]))]
+      "INITIATOR_SELF"
+      [:div {:style {:marginTop 8 :color "#909399" :fontSize 12}}
+       "审批人为流程发起人本人（运行时解析，无需配置）"]
       [antd/input {:disabled true :style {:marginTop 8} :value "审批人为发起人的部门负责人"}])))
+
+(defn- user-buttons-editor
+  "操作按钮配置：每节点可配 approve/reject/transfer/delegate/add-sign/return 的启用与显示名。"
+  [cfg]
+  [:div {:style {:marginTop 14}}
+   (f-label "操作按钮配置")
+   (doall
+    (for [{:keys [key label]} button-config-items]
+      (let [b (get-in @cfg [:buttons key])]
+        ^{:key key}
+        [:div {:style {:display "flex" :gap 8 :alignItems "center" :marginBottom 6}}
+         [antd/switch {:size "small" :checked (boolean (or (:enable b) (get b "enable")))
+                       :onChange #(swap! cfg assoc-in [:buttons key "enable"] %)}]
+         [:span {:style {:width 56 :fontSize 13}} label]
+         [antd/input {:size "small" :style {:flex 1}
+                      :value (or (:displayName b) (get b "displayName") label)
+                      :placeholder "按钮显示名称"
+                      :onChange (fn [e]
+                                  (swap! cfg assoc-in [:buttons key "displayName"]
+                                         (-> e .-target .-value)))}]])))])
 
 (defn- user-reject-editor
   "审批人拒绝时设置。"
@@ -341,6 +415,8 @@
                roles (r/atom [])
                depts (r/atom [])
                posts (r/atom [])
+               groups (r/atom [])
+               expressions (r/atom [])
                form-fields (r/atom [])
                rows-or-vec (fn [res]
                               (let [d (:data res)]
@@ -374,6 +450,10 @@
                                  #(reset! depts (walk/keywordize-keys (rows-or-vec %))) #())
                _ (api/list-posts {:page 1 :size 1000}
                                  #(reset! posts (walk/keywordize-keys (rows-or-vec %))) #())
+               _ (api/bpmmgmt-list "user-group" {:page 1 :size 1000}
+                                   #(reset! groups (walk/keywordize-keys (rows-or-vec %))) #())
+               _ (api/bpmmgmt-list "expression" {:page 1 :size 1000}
+                                   #(reset! expressions (walk/keywordize-keys (rows-or-vec %))) #())
                delete-node (fn [path]
                              (when (seq path)
                                (let [child (:child-node (get-in @tree path))]
@@ -499,6 +579,11 @@
                                              "DEPT_LEADER" "部门负责人"
                                              "START_USER_DEPT_LEADER" "发起人部门负责人"
                                              "MULTI_LEVEL_DEPT_LEADER" (str "发起人部门负责人及上级 向上 " (get-in cfg [:candidate-param :dept-level] 1) " 级")
+                                             "INITIATOR_SELF" "发起人本人"
+                                             "USER_GROUP" "用户组审批"
+                                             "FORM_USER" "表单内用户"
+                                             "FORM_DEPT_LEADER" "表单内部门负责人"
+                                             "EXPRESSION" "流程表达式"
                                              (get candidate-strategy-label (:candidate-strategy cfg) "请配置审批人"))
                                            (= at "AUTO_PASS") "自动通过"
                                            (= at "AUTO_REJECT") "自动拒绝"
@@ -615,10 +700,13 @@
                  [antd/radio-group {:value (:candidate-strategy @cfg)
                                     :onChange #(do (cfg-set! :candidate-strategy (-> % .-target .-value))
                                                    (cfg-set! :candidate-param
-                                                             {:user-ids [] :role-ids [] :dept-ids [] :post-ids [] :dept-level 1}))}
+                                                             {:user-ids [] :role-ids [] :dept-ids [] :post-ids []
+                                                              :dept-level 1 :user-group-ids []
+                                                              :form-user-field nil :form-dept-field nil
+                                                              :expression-id nil}))}
                   (doall (for [{:keys [value label]} candidate-strategies]
                            ^{:key value} [antd/radio {:value value} label]))]
-                 (user-candidate-editor cfg users roles depts posts)
+                 (user-candidate-editor cfg users roles depts posts groups expressions form-fields)
                  (f-label {:style {:marginTop 14}} "多人审批方式")
                  [antd/radio-group {:value (:approve-method @cfg)
                                     :onChange #(cfg-set! :approve-method (-> % .-target .-value))}
@@ -633,6 +721,7 @@
                  (user-reject-editor cfg node (user-task-nodes))
                  (user-timeout-editor cfg)
                  (user-empty-editor cfg users)
+                 (user-buttons-editor cfg)
                  (f-label {:style {:marginTop 14}} "审批人与提交人为同一人时")
                  [antd/radio-group {:value (:assign-start-user-handler-type @cfg)
                                     :onChange #(cfg-set! :assign-start-user-handler-type (-> % .-target .-value))}
