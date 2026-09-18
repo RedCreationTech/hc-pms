@@ -2,10 +2,10 @@
 
 -- ============================ 流程分类 ============================
 -- :name bpm/category-list :? :*
-SELECT category_id, name, code, sort, status, create_time, remark
+SELECT category_id, name, code, sort, status, order_num, create_time, remark
 FROM biz_bpm_category
 WHERE (:name IS NULL OR INSTR(name, :name) > 0)
-ORDER BY sort, category_id
+ORDER BY order_num, sort, category_id
 LIMIT :page_size OFFSET :offset
 --;;
 
@@ -15,18 +15,19 @@ WHERE (:name IS NULL OR INSTR(name, :name) > 0)
 --;;
 
 -- :name bpm/find-category-by-id :? :1
-SELECT category_id, name, code, sort, status, create_time, update_time, remark
+SELECT category_id, name, code, sort, status, order_num, create_time, update_time, remark
 FROM biz_bpm_category WHERE category_id = :category_id
 --;;
 
 -- :name bpm/insert-category :! :n
-INSERT INTO biz_bpm_category (name, code, sort, status, create_by, create_time, remark)
-VALUES (:name, :code, :sort, :status, :create_by, CURRENT_TIMESTAMP, :remark)
+INSERT INTO biz_bpm_category (name, code, sort, status, order_num, create_by, create_time, remark)
+VALUES (:name, :code, :sort, :status, :order_num, :create_by, CURRENT_TIMESTAMP, :remark)
 --;;
 
 -- :name bpm/update-category :! :n
 UPDATE biz_bpm_category
 SET name = :name, code = :code, sort = :sort, status = :status,
+    order_num = COALESCE(:order_num, order_num),
     update_by = :update_by, update_time = CURRENT_TIMESTAMP, remark = :remark
 WHERE category_id = :category_id
 --;;
@@ -35,11 +36,17 @@ WHERE category_id = :category_id
 DELETE FROM biz_bpm_category WHERE category_id = :category_id
 --;;
 
+-- :name bpm/update-category-order :! :n
+UPDATE biz_bpm_category SET order_num = :order_num WHERE category_id = :category_id
+--;;
+
 -- ============================ 流程模型 ============================
 -- :name bpm/model-list :? :*
 SELECT m.model_id, m.model_key, m.model_name, m.category_id, m.version,
        m.form_type, m.form_id, m.form_custom_create_path, m.form_custom_view_path,
        m.status, m.create_by, m.create_time, m.remark,
+       m.icon, m.order_num, m.start_user_ids, m.start_dept_ids, m.manager_user_ids,
+       m.deployment_id,
        m.process_id_rule, m.auto_approval_type, m.name_rule, m.summary_fields,
        m.print_template_enable, m.print_template_html, m.webhooks,
        m.allow_cancel, m.allow_withdraw,
@@ -48,7 +55,7 @@ FROM biz_bpm_model m
 LEFT JOIN biz_bpm_category c ON m.category_id = c.category_id
 WHERE (:model_name IS NULL OR INSTR(m.model_name, :model_name) > 0)
   AND (:category_id IS NULL OR m.category_id = :category_id)
-ORDER BY m.model_id DESC
+ORDER BY m.order_num, m.model_id DESC
 LIMIT :page_size OFFSET :offset
 --;;
 
@@ -70,6 +77,7 @@ SELECT * FROM biz_bpm_model WHERE model_key = :model_key ORDER BY version DESC L
 INSERT INTO biz_bpm_model (model_key, model_name, category_id, version, form_type,
                            form_id, form_custom_create_path, form_custom_view_path,
                            form_json, fields_permission, bpmn_xml, deployment_id, status,
+                           icon, order_num, start_user_ids, start_dept_ids, manager_user_ids,
                            process_id_rule, auto_approval_type, name_rule, summary_fields,
                            print_template_enable, print_template_html, webhooks,
                            allow_cancel, allow_withdraw,
@@ -77,6 +85,7 @@ INSERT INTO biz_bpm_model (model_key, model_name, category_id, version, form_typ
 VALUES (:model_key, :model_name, :category_id, :version, :form_type,
         :form_id, :form_custom_create_path, :form_custom_view_path,
         :form_json, :fields_permission, :bpmn_xml, :deployment_id, :status,
+        :icon, :order_num, :start_user_ids, :start_dept_ids, :manager_user_ids,
         :process_id_rule, :auto_approval_type, :name_rule, :summary_fields,
         :print_template_enable, :print_template_html, :webhooks,
         :allow_cancel, :allow_withdraw,
@@ -93,6 +102,11 @@ SET model_name = :model_name, category_id = :category_id, form_type = :form_type
     deployment_id = COALESCE(:deployment_id, deployment_id),
     status = :status, update_by = :update_by, update_time = CURRENT_TIMESTAMP,
     remark = :remark,
+    icon = COALESCE(:icon, icon),
+    order_num = COALESCE(:order_num, order_num),
+    start_user_ids = COALESCE(:start_user_ids, start_user_ids),
+    start_dept_ids = COALESCE(:start_dept_ids, start_dept_ids),
+    manager_user_ids = COALESCE(:manager_user_ids, manager_user_ids),
     process_id_rule = COALESCE(:process_id_rule, process_id_rule),
     auto_approval_type = COALESCE(:auto_approval_type, auto_approval_type),
     name_rule = COALESCE(:name_rule, name_rule),
@@ -103,6 +117,10 @@ SET model_name = :model_name, category_id = :category_id, form_type = :form_type
     allow_cancel = COALESCE(:allow_cancel, allow_cancel),
     allow_withdraw = COALESCE(:allow_withdraw, allow_withdraw)
 WHERE model_id = :model_id
+--;;
+
+-- :name bpm/update-model-order :! :n
+UPDATE biz_bpm_model SET order_num = :order_num WHERE model_id = :model_id
 --;;
 
 -- :name bpm/update-model-deployment :! :n

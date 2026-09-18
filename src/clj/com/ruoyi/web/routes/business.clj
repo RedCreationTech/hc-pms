@@ -19,6 +19,7 @@
    ["/bpm/category"
     ["" {:get  {:summary "流程分类列表" :handler (partial bpm/list-categories {:bpm-service bpm-service})}
          :post {:summary "新增流程分类" :handler (partial bpm/create-category {:bpm-service bpm-service})}}]
+    ["/sort" {:put {:summary "批量保存分类排序" :handler (partial bpm/sort-categories {:bpm-service bpm-service})}}]
     ["/:id" {:get    {:summary "分类详情" :handler (partial bpm/get-category {:bpm-service bpm-service})}
              :put    {:summary "更新分类" :handler (partial bpm/update-category {:bpm-service bpm-service})}
              :delete {:summary "删除分类" :handler (partial bpm/delete-category {:bpm-service bpm-service})}}]]
@@ -31,6 +32,7 @@
     ["/state" {:put {:summary "挂起/激活流程定义" :handler (partial bpm/model-set-state {:bpm-service bpm-service})}}]
     ["/clean" {:delete {:summary "清理流程历史实例与部署" :handler (partial bpm/model-clean {:bpm-service bpm-service})}}]
     ["/copy" {:post {:summary "复制流程模型" :handler (partial bpm/model-copy {:bpm-service bpm-service})}}]
+    ["/sort" {:put {:summary "批量保存模型排序" :handler (partial bpm/sort-models {:bpm-service bpm-service})}}]
     ["/:id/tree" {:get  {:summary "流程节点树" :handler (partial bpm/model-tree {:bpm-service bpm-service})}
                    :post {:summary "保存流程节点树" :handler (partial bpm/model-save-tree {:bpm-service bpm-service})}}]
     ["/:id" {:get    {:summary "模型详情" :handler (partial bpm/get-model {:bpm-service bpm-service})}
@@ -141,3 +143,4 @@
          :post {:summary "发起报销申请(入审批流)" :handler (partial reimburse/start-reimburse {:reimburse-service reimburse-service})}}]
     ["/:id" {:get    {:summary "报销单详情" :handler (partial reimburse/get-reimburse {:reimburse-service reimburse-service})}
               :delete {:summary "删除报销单" :handler (partial reimburse/delete-reimburse {:reimburse-service reimburse-service})}}]]])
+

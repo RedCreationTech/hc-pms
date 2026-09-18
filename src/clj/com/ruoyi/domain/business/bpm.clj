@@ -427,6 +427,7 @@
   (query-fn :bpm/insert-category
             {:name (:name params) :code (:code params)
              :sort (or (:sort params) 0) :status (or (:status params) "0")
+             :order_num (or (:order_num params) 0)
              :create_by (or user "") :remark (or (:remark params) "")}))
 
 (defn category-update
@@ -434,19 +435,58 @@
   (query-fn :bpm/update-category
             {:category_id (:category_id params) :name (:name params)
              :code (:code params) :sort (or (:sort params) 0)
+             :order_num (:order_num params)
              :status (:status params) :update_by (or user "") :remark (:remark params)}))
 
 (defn category-delete
   [{:keys [query-fn]} id]
   (query-fn :bpm/delete-category {:category_id id}))
 
+(defn category-sort!
+  "P1：批量保存分类排序（ids 按新顺序排列，order_num = 下标×10）。"
+  [{:keys [query-fn]} ids]
+  (doseq [[i id] (map-indexed vector (or ids []))]
+    (query-fn :bpm/update-category-order {:category_id id :order_num (* i 10)}))
+  {:sorted (count (or ids []))})
+
 ;; ── 流程模型 ──────────────────────────────────────────────────────────
+(defn- deploy-time-of
+  "按 deployment_id 从 Flowable 查最新部署时间（未部署返回 nil）。"
+  [engine deployment-id]
+  (when (seq (str (or deployment-id "")))
+    (try
+      (some-> (.getRepositoryService ^org.flowable.engine.ProcessEngine engine)
+              (.createDeploymentQuery)
+              (.deploymentId (str deployment-id))
+              (.singleResult)
+              (.getDeploymentTime)
+              (str))
+      (catch Exception _ nil))))
+
+(defn- json-ids
+  "JSON 文本 → id 字符串向量（nil/非法返回 []）。"
+  [v]
+  (let [parsed (parse-json-field v)]
+    (if (sequential? parsed) (mapv str parsed) [])))
+
 (defn model-list
-  [{:keys [query-fn]} params]
+  "P1：行附带最新部署时间(deploy_time)、可发起人员/部门名简表(start_users/start_depts)，
+   分类名随 LEFT JOIN 返回；排序按 order_num；前端按 category_id 自行分组。"
+  [{:keys [engine query-fn]} params]
   (let [{:keys [offset size]} (page-params params)
         p {:model_name (get params :model_name) :category_id (get params :category_id)
-           :page_size size :offset offset}]
-    {:rows (mapv #(row->json % [:form_json :bpmn_xml :webhooks])
+           :page_size size :offset offset}
+        users (list-all-users query-fn)
+        depts (query-fn :list-all-depts {})
+        uname (into {} (map (juxt (comp str :user_id) :user_name)) users)
+        dname (into {} (map (juxt (comp str :dept_id) :dept_name)) depts)]
+    {:rows (mapv (fn [row]
+                   (let [data (row->json row [:form_json :bpmn_xml :webhooks
+                                              :start_user_ids :start_dept_ids :manager_user_ids])]
+                     (assoc data
+                            :deploy_time (deploy-time-of engine (:deployment_id data))
+                            :start_users (mapv uname (json-ids (:start_user_ids data)))
+                            :start_depts (mapv dname (json-ids (:start_dept_ids data))))))
                  (query-fn :bpm/model-list p))
      :total (:total (query-fn :bpm/model-count p))}))
 
@@ -478,7 +518,8 @@
 
 (defn model-create
   "新建流程模型：校验 key 格式(字母/下划线开头，可含字母数字与 _ - . $)与重名，
-   缺省字段补默认值（默认 BPMN 骨架、allow_cancel/allow_withdraw 默认 '1'）。"
+   缺省字段补默认值（默认 BPMN 骨架、allow_cancel/allow_withdraw 默认 '1'）。
+   P1：icon/order_num/start_user_ids/start_dept_ids/manager_user_ids 一并入库。"
   [{:keys [query-fn]} params user]
   (let [key (some-> (:model_key params) str str/trim)]
     (when (str/blank? key)
@@ -497,6 +538,11 @@
                :form_json (:form_json params) :fields_permission (:fields_permission params)
                :bpmn_xml (or (:bpmn_xml params) (default-model-bpmn key))
                :deployment_id (:deployment_id params) :status (or (:status params) "1")
+               :icon (or (:icon params) "")
+               :order_num (or (:order_num params) 0)
+               :start_user_ids (:start_user_ids params)
+               :start_dept_ids (:start_dept_ids params)
+               :manager_user_ids (:manager_user_ids params)
                :process_id_rule (:process_id_rule params)
                :auto_approval_type (or (:auto_approval_type params) "NONE")
                :name_rule (:name_rule params) :summary_fields (:summary_fields params)
@@ -508,6 +554,8 @@
                :create_by (or user "") :remark (or (:remark params) "")})))
 
 (defn model-update
+  "P1：icon/start_user_ids/start_dept_ids/manager_user_ids/order_num 走 COALESCE，
+   传 nil 时保留原值（model-save-tree! 等部分更新调用方无需关注新列）。"
   [{:keys [query-fn]} params user]
   (query-fn :bpm/update-model
             {:model_id (:model_id params) :model_name (:model_name params)
@@ -518,6 +566,11 @@
              :form_json (:form_json params) :fields_permission (:fields_permission params)
              :bpmn_xml (:bpmn_xml params)
              :deployment_id (:deployment_id params) :status (:status params)
+             :icon (:icon params)
+             :order_num (:order_num params)
+             :start_user_ids (:start_user_ids params)
+             :start_dept_ids (:start_dept_ids params)
+             :manager_user_ids (:manager_user_ids params)
              :process_id_rule (:process_id_rule params)
              :auto_approval_type (:auto_approval_type params)
              :name_rule (:name_rule params) :summary_fields (:summary_fields params)
@@ -527,6 +580,13 @@
              :allow_cancel (:allow_cancel params)
              :allow_withdraw (:allow_withdraw params)
              :update_by (or user "") :remark (:remark params)}))
+
+(defn model-sort!
+  "P1：批量保存模型排序（ids 按新顺序排列，order_num = 下标×10）。"
+  [{:keys [query-fn]} ids]
+  (doseq [[i id] (map-indexed vector (or ids []))]
+    (query-fn :bpm/update-model-order {:model_id id :order_num (* i 10)}))
+  {:sorted (count (or ids []))})
 
 (defn model-delete
   [{:keys [engine query-fn]} id]
@@ -568,7 +628,8 @@
     (bpm-flow/bpmn->tree (:bpmn_xml m))))
 
 (defn model-save-tree!
-  "保存流程节点树：转回 BPMN XML 并更新模型。返回新 XML。"
+  "保存流程节点树：转回 BPMN XML 并更新模型。返回新 XML。
+   P1：新列(icon/start_user_ids/start_dept_ids/manager_user_ids)传 nil 走 COALESCE 保留原值。"
   [{:keys [query-fn]} id tree user]
   (let [m (query-fn :bpm/find-model-by-id {:model_id id})
         users (query-fn :list-users {:user_name nil :phonenumber nil :status nil
@@ -588,6 +649,11 @@
                :form_custom_view_path (or (:form_custom_view_path m) "")
                :form_json (:form_json m) :fields_permission (:fields_permission m)
                :bpmn_xml xml :deployment_id nil
+               :icon (:icon m)
+               :order_num (:order_num m)
+               :start_user_ids (:start_user_ids m)
+               :start_dept_ids (:start_dept_ids m)
+               :manager_user_ids (:manager_user_ids m)
                :process_id_rule (:process_id_rule m)
                :auto_approval_type (:auto_approval_type m)
                :name_rule (:name_rule m) :summary_fields (:summary_fields m)
@@ -662,11 +728,77 @@
                        (into (mapcat #(walk % []) (or (:condition-nodes node) [])))))))]
     (vec (walk tree []))))
 
+(defn- collect-child-multi-nodes
+  "P1：收集子流程多实例节点（mi-enable），返回 [{:id :config}]。"
+  [tree]
+  (let [walk (fn walk [node acc]
+               (if (nil? node)
+                 acc
+                 (let [cfg (:config node)
+                       acc' (if (and (= "CHILD_PROCESS_NODE" (:type node))
+                                     (:mi-enable cfg))
+                              (conj acc {:id (:id node) :config cfg})
+                              acc)]
+                   (-> acc'
+                       (into (walk (:child-node node) []))
+                       (into (mapcat #(walk % []) (or (:condition-nodes node) [])))))))]
+    (vec (walk tree []))))
+
+(defn- child-multi-vars
+  "P1：子流程多实例实例数量 → miList_<node-id> 列表变量：
+   FIXED 固定数量 / NUMERIC_FIELD 数字表单字段 / MULTI_FIELD 多选表单字段。"
+  [tree fd]
+  (into {}
+        (keep (fn [{:keys [id config]}]
+                (let [source (:mi-source config)
+                      kw (keyword (str (:mi-field config)))
+                      n (case source
+                          "FIXED" (max 1 (long (or (:mi-count config) 1)))
+                          "NUMERIC_FIELD" (max 1 (long (or (get fd kw) (get fd (str (:mi-field config))) 1)))
+                          nil)]
+                  [(str "miList_" id)
+                   (case source
+                     "MULTI_FIELD" (vec (or (get fd kw) (get fd (str (:mi-field config))) []))
+                     (vec (repeat n 1)))])))
+        (collect-child-multi-nodes tree))) 
+
+(defn- dept-and-parents
+  "部门 id → 自身 + 全部上级部门 id 字符串列表。"
+  [query-fn dept-id]
+  (let [depts (query-fn :list-all-depts {})
+        by-id (into {} (map (juxt (comp str :dept_id) identity)) depts)]
+    (loop [did (some-> dept-id str) acc [] seen #{}]
+      (if (or (nil? did) (contains? seen did))
+        acc
+        (if-let [d (get by-id did)]
+          (recur (some-> (:parent_id d) str) (conj acc did) (conj seen did))
+          (conj acc did))))))
+
+(defn- check-start-permission!
+  "P1 发起校验：模型配置了 start_user_ids / start_dept_ids 时，
+   当前用户必须在指定人员内，或其所在部门（含上级）在指定部门内，
+   否则抛 500「您没有权限发起该流程」。两者都未配置 = 全员可发起。"
+  [query-fn model starter]
+  (let [uid-set (set (json-ids (:start_user_ids model)))
+        did-set (set (json-ids (:start_dept_ids model)))]
+    (when (or (seq uid-set) (seq did-set))
+      (let [u (first (filter #(= (str starter) (str (:user_name %)))
+                             (list-all-users query-fn)))
+            dept-ok? (when (and u (seq did-set))
+                       (some #(contains? did-set %)
+                             (dept-and-parents query-fn (:dept_id u))))]
+        (when-not (and u (or (and (seq uid-set) (contains? uid-set (str (:user_id u))))
+                             dept-ok?))
+          (throw (ex-info "您没有权限发起该流程" {:model_id (:model_id model)})))))))
+
 (defn instance-start!
-  "发起流程：用模型部署的 key 启动 Flowable 实例，写入 biz_bpm_instance。"
+  "发起流程：用模型部署的 key 启动 Flowable 实例，写入 biz_bpm_instance。
+   P1：模型配置 start_user_ids/start_dept_ids 时先校验发起权限；
+   子流程多实例节点(mi-enable)注入 miList_<id> 实例数量列表变量。"
   [{:keys [engine query-fn]} model-id business-key form-data starter]
   (let [m (query-fn :bpm/find-model-by-id {:model_id model-id})
         _ (when-not m (throw (ex-info "流程模型不存在" {:model_id model-id})))
+        _ (check-start-permission! query-fn m starter)
         _ (when-not (:deployment_id m)
             (throw (ex-info "模型未部署，请先部署" {:model_id model-id :key (:model_key m)})))
         _ (when (:suspended? (bpm/latest-definition engine (:model_key m)))
@@ -687,10 +819,11 @@
                            (map (fn [{:keys [id config]}]
                                   [(str "approverList_" id) (candidate-names config users)]))
                            (collect-multi-nodes tree))
+        child-mi-vars (child-multi-vars tree fd)
         started (bpm/start! engine (:model_key m) biz-key
                             (cond-> (merge {"formData" (json/generate-string fd)
                                             "startUserId" (or starter "")}
-                                           field-vars multi-vars)
+                                           field-vars multi-vars child-mi-vars)
                               (seq (get fd :startUserSelected))
                               (assoc "startUserSelected" (vec (get fd :startUserSelected)))))
         pid (:process-instance-id started)
@@ -977,21 +1110,28 @@
 
 (defn definition-page
   "流程定义分页（Flowable 侧，全部版本倒序）。按 modelKey 过滤；
-   附带模型表单绑定（form_type/form_id/form_name）与部署时间。"
+   附带模型表单绑定（form_type/form_id/form_name）与部署时间。
+   P1：附带分类名(category_name)与发起权限简表(start_users)。"
   [{:keys [engine query-fn]} params]
   (let [{:keys [offset size]} (page-params params)
         key (get params :modelKey)
         result (bpm/definition-page engine key offset size)
         model (when (seq key) (query-fn :bpm/find-model-by-key {:model_key key}))
         form (when-let [fid (:form_id model)]
-               (query-fn :bpm/find-form-by-id {:form_id fid}))]
+               (query-fn :bpm/find-form-by-id {:form_id fid}))
+        cat (when-let [cid (:category_id model)]
+              (query-fn :bpm/find-category-by-id {:category_id cid}))
+        users (list-all-users query-fn)
+        uname (into {} (map (juxt (comp str :user_id) :user_name)) users)]
     {:total (:total result)
      :rows (mapv (fn [row]
                    (assoc row
                           :model_name (:model_name model)
                           :form_type (:form_type model)
                           :form_id (:form_id model)
-                          :form_name (:form_name form)))
+                          :form_name (:form_name form)
+                          :category_name (:name cat)
+                          :start_users (mapv uname (json-ids (:start_user_ids model)))))
                  (:rows result))}))
 
 (defn definition-xml
@@ -1071,6 +1211,11 @@
                  :form_custom_view_path (or (:form_custom_view_path m) "")
                  :form_json (:form_json m) :fields_permission (:fields_permission m)
                  :bpmn_xml (:bpmn_xml m) :deployment_id nil :status "1"
+                 :icon (or (:icon m) "")
+                 :order_num (or (:order_num m) 0)
+                 :start_user_ids (:start_user_ids m)
+                 :start_dept_ids (:start_dept_ids m)
+                 :manager_user_ids (:manager_user_ids m)
                  :process_id_rule (:process_id_rule m)
                  :auto_approval_type (or (:auto_approval_type m) "NONE")
                  :name_rule (:name_rule m) :summary_fields (:summary_fields m)
@@ -1138,9 +1283,40 @@
         :else (do (Thread/sleep 100)
                   (recur (dec n)))))))
 
+(defn- json-path-get
+  "按点分路径（如 data.level / list.0.name）从解析后的 JSON 数据取值。"
+  [data path]
+  (reduce (fn [acc k]
+            (cond
+              (map? acc) (let [kk (keyword k)] (if (contains? acc kk) (get acc kk) (get acc k)))
+              (sequential? acc) (let [i (try (Integer/parseInt (str k)) (catch Exception _ -1))]
+                                  (when (and (>= i 0) (< i (count acc))) (nth acc i)))
+              :else nil))
+          data
+          (str/split (str path) #"\.")))
+
+(defn- writeback-webhook-response!
+  "P1 Webhook 响应回写：解析 JSON 响应体，按 response-mappings（JSON 路径 → 流程变量名）
+   提取并写流程变量；任何失败只记日志，绝不影响流程。"
+  [engine pid hook resp]
+  (let [mappings (seq (:response-mappings hook))]
+    (when (and mappings (some #(seq (str (:key %))) mappings))
+      (try
+        (let [data (json/parse-string (str (:body resp)) true)
+              rt (.getRuntimeService ^org.flowable.engine.ProcessEngine engine)]
+          (doseq [{:keys [key value]} mappings
+                  :when (and (seq (str key)) (seq (str value)))
+                  :let [v (json-path-get data (str key))]
+                  :when (some? v)]
+            (.setVariable rt (str pid) (str value) v)
+            (log/info "[bpm-webhook] 响应回写" key "→" value "=" v)))
+        (catch Exception e
+          (log/warn "[bpm-webhook] 响应回写失败:" (.getMessage e)))))))
+
 (defn- fire-webhooks!
   "按模型级 webhooks 配置触发 HTTP POST（4 钩子：process_start/process_end/task_start/task_end）。
    headers[]/bodyParams[] 的值支持固定值或 ${字段} 占位（流程变量 + 事件信息）。
+   P1：POST 成功后按 response-mappings（JSON 路径 → 流程变量名）解析 JSON 响应并回写流程变量。
    失败只记日志，绝不影响流程。实例无业务记录（绕过业务层直接起实例）时不触发。"
   [event {:keys [engine query-fn]} {:keys [task-id process-instance-id task-name]}]
   (when (and query-fn (seq (str process-instance-id)))
@@ -1163,16 +1339,17 @@
                 body (into {}
                            (keep (fn [{:keys [key value]}]
                                    (when (seq (str key))
-                                     [(keyword (str key)) (bpm/resolve-placeholders value vars)])))
+                                     [(keyword (str key)) (str (bpm/resolve-placeholders value vars))])))
                            (:bodyParams hook))]
             (try
-              (http/post (str (:url hook))
-                         {:headers headers
-                          :form-params body
-                          :content-type :json
-                          :socket-timeout 5000
-                          :conn-timeout 5000})
-              (log/info "[bpm-webhook]" event "→" (:url hook))
+              (let [resp (http/post (str (:url hook))
+                                    {:headers headers
+                                     :form-params body
+                                     :content-type :json
+                                     :socket-timeout 5000
+                                     :conn-timeout 5000})]
+                (log/info "[bpm-webhook]" event "→" (:url hook))
+                (writeback-webhook-response! engine process-instance-id hook resp))
               (catch Exception e
                 (log/error "[bpm-webhook]" event "POST 失败:" (:url hook) (.getMessage e))))))))))
 

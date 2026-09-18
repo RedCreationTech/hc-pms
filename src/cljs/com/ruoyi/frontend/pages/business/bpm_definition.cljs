@@ -5,12 +5,30 @@
    [re-frame.core :as rf]
    ["@ant-design/icons" :refer [ReloadOutlined EyeOutlined UndoOutlined
                                 ArrowLeftOutlined]]
+   [clojure.string :as str]
    [com.ruoyi.frontend.antd :as antd]
    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
 
 (defn- version-columns []
-  #js [#js {:title "定义ID" :dataIndex "id" :key "id" :width 160 :ellipsis true}
-       #js {:title "流程名称" :dataIndex "name" :key "name" :width 160}
+  #js [#js {:title "定义ID" :dataIndex "id" :key "id" :width 150 :ellipsis true}
+       #js {:title "流程名称" :dataIndex "name" :key "name" :width 150}
+       #js {:title "分类" :key "category" :width 110
+            :render (fn [_ ^js record]
+                      (let [row (js->clj record :keywordize-keys true)]
+                        (r/as-element
+                         (if-let [cn (:category_name row)]
+                           [antd/tag {:color "geekblue"} cn]
+                           [:span {:style {:color "#c0c4cc"}} "-"]))))}
+       #js {:title "发起权限" :key "start-perm" :width 160
+            :render (fn [_ ^js record]
+                      (let [row (js->clj record :keywordize-keys true)
+                            users (:start_users row)]
+                        (r/as-element
+                         (if (seq users)
+                           [antd/tag {:color "purple"}
+                            (str (clojure.string/join "," (take 3 users))
+                                 (when (> (count users) 3) (str " 等" (count users) "人")))]
+                           [:span {:style {:color "#909399" :fontSize 12}} "全部"]))))}
        #js {:title "版本" :dataIndex "version" :key "version" :width 70
             :render (fn [v] (r/as-element [antd/tag {:color "blue"} (str "v" v)]))}
        #js {:title "状态" :dataIndex "suspended?" :key "suspended?" :width 90
@@ -19,14 +37,14 @@
                                [antd/tag {:color "red"} "已挂起"]
                                [antd/tag {:color "green"} "激活中"])))}
        #js {:title "部署ID" :dataIndex "deployment-id" :key "deployment-id" :width 100 :ellipsis true}
-       #js {:title "部署时间" :dataIndex "deploy-time" :key "deploy-time" :width 180
+       #js {:title "部署时间" :dataIndex "deploy-time" :key "deploy-time" :width 170
             :render (fn [v] (r/as-element [:span (if v (subs (str v) 0 19) "-")]))}
        #js {:title "绑定表单" :key "form" :width 120
             :render (fn [_ ^js record]
                       (let [row (js->clj record :keywordize-keys true)]
                         (r/as-element
                          (if-let [fname (:form_name row)]
-                           [antd/tag {:color "purple"} fname]
+                           [antd/tag {:color "green"} fname]
                            [:span {:style {:color "#c0c4cc"}} "-"]))))}
        #js {:title "操作" :key "action" :width 170
             :render (fn [_ ^js record]
@@ -42,6 +60,7 @@
                            [antd/button {:type "link" :size "small"
                                          :icon (r/as-element [:> UndoOutlined])}
                             "恢复"]]])))}])
+
 
 (defn- xml-modal []
   (let [open? @(rf/subscribe [:bpm-definition/xml-open?])

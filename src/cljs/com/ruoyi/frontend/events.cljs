@@ -2877,7 +2877,7 @@
              (api/bpm-deploy-model model-id
                                    (fn [r] (when (= 200 (:code r))
                                              (antd/success! "部署成功")
-                                             (rf/dispatch [:bpm/model-fetch {}])))
+                                             (rf/dispatch [:bpm/model-fetch {:page 1 :size 1000}])))
                                    (fn [_] (antd/error! "部署失败")))))
 
 ;; ─── BPM Phase 3：流程定义版本页 / 模型启停·清理·复制 ──────────────────
@@ -2956,7 +2956,7 @@
              (api/bpm-model-state id state
                                   (fn [r] (if (= 200 (:code r))
                                             (do (antd/success! (if (= "2" (str state)) "已挂起" "已激活"))
-                                                (rf/dispatch [:bpm/model-fetch {}]))
+                                                (rf/dispatch [:bpm/model-fetch {:page 1 :size 1000}]))
                                             (antd/error! (str "操作失败: " (:msg r)))))
                                   (fn [_] (antd/error! "操作失败")))))
 
@@ -2969,7 +2969,7 @@
              (api/bpm-model-clean id
                                   (fn [r] (if (= 200 (:code r))
                                             (do (antd/success! "已清理历史实例与部署")
-                                                (rf/dispatch [:bpm/model-fetch {}]))
+                                                (rf/dispatch [:bpm/model-fetch {:page 1 :size 1000}]))
                                             (antd/error! (str "清理失败: " (:msg r)))))
                                   (fn [_] (antd/error! "清理失败")))))
 
@@ -2982,7 +2982,7 @@
              (api/bpm-model-copy id
                                  (fn [r] (if (= 200 (:code r))
                                            (do (antd/success! "已复制模型")
-                                               (rf/dispatch [:bpm/model-fetch {}]))
+                                               (rf/dispatch [:bpm/model-fetch {:page 1 :size 1000}]))
                                            (antd/error! (str "复制失败: " (:msg r)))))
                                  (fn [_] (antd/error! "复制失败")))))
 
@@ -3071,7 +3071,7 @@
                                    (fn [r] (when (= 200 (:code r))
                                              (rf/dispatch [:bpm/designer-close])
                                              (antd/success! "流程保存成功")
-                                             (rf/dispatch [:bpm/model-fetch {}])))
+                                             (rf/dispatch [:bpm/model-fetch {:page 1 :size 1000}])))
                                    (fn [_] (antd/error! "保存失败")))))
 
 ;; ─── BPM 流程图高亮 ──────────────────────────────────────────────────

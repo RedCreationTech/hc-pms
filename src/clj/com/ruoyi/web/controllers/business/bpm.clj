@@ -135,6 +135,17 @@
   (wrap-err #(let [{:keys [id]} (body-or-query request)]
                (ok (bpm/model-copy! bpm-service id (current-user request))))))
 
+;; ── P1：模型/分类拖拽排序 ─────────────────────────────────────────────
+(defn sort-models
+  "批量保存模型排序。body: {:ids [model_id ...]}（按新顺序排列）"
+  [{:keys [bpm-service]} request]
+  (wrap-err #(ok (bpm/model-sort! bpm-service (:ids (:body-params request))))))
+
+(defn sort-categories
+  "批量保存分类排序。body: {:ids [category_id ...]}（按新顺序排列）"
+  [{:keys [bpm-service]} request]
+  (wrap-err #(ok (bpm/category-sort! bpm-service (:ids (:body-params request))))))
+
 (defn print-data
   "打印数据。query: id(biz_bpm_instance.instance_id)"
   [{:keys [bpm-service]} request]

@@ -841,6 +841,31 @@
   (request {:method :get :uri "/business/bpm/category" :params params
             :on-success on-success :on-error on-error}))
 
+;; ─── P1：分类管理 / 模型排序 / 删除 ─────────────────────────────────
+(defn bpm-create-category [params on-success on-error]
+  (request {:method :post :uri "/business/bpm/category" :params params
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-update-category [id params on-success on-error]
+  (request {:method :put :uri (str "/business/bpm/category/" id) :params params
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-delete-category [id on-success on-error]
+  (request {:method :delete :uri (str "/business/bpm/category/" id)
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-sort-categories [ids on-success on-error]
+  (request {:method :put :uri "/business/bpm/category/sort" :params {:ids ids}
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-sort-models [ids on-success on-error]
+  (request {:method :put :uri "/business/bpm/model/sort" :params {:ids ids}
+            :on-success on-success :on-error on-error}))
+
+(defn bpm-delete-model [id on-success on-error]
+  (request {:method :delete :uri (str "/business/bpm/model/" id)
+            :on-success on-success :on-error on-error}))
+
 (defn bpm-get-form [id on-success on-error]
   (request {:method :get :uri (str "/business/bpm/form/" id)
             :on-success on-success :on-error on-error}))

@@ -29,7 +29,8 @@
 (defn- parse-elements
   "解析 BPMN XML：
    {:nodes {id {:type :name :assignee :candidate-users :candidate-groups :config}}
-    :flows [{:id :src :tgt :cond? :expr}]}"
+    :flows [{:id :src :tgt :cond? :expr}]}
+   P1：callActivity 的 multiInstanceLoopCharacteristics 回读为子流程多实例配置(mi-*)。"
   [x]
   (let [nodes (atom {}) flows (atom [])]
     (doseq [tag element-tags
@@ -39,6 +40,18 @@
         (let [body (or (attr (re-pattern (str "(?s)<" tag "\\b[^>]*?>(.*?)</" tag ">")) block) "")
               cfg (when-let [m (re-find #"name=\"nodeConfig\" value=\"([^\"]*)\"" body)]
                     (try (json/parse-string (unescape-xml (second m)) true) (catch Exception _ nil)))
+              ;; 子流程多实例回读：miList_<id> collection + isSequential + completionCondition 比例
+              mi (when (= "callActivity" tag)
+                   (when-let [mb (re-find #"(?s)<multiInstanceLoopCharacteristics([^>]*)>(.*?)</multiInstanceLoopCharacteristics>" block)]
+                     (let [attrs (second mb)
+                           mi-body (nth mb 2)
+                           seq? (= "true" (attr #"isSequential=\"([^\"]*)\"" attrs))
+                           ratio (some-> (re-find #"nrOfCompletedInstances / nrOfInstances >= ([0-9.]+)" mi-body)
+                                         second Double/parseDouble)]
+                       {:mi-enable true
+                        :mi-sequential seq?
+                        :mi-ratio (when ratio (int (Math/round (* 100 ratio))))})))
+              cfg (merge cfg mi)
               el (cond-> {:type tag :name (or (attr #"name=\"([^\"]*)\"" block) "")}
                    (attr #"flowable:assignee=\"([^\"]*)\"" block)
                    (assoc :assignee (attr #"flowable:assignee=\"([^\"]*)\"" block))
@@ -212,12 +225,45 @@
         "POST" (str " flowable:candidateGroups=\"" (escape-xml (group-ids "post" (ids :post-ids))) "\"")
         ""))))
 (defn- delay-iso
-  "延迟/超时 config → ISO8601 时长（如 PT6H、PT10S）。"
+  "延迟/超时 config → ISO8601 时长（如 PT6H、PT10S）。固定日期时间模式(:time-date)不适用。"
   [{:keys [time-duration time-unit]}]
   (when time-duration
     (let [suf (case (or time-unit "HOUR")
                 "SECOND" "S" "MINUTE" "M" "DAY" "D" "H")]
       (str "PT" time-duration suf))))
+
+(defn- delay-timer-body
+  "P1 延迟器节点 body：固定日期时间模式(time-date)生成 timeDate，否则 timeDuration。
+   附带 nodeConfig 属性保存模式配置，保证设计器回读还原。"
+  [config]
+  (let [cfg (select-keys config [:time-duration :time-unit :timer-type :time-date])]
+    (str "<extensionElements>"
+         "<flowable:properties><flowable:property name=\"nodeConfig\" value=\""
+         (escape-xml (json/generate-string cfg))
+         "\"/></flowable:properties></extensionElements>"
+         "<timerEventDefinition>"
+         (if (seq (str (:time-date config)))
+           (str "<timeDate xsi:type=\"tFormalExpression\">"
+                (escape-xml (str (:time-date config))) "</timeDate>")
+           (str "<timeDuration xsi:type=\"tFormalExpression\">"
+                (delay-iso config) "</timeDuration>"))
+         "</timerEventDefinition>")))
+
+(defn- child-multi-instance-el
+  "P1 子流程多实例元素：mi-enable 时在 callActivity 内生成 multiInstanceLoopCharacteristics。
+   collection = ${miList_<id>}（发起时按 mi-source 注入）；
+   完成条件：mi-ratio ∈ [10,100) 时按比例通过，否则全部完成。"
+  [el-id config]
+  (when (:mi-enable config)
+    (let [ratio (some-> (:mi-ratio config) long)
+          ratio-expr (when (and ratio (>= ratio 10) (< ratio 100))
+                       (format "${nrOfCompletedInstances / nrOfInstances >= %.2f}" (double (/ ratio 100.0))))]
+      (str "<multiInstanceLoopCharacteristics isSequential=\"" (boolean (:mi-sequential config)) "\""
+           " flowable:collection=\"${miList_" el-id "}\""
+           " flowable:elementVariable=\"miItem\">"
+           "<completionCondition>"
+           (or ratio-expr "${nrOfCompletedInstances >= nrOfInstances}")
+           "</completionCondition></multiInstanceLoopCharacteristics>"))))
 
 (defn- multi-completion-condition
   "多实例审批完成条件：ANY 或签(任一完成)/ALL 会签(全部)/RATIO 按比例。"
@@ -360,7 +406,8 @@
                                                      out-mappings))
                                          "<flowable:properties><flowable:property name=\"nodeConfig\" value=\""
                                          (escape-xml (json/generate-string (assoc cfg :in-mappings in-mappings)))
-                                         "\"/></flowable:properties></extensionElements>")))
+                                         "\"/></flowable:properties></extensionElements>"
+                                        (child-multi-instance-el el-id cfg))))
                      ;; 路由分支节点：:groups 配置写入网关 nodeConfig（保存后可回读还原）
                      router-body (when (and router? (seq config))
                                    (str "<extensionElements>"
@@ -382,9 +429,8 @@
                                  (escape-xml (json/generate-string out-config))
                                  "\"/></flowable:properties></extensionElements>"
                                  (when multi-el multi-el))
-                            (and (= type "DELAY_TIMER_NODE") (delay-iso config))
-                            (str "<timerEventDefinition><timeDuration xsi:type=\"tFormalExpression\">"
-                                 (delay-iso config) "</timeDuration></timerEventDefinition>")
+                            (= type "DELAY_TIMER_NODE")
+                            (delay-timer-body config)
                             :else nil)]
                  (swap! parts conj
                         (if body

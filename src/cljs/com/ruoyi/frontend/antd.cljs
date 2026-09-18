@@ -87,7 +87,7 @@
 (defn warning! [text]
   (if-let [api @message-api]
     (.warning api text)
-    (.warning message text)))
+    (.warning message text))) 
 
 (def user-icon (r/adapt-react-class UserOutlined))
 (def lock-icon (r/adapt-react-class LockOutlined))

@@ -7,6 +7,7 @@
    [clojure.walk :as walk]
    [clojure.string :as str]
    [reagent.core :as r]
+   ["dayjs" :as dayjs]
    [com.ruoyi.frontend.antd :as antd]
    [com.ruoyi.frontend.api :as api]))
 
@@ -290,7 +291,7 @@
         [antd/select {:style {:width "100%"}
                       :value (or (get-in @cfg [:candidate-param :dept-level]) 1)
                       :onChange #(pi :dept-level (or % 1))}
-         (doall (for [i (range 1 6)]
+         (doall (for [i (range 1 16)]
                   ^{:key i} [antd/select-option {:value i} (str "向上 " i " 级")]))]]]
       "POST"
       (multi-select "请选择岗位" (get-in @cfg [:candidate-param :post-ids])
@@ -519,10 +520,13 @@
       (get candidate-strategy-label (:candidate-strategy cfg) "指定用户"))))
 
 (defn- delay-show-text
-  "延迟器 → 卡片内容区文本。"
-  [{:keys [time-duration time-unit]}]
-  (when time-duration
-    (str "延迟 " time-duration (get {"MINUTE" "分钟" "HOUR" "小时" "DAY" "天"} time-unit "小时"))))
+  "延迟器 → 卡片内容区文本。P1：支持固定日期时间模式(time-date)。"
+  [{:keys [time-duration time-unit timer-type time-date]}]
+  (if (= "DATE" timer-type)
+    (when (seq (str time-date))
+      (str "至 " (str time-date) " 后继续"))
+    (when time-duration
+      (str "延迟 " time-duration (get {"MINUTE" "分钟" "HOUR" "小时" "DAY" "天"} time-unit "小时")))))
 
 ;; ── 设计器组件（r/atom + with-let component-did-mount）────────────────
 
@@ -617,7 +621,8 @@
                                                                  :rules [{:left-side "" :op-code ">" :right-side ""}]}))
                                                             (:condition-nodes node))}
                                          "DELAY_TIMER_NODE"
-                                         (merge {:time-duration 6 :time-unit "HOUR"} (:config node))
+                                         (merge {:time-duration 6 :time-unit "HOUR" :timer-type "DURATION"}
+                                                (:config node))
                                          "COPY_TASK_NODE"
                                          (merge {:copy-user-ids [] :copy-role-ids []} (:config node))
                                          "TRIGGER_NODE"
@@ -626,7 +631,9 @@
                                                 (:config node))
                                          "CHILD_PROCESS_NODE"
                                          (merge {:child-process-key nil :initiator-strategy "START_USER"
-                                                 :in-mappings [] :out-mappings []}
+                                                 :in-mappings [] :out-mappings []
+                                                 :mi-enable false :mi-sequential false :mi-ratio 100
+                                                 :mi-source "FIXED" :mi-count 2 :mi-field nil}
                                                 (:config node))
                                          "ROUTER_BRANCH_NODE"
                                          {:groups (mapv (fn [g]
@@ -694,7 +701,8 @@
                                    (= t "DELAY_TIMER_NODE")
                                    (swap! tree assoc-in p
                                           (assoc node :name @node-name
-                                                 :config (select-keys @cfg [:time-duration :time-unit])
+                                                 :config (select-keys @cfg [:time-duration :time-unit
+                                                                            :timer-type :time-date])
                                                  :show-text (delay-show-text @cfg)))
                                    (#{"USER_TASK_NODE" "TRANSACTOR_NODE" "COPY_TASK_NODE"} t)
                                    (swap! tree assoc-in p
@@ -746,8 +754,7 @@
                                                 (when (and (pos? uc) (pos? rc)) " +")
                                                 (when (pos? rc) (str " " rc " 角色")))))
                                        "DELAY_TIMER_NODE"
-                                       (when-let [d (:time-duration cfg)]
-                                         (str "延迟 " d (get {"MINUTE" "分钟" "HOUR" "小时" "DAY" "天"} (:time-unit cfg) "小时")))
+                                       (delay-show-text cfg)
                                        ("USER_TASK_NODE" "TRANSACTOR_NODE")
                                        (let [at (:approve-type cfg)]
                                          (cond
@@ -855,14 +862,28 @@
                                       :onChange (fn [e] (swap! cfg assoc-in [:conditions i :expression] (-> e .-target .-value)))}])])))
              (= t "DELAY_TIMER_NODE")
              [:div {:style {:marginTop 16}}
-              (f-label "延迟时间")
-              [:div {:style {:display "flex" :gap 8}}
-               [antd/input-number {:style {:width "50%"} :min 1 :value (:time-duration @cfg)
-                                   :onChange #(swap! cfg assoc :time-duration (or % 1))}]
-               [antd/select {:style {:width "50%"} :value (:time-unit @cfg)
-                             :onChange #(swap! cfg assoc :time-unit %)}
-                (doall (for [{:keys [value label]} time-unit-types]
-                         ^{:key value} [antd/select-option {:value value} label]))]]]
+              (f-label "延迟模式")
+              [antd/radio-group {:value (or (:timer-type @cfg) "DURATION")
+                                 :onChange #(swap! cfg assoc :timer-type (-> % .-target .-value))}
+               [antd/radio {:value "DURATION"} "时长"]
+               [antd/radio {:value "DATE"} "固定日期时间"]]
+              (if (= "DATE" (or (:timer-type @cfg) "DURATION"))
+                [:div {:style {:marginTop 8}}
+                 (f-label "到达该时间后继续（生成 timeDate 定时器）")
+                 [antd/date-picker {:style {:width "100%"} :showTime true
+                                    :allowClear false
+                                    :value (when (seq (str (:time-date @cfg)))
+                                             (dayjs (str (:time-date @cfg))))
+                                    :onChange (fn [d _]
+                                                (swap! cfg assoc :time-date
+                                                       (if d (.toISOString d) "")))}]]
+                [:div {:style {:display "flex" :gap 8 :marginTop 8}}
+                 [antd/input-number {:style {:width "50%"} :min 1 :value (:time-duration @cfg)
+                                     :onChange #(swap! cfg assoc :time-duration (or % 1))}]
+                 [antd/select {:style {:width "50%"} :value (:time-unit @cfg)
+                               :onChange #(swap! cfg assoc :time-unit %)}
+                  (doall (for [{:keys [value label]} time-unit-types]
+                           ^{:key value} [antd/select-option {:value value} label]))]])]
              (= t "COPY_TASK_NODE")
              [:div {:style {:marginTop 16}}
               (let [legacy? (and (str/blank? (str (:candidate-strategy @cfg)))
@@ -943,6 +964,38 @@
                                  :onChange #(cfg-set! :initiator-strategy (-> % .-target .-value))}
                [antd/radio {:value "START_USER"} "主流程发起人（透传 startUserId）"]
                [antd/radio {:value "NONE"} "不处理"]]
+              [:div {:style {:marginTop 14}}
+               (f-label "多实例设置（并发发起多个子流程实例）")
+               [antd/switch {:checked (boolean (:mi-enable @cfg))
+                             :checkedChildren "开" :unCheckedChildren "关"
+                             :onChange #(cfg-set! :mi-enable (boolean %))}]
+               (when (:mi-enable @cfg)
+                 [:div {:style {:marginTop 8}}
+                  [antd/radio-group {:value (boolean (:mi-sequential @cfg))
+                                     :onChange #(cfg-set! :mi-sequential (boolean (-> % .-target .-value)))}
+                   [antd/radio {:value false} "并行"]
+                   [antd/radio {:value true} "串行"]]
+                  (f-label {:style {:marginTop 8}} "完成比例（100% = 全部实例完成）")
+                  [antd/slider {:min 10 :max 100 :step 5
+                                :value (or (:mi-ratio @cfg) 100)
+                                :onChange #(cfg-set! :mi-ratio (or % 100))
+                                :tooltip (clj->js {:formatter (fn [v] (str v "%"))})}]
+                  (f-label {:style {:marginTop 8}} "实例数量来源")
+                  [antd/radio-group {:value (or (:mi-source @cfg) "FIXED")
+                                     :onChange #(cfg-set! :mi-source (-> % .-target .-value))}
+                   [antd/radio {:value "FIXED"} "固定数量"]
+                   [antd/radio {:value "NUMERIC_FIELD"} "数字表单字段"]
+                   [antd/radio {:value "MULTI_FIELD"} "多选表单字段"]]
+                  (case (or (:mi-source @cfg) "FIXED")
+                    "FIXED" [antd/input-number {:style {:width "100%" :marginTop 8} :min 1 :max 99
+                                                :value (or (:mi-count @cfg) 2)
+                                                :onChange #(cfg-set! :mi-count (or % 2))}]
+                    [antd/select {:style {:width "100%"} :allowClear true :placeholder "选择表单字段"
+                                  :value (:mi-field @cfg)
+                                  :onChange #(cfg-set! :mi-field %)}
+                     (doall (for [ff @form-fields]
+                              (when-let [fld (:field ff)]
+                                ^{:key fld} [antd/select-option {:value fld} (:title ff)])))])])]
               (f-label {:style {:marginTop 12}} "主 → 子 变量映射")
               [kv-rows-editor "主流程变量 → 子流程变量" (:in-mappings @cfg)
                #(cfg-set! :in-mappings %)]
