@@ -314,6 +314,17 @@
     (bpm/set-webhook-dispatcher!
      (fn [event info]
        (fire-webhooks! event service info)))
+    ;; 流程实例结束回写：approve→"2"(通过) reject→"3"(驳回) cancel/terminate→CANCELED，
+    ;; current_task 一并清空（挂在 complete* 的 process_end 检测点 + 取消/终止路径）
+    (bpm/set-instance-end-handler!
+     (fn [{:keys [process-instance-id result]}]
+       (query-fn :bpm/update-instance-status
+                 {:process_instance_id process-instance-id
+                  :status (case result
+                            :approve "2"
+                            :reject "3"
+                            "CANCELED")
+                  :current_task ""})))
     (bpm/set-node-listener-dispatcher!
      (fn [event-name task]
        (fire-node-listener! service event-name task)))
@@ -835,7 +846,10 @@
                :form_data_json (json/generate-string (or form-data {}))
                :starter_id (or starter "") :status "1"
                :name inst-name :bill_code bill-code
-               :current_task (-> (first (bpm/todo-list engine (or starter ""))) :name (or ""))})
+               :current_task (->> (bpm/active-tasks-of engine pid)
+                                  (map :name)
+                                  (remove nil?)
+                                  (str/join "、"))})
     ;; Phase 4 Webhook：流程发起钩子
     (fire-webhooks! "process_start" {:engine engine :query-fn query-fn}
                     {:process-instance-id pid})
@@ -864,9 +878,11 @@
         pid (:process-instance-id task)
         inst (query-fn :bpm/find-instance-by-pid {:process_instance_id pid})
         model (query-fn :bpm/find-model-by-id {:model_id (:model_id inst)})
+        ;; form_id>0 走表单记录；form_id=0/空且模型内嵌 form_json 时回退解析模型的表单
         form (when-let [fid (:form_id model)]
-               (query-fn :bpm/find-form-by-id {:form_id fid}))
-        schema (when-let [fj (:form_json form)]
+               (when (pos? (long (or fid 0)))
+                 (query-fn :bpm/find-form-by-id {:form_id fid})))
+        schema (when-let [fj (or (:form_json form) (:form_json model))]
                  (if (string? fj) (json/parse-string fj true) fj))
         inst-data (row->json inst [:form_data_json])
         node-config (bpm/node-config-of engine task-obj)
@@ -948,14 +964,16 @@
   (let [biz (query-fn :bpm/find-instance-by-pid {:process_instance_id pid})
         _ (when-not biz (throw (ex-info "流程实例不存在" {:pid pid})))
         model (query-fn :bpm/find-model-by-id {:model_id (:model_id biz)})
+        ;; form_id>0 走表单记录；form_id=0/空且模型内嵌 form_json 时回退解析模型的表单
         form (when-let [fid (:form_id model)]
-               (query-fn :bpm/find-form-by-id {:form_id fid}))
+               (when (pos? (long (or fid 0)))
+                 (query-fn :bpm/find-form-by-id {:form_id fid})))
         inst (row->json biz [:form_data_json])]
     {:instance inst
      :model {:model_id (:model_id model) :model_name (:model_name model)
              :model_key (:model_key model) :form_type (:form_type model)
              :allow_cancel (:allow_cancel model) :allow_withdraw (:allow_withdraw model)}
-     :form {:schema (when-let [fj (:form_json form)]
+     :form {:schema (when-let [fj (or (:form_json form) (:form_json model))]
                       (if (string? fj) (json/parse-string fj true) fj))
             :values (get inst :form_data_json)}
      :activities (bpm/history-of engine pid)

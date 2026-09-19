@@ -146,36 +146,44 @@
                                                                         (fn [r] (reset! users (or (:rows (:data r)) [])))
                                                                         (fn [_] nil))))))
                                                 (fn [_] nil))
-                            (when (and (= "1" (:form_type model)) (:form_id model))
-                              (reset! form-loading? true)
-                              (api/bpm-get-form (:form_id model)
-                                                 (fn [res]
-                                                   (let [d (:data res)
-                                                         j (:form_json d)
-                                                         schema (if (string? j)
-                                                                  (js->clj (js/JSON.parse j) :keywordize-keys true)
-                                                                  (walk/keywordize-keys j))
-                                                         tree-fields (filter #(= "tree-select" (:type %)) (:fields schema))
-                                                         dict-fields (filter #(= "dict-select" (:type %)) (:fields schema))]
-                                                     (when (seq tree-fields)
-                                                       (api/list-depts {:parent_id 0}
-                                                                       (fn [dr]
-                                                                         (reset! form-schema
-                                                                                 (fill-field-data schema "tree-select" :tree-data
-                                                                                                  (build-dept-tree (walk/keywordize-keys (or (:rows (:data dr)) (:data dr) []))))))
-                                                                       #()))
-                                                     (doseq [df dict-fields]
-                                                       (when-let [dt (get-in df [:props :dict-type])]
-                                                         (api/list-dict-data {:dict_type dt}
-                                                                             (fn [dr]
-                                                                               (let [opts (mapv (fn [it] {:label (:dict_label it) :value (:dict_value it)})
-                                                                                                (walk/keywordize-keys (or (:data dr) [])))
-                                                                                     base (or @form-schema schema)]
-                                                                                 (reset! form-schema (fill-field-data base "dict-select" :options opts))))
-                                                                             #())))
-                                                     (reset! form-schema schema)
-                                                     (reset! form-loading? false)))
-                                                 (fn [_] (reset! form-loading? false) (antd/error! "加载表单失败")))))
+                            (let [parse-schema (fn [j]
+                                                 (if (string? j)
+                                                   (js->clj (js/JSON.parse j) :keywordize-keys true)
+                                                   (walk/keywordize-keys j)))
+                                  apply-schema!
+                                  (fn [schema]
+                                    ;; tree-select/dict-select 字段数据源注入（与表单记录路径共用）
+                                    (let [tree-fields (filter #(= "tree-select" (:type %)) (:fields schema))
+                                          dict-fields (filter #(= "dict-select" (:type %)) (:fields schema))]
+                                      (when (seq tree-fields)
+                                        (api/list-depts {:parent_id 0}
+                                                        (fn [dr]
+                                                          (reset! form-schema
+                                                                  (fill-field-data schema "tree-select" :tree-data
+                                                                                   (build-dept-tree (walk/keywordize-keys (or (:rows (:data dr)) (:data dr) []))))))
+                                                        #()))
+                                      (doseq [df dict-fields]
+                                        (when-let [dt (get-in df [:props :dict-type])]
+                                          (api/list-dict-data {:dict_type dt}
+                                                              (fn [dr]
+                                                                (let [opts (mapv (fn [it] {:label (:dict_label it) :value (:dict_value it)})
+                                                                                 (walk/keywordize-keys (or (:data dr) [])))
+                                                                      base (or @form-schema schema)]
+                                                                  (reset! form-schema (fill-field-data base "dict-select" :options opts))))
+                                                              #()))))
+                                    (reset! form-schema schema)
+                                    (reset! form-loading? false))]
+                              (when (= "1" (:form_type model))
+                                (reset! form-loading? true)
+                                (if (pos? (long (or (:form_id model) 0)))
+                                  ;; form_id>0：走动态表单记录
+                                  (api/bpm-get-form (:form_id model)
+                                                    (fn [res] (apply-schema! (parse-schema (:form_json (:data res)))))
+                                                    (fn [_] (reset! form-loading? false) (antd/error! "加载表单失败")))
+                                  ;; form_id=0/空：回退直接解析模型内嵌 form_json
+                                  (if-let [fj (:form_json model)]
+                                    (apply-schema! (parse-schema fj))
+                                    (reset! form-loading? false))))))
                submit (fn []
                         (if-let [err (validate-fields (:fields @form-schema) @values)]
                           (antd/error! err)

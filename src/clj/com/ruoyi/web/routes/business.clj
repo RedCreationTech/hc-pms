@@ -69,6 +69,7 @@
    ["/bpm/task/:id/claim"   {:post {:summary "认领任务" :handler (partial bpm/claim-task {:bpm-service bpm-service})}}]
    ["/bpm/task/:id/transfer" {:post {:summary "转办任务" :handler (partial bpm/transfer-task {:bpm-service bpm-service})}}]
    ["/bpm/task/:id/delegate" {:post {:summary "委派任务" :handler (partial bpm/delegate-task {:bpm-service bpm-service})}}]
+   ["/bpm/task/resolve" {:post {:summary "委派办结(任务回到 owner)" :handler (partial bpm/resolve-task {:bpm-service bpm-service})}}]
 
    ;; ── Phase 1 审批闭环：加签/减签/抄送/撤回/可退回节点 ──
    ["/bpm/task/create-sign" {:post {:summary "加签" :handler (partial bpm/create-sign {:bpm-service bpm-service})}}]

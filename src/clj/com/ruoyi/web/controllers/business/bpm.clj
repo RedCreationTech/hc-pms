@@ -1,6 +1,7 @@
 (ns com.ruoyi.web.controllers.business.bpm
   "BPM 流程管理控制器。"
   (:require
+   [clojure.string]
    [com.ruoyi.bpm.core :as bpm-core]
    [com.ruoyi.domain.business.bpm :as bpm]
    [ring.util.response :as response]
@@ -299,19 +300,31 @@
                  (ok nil))))
 
 (defn transfer-task
-  "转办。body: {:to_user x}"
+  "转办。body: {:to_user x}（必填，缺失抛 500 提示）"
   [{:keys [bpm-service]} request]
   (wrap-err #(let [task-id (get-in request [:path-params :id])
                    to-user (get-in request [:body-params :to_user])]
+               (when (clojure.string/blank? (str (or to-user "")))
+                 (throw (ex-info "转办人(to_user)不能为空" {:task-id task-id})))
                (bpm-core/transfer! (:engine bpm-service) task-id (current-user request) to-user)
                (ok nil))))
 
 (defn delegate-task
-  "委派。body: {:to_user x}"
+  "委派。body: {:to_user x}（必填，缺失抛 500 提示）"
   [{:keys [bpm-service]} request]
   (wrap-err #(let [task-id (get-in request [:path-params :id])
                    to-user (get-in request [:body-params :to_user])]
+               (when (clojure.string/blank? (str (or to-user "")))
+                 (throw (ex-info "委派人(to_user)不能为空" {:task-id task-id})))
                (bpm-core/delegate! (:engine bpm-service) task-id to-user)
+               (ok nil))))
+
+(defn resolve-task
+  "委派办结：被委派人办完事项后任务回到 owner 待办。body: {:taskId x}"
+  [{:keys [bpm-service]} request]
+  (wrap-err #(let [task-id (or (get (:body-params request) :taskId)
+                               (get-in request [:path-params :id]))]
+               (bpm-core/resolve! (:engine bpm-service) task-id)
                (ok nil))))
 
 ;; ── 流程任务管理 / 流程实例运维 ─────────────────────────────────────

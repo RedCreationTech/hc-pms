@@ -28,7 +28,7 @@
               (:displayName b)
               default-label)}))
 
-(defn- task-columns [open-ops open-detail]
+(defn- task-columns [open-ops open-detail current-user]
   #js [#js {:title "任务" :dataIndex "name" :key "name"}
        #js {:title "流程名称" :dataIndex "instance-name" :key "instance-name" :width 160 :ellipsis true
             :render (fn [v] (r/as-element [:span (if (seq v) v "-")]))}
@@ -61,7 +61,7 @@
                                 [[antd/button {:size "small"
                                                :icon (r/as-element [:> EyeOutlined])
                                                :on-click #(open-detail task)}
-                                  "详情"]
+                                  "详情"]]
                                  (when (:enable? approve)
                                    [[antd/button {:type "primary" :size "small"
                                                   :icon (r/as-element [:> CheckOutlined])
@@ -87,7 +87,7 @@
                                                   :icon (r/as-element [:> UserAddOutlined])
                                                   :on-click #(rf/dispatch [:bpm/todo-open-sign task])}
                                      (:label add-sign)]])
-                                 [antd/button {:size "small"
+                                 [[antd/button {:size "small"
                                                :icon (r/as-element [:> MailOutlined])
                                                :on-click #(rf/dispatch [:bpm/todo-open-copy task])}
                                   "抄送"]]
@@ -95,7 +95,16 @@
                                    [[antd/button {:size "small"
                                                   :icon (r/as-element [:> RollbackOutlined])
                                                   :on-click #(rf/dispatch [:bpm/todo-open-reject task])}
-                                     (:label return)]]))))))}])
+                                     (:label return)]])
+                                 ;; 委派办结：任务 owner=当前用户且已委派给他人(assignee 非本人)时显示
+                                 (when (and (seq (:owner task))
+                                            (= (str (:owner task)) (str current-user))
+                                            (seq (:assignee task))
+                                            (not= (str (:assignee task)) (str current-user)))
+                                   [[antd/button {:size "small"
+                                                  :icon (r/as-element [:> CheckOutlined])
+                                                  :on-click #(rf/dispatch [:bpm/todo-resolve task])}
+                                     "办结"]]))))))}])
 
 ;; ── 手写签名画布 ──────────────────────────────────────────────────────────
 
@@ -412,7 +421,7 @@
                                                   :icon (r/as-element [:> ReloadOutlined])
                                                   :on-click #(rf/dispatch [:bpm/todo-fetch])}]]}]
        [antd/table {:scroll #js {:x "max-content"} :rowKey "task-id"
-                    :columns (task-columns open-ops open-detail)
+                    :columns (task-columns open-ops open-detail (:user_name @(rf/subscribe [:auth/user])))
                     :dataSource (clj->js items)
                     :loading loading?
                     :pagination {:total total :pageSize 10 :showSizeChanger true

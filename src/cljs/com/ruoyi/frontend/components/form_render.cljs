@@ -86,12 +86,17 @@
    "user" {:placeholder "请选择用户"} "dept" {:placeholder "请选择部门"}
    "slider" {:min 0 :max 100 :step 1} "cascader" {:placeholder "请选择"} "tree-select" {:placeholder "请选择"}})
 
+(defn- field-title
+  "字段标题：兼容 :title（设计器标准）与 :label（旧数据）。"
+  [f]
+  (or (:title f) (:label f) ""))
+
 (defn- render-divider
   "分割线字段：antd Divider + 标题。"
   [f]
   [:div {:style {:margin "4px 0"}}
    [antd/divider {:orientation "left" :plain true :style {:fontSize 14 :fontWeight 600 :color "#303133"}}
-    (or (:title f) "")]])
+    (field-title f)]])
 
 (defn- flatten-tree-options
   "树节点 → 拉平 select 选项（带层级缩进）。"
@@ -281,7 +286,7 @@
                (let [field (:field f)
                      value (get vals field (:value f))
                      required? (some (fn [v] (:required v)) (or (:validate f) []))
-                     label (:title f)
+                     label (field-title f)
                      perm (or (get perms field) (get perms (keyword field)))
                      relation (get-in f [:props :relation])
                      relation-ok? (if (and relation (seq (:field relation)))

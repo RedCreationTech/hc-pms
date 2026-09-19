@@ -918,6 +918,13 @@
             :params {:to_user to-user}
             :on-success on-success :on-error on-error}))
 
+(defn bpm-resolve-task
+  "委派办结：被委派人办完事项后任务回到 owner 待办。"
+  [task-id on-success on-error]
+  (request {:method :post :uri "/business/bpm/task/resolve"
+            :params {:taskId task-id}
+            :on-success on-success :on-error on-error}))
+
 (defn bpm-reject-task
   "审批驳回。return-node-id 可选：从 return-list 选择的退回节点；sign-pic-url 可选：手写签名图 URL。"
   ([task-id comment on-success on-error]

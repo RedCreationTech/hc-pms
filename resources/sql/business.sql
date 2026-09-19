@@ -43,7 +43,7 @@ UPDATE biz_bpm_category SET order_num = :order_num WHERE category_id = :category
 -- ============================ 流程模型 ============================
 -- :name bpm/model-list :? :*
 SELECT m.model_id, m.model_key, m.model_name, m.category_id, m.version,
-       m.form_type, m.form_id, m.form_custom_create_path, m.form_custom_view_path,
+       m.form_type, m.form_id, m.form_json, m.form_custom_create_path, m.form_custom_view_path,
        m.status, m.create_by, m.create_time, m.remark,
        m.icon, m.order_num, m.start_user_ids, m.start_dept_ids, m.manager_user_ids,
        m.deployment_id,

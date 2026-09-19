@@ -213,9 +213,11 @@
                detail-loading? (r/atom false)
                detail-data (r/atom nil)
                detail-diagram (r/atom nil)
+               page (r/atom 1)
+               page-size (r/atom 10)
                refresh (fn []
                          (reset! loading? true)
-                         (api/bpm-list-instances {:page 1 :size 10}
+                         (api/bpm-list-instances {:page @page :size @page-size}
                                                  (fn [res]
                                                    (reset! items (or (:rows (:data res)) []))
                                                    (reset! total (:total (:data res) 0))
@@ -250,7 +252,12 @@
                                              (fn [pid] (reset! cancel-pid pid)))
                   :dataSource (clj->js @items)
                   :loading @loading?
-                  :pagination {:total @total :pageSize 10 :showSizeChanger true
+                  :pagination {:total @total :pageSize @page-size :showSizeChanger true
+                               :current @page
+                               :onChange (fn [p s]
+                                           (reset! page p)
+                                           (reset! page-size s)
+                                           (refresh))
                                :showTotal (fn [total] (str "共 " total " 条"))}}]
      [cancel-modal {:pid @cancel-pid
                     :visible? (some? @cancel-pid)

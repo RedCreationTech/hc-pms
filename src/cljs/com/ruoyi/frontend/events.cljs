@@ -2748,6 +2748,20 @@
                  (fn [db [_ rows]]
                    (assoc-in db [:bpm-todo :return-list] rows)))
 
+(rf/reg-event-fx :bpm/todo-resolve
+                 (fn [_ [_ task]]
+                   {:api/bpm-resolve-task (:task-id task)}))
+
+(rf/reg-fx :api/bpm-resolve-task
+           (fn [task-id]
+             (api/bpm-resolve-task task-id
+                                   (fn [r]
+                                     (if (= 200 (:code r))
+                                       (do (antd/success! "已办结，任务返回委派人待办")
+                                           (rf/dispatch [:bpm/todo-fetch]))
+                                       (antd/error! (:msg r "办结失败"))))
+                                   (fn [_] (antd/error! "办结失败")))))
+
 ;; ─── 已办撤回 / 我的流程撤回+取消 ────────────────────────────────────
 (rf/reg-event-fx :bpm/done-withdraw
                  (fn [_ [_ task-id]]

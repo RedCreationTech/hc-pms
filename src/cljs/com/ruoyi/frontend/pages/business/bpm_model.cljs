@@ -92,10 +92,11 @@
                    :icon (r/as-element [:> EditOutlined])
                    :on-click #(rf/dispatch [:bpm/model-open-designer m])}
       "设计"]
-     [antd/button {:type "link" :size "small"
-                   :icon (r/as-element [:> PlayCircleOutlined])
-                   :on-click #(rf/dispatch [:bpm/model-deploy mid])}
-      "部署"]
+     [antd/popconfirm {:title "确认部署该流程模型？"
+                        :on-confirm #(rf/dispatch [:bpm/model-deploy mid])}
+      [antd/button {:type "link" :size "small"
+                    :icon (r/as-element [:> PlayCircleOutlined])}
+       "部署"]]
      [antd/dropdown {:menu {:items more-items}}
       [antd/button {:type "link" :size "small"}
        "更多 " (r/as-element [:> DownOutlined])]]]))
@@ -259,13 +260,15 @@
            categories micon set-micon! mremark set-mremark!
            mstart-type set-mstart-type! mstart-user-ids set-mstart-user-ids!
            mstart-dept-ids set-mstart-dept-ids! mmanager-ids set-mmanager-ids!
-           users depts]}]
+           users depts mdeployed]}]
   [:div {:style {:padding 16 :maxWidth 560}}
    [antd/form {:layout "vertical"}
     [antd/form-item {:label "流程名称"}
-     [antd/input {:value mname :onChange (fn [e] (set-mname! (-> e .-target .-value)))}]]
+     [antd/input {:value mname :disabled (boolean mdeployed)
+                  :onChange (fn [e] (set-mname! (-> e .-target .-value)))}]]
     [antd/form-item {:label "流程Key"}
-     [antd/input {:value mkey :onChange (fn [e] (set-mkey! (-> e .-target .-value)))}]]
+     [antd/input {:value mkey :disabled (boolean mdeployed)
+                  :onChange (fn [e] (set-mkey! (-> e .-target .-value)))}]]
     [antd/form-item {:label "流程分类"}
      [antd/select {:value (when (seq (str mcat)) (js/Number mcat))
                    :style {:width "100%"} :allowClear true
@@ -331,15 +334,18 @@
 
 
 (defn- form-design-tab
-  "表单设计 Tab —— 对齐 vben form-design.vue：表单类型(无/动态/自定义) + 表单选择 + 只读预览。"
+  "表单设计 Tab —— 对齐 vben form-design.vue：表单类型(无/动态/自定义) + 表单选择 + 只读预览。
+   未绑定独立表单时回退到模型内嵌 form_json（内置模型）。"
   [mform-type set-mform-type! mform-id set-mform-id! form-list
    mcustom-create set-mcustom-create! mcustom-view set-mcustom-view!
-   mfields-perm set-mfields-perm!]
+   mfields-perm set-mfields-perm! mform-json]
   (let [sel-form (first (filter #(= (:form_id %) mform-id) form-list))
-        schema (or (when-let [j (:form_json sel-form)]
-                     (if (string? j)
-                       (js->clj (js/JSON.parse j) :keywordize-keys true)
-                       (walk/keywordize-keys j)))
+        parse-schema (fn [j] (when (seq (str j))
+                               (if (string? j)
+                                 (js->clj (js/JSON.parse j) :keywordize-keys true)
+                                 (walk/keywordize-keys j))))
+        schema (or (parse-schema (:form_json sel-form))
+                   (parse-schema mform-json)
                    {:fields []})]
     [:div {:style {:padding 16}}
      [antd/form {:layout "vertical"}
@@ -351,8 +357,11 @@
         [antd/radio {:value "2"} "自定义表单"]]]
       (when (= mform-type "1")
         [antd/form-item {:label "流程表单"}
-         [antd/select {:value mform-id :style {:width "100%"} :allowClear true
-                       :placeholder "请选择表单" :onChange set-mform-id!}
+         [antd/select {:value (when (pos? (or mform-id 0)) mform-id)
+                       :style {:width "100%"} :allowClear true
+                       :placeholder (if (seq (str mform-json))
+                                      "未绑定独立表单（使用模型内嵌表单）" "请选择表单")
+                       :onChange set-mform-id!}
           (doall (for [f form-list] ^{:key (:form_id f)}
                    [antd/select-option {:value (:form_id f)} (:form_name f)]))]])
       (when (= mform-type "2")
@@ -363,7 +372,7 @@
          [antd/form-item {:label "表单查看地址"}
           [antd/input {:value mcustom-view :placeholder "如 /bpm/oa/leave/detail"
                        :onChange (fn [e] (set-mcustom-view! (-> e .-target .-value)))}]]])
-      (when (and (= mform-type "1") mform-id sel-form)
+      (when (and (= mform-type "1") (seq (:fields schema)))
         [:div {:style {:border "1px solid #eee" :borderRadius 6 :padding 16 :marginTop 8}}
          [:div {:style {:display "flex" :alignItems "center" :marginBottom 12}}
           [:div {:style {:width 4 :height 16 :background "#409eff" :marginRight 8}}]
@@ -377,11 +386,11 @@
          [:div {:style {:border "1px solid #f0f0f0" :borderRadius 6}}
           (doall
            (for [f (:fields schema)]
-             (let [field (:field f)]
-               ^{:key (or field (str "f-" (random-uuid)))}
+             (let [field (or (:field f) (:key f))]
+               ^{:key (or field (str "f-" (:type f)))}
                [:div {:style {:display "flex" :alignItems "center" :justifyContent "space-between"
                               :padding "6px 10px" :borderBottom "1px solid #f5f5f5"}}
-                [:span (:title f)]
+                [:span (or (:title f) (:label f) field)]
                 [antd/select {:style {:width 110} :size "small"
                               :value (or (get mfields-perm field) "edit")
                               :onChange #(set-mfields-perm! (assoc mfields-perm field %))}
@@ -755,7 +764,7 @@
          (set-mstart-user-ids! (vec (or (:start_user_ids current) [])))
          (set-mstart-dept-ids! (vec (or (:start_dept_ids current) [])))
          (set-mmanager-ids! (vec (or (:manager_user_ids current) [])))))
-     [visible?])
+     [visible? current])
     (hooks/use-effect
      (fn []
        (when visible?
@@ -812,10 +821,11 @@
                                    :mstart-user-ids mstart-user-ids :set-mstart-user-ids! set-mstart-user-ids!
                                    :mstart-dept-ids mstart-dept-ids :set-mstart-dept-ids! set-mstart-dept-ids!
                                    :mmanager-ids mmanager-ids :set-mmanager-ids! set-mmanager-ids!
-                                   :users users :depts depts}]
+                                   :users users :depts depts
+                                   :mdeployed (seq (str (:deployment_id current)))}]
           "form" [form-design-tab mform-type set-mform-type! mform-id set-mform-id! form-list
                        mcustom-create set-mcustom-create! mcustom-view set-mcustom-view!
-                       mfields-perm set-mfields-perm!]
+                       mfields-perm set-mfields-perm! mform-json]
           "process" [process-design-tab {:model-id (:model_id current)
                                          :on-close #(rf/dispatch [:bpm/designer-close])}]
           "extra" [extra-tab {:mwebhooks mwebhooks :set-mwebhooks! set-mwebhooks!

@@ -294,6 +294,24 @@
   [f]
   (reset! webhook-dispatcher f))
 
+(defonce ^:private instance-end-handler (atom nil))
+
+(defn set-instance-end-handler!
+  "注册流程实例结束回写处理器。f 签名: (fn [info])，
+   info = {:process-instance-id :task-id :task-name :result}，
+   result ∈ #{:approve :reject :cancel :terminate}。由 domain 层把结果状态回写业务库
+   （如 biz_bpm_instance.status：通过/驳回/取消），失败只记日志不影响流程。"
+  [f]
+  (reset! instance-end-handler f))
+
+(defn- fire-instance-end!
+  [info]
+  (when-let [f @instance-end-handler]
+    (try (f info)
+         (catch Exception e
+           (log/error "[bpm-instance-end] 实例结束回写失败:"
+                      (:process-instance-id info) (.getMessage e))))))
+
 (defonce ^:private node-listener-dispatcher (atom nil))
 
 (defn set-node-listener-dispatcher!
@@ -488,6 +506,13 @@
   [^ProcessEngine engine user]
   (.count (.taskCandidateOrAssigned (.createTaskQuery (.getTaskService engine)) user)))
 
+(defn active-tasks-of
+  "某流程实例当前活动（运行中）任务 map 列表（按创建时间升序）。"
+  [^ProcessEngine engine process-instance-id]
+  (mapv task->map
+        (.list (.processInstanceId (.createTaskQuery (.getTaskService engine))
+                                   process-instance-id))))
+
 (defn done-list
   "某人已办（历史已完成任务）。"
   [^ProcessEngine engine user]
@@ -528,9 +553,9 @@
   true)
 
 (defn delegate!
-  "委派（保留 owner，受派人完成后回到 owner）。"
+  "委派（保留 owner，受派人完成后回到 owner）。Flowable 8 方法名为 delegateTask。"
   [^ProcessEngine engine task-id to-user]
-  (.delegate (.getTaskService engine) task-id to-user)
+  (.delegateTask (.getTaskService engine) task-id to-user)
   true)
 
 (defn resolve!
@@ -562,9 +587,9 @@
   [^ProcessEngine engine task-id]
   (count (child-sign-tasks engine task-id)))
 
-(defn- complete*
+(defn- complete-impl
   "完成任务并写入变量。若任务未认领且给定 user，则先认领给该用户（保证已办/历史可追踪）。
-   同时维护流程变量 bpmApprovedUsers/bpmLastApprover（模型级自动去重依据，同命令内可见）。"
+  同时维护流程变量 bpmApprovedUsers/bpmLastApprover（模型级自动去重依据，同命令内可见）。"
   [^ProcessEngine engine task-id user variables]
   (let [ts (.getTaskService engine)
         q (.taskId (.createTaskQuery ts) task-id)
@@ -597,7 +622,21 @@
     (when task-info
       (fire-webhook! "task_end" task-info)
       (when-not (process-running? engine (:process-instance-id task-info))
-        (fire-webhook! "process_end" task-info))))
+        (fire-webhook! "process_end" task-info)
+        ;; 业务侧实例结束回写：approved=false 视为驳回终止，其余为通过结束
+        (fire-instance-end! (assoc task-info
+                                   :result (if (false? (:approved variables))
+                                             :reject
+                                             :approve))))))
+  true)
+
+(defn- complete*
+  "完成任务入口：Flowable 乐观锁冲突（并发审批/操作同一任务）转成友好文案。"
+  [^ProcessEngine engine task-id user variables]
+  (try
+    (complete-impl engine task-id user variables)
+    (catch org.flowable.common.engine.api.FlowableOptimisticLockingException _
+      (throw (ex-info "任务已被他人处理，请刷新" {:task-id task-id}))))
   true)
 
 (defn approve!
@@ -733,6 +772,10 @@
                                        (str "超时自动" (if approved? "通过" "驳回")))
                     ;; 流程变量驱动排他网关 approved 分流
                     (.complete ts (.getId t) vars)
+                    (when-not (process-running? engine pid)
+                      (fire-instance-end! {:process-instance-id pid
+                                           :task-name (str "超时自动" (if approved? "通过" "驳回"))
+                                           :result (if approved? :approve :reject)}))
                     (log/info "[bpm-timeout] 流程" pid "节点" attached-id
                               (if approved? "超时自动通过" "超时自动驳回"))
                     (catch Exception e
@@ -883,6 +926,21 @@
         (catch Exception e
           (log/error "[bpm-trigger] 触发器执行失败:" (.getMessage e)))))))
 
+(def reject-to-start-marker
+  "驳回到起始节点的专用标记值（return-list 首节点为空时提供「发起人（退回起始）」选项，
+   reject 收到该值时把流程迁回 startEvent）。"
+  "__START__")
+
+(defn- start-event-activity-id
+  "流程实例的 startEvent 活动 id（历史记录查询）。"
+  [^ProcessEngine engine process-instance-id]
+  (some-> (.createHistoricActivityInstanceQuery (.getHistoryService engine))
+          (.processInstanceId process-instance-id)
+          (.activityType "startEvent")
+          (.orderByHistoricActivityInstanceStartTime)
+          (.asc)
+          .list first (.getActivityId)))
+
 (defn- move-to-activity!
   "把流程实例从当前活动迁移到目标活动（驳回到指定节点）。"
   [^ProcessEngine engine process-instance-id from-activity-id to-activity-id]
@@ -911,9 +969,20 @@
                          (:return-node reject-handler)
                          (:reject-return-node node-config)
                          (:rejectReturnNode node-config))]
-     (if (and t return-node)
+     (cond
+       ;; 驳回到起始节点（首节点审批人无前序节点时 return-list 提供该选项）
+       (and t (= reject-to-start-marker return-node))
+       (let [pid (.getProcessInstanceId t)
+             start-act (start-event-activity-id engine pid)]
+         (when-not start-act
+           (throw (ex-info "找不到流程起始节点" {:process-instance-id pid})))
+         (when comment
+           (let [rt (.getRuntimeService engine)]
+             (.setVariable rt pid "comment" comment)))
+         (move-to-activity! engine pid (.getTaskDefinitionKey t) start-act))
        ;; 驳回到指定节点：不 complete，直接迁移流程实例（changeState 自动处理当前任务；
        ;; 驳回到自身时 moveActivityIdTo 同节点 = 重新激活当前审批）
+       (and t return-node)
        (do
          (when comment
            (let [rt (.getRuntimeService engine)]
@@ -921,6 +990,7 @@
          (move-to-activity! engine (.getProcessInstanceId t)
                             (.getTaskDefinitionKey t) return-node))
        ;; 终止流程(FINISH_PROCESS)或无条件：complete + approved=false 走网关
+       :else
        (complete* engine task-id user (cond-> {:approved false}
                                         comment (assoc :comment comment)
                                         sign-pic-url (assoc :sign-pic-url sign-pic-url))))
@@ -998,6 +1068,9 @@
   (.deleteProcessInstance (.getRuntimeService engine) process-instance-id (or reason "运维终止"))
   (fire-webhook! "process_end" {:process-instance-id process-instance-id
                                  :task-name "运维终止"})
+  (fire-instance-end! {:process-instance-id process-instance-id
+                       :task-name (or reason "运维终止")
+                       :result :terminate})
   true)
 
 ;; ── 加签 / 减签 ────────────────────────────────────────────────────────
@@ -1074,6 +1147,9 @@
                           process-instance-id (or reason "取消申请"))
   (fire-webhook! "process_end" {:process-instance-id process-instance-id
                                  :task-name "取消申请"})
+  (fire-instance-end! {:process-instance-id process-instance-id
+                       :task-name (or reason "取消申请")
+                       :result :cancel})
   true)
 
 (defn- active-activity-ids-safe
@@ -1159,6 +1235,11 @@
                                     (.list (.processInstanceId
                                             (.createHistoricActivityInstanceQuery hs)
                                             pid)))))]
-    (->> (take idx order)
-         (filter (fn [[id _]] (contains? completed id)))
-         (mapv (fn [[id name]] {:activity-id id :activity-name name})))))
+    (let [nodes (->> (take idx order)
+                     (filter (fn [[id _]] (contains? completed id)))
+                     (mapv (fn [[id name]] {:activity-id id :activity-name name})))]
+      (if (seq nodes)
+        nodes
+        ;; 首节点（无前序已完成 userTask）：提供「发起人（退回起始）」选项
+        [{:activity-id reject-to-start-marker
+          :activity-name "发起人（退回起始）"}]))))
