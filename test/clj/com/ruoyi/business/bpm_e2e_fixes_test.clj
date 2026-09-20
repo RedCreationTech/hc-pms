@@ -5,21 +5,30 @@
    3) form_id=0 且模型内嵌 form_json 时 task-detail 回退返回模型表单字段；
    4) 委派(delegateTask) → 被委派人在待办可见 → resolve 路由办结后任务回到 owner；
    5) transfer/delegate 缺 to_user → 500 参数提示。"
-  (:require [clojure.test :refer [deftest testing is use-fixtures]]
-            [com.ruoyi.test-utils :refer [system-state system-fixture GET]]
-            [peridot.core :as p]
-            [clojure.data.json :as json]))
+  (:require
+    [clojure.data.json :as json]
+    [clojure.test :refer [deftest testing is use-fixtures]]
+    [com.ruoyi.test-utils :refer [system-state system-fixture GET]]
+    [peridot.core :as p]))
+
 
 (use-fixtures :once (system-fixture))
 
-(defn- handler [] (:handler/ring (system-state)))
 
-(defn- parse-json [resp]
+(defn- handler
+  []
+  (:handler/ring (system-state)))
+
+
+(defn- parse-json
+  [resp]
   (when (:body resp)
     (try (json/read-str (:body resp) :key-fn keyword)
          (catch Exception _ nil))))
 
-(defn- login-token [username]
+
+(defn- login-token
+  [username]
   (let [ctx (-> (p/session (handler))
                 (p/request "/api/auth/login"
                            :request-method :post
@@ -27,9 +36,14 @@
                            :body (json/write-str {:username username :password "admin123"})))]
     (get-in (parse-json (:response ctx)) [:data :token])))
 
-(defn- auth-hdr [token] {"authorization" (str "Bearer " token)})
 
-(defn- POST [app path body headers]
+(defn- auth-hdr
+  [token]
+  {"authorization" (str "Bearer " token)})
+
+
+(defn- POST
+  [app path body headers]
   (:response (-> (p/session app)
                  (p/request path
                             :request-method :post
@@ -37,13 +51,16 @@
                             :headers headers
                             :body (json/write-str body)))))
 
-(defn- PUT [app path body headers]
+
+(defn- PUT
+  [app path body headers]
   (:response (-> (p/session app)
                  (p/request path
                             :request-method :put
                             :content-type "application/json"
                             :headers headers
                             :body (json/write-str body)))))
+
 
 ;; ── 流程准备 ──────────────────────────────────────────────────────────
 
@@ -67,8 +84,10 @@
        "<conditionExpression>${approved == false}</conditionExpression></sequenceFlow>"
        "</process></definitions>"))
 
+
 (def ^:private embedded-form-json
   "{\"fields\":[{\"field\":\"reason\",\"title\":\"事由\",\"type\":\"input\",\"required\":true}],\"conf\":{\"form\":{\"layout\":\"vertical\"}}}")
+
 
 (defn- deploy-model!
   "创建（form_id=0 + 内嵌 form_json）并部署测试模型，返回 {:model-id mid :model-key key}。"
@@ -90,6 +109,7 @@
         _ (is (= 200 (:code dep)))]
     {:model-id mid :model-key key}))
 
+
 (defn- start-instance!
   [app h mid]
   (let [st (parse-json (POST app "/api/business/bpm/instance"
@@ -97,10 +117,12 @@
     (is (= 200 (:code st)))
     (get-in st [:data :process-instance-id])))
 
+
 (defn- todo-of
   [app hdr pid]
   (let [r (parse-json (GET app "/api/business/bpm/todo" {} hdr))]
     (filter #(= pid (:process-instance-id %)) (get-in r [:data :rows] []))))
+
 
 (defn- instance-row
   "按 model_key 查业务实例行（status/current_task）。"
@@ -108,6 +130,7 @@
   (let [r (parse-json (GET app (str "/api/business/bpm/instance?model_key=" model-key
                                     "&starter_id=admin&page=1&size=10") {} h))]
     (first (get-in r [:data :rows]))))
+
 
 ;; ── 测试 ──────────────────────────────────────────────────────────────
 
@@ -123,6 +146,7 @@
       (is (= "审批1" (:name first-task)))
       (is (= "审批1" (:current_task row)) "current_task 必须来自新实例的活动任务")
       (is (= "1" (:status row))))))
+
 
 (deftest bpm-instance-end-status-writeback-test
   (let [app (handler) token (login-token "admin") h (auth-hdr token)
@@ -151,6 +175,7 @@
         (is (= "3" (:status row2)))
         (is (empty? (str (:current_task row2))))))))
 
+
 (deftest bpm-embedded-form-json-task-detail-test
   (let [app (handler) token (login-token "admin") h (auth-hdr token)
         {:keys [model-id model-key]} (deploy-model! app h)
@@ -172,6 +197,7 @@
       (let [hist (parse-json (GET app (str "/api/business/bpm/instance/history/" pid) {} h))]
         (is (= 200 (:code hist)))
         (is (seq (get-in hist [:data :form :schema :fields])))))))
+
 
 (deftest bpm-delegate-resolve-test
   (let [app (handler) token (login-token "admin") h (auth-hdr token)
@@ -202,6 +228,7 @@
                          [:data :task])]
         (is (= "admin" (:assignee task)))
         (is (= "admin" (:owner task)))))))
+
 
 (deftest bpm-transfer-delegate-param-validation-test
   (let [app (handler) token (login-token "admin") h (auth-hdr token)

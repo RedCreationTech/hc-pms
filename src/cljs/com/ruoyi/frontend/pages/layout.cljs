@@ -1,72 +1,73 @@
 (ns com.ruoyi.frontend.pages.layout
   "主布局页面，包含多Tab支持。"
   (:require
-   [reagent.core :as r]
-   [re-frame.core :as rf]
-   [reagent.hooks :as hooks]
-   [com.ruoyi.frontend.antd :as antd]
-   ["antd" :refer [Layout Menu Button Space Badge Avatar Dropdown Divider Popover Segmented]]
-   ["@ant-design/icons" :refer [DashboardOutlined SettingOutlined
-                                FileTextOutlined UserOutlined
-                                SunOutlined MoonOutlined
-                                CloseOutlined HomeOutlined
-                                TeamOutlined SafetyOutlined
-                                ApartmentOutlined TagOutlined
-                                BookOutlined ToolOutlined
-                                MonitorOutlined ScheduleOutlined
-                                DatabaseOutlined CloudOutlined
-                                CodeOutlined FormOutlined
-                                ProfileOutlined BellOutlined
-                                ContainerOutlined KeyOutlined
-                                SearchOutlined GithubOutlined
-                                QuestionCircleOutlined ExpandOutlined
-                                LeftOutlined RightOutlined
-                                ReloadOutlined DownOutlined
-                                CloseCircleOutlined ArrowRightOutlined
-                                CompressOutlined LogoutOutlined
-                                MenuFoldOutlined MenuUnfoldOutlined
-                                FontSizeOutlined TranslationOutlined]]
-   [com.ruoyi.frontend.router :as router]
-   [com.ruoyi.frontend.components.theme-switcher :as theme-switcher]
-   [com.ruoyi.frontend.components.layout-settings :as layout-settings]
-   [com.ruoyi.frontend.components.error-boundary :as error-boundary]
-   [com.ruoyi.frontend.pages.dashboard :as dashboard]
-   [com.ruoyi.frontend.pages.user :as user]
-   [com.ruoyi.frontend.pages.role :as role]
-   [com.ruoyi.frontend.pages.menu :as menu]
-   [com.ruoyi.frontend.pages.dept :as dept]
-   [com.ruoyi.frontend.pages.post :as post]
-   [com.ruoyi.frontend.pages.notice :as notice]
-   [com.ruoyi.frontend.pages.business.leave :as leave-page]
-   [com.ruoyi.frontend.pages.business.reimburse :as reimburse-page]
-   [com.ruoyi.frontend.pages.business.report :as report-page]
-   [com.ruoyi.frontend.pages.business.bpm-todo :as bpm-todo]
-   [com.ruoyi.frontend.pages.business.bpm-start :as bpm-start]
-   [com.ruoyi.frontend.pages.business.bpm-done :as bpm-done]
-   [com.ruoyi.frontend.pages.business.bpm-copy :as bpm-copy]
-   [com.ruoyi.frontend.pages.business.bpm-instance :as bpm-instance]
-   [com.ruoyi.frontend.pages.business.bpm-model :as bpm-model]
-   [com.ruoyi.frontend.pages.business.bpm-model-editor :as bpm-model-editor]
-   [com.ruoyi.frontend.pages.business.bpm-definition :as bpm-definition]
-   [com.ruoyi.frontend.pages.business.bpm-admin :as bpm-admin]
-   [com.ruoyi.frontend.pages.business.bpm-ops :as bpm-ops]
-   [com.ruoyi.frontend.pages.business.hrm :as hrm]
-   [com.ruoyi.frontend.pages.business.oa-calendar :as oa-calendar]
-   [com.ruoyi.frontend.pages.business.oa-meeting :as oa-meeting]
-   [com.ruoyi.frontend.pages.business.crm :as crm]
-   [com.ruoyi.frontend.pages.online :as online]
-   [com.ruoyi.frontend.pages.job :as job]
-   [com.ruoyi.frontend.pages.profile :as profile]
-   [com.ruoyi.frontend.pages.dict :as dict]
-   [com.ruoyi.frontend.pages.config :as config]
-   [com.ruoyi.frontend.pages.oper-log :as oper-log]
-   [com.ruoyi.frontend.pages.login-log :as login-log]
-   [com.ruoyi.frontend.pages.server :as server]
-   [com.ruoyi.frontend.pages.cache :as cache]
-   [com.ruoyi.frontend.pages.datasource :as datasource]
-   [com.ruoyi.frontend.pages.swagger :as swagger]
-   [com.ruoyi.frontend.pages.integrant :as integrant]
-   [com.ruoyi.frontend.components.icon-picker :as icon-picker]))
+    ["@ant-design/icons" :refer [DashboardOutlined SettingOutlined
+                                 FileTextOutlined UserOutlined
+                                 SunOutlined MoonOutlined
+                                 CloseOutlined HomeOutlined
+                                 TeamOutlined SafetyOutlined
+                                 ApartmentOutlined TagOutlined
+                                 BookOutlined ToolOutlined
+                                 MonitorOutlined ScheduleOutlined
+                                 DatabaseOutlined CloudOutlined
+                                 CodeOutlined FormOutlined
+                                 ProfileOutlined BellOutlined
+                                 ContainerOutlined KeyOutlined
+                                 SearchOutlined GithubOutlined
+                                 QuestionCircleOutlined ExpandOutlined
+                                 LeftOutlined RightOutlined
+                                 ReloadOutlined DownOutlined
+                                 CloseCircleOutlined ArrowRightOutlined
+                                 CompressOutlined LogoutOutlined
+                                 MenuFoldOutlined MenuUnfoldOutlined
+                                 FontSizeOutlined TranslationOutlined]]
+    ["antd" :refer [Layout Menu Button Space Badge Avatar Dropdown Divider Popover Segmented]]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.components.error-boundary :as error-boundary]
+    [com.ruoyi.frontend.components.icon-picker :as icon-picker]
+    [com.ruoyi.frontend.components.layout-settings :as layout-settings]
+    [com.ruoyi.frontend.components.theme-switcher :as theme-switcher]
+    [com.ruoyi.frontend.pages.business.bpm-admin :as bpm-admin]
+    [com.ruoyi.frontend.pages.business.bpm-copy :as bpm-copy]
+    [com.ruoyi.frontend.pages.business.bpm-definition :as bpm-definition]
+    [com.ruoyi.frontend.pages.business.bpm-done :as bpm-done]
+    [com.ruoyi.frontend.pages.business.bpm-instance :as bpm-instance]
+    [com.ruoyi.frontend.pages.business.bpm-model :as bpm-model]
+    [com.ruoyi.frontend.pages.business.bpm-model-editor :as bpm-model-editor]
+    [com.ruoyi.frontend.pages.business.bpm-ops :as bpm-ops]
+    [com.ruoyi.frontend.pages.business.bpm-start :as bpm-start]
+    [com.ruoyi.frontend.pages.business.bpm-todo :as bpm-todo]
+    [com.ruoyi.frontend.pages.business.crm :as crm]
+    [com.ruoyi.frontend.pages.business.hrm :as hrm]
+    [com.ruoyi.frontend.pages.business.leave :as leave-page]
+    [com.ruoyi.frontend.pages.business.oa-calendar :as oa-calendar]
+    [com.ruoyi.frontend.pages.business.oa-meeting :as oa-meeting]
+    [com.ruoyi.frontend.pages.business.reimburse :as reimburse-page]
+    [com.ruoyi.frontend.pages.business.report :as report-page]
+    [com.ruoyi.frontend.pages.cache :as cache]
+    [com.ruoyi.frontend.pages.config :as config]
+    [com.ruoyi.frontend.pages.dashboard :as dashboard]
+    [com.ruoyi.frontend.pages.datasource :as datasource]
+    [com.ruoyi.frontend.pages.dept :as dept]
+    [com.ruoyi.frontend.pages.dict :as dict]
+    [com.ruoyi.frontend.pages.integrant :as integrant]
+    [com.ruoyi.frontend.pages.job :as job]
+    [com.ruoyi.frontend.pages.login-log :as login-log]
+    [com.ruoyi.frontend.pages.menu :as menu]
+    [com.ruoyi.frontend.pages.notice :as notice]
+    [com.ruoyi.frontend.pages.online :as online]
+    [com.ruoyi.frontend.pages.oper-log :as oper-log]
+    [com.ruoyi.frontend.pages.post :as post]
+    [com.ruoyi.frontend.pages.profile :as profile]
+    [com.ruoyi.frontend.pages.role :as role]
+    [com.ruoyi.frontend.pages.server :as server]
+    [com.ruoyi.frontend.pages.swagger :as swagger]
+    [com.ruoyi.frontend.pages.user :as user]
+    [com.ruoyi.frontend.router :as router]
+    [re-frame.core :as rf]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
+
 
 ;; ─── Tab 组件 ──────────────────────────────────────────────────────
 
@@ -74,24 +75,25 @@
   "标签页右键菜单项。"
   [key has-others? has-right?]
   (clj->js
-   [{:key "refresh"
-     :label "刷新页面"
-     :icon (r/as-element [:> ReloadOutlined])}
-    {:key "close-current"
-     :label "关闭当前"
-     :icon (r/as-element [:> CloseOutlined])
-     :disabled (= key :dashboard)}
-    {:key "close-others"
-     :label "关闭其他"
-     :icon (r/as-element [:> CloseCircleOutlined])
-     :disabled (not has-others?)}
-    {:key "close-right"
-     :label "关闭右侧"
-     :icon (r/as-element [:> ArrowRightOutlined])
-     :disabled (not has-right?)}
-    {:key "close-all"
-     :label "全部关闭"
-     :icon (r/as-element [:> CloseCircleOutlined])}]))
+    [{:key "refresh"
+      :label "刷新页面"
+      :icon (r/as-element [:> ReloadOutlined])}
+     {:key "close-current"
+      :label "关闭当前"
+      :icon (r/as-element [:> CloseOutlined])
+      :disabled (= key :dashboard)}
+     {:key "close-others"
+      :label "关闭其他"
+      :icon (r/as-element [:> CloseCircleOutlined])
+      :disabled (not has-others?)}
+     {:key "close-right"
+      :label "关闭右侧"
+      :icon (r/as-element [:> ArrowRightOutlined])
+      :disabled (not has-right?)}
+     {:key "close-all"
+      :label "全部关闭"
+      :icon (r/as-element [:> CloseCircleOutlined])}]))
+
 
 (defn- tab-item
   "单个Tab项组件"
@@ -156,12 +158,14 @@
                                        (.stopPropagation e)
                                        (rf/dispatch [:tabs/close key]))}])]]))
 
+
 (defn- scroll-tabs
   "左右滚动标签页"
   [container-ref direction]
   (when-let [el (.-current container-ref)]
     (let [scroll-amount 200]
       (.scrollBy el #js {:left (* direction scroll-amount) :behavior "smooth"}))))
+
 
 (defn- tab-bar
   "Tab栏组件 — RuoYi 风格，支持左右滚动"
@@ -182,126 +186,127 @@
                            (set-can-right! (> (- sw cw left) 1)))))]
     ;; 监听容器尺寸变化，更新滚动状态
     (hooks/use-effect
-     (fn []
-       (when-let [el (.-current container-ref)]
-         (check-scroll)
-         (if (exists? js/ResizeObserver)
-           (let [ro (js/ResizeObserver. (fn [_] (check-scroll)))]
-             (.observe ro el)
-             (fn [] (.disconnect ro)))
-           (do (.addEventListener js/window "resize" check-scroll)
-               (fn [] (.removeEventListener js/window "resize" check-scroll))))))
-     [(count tabs)])
+      (fn []
+        (when-let [el (.-current container-ref)]
+          (check-scroll)
+          (if (exists? js/ResizeObserver)
+            (let [ro (js/ResizeObserver. (fn [_] (check-scroll)))]
+              (.observe ro el)
+              (fn [] (.disconnect ro)))
+            (do (.addEventListener js/window "resize" check-scroll)
+                (fn [] (.removeEventListener js/window "resize" check-scroll))))))
+      [(count tabs)])
     ;; 激活标签自动滚动到可视区域
     (hooks/use-effect
-     (fn []
-       (when-let [el (.-current container-ref)]
-         (let [active-el (.querySelector el ".tab-item-active")]
-           (when active-el
-             (let [el-left (.-offsetLeft active-el)
-                   el-width (.-offsetWidth active-el)
-                   scroll (.-scrollLeft el)
-                   cw (.-clientWidth el)]
-               (cond
-                 (< el-left scroll)
-                 (set! (.-scrollLeft el) el-left)
+      (fn []
+        (when-let [el (.-current container-ref)]
+          (let [active-el (.querySelector el ".tab-item-active")]
+            (when active-el
+              (let [el-left (.-offsetLeft active-el)
+                    el-width (.-offsetWidth active-el)
+                    scroll (.-scrollLeft el)
+                    cw (.-clientWidth el)]
+                (cond
+                  (< el-left scroll)
+                  (set! (.-scrollLeft el) el-left)
 
-                 (> (+ el-left el-width) (+ scroll cw))
-                 (set! (.-scrollLeft el) (- (+ el-left el-width) cw)))))))
-       js/undefined)
-     [active])
+                  (> (+ el-left el-width) (+ scroll cw))
+                  (set! (.-scrollLeft el) (- (+ el-left el-width) cw)))))))
+        js/undefined)
+      [active])
     (let [theme-mode @(rf/subscribe [:theme/mode])
           is-dark? (= theme-mode :dark)
           bg-base (if is-dark? "#141414" "#fff")
           border-color (if is-dark? "#303030" "#dcdfe6")]
-    [:div {:class "app-tab-bar"
-           :style {:borderBottom (str "1px solid " border-color)
-                   :padding "0 0 0 0"
-                   :display "flex"
-                   :alignItems "center"
-                   :height 40
-                   :background bg-base
-                   :boxShadow (if is-dark? "none" "0 1px 2px rgba(0,0,0,0.04)")}}
-     ;; 左滚动按钮
-     (when show-scroll
-       [:div {:class "tab-scroll-btn tab-scroll-left"
-              :style {:flex "0 0 auto"
-                      :cursor (if can-left "pointer" "not-allowed")
-                      :width 32
-                      :height 40
+      [:div {:class "app-tab-bar"
+             :style {:borderBottom (str "1px solid " border-color)
+                     :padding "0 0 0 0"
+                     :display "flex"
+                     :alignItems "center"
+                     :height 40
+                     :background bg-base
+                     :boxShadow (if is-dark? "none" "0 1px 2px rgba(0,0,0,0.04)")}}
+       ;; 左滚动按钮
+       (when show-scroll
+         [:div {:class "tab-scroll-btn tab-scroll-left"
+                :style {:flex "0 0 auto"
+                        :cursor (if can-left "pointer" "not-allowed")
+                        :width 32
+                        :height 40
+                        :display "flex"
+                        :alignItems "center"
+                        :justifyContent "center"
+                        :borderRight (str "1px solid " border-color)
+                        :color (if can-left "var(--ant-color-text-secondary, #666)" "var(--ant-color-border, #ccc)")
+                        :fontSize 16
+                        :userSelect "none"}
+                :on-click #(when can-left (scroll-tabs container-ref -1))}
+          [:> LeftOutlined {:style {:fontSize 12}}]])
+       ;; Tab 容器
+       [:div {:ref container-ref
+              :style {:flex 1
                       :display "flex"
-                      :alignItems "center"
-                      :justifyContent "center"
-                      :borderRight (str "1px solid " border-color)
-                      :color (if can-left "var(--ant-color-text-secondary, #666)" "var(--ant-color-border, #ccc)")
-                      :fontSize 16
-                      :userSelect "none"}
-              :on-click #(when can-left (scroll-tabs container-ref -1))}
-        [:> LeftOutlined {:style {:fontSize 12}}]])
-     ;; Tab 容器
-     [:div {:ref container-ref
-            :style {:flex 1
-                    :display "flex"
-                    :alignItems "flex-end"
-                    :height 40
-                    :paddingLeft 0
-                    :overflowX "auto"
-                    :overflowY "hidden"
-                    :whiteSpace "nowrap"
-                    :scrollbarWidth "none"
-                    ::WebkitOverflowScrolling "touch"
-                    :msOverflowStyle "none"}
-            :on-scroll check-scroll}
-      (for [tab tabs]
-        ^{:key (:key tab)}
-        [tab-item (assoc tab :active? (= (:key tab) active))])]
-     ;; 右滚动按钮
-     (when show-scroll
-       [:div {:class "tab-scroll-btn tab-scroll-right"
-              :style {:flex "0 0 auto"
-                      :cursor (if can-right "pointer" "not-allowed")
-                      :width 32
+                      :alignItems "flex-end"
                       :height 40
-                      :display "flex"
-                      :alignItems "center"
-                      :justifyContent "center"
-                      :borderLeft (str "1px solid " border-color)
-                      :color (if can-right "var(--ant-color-text-secondary, #666)" "var(--ant-color-border, #ccc)")
-                      :fontSize 16
-                      :userSelect "none"}
-              :on-click #(when can-right (scroll-tabs container-ref 1))}
-        [:> RightOutlined {:style {:fontSize 12}}]])
-     ;; 操作按钮组
-     [:div {:style {:display "flex" :alignItems "center" :marginLeft 0 :height 40 :borderLeft (str "1px solid " border-color)}}
-      [antd/tooltip {:title "向左滚动"}
-       [:> LeftOutlined {:style {:cursor "pointer" :color (if is-dark? "rgba(255,255,255,0.65)" "#909399")
-                                 :fontSize 13 :padding "13px 12px"
-                                 :borderRight (str "1px solid " border-color)}
-                         :on-click #(scroll-tabs container-ref -1)}]]
-      [antd/tooltip {:title "向右滚动"}
-       [:> RightOutlined {:style {:cursor "pointer" :color (if is-dark? "rgba(255,255,255,0.65)" "#909399")
-                                  :fontSize 13 :padding "13px 12px"
-                                  :borderRight (str "1px solid " border-color)}
-                          :on-click #(scroll-tabs container-ref 1)}]]
-      [antd/tooltip {:title "刷新当前页"}
-       [:> ReloadOutlined {:style {:cursor "pointer" :color (if is-dark? "rgba(255,255,255,0.65)" "#909399")
-                                   :fontSize 14 :padding "13px 12px"
+                      :paddingLeft 0
+                      :overflowX "auto"
+                      :overflowY "hidden"
+                      :whiteSpace "nowrap"
+                      :scrollbarWidth "none"
+                      ::WebkitOverflowScrolling "touch"
+                      :msOverflowStyle "none"}
+              :on-scroll check-scroll}
+        (for [tab tabs]
+          ^{:key (:key tab)}
+          [tab-item (assoc tab :active? (= (:key tab) active))])]
+       ;; 右滚动按钮
+       (when show-scroll
+         [:div {:class "tab-scroll-btn tab-scroll-right"
+                :style {:flex "0 0 auto"
+                        :cursor (if can-right "pointer" "not-allowed")
+                        :width 32
+                        :height 40
+                        :display "flex"
+                        :alignItems "center"
+                        :justifyContent "center"
+                        :borderLeft (str "1px solid " border-color)
+                        :color (if can-right "var(--ant-color-text-secondary, #666)" "var(--ant-color-border, #ccc)")
+                        :fontSize 16
+                        :userSelect "none"}
+                :on-click #(when can-right (scroll-tabs container-ref 1))}
+          [:> RightOutlined {:style {:fontSize 12}}]])
+       ;; 操作按钮组
+       [:div {:style {:display "flex" :alignItems "center" :marginLeft 0 :height 40 :borderLeft (str "1px solid " border-color)}}
+        [antd/tooltip {:title "向左滚动"}
+         [:> LeftOutlined {:style {:cursor "pointer" :color (if is-dark? "rgba(255,255,255,0.65)" "#909399")
+                                   :fontSize 13 :padding "13px 12px"
                                    :borderRight (str "1px solid " border-color)}
-                           :on-click #(.reload js/location)}]]
-      [antd/dropdown {:menu {:items (let [active-idx (.indexOf (clj->js (mapv :key tabs)) active)]
-                                      (tab-context-menu active
-                                                        (> (count tabs) 1)
-                                                        (< active-idx (dec (count tabs)))))
-                             :onClick (fn [e]
-                                        (case (.-key e)
-                                          "refresh" (.reload js/location)
-                                          "close-current" (rf/dispatch [:tabs/close active])
-                                          "close-others" (rf/dispatch [:tabs/remove-others active])
-                                          "close-right" (rf/dispatch [:tabs/remove-right active])
-                                          "close-all" (rf/dispatch [:tabs/remove-all])
-                                          nil))}}
-       [:> DownOutlined {:style {:cursor "pointer" :color (if is-dark? "rgba(255,255,255,0.65)" "#909399")
-                                 :fontSize 12 :padding "14px 12px"}}]]]])))
+                           :on-click #(scroll-tabs container-ref -1)}]]
+        [antd/tooltip {:title "向右滚动"}
+         [:> RightOutlined {:style {:cursor "pointer" :color (if is-dark? "rgba(255,255,255,0.65)" "#909399")
+                                    :fontSize 13 :padding "13px 12px"
+                                    :borderRight (str "1px solid " border-color)}
+                            :on-click #(scroll-tabs container-ref 1)}]]
+        [antd/tooltip {:title "刷新当前页"}
+         [:> ReloadOutlined {:style {:cursor "pointer" :color (if is-dark? "rgba(255,255,255,0.65)" "#909399")
+                                     :fontSize 14 :padding "13px 12px"
+                                     :borderRight (str "1px solid " border-color)}
+                             :on-click #(.reload js/location)}]]
+        [antd/dropdown {:menu {:items (let [active-idx (.indexOf (clj->js (mapv :key tabs)) active)]
+                                        (tab-context-menu active
+                                                          (> (count tabs) 1)
+                                                          (< active-idx (dec (count tabs)))))
+                               :onClick (fn [e]
+                                          (case (.-key e)
+                                            "refresh" (.reload js/location)
+                                            "close-current" (rf/dispatch [:tabs/close active])
+                                            "close-others" (rf/dispatch [:tabs/remove-others active])
+                                            "close-right" (rf/dispatch [:tabs/remove-right active])
+                                            "close-all" (rf/dispatch [:tabs/remove-all])
+                                            nil))}}
+         [:> DownOutlined {:style {:cursor "pointer" :color (if is-dark? "rgba(255,255,255,0.65)" "#909399")
+                                   :fontSize 12 :padding "14px 12px"}}]]]])))
+
 
 ;; ─── 页面关键词到菜单路径映射 ─────────────────────────────────────────
 (def page->menu-key
@@ -326,6 +331,7 @@
    :profile "system/user/profile"
    :dashboard "dashboard"})
 
+
 (def page-breadcrumbs
   {:dashboard ["首页"]
    :user ["首页" "系统管理" "用户管理"]
@@ -346,8 +352,10 @@
    :swagger ["首页" "系统工具" "系统接口"]
    :profile ["首页" "个人中心"]})
 
+
 (def route-labels
   (into {} (map (fn [[k xs]] [k (last xs)]) page-breadcrumbs)))
+
 
 (def route-icons
   {:dashboard "dashboard"
@@ -369,6 +377,7 @@
    :swagger "swagger"
    :profile "profile"})
 
+
 ;; ─── 动态菜单构建 ──────────────────────────────────────────────────────
 
 (defn- filter-visible-menus
@@ -381,31 +390,33 @@
                  (assoc m :children (filter-visible-menus (:children m)))
                  m)))))
 
+
 (defn- menu->antd-items
   "将后端菜单树转换为 antd Menu 的 items 结构。"
   ([menus] (menu->antd-items menus ""))
   ([menus parent-path]
    (clj->js
-    (mapv (fn [m]
-            (let [path (:path m)
-                  full-path (cond
-                              (not (seq path)) parent-path
-                              (seq parent-path) (str parent-path "/" path)
-                              :else path)
-                  item-key (if (seq full-path)
-                             full-path
-                             (str "menu-" (:menu_id m)))
-                  item {:key item-key
-                        :label (:menu_name m)}
-                  icon-name (or (and (seq (:icon m)) (not= (:icon m) "#") (:icon m))
-                                "ContainerOutlined")
-                  icon-el (icon-picker/icon-element icon-name {:style {:fontSize 14}})]
-              (cond-> item
-                icon-el
-                (assoc :icon icon-el)
-                (seq (:children m))
-                (assoc :children (menu->antd-items (:children m) full-path)))))
-          menus))))
+     (mapv (fn [m]
+             (let [path (:path m)
+                   full-path (cond
+                               (not (seq path)) parent-path
+                               (seq parent-path) (str parent-path "/" path)
+                               :else path)
+                   item-key (if (seq full-path)
+                              full-path
+                              (str "menu-" (:menu_id m)))
+                   item {:key item-key
+                         :label (:menu_name m)}
+                   icon-name (or (and (seq (:icon m)) (not= (:icon m) "#") (:icon m))
+                                 "ContainerOutlined")
+                   icon-el (icon-picker/icon-element icon-name {:style {:fontSize 14}})]
+               (cond-> item
+                 icon-el
+                 (assoc :icon icon-el)
+                 (seq (:children m))
+                 (assoc :children (menu->antd-items (:children m) full-path)))))
+           menus))))
+
 
 (defn- page-labels
   "从菜单树递归提取页面路径到标签的映射。"
@@ -429,6 +440,7 @@
                  acc)))
            {}
            menus)))
+
 
 (defn- page-icons
   "从菜单树递归提取页面路径到图标的映射。"
@@ -454,6 +466,7 @@
            {}
            menus)))
 
+
 (defn- menu-open-keys
   "从接口返回的菜单树中提取所有有子菜单的 Menu key，用于动态菜单到达后默认展开。"
   ([menus] (menu-open-keys menus ""))
@@ -475,11 +488,13 @@
         (remove empty?)
         vec)))
 
+
 ;; ─── 主布局 ────────────────────────────────────────────────────────
 
 ;; ─── Tab 动画样式 ──────────────────────────────────────────────────────
 
-(defn- tab-animation-styles []
+(defn- tab-animation-styles
+  []
   [:style
    "
 @keyframes tabSlideIn {
@@ -517,6 +532,7 @@
 }
 "])
 
+
 (defn- display-settings-panel
   "字号按钮弹出的显示设置面板。"
   []
@@ -542,6 +558,7 @@
                                    #js {:label "中" :value "middle"}
                                    #js {:label "大" :value "large"}]}]]]))
 
+
 (defn- display-settings-button
   "右上角显示设置按钮。"
   []
@@ -552,7 +569,9 @@
                :style {:fontSize 18 :color "#606266"}
                :icon (r/as-element [:> FontSizeOutlined])}]])
 
-(defn main-layout []
+
+(defn main-layout
+  []
   (let [[collapsed set-collapsed!] (hooks/use-state false)
         [settings-open? set-settings-open!] (hooks/use-state false)
         user @(rf/subscribe [:auth/user])
@@ -589,18 +608,18 @@
                                 (rf/dispatch [:navigate page])
                                 (rf/dispatch [:tabs/add page (get labels page "页面") (get icons page)]))))]
     (hooks/use-effect
-     (fn []
-       (set! (.-title js/document)
-             (if (get layout-settings :dynamic-title? true)
-               (str (last breadcrumbs) " - 若依管理系统")
-               "若依管理系统"))
-       js/undefined)
-     [page (get layout-settings :dynamic-title? true)])
+      (fn []
+        (set! (.-title js/document)
+              (if (get layout-settings :dynamic-title? true)
+                (str (last breadcrumbs) " - 若依管理系统")
+                "若依管理系统"))
+        js/undefined)
+      [page (get layout-settings :dynamic-title? true)])
     [:> Layout {:style {:minHeight "100vh"
                         :background bg-layout
                         :fontFamily "\"Helvetica Neue\", Helvetica, \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", Arial, sans-serif"
                         :fontSize 14}}
-         ;; Tab 动画样式
+     ;; Tab 动画样式
      [tab-animation-styles]
      (when-not top-nav?
        [:> Layout.Sider {:collapsible true
@@ -633,7 +652,7 @@
                   :defaultOpenKeys (clj->js open-menu-keys)
                   :items menu-items
                   :onClick handle-menu-click}]])
-         ;; Main area
+     ;; Main area
      [:> Layout {:style {:background bg-content}}
       [:> Layout.Header {:style {:padding "0 16px"
                                  :display "flex" :justifyContent "space-between"
@@ -644,7 +663,7 @@
                                  :position (when (get layout-settings :fixed-header? true) "sticky")
                                  :top 0
                                  :zIndex 30}}
-           ;; Left: navigation or breadcrumb
+       ;; Left: navigation or breadcrumb
        [:div {:style {:display "flex" :alignItems "center" :gap 12 :flex 1 :minWidth 0}}
         (if top-nav?
           [:<>
@@ -665,7 +684,7 @@
                      :style {:flex 1 :minWidth 0 :height 56 :lineHeight "56px"
                              :borderBottom "none" :fontSize 14}}]]
           [:<>
-               ;; Hamburger toggle button
+           ;; Hamburger toggle button
            [:div {:style {:cursor "pointer" :padding "0 6px" :fontSize 21
                           :display "flex" :alignItems "center"
                           :color text-primary
@@ -684,24 +703,24 @@
                                :fontWeight (if (= idx (dec (count breadcrumbs))) 400 500)}}
                 crumb]])]])]
        [:div {:style {:display "flex" :alignItems "center" :gap 6}}
-            ;; 搜索
+        ;; 搜索
         [:> Button {:type "text" :style {:fontSize 18 :color text-secondary} :icon (r/as-element [:> SearchOutlined])}]
-            ;; GitHub
+        ;; GitHub
         [:> Button {:type "text" :style {:fontSize 18 :color text-secondary} :icon (r/as-element [:> GithubOutlined])
                     :onClick #(js/window.open "https://github.com/RedCreationTech/rouyi_clojure" "_blank")}]
-            ;; 文档
+        ;; 文档
         [:> Button {:type "text" :style {:fontSize 18 :color text-secondary} :icon (r/as-element [:> QuestionCircleOutlined])}]
-            ;; 全屏
+        ;; 全屏
         [:> Button {:type "text" :style {:fontSize 18 :color text-secondary} :icon (r/as-element [:> ExpandOutlined])
                     :onClick #(let [doc js/document.documentElement]
                                 (if (.-fullscreenElement js/document)
                                   (.exitFullscreen js/document)
                                   (.requestFullscreen doc)))}]
         [display-settings-button]
-            ;; 通知
+        ;; 通知
         [:> Badge {:count 3 :size "small"}
          [:> Button {:type "text" :style {:fontSize 18 :color text-secondary} :icon (r/as-element [:> BellOutlined])}]]
-            ;; 头像 + 下拉菜单
+        ;; 头像 + 下拉菜单
         [:> Dropdown {:menu {:items (clj->js [{:key "profile" :label "个人中心"}
                                               {:key "layout-settings" :label "布局设置"}
                                               {:type "divider"}
@@ -722,10 +741,10 @@
           [:span {:style {:fontSize 14 :fontWeight 600 :color text-primary}} "若依"]]]]
        [layout-settings/layout-settings-drawer {:open? settings-open?
                                                 :on-close #(set-settings-open! false)}]]
-          ;; Tab 栏
+      ;; Tab 栏
       (when (get layout-settings :open-tags? true)
         [tab-bar])
-          ;; 内容区（加 Error Boundary，避免单个页面崩溃导致整个布局白屏）
+      ;; 内容区（加 Error Boundary，避免单个页面崩溃导致整个布局白屏）
       [:> Layout.Content {:style {:margin 0
                                   :padding 0
                                   :background bg-content
@@ -791,7 +810,7 @@
                       :fontSize 18 :fontWeight 700
                       :boxShadow "0 4px 12px rgba(233,137,170,0.35)"
                       :zIndex 20}}
-       "LA"]
+        "LA"]
        (when (get layout-settings :show-footer? true)
          [:div {:class "app-layout-footer"
                 :style {:position "fixed" :left content-left :right 0 :bottom 0

@@ -1,24 +1,27 @@
 (ns com.ruoyi.frontend.pages.user
   "用户管理页面 - 对齐 RuoYi-Vue 功能。"
   (:require
-   [reagent.core :as r]
-   [reagent.hooks :as hooks]
-   [re-frame.core :as rf]
-   [clojure.string :as str]
-   ["antd" :refer [DatePicker]]
-   ["dayjs" :as dayjs]
-   ["@ant-design/icons" :refer [SearchOutlined ReloadOutlined PlusOutlined EditOutlined DeleteOutlined UploadOutlined DownloadOutlined SettingOutlined
-                                FolderOpenOutlined FileTextOutlined AppstoreOutlined]]
-   [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.components.dept-tree-select :refer [dept-tree-select]]))
+    ["@ant-design/icons" :refer [SearchOutlined ReloadOutlined PlusOutlined EditOutlined DeleteOutlined UploadOutlined DownloadOutlined SettingOutlined
+                                 FolderOpenOutlined FileTextOutlined AppstoreOutlined]]
+    ["antd" :refer [DatePicker]]
+    ["dayjs" :as dayjs]
+    [clojure.string :as str]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.components.dept-tree-select :refer [dept-tree-select]]
+    [re-frame.core :as rf]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
+
 
 (def range-picker (r/adapt-react-class (.-RangePicker DatePicker)))
+
 
 (defn- dayjs->date-string
   "把 dayjs 日期格式化为 yyyy-MM-dd。"
   [d]
   (when d
     (.format d "YYYY-MM-DD")))
+
 
 (defn- search-date-range
   "根据查询参数生成 RangePicker 受控值。"
@@ -27,39 +30,43 @@
     #js [(when beginTime (dayjs beginTime))
          (when endTime (dayjs endTime))]))
 
+
 (def phone-pattern
   "RuoYi 手机号校验规则。"
   (js/RegExp. "^1[3-9][0-9]\\d{8}$"))
+
 
 (def password-pattern
   "RuoYi 密码非法字符校验规则。"
   (js/RegExp. "^[^<>\\\"\\x27|\\\\\\\\]+$"))
 
+
 ;; ─── 搜索表单 ──────────────────────────────────────────────────────
 
-(defn- search-form []
+(defn- search-form
+  []
   (let [query-params @(rf/subscribe [:users/query-params])
         show-search? @(rf/subscribe [:users/show-search?])
         form-ref (hooks/use-ref nil)
         [height set-height!] (hooks/use-state (if show-search? "auto" "0px"))]
     ;; Animate height on toggle
     (hooks/use-effect
-     (fn []
-       (if show-search?
-         (when-let [el (.-current form-ref)]
-           (set-height! "0px")
-           (js/setTimeout
-            (fn [] (set-height! (str (.-scrollHeight el) "px")))
-            10)
-           (js/setTimeout
-            (fn [] (set-height! "auto"))
-            320))
-         (do (when-let [el (.-current form-ref)]
-               (set-height! (str (.-scrollHeight el) "px"))
-               (js/setTimeout
-                (fn [] (set-height! "0px"))
-                10)))))
-     [show-search?])
+      (fn []
+        (if show-search?
+          (when-let [el (.-current form-ref)]
+            (set-height! "0px")
+            (js/setTimeout
+              (fn [] (set-height! (str (.-scrollHeight el) "px")))
+              10)
+            (js/setTimeout
+              (fn [] (set-height! "auto"))
+              320))
+          (do (when-let [el (.-current form-ref)]
+                (set-height! (str (.-scrollHeight el) "px"))
+                (js/setTimeout
+                  (fn [] (set-height! "0px"))
+                  10)))))
+      [show-search?])
     [:div {:ref form-ref
            :style {:overflow "hidden"
                    :height height
@@ -113,9 +120,11 @@
                       :on-click #(rf/dispatch [:users/reset-query])}
          "重置"]]]]]))
 
+
 ;; ─── 工具栏 ────────────────────────────────────────────────────────
 
-(defn- toolbar []
+(defn- toolbar
+  []
   (let [show-search? @(rf/subscribe [:users/show-search?])
         columns @(rf/subscribe [:users/columns])
         is-dark? (= @(rf/subscribe [:theme/mode]) :dark)
@@ -173,14 +182,14 @@
                      :on-click #(rf/dispatch [:users/fetch-with-params])}]]
       [antd/tooltip {:title "显隐列"}
        [antd/dropdown {:menu {:items (clj->js
-                                      (map (fn [[key {:keys [label visible?]}]]
-                                             {:key (name key)
-                                              :label (r/as-element
-                                                      [:div {:style {:display "flex" :justifyContent "space-between"
-                                                                     :alignItems "center" :width 120}}
-                                                       [:span label]
-                                                       [antd/switch {:size "small" :checked visible?}]])})
-                                           columns))
+                                       (map (fn [[key {:keys [label visible?]}]]
+                                              {:key (name key)
+                                               :label (r/as-element
+                                                        [:div {:style {:display "flex" :justifyContent "space-between"
+                                                                       :alignItems "center" :width 120}}
+                                                         [:span label]
+                                                         [antd/switch {:size "small" :checked visible?}]])})
+                                            columns))
                               :onClick (fn [e]
                                          (let [key (keyword (.-key e))]
                                            (rf/dispatch [:users/toggle-column key])))}
@@ -189,69 +198,73 @@
                       :icon (r/as-element [:> AppstoreOutlined])
                       :style {:width 38 :height 38 :borderColor "var(--ant-color-border, #dcdfe6)" :color "var(--ant-color-text-secondary, #606266)"}}]]]]]))
 
+
 ;; ─── 用户表格 ──────────────────────────────────────────────────────
 
-(defn- user-columns []
+(defn- user-columns
+  []
   (let [columns-config @(rf/subscribe [:users/columns])]
     (clj->js
-     (filterv some?
-              [(when (get-in columns-config [:user_id :visible?])
-                 {:title "用户编号" :dataIndex "user_id" :key "user_id" :width 110 :align "center"})
-               (when (get-in columns-config [:user_name :visible?])
-                 {:title "用户名称" :dataIndex "user_name" :key "user_name"
-                  :align "center"
-                  :render (fn [v record]
-                            (r/as-element
-                             [:a {:style {:cursor "pointer" :color "#409eff"}
-                                  :on-click #(rf/dispatch [:users/view-detail (.-user_id ^js record)])}
-                              v]))})
-               (when (get-in columns-config [:nick_name :visible?])
-                 {:title "用户昵称" :dataIndex "nick_name" :key "nick_name" :align "center"})
-               (when (get-in columns-config [:dept_name :visible?])
-                 {:title "部门" :dataIndex "dept_name" :key "dept_name" :align "center"})
-               (when (get-in columns-config [:phonenumber :visible?])
-                 {:title "手机号码" :dataIndex "phonenumber" :key "phonenumber" :width 150 :align "center"})
-               (when (get-in columns-config [:status :visible?])
-                 {:title "状态" :dataIndex "status" :key "status" :width 110 :align "center"
-                  :render (fn [v record]
-                            (r/as-element
-                             [antd/switch {:checked (= v "0")
-                                           :on-change (fn [checked?]
-                                                        (rf/dispatch [:users/change-status
-                                                                      (.-user_id ^js record)
-                                                                      (if checked? "0" "1")]))}]))})
-               (when (get-in columns-config [:create_time :visible?])
-                 {:title "创建时间" :dataIndex "create_time" :key "create_time" :width 210 :align "center"})
-               {:title "操作" :key "action" :width 220 :align "center"
-                :render (fn [_ record]
-                          (r/as-element
-                           (when (not= "admin" (.-user_name ^js record))
-                             [antd/space
-                              [antd/button {:type "link" :size "small"
-                                            :style {:color "#409eff"}
-                                            :icon (r/as-element [:> EditOutlined])
-                                            :on-click #(rf/dispatch [:users/open-edit (.-user_id ^js record)])}
-                               "修改"]
-                              [antd/button {:type "link" :size "small"
-                                            :disabled (= 1 (.-user_id ^js record))
-                                            :style {:color (if (= 1 (.-user_id ^js record)) "#c0c4cc" "#409eff")}
-                                            :icon (r/as-element [:> DeleteOutlined])
-                                            :on-click #(rf/dispatch [:users/delete (.-user_id ^js record)])}
-                               "删除"]
-                              [antd/dropdown {:menu {:items (clj->js [{:key "resetPwd" :label (r/as-element [:span "重置密码"])}
-                                                                      {:key "authRole" :label (r/as-element [:span "分配角色"])}])
-                                                     :onClick (fn [e]
-                                                                (case (.-key e)
-                                                                  "resetPwd" (rf/dispatch [:users/reset-password (.-user_id ^js record)])
-                                                                  "authRole" (rf/dispatch [:users/auth-role (.-user_id ^js record)])
-                                                                  nil))}}
-                               [antd/button {:type "link" :size "small"
-                                             :style {:color "#409eff"}}
-                                "更多"]]])))}]))))
+      (filterv some?
+               [(when (get-in columns-config [:user_id :visible?])
+                  {:title "用户编号" :dataIndex "user_id" :key "user_id" :width 110 :align "center"})
+                (when (get-in columns-config [:user_name :visible?])
+                  {:title "用户名称" :dataIndex "user_name" :key "user_name"
+                   :align "center"
+                   :render (fn [v record]
+                             (r/as-element
+                               [:a {:style {:cursor "pointer" :color "#409eff"}
+                                    :on-click #(rf/dispatch [:users/view-detail (.-user_id ^js record)])}
+                                v]))})
+                (when (get-in columns-config [:nick_name :visible?])
+                  {:title "用户昵称" :dataIndex "nick_name" :key "nick_name" :align "center"})
+                (when (get-in columns-config [:dept_name :visible?])
+                  {:title "部门" :dataIndex "dept_name" :key "dept_name" :align "center"})
+                (when (get-in columns-config [:phonenumber :visible?])
+                  {:title "手机号码" :dataIndex "phonenumber" :key "phonenumber" :width 150 :align "center"})
+                (when (get-in columns-config [:status :visible?])
+                  {:title "状态" :dataIndex "status" :key "status" :width 110 :align "center"
+                   :render (fn [v record]
+                             (r/as-element
+                               [antd/switch {:checked (= v "0")
+                                             :on-change (fn [checked?]
+                                                          (rf/dispatch [:users/change-status
+                                                                        (.-user_id ^js record)
+                                                                        (if checked? "0" "1")]))}]))})
+                (when (get-in columns-config [:create_time :visible?])
+                  {:title "创建时间" :dataIndex "create_time" :key "create_time" :width 210 :align "center"})
+                {:title "操作" :key "action" :width 220 :align "center"
+                 :render (fn [_ record]
+                           (r/as-element
+                             (when (not= "admin" (.-user_name ^js record))
+                               [antd/space
+                                [antd/button {:type "link" :size "small"
+                                              :style {:color "#409eff"}
+                                              :icon (r/as-element [:> EditOutlined])
+                                              :on-click #(rf/dispatch [:users/open-edit (.-user_id ^js record)])}
+                                 "修改"]
+                                [antd/button {:type "link" :size "small"
+                                              :disabled (= 1 (.-user_id ^js record))
+                                              :style {:color (if (= 1 (.-user_id ^js record)) "#c0c4cc" "#409eff")}
+                                              :icon (r/as-element [:> DeleteOutlined])
+                                              :on-click #(rf/dispatch [:users/delete (.-user_id ^js record)])}
+                                 "删除"]
+                                [antd/dropdown {:menu {:items (clj->js [{:key "resetPwd" :label (r/as-element [:span "重置密码"])}
+                                                                        {:key "authRole" :label (r/as-element [:span "分配角色"])}])
+                                                       :onClick (fn [e]
+                                                                  (case (.-key e)
+                                                                    "resetPwd" (rf/dispatch [:users/reset-password (.-user_id ^js record)])
+                                                                    "authRole" (rf/dispatch [:users/auth-role (.-user_id ^js record)])
+                                                                    nil))}}
+                                 [antd/button {:type "link" :size "small"
+                                               :style {:color "#409eff"}}
+                                  "更多"]]])))}]))))
+
 
 ;; ─── 自定义弹窗（替代 antd/modal，避免 antd 6 + Reagent 兼容问题）──
 
-(defn- detail-drawer []
+(defn- detail-drawer
+  []
   (let [visible? @(rf/subscribe [:users/detail-visible?])
         user @(rf/subscribe [:users/detail-data])]
     [antd/drawer {:title "用户详情"
@@ -290,7 +303,9 @@
               ^{:key (:post_id post)}
               [antd/tag {:color "cyan"} (:post_name post)])]])])]))
 
-(defn- form-modal []
+
+(defn- form-modal
+  []
   "用户新增/编辑弹窗 — 使用 antd Form 管理表单状态。"
   (let [visible? @(rf/subscribe [:users/modal-visible?])
         editing @(rf/subscribe [:users/editing])
@@ -299,17 +314,17 @@
         post-options @(rf/subscribe [:users/post-options])
         [form] (antd/form-use-form)]
     (hooks/use-effect
-     (fn []
-       (when visible?
-         (.resetFields form)
-         (rf/dispatch [:users/fetch-options])
-         (let [base (merge {:status "0" :password "123456" :roles [] :posts []} form-data)
-               initial (-> base
-                           (assoc :roles (mapv :role_id (:roles form-data))
-                                  :posts (mapv :post_id (:posts form-data))))]
-           (.setFieldsValue form (clj->js initial))))
-       js/undefined)
-     [visible? form-data])
+      (fn []
+        (when visible?
+          (.resetFields form)
+          (rf/dispatch [:users/fetch-options])
+          (let [base (merge {:status "0" :password "123456" :roles [] :posts []} form-data)
+                initial (-> base
+                            (assoc :roles (mapv :role_id (:roles form-data))
+                                   :posts (mapv :post_id (:posts form-data))))]
+            (.setFieldsValue form (clj->js initial))))
+        js/undefined)
+      [visible? form-data])
     (when visible?
       [:div {:style {:position "fixed" :top 0 :left 0 :right 0 :bottom 0
                      :background "rgba(0,0,0,0.45)" :zIndex 1050
@@ -386,18 +401,20 @@
                         :style {:width 86 :height 42 :fontSize 16 :borderRadius 4}}
            "取消"]]]]])))
 
+
 ;; ─── 主页面 ────────────────────────────────────────────────────────
 
-(defn- reset-password-modal []
+(defn- reset-password-modal
+  []
   (let [visible? @(rf/subscribe [:users/reset-pwd-visible?])
         username @(rf/subscribe [:users/reset-pwd-username])
         [form] (antd/form-use-form)]
     (hooks/use-effect
-     (fn []
-       (when visible?
-         (.resetFields form))
-       js/undefined)
-     [visible?])
+      (fn []
+        (when visible?
+          (.resetFields form))
+        js/undefined)
+      [visible?])
     (when visible?
       [:div {:style {:position "fixed" :top 0 :left 0 :right 0 :bottom 0
                      :background "rgba(0,0,0,0.45)" :zIndex 1060
@@ -420,6 +437,7 @@
           [antd/button {:on-click #(rf/dispatch [:users/close-reset-password])} "取消"]
           [antd/button {:type "primary" :htmlType "submit"} "确定"]]]]])))
 
+
 (defn- flatten-visible-tree
   "展平可见的部门节点（只展开 expanded-ids 中的节点）。"
   ([nodes expanded-ids depth]
@@ -429,6 +447,7 @@
                      (when (and (seq (:children node)) is-expanded?)
                        (flatten-visible-tree (:children node) expanded-ids (inc depth))))))
            nodes)))
+
 
 (defn- filter-dept-tree
   "按部门名称过滤部门树，并保留命中的祖先节点。"
@@ -444,7 +463,9 @@
                        (assoc node :children children)))))
            vec))))
 
-(defn- dept-tree-sidebar []
+
+(defn- dept-tree-sidebar
+  []
   (let [dept-items @(rf/subscribe [:depts/tree])
         selected-dept-id @(rf/subscribe [:users/selected-dept-id])
         [dept-filter set-dept-filter!] (hooks/use-state "")
@@ -524,6 +545,7 @@
                [:> FileTextOutlined])]
             [:span {:style {:lineHeight "34px" :whiteSpace "nowrap"}} (:dept_name d)]])]])]))
 
+
 (defn- import-modal
   "用户导入弹窗。"
   []
@@ -561,12 +583,15 @@
                        :style {:background "#409eff"}
                        :on-click #(rf/dispatch [:users/import])} "确定"]]]])))
 
+
 (defn- display-users
   "返回真实接口数据，避免演示数据覆盖创建时间。"
   [items]
   items)
 
-(defn- auth-role-modal []
+
+(defn- auth-role-modal
+  []
   (let [visible? @(rf/subscribe [:users/auth-role-visible?])
         user @(rf/subscribe [:users/auth-role-user])
         role-options @(rf/subscribe [:users/role-options])
@@ -603,7 +628,9 @@
                        :on-click #(rf/dispatch [:users/submit-auth-role])}
           "确定"]]]])))
 
-(defn- pagination-bar [total page page-size]
+
+(defn- pagination-bar
+  [total page page-size]
   [:div {:style {:display "flex" :justifyContent "flex-end" :alignItems "center"
                  :gap 16 :height 68 :padding "0 24px" :background "transparent"
                  :color "var(--ant-color-text-secondary, #606266)" :fontSize 16}}
@@ -634,13 +661,15 @@
                                  (rf/dispatch [:users/change-page v page-size]))))}]
    [:span "页"]])
 
-(defn user-page []
+
+(defn user-page
+  []
   (hooks/use-effect
-   (fn []
-     (rf/dispatch [:depts/fetch {}])
-     (rf/dispatch [:users/fetch {}])
-     js/undefined)
-   [])
+    (fn []
+      (rf/dispatch [:depts/fetch {}])
+      (rf/dispatch [:users/fetch {}])
+      js/undefined)
+    [])
   (let [items (display-users @(rf/subscribe [:users/items]))
         total (max @(rf/subscribe [:users/total]) (count items))
         loading? @(rf/subscribe [:users/loading?])

@@ -2,9 +2,10 @@
   "操作日志中间件：自动记录所有 API 请求到 sys_oper_log 表。
   依赖 auth/wrap-jwt-auth 前置设置 :identity（否则 oper_name 为 anonymous）。"
   (:require
-   [clojure.tools.logging :as log]
-   [clojure.string :as str]
-   [cheshire.core :as json]))
+    [cheshire.core :as json]
+    [clojure.string :as str]
+    [clojure.tools.logging :as log]))
+
 
 (def ^:private skip-paths
   "不记录日志的路径（GET 不记录，这里只列非 GET 白名单）"
@@ -12,9 +13,11 @@
     "/api/health"
     "/api/user/profile"})
 
+
 (def ^:private get-methods
   "GET/HEAD/OPTIONS 请求不记录日志。"
   #{:get :head :options})
+
 
 ;; ── 业务类型映射（匹配 RuoYi-Vue BusinessType 枚举） ──────────────
 ;;
@@ -27,22 +30,22 @@
   [method uri]
   (case method
     :post (cond
-            (re-find #"/auth/logout" uri)      7   ;; 强退
-            (re-find #"/import" uri)           6   ;; 导入
-            :else                              1)  ;; 新增
+            (re-find #"/auth/logout" uri)      7   ; 强退
+            (re-find #"/import" uri)           6   ; 导入
+            :else                              1)  ; 新增
     :put  (cond
-            (re-find #"/run" uri)              0   ;; 执行一次
-            (re-find #"/changeStatus" uri)     2   ;; 修改
-            (re-find #"/resetPwd" uri)         2   ;; 修改
-            (re-find #"/dataScope" uri)        4   ;; 授权
-            (re-find #"/authUser" uri)         4   ;; 授权
-            :else                              2)  ;; 修改
+            (re-find #"/run" uri)              0   ; 执行一次
+            (re-find #"/changeStatus" uri)     2   ; 修改
+            (re-find #"/resetPwd" uri)         2   ; 修改
+            (re-find #"/dataScope" uri)        4   ; 授权
+            (re-find #"/authUser" uri)         4   ; 授权
+            :else                              2)  ; 修改
     :delete (cond
-              (re-find #"/clear" uri)          9   ;; 清空
-              (= uri "/api/system/oper-log")   9   ;; 清空（根路径 DELETE = clear）
-              (= uri "/api/system/login-log")  9   ;; 清空（根路径 DELETE = clear）
-              :else                            3)  ;; 删除
-    0)) ;; 默认其他
+              (re-find #"/clear" uri)          9   ; 清空
+              (= uri "/api/system/oper-log")   9   ; 清空（根路径 DELETE = clear）
+              (= uri "/api/system/login-log")  9   ; 清空（根路径 DELETE = clear）
+              :else                            3)  ; 删除
+    0)) ; 默认其他
 
 (defn- infer-title
   "根据 URI 提取中文模块标题。"
@@ -66,6 +69,7 @@
     (re-find #"/auth/getInfo" uri)       "获取用户信息"
     :else (str (re-find #"/[^/]+/[^/]+" uri) "")))
 
+
 (defn- format-params
   "格式化请求参数，过长时截断。"
   [params]
@@ -77,9 +81,11 @@
       (str (subs s 0 200) "...")
       s)))
 
+
 (defn- safe-str
   [v]
   (or (str v) ""))
+
 
 (defn wrap-oper-log
   "操作日志中间件包装器。

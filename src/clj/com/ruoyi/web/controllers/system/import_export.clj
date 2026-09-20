@@ -1,19 +1,20 @@
 (ns com.ruoyi.web.controllers.system.import-export
   "用户导入导出控制器，使用 multipart 上传与 clojure.data.csv。"
   (:require
-   [com.ruoyi.domain.system.user :as user-service]
-   [com.ruoyi.domain.system.role :as role-service]
-   [com.ruoyi.domain.system.menu :as menu-service]
-   [com.ruoyi.domain.system.dept :as dept-service]
-   [com.ruoyi.domain.system.post :as post-service]
-   [com.ruoyi.domain.system.dict :as dict-service]
-   [com.ruoyi.domain.system.config :as config-service]
-   [com.ruoyi.infra.data-perm :as data-perm]
-   [ring.util.response :as response]
-   [ring.middleware.multipart-params :as multipart]
-   [clojure.data.csv :as csv]
-   [clojure.java.io :as io]
-   [clojure.string :as str]))
+    [clojure.data.csv :as csv]
+    [clojure.java.io :as io]
+    [clojure.string :as str]
+    [com.ruoyi.domain.system.config :as config-service]
+    [com.ruoyi.domain.system.dept :as dept-service]
+    [com.ruoyi.domain.system.dict :as dict-service]
+    [com.ruoyi.domain.system.menu :as menu-service]
+    [com.ruoyi.domain.system.post :as post-service]
+    [com.ruoyi.domain.system.role :as role-service]
+    [com.ruoyi.domain.system.user :as user-service]
+    [com.ruoyi.infra.data-perm :as data-perm]
+    [ring.middleware.multipart-params :as multipart]
+    [ring.util.response :as response]))
+
 
 (defn- ok
   ([data] (ok 200 "操作成功" data))
@@ -21,14 +22,19 @@
    (-> (response/response {:code code :msg msg :data data})
        (response/content-type "application/json"))))
 
-(defn- fail [msg]
+
+(defn- fail
+  [msg]
   (-> (response/response {:code 500 :msg msg})
       (response/content-type "application/json")))
 
-(defn- parse-int [v]
+
+(defn- parse-int
+  [v]
   (when (and v (not (str/blank? (str v))))
     (try (Integer/parseInt (str v))
          (catch Exception _ nil))))
+
 
 (defn- csv-row->user
   "将 CSV 行向量转换为用户参数映射。"
@@ -45,12 +51,14 @@
      :avatar ""
      :remark (str/trim (get m "remark" ""))}))
 
+
 (defn- read-csv-rows
   "读取 multipart 上传的 CSV 文件，返回行向量列表。"
   [file]
   (let [tempfile (:tempfile file)]
     (with-open [reader (io/reader tempfile :encoding "UTF-8")]
       (doall (csv/read-csv reader)))))
+
 
 (defn- update-support?
   "判断导入请求是否允许覆盖已有用户。"
@@ -59,6 +67,7 @@
               (get-in request [:params "updateSupport"])
               (get-in request [:body-params :updateSupport]))]
     (contains? #{"1" "true" "on" true 1} v)))
+
 
 (defn- import-one-user!
   "导入单个用户，按 updateSupport 决定新增或覆盖。"
@@ -82,6 +91,7 @@
                                       :roles []
                                       :posts []
                                       :create_by (:user_name identity "")))))
+
 
 (defn import-users
   "批量导入用户（multipart CSV），支持 updateSupport 覆盖已有用户。"
@@ -114,6 +124,7 @@
     (catch Exception e
       (fail (.getMessage e)))))
 
+
 (defn- user->csv-row
   "将用户映射转换为 CSV 行向量。"
   [user]
@@ -126,11 +137,14 @@
    (:dept_id user)
    (:remark user)])
 
-(defn- parse-id-list [ids]
+
+(defn- parse-id-list
+  [ids]
   (->> (str/split (str ids) #",")
        (map str/trim)
        (remove str/blank?)
        (mapv parse-long)))
+
 
 (defn export-users
   "导出用户为 CSV 文件（带数据权限过滤）。"
@@ -160,6 +174,7 @@
     (catch Exception e
       (fail (.getMessage e)))))
 
+
 (defn import-template
   "下载用户导入模板。"
   [_ _]
@@ -173,6 +188,7 @@
       (-> (response/response content)
           (response/header "Content-Type" "text/csv; charset=utf-8")
           (response/header "Content-Disposition" "attachment; filename=user_import_template.csv")))))
+
 
 ;; ─── 通用导出函数 ──────────────────────────────────────────────────────
 
@@ -194,12 +210,14 @@
     (catch Exception e
       (fail (.getMessage e)))))
 
+
 (defn export-roles
   "导出角色数据。"
   [{:keys [role-service]} request]
   (let [header ["role_id" "role_name" "role_key" "role_sort" "status"]
         csv-fn (fn [r] [(:role_id r) (:role_name r) (:role_key r) (:role_sort r) (:status r)])]
     (generic-export role-service/list-roles role-service {} header csv-fn "roles.csv" request)))
+
 
 (defn export-menus
   "导出菜单数据。"
@@ -208,12 +226,14 @@
         csv-fn (fn [m] [(:menu_id m) (:menu_name m) (:parent_id m) (:order_num m) (:path m) (:component m) (:menu_type m) (:status m)])]
     (generic-export menu-service/list-menus menu-service {} header csv-fn "menus.csv" request)))
 
+
 (defn export-depts
   "导出部门数据。"
   [{:keys [dept-service]} request]
   (let [header ["dept_id" "parent_id" "dept_name" "order_num" "leader" "status"]
         csv-fn (fn [d] [(:dept_id d) (:parent_id d) (:dept_name d) (:order_num d) (:leader d) (:status d)])]
     (generic-export dept-service/list-depts dept-service {} header csv-fn "depts.csv" request)))
+
 
 (defn export-posts
   "导出岗位数据。"
@@ -222,6 +242,7 @@
         csv-fn (fn [p] [(:post_id p) (:post_code p) (:post_name p) (:post_sort p) (:status p)])]
     (generic-export post-service/list-posts post-service {} header csv-fn "posts.csv" request)))
 
+
 (defn export-dict-types
   "导出字典类型数据。"
   [{:keys [dict-service]} request]
@@ -229,12 +250,14 @@
         csv-fn (fn [d] [(:dict_id d) (:dict_name d) (:dict_type d) (:status d)])]
     (generic-export dict-service/list-dict-types dict-service {} header csv-fn "dict_types.csv" request)))
 
+
 (defn export-dict-data
   "导出字典数据。"
   [{:keys [dict-service]} request]
   (let [header ["dict_code" "dict_sort" "dict_label" "dict_value" "dict_type" "status"]
         csv-fn (fn [d] [(:dict_code d) (:dict_sort d) (:dict_label d) (:dict_value d) (:dict_type d) (:status d)])]
     (generic-export dict-service/list-dict-data dict-service {} header csv-fn "dict_data.csv" request)))
+
 
 (defn export-configs
   "导出参数配置数据。"

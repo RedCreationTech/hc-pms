@@ -1,18 +1,25 @@
 (ns com.ruoyi.web.controllers.system.online
   "在线用户控制器。"
   (:require
-   [ring.util.response :as response]))
+    [ring.util.response :as response]))
 
-(defn- ok [data]
+
+(defn- ok
+  [data]
   (-> (response/response {:code 200 :msg "操作成功" :data data})
       (response/content-type "application/json")))
 
-(defn- success [msg]
+
+(defn- success
+  [msg]
   (-> (response/response {:code 200 :msg msg})
       (response/content-type "application/json")))
 
-(defn- parse-int [v]
+
+(defn- parse-int
+  [v]
   (when v (Integer/parseInt v)))
+
 
 (defn list-online
   "获取在线用户列表。"
@@ -26,6 +33,7 @@
                  :page-num page
                  :page-size size})]
     (ok {:rows (:rows result) :total (:total result)})))
+
 
 (defn force-logout
   "强退指定用户。"

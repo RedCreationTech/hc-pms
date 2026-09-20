@@ -1,19 +1,23 @@
 (ns com.ruoyi.frontend.pages.job
   "定时任务管理页面。"
   (:require
-   [reagent.core :as r]
-   [reagent.hooks :as hooks]
-   [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined PlayCircleOutlined FileTextOutlined SearchOutlined ReloadOutlined]]
-   [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.components.page-search :as page-search]
-   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
+    ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined PlayCircleOutlined FileTextOutlined SearchOutlined ReloadOutlined]]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.components.page-search :as page-search]
+    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+    [re-frame.core :as rf]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
 
-(defn- status-tag [status]
+
+(defn- status-tag
+  [status]
   [antd/tag {:color (if (= status "0") "green" "red")}
    (if (= status "0") "正常" "暂停")])
 
-(defn- job-columns [on-edit on-show-log]
+
+(defn- job-columns
+  [on-edit on-show-log]
   #js [#js {:title "任务ID" :dataIndex "job_id" :key "job_id" :width 80}
        #js {:title "任务名称" :dataIndex "job_name" :key "job_name"}
        #js {:title "任务组" :dataIndex "job_group" :key "job_group"}
@@ -24,35 +28,37 @@
        #js {:title "操作" :key "action" :width 280
             :render (fn [_ ^js record]
                       (r/as-element
-                       [antd/space
-                        [antd/button {:type "link" :size "small"
-                                      :icon (r/as-element [:> EditOutlined])
-                                      :onClick #(on-edit (js->clj record :keywordize-keys true))}
-                         "编辑"]
-                        [antd/popconfirm {:title "确认删除该任务？"
-                                          :onConfirm #(rf/dispatch [:jobs/delete (.-job_id record)])}
-                         [antd/button {:type "link" :danger true :size "small"
-                                       :icon (r/as-element [:> DeleteOutlined])}
-                          "删除"]]
-                        [antd/button {:type "link" :size "small"
-                                      :disabled (= (.-status record) "0")
-                                      :onClick #(rf/dispatch [:jobs/update (.-job_id record) {:status "0"}])}
-                         "恢复"]
-                        [antd/button {:type "link" :size "small"
-                                      :disabled (= (.-status record) "1")
-                                      :onClick #(rf/dispatch [:jobs/update (.-job_id record) {:status "1"}])}
-                         "暂停"]
-                        [antd/button {:type "link" :size "small"
-                                      :icon (r/as-element [:> FileTextOutlined])
-                                      :onClick #(on-show-log (.-job_name record))}
-                         "日志"]
-                        [antd/popconfirm {:title "确认立即执行一次该任务？"
-                                          :onConfirm #(rf/dispatch [:jobs/run-once (.-job_id record)])}
+                        [antd/space
                          [antd/button {:type "link" :size "small"
-                                       :icon (r/as-element [:> PlayCircleOutlined])}
-                          "执行"]]]))}])
+                                       :icon (r/as-element [:> EditOutlined])
+                                       :onClick #(on-edit (js->clj record :keywordize-keys true))}
+                          "编辑"]
+                         [antd/popconfirm {:title "确认删除该任务？"
+                                           :onConfirm #(rf/dispatch [:jobs/delete (.-job_id record)])}
+                          [antd/button {:type "link" :danger true :size "small"
+                                        :icon (r/as-element [:> DeleteOutlined])}
+                           "删除"]]
+                         [antd/button {:type "link" :size "small"
+                                       :disabled (= (.-status record) "0")
+                                       :onClick #(rf/dispatch [:jobs/update (.-job_id record) {:status "0"}])}
+                          "恢复"]
+                         [antd/button {:type "link" :size "small"
+                                       :disabled (= (.-status record) "1")
+                                       :onClick #(rf/dispatch [:jobs/update (.-job_id record) {:status "1"}])}
+                          "暂停"]
+                         [antd/button {:type "link" :size "small"
+                                       :icon (r/as-element [:> FileTextOutlined])
+                                       :onClick #(on-show-log (.-job_name record))}
+                          "日志"]
+                         [antd/popconfirm {:title "确认立即执行一次该任务？"
+                                           :onConfirm #(rf/dispatch [:jobs/run-once (.-job_id record)])}
+                          [antd/button {:type "link" :size "small"
+                                        :icon (r/as-element [:> PlayCircleOutlined])}
+                           "执行"]]]))}])
 
-(defn job-page []
+
+(defn job-page
+  []
   (let [[show-form? set-show-form!] (hooks/use-state false)
         [job-name set-job-name!] (hooks/use-state "")
         [job-group set-job-group!] (hooks/use-state "")
@@ -66,10 +72,10 @@
         [form-cron set-form-cron!] (hooks/use-state "")
         [form-remark set-form-remark!] (hooks/use-state "")]
     (hooks/use-effect
-     (fn []
-       (rf/dispatch [:jobs/fetch {}])
-       js/undefined)
-     [])
+      (fn []
+        (rf/dispatch [:jobs/fetch {}])
+        js/undefined)
+      [])
     (let [items @(rf/subscribe [:jobs/items])
           total @(rf/subscribe [:jobs/total])
           loading? @(rf/subscribe [:jobs/loading?])
@@ -141,11 +147,11 @@
                     :rowSelection #js {}
                     :loading loading?
                     :columns (job-columns
-                              on-edit
-                              (fn [job-name]
-                                (set-log-job-name! job-name)
-                                (rf/dispatch [:job-logs/fetch {:job_name job-name}])
-                                (set-show-log! true)))
+                               on-edit
+                               (fn [job-name]
+                                 (set-log-job-name! job-name)
+                                 (rf/dispatch [:job-logs/fetch {:job_name job-name}])
+                                 (set-show-log! true)))
                     :dataSource (clj->js items)
                     :pagination {:pageSize 10 :total total}}]
 
@@ -186,13 +192,13 @@
                      :rowSelection #js {}
                      :loading log-loading?
                      :columns (clj->js
-                               [{:title "日志ID" :dataIndex "job_log_id" :width 80}
-                                {:title "任务名称" :dataIndex "job_name"}
-                                {:title "任务组" :dataIndex "job_group"}
-                                {:title "调用目标" :dataIndex "invoke_target"}
-                                {:title "执行信息" :dataIndex "job_message"}
-                                {:title "状态" :dataIndex "status" :width 80
-                                 :render (fn [v] (r/as-element [antd/tag {:color (if (= v "0") "green" "red")} (if (= v "0") "成功" "失败")]))}
-                                {:title "执行时间" :dataIndex "create_time"}])
+                                [{:title "日志ID" :dataIndex "job_log_id" :width 80}
+                                 {:title "任务名称" :dataIndex "job_name"}
+                                 {:title "任务组" :dataIndex "job_group"}
+                                 {:title "调用目标" :dataIndex "invoke_target"}
+                                 {:title "执行信息" :dataIndex "job_message"}
+                                 {:title "状态" :dataIndex "status" :width 80
+                                  :render (fn [v] (r/as-element [antd/tag {:color (if (= v "0") "green" "red")} (if (= v "0") "成功" "失败")]))}
+                                 {:title "执行时间" :dataIndex "create_time"}])
                      :dataSource (clj->js log-items)
                      :pagination {:pageSize 10 :total log-total}}]]])))

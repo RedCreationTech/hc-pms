@@ -1,19 +1,20 @@
 (ns com.ruoyi.web.routes.api
   (:require
-   [com.ruoyi.web.controllers.health :as health]
-   [com.ruoyi.web.routes.auth :as auth]
-   [com.ruoyi.web.routes.system :as system]
-   [com.ruoyi.web.routes.business :as business]
-   [com.ruoyi.web.routes.captcha :as captcha]
-   [com.ruoyi.web.routes.common :as common]
-   [com.ruoyi.web.middleware.exception :as exception]
-   [com.ruoyi.web.middleware.formats :as formats]
-   [integrant.core :as ig]
-   [reitit.coercion.malli :as malli]
-   [reitit.ring.coercion :as coercion]
-   [reitit.ring.middleware.muuntaja :as muuntaja]
-   [reitit.ring.middleware.parameters :as parameters]
-   [reitit.swagger :as swagger]))
+    [com.ruoyi.web.controllers.health :as health]
+    [com.ruoyi.web.middleware.exception :as exception]
+    [com.ruoyi.web.middleware.formats :as formats]
+    [com.ruoyi.web.routes.auth :as auth]
+    [com.ruoyi.web.routes.business :as business]
+    [com.ruoyi.web.routes.captcha :as captcha]
+    [com.ruoyi.web.routes.common :as common]
+    [com.ruoyi.web.routes.system :as system]
+    [integrant.core :as ig]
+    [reitit.coercion.malli :as malli]
+    [reitit.ring.coercion :as coercion]
+    [reitit.ring.middleware.muuntaja :as muuntaja]
+    [reitit.ring.middleware.parameters :as parameters]
+    [reitit.swagger :as swagger]))
+
 
 (def route-data
   {:coercion   malli/coercion
@@ -28,7 +29,9 @@
                 coercion/coerce-request-middleware
                 exception/wrap-exception]})
 
-(defn api-routes [opts]
+
+(defn api-routes
+  [opts]
   [["/swagger.json"
     {:get {:no-doc  true
            :swagger {:info {:title "RouYi API"}}
@@ -41,7 +44,9 @@
    (captcha/captcha-routes opts)
    (business/business-routes opts)])
 
+
 (derive :reitit.routes/api :reitit/routes)
+
 
 (defmethod ig/init-key :reitit.routes/api
   [_ {:keys [base-path]

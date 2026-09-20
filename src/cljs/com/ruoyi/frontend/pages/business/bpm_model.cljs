@@ -1,18 +1,19 @@
 (ns com.ruoyi.frontend.pages.business.bpm-model
   "流程模型管理 —— 分类卡片分组视图（P1 对齐 vben model/index.vue）；设计/新建跳转全屏编辑器页。"
   (:require
-   [reagent.core :as r]
-   [re-frame.core :as rf]
-   [reagent.hooks :as hooks]
-   ["@ant-design/icons" :refer [ReloadOutlined PlayCircleOutlined EditOutlined
-                                PlusOutlined DownOutlined SearchOutlined]]
-   [clojure.string :as str]
-   [clojure.walk :as walk]
-   [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.api :as api]
-   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
-   [com.ruoyi.frontend.components.bpm-flow-designer :as bpmfd]
-   [com.ruoyi.frontend.components.form-render :as fr]))
+    ["@ant-design/icons" :refer [ReloadOutlined PlayCircleOutlined EditOutlined
+                                 PlusOutlined DownOutlined SearchOutlined]]
+    [clojure.string :as str]
+    [clojure.walk :as walk]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.api :as api]
+    [com.ruoyi.frontend.components.bpm-flow-designer :as bpmfd]
+    [com.ruoyi.frontend.components.form-render :as fr]
+    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+    [re-frame.core :as rf]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
+
 
 ;; ── P1 分组卡片视图辅助 ─────────────────────────────────────────────
 
@@ -20,11 +21,13 @@
   ["#409eff" "#67c23a" "#e6a23c" "#f56c6c" "#626aef"
    "#13c2c2" "#996633" "#345da2" "#e47470" "#13a8a8"])
 
+
 (defn- color-of
   "按名称稳定取色（图标色块用）。"
   [s]
   (let [h (reduce (fn [acc c] (unchecked-add (unchecked-multiply (int acc) 31) (int c))) 7 (str s))]
     (nth palette (mod (Math/abs h) (count palette)))))
+
 
 (defn- model-icon-view
   "模型图标：有 icon 显示图片，否则名称前 2 字色块。"
@@ -40,20 +43,22 @@
                       :fontSize (max 11 (quot size 2)) :fontWeight 600}}
         (subs name 0 (min 2 (count name)))]))))
 
+
 (defn- delete-model!
   "删除模型（更多菜单入口）。"
   [m]
   (antd/modal-confirm!
-   #(api/bpm-delete-model
-     (:model_id m)
-     (fn [res]
-       (if (= 200 (:code res))
-         (do (antd/success! "已删除")
-             (rf/dispatch [:bpm/model-fetch {:page 1 :size 1000}]))
-         (antd/error! (str "删除失败: " (:msg res)))))
-     (fn [_] (antd/error! "删除失败")))
-   {:title (str "确认删除模型「" (:model_name m) "」？")
-    :okButtonProps #js {:danger true}}))
+    #(api/bpm-delete-model
+       (:model_id m)
+       (fn [res]
+         (if (= 200 (:code res))
+           (do (antd/success! "已删除")
+               (rf/dispatch [:bpm/model-fetch {:page 1 :size 1000}]))
+           (antd/error! (str "删除失败: " (:msg res)))))
+       (fn [_] (antd/error! "删除失败")))
+    {:title (str "确认删除模型「" (:model_name m) "」？")
+     :okButtonProps #js {:danger true}}))
+
 
 (defn- model-actions
   "模型行操作：设计 / 部署 / 更多（历史·挂起↔激活·复制·报表·清理·删除）。"
@@ -70,33 +75,32 @@
         danger-item (fn [key label on-click]
                       {:key key :danger true :label (r/as-element [:div {:on-click on-click} label])})
         more-items (clj->js
-                    [(item "history" "历史" #(rf/dispatch [:bpm/definition-open m]))
-                     (item "state" (if running? "挂起" "激活")
-                           #(confirm! (if running? "确认挂起该流程？挂起后不可发起" "确认激活该流程？")
-                                      (fn [] (rf/dispatch [:bpm/model-state mid (if running? "2" "1")]))))
-                     (item "copy" "复制" #(confirm! "确认复制该模型？"
-                                                    (fn [] (rf/dispatch [:bpm/model-copy mid]))))
-                     (item "report" "报表" #(rf/dispatch [:navigate :report]))
-                     {:type "divider"}
-                     (danger-item "clean" "清理"
-                                  #(confirm! "确认清理该流程全部历史实例与部署？不可恢复"
-                                             (fn [] (rf/dispatch [:bpm/model-clean mid]))
-                                             true))
-                     (danger-item "delete" "删除" #(delete-model! m))])]
+                     [(item "history" "历史" #(rf/dispatch [:bpm/definition-open m]))
+                      (item "state" (if running? "挂起" "激活")
+                            #(confirm! (if running? "确认挂起该流程？挂起后不可发起" "确认激活该流程？")
+                                       (fn [] (rf/dispatch [:bpm/model-state mid (if running? "2" "1")]))))
+                      (item "copy" "复制" #(confirm! "确认复制该模型？"
+                                                   (fn [] (rf/dispatch [:bpm/model-copy mid]))))
+                      (item "report" "报表" #(rf/dispatch [:navigate :report]))
+                      {:type "divider"}
+                      (danger-item "clean" "清理"
+                                   #(confirm! "确认清理该流程全部历史实例与部署？不可恢复"
+                                              (fn [] (rf/dispatch [:bpm/model-clean mid]))
+                                              true))
+                      (danger-item "delete" "删除" #(delete-model! m))])]
     [antd/space {:size 2}
      [antd/button {:type "link" :size "small"
                    :icon (r/as-element [:> EditOutlined])
                    :on-click #(rf/dispatch [:navigate :bpm-model-edit {:id (:model_id m)}])}
       "设计"]
      [antd/popconfirm {:title "确认部署该流程模型？"
-                        :on-confirm #(rf/dispatch [:bpm/model-deploy mid])}
+                       :on-confirm #(rf/dispatch [:bpm/model-deploy mid])}
       [antd/button {:type "link" :size "small"
                     :icon (r/as-element [:> PlayCircleOutlined])}
        "部署"]]
      [antd/dropdown {:menu {:items more-items}}
       [antd/button {:type "link" :size "small"}
        "更多 " (r/as-element [:> DownOutlined])]]]))
-
 
 
 (defn- group-columns
@@ -106,57 +110,58 @@
             :render (fn [_ ^js record]
                       (let [m (js->clj record :keywordize-keys true)]
                         (r/as-element
-                         [:div {:style {:display "flex" :gap 8 :alignItems "center"}}
-                          [model-icon-view m 32]
-                          [:div
-                           [:div {:style {:fontWeight 500}} (:model_name m)]
-                           [:div {:style {:fontSize 12 :color "#909399"}} (:model_key m)]]])))}
+                          [:div {:style {:display "flex" :gap 8 :alignItems "center"}}
+                           [model-icon-view m 32]
+                           [:div
+                            [:div {:style {:fontWeight 500}} (:model_name m)]
+                            [:div {:style {:fontSize 12 :color "#909399"}} (:model_key m)]]])))}
        #js {:title "表单" :key "form" :width 170
             :render (fn [_ ^js record]
                       (let [m (js->clj record :keywordize-keys true)
                             f (get forms-by-id (:form_id m))]
                         (r/as-element
-                         (case (:form_type m)
-                           "1" (if f
-                                 [antd/tag {:color "green"} (:form_name f)]
-                                 [antd/tag {:color "orange"} "动态表单(未绑定)"])
-                           "2" [antd/tag {:color "blue"} (or (:form_custom_create_path m) "自定义表单")]
-                           [:span {:style {:color "#c0c4cc"}} "-"]))))}
+                          (case (:form_type m)
+                            "1" (if f
+                                  [antd/tag {:color "green"} (:form_name f)]
+                                  [antd/tag {:color "orange"} "动态表单(未绑定)"])
+                            "2" [antd/tag {:color "blue"} (or (:form_custom_create_path m) "自定义表单")]
+                            [:span {:style {:color "#c0c4cc"}} "-"]))))}
        #js {:title "部署" :key "deploy" :width 210
             :render (fn [_ ^js record]
                       (let [m (js->clj record :keywordize-keys true)]
                         (r/as-element
-                         [:div {:style {:display "flex" :gap 6 :alignItems "center" :flexWrap "wrap"}}
-                          (if (:deployment_id m)
-                            [:span {:style {:fontSize 12 :color "#606266"}}
-                             (let [dt (str (:deploy_time m))]
-                               (if (seq dt) (subs dt 0 (min 19 (count dt))) "-"))]
-                            [antd/tag {:color "default"} "未部署"])
-                          [antd/tag {:color "blue"} (str "v" (:version m))]
-                          (when (= "2" (:status m))
-                            [antd/tag {:color "red"} "已停用"])])))}
+                          [:div {:style {:display "flex" :gap 6 :alignItems "center" :flexWrap "wrap"}}
+                           (if (:deployment_id m)
+                             [:span {:style {:fontSize 12 :color "#606266"}}
+                              (let [dt (str (:deploy_time m))]
+                                (if (seq dt) (subs dt 0 (min 19 (count dt))) "-"))]
+                             [antd/tag {:color "default"} "未部署"])
+                           [antd/tag {:color "blue"} (str "v" (:version m))]
+                           (when (= "2" (:status m))
+                             [antd/tag {:color "red"} "已停用"])])))}
        #js {:title "谁可发起" :key "start" :width 140
             :render (fn [_ ^js record]
                       (let [m (js->clj record :keywordize-keys true)]
                         (r/as-element
-                         (if (or (seq (:start_users m)) (seq (:start_depts m)))
-                           [antd/tag {:color "purple"}
-                            (str (str/join "," (take 2 (:start_users m)))
-                                 (when (seq (:start_depts m))
-                                   (str (when (seq (:start_users m)) " + ")
-                                        (str/join "," (take 2 (:start_depts m)))))
-                                 (let [n (+ (count (:start_users m)) (count (:start_depts m)))]
-                                   (when (> n 2) (str " 等" n "项"))))]
-                           [:span {:style {:color "#909399" :fontSize 12}} "全部"]))))}
+                          (if (or (seq (:start_users m)) (seq (:start_depts m)))
+                            [antd/tag {:color "purple"}
+                             (str (str/join "," (take 2 (:start_users m)))
+                                  (when (seq (:start_depts m))
+                                    (str (when (seq (:start_users m)) " + ")
+                                         (str/join "," (take 2 (:start_depts m)))))
+                                  (let [n (+ (count (:start_users m)) (count (:start_depts m)))]
+                                    (when (> n 2) (str " 等" n "项"))))]
+                            [:span {:style {:color "#909399" :fontSize 12}} "全部"]))))}
        #js {:title "创建时间" :dataIndex "create_time" :key "create_time" :width 160
             :render (fn [v]
                       (r/as-element
-                       [:span {:style {:fontSize 12}}
-                        (let [s (str v)] (if (seq s) (subs s 0 (min 19 (count s))) "-"))]))}
+                        [:span {:style {:fontSize 12}}
+                         (let [s (str v)] (if (seq s) (subs s 0 (min 19 (count s))) "-"))]))}
        #js {:title "操作" :key "action" :width 230
             :render (fn [_ ^js record]
                       (let [m (js->clj record :keywordize-keys true)]
                         (r/as-element [model-actions m])))}])
+
 
 (defn- group-models
   "把模型按分类分组（排序：分类 order_num → 分类 id；组内 order_num → model_id 倒序），
@@ -168,10 +173,9 @@
         buckets (group-by #(if (contains? valid-ids (:category_id %)) (:category_id %) :uncategorized) models)
         sort-ms (fn [rows] (sort-by (juxt (comp #(or % 0) :order_num) (comp - :model_id)) rows))]
     (concat
-     (for [c ordered-cats]
-       {:key (:category_id c) :category c :models (sort-ms (get buckets (:category_id c) []))})
-     [{:key :uncategorized :category nil :models (sort-ms (get buckets :uncategorized []))}])))
-
+      (for [c ordered-cats]
+        {:key (:category_id c) :category c :models (sort-ms (get buckets (:category_id c) []))})
+      [{:key :uncategorized :category nil :models (sort-ms (get buckets :uncategorized []))}])))
 
 
 ;; Tab 页内容组件（避免深层嵌套，拆成独立函数）
@@ -197,7 +201,7 @@
                    :placeholder "请选择分类"
                    :onChange (fn [v] (set-mcat! (or v "")))}
       (doall (for [c categories] ^{:key (:category_id c)}
-               [antd/select-option {:value (:category_id c)} (:name c)]))]]
+                  [antd/select-option {:value (:category_id c)} (:name c)]))]]
     [antd/form-item {:label "表单类型"}
      [antd/select {:value mform-type :style {:width "100%"} :onChange (fn [v] (set-mform-type! (str v)))}
       [antd/select-option {:value "0"} "无表单"]
@@ -234,17 +238,17 @@
       [antd/radio {:value "DEPT"} "指定部门"]]
      (case mstart-type
        "USER" [antd/select {:mode "multiple" :style {:width "100%" :marginTop 8} :allowClear true
-                             :placeholder "选择可发起的用户"
-                             :value (or mstart-user-ids [])
-                             :onChange #(set-mstart-user-ids! (vec %))}
+                            :placeholder "选择可发起的用户"
+                            :value (or mstart-user-ids [])
+                            :onChange #(set-mstart-user-ids! (vec %))}
                (doall (for [u users] ^{:key (:user_id u)}
-                        [antd/select-option {:value (:user_id u)} (:nick_name u)]))]
+                           [antd/select-option {:value (:user_id u)} (:nick_name u)]))]
        "DEPT" [antd/select {:mode "multiple" :style {:width "100%" :marginTop 8} :allowClear true
-                             :placeholder "选择可发起的部门（含下级部门成员）"
-                             :value (or mstart-dept-ids [])
-                             :onChange #(set-mstart-dept-ids! (vec %))}
+                            :placeholder "选择可发起的部门（含下级部门成员）"
+                            :value (or mstart-dept-ids [])
+                            :onChange #(set-mstart-dept-ids! (vec %))}
                (doall (for [d depts] ^{:key (:dept_id d)}
-                        [antd/select-option {:value (:dept_id d)} (:dept_name d)]))]
+                           [antd/select-option {:value (:dept_id d)} (:dept_name d)]))]
        nil)]
     [antd/form-item {:label "流程管理员（当前仅用于展示）"}
      [antd/select {:mode "multiple" :style {:width "100%"} :allowClear true
@@ -252,7 +256,7 @@
                    :value (or mmanager-ids [])
                    :onChange #(set-mmanager-ids! (vec %))}
       (doall (for [u users] ^{:key (:user_id u)}
-               [antd/select-option {:value (:user_id u)} (:nick_name u)]))]]]])
+                  [antd/select-option {:value (:user_id u)} (:nick_name u)]))]]]])
 
 
 (defn form-design-tab
@@ -262,10 +266,11 @@
    mcustom-create set-mcustom-create! mcustom-view set-mcustom-view!
    mfields-perm set-mfields-perm! mform-json]
   (let [sel-form (first (filter #(= (:form_id %) mform-id) form-list))
-        parse-schema (fn [j] (when (seq (str j))
-                               (if (string? j)
-                                 (js->clj (js/JSON.parse j) :keywordize-keys true)
-                                 (walk/keywordize-keys j))))
+        parse-schema (fn [j]
+                       (when (seq (str j))
+                         (if (string? j)
+                           (js->clj (js/JSON.parse j) :keywordize-keys true)
+                           (walk/keywordize-keys j))))
         schema (or (parse-schema (:form_json sel-form))
                    (parse-schema mform-json)
                    {:fields []})]
@@ -285,9 +290,9 @@
                                       "未绑定独立表单（使用模型内嵌表单）" "请选择表单")
                        :onChange set-mform-id!}
           (doall (for [f form-list] ^{:key (:form_id f)}
-                   [antd/select-option {:value (:form_id f)} (:form_name f)]))]])
+                      [antd/select-option {:value (:form_id f)} (:form_name f)]))]])
       (when (= mform-type "2")
-        [:<> 
+        [:<>
          [antd/form-item {:label "表单提交路由"}
           [antd/input {:value mcustom-create :placeholder "如 /bpm/oa/leave/create"
                        :onChange (fn [e] (set-mcustom-create! (-> e .-target .-value)))}]]
@@ -299,7 +304,7 @@
          [:div {:style {:display "flex" :alignItems "center" :marginBottom 12}}
           [:div {:style {:width 4 :height 16 :background "#409eff" :marginRight 8}}]
           [:span {:style {:fontWeight 600}} "表单预览"]]
-[fr/form-render {:schema schema :disabled? true}]])
+         [fr/form-render {:schema schema :disabled? true}]])
       (when (and (= mform-type "1") (seq (:fields schema)))
         [:div {:style {:marginTop 16}}
          [:div {:style {:display "flex" :alignItems "center" :marginBottom 8}}
@@ -307,18 +312,19 @@
           [:span {:style {:fontWeight 600}} "字段权限"]]
          [:div {:style {:border "1px solid #f0f0f0" :borderRadius 6}}
           (doall
-           (for [f (:fields schema)]
-             (let [field (or (:field f) (:key f))]
-               ^{:key (or field (str "f-" (:type f)))}
-               [:div {:style {:display "flex" :alignItems "center" :justifyContent "space-between"
-                              :padding "6px 10px" :borderBottom "1px solid #f5f5f5"}}
-                [:span (or (:title f) (:label f) field)]
-                [antd/select {:style {:width 110} :size "small"
-                              :value (or (get mfields-perm field) "edit")
-                              :onChange #(set-mfields-perm! (assoc mfields-perm field %))}
-                 [antd/select-option {:value "edit"} "可编辑"]
-                 [antd/select-option {:value "readonly"} "只读"]
-                 [antd/select-option {:value "hidden"} "隐藏"]]])))]])]]))
+            (for [f (:fields schema)]
+              (let [field (or (:field f) (:key f))]
+                ^{:key (or field (str "f-" (:type f)))}
+                [:div {:style {:display "flex" :alignItems "center" :justifyContent "space-between"
+                               :padding "6px 10px" :borderBottom "1px solid #f5f5f5"}}
+                 [:span (or (:title f) (:label f) field)]
+                 [antd/select {:style {:width 110} :size "small"
+                               :value (or (get mfields-perm field) "edit")
+                               :onChange #(set-mfields-perm! (assoc mfields-perm field %))}
+                  [antd/select-option {:value "edit"} "可编辑"]
+                  [antd/select-option {:value "readonly"} "只读"]
+                  [antd/select-option {:value "hidden"} "隐藏"]]])))]])]]))
+
 
 (defn process-design-tab
   [{:keys [model-id on-close]}]
@@ -327,11 +333,13 @@
     [antd/button {:size "small" :on-click on-close} "关闭"]]
    [bpmfd/bpm-flow-designer {:model-id model-id}]])
 
+
 (def ^:private webhook-events
   [{:key "process_start" :label "流程发起 (process_start)"}
    {:key "process_end" :label "流程结束 (process_end)"}
    {:key "task_start" :label "任务创建 (task_start)"}
    {:key "task_end" :label "任务完成 (task_end)"}])
+
 
 (defn- kv-editor
   "key-value 行编辑器（Webhook headers / bodyParams）。"
@@ -339,23 +347,24 @@
   [:div {:style {:marginTop 6}}
    [:div {:style {:fontSize 12 :color "#909399" :marginBottom 4}} label]
    (doall
-    (for [[i row] (map-indexed vector (or rows []))]
-      ^{:key i}
-      [:div {:style {:display "flex" :gap 6 :marginBottom 4}}
-       [:input {:style {:flex 1 :padding "4px 8px" :border "1px solid #d9d9d9" :borderRadius 4}
-                :placeholder "参数名" :value (:key row)
-                :onChange #(on-change (assoc (vec (or rows [])) i
+     (for [[i row] (map-indexed vector (or rows []))]
+       ^{:key i}
+       [:div {:style {:display "flex" :gap 6 :marginBottom 4}}
+        [:input {:style {:flex 1 :padding "4px 8px" :border "1px solid #d9d9d9" :borderRadius 4}
+                 :placeholder "参数名" :value (:key row)
+                 :onChange #(on-change (assoc (vec (or rows [])) i
                                               (assoc row :key (-> % .-target .-value))))}]
-       [:input {:style {:flex 1 :padding "4px 8px" :border "1px solid #d9d9d9" :borderRadius 4}
-                :placeholder "值（支持 ${字段}）" :value (:value row)
-                :onChange #(on-change (assoc (vec (or rows [])) i
+        [:input {:style {:flex 1 :padding "4px 8px" :border "1px solid #d9d9d9" :borderRadius 4}
+                 :placeholder "值（支持 ${字段}）" :value (:value row)
+                 :onChange #(on-change (assoc (vec (or rows [])) i
                                               (assoc row :value (-> % .-target .-value))))}]
-       [:a {:style {:color "#f56c6c" :fontSize 12}
-            :on-click #(on-change (vec (keep-indexed (fn [j r] (when (not= j i) r)) (or rows []))))}
-        "删除"]]))
+        [:a {:style {:color "#f56c6c" :fontSize 12}
+             :on-click #(on-change (vec (keep-indexed (fn [j r] (when (not= j i) r)) (or rows []))))}
+         "删除"]]))
    [:a {:style {:fontSize 12 :color "#409eff"}
         :on-click #(on-change (conj (vec (or rows [])) {:key "" :value ""}))}
     "＋ 添加一行"]])
+
 
 (defn- template-insert-select
   "模板变量插入下拉（P1）：选中后把 token 插入绑定输入框的光标处并恢复光标。"
@@ -369,14 +378,15 @@
                                     nv (str (subs value 0 pos) (str token) (subs value pos))]
                                 (on-change nv)
                                 (js/setTimeout
-                                 (fn []
-                                   (when el
-                                     (.focus el)
-                                     (set! (.-selectionStart el) (+ pos (count (str token))))
-                                     (set! (.-selectionEnd el) (+ pos (count (str token))))))
-                                 50))))}
+                                  (fn []
+                                    (when el
+                                      (.focus el)
+                                      (set! (.-selectionStart el) (+ pos (count (str token))))
+                                      (set! (.-selectionEnd el) (+ pos (count (str token))))))
+                                  50))))}
    (doall (for [{:keys [value label]} options]
             ^{:key value} [antd/select-option {:value value} label]))])
+
 
 (defn- template-input
   "标题模板输入框 + 变量插入下拉（P1）。options: [{:value token :label 显示}]"
@@ -386,6 +396,7 @@
      [antd/input {:ref ref :value value :placeholder placeholder
                   :onChange (fn [e] (on-change (-> e .-target .-value)))}]
      [template-insert-select ref value on-change "插入变量" options]]))
+
 
 (defn- print-template-editor
   "打印模板编辑器（P1）：textarea + 变量插入下拉（{{xxx}} 格式）。"
@@ -398,6 +409,7 @@
      [:div {:style {:marginTop 6}}
       [template-insert-select ref value on-change "插入打印变量" options]]]))
 
+
 (defn extra-tab
   "更多设置：Phase 3/4 治理能力（编号规则/自动去重/标题规则/摘要字段/打印模板/Webhook）
    + P0-4 提交人/审批人权限开关 + P1 Webhook 响应回写。
@@ -409,9 +421,10 @@
            form-fields]}]
   (let [rule-enabled? (boolean (:enable mprocess-rule))
         upd-rule! (fn [k v] (set-mprocess-rule! (assoc mprocess-rule k v)))
-        section (fn [title] [:div {:style {:display "flex" :alignItems "center" :margin "16px 0 8px"}}
-                             [:div {:style {:width 4 :height 16 :background "#409eff" :marginRight 8}}]
-                             [:span {:style {:fontWeight 600}} title]])]
+        section (fn [title]
+                  [:div {:style {:display "flex" :alignItems "center" :margin "16px 0 8px"}}
+                   [:div {:style {:width 4 :height 16 :background "#409eff" :marginRight 8}}]
+                   [:span {:style {:fontWeight 600}} title]])]
     [:div {:style {:padding 16 :maxWidth 640}}
      [antd/form {:layout "vertical"}
       (section "提交人 / 审批人权限")
@@ -463,13 +476,13 @@
                         :on-change set-mname-rule!
                         :placeholder "如 {发起人}的{days}天请假申请"
                         :options (concat
-                                  (mapv (fn [f]
-                                          {:value (str "{" (:field f) "}")
-                                           :label (str (:title f) " {" (:field f) "}")})
-                                        form-fields)
-                                  [{:value "{发起人}" :label "发起人 {发起人}"}
-                                   {:value "{发起时间}" :label "发起时间 {发起时间}"}
-                                   {:value "{流程名称}" :label "流程名称 {流程名称}"}])}]]
+                                   (mapv (fn [f]
+                                           {:value (str "{" (:field f) "}")
+                                            :label (str (:title f) " {" (:field f) "}")})
+                                         form-fields)
+                                   [{:value "{发起人}" :label "发起人 {发起人}"}
+                                    {:value "{发起时间}" :label "发起时间 {发起时间}"}
+                                    {:value "{流程名称}" :label "流程名称 {流程名称}"}])}]]
       (section "摘要字段")
       [antd/form-item {:label "实例/待办/抄送列表展示的摘要（需绑定动态表单）"}
        [antd/select {:value (clj->js (or msummary-fields [])) :mode "multiple"
@@ -480,25 +493,25 @@
                  [antd/select-option {:value (:field f)} (:title f)]))]]
       (section "流程 Webhook（HTTP 回调）")
       (doall
-       (for [{:keys [key label]} webhook-events]
-         (let [hook (get mwebhooks (keyword key) {})
-               enabled? (boolean (:enable hook))
-               upd! (fn [k v] (set-mwebhooks! (assoc mwebhooks (keyword key) (assoc hook k v))))]
-           ^{:key key}
-           [:div {:style {:border "1px solid #f0f0f0" :borderRadius 6 :padding 10 :marginBottom 8}}
-            [:div {:style {:display "flex" :gap 8 :alignItems "center"}}
-             [antd/switch {:size "small" :checked enabled?
-                           :onChange #(upd! :enable (boolean %))}]
-             [:span {:style {:fontSize 13 :fontWeight 500}} label]]
-            (when enabled?
-              [:div {:style {:marginTop 8}}
-               [:input {:style {:width "100%" :padding "5px 8px" :border "1px solid #d9d9d9" :borderRadius 4}
-                        :placeholder "回调 URL（POST）" :value (or (:url hook) "")
-                        :onChange #(upd! :url (-> % .-target .-value))}]
-               [kv-editor "Headers" (:headers hook) #(upd! :headers %)]
-               [kv-editor "Body 参数" (:bodyParams hook) #(upd! :bodyParams %)]
-               [kv-editor "响应回写（JSON 路径 → 流程变量名）" (:response-mappings hook)
-                #(upd! :response-mappings %)]])])))
+        (for [{:keys [key label]} webhook-events]
+          (let [hook (get mwebhooks (keyword key) {})
+                enabled? (boolean (:enable hook))
+                upd! (fn [k v] (set-mwebhooks! (assoc mwebhooks (keyword key) (assoc hook k v))))]
+            ^{:key key}
+            [:div {:style {:border "1px solid #f0f0f0" :borderRadius 6 :padding 10 :marginBottom 8}}
+             [:div {:style {:display "flex" :gap 8 :alignItems "center"}}
+              [antd/switch {:size "small" :checked enabled?
+                            :onChange #(upd! :enable (boolean %))}]
+              [:span {:style {:fontSize 13 :fontWeight 500}} label]]
+             (when enabled?
+               [:div {:style {:marginTop 8}}
+                [:input {:style {:width "100%" :padding "5px 8px" :border "1px solid #d9d9d9" :borderRadius 4}
+                         :placeholder "回调 URL（POST）" :value (or (:url hook) "")
+                         :onChange #(upd! :url (-> % .-target .-value))}]
+                [kv-editor "Headers" (:headers hook) #(upd! :headers %)]
+                [kv-editor "Body 参数" (:bodyParams hook) #(upd! :bodyParams %)]
+                [kv-editor "响应回写（JSON 路径 → 流程变量名）" (:response-mappings hook)
+                 #(upd! :response-mappings %)]])])))
       (section "打印模板")
       [:div {:style {:marginBottom 12}}
        [antd/space {:align "center"}
@@ -508,29 +521,29 @@
         [antd/form-item {:label "打印 HTML 模板（占位符：{{字段}}、{{流程记录}}）"}
          [print-template-editor (or mprint-html "") set-mprint-html!
           (concat
-           (mapv (fn [f]
-                   {:value (str "{{" (:field f) "}}")
-                    :label (str (:title f) " {{" (:field f) "}}")})
-                 form-fields)
-           [{:value "{{流程记录}}" :label "流程记录 {{流程记录}}"}
-            {:value "{{发起人}}" :label "发起人 {{发起人}}"}
-            {:value "{{发起时间}}" :label "发起时间 {{发起时间}}"}
-            {:value "{{流程名称}}" :label "流程名称 {{流程名称}}"}])]])]]))
+            (mapv (fn [f]
+                    {:value (str "{{" (:field f) "}}")
+                     :label (str (:title f) " {{" (:field f) "}}")})
+                  form-fields)
+            [{:value "{{流程记录}}" :label "流程记录 {{流程记录}}"}
+             {:value "{{发起人}}" :label "发起人 {{发起人}}"}
+             {:value "{{发起时间}}" :label "发起时间 {{发起时间}}"}
+             {:value "{{流程名称}}" :label "流程名称 {{流程名称}}"}])]])]]))
 
 
-
-(defn- create-model-modal [{:keys [visible? on-close on-created]}]
+(defn- create-model-modal
+  [{:keys [visible? on-close on-created]}]
   (let [[form] (antd/form-use-form)
         [categories set-categories!] (hooks/use-state [])
         [submitting? set-submitting!] (hooks/use-state false)
         key-pattern #"^[a-zA-Z_][-\w.$]*$"]
     (hooks/use-effect
-     (fn []
-       (when visible?
-         (api/bpm-list-categories {:page 1 :size 1000}
-                                  #(set-categories! (walk/keywordize-keys (get-in % [:data :rows])))
-                                  #())))
-     [visible?])
+      (fn []
+        (when visible?
+          (api/bpm-list-categories {:page 1 :size 1000}
+                                   #(set-categories! (walk/keywordize-keys (get-in % [:data :rows])))
+                                   #())))
+      [visible?])
     [antd/modal {:title "新建模型" :open visible? :width 480
                  :confirmLoading submitting?
                  :onCancel on-close
@@ -540,20 +553,20 @@
                              (let [v (js->clj values :keywordize-keys true)]
                                (set-submitting! true)
                                (api/bpm-create-model
-                                {:model_name (:model_name v)
-                                 :model_key (:model_key v)
-                                 :category_id (:category_id v)
-                                 :remark (:remark v)}
-                                (fn [res]
-                                  (set-submitting! false)
-                                  (if (= 200 (:code res))
-                                    (do (antd/success! "模型创建成功，请继续设计流程")
-                                        (on-close)
-                                        (on-created (:model_key v)))
-                                    (antd/error! (str "创建失败: " (:msg res)))))
-                                (fn [_]
-                                  (set-submitting! false)
-                                  (antd/error! "创建失败")))))}
+                                 {:model_name (:model_name v)
+                                  :model_key (:model_key v)
+                                  :category_id (:category_id v)
+                                  :remark (:remark v)}
+                                 (fn [res]
+                                   (set-submitting! false)
+                                   (if (= 200 (:code res))
+                                     (do (antd/success! "模型创建成功，请继续设计流程")
+                                         (on-close)
+                                         (on-created (:model_key v)))
+                                     (antd/error! (str "创建失败: " (:msg res)))))
+                                 (fn [_]
+                                   (set-submitting! false)
+                                   (antd/error! "创建失败")))))}
       [antd/form-item {:label "流程名称" :name "model_name"
                        :rules [{:required true :message "请输入流程名称"}]}
        [antd/input {:placeholder "如：请假审批"}]]
@@ -565,9 +578,10 @@
       [antd/form-item {:label "流程分类" :name "category_id"}
        [antd/select {:style {:width "100%"} :allowClear true :placeholder "请选择分类"}
         (doall (for [c categories] ^{:key (:category_id c)}
-                 [antd/select-option {:value (:category_id c)} (:name c)]))]]
+                    [antd/select-option {:value (:category_id c)} (:name c)]))]]
       [antd/form-item {:label "备注" :name "remark"}
        [antd/text-area {:rows 2 :placeholder "备注(可选)"}]]]]))
+
 
 (defn- refresh-categories!
   "重新加载分类列表。"
@@ -576,6 +590,7 @@
                            #(set-categories! (walk/keywordize-keys (get-in % [:data :rows])))
                            (fn [_] (antd/error! "加载分类失败"))))
 
+
 (defn- category-manage-modal
   "分类管理：新增 / 改名 / 删除 / 拖拽排序（对齐 vben 分类管理）。"
   [{:keys [open? on-close on-changed]}]
@@ -583,12 +598,12 @@
         [new-name set-new-name!] (hooks/use-state "")
         drag-id (hooks/use-ref nil)]
     (hooks/use-effect
-     (fn []
-       (when open?
-         (api/bpm-list-categories {:page 1 :size 1000}
-                                  #(set-cats! (walk/keywordize-keys (get-in % [:data :rows])))
-                                  (fn [_] (antd/error! "加载分类失败")))))
-     [open?])
+      (fn []
+        (when open?
+          (api/bpm-list-categories {:page 1 :size 1000}
+                                   #(set-cats! (walk/keywordize-keys (get-in % [:data :rows])))
+                                   (fn [_] (antd/error! "加载分类失败")))))
+      [open?])
     (let [save-sort! (fn [ordered]
                        (set-cats! ordered)
                        (api/bpm-sort-categories (mapv :category_id ordered)
@@ -625,37 +640,38 @@
           "新增"]]
         (if (seq cats)
           (doall
-           (for [[i c] (map-indexed vector cats)]
-             ^{:key (:category_id c)}
-             [:div {:style {:display "flex" :gap 8 :alignItems "center" :padding "6px 4px"
-                            :borderBottom "1px solid #f5f5f5" :cursor "grab"}
-                    :draggable true
-                    :on-drag-start (fn [e] (.setData (.-dataTransfer e) "text/plain" (str "cat:" (:category_id c))))
-                    :on-drag-over (fn [e] (.preventDefault e))
-                    :on-drop (fn [e]
-                               (.preventDefault e)
-                               (when-let [data (.getData (.-dataTransfer e) "text/plain")]
-                                 (when (and (str/starts-with? data "cat:")
-                                            (not= (subs data 4) (str (:category_id c))))
-                                   (let [did (subs data 4)
-                                         without (vec (remove #(= (str (:category_id %)) did) cats))
-                                         idx (.indexOf (clj->js (mapv :category_id without)) (:category_id c))
-                                         idx (if (neg? idx) (count without) idx)
-                                         reordered (vec (concat (subvec without 0 idx)
-                                                                [(first (filter #(= (str (:category_id %)) did) cats))]
-                                                                (subvec without idx)))]
-                                     (save-sort! reordered)))))}
-              [:span {:style {:color "#c0c4cc"}} "≡"]
-              [antd/input {:default-value (:name c) :size "small" :style {:flex 1}
-                           :on-blur (fn [e] (rename! c (-> e .-target .-value)))
-                           :on-press-enter (fn [e] (rename! c (-> e .-target .-value)))}]
-              [antd/tag {:color "blue"} (str (inc i))]
-              [antd/popconfirm {:title (str "确认删除分类「" (:name c) "」？分类下的模型将归入未分类")
-                                :on-confirm #(remove! c)}
-               [antd/button {:type "text" :size "small" :danger true} "删除"]]]))
+            (for [[i c] (map-indexed vector cats)]
+              ^{:key (:category_id c)}
+              [:div {:style {:display "flex" :gap 8 :alignItems "center" :padding "6px 4px"
+                             :borderBottom "1px solid #f5f5f5" :cursor "grab"}
+                     :draggable true
+                     :on-drag-start (fn [e] (.setData (.-dataTransfer e) "text/plain" (str "cat:" (:category_id c))))
+                     :on-drag-over (fn [e] (.preventDefault e))
+                     :on-drop (fn [e]
+                                (.preventDefault e)
+                                (when-let [data (.getData (.-dataTransfer e) "text/plain")]
+                                  (when (and (str/starts-with? data "cat:")
+                                             (not= (subs data 4) (str (:category_id c))))
+                                    (let [did (subs data 4)
+                                          without (vec (remove #(= (str (:category_id %)) did) cats))
+                                          idx (.indexOf (clj->js (mapv :category_id without)) (:category_id c))
+                                          idx (if (neg? idx) (count without) idx)
+                                          reordered (vec (concat (subvec without 0 idx)
+                                                                 [(first (filter #(= (str (:category_id %)) did) cats))]
+                                                                 (subvec without idx)))]
+                                      (save-sort! reordered)))))}
+               [:span {:style {:color "#c0c4cc"}} "≡"]
+               [antd/input {:default-value (:name c) :size "small" :style {:flex 1}
+                            :on-blur (fn [e] (rename! c (-> e .-target .-value)))
+                            :on-press-enter (fn [e] (rename! c (-> e .-target .-value)))}]
+               [antd/tag {:color "blue"} (str (inc i))]
+               [antd/popconfirm {:title (str "确认删除分类「" (:name c) "」？分类下的模型将归入未分类")
+                                 :on-confirm #(remove! c)}
+                [antd/button {:type "text" :size "small" :danger true} "删除"]]]))
           [:div {:style {:color "#c0c4cc" :textAlign "center" :padding 20}} "暂无分类，请先新增"])]
        [:div {:style {:marginTop 12 :color "#909399" :fontSize 12}}
         "提示：拖动左侧 ≡ 手柄可调整分类顺序，自动保存"]])))
+
 
 (defn- category-card
   "单个分类卡：可折叠、可拖拽排序；卡内模型表格行可拖拽排序。"
@@ -679,19 +695,19 @@
      [antd/card
       {:size "small"
        :title (r/as-element
-               [:div {:style {:display "flex" :alignItems "center" :gap 8}}
-                [:span {:style {:color "#c0c4cc" :cursor (if category "grab" "default")
-                                :marginRight 2}
-                        :title (when category "拖拽调整分类顺序")}
-                 "≡"]
-                [:span {:style {:fontWeight 600 :cursor "pointer"} :on-click on-toggle}
-                 title]
-                [antd/tag {:color "blue"} (str (count models) " 个")]
-                (when (and category (:code category))
-                  [:span {:style {:fontSize 12 :color "#c0c4cc"}} (:code category)])])
+                [:div {:style {:display "flex" :alignItems "center" :gap 8}}
+                 [:span {:style {:color "#c0c4cc" :cursor (if category "grab" "default")
+                                 :marginRight 2}
+                         :title (when category "拖拽调整分类顺序")}
+                  "≡"]
+                 [:span {:style {:fontWeight 600 :cursor "pointer"} :on-click on-toggle}
+                  title]
+                 [antd/tag {:color "blue"} (str (count models) " 个")]
+                 (when (and category (:code category))
+                   [:span {:style {:fontSize 12 :color "#c0c4cc"}} (:code category)])])
        :extra (r/as-element
-               [:span {:style {:color "#909399" :cursor "pointer"} :on-click on-toggle}
-                (if collapsed? "▸ 展开" "▾ 收起")])}
+                [:span {:style {:color "#909399" :cursor "pointer"} :on-click on-toggle}
+                 (if collapsed? "▸ 展开" "▾ 收起")])}
       (when-not collapsed?
         (if (seq models)
           [antd/table
@@ -715,7 +731,9 @@
           [:div {:style {:color "#c0c4cc" :padding "14px 0" :textAlign "center" :fontSize 13}}
            "该分类下暂无流程模型"]))]]))
 
-(defn bpm-model-page []
+
+(defn bpm-model-page
+  []
   (let [items @(rf/subscribe [:bpm-model/items])
         loading? @(rf/subscribe [:bpm-model/loading?])
         [kw set-kw!] (hooks/use-state "")
@@ -725,14 +743,14 @@
         [cat-manage? set-cat-manage!] (hooks/use-state false)
         [create-open? set-create-open!] (hooks/use-state false)]
     (hooks/use-effect
-     (fn []
-       (rf/dispatch [:bpm/model-fetch {:page 1 :size 1000}])
-       (refresh-categories! set-categories!)
-       (api/bpmmgmt-list "form" {:page 1 :size 1000}
-                         #(set-forms! (walk/keywordize-keys (get-in % [:data :rows])))
-                         #())
-       js/undefined)
-     [])
+      (fn []
+        (rf/dispatch [:bpm/model-fetch {:page 1 :size 1000}])
+        (refresh-categories! set-categories!)
+        (api/bpmmgmt-list "form" {:page 1 :size 1000}
+                          #(set-forms! (walk/keywordize-keys (get-in % [:data :rows])))
+                          #())
+        js/undefined)
+      [])
     (let [forms-by-id (into {} (map (juxt :form_id identity)) forms)
           kw-trim (str/trim kw)
           filtered (if (seq kw-trim)
@@ -785,16 +803,16 @@
        (if (and (empty? groups) (not loading?))
          [antd/empty-component {:description "暂无流程模型"}]
          (doall
-          (for [g groups]
-            ^{:key (str "cat-" (:key g))}
-            [category-card
-             {:category (:category g)
-              :models (:models g)
-              :collapsed? (get collapsed (:key g) false)
-              :on-toggle #(set-collapsed! (update collapsed (:key g) not))
-              :forms-by-id forms-by-id
-              :on-model-sort on-model-sort
-              :on-cat-sort on-cat-sort}])))
+           (for [g groups]
+             ^{:key (str "cat-" (:key g))}
+             [category-card
+              {:category (:category g)
+               :models (:models g)
+               :collapsed? (get collapsed (:key g) false)
+               :on-toggle #(set-collapsed! (update collapsed (:key g) not))
+               :forms-by-id forms-by-id
+               :on-model-sort on-model-sort
+               :on-cat-sort on-cat-sort}])))
        [create-model-modal {:visible? create-open?
                             :on-close #(set-create-open! false)
                             :on-created (fn [mkey]

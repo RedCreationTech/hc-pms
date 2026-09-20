@@ -1,25 +1,26 @@
 (ns com.ruoyi.frontend.components.icon-picker
   "图标选择器与图标解析组件。"
   (:require
-   [clojure.string :as str]
-   [reagent.core :as r]
-   [reagent.hooks :as hooks]
-   ["@ant-design/icons" :refer [AppstoreOutlined MenuOutlined FunctionOutlined
-                                DashboardOutlined SettingOutlined UserOutlined TeamOutlined
-                                SafetyOutlined ApartmentOutlined TagOutlined BookOutlined
-                                ToolOutlined MonitorOutlined ScheduleOutlined DatabaseOutlined
-                                CloudOutlined CodeOutlined FormOutlined ProfileOutlined
-                                BellOutlined ContainerOutlined KeyOutlined FileTextOutlined
-                                HomeOutlined MailOutlined LinkOutlined PushpinOutlined
-                                StarOutlined HeartOutlined LockOutlined UnlockOutlined
-                                ShopOutlined ShoppingOutlined TrophyOutlined BugOutlined
-                                ThunderboltOutlined FireOutlined ExperimentOutlined
-                                PieChartOutlined BarChartOutlined LineChartOutlined
-                                TableOutlined ProjectOutlined FolderOpenOutlined
-                                PictureOutlined DeploymentUnitOutlined ClusterOutlined
-                                AuditOutlined HistoryOutlined RocketOutlined
-                                CalendarOutlined CustomerServiceOutlined
-                                MoneyCollectOutlined]]))
+    ["@ant-design/icons" :refer [AppstoreOutlined MenuOutlined FunctionOutlined
+                                 DashboardOutlined SettingOutlined UserOutlined TeamOutlined
+                                 SafetyOutlined ApartmentOutlined TagOutlined BookOutlined
+                                 ToolOutlined MonitorOutlined ScheduleOutlined DatabaseOutlined
+                                 CloudOutlined CodeOutlined FormOutlined ProfileOutlined
+                                 BellOutlined ContainerOutlined KeyOutlined FileTextOutlined
+                                 HomeOutlined MailOutlined LinkOutlined PushpinOutlined
+                                 StarOutlined HeartOutlined LockOutlined UnlockOutlined
+                                 ShopOutlined ShoppingOutlined TrophyOutlined BugOutlined
+                                 ThunderboltOutlined FireOutlined ExperimentOutlined
+                                 PieChartOutlined BarChartOutlined LineChartOutlined
+                                 TableOutlined ProjectOutlined FolderOpenOutlined
+                                 PictureOutlined DeploymentUnitOutlined ClusterOutlined
+                                 AuditOutlined HistoryOutlined RocketOutlined
+                                 CalendarOutlined CustomerServiceOutlined
+                                 MoneyCollectOutlined]]
+    [clojure.string :as str]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
+
 
 ;; ─── 图标映射 ──────────────────────────────────────────────────────
 
@@ -79,15 +80,19 @@
    "CustomerServiceOutlined" CustomerServiceOutlined
    "MoneyCollectOutlined" MoneyCollectOutlined})
 
+
 (def ruoyi-icon-names
   "RuoYi-Vue src/assets/icons/svg 下的图标名称。"
   ["404" "bell" "bug" "build" "button" "cascader" "chart" "checkbox" "clipboard" "code" "color" "component" "dashboard" "date" "date-range" "dict" "documentation" "download" "drag" "druid" "edit" "education" "email" "enter" "example" "excel" "exit-fullscreen" "eye" "eye-open" "form" "fullscreen" "github" "guide" "icon" "input" "international" "job" "language" "link" "list" "lock" "log" "logininfor" "message" "money" "monitor" "more-up" "nested" "number" "online" "password" "pdf" "people" "peoples" "phone" "post" "qq" "question" "radio" "rate" "redis" "redis-list" "row" "search" "select" "server" "shopping" "size" "skill" "slider" "star" "swagger" "switch" "system" "tab" "table" "textarea" "theme" "time" "time-range" "tool" "tree" "tree-table" "upload" "user" "validCode" "wechat" "zip"])
 
+
 (def ^:private ruoyi-icon-set (set ruoyi-icon-names))
+
 
 (def icon-options
   "图标选择器展示的图标选项。"
   (mapv (fn [name] {:name name}) ruoyi-icon-names))
+
 
 (def ^:private alias->name
   "常用图标别名到标准组件名称的映射。"
@@ -125,6 +130,7 @@
    "form" "FormOutlined"
    "code" "CodeOutlined"})
 
+
 (defn normalize-icon-name
   "规范化图标名称，支持 RuoYi svg 名称、标准 AntD 名称或常用别名。"
   [name]
@@ -135,14 +141,18 @@
           (when (contains? icon-name->component s) s)
           (when (re-matches #"[A-Za-z]+Outlined" s) s)))))
 
+
 (defn icon-component
   "根据名称返回图标 React 组件类，未找到时返回 nil。"
   [name]
   (when-let [n (normalize-icon-name name)]
     (get icon-name->component n)))
 
-(defn- icon-url [name]
+
+(defn- icon-url
+  [name]
   (str "/icons/svg/" name ".svg"))
+
 
 (defn icon-element
   "根据名称返回图标 React 元素，未找到时返回 nil。"
@@ -174,6 +184,7 @@
        (when-let [Icon (get icon-name->component n)]
          (r/as-element [:> Icon props]))))))
 
+
 ;; ─── 图标选择器 ──────────────────────────────────────────────────────
 
 (defn icon-picker
@@ -192,38 +203,38 @@
       :styles {:body {:width 460 :padding 10}}
       :content
       (r/as-element
-       [:div {:style {:width "100%"}}
-        [com.ruoyi.frontend.antd/input {:placeholder "请输入图标名称"
-                                        :allowClear true
-                                        :value keyword
-                                        :style {:marginBottom 5}
-                                        :onChange #(set-keyword! (.. % -target -value))}]
-        [:div {:style {:height 200 :overflow "auto"}}
-         [:div {:style {:display "flex" :flexWrap "wrap"}}
-          (for [item filtered]
-            ^{:key item}
-            [:div {:style {:width "33.3333%"
-                           :height 25
-                           :lineHeight "25px"
-                           :cursor "pointer"
-                           :display "flex"}
-                   :on-click #(do
-                                (when on-change (on-change item))
-                                (.click js/document.body))}
-             [:div {:style {:display "flex"
-                            :alignItems "center"
-                            :maxWidth "100%"
-                            :height "100%"
-                            :padding "0 5px"
-                            :borderRadius 5
-                            :background (when (= value item) "#ececec")}}
-              [icon-element item {:style {:width 16 :height 25 :flexShrink 0}}]
-              [:span {:style {:display "inline-block"
-                              :paddingLeft 2
-                              :overflow "hidden"
-                              :textOverflow "ellipsis"
-                              :whiteSpace "nowrap"}}
-               item]]])]]])}
+        [:div {:style {:width "100%"}}
+         [com.ruoyi.frontend.antd/input {:placeholder "请输入图标名称"
+                                         :allowClear true
+                                         :value keyword
+                                         :style {:marginBottom 5}
+                                         :onChange #(set-keyword! (.. % -target -value))}]
+         [:div {:style {:height 200 :overflow "auto"}}
+          [:div {:style {:display "flex" :flexWrap "wrap"}}
+           (for [item filtered]
+             ^{:key item}
+             [:div {:style {:width "33.3333%"
+                            :height 25
+                            :lineHeight "25px"
+                            :cursor "pointer"
+                            :display "flex"}
+                    :on-click #(do
+                                 (when on-change (on-change item))
+                                 (.click js/document.body))}
+              [:div {:style {:display "flex"
+                             :alignItems "center"
+                             :maxWidth "100%"
+                             :height "100%"
+                             :padding "0 5px"
+                             :borderRadius 5
+                             :background (when (= value item) "#ececec")}}
+               [icon-element item {:style {:width 16 :height 25 :flexShrink 0}}]
+               [:span {:style {:display "inline-block"
+                               :paddingLeft 2
+                               :overflow "hidden"
+                               :textOverflow "ellipsis"
+                               :whiteSpace "nowrap"}}
+                item]]])]]])}
      [com.ruoyi.frontend.antd/input
       {:readOnly true
        :value (or value "")

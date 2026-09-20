@@ -1,41 +1,48 @@
 (ns com.ruoyi.web.routes.system
   "系统管理路由聚合。"
   (:require
-   [com.ruoyi.web.controllers.system.user :as user]
-   [com.ruoyi.web.controllers.system.role :as role]
-   [com.ruoyi.web.controllers.system.menu :as menu]
-   [com.ruoyi.web.controllers.system.dept :as dept]
-   [com.ruoyi.web.controllers.system.post :as post]
-   [com.ruoyi.web.controllers.system.dict :as dict]
-   [com.ruoyi.web.controllers.system.config :as config]
-   [com.ruoyi.web.controllers.system.log :as log]
-   [com.ruoyi.web.controllers.system.online :as online]
-   [com.ruoyi.web.controllers.system.notice :as notice]
-   [com.ruoyi.web.controllers.job :as job]
-   [com.ruoyi.web.controllers.system.profile :as profile]
-   [com.ruoyi.web.controllers.monitor :as monitor]
-   [com.ruoyi.web.controllers.system.cache :as cache]
-   [com.ruoyi.web.controllers.system.import-export :as im]
-   [com.ruoyi.web.middleware.auth :as auth-mw]
+    [com.ruoyi.web.controllers.job :as job]
+    [com.ruoyi.web.controllers.monitor :as monitor]
+    [com.ruoyi.web.controllers.system.cache :as cache]
+    [com.ruoyi.web.controllers.system.config :as config]
+    [com.ruoyi.web.controllers.system.dept :as dept]
+    [com.ruoyi.web.controllers.system.dict :as dict]
+    [com.ruoyi.web.controllers.system.import-export :as im]
+    [com.ruoyi.web.controllers.system.log :as log]
+    [com.ruoyi.web.controllers.system.menu :as menu]
+    [com.ruoyi.web.controllers.system.notice :as notice]
+    [com.ruoyi.web.controllers.system.online :as online]
+    [com.ruoyi.web.controllers.system.post :as post]
+    [com.ruoyi.web.controllers.system.profile :as profile]
+    [com.ruoyi.web.controllers.system.role :as role]
+    [com.ruoyi.web.controllers.system.user :as user]
+    [com.ruoyi.web.middleware.auth :as auth-mw]
+    [malli.util :as mu]))
 
-   [malli.util :as mu]))
 
 ;; ── Shared Swagger schemas ──────────────────────────────────────────
-(def PagingQuery [:map {:closed true}
-                  [:page {:optional true} :int] [:size {:optional true} :int]
-                  [:order_by {:optional true} :string] [:is_asc {:optional true} :string]])
-(def RoleUserQuery [:map {:closed true}
-                    [:role_id :int]
-                    [:user_name {:optional true} :string]
-                    [:phonenumber {:optional true} :string]
-                    [:page {:optional true} :int] [:size {:optional true} :int]
-                    [:order_by {:optional true} :string] [:is_asc {:optional true} :string]])
+(def PagingQuery
+  [:map {:closed true}
+   [:page {:optional true} :int] [:size {:optional true} :int]
+   [:order_by {:optional true} :string] [:is_asc {:optional true} :string]])
+
+
+(def RoleUserQuery
+  [:map {:closed true}
+   [:role_id :int]
+   [:user_name {:optional true} :string]
+   [:phonenumber {:optional true} :string]
+   [:page {:optional true} :int] [:size {:optional true} :int]
+   [:order_by {:optional true} :string] [:is_asc {:optional true} :string]])
+
 
 (def PathId [:map [:id [:re #"\d+"]]])
 (def UserIds [:map [:id [:re #"\d+(,\d+)*"]]])
 
+
 ;; ── Routes ──────────────────────────────────────────────────────────
-(defn system-routes [{:keys [user-service role-service menu-service dept-service post-service dict-service config-service log-service online-service query-fn datasource]}]
+(defn system-routes
+  [{:keys [user-service role-service menu-service dept-service post-service dict-service config-service log-service online-service query-fn datasource]}]
   ["/system"
    {:middleware [(auth-mw/auth-middleware {:required? true})]
     :swagger {:tags ["系统管理"]}}
@@ -114,7 +121,7 @@
     ["/treeselect" {:get {:summary "菜单树选项" :description "获取菜单树（用于角色权限选择）"
                           :handler (partial menu/menu-tree {:menu-service menu-service})}}]
     ["/sort" {:put {:summary "保存菜单排序" :description "批量保存菜单拖拽排序后的 order_num"
-                     :handler (partial menu/save-sort {:menu-service menu-service})}}]
+                    :handler (partial menu/save-sort {:menu-service menu-service})}}]
     ["/:id" {:get    {:summary "菜单详情" :parameters {:path PathId}
                       :handler (partial menu/get-menu {:menu-service menu-service})}
              :put    {:summary "更新菜单" :parameters {:path PathId}

@@ -1,10 +1,12 @@
 (ns com.ruoyi.bpm.core-test
   "BPM 核心 API 单元测试：在独立的内存 H2 引擎上验证，无需 Integrant 系统。"
   (:require
-   [clojure.test :refer [deftest is testing]]
-   [com.ruoyi.bpm.core :as bpm])
+    [clojure.test :refer [deftest is testing]]
+    [com.ruoyi.bpm.core :as bpm])
   (:import
-   (org.flowable.engine ProcessEngineConfiguration)))
+    (org.flowable.engine
+      ProcessEngineConfiguration)))
+
 
 (defn- leave-bpmn
   "带排他网关 + 两个审批节点的请假流程。"
@@ -27,6 +29,7 @@
        "<sequenceFlow id=\"f5\" sourceRef=\"hr\" targetRef=\"end\"/>"
        "</process></definitions>"))
 
+
 (defn- new-engine!
   "创建一个全新的内存 H2 引擎（每测试独立，避免状态污染）。"
   []
@@ -36,6 +39,7 @@
         _ (.setAsyncExecutorActivate cfg false)]
     (.buildProcessEngine cfg)))
 
+
 (defn- with-leave-engine
   "在临时内存引擎上部署请假流程，调用 (f engine)，最后关闭引擎。"
   [f]
@@ -44,6 +48,7 @@
       (bpm/deploy! engine (leave-bpmn) "leaveT" "请假审批")
       (f engine)
       (finally (.close engine)))))
+
 
 (deftest full-approval-cycle
   (testing "完整审批周期：发起->经理审批->HR审批->结束, 已办/历史可追踪"
@@ -73,6 +78,7 @@
             (is (some #(= "部门经理审批" (:activity-name %)) acts))
             (is (some #(= "HR确认" (:activity-name %)) acts))))))))
 
+
 (deftest reject-path
   (testing "驳回：approved=false 走排他网关到终止节点"
     (with-leave-engine
@@ -84,6 +90,7 @@
           (is (empty? (bpm/todo-list engine "admin")))
           (is (= 0 (bpm/instance-count engine)))
           (is (some #(= "rejectEnd" (:activity-id %)) (bpm/history-of engine pid))))))))
+
 
 (deftest transfer-and-claim
   (testing "认领与转办"

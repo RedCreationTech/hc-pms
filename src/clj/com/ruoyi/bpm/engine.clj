@@ -13,12 +13,15 @@
     · 生产可把 Flowable 库切到外部 MySQL/PostgreSQL（仅改 JDBC URL）
   "
   (:require
-   [clojure.string :as str]
-   [clojure.tools.logging :as log]
-   [com.ruoyi.bpm.core :as bpm-core]
-   [integrant.core :as ig])
+    [clojure.string :as str]
+    [clojure.tools.logging :as log]
+    [com.ruoyi.bpm.core :as bpm-core]
+    [integrant.core :as ig])
   (:import
-   (org.flowable.engine ProcessEngine ProcessEngineConfiguration)))
+    (org.flowable.engine
+      ProcessEngine
+      ProcessEngineConfiguration)))
+
 
 (defn- as-bool
   "将环境值/配置值转为布尔（容忍字符串 'true'/'1'/'false'/'0'）。"
@@ -26,6 +29,7 @@
   (if (string? v)
     (contains? #{"true" "1" "yes" "on"} (str/lower-case v))
     (boolean v)))
+
 
 (defn build-process-engine
   "构建并启动一个 Flowable ProcessEngine（standalone，独立 H2 文件）。
@@ -48,6 +52,7 @@
               "| async:" async?)
     engine))
 
+
 (defn- halt!
   "关闭引擎。"
   [engine]
@@ -58,15 +63,18 @@
       (catch Exception e
         (log/warn "[bpm/engine] 关闭引擎出错:" (.getMessage e))))))
 
+
 ;; ── Integrant 组件 ────────────────────────────────────────────────────
 (defmethod ig/init-key :app.bpm/engine
   [_ opts]
   (log/info "[bpm/engine] 初始化 :app.bpm/engine")
   (build-process-engine opts))
 
+
 (defmethod ig/halt-key! :app.bpm/engine
   [_ engine]
   (halt! engine))
+
 
 ;; ── 便捷访问器 ────────────────────────────────────────────────────────
 (defn process-engine

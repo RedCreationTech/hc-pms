@@ -1,17 +1,20 @@
 (ns com.ruoyi.domain.business.hrm
   "HRM 人力资源领域服务。"
   (:require
-   [integrant.core :as ig]))
+    [integrant.core :as ig]))
+
 
 (defmethod ig/init-key :app.business/hrm-service
   [_ {:keys [query-fn db]}]
   {:query-fn query-fn :db db})
+
 
 (defn- page-params
   [params]
   (let [page (or (some-> (get params :page) Integer/parseInt) 1)
         size (or (some-> (get params :size) Integer/parseInt) 10)]
     {:page page :size size :offset (* (dec page) size)}))
+
 
 (defn employee-list
   [{:keys [query-fn]} params]
@@ -23,9 +26,11 @@
     {:rows (query-fn :hrm/employee-list p)
      :total (:total (query-fn :hrm/employee-count p))}))
 
+
 (defn employee-get
   [{:keys [query-fn]} id]
   (query-fn :hrm/find-employee-by-id {:employee_id id}))
+
 
 (defn employee-create
   [{:keys [query-fn]} params user]
@@ -44,6 +49,7 @@
              :remark (or (:remark params) "")
              :create_by (or user "")}))
 
+
 (defn employee-update
   [{:keys [query-fn]} params user]
   (query-fn :hrm/update-employee
@@ -61,6 +67,7 @@
              :salary_base (or (:salary_base params) 0)
              :remark (or (:remark params) "")
              :update_by (or user "")}))
+
 
 (defn employee-delete
   [{:keys [query-fn]} id]

@@ -1,11 +1,13 @@
 (ns com.ruoyi.frontend.components.right-toolbar
   "右侧工具按钮组。"
   (:require
-   [reagent.core :as r]
-   [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.components.page-toolbar :as toolbar]))
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.components.page-toolbar :as toolbar]
+    [reagent.core :as r]))
 
-(defn right-toolbar [{:keys [show-search? columns on-toggle-search on-refresh on-toggle-column]}]
+
+(defn right-toolbar
+  [{:keys [show-search? columns on-toggle-search on-refresh on-toggle-column]}]
   [toolbar/toolbar-right
    [toolbar/round-tool-button {:title (if show-search? "隐藏搜索" "显示搜索")
                                :icon (r/as-element [antd/search-icon])
@@ -16,20 +18,20 @@
    (when (seq columns)
      [antd/tooltip {:title "显隐列"}
       [antd/dropdown {:menu {:items (clj->js
-                                     (map (fn [[key {:keys [label visible?]}]]
-                                            {:key (name key)
-                                             :label (r/as-element
-                                                     [:div {:style {:display "flex"
-                                                                    :justifyContent "space-between"
-                                                                    :alignItems "center"
-                                                                    :width 120}}
-                                                      [:span label]
-                                                      [antd/switch {:size "small"
-                                                                    :checked visible?}]])})
-                                          columns))
-                            :onClick (fn [e]
-                                       (let [key (keyword (.-key e))]
-                                         (on-toggle-column key)))}
+                                      (map (fn [[key {:keys [label visible?]}]]
+                                             {:key (name key)
+                                              :label (r/as-element
+                                                       [:div {:style {:display "flex"
+                                                                      :justifyContent "space-between"
+                                                                      :alignItems "center"
+                                                                      :width 120}}
+                                                        [:span label]
+                                                        [antd/switch {:size "small"
+                                                                      :checked visible?}]])})
+                                           columns))
+                             :onClick (fn [e]
+                                        (let [key (keyword (.-key e))]
+                                          (on-toggle-column key)))}
                       :trigger #js ["click"]}
        [antd/button {:shape "circle"
                      :icon (r/as-element [antd/setting-icon])

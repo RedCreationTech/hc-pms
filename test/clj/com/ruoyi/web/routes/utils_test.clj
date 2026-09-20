@@ -1,12 +1,15 @@
 (ns com.ruoyi.web.routes.utils-test
   "路由工具函数测试。"
-  (:require [clojure.test :refer [deftest is testing]]
-            [com.ruoyi.web.routes.utils :as route-utils]))
+  (:require
+    [clojure.test :refer [deftest is testing]]
+    [com.ruoyi.web.routes.utils :as route-utils]))
+
 
 (def sample-request
   {:reitit.core/match {:data {:handler :my-handler
                               :middleware [:auth]
                               :roles #{:admin}}}})
+
 
 (deftest test-route-data
   (testing "提取路由数据"
@@ -14,6 +17,7 @@
            (route-utils/route-data sample-request)))
     (is (nil? (route-utils/route-data {})))
     (is (nil? (route-utils/route-data nil)))))
+
 
 (deftest test-route-data-key
   (testing "提取指定键的路由数据"

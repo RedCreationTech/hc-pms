@@ -1,23 +1,28 @@
 (ns com.ruoyi.frontend.pages.login-log
   "登录日志页面。"
   (:require
-   [reagent.core :as r]
-   [reagent.hooks :as hooks]
-   [re-frame.core :as rf]
-   [clojure.string :as str]
-   ["antd" :refer [DatePicker]]
-   ["@ant-design/icons" :refer [DeleteOutlined DownloadOutlined LockOutlined ReloadOutlined SearchOutlined]]
-   [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.components.page-search :as page-search]
-   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
+    ["@ant-design/icons" :refer [DeleteOutlined DownloadOutlined LockOutlined ReloadOutlined SearchOutlined]]
+    ["antd" :refer [DatePicker]]
+    [clojure.string :as str]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.components.page-search :as page-search]
+    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+    [re-frame.core :as rf]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
+
 
 (def range-picker (r/adapt-react-class (.-RangePicker DatePicker)))
 
-(defn- status-tag [status]
+
+(defn- status-tag
+  [status]
   [antd/tag {:color (if (= (str status) "0") "blue" "red")}
    (if (= (str status) "0") "成功" "失败")])
 
-(defn- login-log-columns []
+
+(defn- login-log-columns
+  []
   #js [#js {:title "访问编号" :dataIndex "info_id" :key "info_id" :width 100}
        #js {:title "用户名称" :dataIndex "user_name" :key "user_name" :width 120
             :sorter true}
@@ -31,12 +36,16 @@
        #js {:title "登录日期" :dataIndex "login_time" :key "login_time" :width 180
             :sorter true}])
 
-(defn- query-params [ipaddr username status date-range]
+
+(defn- query-params
+  [ipaddr username status date-range]
   (cond-> {:ipaddr ipaddr :user_name username :status status}
     (first date-range) (assoc :begin_time (first date-range))
     (second date-range) (assoc :end_time (second date-range))))
 
-(defn login-log-page []
+
+(defn login-log-page
+  []
   (hooks/use-effect (fn []
                       (rf/dispatch [:login-logs/fetch {}])
                       js/undefined)

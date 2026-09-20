@@ -1,11 +1,12 @@
 (ns com.ruoyi.web.routes.auth
   "认证路由。"
   (:require
-   [com.ruoyi.web.controllers.auth :as auth]
-   [com.ruoyi.web.controllers.register :as register]
-   [com.ruoyi.web.middleware.auth :as auth-mw]
-   [com.ruoyi.infra.security :as security]
-   [ring.util.response :as response]))
+    [com.ruoyi.infra.security :as security]
+    [com.ruoyi.web.controllers.auth :as auth]
+    [com.ruoyi.web.controllers.register :as register]
+    [com.ruoyi.web.middleware.auth :as auth-mw]
+    [ring.util.response :as response]))
+
 
 (defn- wrap-parse-token
   "简单的 JWT 解析中间件，不依赖 auth-middleware 的复杂逻辑。"
@@ -17,6 +18,7 @@
           request (if claims (assoc request :identity claims) request)]
       (handler request))))
 
+
 (defn- require-identity
   [handler]
   (fn [request]
@@ -26,7 +28,9 @@
           (response/status 401)
           (response/content-type "application/json")))))
 
-(defn auth-routes [{:keys [user-service log-service menu-service]}]
+
+(defn auth-routes
+  [{:keys [user-service log-service menu-service]}]
   ["/auth"
    {:swagger {:tags ["认证"]}}
    ["/login" {:post {:summary    "登录"

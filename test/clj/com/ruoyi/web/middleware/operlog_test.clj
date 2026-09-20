@@ -1,12 +1,16 @@
 (ns com.ruoyi.web.middleware.operlog-test
   "操作日志中间件测试。"
-  (:require [clojure.test :refer [deftest is testing]]
-            [com.ruoyi.web.middleware.operlog :as operlog]))
+  (:require
+    [clojure.test :refer [deftest is testing]]
+    [com.ruoyi.web.middleware.operlog :as operlog]))
 
-(defn- make-capturing-query-fn []
+
+(defn- make-capturing-query-fn
+  []
   (let [calls (atom [])]
     (fn [q p] (swap! calls conj [q p]) nil)
     calls))
+
 
 (deftest test-wrap-oper-log-records-post
   (testing "POST API 请求记录操作日志"
@@ -27,6 +31,7 @@
       (is (= 0 (:status log-entry)))
       (is (= "127.0.0.1" (:oper_ip log-entry))))))
 
+
 (deftest test-wrap-oper-log-skips-get
   (testing "GET 请求不记录日志"
     (let [calls (make-capturing-query-fn)
@@ -40,6 +45,7 @@
           response (handler request)]
       (is (= 200 (:status response)))
       (is (empty? @calls)))))
+
 
 (deftest test-wrap-oper-log-skips-login
   (testing "登录路径不记录日志"
@@ -55,6 +61,7 @@
       (is (= 200 (:status response)))
       (is (empty? @calls)))))
 
+
 (deftest test-wrap-oper-log-error-status
   (testing "错误响应记录状态为 1"
     (let [calls (make-capturing-query-fn)
@@ -69,6 +76,7 @@
           log-entry (second (first @calls))]
       (is (= 500 (:status response)))
       (is (= 1 (:status log-entry))))))
+
 
 (deftest test-wrap-oper-log-x-forwarded-for
   (testing "优先使用 X-Forwarded-For IP"
@@ -86,6 +94,7 @@
       (is (= 200 (:status response)))
       (is (= "10.0.0.1" (:oper_ip log-entry))))))
 
+
 (deftest test-wrap-oper-log-no-query-fn
   (testing "无 query-fn 时不抛出异常"
     (let [handler (operlog/wrap-oper-log (fn [_] {:status 200}))
@@ -95,6 +104,7 @@
                    :identity {:user-name "admin"}
                    :remote-addr "127.0.0.1"}]
       (is (= 200 (:status (handler request)))))))
+
 
 (deftest test-wrap-oper-log-string-params
   (testing "字符串参数直接记录"
@@ -110,6 +120,7 @@
           log-entry (second (first @calls))]
       (is (= 200 (:status response)))
       (is (= "raw-body" (:oper_param log-entry))))))
+
 
 (deftest test-wrap-oper-log-truncates-long-params
   (testing "超长参数被截断并追加省略号"
@@ -128,6 +139,7 @@
       (is (= 200 (:status response)))
       (is (= 203 (count oper-param)))
       (is (clojure.string/ends-with? oper-param "...")))))
+
 
 (deftest test-wrap-oper-log-query-fn-exception
   (testing "query-fn 抛异常时不影响响应"

@@ -2,17 +2,18 @@
   "我的待办 —— 审批面板（通过/驳回/转办/委派/加签/抄送）。
    Phase 2：按节点 buttons 配置显隐/改名操作按钮，支持手写签名(signEnable)与意见必填(reasonRequire)。"
   (:require
-   [clojure.walk :as walk]
-   [clojure.string]
-   [reagent.core :as r]
-   [reagent.hooks :as hooks]
-   [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [ReloadOutlined CheckOutlined CloseOutlined SwapOutlined SendOutlined EyeOutlined UserAddOutlined MailOutlined RollbackOutlined EditOutlined]]
-   [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.api :as api]
-   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
-   [com.ruoyi.frontend.components.form-render :as fr]
-   [com.ruoyi.frontend.components.bpm-flow-designer :as bpmfd]))
+    ["@ant-design/icons" :refer [ReloadOutlined CheckOutlined CloseOutlined SwapOutlined SendOutlined EyeOutlined UserAddOutlined MailOutlined RollbackOutlined EditOutlined]]
+    [clojure.string]
+    [clojure.walk :as walk]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.api :as api]
+    [com.ruoyi.frontend.components.bpm-flow-designer :as bpmfd]
+    [com.ruoyi.frontend.components.form-render :as fr]
+    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+    [re-frame.core :as rf]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
+
 
 ;; ── 节点按钮配置（task-detail / todo 行附带，未配置默认全启用）────────────────
 
@@ -28,7 +29,9 @@
               (:displayName b)
               default-label)}))
 
-(defn- task-columns [open-ops open-detail current-user]
+
+(defn- task-columns
+  [open-ops open-detail current-user]
   #js [#js {:title "任务" :dataIndex "name" :key "name"}
        #js {:title "流程名称" :dataIndex "instance-name" :key "instance-name" :width 160 :ellipsis true
             :render (fn [v] (r/as-element [:span (if (seq v) v "-")]))}
@@ -38,7 +41,7 @@
             :render (fn [v]
                       (let [s (if (seq v)
                                 (clojure.string/join "　" (map #(str (:label %) "：" (:value %))
-                                                               (js->clj v :keywordize-keys true)))
+                                                              (js->clj v :keywordize-keys true)))
                                 "-")]
                         (r/as-element [:span {:style {:color (if (= "-" s) "#c0c4cc" "#606266")}} s])))}
        #js {:title "流程定义" :dataIndex "process-definition-id" :key "process-definition-id"
@@ -56,55 +59,56 @@
                             add-sign (button-cfg task "add-sign" "加签")
                             return (button-cfg task "return" "退回")]
                         (r/as-element
-                         (into [antd/space]
-                               (concat
-                                [[antd/button {:size "small"
-                                               :icon (r/as-element [:> EyeOutlined])
-                                               :on-click #(open-detail task)}
-                                  "详情"]]
-                                 (when (:enable? approve)
-                                   [[antd/button {:type "primary" :size "small"
-                                                  :icon (r/as-element [:> CheckOutlined])
-                                                  :on-click #(rf/dispatch [:bpm/todo-open-approve task])}
-                                     (:label approve)]])
-                                 (when (:enable? reject)
-                                   [[antd/button {:danger true :size "small"
-                                                  :icon (r/as-element [:> CloseOutlined])
-                                                  :on-click #(rf/dispatch [:bpm/todo-open-reject task])}
-                                     (:label reject)]])
-                                 (when (:enable? transfer)
-                                   [[antd/button {:size "small"
-                                                  :icon (r/as-element [:> SwapOutlined])
-                                                  :on-click #(open-ops task "transfer")}
-                                     (:label transfer)]])
-                                 (when (:enable? delegate)
-                                   [[antd/button {:size "small"
-                                                  :icon (r/as-element [:> SendOutlined])
-                                                  :on-click #(open-ops task "delegate")}
-                                     (:label delegate)]])
-                                 (when (:enable? add-sign)
-                                   [[antd/button {:size "small"
-                                                  :icon (r/as-element [:> UserAddOutlined])
-                                                  :on-click #(rf/dispatch [:bpm/todo-open-sign task])}
-                                     (:label add-sign)]])
-                                 [[antd/button {:size "small"
-                                               :icon (r/as-element [:> MailOutlined])
-                                               :on-click #(rf/dispatch [:bpm/todo-open-copy task])}
-                                  "抄送"]]
-                                 (when (:enable? return)
-                                   [[antd/button {:size "small"
-                                                  :icon (r/as-element [:> RollbackOutlined])
-                                                  :on-click #(rf/dispatch [:bpm/todo-open-reject task])}
-                                     (:label return)]])
-                                 ;; 委派办结：任务 owner=当前用户且已委派给他人(assignee 非本人)时显示
-                                 (when (and (seq (:owner task))
-                                            (= (str (:owner task)) (str current-user))
-                                            (seq (:assignee task))
-                                            (not= (str (:assignee task)) (str current-user)))
-                                   [[antd/button {:size "small"
-                                                  :icon (r/as-element [:> CheckOutlined])
-                                                  :on-click #(rf/dispatch [:bpm/todo-resolve task])}
-                                     "办结"]]))))))}])
+                          (into [antd/space]
+                                (concat
+                                  [[antd/button {:size "small"
+                                                 :icon (r/as-element [:> EyeOutlined])
+                                                 :on-click #(open-detail task)}
+                                    "详情"]]
+                                  (when (:enable? approve)
+                                    [[antd/button {:type "primary" :size "small"
+                                                   :icon (r/as-element [:> CheckOutlined])
+                                                   :on-click #(rf/dispatch [:bpm/todo-open-approve task])}
+                                      (:label approve)]])
+                                  (when (:enable? reject)
+                                    [[antd/button {:danger true :size "small"
+                                                   :icon (r/as-element [:> CloseOutlined])
+                                                   :on-click #(rf/dispatch [:bpm/todo-open-reject task])}
+                                      (:label reject)]])
+                                  (when (:enable? transfer)
+                                    [[antd/button {:size "small"
+                                                   :icon (r/as-element [:> SwapOutlined])
+                                                   :on-click #(open-ops task "transfer")}
+                                      (:label transfer)]])
+                                  (when (:enable? delegate)
+                                    [[antd/button {:size "small"
+                                                   :icon (r/as-element [:> SendOutlined])
+                                                   :on-click #(open-ops task "delegate")}
+                                      (:label delegate)]])
+                                  (when (:enable? add-sign)
+                                    [[antd/button {:size "small"
+                                                   :icon (r/as-element [:> UserAddOutlined])
+                                                   :on-click #(rf/dispatch [:bpm/todo-open-sign task])}
+                                      (:label add-sign)]])
+                                  [[antd/button {:size "small"
+                                                 :icon (r/as-element [:> MailOutlined])
+                                                 :on-click #(rf/dispatch [:bpm/todo-open-copy task])}
+                                    "抄送"]]
+                                  (when (:enable? return)
+                                    [[antd/button {:size "small"
+                                                   :icon (r/as-element [:> RollbackOutlined])
+                                                   :on-click #(rf/dispatch [:bpm/todo-open-reject task])}
+                                      (:label return)]])
+                                  ;; 委派办结：任务 owner=当前用户且已委派给他人(assignee 非本人)时显示
+                                  (when (and (seq (:owner task))
+                                             (= (str (:owner task)) (str current-user))
+                                             (seq (:assignee task))
+                                             (not= (str (:assignee task)) (str current-user)))
+                                    [[antd/button {:size "small"
+                                                   :icon (r/as-element [:> CheckOutlined])
+                                                   :on-click #(rf/dispatch [:bpm/todo-resolve task])}
+                                      "办结"]]))))))}])
+
 
 ;; ── 手写签名画布 ──────────────────────────────────────────────────────────
 
@@ -159,6 +163,7 @@
        (if empty? "请在上方区域手写签名" "已签名，可重新书写")]
       [antd/button {:size "small" :icon (r/as-element [:> EditOutlined]) :on-click clear} "清除"]]]))
 
+
 ;; ── 审批弹窗 ──────────────────────────────────────────────────────────────
 
 (defn- comment-item
@@ -168,7 +173,9 @@
                     :rules (when required? [{:required true :message "当前节点要求填写审批意见"}])}
     [antd/text-area {:placeholder (if required? "请输入审批意见(必填)" "请输入意见(可选)") :rows 3}]]))
 
-(defn- user-select [users]
+
+(defn- user-select
+  [users]
   [antd/select {:mode "multiple" :style {:width "100%"}
                 :placeholder "请选择用户(可多选)"
                 :options (clj->js (mapv (fn [u]
@@ -176,27 +183,31 @@
                                            :label (str (:nick_name u) " (" (:user_name u) ")")})
                                         users))}])
 
-(defn- sign-children-block [task]
+
+(defn- sign-children-block
+  [task]
   (let [signs @(rf/subscribe [:bpm-todo/sign-list])]
     (if (empty? signs)
       [:div {:style {:color "#c0c4cc" :padding "4px 0" :marginTop 8}} "暂无加签子任务"]
       [:div {:style {:marginTop 8}}
        [:div {:style {:fontWeight 600 :marginBottom 6}} "加签子任务（可减签）"]
        (doall
-        (for [sgn signs]
-          ^{:key (:task-id sgn)}
-          [:div {:style {:display "flex" :alignItems "center" :justifyContent "space-between"
-                         :padding "4px 0" :borderBottom "1px solid #f0f0f0"}}
-           [:span
-            [:b (:assignee sgn)]
-            [:span {:style {:color "#909399" :marginLeft 8}}
-             (if (= "RUNNING" (:status sgn)) "进行中" "已完成")]]
-           (when (= "RUNNING" (:status sgn))
-             [antd/popconfirm {:title (str "确认对 " (:assignee sgn) " 减签?")
-                               :on-confirm #(rf/dispatch [:bpm/todo-delete-sign (:task-id task) (:assignee sgn)])}
-              [antd/button {:danger true :size "small"} "减签"]])]))])))
+         (for [sgn signs]
+           ^{:key (:task-id sgn)}
+           [:div {:style {:display "flex" :alignItems "center" :justifyContent "space-between"
+                          :padding "4px 0" :borderBottom "1px solid #f0f0f0"}}
+            [:span
+             [:b (:assignee sgn)]
+             [:span {:style {:color "#909399" :marginLeft 8}}
+              (if (= "RUNNING" (:status sgn)) "进行中" "已完成")]]
+            (when (= "RUNNING" (:status sgn))
+              [antd/popconfirm {:title (str "确认对 " (:assignee sgn) " 减签?")
+                                :on-confirm #(rf/dispatch [:bpm/todo-delete-sign (:task-id task) (:assignee sgn)])}
+               [antd/button {:danger true :size "small"} "减签"]])]))])))
 
-(defn- approve-modal [users]
+
+(defn- approve-modal
+  [users]
   (let [visible? @(rf/subscribe [:bpm-todo/modal-visible?])
         current @(rf/subscribe [:bpm-todo/current])
         action @(rf/subscribe [:bpm-todo/action])
@@ -220,8 +231,8 @@
                 "copy" "抄送"
                 "审批")]
     (hooks/use-effect
-     (fn [] (set-sign-data! nil))
-     [visible? (:task-id current)])
+      (fn [] (set-sign-data! nil))
+      [visible? (:task-id current)])
     [antd/modal {:title (str title " · " (:name current))
                  :open visible? :confirmLoading submitting? :width 640
                  :onOk (fn []
@@ -243,7 +254,7 @@
                   [:div {:style {:width 4 :height 16 :background "#409eff" :marginRight 8}}]
                   [:span {:style {:fontWeight 600}} "申请表单"]]
                  [fr/form-render {:schema schema :values values :disabled? true
-                                   :field-permissions (:fields-permission form-data)}]]
+                                  :field-permissions (:fields-permission form-data)}]]
                 [:div {:style {:color "#c0c4cc" :textAlign "center" :padding 12}}
                  "该流程未配置动态表单"]))
             [:div {:style {:color "#c0c4cc" :textAlign "center" :padding 12}} "暂无表单数据"]))])
@@ -254,18 +265,18 @@
                                                   :sign_data sign-data)]))}
       (case action
         "reject" [:<>
-                 (when (seq return-list)
-                   [antd/form-item {:label "退回到节点" :name "return_node_id"
-                                    :initialValue default-return}
-                    [antd/select {:style {:width "100%"}
-                                  :options (clj->js (mapv (fn [n]
-                                                            {:value (:activity-id n)
-                                                             :label (:activity-name n)})
-                                                          return-list))}]])
-                 [comment-item "审批意见" reason-required?]
-                 (when sign-enable?
-                   [antd/form-item {:label "手写签名" :required true}
-                    [signature-pad {:on-change set-sign-data!}]])]
+                  (when (seq return-list)
+                    [antd/form-item {:label "退回到节点" :name "return_node_id"
+                                     :initialValue default-return}
+                     [antd/select {:style {:width "100%"}
+                                   :options (clj->js (mapv (fn [n]
+                                                             {:value (:activity-id n)
+                                                              :label (:activity-name n)})
+                                                           return-list))}]])
+                  [comment-item "审批意见" reason-required?]
+                  (when sign-enable?
+                    [antd/form-item {:label "手写签名" :required true}
+                     [signature-pad {:on-change set-sign-data!}]])]
         "sign" [:<>
                 [antd/form-item {:label "加签人" :name "userIds"
                                  :rules [{:required true :message "请选择加签人"}]}
@@ -286,7 +297,9 @@
            [antd/form-item {:label "手写签名" :required true}
             [signature-pad {:on-change set-sign-data!}]])])]]))
 
-(defn- todo-detail-drawer [{:keys [task visible? set-visible! form-data diagram history]}]
+
+(defn- todo-detail-drawer
+  [{:keys [task visible? set-visible! form-data diagram history]}]
   (let [form (:form form-data)
         schema (or (:schema form) {:fields []})
         values (or (:values form) {})
@@ -318,28 +331,28 @@
                           [:span {:style {:fontWeight 600}} "审批历史"]]
                          (if (seq @history)
                            (doall
-                            (for [t @history]
-                              (let [color (if (true? (:approved t)) "#67c23a"
-                                              (if (false? (:approved t)) "#f56c6c" "#409eff"))]
-                                ^{:key (:task-id t)}
-                                [:div {:style {:padding "8px 12px" :borderLeft "3px solid"
-                                               :borderColor color :background "#fafafa"
-                                               :marginBottom 8 :borderRadius "0 6px 6px 0"}}
-                                 [:div {:style {:display "flex" :alignItems "center"}}
-                                  [:b (:name t)]
-                                  (when (:assignee t)
-                                    [:span {:style {:color "#909399" :marginLeft 8}} (:assignee t)])
-                                  (when (:end-time t)
-                                    [:span {:style {:color "#c0c4cc" :marginLeft 8 :fontSize 12}}
-                                     (subs (:end-time t) 0 16)])]
-                                 (when (:comment t)
-                                   [:div {:style {:color "#606266" :marginTop 2}} (str "意见：" (:comment t))])
-                                 (when (:sign-pic-url t)
-                                   [:div {:style {:marginTop 4}}
-                                    [:div {:style {:color "#909399" :fontSize 12 :marginBottom 2}} "手写签名："]
-                                    [:img {:src (:sign-pic-url t) :alt "签名"
-                                           :style {:maxWidth 180 :border "1px solid #ebeef5"
-                                                   :borderRadius 4 :background "#fff"}}]])])))
+                             (for [t @history]
+                               (let [color (if (true? (:approved t)) "#67c23a"
+                                               (if (false? (:approved t)) "#f56c6c" "#409eff"))]
+                                 ^{:key (:task-id t)}
+                                 [:div {:style {:padding "8px 12px" :borderLeft "3px solid"
+                                                :borderColor color :background "#fafafa"
+                                                :marginBottom 8 :borderRadius "0 6px 6px 0"}}
+                                  [:div {:style {:display "flex" :alignItems "center"}}
+                                   [:b (:name t)]
+                                   (when (:assignee t)
+                                     [:span {:style {:color "#909399" :marginLeft 8}} (:assignee t)])
+                                   (when (:end-time t)
+                                     [:span {:style {:color "#c0c4cc" :marginLeft 8 :fontSize 12}}
+                                      (subs (:end-time t) 0 16)])]
+                                  (when (:comment t)
+                                    [:div {:style {:color "#606266" :marginTop 2}} (str "意见：" (:comment t))])
+                                  (when (:sign-pic-url t)
+                                    [:div {:style {:marginTop 4}}
+                                     [:div {:style {:color "#909399" :fontSize 12 :marginBottom 2}} "手写签名："]
+                                     [:img {:src (:sign-pic-url t) :alt "签名"
+                                            :style {:maxWidth 180 :border "1px solid #ebeef5"
+                                                    :borderRadius 4 :background "#fff"}}]])])))
                            [:div {:style {:color "#c0c4cc" :padding "12px 0"}} "暂无审批记录"])])]
     [antd/drawer {:title (str "待办详情 · " task-name)
                   :open visible? :size 900
@@ -353,7 +366,9 @@
       [diagram-block]
       [history-block]]]))
 
-(defn- ops-modal [{:keys [task-type to-user set-to-user! users visible? set-visible!] :as props}]
+
+(defn- ops-modal
+  [{:keys [task-type to-user set-to-user! users visible? set-visible!] :as props}]
   (let [op (or (:type props) "transfer")
         title (if (= op "transfer") "转办" "委派")]
     [antd/modal {:title (str title "任务")
@@ -362,7 +377,8 @@
                           (when task
                             (let [f (if (= op "transfer") api/bpm-transfer-task api/bpm-delegate-task)]
                               (f (:task-id task) to-user
-                                 (fn [_] (set-visible! false) (set-to-user! nil)
+                                 (fn [_]
+                                   (set-visible! false) (set-to-user! nil)
                                    (antd/success! (str title "成功"))
                                    (rf/dispatch [:bpm/todo-fetch]))
                                  (fn [_] (antd/error! (str title "失败")))))))
@@ -372,9 +388,11 @@
       [antd/select {:style {:width "100%"} :placeholder "请选择目标用户" :value to-user
                     :onChange set-to-user!}
        (doall (for [u users] ^{:key (:user_name u)}
-                [antd/select-option {:value (:user_name u)} (:nick_name u)]))]]]))
+                   [antd/select-option {:value (:user_name u)} (:nick_name u)]))]]]))
 
-(defn bpm-todo-page []
+
+(defn bpm-todo-page
+  []
   (let [items @(rf/subscribe [:bpm-todo/items])
         total @(rf/subscribe [:bpm-todo/total])
         loading? @(rf/subscribe [:bpm-todo/loading?])]
@@ -412,25 +430,25 @@
                                                      (fn [res]
                                                        (reset! detail-history (or (:task-history (:data res)) [])))
                                                      (fn [_] nil)))]
-      [:div
-       [page-toolbar/page-toolbar
-        {:left [page-toolbar/toolbar-left
-                [:div {:style {:fontSize 15 :fontWeight 600}} "我的待办"]]
-         :right [page-toolbar/toolbar-right
-                 [page-toolbar/round-tool-button {:title "刷新"
-                                                  :icon (r/as-element [:> ReloadOutlined])
-                                                  :on-click #(rf/dispatch [:bpm/todo-fetch])}]]}]
-       [antd/table {:scroll #js {:x "max-content"} :rowKey "task-id"
-                    :columns (task-columns open-ops open-detail (:user_name @(rf/subscribe [:auth/user])))
-                    :dataSource (clj->js items)
-                    :loading loading?
-                    :pagination {:total total :pageSize 10 :showSizeChanger true
-                                 :showTotal (fn [total] (str "共 " total " 条"))}}]
-       [approve-modal @users]
-       [ops-modal {:task @ops-task :type @ops-type :to-user @ops-user
-                   :users @users :visible? @ops-visible
-                   :set-to-user! #(reset! ops-user %) :set-visible! #(reset! ops-visible %)}]
-       [todo-detail-drawer {:task @detail-task :visible? @detail-visible
-                            :set-visible! #(reset! detail-visible %)
-                            :form-data @detail-form :diagram detail-diagram
-                            :history detail-history}]])))
+                [:div
+                 [page-toolbar/page-toolbar
+                  {:left [page-toolbar/toolbar-left
+                          [:div {:style {:fontSize 15 :fontWeight 600}} "我的待办"]]
+                   :right [page-toolbar/toolbar-right
+                           [page-toolbar/round-tool-button {:title "刷新"
+                                                            :icon (r/as-element [:> ReloadOutlined])
+                                                            :on-click #(rf/dispatch [:bpm/todo-fetch])}]]}]
+                 [antd/table {:scroll #js {:x "max-content"} :rowKey "task-id"
+                              :columns (task-columns open-ops open-detail (:user_name @(rf/subscribe [:auth/user])))
+                              :dataSource (clj->js items)
+                              :loading loading?
+                              :pagination {:total total :pageSize 10 :showSizeChanger true
+                                           :showTotal (fn [total] (str "共 " total " 条"))}}]
+                 [approve-modal @users]
+                 [ops-modal {:task @ops-task :type @ops-type :to-user @ops-user
+                             :users @users :visible? @ops-visible
+                             :set-to-user! #(reset! ops-user %) :set-visible! #(reset! ops-visible %)}]
+                 [todo-detail-drawer {:task @detail-task :visible? @detail-visible
+                                      :set-visible! #(reset! detail-visible %)
+                                      :form-data @detail-form :diagram detail-diagram
+                                      :history detail-history}]])))

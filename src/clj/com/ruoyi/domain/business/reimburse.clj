@@ -1,14 +1,17 @@
 (ns com.ruoyi.domain.business.reimburse
   "报销申请领域服务 —— 复用'业务记录 + BPM 审批流'模式。"
   (:require
-   [com.ruoyi.bpm.core :as bpm]
-   [integrant.core :as ig]))
+    [com.ruoyi.bpm.core :as bpm]
+    [integrant.core :as ig]))
+
 
 (def ^:const default-model-key "reimburseApproval")
+
 
 (defmethod ig/init-key :app.business/reimburse-service
   [_ {:keys [engine query-fn db]}]
   {:engine engine :query-fn query-fn :db db})
+
 
 (defn- page-params
   [params]
@@ -16,15 +19,18 @@
         size (or (some-> (get params :size) Integer/parseInt) 10)]
     {:page page :size size :offset (* (dec page) size)}))
 
+
 (defn- running?
   [{:keys [engine]} pid]
   (let [q (.createProcessInstanceQuery (.getRuntimeService engine))]
     (pos? (.count (.processInstanceId q pid)))))
 
+
 (defn- rejected?
   [{:keys [engine]} pid]
   (boolean (some #(= "rejectEnd" (:activity-id %))
                  (bpm/history-of engine pid))))
+
 
 (defn ensure-model-deployed!
   [{:keys [engine query-fn]}]
@@ -38,6 +44,7 @@
                   {:model_id (:model_id m) :deployment_id dep-id
                    :version (inc (or (:version m) 1)) :status "1"})
         {:model m :deployment-id dep-id}))))
+
 
 (defn reimburse-start!
   [{:keys [engine query-fn] :as svc} user-id user-name amount reason]
@@ -57,6 +64,7 @@
                :status "1" :current_task ""})
     {:process-instance-id pid :business-key biz-key :model-key default-model-key}))
 
+
 (defn sync-status!
   [{:keys [query-fn] :as svc} pid]
   (let [status (cond
@@ -65,6 +73,7 @@
                  :else "2")]
     (query-fn :oa/update-reimburse-status {:process_instance_id pid :status status})
     status))
+
 
 (defn reimburse-list
   [{:keys [query-fn] :as svc} params]
@@ -80,8 +89,12 @@
     {:rows (query-fn :oa/reimburse-list p)
      :total (:total (query-fn :oa/reimburse-count p))}))
 
-(defn reimburse-get [{:keys [query-fn]} id]
+
+(defn reimburse-get
+  [{:keys [query-fn]} id]
   (query-fn :oa/find-reimburse-by-id {:reimburse_id id}))
 
-(defn reimburse-delete [{:keys [query-fn]} id]
+
+(defn reimburse-delete
+  [{:keys [query-fn]} id]
   (query-fn :oa/delete-reimburse {:reimburse_id id}))

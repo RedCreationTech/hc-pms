@@ -1,10 +1,11 @@
 (ns com.ruoyi.frontend.components.theme-switcher
   "主题切换组件，提供亮色/暗色主题切换及主题自定义选项"
   (:require
-   ["@ant-design/icons" :refer [BgColorsOutlined MoonOutlined SunOutlined SettingOutlined]]
-   ["antd" :refer [Button ColorPicker Divider Popover Segmented Space]]
-   [re-frame.core :as rf]
-   [reagent.core :as r]))
+    ["@ant-design/icons" :refer [BgColorsOutlined MoonOutlined SunOutlined SettingOutlined]]
+    ["antd" :refer [Button ColorPicker Divider Popover Segmented Space]]
+    [re-frame.core :as rf]
+    [reagent.core :as r]))
+
 
 ;; ─── 预设颜色 ──────────────────────────────────────────────────────
 (def preset-colors
@@ -23,11 +24,13 @@
    "#666666"  ; 灰色
    ])
 
+
 ;; ─── 算法选项 ──────────────────────────────────────────────────────
 (def theme-algorithms
   [{"label" "默认" "value" "default"}
    {"label" "暗色" "value" "dark"}
    {"label" "紧凑" "value" "compact"}])
+
 
 ;; ─── 组件尺寸选项 ──────────────────────────────────────────────────
 (def component-sizes
@@ -35,8 +38,10 @@
    {"label" "中" "value" "middle"}
    {"label" "大" "value" "large"}])
 
+
 ;; ─── 主题设置面板 ──────────────────────────────────────────────────
-(defn theme-settings-panel []
+(defn theme-settings-panel
+  []
   (let [theme-mode @(rf/subscribe [:theme/mode])
         theme-algorithm @(rf/subscribe [:theme/algorithm])
         primary-color @(rf/subscribe [:theme/primary-color])
@@ -107,8 +112,10 @@
         :options component-sizes
         :size "small"}]]]))
 
+
 ;; ─── 主题切换按钮（带 Popover）──────────────────────────────────────
-(defn theme-switcher-button []
+(defn theme-switcher-button
+  []
   (let [theme-mode @(rf/subscribe [:theme/mode])]
     [:> Popover
      {:content (r/as-element [theme-settings-panel])

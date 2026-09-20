@@ -11,19 +11,28 @@
       流程模型需用排他网关(exclusiveGateway)按该变量分流
     · 引擎状态全在 Flowable(H2)，业务记录在 app 库，通过 business-key 关联
   "
-
-  (:require [clj-http.client :as http]
-            [cheshire.core :as json]
-            [clojure.string :as str]
-            [clojure.tools.logging :as log])
+  (:require
+    [cheshire.core :as json]
+    [clj-http.client :as http]
+    [clojure.string :as str]
+    [clojure.tools.logging :as log])
   (:import
-   (org.flowable.task.api.history HistoricTaskInstance)
-   (org.flowable.engine ProcessEngine)
-   (org.flowable.engine.history HistoricActivityInstance)
-   (org.flowable.engine.repository ProcessDefinition)
-   (org.flowable.engine.runtime ProcessInstance)
-   (org.flowable.task.api Task)
-   (java.util HashMap Date)))
+    (java.util
+      Date
+      HashMap)
+    (org.flowable.engine
+      ProcessEngine)
+    (org.flowable.engine.history
+      HistoricActivityInstance)
+    (org.flowable.engine.repository
+      ProcessDefinition)
+    (org.flowable.engine.runtime
+      ProcessInstance)
+    (org.flowable.task.api
+      Task)
+    (org.flowable.task.api.history
+      HistoricTaskInstance)))
+
 
 ;; ── 工具 ───────────────────────────────────────────────────────────────
 
@@ -35,10 +44,12 @@
       (.put hm (name k) v))
     hm))
 
+
 (defn- timestamp->str
   "Date 转 ISO 字符串。"
   ^String [^Date d]
   (when d (str (.toInstant d))))
+
 
 ;; ── 流程定义 (Deployment / ProcessDefinition) ─────────────────────────
 
@@ -52,10 +63,12 @@
                 (.addString (str key ".bpmn20.xml") bpmn-xml))]
     (.getId (.deploy dep))))
 
+
 (defn delete-deployment!
   "删除流程部署（级联清理实例）。"
   [^ProcessEngine engine deployment-id]
   (.deleteDeployment (.getRepositoryService engine) deployment-id true))
+
 
 (defn definitions
   "列出所有已部署的流程定义。"
@@ -70,6 +83,7 @@
              :suspended? (.isSuspended pd)})
           (.list (.createProcessDefinitionQuery repo)))))
 
+
 (defn definition-by-key
   "按 key 查流程定义。"
   [^ProcessEngine engine key]
@@ -80,6 +94,7 @@
        :key (.getKey pd)
        :name (.getName pd)
        :version (.getVersion pd)})))
+
 
 ;; ── Phase 3 治理能力：流程定义版本 / 启停 / 清理 ───────────────────────
 
@@ -96,6 +111,7 @@
        :name (.getName pd)
        :version (.getVersion pd)
        :suspended? (.isSuspended pd)})))
+
 
 (defn definition-page
   "流程定义分页（全部版本，按版本号倒序）。返回 {:rows [...] :total n}。
@@ -123,6 +139,7 @@
                     :deploy-time (deploy-time (.getDeploymentId pd))})
                  (.listPage q (int offset) (int size)))}))
 
+
 (defn definition-key-of
   "按定义 id 查流程定义 key。"
   [^ProcessEngine engine definition-id]
@@ -132,11 +149,13 @@
           .singleResult
           (.getKey)))
 
+
 (defn definition-xml
   "读取流程定义的 BPMN XML 文本。"
   [^ProcessEngine engine definition-id]
   (with-open [is (.getProcessModel (.getRepositoryService engine) definition-id)]
     (when is (slurp is))))
+
 
 (defn suspend-definition-by-key!
   "挂起某 key 的全部流程定义（挂起后不可发起新实例）。"
@@ -144,11 +163,13 @@
   (.suspendProcessDefinitionByKey (.getRepositoryService engine) key true nil)
   true)
 
+
 (defn activate-definition-by-key!
   "激活某 key 的全部流程定义。"
   [^ProcessEngine engine key]
   (.activateProcessDefinitionByKey (.getRepositoryService engine) key true nil)
   true)
+
 
 (defn delete-deployments-by-key!
   "删除某 key 的全部部署（级联删除运行中/历史实例与定义）。返回删除的部署数。"
@@ -159,6 +180,7 @@
     (doseq [^org.flowable.engine.repository.Deployment d deps]
       (.deleteDeployment repo (.getId d) true))
     (count deps)))
+
 
 ;; ── 流程实例 (ProcessInstance) ────────────────────────────────────────
 
@@ -178,6 +200,7 @@
       :process-definition-id (.getProcessDefinitionId ^ProcessInstance inst)
       :business-key (.getBusinessKey ^ProcessInstance inst)})))
 
+
 (defn running-instances
   "运行中的流程实例。"
   [^ProcessEngine engine]
@@ -189,10 +212,12 @@
              :start-activity-id (.getStartActivityId pi)})
           (.list (.createProcessInstanceQuery rt)))))
 
+
 (defn instance-count
   "运行中实例数。"
   [^ProcessEngine engine]
   (.count (.createProcessInstanceQuery (.getRuntimeService engine))))
+
 
 (defn suspend!
   "挂起流程实例。"
@@ -200,11 +225,13 @@
   (.suspendProcessInstanceById (.getRuntimeService engine process-instance-id))
   true)
 
+
 (defn activate!
   "激活流程实例。"
   [^ProcessEngine engine process-instance-id]
   (.activateProcessInstanceById (.getRuntimeService engine process-instance-id))
   true)
+
 
 (defn sync-identity!
   "把系统用户/角色/部门/岗位同步到 Flowable identity 表，
@@ -274,10 +301,17 @@
                                 (str "post:" (str-id (:post_id up))))
              (catch Exception _ nil))))
     true))
+
+
 (declare node-config-of)
 
 (defonce ^:private engine-ref (atom nil))
-(defn register-engine! [engine] (reset! engine-ref engine))
+
+
+(defn register-engine!
+  [engine]
+  (reset! engine-ref engine))
+
 
 ;; ── Phase 4：Webhook / 节点监听器 分发器 ────────────────────────────────
 ;;
@@ -288,13 +322,16 @@
 
 (defonce ^:private webhook-dispatcher (atom nil))
 
+
 (defn set-webhook-dispatcher!
   "注册模型级 Webhook 触发器。f 签名: (fn [event info])。
    HTTP 失败只记日志不影响流程（domain 层保证）。"
   [f]
   (reset! webhook-dispatcher f))
 
+
 (defonce ^:private instance-end-handler (atom nil))
+
 
 (defn set-instance-end-handler!
   "注册流程实例结束回写处理器。f 签名: (fn [info])，
@@ -304,6 +341,7 @@
   [f]
   (reset! instance-end-handler f))
 
+
 (defn- fire-instance-end!
   [info]
   (when-let [f @instance-end-handler]
@@ -312,13 +350,16 @@
            (log/error "[bpm-instance-end] 实例结束回写失败:"
                       (:process-instance-id info) (.getMessage e))))))
 
+
 (defonce ^:private node-listener-dispatcher (atom nil))
+
 
 (defn set-node-listener-dispatcher!
   "注册节点监听器（nodeConfig.listeners）触发器。
    f 签名: (fn [event-name ^DelegateTask task])，event-name ∈ create/assign/complete。"
   [f]
   (reset! node-listener-dispatcher f))
+
 
 ;; ── Phase 4：${字段} 占位符解析 ───────────────────────────────────────
 
@@ -331,6 +372,7 @@
                    (str (get vars k (get vars (keyword k) (str "${" k "}"))))))
     v))
 
+
 (defn- execution-vars
   "DelegateExecution 的流程变量 → 字符串 key 的 Clojure map。"
   [^org.flowable.engine.delegate.DelegateExecution execution]
@@ -338,11 +380,13 @@
     (into {} (.getVariables execution))
     (catch Exception _ {})))
 
+
 (defn- process-running?
   "流程实例是否仍在运行。"
   [^ProcessEngine engine process-instance-id]
   (pos? (.count (.processInstanceId (.createProcessInstanceQuery (.getRuntimeService engine))
                                     process-instance-id))))
+
 
 (defn- fire-webhook!
   "转发 Webhook 事件（忽略未注册与异常，绝不影响主流程）。"
@@ -352,6 +396,7 @@
          (catch Exception e
            (log/error "[bpm-webhook] 触发失败:" event (.getMessage e))))))
 
+
 (defn- fire-node-listener!
   "转发节点监听器事件（create/assign/complete）。"
   [event-name ^org.flowable.task.service.delegate.DelegateTask task]
@@ -360,7 +405,9 @@
          (catch Exception e
            (log/error "[bpm-node-listener] 触发失败:" event-name (.getMessage e))))))
 
+
 (defonce ^:private node-create-handler (atom nil))
+
 
 (defn set-node-create-handler!
   "注册节点 create 事件处理器。f 签名: (fn [task node-config] -> action)
@@ -372,15 +419,18 @@
   [f]
   (reset! node-create-handler f))
 
+
 ;; ── 抄送（COPY_TASK 节点自动抄送处理器注册）────────────────────────────
 
 (defonce ^:private copy-handler (atom nil))
+
 
 (defn set-copy-handler!
   "注册抄送节点处理器。f 签名: (fn [^DelegateTask task node-config])，
    由 domain 层实现：插入 biz_bpm_copy 记录并自动完成任务。"
   [f]
   (reset! copy-handler f))
+
 
 (defn make-task-listener
   "构建一个 Flowable TaskListener（create 事件）：
@@ -437,7 +487,8 @@
                      :process-instance-id (.getProcessInstanceId task)
                      :task-name (.getName task)})]
     (proxy [org.flowable.engine.delegate.TaskListener] []
-      (notify [^org.flowable.task.service.delegate.DelegateTask task]
+      (notify
+        [^org.flowable.task.service.delegate.DelegateTask task]
         ;; 同一个代理处理 create/assignment/complete 三个事件：
         ;; create → 候选解析 + Webhook task_start + 节点监听器 create
         ;; assignment → 节点监听器 assign
@@ -458,6 +509,7 @@
           (fire-node-listener! "complete" task)
           nil)))))
 
+
 (defn- task->map
   "把 Flowable Task 对象转成 Clojure map。"
   [^Task t]
@@ -471,16 +523,19 @@
    :create-time (timestamp->str (.getCreateTime t))
    :due-date (timestamp->str (.getDueDate t))})
 
+
 (defn task->map*
   "把 Flowable Task 对象转成 Clojure map（公开，供外部构造任务 map）。"
   [^Task t]
   (task->map t))
+
 
 (defn task-of
   "按任务 id 查单个任务（含实例 id/定义 id）。"
   [^ProcessEngine engine task-id]
   (some-> (.singleResult (.taskId (.createTaskQuery (.getTaskService engine)) task-id))
           task->map))
+
 
 (defn historic-task-of
   "按任务 id 查历史任务（含已完成任务的实例 id/办理人/节点 key），撤回等已办场景使用。"
@@ -494,6 +549,7 @@
      :process-instance-id (.getProcessInstanceId ^HistoricTaskInstance ht)
      :task-definition-key (.getTaskDefinitionKey ^HistoricTaskInstance ht)}))
 
+
 (defn todo-list
   "某人待办：候选人或已认领的任务。"
   [^ProcessEngine engine user]
@@ -501,10 +557,12 @@
         q (.taskCandidateOrAssigned (.createTaskQuery ts) user)]
     (mapv task->map (.list q))))
 
+
 (defn todo-count
   "待办数。"
   [^ProcessEngine engine user]
   (.count (.taskCandidateOrAssigned (.createTaskQuery (.getTaskService engine)) user)))
+
 
 (defn active-tasks-of
   "某流程实例当前活动（运行中）任务 map 列表（按创建时间升序）。"
@@ -512,6 +570,7 @@
   (mapv task->map
         (.list (.processInstanceId (.createTaskQuery (.getTaskService engine))
                                    process-instance-id))))
+
 
 (defn done-list
   "某人已办（历史已完成任务）。"
@@ -529,17 +588,20 @@
              :end-time (timestamp->str (.getEndTime h))})
           (.list q))))
 
+
 (defn claim!
   "认领任务。"
   [^ProcessEngine engine task-id user]
   (.claim (.getTaskService engine) task-id user)
   true)
 
+
 (defn unclaim!
   "释放认领。"
   [^ProcessEngine engine task-id]
   (.unclaim (.getTaskService engine) task-id)
   true)
+
 
 (defn transfer!
   "转办：直接改指派人。若指定 from-user，则校验任务当前归属。"
@@ -552,17 +614,20 @@
   (.setAssignee (.getTaskService engine) task-id to-user)
   true)
 
+
 (defn delegate!
   "委派（保留 owner，受派人完成后回到 owner）。Flowable 8 方法名为 delegateTask。"
   [^ProcessEngine engine task-id to-user]
   (.delegateTask (.getTaskService engine) task-id to-user)
   true)
 
+
 (defn resolve!
   "被委派人完成后回到 owner 待办。"
   [^ProcessEngine engine task-id]
   (.resolveTask (.getTaskService engine) task-id)
   true)
+
 
 (defn- task-entity
   "按任务 id 查运行中任务实体，不存在则抛错。"
@@ -573,6 +638,7 @@
       (throw (ex-info "任务不存在或已完成" {:task-id task-id})))
     t))
 
+
 (defn- child-sign-tasks
   "某任务的未完成（运行中）加签子任务。Flowable8 运行期 TaskQuery 无 taskParentTaskId，
    按 processInstanceId 查询后用 getParentTaskId 过滤。"
@@ -582,10 +648,12 @@
     (filter #(= task-id (.getParentTaskId ^Task %))
             (.list (.processInstanceId (.createTaskQuery ts) (.getProcessInstanceId t))))))
 
+
 (defn- open-sign-count
   "某任务的未完成加签子任务数。"
   [^ProcessEngine engine task-id]
   (count (child-sign-tasks engine task-id)))
+
 
 (defn- complete-impl
   "完成任务并写入变量。若任务未认领且给定 user，则先认领给该用户（保证已办/历史可追踪）。
@@ -630,6 +698,7 @@
                                              :approve))))))
   true)
 
+
 (defn- complete*
   "完成任务入口：Flowable 乐观锁冲突（并发审批/操作同一任务）转成友好文案。"
   [^ProcessEngine engine task-id user variables]
@@ -638,6 +707,7 @@
     (catch org.flowable.common.engine.api.FlowableOptimisticLockingException _
       (throw (ex-info "任务已被他人处理，请刷新" {:task-id task-id}))))
   true)
+
 
 (defn approve!
   "审批通过：完成任务，写入 approved=true。父任务通过前校验无未完成加签子任务。
@@ -652,11 +722,13 @@
                                     sign-pic-url (assoc :sign-pic-url sign-pic-url)))
    true))
 
+
 (defn complete!
   "通用完成任务（自定义变量）。"
   [^ProcessEngine engine task-id user variables]
   (complete* engine task-id user variables)
   true)
+
 
 (defn node-config-of
   "从任务对应 BPMN 节点的 extensionElements 读取 nodeConfig JSON（config round-trip 数据）。"
@@ -677,6 +749,7 @@
             (or props-children [])))
     (catch Exception _ nil)))
 
+
 ;; ── 操作按钮配置（nodeConfig.buttons）────────────────────────────────────
 
 (def default-buttons
@@ -688,6 +761,7 @@
    "add-sign"   {"enable" true "displayName" "加签"}
    "return"     {"enable" true "displayName" "退回"}})
 
+
 (def default-transactor-buttons
   "办理人节点（nodeType=TRANSACTOR）默认按钮：只开「办理」，其余操作隐藏。"
   {"approve"    {"enable" true "displayName" "办理"}
@@ -697,6 +771,7 @@
    "add-sign"   {"enable" false "displayName" "加签"}
    "return"     {"enable" false "displayName" "退回"}})
 
+
 (defn buttons-of
   "合并节点 buttons 配置与默认配置，返回 {btn-key {\"enable\" bool \"displayName\" str}}。
    nodeConfig JSON 解析后按钮 key/字段可能是 keyword 或字符串，两者都兼容；
@@ -704,16 +779,18 @@
   ([node-config] (buttons-of node-config default-buttons))
   ([node-config defaults]
    (let [configured (or (:buttons node-config) {})
-         get-btn (fn [k] (let [b (or (get configured k) (get configured (keyword k)))]
-                           (if (map? b) b {})))]
+         get-btn (fn [k]
+                   (let [b (or (get configured k) (get configured (keyword k)))]
+                     (if (map? b) b {})))]
      (into {}
            (map (fn [[k default-v]]
                   (let [b (get-btn k)]
                     [k {"enable" (let [v (or (find b :enable) (find b "enable"))]
-                                  (if v (boolean (val v)) (boolean (get default-v "enable"))))
-                       "displayName" (or (:displayName b) (:display-name b)
-                                         (get b "displayName") (get default-v "displayName"))}])))
+                                   (if v (boolean (val v)) (boolean (get default-v "enable"))))
+                        "displayName" (or (:displayName b) (:display-name b)
+                                          (get b "displayName") (get default-v "displayName"))}])))
            defaults))))
+
 
 (defn- element-node-config
   "读取任意 FlowElement 的 nodeConfig 属性 JSON。"
@@ -731,6 +808,7 @@
             (or props-children [])))
     (catch Exception _ nil)))
 
+
 ;; ── 超时处理（boundary timer → TimeoutHandler）───────────────────────────
 
 (defn make-timeout-handler
@@ -739,7 +817,8 @@
    （完成当前节点任务并写 approved 变量，由网关按正常出线流转）。"
   []
   (proxy [org.flowable.engine.delegate.ExecutionListener] []
-    (notify [^org.flowable.engine.delegate.DelegateExecution execution]
+    (notify
+      [^org.flowable.engine.delegate.DelegateExecution execution]
       (try
         (when-let [^ProcessEngine engine @engine-ref]
           (let [repo (.getRepositoryService engine)
@@ -784,6 +863,7 @@
         (catch Exception e
           (log/error "[bpm-timeout] 超时处理失败:" (.getMessage e)))))))
 
+
 ;; ── Phase 4 触发器节点（serviceTask + bpmTriggerDelegate）────────────────
 
 (defn- get-in-path
@@ -798,12 +878,14 @@
               :else nil))
           m (str/split (str path) #"\.")))
 
+
 (defn- coerce-num
   [v]
   (cond
     (number? v) (double v)
     (nil? v) nil
     :else (try (Double/parseDouble (str v)) (catch Exception _ nil))))
+
 
 (defn- cmp-values
   "条件比较：两端都能解析为数字则数值比较，否则字符串比较。"
@@ -821,6 +903,7 @@
         (not= (str lv) (str rv))
         (= (str lv) (str rv))))))
 
+
 (defn- eval-trigger-conditions
   "UPDATE_FORM 触发器的条件规则（全部 AND，空规则视为 true）。
    left-side 为流程变量名，right-side 支持 ${field} 占位与数字字面量。"
@@ -830,6 +913,7 @@
                   rv (resolve-placeholders right-side vars)]
               (cmp-values (or op-code "==") lv rv)))
           (or rules [])))
+
 
 (defn- trigger-http!
   "HTTP_REQUEST 触发器：发请求（失败只记日志），2xx 时按 response-mappings
@@ -867,8 +951,9 @@
                 (.setVariable execution (str target)
                               (get-in-path parsed (str source)))))
             (log/info "[bpm-trigger] HTTP_REQUEST" url "->" status
-                        "回写" (count (:response-mappings cfg)) "个变量"))
+                      "回写" (count (:response-mappings cfg)) "个变量"))
           (log/error "[bpm-trigger] HTTP_REQUEST" url "返回非 2xx:" status))))))
+
 
 (defn- parse-form-value
   "表单字段值：${} 占位解析后，数字字面量转数值，其余保留字符串。"
@@ -880,6 +965,7 @@
         r)
       r)))
 
+
 (defn- trigger-update-form!
   "UPDATE_FORM 触发器：条件满足时把多组 字段=值 写入流程变量（值支持 ${field}）。"
   [^org.flowable.engine.delegate.DelegateExecution execution cfg]
@@ -890,6 +976,7 @@
           (.setVariable execution (str field) (parse-form-value value vars))))
       (log/info "[bpm-trigger] UPDATE_FORM 已更新" (count (:fields cfg)) "个字段"))))
 
+
 (defn- trigger-delete-form!
   "DELETE_FORM 触发器：清除指定字段的流程变量。"
   [^org.flowable.engine.delegate.DelegateExecution execution cfg]
@@ -897,6 +984,7 @@
     (when (seq (str f))
       (.setVariable execution (str f) nil)
       (log/info "[bpm-trigger] DELETE_FORM 清除字段" f))))
+
 
 (defn make-trigger-delegate
   "触发器节点统一 JavaDelegate（nodeConfig.trigger-type 分发）：
@@ -907,7 +995,8 @@
    任何失败只记日志，不阻断流程。"
   []
   (proxy [org.flowable.engine.delegate.JavaDelegate] []
-    (execute [^org.flowable.engine.delegate.DelegateExecution execution]
+    (execute
+      [^org.flowable.engine.delegate.DelegateExecution execution]
       (try
         (when-let [^ProcessEngine engine @engine-ref]
           (let [repo (.getRepositoryService engine)
@@ -926,10 +1015,12 @@
         (catch Exception e
           (log/error "[bpm-trigger] 触发器执行失败:" (.getMessage e)))))))
 
+
 (def reject-to-start-marker
   "驳回到起始节点的专用标记值（return-list 首节点为空时提供「发起人（退回起始）」选项，
    reject 收到该值时把流程迁回 startEvent）。"
   "__START__")
+
 
 (defn- start-event-activity-id
   "流程实例的 startEvent 活动 id（历史记录查询）。"
@@ -941,6 +1032,7 @@
           (.asc)
           .list first (.getActivityId)))
 
+
 (defn- move-to-activity!
   "把流程实例从当前活动迁移到目标活动（驳回到指定节点）。"
   [^ProcessEngine engine process-instance-id from-activity-id to-activity-id]
@@ -949,6 +1041,7 @@
       (.moveActivityIdTo from-activity-id to-activity-id)
       .changeState)
   true)
+
 
 (defn reject!
   "审批驳回：完成任务，写入 approved=false。
@@ -996,6 +1089,7 @@
                                         sign-pic-url (assoc :sign-pic-url sign-pic-url))))
      true)))
 
+
 ;; ── 历史 (History) ─────────────────────────────────────────────────────
 
 (defn history-of
@@ -1016,6 +1110,7 @@
              :duration (when (and (.getStartTime h) (.getEndTime h))
                          (str (.getDurationInMillis h)))})
           (.list q))))
+
 
 (defn task-history-of
   "某流程实例的任务级审批历史（含任务局部变量 comment/approved，按结束时间倒序）。"
@@ -1038,6 +1133,7 @@
                :sign-pic-url (get locals "signPicUrl")}))
           (.list q))))
 
+
 ;; ── 流程图示 (diagram) ─────────────────────────────────────────────────
 
 (defn active-activity-ids
@@ -1046,6 +1142,7 @@
   (try
     (vec (.getActiveActivityIds (.getRuntimeService engine) process-instance-id))
     (catch Exception _ [])))
+
 
 (defn completed-activity-ids
   "流程实例已结束的活动节点 id（按历史去重）。"
@@ -1057,25 +1154,26 @@
        distinct
        vec))
 
+
 (defn all-tasks
   "全部运行中任务（管理员视图）。"
   [^ProcessEngine engine]
   (mapv task->map (.list (.createTaskQuery (.getTaskService engine)))))
+
 
 (defn terminate!
   "终止流程实例（运维操作）。"
   [^ProcessEngine engine process-instance-id reason]
   (.deleteProcessInstance (.getRuntimeService engine) process-instance-id (or reason "运维终止"))
   (fire-webhook! "process_end" {:process-instance-id process-instance-id
-                                 :task-name "运维终止"})
+                                :task-name "运维终止"})
   (fire-instance-end! {:process-instance-id process-instance-id
                        :task-name (or reason "运维终止")
                        :result :terminate})
   true)
 
+
 ;; ── 加签 / 减签 ────────────────────────────────────────────────────────
-
-
 
 
 
@@ -1101,6 +1199,7 @@
           (.setVariableLocal ts (.getId child) "signReason" (str reason)))))
     true))
 
+
 (defn delete-sign!
   "减签：删除指定加签人的未完成子任务，reason 记录到父任务评论。"
   [^ProcessEngine engine task-id user-names reason]
@@ -1116,6 +1215,7 @@
     (when reason
       (.addComment ts task-id (.getProcessInstanceId t) (str "减签: " reason)))
     true))
+
 
 (defn sign-list
   "某任务的加签子任务列表（含 assignee/status/reason，按创建时间升序）。"
@@ -1138,6 +1238,7 @@
                :end-time (timestamp->str (.getEndTime h))}))
           (.list q))))
 
+
 ;; ── 取消 / 撤回 ────────────────────────────────────────────────────────
 
 (defn cancel-instance!
@@ -1146,17 +1247,19 @@
   (.deleteProcessInstance (.getRuntimeService engine)
                           process-instance-id (or reason "取消申请"))
   (fire-webhook! "process_end" {:process-instance-id process-instance-id
-                                 :task-name "取消申请"})
+                                :task-name "取消申请"})
   (fire-instance-end! {:process-instance-id process-instance-id
                        :task-name (or reason "取消申请")
                        :result :cancel})
   true)
+
 
 (defn- active-activity-ids-safe
   [^ProcessEngine engine process-instance-id]
   (try
     (vec (.getActiveActivityIds (.getRuntimeService engine) process-instance-id))
     (catch Exception _ [])))
+
 
 (defn withdraw!
   "撤回：审批人把自己刚审完的任务撤回（要求下一节点任务未完成）。
@@ -1187,6 +1290,7 @@
             (.setAssignee ts (.getId nt) (str user))))
         true))))
 
+
 (defn withdraw-to-start!
   "发起人撤回到起始节点：把所有活动迁移回 startEvent，流程重新走线。"
   [^ProcessEngine engine process-instance-id]
@@ -1209,6 +1313,7 @@
         (.moveActivityIdTo builder act start-act))
       (.changeState builder))
     true))
+
 
 ;; ── 可退回节点列表 ─────────────────────────────────────────────────────
 
@@ -1233,8 +1338,8 @@
         completed (set (map (fn [^HistoricActivityInstance h] (.getActivityId h))
                             (filter #(.getEndTime ^HistoricActivityInstance %)
                                     (.list (.processInstanceId
-                                            (.createHistoricActivityInstanceQuery hs)
-                                            pid)))))]
+                                             (.createHistoricActivityInstanceQuery hs)
+                                             pid)))))]
     (let [nodes (->> (take idx order)
                      (filter (fn [[id _]] (contains? completed id)))
                      (mapv (fn [[id name]] {:activity-id id :activity-name name})))]

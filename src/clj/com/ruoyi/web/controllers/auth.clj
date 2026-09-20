@@ -1,15 +1,16 @@
 (ns com.ruoyi.web.controllers.auth
   "认证控制器，处理登录、登出及当前用户信息获取。"
   (:require
-   [com.ruoyi.domain.system.user :as user-service]
-   [com.ruoyi.domain.system.role :as role-service]
-   [com.ruoyi.domain.system.menu :as menu-service]
-   [com.ruoyi.infra.security :as security]
-   [com.ruoyi.infra.online :as online]
-   [com.ruoyi.web.controllers.captcha :as captcha]
-   [com.ruoyi.domain.system.log :as log-domain]
-   [ring.util.response :as response]
-   [clojure.string :as str]))
+    [clojure.string :as str]
+    [com.ruoyi.domain.system.log :as log-domain]
+    [com.ruoyi.domain.system.menu :as menu-service]
+    [com.ruoyi.domain.system.role :as role-service]
+    [com.ruoyi.domain.system.user :as user-service]
+    [com.ruoyi.infra.online :as online]
+    [com.ruoyi.infra.security :as security]
+    [com.ruoyi.web.controllers.captcha :as captcha]
+    [ring.util.response :as response]))
+
 
 (defn- success
   "构造成功响应。"
@@ -17,12 +18,14 @@
   (-> (response/response {:code 200 :msg "操作成功" :data data})
       (response/content-type "application/json")))
 
+
 (defn- error
   "构造错误响应。"
   [code msg]
   (-> (response/response {:code code :msg msg})
       (response/status (if (>= code 500) 500 200))
       (response/content-type "application/json")))
+
 
 (defn login
   "用户登录，验证密码后签发 JWT，并注册在线用户。"
@@ -61,6 +64,7 @@
               (error 400 "密码错误")))
           (error 400 "用户不存在"))))))
 
+
 (defn get-info
   "获取当前登录用户信息及权限菜单。"
   [{:keys [user-service menu-service]} request]
@@ -78,6 +82,7 @@
                   :permissions perms
                   :menus menus}))
       (error 401 "用户不存在"))))
+
 
 (defn logout
   "用户登出，清除在线记录。"

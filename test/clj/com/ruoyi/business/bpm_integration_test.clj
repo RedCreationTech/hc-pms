@@ -1,21 +1,30 @@
 (ns com.ruoyi.business.bpm-integration-test
   "BPM 业务 REST 集成测试：启动完整系统，走 HTTP 全链路。
    断言不依赖待办总数（测试环境共享 rouyi.db/flowable，可能有历史遗留流程）。"
-  (:require [clojure.test :refer [deftest testing is use-fixtures]]
-            [com.ruoyi.test-utils :refer [system-state system-fixture GET]]
-            [peridot.core :as p]
-            [clojure.data.json :as json]))
+  (:require
+    [clojure.data.json :as json]
+    [clojure.test :refer [deftest testing is use-fixtures]]
+    [com.ruoyi.test-utils :refer [system-state system-fixture GET]]
+    [peridot.core :as p]))
+
 
 (use-fixtures :once (system-fixture))
 
-(defn- handler [] (:handler/ring (system-state)))
 
-(defn- parse-json [resp]
+(defn- handler
+  []
+  (:handler/ring (system-state)))
+
+
+(defn- parse-json
+  [resp]
   (when (:body resp)
     (try (json/read-str (:body resp) :key-fn keyword)
          (catch Exception _ nil))))
 
-(defn- login-token []
+
+(defn- login-token
+  []
   (let [ctx (-> (p/session (handler))
                 (p/request "/api/auth/login"
                            :request-method :post
@@ -24,9 +33,14 @@
         resp (:response ctx)]
     (get-in (parse-json resp) [:data :token])))
 
-(defn- auth-hdr [token] {"authorization" (str "Bearer " token)})
 
-(defn- POST [app path body headers]
+(defn- auth-hdr
+  [token]
+  {"authorization" (str "Bearer " token)})
+
+
+(defn- POST
+  [app path body headers]
   (:response (-> (p/session app)
                  (p/request path
                             :request-method :post
@@ -34,7 +48,9 @@
                             :headers headers
                             :body (json/write-str body)))))
 
-(defn- PUT [app path body headers]
+
+(defn- PUT
+  [app path body headers]
   (:response (-> (p/session app)
                  (p/request path
                             :request-method :put
@@ -42,7 +58,9 @@
                             :headers headers
                             :body (json/write-str body)))))
 
-(defn- leave-bpmn [key]
+
+(defn- leave-bpmn
+  [key]
   (str "<?xml version=\"1.0\"?><definitions xmlns=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" "
        "xmlns:flowable=\"http://flowable.org/bpmn\" id=\"d\" targetNamespace=\"http://bpmn.io/schema/bpmn\">"
        "<process id=\"" key "\" name=\"请假审批\" isExecutable=\"true\">"
@@ -52,6 +70,7 @@
        "<sequenceFlow id=\"f1\" sourceRef=\"start\" targetRef=\"approve\"/>"
        "<sequenceFlow id=\"f2\" sourceRef=\"approve\" targetRef=\"end\"/>"
        "</process></definitions>"))
+
 
 (deftest bpm-full-flow-via-http
   (testing "分类→模型→部署→发起→待办→审批→已办 全链路"
@@ -96,6 +115,7 @@
                     (is (not-any? #(= pid (:process-instance-id %))
                                   (get-in todo2 [:data :rows])))
                     (is (some #(= tid (:task-id %)) (get-in done [:data :rows])))))))))))))
+
 
 (deftest bpm-category-crud-via-http
   (testing "分类 CRUD"

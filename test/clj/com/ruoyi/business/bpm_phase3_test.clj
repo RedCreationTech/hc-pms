@@ -1,21 +1,30 @@
 (ns com.ruoyi.business.bpm-phase3-test
   "BPM Phase 3 治理能力 REST 集成测试：
    定义版本页/恢复、模型启停/清理/复制、编号规则、自动去重、标题渲染、摘要、打印。"
-  (:require [clojure.test :refer [deftest testing is use-fixtures]]
-            [com.ruoyi.test-utils :refer [system-state system-fixture GET]]
-            [peridot.core :as p]
-            [clojure.data.json :as json]))
+  (:require
+    [clojure.data.json :as json]
+    [clojure.test :refer [deftest testing is use-fixtures]]
+    [com.ruoyi.test-utils :refer [system-state system-fixture GET]]
+    [peridot.core :as p]))
+
 
 (use-fixtures :once (system-fixture))
 
-(defn- handler [] (:handler/ring (system-state)))
 
-(defn- parse-json [resp]
+(defn- handler
+  []
+  (:handler/ring (system-state)))
+
+
+(defn- parse-json
+  [resp]
   (when (:body resp)
     (try (json/read-str (:body resp) :key-fn keyword)
          (catch Exception _ nil))))
 
-(defn- login-token [username]
+
+(defn- login-token
+  [username]
   (let [ctx (-> (p/session (handler))
                 (p/request "/api/auth/login"
                            :request-method :post
@@ -24,9 +33,14 @@
         resp (:response ctx)]
     (get-in (parse-json resp) [:data :token])))
 
-(defn- auth-hdr [token] {"authorization" (str "Bearer " token)})
 
-(defn- POST [app path body headers]
+(defn- auth-hdr
+  [token]
+  {"authorization" (str "Bearer " token)})
+
+
+(defn- POST
+  [app path body headers]
   (:response (-> (p/session app)
                  (p/request path
                             :request-method :post
@@ -34,7 +48,9 @@
                             :headers headers
                             :body (json/write-str body)))))
 
-(defn- PUT [app path body headers]
+
+(defn- PUT
+  [app path body headers]
   (:response (-> (p/session app)
                  (p/request path
                             :request-method :put
@@ -42,13 +58,16 @@
                             :headers headers
                             :body (json/write-str body)))))
 
-(defn- DELETE [app path body headers]
+
+(defn- DELETE
+  [app path body headers]
   (:response (-> (p/session app)
                  (p/request path
                             :request-method :delete
                             :content-type "application/json"
                             :headers headers
                             :body (json/write-str body)))))
+
 
 ;; ── 模型准备 ──────────────────────────────────────────────────────────
 
@@ -69,6 +88,7 @@
          "<sequenceFlow id=\"f3\" sourceRef=\"a2\" targetRef=\"end\"/>"
          "</process></definitions>")))
 
+
 (defn- create-model!
   "创建模型（bpmn-fn 接收 model-key 生成 BPMN；extra 为扩展字段），返回 {:model-id :model-key}。"
   [app h bpmn-fn extra]
@@ -87,9 +107,12 @@
         _ (is (= 200 (:code upd)))]
     {:model-id mid :model-key key}))
 
-(defn- deploy! [app h mid]
+
+(defn- deploy!
+  [app h mid]
   (let [r (parse-json (POST app (str "/api/business/bpm/model/deploy/" mid) {} h))]
     (is (= 200 (:code r)))))
+
 
 (defn- start-instance!
   "发起流程实例，返回响应 data（:process-instance-id/:bill-code/:name）。"
@@ -97,13 +120,18 @@
   (:data (parse-json (POST app "/api/business/bpm/instance"
                            {:model_id mid :form_data (or fd {})} h))))
 
-(defn- todo-of [app hdr pid]
+
+(defn- todo-of
+  [app hdr pid]
   (let [r (parse-json (GET app "/api/business/bpm/todo" {} hdr))]
     (filter #(= pid (:process-instance-id %)) (get-in r [:data :rows] []))))
 
-(defn- instances-of [app h model-key]
+
+(defn- instances-of
+  [app h model-key]
   (get-in (parse-json (GET app (str "/api/business/bpm/instance?model_key=" model-key "&page=1&size=50") {} h))
           [:data :rows]))
+
 
 ;; ── 3.3 编号规则 + 3.5 标题渲染 + 摘要 ────────────────────────────────
 
@@ -164,13 +192,15 @@
         (is (pos? (count (:task-history data))))
         (is (contains? (get-in data [:model]) :print_template_html))))))
 
+
 ;; ── 3.4 自动去重 ─────────────────────────────────────────────────────
 
 (deftest bpm-phase3-auto-approval-test
   (let [app (handler) token (login-token "admin") h (auth-hdr token)
-        ended? (fn [pid] (some #(and (= "end" (:activity-id %)) (:end-time %))
-                               (get-in (parse-json (GET app (str "/api/business/bpm/instance/history/" pid) {} h))
-                                       [:data :activities])))]
+        ended? (fn [pid]
+                 (some #(and (= "end" (:activity-id %)) (:end-time %))
+                       (get-in (parse-json (GET app (str "/api/business/bpm/instance/history/" pid) {} h))
+                               [:data :activities])))]
     (testing "APPROVE_ONCE：同一审批人只审一次，第二节点自动通过"
       (let [{:keys [model-id]} (create-model! app h #(two-node-bpmn % "AO" "admin")
                                               {:auto_approval_type "APPROVE_ONCE"})
@@ -201,6 +231,7 @@
                                             {:comment "同意"} h)))))
         (is (some #(= "审批2NO" (:name %)) (todo-of app h pid)) "第二节点应保留待办")))))
 
+
 ;; ── 3.1 定义版本页 + 恢复 / 3.2 启停 / 清理 / 复制 ────────────────────
 
 (deftest bpm-phase3-definition-version-test
@@ -209,10 +240,10 @@
         _ (deploy! app h model-id)
         ;; 修改 BPMN（节点名带 V2 标记）再部署 → v2
         _ (is (= 200 (:code (parse-json (PUT app (str "/api/business/bpm/model/" model-id)
-                                              {:model_id model-id :model_name "Phase3测试"
-                                               :category_id 0 :form_type "0"
-                                               :bpmn_xml (two-node-bpmn model-key "V2" "admin")
-                                               :status "1" :remark ""} h)))))
+                                             {:model_id model-id :model_name "Phase3测试"
+                                              :category_id 0 :form_type "0"
+                                              :bpmn_xml (two-node-bpmn model-key "V2" "admin")
+                                              :status "1" :remark ""} h)))))
         _ (deploy! app h model-id)]
     (testing "定义版本页：按 modelKey 过滤，两个版本倒序"
       (let [r (parse-json (GET app (str "/api/business/bpm/definition/page?modelKey=" model-key "&page=1&size=10") {} h))
@@ -239,6 +270,7 @@
             "恢复后应能重新部署")
         (let [rows (get-in (parse-json (GET app (str "/api/business/bpm/definition/page?modelKey=" model-key) {} h)) [:data :rows])]
           (is (= 3 (count rows))))))))
+
 
 (deftest bpm-phase3-state-clean-copy-test
   (let [app (handler) token (login-token "admin") h (auth-hdr token)

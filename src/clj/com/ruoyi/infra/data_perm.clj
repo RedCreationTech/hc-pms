@@ -11,8 +11,9 @@
   用法: (data-perm-filter identity role-key table-alias)
   返回一个 SQL 片段或 WHERE 条件 map，注入到 HugSQL 查询中。"
   (:require
-   [clojure.string :as str]
-   [clojure.tools.logging :as log]))
+    [clojure.string :as str]
+    [clojure.tools.logging :as log]))
+
 
 ;; ──────────── 数据权限 SQL 片段生成 ────────────
 
@@ -23,6 +24,7 @@
    3 "DEPT"
    4 "DEPT_CHILD"
    5 "SELF"})
+
 
 (defn- build-dept-filter
   "根据角色数据权限范围，生成部门过滤条件。
@@ -57,6 +59,7 @@
           {:params {:data-perm-user-id uid}
            :sql    (str " " alias ".user_id = :data-perm-user-id")}
           {:params {} :sql "1=0"}))))
+
 
 (defn data-perm-filter
   "为查询生成数据权限过滤条件。

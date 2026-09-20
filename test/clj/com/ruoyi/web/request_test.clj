@@ -1,22 +1,30 @@
 (ns com.ruoyi.web.request-test
   "集成测试 — 启动完整系统并通过 HTTP 请求测试 API。"
-  (:require [clojure.test :refer [deftest testing is use-fixtures]]
-            [com.ruoyi.test-utils :refer [system-state system-fixture GET PUT]]
-            [peridot.core :as p]
-            [clojure.data.json :as json]
-            [clojure.java.io :as io]))
+  (:require
+    [clojure.data.json :as json]
+    [clojure.java.io :as io]
+    [clojure.test :refer [deftest testing is use-fixtures]]
+    [com.ruoyi.test-utils :refer [system-state system-fixture GET PUT]]
+    [peridot.core :as p]))
+
 
 (use-fixtures :once (system-fixture))
 
-(defn- handler []
+
+(defn- handler
+  []
   (:handler/ring (system-state)))
 
-(defn- parse-json [resp]
+
+(defn- parse-json
+  [resp]
   (when (:body resp)
     (try (json/read-str (:body resp) :key-fn keyword)
          (catch Exception _ nil))))
 
-(defn- login-token []
+
+(defn- login-token
+  []
   (let [ctx (-> (p/session (handler))
                 (p/request "/api/auth/login"
                            :request-method :post
@@ -26,8 +34,11 @@
     (when-let [body (parse-json resp)]
       (get-in body [:data :token]))))
 
-(defn- auth-headers [token]
+
+(defn- auth-headers
+  [token]
   {"authorization" (str "Bearer " token)})
+
 
 ;; ─── 健康检查 ──────────────────────────────────────────────────────
 
@@ -35,6 +46,7 @@
   (testing "健康检查 API"
     (let [resp (GET (handler) "/api/health" {} {})]
       (is (= 200 (:status resp))))))
+
 
 ;; ─── 认证 ──────────────────────────────────────────────────────────
 
@@ -44,6 +56,7 @@
       (is (string? token))
       (is (pos? (count token))))))
 
+
 (deftest get-info-test
   (testing "获取用户信息 API"
     (let [token (login-token)
@@ -51,6 +64,7 @@
           body (parse-json resp)]
       (is (= 200 (:status resp)))
       (is (= 200 (:code body))))))
+
 
 ;; ─── 系统管理 ──────────────────────────────────────────────────────
 
@@ -60,40 +74,48 @@
           body (parse-json resp)]
       (is (= 200 (:status resp))))))
 
+
 (deftest role-list-test
   (testing "角色列表 API"
     (let [resp (GET (handler) "/api/system/role" {} (auth-headers (login-token)))]
       (is (= 200 (:status resp))))))
+
 
 (deftest menu-list-test
   (testing "菜单列表 API"
     (let [resp (GET (handler) "/api/system/menu" {} (auth-headers (login-token)))]
       (is (= 200 (:status resp))))))
 
+
 (deftest dept-list-test
   (testing "部门列表 API"
     (let [resp (GET (handler) "/api/system/dept" {} (auth-headers (login-token)))]
       (is (= 200 (:status resp))))))
+
 
 (deftest post-list-test
   (testing "岗位列表 API"
     (let [resp (GET (handler) "/api/system/post" {} (auth-headers (login-token)))]
       (is (= 200 (:status resp))))))
 
+
 (deftest dict-type-list-test
   (testing "字典类型列表 API"
     (let [resp (GET (handler) "/api/system/dict/type" {} (auth-headers (login-token)))]
       (is (= 200 (:status resp))))))
+
 
 (deftest config-list-test
   (testing "参数列表 API"
     (let [resp (GET (handler) "/api/system/config" {} (auth-headers (login-token)))]
       (is (= 200 (:status resp))))))
 
+
 (deftest notice-list-test
   (testing "通知公告列表 API"
     (let [resp (GET (handler) "/api/system/notice" {} (auth-headers (login-token)))]
       (is (= 200 (:status resp))))))
+
 
 ;; ─── 监控 ──────────────────────────────────────────────────────────
 
@@ -102,12 +124,14 @@
     (let [resp (GET (handler) "/api/system/server" {} (auth-headers (login-token)))]
       (is (= 200 (:status resp))))))
 
+
 (deftest datasource-monitor-test
   (testing "数据源监控 API"
     (let [resp (GET (handler) "/api/system/datasource" {} (auth-headers (login-token)))
           body (parse-json resp)]
       (is (= 200 (:status resp)))
       (is (some? (get-in body [:data :active_connections]))))))
+
 
 (deftest online-list-test
   (testing "在线用户列表 API"
@@ -117,20 +141,24 @@
       (is (= 200 (:status resp)))
       (is (vector? (get-in body [:data :rows]))))))
 
+
 (deftest operlog-list-test
   (testing "操作日志列表 API"
     (let [resp (GET (handler) "/api/system/oper-log" {} (auth-headers (login-token)))]
       (is (= 200 (:status resp))))))
+
 
 (deftest loginlog-list-test
   (testing "登录日志列表 API"
     (let [resp (GET (handler) "/api/system/login-log" {} (auth-headers (login-token)))]
       (is (= 200 (:status resp))))))
 
+
 (deftest job-list-test
   (testing "定时任务列表 API"
     (let [resp (GET (handler) "/api/system/job" {} (auth-headers (login-token)))]
       (is (= 200 (:status resp))))))
+
 
 (deftest job-run-once-test
   (testing "定时任务立即执行"
@@ -161,12 +189,14 @@
       (is (pos? (count (get-in all-log-body [:data :rows]))))
       (is (pos? (count (get-in log-body [:data :rows])))))))
 
+
 ;; ─── 导出 ──────────────────────────────────────────────────────────
 
 (deftest export-role-test
   (testing "导出角色数据 API"
     (let [resp (GET (handler) "/api/system/role/export" {} (auth-headers (login-token)))]
       (is (= 200 (:status resp))))))
+
 
 (deftest export-user-test
   (testing "导出用户数据 API"

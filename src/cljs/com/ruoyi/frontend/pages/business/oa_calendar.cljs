@@ -1,13 +1,15 @@
 (ns com.ruoyi.frontend.pages.business.oa-calendar
   "OA 日程管理。"
   (:require
-   [reagent.core :as r]
-   [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [PlusOutlined ReloadOutlined]]
-   [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
+    ["@ant-design/icons" :refer [PlusOutlined ReloadOutlined]]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+    [re-frame.core :as rf]
+    [reagent.core :as r]))
 
-(defn- columns []
+
+(defn- columns
+  []
   #js [#js {:title "标题" :dataIndex "title" :key "title"}
        #js {:title "开始" :dataIndex "start_time" :key "start_time" :width 180}
        #js {:title "结束" :dataIndex "end_time" :key "end_time" :width 180}
@@ -16,11 +18,13 @@
        #js {:title "操作" :key "action" :width 90
             :render (fn [_ ^js record]
                       (r/as-element
-                       [antd/button {:type "link" :danger true :size "small"
-                                     :on-click #(rf/dispatch [:oa-calendar/delete (.-calendar_id ^js record)])}
-                        "删除"]))}])
+                        [antd/button {:type "link" :danger true :size "small"
+                                      :on-click #(rf/dispatch [:oa-calendar/delete (.-calendar_id ^js record)])}
+                         "删除"]))}])
 
-(defn- modal []
+
+(defn- modal
+  []
   (let [visible? @(rf/subscribe [:oa-calendar/modal-visible?]) [form] (antd/form-use-form)]
     [antd/modal {:title "新增日程" :open visible? :onOk #(.submit form) :onCancel #(rf/dispatch [:oa-calendar/close])}
      [antd/form {:form form :layout "vertical" :preserve false
@@ -30,7 +34,9 @@
       [antd/form-item {:label "结束时间" :name "end_time"} [antd/input {:placeholder "YYYY-MM-DD HH:mm:ss"}]]
       [antd/form-item {:label "全天" :name "all_day"} [antd/switch {:defaultChecked false}]]]]))
 
-(defn oa-calendar-page []
+
+(defn oa-calendar-page
+  []
   (let [items @(rf/subscribe [:oa-calendar/items]) total @(rf/subscribe [:oa-calendar/total]) loading? @(rf/subscribe [:oa-calendar/loading?])]
     [:div
      [page-toolbar/page-toolbar

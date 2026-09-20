@@ -1,14 +1,16 @@
 (ns com.ruoyi.frontend.pages.business.bpm-ops
   "BPM 实例管理 / 任务管理 / 实例运维。"
   (:require
-   [reagent.core :as r]
-   [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [ReloadOutlined EyeOutlined PauseCircleOutlined PlayCircleOutlined StopOutlined]]
-   [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
-   [com.ruoyi.frontend.components.bpmn-viewer :as bpmn-viewer]))
+    ["@ant-design/icons" :refer [ReloadOutlined EyeOutlined PauseCircleOutlined PlayCircleOutlined StopOutlined]]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.components.bpmn-viewer :as bpmn-viewer]
+    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+    [re-frame.core :as rf]
+    [reagent.core :as r]))
 
-(defn- status-tag [v]
+
+(defn- status-tag
+  [v]
   (let [[label color] (case v
                         "1" ["审批中" "processing"]
                         "2" ["已结束" "success"]
@@ -17,7 +19,9 @@
                         ["未知" "default"])]
     [antd/tag {:color color} label]))
 
-(defn- ops-columns []
+
+(defn- ops-columns
+  []
   #js [#js {:title "流程实例" :dataIndex "process_instance_id" :key "process_instance_id" :width 100
             :render (fn [v] (r/as-element (if v [antd/tag {:color "blue"} v] "-")))}
        #js {:title "模型" :dataIndex "model_name" :key "model_name" :width 130}
@@ -30,29 +34,33 @@
             :render (fn [_ ^js record]
                       (let [pid (.-process_instance_id ^js record)]
                         (r/as-element
-                         [antd/space
-                          [antd/button {:type "link" :size "small" :icon (r/as-element [:> EyeOutlined])
-                                        :on-click #(rf/dispatch [:bpm/diagram-open pid])} "流程图"]
-                          [antd/button {:type "link" :size "small" :icon (r/as-element [:> PauseCircleOutlined])
-                                        :on-click #(rf/dispatch [:bpm/instance-op pid "suspend"])} "挂起"]
-                          [antd/button {:type "link" :size "small" :icon (r/as-element [:> PlayCircleOutlined])
-                                        :on-click #(rf/dispatch [:bpm/instance-op pid "activate"])} "激活"]
-                          [antd/button {:danger true :type "link" :size "small" :icon (r/as-element [:> StopOutlined])
-                                        :on-click #(rf/dispatch [:bpm/instance-op pid "terminate"])} "终止"]
-                          [antd/popconfirm {:title "确认取消该流程实例?"
-                                            :on-confirm #(rf/dispatch [:bpm/instance-cancel pid "管理员取消"])}
-                           [antd/button {:type "link" :size "small" :danger true
-                                         :icon (r/as-element [:> StopOutlined])}
-                            "取消"]]])))}])
+                          [antd/space
+                           [antd/button {:type "link" :size "small" :icon (r/as-element [:> EyeOutlined])
+                                         :on-click #(rf/dispatch [:bpm/diagram-open pid])} "流程图"]
+                           [antd/button {:type "link" :size "small" :icon (r/as-element [:> PauseCircleOutlined])
+                                         :on-click #(rf/dispatch [:bpm/instance-op pid "suspend"])} "挂起"]
+                           [antd/button {:type "link" :size "small" :icon (r/as-element [:> PlayCircleOutlined])
+                                         :on-click #(rf/dispatch [:bpm/instance-op pid "activate"])} "激活"]
+                           [antd/button {:danger true :type "link" :size "small" :icon (r/as-element [:> StopOutlined])
+                                         :on-click #(rf/dispatch [:bpm/instance-op pid "terminate"])} "终止"]
+                           [antd/popconfirm {:title "确认取消该流程实例?"
+                                             :on-confirm #(rf/dispatch [:bpm/instance-cancel pid "管理员取消"])}
+                            [antd/button {:type "link" :size "small" :danger true
+                                          :icon (r/as-element [:> StopOutlined])}
+                             "取消"]]])))}])
 
-(defn- task-columns []
+
+(defn- task-columns
+  []
   #js [#js {:title "任务" :dataIndex "name" :key "name"}
        #js {:title "办理人" :dataIndex "assignee" :key "assignee" :width 100}
        #js {:title "流程实例" :dataIndex "process-instance-id" :key "process-instance-id" :width 100}
        #js {:title "流程定义" :dataIndex "process-definition-id" :key "process-definition-id" :width 180}
        #js {:title "创建时间" :dataIndex "create-time" :key "create-time" :width 180}])
 
-(defn- diagram-modal []
+
+(defn- diagram-modal
+  []
   (let [visible? @(rf/subscribe [:bpm-diagram/visible?])
         data @(rf/subscribe [:bpm-diagram/data])
         loading? @(rf/subscribe [:bpm-diagram/loading?])]
@@ -67,7 +75,9 @@
          :completed-ids (vec (:completed-activity-ids data))
          :on-error (fn [e] (antd/error! e))}])]))
 
-(defn- page-shell [title items total loading? toolbar-left]
+
+(defn- page-shell
+  [title items total loading? toolbar-left]
   [:div
    [page-toolbar/page-toolbar
     {:left [page-toolbar/toolbar-left [:div {:style {:fontSize 15 :fontWeight 600}} title]]
@@ -80,7 +90,9 @@
                  :pagination {:total total :pageSize 10 :showSizeChanger true
                               :showTotal (fn [t] (str "共 " t " 条"))}}]]])
 
-(defn instance-manager-page []
+
+(defn instance-manager-page
+  []
   (let [items @(rf/subscribe [:bpm-instance/items])
         total @(rf/subscribe [:bpm-instance/total])
         loading? @(rf/subscribe [:bpm-instance/loading?])]
@@ -96,7 +108,9 @@
                                :showTotal (fn [t] (str "共 " t " 条"))}}]
      [diagram-modal]]))
 
-(defn instance-ops-page []
+
+(defn instance-ops-page
+  []
   (let [items @(rf/subscribe [:bpm-instance/items])
         total @(rf/subscribe [:bpm-instance/total])
         loading? @(rf/subscribe [:bpm-instance/loading?])]
@@ -112,7 +126,9 @@
                                :showTotal (fn [t] (str "共 " t " 条"))}}]
      [diagram-modal]]))
 
-(defn task-manager-page []
+
+(defn task-manager-page
+  []
   (let [items @(rf/subscribe [:bpm-all-tasks/items])
         total @(rf/subscribe [:bpm-all-tasks/total])
         loading? @(rf/subscribe [:bpm-all-tasks/loading?])]

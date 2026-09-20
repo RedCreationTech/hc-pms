@@ -1,7 +1,9 @@
 (ns com.ruoyi.infra.scheduler-test
   "调度器公共函数测试。"
-  (:require [clojure.test :refer [deftest is testing]]
-            [com.ruoyi.infra.scheduler :as scheduler]))
+  (:require
+    [clojure.test :refer [deftest is testing]]
+    [com.ruoyi.infra.scheduler :as scheduler]))
+
 
 (deftest test-invoke-target-allowed?
   (testing "允许合法命名空间内的目标"

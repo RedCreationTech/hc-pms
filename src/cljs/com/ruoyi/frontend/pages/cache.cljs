@@ -1,12 +1,13 @@
 (ns com.ruoyi.frontend.pages.cache
   "缓存监控页面，按 RuoYi-Vue 缓存监控布局展示 Redis 基本信息、命令统计和内存信息。"
   (:require
-   [reagent.core :as r]
-   [reagent.hooks :as hooks]
-   [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [DashboardOutlined DeleteOutlined PieChartOutlined ReloadOutlined]]
-   ["antd" :refer [Modal Spin]]
-   [com.ruoyi.frontend.antd :as antd]))
+    ["@ant-design/icons" :refer [DashboardOutlined DeleteOutlined PieChartOutlined ReloadOutlined]]
+    ["antd" :refer [Modal Spin]]
+    [com.ruoyi.frontend.antd :as antd]
+    [re-frame.core :as rf]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
+
 
 (def card-style
   {:background "#fff"
@@ -14,23 +15,25 @@
    :borderRadius 4
    :boxShadow "0 2px 12px 0 rgba(0,0,0,0.06)"})
 
+
 (defn- monitor-card
   "渲染 RuoYi 风格监控卡片。"
   [{:keys [icon title style]} & children]
   (into
-   [:div {:style (merge card-style style)}
-    [:div {:style {:height 48
-                   :display "flex"
-                   :alignItems "center"
-                   :gap 8
-                   :padding "0 18px"
-                   :borderBottom "1px solid #ebeef5"
-                   :fontSize 16
-                   :fontWeight 600
-                   :color "#303133"}}
-     icon
-     [:span title]]]
-   children))
+    [:div {:style (merge card-style style)}
+     [:div {:style {:height 48
+                    :display "flex"
+                    :alignItems "center"
+                    :gap 8
+                    :padding "0 18px"
+                    :borderBottom "1px solid #ebeef5"
+                    :fontSize 16
+                    :fontWeight 600
+                    :color "#303133"}}
+      icon
+      [:span title]]]
+    children))
+
 
 (defn- info-grid
   "渲染基本信息的四列三行表格。"
@@ -53,6 +56,7 @@
           [:div {:style {:fontWeight 500 :color "#606266"}} (:label item)]
           [:div {:style {:marginTop 4 :color "#909399"}} (or (:value item) "")]])])]])
 
+
 (defn- command-rows
   "把命令统计转换为柱状图数据。"
   [stats]
@@ -63,6 +67,7 @@
                   {:name "clear" :value 0}])
         max-value (max 1 (apply max (map #(or (:value %) 0) rows)))]
     (mapv #(assoc % :percent (* 100 (/ (or (:value %) 0) max-value))) rows)))
+
 
 (defn- command-chart
   "用轻量 SVG/HTML 复刻 RuoYi 命令统计图区域。"
@@ -86,6 +91,7 @@
                         :borderRadius "2px 2px 0 0"}}]
          [:div {:style {:fontSize 12 :color "#606266" :marginTop 8}} name]])]
      [:div {:style {:textAlign "center" :fontSize 12 :color "#909399" :marginTop 12}} "命令"]]))
+
 
 (defn- donut-chart
   "用 SVG 复刻内存占用环形图。"
@@ -111,6 +117,7 @@
        (str used "M / " total "M")]]
      [:div {:style {:fontSize 12 :color "#909399"}} "内存使用率"]]))
 
+
 (defn- basic-items
   "生成 RuoYi 缓存基本信息字段。"
   [cache-data]
@@ -128,15 +135,16 @@
    {:label "Key数量" :value (or (:keysCount cache-data) 0)}
    {:label "网络入口/出口" :value (or (:networkIo cache-data) "-")}])
 
+
 (defn cache-page
   "缓存监控入口组件，加载并展示缓存运行状态。"
   []
   (hooks/use-effect
-   (fn []
-     (rf/dispatch [:cache/fetch-info])
-     (rf/dispatch [:cache/fetch-names])
-     js/undefined)
-   [])
+    (fn []
+      (rf/dispatch [:cache/fetch-info])
+      (rf/dispatch [:cache/fetch-names])
+      js/undefined)
+    [])
   (let [cache-data @(rf/subscribe [:cache/data])
         value @(rf/subscribe [:cache/value])
         value-visible? @(rf/subscribe [:cache/value-visible?])

@@ -1,14 +1,15 @@
 (ns com.ruoyi.frontend.pages.online
   "在线用户页面。"
   (:require
-   [goog.object :as gobj]
-   [reagent.core :as r]
-   [reagent.hooks :as hooks]
-   [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [SearchOutlined ReloadOutlined]]
-   [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.components.page-search :as page-search]
-   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
+    ["@ant-design/icons" :refer [SearchOutlined ReloadOutlined]]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.components.page-search :as page-search]
+    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+    [goog.object :as gobj]
+    [re-frame.core :as rf]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
+
 
 (defn- token-id-from-row
   "Antd render 第一个参数可能是文本/记录；兼容取 token-id。"
@@ -16,33 +17,37 @@
   (or (when (object? r1) (gobj/get r1 "token-id"))
       (when (object? r2) (gobj/get r2 "token-id"))))
 
-(defn- online-columns []
+
+(defn- online-columns
+  []
   #js [#js {:title "用户ID" :dataIndex "user-id" :key "user-id"}
        #js {:title "用户名" :dataIndex "user-name" :key "user-name"}
        #js {:title "登录IP" :dataIndex "login-ip" :key "login-ip"}
        #js {:title "登录时间" :dataIndex "login-time" :key "login-time"
             :render (fn [v]
                       (r/as-element
-                       [:span (when v (.toLocaleString (js/Date. v)))]))}
+                        [:span (when v (.toLocaleString (js/Date. v)))]))}
        #js {:title "最后访问" :dataIndex "last-access" :key "last-access"
             :render (fn [v]
                       (r/as-element
-                       [:span (when v (.toLocaleString (js/Date. v)))]))}
+                        [:span (when v (.toLocaleString (js/Date. v)))]))}
        #js {:title "操作" :key "action" :dataIndex "token-id"
             :render (fn [v ^js record]
                       (r/as-element
-                       [antd/button {:type "link" :danger true :size "small"
-                                     :onClick #(when-let [tid (token-id-from-row v record)]
-                                                 (rf/dispatch [:online-users/force-logout tid]))}
-                        "强退"]))}])
+                        [antd/button {:type "link" :danger true :size "small"
+                                      :onClick #(when-let [tid (token-id-from-row v record)]
+                                                  (rf/dispatch [:online-users/force-logout tid]))}
+                         "强退"]))}])
 
-(defn online-page []
+
+(defn online-page
+  []
   (hooks/use-effect
-   (fn []
-     (rf/dispatch [:online-users/fetch {}])
-     (let [interval (js/setInterval #(rf/dispatch [:online-users/fetch {}]) 30000)]
-       (fn [] (js/clearInterval interval))))
-   [])
+    (fn []
+      (rf/dispatch [:online-users/fetch {}])
+      (let [interval (js/setInterval #(rf/dispatch [:online-users/fetch {}]) 30000)]
+        (fn [] (js/clearInterval interval))))
+    [])
   (let [items @(rf/subscribe [:online-users/items])
         [uname set-uname!] (hooks/use-state "")
         total @(rf/subscribe [:online-users/total])

@@ -1,18 +1,19 @@
 (ns com.ruoyi.frontend.pages.menu
   "菜单管理页面 — 树形表格、CRUD、图标选择器、行拖拽排序。"
   (:require
-   [reagent.core :as r]
-   [reagent.hooks :as hooks]
-   [re-frame.core :as rf]
-   ["react" :as react]
-   ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined ReloadOutlined SearchOutlined CheckOutlined ColumnHeightOutlined DragOutlined]]
-   [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.components.page-search :as page-search]
-   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
-   [com.ruoyi.frontend.components.icon-picker :as icon-picker]
-   ["@dnd-kit/core" :as dnd-kit-core]
-   ["@dnd-kit/sortable" :as dnd-sortable]
-   ["@dnd-kit/utilities" :refer [CSS]]))
+    ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined ReloadOutlined SearchOutlined CheckOutlined ColumnHeightOutlined DragOutlined]]
+    ["@dnd-kit/core" :as dnd-kit-core]
+    ["@dnd-kit/sortable" :as dnd-sortable]
+    ["@dnd-kit/utilities" :refer [CSS]]
+    ["react" :as react]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.components.icon-picker :as icon-picker]
+    [com.ruoyi.frontend.components.page-search :as page-search]
+    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+    [re-frame.core :as rf]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
+
 
 ;; ─── 辅助：平铺菜单转树 ──────────────────────────────────────────────────────
 
@@ -30,6 +31,7 @@
                     (assoc node :children children)
                     node)))))))
 
+
 ;; ─── 辅助：平铺转排序数组 ──────────────────────────────────────────────────────
 
 (defn- flatten-menu-keys
@@ -37,11 +39,12 @@
    保持现有的 parent-child 层级关系。"
   [items]
   (mapcat
-   (fn [item]
-     (if-let [children (seq (:children item))]
-       (cons (:menu_id item) (flatten-menu-keys children))
-       [(:menu_id item)]))
-   items))
+    (fn [item]
+      (if-let [children (seq (:children item))]
+        (cons (:menu_id item) (flatten-menu-keys children))
+        [(:menu_id item)]))
+    items))
+
 
 ;; ─── 辅助：菜单转树选项 ──────────────────────────────────────────────────────
 
@@ -56,12 +59,14 @@
                 node)))
           menus)))
 
+
 (defn- expandable-menu-ids
   [nodes]
   (->> nodes
        (filter #(seq (:children %)))
        (mapcat #(cons (:menu_id %) (expandable-menu-ids (:children %))))
        vec))
+
 
 (defn- menu-type-tag
   [menu-type is-frame]
@@ -83,13 +88,17 @@
                              tone)}
      label]))
 
-(defn- menu-style-overrides []
+
+(defn- menu-style-overrides
+  []
   [:style
    ".ruoyi-menu-actions { display: inline-flex; align-items: center; gap: 4px; }\n.ruoyi-menu-action-btn.ant-btn-link { height: 30px; padding: 4px 8px; border: 2px solid transparent; border-radius: 8px; color: #409eff; }\n.ruoyi-menu-action-btn.ant-btn-link:hover, .ruoyi-menu-action-btn.ant-btn-link:focus, .ruoyi-menu-action-btn.ant-btn-link:active { color: #409eff !important; background: #ecf5ff !important; border-color: #b3d8ff !important; }\n.ruoyi-menu-action-btn.ant-btn-link.ant-btn-dangerous { color: #409eff; }\n.ruoyi-menu-delete-modal .ant-modal-content { border-radius: 4px; }\n.ruoyi-menu-delete-modal .ant-modal-header { padding: 15px 15px 10px; border-bottom: 0; }\n.ruoyi-menu-delete-modal .ant-modal-title { font-size: 18px; font-weight: 600; color: #303133; }\n.ruoyi-menu-delete-modal .ant-modal-body { padding: 10px 15px 20px; }\n.ruoyi-menu-delete-modal .ant-modal-footer { padding: 10px 15px 15px; border-top: 0; }\n.ruoyi-menu-delete-modal .ant-modal-footer .ant-btn { height: 32px; padding: 0 15px; font-size: 14px; border-radius: 4px; }\n.ruoyi-menu-delete-modal .ant-modal-footer .ant-btn-primary { background: #409eff; border-color: #409eff; }\n.ruoyi-menu-delete-modal .ant-modal-footer .ant-btn-primary:hover { background: #66b1ff; border-color: #66b1ff; }\n.ruoyi-menu-delete-message { display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 14px; line-height: 22px; color: #606266; }"])
 
+
 ;; ─── 搜索栏 ────────────────────────────────────────────────────────
 
-(defn- search-bar [{:keys [visible?]}]
+(defn- search-bar
+  [{:keys [visible?]}]
   (let [[menu-name set-menu-name!] (hooks/use-state "")
         [status set-status!] (hooks/use-state nil)]
     [page-search/page-search {:visible? visible?}
@@ -118,6 +127,7 @@
                                    :on-click #(do (set-menu-name! "")
                                                   (set-status! nil)
                                                   (rf/dispatch [:menus/fetch]))}]]]]))
+
 
 ;; ─── dnd-kit 行拖拽组件 ──────────────────────────────────────────────────────
 
@@ -151,11 +161,13 @@
     (set! (.-key props) (str "sortable-row-" id))
     (react/createElement "tr" props (.-children row-props))))
 
+
 ;; ─── 保存排序按钮 ──────────────────────────────────────────────────────
 
 ;; ─── 工具栏 ────────────────────────────────────────────────────────
 
-(defn- toolbar [{:keys [all-expanded? on-toggle-expand on-save-sort on-toggle-search]}]
+(defn- toolbar
+  [{:keys [all-expanded? on-toggle-expand on-save-sort on-toggle-search]}]
   [page-toolbar/page-toolbar
    {:style {:padding "8px 22px 10px 22px"}
     :left [page-toolbar/toolbar-left
@@ -179,24 +191,26 @@
                                              :icon (r/as-element [:> ReloadOutlined])
                                              :on-click #(rf/dispatch [:menus/fetch])}]]}])
 
+
 ;; ─── 表格列 ──────────────────────────────────────────────────────
 
-(defn- menu-columns [on-order-change on-delete-click]
+(defn- menu-columns
+  [on-order-change on-delete-click]
   #js [#js {:title "菜单名称" :dataIndex "menu_name" :key "menu_name" :width 220
             :className "ruoyi-tree-name-cell"
             :render (fn [v ^js record]
                       (r/as-element
-                       [:span {:style {:display "inline-flex"
-                                       :alignItems "center"
-                                       :gap 5
-                                       :minWidth 0
-                                       :paddingLeft (* 18 (or (.-_level record) 0))}}
-                        (when (seq (or (.-icon record) ""))
-                          (icon-picker/icon-element (.-icon record) {:style {:width 16 :height 16 :color "#606266"}}))
-                        [:span {:style {:overflow "hidden"
-                                        :textOverflow "ellipsis"
-                                        :whiteSpace "nowrap"}}
-                         v]]))}
+                        [:span {:style {:display "inline-flex"
+                                        :alignItems "center"
+                                        :gap 5
+                                        :minWidth 0
+                                        :paddingLeft (* 18 (or (.-_level record) 0))}}
+                         (when (seq (or (.-icon record) ""))
+                           (icon-picker/icon-element (.-icon record) {:style {:width 16 :height 16 :color "#606266"}}))
+                         [:span {:style {:overflow "hidden"
+                                         :textOverflow "ellipsis"
+                                         :whiteSpace "nowrap"}}
+                          v]]))}
        #js {:title "类型" :dataIndex "menu_type" :key "menu_type" :width 100
             :render (fn [v ^js record]
                       (r/as-element [menu-type-tag v (.-is_frame record)]))}
@@ -204,11 +218,11 @@
             :className "ruoyi-menu-sort-cell"
             :render (fn [v ^js record]
                       (r/as-element
-                       [antd/input-number {:value (or v 0)
-                                           :min 0
-                                           :size "small"
-                                           :style {:width 88}
-                                           :onChange #(on-order-change (.-menu_id record) (or % 0))}]))}
+                        [antd/input-number {:value (or v 0)
+                                            :min 0
+                                            :size "small"
+                                            :style {:width 88}
+                                            :onChange #(on-order-change (.-menu_id record) (or % 0))}]))}
        #js {:title "权限标识" :dataIndex "perms" :key "perms"
             :render (fn [v _] (or v ""))}
        #js {:title "组件路径" :dataIndex "component" :key "component"
@@ -216,25 +230,26 @@
        #js {:title "状态" :dataIndex "status" :key "status" :width 80
             :render (fn [v _]
                       (r/as-element
-                       [antd/tag {:className "ruoyi-status-tag"}
-                        (if (= v "0") "正常" "停用")]))}
+                        [antd/tag {:className "ruoyi-status-tag"}
+                         (if (= v "0") "正常" "停用")]))}
        #js {:title "操作" :key "action" :width 260
             :className "ruoyi-menu-action-cell"
             :render (fn [_ ^js record]
                       (r/as-element
-                       [:div {:className "ruoyi-menu-actions"}
-                        [antd/button {:type "link" :size "small" :className "ruoyi-menu-action-btn"
-                                      :icon (r/as-element [:> EditOutlined])
-                                      :on-click #(rf/dispatch [:menus/edit (js->clj record :keywordize-keys true)])}
-                         "修改"]
-                        [antd/button {:type "link" :size "small" :className "ruoyi-menu-action-btn"
-                                      :icon (r/as-element [:> PlusOutlined])
-                                      :on-click #(rf/dispatch [:menus/open-modal {:parent_id (.-menu_id record)}])}
-                         "新增"]
-                        [antd/button {:type "link" :danger true :size "small" :className "ruoyi-menu-action-btn"
-                                      :icon (r/as-element [:> DeleteOutlined])
-                                      :on-click #(on-delete-click (js->clj record :keywordize-keys true))}
-                         "删除"]]))}])
+                        [:div {:className "ruoyi-menu-actions"}
+                         [antd/button {:type "link" :size "small" :className "ruoyi-menu-action-btn"
+                                       :icon (r/as-element [:> EditOutlined])
+                                       :on-click #(rf/dispatch [:menus/edit (js->clj record :keywordize-keys true)])}
+                          "修改"]
+                         [antd/button {:type "link" :size "small" :className "ruoyi-menu-action-btn"
+                                       :icon (r/as-element [:> PlusOutlined])
+                                       :on-click #(rf/dispatch [:menus/open-modal {:parent_id (.-menu_id record)}])}
+                          "新增"]
+                         [antd/button {:type "link" :danger true :size "small" :className "ruoyi-menu-action-btn"
+                                       :icon (r/as-element [:> DeleteOutlined])
+                                       :on-click #(on-delete-click (js->clj record :keywordize-keys true))}
+                          "删除"]]))}])
+
 
 ;; ─── 菜单编辑弹窗 ──────────────────────────────────────────────────────
 
@@ -245,6 +260,7 @@
                        :columnGap 28}}]
         children))
 
+
 (defn- form-cell
   ([]
    [:div])
@@ -253,25 +269,28 @@
   ([style child]
    [:div {:style style} child]))
 
+
 (defn- label-with-tip
   [label tip]
   (r/as-element
-   [antd/tooltip {:title tip}
-    [:span {:style {:display "inline-flex" :alignItems "center" :gap 5}}
-     [:span {:style {:display "inline-flex"
-                     :alignItems "center"
-                     :justifyContent "center"
-                     :width 14
-                     :height 14
-                     :borderRadius "50%"
-                     :background "#606266"
-                     :color "#fff"
-                     :fontSize 10
-                     :lineHeight "14px"}}
-      "?"]
-     [:span label]]]))
+    [antd/tooltip {:title tip}
+     [:span {:style {:display "inline-flex" :alignItems "center" :gap 5}}
+      [:span {:style {:display "inline-flex"
+                      :alignItems "center"
+                      :justifyContent "center"
+                      :width 14
+                      :height 14
+                      :borderRadius "50%"
+                      :background "#606266"
+                      :color "#fff"
+                      :fontSize 10
+                      :lineHeight "14px"}}
+       "?"]
+      [:span label]]]))
 
-(defn- edit-modal []
+
+(defn- edit-modal
+  []
   (let [visible? @(rf/subscribe [:menus/modal-visible?])
         editing @(rf/subscribe [:menus/editing])
         form-data @(rf/subscribe [:menus/form-data])
@@ -285,13 +304,13 @@
         radio-style {:display "flex" :gap 32}
         full-span {:gridColumn "1 / -1"}]
     (hooks/use-effect
-     (fn []
-       (when visible?
-         (let [initial (merge defaults form-data)]
-           (.setFieldsValue form (clj->js initial))
-           (set-menu-type! (:menu_type initial "M"))))
-       js/undefined)
-     [visible? form-data])
+      (fn []
+        (when visible?
+          (let [initial (merge defaults form-data)]
+            (.setFieldsValue form (clj->js initial))
+            (set-menu-type! (:menu_type initial "M"))))
+        js/undefined)
+      [visible? form-data])
     [antd/modal {:title (if editing "修改菜单" "添加菜单")
                  :open visible?
                  :width 680
@@ -299,9 +318,9 @@
                  :onCancel #(rf/dispatch [:menus/close-modal])
                  :destroyOnHidden true
                  :footer (r/as-element
-                          [antd/space {:style {:display "flex" :justifyContent "flex-end"}}
-                           [antd/button {:type "primary" :on-click #(.submit form)} "确 定"]
-                           [antd/button {:on-click #(rf/dispatch [:menus/close-modal])} "取 消"]])}
+                           [antd/space {:style {:display "flex" :justifyContent "flex-end"}}
+                            [antd/button {:type "primary" :on-click #(.submit form)} "确 定"]
+                            [antd/button {:on-click #(rf/dispatch [:menus/close-modal])} "取 消"]])}
      [antd/form {:form form
                  :labelCol {:flex "100px"}
                  :wrapperCol {:flex "1"}
@@ -354,7 +373,7 @@
                            :label (label-with-tip "路由名称" "默认不填则和路由地址相同：如地址为：user，则名称为 User。特殊情况下请自定义，保证唯一性。")
                            :name "route_name"}
            [antd/input {:placeholder "请输入路由名称"}]]])
-        (when (not= menu-type "C")
+       (when (not= menu-type "C")
          [form-cell])
        (when (not= menu-type "F")
          [form-cell
@@ -413,6 +432,7 @@
           [antd/radio {:value "0"} "正常"]
           [antd/radio {:value "1"} "停用"]]]]]]]))
 
+
 ;; ─── 辅助：同级兄弟节点重新编号 ──────────────────────────────────────────────
 
 (defn- reorder-siblings
@@ -426,11 +446,13 @@
               item))
           items)))
 
+
 (defn- flatten-menu-items
   [items]
   (mapcat (fn [item]
             (cons item (flatten-menu-items (:children item))))
           items))
+
 
 (defn- update-item-order-num
   [items menu-id order-num]
@@ -443,11 +465,13 @@
               item)))
         items))
 
+
 (defn- original-order-map
   [items]
   (->> (flatten-menu-items items)
        (map (fn [item] [(:menu_id item) (:order_num item)]))
        (into {})))
+
 
 (defn- collect-order-changes
   "遍历树形 items，只收集发生变化的 {menu_id, order_num}。"
@@ -461,9 +485,11 @@
                     :order_num order-num}))))
        vec))
 
+
 ;; ─── 删除确认弹窗 ──────────────────────────────────────────────────────
 
-(defn- delete-confirm-modal [{:keys [target on-confirm on-cancel]}]
+(defn- delete-confirm-modal
+  [{:keys [target on-confirm on-cancel]}]
   [antd/modal {:open (boolean target)
                :centered true
                :width 420
@@ -493,15 +519,17 @@
     [:span
      (str "是否确认删除名称为\"" (or (:menu_name target) "") "\"的数据项？")]]])
 
+
 ;; ─── 主页面 ──────────────────────────────────────────────────────
 
-(defn menu-page []
+(defn menu-page
+  []
   (hooks/use-effect
-   (fn []
-     (rf/dispatch [:menus/fetch])
-     (rf/dispatch [:menus/fetch-tree])
-     js/undefined)
-   [])
+    (fn []
+      (rf/dispatch [:menus/fetch])
+      (rf/dispatch [:menus/fetch-tree])
+      js/undefined)
+    [])
   (let [items @(rf/subscribe [:menus/items])
         loading? @(rf/subscribe [:menus/loading?])
         [local-items set-local-items!] (hooks/use-state nil)
@@ -518,111 +546,111 @@
 
     ;; 外部 items 变化时重置本地状态
     (hooks/use-effect
-     (fn []
-       (set-local-items! nil)
-       (set-original-orders! (original-order-map (build-menu-tree items 0)))
-       js/undefined)
-     [items])
+      (fn []
+        (set-local-items! nil)
+        (set-original-orders! (original-order-map (build-menu-tree items 0)))
+        js/undefined)
+      [items])
 
     (hooks/use-effect
-     (fn []
-       (when (and (= expanded-keys :pending) (seq expandable-ids))
-         (set-expanded-keys! expandable-ids))
-       js/undefined)
-     [items-source expanded-keys])
+      (fn []
+        (when (and (= expanded-keys :pending) (seq expandable-ids))
+          (set-expanded-keys! expandable-ids))
+        js/undefined)
+      [items-source expanded-keys])
 
     ;; ── 拖拽排序回调 ──
     (let [handle-drag-end
           (hooks/use-callback
-           (fn [active-id over-id]
-             (let [active-items (or local-items items)
-                   flat (flatten-menu-keys (build-menu-tree active-items 0))
-                   active-idx (.indexOf (clj->js flat) active-id)
-                   over-idx (.indexOf (clj->js flat) over-id)]
-               (when (and (>= active-idx 0) (>= over-idx 0) (not= active-idx over-idx))
-                 ;; 创建新顺序
-                 (let [new-flat (vec
-                                 (let [arr (to-array flat)]
-                                   (.splice arr active-idx 1)
-                                   (.splice arr over-idx 0 active-id)
-                                   (js->clj arr)))
-                       ;; 查找 active 和 over 的 parent_id
-                       id->item (into {} (map (juxt :menu_id identity) active-items))
-                       active-parent (:parent_id (get id->item active-id))
-                       over-parent (:parent_id (get id->item over-id))]
-                   ;; 只允许同级拖拽
-                   (when (= active-parent over-parent)
-                     ;; 重新编号同级兄弟
-                     (let [sibling-ids (filter #(= active-parent (:parent_id (get id->item %))) new-flat)
-                           updated (reorder-siblings active-items active-parent sibling-ids)]
-                       (set-local-items! updated)))))))
-           [items local-items])
+            (fn [active-id over-id]
+              (let [active-items (or local-items items)
+                    flat (flatten-menu-keys (build-menu-tree active-items 0))
+                    active-idx (.indexOf (clj->js flat) active-id)
+                    over-idx (.indexOf (clj->js flat) over-id)]
+                (when (and (>= active-idx 0) (>= over-idx 0) (not= active-idx over-idx))
+                  ;; 创建新顺序
+                  (let [new-flat (vec
+                                   (let [arr (to-array flat)]
+                                     (.splice arr active-idx 1)
+                                     (.splice arr over-idx 0 active-id)
+                                     (js->clj arr)))
+                        ;; 查找 active 和 over 的 parent_id
+                        id->item (into {} (map (juxt :menu_id identity) active-items))
+                        active-parent (:parent_id (get id->item active-id))
+                        over-parent (:parent_id (get id->item over-id))]
+                    ;; 只允许同级拖拽
+                    (when (= active-parent over-parent)
+                      ;; 重新编号同级兄弟
+                      (let [sibling-ids (filter #(= active-parent (:parent_id (get id->item %))) new-flat)
+                            updated (reorder-siblings active-items active-parent sibling-ids)]
+                        (set-local-items! updated)))))))
+            [items local-items])
 
           handle-save-sort
           (hooks/use-callback
-           (fn []
-             (let [current-items (or local-items items)
-                   tree (build-menu-tree current-items 0)
-                   changes (collect-order-changes tree original-orders)]
-               (if (seq changes)
-                 (rf/dispatch [:menus/save-sort changes])
-                 (antd/warning! "未检测到排序修改"))))
-           [items local-items original-orders])
+            (fn []
+              (let [current-items (or local-items items)
+                    tree (build-menu-tree current-items 0)
+                    changes (collect-order-changes tree original-orders)]
+                (if (seq changes)
+                  (rf/dispatch [:menus/save-sort changes])
+                  (antd/warning! "未检测到排序修改"))))
+            [items local-items original-orders])
 
           handle-order-change
           (hooks/use-callback
-           (fn [menu-id order-num]
-             (let [current-items (or local-items items)]
-               (set-local-items! (update-item-order-num current-items menu-id order-num))))
-           [items local-items])
+            (fn [menu-id order-num]
+              (let [current-items (or local-items items)]
+                (set-local-items! (update-item-order-num current-items menu-id order-num))))
+            [items local-items])
 
           handle-delete-confirm
           (hooks/use-callback
-           (fn []
-             (when-let [target delete-target]
-               (rf/dispatch [:menus/delete (:menu_id target)])
-               (set-delete-target! nil)))
-           [delete-target])
+            (fn []
+              (when-let [target delete-target]
+                (rf/dispatch [:menus/delete (:menu_id target)])
+                (set-delete-target! nil)))
+            [delete-target])
 
           handle-delete-cancel
           (hooks/use-callback
-           (fn []
-             (set-delete-target! nil))
-           [])
+            (fn []
+              (set-delete-target! nil))
+            [])
 
           handle-toggle-expand
           (hooks/use-callback
-           (fn []
-             (if all-expanded?
-               (set-expanded-keys! [])
-               (do
-                 (set-expanded-keys! expandable-ids)))
-             (set-all-expanded! (not all-expanded?)))
-           [all-expanded? expandable-ids])
+            (fn []
+              (if all-expanded?
+                (set-expanded-keys! [])
+                (do
+                  (set-expanded-keys! expandable-ids)))
+              (set-all-expanded! (not all-expanded?)))
+            [all-expanded? expandable-ids])
 
           [drag-active-id set-drag-active-id!] (hooks/use-state nil)
-          
+
           dnd-sensors (dnd-kit-core/useSensors
-                       (dnd-kit-core/useSensor dnd-kit-core/PointerSensor
-                                               (clj->js {:activationConstraint {:distance 8}}))
-                       (dnd-kit-core/useSensor dnd-kit-core/KeyboardSensor))
-          
+                        (dnd-kit-core/useSensor dnd-kit-core/PointerSensor
+                                                (clj->js {:activationConstraint {:distance 8}}))
+                        (dnd-kit-core/useSensor dnd-kit-core/KeyboardSensor))
+
           handle-drag-start (hooks/use-callback
-                             (fn [event]
-                               (set-drag-active-id! (.. event -active -id)))
-                             [])
+                              (fn [event]
+                                (set-drag-active-id! (.. event -active -id)))
+                              [])
           handle-drag-end-wrapper (hooks/use-callback
-                                   (fn [event]
-                                     (set-drag-active-id! nil)
-                                     (let [active (.. event -active -id)
-                                           over (.. event -over -id)]
-                                       (when (and active over (not= active over))
-                                         (handle-drag-end active over))))
-                                   [handle-drag-end])
+                                    (fn [event]
+                                      (set-drag-active-id! nil)
+                                      (let [active (.. event -active -id)
+                                            over (.. event -over -id)]
+                                        (when (and active over (not= active over))
+                                          (handle-drag-end active over))))
+                                    [handle-drag-end])
           handle-drag-cancel (hooks/use-callback
-                              (fn [_]
-                                (set-drag-active-id! nil))
-                              [])]
+                               (fn [_]
+                                 (set-drag-active-id! nil))
+                               [])]
 
       [:div {:style {:padding "0 12px 24px 12px"}}
        [menu-style-overrides]
@@ -654,21 +682,20 @@
                                    (let [id (.-menu_id record)
                                          current-set (set (if (= expanded-keys :pending) expandable-ids expanded-keys))
                                          new-keys (vec (if expanded?
-                                                        (conj current-set id)
-                                                        (disj current-set id)))]
+                                                         (conj current-set id)
+                                                         (disj current-set id)))]
                                      (set-expanded-keys! new-keys)
                                      (set-all-expanded! (= (set new-keys) (set expandable-ids)))))
                        :childrenColumnName "children"
                        :components {:body {:row (fn [row-props]
                                                   (let [id (unchecked-get row-props "data-row-key")]
                                                     (r/as-element
-                                                     [sortable-row {:id (or id "unknown")
-                                                                    :row-props row-props
-                                                                    :key (str "sortable-" id)}])))}}
+                                                      [sortable-row {:id (or id "unknown")
+                                                                     :row-props row-props
+                                                                     :key (str "sortable-" id)}])))}}
                        :onRow (fn [record]
                                 (let [menu-id (:menu_id (js->clj record :keywordize-keys true))]
-                                  #js {:data-row-key menu-id}))}]
-         ]
+                                  #js {:data-row-key menu-id}))}]]
          (when drag-active-id
            [:> (.-DragOverlay dnd-kit-core)
             {:dropAnimation nil}
@@ -680,10 +707,10 @@
                            :display "inline-flex"
                            :alignItems "center"
                            :gap 8}
-                  :key (str "drag-overlay-" drag-active-id)}
+                   :key (str "drag-overlay-" drag-active-id)}
              [:> DragOutlined {:style {:color "#1677ff" :cursor "grab"}}]
              [:span drag-active-id]]])]
-       [edit-modal]
-       [delete-confirm-modal {:target delete-target
-                              :on-confirm handle-delete-confirm
-                              :on-cancel handle-delete-cancel}]]])))
+        [edit-modal]
+        [delete-confirm-modal {:target delete-target
+                               :on-confirm handle-delete-confirm
+                               :on-cancel handle-delete-cancel}]]])))

@@ -1,15 +1,16 @@
 (ns com.ruoyi.frontend.pages.dashboard
   "仪表盘首页 — 统计卡片 + 快捷入口 + 系统信息。"
   (:require
-   [reagent.core :as r]
-   [reagent.hooks :as hooks]
-   [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [UserOutlined TeamOutlined MenuOutlined
-                                FileTextOutlined ScheduleOutlined
-                                DashboardOutlined SettingOutlined
-                                SafetyOutlined DatabaseOutlined
-                                CloudOutlined]]
-   [com.ruoyi.frontend.antd :as antd]))
+    ["@ant-design/icons" :refer [UserOutlined TeamOutlined MenuOutlined
+                                 FileTextOutlined ScheduleOutlined
+                                 DashboardOutlined SettingOutlined
+                                 SafetyOutlined DatabaseOutlined
+                                 CloudOutlined]]
+    [com.ruoyi.frontend.antd :as antd]
+    [re-frame.core :as rf]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
+
 
 ;; ─── 工具函数 ──────────────────────────────────────────────────────
 
@@ -23,6 +24,7 @@
         s
         (clojure.string/join "," (map clojure.string/join
                                       (reverse (partition-all 3 (reverse s)))))))))
+
 
 (defn- relative-time
   "将时间字符串转为相对时间描述。"
@@ -46,9 +48,11 @@
           :else time-str))
       (catch js/Error _ time-str))))
 
+
 ;; ─── 统计卡片 ──────────────────────────────────────────────────────
 
-(defn- stat-card [{:keys [title value icon color desc]}]
+(defn- stat-card
+  [{:keys [title value icon color desc]}]
   [antd/card {:hoverable true
               :style {:borderRadius 8 :overflow "hidden"}
               :styles {:body {:padding "20px 24px"}}}
@@ -65,9 +69,11 @@
                    :display "flex" :alignItems "center" :justifyContent "center"}}
      [:> icon {:style {:fontSize 28 :color color}}]]]])
 
+
 ;; ─── 快捷入口 ──────────────────────────────────────────────────────
 
-(defn- quick-link [{:keys [title icon color route]}]
+(defn- quick-link
+  [{:keys [title icon color route]}]
   [antd/button {:type "text"
                 :style {:height "auto" :padding "12px 16px" :display "flex" :alignItems "center" :gap 12
                         :borderRadius 8 :width "100%" :justifyContent "flex-start"
@@ -78,31 +84,35 @@
     [:> icon {:style {:fontSize 20 :color color}}]]
    [:span {:style {:fontSize 14 :fontWeight 500}} title]])
 
+
 ;; ─── 系统信息 ──────────────────────────────────────────────────────
 
-(defn- system-info-item [{:keys [label value]}]
+(defn- system-info-item
+  [{:keys [label value]}]
   [:div {:style {:display "flex" :justifyContent "space-between" :padding "8px 0"
                  :borderBottom "1px solid var(--ant-color-split, #f0f0f0)"}}
    [:span {:style {:color "var(--ant-color-text-secondary)"}} label]
    [:span {:style {:fontWeight 500}} (or value "-")]])
 
+
 ;; ─── 主页面 ──────────────────────────────────────────────────────
 
-(defn dashboard-page []
+(defn dashboard-page
+  []
   (let [user @(rf/subscribe [:auth/user])
         stats @(rf/subscribe [:dashboard/stats])
         loading? @(rf/subscribe [:dashboard/loading?])
         [now set-now!] (hooks/use-state (js/Date.))
         _ (hooks/use-effect
-           (fn []
-             (rf/dispatch [:dashboard/fetch])
-             js/undefined)
-           [])
+            (fn []
+              (rf/dispatch [:dashboard/fetch])
+              js/undefined)
+            [])
         _ (hooks/use-effect
-           (fn []
-             (let [interval (js/setInterval #(set-now! (js/Date.)) 1000)]
-               (fn [] (js/clearInterval interval))))
-           [])
+            (fn []
+              (let [interval (js/setInterval #(set-now! (js/Date.)) 1000)]
+                (fn [] (js/clearInterval interval))))
+            [])
         hour (.getHours now)
         greeting (cond
                    (< hour 6) "夜深了"
@@ -172,25 +182,25 @@
             "暂无操作记录"]
            [antd/table {:size "small" :showHeader false :pagination false
                         :dataSource (clj->js
-                                     (map-indexed
-                                      (fn [idx op]
-                                        {:key (str idx)
-                                         :content (str (or (:oper_name op) "系统")
-                                                       (case (:business_type op)
-                                                         0 " "
-                                                         1 "新增 "
-                                                         2 "修改 "
-                                                         3 "删除 "
-                                                         4 "授权 "
-                                                         5 "导出 "
-                                                         6 "导入 "
-                                                         " ")
-                                                       (or (:title op) ""))
-                                         :time (relative-time (:oper_time op))})
-                                      recent-ops))
+                                      (map-indexed
+                                        (fn [idx op]
+                                          {:key (str idx)
+                                           :content (str (or (:oper_name op) "系统")
+                                                         (case (:business_type op)
+                                                           0 " "
+                                                           1 "新增 "
+                                                           2 "修改 "
+                                                           3 "删除 "
+                                                           4 "授权 "
+                                                           5 "导出 "
+                                                           6 "导入 "
+                                                           " ")
+                                                         (or (:title op) ""))
+                                           :time (relative-time (:oper_time op))})
+                                        recent-ops))
                         :columns (clj->js
-                                  [{:dataIndex "content" :key "content" :width "70%"}
-                                   {:dataIndex "time" :key "time" :align "right"}])}])]]
+                                   [{:dataIndex "content" :key "content" :width "70%"}
+                                    {:dataIndex "time" :key "time" :align "right"}])}])]]
 
        ;; 右侧：系统信息
        [antd/card {:title "系统信息" :style {:borderRadius 8}

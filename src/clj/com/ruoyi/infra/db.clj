@@ -1,11 +1,13 @@
 (ns com.ruoyi.infra.db
   "数据库抽象层 — 支持 SQLite 和 MySQL。"
-  (:require [clojure.string :as str]
-            [clojure.tools.logging :as log]
-            [next.jdbc :as jdbc]
-            [next.jdbc.result-set :as rs]
-            [com.ruoyi.infra.datasource :as ds]
-            [migratus.core]))
+  (:require
+    [clojure.string :as str]
+    [clojure.tools.logging :as log]
+    [com.ruoyi.infra.datasource :as ds]
+    [migratus.core]
+    [next.jdbc :as jdbc]
+    [next.jdbc.result-set :as rs]))
+
 
 ;; ─── 数据库类型检测 ──────────────────────────────────────────────────────
 
@@ -25,10 +27,12 @@
           :else :unknown))
       (catch Exception _ :unknown))))
 
+
 (defn- connectable
   "提取可用于 JDBC 执行的数据源或连接。"
   [db]
   (or (:connectable db) db))
+
 
 (defn last-insert-id
   "获取最近一次插入的自增 ID，自动适配 SQLite/MySQL。
@@ -44,6 +48,7 @@
              query-name)]
      (get (query-fn db q {}) result-key))))
 
+
 (defn insert-and-get-id!
   "在同一事务中执行插入并返回自增 ID，自动适配 SQLite/MySQL。"
   ([query-fn db insert-query params]
@@ -55,11 +60,12 @@
                 id-query)]
      (if (some? db)
        (jdbc/with-transaction [tx db]
-         (query-fn tx insert-query params)
-         (get (query-fn tx id-q {}) id-key))
+                              (query-fn tx insert-query params)
+                              (get (query-fn tx id-q {}) id-key))
        (do
          (query-fn insert-query params)
          (get (query-fn id-q {}) id-key))))))
+
 
 ;; ─── SQL 方言转换 ──────────────────────────────────────────────────────
 
@@ -86,6 +92,7 @@
       ;; SQLite 的 type='table' -> MySQL 的 table_type='BASE TABLE'
       (str/replace #"type='table'" "table_type='BASE TABLE'")))
 
+
 (defn mysql->sqlite
   "将 MySQL SQL 转换为 SQLite 兼容 SQL。"
   [sql]
@@ -103,6 +110,7 @@
       ;; MySQL 的 DESCRIBE -> SQLite 的 PRAGMA table_info
       (str/replace #"DESCRIBE\s+(\w+)" "PRAGMA table_info($1)")))
 
+
 ;; ─── 数据库兼容层 ──────────────────────────────────────────────────────
 
 (defn adapt-sql
@@ -113,6 +121,7 @@
       :mysql (sqlite->mysql sql)
       :sqlite sql
       sql)))
+
 
 ;; ─── 分页查询 ──────────────────────────────────────────────────────
 
@@ -128,6 +137,7 @@
     (jdbc/execute! (connectable db)
                    (into [paginated-sql] (vals params))
                    {:builder-fn rs/as-unqualified-kebab-maps})))
+
 
 ;; ─── 表结构查询 ──────────────────────────────────────────────────────
 
@@ -175,6 +185,7 @@
                      {:builder-fn rs/as-unqualified-lower-maps})
       [])))
 
+
 (defn get-tables
   "获取数据库中的所有表。"
   [db]
@@ -189,6 +200,7 @@
                      ["SELECT table_name, IFNULL(table_comment, '') AS table_comment FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE' ORDER BY table_name"]
                      {:builder-fn rs/as-unqualified-lower-maps})
       [])))
+
 
 ;; ─── 运行时数据库热切换 ──────────────────────────────────────────────
 
@@ -206,6 +218,7 @@
              (.setValidationTimeout 3000))]
     (com.zaxxer.hikari.HikariDataSource. hc)))
 
+
 (defn run-migrations!
   "对指定 DataSource 执行数据库迁移。"
   [datasource migration-dir]
@@ -214,6 +227,7 @@
                 :migrate-on-init? false
                 :migration-dir migration-dir}]
     (migratus.core/migrate config)))
+
 
 (defn swap-db!
   "热切换数据库连接池。无需重启 JVM。用法: (swap-db! system jdbc-url opts)"
@@ -225,7 +239,7 @@
     (log/info "[swap-db!] 创建新连接池:" jdbc-url)
     (let [new-ds (make-hikari-datasource jdbc-url {:pool-size pool-size})
           migration-dir (or migration-dir
-                           (if (.contains jdbc-url "mysql") "migrations" "migrations-sqlite"))]
+                            (if (.contains jdbc-url "mysql") "migrations" "migrations-sqlite"))]
       ;; 运行迁移
       (log/info "[swap-db!] 运行迁移 (" migration-dir ")...")
       (run-migrations! new-ds migration-dir)

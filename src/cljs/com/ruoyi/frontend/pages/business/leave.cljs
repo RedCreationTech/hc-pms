@@ -1,14 +1,16 @@
 (ns com.ruoyi.frontend.pages.business.leave
   "请假申请页面 —— 业务 + BPM 审批流。"
   (:require
-   [reagent.core :as r]
-   [re-frame.core :as rf]
-   [reagent.hooks :as hooks]
-   ["@ant-design/icons" :refer [PlusOutlined ReloadOutlined]]
-   [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
+    ["@ant-design/icons" :refer [PlusOutlined ReloadOutlined]]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+    [re-frame.core :as rf]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
 
-(defn- status-tag [v]
+
+(defn- status-tag
+  [v]
   (let [[label color] (case v
                         "1" ["审批中" "processing"]
                         "2" ["已通过" "success"]
@@ -16,7 +18,9 @@
                         ["未知" "default"])]
     [antd/tag {:color color} label]))
 
-(defn- leave-columns []
+
+(defn- leave-columns
+  []
   #js [#js {:title "ID" :dataIndex "leave_id" :key "leave_id" :width 70}
        #js {:title "请假人" :dataIndex "user_name" :key "user_name" :width 110}
        #js {:title "天数" :dataIndex "days" :key "days" :width 80}
@@ -29,11 +33,13 @@
        #js {:title "操作" :key "action" :width 90
             :render (fn [_ ^js record]
                       (r/as-element
-                       [antd/button {:type "link" :danger true :size "small"
-                                     :on-click #(rf/dispatch [:leave/delete (.-leave_id ^js record)])}
-                        "删除"]))}])
+                        [antd/button {:type "link" :danger true :size "small"
+                                      :on-click #(rf/dispatch [:leave/delete (.-leave_id ^js record)])}
+                         "删除"]))}])
 
-(defn- leave-modal []
+
+(defn- leave-modal
+  []
   (let [visible? @(rf/subscribe [:leave/modal-visible?])
         submitting? @(rf/subscribe [:leave/submitting?])
         [form] (antd/form-use-form)]
@@ -51,7 +57,9 @@
                        :rules [{:required true :message "请输入请假原因"}]}
        [antd/text-area {:placeholder "请输入请假原因" :rows 4}]]]]))
 
-(defn leave-page []
+
+(defn leave-page
+  []
   (let [items @(rf/subscribe [:leave/items])
         total @(rf/subscribe [:leave/total])
         loading? @(rf/subscribe [:leave/loading?])]

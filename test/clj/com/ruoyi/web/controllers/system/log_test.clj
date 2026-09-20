@@ -1,7 +1,9 @@
 (ns com.ruoyi.web.controllers.system.log-test
   "日志审计控制器测试。"
-  (:require [clojure.test :refer [deftest is testing]]
-            [com.ruoyi.web.controllers.system.log :as log]))
+  (:require
+    [clojure.test :refer [deftest is testing]]
+    [com.ruoyi.web.controllers.system.log :as log]))
+
 
 (def mock-log-service
   {:query-fn (fn [q _p]
@@ -17,6 +19,7 @@
                  :delete-online-user! nil
                  []))})
 
+
 (deftest test-list-oper-logs
   (testing "查询操作日志列表"
     (let [request {:query-params {}}
@@ -27,6 +30,7 @@
       (is (= 1 (:total (:data body))))
       (is (seq (:rows (:data body)))))))
 
+
 (deftest test-clear-oper-logs
   (testing "清空操作日志"
     (let [request {:query-params {}}
@@ -34,6 +38,7 @@
           body (:body response)]
       (is (= 200 (:status response)))
       (is (= "清空成功" (:data body))))))
+
 
 (deftest test-list-login-logs
   (testing "查询登录日志列表"
@@ -43,6 +48,7 @@
       (is (= 200 (:status response)))
       (is (= 1 (:total (:data body)))))))
 
+
 (deftest test-clear-login-logs
   (testing "清空登录日志"
     (let [request {:query-params {}}
@@ -51,6 +57,7 @@
       (is (= 200 (:status response)))
       (is (= "清空成功" (:data body))))))
 
+
 (deftest test-list-online-users
   (testing "查询在线用户列表"
     (let [request {:query-params {}}
@@ -58,6 +65,7 @@
           body (:body response)]
       (is (= 200 (:status response)))
       (is (= 1 (:total (:data body)))))))
+
 
 (deftest test-kick-online-user
   (testing "强退在线用户"

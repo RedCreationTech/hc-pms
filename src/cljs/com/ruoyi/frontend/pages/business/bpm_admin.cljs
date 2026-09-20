@@ -2,15 +2,16 @@
   "BPM 管理套件通用 CRUD 页面（流程表单/分类/用户分组/监听器/表达式/设置）。
    form 模块额外支持表单设计器（对齐 vben @form-create 设计器）。"
   (:require
-   [reagent.core :as r]
-   [re-frame.core :as rf]
-   [reagent.hooks :as hooks]
-   ["@ant-design/icons" :refer [PlusOutlined ReloadOutlined EditOutlined DeleteOutlined]]
-   [clojure.walk :as walk]
-   [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.api :as api]
-   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
-   [com.ruoyi.frontend.components.form-designer :as fdm]))
+    ["@ant-design/icons" :refer [PlusOutlined ReloadOutlined EditOutlined DeleteOutlined]]
+    [clojure.walk :as walk]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.api :as api]
+    [com.ruoyi.frontend.components.form-designer :as fdm]
+    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+    [re-frame.core :as rf]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
+
 
 ;; 各模块配置：标题 / 列 / 表单字段
 (def ^:private admin-config
@@ -51,10 +52,13 @@
                 :fields [["设置名" "name" "input"] ["值" "value" "input"]
                          ["说明" "description" "textarea"] ["状态" "status" "select"]]}})
 
-(defn- status-tag [v]
+
+(defn- status-tag
+  [v]
   (if (= v "1")
     [antd/tag {:color "green"} "启用"]
     [antd/tag {:color "red"} "停用"]))
+
 
 (defn- columns-for
   "构建列定义。form 模块附加操作列（设计/编辑/删除）。"
@@ -66,69 +70,73 @@
                        (clj->js {:title title :dataIndex key :key key :width w})))
                    (:columns cfg))]
     (into-array
-     (if on-design
-       (conj base
-             (clj->js {:title "操作" :key "action" :width 200
-                       :render (fn [_ record]
-                                 (let [m (js->clj record :keywordize-keys true)
-                                       id (:form_id m)]
-                                   (r/as-element
-                                    [antd/space {:size 2}
-                                     [antd/button {:type "link" :size "small" :on-click #(on-design m)} "设计"]
-                                     [antd/button {:type "link" :size "small" :on-click #(on-copy m)} "复制"]
-                                     [antd/button {:type "link" :size "small" :on-click #(on-edit m)} "编辑"]
-                                     [antd/button {:type "link" :size "small" :danger true
-                                                   :on-click #(on-delete id)} "删除"]])))}))
-       base))))
+      (if on-design
+        (conj base
+              (clj->js {:title "操作" :key "action" :width 200
+                        :render (fn [_ record]
+                                  (let [m (js->clj record :keywordize-keys true)
+                                        id (:form_id m)]
+                                    (r/as-element
+                                      [antd/space {:size 2}
+                                       [antd/button {:type "link" :size "small" :on-click #(on-design m)} "设计"]
+                                       [antd/button {:type "link" :size "small" :on-click #(on-copy m)} "复制"]
+                                       [antd/button {:type "link" :size "small" :on-click #(on-edit m)} "编辑"]
+                                       [antd/button {:type "link" :size "small" :danger true
+                                                     :on-click #(on-delete id)} "删除"]])))}))
+        base))))
 
-(defn- form-modal [{:keys [module cfg]}]
+
+(defn- form-modal
+  [{:keys [module cfg]}]
   (let [visible? @(rf/subscribe [:bpmmgmt/modal-visible? module])
         form-data @(rf/subscribe [:bpmmgmt/form-data module])
         [form] (antd/form-use-form)]
     (hooks/use-effect
-     (fn [] (when visible? (.setFieldsValue form (clj->js (merge {:status "0"} form-data)))) js/undefined)
-     [visible? form-data])
+      (fn [] (when visible? (.setFieldsValue form (clj->js (merge {:status "0"} form-data)))) js/undefined)
+      [visible? form-data])
     [antd/modal {:title (str (:title cfg)) :open visible?
                  :onOk #(.submit form)
                  :onCancel #(rf/dispatch [:bpmmgmt/close module])}
      [antd/form {:form form :layout "vertical" :preserve false
                  :onFinish (fn [v] (rf/dispatch [:bpmmgmt/submit module (js->clj v :keywordize-keys true)]))}
       (doall
-       (for [[label key ftype] (:fields cfg)]
-         (if (= ftype "select")
-           ^{:key key}
-           [antd/form-item {:label label :name key}
-            [antd/select {:style {:width "100%"}}
-             [antd/select-option {:value "0"} "停用"]
-             [antd/select-option {:value "1"} "启用"]]]
-           ^{:key key}
-           [antd/form-item {:label label :name key}
-            (if (= ftype "textarea")
-              [antd/text-area {:placeholder label :rows 3}]
-              [antd/input {:placeholder label}])])))]]))
+        (for [[label key ftype] (:fields cfg)]
+          (if (= ftype "select")
+            ^{:key key}
+            [antd/form-item {:label label :name key}
+             [antd/select {:style {:width "100%"}}
+              [antd/select-option {:value "0"} "停用"]
+              [antd/select-option {:value "1"} "启用"]]]
+            ^{:key key}
+            [antd/form-item {:label label :name key}
+             (if (= ftype "textarea")
+               [antd/text-area {:placeholder label :rows 3}]
+               [antd/input {:placeholder label}])])))]]))
+
 
 ;; 表单设计器弹窗（form 模块专用，加载/保存 conf+fields）
-(defn- designer-modal [{:keys [record set-record! on-saved]}]
+(defn- designer-modal
+  [{:keys [record set-record! on-saved]}]
   (let [[schema set-schema!] (hooks/use-state nil)
         [loading set-loading!] (hooks/use-state false)
         id (:form_id record)]
     (hooks/use-effect
-     (fn []
-       (when id
-         (set-loading! true)
-         (api/bpmmgmt-get "form" id
-                          (fn [res]
-                            (let [d (:data res)]
-                              (set-schema!
-                               (merge {:form-name (or (:form_name d) "")}
-                                      (or (when-let [j (:form_json d)]
-                                            (if (string? j)
-                                              (js->clj (js/JSON.parse j) :keywordize-keys true)
-                                              (walk/keywordize-keys j)))
-                                          {:fields []})))
-                              (set-loading! false)))
-                          (fn [_] (set-loading! false) (antd/error! "加载表单失败")))))
-     [id])
+      (fn []
+        (when id
+          (set-loading! true)
+          (api/bpmmgmt-get "form" id
+                           (fn [res]
+                             (let [d (:data res)]
+                               (set-schema!
+                                 (merge {:form-name (or (:form_name d) "")}
+                                        (or (when-let [j (:form_json d)]
+                                              (if (string? j)
+                                                (js->clj (js/JSON.parse j) :keywordize-keys true)
+                                                (walk/keywordize-keys j)))
+                                            {:fields []})))
+                               (set-loading! false)))
+                           (fn [_] (set-loading! false) (antd/error! "加载表单失败")))))
+      [id])
     [antd/modal {:title (str "表单设计 · " (:form_name record)) :open (boolean record)
                  :width 1180 :destroyOnHidden true :footer nil
                  :onCancel #(set-record! nil)}
@@ -141,11 +149,14 @@
                                         (merge (select-keys record [:form_key :status :remark])
                                                {:form_name (:form-name s)
                                                 :form_json (js/JSON.stringify (clj->js (dissoc s :form-name)))})
-                                        (fn [_] (antd/success! "表单已保存")
+                                        (fn [_]
+                                          (antd/success! "表单已保存")
                                           (set-record! nil) (on-saved))
                                         (fn [e] (antd/error! (str "保存失败: " e)))))}])]))
 
-(defn bpm-admin-page [{:keys [module]}]
+
+(defn bpm-admin-page
+  [{:keys [module]}]
   (let [cfg (get admin-config module)
         items @(rf/subscribe [:bpmmgmt/items module])
         total @(rf/subscribe [:bpmmgmt/total module])
@@ -180,9 +191,10 @@
                                            :on-edit #(rf/dispatch [:bpmmgmt/edit module %])
                                            :on-delete (fn [id]
                                                         (antd/modal-confirm!
-                                                         (fn [] (api/bpmmgmt-delete "form" id
-                                                                                     (fn [_] (antd/success! "已删除") (refresh))
-                                                                                     (fn [e] (antd/error! e))))))}))
+                                                          (fn []
+                                                            (api/bpmmgmt-delete "form" id
+                                                                                (fn [_] (antd/success! "已删除") (refresh))
+                                                                                (fn [e] (antd/error! e))))))}))
                   :dataSource (clj->js items) :loading loading?
                   :pagination {:total total :pageSize 10 :showSizeChanger true
                                :showTotal (fn [t] (str "共 " t " 条"))}}]

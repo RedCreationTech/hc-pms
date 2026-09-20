@@ -1,7 +1,8 @@
 (ns com.ruoyi.web.controllers.system.notice
   "通知公告控制器。"
   (:require
-   [ring.util.response :as response]))
+    [ring.util.response :as response]))
+
 
 (defn- ok
   "构造成功响应。"
@@ -10,16 +11,19 @@
    (-> (response/response {:code code :msg msg :data data})
        (response/content-type "application/json"))))
 
+
 (defn- fail
   "构造失败响应。"
   [msg]
   (-> (response/response {:code 500 :msg msg})
       (response/content-type "application/json")))
 
+
 (defn- parse-int
   "将字符串解析为整数。"
   [v]
   (when v (Integer/parseInt v)))
+
 
 (defn list-notices
   "查询通知公告列表。"
@@ -37,6 +41,7 @@
         total (query-fn :count-notices query-params)]
     (ok {:rows rows :total (:total total)})))
 
+
 (defn get-notice
   "获取通知公告详情。"
   [{:keys [query-fn]} request]
@@ -44,6 +49,7 @@
     (if-let [notice (query-fn :find-notice-by-id {:notice_id notice-id} {:result-set-fn first})]
       (ok notice)
       (fail "通知公告不存在"))))
+
 
 (defn create-notice
   "新增通知公告。"
@@ -62,6 +68,7 @@
       (ok "创建成功"))
     (catch Exception e (fail (.getMessage e)))))
 
+
 (defn update-notice
   "更新通知公告。"
   [{:keys [query-fn]} request]
@@ -78,6 +85,7 @@
       (query-fn :update-notice! params)
       (ok "更新成功"))
     (catch Exception e (fail (.getMessage e)))))
+
 
 (defn delete-notice
   "删除通知公告。"

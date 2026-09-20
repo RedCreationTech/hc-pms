@@ -1,9 +1,10 @@
 (ns com.ruoyi.frontend.antd
   "Ant Design 组件 Reagent 封装。"
   (:require
-   [reagent.core :as r]
-   ["antd" :refer [App Button Card Cascader Checkbox ConfigProvider DatePicker Descriptions Divider Drawer Dropdown Empty Form Input InputNumber Layout Menu Modal Pagination Popconfirm Popover Progress Radio Rate Select Slider Space Spin Statistic Switch Table Tabs Tag TimePicker Timeline Tooltip Tree TreeSelect Upload message Row Col]]
-   ["@ant-design/icons" :refer [LockOutlined UserOutlined DashboardOutlined TeamOutlined SettingOutlined SafetyOutlined FileTextOutlined EditOutlined DeleteOutlined PlusOutlined DownloadOutlined EyeOutlined SearchOutlined ReloadOutlined UploadOutlined MoreOutlined]]))
+    ["@ant-design/icons" :refer [LockOutlined UserOutlined DashboardOutlined TeamOutlined SettingOutlined SafetyOutlined FileTextOutlined EditOutlined DeleteOutlined PlusOutlined DownloadOutlined EyeOutlined SearchOutlined ReloadOutlined UploadOutlined MoreOutlined]]
+    ["antd" :refer [App Button Card Cascader Checkbox ConfigProvider DatePicker Descriptions Divider Drawer Dropdown Empty Form Input InputNumber Layout Menu Modal Pagination Popconfirm Popover Progress Radio Rate Select Slider Space Spin Statistic Switch Table Tabs Tag TimePicker Timeline Tooltip Tree TreeSelect Upload message Row Col]]
+    [reagent.core :as r]))
+
 
 (def app (r/adapt-react-class App))
 (def button (r/adapt-react-class Button))
@@ -61,6 +62,7 @@
 
 (defonce message-api (atom nil))
 
+
 (defn modal-confirm!
   "确认对话框。on-ok 为确认回调。"
   [on-ok & [opts]]
@@ -69,25 +71,34 @@
                              :okText "确定" :cancelText "取消" :onOk on-ok}
                             opts))))
 
-(defn use-app-message []
+
+(defn use-app-message
+  []
   "在 App 组件内部调用，获取 message 实例。"
   (let [api (.useApp App)]
     (reset! message-api (.-message api))))
 
-(defn success! [text]
+
+(defn success!
+  [text]
   (if-let [api @message-api]
     (.success api text)
     (.success message text)))
 
-(defn error! [text]
+
+(defn error!
+  [text]
   (if-let [api @message-api]
     (.error api text)
     (.error message text)))
 
-(defn warning! [text]
+
+(defn warning!
+  [text]
   (if-let [api @message-api]
     (.warning api text)
-    (.warning message text))) 
+    (.warning message text)))
+
 
 (def user-icon (r/adapt-react-class UserOutlined))
 (def lock-icon (r/adapt-react-class LockOutlined))

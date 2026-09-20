@@ -1,21 +1,30 @@
 (ns com.ruoyi.business.bpm-approval-test
   "BPM Phase 1 审批闭环 REST 集成测试：加签/减签/取消/撤回/抄送/可退回节点。
    断言不依赖待办总数（测试环境共享 rouyi.db/flowable，可能有历史遗留流程）。"
-  (:require [clojure.test :refer [deftest testing is use-fixtures]]
-            [com.ruoyi.test-utils :refer [system-state system-fixture GET]]
-            [peridot.core :as p]
-            [clojure.data.json :as json]))
+  (:require
+    [clojure.data.json :as json]
+    [clojure.test :refer [deftest testing is use-fixtures]]
+    [com.ruoyi.test-utils :refer [system-state system-fixture GET]]
+    [peridot.core :as p]))
+
 
 (use-fixtures :once (system-fixture))
 
-(defn- handler [] (:handler/ring (system-state)))
 
-(defn- parse-json [resp]
+(defn- handler
+  []
+  (:handler/ring (system-state)))
+
+
+(defn- parse-json
+  [resp]
   (when (:body resp)
     (try (json/read-str (:body resp) :key-fn keyword)
          (catch Exception _ nil))))
 
-(defn- login-token [username]
+
+(defn- login-token
+  [username]
   (let [ctx (-> (p/session (handler))
                 (p/request "/api/auth/login"
                            :request-method :post
@@ -24,9 +33,14 @@
         resp (:response ctx)]
     (get-in (parse-json resp) [:data :token])))
 
-(defn- auth-hdr [token] {"authorization" (str "Bearer " token)})
 
-(defn- POST [app path body headers]
+(defn- auth-hdr
+  [token]
+  {"authorization" (str "Bearer " token)})
+
+
+(defn- POST
+  [app path body headers]
   (:response (-> (p/session app)
                  (p/request path
                             :request-method :post
@@ -34,7 +48,9 @@
                             :headers headers
                             :body (json/write-str body)))))
 
-(defn- PUT [app path body headers]
+
+(defn- PUT
+  [app path body headers]
   (:response (-> (p/session app)
                  (p/request path
                             :request-method :put
@@ -42,13 +58,16 @@
                             :headers headers
                             :body (json/write-str body)))))
 
-(defn- DELETE [app path body headers]
+
+(defn- DELETE
+  [app path body headers]
   (:response (-> (p/session app)
                  (p/request path
                             :request-method :delete
                             :content-type "application/json"
                             :headers headers
                             :body (json/write-str body)))))
+
 
 ;; ── 用户与流程准备 ────────────────────────────────────────────────────
 
@@ -63,6 +82,7 @@
         token (login-token u)
         _ (is (some? token))]
     {:username u :token token :hdr (auth-hdr token)}))
+
 
 (defn- two-task-bpmn
   "start → approve1(admin) → [copy1(抄送人, COPY_TASK)] → approve2(admin) → end。
@@ -91,6 +111,7 @@
          "<sequenceFlow id=\"f3\" sourceRef=\"approve2\" targetRef=\"end\"/>"
          "</process></definitions>")))
 
+
 (defn- deploy-test-model!
   "创建并部署一个测试流程模型，返回 {:model-id mid}。"
   [app h copy-user]
@@ -114,6 +135,7 @@
         _ (is (= 200 (:code dep)))]
     {:model-id mid}))
 
+
 (defn- start-instance!
   "发起流程实例，返回 process-instance-id。"
   [app h mid]
@@ -122,11 +144,13 @@
     (is (= 200 (:code st)))
     (get-in st [:data :process-instance-id])))
 
+
 (defn- todo-of
   "某 token 对应用户在本实例上的待办任务列表（keywordized rows）。"
   [app hdr pid]
   (let [r (parse-json (GET app "/api/business/bpm/todo" {} hdr))]
     (filter #(= pid (:process-instance-id %)) (get-in r [:data :rows] []))))
+
 
 ;; ── 主流程：加签 → 减签 → 审批 → 撤回 → 退回 → 撤回到起点 ──────────────
 
@@ -201,6 +225,7 @@
             _ (is (= 200 (:code (parse-json (POST app (str "/api/business/bpm/task/" t2 "/approve") {:comment "ok"} h)))))]
         (is (empty? (todo-of app h pid)))))))
 
+
 ;; ── 取消（发起人或管理员）─────────────────────────────────────────────
 
 (deftest bpm-phase1-cancel-test
@@ -221,6 +246,7 @@
             row (first (filter #(= pid (:process_instance_id %)) (get-in lst [:data :rows])))]
         (is (some? row))
         (is (= "CANCELED" (:status row)))))))
+
 
 ;; ── 抄送：手动抄送 + COPY_TASK 节点自动抄送 ───────────────────────────
 
@@ -243,7 +269,7 @@
             ;; 抄送节点在审批1之后：先通过审批1，触发 copy1 节点
             t1 (:task-id (first (todo-of app h pid2)))
             _ (is (= 200 (:code (parse-json (POST app (str "/api/business/bpm/task/" t1 "/approve")
-                                                          {:comment "ok"} h)))))
+                                                  {:comment "ok"} h)))))
             page (parse-json (GET app "/api/business/bpm/task/copy/page?page=1&size=10" {} hdr))
             rows (filter #(= pid2 (:process_instance_id %)) (get-in page [:data :rows]))]
         (is (some? pid2))

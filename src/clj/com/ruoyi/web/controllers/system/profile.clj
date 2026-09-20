@@ -1,11 +1,12 @@
 (ns com.ruoyi.web.controllers.system.profile
   "个人中心控制器。"
   (:require
-   [ring.util.response :as response]
-   [com.ruoyi.domain.system.user :as user-service]
-   [com.ruoyi.infra.security :as security]
-   [com.ruoyi.infra.online :as online]
-   [clojure.string :as str]))
+    [clojure.string :as str]
+    [com.ruoyi.domain.system.user :as user-service]
+    [com.ruoyi.infra.online :as online]
+    [com.ruoyi.infra.security :as security]
+    [ring.util.response :as response]))
+
 
 (defn- ok
   ([data] (ok 200 "操作成功" data))
@@ -13,9 +14,12 @@
    (-> (response/response {:code code :msg msg :data data})
        (response/content-type "application/json"))))
 
-(defn- fail [msg]
+
+(defn- fail
+  [msg]
   (-> (response/response {:code 500 :msg msg})
       (response/content-type "application/json")))
+
 
 (defn get-profile
   "获取当前用户个人信息。"
@@ -25,6 +29,7 @@
     (if-let [user (user-service/find-user-by-id user-service user-id)]
       (ok (select-keys user [:user_id :user_name :nick_name :avatar :email :phonenumber :sex]))
       (fail "用户不存在"))))
+
 
 (defn update-profile
   "更新当前用户个人信息。"
@@ -38,6 +43,7 @@
     (catch Exception e
       (fail (.getMessage e)))))
 
+
 (defn- save-avatar!
   "保存上传的头像文件。"
   [upload]
@@ -47,6 +53,7 @@
     (.mkdirs (.getParentFile file))
     (clojure.java.io/copy (:tempfile upload) file)
     (str "/" upload-dir "/" filename)))
+
 
 (defn upload-avatar
   "上传头像。"
@@ -61,6 +68,7 @@
       (ok {:avatar avatar-url}))
     (catch Exception e
       (fail (.getMessage e)))))
+
 
 (defn change-password
   "修改当前用户密码。"

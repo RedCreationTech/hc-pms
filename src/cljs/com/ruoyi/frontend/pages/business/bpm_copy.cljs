@@ -1,17 +1,19 @@
 (ns com.ruoyi.frontend.pages.business.bpm-copy
   "抄送我的 —— 抄送记录列表（查询分页 + 详情跳转）。"
   (:require
-   [reagent.core :as r]
-   [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [ReloadOutlined EyeOutlined]]
-   [clojure.string]
-   [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.api :as api]
-   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
-   [com.ruoyi.frontend.components.form-render :as form-render]
-   [com.ruoyi.frontend.components.bpm-flow-designer :as bpm-flow-designer]))
+    ["@ant-design/icons" :refer [ReloadOutlined EyeOutlined]]
+    [clojure.string]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.api :as api]
+    [com.ruoyi.frontend.components.bpm-flow-designer :as bpm-flow-designer]
+    [com.ruoyi.frontend.components.form-render :as form-render]
+    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+    [re-frame.core :as rf]
+    [reagent.core :as r]))
 
-(defn- status-tag [v]
+
+(defn- status-tag
+  [v]
   (let [[label color] (case v
                         "1" ["审批中" "processing"]
                         "2" ["已结束" "success"]
@@ -20,12 +22,16 @@
                         ["未知" "default"])]
     [antd/tag {:color color} label]))
 
-(defn- summary-text [summary]
+
+(defn- summary-text
+  [summary]
   (if (seq summary)
     (clojure.string/join "　" (map #(str (:label %) "：" (:value %)) summary))
     "-"))
 
-(defn- copy-columns [open-detail]
+
+(defn- copy-columns
+  [open-detail]
   #js [#js {:title "流程" :dataIndex "model_name" :key "model_name" :width 120}
        #js {:title "流程名称" :dataIndex "instance_name" :key "instance_name" :width 160 :ellipsis true
             :render (fn [v] (r/as-element [:span (if (seq v) v "-")]))}
@@ -48,12 +54,14 @@
             :render (fn [_ ^js record]
                       (let [row (js->clj record :keywordize-keys true)]
                         (r/as-element
-                         [antd/button {:type "link" :size "small"
-                                       :icon (r/as-element [:> EyeOutlined])
-                                       :on-click #(open-detail (:process_instance_id row))}
-                          "详情"])))}])
+                          [antd/button {:type "link" :size "small"
+                                        :icon (r/as-element [:> EyeOutlined])
+                                        :on-click #(open-detail (:process_instance_id row))}
+                           "详情"])))}])
 
-(defn- detail-drawer [{:keys [pid data loading? diagram]}]
+
+(defn- detail-drawer
+  [{:keys [pid data loading? diagram]}]
   (let [data-val (or @data {})
         instance (or (:instance data-val) {})
         form (:form data-val)
@@ -77,20 +85,20 @@
                          (if (seq task-history)
                            [:div
                             (doall
-                             (for [t task-history]
-                               ^{:key (:task-id t)}
-                               [:div {:style {:padding "8px 12px" :borderLeft "3px solid"
-                                              :borderColor (if (true? (:approved t)) "#67c23a"
-                                                               (if (false? (:approved t)) "#f56c6c" "#409eff"))
-                                              :background "#fafafa" :marginBottom 8 :borderRadius "0 6px 6px 0"}}
-                                [:div {:style {:display "flex" :alignItems "center"}}
-                                 [:b (:name t)]
-                                 (when (:assignee t)
-                                   [:span {:style {:color "#909399" :marginLeft 8}} (:assignee t)])
-                                 (when (:end-time t)
-                                   [:span {:style {:color "#c0c4cc" :marginLeft 8 :fontSize 12}} (subs (:end-time t) 0 16)])]
-                                (when (:comment t)
-                                  [:div {:style {:color "#606266" :marginTop 2}} (str "意见：" (:comment t))])]))]
+                              (for [t task-history]
+                                ^{:key (:task-id t)}
+                                [:div {:style {:padding "8px 12px" :borderLeft "3px solid"
+                                               :borderColor (if (true? (:approved t)) "#67c23a"
+                                                                (if (false? (:approved t)) "#f56c6c" "#409eff"))
+                                               :background "#fafafa" :marginBottom 8 :borderRadius "0 6px 6px 0"}}
+                                 [:div {:style {:display "flex" :alignItems "center"}}
+                                  [:b (:name t)]
+                                  (when (:assignee t)
+                                    [:span {:style {:color "#909399" :marginLeft 8}} (:assignee t)])
+                                  (when (:end-time t)
+                                    [:span {:style {:color "#c0c4cc" :marginLeft 8 :fontSize 12}} (subs (:end-time t) 0 16)])]
+                                 (when (:comment t)
+                                   [:div {:style {:color "#606266" :marginTop 2}} (str "意见：" (:comment t))])]))]
                            [:div {:style {:color "#c0c4cc"}} "暂无审批记录"])])
         diagram-block (fn []
                         [:div
@@ -119,7 +127,9 @@
         [history-block]
         [diagram-block]])]))
 
-(defn bpm-copy-page []
+
+(defn bpm-copy-page
+  []
   (let [items @(rf/subscribe [:bpm-copy/items])
         total @(rf/subscribe [:bpm-copy/total])
         loading? @(rf/subscribe [:bpm-copy/loading?])]
@@ -140,21 +150,21 @@
                                (api/bpm-instance-diagram pid
                                                          (fn [res] (reset! detail-diagram (:data res)))
                                                          (fn [_] nil)))]
-      [:div
-       [page-toolbar/page-toolbar
-        {:left [page-toolbar/toolbar-left
-                [:div {:style {:fontSize 15 :fontWeight 600}} "抄送我的"]]
-         :right [page-toolbar/toolbar-right
-                 [page-toolbar/round-tool-button {:title "刷新"
-                                                  :icon (r/as-element [:> ReloadOutlined])
-                                                  :on-click #(rf/dispatch [:bpm/copy-fetch {}])}]]}]
-       [antd/table {:scroll #js {:x "max-content"} :rowKey "copy_id"
-                    :columns (copy-columns open-detail)
-                    :dataSource (clj->js items)
-                    :loading loading?
-                    :pagination {:total total :pageSize 10 :showSizeChanger true
-                                 :showTotal (fn [total] (str "共 " total " 条"))
-                                 :onChange (fn [page size]
-                                             (rf/dispatch [:bpm/copy-fetch {:page page :size size}]))}}]
-       [detail-drawer {:pid detail-pid :data detail-data :loading? detail-loading?
-                       :diagram detail-diagram}]])))
+                [:div
+                 [page-toolbar/page-toolbar
+                  {:left [page-toolbar/toolbar-left
+                          [:div {:style {:fontSize 15 :fontWeight 600}} "抄送我的"]]
+                   :right [page-toolbar/toolbar-right
+                           [page-toolbar/round-tool-button {:title "刷新"
+                                                            :icon (r/as-element [:> ReloadOutlined])
+                                                            :on-click #(rf/dispatch [:bpm/copy-fetch {}])}]]}]
+                 [antd/table {:scroll #js {:x "max-content"} :rowKey "copy_id"
+                              :columns (copy-columns open-detail)
+                              :dataSource (clj->js items)
+                              :loading loading?
+                              :pagination {:total total :pageSize 10 :showSizeChanger true
+                                           :showTotal (fn [total] (str "共 " total " 条"))
+                                           :onChange (fn [page size]
+                                                       (rf/dispatch [:bpm/copy-fetch {:page page :size size}]))}}]
+                 [detail-drawer {:pid detail-pid :data detail-data :loading? detail-loading?
+                                 :diagram detail-diagram}]])))

@@ -1,8 +1,9 @@
 (ns com.ruoyi.frontend.router
   "前端路由管理 — 手动实现，不依赖 accountant。"
   (:require
-   [bidi.bidi :as bidi]
-   [re-frame.core :as rf]))
+    [bidi.bidi :as bidi]
+    [re-frame.core :as rf]))
+
 
 ;; 路由定义
 (def routes
@@ -53,13 +54,18 @@
         "office/hrm/employee" :hrm-employee
         "office/crm/customer" :crm-customer}])
 
+
 ;; 路由匹配
-(defn match-route [path]
+(defn match-route
+  [path]
   (bidi/match-route routes path))
 
+
 ;; 获取页面路径
-(defn page-path [page]
+(defn page-path
+  [page]
   (or (bidi/path-for routes page) "/"))
+
 
 ;; 页面名称映射
 (def page-names
@@ -108,8 +114,10 @@
    :hrm-employee "员工管理"
    :crm-customer "客户管理"})
 
+
 ;; 状态标记
 (defonce initialized? (volatile! false))
+
 
 (defn- current-query
   "当前 URL 的 query 参数（keyword 键的映射）。"
@@ -118,15 +126,19 @@
         ks (js/Array.from (.keys params))]
     (into {} (map (fn [k] [(keyword k) (.get params k)])) ks)))
 
+
 ;; 监听浏览器前进/后退
-(defn- on-popstate [^js _event]
+(defn- on-popstate
+  [^js _event]
   (let [path (.-pathname js/location)
         match (match-route path)
         page (or (:handler match) :dashboard)]
     (rf/dispatch [:navigate page (current-query)])))
 
+
 ;; 初始化路由
-(defn init-routes! []
+(defn init-routes!
+  []
   (when-not @initialized?
     (.addEventListener js/window "popstate" on-popstate)
     (vreset! initialized? true)
@@ -135,6 +147,7 @@
           match (match-route path)
           page (or (:handler match) :dashboard)]
       (rf/dispatch-sync [:navigate page (current-query)]))))
+
 
 ;; 导航到页面（只更新 URL，不 dispatch 事件）；query 为可选参数映射，如 {:id 1}
 (defn navigate!

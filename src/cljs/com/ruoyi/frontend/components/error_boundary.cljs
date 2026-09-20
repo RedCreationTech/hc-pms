@@ -1,9 +1,11 @@
 (ns com.ruoyi.frontend.components.error-boundary
   "React Error Boundary：捕获子组件渲染错误，避免整个应用白屏。"
   (:require
-   [reagent.core :as r]))
+    [reagent.core :as r]))
 
-(defn- fallback-ui [error _info]
+
+(defn- fallback-ui
+  [error _info]
   [:div {:style {:padding 48
                  :textAlign "center"
                  :background "var(--ant-color-bg-container, #fff)"
@@ -33,19 +35,20 @@
                      :maxHeight 200}}
        (str error)]])])
 
+
 (def boundary
   "React 错误边界组件。用法：[boundary child]"
   (r/create-class
-   {:get-initial-state
-    (fn [_this] nil)
-    :component-did-catch
-    (fn [this error info]
-      (js/console.error "ErrorBoundary caught error:" error info "STACK=" (when error (.-stack error)))
-      (r/set-state this {:error error :info info}))
-    :reagent-render
-    (fn [child]
-      (let [this (r/current-component)
-            st (r/state this)]
-        (if (:error st)
-          (r/as-element [fallback-ui (:error st) (:info st)])
-          (r/as-element child))))}))
+    {:get-initial-state
+     (fn [_this] nil)
+     :component-did-catch
+     (fn [this error info]
+       (js/console.error "ErrorBoundary caught error:" error info "STACK=" (when error (.-stack error)))
+       (r/set-state this {:error error :info info}))
+     :reagent-render
+     (fn [child]
+       (let [this (r/current-component)
+             st (r/state this)]
+         (if (:error st)
+           (r/as-element [fallback-ui (:error st) (:info st)])
+           (r/as-element child))))}))

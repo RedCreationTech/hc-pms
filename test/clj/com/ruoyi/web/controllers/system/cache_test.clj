@@ -1,13 +1,16 @@
 (ns com.ruoyi.web.controllers.system.cache-test
   "缓存监控控制器测试。"
-  (:require [clojure.test :refer [deftest is testing use-fixtures]]
-            [com.ruoyi.web.controllers.system.cache :as cache]))
+  (:require
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [com.ruoyi.web.controllers.system.cache :as cache]))
+
 
 (use-fixtures :each
   (fn [test-fn]
     (cache/clear-cache-all {} {})
     (test-fn)
     (cache/clear-cache-all {} {})))
+
 
 (deftest test-cache-info
   (testing "获取缓存整体信息"
@@ -20,6 +23,7 @@
       (is (seq (get-in body [:data :commandStats])))
       (is (seq (get-in body [:data :cacheNames]))))))
 
+
 (deftest test-cache-names
   (testing "获取缓存名称列表"
     (let [response (cache/cache-names {} {})
@@ -28,6 +32,7 @@
       (is (= 200 (:code body)))
       (is (seq (get-in body [:data :cacheNames])))
       (is (some #{"user" "dict" "config" "notice"} (get-in body [:data :cacheNames]))))))
+
 
 (deftest test-cache-keys
   (testing "获取所有缓存键"
@@ -39,6 +44,7 @@
       (is (seq keys))
       (is (every? string? keys))
       (is (= (count keys) (get-in body [:data :count]))))))
+
 
 (deftest test-cache-keys-by-name
   (testing "获取指定缓存名称下的键列表"
@@ -57,6 +63,7 @@
       (is (= "unknown" (get-in body [:data :cacheName])))
       (is (empty? (get-in body [:data :keys])))
       (is (zero? (get-in body [:data :count]))))))
+
 
 (deftest test-cache-value
   (testing "获取存在的缓存值"
@@ -80,6 +87,7 @@
       (is (= (inc (:get before)) (:get @cache/cache-stats)))
       (is (= (inc (:miss before)) (:miss @cache/cache-stats))))))
 
+
 (deftest test-clear-cache
   (testing "清空所有缓存"
     (let [response (cache/clear-cache {} {})
@@ -94,6 +102,7 @@
       (is (seq (get @cache/cache-data "config")))
       (is (seq (get @cache/cache-data "notice"))))))
 
+
 (deftest test-clear-cache-name
   (testing "清除指定名称的缓存"
     (let [response (cache/clear-cache-name {} {:path-params {:cacheName "dict"}})
@@ -105,6 +114,7 @@
       (is (empty? (get @cache/cache-data "dict")))
       (is (seq (get @cache/cache-data "user"))))))
 
+
 (deftest test-clear-cache-key
   (testing "清除指定键"
     (let [response (cache/clear-cache-key {} {:path-params {:cacheName "user" :cacheKey "admin"}})
@@ -115,6 +125,7 @@
       (is (= 1 (:clear @cache/cache-stats)))
       (is (nil? (get-in @cache/cache-data ["user" "admin"])))
       (is (seq (get @cache/cache-data "dict"))))))
+
 
 (deftest test-clear-cache-all
   (testing "清除所有缓存并重置统计"

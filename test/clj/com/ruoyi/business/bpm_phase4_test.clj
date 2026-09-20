@@ -2,24 +2,38 @@
   "BPM Phase 4 进阶能力 REST 集成测试：
    模型级 Webhook（本地 HTTP 接收端点）、触发器节点（HTTP_REQUEST 回写/UPDATE_FORM/DELETE_FORM）、
    子流程 callActivity 变量传递、路由分支节点按条件走线、节点监听器 Create/Assign/Complete 三事件。"
-  (:require [clojure.test :refer [deftest testing is use-fixtures]]
-            [com.ruoyi.test-utils :refer [system-state system-fixture GET]]
-            [peridot.core :as p]
-            [clojure.data.json :as json])
-  (:import (com.sun.net.httpserver HttpServer HttpHandler)
-           (java.net InetSocketAddress)
-           (java.nio.charset StandardCharsets)))
+  (:require
+    [clojure.data.json :as json]
+    [clojure.test :refer [deftest testing is use-fixtures]]
+    [com.ruoyi.test-utils :refer [system-state system-fixture GET]]
+    [peridot.core :as p])
+  (:import
+    (com.sun.net.httpserver
+      HttpHandler
+      HttpServer)
+    (java.net
+      InetSocketAddress)
+    (java.nio.charset
+      StandardCharsets)))
+
 
 (use-fixtures :once (system-fixture))
 
-(defn- handler [] (:handler/ring (system-state)))
 
-(defn- parse-json [resp]
+(defn- handler
+  []
+  (:handler/ring (system-state)))
+
+
+(defn- parse-json
+  [resp]
   (when (:body resp)
     (try (json/read-str (:body resp) :key-fn keyword)
          (catch Exception _ nil))))
 
-(defn- login-token [username]
+
+(defn- login-token
+  [username]
   (let [ctx (-> (p/session (handler))
                 (p/request "/api/auth/login"
                            :request-method :post
@@ -27,9 +41,14 @@
                            :body (json/write-str {:username username :password "admin123"})))]
     (get-in (parse-json (:response ctx)) [:data :token])))
 
-(defn- auth-hdr [token] {"authorization" (str "Bearer " token)})
 
-(defn- POST [app path body headers]
+(defn- auth-hdr
+  [token]
+  {"authorization" (str "Bearer " token)})
+
+
+(defn- POST
+  [app path body headers]
   (:response (-> (p/session app)
                  (p/request path
                             :request-method :post
@@ -37,13 +56,16 @@
                             :headers headers
                             :body (json/write-str body)))))
 
-(defn- PUT [app path body headers]
+
+(defn- PUT
+  [app path body headers]
   (:response (-> (p/session app)
                  (p/request path
                             :request-method :put
                             :content-type "application/json"
                             :headers headers
                             :body (json/write-str body)))))
+
 
 ;; ── 本地 HTTP 接收端点（JDK HttpServer，零依赖）─────────────────────────
 
@@ -54,7 +76,8 @@
   (let [received (atom [])
         server (HttpServer/create (InetSocketAddress. "127.0.0.1" 0) 0)
         handler (proxy [HttpHandler] []
-                  (handle [exchange]
+                  (handle
+                    [exchange]
                     (try
                       (let [body (String. (.readAllBytes (.getRequestBody exchange))
                                           StandardCharsets/UTF_8)
@@ -79,8 +102,11 @@
      :received received
      :port (.getPort (.getAddress server))}))
 
-(defn- stop-receiver! [{:keys [server]}]
+
+(defn- stop-receiver!
+  [{:keys [server]}]
   (when server (.stop server 0)))
+
 
 (defn- wait-for
   "轮询等待条件满足（异步 Webhook 投递需要），默认 3s。"
@@ -92,11 +118,13 @@
        (>= t ms) false
        :else (do (Thread/sleep 100) (recur (+ t 100)))))))
 
+
 (defn- received-bodies
   "把收到的请求体解析为 Clojure 数据。"
   [receiver]
   (mapv #(try (json/read-str (:body %) :key-fn keyword) (catch Exception _ nil))
         @(:received receiver)))
+
 
 ;; ── 模型准备 ──────────────────────────────────────────────────────────
 
@@ -114,6 +142,7 @@
          "<sequenceFlow id=\"f2\" sourceRef=\"a1\" targetRef=\"end\"/>"
          "</process></definitions>")))
 
+
 (defn- two-node-bpmn
   "start → a1(admin) → a2(admin) → end（每节点挂 create TaskListener）。"
   [key marker]
@@ -130,27 +159,30 @@
          "<sequenceFlow id=\"f3\" sourceRef=\"a2\" targetRef=\"end\"/>"
          "</process></definitions>")))
 
-(defn- escape-xml-attr [s]
+
+(defn- escape-xml-attr
+  [s]
   (-> (or s "")
       (clojure.string/replace "&" "&amp;")
       (clojure.string/replace "\"" "&quot;")
       (clojure.string/replace "<" "&lt;")
       (clojure.string/replace ">" "&gt;")))
 
+
 (defn- listener-bpmn
   "两节点流程，a1 节点带 nodeConfig.listeners（create/assign/complete 三事件 HTTP 回调）。"
   [key marker url]
   (let [nc (json/write-str
-            {"listeners"
-             {"create" {"enable" true "url" url
-                        "params" [{"key" "taskId" "value" "${taskId}"}
-                                  {"key" "event" "value" "${event}"}]}
-              "assign" {"enable" true "url" url
-                        "params" [{"key" "taskId" "value" "${taskId}"}
-                                  {"key" "event" "value" "${event}"}]}
-              "complete" {"enable" true "url" url
-                          "params" [{"key" "taskId" "value" "${taskId}"}
-                                    {"key" "event" "value" "${event}"}]}}})
+             {"listeners"
+              {"create" {"enable" true "url" url
+                         "params" [{"key" "taskId" "value" "${taskId}"}
+                                   {"key" "event" "value" "${event}"}]}
+               "assign" {"enable" true "url" url
+                         "params" [{"key" "taskId" "value" "${taskId}"}
+                                   {"key" "event" "value" "${event}"}]}
+               "complete" {"enable" true "url" url
+                           "params" [{"key" "taskId" "value" "${taskId}"}
+                                     {"key" "event" "value" "${event}"}]}}})
         ext (str "<extensionElements>"
                  "<flowable:taskListener event=\"create\" delegateExpression=\"${bpmTaskListener}\"/>"
                  "<flowable:taskListener event=\"assignment\" delegateExpression=\"${bpmTaskListener}\"/>"
@@ -171,59 +203,79 @@
          "<sequenceFlow id=\"f3\" sourceRef=\"a2\" targetRef=\"end\"/>"
          "</process></definitions>")))
 
+
 (defn- create-model!
   "创建模型（extra 为扩展字段），返回 {:model-id :model-key}。"
   [app h extra]
   (let [key (str "ph4" (System/currentTimeMillis) (rand-int 100000))]
     (is (= 200 (:code (parse-json (POST app "/api/business/bpm/model"
-                                         (merge {:model_key key :model_name "Phase4测试"
-                                                 :form_type "0" :bpmn_xml ""}
-                                                extra)
-                                         h)))))
+                                        (merge {:model_key key :model_name "Phase4测试"
+                                                :form_type "0" :bpmn_xml ""}
+                                               extra)
+                                        h)))))
     (let [ml (parse-json (GET app "/api/business/bpm/model?page=1&size=100" {} h))
           mid (get-in (first (filter #(= key (:model_key %)) (get-in ml [:data :rows]))) [:model_id])]
       (is (some? mid))
       {:model-id mid :model-key key})))
 
-(defn- update-bpmn! [app h mid bpmn]
-  (is (= 200 (:code (parse-json (PUT app (str "/api/business/bpm/model/" mid)
-                                      {:model_id mid :model_name "Phase4测试" :category_id 0
-                                       :form_type "0" :bpmn_xml bpmn :status "1" :remark ""}
-                                      h))))))
 
-(defn- save-tree! [app h mid tree]
+(defn- update-bpmn!
+  [app h mid bpmn]
+  (is (= 200 (:code (parse-json (PUT app (str "/api/business/bpm/model/" mid)
+                                     {:model_id mid :model_name "Phase4测试" :category_id 0
+                                      :form_type "0" :bpmn_xml bpmn :status "1" :remark ""}
+                                     h))))))
+
+
+(defn- save-tree!
+  [app h mid tree]
   (let [r (parse-json (POST app (str "/api/business/bpm/model/" mid "/tree") tree h))]
     (is (= 200 (:code r)) (str "save-tree: " (:msg r)))))
 
-(defn- deploy! [app h mid]
+
+(defn- deploy!
+  [app h mid]
   (let [r (parse-json (POST app (str "/api/business/bpm/model/deploy/" mid) {} h))]
     (is (= 200 (:code r)) (str "deploy: " (:msg r)))))
 
-(defn- start-instance! [app h mid fd]
+
+(defn- start-instance!
+  [app h mid fd]
   (let [r (parse-json (POST app "/api/business/bpm/instance"
                             {:model_id mid :form_data (or fd {})} h))]
     (is (= 200 (:code r)) (str "start-instance: " (:msg r)))
     (:data r)))
 
-(defn- todo-of [app hdr pid]
+
+(defn- todo-of
+  [app hdr pid]
   (let [r (parse-json (GET app "/api/business/bpm/todo" {} hdr))]
     (filter #(= pid (:process-instance-id %)) (get-in r [:data :rows] []))))
 
-(defn- todo-by-name [app hdr name]
+
+(defn- todo-by-name
+  [app hdr name]
   (let [r (parse-json (GET app "/api/business/bpm/todo" {} hdr))]
     (filter #(= name (:name %)) (get-in r [:data :rows] []))))
 
-(defn- approve! [app h task-id]
+
+(defn- approve!
+  [app h task-id]
   (is (= 200 (:code (parse-json (POST app (str "/api/business/bpm/task/" task-id "/approve")
                                       {:comment "同意"} h))))))
 
-(defn- claim! [app h task-id]
+
+(defn- claim!
+  [app h task-id]
   (is (= 200 (:code (parse-json (POST app (str "/api/business/bpm/task/" task-id "/claim") {} h))))))
 
-(defn- ended? [app h pid]
+
+(defn- ended?
+  [app h pid]
   (some #(and (= "end" (:activity-id %)) (:end-time %))
         (get-in (parse-json (GET app (str "/api/business/bpm/instance/history/" pid) {} h))
                 [:data :activities])))
+
 
 ;; ── 4.1 Webhook ───────────────────────────────────────────────────────
 
@@ -231,10 +283,11 @@
   (let [app (handler) token (login-token "admin") h (auth-hdr token)
         receiver (start-receiver!)
         url (str "http://127.0.0.1:" (:port receiver) "/hook")
-        hook (fn [path] {:url (str url path)
-                         :headers [{"key" "X-Test" "value" "ph4"}]
-                         :bodyParams [{"key" "starter" "value" "${startUserId}"}
-                                      {"key" "event" "value" "${event}"}]})
+        hook (fn [path]
+               {:url (str url path)
+                :headers [{"key" "X-Test" "value" "ph4"}]
+                :bodyParams [{"key" "starter" "value" "${startUserId}"}
+                             {"key" "event" "value" "${event}"}]})
         webhooks {"process_start" (hook "")
                   "task_start" (hook "")
                   "task_end" (hook "")
@@ -270,6 +323,7 @@
             (is (= "admin" (:starter pe))))))
       (finally (stop-receiver! receiver)))))
 
+
 ;; ── 4.2 触发器节点 ─────────────────────────────────────────────────────
 
 (defn- trigger-tree
@@ -277,19 +331,20 @@
   [trigger-cfg expect & [left-side]]
   (let [left (or left-side "level")]
     {:id "start" :type "START_USER_NODE" :name "发起"
-   :child-node (assoc {:id "t1" :type "TRIGGER_NODE" :name "触发器"
-                       :config trigger-cfg
-                       :child-node {:id "r1" :type "ROUTER_BRANCH_NODE" :name "路由"
-                                    :config {:groups [{:target-node-id "end"
-                                                       :rules [{:left-side left
-                                                                :op-code "=="
-                                                                :right-side (str "\"" expect "\"")}]}]}
-                                    :child-node {:id "b1" :type "USER_TASK_NODE" :name "人工审批"
-                                                 :config {:approve-type "USER"
-                                                          :candidate-strategy "USER"
-                                                          :candidate-param {:user-ids [1]}}
-                                                 :child-node {:id "end" :type "END_EVENT_NODE" :name "结束"}}}}
-                      :name (:name trigger-cfg))}))
+     :child-node (assoc {:id "t1" :type "TRIGGER_NODE" :name "触发器"
+                         :config trigger-cfg
+                         :child-node {:id "r1" :type "ROUTER_BRANCH_NODE" :name "路由"
+                                      :config {:groups [{:target-node-id "end"
+                                                         :rules [{:left-side left
+                                                                  :op-code "=="
+                                                                  :right-side (str "\"" expect "\"")}]}]}
+                                      :child-node {:id "b1" :type "USER_TASK_NODE" :name "人工审批"
+                                                   :config {:approve-type "USER"
+                                                            :candidate-strategy "USER"
+                                                            :candidate-param {:user-ids [1]}}
+                                                   :child-node {:id "end" :type "END_EVENT_NODE" :name "结束"}}}}
+                        :name (:name trigger-cfg))}))
+
 
 (deftest bpm-phase4-trigger-test
   (let [app (handler) token (login-token "admin") h (auth-hdr token)
@@ -341,6 +396,7 @@
               "temp 被清除后 temp==x 不成立 → 默认走人工审批")))
       (finally (stop-receiver! receiver)))))
 
+
 ;; ── 4.3 子流程（callActivity 变量传递）───────────────────────────────────
 
 (deftest bpm-phase4-child-process-test
@@ -375,8 +431,7 @@
                                                               :config {:approve-type "USER"
                                                                        :candidate-strategy "USER"
                                                                        :candidate-param {:user-ids [1]}}
-                                                              :child-node {:id "end" :type "END_EVENT_NODE" :name "结束"}}}}})
-       ]
+                                                              :child-node {:id "end" :type "END_EVENT_NODE" :name "结束"}}}}})]
     (let [{child-id :model-id child-key :model-key} (create-model! app h {})]
       (save-tree! app h child-id child-tree)
       (deploy! app h child-id)
@@ -391,10 +446,11 @@
           (let [pid (:process-instance-id (start-instance! app h parent-id {:days 1}))
                 _ (is (some? pid))
                 child-task (first (todo-by-name app h "子审批"))]
-              (is (some? child-task) "cdays=1 时应产生子审批任务（子流程真实启动）")
-              (approve! app h (:task-id child-task))
-              (is (empty? (todo-of app h pid)) "pout=child-done → 父流程直达 end")
-              (is (ended? app h pid))))))))
+            (is (some? child-task) "cdays=1 时应产生子审批任务（子流程真实启动）")
+            (approve! app h (:task-id child-task))
+            (is (empty? (todo-of app h pid)) "pout=child-done → 父流程直达 end")
+            (is (ended? app h pid))))))))
+
 
 ;; ── 4.4 路由分支节点（纯语法糖展开为排他网关）────────────────────────────
 
@@ -432,6 +488,7 @@
             t1 (:task-id (first (todo-of app h pid)))]
         (approve! app h t1)
         (is (some? (first (filter #(= "二级审批" (:name %)) (todo-of app h pid)))))))))
+
 
 ;; ── 4.5 节点监听器（Create / Assign / Complete 三事件）────────────────────
 

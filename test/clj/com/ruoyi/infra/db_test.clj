@@ -1,20 +1,24 @@
 (ns com.ruoyi.infra.db-test
   "数据库抽象层测试。"
-  (:require [clojure.string :as str]
-            [clojure.test :refer [deftest is testing]]
-            [com.ruoyi.infra.db :as db]
-            [next.jdbc :as jdbc]
-            [next.jdbc.result-set :as rs]))
+  (:require
+    [clojure.string :as str]
+    [clojure.test :refer [deftest is testing]]
+    [com.ruoyi.infra.db :as db]
+    [next.jdbc :as jdbc]
+    [next.jdbc.result-set :as rs]))
+
 
 (defn- fake-db
   "构造一个带有伪数据库元数据的 db 规格。"
   ([product-name]
    {:connectable (reify java.sql.Connection
-                    (getMetaData [_]
-                      (reify java.sql.DatabaseMetaData
-                        (getDatabaseProductName [_] product-name))))})
+                   (getMetaData
+                     [_]
+                     (reify java.sql.DatabaseMetaData
+                       (getDatabaseProductName [_] product-name))))})
   ([]
    {:connectable nil}))
+
 
 (deftest test-detect-db-type
   (testing "数据库类型检测"
@@ -26,9 +30,11 @@
     (is (= :unknown (db/detect-db-type (fake-db ""))))
     (is (= :unknown (db/detect-db-type
                       {:connectable (reify java.sql.Connection
-                                      (getMetaData [_]
+                                      (getMetaData
+                                        [_]
                                         (throw (Exception. "no metadata"))))})))
     (is (= :unknown (db/detect-db-type (fake-db))))))
+
 
 (deftest test-sqlite->mysql
   (testing "SQLite SQL 转换为 MySQL"
@@ -42,6 +48,7 @@
     (is (str/includes? (db/sqlite->mysql "sqlite_master") "information_schema.tables"))
     (is (str/includes? (db/sqlite->mysql "type='table'") "table_type='BASE TABLE'"))))
 
+
 (deftest test-mysql->sqlite
   (testing "MySQL SQL 转换为 SQLite"
     (is (= "AUTOINCREMENT" (db/mysql->sqlite "AUTO_INCREMENT")))
@@ -51,12 +58,14 @@
     (is (= "julianday(a) - julianday(b)" (db/mysql->sqlite "DATEDIFF(a, b)")))
     (is (= "PRAGMA table_info(sys_user)" (db/mysql->sqlite "DESCRIBE sys_user")))))
 
+
 (deftest test-sql-conversion-roundtrip
   (testing "SQL 转换往返测试"
     (let [sqlite-sql "datetime('now')"
           mysql-sql (db/sqlite->mysql sqlite-sql)
           back-to-sqlite (db/mysql->sqlite mysql-sql)]
       (is (= sqlite-sql back-to-sqlite)))))
+
 
 (deftest test-adapt-sql
   (testing "根据数据库类型适配 SQL"
@@ -65,6 +74,7 @@
     (is (= "SELECT NOW() FROM t" (db/adapt-sql (fake-db "MySQL") "SELECT datetime('now') FROM t")))
     (is (= "SELECT NOW() FROM t" (db/adapt-sql (fake-db "PostgreSQL") "SELECT NOW() FROM t"))
         "未知数据库类型原样返回")))
+
 
 (deftest test-paginate-query
   (testing "分页查询适配"
@@ -91,6 +101,7 @@
           (is (= [{:id 2}] result))
           (is (str/starts-with? (first (:sql (first @calls))) "SELECT * FROM sys_user LIMIT 20 OFFSET 0"))
           (is (= "MySQL" (-> (first @calls) :db (.getMetaData) (.getDatabaseProductName)))))))))
+
 
 (deftest test-get-table-columns
   (testing "获取表列信息"
@@ -124,6 +135,7 @@
         (is (= rs/as-unqualified-lower-maps (-> @calls first :opts :builder-fn)))))
     (testing "未知数据库类型返回空列表"
       (is (= [] (db/get-table-columns (fake-db "PostgreSQL") "sys_user"))))))
+
 
 (deftest test-get-tables
   (testing "获取数据库所有表"

@@ -1,34 +1,38 @@
 (ns com.ruoyi.frontend.pages.business.bpm-start
   "发起流程 —— 选择模型 → 动态表单渲染 → 提交（对齐 vben 流程中心发起）。"
   (:require
-   [clojure.string :as str]
-   [clojure.walk :as walk]
-   [reagent.core :as r]
-   ["@ant-design/icons" :refer [ReloadOutlined PlayCircleOutlined]]
-   [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.api :as api]
-   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
-   [com.ruoyi.frontend.components.form-render :as form-render]))
+    ["@ant-design/icons" :refer [ReloadOutlined PlayCircleOutlined]]
+    [clojure.string :as str]
+    [clojure.walk :as walk]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.api :as api]
+    [com.ruoyi.frontend.components.form-render :as form-render]
+    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+    [reagent.core :as r]))
 
-(defn- model-columns [open-start]
+
+(defn- model-columns
+  [open-start]
   #js [#js {:title "流程名称" :dataIndex "model_name" :key "model_name"
             :render (fn [v] (r/as-element [:span {:style {:fontWeight 600}} v]))}
        #js {:title "流程Key" :dataIndex "model_key" :key "model_key" :width 200}
        #js {:title "版本" :dataIndex "version" :key "version" :width 70}
        #js {:title "表单" :dataIndex "form_type" :key "form_type" :width 110
-            :render (fn [v] (r/as-element
-                              (case v
-                                "1" [antd/tag {:color "blue"} "动态表单"]
-                                "2" [antd/tag {:color "purple"} "自定义表单"]
-                                [antd/tag "无表单"])))}
+            :render (fn [v]
+                      (r/as-element
+                        (case v
+                          "1" [antd/tag {:color "blue"} "动态表单"]
+                          "2" [antd/tag {:color "purple"} "自定义表单"]
+                          [antd/tag "无表单"])))}
        #js {:title "操作" :key "action" :width 120
             :render (fn [_ ^js record]
                       (let [model (js->clj record :keywordize-keys true)]
                         (r/as-element
-                         [antd/button {:type "primary" :size "small"
-                                       :icon (r/as-element [:> PlayCircleOutlined])
-                                       :on-click #(open-start model)}
-                          "发起"])))}])
+                          [antd/button {:type "primary" :size "small"
+                                        :icon (r/as-element [:> PlayCircleOutlined])
+                                        :on-click #(open-start model)}
+                           "发起"])))}])
+
 
 (defn- validate-fields
   "前端校验表单字段（必填 + 正则 pattern）。返回错误消息或 nil。"
@@ -56,6 +60,7 @@
                          (or (:message rule) (str "长度不能超过" max)))))))
                fields)))
 
+
 (defn- build-dept-tree
   "部门列表 → antd tree-data（两级，含 key）。"
   [depts]
@@ -66,15 +71,18 @@
                            (filter #(= (:dept_id d) (:parent_id %)) depts))})
         (filter #(= 0 (:parent_id %)) depts)))
 
+
 (defn- fill-field-data
   "为 tree-select/dict-select 字段注入数据源。"
   [schema field-type data-key data]
   (update schema :fields
-          (fn [fs] (mapv (fn [f]
-                           (if (= field-type (:type f))
-                             (assoc-in f [:props data-key] data)
-                             f))
-                         fs))))
+          (fn [fs]
+            (mapv (fn [f]
+                    (if (= field-type (:type f))
+                      (assoc-in f [:props data-key] data)
+                      f))
+                  fs))))
+
 
 (defn- collect-start-select
   "遍历流程树收集 START_USER_SELECT 节点（发起人自选审批人）。"
@@ -86,6 +94,7 @@
         conds (mapcat collect-start-select (or (:condition-nodes node) []))]
     (vec (concat me child conds))))
 
+
 (defn- render-start-select
   "发起人自选审批人：用户多选。"
   [{:keys [users sel-value set-value!]}]
@@ -94,9 +103,11 @@
    [antd/select {:mode "multiple" :style {:width "100%"} :placeholder "请选择审批人"
                  :value sel-value :onChange set-value!}
     (doall (for [u users] ^{:key (:user_id u)}
-             [antd/select-option {:value (:user_id u)} (:nick_name u)]))]])
+                [antd/select-option {:value (:user_id u)} (:nick_name u)]))]])
 
-(defn bpm-start-page []
+
+(defn bpm-start-page
+  []
   (r/with-let [models (r/atom [])
                total (r/atom 0)
                loading? (r/atom true)
@@ -199,46 +210,46 @@
                                                     (fn [e]
                                                       (reset! submitting? false)
                                                       (antd/error! (str "发起失败: " e)))))))]
-    [:div
-     [page-toolbar/page-toolbar
-      {:left [page-toolbar/toolbar-left [:div {:style {:fontSize 15 :fontWeight 600}} "发起流程"]]
-       :right [page-toolbar/toolbar-right
-               [page-toolbar/round-tool-button {:title "刷新" :icon (r/as-element [:> ReloadOutlined])
-                                                :on-click refresh}]]}]
-     [:div
-      [antd/table {:rowKey "model_id" :columns (model-columns open-start)
-                   :dataSource (clj->js @models) :loading @loading?
-                   :pagination {:total @total :pageSize 10 :showSizeChanger true
-                                :showTotal (fn [t] (str "共 " t " 条"))}}]]
-     ;; 发起弹窗
-     [antd/modal {:title (str "发起流程 · " (:model_name @start-model))
-                  :open (boolean @start-model)
-                  :confirmLoading @submitting?
-                  :width 600
-                  :onOk submit
-                  :onCancel #(reset! start-model nil)}
-      (when-let [model @start-model]
-        (if (= "2" (:form_type model))
-          [:div {:style {:padding 24 :textAlign "center" :color "#909399"}}
-           "该模型使用自定义表单，请前往对应业务页面发起"]
-          (if @form-loading?
-            [:div {:style {:padding 48 :textAlign "center"}} "表单加载中..."]
-            (if-let [schema @form-schema]
-              [:div {:style {:padding 8}}
-               (when (seq @start-select-nodes)
-                 [render-start-select {:users @users :sel-value @start-select-value
-                                       :set-value! #(reset! start-select-value (vec %))}])
-               [form-render/form-render {:schema schema
-                                         :values @values
-                                         :field-permissions @fields-perm
-                                         :layout (or (get-in schema [:conf :form :layout]) "vertical")
-                                         :on-change (fn [v] (reset! values v))}]
-               [:div {:style {:marginTop 8}}
-                [:div.bpm-f-label "业务备注"]
-                [antd/input {:placeholder "业务备注(可选)" :value @business-key
-                             :onChange (fn [e] (reset! business-key (-> e .-target .-value)))}]]]
-              [:div {:style {:padding 48 :textAlign "center" :color "#909399"}}
-               (when (seq @start-select-nodes)
-                 [render-start-select {:users @users :sel-value @start-select-value
-                                       :set-value! #(reset! start-select-value (vec %))}])
-               "该模型未配置动态表单，将直接发起"]))))]]))
+              [:div
+               [page-toolbar/page-toolbar
+                {:left [page-toolbar/toolbar-left [:div {:style {:fontSize 15 :fontWeight 600}} "发起流程"]]
+                 :right [page-toolbar/toolbar-right
+                         [page-toolbar/round-tool-button {:title "刷新" :icon (r/as-element [:> ReloadOutlined])
+                                                          :on-click refresh}]]}]
+               [:div
+                [antd/table {:rowKey "model_id" :columns (model-columns open-start)
+                             :dataSource (clj->js @models) :loading @loading?
+                             :pagination {:total @total :pageSize 10 :showSizeChanger true
+                                          :showTotal (fn [t] (str "共 " t " 条"))}}]]
+               ;; 发起弹窗
+               [antd/modal {:title (str "发起流程 · " (:model_name @start-model))
+                            :open (boolean @start-model)
+                            :confirmLoading @submitting?
+                            :width 600
+                            :onOk submit
+                            :onCancel #(reset! start-model nil)}
+                (when-let [model @start-model]
+                  (if (= "2" (:form_type model))
+                    [:div {:style {:padding 24 :textAlign "center" :color "#909399"}}
+                     "该模型使用自定义表单，请前往对应业务页面发起"]
+                    (if @form-loading?
+                      [:div {:style {:padding 48 :textAlign "center"}} "表单加载中..."]
+                      (if-let [schema @form-schema]
+                        [:div {:style {:padding 8}}
+                         (when (seq @start-select-nodes)
+                           [render-start-select {:users @users :sel-value @start-select-value
+                                                 :set-value! #(reset! start-select-value (vec %))}])
+                         [form-render/form-render {:schema schema
+                                                   :values @values
+                                                   :field-permissions @fields-perm
+                                                   :layout (or (get-in schema [:conf :form :layout]) "vertical")
+                                                   :on-change (fn [v] (reset! values v))}]
+                         [:div {:style {:marginTop 8}}
+                          [:div.bpm-f-label "业务备注"]
+                          [antd/input {:placeholder "业务备注(可选)" :value @business-key
+                                       :onChange (fn [e] (reset! business-key (-> e .-target .-value)))}]]]
+                        [:div {:style {:padding 48 :textAlign "center" :color "#909399"}}
+                         (when (seq @start-select-nodes)
+                           [render-start-select {:users @users :sel-value @start-select-value
+                                                 :set-value! #(reset! start-select-value (vec %))}])
+                         "该模型未配置动态表单，将直接发起"]))))]]))

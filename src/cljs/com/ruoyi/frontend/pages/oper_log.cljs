@@ -1,17 +1,19 @@
 (ns com.ruoyi.frontend.pages.oper-log
   "操作日志页面。"
   (:require
-   [reagent.core :as r]
-   [reagent.hooks :as hooks]
-   [re-frame.core :as rf]
-   [clojure.string :as str]
-   ["antd" :refer [DatePicker]]
-   ["@ant-design/icons" :refer [DeleteOutlined DownloadOutlined EyeOutlined ReloadOutlined SearchOutlined]]
-   [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.components.page-search :as page-search]
-   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
+    ["@ant-design/icons" :refer [DeleteOutlined DownloadOutlined EyeOutlined ReloadOutlined SearchOutlined]]
+    ["antd" :refer [DatePicker]]
+    [clojure.string :as str]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.components.page-search :as page-search]
+    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+    [re-frame.core :as rf]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
+
 
 (def range-picker (r/adapt-react-class (.-RangePicker DatePicker)))
+
 
 (def business-types
   {"0" "其他"
@@ -24,10 +26,14 @@
    "7" "强退"
    "9" "清空"})
 
-(defn- business-label [v]
+
+(defn- business-label
+  [v]
   (get business-types (str v) "其他"))
 
-(defn- business-tag [v]
+
+(defn- business-tag
+  [v]
   (let [text (business-label v)
         color (case (str v)
                 "1" "blue"
@@ -38,11 +44,15 @@
                 "default")]
     [antd/tag {:color color} text]))
 
-(defn- status-tag [status]
+
+(defn- status-tag
+  [status]
   [antd/tag {:color (if (= (str status) "0") "blue" "red")}
    (if (= (str status) "0") "成功" "失败")])
 
-(defn- detail-modal []
+
+(defn- detail-modal
+  []
   (let [visible? @(rf/subscribe [:oper-logs/detail-visible?])
         data @(rf/subscribe [:oper-logs/detail-data])]
     [antd/modal {:title "操作日志详情"
@@ -76,7 +86,9 @@
            [:pre {:style {:color "#f56c6c" :maxHeight 160 :overflow "auto" :fontSize 12 :background "#fef0f0" :padding 8 :borderRadius 4}}
             (:error_msg data)]])])]))
 
-(defn- oper-log-columns []
+
+(defn- oper-log-columns
+  []
   #js [#js {:title "日志编号" :dataIndex "oper_id" :key "oper_id" :width 100}
        #js {:title "系统模块" :dataIndex "title" :key "title" :width 130}
        #js {:title "操作类型" :dataIndex "business_type" :key "business_type" :width 120
@@ -95,13 +107,15 @@
        #js {:title "操作" :key "action" :width 100 :fixed "right"
             :render (fn [_ record]
                       (r/as-element
-                       [antd/button {:type "link"
-                                     :size "small"
-                                     :icon (r/as-element [:> EyeOutlined])
-                                     :onClick #(rf/dispatch [:oper-logs/show-detail (js->clj record :keywordize-keys true)])}
-                        "详细"]))}])
+                        [antd/button {:type "link"
+                                      :size "small"
+                                      :icon (r/as-element [:> EyeOutlined])
+                                      :onClick #(rf/dispatch [:oper-logs/show-detail (js->clj record :keywordize-keys true)])}
+                         "详细"]))}])
 
-(defn- query-params [oper-ip title oper-name business-type status date-range]
+
+(defn- query-params
+  [oper-ip title oper-name business-type status date-range]
   (cond-> {:oper_ip oper-ip
            :title title
            :oper_name oper-name
@@ -110,7 +124,9 @@
     (first date-range) (assoc :begin_time (first date-range))
     (second date-range) (assoc :end_time (second date-range))))
 
-(defn oper-log-page []
+
+(defn oper-log-page
+  []
   (hooks/use-effect (fn [] (rf/dispatch [:oper-logs/fetch {}]) js/undefined) [])
   (let [items @(rf/subscribe [:oper-logs/items])
         total @(rf/subscribe [:oper-logs/total])

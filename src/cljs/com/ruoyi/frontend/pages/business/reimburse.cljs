@@ -1,13 +1,15 @@
 (ns com.ruoyi.frontend.pages.business.reimburse
   "报销申请页面 —— 业务 + BPM 审批流。"
   (:require
-   [reagent.core :as r]
-   [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [PlusOutlined ReloadOutlined]]
-   [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
+    ["@ant-design/icons" :refer [PlusOutlined ReloadOutlined]]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+    [re-frame.core :as rf]
+    [reagent.core :as r]))
 
-(defn- status-tag [v]
+
+(defn- status-tag
+  [v]
   (let [[label color] (case v
                         "1" ["审批中" "processing"]
                         "2" ["已通过" "success"]
@@ -15,7 +17,9 @@
                         ["未知" "default"])]
     [antd/tag {:color color} label]))
 
-(defn- columns []
+
+(defn- columns
+  []
   #js [#js {:title "ID" :dataIndex "reimburse_id" :key "reimburse_id" :width 70}
        #js {:title "报销人" :dataIndex "user_name" :key "user_name" :width 110}
        #js {:title "金额(元)" :dataIndex "amount" :key "amount" :width 110}
@@ -28,11 +32,13 @@
        #js {:title "操作" :key "action" :width 90
             :render (fn [_ ^js record]
                       (r/as-element
-                       [antd/button {:type "link" :danger true :size "small"
-                                     :on-click #(rf/dispatch [:reimburse/delete (.-reimburse_id ^js record)])}
-                        "删除"]))}])
+                        [antd/button {:type "link" :danger true :size "small"
+                                      :on-click #(rf/dispatch [:reimburse/delete (.-reimburse_id ^js record)])}
+                         "删除"]))}])
 
-(defn- modal []
+
+(defn- modal
+  []
   (let [visible? @(rf/subscribe [:reimburse/modal-visible?])
         submitting? @(rf/subscribe [:reimburse/submitting?])
         [form] (antd/form-use-form)]
@@ -45,7 +51,9 @@
       [antd/form-item {:label "报销事由" :name "reason" :rules [{:required true}]}
        [antd/text-area {:placeholder "请输入报销事由" :rows 4}]]]]))
 
-(defn reimburse-page []
+
+(defn reimburse-page
+  []
   (let [items @(rf/subscribe [:reimburse/items]) total @(rf/subscribe [:reimburse/total]) loading? @(rf/subscribe [:reimburse/loading?])]
     [:div
      [page-toolbar/page-toolbar

@@ -1,14 +1,16 @@
 (ns com.ruoyi.frontend.pages.business.hrm
   "HRM 员工管理。"
   (:require
-   [reagent.core :as r]
-   [re-frame.core :as rf]
-   [reagent.hooks :as hooks]
-   ["@ant-design/icons" :refer [PlusOutlined ReloadOutlined]]
-   [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
+    ["@ant-design/icons" :refer [PlusOutlined ReloadOutlined]]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+    [re-frame.core :as rf]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
 
-(defn- columns []
+
+(defn- columns
+  []
   #js [#js {:title "工号" :dataIndex "emp_no" :key "emp_no" :width 110}
        #js {:title "姓名" :dataIndex "name" :key "name"}
        #js {:title "部门" :dataIndex "dept_name" :key "dept_name" :width 120}
@@ -21,11 +23,13 @@
        #js {:title "操作" :key "action" :width 90
             :render (fn [_ ^js record]
                       (r/as-element
-                       [antd/button {:type "link" :danger true :size "small"
-                                     :on-click #(rf/dispatch [:hrm/delete (.-employee_id ^js record)])}
-                        "删除"]))}])
+                        [antd/button {:type "link" :danger true :size "small"
+                                      :on-click #(rf/dispatch [:hrm/delete (.-employee_id ^js record)])}
+                         "删除"]))}])
 
-(defn- modal []
+
+(defn- modal
+  []
   (let [visible? @(rf/subscribe [:hrm/modal-visible?])
         form-data @(rf/subscribe [:hrm/form-data])
         [form] (antd/form-use-form)]
@@ -40,7 +44,9 @@
       [antd/form-item {:label "电话" :name "phone"} [antd/input {:placeholder "电话"}]]
       [antd/form-item {:label "入职日期" :name "hire_date"} [antd/input {:placeholder "YYYY-MM-DD"}]]]]))
 
-(defn hrm-employee-page []
+
+(defn hrm-employee-page
+  []
   (let [items @(rf/subscribe [:hrm/items]) total @(rf/subscribe [:hrm/total]) loading? @(rf/subscribe [:hrm/loading?])]
     [:div
      [page-toolbar/page-toolbar

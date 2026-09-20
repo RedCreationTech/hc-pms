@@ -1,7 +1,8 @@
 (ns com.ruoyi.frontend.theme
   "主题配置，支持亮色/暗色切换。"
   (:require
-   ["antd" :refer [theme]]))
+    ["antd" :refer [theme]]))
+
 
 (def algorithms
   {:default  #js []
@@ -9,8 +10,10 @@
    :compact  #js [theme.compactAlgorithm]
    :dark-compact #js [theme.darkAlgorithm theme.compactAlgorithm]})
 
+
 (def ruoyi-font-family
   "\"Helvetica Neue\", Helvetica, \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", Arial, sans-serif")
+
 
 (defn theme-config
   "根据当前主题设置构建 antd ConfigProvider 主题配置。"

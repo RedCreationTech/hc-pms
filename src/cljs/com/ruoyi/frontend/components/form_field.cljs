@@ -1,16 +1,20 @@
 (ns com.ruoyi.frontend.components.form-field
   "统一表单字段渲染组件。"
   (:require
-   [reagent.core :as r]
-   [com.ruoyi.frontend.antd :as antd]))
+    [com.ruoyi.frontend.antd :as antd]
+    [reagent.core :as r]))
 
-(defn- form-input [{:keys [name label rules placeholder disabled full?]}]
+
+(defn- form-input
+  [{:keys [name label rules placeholder disabled full?]}]
   [antd/form-item {:name name :label label :rules rules
                    :wrapperCol (when full? {:span 24})}
    [antd/input {:placeholder placeholder :disabled disabled
                 :style {:width "100%"}}]])
 
-(defn- form-textarea [{:keys [name label rules rows placeholder disabled full?]}]
+
+(defn- form-textarea
+  [{:keys [name label rules rows placeholder disabled full?]}]
   [antd/form-item {:name name :label label :rules rules
                    :wrapperCol (when full? {:span 24})}
    [antd/text-area {:placeholder placeholder
@@ -18,25 +22,33 @@
                     :disabled disabled
                     :style {:width "100%"}}]])
 
-(defn- form-select [{:keys [name label rules options placeholder disabled allow-clear?]}]
+
+(defn- form-select
+  [{:keys [name label rules options placeholder disabled allow-clear?]}]
   [antd/form-item {:name name :label label :rules rules}
    [antd/select {:placeholder placeholder :disabled disabled :allowClear allow-clear?}
     (for [opt options]
       ^{:key opt} [antd/select-option {:value opt} opt])]])
 
-(defn- form-multi-select [{:keys [name label rules options placeholder disabled]}]
+
+(defn- form-multi-select
+  [{:keys [name label rules options placeholder disabled]}]
   [antd/form-item {:name name :label label :rules rules}
    [antd/select {:mode "multiple" :placeholder placeholder :disabled disabled}
     (for [opt options]
       ^{:key opt} [antd/select-option {:value opt} opt])]])
 
-(defn- form-status [{:keys [name label rules disabled]}]
+
+(defn- form-status
+  [{:keys [name label rules disabled]}]
   [antd/form-item {:name name :label label :rules rules}
    [antd/select {:disabled disabled}
     [antd/select-option {:value "0"} "正常"]
     [antd/select-option {:value "1"} "停用"]]])
 
-(defn- form-unit [{:keys [name label rules unit placeholder disabled]}]
+
+(defn- form-unit
+  [{:keys [name label rules unit placeholder disabled]}]
   [antd/form-item {:name name :label label :rules rules}
    [:div {:style {:display "flex" :width "100%"}}
     [antd/input {:placeholder placeholder :disabled disabled
@@ -58,12 +70,16 @@
                     :color "var(--ant-color-text-secondary, #595959)"}}
      unit]]])
 
-(defn- form-date [{:keys [name label rules placeholder disabled]}]
+
+(defn- form-date
+  [{:keys [name label rules placeholder disabled]}]
   [antd/form-item {:name name :label label :rules rules}
    [antd/date-picker {:placeholder placeholder :disabled disabled
                       :style {:width "100%"}}]])
 
-(defn form-field [{:keys [type full?] :as props}]
+
+(defn form-field
+  [{:keys [type full?] :as props}]
   (let [props (cond-> props
                 full? (assoc :full? true))]
     (case type

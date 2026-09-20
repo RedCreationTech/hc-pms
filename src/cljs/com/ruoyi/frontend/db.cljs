@@ -1,12 +1,14 @@
 (ns com.ruoyi.frontend.db
   "前端应用初始状态。")
 
+
 (defn- get-stored-token
   "从 localStorage 读取保存的 token。"
   []
   (try
     (.getItem js/localStorage "ruoyi_token")
     (catch js/Error _ nil)))
+
 
 (defn- get-stored-user
   "从 localStorage 读取保存的用户信息。"
@@ -15,6 +17,7 @@
     (when-let [s (.getItem js/localStorage "ruoyi_user")]
       (js->clj (.parse js/JSON s) :keywordize-keys true))
     (catch js/Error _ nil)))
+
 
 (def default-layout-settings
   {:nav-mode "side"
@@ -27,6 +30,7 @@
    :show-logo? true
    :dynamic-title? true
    :show-footer? true})
+
 
 (def default-db
   (let [token (get-stored-token)

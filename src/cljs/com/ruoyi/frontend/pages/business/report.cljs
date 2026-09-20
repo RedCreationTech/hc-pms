@@ -1,19 +1,23 @@
 (ns com.ruoyi.frontend.pages.business.report
   "办公一体化报表看板。"
   (:require
-   [reagent.core :as r]
-   [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [ReloadOutlined CarOutlined AccountBookOutlined DeploymentUnitOutlined TeamOutlined ShopOutlined]]
-   [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
+    ["@ant-design/icons" :refer [ReloadOutlined CarOutlined AccountBookOutlined DeploymentUnitOutlined TeamOutlined ShopOutlined]]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+    [re-frame.core :as rf]
+    [reagent.core :as r]))
 
-(defn- stat-card [{:keys [title value suffix icon color loading?]}]
+
+(defn- stat-card
+  [{:keys [title value suffix icon color loading?]}]
   [antd/card {:style {:marginBottom 16} :loading loading?}
    [antd/statistic {:title title :value (or value 0) :suffix suffix
                     :valueStyle {:color color}
                     :prefix (r/as-element [:> icon {:style {:color color}}])}]])
 
-(defn report-page []
+
+(defn report-page
+  []
   (let [d @(rf/subscribe [:report/data])
         loading? @(rf/subscribe [:report/loading?])
         leave (or (:leave d) {}) reimburse (or (:reimburse d) {})

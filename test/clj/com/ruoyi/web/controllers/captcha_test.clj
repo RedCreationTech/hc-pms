@@ -1,13 +1,16 @@
 (ns com.ruoyi.web.controllers.captcha-test
   "验证码控制器测试。"
-  (:require [clojure.test :refer [deftest is testing use-fixtures]]
-            [com.ruoyi.web.controllers.captcha :as captcha]))
+  (:require
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [com.ruoyi.web.controllers.captcha :as captcha]))
+
 
 (use-fixtures :each
   (fn [test]
     (reset! captcha/captcha-store {})
     (test)
     (reset! captcha/captcha-store {})))
+
 
 (deftest test-captcha-image
   "生成验证码图片。"
@@ -23,6 +26,7 @@
         (is (map? stored))
         (is (= 4 (count (:code stored))))
         (is (> (:expire stored) (System/currentTimeMillis)))))))
+
 
 (deftest test-captcha-image-with-r
   "使用指定 r 参数生成验证码。"

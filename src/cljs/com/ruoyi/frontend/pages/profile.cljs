@@ -1,21 +1,26 @@
 (ns com.ruoyi.frontend.pages.profile
   "个人中心页面。"
   (:require
-   [reagent.core :as r]
-   [reagent.hooks :as hooks]
-   [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [ApartmentOutlined CalendarOutlined MailOutlined MobileOutlined TeamOutlined UserOutlined]]
-   [com.ruoyi.frontend.antd :as antd]))
+    ["@ant-design/icons" :refer [ApartmentOutlined CalendarOutlined MailOutlined MobileOutlined TeamOutlined UserOutlined]]
+    [com.ruoyi.frontend.antd :as antd]
+    [re-frame.core :as rf]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
+
 
 (def card-style
   {:border "1px solid #e4e7ed"
    :borderRadius 4
    :boxShadow "0 2px 12px rgba(0,0,0,0.06)"})
 
-(defn- value-or [v fallback]
+
+(defn- value-or
+  [v fallback]
   (if (and v (not= "" v)) v fallback))
 
-(defn- info-row [icon label value]
+
+(defn- info-row
+  [icon label value]
   [:div {:style {:height 44
                  :display "flex"
                  :alignItems "center"
@@ -29,7 +34,9 @@
    [:span {:style {:color "#303133" :fontWeight 400 :textAlign "right"}}
     value]])
 
-(defn- avatar-view [data]
+
+(defn- avatar-view
+  [data]
   (let [avatar (or (:avatar data) "")
         nick (value-or (:nick_name data) "若")]
     [:div {:style {:textAlign "center" :padding "26px 32px 22px"}}
@@ -63,7 +70,9 @@
                        :objectFit "cover"}}]
         [:span (subs nick 0 1)])]]))
 
-(defn- profile-card [data]
+
+(defn- profile-card
+  [data]
   [antd/card {:title (r/as-element [:span {:style {:fontSize 18 :fontWeight 500}} "个人信息"])
               :styles {:body {:padding 0}}
               :style card-style}
@@ -76,14 +85,16 @@
     [info-row [:> TeamOutlined] "所属角色" (value-or (:role_name data) "超级管理员")]
     [info-row [:> CalendarOutlined] "创建日期" (value-or (:create_time data) "2026-01-18 10:58:15")]]])
 
-(defn- basic-form [data]
+
+(defn- basic-form
+  [data]
   (let [[form] (antd/form-use-form)]
     (hooks/use-effect
-     (fn []
-       (when data
-         (.setFieldsValue form (clj->js (merge {:sex "0"} data))))
-       js/undefined)
-     [data])
+      (fn []
+        (when data
+          (.setFieldsValue form (clj->js (merge {:sex "0"} data))))
+        js/undefined)
+      [data])
     [antd/form {:form form
                 :layout "horizontal"
                 :labelCol {:style {:width 110}}
@@ -128,7 +139,9 @@
                      :on-click #(.back js/history)}
         "关闭"]]]]))
 
-(defn- password-form []
+
+(defn- password-form
+  []
   (let [[form] (antd/form-use-form)]
     [antd/form {:form form
                 :layout "horizontal"
@@ -140,28 +153,30 @@
                                                       [:old_password :new_password])]
                               (rf/dispatch [:profile/change-password params])
                               (.resetFields form)))}
-      [antd/form-item {:label "旧密码"
-                       :name "old_password"
-                       :rules [{:required true :message "请输入旧密码"}]}
-       [antd/password {:placeholder "请输入旧密码" :style {:height 40}}]]
-      [antd/form-item {:label "新密码"
-                       :name "new_password"
-                       :rules [{:required true :message "请输入新密码"}]}
-       [antd/password {:placeholder "请输入新密码" :style {:height 40}}]]
-      [antd/form-item {:label "确认密码"
-                       :name "confirm_password"
-                       :rules [{:required true :message "请再次输入新密码"}]}
-       [antd/password {:placeholder "请再次输入新密码" :style {:height 40}}]]
-      [antd/form-item {:style {:marginLeft 110 :marginBottom 0}}
-       [antd/button {:type "primary"
-                     :htmlType "submit"
-                     :style {:width 64
-                             :height 36
-                             :background "#409eff"
-                             :border "1px solid #409eff"}}
-        "保存"]]]))
+     [antd/form-item {:label "旧密码"
+                      :name "old_password"
+                      :rules [{:required true :message "请输入旧密码"}]}
+      [antd/password {:placeholder "请输入旧密码" :style {:height 40}}]]
+     [antd/form-item {:label "新密码"
+                      :name "new_password"
+                      :rules [{:required true :message "请输入新密码"}]}
+      [antd/password {:placeholder "请输入新密码" :style {:height 40}}]]
+     [antd/form-item {:label "确认密码"
+                      :name "confirm_password"
+                      :rules [{:required true :message "请再次输入新密码"}]}
+      [antd/password {:placeholder "请再次输入新密码" :style {:height 40}}]]
+     [antd/form-item {:style {:marginLeft 110 :marginBottom 0}}
+      [antd/button {:type "primary"
+                    :htmlType "submit"
+                    :style {:width 64
+                            :height 36
+                            :background "#409eff"
+                            :border "1px solid #409eff"}}
+       "保存"]]]))
 
-(defn- tabs-card [data]
+
+(defn- tabs-card
+  [data]
   [antd/card {:title (r/as-element [:span {:style {:fontSize 18 :fontWeight 500}} "基本资料"])
               :styles {:body {:padding "30px 34px 44px"}}
               :style (merge card-style {:height 438})}
@@ -172,12 +187,14 @@
                         :label "修改密码"
                         :children (r/as-element [password-form])}]}]])
 
-(defn profile-page []
+
+(defn profile-page
+  []
   (hooks/use-effect
-   (fn []
-     (rf/dispatch [:profile/fetch])
-     js/undefined)
-   [])
+    (fn []
+      (rf/dispatch [:profile/fetch])
+      js/undefined)
+    [])
   (let [user @(rf/subscribe [:auth/user])
         profile @(rf/subscribe [:profile/data])
         data (or profile user {})]

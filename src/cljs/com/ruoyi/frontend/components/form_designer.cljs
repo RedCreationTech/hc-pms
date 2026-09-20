@@ -4,11 +4,12 @@
    右：选中字段属性配置（标题/字段名/占位符/必填/默认值/选项）。
    保存输出 {:conf {:form {:labelWidth 100}} :fields [...]}，供渲染器复用。"
   (:require
-   [clojure.string :as str]
-   [reagent.core :as r]
-   ["@ant-design/icons" :refer [UpOutlined DownOutlined CopyOutlined DeleteOutlined PlusOutlined]]
-   [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.components.form-render :as fr]))
+    ["@ant-design/icons" :refer [UpOutlined DownOutlined CopyOutlined DeleteOutlined PlusOutlined]]
+    [clojure.string :as str]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.components.form-render :as fr]
+    [reagent.core :as r]))
+
 
 (def ^:private form-templates
   "内置表单模板（一键填充画布）。"
@@ -30,6 +31,7 @@
               :options [{:label "高" :value "high"} {:label "中" :value "mid"} {:label "低" :value "low"}]
               :validate []}]}])
 
+
 (def ^:private component-types
   [{:type "input" :label "单行文本"} {:type "textarea" :label "多行文本"}
    {:type "number" :label "数字"} {:type "date" :label "日期"}
@@ -44,7 +46,9 @@
    {:type "editor" :label "富文本"} {:type "divider" :label "分割线"}
    {:type "subform" :label "子表单"} {:type "area" :label "地区选择"}])
 
+
 (def ^:private options-types #{"radio" "checkbox" "select" "cascader" "dict-select"})
+
 
 (defn- new-field
   "按类型生成默认字段。"
@@ -61,18 +65,21 @@
      :options (when (options-types type) [{:label "选项一" :value "1"} {:label "选项二" :value "2"}])
      :validate []}))
 
+
 (defn- field-value
   "字段当前值（含默认值）。"
   [f]
   (get f :value (if (= (:type f) "switch") false "")))
+
 
 (defn- field-caret
   "画布字段卡片（支持拖拽排序）。"
   [f idx selected? on-select on-op drag-idx]
   [:div.bpm-fd-card {:class (when selected? "active")
                      :draggable true
-                     :on-drag-start (fn [e] (.setData (.-dataTransfer e) "text/plain" (str "card:" idx))
-                                     (reset! drag-idx idx))
+                     :on-drag-start (fn [e]
+                                      (.setData (.-dataTransfer e) "text/plain" (str "card:" idx))
+                                      (reset! drag-idx idx))
                      :on-drag-over (fn [e] (.preventDefault e))
                      :on-drop (fn [e]
                                 (.preventDefault e)
@@ -93,30 +100,31 @@
    [:div.bpm-fd-card-body
     (fr/render-field f true (field-value f) nil)]])
 
+
 (defn- options-editor
   "选项列表编辑器（单选/多选/下拉）。"
   [fields idx]
   (let [opts (or (get-in @fields [idx :options]) [])]
     [:div
      (doall
-      (for [[i o] (map-indexed vector opts)]
-        ^{:key i}
-        [:div {:style {:display "flex" :gap 6 :marginBottom 6}}
-         [antd/input {:size "small" :style {:flex 1} :placeholder "显示名"
-                      :value (:label o)
-                      :onChange (fn [e] (swap! fields assoc-in [idx :options i :label] (-> e .-target .-value)))}]
-         [antd/input {:size "small" :style {:flex 1} :placeholder "值"
-                      :value (:value o)
-                      :onChange (fn [e] (swap! fields assoc-in [idx :options i :value] (-> e .-target .-value)))}]
-         [antd/button {:size "small" :type "text" :danger true
-                       :on-click #(swap! fields update idx (fn [f] (update f :options (fn [os] (vec (concat (subvec os 0 i) (subvec os (inc i))))))))}
-          "✕"]]
-        ))
+       (for [[i o] (map-indexed vector opts)]
+         ^{:key i}
+         [:div {:style {:display "flex" :gap 6 :marginBottom 6}}
+          [antd/input {:size "small" :style {:flex 1} :placeholder "显示名"
+                       :value (:label o)
+                       :onChange (fn [e] (swap! fields assoc-in [idx :options i :label] (-> e .-target .-value)))}]
+          [antd/input {:size "small" :style {:flex 1} :placeholder "值"
+                       :value (:value o)
+                       :onChange (fn [e] (swap! fields assoc-in [idx :options i :value] (-> e .-target .-value)))}]
+          [antd/button {:size "small" :type "text" :danger true
+                        :on-click #(swap! fields update idx (fn [f] (update f :options (fn [os] (vec (concat (subvec os 0 i) (subvec os (inc i))))))))}
+           "✕"]]))
      [antd/button {:size "small" :block true
                    :on-click #(swap! fields assoc-in [idx :options]
                                      (conj (or (get-in @fields [idx :options]) [])
                                            {:label (str "选项" (inc (count (get-in @fields [idx :options])))) :value (str (inc (count (get-in @fields [idx :options]))))}))}
       "＋ 添加选项"]]))
+
 
 (defn- props-panel
   "右侧属性配置。"
@@ -140,8 +148,9 @@
                        :onChange (fn [e] (swap! fields assoc-in [idx :props :placeholder] (-> e .-target .-value)))}]])
        [:div.bpm-f-label {:style {:marginTop 10}} "必填"]
        [antd/switch {:size "small" :checked (some :required (:validate f))
-                     :onChange (fn [v] (swap! fields assoc-in [idx :validate]
-                                              (if v [{:required true :message (str "请填写" (:title f))}] [])))}]
+                     :onChange (fn [v]
+                                 (swap! fields assoc-in [idx :validate]
+                                        (if v [{:required true :message (str "请填写" (:title f))}] [])))}]
        (when (#{"input" "textarea"} (:type f))
          [:div {:style {:display "flex" :gap 8 :marginTop 10}}
           [:div {:style {:flex 1}} [:div.bpm-f-label "最小长度"]
@@ -175,13 +184,13 @@
                                                     :message (get {"^1[3-9]\\d{9}$" "手机号格式不正确"
                                                                    "^[\\w.+-]+@[\\w-]+\\.[\\w.]+$" "邮箱格式不正确"
                                                                    "^\\d{6}$" "请输入6位数字"}
-                                                                 pattern "格式不正确")})
+                                                                  pattern "格式不正确")})
                                              (vec others)))))}]
-         [antd/select-option {:value ""} "无"]
-         [antd/select-option {:value "^1[3-9]\\d{9}$"} "手机号"]
-         [antd/select-option {:value "^[\\w.+-]+@[\\w-]+\\.[\\w.]+$"} "邮箱"]
-         [antd/select-option {:value "^\\d{6}$"} "6位数字"]
-         [antd/select-option {:value "custom"} "自定义正则..."]]
+        [antd/select-option {:value ""} "无"]
+        [antd/select-option {:value "^1[3-9]\\d{9}$"} "手机号"]
+        [antd/select-option {:value "^[\\w.+-]+@[\\w-]+\\.[\\w.]+$"} "邮箱"]
+        [antd/select-option {:value "^\\d{6}$"} "6位数字"]
+        [antd/select-option {:value "custom"} "自定义正则..."]]
        [:div {:style {:display "flex" :gap 24 :marginTop 10}}
         [:div
          [:div.bpm-f-label "禁用"]
@@ -247,30 +256,31 @@
           [:div.bpm-f-label "子字段管理"]
           [:div {:style {:border "1px solid #f0f0f0" :borderRadius 6}}
            (doall
-            (for [[si sf] (map-indexed vector (or (get-in f [:props :sub-fields]) []))]
-              ^{:key si}
-              [:div {:style {:padding "6px 8px" :borderBottom "1px solid #f5f5f5"}}
-               [:div {:style {:display "flex" :gap 4}}
-                [antd/input {:size "small" :style {:flex 1} :placeholder "标题" :value (:title sf)
-                             :onChange (fn [e] (swap! fields assoc-in [idx :props :sub-fields si :title] (-> e .-target .-value)))}]
-                [antd/input {:size "small" :style {:flex 1} :placeholder "字段名" :value (:field sf)
-                             :onChange (fn [e] (swap! fields assoc-in [idx :props :sub-fields si :field] (-> e .-target .-value)))}]
-                [antd/select {:size "small" :style {:width 90} :value (:type sf)
-                              :onChange #(swap! fields assoc-in [idx :props :sub-fields si :type] (or % "input"))}
-                 [antd/select-option {:value "input"} "文本"]
-                 [antd/select-option {:value "number"} "数字"]
-                 [antd/select-option {:value "date"} "日期"]
-                 [antd/select-option {:value "select"} "下拉"]]
-                [antd/button {:size "small" :type "text" :danger true
-                              :on-click #(swap! fields assoc-in [idx :props :sub-fields]
-                                               (fn [sfs] (vec (concat (subvec (or sfs []) 0 si) (subvec (or sfs []) (inc si))))))}
-                 "✕"]]]))
-          [antd/button {:size "small" :block true :style {:marginTop 6}
-                        :on-click #(swap! fields assoc-in [idx :props :sub-fields]
-                                          (fn [sfs] (conj (or sfs []) {:title (str "子字段" (inc (count (or sfs []))))
-                                                                       :field (str "sub" (inc (count (or sfs []))))
-                                                                       :type "input"})))}
-           "+ 添加子字段"]]])
+             (for [[si sf] (map-indexed vector (or (get-in f [:props :sub-fields]) []))]
+               ^{:key si}
+               [:div {:style {:padding "6px 8px" :borderBottom "1px solid #f5f5f5"}}
+                [:div {:style {:display "flex" :gap 4}}
+                 [antd/input {:size "small" :style {:flex 1} :placeholder "标题" :value (:title sf)
+                              :onChange (fn [e] (swap! fields assoc-in [idx :props :sub-fields si :title] (-> e .-target .-value)))}]
+                 [antd/input {:size "small" :style {:flex 1} :placeholder "字段名" :value (:field sf)
+                              :onChange (fn [e] (swap! fields assoc-in [idx :props :sub-fields si :field] (-> e .-target .-value)))}]
+                 [antd/select {:size "small" :style {:width 90} :value (:type sf)
+                               :onChange #(swap! fields assoc-in [idx :props :sub-fields si :type] (or % "input"))}
+                  [antd/select-option {:value "input"} "文本"]
+                  [antd/select-option {:value "number"} "数字"]
+                  [antd/select-option {:value "date"} "日期"]
+                  [antd/select-option {:value "select"} "下拉"]]
+                 [antd/button {:size "small" :type "text" :danger true
+                               :on-click #(swap! fields assoc-in [idx :props :sub-fields]
+                                                 (fn [sfs] (vec (concat (subvec (or sfs []) 0 si) (subvec (or sfs []) (inc si))))))}
+                  "✕"]]]))
+           [antd/button {:size "small" :block true :style {:marginTop 6}
+                         :on-click #(swap! fields assoc-in [idx :props :sub-fields]
+                                           (fn [sfs]
+                                             (conj (or sfs []) {:title (str "子字段" (inc (count (or sfs []))))
+                                                                :field (str "sub" (inc (count (or sfs []))))
+                                                                :type "input"})))}
+            "+ 添加子字段"]]])
        (when (= (:type f) "dict-select")
          [:div {:style {:marginTop 10}}
           [:div.bpm-f-label "字典类型"]
@@ -280,6 +290,7 @@
          [:div
           [:div.bpm-f-label {:style {:marginTop 12}} "选项设置"]
           (options-editor fields idx)])])))
+
 
 (defn form-designer
   "表单设计器。props: {:schema {:form-name :conf :fields} :on-save (fn [schema])}。"
@@ -314,62 +325,63 @@
                                       (swap! fields (fn [xs] (vec (concat (subvec xs 0 (inc idx)) [new] (subvec xs (inc idx)))))))
                               :del (swap! fields (fn [xs] (vec (concat (subvec xs 0 idx) (subvec xs (inc idx))))))
                               (reset! selected (when (seq fs) (min (or idx 0) (dec (count fs))))))))
-               save! (fn [] (when on-save
-                              (on-save {:form-name @form-name
-                                        :conf {:form {:labelWidth @form-label-width
-                                                      :layout @form-layout}}
-                                        :fields @fields})))]
-    [:div.bpm-fd
-     [:div.bpm-fd-header
-      [:div {:style {:fontWeight 600}} "表单设计器"]
-      [:div {:style {:display "flex" :gap 8 :alignItems "center" :flexWrap "wrap"}}
-       [:span {:style {:fontSize 12 :color "#909399"}} "模板"]
-       [antd/select {:size "small" :style {:width 110} :placeholder "一键套用"
-                     :onChange (fn [v]
-                                 (when-let [tpl (first (filter #(= (:name %) v) form-templates))]
-                                   (swap! fields (fn [_] (mapv #(assoc % :field (str (:field %) "_" (random-uuid))) (:fields tpl))))
-                                   (reset! selected 0)))}
-        (doall (for [{:keys [name]} form-templates]
-                 ^{:key name} [antd/select-option {:value name} name]))]
-       [antd/input {:style {:width 180} :size "small" :placeholder "表单名称"
-                    :value @form-name :onChange (fn [e] (reset! form-name (-> e .-target .-value)))}]
-       [:span {:style {:fontSize 12 :color "#909399"}} "标签宽度"]
-       [antd/input-number {:size "small" :style {:width 90} :min 40 :max 300 :value @form-label-width
-                           :onChange #(reset! form-label-width (or % 100))}]
-       [:span {:style {:fontSize 12 :color "#909399"}} "布局"]
-       [antd/radio-group {:size "small" :value @form-layout
-                          :onChange (fn [e] (reset! form-layout (-> e .-target .-value)))}
-        [antd/radio {:value "vertical"} "纵向"]
-        [antd/radio {:value "horizontal"} "横向"]]
-       [antd/button {:size "small" :type "primary" :on-click save!} "保存表单"]]]
-     [:div.bpm-fd-body
-      ;; 左：组件库
-      [:div.bpm-fd-lib
-       [:div.bpm-fd-lib-title "组件库"]
-       (doall
-        (for [{:keys [type label]} component-types]
-          ^{:key type}
-          [:div.bpm-fd-lib-item
-           {:draggable true
-            :on-drag-start (fn [e] (.setData (.-dataTransfer e) "text/plain" type))
-            :on-click #(do (swap! fields conj (new-field type (inc (count @fields))))
-                           (reset! selected (dec (count @fields))))}
-           label]))]
-      ;; 中：画布
-      [:div.bpm-fd-canvas {:on-drag-over (fn [e] (.preventDefault e))
-                        :on-drop (fn [e]
-                                   (.preventDefault e)
-                                   (let [type (.getData (.-dataTransfer e) "text/plain")]
-                                     (when (and (seq type) (not (str/starts-with? type "card:")))
-                                       (swap! fields conj (new-field type (inc (count @fields))))
-                                       (reset! selected (dec (count @fields))))))}
-       (if (seq @fields)
-         (doall
-          (for [[idx f] (map-indexed vector @fields)]
-            ^{:key (str (:field f) idx)}
-            (field-caret f idx (= idx @selected) select-field field-op drag-idx)))
-         [:div {:style {:color "#bbb" :textAlign "center" :paddingTop 60}}
-          "从左侧组件库点击添加字段"])]
-      ;; 右：属性配置
-      [:div.bpm-fd-props
-       (props-panel fields @selected)]]]))
+               save! (fn []
+                       (when on-save
+                         (on-save {:form-name @form-name
+                                   :conf {:form {:labelWidth @form-label-width
+                                                 :layout @form-layout}}
+                                   :fields @fields})))]
+              [:div.bpm-fd
+               [:div.bpm-fd-header
+                [:div {:style {:fontWeight 600}} "表单设计器"]
+                [:div {:style {:display "flex" :gap 8 :alignItems "center" :flexWrap "wrap"}}
+                 [:span {:style {:fontSize 12 :color "#909399"}} "模板"]
+                 [antd/select {:size "small" :style {:width 110} :placeholder "一键套用"
+                               :onChange (fn [v]
+                                           (when-let [tpl (first (filter #(= (:name %) v) form-templates))]
+                                             (swap! fields (fn [_] (mapv #(assoc % :field (str (:field %) "_" (random-uuid))) (:fields tpl))))
+                                             (reset! selected 0)))}
+                  (doall (for [{:keys [name]} form-templates]
+                           ^{:key name} [antd/select-option {:value name} name]))]
+                 [antd/input {:style {:width 180} :size "small" :placeholder "表单名称"
+                              :value @form-name :onChange (fn [e] (reset! form-name (-> e .-target .-value)))}]
+                 [:span {:style {:fontSize 12 :color "#909399"}} "标签宽度"]
+                 [antd/input-number {:size "small" :style {:width 90} :min 40 :max 300 :value @form-label-width
+                                     :onChange #(reset! form-label-width (or % 100))}]
+                 [:span {:style {:fontSize 12 :color "#909399"}} "布局"]
+                 [antd/radio-group {:size "small" :value @form-layout
+                                    :onChange (fn [e] (reset! form-layout (-> e .-target .-value)))}
+                  [antd/radio {:value "vertical"} "纵向"]
+                  [antd/radio {:value "horizontal"} "横向"]]
+                 [antd/button {:size "small" :type "primary" :on-click save!} "保存表单"]]]
+               [:div.bpm-fd-body
+                ;; 左：组件库
+                [:div.bpm-fd-lib
+                 [:div.bpm-fd-lib-title "组件库"]
+                 (doall
+                   (for [{:keys [type label]} component-types]
+                     ^{:key type}
+                     [:div.bpm-fd-lib-item
+                      {:draggable true
+                       :on-drag-start (fn [e] (.setData (.-dataTransfer e) "text/plain" type))
+                       :on-click #(do (swap! fields conj (new-field type (inc (count @fields))))
+                                      (reset! selected (dec (count @fields))))}
+                      label]))]
+                ;; 中：画布
+                [:div.bpm-fd-canvas {:on-drag-over (fn [e] (.preventDefault e))
+                                     :on-drop (fn [e]
+                                                (.preventDefault e)
+                                                (let [type (.getData (.-dataTransfer e) "text/plain")]
+                                                  (when (and (seq type) (not (str/starts-with? type "card:")))
+                                                    (swap! fields conj (new-field type (inc (count @fields))))
+                                                    (reset! selected (dec (count @fields))))))}
+                 (if (seq @fields)
+                   (doall
+                     (for [[idx f] (map-indexed vector @fields)]
+                       ^{:key (str (:field f) idx)}
+                       (field-caret f idx (= idx @selected) select-field field-op drag-idx)))
+                   [:div {:style {:color "#bbb" :textAlign "center" :paddingTop 60}}
+                    "从左侧组件库点击添加字段"])]
+                ;; 右：属性配置
+                [:div.bpm-fd-props
+                 (props-panel fields @selected)]]]))

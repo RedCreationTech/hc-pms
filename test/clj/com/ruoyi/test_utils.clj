@@ -1,14 +1,16 @@
 (ns com.ruoyi.test-utils
   (:require
-   [com.ruoyi.core :as core]
-   [peridot.core :as p]
-   [byte-streams :as bs]
-   [clojure.data.json :as json]
-   [integrant.repl.state :as state]))
+    [byte-streams :as bs]
+    [clojure.data.json :as json]
+    [com.ruoyi.core :as core]
+    [integrant.repl.state :as state]
+    [peridot.core :as p]))
+
 
 (defn system-state
   []
   @core/system)
+
 
 (defn system-fixture
   []
@@ -18,12 +20,16 @@
     (f)
     (core/stop-app)))
 
-(defn get-response [ctx]
+
+(defn get-response
+  [ctx]
   (-> ctx
       :response
       (update :body (fnil bs/to-string ""))))
 
-(defn GET [app path params headers]
+
+(defn GET
+  [app path params headers]
   (-> (p/session app)
       (p/request path
                  :request-method :get
@@ -32,7 +38,9 @@
                  :params params)
       (get-response)))
 
-(defn PUT [app path body headers]
+
+(defn PUT
+  [app path body headers]
   (-> (p/session app)
       (p/request path
                  :request-method :put

@@ -1,14 +1,16 @@
 (ns com.ruoyi.frontend.pages.business.crm
   "CRM 客户管理。"
   (:require
-   [reagent.core :as r]
-   [re-frame.core :as rf]
-   [reagent.hooks :as hooks]
-   ["@ant-design/icons" :refer [PlusOutlined ReloadOutlined]]
-   [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
+    ["@ant-design/icons" :refer [PlusOutlined ReloadOutlined]]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+    [re-frame.core :as rf]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
 
-(defn- columns []
+
+(defn- columns
+  []
   #js [#js {:title "客户名" :dataIndex "name" :key "name"}
        #js {:title "公司" :dataIndex "company" :key "company" :width 160}
        #js {:title "电话" :dataIndex "phone" :key "phone" :width 140}
@@ -17,15 +19,17 @@
        #js {:title "操作" :key "action" :width 140
             :render (fn [_ ^js record]
                       (r/as-element
-                       [antd/space
-                        [antd/button {:type "link" :size "small"
-                                      :on-click #(rf/dispatch [:crm/edit (js->clj record :keywordize-keys true)])}
-                         "编辑"]
-                        [antd/button {:type "link" :danger true :size "small"
-                                      :on-click #(rf/dispatch [:crm/delete (.-customer_id ^js record)])}
-                         "删除"]]))}])
+                        [antd/space
+                         [antd/button {:type "link" :size "small"
+                                       :on-click #(rf/dispatch [:crm/edit (js->clj record :keywordize-keys true)])}
+                          "编辑"]
+                         [antd/button {:type "link" :danger true :size "small"
+                                       :on-click #(rf/dispatch [:crm/delete (.-customer_id ^js record)])}
+                          "删除"]]))}])
 
-(defn- modal []
+
+(defn- modal
+  []
   (let [visible? @(rf/subscribe [:crm/modal-visible?])
         form-data @(rf/subscribe [:crm/form-data])
         [form] (antd/form-use-form)]
@@ -39,7 +43,9 @@
       [antd/form-item {:label "等级" :name "level"} [antd/select {:style {:width "100%"}} [antd/select-option {:value "1"} "A"] [antd/select-option {:value "2"} "B"]]]
       [antd/form-item {:label "备注" :name "remark"} [antd/text-area {:placeholder "备注" :rows 3}]]]]))
 
-(defn crm-customer-page []
+
+(defn crm-customer-page
+  []
   (let [items @(rf/subscribe [:crm/items]) total @(rf/subscribe [:crm/total]) loading? @(rf/subscribe [:crm/loading?])]
     [:div
      [page-toolbar/page-toolbar

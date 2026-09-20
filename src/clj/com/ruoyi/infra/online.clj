@@ -5,28 +5,36 @@
   由于 JWT 令牌在过期前无法单方面失效，强退后会将令牌加入
   内存黑名单，直到令牌自然过期。"
   (:require
-   [clojure.tools.logging :as log]
-   [com.ruoyi.infra.security :as security])
+    [clojure.tools.logging :as log]
+    [com.ruoyi.infra.security :as security])
   (:import
-   [java.util.concurrent ScheduledThreadPoolExecutor TimeUnit]))
+    (java.util.concurrent
+      ScheduledThreadPoolExecutor
+      TimeUnit)))
+
 
 ;; ──────────── 全局状态 ────────────
 
 (defonce ^:private query-fn-atom (atom nil))
 
+
 (defonce ^:private token-blacklist
   ;; token -> 过期时间戳（毫秒）
   (atom {} :validator map?))
+
 
 (defn set-query-fn!
   "由 online-service 在系统启动时注入 query-fn。"
   [query-fn]
   (reset! query-fn-atom query-fn))
 
-(defn- query-fn []
+
+(defn- query-fn
+  []
   (if-let [q @query-fn-atom]
     q
     (throw (IllegalStateException. "online query-fn not initialized"))))
+
 
 ;; ──────────── 黑名单 ────────────
 
@@ -35,10 +43,12 @@
   [token exp-ms]
   (swap! token-blacklist assoc token exp-ms))
 
+
 (defn blacklisted?
   "检查令牌是否已被强退。"
   [token]
   (contains? @token-blacklist token))
+
 
 (defn cleanup-blacklist!
   "清理已过期的黑名单记录。"
@@ -48,22 +58,26 @@
            (fn [bl]
              (into {} (remove (fn [[_ exp]] (< exp now)) bl))))))
 
+
 ;; ──────────── 清理调度 ────────────
 
 (declare cleanup-expired-sessions!)
+
 
 (defonce cleanup-executor
   (delay
     (doto (ScheduledThreadPoolExecutor. 1)
       (.scheduleAtFixedRate
-       (reify Runnable
-         (run [_]
-           (try
-             (cleanup-expired-sessions!)
-             (cleanup-blacklist!)
-             (catch Exception e
-               (log/warn e "Online user cleanup failed")))))
-       5 5 TimeUnit/MINUTES))))
+        (reify Runnable
+          (run
+            [_]
+            (try
+              (cleanup-expired-sessions!)
+              (cleanup-blacklist!)
+              (catch Exception e
+                (log/warn e "Online user cleanup failed")))))
+        5 5 TimeUnit/MINUTES))))
+
 
 ;; ──────────── 核心 API ────────────
 
@@ -90,6 +104,7 @@
     (force cleanup-executor)
     nil))
 
+
 (defn heartbeat!
   "更新用户最后访问时间。"
   [token]
@@ -104,6 +119,7 @@
         (log/warn e "Failed to update online user heartbeat"))))
   nil)
 
+
 (defn unregister!
   "注销在线用户（用户主动退出）。"
   [token]
@@ -115,6 +131,7 @@
     (when-let [claims (some-> token security/parse-token)]
       (blacklist! token (:exp claims))))
   nil)
+
 
 (defn cleanup-expired-sessions!
   "清理超过 expire_time 未心跳的会话。"
@@ -132,6 +149,7 @@
           (catch Exception e
             (log/warn e "Failed to delete expired session"))))))
   nil)
+
 
 (defn list-online
   "获取在线用户列表，支持条件筛选。"
@@ -156,6 +174,7 @@
                       (assoc :last-access (:last_access_time %)))
                  rows)
      :total total}))
+
 
 (defn force-logout!
   "强退指定在线用户。"

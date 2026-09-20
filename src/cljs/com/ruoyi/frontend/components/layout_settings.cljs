@@ -1,24 +1,28 @@
 (ns com.ruoyi.frontend.components.layout-settings
   "布局设置抽屉，提供 RuoYi 风格的主题与系统布局配置。"
   (:require
-   [re-frame.core :as rf]
-   [reagent.core :as r]
-   [com.ruoyi.frontend.antd :as antd]
-   ["antd" :refer [Button ColorPicker Divider Segmented Space Switch Tooltip]]
-   ["@ant-design/icons" :refer [CheckOutlined ReloadOutlined]]))
+    ["@ant-design/icons" :refer [CheckOutlined ReloadOutlined]]
+    ["antd" :refer [Button ColorPicker Divider Segmented Space Switch Tooltip]]
+    [com.ruoyi.frontend.antd :as antd]
+    [re-frame.core :as rf]
+    [reagent.core :as r]))
+
 
 (def theme-colors
   ["#409eff" "#67c23a" "#e6a23c" "#f56c6c" "#909399" "#1890ff" "#13c2c2" "#722ed1"])
+
 
 (defn- set-layout!
   "更新单个布局设置项。"
   [k value]
   (rf/dispatch [:layout/set-setting k value]))
 
+
 (defn- selected?
   "判断设置值是否为当前选中项。"
   [settings k value]
   (= value (get settings k)))
+
 
 (defn- preview-block
   "绘制导航模式的缩略预览。"
@@ -40,6 +44,7 @@
      [:div {:style {:position "absolute" :right 6 :bottom 6 :color "#409eff" :fontSize 16}}
       [:> CheckOutlined]])])
 
+
 (defn- option-card
   "显示可点击的缩略设置卡片。"
   [label selected? child on-click]
@@ -50,17 +55,20 @@
    child
    [:span label]])
 
+
 (defn- section-title
   "绘制分组标题。"
   [text]
   [:div {:style {:fontSize 16 :fontWeight 700 :color "#303133" :margin "0 0 18px"}}
    text])
 
+
 (defn- switch-style-overrides
   "覆盖布局设置抽屉内开关颜色，确保开启状态为亮色。"
   []
   [:style
    ".layout-settings-drawer .ant-switch { background: #dcdfe6 !important; }\n.layout-settings-drawer .ant-switch:hover:not(.ant-switch-disabled) { background: #cfd3dc !important; }\n.layout-settings-drawer .ant-switch.ant-switch-checked { background: #409eff !important; }\n.layout-settings-drawer .ant-switch.ant-switch-checked:hover:not(.ant-switch-disabled) { background: #66b1ff !important; }"])
+
 
 (defn- setting-row
   "绘制一行开关设置。"
@@ -69,6 +77,7 @@
                  :height 42 :fontSize 14 :color "#606266"}}
    [:span label]
    [:> Switch {:checked checked? :onChange on-change}]])
+
 
 (defn- theme-style-preview
   "绘制亮色/暗色主题预览。"
@@ -81,6 +90,7 @@
    (when selected?
      [:div {:style {:position "absolute" :right 8 :top 16 :color "#409eff" :fontSize 18}}
       [:> CheckOutlined]])])
+
 
 (defn- theme-color-picker
   "绘制主题颜色选择控件。"
@@ -100,6 +110,7 @@
     [:> ColorPicker {:value primary-color
                      :onChange #(rf/dispatch [:theme/set-primary-color (.-toHexString ^js %)])
                      :size "small"}]]])
+
 
 (defn layout-settings-drawer
   "显示布局设置抽屉。open? 控制显示，on-close 关闭抽屉。"

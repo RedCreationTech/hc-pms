@@ -4,22 +4,31 @@
    随机审批(RANDOM)、审批人为空策略(emptyHandler)、操作按钮配置(buttons)、
    手写签名(signEnable)、意见必填(reasonRequire)、驳回默认退回节点、超时 AUTO_PASS(10s 定时器)。
    断言不依赖待办总数（测试环境共享 rouyi.db/flowable，可能有历史遗留流程）。"
-  (:require [clojure.test :refer [deftest testing is use-fixtures]]
-            [clojure.string :as str]
-            [com.ruoyi.test-utils :refer [system-state system-fixture GET]]
-            [peridot.core :as p]
-            [clojure.data.json :as json]))
+  (:require
+    [clojure.data.json :as json]
+    [clojure.string :as str]
+    [clojure.test :refer [deftest testing is use-fixtures]]
+    [com.ruoyi.test-utils :refer [system-state system-fixture GET]]
+    [peridot.core :as p]))
+
 
 (use-fixtures :once (system-fixture))
 
-(defn- handler [] (:handler/ring (system-state)))
 
-(defn- parse-json [resp]
+(defn- handler
+  []
+  (:handler/ring (system-state)))
+
+
+(defn- parse-json
+  [resp]
   (when (:body resp)
     (try (json/read-str (:body resp) :key-fn keyword)
          (catch Exception _ nil))))
 
-(defn- login-token [username]
+
+(defn- login-token
+  [username]
   (let [ctx (-> (p/session (handler))
                 (p/request "/api/auth/login"
                            :request-method :post
@@ -28,9 +37,14 @@
         resp (:response ctx)]
     (get-in (parse-json resp) [:data :token])))
 
-(defn- auth-hdr [token] {"authorization" (str "Bearer " token)})
 
-(defn- POST [app path body headers]
+(defn- auth-hdr
+  [token]
+  {"authorization" (str "Bearer " token)})
+
+
+(defn- POST
+  [app path body headers]
   (:response (-> (p/session app)
                  (p/request path
                             :request-method :post
@@ -38,13 +52,16 @@
                             :headers headers
                             :body (json/write-str body)))))
 
-(defn- PUT [app path body headers]
+
+(defn- PUT
+  [app path body headers]
   (:response (-> (p/session app)
                  (p/request path
                             :request-method :put
                             :content-type "application/json"
                             :headers headers
                             :body (json/write-str body)))))
+
 
 ;; ── 用户/部门/分组准备 ────────────────────────────────────────────────────
 
@@ -62,25 +79,30 @@
         _ (is (some? token))]
     {:username u :user-id uid :token token :hdr (auth-hdr token)}))
 
+
 (defn- two-users!
   "创建两个测试用户。"
   [app admin-h]
   [(ensure-user! app admin-h) (ensure-user! app admin-h)])
 
+
 ;; ── 流程模型部署 ──────────────────────────────────────────────────────────
 
-(defn- escape-attr [s]
+(defn- escape-attr
+  [s]
   (-> (json/write-str s)
       (str/replace "&" "&amp;")
       (str/replace "\"" "&quot;")
       (str/replace "<" "&lt;")
       (str/replace ">" "&gt;")))
 
+
 (defn- node-config-prop
   "nodeConfig JSON → flowable:properties XML 片段。"
   [cfg]
   (str "<flowable:properties><flowable:property name=\"nodeConfig\" value=\""
        (escape-attr cfg) "\"/></flowable:properties>"))
+
 
 (defn- task-el
   "带 create 监听器 + nodeConfig 的 userTask 元素。"
@@ -91,6 +113,7 @@
         "<flowable:taskListener event=\"create\" delegateExpression=\"${bpmTaskListener}\"/>"
         (node-config-prop cfg)
         "</extensionElements></userTask>")))
+
 
 (defn- simple-bpmn
   "start → tasks（元素字符串列表）→ end 的线性流程。process id 用占位符，deploy-bpmn! 会替换为模型 key。"
@@ -108,6 +131,7 @@
                            (str "<sequenceFlow id=\"f_" a "_" b "\" sourceRef=\"" a "\" targetRef=\"" b "\"/>"))
                          (partition 2 1 chain)))
          "</process></definitions>")))
+
 
 (defn- deploy-bpmn!
   "创建分类+模型，写入 BPMN XML（process id 替换为模型 key）并部署。返回 {:model-id mid}。"
@@ -129,6 +153,7 @@
         _ (is (= 200 (:code dep)))]
     {:model-id mid}))
 
+
 (defn- start-instance!
   "发起流程实例，返回 process-instance-id。"
   [app h mid form-data]
@@ -137,17 +162,20 @@
     (is (= 200 (:code st)))
     (get-in st [:data :process-instance-id])))
 
+
 (defn- todo-of
   "某 token 对应用户在本实例上的待办任务列表（keywordized rows）。"
   [app hdr pid]
   (let [r (parse-json (GET app "/api/business/bpm/todo" {} hdr))]
     (filter #(= pid (:process-instance-id %)) (get-in r [:data :rows] []))))
 
+
 (defn- history-tasks
   "实例任务级审批历史。"
   [app h pid]
   (get-in (parse-json (GET app (str "/api/business/bpm/instance/history/" pid) {} h))
           [:data :task-history] []))
+
 
 ;; ── 2.1 新候选策略 ────────────────────────────────────────────────────────
 
@@ -167,6 +195,7 @@
                                             {:comment "自审通过"} h)))))
         (is (empty? (todo-of app h pid)))))))
 
+
 (deftest bpm-phase2-form-user-test
   (let [app (handler) token (login-token "admin") h (auth-hdr token)
         {:keys [username hdr]} (ensure-user! app h)
@@ -180,6 +209,7 @@
     (testing "FORM_USER：表单字段指定的用户收到待办"
       (is (some #(= "表单用户审批" (:name %)) user-todo))
       (is (empty? (todo-of app h pid)) "admin 不应收到待办"))))
+
 
 (deftest bpm-phase2-form-dept-leader-test
   (let [app (handler) token (login-token "admin") h (auth-hdr token)
@@ -202,6 +232,7 @@
       (is (some? pid))
       (is (some #(= "部门负责人审批" (:name %)) leader-todo)))))
 
+
 (deftest bpm-phase2-user-group-test
   (let [app (handler) token (login-token "admin") h (auth-hdr token)
         [u1 u2] (two-users! app h)
@@ -223,6 +254,7 @@
       (is (some #(= "用户组审批" (:name %)) (todo-of app (:hdr u1) pid)))
       (is (some #(= "用户组审批" (:name %)) (todo-of app (:hdr u2) pid))))))
 
+
 (deftest bpm-phase2-expression-test
   (let [app (handler) token (login-token "admin") h (auth-hdr token)
         cfg {:approve-type "USER" :candidate-strategy "EXPRESSION"
@@ -234,6 +266,7 @@
     (testing "EXPRESSION：${startUserId} 求值为发起人，任务落在发起人待办"
       (is (some? pid))
       (is (some #(= "表达式审批" (:name %)) my-todo)))))
+
 
 ;; ── 2.1 RANDOM 随机审批 ──────────────────────────────────────────────────
 
@@ -255,6 +288,7 @@
         (is (some? t))
         (is (some? (:assignee t)))
         (is (contains? #{(:username u1) (:username u2)} (str (:assignee t))))))))
+
 
 ;; ── 2.2 审批人为空策略 ────────────────────────────────────────────────────
 
@@ -278,7 +312,7 @@
                          :assign-empty-handler {:type "AUTO_REJECT"}}
         ;; 实例1：AUTO_PASS 节点 → 应自动通过到 admin 节点
         m1 (deploy-bpmn! app h (simple-bpmn [(task-el "t1" "空自动通过" auto-pass-cfg)
-                                                 (task-el "t2" "后续审批" admin-cfg)]))
+                                             (task-el "t2" "后续审批" admin-cfg)]))
         pid1 (start-instance! app h (:model-id m1) {:reason "x"})
         ;; 实例2：TO_ADMIN 节点 → 应转交管理员
         m2 (deploy-bpmn! app h (simple-bpmn [(task-el "t1" "空转管理员" to-admin-cfg)]))
@@ -294,6 +328,7 @@
         (is (= "admin" (:assignee t)))))
     (testing "AUTO_REJECT：空审批人节点自动驳回（流程结束，无待办）"
       (is (empty? (todo-of app h pid3))))))
+
 
 ;; ── 2.4 操作按钮配置 ──────────────────────────────────────────────────────
 
@@ -325,6 +360,7 @@
       (is (= false (get-in buttons [:add-sign :enable])))
       (is (= true (get-in buttons [:return :enable]))))))
 
+
 ;; ── 2.5 手写签名 + 2.6 意见必填 ─────────────────────────────────────────
 
 (deftest bpm-phase2-sign-and-reason-test
@@ -353,6 +389,7 @@
             t1 (first (filter #(= "签名审批" (:name %)) hist))]
         (is (= "/uploads/test-sign.png" (:sign-pic-url t1)))))))
 
+
 ;; ── 2.3 驳回默认退回节点 ──────────────────────────────────────────────────
 
 (deftest bpm-phase2-reject-return-node-test
@@ -365,11 +402,11 @@
                     :approve-method "SEQUENTIAL" :assign-empty-handler {:type "TO_ADMIN"}
                     :reject-handler {:type "RETURN_USER_TASK" :return-node-id "t1"}}
         {:keys [model-id]} (deploy-bpmn! app h (simple-bpmn [(task-el "t1" "一级审批" admin-cfg)
-                                                                 (task-el "t2" "二级审批" reject-cfg)]))
+                                                             (task-el "t2" "二级审批" reject-cfg)]))
         pid (start-instance! app h model-id nil)
         t1 (:task-id (first (todo-of app h pid)))
         _ (is (= 200 (:code (parse-json (POST app (str "/api/business/bpm/task/" t1 "/approve")
-                                            {:comment "ok"} h)))))
+                                              {:comment "ok"} h)))))
         t2 (:task-id (first (todo-of app h pid)))
         detail (parse-json (GET app (str "/api/business/bpm/task/" t2 "/detail") {} h))]
     (testing "task-detail 返回默认驳回节点"
@@ -379,6 +416,7 @@
                                 {:comment "退回重做"} h))]
         (is (= 200 (:code r))))
       (is (some #(= "一级审批" (:name %)) (todo-of app h pid))))))
+
 
 ;; ── 2.7 超时处理（10 秒定时器 AUTO_PASS 实测，轮询等待）──────────────────
 
@@ -400,7 +438,7 @@
                          "<timerEventDefinition><timeDuration xsi:type=\"tFormalExpression\">PT10S</timeDuration></timerEventDefinition>"
                          "</boundaryEvent>")
         bpmn (str/replace (simple-bpmn [(task-el "t1" "超时自动通过" timeout-cfg)
-                                            (task-el "t2" "后续审批" admin-cfg)])
+                                        (task-el "t2" "后续审批" admin-cfg)])
                           "<endEvent id=\"end\"/>"
                           (str boundary-el "<endEvent id=\"end\"/>"))
         {:keys [model-id]} (deploy-bpmn! app h bpmn)

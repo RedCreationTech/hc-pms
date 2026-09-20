@@ -1,7 +1,9 @@
 (ns com.ruoyi.web.controllers.health-test
   "健康检查控制器测试。"
-  (:require [clojure.test :refer [deftest is testing]]
-            [com.ruoyi.web.controllers.health :as health]))
+  (:require
+    [clojure.test :refer [deftest is testing]]
+    [com.ruoyi.web.controllers.health :as health]))
+
 
 (deftest test-health-check
   (testing "健康检查返回成功"

@@ -1,10 +1,11 @@
 (ns com.ruoyi.domain.system.user
   "用户领域服务，处理用户 CRUD、密码管理与角色关联。"
   (:require
-   [com.ruoyi.infra.security :as security]
-   [clojure.set :as set]
-   [clojure.string :as str]
-   [com.ruoyi.infra.db :as db]))
+    [clojure.set :as set]
+    [clojure.string :as str]
+    [com.ruoyi.infra.db :as db]
+    [com.ruoyi.infra.security :as security]))
+
 
 (defn- parse-long-safe
   "安全解析长整型，解析失败返回 nil。"
@@ -14,11 +15,13 @@
       (parse-long (str v))
       (catch Exception _ nil))))
 
+
 (defn- blank->nil
   "将空字符串规整为 nil。"
   [v]
   (let [s (some-> v str str/trim)]
     (when (seq s) s)))
+
 
 (defn- end-of-day
   "将 yyyy-MM-dd 结束日期扩展到当天末尾。"
@@ -28,12 +31,14 @@
       (str s " 23:59:59")
       s)))
 
+
 (defn- descendants-of
   "返回部门本身及其可识别下级部门 ID。"
   [depts dept-id]
   (let [dept-id (parse-long-safe dept-id)
         by-parent (group-by :parent_id depts)
-        child-ids (fn child-ids [id]
+        child-ids (fn child-ids
+                    [id]
                     (mapcat (fn [d]
                               (cons (:dept_id d) (child-ids (:dept_id d))))
                             (get by-parent id [])))
@@ -48,12 +53,14 @@
            distinct
            vec))))
 
+
 (defn- admin-user?
   "判断当前用户是否为超级管理员。"
   [user]
   (or (= 1 (:user_id user))
       (= "admin" (:user_name user))
       (some #(or (= 1 (:role_id %)) (= "admin" (:role_key %))) (:roles user))))
+
 
 (defn- strongest-scope
   "从用户角色中推导可用的数据权限范围。"
@@ -65,6 +72,7 @@
       (contains? scopes "2") :dept-child
       (contains? scopes "3") :dept
       :else :self)))
+
 
 (defn- data-scope-filter
   "根据当前用户生成数据范围过滤参数。"
@@ -87,6 +95,7 @@
                    (when dept-id [dept-id])
                    (descendants-of depts dept-id))
        :user-id nil})))
+
 
 (defn- normalize-list-filters
   "把页面查询、部门过滤和数据权限合并为 SQL 参数。"
@@ -113,6 +122,7 @@
      :offset offset
      :page_size page-size}))
 
+
 (defn list-users
   "查询用户列表，支持分页、时间范围、部门下级和数据权限筛选。"
   [{:keys [query-fn]} params]
@@ -124,6 +134,7 @@
         total (query-fn :count-users filters)]
     {:rows rows :total (:total total)}))
 
+
 (defn find-user-by-id
   "根据ID查询用户详情，包含部门、角色、岗位信息。"
   [{:keys [query-fn]} user-id]
@@ -132,10 +143,12 @@
            :roles (query-fn :list-roles-by-user-id {:user_id user-id})
            :posts (query-fn :list-posts-by-user-id {:user_id user-id}))))
 
+
 (defn find-user-by-name
   "根据用户名查询用户（用于登录）。"
   [{:keys [query-fn]} user-name]
   (query-fn :find-user-by-name {:user_name user-name}))
+
 
 (defn- ensure-unique!
   "按指定查询检查唯一性。"
@@ -145,12 +158,14 @@
       (when (not= (:user_id existing) current-user-id)
         (throw (ex-info message {param-key v}))))))
 
+
 (defn- ensure-unique-user!
   "检查用户账号、手机号、邮箱唯一。"
   [{:keys [query-fn]} params current-user-id]
   (ensure-unique! query-fn :find-user-by-name :user_name (:user_name params) current-user-id "登录账号不能重复")
   (ensure-unique! query-fn :find-user-by-phone :phonenumber (:phonenumber params) current-user-id "手机号码不能重复")
   (ensure-unique! query-fn :find-user-by-email :email (:email params) current-user-id "邮箱账号不能重复"))
+
 
 (defn create-user!
   "创建新用户，自动加密密码。"
@@ -168,6 +183,7 @@
       (doseq [post-id posts]
         (query-fn :insert-user-post! {:user_id user-id :post_id post-id}))
       user-id)))
+
 
 (defn update-user!
   "更新用户信息，可选更新密码。"
@@ -192,6 +208,7 @@
         (query-fn :insert-user-post! {:user_id user-id :post_id post-id})))
     user-id))
 
+
 (defn delete-user!
   "逻辑删除单个用户，保护 admin 用户。"
   [{:keys [query-fn]} user-id]
@@ -200,16 +217,19 @@
       (throw (ex-info "admin 用户不能删除" {:user_id user-id})))
     (query-fn :delete-user! {:user_id user-id})))
 
+
 (defn delete-users!
   "批量逻辑删除用户，逐个执行 admin 保护。"
   [service user-ids]
   (doseq [user-id user-ids]
     (delete-user! service user-id)))
 
+
 (defn get-user-roles
   "获取用户角色列表。"
   [{:keys [query-fn]} user-id]
   (query-fn :list-roles-by-user-id {:user_id user-id}))
+
 
 (defn update-user-roles!
   "更新用户角色（先删后插）。"

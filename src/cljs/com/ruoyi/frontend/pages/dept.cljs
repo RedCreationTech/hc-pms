@@ -1,14 +1,15 @@
 (ns com.ruoyi.frontend.pages.dept
   "部门管理页面 — 树形表格、CRUD。"
   (:require
-   [reagent.core :as r]
-   [reagent.hooks :as hooks]
-   [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined ReloadOutlined SearchOutlined CheckOutlined ColumnHeightOutlined]]
-   [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.components.page-search :as page-search]
-   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
-   [com.ruoyi.frontend.components.dept-tree-select :refer [dept-tree-select]]))
+    ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined ReloadOutlined SearchOutlined CheckOutlined ColumnHeightOutlined]]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.components.dept-tree-select :refer [dept-tree-select]]
+    [com.ruoyi.frontend.components.page-search :as page-search]
+    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+    [re-frame.core :as rf]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
+
 
 ;; ─── 辅助函数 ──────────────────────────────────────────────────────
 
@@ -23,9 +24,11 @@
                    (assoc d :children children)
                    d))))))
 
+
 ;; ─── 工具栏 ────────────────────────────────────────────────────────
 
-(defn- search-bar []
+(defn- search-bar
+  []
   (let [[dept-name set-dept-name!] (hooks/use-state "")
         [status set-status!] (hooks/use-state nil)]
     [page-search/page-search {:visible? true}
@@ -53,7 +56,9 @@
                                                   (set-status! nil)
                                                   (rf/dispatch [:depts/fetch {}]))}]]]]))
 
-(defn- toolbar []
+
+(defn- toolbar
+  []
   [page-toolbar/page-toolbar
    {:left [page-toolbar/toolbar-left
            [page-toolbar/toolbar-button {:kind :add
@@ -74,9 +79,11 @@
                                              :icon (r/as-element [:> ReloadOutlined])
                                              :on-click #(rf/dispatch [:depts/fetch {}])}]]}])
 
+
 ;; ─── 表格列 ──────────────────────────────────────────────────────
 
-(defn- dept-columns []
+(defn- dept-columns
+  []
   #js [#js {:title "部门名称" :dataIndex "dept_name" :key "dept_name" :width 200}
        #js {:title "排序" :dataIndex "order_num" :key "order_num" :width 80}
        #js {:title "负责人" :dataIndex "leader" :key "leader" :width 120}
@@ -84,40 +91,42 @@
        #js {:title "状态" :dataIndex "status" :key "status" :width 100
             :render (fn [v _]
                       (r/as-element
-                       [antd/tag {:className "ruoyi-status-tag"}
-                        (if (= v "0") "正常" "停用")]))}
+                        [antd/tag {:className "ruoyi-status-tag"}
+                         (if (= v "0") "正常" "停用")]))}
        #js {:title "创建时间" :dataIndex "create_time" :key "create_time" :width 180}
        #js {:title "操作" :key "action" :width 220
             :render (fn [_ ^js record]
                       (r/as-element
-                       [antd/space
-                        [antd/button {:type "link" :size "small"
-                                      :icon (r/as-element [:> EditOutlined])
-                                      :on-click #(rf/dispatch [:depts/edit (js->clj record :keywordize-keys true)])}
-                         "修改"]
-                        [antd/button {:type "link" :size "small"
-                                      :icon (r/as-element [:> PlusOutlined])
-                                      :on-click #(rf/dispatch [:depts/open-modal {:parent_id (.-dept_id record)}])}
-                         "新增"]
-                        [antd/popconfirm {:title "确认删除该部门？"
-                                          :onConfirm #(rf/dispatch [:depts/delete (.-dept_id record)])}
-                         [antd/button {:type "link" :danger true :size "small"
-                                       :icon (r/as-element [:> DeleteOutlined])}
-                          "删除"]]]))}])
+                        [antd/space
+                         [antd/button {:type "link" :size "small"
+                                       :icon (r/as-element [:> EditOutlined])
+                                       :on-click #(rf/dispatch [:depts/edit (js->clj record :keywordize-keys true)])}
+                          "修改"]
+                         [antd/button {:type "link" :size "small"
+                                       :icon (r/as-element [:> PlusOutlined])
+                                       :on-click #(rf/dispatch [:depts/open-modal {:parent_id (.-dept_id record)}])}
+                          "新增"]
+                         [antd/popconfirm {:title "确认删除该部门？"
+                                           :onConfirm #(rf/dispatch [:depts/delete (.-dept_id record)])}
+                          [antd/button {:type "link" :danger true :size "small"
+                                        :icon (r/as-element [:> DeleteOutlined])}
+                           "删除"]]]))}])
+
 
 ;; ─── 编辑弹窗 ──────────────────────────────────────────────────────
 
-(defn- edit-modal []
+(defn- edit-modal
+  []
   (let [visible? @(rf/subscribe [:depts/modal-visible?])
         editing @(rf/subscribe [:depts/editing])
         form-data @(rf/subscribe [:depts/form-data])
         [form] (antd/form-use-form)]
     (hooks/use-effect
-     (fn []
-       (when visible?
-         (.setFieldsValue form (clj->js (merge {:order_num 0 :status "0"} form-data))))
-       js/undefined)
-     [visible? form-data])
+      (fn []
+        (when visible?
+          (.setFieldsValue form (clj->js (merge {:order_num 0 :status "0"} form-data))))
+        js/undefined)
+      [visible? form-data])
     [antd/modal {:title (if editing "修改部门" "新增部门")
                  :open visible?
                  :onOk #(.submit form)
@@ -149,14 +158,16 @@
         [antd/radio {:value "0"} "正常"]
         [antd/radio {:value "1"} "停用"]]]]]))
 
+
 ;; ─── 主页面 ──────────────────────────────────────────────────────
 
-(defn dept-page []
+(defn dept-page
+  []
   (hooks/use-effect
-   (fn []
-     (rf/dispatch [:depts/fetch {}])
-     js/undefined)
-   [])
+    (fn []
+      (rf/dispatch [:depts/fetch {}])
+      js/undefined)
+    [])
   (let [items @(rf/subscribe [:depts/items])
         loading? @(rf/subscribe [:depts/loading?])
         tree-data (build-dept-tree items 0)]

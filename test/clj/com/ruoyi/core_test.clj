@@ -1,7 +1,8 @@
 (ns com.ruoyi.core-test
   (:require
-   [com.ruoyi.test-utils :as utils]
-   [clojure.test :refer :all]))
+    [clojure.test :refer :all]
+    [com.ruoyi.test-utils :as utils]))
+
 
 (deftest example-test
   (is (= 1 1)))

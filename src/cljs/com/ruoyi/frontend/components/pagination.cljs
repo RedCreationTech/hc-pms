@@ -1,9 +1,11 @@
 (ns com.ruoyi.frontend.components.pagination
   "分页组件封装。"
   (:require
-   [com.ruoyi.frontend.antd :as antd]))
+    [com.ruoyi.frontend.antd :as antd]))
 
-(defn pagination [{:keys [page page-size total on-change]}]
+
+(defn pagination
+  [{:keys [page page-size total on-change]}]
   [antd/pagination {:current page
                     :pageSize page-size
                     :total total

@@ -1,10 +1,11 @@
 (ns com.ruoyi.web.controllers.system.user
   "用户管理控制器，支持数据权限过滤。"
   (:require
-   [com.ruoyi.domain.system.user :as user-service]
-   [com.ruoyi.infra.data-perm :as data-perm]
-   [clojure.string :as str]
-   [ring.util.response :as response]))
+    [clojure.string :as str]
+    [com.ruoyi.domain.system.user :as user-service]
+    [com.ruoyi.infra.data-perm :as data-perm]
+    [ring.util.response :as response]))
+
 
 (defn- ok
   ([data] (ok 200 "操作成功" data))
@@ -12,8 +13,11 @@
    (-> (response/response {:code code :msg msg :data data})
        (response/content-type "application/json"))))
 
-(defn- parse-int [v]
+
+(defn- parse-int
+  [v]
   (when v (Integer/parseInt v)))
+
 
 (defn- parse-id-list
   "解析 RuoYi 风格逗号分隔用户 ID。"
@@ -23,11 +27,13 @@
        (remove str/blank?)
        (mapv parse-long)))
 
+
 (defn- current-user
   "读取当前登录用户详情，用于列表数据权限判断。"
   [user-service identity]
   (when-let [user-id (:user-id identity)]
     (user-service/find-user-by-id user-service user-id)))
+
 
 (defn- user-list-query
   "把 HTTP 字符串查询参数转换为用户列表领域查询参数。"
@@ -42,9 +48,12 @@
    :endTime (get raw "endTime")
    :current-user current-user})
 
-(defn- fail [msg]
+
+(defn- fail
+  [msg]
   (-> (response/response {:code 500 :msg msg})
       (response/content-type "application/json")))
+
 
 (defn list-users
   "查询用户列表（带时间范围、部门下级和数据权限过滤）。"
@@ -55,6 +64,7 @@
         result (user-service/list-users user-service params)]
     (ok {:total (:total result) :rows (:rows result)})))
 
+
 (defn get-user
   "获取用户详情。"
   [{:keys [user-service]} request]
@@ -62,6 +72,7 @@
     (if-let [user (user-service/find-user-by-id user-service user-id)]
       (ok user)
       (fail "用户不存在"))))
+
 
 (defn create-user
   "创建用户。"
@@ -94,6 +105,7 @@
     (catch Exception e
       (fail (.getMessage e)))))
 
+
 (defn update-user
   "更新用户。"
   [{:keys [user-service]} request]
@@ -114,6 +126,7 @@
     (catch Exception e
       (fail (.getMessage e)))))
 
+
 (defn delete-user
   "删除一个或多个用户，路径参数兼容逗号分隔 ID。"
   [{:keys [user-service]} request]
@@ -125,6 +138,7 @@
       (ok "删除成功"))
     (catch Exception e
       (fail (.getMessage e)))))
+
 
 (defn change-status
   "修改用户状态。"
@@ -143,6 +157,7 @@
     (catch Exception e
       (fail (.getMessage e)))))
 
+
 (defn reset-password
   "重置用户密码。"
   [{:keys [user-service]} request]
@@ -159,6 +174,7 @@
       (ok "密码重置成功"))
     (catch Exception e
       (fail (.getMessage e)))))
+
 
 (defn import-users
   "导入用户。"
@@ -187,6 +203,7 @@
     (catch Exception e
       (fail (.getMessage e)))))
 
+
 (defn export-users
   "导出用户CSV。"
   [{:keys [user-service]} request]
@@ -212,11 +229,13 @@
     (catch Exception e
       (fail (.getMessage e)))))
 
+
 (defn auth-role
   "获取用户角色列表。"
   [{:keys [user-service]} request]
   (let [user-id (parse-long (get-in request [:path-params :id]))]
     (ok (user-service/get-user-roles user-service user-id))))
+
 
 (defn update-auth-role
   "分配用户角色。"
@@ -225,6 +244,7 @@
         role-ids (get-in request [:body-params :role_ids])]
     (user-service/update-user-roles! user-service {:user-id user-id :role-ids role-ids})
     (ok "角色分配成功")))
+
 
 (defn import-template
   "下载用户导入模板。"

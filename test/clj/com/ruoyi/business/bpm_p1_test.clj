@@ -3,27 +3,44 @@
    发起权限拦截/放行(start_user_ids/start_dept_ids) / 模型·分类排序 API /
    子流程多实例 BPMN 生成(multiInstanceLoopCharacteristics) / 延迟器固定日期 timeDate 生成 /
    Webhook 响应回写(JSON 路径 → 流程变量)。"
-  (:require [clojure.test :refer [deftest testing is use-fixtures]]
-            [com.ruoyi.test-utils :refer [system-state system-fixture GET]]
-            [com.ruoyi.domain.business.bpm-flow :as bpm-flow]
-            [peridot.core :as p]
-            [clojure.data.json :as json])
-  (:import (com.sun.net.httpserver HttpServer HttpHandler)
-           (java.net InetSocketAddress)
-           (java.nio.charset StandardCharsets)))
+  (:require
+    [clojure.data.json :as json]
+    [clojure.test :refer [deftest testing is use-fixtures]]
+    [com.ruoyi.domain.business.bpm-flow :as bpm-flow]
+    [com.ruoyi.test-utils :refer [system-state system-fixture GET]]
+    [peridot.core :as p])
+  (:import
+    (com.sun.net.httpserver
+      HttpHandler
+      HttpServer)
+    (java.net
+      InetSocketAddress)
+    (java.nio.charset
+      StandardCharsets)))
+
 
 (use-fixtures :once (system-fixture))
 
-(defn- handler [] (:handler/ring (system-state)))
 
-(defn- bpm-service [] (:app.business/bpm-service (system-state)))
+(defn- handler
+  []
+  (:handler/ring (system-state)))
 
-(defn- parse-json [resp]
+
+(defn- bpm-service
+  []
+  (:app.business/bpm-service (system-state)))
+
+
+(defn- parse-json
+  [resp]
   (when (:body resp)
     (try (json/read-str (:body resp) :key-fn keyword)
          (catch Exception _ nil))))
 
-(defn- login-token [username]
+
+(defn- login-token
+  [username]
   (let [ctx (-> (p/session (handler))
                 (p/request "/api/auth/login"
                            :request-method :post
@@ -31,9 +48,14 @@
                            :body (json/write-str {:username username :password "admin123"})))]
     (get-in (parse-json (:response ctx)) [:data :token])))
 
-(defn- auth-hdr [token] {"authorization" (str "Bearer " token)})
 
-(defn- POST [app path body headers]
+(defn- auth-hdr
+  [token]
+  {"authorization" (str "Bearer " token)})
+
+
+(defn- POST
+  [app path body headers]
   (:response (-> (p/session app)
                  (p/request path
                             :request-method :post
@@ -41,13 +63,16 @@
                             :headers headers
                             :body (json/write-str body)))))
 
-(defn- PUT [app path body headers]
+
+(defn- PUT
+  [app path body headers]
   (:response (-> (p/session app)
                  (p/request path
                             :request-method :put
                             :content-type "application/json"
                             :headers headers
                             :body (json/write-str body)))))
+
 
 ;; ── 准备工具 ──────────────────────────────────────────────────────────
 
@@ -56,6 +81,7 @@
   [app h username]
   (let [q (parse-json (GET app (str "/api/system/user?user_name=" username "&page=1&size=10") {} h))]
     (get-in q [:data :rows 0])))
+
 
 (defn- ensure-user!
   "创建专用测试用户，返回 {:username u :user-id id :hdr h}。"
@@ -68,6 +94,7 @@
     {:username u
      :user-id (:user_id (user-row app admin-h u))
      :hdr (auth-hdr (login-token u))}))
+
 
 (defn- one-node-bpmn
   "start → a1(admin) → end。"
@@ -83,6 +110,7 @@
          "<sequenceFlow id=\"f2\" sourceRef=\"a1\" targetRef=\"end\"/>"
          "</process></definitions>")))
 
+
 (defn- create-model!
   [app h]
   (let [key (str "p1_" (System/currentTimeMillis) "_" (rand-int 1000))
@@ -92,6 +120,7 @@
     (is (= 200 (:code r)) (str "创建模型失败: " (:msg r)))
     (let [lst (parse-json (GET app (str "/api/business/bpm/model?model_key=" key "&page=1&size=5") {} h))]
       {:model-id (get-in lst [:data :rows 0 :model_id]) :model-key key})))
+
 
 (defn- update-model!
   [app h mid key flags]
@@ -103,9 +132,12 @@
                            h))]
     (is (= 200 (:code r)) (str "更新模型失败: " (:msg r)))))
 
-(defn- deploy-model! [app h mid]
+
+(defn- deploy-model!
+  [app h mid]
   (let [r (parse-json (POST app (str "/api/business/bpm/model/deploy/" mid) {} h))]
     (is (= 200 (:code r)) (str "部署失败: " (:msg r)))))
+
 
 (defn- start-instance
   "发起（不断言），返回响应。form-data 可选。"
@@ -114,6 +146,7 @@
    (parse-json (POST app "/api/business/bpm/instance"
                      {:model_id mid :form_data form-data}
                      hdr))))
+
 
 ;; ── P1-1 发起权限：指定人员 拦截/放行 ──────────────────────────────────
 
@@ -136,6 +169,7 @@
         (is (= 200 (:code r)) (str "发起应成功: " (:msg r)))
         (is (some? (get-in r [:data :process-instance-id])))))))
 
+
 ;; ── P1-2 发起权限：指定部门 放行/拦截 ──────────────────────────────────
 
 (deftest bpm-p1-start-permission-dept-test
@@ -157,6 +191,7 @@
         (is (= 500 (:code r)))
         (is (= "您没有权限发起该流程" (:msg r)))))))
 
+
 ;; ── P1-3 模型排序 API ─────────────────────────────────────────────────
 
 (deftest bpm-p1-model-sort-test
@@ -172,7 +207,7 @@
                (take 3 (filter #(#{(:model-id m1) (:model-id m2) (:model-id m3)} %) ids))))))
     (testing "PUT /bpm/model/sort 倒序保存后列表顺序随之改变"
       (let [r (parse-json (PUT app "/api/business/bpm/model/sort"
-                              {:ids [(:model-id m1) (:model-id m2) (:model-id m3)]} h))]
+                               {:ids [(:model-id m1) (:model-id m2) (:model-id m3)]} h))]
         (is (= 200 (:code r)))
         (is (= 3 (get-in r [:data :sorted]))))
       (let [r (parse-json (GET app "/api/business/bpm/model?page=1&size=10000" {} h))
@@ -181,6 +216,7 @@
         (is (every? some? (map (comp pos :model-id) [m1 m2 m3])))
         (is (= [(:model-id m1) (:model-id m2) (:model-id m3)]
                (mapv #(nth ids (pos (:model-id %))) [m1 m2 m3])))))))
+
 
 ;; ── P1-4 分类排序 API ─────────────────────────────────────────────────
 
@@ -204,6 +240,7 @@
             pos (fn [id] (first (keep-indexed (fn [i c] (when (= id (:category_id c)) i)) cats2)))]
         (is (< (pos id2) (pos id1)) "倒序后 id2 应排在 id1 前")))))
 
+
 ;; ── P1-5 子流程多实例 BPMN 生成 ────────────────────────────────────────
 
 (def ^:private p1-tree-child-mi
@@ -213,6 +250,7 @@
                          :mi-enable true :mi-sequential false :mi-ratio 60
                          :mi-source "FIXED" :mi-count 3}
                 :child-node {:id "end" :type "END_EVENT_NODE" :name "结束"}}})
+
 
 (deftest bpm-p1-child-multi-instance-bpmn-test
   (let [xml (bpm-flow/tree->bpmn p1-tree-child-mi "p1_mi")]
@@ -229,12 +267,13 @@
         (is (= 60 (:mi-ratio cfg)))))
     (testing "串行 + 全部完成（无比例表达式）"
       (let [xml2 (bpm-flow/tree->bpmn
-                  (assoc-in p1-tree-child-mi [:child-node :config]
-                            {:child-process-key "sub_key" :mi-enable true
-                             :mi-sequential true :mi-ratio 100})
-                  "p1_mi2")]
+                   (assoc-in p1-tree-child-mi [:child-node :config]
+                             {:child-process-key "sub_key" :mi-enable true
+                              :mi-sequential true :mi-ratio 100})
+                   "p1_mi2")]
         (is (clojure.string/includes? xml2 "isSequential=\"true\""))
         (is (clojure.string/includes? xml2 "${nrOfCompletedInstances >= nrOfInstances}"))))))
+
 
 ;; ── P1-6 延迟器固定日期 timeDate 生成 ─────────────────────────────────
 
@@ -253,9 +292,10 @@
         (is (= "2026-09-20T10:00:00" (get-in back [:child-node :config :time-date])))))
     (testing "时长模式仍生成 timeDuration"
       (let [xml2 (bpm-flow/tree->bpmn
-                  (assoc-in tree [:child-node :config] {:time-duration 6 :time-unit "HOUR"})
-                  "p1_delay2")]
+                   (assoc-in tree [:child-node :config] {:time-duration 6 :time-unit "HOUR"})
+                   "p1_delay2")]
         (is (clojure.string/includes? xml2 "<timeDuration xsi:type=\"tFormalExpression\">PT6H</timeDuration>"))))))
+
 
 ;; ── P1-7 Webhook 响应回写 ─────────────────────────────────────────────
 
@@ -264,11 +304,12 @@
   []
   (let [server (HttpServer/create (InetSocketAddress. "127.0.0.1" 0) 0)
         handler (proxy [HttpHandler] []
-                  (handle [exchange]
+                  (handle
+                    [exchange]
                     (try
                       (.sendResponseHeaders exchange 200
                                             (alength (.getBytes "{\"data\":{\"level\":\"vip\"}}"
-                                                                  StandardCharsets/UTF_8)))
+                                                                StandardCharsets/UTF_8)))
                       (with-open [os (.getResponseBody exchange)]
                         (.write os (.getBytes "{\"data\":{\"level\":\"vip\"}}"
                                               StandardCharsets/UTF_8)))
@@ -278,8 +319,11 @@
     (.start server)
     {:server server :port (.getPort (.getAddress server))}))
 
-(defn- stop-receiver! [{:keys [server]}]
+
+(defn- stop-receiver!
+  [{:keys [server]}]
   (when server (.stop server 0)))
+
 
 (defn- wait-for
   ([pred] (wait-for pred 3000))
@@ -289,6 +333,7 @@
            (>= t ms) false
            :else (do (Thread/sleep 100) (recur (+ t 100)))))))
 
+
 (defn- instance-var
   "读取流程实例变量（运行中 RuntimeService / 结束后 HistoryService）。"
   [pid name]
@@ -296,6 +341,7 @@
         rt (.getRuntimeService ^org.flowable.engine.ProcessEngine engine)]
     (try (.getVariable rt pid name)
          (catch Exception _ nil))))
+
 
 (deftest bpm-p1-webhook-response-writeback-test
   (let [app (handler)
@@ -306,12 +352,12 @@
       (update-model! app h model-id model-key {})
       (update-model! app h model-id model-key
                      {:webhooks (json/write-str
-                                 {"process_start"
-                                  {"enable" true
-                                   "url" (str "http://127.0.0.1:" (:port receiver) "/hook")
-                                   "headers" []
-                                   "bodyParams" [{"key" "k" "value" "v"}]
-                                   "response-mappings" [{"key" "data.level" "value" "level"}]}})})
+                                  {"process_start"
+                                   {"enable" true
+                                    "url" (str "http://127.0.0.1:" (:port receiver) "/hook")
+                                    "headers" []
+                                    "bodyParams" [{"key" "k" "value" "v"}]
+                                    "response-mappings" [{"key" "data.level" "value" "level"}]}})})
       (deploy-model! app h model-id)
       (let [r (start-instance app h model-id)]
         (is (= 200 (:code r)) (str "发起失败: " (:msg r)))

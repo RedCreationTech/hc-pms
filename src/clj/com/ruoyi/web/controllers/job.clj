@@ -1,12 +1,13 @@
 (ns com.ruoyi.web.controllers.job
   "定时任务控制器。"
   (:require
-   [clojure.string :as str]
-   [clojure.walk :as walk]
-   [com.ruoyi.infra.db :as db]
-   [com.ruoyi.infra.scheduler :as scheduler-core]
-   [com.ruoyi.infra.cron :as cron]
-   [ring.util.response :as response]))
+    [clojure.string :as str]
+    [clojure.walk :as walk]
+    [com.ruoyi.infra.cron :as cron]
+    [com.ruoyi.infra.db :as db]
+    [com.ruoyi.infra.scheduler :as scheduler-core]
+    [ring.util.response :as response]))
+
 
 (defn- ok
   ([data] (ok 200 "操作成功" data))
@@ -14,20 +15,28 @@
    (-> (response/response {:code code :msg msg :data data})
        (response/content-type "application/json"))))
 
-(defn- fail [msg]
+
+(defn- fail
+  [msg]
   (-> (response/response {:code 500 :msg msg})
       (response/content-type "application/json")))
 
-(defn- current-user-name [request]
+
+(defn- current-user-name
+  [request]
   (get-in request [:identity :user-name] ""))
 
-(defn- body-params [request]
+
+(defn- body-params
+  [request]
   (walk/keywordize-keys (:body-params request {})))
+
 
 (defn list-jobs
   [{:keys [query-fn]} request]
   (ok (query-fn :list-jobs (merge {:job_name nil :job_group nil :status nil}
                                   (:query-params request)))))
+
 
 (defn get-job
   [{:keys [query-fn]} request]
@@ -36,11 +45,14 @@
       (ok job)
       (fail "任务不存在"))))
 
-(defn- validate-job! [job]
+
+(defn- validate-job!
+  [job]
   (when-not (cron/valid? (:cron_expression job))
     (throw (ex-info "cron 表达式不合法" {})))
   (when-not (scheduler-core/invoke-target-allowed? (:invoke_target job))
     (throw (ex-info "调用目标不合法或不在允许命名空间内" {}))))
+
 
 (defn create-job
   [{:keys [query-fn db]} request]
@@ -56,6 +68,7 @@
       (ok {:job_id id}))
     (catch Exception e
       (fail (.getMessage e)))))
+
 
 (defn update-job
   [{:keys [query-fn]} request]
@@ -74,6 +87,7 @@
     (catch Exception e
       (fail (.getMessage e)))))
 
+
 (defn delete-job
   [{:keys [query-fn]} request]
   (try
@@ -85,6 +99,7 @@
       (ok "删除成功"))
     (catch Exception e
       (fail (.getMessage e)))))
+
 
 (defn list-job-logs
   [{:keys [query-fn]} request]
@@ -103,6 +118,7 @@
     (ok {:rows (query-fn :list-job-logs filters)
          :total (-> (query-fn :count-job-logs filters) first :total)})))
 
+
 (defn execute-job
   [{:keys [query-fn]} request]
   (try
@@ -111,6 +127,7 @@
       (ok "执行成功"))
     (catch Exception e
       (fail (.getMessage e)))))
+
 
 (defn change-status
   "修改任务状态。"
@@ -128,12 +145,14 @@
         (scheduler-core/pause-job! job-id (:job_group job))))
     (ok "状态修改成功")))
 
+
 (defn run-once
   "立即执行一次任务。"
   [_ request]
   (let [job-id (parse-long (get-in request [:path-params :id]))]
     (scheduler-core/trigger-job! job-id "DEFAULT")
     (ok (str "任务 " job-id " 已触发执行"))))
+
 
 (defn clean-logs
   "清空任务日志。"

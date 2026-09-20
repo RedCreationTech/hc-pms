@@ -1,10 +1,15 @@
 (ns com.ruoyi.web.controllers.system.profile-test
   "个人中心控制器测试。"
-  (:require [clojure.test :refer [deftest is testing]]
-            [com.ruoyi.infra.security :as security]
-            [com.ruoyi.web.controllers.system.profile :as profile])
-  (:import [java.nio.file Files]
-           [java.nio.file.attribute FileAttribute]))
+  (:require
+    [clojure.test :refer [deftest is testing]]
+    [com.ruoyi.infra.security :as security]
+    [com.ruoyi.web.controllers.system.profile :as profile])
+  (:import
+    (java.nio.file
+      Files)
+    (java.nio.file.attribute
+      FileAttribute)))
+
 
 (defn mock-user-service
   "返回指定用户的 mock 用户服务。"
@@ -24,6 +29,7 @@
                  :update-user! nil
                  nil))})
 
+
 (deftest test-get-profile
   (testing "获取当前用户个人信息"
     (let [user-service (mock-user-service {:password (security/hash-password "admin123")})
@@ -31,6 +37,7 @@
           response (profile/get-profile {:user-service user-service} request)]
       (is (map? response))
       (is (= 200 (get-in response [:body :code]))))))
+
 
 (deftest test-get-profile-not-found
   (testing "获取个人信息时用户不存在"
@@ -43,6 +50,7 @@
       (is (map? response))
       (is (= 500 (get-in response [:body :code]))))))
 
+
 (deftest test-update-profile
   (testing "更新当前用户个人信息"
     (let [user-service (mock-user-service {:password (security/hash-password "admin123")})
@@ -51,6 +59,7 @@
           response (profile/update-profile {:user-service user-service} request)]
       (is (map? response))
       (is (= 200 (get-in response [:body :code]))))))
+
 
 (deftest test-upload-avatar
   (testing "上传头像"
@@ -73,6 +82,7 @@
           (Files/deleteIfExists temp-dir)
           (System/clearProperty "app.upload.dir"))))))
 
+
 (deftest test-upload-avatar-without-file
   (testing "未选择头像文件"
     (let [user-service (mock-user-service {:password (security/hash-password "admin123")})
@@ -81,6 +91,7 @@
           response (profile/upload-avatar {:user-service user-service} request)]
       (is (map? response))
       (is (= 200 (get-in response [:body :code]))))))
+
 
 (deftest test-change-password
   (testing "修改当前用户密码成功"
@@ -93,6 +104,7 @@
       (is (map? response))
       (is (= 200 (get-in response [:body :code]))))))
 
+
 (deftest test-change-password-blank
   (testing "修改密码时旧密码或新密码为空"
     (let [user-service (mock-user-service {:password (security/hash-password "admin123")})
@@ -102,6 +114,7 @@
           response (profile/change-password {:user-service user-service} request)]
       (is (map? response))
       (is (= 500 (get-in response [:body :code]))))))
+
 
 (deftest test-change-password-wrong-old
   (testing "修改密码时旧密码错误"

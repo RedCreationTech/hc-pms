@@ -94,11 +94,13 @@
             :params {:password password}
             :on-success on-success :on-error on-error}))
 
+
 (defn get-user-roles
   "获取用户已分配角色。"
   [user-id on-success on-error]
   (request {:method :get :uri (str "/system/user/" user-id "/authRole")
             :on-success on-success :on-error on-error}))
+
 
 (defn update-user-roles
   "更新用户角色。"
@@ -236,6 +238,7 @@
   [id status on-success on-error]
   (request {:method :put :uri (str "/system/menu/" id) :params {:status status}
             :on-success on-success :on-error on-error}))
+
 
 (defn save-menu-sort
   "保存菜单排序。与 RuoYi-Vue 保持一致，只提交变化项的 menuIds/orderNums 字符串。"
@@ -400,11 +403,13 @@
   (request {:method :get :uri "/system/server"
             :on-success on-success :on-error on-error}))
 
+
 (defn get-dashboard-stats
   "获取首页仪表盘统计数据。"
   [on-success on-error]
   (request {:method :get :uri "/system/dashboard/stats"
             :on-success on-success :on-error on-error}))
+
 
 (defn get-integrant-info
   "获取 Integrant 配置、依赖图与运行时系统摘要。"
@@ -412,12 +417,14 @@
   (request {:method :get :uri "/system/integrant"
             :on-success on-success :on-error on-error}))
 
+
 (defn set-integrant-trace
   "开启/关闭某个 Integrant 函数组件的调用追踪。"
   [key enabled? on-success on-error]
   (request {:method :post :uri (str "/system/integrant/trace/" key)
             :params {:enabled enabled?}
             :on-success on-success :on-error on-error}))
+
 
 (defn get-integrant-trace-logs
   "获取某个 Integrant 函数组件的追踪日志。"
@@ -550,6 +557,7 @@
      :handler (fn [[ok result]]
                 (if ok (on-success result) (on-error result)))}))
 
+
 (defn upload-avatar
   "上传头像。"
   [form-data on-success on-error]
@@ -606,6 +614,7 @@
   (request {:method :delete :uri "/system/oper-log"
             :on-success on-success :on-error on-error}))
 
+
 (defn delete-oper-logs
   "删除操作日志。"
   [ids on-success on-error]
@@ -620,6 +629,7 @@
   [on-success on-error]
   (request {:method :delete :uri "/system/login-log"
             :on-success on-success :on-error on-error}))
+
 
 (defn delete-login-logs
   "删除登录日志。"
@@ -829,74 +839,108 @@
 
 ;; ─── BPM 流程 ──────────────────────────────────────────────────────
 
-(defn bpm-list-models [params on-success on-error]
+(defn bpm-list-models
+  [params on-success on-error]
   (request {:method :get :uri "/business/bpm/model" :params params
             :on-success on-success :on-error on-error}))
 
-(defn bpm-create-model [params on-success on-error]
+
+(defn bpm-create-model
+  [params on-success on-error]
   (request {:method :post :uri "/business/bpm/model" :params params
             :on-success on-success :on-error on-error}))
 
-(defn bpm-list-categories [params on-success on-error]
+
+(defn bpm-list-categories
+  [params on-success on-error]
   (request {:method :get :uri "/business/bpm/category" :params params
             :on-success on-success :on-error on-error}))
 
+
 ;; ─── P1：分类管理 / 模型排序 / 删除 ─────────────────────────────────
-(defn bpm-create-category [params on-success on-error]
+(defn bpm-create-category
+  [params on-success on-error]
   (request {:method :post :uri "/business/bpm/category" :params params
             :on-success on-success :on-error on-error}))
 
-(defn bpm-update-category [id params on-success on-error]
+
+(defn bpm-update-category
+  [id params on-success on-error]
   (request {:method :put :uri (str "/business/bpm/category/" id) :params params
             :on-success on-success :on-error on-error}))
 
-(defn bpm-delete-category [id on-success on-error]
+
+(defn bpm-delete-category
+  [id on-success on-error]
   (request {:method :delete :uri (str "/business/bpm/category/" id)
             :on-success on-success :on-error on-error}))
 
-(defn bpm-sort-categories [ids on-success on-error]
+
+(defn bpm-sort-categories
+  [ids on-success on-error]
   (request {:method :put :uri "/business/bpm/category/sort" :params {:ids ids}
             :on-success on-success :on-error on-error}))
 
-(defn bpm-sort-models [ids on-success on-error]
+
+(defn bpm-sort-models
+  [ids on-success on-error]
   (request {:method :put :uri "/business/bpm/model/sort" :params {:ids ids}
             :on-success on-success :on-error on-error}))
 
-(defn bpm-delete-model [id on-success on-error]
+
+(defn bpm-delete-model
+  [id on-success on-error]
   (request {:method :delete :uri (str "/business/bpm/model/" id)
             :on-success on-success :on-error on-error}))
 
-(defn bpm-get-form [id on-success on-error]
+
+(defn bpm-get-form
+  [id on-success on-error]
   (request {:method :get :uri (str "/business/bpm/form/" id)
             :on-success on-success :on-error on-error}))
 
-(defn bpm-list-forms [params on-success on-error]
+
+(defn bpm-list-forms
+  [params on-success on-error]
   (request {:method :get :uri "/business/bpm/form" :params params
             :on-success on-success :on-error on-error}))
 
-(defn bpm-deploy-model [id on-success on-error]
+
+(defn bpm-deploy-model
+  [id on-success on-error]
   (request {:method :post :uri (str "/business/bpm/model/deploy/" id)
             :on-success on-success :on-error on-error}))
 
-(defn bpm-list-instances [params on-success on-error]
+
+(defn bpm-list-instances
+  [params on-success on-error]
   (request {:method :get :uri "/business/bpm/instance" :params params
             :on-success on-success :on-error on-error}))
 
-(defn bpm-start-instance [params on-success on-error]
+
+(defn bpm-start-instance
+  [params on-success on-error]
   (request {:method :post :uri "/business/bpm/instance" :params params
             :on-success on-success :on-error on-error}))
 
-(defn bpm-list-todo [on-success on-error]
+
+(defn bpm-list-todo
+  [on-success on-error]
   (request {:method :get :uri "/business/bpm/todo"
             :on-success on-success :on-error on-error}))
 
-(defn bpm-list-done [on-success on-error]
+
+(defn bpm-list-done
+  [on-success on-error]
   (request {:method :get :uri "/business/bpm/done"
             :on-success on-success :on-error on-error}))
 
-(defn bpm-task-detail [task-id on-success on-error]
+
+(defn bpm-task-detail
+  [task-id on-success on-error]
   (request {:method :get :uri (str "/business/bpm/task/" task-id "/detail")
             :on-success on-success :on-error on-error}))
+
 
 (defn bpm-approve-task
   "审批通过。sign-pic-url 可选：手写签名图 URL。"
@@ -908,15 +952,20 @@
                        sign-pic-url (assoc :sign_pic_url sign-pic-url))
              :on-success on-success :on-error on-error})))
 
-(defn bpm-transfer-task [task-id to-user on-success on-error]
+
+(defn bpm-transfer-task
+  [task-id to-user on-success on-error]
   (request {:method :post :uri (str "/business/bpm/task/" task-id "/transfer")
             :params {:to_user to-user}
             :on-success on-success :on-error on-error}))
 
-(defn bpm-delegate-task [task-id to-user on-success on-error]
+
+(defn bpm-delegate-task
+  [task-id to-user on-success on-error]
   (request {:method :post :uri (str "/business/bpm/task/" task-id "/delegate")
             :params {:to_user to-user}
             :on-success on-success :on-error on-error}))
+
 
 (defn bpm-resolve-task
   "委派办结：被委派人办完事项后任务回到 owner 待办。"
@@ -924,6 +973,7 @@
   (request {:method :post :uri "/business/bpm/task/resolve"
             :params {:taskId task-id}
             :on-success on-success :on-error on-error}))
+
 
 (defn bpm-reject-task
   "审批驳回。return-node-id 可选：从 return-list 选择的退回节点；sign-pic-url 可选：手写签名图 URL。"
@@ -938,209 +988,325 @@
                        sign-pic-url (assoc :sign_pic_url sign-pic-url))
              :on-success on-success :on-error on-error})))
 
+
 ;; ─── BPM Phase 1 审批闭环 ──────────────────────────────────────────
 
-(defn bpm-create-sign [params on-success on-error]
+(defn bpm-create-sign
+  [params on-success on-error]
   (request {:method :post :uri "/business/bpm/task/create-sign"
             :params params :on-success on-success :on-error on-error}))
 
-(defn bpm-delete-sign [params on-success on-error]
+
+(defn bpm-delete-sign
+  [params on-success on-error]
   (request {:method :delete :uri "/business/bpm/task/delete-sign"
             :params params :on-success on-success :on-error on-error}))
 
-(defn bpm-sign-list [task-id on-success on-error]
+
+(defn bpm-sign-list
+  [task-id on-success on-error]
   (request {:method :get :uri "/business/bpm/task/sign-list"
             :params {:taskId task-id}
             :on-success on-success :on-error on-error}))
 
-(defn bpm-return-list [task-id on-success on-error]
+
+(defn bpm-return-list
+  [task-id on-success on-error]
   (request {:method :get :uri "/business/bpm/task/return-list"
             :params {:taskId task-id}
             :on-success on-success :on-error on-error}))
 
-(defn bpm-copy-task [params on-success on-error]
+
+(defn bpm-copy-task
+  [params on-success on-error]
   (request {:method :post :uri "/business/bpm/task/copy"
             :params params :on-success on-success :on-error on-error}))
 
-(defn bpm-copy-page [params on-success on-error]
+
+(defn bpm-copy-page
+  [params on-success on-error]
   (request {:method :get :uri "/business/bpm/task/copy/page"
             :params params :on-success on-success :on-error on-error}))
 
-(defn bpm-cancel-instance [params on-success on-error]
+
+(defn bpm-cancel-instance
+  [params on-success on-error]
   (request {:method :delete :uri "/business/bpm/instance/cancel"
             :params params :on-success on-success :on-error on-error}))
 
-(defn bpm-withdraw-task [task-id on-success on-error]
+
+(defn bpm-withdraw-task
+  [task-id on-success on-error]
   (request {:method :put :uri "/business/bpm/task/withdraw"
             :params {:taskId task-id}
             :on-success on-success :on-error on-error}))
 
-(defn bpm-withdraw-to-start [process-instance-id on-success on-error]
+
+(defn bpm-withdraw-to-start
+  [process-instance-id on-success on-error]
   (request {:method :put :uri "/business/bpm/task/withdraw-to-start"
             :params {:processInstanceId process-instance-id}
             :on-success on-success :on-error on-error}))
 
-(defn bpm-task-history [pid on-success on-error]
+
+(defn bpm-task-history
+  [pid on-success on-error]
   (request {:method :get :uri (str "/business/bpm/instance/history/" pid)
             :on-success on-success :on-error on-error}))
 
 
 ;; ─── OA 请假 ──────────────────────────────────────────────────────
 
-(defn oa-list-leaves [params on-success on-error]
+(defn oa-list-leaves
+  [params on-success on-error]
   (request {:method :get :uri "/business/oa/leave" :params params
             :on-success on-success :on-error on-error}))
 
-(defn oa-start-leave [params on-success on-error]
+
+(defn oa-start-leave
+  [params on-success on-error]
   (request {:method :post :uri "/business/oa/leave" :params params
             :on-success on-success :on-error on-error}))
 
-(defn oa-delete-leave [id on-success on-error]
+
+(defn oa-delete-leave
+  [id on-success on-error]
   (request {:method :delete :uri (str "/business/oa/leave/" id)
             :on-success on-success :on-error on-error}))
 
+
 ;; ─── HRM 员工 ──────────────────────────────────────────────────────
-(defn hrm-list-employees [params on-success on-error]
+(defn hrm-list-employees
+  [params on-success on-error]
   (request {:method :get :uri "/business/hrm/employee" :params params
             :on-success on-success :on-error on-error}))
-(defn hrm-create-employee [params on-success on-error]
+
+
+(defn hrm-create-employee
+  [params on-success on-error]
   (request {:method :post :uri "/business/hrm/employee" :params params
             :on-success on-success :on-error on-error}))
-(defn hrm-update-employee [id params on-success on-error]
+
+
+(defn hrm-update-employee
+  [id params on-success on-error]
   (request {:method :put :uri (str "/business/hrm/employee/" id) :params params
             :on-success on-success :on-error on-error}))
-(defn hrm-delete-employee [id on-success on-error]
+
+
+(defn hrm-delete-employee
+  [id on-success on-error]
   (request {:method :delete :uri (str "/business/hrm/employee/" id)
             :on-success on-success :on-error on-error}))
 
+
 ;; ─── OA 日程 ──────────────────────────────────────────────────────
-(defn oa-list-calendars [params on-success on-error]
+(defn oa-list-calendars
+  [params on-success on-error]
   (request {:method :get :uri "/business/oa/calendar" :params params
             :on-success on-success :on-error on-error}))
-(defn oa-create-calendar [params on-success on-error]
+
+
+(defn oa-create-calendar
+  [params on-success on-error]
   (request {:method :post :uri "/business/oa/calendar" :params params
             :on-success on-success :on-error on-error}))
-(defn oa-delete-calendar [id on-success on-error]
+
+
+(defn oa-delete-calendar
+  [id on-success on-error]
   (request {:method :delete :uri (str "/business/oa/calendar/" id)
             :on-success on-success :on-error on-error}))
 
+
 ;; ─── OA 会议 ──────────────────────────────────────────────────────
-(defn oa-list-meetings [params on-success on-error]
+(defn oa-list-meetings
+  [params on-success on-error]
   (request {:method :get :uri "/business/oa/meeting" :params params
             :on-success on-success :on-error on-error}))
-(defn oa-create-meeting [params on-success on-error]
+
+
+(defn oa-create-meeting
+  [params on-success on-error]
   (request {:method :post :uri "/business/oa/meeting" :params params
             :on-success on-success :on-error on-error}))
-(defn oa-delete-meeting [id on-success on-error]
+
+
+(defn oa-delete-meeting
+  [id on-success on-error]
   (request {:method :delete :uri (str "/business/oa/meeting/" id)
             :on-success on-success :on-error on-error}))
 
+
 ;; ─── CRM 客户 ──────────────────────────────────────────────────────
-(defn crm-list-customers [params on-success on-error]
+(defn crm-list-customers
+  [params on-success on-error]
   (request {:method :get :uri "/business/crm/customer" :params params
             :on-success on-success :on-error on-error}))
-(defn crm-create-customer [params on-success on-error]
+
+
+(defn crm-create-customer
+  [params on-success on-error]
   (request {:method :post :uri "/business/crm/customer" :params params
             :on-success on-success :on-error on-error}))
-(defn crm-update-customer [id params on-success on-error]
+
+
+(defn crm-update-customer
+  [id params on-success on-error]
   (request {:method :put :uri (str "/business/crm/customer/" id) :params params
             :on-success on-success :on-error on-error}))
-(defn crm-delete-customer [id on-success on-error]
+
+
+(defn crm-delete-customer
+  [id on-success on-error]
   (request {:method :delete :uri (str "/business/crm/customer/" id)
             :on-success on-success :on-error on-error}))
 
+
 ;; ─── BPM 模型详情/更新 ─────────────────────────────────────────────
-(defn bpm-get-model [id on-success on-error]
+(defn bpm-get-model
+  [id on-success on-error]
   (request {:method :get :uri (str "/business/bpm/model/" id)
             :on-success on-success :on-error on-error}))
 
-(defn bpm-update-model [id params on-success on-error]
+
+(defn bpm-update-model
+  [id params on-success on-error]
   (request {:method :put :uri (str "/business/bpm/model/" id) :params params
             :on-success on-success :on-error on-error}))
 
-(defn bpm-instance-diagram [pid on-success on-error]
+
+(defn bpm-instance-diagram
+  [pid on-success on-error]
   (request {:method :get :uri (str "/business/bpm/instance/diagram/" pid)
             :on-success on-success :on-error on-error}))
 
+
 ;; ─── BPM Phase 3 治理能力：定义版本 / 模型启停·清理·复制 / 打印 ────────
-(defn bpm-definition-page [params on-success on-error]
+(defn bpm-definition-page
+  [params on-success on-error]
   (request {:method :get :uri "/business/bpm/definition/page" :params params
             :on-success on-success :on-error on-error}))
 
-(defn bpm-definition-xml [definition-id on-success on-error]
+
+(defn bpm-definition-xml
+  [definition-id on-success on-error]
   (request {:method :get :uri "/business/bpm/definition/xml"
             :params {:definitionId definition-id}
             :on-success on-success :on-error on-error}))
 
-(defn bpm-definition-restore [definition-id on-success on-error]
+
+(defn bpm-definition-restore
+  [definition-id on-success on-error]
   (request {:method :put :uri "/business/bpm/definition/restore"
             :params {:definitionId definition-id}
             :on-success on-success :on-error on-error}))
 
-(defn bpm-model-state [id state on-success on-error]
+
+(defn bpm-model-state
+  [id state on-success on-error]
   (request {:method :put :uri "/business/bpm/model/state"
             :params {:id id :state state}
             :on-success on-success :on-error on-error}))
 
-(defn bpm-model-clean [id on-success on-error]
+
+(defn bpm-model-clean
+  [id on-success on-error]
   (request {:method :delete :uri "/business/bpm/model/clean"
             :params {:id id}
             :on-success on-success :on-error on-error}))
 
-(defn bpm-model-copy [id on-success on-error]
+
+(defn bpm-model-copy
+  [id on-success on-error]
   (request {:method :post :uri "/business/bpm/model/copy"
             :params {:id id}
             :on-success on-success :on-error on-error}))
 
-(defn bpm-print-data [instance-id on-success on-error]
+
+(defn bpm-print-data
+  [instance-id on-success on-error]
   (request {:method :get :uri "/business/bpm/instance/print-data"
             :params {:id instance-id}
             :on-success on-success :on-error on-error}))
 
-(defn bpm-model-tree [id on-success on-error]
+
+(defn bpm-model-tree
+  [id on-success on-error]
   (request {:method :get :uri (str "/business/bpm/model/" id "/tree")
             :on-success on-success :on-error on-error}))
 
-(defn bpm-save-model-tree [id tree on-success on-error]
+
+(defn bpm-save-model-tree
+  [id tree on-success on-error]
   (request {:method :post :uri (str "/business/bpm/model/" id "/tree") :params tree
             :on-success on-success :on-error on-error}))
 
+
 ;; ─── OA 报销 ──────────────────────────────────────────────────────
-(defn oa-list-reimburses [params on-success on-error]
+(defn oa-list-reimburses
+  [params on-success on-error]
   (request {:method :get :uri "/business/oa/reimburse" :params params
             :on-success on-success :on-error on-error}))
-(defn oa-start-reimburse [params on-success on-error]
+
+
+(defn oa-start-reimburse
+  [params on-success on-error]
   (request {:method :post :uri "/business/oa/reimburse" :params params
             :on-success on-success :on-error on-error}))
-(defn oa-delete-reimburse [id on-success on-error]
+
+
+(defn oa-delete-reimburse
+  [id on-success on-error]
   (request {:method :delete :uri (str "/business/oa/reimburse/" id)
             :on-success on-success :on-error on-error}))
 
-(defn business-report-stats [on-success on-error]
+
+(defn business-report-stats
+  [on-success on-error]
   (request {:method :get :uri "/business/report/stats"
             :on-success on-success :on-error on-error}))
 
+
 ;; ─── BPM 管理套件（通用 CRUD）─────────────────────────────────────
-(defn bpmmgmt-list [module params on-success on-error]
+(defn bpmmgmt-list
+  [module params on-success on-error]
   (request {:method :get :uri (str "/business/bpm/" module) :params params
             :on-success on-success :on-error on-error}))
-(defn bpmmgmt-create [module params on-success on-error]
+
+
+(defn bpmmgmt-create
+  [module params on-success on-error]
   (request {:method :post :uri (str "/business/bpm/" module) :params params
             :on-success on-success :on-error on-error}))
-(defn bpmmgmt-update [module id params on-success on-error]
+
+
+(defn bpmmgmt-update
+  [module id params on-success on-error]
   (request {:method :put :uri (str "/business/bpm/" module "/" id) :params params
             :on-success on-success :on-error on-error}))
-(defn bpmmgmt-delete [module id on-success on-error]
+
+
+(defn bpmmgmt-delete
+  [module id on-success on-error]
   (request {:method :delete :uri (str "/business/bpm/" module "/" id)
             :on-success on-success :on-error on-error}))
-(defn bpmmgmt-get [module id on-success on-error]
+
+
+(defn bpmmgmt-get
+  [module id on-success on-error]
   (request {:method :get :uri (str "/business/bpm/" module "/" id)
             :on-success on-success :on-error on-error}))
 
+
 ;; ─── BPM 任务管理 / 实例运维 ──────────────────────────────────────
-(defn bpm-all-tasks [on-success on-error]
+(defn bpm-all-tasks
+  [on-success on-error]
   (request {:method :get :uri "/business/bpm/task/all"
             :on-success on-success :on-error on-error}))
-(defn bpm-instance-op [pid op on-success on-error]
+
+
+(defn bpm-instance-op
+  [pid op on-success on-error]
   (request {:method :post :uri (str "/business/bpm/instance/" pid "/" op) :params {:reason "运维"}
             :on-success on-success :on-error on-error}))

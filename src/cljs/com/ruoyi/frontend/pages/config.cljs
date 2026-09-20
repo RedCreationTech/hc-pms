@@ -1,16 +1,18 @@
 (ns com.ruoyi.frontend.pages.config
   "参数配置管理页面 — 完整 CRUD。"
   (:require
-   [reagent.core :as r]
-   [reagent.hooks :as hooks]
-   [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [PlusOutlined DownloadOutlined SearchOutlined ReloadOutlined]]
-   [com.ruoyi.frontend.antd :as antd]
-   [com.ruoyi.frontend.api :as api]
-   [com.ruoyi.frontend.components.page-search :as page-search]
-   [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]))
+    ["@ant-design/icons" :refer [PlusOutlined DownloadOutlined SearchOutlined ReloadOutlined]]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.api :as api]
+    [com.ruoyi.frontend.components.page-search :as page-search]
+    [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+    [re-frame.core :as rf]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
 
-(defn- search-bar []
+
+(defn- search-bar
+  []
   (let [[keyword set-keyword!] (hooks/use-state "")]
     [page-search/page-search {:visible? true}
      [page-search/search-row
@@ -27,7 +29,9 @@
                                    :on-click #(do (set-keyword! "")
                                                   (rf/dispatch [:configs/fetch {}]))}]]]]))
 
-(defn- config-columns [on-edit on-delete]
+
+(defn- config-columns
+  [on-edit on-delete]
   #js [#js {:title "参数ID" :dataIndex "config_id" :key "config_id" :width 80}
        #js {:title "参数名称" :dataIndex "config_name" :key "config_name"}
        #js {:title "参数键名" :dataIndex "config_key" :key "config_key"}
@@ -35,31 +39,33 @@
        #js {:title "系统内置" :dataIndex "config_type" :key "config_type" :width 100
             :render (fn [v]
                       (r/as-element
-                       [antd/tag {:color (if (= v "Y") "blue" "default")}
-                        (if (= v "Y") "是" "否")]))}
+                        [antd/tag {:color (if (= v "Y") "blue" "default")}
+                         (if (= v "Y") "是" "否")]))}
        #js {:title "备注" :dataIndex "remark" :key "remark"}
        #js {:title "创建时间" :dataIndex "create_time" :key "create_time" :width 170}
        #js {:title "操作" :key "action" :width 160 :fixed "right"
             :render (fn [_ record]
                       (let [row (js->clj record :keywordize-keys true)]
                         (r/as-element
-                         [antd/space
-                          [antd/button {:type "link" :size "small"
-                                        :onClick #(on-edit row)}
-                           "编辑"]
-                          [antd/popconfirm {:title "确认删除？" :okText "确认" :cancelText "取消"
-                                            :on-confirm #(on-delete (:config_id row))}
-                           [antd/button {:type "link" :danger true :size "small"} "删除"]]])))}])
+                          [antd/space
+                           [antd/button {:type "link" :size "small"
+                                         :onClick #(on-edit row)}
+                            "编辑"]
+                           [antd/popconfirm {:title "确认删除？" :okText "确认" :cancelText "取消"
+                                             :on-confirm #(on-delete (:config_id row))}
+                            [antd/button {:type "link" :danger true :size "small"} "删除"]]])))}])
 
-(defn- config-modal [{:keys [visible? editing on-ok on-cancel]}]
+
+(defn- config-modal
+  [{:keys [visible? editing on-ok on-cancel]}]
   (let [[form] (antd/form-use-form)]
     (hooks/use-effect
-     (fn []
-       (when visible?
-         (.resetFields form)
-         (.setFieldsValue form (clj->js (merge {:config_type "Y"} editing))))
-       js/undefined)
-     [visible? editing])
+      (fn []
+        (when visible?
+          (.resetFields form)
+          (.setFieldsValue form (clj->js (merge {:config_type "Y"} editing))))
+        js/undefined)
+      [visible? editing])
     [antd/modal {:open visible?
                  :title (if editing "编辑参数" "新增参数")
                  :onOk #(.submit form)
@@ -87,15 +93,17 @@
       [antd/form-item {:label "备注" :name "remark"}
        [antd/text-area {:placeholder "请输入备注" :rows 3}]]]]))
 
-(defn config-page []
+
+(defn config-page
+  []
   (let [items @(rf/subscribe [:configs/items])
         total @(rf/subscribe [:configs/total])
         loading? @(rf/subscribe [:configs/loading?])
         [modal-visible? set-modal-visible!] (hooks/use-state false)
         [editing set-editing!] (hooks/use-state nil)]
     (hooks/use-effect
-     (fn [] (rf/dispatch [:configs/fetch {}]) js/undefined)
-     [])
+      (fn [] (rf/dispatch [:configs/fetch {}]) js/undefined)
+      [])
     [:div
      [search-bar]
      [page-toolbar/page-toolbar
@@ -118,8 +126,8 @@
      [antd/table {:rowKey "config_id" :loading loading? :scroll #js {:x 800}
                   :rowSelection #js {}
                   :columns (config-columns
-                            #(do (set-editing! %) (set-modal-visible! true))
-                            #(rf/dispatch [:configs/delete %]))
+                             #(do (set-editing! %) (set-modal-visible! true))
+                             #(rf/dispatch [:configs/delete %]))
                   :dataSource (clj->js items)
                   :pagination {:pageSize 10 :total total
                                :show-total (fn [t] (str "共 " t " 条"))}}]

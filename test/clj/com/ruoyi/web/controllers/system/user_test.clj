@@ -1,10 +1,13 @@
 (ns com.ruoyi.web.controllers.system.user-test
   "用户管理控制器测试。"
-  (:require [clojure.test :refer [deftest is testing]]
-            [com.ruoyi.web.controllers.system.user :as user]))
+  (:require
+    [clojure.test :refer [deftest is testing]]
+    [com.ruoyi.web.controllers.system.user :as user]))
+
 
 (def admin-identity
   {:user-id 1 :user-name "admin" :roles [{:role-key "admin" :data-scope 1}]})
+
 
 (def mock-user-service
   {:query-fn (fn [q p]
@@ -33,12 +36,14 @@
                  :delete-user-posts! nil
                  nil))})
 
+
 (deftest test-list-users
   (testing "查询用户列表"
     (let [request {:query-params {} :identity admin-identity}
           response (user/list-users {:user-service mock-user-service} request)]
       (is (map? response))
       (is (= 200 (:status response))))))
+
 
 (deftest test-list-users-filter-query
   (testing "用户管理所有检索条件会传给领域 SQL 参数"
@@ -69,6 +74,7 @@
       (is (= "2026-06-02" (:begin_time @captured)))
       (is (= "2026-06-30 23:59:59" (:end_time @captured))))))
 
+
 (deftest test-get-user
   (testing "获取用户详情"
     (let [request {:path-params {:id "1"} :identity admin-identity}
@@ -76,17 +82,20 @@
       (is (map? response))
       (is (= 200 (:status response))))))
 
+
 (deftest test-get-user-not-found
   (testing "获取用户详情不存在"
-    (let [service {:query-fn (fn [q p] (case q
-                                        :find-user-by-id nil
-                                        :list-roles-by-user-id []
-                                        :list-posts-by-user-id []
-                                        nil))}
+    (let [service {:query-fn (fn [q p]
+                               (case q
+                                 :find-user-by-id nil
+                                 :list-roles-by-user-id []
+                                 :list-posts-by-user-id []
+                                 nil))}
           request {:path-params {:id "999"} :identity admin-identity}
           response (user/get-user {:user-service service} request)]
       (is (map? response))
       (is (= 200 (:status response))))))
+
 
 (deftest test-create-user
   (testing "创建用户"
@@ -96,6 +105,7 @@
       (is (map? response))
       (is (= 200 (:status response))))))
 
+
 (deftest test-create-user-validation
   (testing "创建用户缺少用户名"
     (let [request {:body-params {:nick_name "测试" :password "123456"}
@@ -103,6 +113,7 @@
           response (user/create-user {:user-service mock-user-service} request)]
       (is (map? response))
       (is (= 200 (:status response))))))
+
 
 (deftest test-update-user
   (testing "更新用户"
@@ -113,6 +124,7 @@
       (is (map? response))
       (is (= 200 (:status response))))))
 
+
 (deftest test-update-user-with-roles-posts
   (testing "更新用户带角色岗位"
     (let [request {:path-params {:id "1"}
@@ -122,6 +134,7 @@
       (is (map? response))
       (is (= 200 (:status response))))))
 
+
 (deftest test-delete-user
   (testing "删除用户"
     (let [request {:path-params {:id "1"} :identity admin-identity}
@@ -129,12 +142,14 @@
       (is (map? response))
       (is (= 200 (:status response))))))
 
+
 (deftest test-change-status
   (testing "修改用户状态"
     (let [request {:path-params {:id "1" :status "1"} :identity admin-identity}
           response (user/change-status {:user-service mock-user-service} request)]
       (is (map? response))
       (is (= 200 (:status response))))))
+
 
 (deftest test-reset-password
   (testing "重置用户密码"
@@ -145,6 +160,7 @@
       (is (map? response))
       (is (= 200 (:status response))))))
 
+
 (deftest test-import-users
   (testing "导入用户"
     (let [request {:body-params {:rows [{:user_name "import1" :nick_name "导入1"}
@@ -154,6 +170,7 @@
       (is (map? response))
       (is (= 200 (:status response))))))
 
+
 (deftest test-export-users
   (testing "导出用户CSV"
     (let [request {:query-params {} :identity admin-identity}
@@ -161,12 +178,14 @@
       (is (map? response))
       (is (= 200 (:status response))))))
 
+
 (deftest test-auth-role
   (testing "获取用户角色列表"
     (let [request {:path-params {:id "1"} :identity admin-identity}
           response (user/auth-role {:user-service mock-user-service} request)]
       (is (map? response))
       (is (= 200 (:status response))))))
+
 
 (deftest test-update-auth-role
   (testing "分配用户角色"
@@ -176,6 +195,7 @@
           response (user/update-auth-role {:user-service mock-user-service} request)]
       (is (map? response))
       (is (= 200 (:status response))))))
+
 
 (deftest test-import-template
   (testing "下载用户导入模板"

@@ -1,9 +1,10 @@
 (ns com.ruoyi.obs.trace-test
-   (:require
-     [clojure.test        :refer [deftest is testing]]
-     [clojure.data.json    :as json]
-     [clojure.string       :as str]
-     [com.ruoyi.obs.trace  :as obs :refer [*trace*]]))
+  (:require
+    [clojure.data.json    :as json]
+    [clojure.string       :as str]
+    [clojure.test        :refer [deftest is testing]]
+    [com.ruoyi.obs.trace  :as obs :refer [*trace*]]))
+
 
 (deftest new-trace-defaults
   (testing "新 trace spans 为空；project-intent 暴露 who/intent"
@@ -12,6 +13,7 @@
       (is (= "admin" (get-in (obs/project-intent t) [:who :user-name])))
       (is (= "新建用户" (:intent (obs/project-intent t))))
       (is (string? (:id t))))))
+
 
 (deftest push-collects-and-noop
   (testing "有 trace 时累加 span；无 trace 时 push! 安全 no-op"
@@ -23,13 +25,14 @@
         (is (= #{:a :b} (set (map :op (obs/spans @*trace*))))))
       (is (nil? (binding [obs/*trace* nil] (obs/push! {:op :x})))))))
 
+
 (deftest project-timeline
   (testing "timeline 给出 慢点 / SQL 次数 / 异常 / 墙钟"
     (let [t (atom (obs/new-trace {}))]
       (binding [obs/*trace* t]
         (doseq [s [{:op :db-sql :kind :dql :stmt "SELECT 1" :ms 5}
-                    {:op :db-sql :kind :dml :stmt "INSERT x"  :ms 90 :rows 3}
-                    {:op :error :class "x" :msg "boom"}]]
+                   {:op :db-sql :kind :dml :stmt "INSERT x"  :ms 90 :rows 3}
+                   {:op :error :class "x" :msg "boom"}]]
           (obs/push! s)))
       (let [tl (obs/project-timeline @t)]
         (is (= 2 (:db-calls tl)))
@@ -37,12 +40,14 @@
         (is (= 90 (:ms (:slow-leaf tl))))
         (is (number? (:wall-ms tl)))))))
 
+
 (deftest dml-predicates
   (testing "dml? 对 keyword 以尾部 '!' 判写，对 SQL 文本以动词判写"
     (is (true? (obs/dml? :create-op!)))
     (is (false? (obs/dml? :list-users)))
     (is (true? (obs/dml? "INSERT INTO t VALUES (1)")))
     (is (false? (obs/dml? "SELECT x FROM t")))))
+
 
 (deftest wrap-query-fn-records-rows
   (testing "有 trace 时记录 SQL kind + 行数；dql 不记 rows"
@@ -57,16 +62,18 @@
           (is (= :dql (-> sps second :kind)))
           (is (nil? (-> sps second :rows))))))))
 
+
 (deftest wrap-query-fn-rerethrow
   (testing "异常 re-throw，同时记入 trace 错误链"
     (let [t    (atom (obs/new-trace {}))
           fail (obs/wrap-query-fn (fn [stmt p]
-                                     (throw (ex-info "db down" {:sql stmt}))))]
+                                    (throw (ex-info "db down" {:sql stmt}))))]
       (binding [obs/*trace* t]
         (is (thrown? clojure.lang.ExceptionInfo (fail :boom! {}))))
       (let [sp (last (obs/spans @t))]
         (is (= :error (:kind sp)))
         (is (= "db down" (:msg (get sp :error))))))))
+
 
 (deftest wrap-query-fn-transparent
   (testing "无 trace 时完全透明"
@@ -74,11 +81,12 @@
       (is (= :q (wqf :q {})))
       (is (nil? obs/*trace*)))))
 
+
 (deftest project-result-healthy
   (testing "健康请求：ok / status / 副作用 / 契约通过"
     (let [t (atom (obs/new-trace
-                     {:contract {:desc "必须 200"
-                                   :check (fn [{:keys [response]}] (= 200 (:status response)))}}))]
+                    {:contract {:desc "必须 200"
+                                :check (fn [{:keys [response]}] (= 200 (:status response)))}}))]
       (binding [obs/*trace* t]
         (obs/push! {:op :db-sql :kind :dml :rows 1 :stmt "INSERT x"})
         (obs/push! {:op :effect :name :cache})
@@ -90,14 +98,16 @@
         (is (true? (get-in r [:contract :ok])))
         (is (= [] (:error-chain r)))))))
 
+
 (deftest project-result-contract-violation
   (testing "契约不通过时 :contract 的 ok 为 false"
     (let [t (atom (obs/new-trace
-                     {:contract {:desc "必须 200"
-                                   :check (fn [{:keys [response]}] (= 200 (:status response)))}}))]
+                    {:contract {:desc "必须 200"
+                                :check (fn [{:keys [response]}] (= 200 (:status response)))}}))]
       (binding [obs/*trace* t]
         (swap! *trace* update :meta assoc :response {:status 500}))
       (is (false? (get-in (obs/project-result @t) [:contract :ok]))))))
+
 
 (deftest observe-exception-handler-records-error
   (testing "observe-exception-handler 把异常记入 trace 并委托 handler"
@@ -112,6 +122,7 @@
             (is (= "clojure.lang.ExceptionInfo" (:class chain)))
             (is (= "DELETE x" (get-in chain [:data :sql])))))))))
 
+
 (deftest canonical-stability
   (testing "集合比较与顺序无关；函数/异常被规约"
     (is (= (obs/canonical {:s #{1 2 3}})
@@ -119,6 +130,7 @@
     (is (= {:f :<fn>} (obs/canonical {:f (fn [])})))
     (is (= {:exception "clojure.lang.ExceptionInfo" :msg "boom"}
            (obs/canonical (ex-info "boom" {}))))))
+
 
 (deftest replay
   (testing "把结果与重跑结果 canonical 比较"
@@ -129,6 +141,7 @@
       (is (= :stable     (:status (obs/replay (mk {:n 2}) (constantly {:n 2})))))
       (is (= :changed    (:status (obs/replay (mk {:n 2}) (constantly {:n 3})))))
       (is (= :no-capture (:status (obs/replay (obs/new-trace {}) (constantly {:x 1}))))))))
+
 
 (deftest end-to-end-wrap-trace
   (testing "wrap-trace 接一次请求：过程/结果/x-trace-id/上下文 JSON"
@@ -161,6 +174,7 @@
       (is (true? (get-in ac [:contract :ok])))
       (is (map? (json/read-str js)))
       (is (false? (str/includes? js "<fn>"))))))
+
 
 (deftest render-context-json-safety
   (testing "render-context 产出可解析 JSON"

@@ -1,13 +1,15 @@
 (ns com.ruoyi.frontend.pages.login
   "登录页面 — 带验证码。"
   (:require
-   [reagent.core :as r]
-   [reagent.hooks :as hooks]
-   [re-frame.core :as rf]
-   ["@ant-design/icons" :refer [UserOutlined LockOutlined SafetyOutlined]]
-   [com.ruoyi.frontend.antd :as antd]))
+    ["@ant-design/icons" :refer [UserOutlined LockOutlined SafetyOutlined]]
+    [com.ruoyi.frontend.antd :as antd]
+    [re-frame.core :as rf]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
 
-(defn login-page []
+
+(defn login-page
+  []
   (let [initial-uuid (str (random-uuid))
         [username set-username!] (hooks/use-state "admin")
         [password set-password!] (hooks/use-state "admin123")

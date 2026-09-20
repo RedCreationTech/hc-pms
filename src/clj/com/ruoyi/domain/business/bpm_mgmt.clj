@@ -2,11 +2,13 @@
   "BPM 管理套件领域服务：用户分组/流程监听器/流程表达式/流程设置 的通用 CRUD。
    4 个模块 CRUD 结构相同，用数据驱动配置复用。"
   (:require
-   [integrant.core :as ig]))
+    [integrant.core :as ig]))
+
 
 (defmethod ig/init-key :app.business/bpm-mgmt-service
   [_ {:keys [query-fn db]}]
   {:query-fn query-fn :db db})
+
 
 ;; 各模块的 CRUD 配置（查询名/id 列/可写字段）
 (def ^:private crud
@@ -31,14 +33,21 @@
                 :id :settings_id :name "name"
                 :fields [:name :value :description :status :remark]}})
 
-(defn- page-params [params]
+
+(defn- page-params
+  [params]
   (let [page (or (some-> (get params :page) Integer/parseInt) 1)
         size (or (some-> (get params :size) Integer/parseInt) 10)]
     {:page page :size size :offset (* (dec page) size)}))
 
-(defn- cfg [module] (get crud module))
 
-(defn list-items [{:keys [query-fn]} module params]
+(defn- cfg
+  [module]
+  (get crud module))
+
+
+(defn list-items
+  [{:keys [query-fn]} module params]
   (let [{:keys [offset size]} (page-params params)
         c (cfg module)
         p {:name (get params :name) :type (get params :type)
@@ -48,20 +57,28 @@
       (doseq [r rows] (assoc r :type (get params :type))))
     {:rows rows :total (:total (query-fn (:count c) p))}))
 
-(defn get-item [{:keys [query-fn]} module id]
+
+(defn get-item
+  [{:keys [query-fn]} module id]
   (let [c (cfg module)]
     (query-fn (:find c) {(keyword (name (:id c))) id})))
 
-(defn create-item [{:keys [query-fn]} module params user]
+
+(defn create-item
+  [{:keys [query-fn]} module params user]
   (let [c (cfg module)
         p (into {} (map (fn [f] [f (or (get params f) "")]) (:fields c)))]
     (query-fn (:insert c) (assoc p :create_by (or user "")))))
 
-(defn update-item [{:keys [query-fn]} module id params user]
+
+(defn update-item
+  [{:keys [query-fn]} module id params user]
   (let [c (cfg module)
         p (into {} (map (fn [f] [f (or (get params f) "")]) (:fields c)))]
     (query-fn (:update c) (assoc p (:id c) id :update_by (or user "")))))
 
-(defn delete-item [{:keys [query-fn]} module id]
+
+(defn delete-item
+  [{:keys [query-fn]} module id]
   (let [c (cfg module)]
     (query-fn (:delete c) {(:id c) id})))

@@ -1,18 +1,21 @@
 (ns com.ruoyi.domain.system.dept
   "部门领域服务。"
   (:require
-   [clojure.string :as str]
-   [com.ruoyi.infra.db :as db]))
+    [clojure.string :as str]
+    [com.ruoyi.infra.db :as db]))
+
 
 (defn list-depts
   "查询部门列表。"
   [{:keys [query-fn]} params]
   (query-fn :list-depts (merge {:status nil :dept_name nil} params)))
 
+
 (defn find-dept-by-id
   "根据ID查询部门。"
   [{:keys [query-fn]} dept-id]
   (query-fn :find-dept-by-id {:dept_id dept-id}))
+
 
 (defn- compute-ancestors
   "根据父部门计算 ancestors 路径。"
@@ -26,6 +29,7 @@
       (str "0," parent-id))
     "0"))
 
+
 (defn- update-descendants-ancestors!
   "递归更新子部门的 ancestors。"
   [{:keys [query-fn]} dept-id ancestors]
@@ -35,6 +39,7 @@
             child-ancestors (str ancestors "," child-id)]
         (query-fn :update-dept-ancestors! {:dept_id child-id :ancestors child-ancestors})
         (update-descendants-ancestors! {:query-fn query-fn} child-id child-ancestors)))))
+
 
 (defn create-dept!
   "创建部门。"
@@ -46,6 +51,7 @@
                    (assoc :parent_id parent-id
                           :ancestors (compute-ancestors ctx parent-id)))]
     (db/insert-and-get-id! query-fn db :create-dept! params)))
+
 
 (defn update-dept!
   "更新部门。"
@@ -60,6 +66,7 @@
         (query-fn :update-dept! (assoc params :ancestors ancestors))
         (update-descendants-ancestors! ctx dept-id ancestors))
       (query-fn :update-dept! params))))
+
 
 (defn delete-dept!
   "逻辑删除部门。"

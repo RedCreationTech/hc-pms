@@ -1,8 +1,10 @@
 (ns com.ruoyi.web.controllers.job-test
   "定时任务控制器测试。"
-  (:require [clojure.test :refer [deftest is testing]]
-            [com.ruoyi.web.controllers.job :as job]
-            [com.ruoyi.infra.scheduler :as scheduler-core]))
+  (:require
+    [clojure.test :refer [deftest is testing]]
+    [com.ruoyi.infra.scheduler :as scheduler-core]
+    [com.ruoyi.web.controllers.job :as job]))
+
 
 (def ^:private test-job
   {:job_id 1
@@ -14,6 +16,7 @@
    :concurrent "0"
    :status "0"
    :remark "test"})
+
 
 (defn mock-query-fn
   "根据查询关键字返回固定响应的 mock query-fn。"
@@ -31,8 +34,10 @@
     :clean-job-logs! nil
     nil))
 
+
 (def mock-service
   {:query-fn mock-query-fn})
+
 
 (deftest test-list-jobs
   (testing "查询定时任务列表"
@@ -42,6 +47,7 @@
       (is (= 200 (get-in response [:body :code])))
       (is (= [test-job] (get-in response [:body :data]))))))
 
+
 (deftest test-get-job-found
   (testing "获取定时任务详情（存在）"
     (let [request {:path-params {:id "1"}}
@@ -49,6 +55,7 @@
       (is (= 200 (:status response)))
       (is (= 200 (get-in response [:body :code])))
       (is (= test-job (get-in response [:body :data]))))))
+
 
 (deftest test-get-job-not-found
   (testing "获取定时任务详情（不存在）"
@@ -58,6 +65,7 @@
       (is (= 200 (:status response)))
       (is (= 500 (get-in response [:body :code])))
       (is (= "任务不存在" (get-in response [:body :msg]))))))
+
 
 (deftest test-create-job
   (testing "创建定时任务"
@@ -76,6 +84,7 @@
         (is (= 200 (get-in response [:body :code])))
         (is (= {:job_id 2} (get-in response [:body :data])))))))
 
+
 (deftest test-create-job-invalid-cron
   (testing "创建定时任务（cron 非法）"
     (let [request {:identity {:user-name "admin"}
@@ -87,6 +96,7 @@
       (is (= 200 (:status response)))
       (is (= 500 (get-in response [:body :code])))
       (is (= "cron 表达式不合法" (get-in response [:body :msg]))))))
+
 
 (deftest test-update-job
   (testing "更新定时任务"
@@ -101,6 +111,7 @@
         (is (= 200 (get-in response [:body :code])))
         (is (= "更新成功" (get-in response [:body :data])))))))
 
+
 (deftest test-delete-job
   (testing "删除定时任务"
     (with-redefs [scheduler-core/unschedule-job! (fn [_ _] nil)]
@@ -109,6 +120,7 @@
         (is (= 200 (:status response)))
         (is (= 200 (get-in response [:body :code])))
         (is (= "删除成功" (get-in response [:body :data])))))))
+
 
 (deftest test-list-job-logs
   (testing "查询任务日志列表"
@@ -119,6 +131,7 @@
       (is (= 1 (get-in response [:body :data :total])))
       (is (= [{:job_log_id 1 :job_name "test"}] (get-in response [:body :data :rows]))))))
 
+
 (deftest test-execute-job
   (testing "执行一次定时任务"
     (let [request {:path-params {:id "1"}}
@@ -126,6 +139,7 @@
       (is (= 200 (:status response)))
       (is (= 200 (get-in response [:body :code])))
       (is (= "执行成功" (get-in response [:body :data]))))))
+
 
 (deftest test-change-status-resume
   (testing "恢复定时任务"
@@ -138,6 +152,7 @@
         (is (= 200 (get-in response [:body :code])))
         (is (= "状态修改成功" (get-in response [:body :data])))))))
 
+
 (deftest test-change-status-pause
   (testing "暂停定时任务"
     (with-redefs [scheduler-core/pause-job! (fn [_ _] nil)]
@@ -149,6 +164,7 @@
         (is (= 200 (get-in response [:body :code])))
         (is (= "状态修改成功" (get-in response [:body :data])))))))
 
+
 (deftest test-run-once
   (testing "立即触发任务"
     (with-redefs [scheduler-core/trigger-job! (fn [_ _] nil)]
@@ -157,6 +173,7 @@
         (is (= 200 (:status response)))
         (is (= 200 (get-in response [:body :code])))
         (is (= "任务 1 已触发执行" (get-in response [:body :data])))))))
+
 
 (deftest test-clean-logs
   (testing "清空任务日志"

@@ -2,17 +2,19 @@
   "BPM 业务领域服务。持有 Flowable 引擎 + 业务库 query-fn，
    提供流程分类/模型/表单/实例 的 CRUD 与流程运行操作。"
   (:require
-   [cheshire.core :as json]
-   [clj-http.client :as http]
-   [clojure.string :as str]
-   [clojure.tools.logging :as log]
-   [com.ruoyi.bpm.core :as bpm]
-   [com.ruoyi.domain.business.bpm-flow :as bpm-flow]
-   [integrant.core :as ig]))
+    [cheshire.core :as json]
+    [clj-http.client :as http]
+    [clojure.string :as str]
+    [clojure.tools.logging :as log]
+    [com.ruoyi.bpm.core :as bpm]
+    [com.ruoyi.domain.business.bpm-flow :as bpm-flow]
+    [integrant.core :as ig]))
+
 
 ;; ── 抄送节点处理器（COPY_TASK）─────────────────────────────────────────
 
 (declare resolve-candidate-users list-all-users)
+
 
 (defn- expand-copy-candidates
   "把抄送节点配置(copy-user-ids/copy-role-ids)展开为用户名列表。"
@@ -24,6 +26,7 @@
                                                      (:role_ids %))
                                               users)))]
     (distinct (vec (keep identity names)))))
+
 
 (defn- candidates-from-links
   "从 DelegateTask 的候选人(内存 identityLink)展开抄送用户：
@@ -50,6 +53,7 @@
                                                     users))
                          [])))))]
     (distinct (vec (keep identity (mapcat expand (.getCandidates task)))))))
+
 
 (defn- copy-task-handler
   "COPY_TASK 节点 create 事件处理：为每个候选人插 biz_bpm_copy 记录，然后自动完成任务。
@@ -84,6 +88,7 @@
       (catch Exception e
         (log/error "[bpm-copy] 自动完成抄送任务失败:" (.getMessage e))))))
 
+
 ;; ── Integrant 组件 ────────────────────────────────────────────────────
 
 (def ^:private dynamic-strategies
@@ -92,14 +97,18 @@
     "START_USER_SELECT" "APPROVE_USER_SELECT"
     "INITIATOR_SELF" "USER_GROUP" "FORM_USER" "FORM_DEPT_LEADER" "EXPRESSION"})
 
+
 (def ^:private multi-instance-methods
   "多实例审批方式（由 collection 驱动，create 监听器不干预候选人）。"
   #{"ANY" "ALL" "RATIO"})
 
-(defn- list-all-users [query-fn]
+
+(defn- list-all-users
+  [query-fn]
   (query-fn :list-users {:user_name nil :phonenumber nil :status nil
                          :begin_time nil :end_time nil :dept_filter_enabled 0
                          :dept_ids [0] :data_user_id nil :page_size 100000 :offset 0}))
+
 
 (defn- resolve-candidate-users
   "按候选策略解析用户名列表（审批/办理节点 create 与抄送节点共用的策略解析器）。
@@ -176,6 +185,7 @@
         (when (seq v) (user-names-of v)))
       nil)))
 
+
 ;; ── Phase 3 自动去重（模型级 auto_approval_type）────────────────────────
 
 (defn- model-auto-approval-type
@@ -189,6 +199,7 @@
       (or (some-> (query-fn :bpm/find-model-by-key {:model_key (.getKey pd)})
                   :auto_approval_type)
           "NONE"))))
+
 
 (defn- auto-approved?
   "按去重类型判断当前节点是否应自动通过（依据 complete* 维护的流程变量，同命令内可见）：
@@ -205,6 +216,7 @@
       (boolean (and (seq last-approver) (contains? user-set last-approver)))
       false)))
 
+
 (defn- apply-auto-approval
   "把节点 create 处理器算出的 action 再经过模型级自动去重过滤：
    命中去重规则时覆盖为 [:complete true]（自动通过）；否则原样返回。
@@ -217,12 +229,13 @@
                     (and (vector? action)
                          (contains? #{:assign :candidates} (first action))) (seq (second action))
                     (nil? action) (seq (keep (fn [^org.flowable.identitylink.api.IdentityLink l]
-                                                 (.getUserId l))
-                                               (.getCandidates task)))
+                                               (.getUserId l))
+                                             (.getCandidates task)))
                     :else nil)]
         (if (and (seq users) (auto-approved? task users auto-type))
           [:complete true]
           action)))))
+
 
 (defn- make-node-create-handler
   "构建节点 create 事件处理器（Phase 2 节点配置补全的核心）：
@@ -254,52 +267,54 @@
             users* (delay (list-all-users query-fn))
             depts* (delay (query-fn :list-all-depts {}))]
         (apply-auto-approval
-         engine query-fn task
-         (when-not (contains? multi-instance-methods method)
-           (if (contains? dynamic-strategies strategy)
-             ;; ── 动态解析策略（含 5 种新策略）：create 时解析候选人 ──
-             (let [users @users*
-                   depts @depts*
-                   start-user (some-> (.getVariable task "startUserId") str)
-                   leaders-of (fn [dept-id]
-                                (when-let [d (first (filter #(= (str dept-id) (str (:dept_id %))) depts))]
-                                  (when-let [leader (:leader d)]
-                                    (user-names-of users [leader]))))
-                   base (resolve-candidate-users engine query-fn task strategy param node-config users depts)
-                   start-handler (:assign-start-user-handler-type node-config)
-                   candidates (distinct (vec (keep identity base)))
-                   candidates (cond
-                                (= start-handler "SKIP") (remove #(= start-user %) candidates)
-                                (= start-handler "ASSIGN_DEPT_LEADER")
-                                (if (some #(= start-user %) candidates)
-                                  (concat (remove #(= start-user %) candidates)
-                                          (when start-user
-                                            (leaders-of (:dept_id (first (filter #(= start-user (str (:user_name %))) users))))))
-                                  candidates)
-                                :else candidates)]
-               (cond
-                 (seq candidates) (if random? [:assign [(rand-nth candidates)]] [:candidates candidates])
-                 (= start-handler "SKIP") [:complete nil]
-                 :else (empty-action node-config users)))
-             ;; ── 静态策略：候选由引擎从 BPMN 属性烘焙，监听器只做 RANDOM/为空兜底 ──
-             (let [links (seq (.getCandidates task))
-                   user-links (vec (keep (fn [^org.flowable.identitylink.api.IdentityLink l]
-                                           (.getUserId l))
-                                         links))]
-               (cond
-                 (seq user-links)
-                 (if random? [:assign [(rand-nth user-links)]] nil)
-                 (seq links)
-                 (let [users @users*
-                       cands (candidates-from-links task users @depts*
-                                                    (query-fn :list-user-roles {})
-                                                    (query-fn :list-user-posts {}))]
-                   (if (seq cands)
-                     (if random? [:assign [(rand-nth cands)]] nil)
-                     (empty-action node-config users)))
-                 :else (empty-action node-config @users*))))))))))
+          engine query-fn task
+          (when-not (contains? multi-instance-methods method)
+            (if (contains? dynamic-strategies strategy)
+              ;; ── 动态解析策略（含 5 种新策略）：create 时解析候选人 ──
+              (let [users @users*
+                    depts @depts*
+                    start-user (some-> (.getVariable task "startUserId") str)
+                    leaders-of (fn [dept-id]
+                                 (when-let [d (first (filter #(= (str dept-id) (str (:dept_id %))) depts))]
+                                   (when-let [leader (:leader d)]
+                                     (user-names-of users [leader]))))
+                    base (resolve-candidate-users engine query-fn task strategy param node-config users depts)
+                    start-handler (:assign-start-user-handler-type node-config)
+                    candidates (distinct (vec (keep identity base)))
+                    candidates (cond
+                                 (= start-handler "SKIP") (remove #(= start-user %) candidates)
+                                 (= start-handler "ASSIGN_DEPT_LEADER")
+                                 (if (some #(= start-user %) candidates)
+                                   (concat (remove #(= start-user %) candidates)
+                                           (when start-user
+                                             (leaders-of (:dept_id (first (filter #(= start-user (str (:user_name %))) users))))))
+                                   candidates)
+                                 :else candidates)]
+                (cond
+                  (seq candidates) (if random? [:assign [(rand-nth candidates)]] [:candidates candidates])
+                  (= start-handler "SKIP") [:complete nil]
+                  :else (empty-action node-config users)))
+              ;; ── 静态策略：候选由引擎从 BPMN 属性烘焙，监听器只做 RANDOM/为空兜底 ──
+              (let [links (seq (.getCandidates task))
+                    user-links (vec (keep (fn [^org.flowable.identitylink.api.IdentityLink l]
+                                            (.getUserId l))
+                                          links))]
+                (cond
+                  (seq user-links)
+                  (if random? [:assign [(rand-nth user-links)]] nil)
+                  (seq links)
+                  (let [users @users*
+                        cands (candidates-from-links task users @depts*
+                                                     (query-fn :list-user-roles {})
+                                                     (query-fn :list-user-posts {}))]
+                    (if (seq cands)
+                      (if random? [:assign [(rand-nth cands)]] nil)
+                      (empty-action node-config users)))
+                  :else (empty-action node-config @users*))))))))))
+
 
 (declare fire-webhooks! fire-node-listener!)
+
 
 (defmethod ig/init-key :app.business/bpm-service
   [_ {:keys [engine query-fn db]}]
@@ -308,27 +323,28 @@
     (bpm/set-node-create-handler! (make-node-create-handler engine query-fn))
     ;; 注册抄送节点处理器（TaskListener create 时自动插抄送记录并完成任务）
     (bpm/set-copy-handler!
-     (fn [task node-config]
-       (copy-task-handler engine query-fn task node-config)))
+      (fn [task node-config]
+        (copy-task-handler engine query-fn task node-config)))
     ;; Phase 4：模型级 Webhook + 节点监听器分发器（引擎封装层统一触发点转发到这里）
     (bpm/set-webhook-dispatcher!
-     (fn [event info]
-       (fire-webhooks! event service info)))
+      (fn [event info]
+        (fire-webhooks! event service info)))
     ;; 流程实例结束回写：approve→"2"(通过) reject→"3"(驳回) cancel/terminate→CANCELED，
     ;; current_task 一并清空（挂在 complete* 的 process_end 检测点 + 取消/终止路径）
     (bpm/set-instance-end-handler!
-     (fn [{:keys [process-instance-id result]}]
-       (query-fn :bpm/update-instance-status
-                 {:process_instance_id process-instance-id
-                  :status (case result
-                            :approve "2"
-                            :reject "3"
-                            "CANCELED")
-                  :current_task ""})))
+      (fn [{:keys [process-instance-id result]}]
+        (query-fn :bpm/update-instance-status
+                  {:process_instance_id process-instance-id
+                   :status (case result
+                             :approve "2"
+                             :reject "3"
+                             "CANCELED")
+                   :current_task ""})))
     (bpm/set-node-listener-dispatcher!
-     (fn [event-name task]
-       (fire-node-listener! service event-name task)))
+      (fn [event-name task]
+        (fire-node-listener! service event-name task)))
     service))
+
 
 ;; ── 分页工具 ──────────────────────────────────────────────────────────
 (defn- page-params
@@ -338,6 +354,7 @@
         size (or (some-> (get params :size) Integer/parseInt) 10)]
     {:page page :size size :offset (* (dec page) size)}))
 
+
 (defn- row->json
   "把表的 JSON 文本字段解析为 Clojure 数据。"
   [row ks]
@@ -346,6 +363,7 @@
               (assoc m k (try (json/parse-string v true) (catch Exception _ v)))
               m))
           row ks))
+
 
 ;; ── Phase 3 治理能力：编号规则 / 标题渲染 / 摘要计算 ────────────────────
 
@@ -357,11 +375,13 @@
     (string? v) (try (json/parse-string v true) (catch Exception _ nil))
     :else v))
 
+
 (defn- form-fields-of
   "动态表单 schema 的字段列表 [{:field :title}]。"
   [query-fn form-id]
   (when-let [form (and form-id (query-fn :bpm/find-form-by-id {:form_id form-id}))]
     (:fields (parse-json-field (:form_json form)))))
+
 
 (defn summary-of
   "按模型 summary_fields（表单字段 id 列表）计算实例摘要，
@@ -381,6 +401,7 @@
                           :value (str (get form-data (keyword k)))
                           :label (str (get labels k k))})))
                    fields))))))
+
 
 (defn- gen-bill-code
   "按模型 process_id_rule 生成流程单号：前缀+日期中缀+后缀+当日递增流水号（长度≥5）。
@@ -404,6 +425,7 @@
             seq-n (if tail (inc (Long/parseLong tail)) 1)]
         (str base (format (str "%0" length "d") seq-n))))))
 
+
 (defn- render-instance-name
   "按模型 name_rule 渲染实例名。模板支持 {字段id}、{发起人}、{发起时间}、{流程名称}；
    未配置时回退为模型名。"
@@ -421,6 +443,7 @@
             (str/replace "{流程名称}" (or (:model_name model) ""))))
       (or (:model_name model) ""))))
 
+
 ;; ── 流程分类 ──────────────────────────────────────────────────────────
 (defn category-list
   [{:keys [query-fn]} params]
@@ -429,9 +452,11 @@
     {:rows (query-fn :bpm/category-list p)
      :total (:total (query-fn :bpm/category-count p))}))
 
+
 (defn category-get
   [{:keys [query-fn]} id]
   (query-fn :bpm/find-category-by-id {:category_id id}))
+
 
 (defn category-create
   [{:keys [query-fn]} params user]
@@ -441,6 +466,7 @@
              :order_num (or (:order_num params) 0)
              :create_by (or user "") :remark (or (:remark params) "")}))
 
+
 (defn category-update
   [{:keys [query-fn]} params user]
   (query-fn :bpm/update-category
@@ -449,9 +475,11 @@
              :order_num (:order_num params)
              :status (:status params) :update_by (or user "") :remark (:remark params)}))
 
+
 (defn category-delete
   [{:keys [query-fn]} id]
   (query-fn :bpm/delete-category {:category_id id}))
+
 
 (defn category-sort!
   "P1：批量保存分类排序（ids 按新顺序排列，order_num = 下标×10）。"
@@ -459,6 +487,7 @@
   (doseq [[i id] (map-indexed vector (or ids []))]
     (query-fn :bpm/update-category-order {:category_id id :order_num (* i 10)}))
   {:sorted (count (or ids []))})
+
 
 ;; ── 流程模型 ──────────────────────────────────────────────────────────
 (defn- deploy-time-of
@@ -474,11 +503,13 @@
               (str))
       (catch Exception _ nil))))
 
+
 (defn- json-ids
   "JSON 文本 → id 字符串向量（nil/非法返回 []）。"
   [v]
   (let [parsed (parse-json-field v)]
     (if (sequential? parsed) (mapv str parsed) [])))
+
 
 (defn model-list
   "P1：行附带最新部署时间(deploy_time)、可发起人员/部门名简表(start_users/start_depts)，
@@ -501,19 +532,23 @@
                  (query-fn :bpm/model-list p))
      :total (:total (query-fn :bpm/model-count p))}))
 
+
 (defn model-get
   [{:keys [query-fn]} id]
   (-> (query-fn :bpm/find-model-by-id {:model_id id})
       (row->json [:form_json :bpmn_xml :webhooks])))
+
 
 (defn model-get-by-key
   [{:keys [query-fn]} key]
   (-> (query-fn :bpm/find-model-by-key {:model_key key})
       (row->json [:form_json :bpmn_xml :webhooks])))
 
+
 (def ^:private model-key-pattern
   "流程 key 校验：字母/下划线开头，可含字母数字 _ - . $。"
   #"^[a-zA-Z_][-\w.$]*$")
+
 
 (defn- default-model-bpmn
   "新建模型的默认 BPMN 骨架（发起人 → 结束），设计器打开即可继续添加节点。"
@@ -526,6 +561,7 @@
        "<endEvent id=\"end\" name=\"结束\"/>"
        "<sequenceFlow id=\"f1\" sourceRef=\"start\" targetRef=\"end\"/>"
        "</process></definitions>"))
+
 
 (defn model-create
   "新建流程模型：校验 key 格式(字母/下划线开头，可含字母数字与 _ - . $)与重名，
@@ -564,6 +600,7 @@
                :allow_withdraw (or (:allow_withdraw params) "1")
                :create_by (or user "") :remark (or (:remark params) "")})))
 
+
 (defn model-update
   "P1：icon/start_user_ids/start_dept_ids/manager_user_ids/order_num 走 COALESCE，
    传 nil 时保留原值（model-save-tree! 等部分更新调用方无需关注新列）。"
@@ -592,12 +629,14 @@
              :allow_withdraw (:allow_withdraw params)
              :update_by (or user "") :remark (:remark params)}))
 
+
 (defn model-sort!
   "P1：批量保存模型排序（ids 按新顺序排列，order_num = 下标×10）。"
   [{:keys [query-fn]} ids]
   (doseq [[i id] (map-indexed vector (or ids []))]
     (query-fn :bpm/update-model-order {:model_id id :order_num (* i 10)}))
   {:sorted (count (or ids []))})
+
 
 (defn model-delete
   [{:keys [engine query-fn]} id]
@@ -606,6 +645,7 @@
       (try (bpm/delete-deployment! engine dep-id)
            (catch Exception _ nil)))
     (query-fn :bpm/delete-model {:model_id id})))
+
 
 (defn- load-identity-data
   "加载系统用户/角色/部门/岗位关系，用于同步到 Flowable identity。"
@@ -618,6 +658,7 @@
    :posts (query-fn :list-posts {:post_code nil :post_name nil :status nil})
    :user-roles (query-fn :list-user-roles {})
    :user-posts (query-fn :list-user-posts {})})
+
 
 (defn model-deploy!
   "部署流程模型到 Flowable，并回写 deployment_id。返回新 deployment-id。"
@@ -632,11 +673,13 @@
               {:model_id id :deployment_id dep-id :version new-version :status "1"})
     {:deployment-id dep-id :version new-version}))
 
+
 (defn model-tree
   "把模型 BPMN 转为流程节点树（HTML/flex 编辑器工作模型）。"
   [{:keys [query-fn]} id]
   (let [m (query-fn :bpm/find-model-by-id {:model_id id})]
     (bpm-flow/bpmn->tree (:bpmn_xml m))))
+
 
 (defn model-save-tree!
   "保存流程节点树：转回 BPMN XML 并更新模型。返回新 XML。
@@ -650,7 +693,7 @@
         groups (into {} (map (fn [g]
                                [(str (:group_id g))
                                 (remove str/blank? (str/split (str (:user_ids g)) #"[,\s]+"))]))
-                             (query-fn :bpmmgmt/group-list {:name nil :page_size 100000 :offset 0}))
+                     (query-fn :bpmmgmt/group-list {:name nil :page_size 100000 :offset 0}))
         xml (bpm-flow/tree->bpmn (clojure.walk/keywordize-keys tree) (:model_key m) user-map groups)]
     (query-fn :bpm/update-model
               {:model_id id :model_name (:model_name m)
@@ -676,6 +719,7 @@
                :status "1" :update_by (or user "") :remark (:remark m)})
     {:bpmn_xml xml}))
 
+
 ;; ── 动态表单 ──────────────────────────────────────────────────────────
 (defn form-list
   [{:keys [query-fn]} params]
@@ -685,10 +729,12 @@
     {:rows (mapv #(row->json % [:form_json]) (query-fn :bpm/form-list p))
      :total (:total (query-fn :bpm/form-count p))}))
 
+
 (defn form-get
   [{:keys [query-fn]} id]
   (-> (query-fn :bpm/find-form-by-id {:form_id id})
       (row->json [:form_json])))
+
 
 (defn form-create
   [{:keys [query-fn]} params user]
@@ -697,6 +743,7 @@
              :form_json (:form_json params) :status (or (:status params) "0")
              :create_by (or user "") :remark (or (:remark params) "")}))
 
+
 (defn form-update
   [{:keys [query-fn]} params user]
   (query-fn :bpm/update-form
@@ -704,9 +751,11 @@
              :form_key (:form_key params) :form_json (:form_json params)
              :status (:status params) :update_by (or user "") :remark (:remark params)}))
 
+
 (defn form-delete
   [{:keys [query-fn]} id]
   (query-fn :bpm/delete-form {:form_id id}))
+
 
 ;; ── 流程实例（发起 + 运行）────────────────────────────────────────────
 (defn- candidate-names
@@ -721,17 +770,19 @@
                 nil)]
     (distinct (vec (keep identity names)))))
 
+
 (defn- collect-multi-nodes
   "收集流程树中多实例审批节点（approve-method 为 ANY/ALL/RATIO）。
    RANDOM 随机审批不是多实例，由 TaskListener 在 create 时指定 assignee，不注入 approverList。"
   [tree]
-  (let [walk (fn walk [node acc]
+  (let [walk (fn walk
+               [node acc]
                (if (nil? node)
                  acc
                  (let [cfg (:config node)
                        acc' (if (and cfg (= "USER" (:approve-type cfg))
-                                    (contains? #{"ANY" "ALL" "RATIO"}
-                                               (or (:approve-method cfg) "SEQUENTIAL")))
+                                     (contains? #{"ANY" "ALL" "RATIO"}
+                                                (or (:approve-method cfg) "SEQUENTIAL")))
                               (conj acc {:id (:id node) :config cfg})
                               acc)]
                    (-> acc'
@@ -739,10 +790,12 @@
                        (into (mapcat #(walk % []) (or (:condition-nodes node) [])))))))]
     (vec (walk tree []))))
 
+
 (defn- collect-child-multi-nodes
   "P1：收集子流程多实例节点（mi-enable），返回 [{:id :config}]。"
   [tree]
-  (let [walk (fn walk [node acc]
+  (let [walk (fn walk
+               [node acc]
                (if (nil? node)
                  acc
                  (let [cfg (:config node)
@@ -754,6 +807,7 @@
                        (into (walk (:child-node node) []))
                        (into (mapcat #(walk % []) (or (:condition-nodes node) [])))))))]
     (vec (walk tree []))))
+
 
 (defn- child-multi-vars
   "P1：子流程多实例实例数量 → miList_<node-id> 列表变量：
@@ -771,7 +825,8 @@
                    (case source
                      "MULTI_FIELD" (vec (or (get fd kw) (get fd (str (:mi-field config))) []))
                      (vec (repeat n 1)))])))
-        (collect-child-multi-nodes tree))) 
+        (collect-child-multi-nodes tree)))
+
 
 (defn- dept-and-parents
   "部门 id → 自身 + 全部上级部门 id 字符串列表。"
@@ -784,6 +839,7 @@
         (if-let [d (get by-id did)]
           (recur (some-> (:parent_id d) str) (conj acc did) (conj seen did))
           (conj acc did))))))
+
 
 (defn- check-start-permission!
   "P1 发起校验：模型配置了 start_user_ids / start_dept_ids 时，
@@ -802,6 +858,7 @@
                              dept-ok?))
           (throw (ex-info "您没有权限发起该流程" {:model_id (:model_id model)})))))))
 
+
 (defn instance-start!
   "发起流程：用模型部署的 key 启动 Flowable 实例，写入 biz_bpm_instance。
    P1：模型配置 start_user_ids/start_dept_ids 时先校验发起权限；
@@ -818,18 +875,18 @@
         fd (or form-data {})
         ;; 表单字段展开为流程变量（条件表达式 ${days > 3} 可直接引用），formData 保留完整 JSON
         field-vars (into {}
-                          (keep (fn [[k v]]
-                                  (when (not= (name k) "startUserSelected")
-                                    [(name k) v])))
-                          fd)
+                         (keep (fn [[k v]]
+                                 (when (not= (name k) "startUserSelected")
+                                   [(name k) v])))
+                         fd)
         users (query-fn :list-users {:user_name nil :phonenumber nil :status nil
                                      :begin_time nil :end_time nil :dept_filter_enabled 0
                                      :dept_ids [0] :data_user_id nil :page_size 100000 :offset 0})
         tree (bpm-flow/bpmn->tree (:bpmn_xml m))
         multi-vars (into {}
-                           (map (fn [{:keys [id config]}]
-                                  [(str "approverList_" id) (candidate-names config users)]))
-                           (collect-multi-nodes tree))
+                         (map (fn [{:keys [id config]}]
+                                [(str "approverList_" id) (candidate-names config users)]))
+                         (collect-multi-nodes tree))
         child-mi-vars (child-multi-vars tree fd)
         started (bpm/start! engine (:model_key m) biz-key
                             (cond-> (merge {"formData" (json/generate-string fd)
@@ -855,6 +912,7 @@
                     {:process-instance-id pid})
     {:process-instance-id pid :business-key biz-key :bill-code bill-code :name inst-name}))
 
+
 (defn instance-list
   [{:keys [query-fn]} params]
   (let [{:keys [offset size]} (page-params params)
@@ -866,6 +924,7 @@
                                                       (:form_id data) (:form_data_json data)))))
                  (query-fn :bpm/instance-list p))
      :total (:total (query-fn :bpm/instance-count p))}))
+
 
 (defn task-detail
   "任务详情：任务信息 + 实例表单数据 + 表单 schema（审批弹窗表单回显）。
@@ -902,6 +961,7 @@
                              (:reject-return-node node-config) (:rejectReturnNode node-config))
      :form {:schema schema :values (:form_data_json inst-data)}}))
 
+
 (defn todo-list-with-buttons
   "某人待办（候选人或已认领），每行附带当前节点操作按钮配置(Buttons)、
    实例名/单号与模型摘要(summary)；办理人节点默认按钮为「办理」。"
@@ -924,6 +984,7 @@
                                           (:form_id model) (:form_data_json inst)))))
           tasks)))
 
+
 (defn done-list-with-model-flags
   "某人已办（Flowable 历史），每行附带所属模型的权限开关 allow_cancel/allow_withdraw
    （P0-4：前端据此显隐撤回按钮）。实例/模型缺失时默认允许。"
@@ -936,12 +997,14 @@
                    :allow_withdraw (or (:allow_withdraw model) "1"))))
         (bpm/done-list engine user)))
 
+
 (defn- reason-required?
   "任务节点是否配置审批意见必填。"
   [engine task-id]
   (let [t (some-> (.taskId (.createTaskQuery (.getTaskService engine)) task-id) .singleResult)
         cfg (when t (bpm/node-config-of engine t))]
     (boolean (or (:reason-require cfg) (:reasonRequire cfg)))))
+
 
 (defn task-approve!
   "审批通过：意见必填校验（nodeConfig.reason-require）+ 手写签名存任务局部变量。"
@@ -950,12 +1013,14 @@
     (throw (ex-info "当前节点要求填写审批意见" {:task-id task-id})))
   (bpm/approve! engine task-id user comment sign-pic-url))
 
+
 (defn task-reject!
   "审批驳回：意见必填校验 + 手写签名存任务局部变量。"
   [{:keys [engine]} task-id user comment return-node-id sign-pic-url]
   (when (and (reason-required? engine task-id) (str/blank? (or comment "")))
     (throw (ex-info "当前节点要求填写审批意见" {:task-id task-id})))
   (bpm/reject! engine task-id user comment return-node-id sign-pic-url))
+
 
 (defn instance-history
   "流程实例的完整历史轨迹：业务侧 + 活动轨迹 + 任务级审批历史 + 表单回显数据。
@@ -980,6 +1045,7 @@
      :task-history (bpm/task-history-of engine pid)
      :running? (pos? (bpm/todo-count engine (or (:starter_id biz) "")))}))
 
+
 (defn instance-diagram
   "流程实例的图示数据：BPMN XML + 进行中/已完成节点 id，供前端 bpmn-js 高亮。"
   [{:keys [engine query-fn]} pid]
@@ -994,6 +1060,7 @@
      :active-activity-ids active
      :completed-activity-ids completed
      :running? (seq active)}))
+
 
 (defn office-stats
   "办公一体化统计看板数据：请假/报销/流程/员工/客户。"
@@ -1025,6 +1092,7 @@
      :hrm {:employee-total employee-total}
      :crm {:customer-total customer-total}}))
 
+
 ;; ── Phase 1 审批闭环：加签 / 减签 / 取消 / 撤回 / 抄送 / 可退回节点 ─────
 
 (defn task-create-sign!
@@ -1038,6 +1106,7 @@
     (throw (ex-info "当前节点要求填写审批意见" {:task-id task-id})))
   (bpm/create-sign! engine task-id user-names sign-type reason))
 
+
 (defn task-delete-sign!
   "减签：仅任务当前办理人可操作。"
   [{:keys [engine]} task-id user-names reason user]
@@ -1047,15 +1116,18 @@
       (throw (ex-info "只有任务办理人可以减签" {:task-id task-id}))))
   (bpm/delete-sign! engine task-id user-names reason))
 
+
 (defn task-sign-list
   "某任务的加签子任务列表。"
   [{:keys [engine]} task-id]
   (bpm/sign-list engine task-id))
 
+
 (defn task-return-list
   "当前任务之前已完成的用户任务节点列表（驳回可选目标）。"
   [{:keys [engine]} task-id]
   (bpm/return-list engine task-id))
+
 
 (defn instance-cancel!
   "取消流程实例：发起人或管理员。业务状态置为 CANCELED。
@@ -1074,6 +1146,7 @@
     (query-fn :bpm/update-instance-status {:process_instance_id process-instance-id
                                            :status "CANCELED" :current_task ""})))
 
+
 (defn- check-model-withdraw-allowed!
   "模型 allow_withdraw=0 时禁止审批人撤回（P0-4 审批人权限开关）。"
   [query-fn pid]
@@ -1082,6 +1155,7 @@
     (when (and model (= "0" (str (:allow_withdraw model))))
       (throw (ex-info "该流程模型已禁止审批人撤回" {:process-instance-id pid})))))
 
+
 (defn task-withdraw!
   "审批人撤回自己刚审完的任务（要求下一节点任务未完成）。"
   [{:keys [engine query-fn]} task-id user]
@@ -1089,6 +1163,7 @@
     (when ht
       (check-model-withdraw-allowed! query-fn (:process-instance-id ht))))
   (bpm/withdraw! engine task-id user))
+
 
 (defn task-withdraw-to-start!
   "发起人撤回到起始节点重新编辑：发起人或管理员。"
@@ -1112,6 +1187,7 @@
                :activity_id (or activity-id "") :activity_name (or activity-name "")
                :reason (or reason "") :create_by (or user "")})))
 
+
 (defn copy-page
   "我的抄送分页（当前登录用户）。"
   [{:keys [query-fn]} params user]
@@ -1123,6 +1199,7 @@
                                                       (:form_id data) (:form_data_json data)))))
                  (query-fn :bpm/copy-page p))
      :total (:total (query-fn :bpm/copy-count p))}))
+
 
 ;; ── Phase 3 治理能力：定义版本页 / 模型启停·清理·复制 / 打印 ─────────────
 
@@ -1152,6 +1229,7 @@
                           :start_users (mapv uname (json-ids (:start_user_ids model)))))
                  (:rows result))}))
 
+
 (defn definition-xml
   "流程定义的 BPMN XML（查看/恢复用）。"
   [{:keys [engine]} definition-id]
@@ -1161,6 +1239,7 @@
     {:definition-id definition-id
      :model-key key
      :xml (bpm/definition-xml engine definition-id)}))
+
 
 (defn definition-restore!
   "把历史流程定义的 BPMN 反写回模型（bpmn_xml），清空 deployment_id 以便重新编辑部署。"
@@ -1176,6 +1255,7 @@
           (throw (ex-info "找不到对应流程模型" {:model-key key})))
         (query-fn :bpm/restore-model {:model_id (:model_id model) :bpmn_xml xml})
         {:model_id (:model_id model) :model_key key}))))
+
 
 (defn model-set-state!
   "挂起/激活该 key 的全部流程定义（state=2 挂起，1 激活；挂起后不可发起）。"
@@ -1193,6 +1273,7 @@
                                           :update_by (or user "")})
       {:model_key key :suspended? suspend?})))
 
+
 (defn model-clean!
   "清理该流程：删除全部历史实例+部署（Flowable 级联），并清理业务实例/抄送记录。"
   [{:keys [engine query-fn]} id]
@@ -1208,6 +1289,7 @@
       (query-fn :bpm/clear-model-deployment {:model_id id})
       {:deleted-deployments deployments
        :deleted-instances (count pids)})))
+
 
 (defn model-copy!
   "复制模型：名称+“副本”，key+_copy（冲突时追加），BPMN/表单/规则配置一并复制。"
@@ -1248,6 +1330,7 @@
          :model_key new-key
          :model_name (str (:model_name m) "副本")}))))
 
+
 (defn instance-print-data
   "打印数据：实例（含单号/名称/表单值）+ 任务审批记录（意见/签名图/时间）+ 打印模板。"
   [{:keys [engine query-fn]} instance-id]
@@ -1267,6 +1350,7 @@
               :values (:form_data_json inst)}
        :task-history (bpm/task-history-of engine (:process_instance_id biz))})))
 
+
 ;; ── Phase 4 进阶能力：模型级 Webhook + 节点监听器 ─────────────────────────
 
 (defn- instance-vars
@@ -1282,10 +1366,11 @@
               (map (fn [^org.flowable.variable.api.history.HistoricVariableInstance hvi]
                      [(.getVariableName hvi) (.getValue hvi)]))
               (.list (.processInstanceId
-                      (.createHistoricVariableInstanceQuery (.getHistoryService
-                                                             ^org.flowable.engine.ProcessEngine engine))
-                      pid)))
+                       (.createHistoricVariableInstanceQuery (.getHistoryService
+                                                               ^org.flowable.engine.ProcessEngine engine))
+                       pid)))
         (catch Exception _ {})))))
+
 
 (defn- find-biz-instance
   "查询业务实例（带短重试）：task_start 钩子在 Flowable 命令内触发，
@@ -1301,6 +1386,7 @@
         :else (do (Thread/sleep 100)
                   (recur (dec n)))))))
 
+
 (defn- json-path-get
   "按点分路径（如 data.level / list.0.name）从解析后的 JSON 数据取值。"
   [data path]
@@ -1312,6 +1398,7 @@
               :else nil))
           data
           (str/split (str path) #"\.")))
+
 
 (defn- writeback-webhook-response!
   "P1 Webhook 响应回写：解析 JSON 响应体，按 response-mappings（JSON 路径 → 流程变量名）
@@ -1330,6 +1417,7 @@
             (log/info "[bpm-webhook] 响应回写" key "→" value "=" v)))
         (catch Exception e
           (log/warn "[bpm-webhook] 响应回写失败:" (.getMessage e)))))))
+
 
 (defn- fire-webhooks!
   "按模型级 webhooks 配置触发 HTTP POST（4 钩子：process_start/process_end/task_start/task_end）。
@@ -1370,6 +1458,7 @@
                 (writeback-webhook-response! engine process-instance-id hook resp))
               (catch Exception e
                 (log/error "[bpm-webhook]" event "POST 失败:" (:url hook) (.getMessage e))))))))))
+
 
 (defn- fire-node-listener!
   "节点监听器（nodeConfig.listeners 的 Create/Assign/Complete 三事件）：

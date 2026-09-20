@@ -1,17 +1,20 @@
 (ns com.ruoyi.web.controllers.common
   "通用控制器 — 文件上传、下载、资源访问。"
   (:require
-   [clojure.java.io :as io]
-   [ring.util.response :as response]))
+    [clojure.java.io :as io]
+    [ring.util.response :as response]))
+
 
 (def upload-dir "uploads/")
 (def resource-dir "resources/")
+
 
 (defn- ok
   ([data] (ok 200 "操作成功" data))
   ([code msg data]
    (-> (response/response {:code code :msg msg :data data})
        (response/content-type "application/json"))))
+
 
 (defn upload
   "通用文件上传。"
@@ -29,6 +32,7 @@
           (ok 500 "上传失败" nil))))
     (catch Exception e (ok 500 (.getMessage e) nil))))
 
+
 (defn download
   "通用文件下载。"
   [_ request]
@@ -39,6 +43,7 @@
           (response/header "Content-Disposition" (str "attachment; filename=\"" filename "\""))
           (response/content-type "application/octet-stream"))
       (ok 404 "文件不存在" nil))))
+
 
 (defn download-resource
   "下载资源文件。"

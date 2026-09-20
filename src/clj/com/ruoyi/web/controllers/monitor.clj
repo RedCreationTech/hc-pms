@@ -1,21 +1,37 @@
 (ns com.ruoyi.web.controllers.monitor
   "系统监控控制器，提供服务器信息、数据源监控等。"
   (:require
-   [ring.util.response :as response]
-   [clojure.string :as str]
-   [integrant.core :as ig]
-   [com.ruoyi.config :as config]
-   [com.ruoyi.integrant.state :as integrant-state]
-   [com.ruoyi.integrant.trace :as trace]
-   [weavejester.dependency :as dep])
-  (:import [java.lang.management ManagementFactory]
-           [com.sun.management OperatingSystemMXBean]
-           [java.io File]
-           [java.net InetAddress NetworkInterface Inet4Address]
-           [java.nio.file Files FileStore]
-           [java.time Instant ZoneId LocalDateTime]
-           [java.time.format DateTimeFormatter]
-           [com.zaxxer.hikari HikariDataSource HikariPoolMXBean]))
+    [clojure.string :as str]
+    [com.ruoyi.config :as config]
+    [com.ruoyi.integrant.state :as integrant-state]
+    [com.ruoyi.integrant.trace :as trace]
+    [integrant.core :as ig]
+    [ring.util.response :as response]
+    [weavejester.dependency :as dep])
+  (:import
+    (com.sun.management
+      OperatingSystemMXBean)
+    (com.zaxxer.hikari
+      HikariDataSource
+      HikariPoolMXBean)
+    (java.io
+      File)
+    (java.lang.management
+      ManagementFactory)
+    (java.net
+      Inet4Address
+      InetAddress
+      NetworkInterface)
+    (java.nio.file
+      FileStore
+      Files)
+    (java.time
+      Instant
+      LocalDateTime
+      ZoneId)
+    (java.time.format
+      DateTimeFormatter)))
+
 
 (defn- ok
   ([data] (ok 200 "操作成功" data))
@@ -23,18 +39,24 @@
    (-> (response/response {:code code :msg msg :data data})
        (response/content-type "application/json"))))
 
-(defn- format-instant [^Instant inst]
+
+(defn- format-instant
+  [^Instant inst]
   (when inst
     (let [ldt (LocalDateTime/ofInstant inst (ZoneId/of "Asia/Shanghai"))]
       (.format ldt (DateTimeFormatter/ofPattern "yyyy-MM-dd HH:mm:ss")))))
 
-(defn- get-computer-name []
+
+(defn- get-computer-name
+  []
   (try
     (.getHostName (InetAddress/getLocalHost))
     (catch Exception _
       (System/getProperty "user.name"))))
 
-(defn- get-computer-ip []
+
+(defn- get-computer-ip
+  []
   (try
     (loop [nis (java.util.Collections/list (NetworkInterface/getNetworkInterfaces))]
       (when-let [^NetworkInterface ni (first nis)]
@@ -50,7 +72,9 @@
         (.getHostAddress (InetAddress/getLocalHost))
         (catch Exception _ "unknown")))))
 
-(defn- get-os-info []
+
+(defn- get-os-info
+  []
   {:osName (System/getProperty "os.name")
    :osArch (System/getProperty "os.arch")
    :computerName (get-computer-name)
@@ -58,7 +82,9 @@
    :osVersion (System/getProperty "os.version")
    :userDir (System/getProperty "user.dir")})
 
-(defn- get-cpu-info []
+
+(defn- get-cpu-info
+  []
   (let [os (ManagementFactory/getOperatingSystemMXBean)
         cpu-num (.getAvailableProcessors os)
         [raw-process raw-system]
@@ -81,7 +107,9 @@
         wait (double (min 100.0 (max 0.0 (- used sys))))]
     {:cpuNum cpu-num :used used :sys sys :free free :wait wait}))
 
-(defn- get-memory-info []
+
+(defn- get-memory-info
+  []
   (let [os (ManagementFactory/getOperatingSystemMXBean)
         [total free]
         (try
@@ -101,7 +129,9 @@
      :free free-mb
      :usage (double (* 100.0 (/ used-mb total-mb)))}))
 
-(defn- get-jvm-info []
+
+(defn- get-jvm-info
+  []
   (let [rt (Runtime/getRuntime)
         bean (ManagementFactory/getRuntimeMXBean)
         start-time (.getStartTime bean)
@@ -121,13 +151,17 @@
      :jvmHome (System/getProperty "java.home")
      :inputArgs (str/join " " (.getInputArguments bean))}))
 
-(defn- file-store-type [^File root]
+
+(defn- file-store-type
+  [^File root]
   (try
     (let [^FileStore store (Files/getFileStore (.toPath root))]
       (.type store))
     (catch Exception _ "unknown")))
 
-(defn- get-disk-info []
+
+(defn- get-disk-info
+  []
   (mapv (fn [^File root]
           (let [total (.getTotalSpace root)
                 free (.getFreeSpace root)
@@ -142,6 +176,7 @@
              :usage usage}))
         (File/listRoots)))
 
+
 (defn server-info
   "获取服务器信息。"
   [_ _]
@@ -150,6 +185,7 @@
        :jvm (get-jvm-info)
        :sys (get-os-info)
        :disk (get-disk-info)}))
+
 
 (defn dashboard-stats
   "首页仪表盘统计聚合接口，返回用户数、在线数、日志数、任务数、最近操作和系统信息。"
@@ -184,6 +220,7 @@
          :server {:os (get-os-info)
                   :jvm (get-jvm-info)}})))
 
+
 (defn datasource-info
   "获取 HikariCP 数据源监控信息。"
   [{:keys [datasource]} _]
@@ -205,15 +242,19 @@
     (catch Exception e
       (ok {:status "error" :message (.getMessage e)}))))
 
+
 ;; ─── Integrant config → system 监控 ─────────────────────────────────
 
-(defn- ^:private sanitize-key [k]
+(defn- ^:private sanitize-key
+  [k]
   "把 Integrant key 统一转成无冒号的字符串，方便前端匹配。"
   (if (keyword? k)
     (subs (str k) 1)
     (str k)))
 
-(defn- sanitize-value [v]
+
+(defn- sanitize-value
+  [v]
   "把 #ig/ref 等不可 JSON 序列化的值转成可序列化结构。"
   (cond
     (ig/ref? v) {:__ig_ref true :key (str (:key v))}
@@ -222,13 +263,16 @@
     (set? v) (into #{} (map sanitize-value v))
     :else v))
 
-(defn- summarize-system-value [v]
+
+(defn- summarize-system-value
+  [v]
   "对运行时组件做摘要，避免直接序列化连接池等对象。"
   (cond
     (map? v) {:type (str (class v)) :kind "map" :keys (mapv sanitize-key (keys v))}
     (sequential? v) {:type (str (class v)) :kind "seq" :count (count v)}
     (fn? v) {:type "function" :kind "function"}
     :else {:type (str (class v)) :kind "object" :value (str v)}))
+
 
 (defn integrant-info
   "返回 Integrant 静态配置、依赖图与运行时系统摘要。"
@@ -241,12 +285,14 @@
         sys @integrant-state/system
         system-summary (into {} (map (fn [k] [(sanitize-key k) (summarize-system-value (get sys k))])) order)]
     (ok {:config (sanitize-value cfg)
-        :order (mapv sanitize-key order)
-        :dependencies deps
-        :dependents dents
-        :system system-summary})))
+         :order (mapv sanitize-key order)
+         :dependencies deps
+         :dependents dents
+         :system system-summary})))
 
-(defn- format-trace-log [idx log]
+
+(defn- format-trace-log
+  [idx log]
   (let [error? (contains? log :error)
         result? (contains? log :result)]
     {:id (str (:time log) "-" idx)
@@ -257,9 +303,12 @@
      :result (when result? (:result log))
      :error (when error? (:error log))}))
 
-(defn- format-trace-logs [logs]
+
+(defn- format-trace-logs
+  [logs]
   (mapv (fn [[idx log]] (format-trace-log idx log))
         (map-indexed vector logs)))
+
 
 (defn integrant-trace
   "开启/关闭某个函数组件的调用追踪。"
@@ -269,6 +318,7 @@
     (trace/set-active! key-str enabled?)
     (ok {:active (trace/active? key-str)
          :logs (format-trace-logs (trace/logs key-str))})))
+
 
 (defn integrant-trace-logs
   "获取某个函数组件的追踪日志。"

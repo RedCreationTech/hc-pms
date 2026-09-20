@@ -1,15 +1,25 @@
 (ns com.ruoyi.web.controllers.captcha
   "验证码控制器 — 生成图片验证码。"
   (:require
-   [ring.util.response :as response])
-  (:import [java.awt Color Font RenderingHints]
-           [java.awt.image BufferedImage]
-           [javax.imageio ImageIO]
-           [java.io ByteArrayOutputStream]
-           [java.util Random]))
+    [ring.util.response :as response])
+  (:import
+    (java.awt
+      Color
+      Font
+      RenderingHints)
+    (java.awt.image
+      BufferedImage)
+    (java.io
+      ByteArrayOutputStream)
+    (java.util
+      Random)
+    (javax.imageio
+      ImageIO)))
+
 
 ;; 验证码存储（实际项目应用 Redis）
 (defonce captcha-store (atom {}))
+
 
 (defn- generate-code
   "生成随机验证码。"
@@ -17,6 +27,7 @@
   (let [chars "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
         random (Random.)]
     (apply str (repeatedly length #(nth chars (.nextInt random (count chars)))))))
+
 
 (defn- generate-color
   "生成随机颜色。"
@@ -26,6 +37,7 @@
         g (+ min-val (.nextInt random (- max-val min-val)))
         b (+ min-val (.nextInt random (- max-val min-val)))]
     (Color. r g b)))
+
 
 (defn- create-captcha-image
   "创建验证码图片。"
@@ -59,6 +71,7 @@
 
     (.dispose g)
     image))
+
 
 (defn captcha-image
   "生成验证码图片并返回。"

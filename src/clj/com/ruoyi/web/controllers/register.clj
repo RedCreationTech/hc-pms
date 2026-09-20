@@ -1,14 +1,16 @@
 (ns com.ruoyi.web.controllers.register
   "用户注册控制器。"
   (:require
-   [com.ruoyi.domain.system.user :as user-service]
-   [ring.util.response :as response]))
+    [com.ruoyi.domain.system.user :as user-service]
+    [ring.util.response :as response]))
+
 
 (defn- ok
   ([msg] (-> (response/response {:code 200 :msg msg})
              (response/content-type "application/json")))
   ([code msg] (-> (response/response {:code code :msg msg})
                   (response/content-type "application/json"))))
+
 
 (defn register
   "用户注册。"

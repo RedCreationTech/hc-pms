@@ -1,12 +1,13 @@
 (ns com.ruoyi.frontend.pages.integrant
   "Integrant config -> system 依赖可视化页面。"
   (:require
-   [reagent.core :as r]
-   [reagent.hooks :as hooks]
-   [re-frame.core :as rf]
-   [clojure.string :as str]
-   ["@ant-design/icons" :refer [ReloadOutlined]]
-   [com.ruoyi.frontend.antd :as antd]))
+    ["@ant-design/icons" :refer [ReloadOutlined]]
+    [clojure.string :as str]
+    [com.ruoyi.frontend.antd :as antd]
+    [re-frame.core :as rf]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
+
 
 ;; ─── 数据 → Tree ─────────────────────────────────────────────────────
 
@@ -18,8 +19,8 @@
      (cond
        ref?
        [{:title (r/as-element
-                 [:span {:style {:color "#1677ff" :fontWeight 500}}
-                  (str "→ " (:key value))])
+                  [:span {:style {:color "#1677ff" :fontWeight 500}}
+                   (str "→ " (:key value))])
          :key (str node-path "-ref-" (:key value))}]
 
        (and (map? value) (seq value))
@@ -38,33 +39,42 @@
 
        :else
        [{:title (r/as-element
-                 [:span
-                  [:span {:style {:color "#999"}} (str label " = ")]
-                  (pr-str value)])
+                  [:span
+                   [:span {:style {:color "#999"}} (str label " = ")]
+                   (pr-str value)])
          :key (str node-path "-leaf")}]))))
 
-(defn- collect-tree-keys [nodes]
+
+(defn- collect-tree-keys
+  [nodes]
   (mapcat (fn [n]
             (cons (:key n)
                   (collect-tree-keys (:children n))))
           nodes))
 
-(defn- trace-key [k]
+
+(defn- trace-key
+  [k]
   (if (keyword? k)
     (subs (str k) 1)
     (str k)))
 
+
 ;; ─── 依赖图 ─────────────────────────────────────────────────────────
 
-(defn- compute-depths [order deps]
-  (let [depth-fn (fn rec [k]
+(defn- compute-depths
+  [order deps]
+  (let [depth-fn (fn rec
+                   [k]
                    (let [ds (get deps (keyword k))]
                      (if (seq ds)
                        (inc (apply max (map rec ds)))
                        0)))]
     (into {} (map (fn [k] [k (depth-fn k)]) order))))
 
-(defn- dep-graph [data selected trace-by-key on-select on-toggle]
+
+(defn- dep-graph
+  [data selected trace-by-key on-select on-toggle]
   (let [{:keys [order dependencies system]} data
         depths (compute-depths order dependencies)
         by-depth (group-by #(get depths %) order)
@@ -84,7 +94,7 @@
                 :refX 7 :refY 4 :orient "auto" :markerUnits "strokeWidth"}
        [:path {:d "M0,0 L0,8 L8,4 z" :fill "#999"}]]]
      (for [k order
-          d (get dependencies (keyword k))]
+           d (get dependencies (keyword k))]
        (when-let [p1 (get node-pos d)]
          (when-let [p2 (get node-pos k)]
            ^{:key (str d "->" k)}
@@ -117,7 +127,9 @@
                      :fill (if active? "#52c41a" "#d9d9d9")}]
              [:circle {:cx (if active? 20 8) :cy 8 :r 6 :fill "#fff"}]])]))]))
 
-(defn- trace-log-line [log]
+
+(defn- trace-log-line
+  [log]
   (let [error? (= "error" (:type log))]
     [:div {:style {:fontFamily "monospace"
                    :fontSize 12
@@ -137,46 +149,48 @@
        (if error? "err " "out ")]
       (pr-str (if error? (:error log) (:result log)))]]))
 
+
 ;; ─── 主页面 ─────────────────────────────────────────────────────────
 
-(defn integrant-page []
+(defn integrant-page
+  []
   (hooks/use-effect
-   (fn []
-     (rf/dispatch [:integrant/fetch])
-     js/undefined)
-   [])
+    (fn []
+      (rf/dispatch [:integrant/fetch])
+      js/undefined)
+    [])
   (let [data @(rf/subscribe [:integrant/data])
         [selected set-selected!] (hooks/use-state nil)
         [expanded set-expanded!] (hooks/use-state #{})
         trace-by-key @(rf/subscribe [:integrant/traces])
         trace-data (get trace-by-key selected)]
     (hooks/use-effect
-     (fn []
-       (when (and (nil? selected) (seq (:order data)))
-         (set-selected! (first (:order data))))
-       js/undefined)
-     [data])
+      (fn []
+        (when (and (nil? selected) (seq (:order data)))
+          (set-selected! (first (:order data))))
+        js/undefined)
+      [data])
     (hooks/use-effect
-     (fn []
-       (when data
-         (set-expanded! (set (collect-tree-keys (->tree-nodes "config" (:config data))))))
-       js/undefined)
-     [data])
+      (fn []
+        (when data
+          (set-expanded! (set (collect-tree-keys (->tree-nodes "config" (:config data))))))
+        js/undefined)
+      [data])
     (hooks/use-effect
-     (fn []
-       (when data
-         (doseq [[k sys] (:system data)]
-           (when (= "function" (:kind sys))
-             (rf/dispatch [:integrant/fetch-trace-logs (trace-key k)]))))
-       js/undefined)
-     [data])
+      (fn []
+        (when data
+          (doseq [[k sys] (:system data)]
+            (when (= "function" (:kind sys))
+              (rf/dispatch [:integrant/fetch-trace-logs (trace-key k)]))))
+        js/undefined)
+      [data])
     (hooks/use-effect
-     (fn []
-       (if (and selected (:active trace-data))
-         (let [id (js/setInterval #(rf/dispatch [:integrant/fetch-trace-logs selected]) 1000)]
-           #(js/clearInterval id))
-         js/undefined))
-     [selected (:active trace-data)])
+      (fn []
+        (if (and selected (:active trace-data))
+          (let [id (js/setInterval #(rf/dispatch [:integrant/fetch-trace-logs selected]) 1000)]
+            #(js/clearInterval id))
+          js/undefined))
+      [selected (:active trace-data)])
     (if (nil? data)
       [:div {:style {:textAlign "center" :padding 48 :color "#999"}} "加载中..."]
       (let [tree-data (->tree-nodes "config" (:config data))
