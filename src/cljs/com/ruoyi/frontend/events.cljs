@@ -73,7 +73,7 @@
           (update-in [:tabs :items] conj tab)))))
 
 (rf/reg-event-fx :navigate
-                 (fn [{:keys [db]} [_ page]]
+                 (fn [{:keys [db]} [_ page query]]
                    (let [fetch (case page
                                  :user [:users/fetch {}]
                                  :dict [:dicts/fetch-types {}]
@@ -110,7 +110,8 @@
                                  :crm-customer [:crm/fetch {}]
                                  nil)
                          effects {:db (activate-page-tab db page)
-                                  :router/navigate! page}]
+                                  :router/navigate! (cond-> [page]
+                                                      (seq query) (conj query))}]
                      (if fetch
                        (assoc effects :dispatch fetch)
                        effects))))
@@ -2432,8 +2433,10 @@
 ;; ─── 路由导航效果 ────────────────────────────────────────────────────────────
 
 (rf/reg-fx :router/navigate!
-           (fn [page]
-             (router/navigate! page)))
+           (fn [v]
+             (if (sequential? v)
+               (apply router/navigate! v)
+               (router/navigate! v))))
 
 ;; ─── 用户表单事件 ─────────────────────────────────────────────────────────────
 
@@ -3046,47 +3049,6 @@
 (rf/reg-fx :api/crm-update (fn [[id p]] (api/crm-update-customer id p (fn [r] (when (= 200 (:code r)) (rf/dispatch [:crm/close]) (antd/success! "保存成功") (rf/dispatch [:crm/fetch {}]))) (fn [_] (antd/error! "保存失败")))))
 (rf/reg-event-fx :crm/delete (fn [_ [_ id]] {:api/crm-del id}))
 (rf/reg-fx :api/crm-del (fn [id] (api/crm-delete-customer id (fn [r] (when (= 200 (:code r)) (antd/success! "删除成功") (rf/dispatch [:crm/fetch {}]))) (fn [_] (antd/error! "删除失败")))))
-
-;; ─── BPM 流程设计器（bpmn-js）─────────────────────────────────────
-(rf/reg-event-fx :bpm/model-open-designer
-                 (fn [{:keys [db]} [_ model]]
-                   {:db (-> db
-                            (assoc-in [:bpm-designer :visible?] true)
-                            (assoc-in [:bpm-designer :current] model)
-                            (assoc-in [:bpm-designer :loading?] true))
-                    :api/bpm-get-model (:model_id model)}))
-
-(rf/reg-fx :api/bpm-get-model
-           (fn [model-id]
-             (api/bpm-get-model model-id
-                                (fn [r] (when (= 200 (:code r))
-                                          (rf/dispatch [:bpm/designer-set-xml (:data r)])))
-                                (fn [_] (antd/error! "加载模型失败")))))
-
-(rf/reg-event-db :bpm/designer-set-xml
-                 (fn [db [_ model]]
-                   (-> db
-                       (assoc-in [:bpm-designer :current] model)
-                       (assoc-in [:bpm-designer :bpmn-xml] (:bpmn_xml model))
-                       (assoc-in [:bpm-designer :loading?] false))))
-
-(rf/reg-event-db :bpm/designer-close
-                 (fn [db _]
-                   (assoc-in db [:bpm-designer :visible?] false)))
-
-(rf/reg-event-fx :bpm/designer-save
-                 (fn [{:keys [db]} [_ updates]]
-                   (let [model (get-in db [:bpm-designer :current])]
-                     {:api/bpm-update-model [(:model_id model) (merge model updates)]})))
-
-(rf/reg-fx :api/bpm-update-model
-           (fn [[model-id params]]
-             (api/bpm-update-model model-id params
-                                   (fn [r] (when (= 200 (:code r))
-                                             (rf/dispatch [:bpm/designer-close])
-                                             (antd/success! "流程保存成功")
-                                             (rf/dispatch [:bpm/model-fetch {:page 1 :size 1000}])))
-                                   (fn [_] (antd/error! "保存失败")))))
 
 ;; ─── BPM 流程图高亮 ──────────────────────────────────────────────────
 (rf/reg-event-fx :bpm/diagram-open

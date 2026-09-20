@@ -29,6 +29,7 @@
         "monitor/swagger" :swagger
         "system/user/profile" :profile
         "office/bpm/model" :bpm-model
+        "office/bpm/model/edit" :bpm-model-edit
         "office/bpm/definition" :bpm-definition
         "office/bpm/instance" :bpm-instance
         "office/bpm/form" :bpm-form
@@ -83,6 +84,7 @@
    :profile "个人中心"
    :office "办公"
    :bpm-model "流程模型"
+   :bpm-model-edit "流程模型设计"
    :bpm-definition "流程定义版本"
    :bpm-instance "我的流程"
    :bpm-form "流程表单"
@@ -109,26 +111,40 @@
 ;; 状态标记
 (defonce initialized? (volatile! false))
 
+(defn- current-query
+  "当前 URL 的 query 参数（keyword 键的映射）。"
+  []
+  (let [params (js/URLSearchParams. (.-search js/location))
+        ks (js/Array.from (.keys params))]
+    (into {} (map (fn [k] [(keyword k) (.get params k)])) ks)))
+
 ;; 监听浏览器前进/后退
 (defn- on-popstate [^js _event]
   (let [path (.-pathname js/location)
         match (match-route path)
         page (or (:handler match) :dashboard)]
-    (rf/dispatch [:navigate page])))
+    (rf/dispatch [:navigate page (current-query)])))
 
 ;; 初始化路由
 (defn init-routes! []
   (when-not @initialized?
     (.addEventListener js/window "popstate" on-popstate)
     (vreset! initialized? true)
-    ;; 手动 dispatch 当前 URL
+    ;; 手动 dispatch 当前 URL（带上 query，刷新/直达时编辑器页需要 ?id=）
     (let [path (.-pathname js/location)
           match (match-route path)
           page (or (:handler match) :dashboard)]
-      (rf/dispatch-sync [:navigate page]))))
+      (rf/dispatch-sync [:navigate page (current-query)]))))
 
-;; 导航到页面（只更新 URL，不 dispatch 事件）
-(defn navigate! [page]
-  (when @initialized?
-    (let [path (page-path page)]
-      (.pushState js/history nil "" path))))
+;; 导航到页面（只更新 URL，不 dispatch 事件）；query 为可选参数映射，如 {:id 1}
+(defn navigate!
+  ([page] (navigate! page nil))
+  ([page query]
+   (when @initialized?
+     (let [path (page-path page)
+           qs (when (seq query)
+                (let [params (js/URLSearchParams.)]
+                  (doseq [[k v] query]
+                    (.set params (name k) (str v)))
+                  (str "?" (.toString params))))]
+       (.pushState js/history nil "" (str path qs))))))

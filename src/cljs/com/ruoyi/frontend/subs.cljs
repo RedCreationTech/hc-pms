@@ -692,12 +692,6 @@
 (rf/reg-sub :crm/modal-visible? (fn [db _] (get-in db [:crm :modal-visible?] false)))
 (rf/reg-sub :crm/form-data (fn [db _] (get-in db [:crm :form-data] {})))
 
-;; ─── BPM 流程设计器 ────────────────────────────────────────────────
-(rf/reg-sub :bpm-designer/visible? (fn [db _] (get-in db [:bpm-designer :visible?] false)))
-(rf/reg-sub :bpm-designer/current (fn [db _] (get-in db [:bpm-designer :current] nil)))
-(rf/reg-sub :bpm-designer/bpmn-xml (fn [db _] (get-in db [:bpm-designer :bpmn-xml] nil)))
-(rf/reg-sub :bpm-designer/loading? (fn [db _] (get-in db [:bpm-designer :loading?] false)))
-
 ;; ─── BPM 流程图高亮 ──────────────────────────────────────────────────
 (rf/reg-sub :bpm-diagram/visible? (fn [db _] (get-in db [:bpm-diagram :visible?] false)))
 (rf/reg-sub :bpm-diagram/data (fn [db _] (get-in db [:bpm-diagram :data] nil)))
