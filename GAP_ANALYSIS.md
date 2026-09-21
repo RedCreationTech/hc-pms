@@ -1,5 +1,7 @@
 # RuoYi-Vue 功能对比分析
 
+> **📦 已归档（2026-09-20）**：本文档撰写于系统管理模块完成初期（2026-06），此后项目已演进到 BPM/办公一体化阶段（Flowable 8.0、OA/HRM/CRM）。文中所称"~95% 完成度"及 P1/P2 待办描述与后续实际进展不符（P1/P2 待办均已完成），且完全无 BPM 内容，仅作历史参考。当前状态请看 README.md、docs/design/BPM_GAP_PLAN.md 和 docs/design/BPM_OA_DESIGN.md。
+
 > 参考项目: https://gitee.com/y_project/RuoYi-Vue (master)
 > 日期: 2026-06-13
 > 总体完成度: **~95%**

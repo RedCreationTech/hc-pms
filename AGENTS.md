@@ -2,14 +2,14 @@
 
 > **开发分支**: `ruoyi-template`
 > **仓库**: RedCreationTech/ruoyi_clojure (git@github.com:RedCreationTech/ruoyi_clojure.git)
-> **当前 Git**: 1 commit ahead of main (commit `af08efe` - "Fix user management actions")
+> **当前 Git**: `ruoyi-template` 分支与 `origin/ruoyi-template` 同步 (HEAD `ee3b486` - "Format entire codebase with cljstyle")
 > **参考原版**: https://gitee.com/y_project/RuoYi-Vue (v3.9.2)
 
 ---
 
 ## 一、项目概况
 
-RuoYi-Clojure 是基于 **Kit 框架** + **Reagent 2** + **Ant Design 6** 构建的 RuoYi 风格全栈管理后台。完整实现了 18 个 RuoYi-Vue 功能模块，完成度 ~95%。
+RuoYi-Clojure 是基于 **Kit 框架** + **Reagent 2** + **Ant Design 6** 构建的 RuoYi 风格全栈管理后台。完整实现了系统管理与日志监控共 18 个 RuoYi-Vue 功能模块，并集成 **BPM 工作流引擎（Flowable 8.0）与办公一体化**（请假、报销、OA 日历/会议、HRM、CRM、报表），核心功能齐平 RuoYi-Vue / ruoyi-office。
 
 ### 技术栈速查
 
@@ -20,20 +20,20 @@ RuoYi-Clojure 是基于 **Kit 框架** + **Reagent 2** + **Ant Design 6** 构建
 | 前端     | ClojureScript + Reagent 2 + re-frame + Ant Design 6                    | shadow-cljs watch app         |
 | CSS      | 无独立 CSS 框架 — 全部通过 antd ConfigProvider token 和内联 style 控制 | —                             |
 | 构建     | shadow-cljs (前端) + tools.build uberjar (后端)                        | —                             |
-| 任务调度 | Quartz (kit-quartz 集成)                                               | —                             |
+| 任务调度 | cronut/scheduler (`:schedule []` 为空，任务存库由 job-scheduler 轮询) | —                             |
 | 测试     | clojure.test + Playwright E2E + Cloverage                              | bb test / npm run test:e2e    |
 
 ### 物理路径
 
+以下均为项目根目录（本文档所在目录）下的相对路径：
+
 ```
-/home/kevin/gt/ruoyi/                    ← 项目 rig 根目录
-  mayor/rig/                             ← 你在的目录（git 克隆）
-    src/clj/com/ruoyi/                   ← 后端源码
-    src/cljs/com/ruoyi/frontend/         ← 前端源码
-    resources/                           ← 配置、SQL、迁移、静态资源
-    test/clj/com/ruoyi/                  ← 测试
-    test/coverage-report.md              ← 覆盖率报告
-    env/dev/clj/user.clj                 ← 开发环境 REPL 工具函数
+src/clj/com/ruoyi/                   ← 后端源码
+src/cljs/com/ruoyi/frontend/         ← 前端源码
+resources/                           ← 配置、SQL、迁移、静态资源
+test/clj/com/ruoyi/                  ← 测试
+test/coverage-report.md              ← 覆盖率报告
+env/dev/clj/user.clj                 ← 开发环境 REPL 工具函数
 ```
 
 ---
@@ -54,9 +54,12 @@ route (web/routes/) → controller (web/controllers/) → domain service (domain
 nrepl/server → server/http → handler/ring → router/core → routes/api
                                                               ├── auth-routes
                                                               ├── system-routes
-                                                              ├── business-routes
-                                                              └── captcha-routes
-db.sql/migrations → db.sql/connection → db.sql/query-fn → 16+ domain services
+                                                              ├── business-routes (含 BPM/办公)
+                                                              ├── captcha-routes
+                                                              └── common/utils-routes
+db.sql/migrations → db.sql/connection → db.sql/query-fn → 15 个域服务
+cronut/scheduler → app.system/job-scheduler                  (定时任务调度)
+app.bpm/engine (Flowable 8.0, H2) → app.business/{bpm,leave,reimburse}-service
 ```
 
 ### 前端三层结构
@@ -66,6 +69,8 @@ bidi router → pages (reagent component + re-frame) → api.cljs (fetch) → HT
                                                           ↑
                                               re-frame events/subs (状态管理)
 ```
+
+> 前端 API 层是**单个** `src/cljs/com/ruoyi/frontend/api.cljs`（约 177 个 `defn`），没有独立的 `api/` 目录。
 
 ### 权限模型 (RBAC)
 
@@ -98,7 +103,6 @@ bidi router → pages (reagent component + re-frame) → api.cljs (fetch) → HT
 | 字典管理 | `system/dict.clj`    | `pages/dict.cljs`         | `/system/dict`         |
 | 参数管理 | `system/config.clj`  | `pages/config.cljs`       | `/system/config`       |
 | 通知公告 | `system/notice.clj`  | `pages/notice.cljs`       | `/system/notice`       |
-| 文件管理 | `system/file.clj`    | `pages/file_manager.cljs` | `/system/file`         |
 | 个人中心 | `system/profile.clj` | `pages/profile.cljs`      | `/system/user/profile` |
 
 ### 日志监控 (都在 `controllers/monitor/` + `pages/`)
@@ -122,15 +126,33 @@ bidi router → pages (reagent component + re-frame) → api.cljs (fetch) → HT
 
 ### 业务模块 (`controllers/business/` + `pages/`)
 
-| 模块         | 路由路径                  |
-|--------------|---------------------------|
-| 方案管理     | `/solution`               |
-| 项目信息管理 | `/project/info`           |
-| 标准规范     | `/resource/standard`      |
-| 向量知识库   | `/resource/vector-kb`     |
-| 结构化知识库 | `/resource/structured-kb` |
-| 优秀案例库   | `/resource/case`          |
-| 通用图集库   | `/resource/atlas`         |
+旧的方案管理/项目信息/资源库等 7 个演示性业务模块已于 2026-07 整体下线，由下方 BPM 与办公一体化模块取代。
+
+### BPM 与办公模块 (`bpm/` + `controllers/business/` + `pages/business/`)
+
+工作流引擎为嵌入式 **Flowable 8.0**（`src/clj/com/ruoyi/bpm/`：`core.clj` 高层封装 + `engine.clj` 引擎组件），独立存储于 H2：`jdbc:h2:file:./flowable`，可用 `FLOWABLE_JDBC_URL` / `FLOWABLE_ASYNC` 环境变量覆盖。流程引擎状态在 Flowable(H2)，业务记录在应用库，通过 business-key 关联。
+
+| 模块           | 后端控制器                  | 领域层                      | 前端页面 (`pages/business/`)                     | 路由路径                  |
+|----------------|-----------------------------|-----------------------------|--------------------------------------------------|---------------------------|
+| 流程模型       | `business/bpm_mgmt.clj`     | `domain/business/bpm_mgmt.clj` | `bpm_model.cljs` / `bpm_model_editor.cljs`    | `/office/bpm/model` (+ `/edit`) |
+| 流程定义       | `business/bpm_mgmt.clj`     | `domain/business/bpm_mgmt.clj` | `bpm_definition.cljs`                          | `/office/bpm/definition`  |
+| 流程实例       | `business/bpm.clj`          | `domain/business/bpm.clj` / `bpm_flow.clj` | `bpm_instance.cljs`          | `/office/bpm/instance`    |
+| 发起流程       | `business/bpm.clj`          | `domain/business/bpm.clj`   | `bpm_start.cljs`                                 | `/office/bpm/start`       |
+| 待办任务       | `business/bpm.clj`          | `domain/business/bpm.clj`   | `bpm_todo.cljs`                                  | `/office/bpm/todo`        |
+| 已办任务       | `business/bpm.clj`          | `domain/business/bpm.clj`   | `bpm_done.cljs`                                  | `/office/bpm/done`        |
+| 抄送我的       | `business/bpm.clj`          | `domain/business/bpm.clj`   | `bpm_copy.cljs`                                  | `/office/bpm/copy`        |
+| 流程运维/管理  | `business/bpm_mgmt.clj`     | `domain/business/bpm_mgmt.clj` | `bpm_ops.cljs` / `bpm_admin.cljs`           | `/office/bpm/instance-ops` 等 |
+| 请假申请       | `business/leave.clj`        | `domain/business/leave.clj` | `leave.cljs`                                     | `/office/oa/leave`        |
+| 报销申请       | `business/reimburse.clj`    | `domain/business/reimburse.clj` | `reimburse.cljs`                             | `/office/oa/reimburse`    |
+| OA 日历        | `business/oa.clj`           | `domain/business/oa.clj`    | `oa_calendar.cljs`                               | `/office/oa/calendar`     |
+| OA 会议        | `business/oa.clj`           | `domain/business/oa.clj`    | `oa_meeting.cljs`                                | `/office/oa/meeting`      |
+| HRM 员工       | `business/hrm.clj`          | `domain/business/hrm.clj`   | `hrm.cljs`                                       | `/office/hrm/employee`    |
+| CRM 客户       | `business/crm.clj`          | `domain/business/crm.clj`   | `crm.cljs`                                       | `/office/crm/customer`    |
+| 报表           | `business/util.clj`         | —                           | `report.cljs`                                    | `/office/report`          |
+
+其他 BPM 管理路由：`/office/bpm/{form, category, user-group, listener, expression, settings, instance-manager, task-manager}`。表单设计/渲染与流程设计器组件在 `src/cljs/com/ruoyi/frontend/components/`：`form_designer`、`form_field`、`form_section`、`form_render`、`bpm_flow_designer`、`bpmn_modeler`、`bpmn_viewer`。
+
+测试：`test/clj/com/ruoyi/bpm/core_test.clj` + `test/clj/com/ruoyi/business/` 下 8 个测试文件（bpm_approval、bpm_e2e_fixes、bpm_integration、bpm_node_config、bpm_p0、bpm_p1、bpm_phase3、bpm_phase4）。
 
 ---
 
@@ -155,8 +177,7 @@ bidi router → pages (reagent component + re-frame) → api.cljs (fetch) → HT
 ./stop_dev.sh
 
 # 方式 2：手动分步启动
-# 后端 (HTTP 3000, nREPL 7000, SQLite)
-cd /home/kevin/gt/ruoyi/mayor/rig
+# 后端 (HTTP 3000, nREPL 7000, SQLite)，在项目根目录下执行
 clojure -M:dev -m com.ruoyi.core &
     # 或: bb run
 
@@ -332,7 +353,7 @@ bb coverage
 
 ```bash
 npx shadow-cljs release app          # 前端生产构建
-clojure -T:build all                  # 后端 uberjar (含前端静态文件)
+clojure -T:build all                  # 后端 uberjar (含前端静态文件)，等价于 bb uberjar
 java -jar target/rouyi-standalone.jar # 运行
 ```
 
@@ -403,10 +424,6 @@ MIGRATION_DIR=migrations bb test
 
 ### 7.1 使用 React Hooks，禁用 reagent/atom
 
-# 2. Start frontend watch (auto-recompiles on .cljs changes)
-pnpm exec shadow-cljs watch app &
-# First compilation takes ~2min, subsequent changes compile in seconds
-
 ```clojure
 ;; ❌ 错误
 (let [expanded? (r/atom false)]
@@ -450,35 +467,6 @@ pnpm exec shadow-cljs watch app &
 ;; ✅
 ;; 在 antd.cljs 中定义 use-app-message 获取 message-api atom
 ;; 然后调用 (antd/success! "成功")
-
-### When to Restart (not just reload)
-
-- HugSQL `.sql` file changes (queries are cached at startup)
-- `resources/system.edn` config changes
-- Integrant component structure changes
-- After these, run `clj-nrepl-eval -p $NREPL_PORT '(user/rr)'` or restart the process
-
-### Build Uberjar
-
-```bash
-pnpm exec shadow-cljs release app    # Compile frontend for production
-clojure -T:build all            # Build standalone jar (includes frontend)
-java -jar target/rouyi-standalone.jar  # Run (port 3000, SQLite)
-```
-
-### E2E 测试 (Playwright)
-
-已接入 Playwright 对主要功能做端到端验证，默认跑在 `http://localhost:3000`。
-
-```bash
-# 安装浏览器（首次）
-pnpm exec playwright install chromium
-
-# 运行全部 E2E 用例并生成 HTML/JSON 报告
-pnpm run test:e2e
-
-# 查看 HTML 报告
-pnpm run test:e2e:report
 ```
 
 #### Card bodyStyle 改用 styles.body
@@ -495,6 +483,21 @@ pnpm run test:e2e:report
 {:strokeWidth 10 :trailColor "#f0f0f0"}
 ;; ✅
 {:size 10 :railColor "#f0f0f0"}
+```
+
+### E2E 测试 (Playwright)
+
+已接入 Playwright 对主要功能做端到端验证，默认跑在 `http://localhost:3000`。
+
+```bash
+# 安装浏览器（首次）
+pnpm exec playwright install chromium
+
+# 运行全部 E2E 用例并生成 HTML/JSON 报告
+pnpm run test:e2e
+
+# 查看 HTML 报告
+pnpm run test:e2e:report
 ```
 
 ### 7.3 后端分页参数
@@ -540,14 +543,16 @@ antd 无法自动向 Reagent 函数组件注入 `value`/`onChange`，需要通�
 | 文档                                                 | 内容                                      |
 |------------------------------------------------------|-------------------------------------------|
 | [README.md](./README.md)                             | 完整项目调研文档（推荐新人先看此文档）    |
-| [ROADMAP.md](./ROADMAP.md)                           | 功能齐平路线图（面向 RuoYi-Vue 封面规划） |
-| [GAP_ANALYSIS.md](./GAP_ANALYSIS.md)                 | RuoYi-Vue 逐项对比分析（95% 完成）        |
-| [REMAINING.md](./REMAINING.md)                       | 剩余工作清单（按 Phase 划分）             |
-| [RUOYI_VUE_COMPARISON.md](./RUOYI_VUE_COMPARISON.md) | 更详细的功能对比（同上但更细）            |
+| [CHANGELOG.md](./CHANGELOG.md)                       | 版本演进历史（2026-09-20 回溯整理）       |
+| [docs/guides/add-new-module.md](docs/guides/add-new-module.md) | 新增业务模块端到端指南（迁移→SQL→领域→控制器→前端→权限→测试） |
+| [ROADMAP.md](./ROADMAP.md)                           | 功能齐平路线图（**已归档**，2026-06）     |
+| [GAP_ANALYSIS.md](./GAP_ANALYSIS.md)                 | RuoYi-Vue 逐项对比分析（**已归档**，2026-06） |
+| [RUOYI_VUE_COMPARISON.md](./RUOYI_VUE_COMPARISON.md) | 更详细的功能对比（**已归档**，2026-06）   |
 | [build.clj](./build.clj)                             | Uberjar 构建配置                          |
-| [docs/training/](./docs/training/)                   | 5 节开发培训 HTML 课件                    |
+| [docs/training/](./docs/training/)                   | 5 节开发培训 HTML 课件（基于 6 月代码，BPM 之前） |
 | [docs/design/BPM_GAP_PLAN.md](./docs/design/BPM_GAP_PLAN.md) | BPM 对齐 ruoyi-office-vben 的差距补全规格（Phase 1-4 已完成） |
-| [test/coverage-report.md](./test/coverage-report.md) | 最新覆盖率报告                            |
+| [docs/design/BPM_OA_DESIGN.md](./docs/design/BPM_OA_DESIGN.md) | BPM/OA 办公一体化顶层设计 + 逐日 changelog |
+| [test/coverage-report.md](./test/coverage-report.md) | 覆盖率报告（**已归档**，2026-06-13）      |
 
 ---
 
@@ -574,7 +579,7 @@ antd 无法自动向 Reagent 函数组件注入 `value`/`onChange`，需要通�
 - **JWT 密钥** (`JWT_SECRET`): 生产环境必须通过环境变量设置，不要使用默认值
 - **数据库**: 生产环境推荐 MySQL/PostgreSQL，SQLite 仅用于开发
 - **日志**: 操作日志自动记录请求/响应，无需手动插入
-- **认证**: 所有 `/api/system/*` 和 `/api/monitor/*` 路由通过 `require-auth` 中间件保护
+- **认证**: 所有 `/api/system/*`（含日志监控、在线用户、定时任务）、`/api/business/*` 等系统路由均挂 `auth-middleware {:required? true}`（JWT 鉴权，见 `web/middleware/auth.clj`）
 - **缓存**: 使用内存缓存，重启后清除。缓存键按模块命名空间隔离
 
 ---

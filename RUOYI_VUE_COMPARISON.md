@@ -1,5 +1,7 @@
 # RuoYi-Vue vs RuoYi-Clojure 功能对比分析
 
+> **📦 已归档（2026-09-20）**：本文档是项目最早期（2026-06-12）的快照，完成度评估已被后续版本全面超越——文中"整体仅 ~67%"及角色/菜单/部门/岗位前端"缺失"等结论均已不成立，所列"未实现"的缓存监控 / Swagger / 在线构建器等功能现均已交付。此后项目更已演进到 BPM/办公一体化阶段（Flowable 8.0、OA/HRM/CRM），本文档完全未覆盖，仅作历史参考。当前状态请看 README.md、docs/design/BPM_GAP_PLAN.md 和 docs/design/BPM_OA_DESIGN.md。
+
 > 参考项目：https://gitee.com/y_project/RuoYi-Vue (v3.9.2)
 
 ## 一、RuoYi-Vue 完整功能清单 (18项)

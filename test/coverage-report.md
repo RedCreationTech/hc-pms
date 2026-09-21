@@ -1,5 +1,7 @@
 # RuoYi Clojure 测试覆盖率报告 (Cloverage)
 
+> **📦 已归档（2026-09-20）**：本报告生成于系统管理模块时代（2026-06-13），此后项目已演进到 BPM/办公一体化阶段（Flowable 8.0、OA/HRM/CRM）。文中数据（348 测试 / 45 命名空间）已落后于当前套件（372+ 测试，且不含 BPM/business 命名空间），仅作历史参考。最新状态请看 README.md、docs/design/BPM_GAP_PLAN.md 和 docs/design/BPM_OA_DESIGN.md。
+
 ## 测试执行结果
 
 ```

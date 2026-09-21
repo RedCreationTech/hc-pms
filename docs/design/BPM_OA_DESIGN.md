@@ -1,6 +1,6 @@
 # RuoYi-Clojure · 办公一体化能力设计文档（BPM / OA / HRM / CRM）
 
-> **状态**：进行中 · **路线**：混搭（Clojure 应用 + 内嵌 Flowable Java 引擎做 BPM）
+> **状态**：Phase 1-4 已完成（2026-09-18），后续 Phase 待规划 · **路线**：混搭（Clojure 应用 + 内嵌 Flowable Java 引擎做 BPM）
 > **最后更新**：见文末 Changelog
 > **目标**：为当前纯系统管理后端（无业务模块）引入 ruoyi-office 的办公子系统能力子集。
 
@@ -231,25 +231,14 @@ bpm/core.clj       ← 高层 API：部署/发起/审批/驳回/转办/待办/�
 - [x] BPM 单元测试（内存 H2，22 断言全过）
 - [x] 动态菜单（办公目录含 BPM/HRM/OA）
 - [x] OA：日程 + 会议（`biz_oa_calendar`/`biz_oa_meeting`）
-- [ ] bpmn-js 建模器前端 / 审批面板（前端待做）
+- [x] bpmn-js 建模器前端 / 审批面板（见 Changelog 2026-08-25 (11)）
 
 ### Phase 2 — HRM / CRM / 报表
 - [x] HRM：员工档案（`biz_hrm_employee`，含部门联表）
 - [ ] HRM：考勤/请假(审批)/薪资
 - [x] CRM：客户管理（`biz_crm_customer`）
 - [ ] CRM：商机/跟进/合同(审批)
-- [ ] 数据报表统计看板
-
-### Phase 1 — 旗舰：BPM 审批流 + OA（核心差异化）
-- [ ] BPM 完整 API 封装（部署/发起/审批/驳回/转办/待办/已办）
-- [ ] bpmn-js 建模器前端
-- [ ] OA：待办中心、日程、会议、公文模板
-- [ ] 请假/报销标准审批模板跑通
-
-### Phase 2 — HRM / CRM / 报表
-- [ ] HRM：员工/考勤/请假(审批)/薪资
-- [ ] CRM：客户/商机/跟进/合同(审批)
-- [ ] 数据报表统计看板
+- [x] 数据报表统计看板（见 Changelog 2026-08-25 (16)）
 
 ### Phase 3 — 生产化
 - [ ] Flowable 库切外部 MySQL/PG（可选）

@@ -1,5 +1,7 @@
 # RuoYi Clojure 功能齐平路线图
 
+> **📦 已归档（2026-09-20）**：本文档撰写于系统管理模块完成初期（2026-06），此后项目已演进到 BPM/办公一体化阶段（Flowable 8.0、OA/HRM/CRM）。**文中所列 Phase 1-3 待办（代码生成 ZIP、表单模板后端 API、富文本、数据备份等）后续均已完成但未回写本文档**，且本文档完全无 BPM 内容，整体已过时，仅作历史参考。当前状态请看 README.md、docs/design/BPM_GAP_PLAN.md 和 docs/design/BPM_OA_DESIGN.md。
+
 > 目标：使本项目在功能上与 RuoYi 框架前后端分离版本 (vue.ruoyi.vip) 齐平
 > 参考项目：https://gitee.com/y_project/RuoYi-Vue (v3.9.2)
 
