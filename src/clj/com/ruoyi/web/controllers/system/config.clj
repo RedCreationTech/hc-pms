@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.system.config
-  "参数配置控制器。"
+  "参数配置控制器."
   (:require
     [com.ruoyi.domain.system.config :as config-service]
     [com.ruoyi.infra.data-perm :as data-perm]
@@ -25,7 +25,7 @@
 
 
 (defn list-configs
-  "查询参数列表（带数据权限过滤）。"
+  "查询参数列表(带数据权限过滤)."
   [{:keys [config-service]} request]
   (let [params (:query-params request)
         identity (:identity request)

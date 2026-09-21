@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.business.bpm-mgmt
-  "BPM 管理套件控制器（用户分组/监听器/表达式/设置 通用 CRUD）。"
+  "BPM 管理套件控制器(用户分组/监听器/表达式/设置 通用 CRUD)."
   (:require
     [com.ruoyi.domain.business.bpm-mgmt :as mgmt]
     [com.ruoyi.web.controllers.business.util :as bu]

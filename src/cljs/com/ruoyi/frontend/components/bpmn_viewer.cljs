@@ -11,7 +11,7 @@
 
 
 (defn bpmn-viewer
-  "渲染流程图并高亮节点。
+  "渲染流程图并高亮节点.
    参数: {:xml BPMN :active-ids 进行中节点 :completed-ids 已完成节点 :on-error fn}"
   [{:keys [xml active-ids completed-ids on-error]}]
   (let [container-ref (hooks/use-ref nil)]
@@ -26,7 +26,7 @@
                            (let [^js canvas (.get viewer "canvas")
                                  ^js registry (.get viewer "elementRegistry")
                                  add-marker (fn [id cls]
-                                              ;; 只对图中存在的元素加高亮，避免 id 不存在时报 markers 错误
+                                              ;; 只对图中存在的元素加高亮,避免 id 不存在时报 markers 错误
                                               (when (and id cls (.get registry id))
                                                 (.addMarker canvas id cls)))]
                              (doseq [id completed-ids] (add-marker id "highlight-done"))

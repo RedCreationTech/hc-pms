@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.login-log
-  "登录日志页面。"
+  "登录日志页面."
   (:require
     ["@ant-design/icons" :refer [DeleteOutlined DownloadOutlined LockOutlined ReloadOutlined SearchOutlined]]
     ["antd" :refer [DatePicker]]

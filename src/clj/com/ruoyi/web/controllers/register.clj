@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.register
-  "用户注册控制器。"
+  "用户注册控制器."
   (:require
     [com.ruoyi.domain.system.user :as user-service]
     [ring.util.response :as response]))
@@ -13,7 +13,7 @@
 
 
 (defn register
-  "用户注册。"
+  "用户注册."
   [{:keys [user-service]} request]
   (try
     (let [params (:body-params request)

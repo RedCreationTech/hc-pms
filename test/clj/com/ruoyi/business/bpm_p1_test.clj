@@ -148,7 +148,7 @@
                      hdr))))
 
 
-;; ── P1-1 发起权限：指定人员 拦截/放行 ──────────────────────────────────
+;; ── P1-1 发起权限:指定人员 拦截/放行 ──────────────────────────────────
 
 (deftest bpm-p1-start-permission-user-test
   (let [app (handler)
@@ -170,7 +170,7 @@
         (is (some? (get-in r [:data :process-instance-id])))))))
 
 
-;; ── P1-2 发起权限：指定部门 放行/拦截 ──────────────────────────────────
+;; ── P1-2 发起权限:指定部门 放行/拦截 ──────────────────────────────────
 
 (deftest bpm-p1-start-permission-dept-test
   (let [app (handler)
@@ -335,7 +335,7 @@
 
 
 (defn- instance-var
-  "读取流程实例变量（运行中 RuntimeService / 结束后 HistoryService）。"
+  "读取流程实例变量(运行中 RuntimeService / 结束后 HistoryService)."
   [pid name]
   (let [engine (:engine (bpm-service))
         rt (.getRuntimeService ^org.flowable.engine.ProcessEngine engine)]

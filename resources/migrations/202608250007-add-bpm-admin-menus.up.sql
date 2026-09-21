@@ -1,4 +1,4 @@
--- 办公一体化 · BPM 管理菜单（SQLite）——挂在 流程管理(31) 下
+-- 办公一体化 · BPM 管理菜单(SQLite)--挂在 流程管理(31) 下
 INSERT IGNORE INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, menu_type, visible, status, perms, icon)
 VALUES (43, '流程表单', 31, 2, 'bpm/form', 'business/bpm/form/index', 'C', '0', '0', 'bpm:form:list', 'form'),
        (44, '流程分类', 31, 3, 'bpm/category', 'business/bpm/category/index', 'C', '0', '0', 'bpm:category:list', 'appstore'),

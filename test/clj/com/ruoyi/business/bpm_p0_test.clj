@@ -199,7 +199,7 @@
 (deftest bpm-p0-allow-cancel-test
   (let [app (handler) token (login-token "admin") h (auth-hdr token)
         {:keys [username hdr]} (ensure-user! app h)
-        ;; allow_cancel=0：发起人（非管理员）不可取消；管理员不受限
+        ;; allow_cancel=0:发起人(非管理员)不可取消;管理员不受限
         {:keys [model-id]} (deploy-switch-model! app h {:allow_cancel "0"})
         pid (start-instance! app hdr model-id nil)]
     (is (some? pid))
@@ -276,8 +276,8 @@
         (str/replace "\"" "&quot;")))
 
   (defn- copy-bpmn
-    "start → approve1(admin) → copy1(COPY_TASK) → end。
-   copy-cfg 为 copy1 的 nodeConfig（nodeType 由函数补 COPY_TASK）。"
+    "start → approve1(admin) → copy1(COPY_TASK) → end.
+   copy-cfg 为 copy1 的 nodeConfig(nodeType 由函数补 COPY_TASK)."
     [key copy-cfg]
     (let [cfg (assoc copy-cfg "nodeType" "COPY_TASK")
           copy-el (str "<userTask id=\"copy1\" name=\"抄送节点\">"

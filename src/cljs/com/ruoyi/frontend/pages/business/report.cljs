@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.business.report
-  "办公一体化报表看板。"
+  "办公一体化报表看板."
   (:require
     ["@ant-design/icons" :refer [ReloadOutlined CarOutlined AccountBookOutlined DeploymentUnitOutlined TeamOutlined ShopOutlined]]
     [com.ruoyi.frontend.antd :as antd]

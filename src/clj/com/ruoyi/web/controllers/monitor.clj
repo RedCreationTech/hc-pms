@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.monitor
-  "系统监控控制器，提供服务器信息、数据源监控等。"
+  "系统监控控制器,提供服务器信息,数据源监控等."
   (:require
     [clojure.string :as str]
     [com.ruoyi.config :as config]
@@ -178,7 +178,7 @@
 
 
 (defn server-info
-  "获取服务器信息。"
+  "获取服务器信息."
   [_ _]
   (ok {:cpu (get-cpu-info)
        :mem (get-memory-info)
@@ -188,7 +188,7 @@
 
 
 (defn dashboard-stats
-  "首页仪表盘统计聚合接口，返回用户数、在线数、日志数、任务数、最近操作和系统信息。"
+  "首页仪表盘统计聚合接口,返回用户数,在线数,日志数,任务数,最近操作和系统信息."
   [{:keys [query-fn]} _]
   (let [user-count (:total (query-fn :count-users
                                      {:user_name nil :phonenumber nil :status nil
@@ -222,7 +222,7 @@
 
 
 (defn datasource-info
-  "获取 HikariCP 数据源监控信息。"
+  "获取 HikariCP 数据源监控信息."
   [{:keys [datasource]} _]
   (try
     (if (instance? HikariDataSource datasource)
@@ -275,7 +275,7 @@
 
 
 (defn integrant-info
-  "返回 Integrant 静态配置、依赖图与运行时系统摘要。"
+  "返回 Integrant 静态配置,依赖图与运行时系统摘要."
   [_ _]
   (let [cfg (config/system-config {})
         graph (ig/dependency-graph cfg)
@@ -311,7 +311,7 @@
 
 
 (defn integrant-trace
-  "开启/关闭某个函数组件的调用追踪。"
+  "开启/关闭某个函数组件的调用追踪."
   [_ {:keys [path-params body-params]}]
   (let [key-str (:key path-params)
         enabled? (boolean (:enabled body-params))]
@@ -321,7 +321,7 @@
 
 
 (defn integrant-trace-logs
-  "获取某个函数组件的追踪日志。"
+  "获取某个函数组件的追踪日志."
   [_ {:keys [path-params]}]
   (ok {:active (trace/active? (:key path-params))
        :logs (format-trace-logs (trace/logs (:key path-params)))}))

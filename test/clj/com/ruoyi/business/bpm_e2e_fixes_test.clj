@@ -125,7 +125,7 @@
 
 
 (defn- instance-row
-  "按 model_key 查业务实例行（status/current_task）。"
+  "按 model_key 查业务实例行(status/current_task)."
   [app h model-key]
   (let [r (parse-json (GET app (str "/api/business/bpm/instance?model_key=" model-key
                                     "&starter_id=admin&page=1&size=10") {} h))]

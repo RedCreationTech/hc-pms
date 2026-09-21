@@ -1,4 +1,4 @@
--- 办公一体化 · BPM 动态菜单（SQLite）
+-- 办公一体化 · BPM 动态菜单(SQLite)
 
 -- 一级目录: 办公
 INSERT IGNORE INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, menu_type, visible, status, perms, icon)

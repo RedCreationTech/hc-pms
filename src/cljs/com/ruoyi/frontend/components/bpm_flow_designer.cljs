@@ -12,7 +12,7 @@
     [reagent.core :as r]))
 
 
-;; ── 节点类型常量（颜色/图标/名称）───────────────────────────────────
+;; ── 节点类型常量(颜色/图标/名称)───────────────────────────────────
 
 (def ^:private node-color
   {"USER_TASK_NODE" "#ff943e" "TRANSACTOR_NODE" "#13c2c2" "COPY_TASK_NODE" "#3296fa" "CONDITION_BRANCH_NODE" "#67c23a"
@@ -55,7 +55,7 @@
         (str "${" (str/join " && " parts) "}")))))
 
 
-;; ── 配置枚举（对齐 vben consts.ts）─────────────────────────────────
+;; ── 配置枚举(对齐 vben consts.ts)─────────────────────────────────
 
 (def ^:private approve-types
   [{:value "USER" :label "人工审批"} {:value "AUTO_PASS" :label "自动通过"} {:value "AUTO_REJECT" :label "自动拒绝"}])
@@ -467,7 +467,7 @@
                     (opt-user users))])])
 
 
-;; ── 节点渲染（递归，path 用于定位编辑）──────────────────────────────
+;; ── 节点渲染(递归,path 用于定位编辑)──────────────────────────────
 
 (declare render-node)
 
@@ -581,7 +581,7 @@
       (str "延迟 " time-duration (get {"MINUTE" "分钟" "HOUR" "小时" "DAY" "天"} time-unit "小时")))))
 
 
-;; ── 设计器组件（r/atom + with-let component-did-mount）────────────────
+;; ── 设计器组件(r/atom + with-let component-did-mount)────────────────
 
 (def ^:private add-node-types
   "可添加的节点类型（对齐 vben node-handler）。"
@@ -593,8 +593,8 @@
 
 
 (defn bpm-flow-designer
-  "HTML/flex 流程编辑器。参数 {:model-id :on-saved :read-only? :active-ids :completed-ids}
-   只读模式（read-only?）用于流程详情/追踪：隐藏添加/删除/编辑，节点高亮进行中/已完成。"
+  "HTML/flex 流程编辑器.参数 {:model-id :on-saved :read-only? :active-ids :completed-ids}
+   只读模式(read-only?)用于流程详情/追踪:隐藏添加/删除/编辑,节点高亮进行中/已完成."
   [{:keys [model-id on-saved read-only? active-ids completed-ids]}]
   (r/with-let [tree (r/atom nil)
                loading (r/atom true)
@@ -861,7 +861,7 @@
                                   {:read-only? read-only?
                                    :active-ids (set (or active-ids []))
                                    :completed-ids (set (or completed-ids []))})])])
-               ;; ── 节点配置抽屉（对齐 vben Drawer 配置面板）──────────────────
+               ;; ── 节点配置抽屉(对齐 vben Drawer 配置面板)──────────────────
                [antd/drawer {:open (boolean @config-path)
                              :onClose #(reset! config-path nil)
                              :title (str "节点配置 · " (get node-type-label (get-in @tree (conj @config-path :type)) ""))

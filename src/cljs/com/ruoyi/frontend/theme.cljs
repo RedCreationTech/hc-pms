@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.theme
-  "主题配置，支持亮色/暗色切换。"
+  "主题配置,支持亮色/暗色切换."
   (:require
     ["antd" :refer [theme]]))
 
@@ -16,7 +16,7 @@
 
 
 (defn theme-config
-  "根据当前主题设置构建 antd ConfigProvider 主题配置。"
+  "根据当前主题设置构建 antd ConfigProvider 主题配置."
   [{:keys [mode primary-color algorithm font-size]
     :or   {mode :light primary-color "#1677ff" algorithm "default" font-size "middle"}}]
   (let [is-dark? (= mode :dark)

@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.components.search-input
-  "搜索表单项布局。"
+  "搜索表单项布局."
   (:require
     [com.ruoyi.frontend.antd :as antd]))
 

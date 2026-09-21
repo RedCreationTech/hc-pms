@@ -1,5 +1,5 @@
 (ns com.ruoyi.integrant.trace
-  "Integrant 函数组件的运行时调用追踪。"
+  "Integrant 函数组件的运行时调用追踪."
   (:require
     [clojure.string :as str]
     [com.ruoyi.infra.datasource :as ds]
@@ -20,7 +20,7 @@
 ;; dynamic-atoms: {keyword <atom-of-actual-fn>}
 
 (defn register-dynamic!
-  "注册一个动态代理组件。返回的函数会实时去取 atom 里的实际实现。"
+  "注册一个动态代理组件.返回的函数会实时去取 atom 里的实际实现."
   [k f]
   (let [a (atom f)]
     (swap! dynamic-atoms assoc k a)
@@ -29,25 +29,25 @@
 
 
 (defn set-dynamic!
-  "替换动态代理组件的实际实现。"
+  "替换动态代理组件的实际实现."
   [k f]
   (when-let [a (get @dynamic-atoms k)]
     (reset! a f)))
 
 
 (defn current-dynamic
-  "获取动态代理组件当前实际实现。"
+  "获取动态代理组件当前实际实现."
   [k]
   (when-let [a (get @dynamic-atoms k)]
     @a))
 
 
-;; 覆盖 kit-sql-conman 的 query-fn，使其成为一个可动态替换的代理。
-;; 这样启动后所有持有 :db.sql/query-fn 的服务仍然指向同一个函数对象，
-;; 但函数对象内部会读取 atom，从而支持运行时切换追踪包装。
+;; 覆盖 kit-sql-conman 的 query-fn,使其成为一个可动态替换的代理.
+;; 这样启动后所有持有 :db.sql/query-fn 的服务仍然指向同一个函数对象,
+;; 但函数对象内部会读取 atom,从而支持运行时切换追踪包装.
 ;; ─── db.sql/connection: 包装为 DelegatingDataSource ────────────────
-;; 这样运行时可以通过 swap-db! 热切换底层连接池，
-;; 所有已持有引用的服务无需重新初始化。
+;; 这样运行时可以通过 swap-db! 热切换底层连接池,
+;; 所有已持有引用的服务无需重新初始化.
 
 (def ^:private original-conn-init
   (get-method ig/init-key :db.sql/connection))
@@ -59,7 +59,7 @@
     (ds/delegating-datasource real-ds)))
 
 
-;; 覆盖 halt-key! 以正确关闭 DelegatingDataSource（conman 只认 HikariDataSource）
+;; 覆盖 halt-key! 以正确关闭 DelegatingDataSource(conman 只认 HikariDataSource)
 (def ^:private original-conn-halt
   (get-method ig/halt-key! :db.sql/connection))
 
@@ -158,8 +158,8 @@
 
 
 (def ^:private dynamic-keys
-  "支持运行时动态替换的函数组件。对这些 key 的追踪不会修改系统 map，
-   而是替换它们内部的代理 atom，从而让已持有引用的调用方也能看到新实现。"
+  "支持运行时动态替换的函数组件.对这些 key 的追踪不会修改系统 map,
+   而是替换它们内部的代理 atom,从而让已持有引用的调用方也能看到新实现."
   #{:handler/ring :db.sql/query-fn})
 
 

@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.components.status-tag
-  "状态标签组件。"
+  "状态标签组件."
   (:require
     [com.ruoyi.frontend.antd :as antd]))
 

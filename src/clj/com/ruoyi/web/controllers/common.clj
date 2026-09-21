@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.common
-  "通用控制器 — 文件上传、下载、资源访问。"
+  "通用控制器 -- 文件上传,下载,资源访问."
   (:require
     [clojure.java.io :as io]
     [ring.util.response :as response]))
@@ -17,7 +17,7 @@
 
 
 (defn upload
-  "通用文件上传。"
+  "通用文件上传."
   [_ request]
   (try
     (let [dir (io/file upload-dir)]
@@ -34,7 +34,7 @@
 
 
 (defn download
-  "通用文件下载。"
+  "通用文件下载."
   [_ request]
   (let [filename (get-in request [:query-params :fileName])
         file (io/file upload-dir filename)]
@@ -46,7 +46,7 @@
 
 
 (defn download-resource
-  "下载资源文件。"
+  "下载资源文件."
   [_ request]
   (let [resource-path (get-in request [:query-params :resource])
         file (io/file resource-dir resource-path)]

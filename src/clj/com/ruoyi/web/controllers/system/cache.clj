@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.system.cache
-  "缓存监控控制器 — 模拟多缓存空间，提供命令统计、键值浏览与清除。"
+  "缓存监控控制器 -- 模拟多缓存空间,提供命令统计,键值浏览与清除."
   (:require
     [clojure.data.json :as json]
     [clojure.string :as str]
@@ -8,7 +8,7 @@
 
 ;; ─── 内存缓存存储 ──────────────────────────────────────────────────
 
-;; 命令统计：get / hit / miss / clear
+;; 命令统计:get / hit / miss / clear
 (defonce cache-stats
   (atom {:get 0 :hit 0 :miss 0 :clear 0}))
 
@@ -72,7 +72,7 @@
 ;; ─── 缓存信息 ──────────────────────────────────────────────────────
 
 (defn cache-info
-  "获取缓存整体信息。"
+  "获取缓存整体信息."
   [_ _]
   (ok {:name "Memory Cache"
        :type "Clojure Atom"
@@ -88,13 +88,13 @@
 
 
 (defn cache-names
-  "获取缓存名称列表。"
+  "获取缓存名称列表."
   [_ _]
   (ok {:cacheNames (vec (keys @cache-data))}))
 
 
 (defn cache-keys
-  "获取所有缓存键（扁平化）。"
+  "获取所有缓存键(扁平化)."
   [_ _]
   (let [ks (for [[cache-name entries] @cache-data
                  k (keys entries)]
@@ -104,7 +104,7 @@
 
 
 (defn cache-keys-by-name
-  "获取指定缓存名称下的键列表。"
+  "获取指定缓存名称下的键列表."
   [_ request]
   (let [cache-name (get-in request [:path-params :cacheName])
         entries (get @cache-data cache-name {})]
@@ -114,7 +114,7 @@
 
 
 (defn cache-value
-  "获取缓存值。"
+  "获取缓存值."
   [_ request]
   (let [cache-name (get-in request [:path-params :cacheName])
         cache-key (get-in request [:path-params :cacheKey])
@@ -131,7 +131,7 @@
 ;; ─── 清除操作 ──────────────────────────────────────────────────────
 
 (defn clear-cache
-  "清空所有缓存。"
+  "清空所有缓存."
   [_ _]
   (reset! cache-data (seed-cache))
   (swap! cache-stats update :clear inc)
@@ -139,7 +139,7 @@
 
 
 (defn clear-cache-name
-  "清除指定名称的缓存。"
+  "清除指定名称的缓存."
   [_ request]
   (let [cache-name (get-in request [:path-params :cacheName])]
     (swap! cache-data assoc cache-name {})
@@ -148,7 +148,7 @@
 
 
 (defn clear-cache-key
-  "清除指定键。"
+  "清除指定键."
   [_ request]
   (let [cache-name (get-in request [:path-params :cacheName])
         cache-key (get-in request [:path-params :cacheKey])]
@@ -158,7 +158,7 @@
 
 
 (defn clear-cache-all
-  "清除所有缓存并重置统计。"
+  "清除所有缓存并重置统计."
   [_ _]
   (reset! cache-data (seed-cache))
   (reset! cache-stats {:get 0 :hit 0 :miss 0 :clear 0})

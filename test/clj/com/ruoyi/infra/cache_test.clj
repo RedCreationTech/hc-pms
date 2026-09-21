@@ -1,5 +1,5 @@
 (ns com.ruoyi.infra.cache-test
-  "缓存基础设施测试。"
+  "缓存基础设施测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.infra.cache :as cache]))

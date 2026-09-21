@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.system.profile
-  "个人中心控制器。"
+  "个人中心控制器."
   (:require
     [clojure.string :as str]
     [com.ruoyi.domain.system.user :as user-service]
@@ -22,7 +22,7 @@
 
 
 (defn get-profile
-  "获取当前用户个人信息。"
+  "获取当前用户个人信息."
   [{:keys [user-service]} request]
   (let [identity (:identity request)
         user-id (:user-id identity)]
@@ -32,7 +32,7 @@
 
 
 (defn update-profile
-  "更新当前用户个人信息。"
+  "更新当前用户个人信息."
   [{:keys [user-service]} request]
   (try
     (let [identity (:identity request)
@@ -45,7 +45,7 @@
 
 
 (defn- save-avatar!
-  "保存上传的头像文件。"
+  "保存上传的头像文件."
   [upload]
   (let [filename (str (System/currentTimeMillis) "_" (:filename upload))
         upload-dir (or (System/getProperty "app.upload.dir") "uploads/avatar")
@@ -56,7 +56,7 @@
 
 
 (defn upload-avatar
-  "上传头像。"
+  "上传头像."
   [{:keys [user-service]} request]
   (try
     (let [identity (:identity request)
@@ -71,7 +71,7 @@
 
 
 (defn change-password
-  "修改当前用户密码。"
+  "修改当前用户密码."
   [{:keys [user-service]} request]
   (try
     (let [identity (:identity request)

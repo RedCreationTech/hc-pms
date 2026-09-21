@@ -15,7 +15,7 @@
     [reagent.hooks :as hooks]))
 
 
-;; ─── 辅助：平铺菜单转树 ──────────────────────────────────────────────────────
+;; ─── 辅助:平铺菜单转树 ──────────────────────────────────────────────────────
 
 (defn- build-menu-tree
   "将平铺菜单列表按 parent_id 构建为树形结构，并附加层级信息用于对齐 RuoYi 树形表格缩进。"
@@ -32,7 +32,7 @@
                     node)))))))
 
 
-;; ─── 辅助：平铺转排序数组 ──────────────────────────────────────────────────────
+;; ─── 辅助:平铺转排序数组 ──────────────────────────────────────────────────────
 
 (defn- flatten-menu-keys
   "将树形菜单平铺，按展平后的显示顺序返回 menu_id 列表，
@@ -46,7 +46,7 @@
     items))
 
 
-;; ─── 辅助：菜单转树选项 ──────────────────────────────────────────────────────
+;; ─── 辅助:菜单转树选项 ──────────────────────────────────────────────────────
 
 (defn- menu-tree-options
   "将后端菜单树转为 TreeSelect 使用的选项。"
@@ -433,7 +433,7 @@
           [antd/radio {:value "1"} "停用"]]]]]]]))
 
 
-;; ─── 辅助：同级兄弟节点重新编号 ──────────────────────────────────────────────
+;; ─── 辅助:同级兄弟节点重新编号 ──────────────────────────────────────────────
 
 (defn- reorder-siblings
   "给定平铺 items 列表，对同一 parent_id 的兄弟节点按指定顺序重排 order_num。"
@@ -474,7 +474,7 @@
 
 
 (defn- collect-order-changes
-  "遍历树形 items，只收集发生变化的 {menu_id, order_num}。"
+  "遍历树形 items,只收集发生变化的 {menu_id, order_num}."
   [items original-orders]
   (->> (flatten-menu-items items)
        (keep (fn [item]
@@ -541,7 +541,7 @@
         items-source (or local-items items)
         tree-data (build-menu-tree items-source 0)
         expandable-ids (expandable-menu-ids tree-data)
-        ;; dnd-sort 用的展平 ID 列表（仅同级交换）
+        ;; dnd-sort 用的展平 ID 列表(仅同级交换)
         flat-ids (flatten-menu-keys tree-data)]
 
     ;; 外部 items 变化时重置本地状态

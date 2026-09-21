@@ -9,7 +9,7 @@
 
 
 (defn- fake-db
-  "构造一个带有伪数据库元数据的 db 规格。"
+  "构造一个带有伪数据库元数据的 db 规格."
   ([product-name]
    {:connectable (reify java.sql.Connection
                    (getMetaData

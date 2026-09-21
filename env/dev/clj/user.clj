@@ -59,7 +59,7 @@
 ;; ── Database hot-swap ───────────────────────────────────────────────
 
 (defn swap-db!
-  "热切换数据库。无需重启 JVM。用法: (swap-db! jdbc-url :migration-dir dir :pool-size n)"
+  "热切换数据库.无需重启 JVM.用法: (swap-db! jdbc-url :migration-dir dir :pool-size n)"
   [jdbc-url & opts]
   (require 'com.ruoyi.infra.db :reload)
   (let [swap-fn (resolve 'com.ruoyi.infra.db/swap-db!)]

@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.system.log-test
-  "日志审计控制器测试。"
+  "日志审计控制器测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.web.controllers.system.log :as log]))

@@ -1,0 +1,678 @@
+#+title: RuoYi-Clojure 设计文档(单一汇总版)
+#+author: RuoYi-Clojure 项目
+#+date: 2026-09-21
+#+SETUPFILE: https://gitee.com/zhaoyuKevin/org-html-themes/raw/master/org/setup/html-theme-readtheorg.setup
+#+description: 从 BPM_OA_DESIGN.md,BPM_GAP_PLAN.md,add-new-module.md,README.md,system.edn 提炼的单一设计文档.
+
+#+begin_comment
+本文档中的 C4 架构视图(系统上下文 / 容器 / 组件)与两张流程图为 Org Babel
+内嵌 PlantUML 源码块(C4 视图使用 C4-PlantUML 宏),图片输出到 diagrams/ 目录.
+
+重新渲染方式:
+- Emacs 中在源码块上按 C-c C-c(需 org-babel 启用 plantuml,系统有 plantuml
+  命令或配置 java -jar plantuml.jar).
+- 命令行:用 org-babel-tangle 导出 .puml 后执行
+  plantuml -tsvg diagrams/xxx.puml 重新生成 SVG.
+- 渲染依赖 Graphviz:dot 必须在 PATH 中.macOS 上 graphviz 若未链接
+  (brew 链接会与其他软件冲突),可手动建软链:
+  ln -sf "$(brew --prefix graphviz)/bin/dot" /usr/local/bin/dot
+  否则 PlantUML 会生成 "Cannot find Graphviz" 的错误图片且不易察觉.
+#+end_comment
+
+* 系统概述
+
+** 项目定位
+
+RuoYi-Clojure 是基于 *Kit 框架* + *Reagent 2* + *Ant Design 6* 构建的
+RuoYi 风格全栈管理后台.完整实现了系统管理与日志监控共 18 个 RuoYi-Vue
+功能模块,并集成 *BPM 工作流引擎(Flowable 8.0)与办公一体化*(请假,报销,
+OA 日历/会议,HRM,CRM,报表),核心功能齐平 RuoYi-Vue / ruoyi-office.
+
+参考原版:RuoYi-Vue v3.9.2(https://gitee.com/y_project/RuoYi-Vue ).
+目标对标项目:ruoyi-office(Java/SpringCloud)+ ruoyi-office-vben(Vue3 + Vben Admin,
+功能源自芋道 yudao-cloud).全量移植不可行(参考后端 4,257 文件 / 322k 行,
+552 张表),本项目只取子集,用当前 Clojure 栈 + 内嵌 Flowable 重实现:
+
+| 决策 | 模块 | 落地策略 |
+|------+------+----------|
+| 必做 | BPM 审批流 | 内嵌 Flowable 8.0,保留标准 BPMN 2.0 |
+| 必做 | OA 协同办公 | Clojure 重写(日程/会议等) |
+| 高价值 | HRM 人力资源 | Clojure 重写(员工/考勤/薪资/请假) |
+| 高价值 | CRM 客户管理 | Clojure 重写(客户/商机/跟进/合同) |
+| 高价值 | 数据报表 | Clojure 重写(统计看板) |
+| 不移植 | mall 商城 / iot / pay / mp / member | 与栈不匹配,价值低,明确排除 |
+
+** 技术栈
+
+| 层级 | 技术 | 版本 |
+|------+------+------|
+| 语言 | Clojure 1.12, ClojureScript | -- |
+| 后端框架 | Kit (Integrant, Reitit 0.10, Ring 1.15) | -- |
+| 数据库 | SQLite (默认), MySQL 8, PostgreSQL | -- |
+| 数据库访问 | next.jdbc, conman (HugSQL), Migratus | -- |
+| 连接池 | HikariCP 5.1 | -- |
+| 安全 | Buddy (JWT + bcrypt 密码) | buddy 3.x |
+| 序列化 | Muuntaja (JSON via cheshire, Transit) | -- |
+| 前端框架 | Reagent 2.0 (React 19), re-frame | -- |
+| 前端 UI | Ant Design 6 (React 组件) | -- |
+| 前端构建 | shadow-cljs (NPM via package.json) | -- |
+| 任务调度 | Quartz (kit-quartz cronut) | 2.3.2 |
+| 工作流引擎 | Flowable 8.0.0 (BPMN 2.0) | -- |
+| 验证 | Malli 0.17 | -- |
+| 测试 | clojure.test, Playwright (E2E), Cloverage | -- |
+
+** 核心功能全景
+
+- *系统管理*:用户 / 角色 / 菜单 / 部门 / 岗位 / 字典 / 参数 / 通知公告 /
+  个人中心(全部完成)
+- *日志审计*:操作日志 / 登录日志 / 在线用户(全部完成)
+- *系统监控*:服务监控 / 数据源监控 / 缓存监控 / Integrant 依赖图(全部完成)
+- *任务调度*:CRON 调度(Quartz),暂停/恢复/立即执行,执行日志
+- *BPM 工作流*:模型设计 / 动态表单 / 定义版本 / 流程实例 / 任务中心 /
+  高级审批(加签减签/撤回/退回)/ 流程管理(详见 [[*BPM 与办公一体化设计]])
+- *OA 办公*:请假申请,报销申请(业务记录 + BPM 审批流集成),日程,会议,
+  统计报表
+- *HRM / CRM*:员工管理,客户管理(CRUD)
+
+* 系统上下文(C4 Level 1)
+
+系统的外部参与者是两类用户:*管理员*(admin,超级管理员,拥有全部权限)与
+*普通用户*(ry,只读/办公角色),均通过 Web 浏览器访问.系统本身对外不暴露
+其他服务接口,所有浏览器请求经同一 HTTP 入口进入.
+
+系统的持久化与基础设施依赖:
+
+- *业务数据库*:SQLite(默认)或 MySQL / PostgreSQL,存全部 sys_* 系统表与
+  biz_* 业务表.通过环境变量 =JDBC_URL= / =MIGRATION_DIR= 切换.
+- *Flowable 引擎库*:独立的 H2 1.4.200 文件数据库(=jdbc:h2:file:./flowable=,
+  =FLOWABLE_JDBC_URL= 可覆盖),存引擎自建的 ACT_* 表.
+- *内存缓存*:进程内缓存(clojure.core.cache),重启即清空.
+- *定时调度*:进程内 Quartz 调度器(cronut),无外部依赖.
+
+#+begin_src plantuml :file diagrams/c4-context.svg :exports both
+@startuml
+!include <C4/C4_Context.puml>
+skinparam defaultFontName "PingFang SC"
+SHOW_LEGEND()
+title 系统上下文(C4 Level 1)-- RuoYi-Clojure
+
+Person(admin, "管理员", "admin/admin123<br/>全部权限")
+Person(user, "普通用户", "ry/admin123<br/>只读 / 办公角色")
+System(ruoyi, "RuoYi-Clojure 管理后台", "Clojure 全栈管理后台<br/>Kit + Reagent + AntD6 + Flowable 8.0")
+System_Ext(db, "业务数据库", "SQLite(默认)/ MySQL / PostgreSQL<br/>sys_* + biz_* 表")
+SystemDb_Ext(flowdb, "Flowable 引擎库", "H2 1.4.200 文件库<br/>ACT_* 引擎表")
+System_Ext(cache, "内存缓存", "进程内 clojure.core.cache<br/>重启即清空")
+System_Ext(sched, "定时调度", "进程内 Quartz(cronut)<br/>无外部依赖")
+
+Rel(admin, ruoyi, "管理配置", "HTTPS/HTTP via 浏览器")
+Rel(user, ruoyi, "日常办公 / 审批", "HTTPS/HTTP via 浏览器")
+Rel(ruoyi, db, "读写业务数据", "JDBC (next.jdbc + HikariCP)")
+Rel(ruoyi, flowdb, "读写流程引擎状态", "FLOWABLE_JDBC_URL")
+Rel(ruoyi, cache, "读写缓存", "进程内调用")
+Rel(ruoyi, sched, "注册/触发定时任务", "进程内调用")
+@enduml
+#+end_src
+
+* 容器视图(C4 Level 2)
+
+系统由三个容器组成,全部部署在同一 JVM 进程(uberjar 可单 jar 交付),
+前端为浏览器内运行的单页应用.
+
+** 容器一:单页前端(ClojureScript)
+
+- 由 shadow-cljs 编译的 SPA:Reagent 2(React 19)+ re-frame + Ant Design 6,
+  路由用 bidi.
+- 页面位于 =src/cljs/com/ruoyi/frontend/pages/=,API 层为单个
+  =api.cljs=(约 177 个 =defn=).
+- 开发模式由 shadow-cljs watch 提供增量编译(9630 起监听,被占用自动顺延);
+  生产构建 =npx shadow-cljs release app= 输出约 5.4MB,由后端容器伺服.
+
+** 容器二:HTTP 后端(Clojure, Kit)
+
+- Kit/Integrant/Reitit/Ring,Undertow 监听 3000 端口(=PORT= 可覆盖),
+  同时伺服前端静态资源(=:static {:resources "public"}=)与 /api/* 接口.
+- 五层结构:route → controller → domain service → HugSQL → infra/db.clj.
+- nREPL 7000 端口(=NREPL_PORT= 可覆盖)供热重载开发.
+
+** 容器三:Flowable 引擎(嵌入式)
+
+- Flowable 8.0 ProcessEngine 以 Integrant 组件(:app.bpm/engine)内嵌于
+  后端 JVM,是项目中*唯一*直接接触流程引擎的地方.
+- 独立存储:H2 1.4.200 文件库,默认 URL
+  =jdbc:h2:file:./flowable;MODE=MySQL;DB_CLOSE_ON_EXIT=FALSE=,
+  由 =FLOWABLE_JDBC_URL= / =FLOWABLE_ASYNC= 环境变量覆盖.
+- 引擎状态(流程定义,实例,任务,变量,历史)全在 H2;业务记录(请假单,
+  报销单等)在应用库,两边通过 business_key / process_instance_id 关联.
+- 前端 BPM 建模器曾评估 bpmn-js(纯前端 JS,经 UMD 外置加载),当前主流程
+  设计器为自研 HTML/flex 组件(=bpm_flow_designer.cljs=),BPMN XML ↔
+  流程节点树双向转换在后端 =domain/business/bpm_flow.clj= 完成.
+
+#+begin_src plantuml :file diagrams/c4-container.svg :exports both
+@startuml
+!include <C4/C4_Container.puml>
+skinparam defaultFontName "PingFang SC"
+SHOW_LEGEND()
+title 容器视图(C4 Level 2)-- RuoYi-Clojure
+
+Person(admin, "管理员", "全部权限")
+Person(user, "普通用户", "只读 / 办公角色")
+
+System_Boundary(ry, "RuoYi-Clojure 系统") {
+  Container(spa, "单页前端", "ClojureScript / shadow-cljs", "Reagent 2 (React 19) + re-frame + Ant Design 6 + bidi<br/>pages/ 页面 + 单 api.cljs(约 177 defn)<br/>release 产物约 5.4MB")
+  Container(backend, "HTTP 后端", "Clojure 1.12 / Kit", "Integrant + Reitit + Ring (Undertow :3000)<br/>伺服 /api/* 与前端静态资源;nREPL :7000<br/>五层: routes -> controllers -> domain -> HugSQL -> infra<br/>进程内含 Quartz 调度与内存缓存")
+  Container(engine, "Flowable 引擎", "Flowable 8.0 ProcessEngine", "Integrant 组件 :app.bpm/engine<br/>与后端同 JVM;BPMN 2.0<br/>唯一接触流程引擎的容器")
+  ContainerDb(bizdb, "业务数据库", "SQLite(默认)/ MySQL / PostgreSQL", "sys_* 系统表 + biz_* 业务表<br/>JDBC_URL / MIGRATION_DIR 切换")
+  ContainerDb(flowdb, "Flowable 引擎库", "H2 1.4.200 文件库", "jdbc:h2:file:./flowable<br/>ACT_* 引擎表")
+}
+
+Rel(admin, spa, "使用", "浏览器")
+Rel(user, spa, "使用", "浏览器")
+Rel(spa, backend, "调用 API", "JSON / JWT Bearer (fetch /api/*)")
+Rel(backend, spa, "伺服静态资源", "js/css 同端口 :3000")
+Rel(backend, engine, "驱动审批流", "bpm/core API(进程内)<br/>business_key 关联业务单")
+Rel(backend, bizdb, "读写业务数据", "JDBC + HikariCP")
+Rel(engine, flowdb, "读写引擎状态", "JDBC")
+@enduml
+#+end_src
+
+* 组件视图(C4 Level 3)
+
+** 后端分层
+
+#+begin_src plantuml :file diagrams/c4-component-backend.svg :exports both
+@startuml
+!include <C4/C4_Component.puml>
+skinparam defaultFontName "PingFang SC"
+SHOW_LEGEND()
+title 组件视图(C4 Level 3)-- HTTP 后端
+
+Container_Boundary(backend, "HTTP 后端(Kit/Integrant)") {
+  Component(mw, "中间件链", "Ring", "参数解析 -> JWT 鉴权 -> 异常 -> 操作日志 -> muuntaja")
+  Component(routes, "路由", "Reitit 数据驱动", "api/auth/system/business/captcha/common<br/>整组 auth-middleware {:required? true}")
+  Component(ctrl, "控制器", "web/controllers/**", "解包请求 / 调服务 / 组装 {:code :msg :data}")
+  Component(domain, "领域服务", "domain/{system,business}/**", "Integrant 组件;业务规则 + 分页换算<br/>审批流模块注入 :engine")
+  Component(hugsql, "HugSQL 查询", "sql/*.sql", "query-fn 启动时加载缓存<br/>方言差异给 -mysql 变体")
+  Component(db, "数据库抽象", "infra/db.clj", "detect-db-type / paginate-query / get-tables")
+  Component(bpmcore, "BPM 封装", "bpm/core.clj", "部署/发起/审批/驳回/转办/委派/历史")
+  Component(engine, "Flowable 引擎", "bpm/engine.clj", "ProcessEngine Integrant 组件")
+  Component(sched, "任务调度", "infra/scheduler.clj", "Quartz 封装:CRON/暂停/恢复/立即执行")
+  Component(cache, "内存缓存", "infra/cache.clj", "clojure.core.cache 进程内缓存")
+}
+
+Rel(mw, routes, "放行")
+Rel(routes, ctrl, "partial 注入服务")
+Rel(ctrl, domain, "调用")
+Rel(domain, hugsql, "执行查询")
+Rel(hugsql, db, "SQL")
+Rel_Back(db, hugsql, "结果集")
+Rel(domain, bpmcore, "审批流操作", "需审批的模块")
+Rel(bpmcore, engine, "引擎 API")
+Rel(engine, domain, "business_key 关联业务单", "双轨数据库")
+Rel(domain, cache, "读写缓存")
+Rel(domain, sched, "注册任务", "job 模块")
+@enduml
+#+end_src
+
+** 中间件链(Ring)
+
+#+begin_src plantuml :file diagrams/middleware-chain.svg :exports both
+@startuml
+skinparam defaultFontName "PingFang SC"
+left to right direction
+title Ring 中间件链(请求处理顺序)
+skinparam componentStyle rectangle
+component "参数解析<br/>(ring-defaults)" as p1
+component "wrap-jwt-auth<br/>(JWT 鉴权, 401/403)" as p2
+component "wrap-exception<br/>(统一异常)" as p3
+component "wrap-operlog<br/>(操作日志)" as p4
+component "muuntaja<br/>(格式转换)" as p5
+component "Reitit 路由<br/>-> 控制器" as p6
+p1 --> p2
+p2 --> p3
+p3 --> p4
+p4 --> p5
+p5 --> p6
+@enduml
+#+end_src
+
+** 前端分层
+
+#+begin_src plantuml :file diagrams/c4-component-frontend.svg :exports both
+@startuml
+!include <C4/C4_Component.puml>
+skinparam defaultFontName "PingFang SC"
+SHOW_LEGEND()
+title 组件视图(C4 Level 3)-- 单页前端
+
+Container_Boundary(spa, "单页前端(shadow-cljs SPA)") {
+  Component(router, "bidi 路由", "router.cljs", "30+ 页面路由")
+  Component(pages, "页面", "pages/**", "Reagent 函数组件 + Hooks 局部状态<br/>re-frame events/subs 共享状态")
+  Component(antd, "antd 适配层", "antd.cljs", "Ant Design 6 组件统一入口")
+  Component(apilayer, "API 层", "api.cljs(单文件)", "约 177 个 defn<br/>自动附加 Bearer token")
+  Component(designer, "设计器组件", "components/", "表单设计器 / bpmn 建模器 /<br/>流程设计器 / 表单渲染")
+}
+
+Rel(router, pages, "匹配路由")
+Rel(pages, antd, "渲染")
+Rel(pages, apilayer, "调用 API")
+Rel(apilayer, pages, "响应数据", "re-frame dispatch")
+Rel(pages, designer, "复用", "设计器页面")
+@enduml
+#+end_src
+
+左侧菜单*必须*从后端接口动态获取(登录后 GET /api/auth/getInfo 返回
+roles / perms / menus),按当前用户角色构建,不可在前端写死.
+
+** Integrant 组件链(resources/system.edn 事实)
+
+#+begin_src plantuml :file diagrams/integrant-chain.svg :exports both
+@startuml
+skinparam defaultFontName "PingFang SC"
+left to right direction
+title Integrant 组件链(resources/system.edn 事实)
+skinparam componentStyle rectangle
+[nrepl/server] --> [server/http]
+[server/http] --> [handler/ring]
+[handler/ring] --> [router/core]
+[router/core] --> [routes/api]
+[routes/api] --> [auth-routes]
+[routes/api] --> [system-routes]
+[routes/api] --> [business-routes (含 BPM/办公)]
+[routes/api] --> [captcha-routes]
+[routes/api] --> [common/utils-routes]
+[db.sql/migrations] --> [db.sql/connection]
+[db.sql/connection] --> [db.sql/query-fn]
+[db.sql/query-fn] --> [15+ 域服务]
+[db.sql/connection] --> [cronut/scheduler]
+[cronut/scheduler] --> [job-scheduler (轮询任务表)]
+[db.sql/connection] --> [app.bpm/engine (Flowable 8.0, H2)]
+[app.bpm/engine (Flowable 8.0, H2)] --> [bpm/leave/reimburse-service]
+@enduml
+#+end_src
+
+*:reitit.routes/api* 通过 #ig/ref 注入全部服务(user-service ... reimburse-service,
+mgmt-service),路由用 =(partial handler {:service-key service})= 把服务递给控制器.
+
+* 关键设计决策(ADR)
+
+** ADR-1:BPM 采用内嵌 Flowable 8.0 + 独立 H2 文件库(双轨数据库)
+
+- *背景*:需要为系统引入 ruoyi-office 风格的 BPM 审批流.本栈是
+  Clojure(JVM),Flowable 是 Java 库;重写在野 BPM 引擎(22k+ 行)不可行.
+- *决策*:同进程内嵌 Flowable 8.0 ProcessEngine(Integrant 组件
+  :app.bpm/engine),引擎库为独立的 H2 1.4.200 文件数据库
+  (=jdbc:h2:file:./flowable=,=FLOWABLE_JDBC_URL= 可覆盖,生产可切
+  MySQL/PostgreSQL 仅改 URL).引擎状态(定义/实例/任务/变量/历史)在
+  H2 的 ACT_* 表;业务记录(请假单,报销单等)在应用库的 biz_* 表,
+  通过 business_key / process_instance_id 关联.Clojure 只写业务壳:
+  =bpm/core.clj= 高层 API(部署/发起/审批/驳回/转办/委派/历史/流程图),
+  =bpm/engine.clj= 是唯一直接接触引擎的组件.
+- *理由*:Java interop 零成本,保留完整 BPMN 2.0 标准(部署 .bpmn,
+  任务引擎,流程实例);双轨让应用库保持 SQLite/MySQL 双兼容,Flowable
+  库独立互不污染.可行性 spike 已在 JDK 26 端到端验证(Flowable 7.2.0 /
+  8.0.0 均可,推荐 8.0.0;异步执行器可用).
+- *后果*:
+  - H2 必须锁 1.4.200(Flowable 的 IDENTITY 方言不兼容 H2 2.x).
+    该版本有 CVE-2022-23221(RCE,仅当 JDBC URL 可被不可信方控制时触发);
+    本项目引擎 URL 由配置硬编码,不受影响;更高安全要求时切外部 MySQL/PG.
+  - 流程数据跨两个库,备份/排障需同时关注 H2 文件与应用库.
+  - 部署时部署方 BPM 配置(候选人策略,节点配置)以
+    <flowable:property name="nodeConfig"> JSON 内嵌 BPMN,不改表结构.
+
+源材料未记录"为何不选 Camunda"的对比论证,此处不做臆测(待确认).
+
+** ADR-2:双数据库兼容(SQLite / MySQL,PostgreSQL 宣称支持)
+
+- *背景*:开发/测试默认 SQLite,生产推荐 MySQL(README 技术栈同时列
+  PostgreSQL).
+- *决策*:
+  - 切换机制:=JDBC_URL= + =MIGRATION_DIR= 两个环境变量;迁移双份,
+    =resources/migrations-sqlite/= 与 =resources/migrations/= 必须同步.
+  - *每条 SQL 语句之后必须紧跟一行 =--;;=*(Migratus 要求 JDBC 单语句
+    执行).漏写不报错--只静默执行第一条且迁移标记已完成,属高危坑.
+  - SQL 优先共用语法:=INSTR= 不用 =||=,=LIMIT/OFFSET= 不用 ROWNUM,
+    =CURRENT_TIMESTAMP= 不用 =datetime('now')=(后者为 SQLite 独有).
+  - 函数名不同时提供 =-mysql= 命名变体,Clojure 层用
+    =com.ruoyi.infra.db/detect-db-type= 选择(如 last-insert-id /
+    insert-and-get-id!).
+  - DDL 差异:SQLite =INTEGER PRIMARY KEY= vs MySQL
+    =BIGINT AUTO_INCREMENT PRIMARY KEY=;字符串 SQLite TEXT vs MySQL
+    VARCHAR(255);时间字段 TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    幂等插入 INSERT OR IGNORE vs INSERT IGNORE.
+  - HugSQL :v* 展开空数组会生成 =IN ()= 语法错误,空集合传 =[0]= 哨兵.
+- *后果*:任何新表/新查询必须在两个库各跑一遍全量测试;改完 .sql 必须
+  =(user/rr)= 重启系统(HugSQL 查询启动时缓存).
+
+** ADR-3:RBAC + 数据权限
+
+- *背景*:RuoYi 风格管理后台需要用户/角色/菜单三级授权与部门级数据隔离.
+- *决策*:
+  - 模型:=用户 ── N:N ── 角色 ── N:N ── 菜单(含 perms 按钮权限标识)=,
+    用户另属部门(树形).
+  - 数据权限范围四种:全部 / 自定义(指定部门)/ 本部门 / 本部门及以下,
+    存于角色;运行时由 =infra/data_perm.clj= 的 =apply-data-scope= 过滤.
+  - 菜单/按钮权限动态下发:菜单种子迁移插入 sys_menu(目录/菜单 'C'/按钮 'F'
+    三级)+ sys_role_menu 授权;登录后 getInfo 返回 perms 集合,前端据
+    此渲染菜单和按钮显隐,*不可在前端写死*.
+  - 管理类端点沿 =wrap-jwt-auth= + perms 检查;业务路由当前主要靠前端按
+    perms 控制按钮显隐(require-perms 已有实现,业务路由未强制使用).
+- *后果*:新增模块必须附带菜单种子迁移;权限改动需同时更新 sys_menu 与
+  sys_role_menu.
+
+** ADR-4:单一 api.cljs 前端 API 层
+
+- *背景*:前端约 30+ 页面,BPM/OA/HRM/CRM 等业务模块,需要统一的 HTTP 出口.
+- *决策*:全部 API 调用集中在 =src/cljs/com/ruoyi/frontend/api.cljs=(单个
+  文件,约 177 个 =defn=),按模块分区追加,签名统一
+  =[params on-success on-error]=;私有 =request= 函数自动从 re-frame app-db
+  取 token 加 Bearer 头.
+- *理由*:源材料未记录拆分与否的论证(待确认).现状优点是所有请求的
+  认证/错误处理一处实现;代价是文件随模块增长变大,尚无按模块拆分的
+  api/ 目录.
+- *后果*:新模块按既有分区惯例追加 API 函数;事件层(events.cljs)通过
+  reg-fx 调 api 函数,回调里 dispatch set-list.
+
+** ADR-5:cronut 调度(任务存库轮询)与 Quartz 的关系
+
+- *背景*:需要 RuoYi 风格的定时任务管理(CRUD,暂停/恢复/立即执行,
+  执行日志).
+- *决策*:调度底座是 Quartz 2.3.2,经 kit-quartz 的 cronut 组件接入
+  Integrant(:cronut/scheduler).但 =:schedule []= 为空--cronut 只提供
+  触发机制,*任务定义存数据库*(sys_job),由 =app.system/job-scheduler=
+  组件轮询任务表驱动 Quartz.
+- *理由*:与 RuoYi 的"任务存库,运行时管理"语义对齐--任务 CRUD 改库即可
+  生效,无需改代码或重启;cronut 的声明式 :schedule 不适合动态任务集.
+- *后果*:调度元数据在应用库;调度执行目标函数位于 =com.ruoyi.task=.
+
+** ADR-6:统一接口契约(分页 page/size,响应 {:code :msg :data})
+
+- *背景*:前后端契约需与 RuoYi-Vue 对齐并全项目一致.
+- *决策*:
+  - 分页参数:前端传 =page= / =size=(*不是* pageNum/pageSize);SQL 层用
+    =LIMIT :page_size OFFSET :offset=,领域服务负责换算,列表查询固定配
+    一个 =xxx-count=.
+  - 响应格式:成功 ={:code 200 :msg "操作成功" :data ...}=;列表
+    =data= 为 ={:rows [...] :total N}=.
+  - 可选过滤模式 =(:name IS NULL OR INSTR(name, :name) > 0)=,参数为 nil
+    时条件自动失效.
+  - 更新部分字段用 =COALESCE(:col, col)= 保护未传参的列.
+- *后果*:控制器用 =bu/kquery= 把 HTTP 层 string key 的 query-params 转
+  keyword key(漏掉则分页/过滤静默失效);前端按 =(:code r)= 判断.
+
+* 数据模型
+
+** sys_* 核心表(系统管理,应用库)
+
+| 表 | 用途 | 关键字段 |
+|------+------+----------|
+| sys_user | 用户 | user_id, user_name, password(bcrypt), dept_id, status |
+| sys_role | 角色(含数据权限范围) | role_id, role_name, role_key, data_scope |
+| sys_menu | 菜单/按钮权限 | menu_id, parent_id, path, component, menu_type('M'/'C'/'F'), perms, icon |
+| sys_user_role | 用户-角色 N:N | user_id, role_id |
+| sys_role_menu | 角色-菜单 N:N | role_id, menu_id |
+| sys_dept | 部门(树形) | dept_id, parent_id, leader |
+| sys_post | 岗位 | post_id, post_name |
+| sys_user_post | 用户-岗位 N:N | user_id, post_id |
+| sys_dict_type / sys_dict_data | 字典类型/数据 | dict_id, dict_type / dict_code, dict_label, dict_value |
+| sys_config | 系统参数 | config_id, config_key, config_value |
+| sys_notice | 通知公告 | notice_id, notice_title, notice_content |
+| sys_oper_log / sys_logininfor | 操作/登录日志 | oper_id / info_id, ip, status |
+| sys_job | 定时任务(存库轮询) | job_id, job_name, job_group, invoke_target, cron_expression, status |
+| sys_job_log | 任务执行日志 | job_log_id, job_message, status |
+
+另有在线用户(内存 + 令牌黑名单实现,非独立表),用户导入导出等辅助能力.
+
+** biz_* 业务表(办公一体化,应用库)
+
+*** BPM 业务侧(记录与 Flowable 的映射)
+
+| 表 | 用途 | 关键字段 |
+|------+------+----------|
+| biz_bpm_category | 流程分类 | category_id, name, code, status |
+| biz_bpm_model | 流程模型(BPMN XML + 表单 schema) | model_id, key, name, form_type, form_json, bpmn_xml, fields_permission, process_id_rule, name_rule, summary_fields, auto_approval_type, bill_code 相关, status, version |
+| biz_bpm_form | 动态表单定义 | form_id, name, form_json, status |
+| biz_bpm_instance | 流程实例业务映射 | instance_id, process_instance_id, model_id, form_data_json, bill_code, starter_id, status(RUNNING/APPROVED/REJECTED/CANCELED), current_task, create_time |
+| biz_bpm_copy | 抄送记录 | copy_id, user_id, process_instance_id, activity_id, activity_name, reason |
+| biz_bpm_user_group | 用户分组(候选人策略消费) | id, name, user_ids |
+| (监听器/表达式/设置) | BPM 管理套件 3 表(Phase 4 changelog (20) 新增,具体表名待确认) | -- |
+
+*** OA / HRM / CRM / 附件
+
+| 表 | 用途 | 落地状态 |
+|------+------+----------|
+| biz_oa_leave | 请假申请(走 BPM 审批) | ✅ 已实现(旗舰示例) |
+| biz_oa_reimburse | 报销申请(走 BPM 审批) | ✅ 已实现 |
+| biz_oa_calendar | 日程/日历 | ✅ 已实现 |
+| biz_oa_meeting | 会议管理 | ✅ 已实现 |
+| biz_oa_notice | 公告(设计稿,可复用/增强 sys_notice) | 设计未落地(待确认) |
+| biz_oa_document | 公文/文档 | 设计未落地 |
+| biz_oa_todo | 待办聚合视图 | 设计未落地(直接查 Flowable 任务) |
+| biz_hrm_employee | 员工档案(关联 sys_user / sys_dept) | ✅ 已实现 |
+| biz_hrm_attendance / biz_hrm_leave / biz_hrm_salary | 考勤/请假/薪资 | 设计未落地 |
+| biz_crm_customer | 客户 | ✅ 已实现 |
+| biz_crm_contact / business / followup / contract | 联系人/商机/跟进/合同 | 设计未落地 |
+| biz_attachment | 通用附件(可对接 system/file 文件管理) | 待确认 |
+
+** Flowable 引擎表(H2 引擎库,引擎自管)
+
+=ACT_RE_DEPLOYMENT=(部署),=ACT_RE_PROCDEF=(流程定义),=ACT_RU_*=
+(运行时:实例/任务/变量/执行),=ACT_HI_*=(历史),ACT_ID_*(identity,
+部署时由 =bpm/core.clj sync-identity!= 幂等同步系统用户/角色/部门/岗位及
+membership,用户 id 用 user_name 与任务查询对齐).业务记录通过
+process_instance_id 关联.
+
+* BPM 与办公一体化设计
+
+** 模块全景
+
+| 模块 | 后端控制器 | 领域层 | 前端页面 | 路由 |
+|------+------------+--------+----------+------|
+| 流程模型 | business/bpm_mgmt.clj | domain/business/bpm_mgmt.clj | bpm_model.cljs / bpm_model_editor.cljs | /office/bpm/model |
+| 流程定义(版本) | business/bpm_mgmt.clj | bpm_mgmt.clj | bpm_definition.cljs | /office/bpm/definition |
+| 流程实例 | business/bpm.clj | domain/business/bpm.clj | bpm_instance.cljs | /office/bpm/instance |
+| 发起流程 | business/bpm.clj | bpm.clj | bpm_start.cljs | /office/bpm/start |
+| 待办任务 | business/bpm.clj | bpm.clj | bpm_todo.cljs | /office/bpm/todo |
+| 已办任务 | business/bpm.clj | bpm.clj | bpm_done.cljs | /office/bpm/done |
+| 抄送我的 | business/bpm.clj | bpm.clj | bpm_copy.cljs | /office/bpm/copy |
+| 流程运维/管理 | business/bpm_mgmt.clj | bpm_mgmt.clj | bpm_ops.cljs / bpm_admin.cljs | /office/bpm/instance-ops 等 |
+| 管理套件 | business/bpm_mgmt.clj | bpm_mgmt.clj | 通用 CRUD 页 | /office/bpm/{form,category,user-group,listener,expression,settings,instance-manager,task-manager} |
+| 请假申请 | business/leave.clj | domain/business/leave.clj | leave.cljs | /office/oa/leave |
+| 报销申请 | business/reimburse.clj | domain/business/reimburse.clj | reimburse.cljs | /office/oa/reimburse |
+| OA 日历/会议 | business/oa.clj | domain/business/oa.clj | oa_calendar.cljs / oa_meeting.cljs | /office/oa/calendar · /meeting |
+| HRM 员工 | business/hrm.clj | domain/business/hrm.clj | hrm.cljs | /office/hrm/employee |
+| CRM 客户 | business/crm.clj | domain/business/crm.clj | crm.cljs | /office/crm/customer |
+| 报表 | business/util.clj | -- | report.cljs | /office/report |
+
+表单设计/渲染与流程设计器组件在 =src/cljs/com/ruoyi/frontend/components/=:
+form_designer / form_field / form_section / form_render /
+bpm_flow_designer / bpmn_modeler / bpmn_viewer.
+
+** 审批能力(Phase 1-2 规格,已完成)
+
+- *基础流转*:发起 / 审批通过 / 驳回(可退回指定节点)/ 认领 / 转办 / 委派 /
+  取消(发起人或管理员,status=CANCELED)/ 挂起 / 激活 / 终止.
+- *加签/减签*:POST/DELETE =/api/business/bpm/task/create-sign|delete-sign=
+  ={taskId, userIds[], type: before|after, reason}=;子任务先于父任务完成,
+  父任务通过前校验无未完成子任务;GET sign-list 查子任务.
+- *撤回*:审批人撤回(changeState 把 token 移回,要求下一节点未完成);
+  发起人撤回到起始节点重新编辑.
+- *抄送闭环*:审批弹窗抄送写 biz_bpm_copy;"抄送我的"分页可查;设计器抄送
+  节点运行时生成 COPY_TASK,TaskListener 自动写抄送记录并 complete.
+- *可退回节点列表*:GET =/api/business/bpm/task/return-list?taskId= 返回当前
+  任务之前已完成的用户任务节点,驳回弹窗下拉用它.
+- *候选人策略*:GAP_PLAN 在"现有 8 种"基础上新增 5 种:
+  =INITIATOR_SELF=(36) 发起人本人,=USER_GROUP=(40) 用户组,=FORM_USER=(50)
+  表单内用户字段,=FORM_DEPT_LEADER=(51) 表单内部门负责人,=EXPRESSION=(60)
+  流程表达式;多人审批方式新增 =RANDOM=(1) 随机一人.另有与提交人相同
+  (SKIP / ASSIGN_DEPT_LEADER)与为空处理(ASSIGN_USER / TO_ADMIN /
+  AUTO_PASS / AUTO_REJECT)的运行时策略.注:AGENTS.md 称"候选人策略 14 种",
+  GAP_PLAN 可考的为 8+5=13 种(第 14 种口径待确认).
+- *节点级配置*(全部存 BPMN <flowable:property name="nodeConfig"> JSON):
+  审批类型(人工/自动通过/自动拒绝),多人审批方式(依次/或签/会签/按比例),
+  拒绝策略(TERMINATE / RETURN_NODE),为空策略,超时处理(边界定时事件 +
+  统一 TimeoutHandler:REMINDER 提醒 / AUTO_PASS / AUTO_REJECT),操作按钮
+  配置(approve/reject/transfer/delegate/add-sign/return 显隐改名),手写
+  签名(signEnable),审批意见必填(reasonRequire),表单字段权限
+  (可编辑/只读/隐藏),字段联动显隐,条件表达式,事件配置(on-change 设置
+  字段值),节点监听器(Create/Assign/Complete 三个 HTTP 回调).
+- *多实例运行时*:会签/或签/按比例 → multiInstanceLoopCharacteristics,
+  collection 按节点 id 注入候选人集合,发起时展开.
+
+** 版本管理与治理(Phase 3,已完成)
+
+- 流程定义版本页:定义分页(version/suspensionState/deployTime/form 绑定),
+  查看 XML,历史版本恢复(反写回模型 bpmn_xml 重新编辑部署).
+- 模型启停/清理/复制:按 key 挂起/激活最新定义;清理历史实例+部署;
+  复制模型(名称+“副本”,key+_copy).
+- *流程编号规则*:模型级 process_id_rule JSON,发起时生成单号
+  (前缀+日期中缀+流水号,长度≥5,当日自增),存 biz_bpm_instance.bill_code.
+- *自动去重*:模型级 auto_approval_type:NONE / APPROVE_ONCE(同一审批人只审
+  一次)/ CONSECUTIVE(仅连续重复节点).
+- *自定义标题与摘要*:name_rule 模板({字段}/{发起人}/{发起时间})渲染实例
+  名;summary_fields 让列表返回 summary [{key,value}].
+- *打印*:模型级 print_template_enable / print_template_html;
+  GET =/api/business/bpm/instance/print-data= 返回实例+任务记录+签名图,
+  前端拼 HTML 浏览器打印.
+
+** Webhook / 触发器 / 子流程(Phase 4,已完成)
+
+- *Webhook*(模型级 webhooks JSON,4 钩子):process_start / process_end /
+  task_start / task_end,每个 ={url, headers[], bodyParams[]}=(值支持固定值
+  或 ${字段});HTTP POST(clj-http)在封装点统一触发,失败仅记日志不影响流程.
+- *触发器节点* 4 种语义:HTTP 请求(response 回写表单字段),HTTP 回调
+  (降级为仅记录),修改表单数据,删除表单数据;生成 serviceTask +
+  JavaDelegate 统一入口 TriggerDelegate,按 nodeConfig 分发.
+- *子流程节点*:child-process 配置子流程定义,主→子变量映射(in/out),
+  子流程发起人策略;生成 callActivity 参数映射.
+- *路由分支节点*:多组(目标节点+条件规则),生成时展开为排他网关结构
+  (条件分支的语法糖).
+- *节点监听器接线*:见上一节节点级配置.
+
+** BPM 后端 API 契约概览
+
+=bpm/core.clj= 高层函数(控制器只调这些):
+
+#+begin_src clojure
+;; 流程定义
+(bpm/deploy! engine bpmn-xml key name)      ; 部署
+(bpm/list-definitions engine)               ; 已部署定义
+;; 流程实例
+(bpm/start! engine definition-key business-key vars)  ; 发起
+(bpm/instance-list engine)                  ; 运行中实例
+(bpm/history engine business-key)           ; 历史轨迹
+;; 任务
+(bpm/todo-list engine user)                 ; 待办
+(bpm/done-list engine user)                 ; 已办
+(bpm/claim! engine task-id user)            ; 认领
+(bpm/complete! engine task-id user vars)    ; 审批通过(含驳回变量)
+(bpm/reject! engine task-id user comment)   ; 驳回/打回
+(bpm/transfer! engine task-id from to)      ; 转办
+(bpm/delegate! engine task-id ...)          ; 委派
+;; 流程图
+(bpm/diagram engine process-instance-id)    ; 生成流程图(高亮)
+#+end_src
+
+- 统一响应:成功 ={:code 200 :msg "操作成功" :data ...}=;分页列表
+  =data: {:rows [...] :total N}=;分页参数 =page= / =size=.
+- 实例状态枚举:RUNNING / APPROVED / REJECTED / CANCELED.
+- 业务记录 + 审批流集成模式:业务表存单据,发起时入 Flowable 并回写
+  process_instance_id;列表时惰性同步运行中单据的 status(见
+  domain/business/leave.clj sync-status!).
+
+** 前端设计器与表单策略
+
+- 不复用 Vben 代码(Vue3 → Reagent 不可移植),只移植 UI 语义用 antd 6 重画.
+- 流程设计器为自研 HTML/flex 节点树组件(对齐 vben simple-process-design):
+  发起/结束胶囊,审批卡片,条件分支横向展开,连线上"+"插入 10 种节点,
+  节点配置抽屉;BPMN XML ↔ 节点树双向转换在后端 bpm_flow.clj.
+- 表单设计器三栏布局(组件库 20 种 / 画布 / 属性配置),对齐 vben
+  @form-create 的 conf/fields JSON;form_render 运行时渲染(含栅格布局,
+  字段联动,校验,事件配置,子表单,富文本,地区级联,表单模板,上传).
+- 富文本为自写轻量组件(contenteditable,react-quill 2.0 与 React 19
+  不兼容已弃用).
+- 历史演进:早期用 bpmn-js(UMD 外置加载),后主线切换到自研 HTML/flex
+  设计器;bpmn_modeler / bpmn_viewer 组件仍保留.
+
+* 非功能设计
+
+** 安全
+
+- *认证*:JWT Bearer Token(HS256,有效期 24h),Buddy 签发/验证;
+  =wrap-jwt-auth= 每请求解析,身份注入 =(:identity request)=
+  (:user-id / :user-name / :perms).
+- *密钥*:=JWT_SECRET= 生产必须经环境变量设置,不得用默认值
+  (默认 =rouyi-default-jwt-secret-key-change-in-production=);=COOKIE_SECRET=
+  同理.
+- *密码*:bcrypt 哈希(README 记为 bcrypt+sha512).
+- *在线控制*:在线用户心跳 + 令牌黑名单(infra/online.clj),支持强制下线.
+- *其他*:ring-defaults 安全头(xss-protection / frame-options /
+  content-type-options;anti-forgery 关闭因纯 JWT Bearer);登录限流可扩展.
+
+** 性能
+
+- 连接池 HikariCP 5.1(system.edn 配置 init-size/max-active 等).
+- 内存缓存(infra/cache.clj,clojure.core.cache),缓存键按模块命名空间
+  隔离,重启即清.
+- 惰性状态同步:审批中业务单据不在每次事件推送更新,而是列表查询时按
+  流程状态刷新(减少写放大).
+
+** 部署
+
+- 生产构建:=npx shadow-cljs release app= + =clojure -T:build all= 产出
+  ~101MB 独立 uberjar(含 Flowable/H2/前端静态资源),=java -jar= 即可运行.
+- 双库切换:=JDBC_URL= / =MIGRATION_DIR=;Flowable 引擎库
+  =FLOWABLE_JDBC_URL=(默认 H2 文件 =./flowable=),=FLOWABLE_ASYNC= 控制
+  异步执行器.
+- *Flowable H2 备份注意*:引擎状态在独立 H2 文件库,备份/迁移需连同
+  flowable 文件一起处理;生产可切外部 MySQL/PG 以获得常规备份能力.
+
+** 可观测
+
+- *操作/登录日志*:wrap-operlog 自动记录请求方法/URL/参数/结果/耗时;
+  登录日志记 IP/浏览器/系统.
+- *监控页*:服务监控(CPU/内存/JVM/磁盘),数据源监控(HikariCP 状态),
+  缓存监控,Integrant 依赖图可视化(/monitor/integrant).
+- *追踪*:obs/ 下 OpenTelemetry 追踪封装(README 提及,组件调用追踪经
+  integrant/trace.clj 可视化).
+
+* 演进与维护
+
+** 时间线(简要)
+
+- *2026-08-24 ~ 08-26*:BPM/OA 办公一体化 Phase 0-4 主体实施
+  (Flowable spike → 后端垂直切片 → 前端页面 → 设计器/表单差距清零 →
+  MySQL 双库验证 → uberjar 交付验证).
+- *2026-08-25 ~ 09-18*:BPM 差距补全 Phase 1-4(审批闭环 / 节点配置补全 /
+  治理能力 / 进阶能力),372 测试全绿.
+- 完整历史见 [[file:../../CHANGELOG.md][CHANGELOG.md]](版本演进回溯整理).
+
+** 权威来源与分工
+
+| 文档 | 角色 |
+|------+------|
+| [[file:design.org][design.org]](本文档) | 单一设计文档:规格与设计决策的汇总提炼 |
+| [[file:BPM_OA_DESIGN.md][BPM_OA_DESIGN.md]] | 原始顶层设计 + *63 条逐日 changelog(权威来源)* |
+| [[file:BPM_GAP_PLAN.md][BPM_GAP_PLAN.md]] | Phase 1-4 实施规格约定(全部完成) |
+| [[file:../guides/add-new-module.md][../guides/add-new-module.md]] | 新增业务模块端到端操作指南(迁移→SQL→领域→控制器→前端→权限→测试) |
+| [[file:../../AGENTS.md][../../AGENTS.md]] | 开发规范与命令速查(架构分层,双库规则,前端规范) |
+
+*取舍说明*:BPM_OA_DESIGN.md 的 63 条逐日 changelog 属过程记录,体量大,
+不进入本文档;两者不一致时以本文档的设计决策与规格为准,过程细节回查
+原文件.
+
+* 附:源材料内部矛盾记录
+
+- *FLOWABLE_ASYNC 默认值*:BPM_OA_DESIGN.md changelog (2) 记"async 默认关",
+  但当前 resources/system.edn 为 =#or [#env FLOWABLE_ASYNC true]=(默认开).
+  以 system.edn 现状为准.
+- *测试数量*:changelog 多处记 349 测试,GAP_PLAN 完成状态记 372 测试,
+  README 记约 440 个 deftest--反映不同时期快照,非错误.
+- *HRM/CRM 范围*:BPM_OA_DESIGN.md Phase 2 清单中考勤/请假/薪资,商机/跟进/
+  合同为未完成勾选;AGENTS.md 模块清单只列 HRM 员工与 CRM 客户,两者一致
+  (这些子模块尚未落地),但易与"Phase 1-4 全部完成"的状态行混淆--完成
+  指 GAP_PLAN 的 4 个 Phase,不含设计稿中未列的后续模块.
+- *候选人策略数量*:AGENTS.md 称 14 种;GAP_PLAN 可考的为"现有 8 种 + 新增
+  5 种 = 13 种",口径待确认.
+- *biz_oa_notice 等设计表*:BPM_OA_DESIGN.md 数据模型列出了若干(notice/
+  document/todo/attendance/salary/crm 全套)设计表,当前实现未落地(见
+  [[*biz_* 业务表(办公一体化,应用库)]]).

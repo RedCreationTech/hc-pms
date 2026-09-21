@@ -1,6 +1,6 @@
 (ns com.ruoyi.business.bpm-integration-test
-  "BPM 业务 REST 集成测试：启动完整系统，走 HTTP 全链路。
-   断言不依赖待办总数（测试环境共享 rouyi.db/flowable，可能有历史遗留流程）。"
+  "BPM 业务 REST 集成测试:启动完整系统,走 HTTP 全链路.
+   断言不依赖待办总数(测试环境共享 rouyi.db/flowable,可能有历史遗留流程)."
   (:require
     [clojure.data.json :as json]
     [clojure.test :refer [deftest testing is use-fixtures]]
@@ -100,7 +100,7 @@
                   pid (get-in st [:data :process-instance-id])]
               (is (= 200 (:code st)))
               (is (some? pid))
-              ;; 找本流程实例的待办任务（不依赖待办总数，兼容历史遗留）
+              ;; 找本流程实例的待办任务(不依赖待办总数,兼容历史遗留)
               (let [todo (parse-json (GET app "/api/business/bpm/todo" {} h))
                     task (first (filter #(= pid (:process-instance-id %))
                                         (get-in todo [:data :rows])))]
@@ -122,7 +122,7 @@
     (let [token (login-token) h (auth-hdr token) app (handler)
           resp (POST app "/api/business/bpm/category" {:name "CRUD分类" :code "crud" :sort 2} h)]
       (is (= 200 (:code (parse-json resp))))
-      ;; 用名称过滤查询，避免被历史分类挤出第1页
+      ;; 用名称过滤查询,避免被历史分类挤出第1页
       (let [lst (parse-json (GET app "/api/business/bpm/category?name=CRUD&page=1&size=10" {} h))]
         (is (pos? (get-in lst [:data :total])))
         (is (some #(= "CRUD分类" (:name %)) (get-in lst [:data :rows])))))))

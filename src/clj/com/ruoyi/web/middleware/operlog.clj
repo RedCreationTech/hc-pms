@@ -1,6 +1,6 @@
 (ns com.ruoyi.web.middleware.operlog
-  "操作日志中间件：自动记录所有 API 请求到 sys_oper_log 表。
-  依赖 auth/wrap-jwt-auth 前置设置 :identity（否则 oper_name 为 anonymous）。"
+  "操作日志中间件:自动记录所有 API 请求到 sys_oper_log 表.
+  依赖 auth/wrap-jwt-auth 前置设置 :identity(否则 oper_name 为 anonymous)."
   (:require
     [cheshire.core :as json]
     [clojure.string :as str]
@@ -8,25 +8,25 @@
 
 
 (def ^:private skip-paths
-  "不记录日志的路径（GET 不记录，这里只列非 GET 白名单）"
+  "不记录日志的路径(GET 不记录,这里只列非 GET 白名单)"
   #{"/api/auth/login"
     "/api/health"
     "/api/user/profile"})
 
 
 (def ^:private get-methods
-  "GET/HEAD/OPTIONS 请求不记录日志。"
+  "GET/HEAD/OPTIONS 请求不记录日志."
   #{:get :head :options})
 
 
-;; ── 业务类型映射（匹配 RuoYi-Vue BusinessType 枚举） ──────────────
+;; ── 业务类型映射(匹配 RuoYi-Vue BusinessType 枚举) ──────────────
 ;;
 ;;   0 = 其他    1 = 新增    2 = 修改    3 = 删除
 ;;   4 = 授权    5 = 导出    6 = 导入    7 = 强退
 ;;   9 = 清空
 
 (defn- infer-business-type
-  "根据 HTTP 方法和 URI 推测业务类型。"
+  "根据 HTTP 方法和 URI 推测业务类型."
   [method uri]
   (case method
     :post (cond
@@ -42,13 +42,13 @@
             :else                              2)  ; 修改
     :delete (cond
               (re-find #"/clear" uri)          9   ; 清空
-              (= uri "/api/system/oper-log")   9   ; 清空（根路径 DELETE = clear）
-              (= uri "/api/system/login-log")  9   ; 清空（根路径 DELETE = clear）
+              (= uri "/api/system/oper-log")   9   ; 清空(根路径 DELETE = clear)
+              (= uri "/api/system/login-log")  9   ; 清空(根路径 DELETE = clear)
               :else                            3)  ; 删除
     0)) ; 默认其他
 
 (defn- infer-title
-  "根据 URI 提取中文模块标题。"
+  "根据 URI 提取中文模块标题."
   [uri]
   (cond
     (re-find #"/system/user" uri)        "用户管理"
@@ -71,7 +71,7 @@
 
 
 (defn- format-params
-  "格式化请求参数，过长时截断。"
+  "格式化请求参数,过长时截断."
   [params]
   (let [s (if (instance? String params)
             params
@@ -88,10 +88,10 @@
 
 
 (defn wrap-oper-log
-  "操作日志中间件包装器。
-  要求在调用链中 auth/wrap-jwt-auth 先于本中间件执行，
-  这样 (:identity request) 中才包含当前登录用户信息。
-  调用 query-fn 写入 sys_oper_log 表。"
+  "操作日志中间件包装器.
+  要求在调用链中 auth/wrap-jwt-auth 先于本中间件执行,
+  这样 (:identity request) 中才包含当前登录用户信息.
+  调用 query-fn 写入 sys_oper_log 表."
   [handler]
   (fn [request]
     (let [uri (:uri request)

@@ -1,5 +1,5 @@
 (ns com.ruoyi.domain.system.dept-test
-  "部门领域服务测试。"
+  "部门领域服务测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.domain.system.dept :as dept]))

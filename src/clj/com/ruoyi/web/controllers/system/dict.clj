@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.system.dict
-  "字典管理控制器。"
+  "字典管理控制器."
   (:require
     [clojure.walk :as walk]
     [com.ruoyi.domain.system.dict :as dict-service]
@@ -26,7 +26,7 @@
 
 
 (defn list-dict-types
-  "查询字典类型列表（带数据权限过滤）。"
+  "查询字典类型列表(带数据权限过滤)."
   [{:keys [dict-service]} request]
   (let [params (walk/keywordize-keys (:query-params request))
         identity (:identity request)
@@ -72,7 +72,7 @@
 
 
 (defn list-dict-data
-  "查询字典数据列表（带数据权限过滤）。"
+  "查询字典数据列表(带数据权限过滤)."
   [{:keys [dict-service]} request]
   (let [params (walk/keywordize-keys (:query-params request))
         identity (:identity request)
@@ -118,12 +118,12 @@
 
 
 (defn option-select
-  "获取字典类型选项列表（下拉框用）。"
+  "获取字典类型选项列表(下拉框用)."
   [{:keys [dict-service]} _]
   (ok (dict-service/list-dict-types dict-service {:limit 999 :offset 0})))
 
 
 (defn refresh-cache
-  "刷新字典缓存。"
+  "刷新字典缓存."
   [_ _]
   (ok "缓存已刷新"))

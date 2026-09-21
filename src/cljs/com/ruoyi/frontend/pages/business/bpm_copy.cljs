@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.business.bpm-copy
-  "抄送我的 —— 抄送记录列表（查询分页 + 详情跳转）。"
+  "抄送我的 -- 抄送记录列表(查询分页 + 详情跳转)."
   (:require
     ["@ant-design/icons" :refer [ReloadOutlined EyeOutlined]]
     [clojure.string]

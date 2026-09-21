@@ -96,7 +96,7 @@
 
 
 (defn- render-start-select
-  "发起人自选审批人：用户多选。"
+  "发起人自选审批人:用户多选."
   [{:keys [users sel-value set-value!]}]
   [:div {:style {:marginBottom 12}}
    [:div.bpm-f-label "审批人自选"]
@@ -163,7 +163,7 @@
                                                    (walk/keywordize-keys j)))
                                   apply-schema!
                                   (fn [schema]
-                                    ;; tree-select/dict-select 字段数据源注入（与表单记录路径共用）
+                                    ;; tree-select/dict-select 字段数据源注入(与表单记录路径共用)
                                     (let [tree-fields (filter #(= "tree-select" (:type %)) (:fields schema))
                                           dict-fields (filter #(= "dict-select" (:type %)) (:fields schema))]
                                       (when (seq tree-fields)
@@ -187,11 +187,11 @@
                               (when (= "1" (:form_type model))
                                 (reset! form-loading? true)
                                 (if (pos? (long (or (:form_id model) 0)))
-                                  ;; form_id>0：走动态表单记录
+                                  ;; form_id>0:走动态表单记录
                                   (api/bpm-get-form (:form_id model)
                                                     (fn [res] (apply-schema! (parse-schema (:form_json (:data res)))))
                                                     (fn [_] (reset! form-loading? false) (antd/error! "加载表单失败")))
-                                  ;; form_id=0/空：回退直接解析模型内嵌 form_json
+                                  ;; form_id=0/空:回退直接解析模型内嵌 form_json
                                   (if-let [fj (:form_json model)]
                                     (apply-schema! (parse-schema fj))
                                     (reset! form-loading? false))))))

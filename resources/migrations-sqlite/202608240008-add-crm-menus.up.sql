@@ -1,4 +1,4 @@
--- 办公一体化 · CRM 菜单（SQLite）
+-- 办公一体化 · CRM 菜单(SQLite)
 INSERT OR IGNORE INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, menu_type, visible, status, perms, icon)
 VALUES (39, '客户管理', 30, 7, 'crm/customer', 'business/crm/customer/index', 'C', '0', '0', 'crm:customer:list', 'customer-service');
 --;;

@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.components.page-card
-  "页面内容卡片容器。"
+  "页面内容卡片容器."
   (:require
     [com.ruoyi.frontend.antd :as antd]))
 

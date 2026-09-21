@@ -146,13 +146,13 @@
 
 
 (defn- todo-of
-  "某 token 对应用户在本实例上的待办任务列表（keywordized rows）。"
+  "某 token 对应用户在本实例上的待办任务列表(keywordized rows)."
   [app hdr pid]
   (let [r (parse-json (GET app "/api/business/bpm/todo" {} hdr))]
     (filter #(= pid (:process-instance-id %)) (get-in r [:data :rows] []))))
 
 
-;; ── 主流程：加签 → 减签 → 审批 → 撤回 → 退回 → 撤回到起点 ──────────────
+;; ── 主流程:加签 → 减签 → 审批 → 撤回 → 退回 → 撤回到起点 ──────────────
 
 (deftest bpm-phase1-sign-withdraw-return-test
   (let [app (handler) token (login-token "admin") h (auth-hdr token)
@@ -198,7 +198,7 @@
         (is (some? task2))
         (let [r (parse-json (PUT app "/api/business/bpm/task/withdraw" {:taskId task1} h))]
           (is (= 200 (:code r))))
-        ;; token 移回 approve1，admin 重新出现审批1待办
+        ;; token 移回 approve1,admin 重新出现审批1待办
         (is (some #(= "审批1" (:name %)) (todo-of app h pid)))))
     (testing "return-list：第二节点之前已完成节点非空（按流程定义顺序）"
       (let [cur (:task-id (first (todo-of app h pid)))
@@ -226,7 +226,7 @@
         (is (empty? (todo-of app h pid)))))))
 
 
-;; ── 取消（发起人或管理员）─────────────────────────────────────────────
+;; ── 取消(发起人或管理员)─────────────────────────────────────────────
 
 (deftest bpm-phase1-cancel-test
   (let [app (handler) token (login-token "admin") h (auth-hdr token)
@@ -248,7 +248,7 @@
         (is (= "CANCELED" (:status row)))))))
 
 
-;; ── 抄送：手动抄送 + COPY_TASK 节点自动抄送 ───────────────────────────
+;; ── 抄送:手动抄送 + COPY_TASK 节点自动抄送 ───────────────────────────
 
 (deftest bpm-phase1-copy-test
   (let [app (handler) token (login-token "admin") h (auth-hdr token)
@@ -266,7 +266,7 @@
     (testing "COPY_TASK 节点：任务创建时自动抄送并自动完成"
       (let [{m2 :model-id} (deploy-test-model! app h username)
             pid2 (start-instance! app h m2)
-            ;; 抄送节点在审批1之后：先通过审批1，触发 copy1 节点
+            ;; 抄送节点在审批1之后:先通过审批1,触发 copy1 节点
             t1 (:task-id (first (todo-of app h pid2)))
             _ (is (= 200 (:code (parse-json (POST app (str "/api/business/bpm/task/" t1 "/approve")
                                                   {:comment "ok"} h)))))
@@ -276,7 +276,7 @@
         (is (pos? (count rows)) "自动抄送记录应存在")
         (is (= "copy1" (:activity_id (first rows))))
         (is (= username (:user_id (first rows))))
-        ;; 抄送任务自动完成，流程推进到审批2（admin 待办）
+        ;; 抄送任务自动完成,流程推进到审批2(admin 待办)
         (is (some #(= "审批2" (:name %)) (todo-of app h pid2)))
-        ;; 抄送人没有抄送任务待办（任务已被自动完成）
+        ;; 抄送人没有抄送任务待办(任务已被自动完成)
         (is (empty? (todo-of app hdr pid2)))))))

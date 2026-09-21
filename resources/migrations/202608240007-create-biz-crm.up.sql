@@ -1,4 +1,4 @@
--- 办公一体化 · CRM 客户管理（MySQL）
+-- 办公一体化 · CRM 客户管理(MySQL)
 CREATE TABLE IF NOT EXISTS biz_crm_customer (
   customer_id  BIGINT AUTO_INCREMENT PRIMARY KEY,
   name         VARCHAR(255) NOT NULL DEFAULT '',

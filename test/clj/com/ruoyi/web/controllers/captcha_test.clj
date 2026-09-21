@@ -29,7 +29,7 @@
 
 
 (deftest test-captcha-image-with-r
-  "使用指定 r 参数生成验证码。"
+  "使用指定 r 参数生成验证码."
   (testing "r 参数作为 UUID 并写入验证码缓存"
     (let [request {:query-params {"r" "abc123"}}
           response (captcha/captcha-image {} request)]

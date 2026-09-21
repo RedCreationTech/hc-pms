@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.integrant
-  "Integrant config -> system 依赖可视化页面。"
+  "Integrant config -> system 依赖可视化页面."
   (:require
     ["@ant-design/icons" :refer [ReloadOutlined]]
     [clojure.string :as str]

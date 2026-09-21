@@ -184,7 +184,7 @@
                            (set-show-scroll! (> sw cw))
                            (set-can-left! (> left 0))
                            (set-can-right! (> (- sw cw left) 1)))))]
-    ;; 监听容器尺寸变化，更新滚动状态
+    ;; 监听容器尺寸变化,更新滚动状态
     (hooks/use-effect
       (fn []
         (when-let [el (.-current container-ref)]
@@ -428,7 +428,7 @@
                                (not (seq path)) parent-path
                                (seq parent-path) (str parent-path "/" path)
                                :else path)
-                   ;; 查找路由关键词，如 system/user -> :user
+                   ;; 查找路由关键词,如 system/user -> :user
                    matched (when (seq full-path)
                              (router/match-route (str "/" full-path)))
                    route-key (:handler matched)
@@ -560,7 +560,7 @@
 
 
 (defn- display-settings-button
-  "右上角显示设置按钮。"
+  "右上角显示设置按钮."
   []
   [:> Popover {:content (r/as-element [display-settings-panel])
                :trigger "click"
@@ -744,7 +744,7 @@
       ;; Tab 栏
       (when (get layout-settings :open-tags? true)
         [tab-bar])
-      ;; 内容区（加 Error Boundary，避免单个页面崩溃导致整个布局白屏）
+      ;; 内容区(加 Error Boundary,避免单个页面崩溃导致整个布局白屏)
       [:> Layout.Content {:style {:margin 0
                                   :padding 0
                                   :background bg-content

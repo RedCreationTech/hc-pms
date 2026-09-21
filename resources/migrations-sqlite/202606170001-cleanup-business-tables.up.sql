@@ -1,4 +1,4 @@
--- 清理方案智能编制模块：删除所有业务表和菜单数据
+-- 清理方案智能编制模块:删除所有业务表和菜单数据
 -- Clean up smart-solution module: drop all biz tables and menu entries
 
 DELETE FROM sys_role_menu WHERE menu_id IN (1999, 2000, 2100, 2101, 2200, 2201, 2202, 2203, 2204, 2205);

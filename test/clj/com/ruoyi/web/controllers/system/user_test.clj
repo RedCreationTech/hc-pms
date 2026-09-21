@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.system.user-test
-  "用户管理控制器测试。"
+  "用户管理控制器测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.web.controllers.system.user :as user]))

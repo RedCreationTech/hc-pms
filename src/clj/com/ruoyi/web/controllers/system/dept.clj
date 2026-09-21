@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.system.dept
-  "部门管理控制器。"
+  "部门管理控制器."
   (:require
     [com.ruoyi.domain.system.dept :as dept-service]
     [ring.util.response :as response]))
@@ -24,14 +24,14 @@
 
 
 (defn list-depts
-  "查询部门列表。"
+  "查询部门列表."
   [{:keys [dept-service]} request]
   (let [params (:query-params request)]
     (ok (dept-service/list-depts dept-service params))))
 
 
 (defn dept-tree
-  "获取部门树（用于用户管理左侧选择）。"
+  "获取部门树(用于用户管理左侧选择)."
   [{:keys [dept-service]} _request]
   (ok (dept-service/list-depts dept-service {})))
 
@@ -73,7 +73,7 @@
 
 
 (defn change-status
-  "修改部门状态。"
+  "修改部门状态."
   [{:keys [dept-service]} request]
   (let [dept-id (parse-long (get-in request [:path-params :id]))
         status (get-in request [:body-params :status])]

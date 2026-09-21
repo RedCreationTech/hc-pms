@@ -1,4 +1,4 @@
--- 办公一体化 · HRM 人力资源（MySQL）
+-- 办公一体化 · HRM 人力资源(MySQL)
 CREATE TABLE IF NOT EXISTS biz_hrm_employee (
   employee_id  BIGINT AUTO_INCREMENT PRIMARY KEY,
   emp_no       VARCHAR(64) NOT NULL DEFAULT '',

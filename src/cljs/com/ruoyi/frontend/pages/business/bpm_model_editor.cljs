@@ -25,7 +25,7 @@
 
 
 (defn- query-id
-  "从路由 query (?id=) 取模型 id。"
+  "从路由 query (?id=) 取模型 id."
   []
   (.get (js/URLSearchParams. (.-search js/location)) "id"))
 
@@ -51,7 +51,7 @@
         [form-list set-form-list!] (hooks/use-state [])
         [mremark set-mremark!] (hooks/use-state "")
         [mfields-perm set-mfields-perm!] (hooks/use-state {})
-        ;; 更多设置（Phase 3/4 治理能力 + P0-4 权限开关）
+        ;; 更多设置(Phase 3/4 治理能力 + P0-4 权限开关)
         [mauto-type set-mauto-type!] (hooks/use-state "NONE")
         [mname-rule set-mname-rule!] (hooks/use-state "")
         [mprocess-rule set-mprocess-rule!] (hooks/use-state {:enable false :prefix "" :infix "DAY" :suffix "" :length 5})
@@ -61,7 +61,7 @@
         [mwebhooks set-mwebhooks!] (hooks/use-state {})
         [mallow-cancel set-mallow-cancel!] (hooks/use-state "1")
         [mallow-withdraw set-mallow-withdraw!] (hooks/use-state "1")
-        ;; 基本信息扩展：图标 / 谁可发起 / 流程管理员
+        ;; 基本信息扩展:图标 / 谁可发起 / 流程管理员
         [micon set-micon!] (hooks/use-state "")
         [mstart-type set-mstart-type!] (hooks/use-state "ALL")
         [mstart-user-ids set-mstart-user-ids!] (hooks/use-state [])
@@ -78,7 +78,7 @@
                                      {:fields []})]
                       (filter :field (:fields schema)))
         back! #(rf/dispatch [:navigate :bpm-model])
-        ;; 汇总 13+ 个编辑字段（与弹窗版保存逻辑一致）
+        ;; 汇总 13+ 个编辑字段(与弹窗版保存逻辑一致)
         collect-updates (fn []
                           {:model_name mname :model_key mkey
                            :category_id (some-> mcat js/Number) :form_type mform-type
@@ -130,7 +130,7 @@
                              (if (= 200 (:code res))
                                (do (antd/success! "发布成功")
                                    (rf/dispatch [:bpm/model-fetch {:page 1 :size 1000}])
-                                   ;; 重新拉取详情，更新 deployment_id / version 状态
+                                   ;; 重新拉取详情,更新 deployment_id / version 状态
                                    (api/bpm-get-model (:model_id detail)
                                                       (fn [r2]
                                                         (when (= 200 (:code r2))
@@ -138,7 +138,7 @@
                                                       #()))
                                (antd/error! (str "发布失败: " (:msg res)))))
                            (fn [_] (set-publishing! false) (antd/error! "发布失败")))))))
-        ;; 步骤切换：离开「基本信息」时校验名称非空 + Key 格式
+        ;; 步骤切换:离开"基本信息"时校验名称非空 + Key 格式
         switch-tab! (fn [target]
                       (if (and (= tab "basic") (not= target "basic"))
                         (cond
@@ -148,7 +148,7 @@
                           (antd/warning! "流程Key须以字母或下划线开头，只能包含字母、数字、_ - . $")
                           :else (set-tab! target))
                         (set-tab! target)))]
-    ;; 挂载 / id 变化：拉取模型详情 + 初始化全部字段，并行加载下拉数据源
+    ;; 挂载 / id 变化:拉取模型详情 + 初始化全部字段,并行加载下拉数据源
     (hooks/use-effect
       (fn []
         (if (seq model-id)
@@ -231,11 +231,11 @@
        [antd/button {:type "primary" :on-click back!} "返回列表"]]
       :else
       [:div {:style {:background "#fff" :minHeight "100%"}}
-       ;; ── 顶部固定导航条（h-12，对齐 vben model/form/index.vue）──
+       ;; ── 顶部固定导航条(h-12,对齐 vben model/form/index.vue)──
        [:div {:style {:position "sticky" :top 0 :zIndex 20 :height 48
                       :borderBottom "1px solid #e8e8e8" :background "#fff"
                       :display "flex" :alignItems "center" :padding "0 16px" :gap 16}}
-        ;; 左：返回 + 流程名
+        ;; 左:返回 + 流程名
         [:div {:style {:display "flex" :alignItems "center" :gap 4 :width 280 :minWidth 0}}
          [antd/button {:type "text" :size "small"
                        :icon (r/as-element [:> ArrowLeftOutlined])
@@ -243,7 +243,7 @@
          [:span {:style {:fontWeight 600 :fontSize 14 :whiteSpace "nowrap"
                          :overflow "hidden" :textOverflow "ellipsis"}}
           (:model_name detail)]]
-        ;; 中：步骤条（编号圆点 + 标题，当前步高亮，可点击切换）
+        ;; 中:步骤条(编号圆点 + 标题,当前步高亮,可点击切换)
         [:div {:style {:flex 1 :display "flex" :justifyContent "center" :gap 8}}
          (doall
            (for [{:keys [key label num]} steps]
@@ -260,7 +260,7 @@
                                 :color (if active? "#fff" "#999")}}
                  num]
                 [:span {:style {:fontSize 14}} label]])))]
-        ;; 右：保存 + 发布
+        ;; 右:保存 + 发布
         [:div {:style {:width 280 :display "flex" :justifyContent "flex-end" :gap 8}}
          [antd/button {:icon (r/as-element [:> SaveOutlined])
                        :loading saving?

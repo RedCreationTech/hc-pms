@@ -1,4 +1,4 @@
--- 办公一体化 · 报销菜单（SQLite）
+-- 办公一体化 · 报销菜单(SQLite)
 INSERT IGNORE INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, menu_type, visible, status, perms, icon)
 VALUES (41, '报销申请', 30, 5, 'oa/reimburse', 'business/oa/reimburse/index', 'C', '0', '0', 'oa:reimburse:list', 'money');
 --;;

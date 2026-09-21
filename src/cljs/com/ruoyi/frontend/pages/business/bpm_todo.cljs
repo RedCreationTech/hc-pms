@@ -15,7 +15,7 @@
     [reagent.hooks :as hooks]))
 
 
-;; ── 节点按钮配置（task-detail / todo 行附带，未配置默认全启用）────────────────
+;; ── 节点按钮配置(task-detail / todo 行附带,未配置默认全启用)────────────────
 
 (defn- button-cfg
   "取任务某按钮配置 → {:enable? bool :label str}。keys: approve/reject/transfer/delegate/add-sign/return"
@@ -99,7 +99,7 @@
                                                    :icon (r/as-element [:> RollbackOutlined])
                                                    :on-click #(rf/dispatch [:bpm/todo-open-reject task])}
                                       (:label return)]])
-                                  ;; 委派办结：任务 owner=当前用户且已委派给他人(assignee 非本人)时显示
+                                  ;; 委派办结:任务 owner=当前用户且已委派给他人(assignee 非本人)时显示
                                   (when (and (seq (:owner task))
                                              (= (str (:owner task)) (str current-user))
                                              (seq (:assignee task))
@@ -113,7 +113,7 @@
 ;; ── 手写签名画布 ──────────────────────────────────────────────────────────
 
 (defn- signature-pad
-  "canvas 手写签名板：签名结果以 dataURL 形式通过 on-change 回调传出。"
+  "canvas 手写签名板:签名结果以 dataURL 形式通过 on-change 回调传出."
   [{:keys [on-change]}]
   (let [canvas-ref (hooks/use-ref nil)
         drawing? (hooks/use-ref false)

@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.business.crm
-  "CRM 客户管理控制器。"
+  "CRM 客户管理控制器."
   (:require
     [com.ruoyi.domain.business.crm :as crm]
     [com.ruoyi.web.controllers.business.util :as bu]

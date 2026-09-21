@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.routes.auth
-  "认证路由。"
+  "认证路由."
   (:require
     [com.ruoyi.infra.security :as security]
     [com.ruoyi.web.controllers.auth :as auth]
@@ -9,7 +9,7 @@
 
 
 (defn- wrap-parse-token
-  "简单的 JWT 解析中间件，不依赖 auth-middleware 的复杂逻辑。"
+  "简单的 JWT 解析中间件,不依赖 auth-middleware 的复杂逻辑."
   [handler]
   (fn [request]
     (let [token (some-> (get-in request [:headers "authorization"])

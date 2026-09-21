@@ -1,5 +1,5 @@
 (ns com.ruoyi.domain.system
-  "系统管理 Integrant 组件注册。"
+  "系统管理 Integrant 组件注册."
   (:require
     [com.ruoyi.infra.online :as online]
     [com.ruoyi.infra.scheduler :as scheduler]

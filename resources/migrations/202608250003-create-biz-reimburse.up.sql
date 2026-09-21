@@ -1,6 +1,6 @@
--- 办公一体化 · 报销审批（MySQL）
+-- 办公一体化 · 报销审批(MySQL)
 
--- 报销单（业务记录，关联 Flowable 流程实例）
+-- 报销单(业务记录,关联 Flowable 流程实例)
 CREATE TABLE IF NOT EXISTS biz_oa_reimburse (
   reimburse_id       BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id            BIGINT DEFAULT 0,

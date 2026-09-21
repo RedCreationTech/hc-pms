@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.swagger
-  "系统接口页面 — 嵌入 Swagger UI。"
+  "系统接口页面 -- 嵌入 Swagger UI."
   (:require
     [reagent.core :as r]))
 

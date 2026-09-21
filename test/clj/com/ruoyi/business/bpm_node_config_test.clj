@@ -171,7 +171,7 @@
 
 
 (defn- history-tasks
-  "实例任务级审批历史。"
+  "实例任务级审批历史."
   [app h pid]
   (get-in (parse-json (GET app (str "/api/business/bpm/instance/history/" pid) {} h))
           [:data :task-history] []))
@@ -310,14 +310,14 @@
                          :candidate-param {:form-user-field "missing_field"}
                          :approve-method "SEQUENTIAL"
                          :assign-empty-handler {:type "AUTO_REJECT"}}
-        ;; 实例1：AUTO_PASS 节点 → 应自动通过到 admin 节点
+        ;; 实例1:AUTO_PASS 节点 → 应自动通过到 admin 节点
         m1 (deploy-bpmn! app h (simple-bpmn [(task-el "t1" "空自动通过" auto-pass-cfg)
                                              (task-el "t2" "后续审批" admin-cfg)]))
         pid1 (start-instance! app h (:model-id m1) {:reason "x"})
-        ;; 实例2：TO_ADMIN 节点 → 应转交管理员
+        ;; 实例2:TO_ADMIN 节点 → 应转交管理员
         m2 (deploy-bpmn! app h (simple-bpmn [(task-el "t1" "空转管理员" to-admin-cfg)]))
         pid2 (start-instance! app h (:model-id m2) {:reason "x"})
-        ;; 实例3：AUTO_REJECT 节点（线性无网关，complete approved=false 后流程结束）
+        ;; 实例3:AUTO_REJECT 节点(线性无网关,complete approved=false 后流程结束)
         m3 (deploy-bpmn! app h (simple-bpmn [(task-el "t1" "空自动驳回" auto-reject-cfg)]))
         pid3 (start-instance! app h (:model-id m3) {:reason "x"})]
     (testing "AUTO_PASS：空审批人节点自动通过，流程推进到下一节点"
@@ -418,7 +418,7 @@
       (is (some #(= "一级审批" (:name %)) (todo-of app h pid))))))
 
 
-;; ── 2.7 超时处理（10 秒定时器 AUTO_PASS 实测，轮询等待）──────────────────
+;; ── 2.7 超时处理(10 秒定时器 AUTO_PASS 实测,轮询等待)──────────────────
 
 (deftest bpm-phase2-timeout-auto-pass-test
   (let [app (handler) token (login-token "admin") h (auth-hdr token)

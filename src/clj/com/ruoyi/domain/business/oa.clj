@@ -1,5 +1,5 @@
 (ns com.ruoyi.domain.business.oa
-  "OA 协同办公领域服务（日程/会议）。"
+  "OA 协同办公领域服务(日程/会议)."
   (:require
     [integrant.core :as ig]))
 

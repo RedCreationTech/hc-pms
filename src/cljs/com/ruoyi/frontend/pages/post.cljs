@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.post
-  "岗位管理页面 — 搜索、CRUD。"
+  "岗位管理页面 -- 搜索,CRUD."
   (:require
     ["@ant-design/icons" :refer [DownloadOutlined SearchOutlined ReloadOutlined PlusOutlined EditOutlined DeleteOutlined]]
     [com.ruoyi.frontend.antd :as antd]

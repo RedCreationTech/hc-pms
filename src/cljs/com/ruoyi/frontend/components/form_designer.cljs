@@ -1,8 +1,8 @@
 (ns com.ruoyi.frontend.components.form-designer
-  "轻量表单设计器（对齐 vben @form-create 的 conf/fields JSON 格式）：
-   左：组件库（点击添加）/ 中：画布（字段卡片，可选中/排序/复制/删除）/
-   右：选中字段属性配置（标题/字段名/占位符/必填/默认值/选项）。
-   保存输出 {:conf {:form {:labelWidth 100}} :fields [...]}，供渲染器复用。"
+  "轻量表单设计器(对齐 vben @form-create 的 conf/fields JSON 格式):
+   左:组件库(点击添加)/ 中:画布(字段卡片,可选中/排序/复制/删除)/
+   右:选中字段属性配置(标题/字段名/占位符/必填/默认值/选项).
+   保存输出 {:conf {:form {:labelWidth 100}} :fields [...]},供渲染器复用."
   (:require
     ["@ant-design/icons" :refer [UpOutlined DownOutlined CopyOutlined DeleteOutlined PlusOutlined]]
     [clojure.string :as str]
@@ -12,7 +12,7 @@
 
 
 (def ^:private form-templates
-  "内置表单模板（一键填充画布）。"
+  "内置表单模板(一键填充画布)."
   [{:name "请假申请"
     :fields [{:type "input" :field "reason" :title "请假事由" :value "" :props {} :validate [{:required true}]}
              {:type "number" :field "days" :title "请假天数" :value 1 :props {} :validate [{:required true}]}
@@ -51,7 +51,7 @@
 
 
 (defn- new-field
-  "按类型生成默认字段。"
+  "按类型生成默认字段."
   [type idx]
   (let [default-title (get (into {} (map (juxt :type :label)) component-types) type type)]
     {:type type
@@ -67,13 +67,13 @@
 
 
 (defn- field-value
-  "字段当前值（含默认值）。"
+  "字段当前值(含默认值)."
   [f]
   (get f :value (if (= (:type f) "switch") false "")))
 
 
 (defn- field-caret
-  "画布字段卡片（支持拖拽排序）。"
+  "画布字段卡片(支持拖拽排序)."
   [f idx selected? on-select on-op drag-idx]
   [:div.bpm-fd-card {:class (when selected? "active")
                      :draggable true
@@ -102,7 +102,7 @@
 
 
 (defn- options-editor
-  "选项列表编辑器（单选/多选/下拉）。"
+  "选项列表编辑器(单选/多选/下拉)."
   [fields idx]
   (let [opts (or (get-in @fields [idx :options]) [])]
     [:div
@@ -127,7 +127,7 @@
 
 
 (defn- props-panel
-  "右侧属性配置。"
+  "右侧属性配置."
   [fields idx]
   (let [f (get @fields idx)]
     (if (nil? f)
@@ -293,7 +293,7 @@
 
 
 (defn form-designer
-  "表单设计器。props: {:schema {:form-name :conf :fields} :on-save (fn [schema])}。"
+  "表单设计器.props: {:schema {:form-name :conf :fields} :on-save (fn [schema])}."
   [{:keys [schema on-save]}]
   (r/with-let [fields (r/atom [])
                selected (r/atom nil)
@@ -355,7 +355,7 @@
                   [antd/radio {:value "horizontal"} "横向"]]
                  [antd/button {:size "small" :type "primary" :on-click save!} "保存表单"]]]
                [:div.bpm-fd-body
-                ;; 左：组件库
+                ;; 左:组件库
                 [:div.bpm-fd-lib
                  [:div.bpm-fd-lib-title "组件库"]
                  (doall
@@ -367,7 +367,7 @@
                        :on-click #(do (swap! fields conj (new-field type (inc (count @fields))))
                                       (reset! selected (dec (count @fields))))}
                       label]))]
-                ;; 中：画布
+                ;; 中:画布
                 [:div.bpm-fd-canvas {:on-drag-over (fn [e] (.preventDefault e))
                                      :on-drop (fn [e]
                                                 (.preventDefault e)
@@ -382,6 +382,6 @@
                        (field-caret f idx (= idx @selected) select-field field-op drag-idx)))
                    [:div {:style {:color "#bbb" :textAlign "center" :paddingTop 60}}
                     "从左侧组件库点击添加字段"])]
-                ;; 右：属性配置
+                ;; 右:属性配置
                 [:div.bpm-fd-props
                  (props-panel fields @selected)]]]))

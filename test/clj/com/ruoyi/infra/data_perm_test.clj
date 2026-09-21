@@ -1,5 +1,5 @@
 (ns com.ruoyi.infra.data-perm-test
-  "数据权限过滤测试。"
+  "数据权限过滤测试."
   (:require
     [clojure.string :as str]
     [clojure.test :refer [deftest is testing]]

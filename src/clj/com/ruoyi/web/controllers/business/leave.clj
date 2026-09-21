@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.business.leave
-  "请假申请控制器 —— 业务 + BPM 集成。"
+  "请假申请控制器 -- 业务 + BPM 集成."
   (:require
     [com.ruoyi.domain.business.leave :as leave]
     [com.ruoyi.web.controllers.business.util :as bu]
@@ -52,7 +52,7 @@
 
 
 (defn start-leave
-  "发起请假申请：入流程并进入审批。body: {:days x :reason y}"
+  "发起请假申请:入流程并进入审批.body: {:days x :reason y}"
   [{:keys [leave-service]} request]
   (wrap-err #(let [{:keys [days reason]} (:body-params request)]
                (ok (leave/leave-start! leave-service

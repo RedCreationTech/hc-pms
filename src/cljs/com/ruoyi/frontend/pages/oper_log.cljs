@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.oper-log
-  "操作日志页面。"
+  "操作日志页面."
   (:require
     ["@ant-design/icons" :refer [DeleteOutlined DownloadOutlined EyeOutlined ReloadOutlined SearchOutlined]]
     ["antd" :refer [DatePicker]]

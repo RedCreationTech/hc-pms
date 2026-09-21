@@ -12,7 +12,7 @@
 
 
 (defn- token-id-from-row
-  "Antd render 第一个参数可能是文本/记录；兼容取 token-id。"
+  "Antd render 第一个参数可能是文本/记录;兼容取 token-id."
   [r1 r2]
   (or (when (object? r1) (gobj/get r1 "token-id"))
       (when (object? r2) (gobj/get r2 "token-id"))))

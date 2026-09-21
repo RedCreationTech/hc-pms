@@ -261,7 +261,7 @@
                                   "更多"]]])))}]))))
 
 
-;; ─── 自定义弹窗（替代 antd/modal，避免 antd 6 + Reagent 兼容问题）──
+;; ─── 自定义弹窗(替代 antd/modal,避免 antd 6 + Reagent 兼容问题)──
 
 (defn- detail-drawer
   []
@@ -585,7 +585,7 @@
 
 
 (defn- display-users
-  "返回真实接口数据，避免演示数据覆盖创建时间。"
+  "返回真实接口数据,避免演示数据覆盖创建时间."
   [items]
   items)
 

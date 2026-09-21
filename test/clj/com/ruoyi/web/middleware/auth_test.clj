@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.middleware.auth-test
-  "认证与授权中间件测试。"
+  "认证与授权中间件测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.infra.online :as online]

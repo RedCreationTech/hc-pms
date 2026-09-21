@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.system.role
-  "角色管理控制器。"
+  "角色管理控制器."
   (:require
     [com.ruoyi.domain.system.role :as role-service]
     [ring.util.response :as response]))
@@ -19,14 +19,14 @@
 
 
 (defn list-roles
-  "查询角色列表。"
+  "查询角色列表."
   [{:keys [role-service]} request]
   (let [params (:query-params request)]
     (ok (role-service/list-roles role-service params))))
 
 
 (defn get-role
-  "查询角色详情。"
+  "查询角色详情."
   [{:keys [role-service]} request]
   (let [role-id (parse-long (get-in request [:path-params :id]))]
     (if-let [role (role-service/find-role-by-id role-service role-id)]
@@ -35,7 +35,7 @@
 
 
 (defn create-role
-  "新增角色。"
+  "新增角色."
   [{:keys [role-service]} request]
   (try
     (let [role-id (role-service/create-role! role-service (:body-params request))]
@@ -44,7 +44,7 @@
 
 
 (defn update-role
-  "更新角色。"
+  "更新角色."
   [{:keys [role-service]} request]
   (try
     (let [role-id (parse-long (get-in request [:path-params :id]))
@@ -55,7 +55,7 @@
 
 
 (defn delete-role
-  "删除角色。"
+  "删除角色."
   [{:keys [role-service]} request]
   (let [role-id (parse-long (get-in request [:path-params :id]))]
     (role-service/delete-role! role-service role-id)
@@ -63,7 +63,7 @@
 
 
 (defn change-status
-  "修改角色状态。"
+  "修改角色状态."
   [{:keys [role-service]} request]
   (let [role-id (parse-long (get-in request [:path-params :id]))
         status (get-in request [:body-params :status])]
@@ -72,7 +72,7 @@
 
 
 (defn- parse-user-ids
-  "将逗号分隔的用户ID字符串解析为long集合。"
+  "将逗号分隔的用户ID字符串解析为long集合."
   [s]
   (when (seq s)
     (->> (clojure.string/split s #",")
@@ -83,7 +83,7 @@
 
 
 (defn data-scope
-  "设置角色数据权限范围。"
+  "设置角色数据权限范围."
   [{:keys [role-service]} request]
   (let [params (get-in request [:parameters :body])
         role-id (:role_id params)
@@ -93,13 +93,13 @@
 
 
 (defn option-select
-  "获取角色选项列表（下拉框用）。"
+  "获取角色选项列表(下拉框用)."
   [{:keys [role-service]} _]
   (ok (role-service/list-roles role-service {:limit 999 :offset 0})))
 
 
 (defn allocated-list
-  "查询角色已分配用户列表。"
+  "查询角色已分配用户列表."
   [{:keys [role-service user-service]} request]
   (let [q (get-in request [:parameters :query])
         role-id (:role_id q)
@@ -112,7 +112,7 @@
 
 
 (defn unallocated-list
-  "查询角色未分配用户列表。"
+  "查询角色未分配用户列表."
   [{:keys [role-service user-service]} request]
   (let [q (get-in request [:parameters :query])
         role-id (:role_id q)
@@ -125,7 +125,7 @@
 
 
 (defn cancel-auth-user
-  "取消用户角色授权。"
+  "取消用户角色授权."
   [{:keys [role-service]} request]
   (let [params (get-in request [:parameters :body])
         role-id (:role_id params)
@@ -135,7 +135,7 @@
 
 
 (defn cancel-auth-user-all
-  "批量取消用户角色授权。"
+  "批量取消用户角色授权."
   [{:keys [role-service]} request]
   (let [q (get-in request [:parameters :query])
         role-id (:role_id q)
@@ -145,7 +145,7 @@
 
 
 (defn select-auth-user-all
-  "批量授权用户角色。"
+  "批量授权用户角色."
   [{:keys [role-service]} request]
   (let [q (get-in request [:parameters :query])
         role-id (:role_id q)
@@ -155,7 +155,7 @@
 
 
 (defn dept-tree-by-role
-  "获取角色部门树。"
+  "获取角色部门树."
   [{:keys [dept-service role-service]} request]
   (let [role-id (parse-long (get-in request [:path-params :id]))]
     (ok (role-service/dept-tree-by-role role-service dept-service role-id))))

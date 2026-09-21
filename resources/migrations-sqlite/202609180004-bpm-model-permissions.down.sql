@@ -1,4 +1,4 @@
--- BPM P0 down（SQLite）
+-- BPM P0 down(SQLite)
 
 ALTER TABLE biz_bpm_model DROP COLUMN allow_cancel;
 --;;

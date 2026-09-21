@@ -1,11 +1,11 @@
 (ns com.ruoyi.web.controllers.system.notice
-  "通知公告控制器。"
+  "通知公告控制器."
   (:require
     [ring.util.response :as response]))
 
 
 (defn- ok
-  "构造成功响应。"
+  "构造成功响应."
   ([data] (ok 200 "操作成功" data))
   ([code msg data]
    (-> (response/response {:code code :msg msg :data data})
@@ -13,20 +13,20 @@
 
 
 (defn- fail
-  "构造失败响应。"
+  "构造失败响应."
   [msg]
   (-> (response/response {:code 500 :msg msg})
       (response/content-type "application/json")))
 
 
 (defn- parse-int
-  "将字符串解析为整数。"
+  "将字符串解析为整数."
   [v]
   (when v (Integer/parseInt v)))
 
 
 (defn list-notices
-  "查询通知公告列表。"
+  "查询通知公告列表."
   [{:keys [query-fn]} request]
   (let [params (:query-params request)
         page (or (parse-int (get params "page")) 1)
@@ -43,7 +43,7 @@
 
 
 (defn get-notice
-  "获取通知公告详情。"
+  "获取通知公告详情."
   [{:keys [query-fn]} request]
   (let [notice-id (parse-int (get-in request [:path-params :id]))]
     (if-let [notice (query-fn :find-notice-by-id {:notice_id notice-id} {:result-set-fn first})]
@@ -52,12 +52,12 @@
 
 
 (defn create-notice
-  "新增通知公告。"
+  "新增通知公告."
   [{:keys [query-fn]} request]
   (try
     (let [body (:body-params request)
           identity (:identity request)
-          ;; 空字符串表单值会被 muuntaja 解析为 nil，需用 or 兜底避免 NOT NULL 约束失败
+          ;; 空字符串表单值会被 muuntaja 解析为 nil,需用 or 兜底避免 NOT NULL 约束失败
           params {:notice_name (or (:notice_name body) "")
                   :notice_type (or (:notice_type body) "1")
                   :status      (or (:status body) "0")
@@ -70,7 +70,7 @@
 
 
 (defn update-notice
-  "更新通知公告。"
+  "更新通知公告."
   [{:keys [query-fn]} request]
   (try
     (let [notice-id (parse-int (get-in request [:path-params :id]))
@@ -88,7 +88,7 @@
 
 
 (defn delete-notice
-  "删除通知公告。"
+  "删除通知公告."
   [{:keys [query-fn]} request]
   (let [notice-id (parse-int (get-in request [:path-params :id]))]
     (query-fn :delete-notice! {:notice_id notice-id})

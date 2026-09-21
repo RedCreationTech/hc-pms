@@ -178,7 +178,7 @@
       [{:key :uncategorized :category nil :models (sort-ms (get buckets :uncategorized []))}])))
 
 
-;; Tab 页内容组件（避免深层嵌套，拆成独立函数）
+;; Tab 页内容组件(避免深层嵌套,拆成独立函数)
 (defn basic-info-tab
   "P1 基本信息（对齐 vben base-info.vue）：名称/Key/分类/表单类型 +
    流程图标 / 流程描述 / 谁可发起（全员·指定人员·指定部门）/ 流程管理员。"
@@ -674,7 +674,7 @@
 
 
 (defn- category-card
-  "单个分类卡：可折叠、可拖拽排序；卡内模型表格行可拖拽排序。"
+  "单个分类卡:可折叠,可拖拽排序;卡内模型表格行可拖拽排序."
   [{:keys [category models collapsed? on-toggle forms-by-id on-model-sort on-cat-sort]}]
   (let [title (or (:name category) "未分类")
         cat-key (or (:category_id category) :uncategorized)]

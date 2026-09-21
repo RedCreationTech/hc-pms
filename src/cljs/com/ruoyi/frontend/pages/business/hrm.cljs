@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.business.hrm
-  "HRM 员工管理。"
+  "HRM 员工管理."
   (:require
     ["@ant-design/icons" :refer [PlusOutlined ReloadOutlined]]
     [com.ruoyi.frontend.antd :as antd]

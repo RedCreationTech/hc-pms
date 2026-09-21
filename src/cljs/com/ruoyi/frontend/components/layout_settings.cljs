@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.components.layout-settings
-  "布局设置抽屉，提供 RuoYi 风格的主题与系统布局配置。"
+  "布局设置抽屉,提供 RuoYi 风格的主题与系统布局配置."
   (:require
     ["@ant-design/icons" :refer [CheckOutlined ReloadOutlined]]
     ["antd" :refer [Button ColorPicker Divider Segmented Space Switch Tooltip]]
@@ -13,19 +13,19 @@
 
 
 (defn- set-layout!
-  "更新单个布局设置项。"
+  "更新单个布局设置项."
   [k value]
   (rf/dispatch [:layout/set-setting k value]))
 
 
 (defn- selected?
-  "判断设置值是否为当前选中项。"
+  "判断设置值是否为当前选中项."
   [settings k value]
   (= value (get settings k)))
 
 
 (defn- preview-block
-  "绘制导航模式的缩略预览。"
+  "绘制导航模式的缩略预览."
   [mode selected?]
   [:div {:style {:width 78 :height 68 :borderRadius 4 :background "#f0f2f5"
                  :position "relative" :overflow "hidden"
@@ -46,7 +46,7 @@
 
 
 (defn- option-card
-  "显示可点击的缩略设置卡片。"
+  "显示可点击的缩略设置卡片."
   [label selected? child on-click]
   [:div {:style {:display "flex" :flexDirection "column" :gap 8 :alignItems "center"
                  :cursor "pointer" :color (if selected? "#409eff" "#606266")
@@ -57,21 +57,21 @@
 
 
 (defn- section-title
-  "绘制分组标题。"
+  "绘制分组标题."
   [text]
   [:div {:style {:fontSize 16 :fontWeight 700 :color "#303133" :margin "0 0 18px"}}
    text])
 
 
 (defn- switch-style-overrides
-  "覆盖布局设置抽屉内开关颜色，确保开启状态为亮色。"
+  "覆盖布局设置抽屉内开关颜色,确保开启状态为亮色."
   []
   [:style
    ".layout-settings-drawer .ant-switch { background: #dcdfe6 !important; }\n.layout-settings-drawer .ant-switch:hover:not(.ant-switch-disabled) { background: #cfd3dc !important; }\n.layout-settings-drawer .ant-switch.ant-switch-checked { background: #409eff !important; }\n.layout-settings-drawer .ant-switch.ant-switch-checked:hover:not(.ant-switch-disabled) { background: #66b1ff !important; }"])
 
 
 (defn- setting-row
-  "绘制一行开关设置。"
+  "绘制一行开关设置."
   [label checked? on-change]
   [:div {:style {:display "flex" :alignItems "center" :justifyContent "space-between"
                  :height 42 :fontSize 14 :color "#606266"}}
@@ -80,7 +80,7 @@
 
 
 (defn- theme-style-preview
-  "绘制亮色/暗色主题预览。"
+  "绘制亮色/暗色主题预览."
   [mode selected?]
   [:div {:style {:width 58 :height 54 :borderRadius 4 :background (if (= mode "dark") "#f7f8fa" "#fff")
                  :position "relative" :overflow "hidden" :border "1px solid #e5e7eb"
@@ -93,7 +93,7 @@
 
 
 (defn- theme-color-picker
-  "绘制主题颜色选择控件。"
+  "绘制主题颜色选择控件."
   [primary-color]
   [:div {:style {:display "flex" :alignItems "center" :justifyContent "space-between"
                  :height 44 :fontSize 14 :color "#606266"}}
@@ -113,7 +113,7 @@
 
 
 (defn layout-settings-drawer
-  "显示布局设置抽屉。open? 控制显示，on-close 关闭抽屉。"
+  "显示布局设置抽屉.open? 控制显示,on-close 关闭抽屉."
   [{:keys [open? on-close]}]
   (let [settings (merge {:nav-mode "side" :theme-style "light" :open-tags? true
                          :cache-tags? true :show-tab-icon? true :tab-style "google"

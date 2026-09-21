@@ -1,9 +1,9 @@
 (ns com.ruoyi.frontend.db
-  "前端应用初始状态。")
+  "前端应用初始状态.")
 
 
 (defn- get-stored-token
-  "从 localStorage 读取保存的 token。"
+  "从 localStorage 读取保存的 token."
   []
   (try
     (.getItem js/localStorage "ruoyi_token")
@@ -11,7 +11,7 @@
 
 
 (defn- get-stored-user
-  "从 localStorage 读取保存的用户信息。"
+  "从 localStorage 读取保存的用户信息."
   []
   (try
     (when-let [s (.getItem js/localStorage "ruoyi_user")]

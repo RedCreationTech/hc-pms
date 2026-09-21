@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.components.form-section
-  "表单分组容器，带主色左侧竖条和网格布局。")
+  "表单分组容器,带主色左侧竖条和网格布局.")
 
 
 (defn form-section

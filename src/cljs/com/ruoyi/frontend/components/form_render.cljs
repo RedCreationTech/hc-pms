@@ -266,17 +266,17 @@
                     :allowClear true :placeholder (:placeholder props)
                     :onChange change}
        (render-options opts :select)]
-      ;; input / date / time（字符串值模型，date/time 用文本框）
+      ;; input / date / time(字符串值模型,date/time 用文本框)
       [antd/input {:value (or value "") :disabled disabled?
                    :placeholder (:placeholder props)
                    :onChange (fn [e] (change (-> e .-target .-value)))}])))
 
 
 (defn form-render
-  "渲染动态表单。schema: {:conf {} :fields [...]}。
+  "渲染动态表单.schema: {:conf {} :fields [...]}.
    options: {:disabled? bool :values {field value} :on-change (fn [{field value}])
              :field-permissions {field hidden|readonly|edit}}
-   values/on-change 由父组件管理（可编辑模式）。"
+   values/on-change 由父组件管理(可编辑模式)."
   [{:keys [schema disabled? values on-change layout field-permissions]}]
   (let [fields (or (:fields schema) [])
         vals (or values {})

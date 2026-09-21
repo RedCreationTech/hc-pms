@@ -1,4 +1,4 @@
--- 办公一体化 · HRM 人力资源（SQLite）
+-- 办公一体化 · HRM 人力资源(SQLite)
 CREATE TABLE IF NOT EXISTS biz_hrm_employee (
   employee_id  INTEGER PRIMARY KEY AUTOINCREMENT,
   emp_no       TEXT NOT NULL DEFAULT '',

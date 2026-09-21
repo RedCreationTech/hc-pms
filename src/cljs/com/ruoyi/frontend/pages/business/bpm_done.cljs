@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.business.bpm-done
-  "我的已办。"
+  "我的已办."
   (:require
     ["@ant-design/icons" :refer [ReloadOutlined RollbackOutlined]]
     [com.ruoyi.frontend.antd :as antd]
@@ -33,7 +33,7 @@
   (let [items @(rf/subscribe [:bpm-done/items])
         total @(rf/subscribe [:bpm-done/total])
         loading? @(rf/subscribe [:bpm-done/loading?])]
-    ;; 直达本页（刷新/外部链接）时自行拉取一次，不依赖 :navigate 时序
+    ;; 直达本页(刷新/外部链接)时自行拉取一次,不依赖 :navigate 时序
     (hooks/use-effect (fn [] (rf/dispatch [:bpm/done-fetch])) [])
     [:div
      [page-toolbar/page-toolbar

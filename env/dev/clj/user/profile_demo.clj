@@ -207,7 +207,7 @@
      path)))
 
 (defn run-all
-  "一键跑完 profiling + criterium + 生成报告。"
+  "一键跑完 profiling + criterium + 生成报告."
   []
   (println "== 1. GC allocation profiling ==")
   (profile-gc)

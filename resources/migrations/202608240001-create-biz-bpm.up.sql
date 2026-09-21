@@ -1,4 +1,4 @@
--- 办公一体化 · BPM 业务表（MySQL）
+-- 办公一体化 · BPM 业务表(MySQL)
 -- biz_bpm_category 流程分类 / biz_bpm_model 流程模型 / biz_bpm_form 动态表单
 -- biz_bpm_instance 流程实例映射 / biz_attachment 通用附件
 
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS biz_bpm_category (
 CREATE INDEX idx_bpm_category_code ON biz_bpm_category(code);
 --;;
 
--- 流程模型（存 BPMN XML + 表单配置，deployment_id 关联 Flowable）
+-- 流程模型(存 BPMN XML + 表单配置,deployment_id 关联 Flowable)
 CREATE TABLE IF NOT EXISTS biz_bpm_model (
   model_id      BIGINT AUTO_INCREMENT PRIMARY KEY,
   model_key     VARCHAR(255) NOT NULL,
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS biz_bpm_form (
 CREATE INDEX idx_bpm_form_key ON biz_bpm_form(form_key);
 --;;
 
--- 流程实例业务映射（关联 Flowable process_instance_id 与业务记录）
+-- 流程实例业务映射(关联 Flowable process_instance_id 与业务记录)
 CREATE TABLE IF NOT EXISTS biz_bpm_instance (
   instance_id         BIGINT AUTO_INCREMENT PRIMARY KEY,
   process_instance_id VARCHAR(64) NOT NULL,
@@ -80,7 +80,7 @@ CREATE INDEX idx_bpm_instance_pid ON biz_bpm_instance(process_instance_id);
 CREATE INDEX idx_bpm_instance_model ON biz_bpm_instance(model_id);
 --;;
 
--- 通用附件（各模块复用，对接文件管理）
+-- 通用附件(各模块复用,对接文件管理)
 CREATE TABLE IF NOT EXISTS biz_attachment (
   attachment_id BIGINT AUTO_INCREMENT PRIMARY KEY,
   file_name     VARCHAR(255) NOT NULL DEFAULT '',

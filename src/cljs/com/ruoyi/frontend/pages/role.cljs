@@ -24,7 +24,7 @@
 
 
 (defn- dept->tree-node
-  "将部门数据转换为 Ant Design Tree 节点格式。"
+  "将部门数据转换为 Ant Design Tree 节点格式."
   [dept]
   (let [node {:title (:dept_name dept)
               :key (str (:dept_id dept))}]

@@ -1,5 +1,5 @@
 (ns com.ruoyi.domain.system.dict-test
-  "字典领域服务测试。"
+  "字典领域服务测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.domain.system.dict :as dict]))

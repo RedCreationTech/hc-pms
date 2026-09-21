@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.system.log
-  "日志审计控制器。"
+  "日志审计控制器."
   (:require
     [clojure.string :as str]
     [com.ruoyi.domain.system.log :as log-service]
@@ -22,14 +22,14 @@
 
 
 (defn list-oper-logs
-  "查询操作日志列表。"
+  "查询操作日志列表."
   [{:keys [log-service]} request]
   (let [result (log-service/list-oper-logs log-service (:query-params request))]
     (ok {:total (:total result) :rows (:rows result)})))
 
 
 (defn clear-oper-logs
-  "清空操作日志。"
+  "清空操作日志."
   [{:keys [log-service]} request]
   (let [params (or (:query-params request) {})]
     (log-service/clear-oper-logs! log-service
@@ -38,21 +38,21 @@
 
 
 (defn delete-oper-logs
-  "删除操作日志。"
+  "删除操作日志."
   [{:keys [log-service]} request]
   (log-service/delete-oper-logs! log-service (parse-ids (get-in request [:path-params :ids])))
   (ok "删除成功"))
 
 
 (defn list-login-logs
-  "查询登录日志列表。"
+  "查询登录日志列表."
   [{:keys [log-service]} request]
   (let [result (log-service/list-login-logs log-service (:query-params request))]
     (ok {:total (:total result) :rows (:rows result)})))
 
 
 (defn clear-login-logs
-  "清空登录日志。"
+  "清空登录日志."
   [{:keys [log-service]} request]
   (let [params (or (:query-params request) {})]
     (log-service/clear-login-logs! log-service
@@ -61,21 +61,21 @@
 
 
 (defn delete-login-logs
-  "删除登录日志。"
+  "删除登录日志."
   [{:keys [log-service]} request]
   (log-service/delete-login-logs! log-service (parse-ids (get-in request [:path-params :ids])))
   (ok "删除成功"))
 
 
 (defn list-online-users
-  "查询在线用户列表。"
+  "查询在线用户列表."
   [{:keys [log-service]} request]
   (let [result (log-service/list-online-users log-service (:query-params request))]
     (ok {:total (:total result) :rows (:rows result)})))
 
 
 (defn kick-online-user
-  "强退在线用户。"
+  "强退在线用户."
   [{:keys [log-service]} request]
   (let [session-id (get-in request [:path-params :id])]
     (log-service/delete-online-user! log-service session-id)

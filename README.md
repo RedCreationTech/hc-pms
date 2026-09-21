@@ -2,10 +2,10 @@
 
 > **开发分支**: `ruoyi-template`
 > **仓库**: [RedCreationTech/ruoyi_clojure](https://github.com/RedCreationTech/ruoyi_clojure)
-> **参考**: [RuoYi-Vue](https://gitee.com/y_project/RuoYi-Vue) (v3.9.2) — 功能对照完成度 ~95%
+> **参考**: [RuoYi-Vue](https://gitee.com/y_project/RuoYi-Vue) (v3.9.2) -- 功能对照完成度 ~95%
 > **更新于**: 2026-09-20
 
-基于 **Kit 框架** + **ClojureScript** + **Reagent 2** + **Ant Design 6** 构建的 RuoYi 风格全栈管理后台，对齐原版若依框架核心功能。
+基于 **Kit 框架** + **ClojureScript** + **Reagent 2** + **Ant Design 6** 构建的 RuoYi 风格全栈管理后台,对齐原版若依框架核心功能.
 
 ---
 
@@ -34,21 +34,21 @@
 
 | 层级 | 技术 | 版本 |
 |------|------|------|
-| 语言 | Clojure 1.12, ClojureScript | — |
-| 后端框架 | Kit (Integrant, Reitit 0.10, Ring 1.15) | — |
-| 数据库 | SQLite (默认), MySQL 8, PostgreSQL | — |
-| 数据库访问 | next.jdbc, conman (HugSQL), Migratus | — |
-| 连接池 | HikariCP 5.1 | — |
+| 语言 | Clojure 1.12, ClojureScript | -- |
+| 后端框架 | Kit (Integrant, Reitit 0.10, Ring 1.15) | -- |
+| 数据库 | SQLite (默认), MySQL 8, PostgreSQL | -- |
+| 数据库访问 | next.jdbc, conman (HugSQL), Migratus | -- |
+| 连接池 | HikariCP 5.1 | -- |
 | 安全 | Buddy (JWT + bcrypt 密码) | buddy 3.x |
-| 序列化 | Muuntaja (JSON via cheshire, Transit) | — |
-| 前端框架 | Reagent 2.0 (React 19), re-frame | — |
-| 前端 UI | Ant Design 6 (React 组件) | — |
-| 前端构建 | shadow-cljs (NPM via package.json) | — |
+| 序列化 | Muuntaja (JSON via cheshire, Transit) | -- |
+| 前端框架 | Reagent 2.0 (React 19), re-frame | -- |
+| 前端 UI | Ant Design 6 (React 组件) | -- |
+| 前端构建 | shadow-cljs (NPM via package.json) | -- |
 | 任务调度 | Quartz (kit-quartz cronut) | 2.3.2 |
-| 工作流引擎 | Flowable 8.0.0 (BPMN 2.0) | — |
-| 验证 | Malli 0.17 | — |
-| 测试 | clojure.test, Playwright (E2E) | — |
-| 覆盖率 | Cloverage | — |
+| 工作流引擎 | Flowable 8.0.0 (BPMN 2.0) | -- |
+| 验证 | Malli 0.17 | -- |
+| 测试 | clojure.test, Playwright (E2E) | -- |
+| 覆盖率 | Cloverage | -- |
 
 ---
 
@@ -109,7 +109,7 @@
 
 ### Integrant 组件依赖图
 
-系统启动时通过 `resources/system.edn` 声明式组装所有组件。关键组件链：
+系统启动时通过 `resources/system.edn` 声明式组装所有组件.关键组件链:
 
 ```
 nrepl/server ─┐
@@ -138,7 +138,7 @@ db.sql/migrations ── db.sql/connection ──┬── db.sql/query-fn ─�
 
 | 文件 | 职责 | 关键函数 |
 |------|------|----------|
-| `core.clj` | 应用入口，Integrant 启动/停止 | `-main`, `start-app`, `stop-app` |
+| `core.clj` | 应用入口,Integrant 启动/停止 | `-main`, `start-app`, `stop-app` |
 | `config.clj` | 读取 `system.edn` 配置 | `system-config` |
 
 #### 领域服务层 (`domain/`)
@@ -146,22 +146,22 @@ db.sql/migrations ── db.sql/connection ──┬── db.sql/query-fn ─�
 | 文件 | 职责 | 关键函数 |
 |------|------|----------|
 | `domain/system.clj` | 所有系统服务 Integrant 组件注册 (init-key) | `ig/init-key :app.system/*` |
-| `domain/system/user.clj` | 用户 CRUD、查询、状态切换 | `list-users`, `create-user!`, `update-user!`, `delete-user!` |
-| `domain/system/role.clj` | 角色 CRUD、菜单权限分配、数据权限 | `list-roles`, `create-role!`, `update-role-menu!`, `update-data-scope!` |
-| `domain/system/menu.clj` | 菜单树管理、权限检查 | `list-menus`, `build-menu-tree`, `check-perms` |
+| `domain/system/user.clj` | 用户 CRUD,查询,状态切换 | `list-users`, `create-user!`, `update-user!`, `delete-user!` |
+| `domain/system/role.clj` | 角色 CRUD,菜单权限分配,数据权限 | `list-roles`, `create-role!`, `update-role-menu!`, `update-data-scope!` |
+| `domain/system/menu.clj` | 菜单树管理,权限检查 | `list-menus`, `build-menu-tree`, `check-perms` |
 | `domain/system/dept.clj` | 部门树管理 | `list-depts`, `build-dept-tree`, `create-dept!` |
 | `domain/system/post.clj` | 岗位 CRUD | `list-posts`, `create-post!`, `update-post!` |
 | `domain/system/dict.clj` | 字典类型与字典数据 | `list-dict-types`, `list-dict-data`, `create-dict-type!` |
 | `domain/system/config.clj` | 系统参数配置 | `list-configs`, `get-config-by-key`, `update-config!` |
-| `domain/system/log.clj` | 操作日志、登录日志 | `list-oper-logs`, `list-login-logs`, `log-operation!`, `log-login!` |
+| `domain/system/log.clj` | 操作日志,登录日志 | `list-oper-logs`, `list-login-logs`, `log-operation!`, `log-login!` |
 
 #### 办公一体化领域服务 (`domain/business/`)
 
 | 文件 | 职责 |
 |------|------|
-| `domain/business/bpm.clj` | BPM 领域服务：流程分类/模型/定义版本/实例/任务/动态表单/加签减签/撤回退回/抄送 |
+| `domain/business/bpm.clj` | BPM 领域服务:流程分类/模型/定义版本/实例/任务/动态表单/加签减签/撤回退回/抄送 |
 | `domain/business/bpm_flow.clj` | BPMN XML ↔ 流程节点树 双向转换 |
-| `domain/business/bpm_mgmt.clj` | BPM 管理套件：用户分组/流程监听器/流程表达式/流程设置 (通用 CRUD) |
+| `domain/business/bpm_mgmt.clj` | BPM 管理套件:用户分组/流程监听器/流程表达式/流程设置 (通用 CRUD) |
 | `domain/business/oa.clj` | OA 协同办公 (日程/会议) |
 | `domain/business/leave.clj` | 请假申请 (业务记录 + BPM 审批流集成) |
 | `domain/business/reimburse.clj` | 报销申请 (业务记录 + BPM 审批流集成) |
@@ -173,7 +173,7 @@ db.sql/migrations ── db.sql/connection ──┬── db.sql/query-fn ─�
 | 文件 | 职责 | 关键函数 |
 |------|------|----------|
 | `infra/security.clj` | JWT 签发/验证, bcrypt 密码哈希 | `generate-token`, `parse-token`, `hash-password`, `verify-password` |
-| `infra/db.clj` | 数据库抽象层，SQLite/MySQL 双库兼容 | `detect-db-type`, `paginate-query`, `get-tables`, `get-table-columns` |
+| `infra/db.clj` | 数据库抽象层,SQLite/MySQL 双库兼容 | `detect-db-type`, `paginate-query`, `get-tables`, `get-table-columns` |
 | `infra/cache.clj` | 内存缓存 (clojure.core.cache) | `get-cache`, `put-cache!`, `list-cache-keys`, `clear-cache!` |
 | `infra/cron.clj` | CRON 调度工具 | `cron->description` |
 | `infra/data_perm.clj` | 数据权限过滤 (部门级) | `apply-data-scope` |
@@ -185,8 +185,8 @@ db.sql/migrations ── db.sql/connection ──┬── db.sql/query-fn ─�
 
 | 文件 | 职责 |
 |------|------|
-| `web/handler.clj` | Ring handler 组装，Integrant init-key |
-| `web/routes/api.clj` | 主路由表，聚合所有子路由 |
+| `web/handler.clj` | Ring handler 组装,Integrant init-key |
+| `web/routes/api.clj` | 主路由表,聚合所有子路由 |
 | `web/routes/auth.clj` | 登录/登出/注册/验证码路由 |
 | `web/routes/system.clj` | 系统管理路由 (用户/角色/菜单/部门/岗位/字典/配置/公告/日志/监控/定时任务) |
 | `web/routes/business.clj` | 办公一体化路由 (BPM 流程/OA/请假/报销/HRM/CRM/报表) |
@@ -203,7 +203,7 @@ db.sql/migrations ── db.sql/connection ──┬── db.sql/query-fn ─�
 
 | 文件 | 对应功能 |
 |------|----------|
-| `auth.clj` | 登录验证、获取用户信息、注册 |
+| `auth.clj` | 登录验证,获取用户信息,注册 |
 | `captcha.clj` | 验证码生成 |
 | `health.clj` | 健康检查 |
 | `common.clj` | 通用接口 (文件上传/下载等) |
@@ -239,7 +239,7 @@ db.sql/migrations ── db.sql/connection ──┬── db.sql/query-fn ─�
 | `bpm/engine.clj` | Flowable ProcessEngine Integrant 组件初始化/销毁 (独立 H2 文件数据库) |
 | `bpm/core.clj` | Flowable 引擎高层封装 (部署/启动/任务/变量/流转操作) |
 
-另见 `task.clj` (定时任务示例目标函数) 与 `obs/` (OpenTelemetry 追踪封装)。
+另见 `task.clj` (定时任务示例目标函数) 与 `obs/` (OpenTelemetry 追踪封装).
 
 #### Integrant 工具 (`integrant/`)
 
@@ -254,14 +254,14 @@ db.sql/migrations ── db.sql/connection ──┬── db.sql/query-fn ─�
 
 | 文件 | 职责 |
 |------|------|
-| `app.cljs` | 应用入口，ConfigProvider + 页面路由 |
-| `router.cljs` | 前端路由 (bidi)，30+ 页面路由映射 |
-| `antd.cljs` | Ant Design 6 React 组件适配，message API 封装 |
+| `app.cljs` | 应用入口,ConfigProvider + 页面路由 |
+| `router.cljs` | 前端路由 (bidi),30+ 页面路由映射 |
+| `antd.cljs` | Ant Design 6 React 组件适配,message API 封装 |
 | `api.cljs` | HTTP 客户端 (fetch 封装) |
 | `events.cljs` | re-frame 事件注册 |
 | `subs.cljs` | re-frame 订阅注册 |
 | `db.cljs` | re-frame app-db 初始状态 |
-| `theme.cljs` | 亮色/暗色主题配置，antd token 覆盖 |
+| `theme.cljs` | 亮色/暗色主题配置,antd token 覆盖 |
 
 #### 页面组件 (`pages/`)
 
@@ -296,7 +296,7 @@ db.sql/migrations ── db.sql/connection ──┬── db.sql/query-fn ─�
 | `bpm_model.cljs` / `bpm_model_editor.cljs` | 流程模型列表 / 流程模型设计器 (BPMN + 动态表单 + 节点配置) |
 | `bpm_definition.cljs` | 流程定义版本管理 |
 | `bpm_instance.cljs` | 我的流程 (实例) |
-| `bpm_admin.cljs` / `bpm_ops.cljs` | 流程管理后台 (任务/实例管理、运维操作) |
+| `bpm_admin.cljs` / `bpm_ops.cljs` | 流程管理后台 (任务/实例管理,运维操作) |
 | `bpm_todo.cljs` / `bpm_done.cljs` / `bpm_copy.cljs` | 我的待办 / 我的已办 / 我的抄送 |
 | `bpm_start.cljs` | 发起流程 |
 | `leave.cljs` / `reimburse.cljs` | 请假申请 / 报销申请 |
@@ -332,10 +332,10 @@ db.sql/migrations ── db.sql/connection ──┬── db.sql/query-fn ─�
 
 | 目录 | 文件数 | 覆盖模块 |
 |------|--------|----------|
-| `core_test.clj` / `task_test.clj` | 2 | 应用启动与基本路由、定时任务目标函数 |
+| `core_test.clj` / `task_test.clj` | 2 | 应用启动与基本路由,定时任务目标函数 |
 | `domain/system/` | 8 | user, role, menu, dept, post, dict, config, log |
 | `infra/` | 6 | cache, data_perm, db, online, scheduler, security |
-| `bpm/` + `business/` | 9 | Flowable 引擎封装、BPM 审批闭环 (加签/撤回/退回)、请假/报销集成 |
+| `bpm/` + `business/` | 9 | Flowable 引擎封装,BPM 审批闭环 (加签/撤回/退回),请假/报销集成 |
 | `web/controllers/` | 19+ | 顶层控制器 (auth/captcha/common/health/job/register) + `system/` 13 个接口测试 |
 | `web/middleware/` | 3 | auth, exception, operlog |
 | `web/routes/` | 1 | utils |
@@ -380,11 +380,11 @@ db.sql/migrations ── db.sql/connection ──┬── db.sql/query-fn ─�
 
 - 流程模型设计: BPMN 可视化设计器 + 流程节点树配置 (审批人/监听器/流转条件)
 - 动态表单: 拖拽式表单设计器 + 运行时渲染
-- 流程定义: 版本管理、BPMN XML 查看、历史版本恢复、挂起/激活
-- 流程实例: 发起/取消/挂起/激活/终止、历史轨迹、高亮流程图、打印数据
-- 任务中心: 我的待办/已办/抄送、通过/驳回/认领/转办/委派
-- 高级审批: 加签/减签、撤回 (含撤回到起始节点)、可退回节点退回
-- 流程管理: 任务管理/实例运维 (管理员)、用户分组/监听器/表达式/设置
+- 流程定义: 版本管理,BPMN XML 查看,历史版本恢复,挂起/激活
+- 流程实例: 发起/取消/挂起/激活/终止,历史轨迹,高亮流程图,打印数据
+- 任务中心: 我的待办/已办/抄送,通过/驳回/认领/转办/委派
+- 高级审批: 加签/减签,撤回 (含撤回到起始节点),可退回节点退回
+- 流程管理: 任务管理/实例运维 (管理员),用户分组/监听器/表达式/设置
 - 引擎数据存储于独立 H2 文件数据库 (`FLOWABLE_JDBC_URL` 可覆盖)
 
 ### OA 办公一体化
@@ -404,14 +404,14 @@ db.sql/migrations ── db.sql/connection ──┬── db.sql/query-fn ─�
 
 - JWT 认证 (Bearer Token, HS256)
 - bcrypt 密码加密 (bcrypt+sha512)
-- XSS 防护、CSRF 防护框架
+- XSS 防护,CSRF 防护框架
 - 登录限流 (可扩展)
 
 ---
 
 ## 权限模型
 
-系统采用 **RBAC (Role-Based Access Control)** 权限模型：
+系统采用 **RBAC (Role-Based Access Control)** 权限模型:
 
 ```
 用户 ──── N:N ──── 角色 ──── N:N ──── 菜单(含按钮权限)
@@ -486,7 +486,7 @@ db.sql/migrations ── db.sql/connection ──┬── db.sql/query-fn ─�
 
 | 分支 | 用途 | 说明 |
 |------|------|------|
-| `ruoyi-template` | **开发主线** | 默认工作分支，所有开发在此进行 |
+| `ruoyi-template` | **开发主线** | 默认工作分支,所有开发在此进行 |
 | `main` | 稳定发行版 | 只从 ruoyi-template 合并已验证的功能 |
 
 **开发流程**:
@@ -529,31 +529,31 @@ git push origin ruoyi-template
 - JDK 17+
 - Clojure CLI (1.12+)
 - Node.js 18+
-- Babashka (可选，用于 bb.edn 任务快捷方式)
+- Babashka (可选,用于 bb.edn 任务快捷方式)
 
 ### 1. 启动后端
 
 ```bash
-# 默认使用 SQLite，自动迁移并初始化数据
+# 默认使用 SQLite,自动迁移并初始化数据
 clojure -M:dev -m com.ruoyi.core
 
 # 或使用 bb
 bb run
 ```
 
-后端默认运行在 http://localhost:3000，nREPL 端口 7000。
+后端默认运行在 http://localhost:3000,nREPL 端口 7000.
 
 ### 2. 启动前端 (开发模式)
 
 ```bash
-# 安装依赖（首次）
+# 安装依赖(首次)
 pnpm install
 
-# 开发模式（自动增量编译）
+# 开发模式(自动增量编译)
 pnpm exec shadow-cljs watch app
 ```
 
-前端由后端同一端口 (3000) 提供服务，编译产物输出到 `resources/public/js/`。
+前端由后端同一端口 (3000) 提供服务,编译产物输出到 `resources/public/js/`.
 
 ### 3. 访问
 
@@ -569,7 +569,7 @@ open http://localhost:3000
 # 前端发布
 pnpm exec shadow-cljs release app
 
-# 后端 Uberjar（包含前端静态文件）
+# 后端 Uberjar(包含前端静态文件)
 bb uberjar   # 或: clojure -T:build all
 
 # 运行
@@ -580,35 +580,35 @@ java -jar target/rouyi-standalone.jar
 
 ## 后端开发 (nREPL 热重载)
 
-后端运行时通过 nREPL 端口 7000 热重载代码，**无需重启进程**。
+后端运行时通过 nREPL 端口 7000 热重载代码,**无需重启进程**.
 
 ### 可用重载命令
 
 ```bash
-# 单模块重载（最快，推荐日常开发）
+# 单模块重载(最快,推荐日常开发)
 clj-nrepl-eval -p 7000 '(user/rd)'          # 重载域服务 (user, role, menu, dept, etc.)
 clj-nrepl-eval -p 7000 '(user/rroutes)'     # 重载路由定义
 clj-nrepl-eval -p 7000 '(user/ra)'          # 重载所有命名空间
 
 # 数据库操作
-clj-nrepl-eval -p 7000 '(user/reset-db)'    # 重置数据库（清空重建）
+clj-nrepl-eval -p 7000 '(user/reset-db)'    # 重置数据库(清空重建)
 clj-nrepl-eval -p 7000 '(user/migrate)'     # 运行迁移
 
-# 全局重载（较慢，结构变更时使用）
+# 全局重载(较慢,结构变更时使用)
 clj-nrepl-eval -p 7000 '(user/rr)'          # 完全重启系统 (halt → prep → go)
 ```
 
 ### 何时需要重启
 
-- HugSQL `.sql` 文件变更（查询缓存在启动时加载）
+- HugSQL `.sql` 文件变更(查询缓存在启动时加载)
 - `resources/system.edn` 配置变更
 - Integrant 组件结构变更
 
-上述场景运行 `(user/rr)` 或重启进程。
+上述场景运行 `(user/rr)` 或重启进程.
 
 ### 何时只需 `(user/rd)` 重载
 
-- 控制器、服务、域逻辑变更
+- 控制器,服务,域逻辑变更
 - 单纯逻辑变更不需要重启
 
 ---
@@ -616,36 +616,36 @@ clj-nrepl-eval -p 7000 '(user/rr)'          # 完全重启系统 (halt → prep 
 ## 前端开发 (shadow-cljs)
 
 ```bash
-# 启动 watch 模式（增量编译）
+# 启动 watch 模式(增量编译)
 npx shadow-cljs watch app
 
-# 首次编译约 2 分钟，后续修改秒级增量编译
+# 首次编译约 2 分钟,后续修改秒级增量编译
 # 编辑 .cljs 文件 → watch 自动检测 → 增量编译 → 刷新浏览器
 ```
 
 ### 前端关键约束
 
-1. **使用 React Hooks，禁用 `reagent/atom`**: 组件内部局部状态用 `hooks/use-state`，全局状态用 re-frame subscription
+1. **使用 React Hooks,禁用 `reagent/atom`**: 组件内部局部状态用 `hooks/use-state`,全局状态用 re-frame subscription
 2. **Ant Design 6 API 注意事项**:
-   - `Button :icon` 必须传 React 元素，不能传字符串
+   - `Button :icon` 必须传 React 元素,不能传字符串
    - Dropdown menu 的 `:label` 必须用 `r/as-element` 包裹
-   - Modal/Drawer 的 `:width` 已废弃，改用 `:style {:width N}`
-   - `:destroyOnClose` 已废弃，改用 `:destroyOnHidden`
-   - `message` 必须通过 `App.useApp` 上下文获取，不能直接用静态方法
-3. **后端分页参数使用 `page` / `size`**（不是 `pageNum`/`pageSize`）
+   - Modal/Drawer 的 `:width` 已废弃,改用 `:style {:width N}`
+   - `:destroyOnClose` 已废弃,改用 `:destroyOnHidden`
+   - `message` 必须通过 `App.useApp` 上下文获取,不能直接用静态方法
+3. **后端分页参数使用 `page` / `size`**(不是 `pageNum`/`pageSize`)
 4. **菜单权限不可写死**: 左侧菜单必须从接口动态获取
 5. **自定义表单项**: 需要手动读写 form 字段值
 
-详细前端约定见 [AGENTS.md](./AGENTS.md) 中的"Frontend Ant Design 常见错误"章节。
+详细前端约定见 [AGENTS.md](./AGENTS.md) 中的"Frontend Ant Design 常见错误"章节.
 
 ---
 
 ## 数据库兼容 (SQLite / MySQL)
 
-项目同时支持 SQLite 和 MySQL，通过环境变量切换：
+项目同时支持 SQLite 和 MySQL,通过环境变量切换:
 
 ```bash
-# SQLite（默认）
+# SQLite(默认)
 clojure -M:dev -m com.ruoyi.core
 
 # MySQL
@@ -656,10 +656,10 @@ clojure -M:dev -m com.ruoyi.core
 
 ### 迁移文件
 
-- `resources/migrations-sqlite/` — SQLite 专用 DDL
-- `resources/migrations/` — MySQL 专用 DDL
+- `resources/migrations-sqlite/` -- SQLite 专用 DDL
+- `resources/migrations/` -- MySQL 专用 DDL
 
-修改表结构时 **两个目录必须同步更新**。
+修改表结构时 **两个目录必须同步更新**.
 
 ### SQL 查询原则
 
@@ -674,7 +674,7 @@ clojure -M:dev -m com.ruoyi.core
 ### 后端测试
 
 ```bash
-# 运行全部测试（SQLite）
+# 运行全部测试(SQLite)
 bb test
 
 # 运行单文件测试
@@ -688,7 +688,7 @@ bb coverage
 ### E2E 测试 (Playwright)
 
 ```bash
-# 安装浏览器（首次）
+# 安装浏览器(首次)
 npx playwright install chromium
 
 # 运行全部 E2E 用例
@@ -698,17 +698,17 @@ npm run test:e2e
 npm run test:e2e:report
 ```
 
-测试目录：`tests/e2e/`（14 个 spec，含 2 个公共 helper: `auth-helper.js` / `dom-helper.js`）
-- 认证/导航: `auth.spec.js` — 登录/登出；`navigation.spec.js` — 菜单可访问性
+测试目录:`tests/e2e/`(14 个 spec,含 2 个公共 helper: `auth-helper.js` / `dom-helper.js`)
+- 认证/导航: `auth.spec.js` -- 登录/登出;`navigation.spec.js` -- 菜单可访问性
 - 系统管理 CRUD: `user-crud` / `role-crud` / `post-crud` / `dict-crud` / `config-crud` / `notice-crud`
-- 业务流程: `business-flow.spec.js` — 办公一体化核心流程
+- 业务流程: `business-flow.spec.js` -- 办公一体化核心流程
 - 报告类: `frontend-report` / `frontend-bpm-report` / `designer-report` / `full-demo-report` / `updated-report`
 
 ---
 
 ## API 概览
 
-所有 API 前缀 `/api`，Swagger 文档：http://localhost:3000/api
+所有 API 前缀 `/api`,Swagger 文档:http://localhost:3000/api
 
 ### 认证
 | 方法 | 路径 | 说明 |
@@ -778,12 +778,12 @@ npm run test:e2e:report
 ## 开发约定
 
 - 所有 Clojure 编辑通过 `safe-edit` / `validate` 保障括号安全
-- SQL 查询统一放在 `resources/sql/*.sql`，使用 HugSQL 管理
-- 每个 namespace 不超过 500 行，函数不超过 40 行
-- 使用中文 docstring 描述职责、参数和返回值
+- SQL 查询统一放在 `resources/sql/*.sql`,使用 HugSQL 管理
+- 每个 namespace 不超过 500 行,函数不超过 40 行
+- 使用中文 docstring 描述职责,参数和返回值
 - 后端分层: route → controller → service → query → db
 - 前端状态管理统一使用 re-frame
-- SQLite / MySQL 双库兼容，查询优先共用语法
+- SQLite / MySQL 双库兼容,查询优先共用语法
 
 ---
 
@@ -797,24 +797,24 @@ npm run test:e2e:report
 | 角色管理 | ✅ | ✅ | 95% | 数据权限已实现 |
 | 菜单管理 | ✅ | ✅ | 95% | 按钮权限标识已实现 |
 | 部门管理 | ✅ | ✅ | 95% | 树形表格 |
-| 岗位管理 | ✅ | ✅ | 95% | — |
+| 岗位管理 | ✅ | ✅ | 95% | -- |
 | 字典管理 | ✅ | ✅ | 95% | 字典类型+数据 |
-| 参数管理 | ✅ | ✅ | 95% | — |
+| 参数管理 | ✅ | ✅ | 95% | -- |
 | 通知公告 | ✅ | ✅ | 90% | 富文本编辑器已接入 |
-| 操作日志 | ✅ | ✅ | 95% | — |
-| 登录日志 | ✅ | ✅ | 95% | — |
+| 操作日志 | ✅ | ✅ | 95% | -- |
+| 登录日志 | ✅ | ✅ | 95% | -- |
 | 在线用户 | ✅ | ✅ | 95% | 强退可用 |
 | 定时任务 | ✅ | ✅ | 95% | CRON 调度 (Quartz) |
-| 服务监控 | ✅ | ✅ | 95% | — |
-| 缓存监控 | ✅ | ✅ | 95% | — |
+| 服务监控 | ✅ | ✅ | 95% | -- |
+| 缓存监控 | ✅ | ✅ | 95% | -- |
 | 数据源监控 | ✅ | ✅ | 95% | HikariCP 状态 |
 | Integrant 监控 | ✅ | ✅ | 95% | 依赖图+调用追踪 |
 | 系统接口(Swagger) | ✅ | ✅ | 95% | 内嵌 Swagger UI |
-| BPM 工作流 | ✅ | ✅ | 95% | Flowable 8.0：模型设计/动态表单/发起/待办/已办/抄送/加签减签/撤回退回/监听/表达式 |
+| BPM 工作流 | ✅ | ✅ | 95% | Flowable 8.0:模型设计/动态表单/发起/待办/已办/抄送/加签减签/撤回退回/监听/表达式 |
 | 请假/报销 | ✅ | ✅ | 95% | 业务记录 + BPM 审批流集成 |
-| OA 日程/会议 | ✅ | ✅ | 95% | — |
-| HRM 员工 | ✅ | ✅ | 95% | — |
-| CRM 客户 | ✅ | ✅ | 95% | — |
+| OA 日程/会议 | ✅ | ✅ | 95% | -- |
+| HRM 员工 | ✅ | ✅ | 95% | -- |
+| CRM 客户 | ✅ | ✅ | 95% | -- |
 | 办公报表 | ✅ | ✅ | 95% | 统计看板 |
 
 **整体完成度: ~95%**
@@ -834,13 +834,14 @@ npm run test:e2e:report
 
 | 文档 | 说明 |
 |------|------|
-| [AGENTS.md](./AGENTS.md) | AI 代理开发指南、编码约定、前端规范 |
-| [CHANGELOG.md](./CHANGELOG.md) | 版本演进历史（2026-09-20 回溯整理） |
-| [docs/guides/add-new-module.md](./docs/guides/add-new-module.md) | 新增业务模块端到端指南（迁移→SQL→领域→控制器→前端→权限→测试） |
-| [ROADMAP.md](./ROADMAP.md) | 功能齐平路线图（**已归档**，2026-06） |
-| [GAP_ANALYSIS.md](./GAP_ANALYSIS.md) | RuoYi-Vue 详细功能对比（**已归档**，2026-06） |
-| [RUOYI_VUE_COMPARISON.md](./RUOYI_VUE_COMPARISON.md) | RuoYi-Vue 逐项对比（**已归档**，2026-06） |
-| [docs/training/](./docs/training/) | 开发培训材料 (5 节课，基于 6 月代码) |
-| [docs/design/BPM_GAP_PLAN.md](./docs/design/BPM_GAP_PLAN.md) | BPM 对齐 ruoyi-office-vben 的差距补全规格 (Phase 1-4 已完成) |
-| [docs/design/BPM_OA_DESIGN.md](./docs/design/BPM_OA_DESIGN.md) | BPM/OA 办公一体化顶层设计 + 逐日 changelog |
-| [test/coverage-report.md](./test/coverage-report.md) | 测试覆盖率报告（**已归档**，2026-06-13） |
+| [AGENTS.md](./AGENTS.md) | AI 代理开发指南,编码约定,前端规范 |
+| [CHANGELOG.md](./CHANGELOG.md) | 版本演进历史(2026-09-20 回溯整理) |
+| [docs/guides/add-new-module.md](./docs/guides/add-new-module.md) | 新增业务模块端到端指南(迁移→SQL→领域→控制器→前端→权限→测试) |
+| [ROADMAP.md](./ROADMAP.md) | 功能齐平路线图(**已归档**,2026-06) |
+| [GAP_ANALYSIS.md](./GAP_ANALYSIS.md) | RuoYi-Vue 详细功能对比(**已归档**,2026-06) |
+| [RUOYI_VUE_COMPARISON.md](./RUOYI_VUE_COMPARISON.md) | RuoYi-Vue 逐项对比(**已归档**,2026-06) |
+| [docs/training/](./docs/training/) | 开发培训材料 (5 节课,基于 6 月代码) |
+| [docs/design/design.org](./docs/design/design.org) | **单一设计文档(权威)**:C4 架构视图,ADR 设计决策,数据模型,BPM/办公一体化设计 |
+| [docs/design/BPM_GAP_PLAN.md](./docs/design/BPM_GAP_PLAN.md) | BPM 差距补全规格原文 (已汇总至 design.org) |
+| [docs/design/BPM_OA_DESIGN.md](./docs/design/BPM_OA_DESIGN.md) | BPM/OA 顶层设计原文 + 逐日 changelog (已汇总至 design.org) |
+| [test/coverage-report.md](./test/coverage-report.md) | 测试覆盖率报告(**已归档**,2026-06-13) |

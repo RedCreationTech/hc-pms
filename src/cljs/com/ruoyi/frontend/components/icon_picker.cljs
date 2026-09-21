@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.components.icon-picker
-  "图标选择器与图标解析组件。"
+  "图标选择器与图标解析组件."
   (:require
     ["@ant-design/icons" :refer [AppstoreOutlined MenuOutlined FunctionOutlined
                                  DashboardOutlined SettingOutlined UserOutlined TeamOutlined
@@ -25,7 +25,7 @@
 ;; ─── 图标映射 ──────────────────────────────────────────────────────
 
 (def ^:private icon-name->component
-  "图标名称到 React 组件类的映射。"
+  "图标名称到 React 组件类的映射."
   {"AppstoreOutlined" AppstoreOutlined
    "MenuOutlined" MenuOutlined
    "FunctionOutlined" FunctionOutlined
@@ -82,7 +82,7 @@
 
 
 (def ruoyi-icon-names
-  "RuoYi-Vue src/assets/icons/svg 下的图标名称。"
+  "RuoYi-Vue src/assets/icons/svg 下的图标名称."
   ["404" "bell" "bug" "build" "button" "cascader" "chart" "checkbox" "clipboard" "code" "color" "component" "dashboard" "date" "date-range" "dict" "documentation" "download" "drag" "druid" "edit" "education" "email" "enter" "example" "excel" "exit-fullscreen" "eye" "eye-open" "form" "fullscreen" "github" "guide" "icon" "input" "international" "job" "language" "link" "list" "lock" "log" "logininfor" "message" "money" "monitor" "more-up" "nested" "number" "online" "password" "pdf" "people" "peoples" "phone" "post" "qq" "question" "radio" "rate" "redis" "redis-list" "row" "search" "select" "server" "shopping" "size" "skill" "slider" "star" "swagger" "switch" "system" "tab" "table" "textarea" "theme" "time" "time-range" "tool" "tree" "tree-table" "upload" "user" "validCode" "wechat" "zip"])
 
 
@@ -90,12 +90,12 @@
 
 
 (def icon-options
-  "图标选择器展示的图标选项。"
+  "图标选择器展示的图标选项."
   (mapv (fn [name] {:name name}) ruoyi-icon-names))
 
 
 (def ^:private alias->name
-  "常用图标别名到标准组件名称的映射。"
+  "常用图标别名到标准组件名称的映射."
   {"system" "SettingOutlined"
    "monitor" "MonitorOutlined"
    "tool" "ToolOutlined"
@@ -132,7 +132,7 @@
 
 
 (defn normalize-icon-name
-  "规范化图标名称，支持 RuoYi svg 名称、标准 AntD 名称或常用别名。"
+  "规范化图标名称,支持 RuoYi svg 名称,标准 AntD 名称或常用别名."
   [name]
   (when (and name (not= name "#") (seq name))
     (let [s (str/trim name)]
@@ -143,7 +143,7 @@
 
 
 (defn icon-component
-  "根据名称返回图标 React 组件类，未找到时返回 nil。"
+  "根据名称返回图标 React 组件类,未找到时返回 nil."
   [name]
   (when-let [n (normalize-icon-name name)]
     (get icon-name->component n)))
@@ -155,7 +155,7 @@
 
 
 (defn icon-element
-  "根据名称返回图标 React 元素，未找到时返回 nil。"
+  "根据名称返回图标 React 元素,未找到时返回 nil."
   ([name]
    (icon-element name {}))
   ([name props]
@@ -188,8 +188,8 @@
 ;; ─── 图标选择器 ──────────────────────────────────────────────────────
 
 (defn icon-picker
-  "图标选择器组件 — 对齐 RuoYi-Vue IconSelect。
-   参数：:value 当前选中的图标名称，:on-change/:onChange 选择回调，:placeholder 占位文本。"
+  "图标选择器组件 -- 对齐 RuoYi-Vue IconSelect.
+   参数::value 当前选中的图标名称,:on-change/:onChange 选择回调,:placeholder 占位文本."
   [{:keys [value on-change onChange placeholder]}]
   (let [on-change (or on-change onChange)
         placeholder (or placeholder "点击选择图标")

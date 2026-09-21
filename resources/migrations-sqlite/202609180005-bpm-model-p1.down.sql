@@ -1,4 +1,4 @@
--- BPM P1 down（SQLite）
+-- BPM P1 down(SQLite)
 
 ALTER TABLE biz_bpm_model DROP COLUMN icon;
 --;;

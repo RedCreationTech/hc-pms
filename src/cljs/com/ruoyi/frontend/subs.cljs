@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.subs
-  "re-frame 订阅定义。"
+  "re-frame 订阅定义."
   (:require
     [re-frame.core :as rf]))
 
@@ -768,7 +768,7 @@
               (get-in db [:users :expanded-dept-ids] #{})))
 
 
-;; ─── 办公：请假 ──────────────────────────────────────────────────────
+;; ─── 办公:请假 ──────────────────────────────────────────────────────
 (rf/reg-sub :leave/items (fn [db _] (get-in db [:leave :items] [])))
 (rf/reg-sub :leave/total (fn [db _] (get-in db [:leave :total] 0)))
 (rf/reg-sub :leave/loading? (fn [db _] (get-in db [:leave :loading?] false)))
@@ -776,7 +776,7 @@
 (rf/reg-sub :leave/submitting? (fn [db _] (get-in db [:leave :submitting?] false)))
 
 
-;; ─── 办公：BPM 待办 ──────────────────────────────────────────────────
+;; ─── 办公:BPM 待办 ──────────────────────────────────────────────────
 (rf/reg-sub :bpm-todo/items (fn [db _] (get-in db [:bpm-todo :items] [])))
 (rf/reg-sub :bpm-todo/total (fn [db _] (get-in db [:bpm-todo :total] 0)))
 (rf/reg-sub :bpm-todo/loading? (fn [db _] (get-in db [:bpm-todo :loading?] false)))
@@ -793,25 +793,25 @@
 (rf/reg-sub :bpm-copy/loading? (fn [db _] (get-in db [:bpm-copy :loading?] false)))
 
 
-;; ─── 办公：BPM 已办 ──────────────────────────────────────────────────
+;; ─── 办公:BPM 已办 ──────────────────────────────────────────────────
 (rf/reg-sub :bpm-done/items (fn [db _] (get-in db [:bpm-done :items] [])))
 (rf/reg-sub :bpm-done/total (fn [db _] (get-in db [:bpm-done :total] 0)))
 (rf/reg-sub :bpm-done/loading? (fn [db _] (get-in db [:bpm-done :loading?] false)))
 
 
-;; ─── 办公：我的流程 ──────────────────────────────────────────────────
+;; ─── 办公:我的流程 ──────────────────────────────────────────────────
 (rf/reg-sub :bpm-instance/items (fn [db _] (get-in db [:bpm-instance :items] [])))
 (rf/reg-sub :bpm-instance/total (fn [db _] (get-in db [:bpm-instance :total] 0)))
 (rf/reg-sub :bpm-instance/loading? (fn [db _] (get-in db [:bpm-instance :loading?] false)))
 
 
-;; ─── 办公：流程模型 ──────────────────────────────────────────────────
+;; ─── 办公:流程模型 ──────────────────────────────────────────────────
 (rf/reg-sub :bpm-model/items (fn [db _] (get-in db [:bpm-model :items] [])))
 (rf/reg-sub :bpm-model/total (fn [db _] (get-in db [:bpm-model :total] 0)))
 (rf/reg-sub :bpm-model/loading? (fn [db _] (get-in db [:bpm-model :loading?] false)))
 
 
-;; ─── BPM Phase 3：流程定义版本页 ──────────────────────────────────────
+;; ─── BPM Phase 3:流程定义版本页 ──────────────────────────────────────
 (rf/reg-sub :bpm-definition/model (fn [db _] (get-in db [:bpm-definition :model])))
 (rf/reg-sub :bpm-definition/items (fn [db _] (get-in db [:bpm-definition :items] [])))
 (rf/reg-sub :bpm-definition/total (fn [db _] (get-in db [:bpm-definition :total] 0)))
@@ -821,7 +821,7 @@
 (rf/reg-sub :bpm-definition/xml-loading? (fn [db _] (get-in db [:bpm-definition :xml-loading?] false)))
 
 
-;; ─── 办公：HRM / OA / CRM ──────────────────────────────────────────
+;; ─── 办公:HRM / OA / CRM ──────────────────────────────────────────
 (rf/reg-sub :hrm/items (fn [db _] (get-in db [:hrm :items] [])))
 (rf/reg-sub :hrm/total (fn [db _] (get-in db [:hrm :total] 0)))
 (rf/reg-sub :hrm/loading? (fn [db _] (get-in db [:hrm :loading?] false)))
@@ -853,7 +853,7 @@
 (rf/reg-sub :bpm-diagram/loading? (fn [db _] (get-in db [:bpm-diagram :loading?] false)))
 
 
-;; ─── 办公：报销审批 ────────────────────────────────────────────────
+;; ─── 办公:报销审批 ────────────────────────────────────────────────
 (rf/reg-sub :reimburse/items (fn [db _] (get-in db [:reimburse :items] [])))
 (rf/reg-sub :reimburse/total (fn [db _] (get-in db [:reimburse :total] 0)))
 (rf/reg-sub :reimburse/loading? (fn [db _] (get-in db [:reimburse :loading?] false)))

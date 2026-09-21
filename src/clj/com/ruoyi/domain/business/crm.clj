@@ -1,5 +1,5 @@
 (ns com.ruoyi.domain.business.crm
-  "CRM 客户管理领域服务。"
+  "CRM 客户管理领域服务."
   (:require
     [integrant.core :as ig]))
 

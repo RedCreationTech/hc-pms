@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.handler-test
-  "Ring 处理器测试。"
+  "Ring 处理器测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.web.handler :as handler]

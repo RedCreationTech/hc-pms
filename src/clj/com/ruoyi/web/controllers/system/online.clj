@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.system.online
-  "在线用户控制器。"
+  "在线用户控制器."
   (:require
     [ring.util.response :as response]))
 
@@ -22,7 +22,7 @@
 
 
 (defn list-online
-  "获取在线用户列表。"
+  "获取在线用户列表."
   [{:keys [online-service]} request]
   (let [params (:query-params request)
         page (or (parse-int (get params "pageNum")) 1)
@@ -36,7 +36,7 @@
 
 
 (defn force-logout
-  "强退指定用户。"
+  "强退指定用户."
   [{:keys [online-service]} request]
   (let [token-id (get-in request [:path-params :token-id])]
     ((:force-logout online-service) token-id)

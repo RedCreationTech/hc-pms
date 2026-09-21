@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.system.config-test
-  "参数设置控制器测试。"
+  "参数设置控制器测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.web.controllers.system.config :as config]))

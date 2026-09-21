@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.request-test
-  "集成测试 — 启动完整系统并通过 HTTP 请求测试 API。"
+  "集成测试 -- 启动完整系统并通过 HTTP 请求测试 API."
   (:require
     [clojure.data.json :as json]
     [clojure.java.io :as io]

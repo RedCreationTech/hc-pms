@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.captcha
-  "验证码控制器 — 生成图片验证码。"
+  "验证码控制器 -- 生成图片验证码."
   (:require
     [ring.util.response :as response])
   (:import
@@ -17,12 +17,12 @@
       ImageIO)))
 
 
-;; 验证码存储（实际项目应用 Redis）
+;; 验证码存储(实际项目应用 Redis)
 (defonce captcha-store (atom {}))
 
 
 (defn- generate-code
-  "生成随机验证码。"
+  "生成随机验证码."
   [length]
   (let [chars "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
         random (Random.)]
@@ -30,7 +30,7 @@
 
 
 (defn- generate-color
-  "生成随机颜色。"
+  "生成随机颜色."
   [min-val max-val]
   (let [random (Random.)
         r (+ min-val (.nextInt random (- max-val min-val)))
@@ -40,7 +40,7 @@
 
 
 (defn- create-captcha-image
-  "创建验证码图片。"
+  "创建验证码图片."
   [code width height]
   (let [image (BufferedImage. width height BufferedImage/TYPE_INT_RGB)
         g (.createGraphics image)
@@ -74,7 +74,7 @@
 
 
 (defn captcha-image
-  "生成验证码图片并返回。"
+  "生成验证码图片并返回."
   [_ request]
   (let [code (generate-code 4)
         image (create-captcha-image code 200 50)
@@ -82,7 +82,7 @@
     (ImageIO/write image "png" baos)
     (let [uuid (or (get-in request [:query-params "r"])
                    (str (java.util.UUID/randomUUID)))]
-      ;; 存储验证码，5分钟有效
+      ;; 存储验证码,5分钟有效
       (swap! captcha-store assoc uuid {:code code :expire (+ (System/currentTimeMillis) 300000)})
       ;; 清理过期验证码
       (let [now (System/currentTimeMillis)]

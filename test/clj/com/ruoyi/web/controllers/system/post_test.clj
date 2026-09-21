@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.system.post-test
-  "岗位控制器测试。"
+  "岗位控制器测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.web.controllers.system.post :as post]))

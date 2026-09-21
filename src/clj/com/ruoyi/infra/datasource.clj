@@ -1,5 +1,5 @@
 (ns com.ruoyi.infra.datasource
-  "代理 DataSource — 支持运行时热切换底层连接池（SQLite ↔ MySQL）。"
+  "代理 DataSource -- 支持运行时热切换底层连接池(SQLite ↔ MySQL)."
   (:import
     (java.sql
       Connection)
@@ -13,7 +13,7 @@
 
 
 (defn delegating-datasource
-  "创建一个支持热切换的代理 DataSource，初始指向 real-ds。"
+  "创建一个支持热切换的代理 DataSource,初始指向 real-ds."
   ^DataSource [^DataSource real-ds]
   (let [delegate (atom real-ds)
         ds (reify
@@ -38,7 +38,7 @@
 
 
 (defn swappable?
-  "检查 ds 是否为可热切换的代理 DataSource。通过类名检测。"
+  "检查 ds 是否为可热切换的代理 DataSource.通过类名检测."
   [ds]
   (boolean
     (when ds
@@ -46,7 +46,7 @@
 
 
 (defn- get-delegate-atom
-  "获取代理 DataSource 内部的 delegate atom。"
+  "获取代理 DataSource 内部的 delegate atom."
   [ds]
   (let [aid (System/identityHashCode ds)]
     (when-let [a (.get registry aid)]
@@ -54,7 +54,7 @@
 
 
 (defn swap-delegate!
-  "替换代理 DataSource 的底层连接池。返回旧的 DataSource。"
+  "替换代理 DataSource 的底层连接池.返回旧的 DataSource."
   [dds new-ds]
   (when-let [a (get-delegate-atom dds)]
     (let [old @a]
@@ -63,7 +63,7 @@
 
 
 (defn get-delegate
-  "获取代理 DataSource 当前的底层 DataSource。"
+  "获取代理 DataSource 当前的底层 DataSource."
   [dds]
   (when-let [a (get-delegate-atom dds)]
     @a))

@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.business.oa-meeting
-  "OA 会议管理。"
+  "OA 会议管理."
   (:require
     ["@ant-design/icons" :refer [PlusOutlined ReloadOutlined]]
     [com.ruoyi.frontend.antd :as antd]

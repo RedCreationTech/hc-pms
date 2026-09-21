@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.system.post
-  "岗位管理控制器。"
+  "岗位管理控制器."
   (:require
     [com.ruoyi.domain.system.post :as post-service]
     [ring.util.response :as response]))
@@ -24,7 +24,7 @@
 
 
 (defn list-posts
-  "查询岗位列表。"
+  "查询岗位列表."
   [{:keys [post-service]} request]
   (let [params (:query-params request)]
     (ok (post-service/list-posts post-service params))))
@@ -67,7 +67,7 @@
 
 
 (defn change-status
-  "修改岗位状态。"
+  "修改岗位状态."
   [{:keys [post-service]} request]
   (let [post-id (parse-long (get-in request [:path-params :id]))
         status (get-in request [:body-params :status])]

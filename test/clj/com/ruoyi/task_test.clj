@@ -1,5 +1,5 @@
 (ns com.ruoyi.task-test
-  "定时任务示例函数测试。"
+  "定时任务示例函数测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.task :as task]))

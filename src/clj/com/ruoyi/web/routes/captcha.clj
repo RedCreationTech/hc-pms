@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.routes.captcha
-  "验证码路由。"
+  "验证码路由."
   (:require
     [com.ruoyi.web.controllers.captcha :as captcha]))
 

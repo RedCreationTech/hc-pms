@@ -6,7 +6,7 @@
 
 
 (def mock-user-service
-  "模拟用户领域服务，支持注册成功场景所需的查询。"
+  "模拟用户领域服务,支持注册成功场景所需的查询."
   {:query-fn (fn [q _p]
                (case q
                  :find-user-by-name nil

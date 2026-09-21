@@ -16,8 +16,8 @@
 
 
 (defn- make-mock-query-fn
-  "返回 [query-fn calls-atom]。query-fn 根据 query key 返回预设值，
-   并将每次调用记录到 calls-atom。"
+  "返回 [query-fn calls-atom].query-fn 根据 query key 返回预设值,
+   并将每次调用记录到 calls-atom."
   [& {:keys [list-return count-return]
       :or {list-return [] count-return {:total 0}}}]
   (let [calls (atom [])]

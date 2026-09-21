@@ -1,4 +1,4 @@
--- 办公一体化 · HRM 菜单（SQLite）
+-- 办公一体化 · HRM 菜单(SQLite)
 INSERT IGNORE INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, menu_type, visible, status, perms, icon)
 VALUES (36, '员工管理', 30, 4, 'hrm/employee', 'business/hrm/employee/index', 'C', '0', '0', 'hrm:employee:list', 'team');
 --;;

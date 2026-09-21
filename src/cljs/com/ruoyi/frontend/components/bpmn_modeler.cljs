@@ -39,7 +39,7 @@
       (aget js/window "BpmnJS")))
 
 
-;; 中文翻译（对齐 vben customTranslate）
+;; 中文翻译(对齐 vben customTranslate)
 (def ^:private zh-map
   (into {} (map (fn [[k v]] [(clojure.string/lower-case k) v]))
         {"Append EndEvent" "追加结束事件"
@@ -257,7 +257,7 @@
   (clj->js {:translate ["value" zh-translate]}))
 
 
-;; flowable moddle 扩展（让 flowable: 属性被 bpmn-js 正确建模，对齐 vben moddleExtensions）
+;; flowable moddle 扩展(让 flowable: 属性被 bpmn-js 正确建模,对齐 vben moddleExtensions)
 (def ^:private flowable-moddle
   (clj->js
     {:name "Flowable" :prefix "flowable" :uri "http://flowable.org/bpmn"
@@ -309,7 +309,7 @@
       (when condition
         (if-let [ce (.-conditionExpression bo)]
           (set! (.-body ce) condition)
-          ;; 无 conditionExpression 时，用 bpmn factory 创建
+          ;; 无 conditionExpression 时,用 bpmn factory 创建
           (let [moddle (.get modeler "moddle")
                 ce (.create moddle "bpmn:FormalExpression" #js {:body condition})]
             (.updateProperties modeling element #js {:conditionExpression ce}))))
@@ -635,7 +635,7 @@
 
 
 (defn insert-node!
-  "在连线中间插入节点（XML 操作 + 重新导入）。返回 promise。on-imported 在重新导入成功后回调。"
+  "在连线中间插入节点(XML 操作 + 重新导入).返回 promise.on-imported 在重新导入成功后回调."
   [^js modeler ^js conn bpmn-type name on-error on-imported]
   (when (and modeler conn)
     (let [p (.saveXML modeler #js {:format true})]

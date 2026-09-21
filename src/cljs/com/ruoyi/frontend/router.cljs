@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.router
-  "前端路由管理 — 手动实现，不依赖 accountant。"
+  "前端路由管理 -- 手动实现,不依赖 accountant."
   (:require
     [bidi.bidi :as bidi]
     [re-frame.core :as rf]))
@@ -120,7 +120,7 @@
 
 
 (defn- current-query
-  "当前 URL 的 query 参数（keyword 键的映射）。"
+  "当前 URL 的 query 参数(keyword 键的映射)."
   []
   (let [params (js/URLSearchParams. (.-search js/location))
         ks (js/Array.from (.keys params))]
@@ -142,14 +142,14 @@
   (when-not @initialized?
     (.addEventListener js/window "popstate" on-popstate)
     (vreset! initialized? true)
-    ;; 手动 dispatch 当前 URL（带上 query，刷新/直达时编辑器页需要 ?id=）
+    ;; 手动 dispatch 当前 URL(带上 query,刷新/直达时编辑器页需要 ?id=)
     (let [path (.-pathname js/location)
           match (match-route path)
           page (or (:handler match) :dashboard)]
       (rf/dispatch-sync [:navigate page (current-query)]))))
 
 
-;; 导航到页面（只更新 URL，不 dispatch 事件）；query 为可选参数映射，如 {:id 1}
+;; 导航到页面(只更新 URL,不 dispatch 事件);query 为可选参数映射,如 {:id 1}
 (defn navigate!
   ([page] (navigate! page nil))
   ([page query]

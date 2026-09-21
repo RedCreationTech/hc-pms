@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.system.import-export
-  "用户导入导出控制器，使用 multipart 上传与 clojure.data.csv。"
+  "用户导入导出控制器,使用 multipart 上传与 clojure.data.csv."
   (:require
     [clojure.data.csv :as csv]
     [clojure.java.io :as io]
@@ -37,7 +37,7 @@
 
 
 (defn- csv-row->user
-  "将 CSV 行向量转换为用户参数映射。"
+  "将 CSV 行向量转换为用户参数映射."
   [headers row]
   (let [m (zipmap headers row)]
     {:user_name (str/trim (get m "user_name" ""))
@@ -53,7 +53,7 @@
 
 
 (defn- read-csv-rows
-  "读取 multipart 上传的 CSV 文件，返回行向量列表。"
+  "读取 multipart 上传的 CSV 文件,返回行向量列表."
   [file]
   (let [tempfile (:tempfile file)]
     (with-open [reader (io/reader tempfile :encoding "UTF-8")]
@@ -61,7 +61,7 @@
 
 
 (defn- update-support?
-  "判断导入请求是否允许覆盖已有用户。"
+  "判断导入请求是否允许覆盖已有用户."
   [request]
   (let [v (or (get-in request [:query-params "updateSupport"])
               (get-in request [:params "updateSupport"])
@@ -70,7 +70,7 @@
 
 
 (defn- import-one-user!
-  "导入单个用户，按 updateSupport 决定新增或覆盖。"
+  "导入单个用户,按 updateSupport 决定新增或覆盖."
   [user-service identity update-support? default-password row-user]
   (when (str/blank? (:user_name row-user))
     (throw (Exception. "用户名不能为空")))
@@ -94,7 +94,7 @@
 
 
 (defn import-users
-  "批量导入用户（multipart CSV），支持 updateSupport 覆盖已有用户。"
+  "批量导入用户(multipart CSV),支持 updateSupport 覆盖已有用户."
   [{:keys [user-service]} request]
   (try
     (let [multipart-params (:multipart-params request)
@@ -126,7 +126,7 @@
 
 
 (defn- user->csv-row
-  "将用户映射转换为 CSV 行向量。"
+  "将用户映射转换为 CSV 行向量."
   [user]
   [(:user_name user)
    (:nick_name user)
@@ -147,7 +147,7 @@
 
 
 (defn export-users
-  "导出用户为 CSV 文件（带数据权限过滤）。"
+  "导出用户为 CSV 文件(带数据权限过滤)."
   [{:keys [user-service]} request]
   (try
     (let [identity (:identity request)
@@ -176,7 +176,7 @@
 
 
 (defn import-template
-  "下载用户导入模板。"
+  "下载用户导入模板."
   [_ _]
   (let [header ["user_name" "nick_name" "email" "phonenumber" "sex" "status" "dept_id" "remark"]
         sample ["admin" "管理员" "admin@ruoyi.vip" "13800138000" "0" "0" "1" ""]
@@ -193,7 +193,7 @@
 ;; ─── 通用导出函数 ──────────────────────────────────────────────────────
 
 (defn- generic-export
-  "通用导出函数。"
+  "通用导出函数."
   [list-fn service params header csv-fn filename request]
   (try
     (let [result (list-fn service (merge {:page-num 1 :page-size 10000} params))
@@ -212,7 +212,7 @@
 
 
 (defn export-roles
-  "导出角色数据。"
+  "导出角色数据."
   [{:keys [role-service]} request]
   (let [header ["role_id" "role_name" "role_key" "role_sort" "status"]
         csv-fn (fn [r] [(:role_id r) (:role_name r) (:role_key r) (:role_sort r) (:status r)])]
@@ -220,7 +220,7 @@
 
 
 (defn export-menus
-  "导出菜单数据。"
+  "导出菜单数据."
   [{:keys [menu-service]} request]
   (let [header ["menu_id" "menu_name" "parent_id" "order_num" "path" "component" "menu_type" "status"]
         csv-fn (fn [m] [(:menu_id m) (:menu_name m) (:parent_id m) (:order_num m) (:path m) (:component m) (:menu_type m) (:status m)])]
@@ -228,7 +228,7 @@
 
 
 (defn export-depts
-  "导出部门数据。"
+  "导出部门数据."
   [{:keys [dept-service]} request]
   (let [header ["dept_id" "parent_id" "dept_name" "order_num" "leader" "status"]
         csv-fn (fn [d] [(:dept_id d) (:parent_id d) (:dept_name d) (:order_num d) (:leader d) (:status d)])]
@@ -236,7 +236,7 @@
 
 
 (defn export-posts
-  "导出岗位数据。"
+  "导出岗位数据."
   [{:keys [post-service]} request]
   (let [header ["post_id" "post_code" "post_name" "post_sort" "status"]
         csv-fn (fn [p] [(:post_id p) (:post_code p) (:post_name p) (:post_sort p) (:status p)])]
@@ -244,7 +244,7 @@
 
 
 (defn export-dict-types
-  "导出字典类型数据。"
+  "导出字典类型数据."
   [{:keys [dict-service]} request]
   (let [header ["dict_id" "dict_name" "dict_type" "status"]
         csv-fn (fn [d] [(:dict_id d) (:dict_name d) (:dict_type d) (:status d)])]
@@ -252,7 +252,7 @@
 
 
 (defn export-dict-data
-  "导出字典数据。"
+  "导出字典数据."
   [{:keys [dict-service]} request]
   (let [header ["dict_code" "dict_sort" "dict_label" "dict_value" "dict_type" "status"]
         csv-fn (fn [d] [(:dict_code d) (:dict_sort d) (:dict_label d) (:dict_value d) (:dict_type d) (:status d)])]
@@ -260,7 +260,7 @@
 
 
 (defn export-configs
-  "导出参数配置数据。"
+  "导出参数配置数据."
   [{:keys [config-service]} request]
   (let [header ["config_id" "config_name" "config_key" "config_value" "config_type"]
         csv-fn (fn [c] [(:config_id c) (:config_name c) (:config_key c) (:config_value c) (:config_type c)])]

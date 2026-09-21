@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.dict
-  "字典管理页面 — 完整 CRUD。两级联动：类型列表 → 数据列表。"
+  "字典管理页面 -- 完整 CRUD.两级联动:类型列表 → 数据列表."
   (:require
     ["@ant-design/icons" :refer [PlusOutlined DownloadOutlined EditOutlined DeleteOutlined SearchOutlined ReloadOutlined]]
     [com.ruoyi.frontend.antd :as antd]

@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.antd
-  "Ant Design 组件 Reagent 封装。"
+  "Ant Design 组件 Reagent 封装."
   (:require
     ["@ant-design/icons" :refer [LockOutlined UserOutlined DashboardOutlined TeamOutlined SettingOutlined SafetyOutlined FileTextOutlined EditOutlined DeleteOutlined PlusOutlined DownloadOutlined EyeOutlined SearchOutlined ReloadOutlined UploadOutlined MoreOutlined]]
     ["antd" :refer [App Button Card Cascader Checkbox ConfigProvider DatePicker Descriptions Divider Drawer Dropdown Empty Form Input InputNumber Layout Menu Modal Pagination Popconfirm Popover Progress Radio Rate Select Slider Space Spin Statistic Switch Table Tabs Tag TimePicker Timeline Tooltip Tree TreeSelect Upload message Row Col]]
@@ -64,7 +64,7 @@
 
 
 (defn modal-confirm!
-  "确认对话框。on-ok 为确认回调。"
+  "确认对话框.on-ok 为确认回调."
   [on-ok & [opts]]
   (.confirm Modal
             (clj->js (merge {:title "确认操作" :content "确定执行该操作吗？"

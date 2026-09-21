@@ -19,7 +19,7 @@
 
 
 (defn mock-query-fn
-  "根据查询关键字返回固定响应的 mock query-fn。"
+  "根据查询关键字返回固定响应的 mock query-fn."
   [q p]
   (case q
     :list-jobs [test-job]

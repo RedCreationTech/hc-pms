@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.components.dept-tree-select
-  "可复用部门树选择器组件。"
+  "可复用部门树选择器组件."
   (:require
     [com.ruoyi.frontend.antd :as antd]
     [re-frame.core :as rf]
@@ -7,7 +7,7 @@
 
 
 (defn- build-tree-data
-  "将部门列表转换为 TreeSelect 使用的树形数据。"
+  "将部门列表转换为 TreeSelect 使用的树形数据."
   [items parent-id]
   (->> items
        (filter #(= parent-id (:parent_id %)))
@@ -19,7 +19,7 @@
 
 
 (defn- normalize-props
-  "兼容 js/React props 与 Clojure map。"
+  "兼容 js/React props 与 Clojure map."
   [props]
   (cond
     (map? props) props
@@ -28,7 +28,7 @@
 
 
 (defn dept-tree-select
-  "部门树选择器。
+  "部门树选择器.
   props: :value :on-change/:onChange :placeholder :allow-clear?"
   [props]
   (let [props (normalize-props props)

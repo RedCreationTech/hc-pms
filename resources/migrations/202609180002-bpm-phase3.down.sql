@@ -1,4 +1,4 @@
--- BPM Phase 3 down（MySQL）
+-- BPM Phase 3 down(MySQL)
 
 ALTER TABLE biz_bpm_model DROP COLUMN process_id_rule;
 --;;

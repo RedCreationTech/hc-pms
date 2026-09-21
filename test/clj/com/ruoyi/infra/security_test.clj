@@ -1,5 +1,5 @@
 (ns com.ruoyi.infra.security-test
-  "安全基础设施测试。"
+  "安全基础设施测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.infra.security :as security]))

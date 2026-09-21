@@ -13,7 +13,7 @@
     [reagent.hooks :as hooks]))
 
 
-;; 各模块配置：标题 / 列 / 表单字段
+;; 各模块配置:标题 / 列 / 表单字段
 (def ^:private admin-config
   {"form"      {:title "流程表单"
                 :id "form_id"
@@ -61,7 +61,7 @@
 
 
 (defn- columns-for
-  "构建列定义。form 模块附加操作列（设计/编辑/删除）。"
+  "构建列定义.form 模块附加操作列(设计/编辑/删除)."
   [cfg {:keys [on-design on-edit on-delete on-copy]}]
   (let [base (mapv (fn [[title key w]]
                      (if (= key "status")
@@ -114,7 +114,7 @@
                [antd/input {:placeholder label}])])))]]))
 
 
-;; 表单设计器弹窗（form 模块专用，加载/保存 conf+fields）
+;; 表单设计器弹窗(form 模块专用,加载/保存 conf+fields)
 (defn- designer-modal
   [{:keys [record set-record! on-saved]}]
   (let [[schema set-schema!] (hooks/use-state nil)

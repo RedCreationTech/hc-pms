@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.auth
-  "认证控制器，处理登录、登出及当前用户信息获取。"
+  "认证控制器,处理登录,登出及当前用户信息获取."
   (:require
     [clojure.string :as str]
     [com.ruoyi.domain.system.log :as log-domain]
@@ -13,14 +13,14 @@
 
 
 (defn- success
-  "构造成功响应。"
+  "构造成功响应."
   [data]
   (-> (response/response {:code 200 :msg "操作成功" :data data})
       (response/content-type "application/json")))
 
 
 (defn- error
-  "构造错误响应。"
+  "构造错误响应."
   [code msg]
   (-> (response/response {:code code :msg msg})
       (response/status (if (>= code 500) 500 200))
@@ -28,7 +28,7 @@
 
 
 (defn login
-  "用户登录，验证密码后签发 JWT，并注册在线用户。"
+  "用户登录,验证密码后签发 JWT,并注册在线用户."
   [{:keys [user-service log-service]} request]
   (let [{:keys [username password captcha uuid]} (:body-params request)
         login-ip (get-in request [:headers "x-forwarded-for"] (:remote-addr request "127.0.0.1"))
@@ -66,7 +66,7 @@
 
 
 (defn get-info
-  "获取当前登录用户信息及权限菜单。"
+  "获取当前登录用户信息及权限菜单."
   [{:keys [user-service menu-service]} request]
   (let [identity (:identity request)
         user-id (:user-id identity)]
@@ -85,7 +85,7 @@
 
 
 (defn logout
-  "用户登出，清除在线记录。"
+  "用户登出,清除在线记录."
   [request]
   (when-let [token (security/extract-token request)]
     (online/unregister! token))

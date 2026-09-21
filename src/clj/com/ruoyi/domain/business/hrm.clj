@@ -1,5 +1,5 @@
 (ns com.ruoyi.domain.business.hrm
-  "HRM 人力资源领域服务。"
+  "HRM 人力资源领域服务."
   (:require
     [integrant.core :as ig]))
 

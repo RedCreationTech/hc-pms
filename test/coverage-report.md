@@ -1,6 +1,6 @@
 # RuoYi Clojure 测试覆盖率报告 (Cloverage)
 
-> **📦 已归档（2026-09-20）**：本报告生成于系统管理模块时代（2026-06-13），此后项目已演进到 BPM/办公一体化阶段（Flowable 8.0、OA/HRM/CRM）。文中数据（348 测试 / 45 命名空间）已落后于当前套件（372+ 测试，且不含 BPM/business 命名空间），仅作历史参考。最新状态请看 README.md、docs/design/BPM_GAP_PLAN.md 和 docs/design/BPM_OA_DESIGN.md。
+> **📦 已归档(2026-09-20)**:本报告生成于系统管理模块时代(2026-06-13),此后项目已演进到 BPM/办公一体化阶段(Flowable 8.0,OA/HRM/CRM).文中数据(348 测试 / 45 命名空间)已落后于当前套件(372+ 测试,且不含 BPM/business 命名空间),仅作历史参考.最新状态请看 README.md,docs/design/BPM_GAP_PLAN.md 和 docs/design/BPM_OA_DESIGN.md.
 
 ## 测试执行结果
 
@@ -34,14 +34,14 @@
 
 ## 重点覆盖提升
 
-- **Web 控制器层**：`auth`、`captcha`、`common`、`register`、`system.cache`、`system.config`、`system.dept`、`system.dict`、`system.file`、`system.import-export`、`system.log`、`system.menu`、`system.notice`、`system.online`、`system.post`、`system.profile`、`system.role`、`system.user`、`job`、`gen` 等控制器均已补齐单元测试。
-- **基础设施层**：`infra.cache`、`infra.data-perm`、`infra.db`、`infra.online`、`infra.security` 覆盖率达到 85% 以上；`infra.scheduler`、`task` 补齐调度与示例任务分支。
-- **中间件**：`middleware.auth`、`middleware.exception`、`middleware.formats`、`middleware.operlog`、`web.handler` 覆盖率达到 90% 以上。
-- **Domain 层**：`user`、`role`、`dept`、`menu`、`log`、`post`、`dict` 补齐更新/删除/关联等分支测试。
+- **Web 控制器层**:`auth`,`captcha`,`common`,`register`,`system.cache`,`system.config`,`system.dept`,`system.dict`,`system.file`,`system.import-export`,`system.log`,`system.menu`,`system.notice`,`system.online`,`system.post`,`system.profile`,`system.role`,`system.user`,`job`,`gen` 等控制器均已补齐单元测试.
+- **基础设施层**:`infra.cache`,`infra.data-perm`,`infra.db`,`infra.online`,`infra.security` 覆盖率达到 85% 以上;`infra.scheduler`,`task` 补齐调度与示例任务分支.
+- **中间件**:`middleware.auth`,`middleware.exception`,`middleware.formats`,`middleware.operlog`,`web.handler` 覆盖率达到 90% 以上.
+- **Domain 层**:`user`,`role`,`dept`,`menu`,`log`,`post`,`dict` 补齐更新/删除/关联等分支测试.
 
 ## 仍有提升空间的模块
 
-以下模块当前覆盖率仍较低，可作为下一步重点：
+以下模块当前覆盖率仍较低,可作为下一步重点:
 
 | 命名空间 | Forms | Lines |
 |----------|-------|-------|
@@ -61,7 +61,7 @@
 # 运行所有单元测试
 clojure -M:test
 
-# 生成覆盖率报告（输出到 target/coverage/index.html）
+# 生成覆盖率报告(输出到 target/coverage/index.html)
 clojure -Sdeps '{:deps {cloverage/cloverage {:mvn/version "1.2.4"}
                         ring/ring-mock {:mvn/version "0.6.2"}
                         peridot/peridot {:mvn/version "0.5.4"}

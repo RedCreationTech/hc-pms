@@ -1,5 +1,5 @@
 (ns com.ruoyi.domain.system.config-test
-  "参数设置领域服务测试。"
+  "参数设置领域服务测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.domain.system.config :as config]))

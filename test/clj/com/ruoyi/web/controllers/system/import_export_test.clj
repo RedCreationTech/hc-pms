@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.system.import-export-test
-  "导入导出控制器测试。"
+  "导入导出控制器测试."
   (:require
     [clojure.java.io :as io]
     [clojure.test :refer [deftest is testing]]

@@ -1,6 +1,6 @@
--- 办公一体化 · BPM 管理套件扩展表（SQLite）
+-- 办公一体化 · BPM 管理套件扩展表(SQLite)
 
--- 用户分组（审批人分组）
+-- 用户分组(审批人分组)
 CREATE TABLE IF NOT EXISTS biz_bpm_user_group (
   group_id    INTEGER PRIMARY KEY AUTOINCREMENT,
   name        TEXT NOT NULL DEFAULT '',
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS biz_bpm_user_group (
 CREATE INDEX IF NOT EXISTS idx_bpm_user_group_name ON biz_bpm_user_group(name);
 --;;
 
--- 流程监听器（执行监听/任务监听）
+-- 流程监听器(执行监听/任务监听)
 CREATE TABLE IF NOT EXISTS biz_bpm_listener (
   listener_id INTEGER PRIMARY KEY AUTOINCREMENT,
   name        TEXT NOT NULL DEFAULT '',
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS biz_bpm_listener (
 CREATE INDEX IF NOT EXISTS idx_bpm_listener_type ON biz_bpm_listener(type);
 --;;
 
--- 流程表达式（可复用条件表达式）
+-- 流程表达式(可复用条件表达式)
 CREATE TABLE IF NOT EXISTS biz_bpm_expression (
   expression_id INTEGER PRIMARY KEY AUTOINCREMENT,
   name          TEXT NOT NULL DEFAULT '',
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS biz_bpm_expression (
 CREATE INDEX IF NOT EXISTS idx_bpm_expression_name ON biz_bpm_expression(name);
 --;;
 
--- 流程设置（全局 BPM 配置项）
+-- 流程设置(全局 BPM 配置项)
 CREATE TABLE IF NOT EXISTS biz_bpm_settings (
   settings_id INTEGER PRIMARY KEY AUTOINCREMENT,
   name        TEXT NOT NULL DEFAULT '',

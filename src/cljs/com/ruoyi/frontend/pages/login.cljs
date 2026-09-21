@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.login
-  "登录页面 — 带验证码。"
+  "登录页面 -- 带验证码."
   (:require
     ["@ant-design/icons" :refer [UserOutlined LockOutlined SafetyOutlined]]
     [com.ruoyi.frontend.antd :as antd]

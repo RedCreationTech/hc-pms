@@ -67,7 +67,7 @@
                             :body (json/write-str body)))))
 
 
-;; ── 本地 HTTP 接收端点（JDK HttpServer，零依赖）─────────────────────────
+;; ── 本地 HTTP 接收端点(JDK HttpServer,零依赖)─────────────────────────
 
 (defn- start-receiver!
   "启动本地 /hook 接收端点：记录请求 {:method :path :headers :body}，
@@ -306,7 +306,7 @@
                 ps (first (filter #(= "process_start" (:event %)) bodies))]
             (is (some? ps) (str "process_start 未收到: " (pr-str bodies)))
             (is (= "admin" (:starter ps)))
-            ;; task_start 为异步投递（任务创建时业务行尚未落库），轮询等待
+            ;; task_start 为异步投递(任务创建时业务行尚未落库),轮询等待
             (is (wait-for #(some (fn [b] (= "task_start" (:event b))) (received-bodies receiver)))
                 "task_start 未收到")
             (let [ts (first (filter #(= "task_start" (:event %)) (received-bodies receiver)))]
@@ -327,7 +327,7 @@
 ;; ── 4.2 触发器节点 ─────────────────────────────────────────────────────
 
 (defn- trigger-tree
-  "start → 触发器 → 路由分支（level==期望值 跳 end，否则走人工节点）→ end。"
+  "start → 触发器 → 路由分支(level==期望值 跳 end,否则走人工节点)→ end."
   [trigger-cfg expect & [left-side]]
   (let [left (or left-side "level")]
     {:id "start" :type "START_USER_NODE" :name "发起"
@@ -397,11 +397,11 @@
       (finally (stop-receiver! receiver)))))
 
 
-;; ── 4.3 子流程（callActivity 变量传递）───────────────────────────────────
+;; ── 4.3 子流程(callActivity 变量传递)───────────────────────────────────
 
 (deftest bpm-phase4-child-process-test
   (let [app (handler) token (login-token "admin") h (auth-hdr token)
-        ;; 子流程：cdays>=3 直达结束；否则人工审批 → UPDATE_FORM 回写 cout=child-done → 结束
+        ;; 子流程:cdays>=3 直达结束;否则人工审批 → UPDATE_FORM 回写 cout=child-done → 结束
         child-tree {:id "start" :type "START_USER_NODE" :name "发起"
                     :child-node {:id "cr1" :type "ROUTER_BRANCH_NODE" :name "子路由"
                                  :config {:groups [{:target-node-id "end"
@@ -452,7 +452,7 @@
             (is (ended? app h pid))))))))
 
 
-;; ── 4.4 路由分支节点（纯语法糖展开为排他网关）────────────────────────────
+;; ── 4.4 路由分支节点(纯语法糖展开为排他网关)────────────────────────────
 
 (deftest bpm-phase4-router-test
   (let [app (handler) token (login-token "admin") h (auth-hdr token)
@@ -490,7 +490,7 @@
         (is (some? (first (filter #(= "二级审批" (:name %)) (todo-of app h pid)))))))))
 
 
-;; ── 4.5 节点监听器（Create / Assign / Complete 三事件）────────────────────
+;; ── 4.5 节点监听器(Create / Assign / Complete 三事件)────────────────────
 
 (deftest bpm-phase4-node-listener-test
   (let [app (handler) token (login-token "admin") h (auth-hdr token)

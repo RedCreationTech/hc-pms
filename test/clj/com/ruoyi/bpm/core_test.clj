@@ -41,7 +41,7 @@
 
 
 (defn- with-leave-engine
-  "在临时内存引擎上部署请假流程，调用 (f engine)，最后关闭引擎。"
+  "在临时内存引擎上部署请假流程,调用 (f engine),最后关闭引擎."
   [f]
   (let [engine (new-engine!)]
     (try

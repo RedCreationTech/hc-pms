@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.business.reimburse
-  "报销申请控制器 —— 业务 + BPM 集成。"
+  "报销申请控制器 -- 业务 + BPM 集成."
   (:require
     [com.ruoyi.domain.business.reimburse :as reimburse]
     [com.ruoyi.web.controllers.business.util :as bu]
@@ -52,7 +52,7 @@
 
 
 (defn start-reimburse
-  "发起报销申请。body: {:amount x :reason y}"
+  "发起报销申请.body: {:amount x :reason y}"
   [{:keys [reimburse-service]} request]
   (wrap-err #(let [{:keys [amount reason]} (:body-params request)]
                (ok (reimburse/reimburse-start! reimburse-service

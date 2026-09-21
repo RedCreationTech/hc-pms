@@ -1,5 +1,5 @@
 (ns com.ruoyi.domain.system.post-test
-  "岗位领域服务测试。"
+  "岗位领域服务测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.domain.system.post :as post]))

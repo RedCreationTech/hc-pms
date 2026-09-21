@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.components.form-field
-  "统一表单字段渲染组件。"
+  "统一表单字段渲染组件."
   (:require
     [com.ruoyi.frontend.antd :as antd]
     [reagent.core :as r]))

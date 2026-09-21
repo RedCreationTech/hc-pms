@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.routes.common
-  "通用路由。"
+  "通用路由."
   (:require
     [com.ruoyi.web.controllers.captcha :as captcha]
     [com.ruoyi.web.controllers.common :as common]))

@@ -1,5 +1,5 @@
 (ns com.ruoyi.infra.db
-  "数据库抽象层 — 支持 SQLite 和 MySQL。"
+  "数据库抽象层 -- 支持 SQLite 和 MySQL."
   (:require
     [clojure.string :as str]
     [clojure.tools.logging :as log]
@@ -12,7 +12,7 @@
 ;; ─── 数据库类型检测 ──────────────────────────────────────────────────────
 
 (defn detect-db-type
-  "检测数据库类型。支持 DataSource、Connection 以及 next.jdbc 包装对象。"
+  "检测数据库类型.支持 DataSource,Connection 以及 next.jdbc 包装对象."
   [db]
   (let [connable (or (:connectable db) db)]
     (try
@@ -29,16 +29,16 @@
 
 
 (defn- connectable
-  "提取可用于 JDBC 执行的数据源或连接。"
+  "提取可用于 JDBC 执行的数据源或连接."
   [db]
   (or (:connectable db) db))
 
 
 (defn last-insert-id
-  "获取最近一次插入的自增 ID，自动适配 SQLite/MySQL。
-   默认使用 :last-insert-rowid（SQLite）或 :last-insert-rowid-mysql（MySQL）查询。
-   可通过 result-key 指定返回字段名，例如 :job_id。
-   注意：MySQL 下请传入与插入同一事务的连接，否则可能获取不到 ID。"
+  "获取最近一次插入的自增 ID,自动适配 SQLite/MySQL.
+   默认使用 :last-insert-rowid(SQLite)或 :last-insert-rowid-mysql(MySQL)查询.
+   可通过 result-key 指定返回字段名,例如 :job_id.
+   注意:MySQL 下请传入与插入同一事务的连接,否则可能获取不到 ID."
   ([query-fn db]
    (last-insert-id query-fn db :last-insert-rowid :last_insert_rowid))
   ([query-fn db query-name result-key]
@@ -50,7 +50,7 @@
 
 
 (defn insert-and-get-id!
-  "在同一事务中执行插入并返回自增 ID，自动适配 SQLite/MySQL。"
+  "在同一事务中执行插入并返回自增 ID,自动适配 SQLite/MySQL."
   ([query-fn db insert-query params]
    (insert-and-get-id! query-fn db insert-query params :last-insert-rowid :last_insert_rowid))
   ([query-fn db insert-query params id-query id-key]
@@ -70,7 +70,7 @@
 ;; ─── SQL 方言转换 ──────────────────────────────────────────────────────
 
 (defn sqlite->mysql
-  "将 SQLite SQL 转换为 MySQL 兼容 SQL。"
+  "将 SQLite SQL 转换为 MySQL 兼容 SQL."
   [sql]
   (-> sql
       ;; SQLite 的 AUTOINCREMENT -> MySQL 的 AUTO_INCREMENT
@@ -94,7 +94,7 @@
 
 
 (defn mysql->sqlite
-  "将 MySQL SQL 转换为 SQLite 兼容 SQL。"
+  "将 MySQL SQL 转换为 SQLite 兼容 SQL."
   [sql]
   (-> sql
       ;; MySQL 的 AUTO_INCREMENT -> SQLite 的 AUTOINCREMENT
@@ -114,7 +114,7 @@
 ;; ─── 数据库兼容层 ──────────────────────────────────────────────────────
 
 (defn adapt-sql
-  "根据数据库类型适配 SQL。"
+  "根据数据库类型适配 SQL."
   [db sql]
   (let [db-type (detect-db-type db)]
     (case db-type
@@ -126,7 +126,7 @@
 ;; ─── 分页查询 ──────────────────────────────────────────────────────
 
 (defn paginate-query
-  "分页查询适配。"
+  "分页查询适配."
   [db sql params page-num page-size]
   (let [db-type (detect-db-type db)
         offset (* (dec page-num) page-size)
@@ -142,7 +142,7 @@
 ;; ─── 表结构查询 ──────────────────────────────────────────────────────
 
 (defn get-table-columns
-  "获取表的列信息，返回统一字段：
+  "获取表的列信息,返回统一字段:
    :column_name :data_type :is_nullable :column_default :column_comment
    :character_maximum_length :numeric_precision :numeric_scale :is_pk"
   [db table-name]
@@ -187,7 +187,7 @@
 
 
 (defn get-tables
-  "获取数据库中的所有表。"
+  "获取数据库中的所有表."
   [db]
   (let [db-type (detect-db-type db)]
     (case db-type
@@ -205,7 +205,7 @@
 ;; ─── 运行时数据库热切换 ──────────────────────────────────────────────
 
 (defn make-hikari-datasource
-  "根据 JDBC URL 创建 HikariCP 连接池。"
+  "根据 JDBC URL 创建 HikariCP 连接池."
   [jdbc-url & [{:keys [pool-size]}]]
   (let [pool-size (or pool-size 5)
         hc (doto (com.zaxxer.hikari.HikariConfig.)
@@ -220,7 +220,7 @@
 
 
 (defn run-migrations!
-  "对指定 DataSource 执行数据库迁移。"
+  "对指定 DataSource 执行数据库迁移."
   [datasource migration-dir]
   (let [config {:store :database
                 :db {:datasource datasource}
@@ -230,7 +230,7 @@
 
 
 (defn swap-db!
-  "热切换数据库连接池。无需重启 JVM。用法: (swap-db! system jdbc-url opts)"
+  "热切换数据库连接池.无需重启 JVM.用法: (swap-db! system jdbc-url opts)"
   [system jdbc-url & [{:keys [migration-dir pool-size]}]]
   (let [conn (:db.sql/connection system)]
     (when-not (com.ruoyi.infra.datasource/swappable? conn)

@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.system.user
-  "用户管理控制器，支持数据权限过滤。"
+  "用户管理控制器,支持数据权限过滤."
   (:require
     [clojure.string :as str]
     [com.ruoyi.domain.system.user :as user-service]
@@ -20,7 +20,7 @@
 
 
 (defn- parse-id-list
-  "解析 RuoYi 风格逗号分隔用户 ID。"
+  "解析 RuoYi 风格逗号分隔用户 ID."
   [ids]
   (->> (str/split (str ids) #",")
        (map str/trim)
@@ -29,14 +29,14 @@
 
 
 (defn- current-user
-  "读取当前登录用户详情，用于列表数据权限判断。"
+  "读取当前登录用户详情,用于列表数据权限判断."
   [user-service identity]
   (when-let [user-id (:user-id identity)]
     (user-service/find-user-by-id user-service user-id)))
 
 
 (defn- user-list-query
-  "把 HTTP 字符串查询参数转换为用户列表领域查询参数。"
+  "把 HTTP 字符串查询参数转换为用户列表领域查询参数."
   [raw current-user]
   {:page-num (or (parse-int (get raw "page")) 1)
    :page-size (or (parse-int (get raw "size")) 10)
@@ -56,7 +56,7 @@
 
 
 (defn list-users
-  "查询用户列表（带时间范围、部门下级和数据权限过滤）。"
+  "查询用户列表(带时间范围,部门下级和数据权限过滤)."
   [{:keys [user-service]} request]
   (let [raw (:query-params request)
         identity (:identity request)
@@ -66,7 +66,7 @@
 
 
 (defn get-user
-  "获取用户详情。"
+  "获取用户详情."
   [{:keys [user-service]} request]
   (let [user-id (parse-long (get-in request [:path-params :id]))]
     (if-let [user (user-service/find-user-by-id user-service user-id)]
@@ -75,7 +75,7 @@
 
 
 (defn create-user
-  "创建用户。"
+  "创建用户."
   [{:keys [user-service]} request]
   (try
     (let [body (:body-params request)
@@ -85,7 +85,7 @@
                          :create_by (:user_name identity "")
                          :roles [] :posts []}
                         body)
-          ;; 空字符串表单值会被 muuntaja 解析为 nil，需 or 兜底避免覆盖默认值
+          ;; 空字符串表单值会被 muuntaja 解析为 nil,需 or 兜底避免覆盖默认值
           params (-> params
                      (update :email #(or % ""))
                      (update :phonenumber #(or % ""))
@@ -107,7 +107,7 @@
 
 
 (defn update-user
-  "更新用户。"
+  "更新用户."
   [{:keys [user-service]} request]
   (try
     (let [user-id (parse-long (get-in request [:path-params :id]))
@@ -128,7 +128,7 @@
 
 
 (defn delete-user
-  "删除一个或多个用户，路径参数兼容逗号分隔 ID。"
+  "删除一个或多个用户,路径参数兼容逗号分隔 ID."
   [{:keys [user-service]} request]
   (try
     (let [user-ids (parse-id-list (get-in request [:path-params :id]))]
@@ -141,7 +141,7 @@
 
 
 (defn change-status
-  "修改用户状态。"
+  "修改用户状态."
   [{:keys [user-service]} request]
   (try
     (let [user-id (parse-long (get-in request [:path-params :id]))
@@ -159,7 +159,7 @@
 
 
 (defn reset-password
-  "重置用户密码。"
+  "重置用户密码."
   [{:keys [user-service]} request]
   (try
     (let [user-id (parse-long (get-in request [:path-params :id]))
@@ -177,7 +177,7 @@
 
 
 (defn import-users
-  "导入用户。"
+  "导入用户."
   [{:keys [user-service]} request]
   (try
     (let [body (:body-params request)
@@ -205,7 +205,7 @@
 
 
 (defn export-users
-  "导出用户CSV。"
+  "导出用户CSV."
   [{:keys [user-service]} request]
   (try
     (let [identity (:identity request)
@@ -231,14 +231,14 @@
 
 
 (defn auth-role
-  "获取用户角色列表。"
+  "获取用户角色列表."
   [{:keys [user-service]} request]
   (let [user-id (parse-long (get-in request [:path-params :id]))]
     (ok (user-service/get-user-roles user-service user-id))))
 
 
 (defn update-auth-role
-  "分配用户角色。"
+  "分配用户角色."
   [{:keys [user-service]} request]
   (let [user-id (parse-long (get-in request [:path-params :id]))
         role-ids (get-in request [:body-params :role_ids])]
@@ -247,7 +247,7 @@
 
 
 (defn import-template
-  "下载用户导入模板。"
+  "下载用户导入模板."
   [_ _]
   (let [csv "user_name,nick_name,email,phonenumber,sex,status,dept_id,remark\n,张三,,13800138000,0,0,,\n"]
     (-> (response/response csv)

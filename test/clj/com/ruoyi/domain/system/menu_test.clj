@@ -1,5 +1,5 @@
 (ns com.ruoyi.domain.system.menu-test
-  "菜单领域服务测试。"
+  "菜单领域服务测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.domain.system.menu :as menu]))

@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.system.cache-test
-  "缓存监控控制器测试。"
+  "缓存监控控制器测试."
   (:require
     [clojure.test :refer [deftest is testing use-fixtures]]
     [com.ruoyi.web.controllers.system.cache :as cache]))

@@ -1,4 +1,4 @@
--- 办公一体化 · OA 协同办公（MySQL）
+-- 办公一体化 · OA 协同办公(MySQL)
 CREATE TABLE IF NOT EXISTS biz_oa_calendar (
   calendar_id  BIGINT AUTO_INCREMENT PRIMARY KEY,
   title        VARCHAR(255) NOT NULL DEFAULT '',

@@ -71,13 +71,13 @@ find_free_port() {
 
 HTTP_PORT="${PORT:-3000}"
 NREPL_PORT="${NREPL_PORT:-7000}"
-# shadow-cljs 默认监听 9630，被占用时自动向后顺延，实际端口启动后从日志解析
+# shadow-cljs 默认监听 9630,被占用时自动向后顺延,实际端口启动后从日志解析
 SHADOW_PORT=9630
 NREPL_PORT_FILE="$PROJECT_DIR/.nrepl-port"
 DEV_PID_FILE="$PROJECT_DIR/.dev-pids"
 export PORT="$HTTP_PORT"
 
-# 检查端口是否已被占用。只清理当前项目目录下启动的旧进程，避免误杀系统或其它应用。
+# 检查端口是否已被占用.只清理当前项目目录下启动的旧进程,避免误杀系统或其它应用.
 kill_project_pids_on_port "$HTTP_PORT" "HTTP"
 if [ -n "$(pids_on_port "$HTTP_PORT")" ]; then
   OLD_HTTP_PORT="$HTTP_PORT"
@@ -97,7 +97,7 @@ else
 fi
 printf "%s\n" "$NREPL_PORT" > "$NREPL_PORT_FILE"
 
-# shadow-cljs 默认从 9630 起监听，被占用会自动顺延；只清理本项目残留，不强制端口空闲
+# shadow-cljs 默认从 9630 起监听,被占用会自动顺延;只清理本项目残留,不强制端口空闲
 for sp in 9630 9631; do
   kill_project_pids_on_port "$sp" "shadow-cljs"
 done
@@ -113,7 +113,7 @@ rm -f rouyi.db
 clojure -M:dev -m com.ruoyi.core > logs/backend.log 2>&1 &
 BACKEND_PID=$!
 
-# 等待后端就绪（首次启动需下载 Maven 依赖，可能耗时数分钟）
+# 等待后端就绪(首次启动需下载 Maven 依赖,可能耗时数分钟)
 echo "⏳ 等待后端就绪（首次启动需下载依赖，可能需要几分钟）..."
 for i in $(seq 1 180); do
   if curl -s "http://localhost:$HTTP_PORT/api/health" >/dev/null 2>&1; then
@@ -155,8 +155,8 @@ done
 # 2. 启动前端
 echo ""
 echo "📦 启动前端 (shadow-cljs watch)..."
-# 清掉残留的 shadow-cljs server，避免 watch 连到旧实例导致 Stale Output
-# shadow-cljs 默认从 9630 起监听，被占用会自动顺延；只清理本项目残留，不强制端口空闲
+# 清掉残留的 shadow-cljs server,避免 watch 连到旧实例导致 Stale Output
+# shadow-cljs 默认从 9630 起监听,被占用会自动顺延;只清理本项目残留,不强制端口空闲
 for sp in 9630 9631; do
   kill_project_pids_on_port "$sp" "shadow-cljs"
 done
@@ -164,7 +164,7 @@ rm -f logs/frontend.log
 pnpm exec shadow-cljs watch app > logs/frontend.log 2>&1 &
 FRONTEND_PID=$!
 
-# 记录本次启动的进程与端口，供 stop_dev.sh 精确停止
+# 记录本次启动的进程与端口,供 stop_dev.sh 精确停止
 cat > "$DEV_PID_FILE" <<EOF
 BACKEND_PID=$BACKEND_PID
 FRONTEND_PID=$FRONTEND_PID
@@ -173,14 +173,14 @@ NREPL_PORT=$NREPL_PORT
 SHADOW_PORT=$SHADOW_PORT
 EOF
 
-# 等待首次编译完成（首次运行 shadow-cljs 还需下载 ClojureScript 依赖，可能更久）
+# 等待首次编译完成(首次运行 shadow-cljs 还需下载 ClojureScript 依赖,可能更久)
 echo "⏳ 等待前端首次编译完成（首次编译约 1-3 分钟，首次运行下载依赖可能更久）..."
 for i in $(seq 1 600); do
   if grep -qE "Build completed|build completed" logs/frontend.log 2>/dev/null; then
     echo "✅ 前端首次编译完成 (PID: $FRONTEND_PID)"
     break
   fi
-  # 只匹配 shadow-cljs 真正的编译失败标志，避免误伤 SLF4J 之类的告警
+  # 只匹配 shadow-cljs 真正的编译失败标志,避免误伤 SLF4J 之类的告警
   if grep -qE "^\[:app\] Build failure" logs/frontend.log 2>/dev/null; then
     echo "❌ 前端编译失败，查看 logs/frontend.log"
     tail -40 logs/frontend.log
@@ -199,7 +199,7 @@ for i in $(seq 1 600); do
   sleep 1
 done
 
-# 从日志解析 shadow-cljs 实际监听的端口（默认 9630，被占用时自动顺延），并更新 .dev-pids
+# 从日志解析 shadow-cljs 实际监听的端口(默认 9630,被占用时自动顺延),并更新 .dev-pids
 DETECTED_SHADOW_PORT="$(grep -oE 'running at http://localhost:[0-9]+' logs/frontend.log | tail -1 | grep -oE '[0-9]+$')"
 if [ -n "$DETECTED_SHADOW_PORT" ] && [ "$DETECTED_SHADOW_PORT" != "$SHADOW_PORT" ]; then
   SHADOW_PORT="$DETECTED_SHADOW_PORT"
@@ -216,11 +216,11 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 echo "按 Ctrl+C 停止所有服务"
 
-# 捕获退出信号，清理子进程
+# 捕获退出信号,清理子进程
 cleanup() {
   echo ""
   echo "🛑 正在停止服务..."
-  # 先终止子进程（如 clojure 启动器派生的 java），避免父进程被杀后子进程成为孤儿继续占用端口
+  # 先终止子进程(如 clojure 启动器派生的 java),避免父进程被杀后子进程成为孤儿继续占用端口
   pkill -TERM -P $BACKEND_PID 2>/dev/null || true
   pkill -TERM -P $FRONTEND_PID 2>/dev/null || true
   kill $BACKEND_PID 2>/dev/null || true

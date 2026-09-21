@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.business.reimburse
-  "报销申请页面 —— 业务 + BPM 审批流。"
+  "报销申请页面 -- 业务 + BPM 审批流."
   (:require
     ["@ant-design/icons" :refer [PlusOutlined ReloadOutlined]]
     [com.ruoyi.frontend.antd :as antd]

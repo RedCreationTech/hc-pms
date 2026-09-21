@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.routes.system
-  "系统管理路由聚合。"
+  "系统管理路由聚合."
   (:require
     [com.ruoyi.web.controllers.job :as job]
     [com.ruoyi.web.controllers.monitor :as monitor]

@@ -1,4 +1,4 @@
--- 办公一体化 · OA 菜单（SQLite）
+-- 办公一体化 · OA 菜单(SQLite)
 INSERT OR IGNORE INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, menu_type, visible, status, perms, icon)
 VALUES (37, '日程管理', 30, 5, 'oa/calendar', 'business/oa/calendar/index', 'C', '0', '0', 'oa:calendar:list', 'calendar'),
        (38, '会议管理', 30, 6, 'oa/meeting', 'business/oa/meeting/index', 'C', '0', '0', 'oa:meeting:list', 'project');

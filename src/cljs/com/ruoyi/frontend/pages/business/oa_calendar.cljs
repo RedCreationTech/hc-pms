@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.business.oa-calendar
-  "OA 日程管理。"
+  "OA 日程管理."
   (:require
     ["@ant-design/icons" :refer [PlusOutlined ReloadOutlined]]
     [com.ruoyi.frontend.antd :as antd]

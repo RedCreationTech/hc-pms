@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.system.online-test
-  "在线用户控制器测试。"
+  "在线用户控制器测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.web.controllers.system.online :as online]))

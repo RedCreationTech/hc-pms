@@ -1,4 +1,4 @@
--- BPM Phase 3 down（SQLite）
+-- BPM Phase 3 down(SQLite)
 
 ALTER TABLE biz_bpm_model DROP COLUMN process_id_rule;
 --;;

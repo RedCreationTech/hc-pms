@@ -37,7 +37,7 @@
 
 
 (def boundary
-  "React 错误边界组件。用法：[boundary child]"
+  "React 错误边界组件.用法:[boundary child]"
   (r/create-class
     {:get-initial-state
      (fn [_this] nil)

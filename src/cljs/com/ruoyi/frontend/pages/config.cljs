@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.config
-  "参数配置管理页面 — 完整 CRUD。"
+  "参数配置管理页面 -- 完整 CRUD."
   (:require
     ["@ant-design/icons" :refer [PlusOutlined DownloadOutlined SearchOutlined ReloadOutlined]]
     [com.ruoyi.frontend.antd :as antd]

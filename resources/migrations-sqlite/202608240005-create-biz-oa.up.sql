@@ -1,4 +1,4 @@
--- 办公一体化 · OA 协同办公（SQLite）
+-- 办公一体化 · OA 协同办公(SQLite)
 -- 日程
 CREATE TABLE IF NOT EXISTS biz_oa_calendar (
   calendar_id  INTEGER PRIMARY KEY AUTOINCREMENT,

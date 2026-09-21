@@ -1,4 +1,4 @@
--- 办公一体化 · BPM 业务查询（SQLite/MySQL 双兼容）
+-- 办公一体化 · BPM 业务查询(SQLite/MySQL 双兼容)
 
 -- ============================ 流程分类 ============================
 -- :name bpm/category-list :? :*
@@ -491,7 +491,7 @@ SELECT COUNT(*) AS total FROM biz_hrm_employee
 SELECT COUNT(*) AS total FROM biz_crm_customer
 --;;
 
--- ================= BPM 管理：用户分组 =================
+-- ================= BPM 管理:用户分组 =================
 -- :name bpmmgmt/group-list :? :*
 SELECT group_id, name, description, user_ids, status, create_time, remark FROM biz_bpm_user_group
 WHERE (:name IS NULL OR INSTR(name, :name) > 0) ORDER BY group_id DESC LIMIT :page_size OFFSET :offset
@@ -513,7 +513,7 @@ UPDATE biz_bpm_user_group SET name=:name, description=:description, user_ids=:us
 DELETE FROM biz_bpm_user_group WHERE group_id = :group_id
 --;;
 
--- ================= BPM 管理：流程监听器 =================
+-- ================= BPM 管理:流程监听器 =================
 -- :name bpmmgmt/listener-list :? :*
 SELECT listener_id, name, type, event, listener, status, create_time, remark FROM biz_bpm_listener
 WHERE (:name IS NULL OR INSTR(name, :name) > 0) AND (:type IS NULL OR type = :type) ORDER BY listener_id DESC LIMIT :page_size OFFSET :offset
@@ -535,7 +535,7 @@ UPDATE biz_bpm_listener SET name=:name, type=:type, event=:event, listener=:list
 DELETE FROM biz_bpm_listener WHERE listener_id = :listener_id
 --;;
 
--- ================= BPM 管理：流程表达式 =================
+-- ================= BPM 管理:流程表达式 =================
 -- :name bpmmgmt/expression-list :? :*
 SELECT expression_id, name, format, expression, status, create_time, remark FROM biz_bpm_expression
 WHERE (:name IS NULL OR INSTR(name, :name) > 0) ORDER BY expression_id DESC LIMIT :page_size OFFSET :offset
@@ -557,7 +557,7 @@ UPDATE biz_bpm_expression SET name=:name, format=:format, expression=:expression
 DELETE FROM biz_bpm_expression WHERE expression_id = :expression_id
 --;;
 
--- ================= BPM 管理：流程设置 =================
+-- ================= BPM 管理:流程设置 =================
 -- :name bpmmgmt/settings-list :? :*
 SELECT settings_id, name, value, description, status, create_time, remark FROM biz_bpm_settings
 WHERE (:name IS NULL OR INSTR(name, :name) > 0) ORDER BY settings_id DESC LIMIT :page_size OFFSET :offset
@@ -579,7 +579,7 @@ UPDATE biz_bpm_settings SET name=:name, value=:value, description=:description, 
 DELETE FROM biz_bpm_settings WHERE settings_id = :settings_id
 --;;
 
--- ============================ BPM 抄送（Phase 1）========================
+-- ============================ BPM 抄送(Phase 1)========================
 -- :name bpm/insert-copy :! :n
 INSERT INTO biz_bpm_copy (user_id, process_instance_id, activity_id, activity_name, reason, create_by, create_time)
 VALUES (:user_id, :process_instance_id, :activity_id, :activity_name, :reason, :create_by, CURRENT_TIMESTAMP)
@@ -602,8 +602,8 @@ LIMIT :page_size OFFSET :offset
 SELECT COUNT(*) AS total FROM biz_bpm_copy WHERE user_id = :user_id
 --;;
 
--- ============================ BPM 治理能力（Phase 3）=====================
--- 单号当日递增：取该模型下以 base 前缀的最大单号（定长数字尾部，字典序即可）
+-- ============================ BPM 治理能力(Phase 3)=====================
+-- 单号当日递增:取该模型下以 base 前缀的最大单号(定长数字尾部,字典序即可)
 -- :name bpm/max-bill-code :? :1
 SELECT MAX(i.bill_code) AS max_code
 FROM biz_bpm_instance i

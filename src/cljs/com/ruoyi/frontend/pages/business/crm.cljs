@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.business.crm
-  "CRM 客户管理。"
+  "CRM 客户管理."
   (:require
     ["@ant-design/icons" :refer [PlusOutlined ReloadOutlined]]
     [com.ruoyi.frontend.antd :as antd]

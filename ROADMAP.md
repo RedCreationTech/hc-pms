@@ -1,11 +1,11 @@
 # RuoYi Clojure 功能齐平路线图
 
-> **📦 已归档（2026-09-20）**：本文档撰写于系统管理模块完成初期（2026-06），此后项目已演进到 BPM/办公一体化阶段（Flowable 8.0、OA/HRM/CRM）。**文中所列 Phase 1-3 待办（代码生成 ZIP、表单模板后端 API、富文本、数据备份等）后续均已完成但未回写本文档**，且本文档完全无 BPM 内容，整体已过时，仅作历史参考。当前状态请看 README.md、docs/design/BPM_GAP_PLAN.md 和 docs/design/BPM_OA_DESIGN.md。
+> **📦 已归档(2026-09-20)**:本文档撰写于系统管理模块完成初期(2026-06),此后项目已演进到 BPM/办公一体化阶段(Flowable 8.0,OA/HRM/CRM).**文中所列 Phase 1-3 待办(代码生成 ZIP,表单模板后端 API,富文本,数据备份等)后续均已完成但未回写本文档**,且本文档完全无 BPM 内容,整体已过时,仅作历史参考.当前状态请看 README.md,docs/design/BPM_GAP_PLAN.md 和 docs/design/BPM_OA_DESIGN.md.
 
-> 目标：使本项目在功能上与 RuoYi 框架前后端分离版本 (vue.ruoyi.vip) 齐平
-> 参考项目：https://gitee.com/y_project/RuoYi-Vue (v3.9.2)
+> 目标:使本项目在功能上与 RuoYi 框架前后端分离版本 (vue.ruoyi.vip) 齐平
+> 参考项目:https://gitee.com/y_project/RuoYi-Vue (v3.9.2)
 
-## 一、当前状态总览
+## 一,当前状态总览
 
 ### ✅ 已完成功能 (后端 + 前端)
 
@@ -23,7 +23,7 @@
 | 在线用户 | ✅ | ✅ | 完成 |
 | 定时任务 | ✅ | ✅ | 完成 |
 | 个人中心 | ✅ | ✅ | 完成 |
-| 通知公告 | ✅ | ✅ | 完成（富文本待完善） |
+| 通知公告 | ✅ | ✅ | 完成(富文本待完善) |
 | 服务监控 | ✅ | ✅ | 完成 |
 | 数据源监控 | ✅ | ✅ | 完成 |
 | 缓存监控 | ✅ | ✅ | 完成 |
@@ -36,7 +36,7 @@
 
 | 模块 | 后端 API | 前端页面 | 缺失内容 |
 |------|---------|---------|---------|
-| 代码生成 | ✅ | ✅ | ZIP 下载、语法高亮 |
+| 代码生成 | ✅ | ✅ | ZIP 下载,语法高亮 |
 | 表单构建器 | ❌ | ✅ | 模板保存/加载后端 API |
 
 ### ❌ 完全缺失功能
@@ -48,33 +48,33 @@
 
 ---
 
-## 二、UI 功能增强需求
+## 二,UI 功能增强需求
 
 ### 2.1 多Tab页面支持 ✅
 
-已完成：标签栏、右键菜单（关闭当前/其他/右侧/全部）、首页固定、Tab 滚动、刷新/全屏。
+已完成:标签栏,右键菜单(关闭当前/其他/右侧/全部),首页固定,Tab 滚动,刷新/全屏.
 
 ---
 
 ### 2.2 系统监控增强 ✅
 
-- 服务监控、数据源监控、缓存监控、Integrant 依赖监控均已实现。
+- 服务监控,数据源监控,缓存监控,Integrant 依赖监控均已实现.
 
 ---
 
 ### 2.3 表单构建器 🟡
 
-**当前状态：**
-- 前端可视化拖拽设计器已实现，可生成 Hiccup。
+**当前状态:**
+- 前端可视化拖拽设计器已实现,可生成 Hiccup.
 
-**待完成：**
+**待完成:**
 - [ ] 设计 `form_template` 表
 - [ ] 后端 CRUD API `/api/system/form-template`
 - [ ] 前端模板列表 + 保存/加载/删除
 
 ---
 
-## 三、功能差距详细分析
+## 三,功能差距详细分析
 
 ### Phase 1: 体验补齐 (1 周)
 
@@ -122,19 +122,19 @@
 - [ ] 富文本编辑器
 
 #### 3.3 交互优化
-- [ ] 批量操作（批量删除、批量修改状态）
+- [ ] 批量操作(批量删除,批量修改状态)
 - [ ] 拖拽排序
 - [ ] 快捷键支持
 - [ ] 操作确认弹窗
 
 ---
 
-## 四、技术实现要点
+## 四,技术实现要点
 
 ### 4.1 前端组件复用
 
 ```clojure
-;; 部门树选择器组件（可复用）
+;; 部门树选择器组件(可复用)
 (defn dept-tree-select []
   (let [depts @(rf/subscribe [:depts/tree])]
     [:> TreeSelect {:treeData depts :placeholder "选择部门"}]))
@@ -154,12 +154,12 @@
 
 ### 4.2 后端 API 规范
 
-所有新 API 遵循以下规范：
-- 列表查询：`GET /api/system/xxx` → 返回 `{:rows [...] :total N}`
-- 详情查询：`GET /api/system/xxx/:id` → 返回单个对象
-- 新增：`POST /api/system/xxx` → 返回 `{:xxx_id N}`
-- 更新：`PUT /api/system/xxx/:id` → 返回成功消息
-- 删除：`DELETE /api/system/xxx/:id` → 返回成功消息
+所有新 API 遵循以下规范:
+- 列表查询:`GET /api/system/xxx` → 返回 `{:rows [...] :total N}`
+- 详情查询:`GET /api/system/xxx/:id` → 返回单个对象
+- 新增:`POST /api/system/xxx` → 返回 `{:xxx_id N}`
+- 更新:`PUT /api/system/xxx/:id` → 返回成功消息
+- 删除:`DELETE /api/system/xxx/:id` → 返回成功消息
 
 ### 4.3 数据库迁移规范
 
@@ -182,7 +182,7 @@ CREATE INDEX IF NOT EXISTS idx_xxx_status ON xxx(status);
 
 ---
 
-## 五、里程碑与时间线
+## 五,里程碑与时间线
 
 | 阶段 | 内容 | 预计时间 | 交付物 | 完成度目标 |
 |------|------|---------|--------|----------|
@@ -192,11 +192,11 @@ CREATE INDEX IF NOT EXISTS idx_xxx_status ON xxx(status);
 
 ---
 
-## 六、优先级排序
+## 六,优先级排序
 
 ### 🔴 高优先级 (必须完成)
-1. **代码生成器增强** — ZIP 下载、语法高亮
-2. **表单构建器持久化** — 模板保存/加载
+1. **代码生成器增强** -- ZIP 下载,语法高亮
+2. **表单构建器持久化** -- 模板保存/加载
 
 ### 🟡 中优先级 (建议完成)
 1. 数据备份
@@ -209,18 +209,18 @@ CREATE INDEX IF NOT EXISTS idx_xxx_status ON xxx(status);
 
 ---
 
-## 七、开发规范
+## 七,开发规范
 
 ### 代码组织
-- 每个功能模块包含：controller、domain service、SQL、前端 page
-- 前端页面不超过 300 行，拆分为子组件
-- 后端 controller 不超过 50 行，业务逻辑放 domain service
+- 每个功能模块包含:controller,domain service,SQL,前端 page
+- 前端页面不超过 300 行,拆分为子组件
+- 后端 controller 不超过 50 行,业务逻辑放 domain service
 
 ### 命名约定
-- 后端：`kebab-case` (如 `list-users`)
-- 前端事件：`:module/action` (如 `:users/fetch`)
-- 前端订阅：`:module/property` (如 `:users/items`)
-- 数据库：`snake_case` (如 `user_id`)
+- 后端:`kebab-case` (如 `list-users`)
+- 前端事件:`:module/action` (如 `:users/fetch`)
+- 前端订阅:`:module/property` (如 `:users/items`)
+- 数据库:`snake_case` (如 `user_id`)
 
 ### 测试要求
 - 每个 API 编写集成测试
@@ -229,15 +229,15 @@ CREATE INDEX IF NOT EXISTS idx_xxx_status ON xxx(status);
 
 ---
 
-## 八、风险与依赖
+## 八,风险与依赖
 
 | 风险 | 影响 | 缓解措施 |
 |------|------|---------|
-| Redis 依赖 | 缓存管理需要 Redis | ✅ 已决定：使用内存缓存，无需 Redis |
+| Redis 依赖 | 缓存管理需要 Redis | ✅ 已决定:使用内存缓存,无需 Redis |
 | 文件存储 | 需要配置存储服务 | 先支持本地存储 |
 | Excel 导出 | 需要额外依赖 | 使用 clojure.data.csv |
 | 图标库 | Ant Design 图标有限 | 支持自定义图标上传 |
-| 内存缓存限制 | 缓存数据重启丢失 | 可选：持久化到文件或数据库 |
+| 内存缓存限制 | 缓存数据重启丢失 | 可选:持久化到文件或数据库 |
 
 ---
 

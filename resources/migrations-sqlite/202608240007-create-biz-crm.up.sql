@@ -1,4 +1,4 @@
--- 办公一体化 · CRM 客户管理（SQLite）
+-- 办公一体化 · CRM 客户管理(SQLite)
 CREATE TABLE IF NOT EXISTS biz_crm_customer (
   customer_id   INTEGER PRIMARY KEY AUTOINCREMENT,
   name          TEXT NOT NULL DEFAULT '',

@@ -1,5 +1,5 @@
 -- :name list-users :? :*
--- :doc 查询用户列表，支持用户名、手机号、状态筛选
+-- :doc 查询用户列表,支持用户名,手机号,状态筛选
 SELECT u.user_id, u.dept_id, u.user_name, u.nick_name, u.user_type, u.email,
        u.phonenumber, u.sex, u.avatar, u.password, u.status, u.del_flag,
        u.login_ip, u.login_date, u.create_by, u.create_time, u.update_by,
@@ -76,11 +76,11 @@ WHERE user_id = :user_id
 UPDATE sys_user SET del_flag = '2', update_time = CURRENT_TIMESTAMP WHERE user_id = :user_id
 
 -- :name list-user-roles :? :*
--- :doc 查询所有用户-角色关联（用于 Flowable identity 同步）
+-- :doc 查询所有用户-角色关联(用于 Flowable identity 同步)
 SELECT user_id, role_id FROM sys_user_role
 
 -- :name list-user-posts :? :*
--- :doc 查询所有用户-岗位关联（用于 Flowable identity 同步）
+-- :doc 查询所有用户-岗位关联(用于 Flowable identity 同步)
 SELECT user_id, post_id FROM sys_user_post
 
 -- :name list-roles-by-user-id :? :*
@@ -145,7 +145,7 @@ SET parent_id = COALESCE(:parent_id, parent_id),
 WHERE dept_id = :dept_id
 
 -- :name list-all-depts :? :*
--- :doc 查询所有部门（用于 Flowable identity 同步）
+-- :doc 查询所有部门(用于 Flowable identity 同步)
 SELECT dept_id, parent_id, dept_name, leader, status FROM sys_dept WHERE del_flag = '0'
 
 -- :name list-depts-by-parent :? :*
@@ -172,7 +172,7 @@ INSERT INTO sys_role (role_name, role_key, role_sort, data_scope, menu_check_str
 VALUES (:role_name, :role_key, :role_sort, :data_scope, :menu_check_strictly, :dept_check_strictly, :status, :create_by, CURRENT_TIMESTAMP, :remark)
 
 -- :name update-role! :! :n
--- :doc 更新角色（所有字段可选）
+-- :doc 更新角色(所有字段可选)
 UPDATE sys_role
 SET role_name = COALESCE(:role_name, role_name),
     role_key = COALESCE(:role_key, role_key),
@@ -450,7 +450,7 @@ INSERT INTO sys_user_role (user_id, role_id) VALUES (:user_id, :role_id)
 DELETE FROM sys_user_role WHERE user_id = :user_id
 
 -- :name list-menus-by-role-ids :? :*
--- :doc 根据角色ID列表查询菜单（包含父菜单）
+-- :doc 根据角色ID列表查询菜单(包含父菜单)
 SELECT DISTINCT m.menu_id, m.menu_name, m.parent_id, m.order_num, m.path,
        m.component, m.query, m.route_name, m.is_frame, m.is_cache,
        m.menu_type, m.visible, m.status, m.perms, m.icon,

@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.auth-test
-  "认证控制器测试。"
+  "认证控制器测试."
   (:require
     [clojure.test :refer [deftest is testing use-fixtures]]
     [com.ruoyi.infra.online :as online]

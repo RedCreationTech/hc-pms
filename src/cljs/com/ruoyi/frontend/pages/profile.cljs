@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.profile
-  "个人中心页面。"
+  "个人中心页面."
   (:require
     ["@ant-design/icons" :refer [ApartmentOutlined CalendarOutlined MailOutlined MobileOutlined TeamOutlined UserOutlined]]
     [com.ruoyi.frontend.antd :as antd]

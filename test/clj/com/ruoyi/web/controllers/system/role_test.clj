@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.system.role-test
-  "角色控制器测试。"
+  "角色控制器测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.web.controllers.system.role :as role]))

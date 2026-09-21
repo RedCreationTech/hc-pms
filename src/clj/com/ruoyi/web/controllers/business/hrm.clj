@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.business.hrm
-  "HRM 人力资源控制器。"
+  "HRM 人力资源控制器."
   (:require
     [com.ruoyi.domain.business.hrm :as hrm]
     [com.ruoyi.web.controllers.business.util :as bu]

@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.events
-  "re-frame 事件处理器。"
+  "re-frame 事件处理器."
   (:require
     [com.ruoyi.frontend.antd :as antd]
     [com.ruoyi.frontend.api :as api]
@@ -9,7 +9,7 @@
 
 
 (defn- data-url->blob
-  "canvas dataURL → PNG Blob（手写签名上传用）。"
+  "canvas dataURL → PNG Blob(手写签名上传用)."
   [data-url]
   (when (and data-url (clojure.string/includes? data-url ","))
     (let [b64 (second (clojure.string/split data-url #"," 2))
@@ -22,7 +22,7 @@
 
 
 (defn- upload-sign!
-  "有签名图时先上传拿 URL，再执行后续操作 f(url)。"
+  "有签名图时先上传拿 URL,再执行后续操作 f(url)."
   [sign-data f]
   (if-let [blob (data-url->blob sign-data)]
     (let [fd (js/FormData.)]
@@ -233,7 +233,7 @@
 
 
 (defn- stored-layout-settings
-  "从 localStorage 读取布局设置。"
+  "从 localStorage 读取布局设置."
   []
   (try
     (when-let [raw (js/localStorage.getItem "rouyi-layout-settings")]
@@ -243,7 +243,7 @@
 
 
 (defn- persist-layout-settings!
-  "把布局设置持久化到 localStorage。"
+  "把布局设置持久化到 localStorage."
   [settings]
   (try
     (js/localStorage.setItem "rouyi-layout-settings"
@@ -252,7 +252,7 @@
 
 
 (defn- apply-theme-style
-  "根据布局面板的主题风格同步 antd 主题模式。"
+  "根据布局面板的主题风格同步 antd 主题模式."
   [db settings]
   (let [mode (if (= "dark" (:theme-style settings)) :dark :light)]
     (js/localStorage.setItem "rouyi-theme-mode" (name mode))
@@ -2888,7 +2888,7 @@
                    (assoc-in db [:users :expanded-dept-ids] #{})))
 
 
-;; ─── 办公：请假申请 ──────────────────────────────────────────────────
+;; ─── 办公:请假申请 ──────────────────────────────────────────────────
 (rf/reg-event-fx :leave/fetch
                  (fn [{:keys [db]} [_ params]]
                    {:db (assoc-in db [:leave :loading?] true)
@@ -2956,7 +2956,7 @@
                                   (fn [_] (antd/error! "删除失败")))))
 
 
-;; ─── 办公：BPM 待办/已办 ────────────────────────────────────────────
+;; ─── 办公:BPM 待办/已办 ────────────────────────────────────────────
 (rf/reg-event-fx :bpm/todo-fetch
                  (fn [{:keys [db]} _]
                    {:db (assoc-in db [:bpm-todo :loading?] true)
@@ -3240,7 +3240,7 @@
                      (assoc db :bpm-done {:items rows :total (count rows) :loading? false}))))
 
 
-;; ─── 办公：我的流程 ──────────────────────────────────────────────────
+;; ─── 办公:我的流程 ──────────────────────────────────────────────────
 (rf/reg-event-fx :bpm/instance-fetch
                  (fn [{:keys [db]} [_ params]]
                    {:db (assoc-in db [:bpm-instance :loading?] true)
@@ -3263,7 +3263,7 @@
                      (assoc db :bpm-instance {:items items :total total :loading? false}))))
 
 
-;; ─── 办公：流程模型 ──────────────────────────────────────────────────
+;; ─── 办公:流程模型 ──────────────────────────────────────────────────
 (rf/reg-event-fx :bpm/model-fetch
                  (fn [{:keys [db]} [_ params]]
                    {:db (assoc-in db [:bpm-model :loading?] true)
@@ -3302,7 +3302,7 @@
                                    (fn [_] (antd/error! "部署失败")))))
 
 
-;; ─── BPM Phase 3：流程定义版本页 / 模型启停·清理·复制 ──────────────────
+;; ─── BPM Phase 3:流程定义版本页 / 模型启停·清理·复制 ──────────────────
 (rf/reg-event-fx :bpm/definition-open
                  (fn [{:keys [db]} [_ model]]
                    {:db (-> db
@@ -3430,7 +3430,7 @@
                                  (fn [_] (antd/error! "复制失败")))))
 
 
-;; ─── 办公：HRM 员工 ──────────────────────────────────────────────────
+;; ─── 办公:HRM 员工 ──────────────────────────────────────────────────
 (rf/reg-event-fx :hrm/fetch (fn [{:keys [db]} [_ p]] {:db (assoc-in db [:hrm :loading?] true) :api/hrm-list p}))
 (rf/reg-fx :api/hrm-list (fn [p] (api/hrm-list-employees p (fn [r] (when (= 200 (:code r)) (rf/dispatch [:hrm/set-list (:data r)]))) (fn [_] (antd/error! "加载员工失败")))))
 (rf/reg-event-db :hrm/set-list (fn [db [_ d]] (let [items (if (sequential? d) d (:rows d []))] (assoc db :hrm {:items items :total (:total d 0) :loading? false :modal-visible? false :editing nil :form-data {}}))))
@@ -3443,7 +3443,7 @@
 (rf/reg-fx :api/hrm-del (fn [id] (api/hrm-delete-employee id (fn [r] (when (= 200 (:code r)) (antd/success! "删除成功") (rf/dispatch [:hrm/fetch {}]))) (fn [_] (antd/error! "删除失败")))))
 
 
-;; ─── 办公：OA 日程 ──────────────────────────────────────────────────
+;; ─── 办公:OA 日程 ──────────────────────────────────────────────────
 (rf/reg-event-fx :oa-calendar/fetch (fn [{:keys [db]} [_ p]] {:db (assoc-in db [:oa-calendar :loading?] true) :api/oa-calendar-list p}))
 (rf/reg-fx :api/oa-calendar-list (fn [p] (api/oa-list-calendars p (fn [r] (when (= 200 (:code r)) (rf/dispatch [:oa-calendar/set-list (:data r)]))) (fn [_] (antd/error! "加载日程失败")))))
 (rf/reg-event-db :oa-calendar/set-list (fn [db [_ d]] (let [items (if (sequential? d) d (:rows d []))] (assoc db :oa-calendar {:items items :total (:total d 0) :loading? false :modal-visible? false :form-data {}}))))
@@ -3455,7 +3455,7 @@
 (rf/reg-fx :api/oa-calendar-del (fn [id] (api/oa-delete-calendar id (fn [r] (when (= 200 (:code r)) (antd/success! "删除成功") (rf/dispatch [:oa-calendar/fetch {}]))) (fn [_] (antd/error! "删除失败")))))
 
 
-;; ─── 办公：OA 会议 ──────────────────────────────────────────────────
+;; ─── 办公:OA 会议 ──────────────────────────────────────────────────
 (rf/reg-event-fx :oa-meeting/fetch (fn [{:keys [db]} [_ p]] {:db (assoc-in db [:oa-meeting :loading?] true) :api/oa-meeting-list p}))
 (rf/reg-fx :api/oa-meeting-list (fn [p] (api/oa-list-meetings p (fn [r] (when (= 200 (:code r)) (rf/dispatch [:oa-meeting/set-list (:data r)]))) (fn [_] (antd/error! "加载会议失败")))))
 (rf/reg-event-db :oa-meeting/set-list (fn [db [_ d]] (let [items (if (sequential? d) d (:rows d []))] (assoc db :oa-meeting {:items items :total (:total d 0) :loading? false :modal-visible? false :form-data {}}))))
@@ -3467,7 +3467,7 @@
 (rf/reg-fx :api/oa-meeting-del (fn [id] (api/oa-delete-meeting id (fn [r] (when (= 200 (:code r)) (antd/success! "删除成功") (rf/dispatch [:oa-meeting/fetch {}]))) (fn [_] (antd/error! "删除失败")))))
 
 
-;; ─── 办公：CRM 客户 ──────────────────────────────────────────────────
+;; ─── 办公:CRM 客户 ──────────────────────────────────────────────────
 (rf/reg-event-fx :crm/fetch (fn [{:keys [db]} [_ p]] {:db (assoc-in db [:crm :loading?] true) :api/crm-list p}))
 (rf/reg-fx :api/crm-list (fn [p] (api/crm-list-customers p (fn [r] (when (= 200 (:code r)) (rf/dispatch [:crm/set-list (:data r)]))) (fn [_] (antd/error! "加载客户失败")))))
 (rf/reg-event-db :crm/set-list (fn [db [_ d]] (let [items (if (sequential? d) d (:rows d []))] (assoc db :crm {:items items :total (:total d 0) :loading? false :modal-visible? false :editing nil :form-data {}}))))
@@ -3510,7 +3510,7 @@
                    (assoc-in db [:bpm-diagram :visible?] false)))
 
 
-;; ─── 办公：报销审批 ──────────────────────────────────────────────────
+;; ─── 办公:报销审批 ──────────────────────────────────────────────────
 (rf/reg-event-fx :reimburse/fetch (fn [{:keys [db]} [_ p]] {:db (assoc-in db [:reimburse :loading?] true) :api/oa-reimburse-list (or p {})}))
 (rf/reg-fx :api/oa-reimburse-list (fn [p] (api/oa-list-reimburses p (fn [r] (when (= 200 (:code r)) (rf/dispatch [:reimburse/set-list (:data r)]))) (fn [_] (antd/error! "加载报销单失败")))))
 (rf/reg-event-db :reimburse/set-list (fn [db [_ d]] (let [items (if (sequential? d) d (:rows d []))] (assoc db :reimburse {:items items :total (:total d 0) :loading? false :modal-visible? false :submitting? false}))))
@@ -3528,7 +3528,7 @@
 (rf/reg-event-db :report/set (fn [db [_ d]] (assoc db :report {:data d :loading? false})))
 
 
-;; ─── BPM 管理套件（通用 CRUD，按模块动态存取）─────────────────────
+;; ─── BPM 管理套件(通用 CRUD,按模块动态存取)─────────────────────
 (rf/reg-event-fx :bpmmgmt/fetch
                  (fn [{:keys [db]} [_ module params]]
                    {:db (assoc-in db [:bpmmgmt module :loading?] true)

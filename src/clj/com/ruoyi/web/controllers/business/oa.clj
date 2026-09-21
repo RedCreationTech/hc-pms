@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.business.oa
-  "OA 协同办公控制器（日程/会议）。"
+  "OA 协同办公控制器(日程/会议)."
   (:require
     [com.ruoyi.domain.business.oa :as oa]
     [com.ruoyi.web.controllers.business.util :as bu]

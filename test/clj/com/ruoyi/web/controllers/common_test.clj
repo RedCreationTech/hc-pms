@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.common-test
-  "通用控制器测试。"
+  "通用控制器测试."
   (:require
     [clojure.java.io :as io]
     [clojure.test :refer [deftest is testing use-fixtures]]

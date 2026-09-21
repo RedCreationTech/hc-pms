@@ -21,7 +21,7 @@
 
 
 (defn- do-print!
-  "按模型打印模板（占位符 {{字段}}、{{流程记录}}）或默认样式拼 HTML，新窗口打开并调用打印。"
+  "按模型打印模板(占位符 {{字段}},{{流程记录}})或默认样式拼 HTML,新窗口打开并调用打印."
   [data]
   (let [inst (:instance data)
         model (:model data)

@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.components.page-toolbar
-  "页面工具栏容器。"
+  "页面工具栏容器."
   (:require
     [com.ruoyi.frontend.antd :as antd]
     [re-frame.core :as rf]

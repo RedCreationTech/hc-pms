@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.middleware.auth
-  "认证与授权中间件，提供 JWT 校验、在线心跳和权限拦截。"
+  "认证与授权中间件,提供 JWT 校验,在线心跳和权限拦截."
   (:require
     [com.ruoyi.infra.online :as online]
     [com.ruoyi.infra.security :as security]
@@ -7,8 +7,8 @@
 
 
 (defn wrap-jwt-auth
-  "为请求附加当前认证用户，并更新在线心跳。
-  如果令牌无效，继续执行但 :identity 为 nil。"
+  "为请求附加当前认证用户,并更新在线心跳.
+  如果令牌无效,继续执行但 :identity 为 nil."
   [handler]
   (fn [request]
     (let [token (security/extract-token request)
@@ -22,7 +22,7 @@
 
 
 (defn require-auth
-  "要求请求必须通过认证，否则返回 401。"
+  "要求请求必须通过认证,否则返回 401."
   [handler]
   (fn [request]
     (if (:identity request)
@@ -33,7 +33,7 @@
 
 
 (defn require-perms
-  "要求当前用户拥有指定权限中的任意一个，否则返回 403。"
+  "要求当前用户拥有指定权限中的任意一个,否则返回 403."
   [perms]
   (let [required (set (if (sequential? perms) perms [perms]))]
     (fn [handler]
@@ -47,7 +47,7 @@
 
 
 (defn auth-middleware
-  "组合中间件：JWT 解析 + 在线心跳 + 可选认证要求。"
+  "组合中间件:JWT 解析 + 在线心跳 + 可选认证要求."
   ([] (auth-middleware {}))
   ([{:keys [required? perms]}]
    (fn [handler]

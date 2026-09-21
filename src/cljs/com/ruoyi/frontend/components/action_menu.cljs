@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.components.action-menu
-  "表格操作菜单。"
+  "表格操作菜单."
   (:require
     [com.ruoyi.frontend.antd :as antd]
     [reagent.core :as r]))

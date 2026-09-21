@@ -115,7 +115,7 @@
 
 
 (defn- start-instance!
-  "发起流程实例，返回响应 data（:process-instance-id/:bill-code/:name）。"
+  "发起流程实例,返回响应 data(:process-instance-id/:bill-code/:name)."
   [app h mid fd]
   (:data (parse-json (POST app "/api/business/bpm/instance"
                            {:model_id mid :form_data (or fd {})} h))))
@@ -238,7 +238,7 @@
   (let [app (handler) token (login-token "admin") h (auth-hdr token)
         {:keys [model-id model-key]} (create-model! app h #(two-node-bpmn % "V1" "admin") {})
         _ (deploy! app h model-id)
-        ;; 修改 BPMN（节点名带 V2 标记）再部署 → v2
+        ;; 修改 BPMN(节点名带 V2 标记)再部署 → v2
         _ (is (= 200 (:code (parse-json (PUT app (str "/api/business/bpm/model/" model-id)
                                              {:model_id model-id :model_name "Phase3测试"
                                               :category_id 0 :form_type "0"

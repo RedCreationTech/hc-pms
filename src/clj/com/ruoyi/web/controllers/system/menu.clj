@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.system.menu
-  "菜单管理控制器。"
+  "菜单管理控制器."
   (:require
     [clojure.string :as str]
     [com.ruoyi.domain.system.menu :as menu-service]
@@ -25,7 +25,7 @@
 
 
 (defn list-menus
-  "查询菜单列表。"
+  "查询菜单列表."
   [{:keys [menu-service]} request]
   (let [params (:query-params request)]
     (ok (menu-service/list-menus menu-service params))))
@@ -73,7 +73,7 @@
 
 
 (defn change-status
-  "修改菜单状态。"
+  "修改菜单状态."
   [{:keys [menu-service]} request]
   (let [menu-id (parse-long (get-in request [:path-params :id]))
         status (get-in request [:body-params :status])]
@@ -97,7 +97,7 @@
 
 
 (defn save-sort
-  "保存菜单排序。"
+  "保存菜单排序."
   [{:keys [menu-service]} request]
   (try
     (let [items (sort-params->items (:body-params request))]

@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.components.right-toolbar
-  "右侧工具按钮组。"
+  "右侧工具按钮组."
   (:require
     [com.ruoyi.frontend.antd :as antd]
     [com.ruoyi.frontend.components.page-toolbar :as toolbar]

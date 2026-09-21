@@ -1,5 +1,5 @@
 (ns com.ruoyi.infra.cron
-  "Cron 表达式辅助工具。"
+  "Cron 表达式辅助工具."
   (:require
     [clojure.string :as str])
   (:import
@@ -18,14 +18,14 @@
 
 
 (defn valid?
-  "校验 cron 表达式是否合法（Quartz 格式，5-7 位；5 位自动补秒）。"
+  "校验 cron 表达式是否合法(Quartz 格式,5-7 位;5 位自动补秒)."
   [expression]
   (and (seq expression)
        (CronExpression/isValidExpression (normalize expression))))
 
 
 (defn cron-schedule
-  "根据 cron 表达式和 misfire 策略构建 CronScheduleBuilder。"
+  "根据 cron 表达式和 misfire 策略构建 CronScheduleBuilder."
   [expression misfire-policy]
   (let [builder (CronScheduleBuilder/cronSchedule ^String (normalize expression))]
     (case (when misfire-policy (str misfire-policy))

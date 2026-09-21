@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.routes.utils-test
-  "路由工具函数测试。"
+  "路由工具函数测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.web.routes.utils :as route-utils]))

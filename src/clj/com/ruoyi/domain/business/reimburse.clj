@@ -1,5 +1,5 @@
 (ns com.ruoyi.domain.business.reimburse
-  "报销申请领域服务 —— 复用'业务记录 + BPM 审批流'模式。"
+  "报销申请领域服务 -- 复用'业务记录 + BPM 审批流'模式."
   (:require
     [com.ruoyi.bpm.core :as bpm]
     [integrant.core :as ig]))

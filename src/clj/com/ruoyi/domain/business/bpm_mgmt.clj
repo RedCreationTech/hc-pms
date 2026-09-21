@@ -1,6 +1,6 @@
 (ns com.ruoyi.domain.business.bpm-mgmt
-  "BPM 管理套件领域服务：用户分组/流程监听器/流程表达式/流程设置 的通用 CRUD。
-   4 个模块 CRUD 结构相同，用数据驱动配置复用。"
+  "BPM 管理套件领域服务:用户分组/流程监听器/流程表达式/流程设置 的通用 CRUD.
+   4 个模块 CRUD 结构相同,用数据驱动配置复用."
   (:require
     [integrant.core :as ig]))
 
@@ -10,7 +10,7 @@
   {:query-fn query-fn :db db})
 
 
-;; 各模块的 CRUD 配置（查询名/id 列/可写字段）
+;; 各模块的 CRUD 配置(查询名/id 列/可写字段)
 (def ^:private crud
   {:user-group {:list :bpmmgmt/group-list :count :bpmmgmt/group-count
                 :find :bpmmgmt/find-group-by-id :insert :bpmmgmt/insert-group

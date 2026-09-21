@@ -9,7 +9,7 @@
 
 
 (defn- wrap-cors
-  "允许跨域请求，支持前端开发服务器访问。"
+  "允许跨域请求,支持前端开发服务器访问."
   [handler]
   (fn [request]
     (let [response (handler request)]
@@ -21,7 +21,7 @@
 
 
 (defn- handle-preflight
-  "处理 CORS 预检请求。"
+  "处理 CORS 预检请求."
   [handler]
   (fn [request]
     (if (= :options (:request-method request))
@@ -35,14 +35,14 @@
 
 
 (defn- wrap-query-fn
-  "将 query-fn 注入到请求的 :components 中，供 operlog 中间件使用。"
+  "将 query-fn 注入到请求的 :components 中,供 operlog 中间件使用."
   [handler query-fn]
   (fn [request]
     (handler (assoc request :components {:query-fn query-fn}))))
 
 
 (defn- wrap-json-body
-  "确保响应 body 是字符串（JSON），而非 Clojure 数据结构。"
+  "确保响应 body 是字符串(JSON),而非 Clojure 数据结构."
   [handler]
   (fn [request]
     (let [resp (handler request)]

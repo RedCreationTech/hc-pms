@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.job
-  "定时任务控制器。"
+  "定时任务控制器."
   (:require
     [clojure.string :as str]
     [clojure.walk :as walk]
@@ -130,7 +130,7 @@
 
 
 (defn change-status
-  "修改任务状态。"
+  "修改任务状态."
   [{:keys [query-fn]} request]
   (let [job-id (parse-long (get-in request [:path-params :id]))
         status (:status (body-params request))
@@ -147,7 +147,7 @@
 
 
 (defn run-once
-  "立即执行一次任务。"
+  "立即执行一次任务."
   [_ request]
   (let [job-id (parse-long (get-in request [:path-params :id]))]
     (scheduler-core/trigger-job! job-id "DEFAULT")
@@ -155,7 +155,7 @@
 
 
 (defn clean-logs
-  "清空任务日志。"
+  "清空任务日志."
   [{:keys [query-fn]} _]
   (query-fn :clean-job-logs! {})
   (ok "日志已清空"))

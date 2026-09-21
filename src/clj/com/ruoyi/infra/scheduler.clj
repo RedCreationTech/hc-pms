@@ -1,8 +1,8 @@
 (ns com.ruoyi.infra.scheduler
-  "定时任务调度器。
+  "定时任务调度器.
 
-  封装 Quartz 调度，支持从 sys_job 加载任务、新增、修改、删除、
-  暂停/恢复以及立即执行一次。"
+  封装 Quartz 调度,支持从 sys_job 加载任务,新增,修改,删除,
+  暂停/恢复以及立即执行一次."
   (:require
     [clojure.string :as str]
     [clojure.tools.logging :as log]
@@ -25,13 +25,13 @@
 
 
 (defn set-scheduler!
-  "注入 Quartz scheduler 实例。"
+  "注入 Quartz scheduler 实例."
   [scheduler]
   (reset! scheduler-atom scheduler))
 
 
 (defn set-query-fn!
-  "注入数据库 query-fn。"
+  "注入数据库 query-fn."
   [query-fn]
   (reset! query-fn-atom query-fn))
 
@@ -61,18 +61,18 @@
 
 
 (defn invoke-target-allowed?
-  "校验 invoke_target 不包含危险协议，且调用目标在允许命名空间内。"
+  "校验 invoke_target 不包含危险协议,且调用目标在允许命名空间内."
   [target]
   (and (not (some #(str/includes? target %) dangerous-patterns))
        (str/starts-with? target allowed-ns-prefix)))
 
 
 (defn- parse-invoke-target
-  "解析 invoke_target 字符串。
+  "解析 invoke_target 字符串.
 
-  支持两种形式：
+  支持两种形式:
   - task-ns/task-fn           (无参函数)
-  - task-ns/task-fn('a', 1)   (带参函数，仅支持字符串与数字字面量)
+  - task-ns/task-fn('a', 1)   (带参函数,仅支持字符串与数字字面量)
 
   返回 {:ns :fn :args}"
   [target]
@@ -90,7 +90,7 @@
 
 
 (defn- parse-arg
-  "将参数字符串解析为 Clojure 值。"
+  "将参数字符串解析为 Clojure 值."
   [s]
   (let [s (str/trim s)]
     (cond
@@ -103,7 +103,7 @@
 
 
 (defn- invoke-target!
-  "执行 invoke_target 指向的函数。"
+  "执行 invoke_target 指向的函数."
   [target]
   (if-let [{:keys [ns fn args]} (parse-invoke-target target)]
     (do
@@ -117,7 +117,7 @@
 
 
 (defn- write-job-log!
-  "记录任务执行日志。"
+  "记录任务执行日志."
   [job status message exception]
   (try
     ((query-fn) :create-job-log!
@@ -188,7 +188,7 @@
 
 
 (defn schedule-job!
-  "将 sys_job 记录注册到 Quartz 调度器。"
+  "将 sys_job 记录注册到 Quartz 调度器."
   [job]
   (when (and (seq (:cron_expression job)) (invoke-target-allowed? (:invoke_target job)))
     (let [s (scheduler)
@@ -200,7 +200,7 @@
 
 
 (defn reschedule-job!
-  "更新 Quartz 中的任务。"
+  "更新 Quartz 中的任务."
   [job]
   (let [s (scheduler)
         k (job-key (:job_id job) (:job_group job))]
@@ -210,35 +210,35 @@
 
 
 (defn unschedule-job!
-  "从 Quartz 中删除任务。"
+  "从 Quartz 中删除任务."
   [job-id job-group]
   (let [s (scheduler)]
     (.deleteJob s (job-key job-id job-group))))
 
 
 (defn pause-job!
-  "暂停任务。"
+  "暂停任务."
   [job-id job-group]
   (let [s (scheduler)]
     (.pauseJob s (job-key job-id job-group))))
 
 
 (defn resume-job!
-  "恢复任务。"
+  "恢复任务."
   [job-id job-group]
   (let [s (scheduler)]
     (.resumeJob s (job-key job-id job-group))))
 
 
 (defn trigger-job!
-  "立即触发任务执行一次。"
+  "立即触发任务执行一次."
   [job-id job-group]
   (let [s (scheduler)]
     (.triggerJob s (job-key job-id job-group))))
 
 
 (defn load-jobs!
-  "从 sys_job 表加载所有正常任务到调度器。"
+  "从 sys_job 表加载所有正常任务到调度器."
   []
   (let [jobs ((query-fn) :list-jobs {:job_name nil :job_group nil :status nil})]
     (doseq [job jobs]
@@ -256,7 +256,7 @@
 
 
 (defn init!
-  "初始化调度器：注入并加载任务。"
+  "初始化调度器:注入并加载任务."
   [scheduler query-fn]
   (set-scheduler! scheduler)
   (set-query-fn! query-fn)

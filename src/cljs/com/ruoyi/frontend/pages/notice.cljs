@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.notice
-  "通知公告管理页面。"
+  "通知公告管理页面."
   (:require
     ["@ant-design/icons" :refer [PlusOutlined SearchOutlined ReloadOutlined]]
     ["react-quill-new" :default ReactQuill]

@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.business.bpm-ops
-  "BPM 实例管理 / 任务管理 / 实例运维。"
+  "BPM 实例管理 / 任务管理 / 实例运维."
   (:require
     ["@ant-design/icons" :refer [ReloadOutlined EyeOutlined PauseCircleOutlined PlayCircleOutlined StopOutlined]]
     [com.ruoyi.frontend.antd :as antd]

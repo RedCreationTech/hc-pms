@@ -1,6 +1,6 @@
 (ns com.ruoyi.domain.business.bpm
-  "BPM 业务领域服务。持有 Flowable 引擎 + 业务库 query-fn，
-   提供流程分类/模型/表单/实例 的 CRUD 与流程运行操作。"
+  "BPM 业务领域服务.持有 Flowable 引擎 + 业务库 query-fn,
+   提供流程分类/模型/表单/实例 的 CRUD 与流程运行操作."
   (:require
     [cheshire.core :as json]
     [clj-http.client :as http]
@@ -11,13 +11,13 @@
     [integrant.core :as ig]))
 
 
-;; ── 抄送节点处理器（COPY_TASK）─────────────────────────────────────────
+;; ── 抄送节点处理器(COPY_TASK)─────────────────────────────────────────
 
 (declare resolve-candidate-users list-all-users)
 
 
 (defn- expand-copy-candidates
-  "把抄送节点配置(copy-user-ids/copy-role-ids)展开为用户名列表。"
+  "把抄送节点配置(copy-user-ids/copy-role-ids)展开为用户名列表."
   [node-config users]
   (let [user-ids (set (map str (:copy-user-ids node-config)))
         role-ids (set (map str (:copy-role-ids node-config)))
@@ -29,8 +29,8 @@
 
 
 (defn- candidates-from-links
-  "从 DelegateTask 的候选人(内存 identityLink)展开抄送用户：
-   userId 直取；group 按 role:/dept:/post:/dept-leader: 展开。"
+  "从 DelegateTask 的候选人(内存 identityLink)展开抄送用户:
+   userId 直取;group 按 role:/dept:/post:/dept-leader: 展开."
   [^org.flowable.task.service.delegate.DelegateTask task users depts user-roles user-posts]
   (let [expand (fn [^org.flowable.identitylink.api.IdentityLink l]
                  (if-let [u (.getUserId l)]
@@ -56,9 +56,9 @@
 
 
 (defn- copy-task-handler
-  "COPY_TASK 节点 create 事件处理：为每个候选人插 biz_bpm_copy 记录，然后自动完成任务。
-   候选人解析优先级：nodeConfig 抄送策略(candidate-strategy，策略制，复用审批人解析器)
-   → 旧键 copy-user-ids/copy-role-ids 兼容回退 → BPMN 候选人 identityLink 展开。"
+  "COPY_TASK 节点 create 事件处理:为每个候选人插 biz_bpm_copy 记录,然后自动完成任务.
+   候选人解析优先级:nodeConfig 抄送策略(candidate-strategy,策略制,复用审批人解析器)
+   → 旧键 copy-user-ids/copy-role-ids 兼容回退 → BPMN 候选人 identityLink 展开."
   [engine query-fn ^org.flowable.task.service.delegate.DelegateTask task node-config]
   (let [ts (.getTaskService ^org.flowable.engine.ProcessEngine engine)
         tid (.getId task)
@@ -92,14 +92,14 @@
 ;; ── Integrant 组件 ────────────────────────────────────────────────────
 
 (def ^:private dynamic-strategies
-  "create 事件需要运行时解析的候选策略。"
+  "create 事件需要运行时解析的候选策略."
   #{"START_USER_DEPT_LEADER" "MULTI_LEVEL_DEPT_LEADER"
     "START_USER_SELECT" "APPROVE_USER_SELECT"
     "INITIATOR_SELF" "USER_GROUP" "FORM_USER" "FORM_DEPT_LEADER" "EXPRESSION"})
 
 
 (def ^:private multi-instance-methods
-  "多实例审批方式（由 collection 驱动，create 监听器不干预候选人）。"
+  "多实例审批方式(由 collection 驱动,create 监听器不干预候选人)."
   #{"ANY" "ALL" "RATIO"})
 
 
@@ -111,8 +111,8 @@
 
 
 (defn- resolve-candidate-users
-  "按候选策略解析用户名列表（审批/办理节点 create 与抄送节点共用的策略解析器）。
-   返回 nil 表示解析不到候选（调用方决定为空策略/兼容回退）。"
+  "按候选策略解析用户名列表(审批/办理节点 create 与抄送节点共用的策略解析器).
+   返回 nil 表示解析不到候选(调用方决定为空策略/兼容回退)."
   [engine query-fn ^org.flowable.task.service.delegate.DelegateTask task strategy param node-config users depts]
   (let [start-user (some-> (.getVariable task "startUserId") str)
         user-name-of (fn [id]
@@ -186,10 +186,10 @@
       nil)))
 
 
-;; ── Phase 3 自动去重（模型级 auto_approval_type）────────────────────────
+;; ── Phase 3 自动去重(模型级 auto_approval_type)────────────────────────
 
 (defn- model-auto-approval-type
-  "任务所属流程模型的 auto_approval_type（NONE/APPROVE_ONCE/CONSECUTIVE）。"
+  "任务所属流程模型的 auto_approval_type(NONE/APPROVE_ONCE/CONSECUTIVE)."
   [engine query-fn ^org.flowable.task.service.delegate.DelegateTask task]
   (let [pd (some-> (.getRepositoryService engine)
                    (.createProcessDefinitionQuery)
@@ -202,9 +202,9 @@
 
 
 (defn- auto-approved?
-  "按去重类型判断当前节点是否应自动通过（依据 complete* 维护的流程变量，同命令内可见）：
-   APPROVE_ONCE — 任一办理人在本实例已完成过任务；
-   CONSECUTIVE  — 本实例最近一个已办任务的办理人与当前办理人相同。"
+  "按去重类型判断当前节点是否应自动通过(依据 complete* 维护的流程变量,同命令内可见):
+   APPROVE_ONCE -- 任一办理人在本实例已完成过任务;
+   CONSECUTIVE  -- 本实例最近一个已办任务的办理人与当前办理人相同."
   [^org.flowable.task.service.delegate.DelegateTask task users auto-type]
   (let [approved-users (vec (or (.getVariable task "bpmApprovedUsers") []))
         last-approver (some-> (.getVariable task "bpmLastApprover") str)
@@ -218,9 +218,9 @@
 
 
 (defn- apply-auto-approval
-  "把节点 create 处理器算出的 action 再经过模型级自动去重过滤：
-   命中去重规则时覆盖为 [:complete true]（自动通过）；否则原样返回。
-   action 为 nil（静态候选由引擎烘焙）时，用任务的候选人 identityLink 判断。"
+  "把节点 create 处理器算出的 action 再经过模型级自动去重过滤:
+   命中去重规则时覆盖为 [:complete true](自动通过);否则原样返回.
+   action 为 nil(静态候选由引擎烘焙)时,用任务的候选人 identityLink 判断."
   [engine query-fn ^org.flowable.task.service.delegate.DelegateTask task action]
   (let [auto-type (model-auto-approval-type engine query-fn task)]
     (if (= "NONE" auto-type)
@@ -238,13 +238,13 @@
 
 
 (defn- make-node-create-handler
-  "构建节点 create 事件处理器（Phase 2 节点配置补全的核心）：
-   按 candidate-strategy 解析候选人（含 5 种新策略），随后依次应用：
-     1) 多实例方式(ANY/ALL/RATIO) → 不干预（返回 nil）
+  "构建节点 create 事件处理器(Phase 2 节点配置补全的核心):
+   按 candidate-strategy 解析候选人(含 5 种新策略),随后依次应用:
+     1) 多实例方式(ANY/ALL/RATIO) → 不干预(返回 nil)
      2) RANDOM 随机审批 → 从候选中随机指定一人为 assignee
-     3) 审批人为空策略 assign-empty-handler：
+     3) 审批人为空策略 assign-empty-handler:
         AUTO_PASS 自动通过 / AUTO_REJECT 自动驳回 / ASSIGN_USER 指定成员 / TO_ADMIN(默认) 转交管理员
-   数据库查询按需延迟执行：静态策略且候选已烘焙时零查询。"
+   数据库查询按需延迟执行:静态策略且候选已烘焙时零查询."
   [engine query-fn]
   (let [user-names-of (fn [users ids]
                         (distinct (vec (keep (fn [id]
@@ -270,7 +270,7 @@
           engine query-fn task
           (when-not (contains? multi-instance-methods method)
             (if (contains? dynamic-strategies strategy)
-              ;; ── 动态解析策略（含 5 种新策略）：create 时解析候选人 ──
+              ;; ── 动态解析策略(含 5 种新策略):create 时解析候选人 ──
               (let [users @users*
                     depts @depts*
                     start-user (some-> (.getVariable task "startUserId") str)
@@ -294,7 +294,7 @@
                   (seq candidates) (if random? [:assign [(rand-nth candidates)]] [:candidates candidates])
                   (= start-handler "SKIP") [:complete nil]
                   :else (empty-action node-config users)))
-              ;; ── 静态策略：候选由引擎从 BPMN 属性烘焙，监听器只做 RANDOM/为空兜底 ──
+              ;; ── 静态策略:候选由引擎从 BPMN 属性烘焙,监听器只做 RANDOM/为空兜底 ──
               (let [links (seq (.getCandidates task))
                     user-links (vec (keep (fn [^org.flowable.identitylink.api.IdentityLink l]
                                             (.getUserId l))
@@ -319,18 +319,18 @@
 (defmethod ig/init-key :app.business/bpm-service
   [_ {:keys [engine query-fn db]}]
   (let [service {:engine engine :query-fn query-fn :db db}]
-    ;; 注入节点 create 处理器（TaskListener 在任务创建时调用：候选解析/为空策略/随机审批）
+    ;; 注入节点 create 处理器(TaskListener 在任务创建时调用:候选解析/为空策略/随机审批)
     (bpm/set-node-create-handler! (make-node-create-handler engine query-fn))
-    ;; 注册抄送节点处理器（TaskListener create 时自动插抄送记录并完成任务）
+    ;; 注册抄送节点处理器(TaskListener create 时自动插抄送记录并完成任务)
     (bpm/set-copy-handler!
       (fn [task node-config]
         (copy-task-handler engine query-fn task node-config)))
-    ;; Phase 4：模型级 Webhook + 节点监听器分发器（引擎封装层统一触发点转发到这里）
+    ;; Phase 4:模型级 Webhook + 节点监听器分发器(引擎封装层统一触发点转发到这里)
     (bpm/set-webhook-dispatcher!
       (fn [event info]
         (fire-webhooks! event service info)))
-    ;; 流程实例结束回写：approve→"2"(通过) reject→"3"(驳回) cancel/terminate→CANCELED，
-    ;; current_task 一并清空（挂在 complete* 的 process_end 检测点 + 取消/终止路径）
+    ;; 流程实例结束回写:approve→"2"(通过) reject→"3"(驳回) cancel/terminate→CANCELED,
+    ;; current_task 一并清空(挂在 complete* 的 process_end 检测点 + 取消/终止路径)
     (bpm/set-instance-end-handler!
       (fn [{:keys [process-instance-id result]}]
         (query-fn :bpm/update-instance-status
@@ -348,7 +348,7 @@
 
 ;; ── 分页工具 ──────────────────────────────────────────────────────────
 (defn- page-params
-  "统一分页参数。"
+  "统一分页参数."
   [params]
   (let [page (or (some-> (get params :page) Integer/parseInt) 1)
         size (or (some-> (get params :size) Integer/parseInt) 10)]
@@ -356,7 +356,7 @@
 
 
 (defn- row->json
-  "把表的 JSON 文本字段解析为 Clojure 数据。"
+  "把表的 JSON 文本字段解析为 Clojure 数据."
   [row ks]
   (reduce (fn [m k]
             (if-let [v (get row k)]
@@ -365,10 +365,10 @@
           row ks))
 
 
-;; ── Phase 3 治理能力：编号规则 / 标题渲染 / 摘要计算 ────────────────────
+;; ── Phase 3 治理能力:编号规则 / 标题渲染 / 摘要计算 ────────────────────
 
 (defn- parse-json-field
-  "解析 JSON 文本字段（已是数据则原样返回）。"
+  "解析 JSON 文本字段(已是数据则原样返回)."
   [v]
   (cond
     (nil? v) nil
@@ -377,15 +377,15 @@
 
 
 (defn- form-fields-of
-  "动态表单 schema 的字段列表 [{:field :title}]。"
+  "动态表单 schema 的字段列表 [{:field :title}]."
   [query-fn form-id]
   (when-let [form (and form-id (query-fn :bpm/find-form-by-id {:form_id form-id}))]
     (:fields (parse-json-field (:form_json form)))))
 
 
 (defn summary-of
-  "按模型 summary_fields（表单字段 id 列表）计算实例摘要，
-   返回 [{:key :value :label}]；未配置或无表单数据时返回 nil。"
+  "按模型 summary_fields(表单字段 id 列表)计算实例摘要,
+   返回 [{:key :value :label}];未配置或无表单数据时返回 nil."
   [query-fn summary-fields form-id form-data]
   (let [fields (seq (parse-json-field summary-fields))]
     (when (and (seq fields) (map? form-data))
@@ -404,8 +404,8 @@
 
 
 (defn- gen-bill-code
-  "按模型 process_id_rule 生成流程单号：前缀+日期中缀+后缀+当日递增流水号（长度≥5）。
-   规则未启用时返回 nil。"
+  "按模型 process_id_rule 生成流程单号:前缀+日期中缀+后缀+当日递增流水号(长度≥5).
+   规则未启用时返回 nil."
   [query-fn model]
   (let [rule (parse-json-field (:process_id_rule model))]
     (when (:enable rule)
@@ -427,8 +427,8 @@
 
 
 (defn- render-instance-name
-  "按模型 name_rule 渲染实例名。模板支持 {字段id}、{发起人}、{发起时间}、{流程名称}；
-   未配置时回退为模型名。"
+  "按模型 name_rule 渲染实例名.模板支持 {字段id},{发起人},{发起时间},{流程名称};
+   未配置时回退为模型名."
   [model form-data starter]
   (let [tpl (:name_rule model)]
     (if (seq tpl)
@@ -482,7 +482,7 @@
 
 
 (defn category-sort!
-  "P1：批量保存分类排序（ids 按新顺序排列，order_num = 下标×10）。"
+  "P1:批量保存分类排序(ids 按新顺序排列,order_num = 下标×10)."
   [{:keys [query-fn]} ids]
   (doseq [[i id] (map-indexed vector (or ids []))]
     (query-fn :bpm/update-category-order {:category_id id :order_num (* i 10)}))
@@ -491,7 +491,7 @@
 
 ;; ── 流程模型 ──────────────────────────────────────────────────────────
 (defn- deploy-time-of
-  "按 deployment_id 从 Flowable 查最新部署时间（未部署返回 nil）。"
+  "按 deployment_id 从 Flowable 查最新部署时间(未部署返回 nil)."
   [engine deployment-id]
   (when (seq (str (or deployment-id "")))
     (try
@@ -505,15 +505,15 @@
 
 
 (defn- json-ids
-  "JSON 文本 → id 字符串向量（nil/非法返回 []）。"
+  "JSON 文本 → id 字符串向量(nil/非法返回 [])."
   [v]
   (let [parsed (parse-json-field v)]
     (if (sequential? parsed) (mapv str parsed) [])))
 
 
 (defn model-list
-  "P1：行附带最新部署时间(deploy_time)、可发起人员/部门名简表(start_users/start_depts)，
-   分类名随 LEFT JOIN 返回；排序按 order_num；前端按 category_id 自行分组。"
+  "P1:行附带最新部署时间(deploy_time),可发起人员/部门名简表(start_users/start_depts),
+   分类名随 LEFT JOIN 返回;排序按 order_num;前端按 category_id 自行分组."
   [{:keys [engine query-fn]} params]
   (let [{:keys [offset size]} (page-params params)
         p {:model_name (get params :model_name) :category_id (get params :category_id)
@@ -546,12 +546,12 @@
 
 
 (def ^:private model-key-pattern
-  "流程 key 校验：字母/下划线开头，可含字母数字 _ - . $。"
+  "流程 key 校验:字母/下划线开头,可含字母数字 _ - . $."
   #"^[a-zA-Z_][-\w.$]*$")
 
 
 (defn- default-model-bpmn
-  "新建模型的默认 BPMN 骨架（发起人 → 结束），设计器打开即可继续添加节点。"
+  "新建模型的默认 BPMN 骨架(发起人 → 结束),设计器打开即可继续添加节点."
   [model-key]
   (str "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
        "<definitions xmlns=\"http://www.omg.org/spec/BPMN/20100524/MODEL\""
@@ -564,9 +564,9 @@
 
 
 (defn model-create
-  "新建流程模型：校验 key 格式(字母/下划线开头，可含字母数字与 _ - . $)与重名，
-   缺省字段补默认值（默认 BPMN 骨架、allow_cancel/allow_withdraw 默认 '1'）。
-   P1：icon/order_num/start_user_ids/start_dept_ids/manager_user_ids 一并入库。"
+  "新建流程模型:校验 key 格式(字母/下划线开头,可含字母数字与 _ - . $)与重名,
+   缺省字段补默认值(默认 BPMN 骨架,allow_cancel/allow_withdraw 默认 '1').
+   P1:icon/order_num/start_user_ids/start_dept_ids/manager_user_ids 一并入库."
   [{:keys [query-fn]} params user]
   (let [key (some-> (:model_key params) str str/trim)]
     (when (str/blank? key)
@@ -602,8 +602,8 @@
 
 
 (defn model-update
-  "P1：icon/start_user_ids/start_dept_ids/manager_user_ids/order_num 走 COALESCE，
-   传 nil 时保留原值（model-save-tree! 等部分更新调用方无需关注新列）。"
+  "P1:icon/start_user_ids/start_dept_ids/manager_user_ids/order_num 走 COALESCE,
+   传 nil 时保留原值(model-save-tree! 等部分更新调用方无需关注新列)."
   [{:keys [query-fn]} params user]
   (query-fn :bpm/update-model
             {:model_id (:model_id params) :model_name (:model_name params)
@@ -631,7 +631,7 @@
 
 
 (defn model-sort!
-  "P1：批量保存模型排序（ids 按新顺序排列，order_num = 下标×10）。"
+  "P1:批量保存模型排序(ids 按新顺序排列,order_num = 下标×10)."
   [{:keys [query-fn]} ids]
   (doseq [[i id] (map-indexed vector (or ids []))]
     (query-fn :bpm/update-model-order {:model_id id :order_num (* i 10)}))
@@ -648,7 +648,7 @@
 
 
 (defn- load-identity-data
-  "加载系统用户/角色/部门/岗位关系，用于同步到 Flowable identity。"
+  "加载系统用户/角色/部门/岗位关系,用于同步到 Flowable identity."
   [query-fn]
   {:users (query-fn :list-users {:user_name nil :phonenumber nil :status nil
                                  :begin_time nil :end_time nil :dept_filter_enabled 0
@@ -661,7 +661,7 @@
 
 
 (defn model-deploy!
-  "部署流程模型到 Flowable，并回写 deployment_id。返回新 deployment-id。"
+  "部署流程模型到 Flowable,并回写 deployment_id.返回新 deployment-id."
   [{:keys [engine query-fn]} id]
   (let [m (query-fn :bpm/find-model-by-id {:model_id id})
         _ (when-not m (throw (ex-info "流程模型不存在" {:model_id id})))
@@ -675,15 +675,15 @@
 
 
 (defn model-tree
-  "把模型 BPMN 转为流程节点树（HTML/flex 编辑器工作模型）。"
+  "把模型 BPMN 转为流程节点树(HTML/flex 编辑器工作模型)."
   [{:keys [query-fn]} id]
   (let [m (query-fn :bpm/find-model-by-id {:model_id id})]
     (bpm-flow/bpmn->tree (:bpmn_xml m))))
 
 
 (defn model-save-tree!
-  "保存流程节点树：转回 BPMN XML 并更新模型。返回新 XML。
-   P1：新列(icon/start_user_ids/start_dept_ids/manager_user_ids)传 nil 走 COALESCE 保留原值。"
+  "保存流程节点树:转回 BPMN XML 并更新模型.返回新 XML.
+   P1:新列(icon/start_user_ids/start_dept_ids/manager_user_ids)传 nil 走 COALESCE 保留原值."
   [{:keys [query-fn]} id tree user]
   (let [m (query-fn :bpm/find-model-by-id {:model_id id})
         users (query-fn :list-users {:user_name nil :phonenumber nil :status nil
@@ -757,9 +757,9 @@
   (query-fn :bpm/delete-form {:form_id id}))
 
 
-;; ── 流程实例（发起 + 运行）────────────────────────────────────────────
+;; ── 流程实例(发起 + 运行)────────────────────────────────────────────
 (defn- candidate-names
-  "按候选策略把配置 ids 转用户名列表。"
+  "按候选策略把配置 ids 转用户名列表."
   [config users]
   (let [ids (fn [k] (or (get-in config [:candidate-param k]) []))
         names (case (:candidate-strategy config)
@@ -772,8 +772,8 @@
 
 
 (defn- collect-multi-nodes
-  "收集流程树中多实例审批节点（approve-method 为 ANY/ALL/RATIO）。
-   RANDOM 随机审批不是多实例，由 TaskListener 在 create 时指定 assignee，不注入 approverList。"
+  "收集流程树中多实例审批节点(approve-method 为 ANY/ALL/RATIO).
+   RANDOM 随机审批不是多实例,由 TaskListener 在 create 时指定 assignee,不注入 approverList."
   [tree]
   (let [walk (fn walk
                [node acc]
@@ -792,7 +792,7 @@
 
 
 (defn- collect-child-multi-nodes
-  "P1：收集子流程多实例节点（mi-enable），返回 [{:id :config}]。"
+  "P1:收集子流程多实例节点(mi-enable),返回 [{:id :config}]."
   [tree]
   (let [walk (fn walk
                [node acc]
@@ -810,8 +810,8 @@
 
 
 (defn- child-multi-vars
-  "P1：子流程多实例实例数量 → miList_<node-id> 列表变量：
-   FIXED 固定数量 / NUMERIC_FIELD 数字表单字段 / MULTI_FIELD 多选表单字段。"
+  "P1:子流程多实例实例数量 → miList_<node-id> 列表变量:
+   FIXED 固定数量 / NUMERIC_FIELD 数字表单字段 / MULTI_FIELD 多选表单字段."
   [tree fd]
   (into {}
         (keep (fn [{:keys [id config]}]
@@ -829,7 +829,7 @@
 
 
 (defn- dept-and-parents
-  "部门 id → 自身 + 全部上级部门 id 字符串列表。"
+  "部门 id → 自身 + 全部上级部门 id 字符串列表."
   [query-fn dept-id]
   (let [depts (query-fn :list-all-depts {})
         by-id (into {} (map (juxt (comp str :dept_id) identity)) depts)]
@@ -842,9 +842,9 @@
 
 
 (defn- check-start-permission!
-  "P1 发起校验：模型配置了 start_user_ids / start_dept_ids 时，
-   当前用户必须在指定人员内，或其所在部门（含上级）在指定部门内，
-   否则抛 500「您没有权限发起该流程」。两者都未配置 = 全员可发起。"
+  "P1 发起校验:模型配置了 start_user_ids / start_dept_ids 时,
+   当前用户必须在指定人员内,或其所在部门(含上级)在指定部门内,
+   否则抛 500\"您没有权限发起该流程\".两者都未配置 = 全员可发起."
   [query-fn model starter]
   (let [uid-set (set (json-ids (:start_user_ids model)))
         did-set (set (json-ids (:start_dept_ids model)))]
@@ -860,9 +860,9 @@
 
 
 (defn instance-start!
-  "发起流程：用模型部署的 key 启动 Flowable 实例，写入 biz_bpm_instance。
-   P1：模型配置 start_user_ids/start_dept_ids 时先校验发起权限；
-   子流程多实例节点(mi-enable)注入 miList_<id> 实例数量列表变量。"
+  "发起流程:用模型部署的 key 启动 Flowable 实例,写入 biz_bpm_instance.
+   P1:模型配置 start_user_ids/start_dept_ids 时先校验发起权限;
+   子流程多实例节点(mi-enable)注入 miList_<id> 实例数量列表变量."
   [{:keys [engine query-fn]} model-id business-key form-data starter]
   (let [m (query-fn :bpm/find-model-by-id {:model_id model-id})
         _ (when-not m (throw (ex-info "流程模型不存在" {:model_id model-id})))
@@ -873,7 +873,7 @@
             (throw (ex-info "流程定义已挂起，不可发起" {:model_id model-id :key (:model_key m)})))
         biz-key (or business-key (str "biz-" (System/currentTimeMillis)))
         fd (or form-data {})
-        ;; 表单字段展开为流程变量（条件表达式 ${days > 3} 可直接引用），formData 保留完整 JSON
+        ;; 表单字段展开为流程变量(条件表达式 ${days > 3} 可直接引用),formData 保留完整 JSON
         field-vars (into {}
                          (keep (fn [[k v]]
                                  (when (not= (name k) "startUserSelected")
@@ -907,7 +907,7 @@
                                   (map :name)
                                   (remove nil?)
                                   (str/join "、"))})
-    ;; Phase 4 Webhook：流程发起钩子
+    ;; Phase 4 Webhook:流程发起钩子
     (fire-webhooks! "process_start" {:engine engine :query-fn query-fn}
                     {:process-instance-id pid})
     {:process-instance-id pid :business-key biz-key :bill-code bill-code :name inst-name}))
@@ -927,9 +927,9 @@
 
 
 (defn task-detail
-  "任务详情：任务信息 + 实例表单数据 + 表单 schema（审批弹窗表单回显）。
-   Phase 2：附带当前节点操作按钮配置(buttons)、签名/意见必填/默认驳回节点配置。
-   P0：办理人节点(TRANSACTOR)默认按钮为「办理」；模型权限开关 allow_cancel/allow_withdraw 一并返回。"
+  "任务详情:任务信息 + 实例表单数据 + 表单 schema(审批弹窗表单回显).
+   Phase 2:附带当前节点操作按钮配置(buttons),签名/意见必填/默认驳回节点配置.
+   P0:办理人节点(TRANSACTOR)默认按钮为\"办理\";模型权限开关 allow_cancel/allow_withdraw 一并返回."
   [{:keys [engine query-fn]} task-id]
   (let [task-obj (some-> (.taskId (.createTaskQuery (.getTaskService engine)) task-id) .singleResult)
         _ (when-not task-obj (throw (ex-info "任务不存在" {:task-id task-id})))
@@ -937,7 +937,7 @@
         pid (:process-instance-id task)
         inst (query-fn :bpm/find-instance-by-pid {:process_instance_id pid})
         model (query-fn :bpm/find-model-by-id {:model_id (:model_id inst)})
-        ;; form_id>0 走表单记录；form_id=0/空且模型内嵌 form_json 时回退解析模型的表单
+        ;; form_id>0 走表单记录;form_id=0/空且模型内嵌 form_json 时回退解析模型的表单
         form (when-let [fid (:form_id model)]
                (when (pos? (long (or fid 0)))
                  (query-fn :bpm/find-form-by-id {:form_id fid})))
@@ -963,8 +963,8 @@
 
 
 (defn todo-list-with-buttons
-  "某人待办（候选人或已认领），每行附带当前节点操作按钮配置(Buttons)、
-   实例名/单号与模型摘要(summary)；办理人节点默认按钮为「办理」。"
+  "某人待办(候选人或已认领),每行附带当前节点操作按钮配置(Buttons),
+   实例名/单号与模型摘要(summary);办理人节点默认按钮为\"办理\"."
   [{:keys [engine query-fn]} user]
   (let [ts (.getTaskService engine)
         tasks (.list (.taskCandidateOrAssigned (.createTaskQuery ts) user))]
@@ -986,8 +986,8 @@
 
 
 (defn done-list-with-model-flags
-  "某人已办（Flowable 历史），每行附带所属模型的权限开关 allow_cancel/allow_withdraw
-   （P0-4：前端据此显隐撤回按钮）。实例/模型缺失时默认允许。"
+  "某人已办(Flowable 历史),每行附带所属模型的权限开关 allow_cancel/allow_withdraw
+   (P0-4:前端据此显隐撤回按钮).实例/模型缺失时默认允许."
   [{:keys [engine query-fn]} user]
   (mapv (fn [row]
           (let [inst (query-fn :bpm/find-instance-by-pid {:process_instance_id (:process-instance-id row)})
@@ -999,7 +999,7 @@
 
 
 (defn- reason-required?
-  "任务节点是否配置审批意见必填。"
+  "任务节点是否配置审批意见必填."
   [engine task-id]
   (let [t (some-> (.taskId (.createTaskQuery (.getTaskService engine)) task-id) .singleResult)
         cfg (when t (bpm/node-config-of engine t))]
@@ -1007,7 +1007,7 @@
 
 
 (defn task-approve!
-  "审批通过：意见必填校验（nodeConfig.reason-require）+ 手写签名存任务局部变量。"
+  "审批通过:意见必填校验(nodeConfig.reason-require)+ 手写签名存任务局部变量."
   [{:keys [engine]} task-id user comment sign-pic-url]
   (when (and (reason-required? engine task-id) (str/blank? (or comment "")))
     (throw (ex-info "当前节点要求填写审批意见" {:task-id task-id})))
@@ -1015,7 +1015,7 @@
 
 
 (defn task-reject!
-  "审批驳回：意见必填校验 + 手写签名存任务局部变量。"
+  "审批驳回:意见必填校验 + 手写签名存任务局部变量."
   [{:keys [engine]} task-id user comment return-node-id sign-pic-url]
   (when (and (reason-required? engine task-id) (str/blank? (or comment "")))
     (throw (ex-info "当前节点要求填写审批意见" {:task-id task-id})))
@@ -1023,13 +1023,13 @@
 
 
 (defn instance-history
-  "流程实例的完整历史轨迹：业务侧 + 活动轨迹 + 任务级审批历史 + 表单回显数据。
-   P0-4：模型权限开关 allow_cancel/allow_withdraw 随模型返回，前端据此显隐取消/撤回按钮。"
+  "流程实例的完整历史轨迹:业务侧 + 活动轨迹 + 任务级审批历史 + 表单回显数据.
+   P0-4:模型权限开关 allow_cancel/allow_withdraw 随模型返回,前端据此显隐取消/撤回按钮."
   [{:keys [engine query-fn]} pid]
   (let [biz (query-fn :bpm/find-instance-by-pid {:process_instance_id pid})
         _ (when-not biz (throw (ex-info "流程实例不存在" {:pid pid})))
         model (query-fn :bpm/find-model-by-id {:model_id (:model_id biz)})
-        ;; form_id>0 走表单记录；form_id=0/空且模型内嵌 form_json 时回退解析模型的表单
+        ;; form_id>0 走表单记录;form_id=0/空且模型内嵌 form_json 时回退解析模型的表单
         form (when-let [fid (:form_id model)]
                (when (pos? (long (or fid 0)))
                  (query-fn :bpm/find-form-by-id {:form_id fid})))
@@ -1047,7 +1047,7 @@
 
 
 (defn instance-diagram
-  "流程实例的图示数据：BPMN XML + 进行中/已完成节点 id，供前端 bpmn-js 高亮。"
+  "流程实例的图示数据:BPMN XML + 进行中/已完成节点 id,供前端 bpmn-js 高亮."
   [{:keys [engine query-fn]} pid]
   (let [biz (query-fn :bpm/find-instance-by-pid {:process_instance_id pid})
         _ (when-not biz (throw (ex-info "流程实例不存在" {:pid pid})))
@@ -1063,7 +1063,7 @@
 
 
 (defn office-stats
-  "办公一体化统计看板数据：请假/报销/流程/员工/客户。"
+  "办公一体化统计看板数据:请假/报销/流程/员工/客户."
   [{:keys [engine query-fn]} user]
   (let [leave-status (query-fn :stats/leave-by-status {})
         reimburse-status (query-fn :stats/reimburse-by-status {})
@@ -1093,10 +1093,10 @@
      :crm {:customer-total customer-total}}))
 
 
-;; ── Phase 1 审批闭环：加签 / 减签 / 取消 / 撤回 / 抄送 / 可退回节点 ─────
+;; ── Phase 1 审批闭环:加签 / 减签 / 取消 / 撤回 / 抄送 / 可退回节点 ─────
 
 (defn task-create-sign!
-  "加签：仅任务当前办理人可操作。节点配置意见必填时 reason 不能为空。"
+  "加签:仅任务当前办理人可操作.节点配置意见必填时 reason 不能为空."
   [{:keys [engine]} task-id user-names sign-type reason user]
   (let [t (bpm/task-of engine task-id)]
     (when-not t (throw (ex-info "任务不存在" {:task-id task-id})))
@@ -1108,7 +1108,7 @@
 
 
 (defn task-delete-sign!
-  "减签：仅任务当前办理人可操作。"
+  "减签:仅任务当前办理人可操作."
   [{:keys [engine]} task-id user-names reason user]
   (let [t (bpm/task-of engine task-id)]
     (when-not t (throw (ex-info "任务不存在" {:task-id task-id})))
@@ -1118,20 +1118,20 @@
 
 
 (defn task-sign-list
-  "某任务的加签子任务列表。"
+  "某任务的加签子任务列表."
   [{:keys [engine]} task-id]
   (bpm/sign-list engine task-id))
 
 
 (defn task-return-list
-  "当前任务之前已完成的用户任务节点列表（驳回可选目标）。"
+  "当前任务之前已完成的用户任务节点列表(驳回可选目标)."
   [{:keys [engine]} task-id]
   (bpm/return-list engine task-id))
 
 
 (defn instance-cancel!
-  "取消流程实例：发起人或管理员。业务状态置为 CANCELED。
-   P0-4：模型 allow_cancel=0 时发起人不可撤销审批中的申请（管理员不受限）。"
+  "取消流程实例:发起人或管理员.业务状态置为 CANCELED.
+   P0-4:模型 allow_cancel=0 时发起人不可撤销审批中的申请(管理员不受限)."
   [{:keys [engine query-fn]} process-instance-id reason user admin?]
   (let [inst (query-fn :bpm/find-instance-by-pid {:process_instance_id process-instance-id})]
     (when-not inst (throw (ex-info "流程实例不存在" {:process-instance-id process-instance-id})))
@@ -1148,7 +1148,7 @@
 
 
 (defn- check-model-withdraw-allowed!
-  "模型 allow_withdraw=0 时禁止审批人撤回（P0-4 审批人权限开关）。"
+  "模型 allow_withdraw=0 时禁止审批人撤回(P0-4 审批人权限开关)."
   [query-fn pid]
   (let [inst (query-fn :bpm/find-instance-by-pid {:process_instance_id pid})
         model (when inst (query-fn :bpm/find-model-by-id {:model_id (:model_id inst)}))]
@@ -1157,7 +1157,7 @@
 
 
 (defn task-withdraw!
-  "审批人撤回自己刚审完的任务（要求下一节点任务未完成）。"
+  "审批人撤回自己刚审完的任务(要求下一节点任务未完成)."
   [{:keys [engine query-fn]} task-id user]
   (let [ht (bpm/historic-task-of engine task-id)]
     (when ht
@@ -1166,7 +1166,7 @@
 
 
 (defn task-withdraw-to-start!
-  "发起人撤回到起始节点重新编辑：发起人或管理员。"
+  "发起人撤回到起始节点重新编辑:发起人或管理员."
   [{:keys [engine query-fn]} process-instance-id user admin?]
   (let [inst (query-fn :bpm/find-instance-by-pid {:process_instance_id process-instance-id})]
     (when-not inst (throw (ex-info "流程实例不存在" {:process-instance-id process-instance-id})))
@@ -1177,7 +1177,7 @@
 
 
 (defn task-copy!
-  "手动抄送：为每个抄送人插 biz_bpm_copy 记录。"
+  "手动抄送:为每个抄送人插 biz_bpm_copy 记录."
   [{:keys [query-fn]} process-instance-id user-names reason activity-id activity-name user]
   (when (empty? (seq user-names))
     (throw (ex-info "抄送人不能为空" {:process-instance-id process-instance-id})))
@@ -1189,7 +1189,7 @@
 
 
 (defn copy-page
-  "我的抄送分页（当前登录用户）。"
+  "我的抄送分页(当前登录用户)."
   [{:keys [query-fn]} params user]
   (let [{:keys [offset size]} (page-params params)
         p {:user_id user :page_size size :offset offset}]
@@ -1201,12 +1201,12 @@
      :total (:total (query-fn :bpm/copy-count p))}))
 
 
-;; ── Phase 3 治理能力：定义版本页 / 模型启停·清理·复制 / 打印 ─────────────
+;; ── Phase 3 治理能力:定义版本页 / 模型启停·清理·复制 / 打印 ─────────────
 
 (defn definition-page
-  "流程定义分页（Flowable 侧，全部版本倒序）。按 modelKey 过滤；
-   附带模型表单绑定（form_type/form_id/form_name）与部署时间。
-   P1：附带分类名(category_name)与发起权限简表(start_users)。"
+  "流程定义分页(Flowable 侧,全部版本倒序).按 modelKey 过滤;
+   附带模型表单绑定(form_type/form_id/form_name)与部署时间.
+   P1:附带分类名(category_name)与发起权限简表(start_users)."
   [{:keys [engine query-fn]} params]
   (let [{:keys [offset size]} (page-params params)
         key (get params :modelKey)
@@ -1231,7 +1231,7 @@
 
 
 (defn definition-xml
-  "流程定义的 BPMN XML（查看/恢复用）。"
+  "流程定义的 BPMN XML(查看/恢复用)."
   [{:keys [engine]} definition-id]
   (let [key (bpm/definition-key-of engine definition-id)]
     (when-not key
@@ -1242,7 +1242,7 @@
 
 
 (defn definition-restore!
-  "把历史流程定义的 BPMN 反写回模型（bpmn_xml），清空 deployment_id 以便重新编辑部署。"
+  "把历史流程定义的 BPMN 反写回模型(bpmn_xml),清空 deployment_id 以便重新编辑部署."
   [{:keys [engine query-fn]} definition-id]
   (let [key (bpm/definition-key-of engine definition-id)]
     (when-not key
@@ -1258,7 +1258,7 @@
 
 
 (defn model-set-state!
-  "挂起/激活该 key 的全部流程定义（state=2 挂起，1 激活；挂起后不可发起）。"
+  "挂起/激活该 key 的全部流程定义(state=2 挂起,1 激活;挂起后不可发起)."
   [{:keys [engine query-fn]} id state user]
   (let [m (query-fn :bpm/find-model-by-id {:model_id id})]
     (when-not m
@@ -1275,7 +1275,7 @@
 
 
 (defn model-clean!
-  "清理该流程：删除全部历史实例+部署（Flowable 级联），并清理业务实例/抄送记录。"
+  "清理该流程:删除全部历史实例+部署(Flowable 级联),并清理业务实例/抄送记录."
   [{:keys [engine query-fn]} id]
   (let [m (query-fn :bpm/find-model-by-id {:model_id id})]
     (when-not m
@@ -1292,7 +1292,7 @@
 
 
 (defn model-copy!
-  "复制模型：名称+“副本”，key+_copy（冲突时追加），BPMN/表单/规则配置一并复制。"
+  "复制模型:名称+“副本”,key+_copy(冲突时追加),BPMN/表单/规则配置一并复制."
   [{:keys [query-fn]} id user]
   (let [m (query-fn :bpm/find-model-by-id {:model_id id})]
     (when-not m
@@ -1332,7 +1332,7 @@
 
 
 (defn instance-print-data
-  "打印数据：实例（含单号/名称/表单值）+ 任务审批记录（意见/签名图/时间）+ 打印模板。"
+  "打印数据:实例(含单号/名称/表单值)+ 任务审批记录(意见/签名图/时间)+ 打印模板."
   [{:keys [engine query-fn]} instance-id]
   (let [biz (query-fn :bpm/find-instance-by-id {:instance_id instance-id})]
     (when-not biz
@@ -1351,11 +1351,11 @@
        :task-history (bpm/task-history-of engine (:process_instance_id biz))})))
 
 
-;; ── Phase 4 进阶能力：模型级 Webhook + 节点监听器 ─────────────────────────
+;; ── Phase 4 进阶能力:模型级 Webhook + 节点监听器 ─────────────────────────
 
 (defn- instance-vars
-  "流程实例变量 → 字符串 key 的 Clojure map（运行中取，结束后取历史）。
-   供 ${字段} 占位符解析（表单字段在发起时已展开为流程变量）。"
+  "流程实例变量 → 字符串 key 的 Clojure map(运行中取,结束后取历史).
+   供 ${字段} 占位符解析(表单字段在发起时已展开为流程变量)."
   [engine pid]
   (let [rt (.getRuntimeService ^org.flowable.engine.ProcessEngine engine)
         running (try (into {} (.getVariables rt pid)) (catch Exception _ {}))]
@@ -1373,8 +1373,8 @@
 
 
 (defn- find-biz-instance
-  "查询业务实例（带短重试）：task_start 钩子在 Flowable 命令内触发，
-   可能略早于业务行 insert 提交，重试最多 10 次 ×100ms。"
+  "查询业务实例(带短重试):task_start 钩子在 Flowable 命令内触发,
+   可能略早于业务行 insert 提交,重试最多 10 次 ×100ms."
   [query-fn pid]
   (loop [n 10]
     (let [inst (try (query-fn :bpm/find-instance-by-pid
@@ -1388,7 +1388,7 @@
 
 
 (defn- json-path-get
-  "按点分路径（如 data.level / list.0.name）从解析后的 JSON 数据取值。"
+  "按点分路径(如 data.level / list.0.name)从解析后的 JSON 数据取值."
   [data path]
   (reduce (fn [acc k]
             (cond
@@ -1401,8 +1401,8 @@
 
 
 (defn- writeback-webhook-response!
-  "P1 Webhook 响应回写：解析 JSON 响应体，按 response-mappings（JSON 路径 → 流程变量名）
-   提取并写流程变量；任何失败只记日志，绝不影响流程。"
+  "P1 Webhook 响应回写:解析 JSON 响应体,按 response-mappings(JSON 路径 → 流程变量名)
+   提取并写流程变量;任何失败只记日志,绝不影响流程."
   [engine pid hook resp]
   (let [mappings (seq (:response-mappings hook))]
     (when (and mappings (some #(seq (str (:key %))) mappings))
@@ -1420,10 +1420,10 @@
 
 
 (defn- fire-webhooks!
-  "按模型级 webhooks 配置触发 HTTP POST（4 钩子：process_start/process_end/task_start/task_end）。
-   headers[]/bodyParams[] 的值支持固定值或 ${字段} 占位（流程变量 + 事件信息）。
-   P1：POST 成功后按 response-mappings（JSON 路径 → 流程变量名）解析 JSON 响应并回写流程变量。
-   失败只记日志，绝不影响流程。实例无业务记录（绕过业务层直接起实例）时不触发。"
+  "按模型级 webhooks 配置触发 HTTP POST(4 钩子:process_start/process_end/task_start/task_end).
+   headers[]/bodyParams[] 的值支持固定值或 ${字段} 占位(流程变量 + 事件信息).
+   P1:POST 成功后按 response-mappings(JSON 路径 → 流程变量名)解析 JSON 响应并回写流程变量.
+   失败只记日志,绝不影响流程.实例无业务记录(绕过业务层直接起实例)时不触发."
   [event {:keys [engine query-fn]} {:keys [task-id process-instance-id task-name]}]
   (when (and query-fn (seq (str process-instance-id)))
     (when-let [inst (find-biz-instance query-fn process-instance-id)]
@@ -1461,9 +1461,9 @@
 
 
 (defn- fire-node-listener!
-  "节点监听器（nodeConfig.listeners 的 Create/Assign/Complete 三事件）：
-   触发配置的 HTTP POST，params[] 的值支持固定值或 ${字段}（流程变量 + taskId/实例等）。
-   失败只记日志，绝不影响流程。"
+  "节点监听器(nodeConfig.listeners 的 Create/Assign/Complete 三事件):
+   触发配置的 HTTP POST,params[] 的值支持固定值或 ${字段}(流程变量 + taskId/实例等).
+   失败只记日志,绝不影响流程."
   [{:keys [engine]} event-name ^org.flowable.task.service.delegate.DelegateTask task]
   (let [node-config (bpm/node-config-of engine task)
         listeners (:listeners node-config)

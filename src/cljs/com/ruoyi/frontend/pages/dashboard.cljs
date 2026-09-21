@@ -27,7 +27,7 @@
 
 
 (defn- relative-time
-  "将时间字符串转为相对时间描述。"
+  "将时间字符串转为相对时间描述."
   [time-str]
   (if (nil? time-str)
     "-"
@@ -159,7 +159,7 @@
                    :desc (when stats (str "运行中 " (or (:jobRunning stats) 0)))}]]
 
       [:div {:style {:display "grid" :gridTemplateColumns "2fr 1fr" :gap 16}}
-       ;; 左侧：快捷入口 + 最近操作
+       ;; 左侧:快捷入口 + 最近操作
        [:div
         ;; 快捷入口
         [antd/card {:title "快捷操作" :style {:marginBottom 16 :borderRadius 8}
@@ -202,7 +202,7 @@
                                    [{:dataIndex "content" :key "content" :width "70%"}
                                     {:dataIndex "time" :key "time" :align "right"}])}])]]
 
-       ;; 右侧：系统信息
+       ;; 右侧:系统信息
        [antd/card {:title "系统信息" :style {:borderRadius 8}
                    :styles {:body {:padding "0 24px"}}}
         [system-info-item {:label "操作系统"

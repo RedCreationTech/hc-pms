@@ -1,15 +1,15 @@
 (ns com.ruoyi.bpm.core
-  "Flowable 工作流引擎的高层封装。
+  "Flowable 工作流引擎的高层封装.
 
-  这一层是 BPM 能力的核心：把所有面向用户的 BPM 操作收敛为简洁的 Clojure 函数，
-  Controller 只调用这里的函数，不直接触碰 Flowable 的 Java API。
+  这一层是 BPM 能力的核心:把所有面向用户的 BPM 操作收敛为简洁的 Clojure 函数,
+  Controller 只调用这里的函数,不直接触碰 Flowable 的 Java API.
 
-  设计约定：
-    · 所有函数接收 ProcessEngine 作为首参（解耦、可测试）
-    · 返回 Clojure 数据结构（map/seq），方便序列化给前端
-    · 审批约定：approve!/reject! 通过写入 :approved 布尔变量驱动，
+  设计约定:
+    · 所有函数接收 ProcessEngine 作为首参(解耦,可测试)
+    · 返回 Clojure 数据结构(map/seq),方便序列化给前端
+    · 审批约定:approve!/reject! 通过写入 :approved 布尔变量驱动,
       流程模型需用排他网关(exclusiveGateway)按该变量分流
-    · 引擎状态全在 Flowable(H2)，业务记录在 app 库，通过 business-key 关联
+    · 引擎状态全在 Flowable(H2),业务记录在 app 库,通过 business-key 关联
   "
   (:require
     [cheshire.core :as json]
@@ -37,7 +37,7 @@
 ;; ── 工具 ───────────────────────────────────────────────────────────────
 
 (defn- vars-map
-  "把 Clojure map 转成 java.util.HashMap（key 一律转字符串，供 Flowable 变量）。"
+  "把 Clojure map 转成 java.util.HashMap(key 一律转字符串,供 Flowable 变量)."
   [m]
   (let [hm (java.util.HashMap.)]
     (doseq [[k v] m]
@@ -46,7 +46,7 @@
 
 
 (defn- timestamp->str
-  "Date 转 ISO 字符串。"
+  "Date 转 ISO 字符串."
   ^String [^Date d]
   (when d (str (.toInstant d))))
 
@@ -54,7 +54,7 @@
 ;; ── 流程定义 (Deployment / ProcessDefinition) ─────────────────────────
 
 (defn deploy!
-  "部署一个 BPMN 流程定义。返回 deployment-id。
+  "部署一个 BPMN 流程定义.返回 deployment-id.
    参数: engine, bpmn-xml, key, name"
   [^ProcessEngine engine bpmn-xml key name]
   (let [repo (.getRepositoryService engine)
@@ -65,13 +65,13 @@
 
 
 (defn delete-deployment!
-  "删除流程部署（级联清理实例）。"
+  "删除流程部署(级联清理实例)."
   [^ProcessEngine engine deployment-id]
   (.deleteDeployment (.getRepositoryService engine) deployment-id true))
 
 
 (defn definitions
-  "列出所有已部署的流程定义。"
+  "列出所有已部署的流程定义."
   [^ProcessEngine engine]
   (let [repo (.getRepositoryService engine)]
     (mapv (fn [^ProcessDefinition pd]
@@ -85,7 +85,7 @@
 
 
 (defn definition-by-key
-  "按 key 查流程定义。"
+  "按 key 查流程定义."
   [^ProcessEngine engine key]
   (let [repo (.getRepositoryService engine)]
     (when-let [pd (.singleResult
@@ -96,10 +96,10 @@
        :version (.getVersion pd)})))
 
 
-;; ── Phase 3 治理能力：流程定义版本 / 启停 / 清理 ───────────────────────
+;; ── Phase 3 治理能力:流程定义版本 / 启停 / 清理 ───────────────────────
 
 (defn latest-definition
-  "某 key 最新版本的流程定义（含挂起状态）。"
+  "某 key 最新版本的流程定义(含挂起状态)."
   [^ProcessEngine engine key]
   (let [repo (.getRepositoryService engine)
         q (-> (.createProcessDefinitionQuery repo)
@@ -114,8 +114,8 @@
 
 
 (defn definition-page
-  "流程定义分页（全部版本，按版本号倒序）。返回 {:rows [...] :total n}。
-   每行含 version / suspended? / deployment-id / deploy-time。"
+  "流程定义分页(全部版本,按版本号倒序).返回 {:rows [...] :total n}.
+   每行含 version / suspended? / deployment-id / deploy-time."
   [^ProcessEngine engine key offset size]
   (let [repo (.getRepositoryService engine)
         q0 (.createProcessDefinitionQuery repo)
@@ -141,7 +141,7 @@
 
 
 (defn definition-key-of
-  "按定义 id 查流程定义 key。"
+  "按定义 id 查流程定义 key."
   [^ProcessEngine engine definition-id]
   (some-> (.getRepositoryService engine)
           (.createProcessDefinitionQuery)
@@ -151,28 +151,28 @@
 
 
 (defn definition-xml
-  "读取流程定义的 BPMN XML 文本。"
+  "读取流程定义的 BPMN XML 文本."
   [^ProcessEngine engine definition-id]
   (with-open [is (.getProcessModel (.getRepositoryService engine) definition-id)]
     (when is (slurp is))))
 
 
 (defn suspend-definition-by-key!
-  "挂起某 key 的全部流程定义（挂起后不可发起新实例）。"
+  "挂起某 key 的全部流程定义(挂起后不可发起新实例)."
   [^ProcessEngine engine key]
   (.suspendProcessDefinitionByKey (.getRepositoryService engine) key true nil)
   true)
 
 
 (defn activate-definition-by-key!
-  "激活某 key 的全部流程定义。"
+  "激活某 key 的全部流程定义."
   [^ProcessEngine engine key]
   (.activateProcessDefinitionByKey (.getRepositoryService engine) key true nil)
   true)
 
 
 (defn delete-deployments-by-key!
-  "删除某 key 的全部部署（级联删除运行中/历史实例与定义）。返回删除的部署数。"
+  "删除某 key 的全部部署(级联删除运行中/历史实例与定义).返回删除的部署数."
   [^ProcessEngine engine key]
   (let [repo (.getRepositoryService engine)
         deps (.list (-> (.createDeploymentQuery repo)
@@ -185,7 +185,7 @@
 ;; ── 流程实例 (ProcessInstance) ────────────────────────────────────────
 
 (defn start!
-  "发起流程实例。返回 process-instance-id。
+  "发起流程实例.返回 process-instance-id.
    参数: engine, definition-key, business-key, [variables]"
   ([^ProcessEngine engine definition-key business-key]
    (start! engine definition-key business-key nil))
@@ -202,7 +202,7 @@
 
 
 (defn running-instances
-  "运行中的流程实例。"
+  "运行中的流程实例."
   [^ProcessEngine engine]
   (let [rt (.getRuntimeService engine)]
     (mapv (fn [^ProcessInstance pi]
@@ -214,28 +214,28 @@
 
 
 (defn instance-count
-  "运行中实例数。"
+  "运行中实例数."
   [^ProcessEngine engine]
   (.count (.createProcessInstanceQuery (.getRuntimeService engine))))
 
 
 (defn suspend!
-  "挂起流程实例。"
+  "挂起流程实例."
   [^ProcessEngine engine process-instance-id]
   (.suspendProcessInstanceById (.getRuntimeService engine process-instance-id))
   true)
 
 
 (defn activate!
-  "激活流程实例。"
+  "激活流程实例."
   [^ProcessEngine engine process-instance-id]
   (.activateProcessInstanceById (.getRuntimeService engine process-instance-id))
   true)
 
 
 (defn sync-identity!
-  "把系统用户/角色/部门/岗位同步到 Flowable identity 表，
-   使 candidateGroups(role:id / dept:id / post:id / dept-leader:id) 运行时能被正确匹配。
+  "把系统用户/角色/部门/岗位同步到 Flowable identity 表,
+   使 candidateGroups(role:id / dept:id / post:id / dept-leader:id) 运行时能被正确匹配.
    data-map 结构: {:users [...] :roles [...] :depts [...] :posts [...]
                    :user-roles [{:user_id :role_id}] :user-posts [{:user_id :post_id}]}"
   [^ProcessEngine engine data]
@@ -281,7 +281,7 @@
           (let [user (.newUser id-svc uid)]
             (.setFirstName user (str (or (:nick_name u) (:user_name u) (:user_id u))))
             (.saveUser id-svc user)))))
-    ;; 3) memberships（忽略重复，保证幂等）
+    ;; 3) memberships(忽略重复,保证幂等)
     (doseq [ur user-roles]
       (when (and (:user_id ur) (:role_id ur))
         (try (.createMembership id-svc (uname (first (filter #(= (:user_id ur) (:user_id %)) users)))
@@ -313,19 +313,19 @@
   (reset! engine-ref engine))
 
 
-;; ── Phase 4：Webhook / 节点监听器 分发器 ────────────────────────────────
+;; ── Phase 4:Webhook / 节点监听器 分发器 ────────────────────────────────
 ;;
-;; 引擎封装层（TaskListener/complete* 等）不直接访问业务库，
-;; 由 domain 层注册具体实现（关闭 query-fn），这里只做统一触发点的转发。
-;; event ∈ #{"process_start" "process_end" "task_start" "task_end"}，
-;; info 为 {:task-id :process-instance-id :task-name}。
+;; 引擎封装层(TaskListener/complete* 等)不直接访问业务库,
+;; 由 domain 层注册具体实现(关闭 query-fn),这里只做统一触发点的转发.
+;; event ∈ #{"process_start" "process_end" "task_start" "task_end"},
+;; info 为 {:task-id :process-instance-id :task-name}.
 
 (defonce ^:private webhook-dispatcher (atom nil))
 
 
 (defn set-webhook-dispatcher!
-  "注册模型级 Webhook 触发器。f 签名: (fn [event info])。
-   HTTP 失败只记日志不影响流程（domain 层保证）。"
+  "注册模型级 Webhook 触发器.f 签名: (fn [event info]).
+   HTTP 失败只记日志不影响流程(domain 层保证)."
   [f]
   (reset! webhook-dispatcher f))
 
@@ -334,10 +334,10 @@
 
 
 (defn set-instance-end-handler!
-  "注册流程实例结束回写处理器。f 签名: (fn [info])，
-   info = {:process-instance-id :task-id :task-name :result}，
-   result ∈ #{:approve :reject :cancel :terminate}。由 domain 层把结果状态回写业务库
-   （如 biz_bpm_instance.status：通过/驳回/取消），失败只记日志不影响流程。"
+  "注册流程实例结束回写处理器.f 签名: (fn [info]),
+   info = {:process-instance-id :task-id :task-name :result},
+   result ∈ #{:approve :reject :cancel :terminate}.由 domain 层把结果状态回写业务库
+   (如 biz_bpm_instance.status:通过/驳回/取消),失败只记日志不影响流程."
   [f]
   (reset! instance-end-handler f))
 
@@ -355,16 +355,16 @@
 
 
 (defn set-node-listener-dispatcher!
-  "注册节点监听器（nodeConfig.listeners）触发器。
-   f 签名: (fn [event-name ^DelegateTask task])，event-name ∈ create/assign/complete。"
+  "注册节点监听器(nodeConfig.listeners)触发器.
+   f 签名: (fn [event-name ^DelegateTask task]),event-name ∈ create/assign/complete."
   [f]
   (reset! node-listener-dispatcher f))
 
 
-;; ── Phase 4：${字段} 占位符解析 ───────────────────────────────────────
+;; ── Phase 4:${字段} 占位符解析 ───────────────────────────────────────
 
 (defn resolve-placeholders
-  "把字符串中的 ${field} 占位符按 vars（字符串 key 的 map）替换；非字符串原样返回。"
+  "把字符串中的 ${field} 占位符按 vars(字符串 key 的 map)替换;非字符串原样返回."
   [v vars]
   (if (string? v)
     (str/replace v #"\$\{([^}]+)\}"
@@ -374,7 +374,7 @@
 
 
 (defn- execution-vars
-  "DelegateExecution 的流程变量 → 字符串 key 的 Clojure map。"
+  "DelegateExecution 的流程变量 → 字符串 key 的 Clojure map."
   [^org.flowable.engine.delegate.DelegateExecution execution]
   (try
     (into {} (.getVariables execution))
@@ -382,14 +382,14 @@
 
 
 (defn- process-running?
-  "流程实例是否仍在运行。"
+  "流程实例是否仍在运行."
   [^ProcessEngine engine process-instance-id]
   (pos? (.count (.processInstanceId (.createProcessInstanceQuery (.getRuntimeService engine))
                                     process-instance-id))))
 
 
 (defn- fire-webhook!
-  "转发 Webhook 事件（忽略未注册与异常，绝不影响主流程）。"
+  "转发 Webhook 事件(忽略未注册与异常,绝不影响主流程)."
   [event info]
   (when-let [f @webhook-dispatcher]
     (try (f event info)
@@ -398,7 +398,7 @@
 
 
 (defn- fire-node-listener!
-  "转发节点监听器事件（create/assign/complete）。"
+  "转发节点监听器事件(create/assign/complete)."
   [event-name ^org.flowable.task.service.delegate.DelegateTask task]
   (when-let [f @node-listener-dispatcher]
     (try (f event-name task)
@@ -410,34 +410,34 @@
 
 
 (defn set-node-create-handler!
-  "注册节点 create 事件处理器。f 签名: (fn [task node-config] -> action)
+  "注册节点 create 事件处理器.f 签名: (fn [task node-config] -> action)
    action 取值:
      [:candidates users]  添加候选人
-     [:assign users]      指定办理人（清掉候选，第一人为 assignee）
-     [:complete approved] 自动完成任务（approved 为 boolean 或 nil 表示不带变量）
-   由 domain 层实现具体策略（候选解析 / 审批人为空策略 / 随机审批）。"
+     [:assign users]      指定办理人(清掉候选,第一人为 assignee)
+     [:complete approved] 自动完成任务(approved 为 boolean 或 nil 表示不带变量)
+   由 domain 层实现具体策略(候选解析 / 审批人为空策略 / 随机审批)."
   [f]
   (reset! node-create-handler f))
 
 
-;; ── 抄送（COPY_TASK 节点自动抄送处理器注册）────────────────────────────
+;; ── 抄送(COPY_TASK 节点自动抄送处理器注册)────────────────────────────
 
 (defonce ^:private copy-handler (atom nil))
 
 
 (defn set-copy-handler!
-  "注册抄送节点处理器。f 签名: (fn [^DelegateTask task node-config])，
-   由 domain 层实现：插入 biz_bpm_copy 记录并自动完成任务。"
+  "注册抄送节点处理器.f 签名: (fn [^DelegateTask task node-config]),
+   由 domain 层实现:插入 biz_bpm_copy 记录并自动完成任务."
   [f]
   (reset! copy-handler f))
 
 
 (defn make-task-listener
-  "构建一个 Flowable TaskListener（create 事件）：
-   1) 抄送节点(nodeType=COPY_TASK)：调用注册的抄送处理器（插 biz_bpm_copy + 自动完成任务）
-   2) 其他人工节点：调用节点 create 处理器，按其返回 action 设置候选人/办理人或自动完成
-      （覆盖新候选策略解析、审批人为空策略 AUTO_PASS/AUTO_REJECT/ASSIGN_USER/TO_ADMIN、
-        随机审批 RANDOM 等）。"
+  "构建一个 Flowable TaskListener(create 事件):
+   1) 抄送节点(nodeType=COPY_TASK):调用注册的抄送处理器(插 biz_bpm_copy + 自动完成任务)
+   2) 其他人工节点:调用节点 create 处理器,按其返回 action 设置候选人/办理人或自动完成
+      (覆盖新候选策略解析,审批人为空策略 AUTO_PASS/AUTO_REJECT/ASSIGN_USER/TO_ADMIN,
+        随机审批 RANDOM 等)."
   []
   (let [clear-candidates!
         (fn [^org.flowable.task.service.delegate.DelegateTask task]
@@ -476,8 +476,8 @@
                         (@copy-handler task node-config))
                       (when (and (not= "COPY_TASK" (get-in node-config [:nodeType]))
                                  @node-create-handler)
-                        ;; 无 nodeConfig 的节点传 {}（静态候选由引擎烘焙，
-                        ;; 监听器只做 RANDOM/为空兜底/模型级自动去重）
+                        ;; 无 nodeConfig 的节点传 {}(静态候选由引擎烘焙,
+                        ;; 监听器只做 RANDOM/为空兜底/模型级自动去重)
                         (when-let [action (@node-create-handler task (or node-config {}))]
                           (apply-action task action))))
                     (catch Exception e
@@ -489,15 +489,15 @@
     (proxy [org.flowable.engine.delegate.TaskListener] []
       (notify
         [^org.flowable.task.service.delegate.DelegateTask task]
-        ;; 同一个代理处理 create/assignment/complete 三个事件：
+        ;; 同一个代理处理 create/assignment/complete 三个事件:
         ;; create → 候选解析 + Webhook task_start + 节点监听器 create
         ;; assignment → 节点监听器 assign
-        ;; complete → 节点监听器 complete + Webhook task_end（见 complete*）
+        ;; complete → 节点监听器 complete + Webhook task_end(见 complete*)
         (case (str (.getEventName task))
           "create"
           (do (resolve task)
-              ;; task_start 在 Flowable 命令内触发，此时业务行尚未落库，
-              ;; 同步投递必然查不到实例 → 守护线程异步投递（domain 层带重试）
+              ;; task_start 在 Flowable 命令内触发,此时业务行尚未落库,
+              ;; 同步投递必然查不到实例 → 守护线程异步投递(domain 层带重试)
               (when @webhook-dispatcher
                 (doto (Thread. ^Runnable (fn [] (fire-webhook! "task_start" (task-info task))))
                   (.setDaemon true)
@@ -511,7 +511,7 @@
 
 
 (defn- task->map
-  "把 Flowable Task 对象转成 Clojure map。"
+  "把 Flowable Task 对象转成 Clojure map."
   [^Task t]
   {:task-id (.getId t)
    :name (.getName t)
@@ -525,20 +525,20 @@
 
 
 (defn task->map*
-  "把 Flowable Task 对象转成 Clojure map（公开，供外部构造任务 map）。"
+  "把 Flowable Task 对象转成 Clojure map(公开,供外部构造任务 map)."
   [^Task t]
   (task->map t))
 
 
 (defn task-of
-  "按任务 id 查单个任务（含实例 id/定义 id）。"
+  "按任务 id 查单个任务(含实例 id/定义 id)."
   [^ProcessEngine engine task-id]
   (some-> (.singleResult (.taskId (.createTaskQuery (.getTaskService engine)) task-id))
           task->map))
 
 
 (defn historic-task-of
-  "按任务 id 查历史任务（含已完成任务的实例 id/办理人/节点 key），撤回等已办场景使用。"
+  "按任务 id 查历史任务(含已完成任务的实例 id/办理人/节点 key),撤回等已办场景使用."
   [^ProcessEngine engine task-id]
   (when-let [ht (some-> (.createHistoricTaskInstanceQuery (.getHistoryService engine))
                         (.taskId task-id)
@@ -551,7 +551,7 @@
 
 
 (defn todo-list
-  "某人待办：候选人或已认领的任务。"
+  "某人待办:候选人或已认领的任务."
   [^ProcessEngine engine user]
   (let [ts (.getTaskService engine)
         q (.taskCandidateOrAssigned (.createTaskQuery ts) user)]
@@ -559,13 +559,13 @@
 
 
 (defn todo-count
-  "待办数。"
+  "待办数."
   [^ProcessEngine engine user]
   (.count (.taskCandidateOrAssigned (.createTaskQuery (.getTaskService engine)) user)))
 
 
 (defn active-tasks-of
-  "某流程实例当前活动（运行中）任务 map 列表（按创建时间升序）。"
+  "某流程实例当前活动(运行中)任务 map 列表(按创建时间升序)."
   [^ProcessEngine engine process-instance-id]
   (mapv task->map
         (.list (.processInstanceId (.createTaskQuery (.getTaskService engine))
@@ -573,7 +573,7 @@
 
 
 (defn done-list
-  "某人已办（历史已完成任务）。"
+  "某人已办(历史已完成任务)."
   [^ProcessEngine engine user]
   (let [hs (.getHistoryService engine)
         q (-> (.createHistoricTaskInstanceQuery hs)
@@ -590,21 +590,21 @@
 
 
 (defn claim!
-  "认领任务。"
+  "认领任务."
   [^ProcessEngine engine task-id user]
   (.claim (.getTaskService engine) task-id user)
   true)
 
 
 (defn unclaim!
-  "释放认领。"
+  "释放认领."
   [^ProcessEngine engine task-id]
   (.unclaim (.getTaskService engine) task-id)
   true)
 
 
 (defn transfer!
-  "转办：直接改指派人。若指定 from-user，则校验任务当前归属。"
+  "转办:直接改指派人.若指定 from-user,则校验任务当前归属."
   [^ProcessEngine engine task-id from-user to-user]
   (when (and from-user to-user (not= from-user to-user))
     (when-let [task (.singleResult (.taskId (.createTaskQuery (.getTaskService engine)) task-id))]
@@ -616,21 +616,21 @@
 
 
 (defn delegate!
-  "委派（保留 owner，受派人完成后回到 owner）。Flowable 8 方法名为 delegateTask。"
+  "委派(保留 owner,受派人完成后回到 owner).Flowable 8 方法名为 delegateTask."
   [^ProcessEngine engine task-id to-user]
   (.delegateTask (.getTaskService engine) task-id to-user)
   true)
 
 
 (defn resolve!
-  "被委派人完成后回到 owner 待办。"
+  "被委派人完成后回到 owner 待办."
   [^ProcessEngine engine task-id]
   (.resolveTask (.getTaskService engine) task-id)
   true)
 
 
 (defn- task-entity
-  "按任务 id 查运行中任务实体，不存在则抛错。"
+  "按任务 id 查运行中任务实体,不存在则抛错."
   [^ProcessEngine engine task-id]
   (let [t (some-> (.taskId (.createTaskQuery (.getTaskService engine)) task-id)
                   .singleResult)]
@@ -640,8 +640,8 @@
 
 
 (defn- child-sign-tasks
-  "某任务的未完成（运行中）加签子任务。Flowable8 运行期 TaskQuery 无 taskParentTaskId，
-   按 processInstanceId 查询后用 getParentTaskId 过滤。"
+  "某任务的未完成(运行中)加签子任务.Flowable8 运行期 TaskQuery 无 taskParentTaskId,
+   按 processInstanceId 查询后用 getParentTaskId 过滤."
   [^ProcessEngine engine task-id]
   (let [t (task-entity engine task-id)
         ts (.getTaskService engine)]
@@ -650,14 +650,14 @@
 
 
 (defn- open-sign-count
-  "某任务的未完成加签子任务数。"
+  "某任务的未完成加签子任务数."
   [^ProcessEngine engine task-id]
   (count (child-sign-tasks engine task-id)))
 
 
 (defn- complete-impl
-  "完成任务并写入变量。若任务未认领且给定 user，则先认领给该用户（保证已办/历史可追踪）。
-  同时维护流程变量 bpmApprovedUsers/bpmLastApprover（模型级自动去重依据，同命令内可见）。"
+  "完成任务并写入变量.若任务未认领且给定 user,则先认领给该用户(保证已办/历史可追踪).
+  同时维护流程变量 bpmApprovedUsers/bpmLastApprover(模型级自动去重依据,同命令内可见)."
   [^ProcessEngine engine task-id user variables]
   (let [ts (.getTaskService engine)
         q (.taskId (.createTaskQuery ts) task-id)
@@ -671,7 +671,7 @@
           (throw (ex-info "无权办理该任务(非本人)" {:task-id task-id :assignee cur :user user})))
         (when (and user (nil? cur))
           (.claim ts task-id user))
-        ;; 记录已审人（自动去重：APPROVE_ONCE / CONSECUTIVE）
+        ;; 记录已审人(自动去重:APPROVE_ONCE / CONSECUTIVE)
         (when (and user (.getProcessInstanceId t))
           (let [rt (.getRuntimeService engine)
                 pid (.getProcessInstanceId t)
@@ -685,13 +685,13 @@
     (when-let [s (or (:sign-pic-url variables) (:signPicUrl variables))]
       (.setVariableLocal ts task-id "signPicUrl" (str s)))
     (.complete ts task-id (vars-map (dissoc variables :comment :sign-pic-url :signPicUrl)))
-    ;; Phase 4 Webhook：task_end 统一触发点（失败只记日志）；
-    ;; 若这是最后一个任务，实例随之结束 → 触发 process_end
+    ;; Phase 4 Webhook:task_end 统一触发点(失败只记日志);
+    ;; 若这是最后一个任务,实例随之结束 → 触发 process_end
     (when task-info
       (fire-webhook! "task_end" task-info)
       (when-not (process-running? engine (:process-instance-id task-info))
         (fire-webhook! "process_end" task-info)
-        ;; 业务侧实例结束回写：approved=false 视为驳回终止，其余为通过结束
+        ;; 业务侧实例结束回写:approved=false 视为驳回终止,其余为通过结束
         (fire-instance-end! (assoc task-info
                                    :result (if (false? (:approved variables))
                                              :reject
@@ -700,7 +700,7 @@
 
 
 (defn- complete*
-  "完成任务入口：Flowable 乐观锁冲突（并发审批/操作同一任务）转成友好文案。"
+  "完成任务入口:Flowable 乐观锁冲突(并发审批/操作同一任务)转成友好文案."
   [^ProcessEngine engine task-id user variables]
   (try
     (complete-impl engine task-id user variables)
@@ -710,8 +710,8 @@
 
 
 (defn approve!
-  "审批通过：完成任务，写入 approved=true。父任务通过前校验无未完成加签子任务。
-   可选 sign-pic-url 作为任务局部变量存储手写签名图 URL。"
+  "审批通过:完成任务,写入 approved=true.父任务通过前校验无未完成加签子任务.
+   可选 sign-pic-url 作为任务局部变量存储手写签名图 URL."
   ([^ProcessEngine engine task-id user comment]
    (approve! engine task-id user comment nil))
   ([^ProcessEngine engine task-id user comment sign-pic-url]
@@ -724,14 +724,14 @@
 
 
 (defn complete!
-  "通用完成任务（自定义变量）。"
+  "通用完成任务(自定义变量)."
   [^ProcessEngine engine task-id user variables]
   (complete* engine task-id user variables)
   true)
 
 
 (defn node-config-of
-  "从任务对应 BPMN 节点的 extensionElements 读取 nodeConfig JSON（config round-trip 数据）。"
+  "从任务对应 BPMN 节点的 extensionElements 读取 nodeConfig JSON(config round-trip 数据)."
   [^ProcessEngine engine task]
   (try
     (let [repo (.getRepositoryService engine)
@@ -750,10 +750,10 @@
     (catch Exception _ nil)))
 
 
-;; ── 操作按钮配置（nodeConfig.buttons）────────────────────────────────────
+;; ── 操作按钮配置(nodeConfig.buttons)────────────────────────────────────
 
 (def default-buttons
-  "审批操作按钮默认配置：全部启用 + 默认名称。"
+  "审批操作按钮默认配置:全部启用 + 默认名称."
   {"approve"    {"enable" true "displayName" "通过"}
    "reject"     {"enable" true "displayName" "驳回"}
    "transfer"   {"enable" true "displayName" "转办"}
@@ -763,7 +763,7 @@
 
 
 (def default-transactor-buttons
-  "办理人节点（nodeType=TRANSACTOR）默认按钮：只开「办理」，其余操作隐藏。"
+  "办理人节点(nodeType=TRANSACTOR)默认按钮:只开\"办理\",其余操作隐藏."
   {"approve"    {"enable" true "displayName" "办理"}
    "reject"     {"enable" false "displayName" "驳回"}
    "transfer"   {"enable" false "displayName" "转办"}
@@ -773,9 +773,9 @@
 
 
 (defn buttons-of
-  "合并节点 buttons 配置与默认配置，返回 {btn-key {\"enable\" bool \"displayName\" str}}。
-   nodeConfig JSON 解析后按钮 key/字段可能是 keyword 或字符串，两者都兼容；
-   未配置时用 defaults（默认 default-buttons，办理人节点传 default-transactor-buttons）。"
+  "合并节点 buttons 配置与默认配置,返回 {btn-key {\"enable\" bool \"displayName\" str}}.
+   nodeConfig JSON 解析后按钮 key/字段可能是 keyword 或字符串,两者都兼容;
+   未配置时用 defaults(默认 default-buttons,办理人节点传 default-transactor-buttons)."
   ([node-config] (buttons-of node-config default-buttons))
   ([node-config defaults]
    (let [configured (or (:buttons node-config) {})
@@ -793,7 +793,7 @@
 
 
 (defn- element-node-config
-  "读取任意 FlowElement 的 nodeConfig 属性 JSON。"
+  "读取任意 FlowElement 的 nodeConfig 属性 JSON."
   [^org.flowable.bpmn.model.FlowElement el]
   (try
     (let [ext (.getExtensionElements el)
@@ -809,12 +809,12 @@
     (catch Exception _ nil)))
 
 
-;; ── 超时处理（boundary timer → TimeoutHandler）───────────────────────────
+;; ── 超时处理(boundary timer → TimeoutHandler)───────────────────────────
 
 (defn make-timeout-handler
-  "构建超时执行监听器：挂在 userTask 的非中断边界定时事件上，触发时按 nodeConfig 里的
-   timeout 配置执行：REMINDER 记录提醒日志 / AUTO_PASS 自动通过 / AUTO_REJECT 自动驳回
-   （完成当前节点任务并写 approved 变量，由网关按正常出线流转）。"
+  "构建超时执行监听器:挂在 userTask 的非中断边界定时事件上,触发时按 nodeConfig 里的
+   timeout 配置执行:REMINDER 记录提醒日志 / AUTO_PASS 自动通过 / AUTO_REJECT 自动驳回
+   (完成当前节点任务并写 approved 变量,由网关按正常出线流转)."
   []
   (proxy [org.flowable.engine.delegate.ExecutionListener] []
     (notify
@@ -845,7 +845,7 @@
                     vars (doto (java.util.HashMap.) (.put "approved" approved?))]
                 (doseq [^Task t tasks]
                   (try
-                    ;; 任务局部变量（时间轴/流转记录展示），与 complete* 行为一致
+                    ;; 任务局部变量(时间轴/流转记录展示),与 complete* 行为一致
                     (.setVariableLocal ts (.getId t) "approved" approved?)
                     (.setVariableLocal ts (.getId t) "comment"
                                        (str "超时自动" (if approved? "通过" "驳回")))
@@ -864,10 +864,10 @@
           (log/error "[bpm-timeout] 超时处理失败:" (.getMessage e)))))))
 
 
-;; ── Phase 4 触发器节点（serviceTask + bpmTriggerDelegate）────────────────
+;; ── Phase 4 触发器节点(serviceTask + bpmTriggerDelegate)────────────────
 
 (defn- get-in-path
-  "按 a.b.0 路径从解析后的 JSON 取值（map keyword / vector 下标）。"
+  "按 a.b.0 路径从解析后的 JSON 取值(map keyword / vector 下标)."
   [m path]
   (reduce (fn [acc k]
             (cond
@@ -888,7 +888,7 @@
 
 
 (defn- cmp-values
-  "条件比较：两端都能解析为数字则数值比较，否则字符串比较。"
+  "条件比较:两端都能解析为数字则数值比较,否则字符串比较."
   [op lv rv]
   (let [ln (coerce-num lv) rn (coerce-num rv)]
     (if (and ln rn)
@@ -905,8 +905,8 @@
 
 
 (defn- eval-trigger-conditions
-  "UPDATE_FORM 触发器的条件规则（全部 AND，空规则视为 true）。
-   left-side 为流程变量名，right-side 支持 ${field} 占位与数字字面量。"
+  "UPDATE_FORM 触发器的条件规则(全部 AND,空规则视为 true).
+   left-side 为流程变量名,right-side 支持 ${field} 占位与数字字面量."
   [rules vars]
   (every? (fn [{:keys [left-side op-code right-side]}]
             (let [lv (get vars (str left-side) (get vars (keyword (str left-side))))
@@ -916,8 +916,8 @@
 
 
 (defn- trigger-http!
-  "HTTP_REQUEST 触发器：发请求（失败只记日志），2xx 时按 response-mappings
-   把响应 JSON 的字段回写为流程变量（供后续条件/表单使用）。"
+  "HTTP_REQUEST 触发器:发请求(失败只记日志),2xx 时按 response-mappings
+   把响应 JSON 的字段回写为流程变量(供后续条件/表单使用)."
   [^org.flowable.engine.delegate.DelegateExecution execution cfg]
   (let [url (:url cfg)]
     (if (str/blank? (str url))
@@ -956,7 +956,7 @@
 
 
 (defn- parse-form-value
-  "表单字段值：${} 占位解析后，数字字面量转数值，其余保留字符串。"
+  "表单字段值:${} 占位解析后,数字字面量转数值,其余保留字符串."
   [v vars]
   (let [r (resolve-placeholders v vars)]
     (if (string? r)
@@ -967,7 +967,7 @@
 
 
 (defn- trigger-update-form!
-  "UPDATE_FORM 触发器：条件满足时把多组 字段=值 写入流程变量（值支持 ${field}）。"
+  "UPDATE_FORM 触发器:条件满足时把多组 字段=值 写入流程变量(值支持 ${field})."
   [^org.flowable.engine.delegate.DelegateExecution execution cfg]
   (let [vars (execution-vars execution)]
     (when (eval-trigger-conditions (:conditions cfg) vars)
@@ -978,7 +978,7 @@
 
 
 (defn- trigger-delete-form!
-  "DELETE_FORM 触发器：清除指定字段的流程变量。"
+  "DELETE_FORM 触发器:清除指定字段的流程变量."
   [^org.flowable.engine.delegate.DelegateExecution execution cfg]
   (doseq [f (:fields cfg)]
     (when (seq (str f))
@@ -987,12 +987,12 @@
 
 
 (defn make-trigger-delegate
-  "触发器节点统一 JavaDelegate（nodeConfig.trigger-type 分发）：
-    HTTP_REQUEST   发 HTTP 请求，响应按 response-mappings 回写流程变量/表单字段
-    HTTP_CALLBACK  本期降级：等待外部回调 → 仅记日志后直接通过
-    UPDATE_FORM    条件+多组 字段=值 更新表单数据（流程变量）
+  "触发器节点统一 JavaDelegate(nodeConfig.trigger-type 分发):
+    HTTP_REQUEST   发 HTTP 请求,响应按 response-mappings 回写流程变量/表单字段
+    HTTP_CALLBACK  本期降级:等待外部回调 → 仅记日志后直接通过
+    UPDATE_FORM    条件+多组 字段=值 更新表单数据(流程变量)
     DELETE_FORM    清除多选字段
-   任何失败只记日志，不阻断流程。"
+   任何失败只记日志,不阻断流程."
   []
   (proxy [org.flowable.engine.delegate.JavaDelegate] []
     (execute
@@ -1017,13 +1017,13 @@
 
 
 (def reject-to-start-marker
-  "驳回到起始节点的专用标记值（return-list 首节点为空时提供「发起人（退回起始）」选项，
-   reject 收到该值时把流程迁回 startEvent）。"
+  "驳回到起始节点的专用标记值(return-list 首节点为空时提供\"发起人(退回起始)\"选项,
+   reject 收到该值时把流程迁回 startEvent)."
   "__START__")
 
 
 (defn- start-event-activity-id
-  "流程实例的 startEvent 活动 id（历史记录查询）。"
+  "流程实例的 startEvent 活动 id(历史记录查询)."
   [^ProcessEngine engine process-instance-id]
   (some-> (.createHistoricActivityInstanceQuery (.getHistoryService engine))
           (.processInstanceId process-instance-id)
@@ -1034,7 +1034,7 @@
 
 
 (defn- move-to-activity!
-  "把流程实例从当前活动迁移到目标活动（驳回到指定节点）。"
+  "把流程实例从当前活动迁移到目标活动(驳回到指定节点)."
   [^ProcessEngine engine process-instance-id from-activity-id to-activity-id]
   (-> (.createChangeActivityStateBuilder (.getRuntimeService engine))
       (.processInstanceId process-instance-id)
@@ -1044,10 +1044,10 @@
 
 
 (defn reject!
-  "审批驳回：完成任务，写入 approved=false。
-   若显式传入 return-node-id（前端从 return-list 选择）或任务节点配置了
+  "审批驳回:完成任务,写入 approved=false.
+   若显式传入 return-node-id(前端从 return-list 选择)或任务节点配置了
    “驳回到指定节点”(reject-handler.type=RETURN_USER_TASK),
-   则把流程实例迁移回目标节点重新审批；否则走网关条件分流(approved=false)。"
+   则把流程实例迁移回目标节点重新审批;否则走网关条件分流(approved=false)."
   ([^ProcessEngine engine task-id user comment]
    (reject! engine task-id user comment nil))
   ([^ProcessEngine engine task-id user comment return-node-id]
@@ -1063,7 +1063,7 @@
                          (:reject-return-node node-config)
                          (:rejectReturnNode node-config))]
      (cond
-       ;; 驳回到起始节点（首节点审批人无前序节点时 return-list 提供该选项）
+       ;; 驳回到起始节点(首节点审批人无前序节点时 return-list 提供该选项)
        (and t (= reject-to-start-marker return-node))
        (let [pid (.getProcessInstanceId t)
              start-act (start-event-activity-id engine pid)]
@@ -1073,8 +1073,8 @@
            (let [rt (.getRuntimeService engine)]
              (.setVariable rt pid "comment" comment)))
          (move-to-activity! engine pid (.getTaskDefinitionKey t) start-act))
-       ;; 驳回到指定节点：不 complete，直接迁移流程实例（changeState 自动处理当前任务；
-       ;; 驳回到自身时 moveActivityIdTo 同节点 = 重新激活当前审批）
+       ;; 驳回到指定节点:不 complete,直接迁移流程实例(changeState 自动处理当前任务;
+       ;; 驳回到自身时 moveActivityIdTo 同节点 = 重新激活当前审批)
        (and t return-node)
        (do
          (when comment
@@ -1082,7 +1082,7 @@
              (.setVariable rt (.getProcessInstanceId t) "comment" comment)))
          (move-to-activity! engine (.getProcessInstanceId t)
                             (.getTaskDefinitionKey t) return-node))
-       ;; 终止流程(FINISH_PROCESS)或无条件：complete + approved=false 走网关
+       ;; 终止流程(FINISH_PROCESS)或无条件:complete + approved=false 走网关
        :else
        (complete* engine task-id user (cond-> {:approved false}
                                         comment (assoc :comment comment)
@@ -1093,7 +1093,7 @@
 ;; ── 历史 (History) ─────────────────────────────────────────────────────
 
 (defn history-of
-  "某流程实例的活动轨迹（按时间排序）。"
+  "某流程实例的活动轨迹(按时间排序)."
   [^ProcessEngine engine process-instance-id]
   (let [hs (.getHistoryService engine)
         q (-> (.createHistoricActivityInstanceQuery hs)
@@ -1113,7 +1113,7 @@
 
 
 (defn task-history-of
-  "某流程实例的任务级审批历史（含任务局部变量 comment/approved，按结束时间倒序）。"
+  "某流程实例的任务级审批历史(含任务局部变量 comment/approved,按结束时间倒序)."
   [^ProcessEngine engine process-instance-id]
   (let [hs (.getHistoryService engine)
         q (-> (.createHistoricTaskInstanceQuery hs)
@@ -1137,7 +1137,7 @@
 ;; ── 流程图示 (diagram) ─────────────────────────────────────────────────
 
 (defn active-activity-ids
-  "流程实例当前正在执行的活动节点 id。流程已结束时返回空。"
+  "流程实例当前正在执行的活动节点 id.流程已结束时返回空."
   [^ProcessEngine engine process-instance-id]
   (try
     (vec (.getActiveActivityIds (.getRuntimeService engine) process-instance-id))
@@ -1145,7 +1145,7 @@
 
 
 (defn completed-activity-ids
-  "流程实例已结束的活动节点 id（按历史去重）。"
+  "流程实例已结束的活动节点 id(按历史去重)."
   [^ProcessEngine engine process-instance-id]
   (->> (history-of engine process-instance-id)
        (filter :end-time)
@@ -1156,13 +1156,13 @@
 
 
 (defn all-tasks
-  "全部运行中任务（管理员视图）。"
+  "全部运行中任务(管理员视图)."
   [^ProcessEngine engine]
   (mapv task->map (.list (.createTaskQuery (.getTaskService engine)))))
 
 
 (defn terminate!
-  "终止流程实例（运维操作）。"
+  "终止流程实例(运维操作)."
   [^ProcessEngine engine process-instance-id reason]
   (.deleteProcessInstance (.getRuntimeService engine) process-instance-id (or reason "运维终止"))
   (fire-webhook! "process_end" {:process-instance-id process-instance-id
@@ -1178,8 +1178,8 @@
 
 
 (defn create-sign!
-  "加签：为当前任务创建子任务（parentTaskId=当前任务），每个加签人一条。
-   type 为 before/after（仅前端展示语义，子任务都须先完成）；reason 存子任务局部变量。"
+  "加签:为当前任务创建子任务(parentTaskId=当前任务),每个加签人一条.
+   type 为 before/after(仅前端展示语义,子任务都须先完成);reason 存子任务局部变量."
   [^ProcessEngine engine task-id user-names sign-type reason]
   (let [t (task-entity engine task-id)
         ts (.getTaskService engine)]
@@ -1201,7 +1201,7 @@
 
 
 (defn delete-sign!
-  "减签：删除指定加签人的未完成子任务，reason 记录到父任务评论。"
+  "减签:删除指定加签人的未完成子任务,reason 记录到父任务评论."
   [^ProcessEngine engine task-id user-names reason]
   (let [t (task-entity engine task-id)
         ts (.getTaskService engine)
@@ -1218,7 +1218,7 @@
 
 
 (defn sign-list
-  "某任务的加签子任务列表（含 assignee/status/reason，按创建时间升序）。"
+  "某任务的加签子任务列表(含 assignee/status/reason,按创建时间升序)."
   [^ProcessEngine engine task-id]
   (let [hs (.getHistoryService engine)
         q (-> (.createHistoricTaskInstanceQuery hs)
@@ -1242,7 +1242,7 @@
 ;; ── 取消 / 撤回 ────────────────────────────────────────────────────────
 
 (defn cancel-instance!
-  "取消流程实例（发起人/管理员）。"
+  "取消流程实例(发起人/管理员)."
   [^ProcessEngine engine process-instance-id reason]
   (.deleteProcessInstance (.getRuntimeService engine)
                           process-instance-id (or reason "取消申请"))
@@ -1262,8 +1262,8 @@
 
 
 (defn withdraw!
-  "撤回：审批人把自己刚审完的任务撤回（要求下一节点任务未完成）。
-   把流程实例从下一活动迁移回本任务节点，并把新任务指派人还原为原审批人。"
+  "撤回:审批人把自己刚审完的任务撤回(要求下一节点任务未完成).
+   把流程实例从下一活动迁移回本任务节点,并把新任务指派人还原为原审批人."
   [^ProcessEngine engine task-id user]
   (let [hs (.getHistoryService engine)
         ht (some-> (.createHistoricTaskInstanceQuery hs)
@@ -1292,7 +1292,7 @@
 
 
 (defn withdraw-to-start!
-  "发起人撤回到起始节点：把所有活动迁移回 startEvent，流程重新走线。"
+  "发起人撤回到起始节点:把所有活动迁移回 startEvent,流程重新走线."
   [^ProcessEngine engine process-instance-id]
   (let [hs (.getHistoryService engine)
         start-act (some-> (.createHistoricActivityInstanceQuery hs)
@@ -1318,9 +1318,9 @@
 ;; ── 可退回节点列表 ─────────────────────────────────────────────────────
 
 (defn return-list
-  "当前任务之前（按 BPMN 文档顺序）已至少完成过一次的同名用户任务节点列表，
-   排除当前及之后节点、排除网关/开始。基于流程定义顺序而非时间戳，
-   避免撤回/驳回造成的历史活动实例干扰。"
+  "当前任务之前(按 BPMN 文档顺序)已至少完成过一次的同名用户任务节点列表,
+   排除当前及之后节点,排除网关/开始.基于流程定义顺序而非时间戳,
+   避免撤回/驳回造成的历史活动实例干扰."
   [^ProcessEngine engine task-id]
   (let [t (task-entity engine task-id)
         pid (.getProcessInstanceId t)
@@ -1345,6 +1345,6 @@
                      (mapv (fn [[id name]] {:activity-id id :activity-name name})))]
       (if (seq nodes)
         nodes
-        ;; 首节点（无前序已完成 userTask）：提供「发起人（退回起始）」选项
+        ;; 首节点(无前序已完成 userTask):提供"发起人(退回起始)"选项
         [{:activity-id reject-to-start-marker
           :activity-name "发起人（退回起始）"}]))))

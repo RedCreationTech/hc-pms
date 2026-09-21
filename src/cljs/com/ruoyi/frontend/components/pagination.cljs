@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.components.pagination
-  "分页组件封装。"
+  "分页组件封装."
   (:require
     [com.ruoyi.frontend.antd :as antd]))
 

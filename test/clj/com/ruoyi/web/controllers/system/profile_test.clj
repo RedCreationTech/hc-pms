@@ -12,7 +12,7 @@
 
 
 (defn mock-user-service
-  "返回指定用户的 mock 用户服务。"
+  "返回指定用户的 mock 用户服务."
   [{:keys [password]}]
   {:query-fn (fn [q p]
                (case q

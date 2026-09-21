@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.health-test
-  "健康检查控制器测试。"
+  "健康检查控制器测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.web.controllers.health :as health]))

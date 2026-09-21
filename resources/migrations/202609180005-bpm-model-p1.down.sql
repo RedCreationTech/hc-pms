@@ -1,4 +1,4 @@
--- BPM P1 down（MySQL）
+-- BPM P1 down(MySQL)
 
 ALTER TABLE biz_bpm_model DROP COLUMN icon;
 --;;

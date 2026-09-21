@@ -51,7 +51,7 @@
            org.flowable/flowable-engine {:mvn/version "8.0.0"}
            com.h2database/h2 {:mvn/version "1.4.200"}
 
-           ;; HTTP client（BPM Webhook / 触发器节点回调）
+           ;; HTTP client(BPM Webhook / 触发器节点回调)
            clj-http/clj-http            {:mvn/version "3.13.0"}
 
            ;; CSV

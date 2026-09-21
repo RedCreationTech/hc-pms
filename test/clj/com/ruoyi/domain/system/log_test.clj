@@ -1,5 +1,5 @@
 (ns com.ruoyi.domain.system.log-test
-  "日志领域服务测试。"
+  "日志领域服务测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.domain.system.log :as log]))

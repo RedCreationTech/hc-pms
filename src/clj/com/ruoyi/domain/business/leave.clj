@@ -1,7 +1,7 @@
 (ns com.ruoyi.domain.business.leave
-  "请假申请领域服务 —— 业务记录 + BPM 审批流 的旗舰集成示例。
-   请假单存 biz_oa_leave，审批流由内嵌 Flowable 驱动；
-   process_instance_id 关联，status 随流程推进/结束自动同步。"
+  "请假申请领域服务 -- 业务记录 + BPM 审批流 的旗舰集成示例.
+   请假单存 biz_oa_leave,审批流由内嵌 Flowable 驱动;
+   process_instance_id 关联,status 随流程推进/结束自动同步."
   (:require
     [com.ruoyi.bpm.core :as bpm]
     [integrant.core :as ig]))
@@ -23,21 +23,21 @@
 
 
 (defn- running?
-  "流程实例是否仍在运行。"
+  "流程实例是否仍在运行."
   [{:keys [engine]} pid]
   (let [q (.createProcessInstanceQuery (.getRuntimeService engine))]
     (pos? (.count (.processInstanceId q pid)))))
 
 
 (defn- rejected?
-  "流程历史中是否出现过 rejectEnd 节点。"
+  "流程历史中是否出现过 rejectEnd 节点."
   [{:keys [engine]} pid]
   (boolean (some #(= "rejectEnd" (:activity-id %))
                  (bpm/history-of engine pid))))
 
 
 (defn ensure-model-deployed!
-  "确保默认请假审批模型已部署到 Flowable。返回 model。"
+  "确保默认请假审批模型已部署到 Flowable.返回 model."
   [{:keys [engine query-fn]}]
   (let [m (query-fn :bpm/find-model-by-key {:model_key default-model-key})]
     (when-not m
@@ -52,7 +52,7 @@
 
 
 (defn leave-start!
-  "发起请假申请：确保模型部署 -> 启动流程 -> 存业务记录(status=审批中)。"
+  "发起请假申请:确保模型部署 -> 启动流程 -> 存业务记录(status=审批中)."
   [{:keys [engine query-fn] :as svc} user-id user-name days reason]
   (let [{:keys [model]} (ensure-model-deployed! svc)
         biz-key (str "leave-" (System/currentTimeMillis))
@@ -63,7 +63,7 @@
               {:user_id (or user-id 0) :user_name (or user-name "")
                :days (or days 0) :reason (or reason "")
                :process_instance_id pid :status "1"})
-    ;; 同步写入流程实例映射，供 我的流程/流程图高亮 使用
+    ;; 同步写入流程实例映射,供 我的流程/流程图高亮 使用
     (query-fn :bpm/insert-instance
               {:process_instance_id pid :model_id (:model_id model)
                :model_key default-model-key :business_key biz-key
@@ -73,7 +73,7 @@
 
 
 (defn sync-status!
-  "按流程当前状态同步请假单 status：运行中=1, 已结束: 驳回=3 否则=2。"
+  "按流程当前状态同步请假单 status:运行中=1, 已结束: 驳回=3 否则=2."
   [{:keys [query-fn] :as svc} pid]
   (let [status (cond
                  (running? svc pid) "1"
@@ -90,7 +90,7 @@
            :status (get params :status)
            :page_size size :offset offset}
         rows (query-fn :oa/leave-list p)]
-    ;; 惰性同步：对每条运行中的请假单刷新状态
+    ;; 惰性同步:对每条运行中的请假单刷新状态
     (doseq [r rows
             :when (= "1" (:status r))
             :let [pid (:process_instance_id r)]]

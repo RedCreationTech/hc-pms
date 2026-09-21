@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.business.bpm-definition
-  "流程定义版本 —— 某模型 key 的全部历史部署版本（查看 XML / 恢复回模型）。"
+  "流程定义版本 -- 某模型 key 的全部历史部署版本(查看 XML / 恢复回模型)."
   (:require
     ["@ant-design/icons" :refer [ReloadOutlined EyeOutlined UndoOutlined
                                  ArrowLeftOutlined]]

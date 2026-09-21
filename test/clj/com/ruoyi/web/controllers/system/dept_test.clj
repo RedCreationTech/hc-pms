@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.system.dept-test
-  "部门控制器测试。"
+  "部门控制器测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.web.controllers.system.dept :as dept]))

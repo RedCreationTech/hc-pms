@@ -1,4 +1,4 @@
--- 办公一体化 · 请假申请 + 默认请假审批模型（MySQL）
+-- 办公一体化 · 请假申请 + 默认请假审批模型(MySQL)
 
 CREATE TABLE IF NOT EXISTS biz_oa_leave (
   leave_id           BIGINT AUTO_INCREMENT PRIMARY KEY,

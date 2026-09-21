@@ -1,4 +1,4 @@
--- BPM Phase 3 治理能力：模型扩展字段 + 实例单号/名称（MySQL）
+-- BPM Phase 3 治理能力:模型扩展字段 + 实例单号/名称(MySQL)
 -- process_id_rule 流程编号规则 JSON / auto_approval_type 自动去重
 -- name_rule 自定义标题模板 / summary_fields 摘要字段 JSON
 -- print_template_enable / print_template_html 打印模板

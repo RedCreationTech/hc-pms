@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.job
-  "定时任务管理页面。"
+  "定时任务管理页面."
   (:require
     ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined PlayCircleOutlined FileTextOutlined SearchOutlined ReloadOutlined]]
     [com.ruoyi.frontend.antd :as antd]

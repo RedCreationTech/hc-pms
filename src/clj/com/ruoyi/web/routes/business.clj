@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.routes.business
-  "业务模块路由聚合（BPM / OA / HRM / CRM）。"
+  "业务模块路由聚合(BPM / OA / HRM / CRM)."
   (:require
     [com.ruoyi.web.controllers.business.bpm :as bpm]
     [com.ruoyi.web.controllers.business.bpm-mgmt :as mgmt]
@@ -41,7 +41,7 @@
              :put    {:summary "更新模型" :handler (partial bpm/update-model {:bpm-service bpm-service})}
              :delete {:summary "删除模型" :handler (partial bpm/delete-model {:bpm-service bpm-service})}}]]
 
-   ;; ── Phase 3 治理能力：流程定义版本 ──
+   ;; ── Phase 3 治理能力:流程定义版本 ──
    ["/bpm/definition/page" {:get {:summary "流程定义分页(版本)" :handler (partial bpm/definition-page {:bpm-service bpm-service})}}]
    ["/bpm/definition/xml" {:get {:summary "流程定义BPMN XML" :handler (partial bpm/definition-xml {:bpm-service bpm-service})}}]
    ["/bpm/definition/restore" {:put {:summary "历史定义恢复回模型" :handler (partial bpm/definition-restore {:bpm-service bpm-service})}}]
@@ -73,7 +73,7 @@
    ["/bpm/task/:id/delegate" {:post {:summary "委派任务" :handler (partial bpm/delegate-task {:bpm-service bpm-service})}}]
    ["/bpm/task/resolve" {:post {:summary "委派办结(任务回到 owner)" :handler (partial bpm/resolve-task {:bpm-service bpm-service})}}]
 
-   ;; ── Phase 1 审批闭环：加签/减签/抄送/撤回/可退回节点 ──
+   ;; ── Phase 1 审批闭环:加签/减签/抄送/撤回/可退回节点 ──
    ["/bpm/task/create-sign" {:post {:summary "加签" :handler (partial bpm/create-sign {:bpm-service bpm-service})}}]
    ["/bpm/task/delete-sign" {:delete {:summary "减签" :handler (partial bpm/delete-sign {:bpm-service bpm-service})}}]
    ["/bpm/task/sign-list" {:get {:summary "加签子任务列表" :handler (partial bpm/sign-list {:bpm-service bpm-service})}}]
@@ -93,7 +93,7 @@
    ;; ── 办公报表 ──
    ["/report/stats" {:get {:summary "办公一体化统计看板" :handler (partial bpm/office-stats {:bpm-service bpm-service})}}]
 
-   ;; ── BPM 管理：用户分组/监听器/表达式/设置（通用 CRUD）──
+   ;; ── BPM 管理:用户分组/监听器/表达式/设置(通用 CRUD)──
    ["/bpm/:module"
     ["" {:get  {:summary "BPM管理列表" :handler (partial mgmt/list-items {:mgmt-service mgmt-service})}
          :post {:summary "BPM管理新增" :handler (partial mgmt/create-item {:mgmt-service mgmt-service})}}]
@@ -133,14 +133,14 @@
              :put    {:summary "更新客户" :handler (partial crm/update-customer {:crm-service crm-service})}
              :delete {:summary "删除客户" :handler (partial crm/delete-customer {:crm-service crm-service})}}]]
 
-   ;; ── OA 请假（业务 + BPM 集成）──
+   ;; ── OA 请假(业务 + BPM 集成)──
    ["/oa/leave"
     ["" {:get  {:summary "请假单列表(自动同步审批状态)" :handler (partial leave/list-leaves {:leave-service leave-service})}
          :post {:summary "发起请假申请(入审批流)" :handler (partial leave/start-leave {:leave-service leave-service})}}]
     ["/:id" {:get    {:summary "请假单详情" :handler (partial leave/get-leave {:leave-service leave-service})}
              :delete {:summary "删除请假单" :handler (partial leave/delete-leave {:leave-service leave-service})}}]]
 
-   ;; ── OA 报销（业务 + BPM 集成）──
+   ;; ── OA 报销(业务 + BPM 集成)──
    ["/oa/reimburse"
     ["" {:get  {:summary "报销单列表(自动同步审批状态)" :handler (partial reimburse/list-reimburses {:reimburse-service reimburse-service})}
          :post {:summary "发起报销申请(入审批流)" :handler (partial reimburse/start-reimburse {:reimburse-service reimburse-service})}}]

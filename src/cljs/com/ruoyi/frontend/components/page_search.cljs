@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.components.page-search
-  "可折叠搜索区容器。"
+  "可折叠搜索区容器."
   (:require
     [reagent.hooks :as hooks]))
 

@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.system.dict-test
-  "字典控制器测试。"
+  "字典控制器测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.web.controllers.system.dict :as dict]))
