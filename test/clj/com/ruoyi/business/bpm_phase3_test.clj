@@ -1,6 +1,6 @@
 (ns com.ruoyi.business.bpm-phase3-test
-  "BPM Phase 3 治理能力 REST 集成测试：
-   定义版本页/恢复、模型启停/清理/复制、编号规则、自动去重、标题渲染、摘要、打印。"
+  "BPM Phase 3 治理能力 REST 集成测试:
+   定义版本页/恢复,模型启停/清理/复制,编号规则,自动去重,标题渲染,摘要,打印."
   (:require
     [clojure.data.json :as json]
     [clojure.test :refer [deftest testing is use-fixtures]]
@@ -72,8 +72,8 @@
 ;; ── 模型准备 ──────────────────────────────────────────────────────────
 
 (defn- two-node-bpmn
-  "start → a1(admin) → a2(second-user|admin) → end。marker 写入节点名用于区分版本。
-   两个人工节点都挂 create TaskListener（候选解析/自动去重在此触发）。"
+  "start → a1(admin) → a2(second-user|admin) → end.marker 写入节点名用于区分版本.
+   两个人工节点都挂 create TaskListener(候选解析/自动去重在此触发)."
   [key marker second-user]
   (let [listener "<extensionElements><flowable:taskListener event=\"create\" delegateExpression=\"${bpmTaskListener}\"/></extensionElements>"]
     (str "<?xml version=\"1.0\"?><definitions xmlns=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" "
@@ -90,7 +90,7 @@
 
 
 (defn- create-model!
-  "创建模型（bpmn-fn 接收 model-key 生成 BPMN；extra 为扩展字段），返回 {:model-id :model-key}。"
+  "创建模型(bpmn-fn 接收 model-key 生成 BPMN;extra 为扩展字段),返回 {:model-id :model-key}."
   [app h bpmn-fn extra]
   (let [key (str "ph3" (System/currentTimeMillis) (rand-int 100000))
         bpmn (bpmn-fn key)

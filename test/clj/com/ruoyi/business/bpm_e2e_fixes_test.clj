@@ -1,10 +1,10 @@
 (ns com.ruoyi.business.bpm-e2e-fixes-test
-  "BPM E2E 修复回归测试（2026-09）：
-   1) 发起后 biz_bpm_instance.current_task = 本实例第一节点任务名（不再取全局第一条待办）；
-   2) 审批走完最后节点 → status=\"2\"(通过)，驳回终止 → status=\"3\"(驳回)，current_task 清空；
-   3) form_id=0 且模型内嵌 form_json 时 task-detail 回退返回模型表单字段；
-   4) 委派(delegateTask) → 被委派人在待办可见 → resolve 路由办结后任务回到 owner；
-   5) transfer/delegate 缺 to_user → 500 参数提示。"
+  "BPM E2E 修复回归测试(2026-09):
+   1) 发起后 biz_bpm_instance.current_task = 本实例第一节点任务名(不再取全局第一条待办);
+   2) 审批走完最后节点 → status=\"2\"(通过),驳回终止 → status=\"3\"(驳回),current_task 清空;
+   3) form_id=0 且模型内嵌 form_json 时 task-detail 回退返回模型表单字段;
+   4) 委派(delegateTask) → 被委派人在待办可见 → resolve 路由办结后任务回到 owner;
+   5) transfer/delegate 缺 to_user → 500 参数提示."
   (:require
     [clojure.data.json :as json]
     [clojure.test :refer [deftest testing is use-fixtures]]
@@ -65,8 +65,8 @@
 ;; ── 流程准备 ──────────────────────────────────────────────────────────
 
 (defn- gateway-bpmn
-  "start → approve1(admin) → gw0 →(approved=true) end /(approved=false) rejectEnd。
-   单节点 + 排他网关：通过走 end，驳回走 rejectEnd 终止。"
+  "start → approve1(admin) → gw0 →(approved=true) end /(approved=false) rejectEnd.
+   单节点 + 排他网关:通过走 end,驳回走 rejectEnd 终止."
   [key]
   (str "<?xml version=\"1.0\"?><definitions xmlns=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" "
        "xmlns:flowable=\"http://flowable.org/bpmn\" id=\"d\" targetNamespace=\"http://bpmn.io/schema/bpmn\">"
@@ -90,7 +90,7 @@
 
 
 (defn- deploy-model!
-  "创建（form_id=0 + 内嵌 form_json）并部署测试模型，返回 {:model-id mid :model-key key}。"
+  "创建(form_id=0 + 内嵌 form_json)并部署测试模型,返回 {:model-id mid :model-key key}."
   [app h]
   (let [key (str "e2efix" (System/currentTimeMillis) (rand-int 1000))
         m (parse-json (POST app "/api/business/bpm/model"

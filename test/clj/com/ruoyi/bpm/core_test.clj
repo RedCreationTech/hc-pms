@@ -1,5 +1,5 @@
 (ns com.ruoyi.bpm.core-test
-  "BPM 核心 API 单元测试：在独立的内存 H2 引擎上验证，无需 Integrant 系统。"
+  "BPM 核心 API 单元测试:在独立的内存 H2 引擎上验证,无需 Integrant 系统."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.bpm.core :as bpm])
@@ -9,7 +9,7 @@
 
 
 (defn- leave-bpmn
-  "带排他网关 + 两个审批节点的请假流程。"
+  "带排他网关 + 两个审批节点的请假流程."
   []
   (str "<?xml version=\"1.0\"?><definitions xmlns=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" "
        "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:flowable=\"http://flowable.org/bpmn\" "
@@ -31,7 +31,7 @@
 
 
 (defn- new-engine!
-  "创建一个全新的内存 H2 引擎（每测试独立，避免状态污染）。"
+  "创建一个全新的内存 H2 引擎(每测试独立,避免状态污染)."
   []
   (let [cfg (ProcessEngineConfiguration/createStandaloneProcessEngineConfiguration)
         _ (.setJdbcUrl cfg (str "jdbc:h2:mem:bpmtest-" (System/nanoTime) ";DB_CLOSE_DELAY=-1"))

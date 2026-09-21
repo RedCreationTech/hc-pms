@@ -1,7 +1,7 @@
 (ns com.ruoyi.business.bpm-phase4-test
-  "BPM Phase 4 进阶能力 REST 集成测试：
-   模型级 Webhook（本地 HTTP 接收端点）、触发器节点（HTTP_REQUEST 回写/UPDATE_FORM/DELETE_FORM）、
-   子流程 callActivity 变量传递、路由分支节点按条件走线、节点监听器 Create/Assign/Complete 三事件。"
+  "BPM Phase 4 进阶能力 REST 集成测试:
+   模型级 Webhook(本地 HTTP 接收端点),触发器节点(HTTP_REQUEST 回写/UPDATE_FORM/DELETE_FORM),
+   子流程 callActivity 变量传递,路由分支节点按条件走线,节点监听器 Create/Assign/Complete 三事件."
   (:require
     [clojure.data.json :as json]
     [clojure.test :refer [deftest testing is use-fixtures]]
@@ -70,8 +70,8 @@
 ;; ── 本地 HTTP 接收端点(JDK HttpServer,零依赖)─────────────────────────
 
 (defn- start-receiver!
-  "启动本地 /hook 接收端点：记录请求 {:method :path :headers :body}，
-   统一响应 JSON {\"data\":{\"level\":\"vip\"}}（供触发器响应回写测试）。"
+  "启动本地 /hook 接收端点:记录请求 {:method :path :headers :body},
+   统一响应 JSON {\"data\":{\"level\":\"vip\"}}(供触发器响应回写测试)."
   []
   (let [received (atom [])
         server (HttpServer/create (InetSocketAddress. "127.0.0.1" 0) 0)
@@ -109,7 +109,7 @@
 
 
 (defn- wait-for
-  "轮询等待条件满足（异步 Webhook 投递需要），默认 3s。"
+  "轮询等待条件满足(异步 Webhook 投递需要),默认 3s."
   ([pred] (wait-for pred 3000))
   ([pred ms]
    (loop [t 0]
@@ -120,7 +120,7 @@
 
 
 (defn- received-bodies
-  "把收到的请求体解析为 Clojure 数据。"
+  "把收到的请求体解析为 Clojure 数据."
   [receiver]
   (mapv #(try (json/read-str (:body %) :key-fn keyword) (catch Exception _ nil))
         @(:received receiver)))
@@ -129,7 +129,7 @@
 ;; ── 模型准备 ──────────────────────────────────────────────────────────
 
 (defn- one-node-bpmn
-  "start → a1(admin) → end（挂 create TaskListener）。"
+  "start → a1(admin) → end(挂 create TaskListener)."
   [key marker]
   (let [listener "<extensionElements><flowable:taskListener event=\"create\" delegateExpression=\"${bpmTaskListener}\"/></extensionElements>"]
     (str "<?xml version=\"1.0\"?><definitions xmlns=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" "
@@ -144,7 +144,7 @@
 
 
 (defn- two-node-bpmn
-  "start → a1(admin) → a2(admin) → end（每节点挂 create TaskListener）。"
+  "start → a1(admin) → a2(admin) → end(每节点挂 create TaskListener)."
   [key marker]
   (let [listener "<extensionElements><flowable:taskListener event=\"create\" delegateExpression=\"${bpmTaskListener}\"/></extensionElements>"]
     (str "<?xml version=\"1.0\"?><definitions xmlns=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" "
@@ -170,7 +170,7 @@
 
 
 (defn- listener-bpmn
-  "两节点流程，a1 节点带 nodeConfig.listeners（create/assign/complete 三事件 HTTP 回调）。"
+  "两节点流程,a1 节点带 nodeConfig.listeners(create/assign/complete 三事件 HTTP 回调)."
   [key marker url]
   (let [nc (json/write-str
              {"listeners"
@@ -205,7 +205,7 @@
 
 
 (defn- create-model!
-  "创建模型（extra 为扩展字段），返回 {:model-id :model-key}。"
+  "创建模型(extra 为扩展字段),返回 {:model-id :model-key}."
   [app h extra]
   (let [key (str "ph4" (System/currentTimeMillis) (rand-int 100000))]
     (is (= 200 (:code (parse-json (POST app "/api/business/bpm/model"

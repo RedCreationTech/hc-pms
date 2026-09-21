@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.business.bpm-instance
-  "我的流程 —— 流程详情（基本信息/表单回显/审批历史/流程图高亮/打印）。"
+  "我的流程 -- 流程详情(基本信息/表单回显/审批历史/流程图高亮/打印)."
   (:require
     ["@ant-design/icons" :refer [ReloadOutlined EyeOutlined RollbackOutlined StopOutlined PrinterOutlined]]
     [clojure.string :as str]

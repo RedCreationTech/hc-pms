@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.layout
-  "主布局页面，包含多Tab支持。"
+  "主布局页面,包含多Tab支持."
   (:require
     ["@ant-design/icons" :refer [DashboardOutlined SettingOutlined
                                  FileTextOutlined UserOutlined
@@ -72,7 +72,7 @@
 ;; ─── Tab 组件 ──────────────────────────────────────────────────────
 
 (defn- tab-context-menu
-  "标签页右键菜单项。"
+  "标签页右键菜单项."
   [key has-others? has-right?]
   (clj->js
     [{:key "refresh"
@@ -168,7 +168,7 @@
 
 
 (defn- tab-bar
-  "Tab栏组件 — RuoYi 风格，支持左右滚动"
+  "Tab栏组件 -- RuoYi 风格,支持左右滚动"
   []
   (let [container-ref (hooks/use-ref nil)
         tabs @(rf/subscribe [:tabs/items])
@@ -310,7 +310,7 @@
 
 ;; ─── 页面关键词到菜单路径映射 ─────────────────────────────────────────
 (def page->menu-key
-  "将路由关键词映射到菜单的 key（完整路径）。"
+  "将路由关键词映射到菜单的 key(完整路径)."
   {:user "system/user"
    :role "system/role"
    :menu "system/menu"
@@ -381,7 +381,7 @@
 ;; ─── 动态菜单构建 ──────────────────────────────────────────────────────
 
 (defn- filter-visible-menus
-  "过滤掉 F 类型（按钮权限）菜单，只保留 M 目录和 C 菜单。"
+  "过滤掉 F 类型(按钮权限)菜单,只保留 M 目录和 C 菜单."
   [menus]
   (->> menus
        (filter #(contains? #{"M" "C"} (:menu_type %)))
@@ -392,7 +392,7 @@
 
 
 (defn- menu->antd-items
-  "将后端菜单树转换为 antd Menu 的 items 结构。"
+  "将后端菜单树转换为 antd Menu 的 items 结构."
   ([menus] (menu->antd-items menus ""))
   ([menus parent-path]
    (clj->js
@@ -419,7 +419,7 @@
 
 
 (defn- page-labels
-  "从菜单树递归提取页面路径到标签的映射。"
+  "从菜单树递归提取页面路径到标签的映射."
   ([menus] (page-labels menus ""))
   ([menus parent-path]
    (reduce (fn [acc m]
@@ -443,7 +443,7 @@
 
 
 (defn- page-icons
-  "从菜单树递归提取页面路径到图标的映射。"
+  "从菜单树递归提取页面路径到图标的映射."
   ([menus] (page-icons menus ""))
   ([menus parent-path]
    (reduce (fn [acc m]
@@ -468,7 +468,7 @@
 
 
 (defn- menu-open-keys
-  "从接口返回的菜单树中提取所有有子菜单的 Menu key，用于动态菜单到达后默认展开。"
+  "从接口返回的菜单树中提取所有有子菜单的 Menu key,用于动态菜单到达后默认展开."
   ([menus] (menu-open-keys menus ""))
   ([menus parent-path]
    (->> menus
@@ -534,7 +534,7 @@
 
 
 (defn- display-settings-panel
-  "字号按钮弹出的显示设置面板。"
+  "字号按钮弹出的显示设置面板."
   []
   (let [component-size @(rf/subscribe [:theme/component-size])
         font-size @(rf/subscribe [:theme/font-size])]

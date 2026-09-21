@@ -1,6 +1,6 @@
 (ns com.ruoyi.frontend.pages.business.bpm-admin
-  "BPM 管理套件通用 CRUD 页面（流程表单/分类/用户分组/监听器/表达式/设置）。
-   form 模块额外支持表单设计器（对齐 vben @form-create 设计器）。"
+  "BPM 管理套件通用 CRUD 页面(流程表单/分类/用户分组/监听器/表达式/设置).
+   form 模块额外支持表单设计器(对齐 vben @form-create 设计器)."
   (:require
     ["@ant-design/icons" :refer [PlusOutlined ReloadOutlined EditOutlined DeleteOutlined]]
     [clojure.walk :as walk]

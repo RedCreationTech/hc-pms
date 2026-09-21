@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.captcha-test
-  "验证码控制器测试。"
+  "验证码控制器测试."
   (:require
     [clojure.test :refer [deftest is testing use-fixtures]]
     [com.ruoyi.web.controllers.captcha :as captcha]))
@@ -13,7 +13,7 @@
 
 
 (deftest test-captcha-image
-  "生成验证码图片。"
+  "生成验证码图片."
   (testing "无 r 参数时返回图片与 UUID"
     (let [request {:query-params {}}
           response (captcha/captcha-image {} request)]

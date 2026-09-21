@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.components.error-boundary
-  "React Error Boundary：捕获子组件渲染错误，避免整个应用白屏。"
+  "React Error Boundary:捕获子组件渲染错误,避免整个应用白屏."
   (:require
     [reagent.core :as r]))
 

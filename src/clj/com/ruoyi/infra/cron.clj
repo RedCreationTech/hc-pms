@@ -10,7 +10,7 @@
 
 (defn- normalize
   [expression]
-  "将 5 字段 Unix cron 补全为 Quartz 6 字段（秒位为 0）。"
+  "将 5 字段 Unix cron 补全为 Quartz 6 字段(秒位为 0)."
   (if (and (seq expression)
            (= 5 (count (str/split expression #"\s+"))))
     (str "0 " expression)

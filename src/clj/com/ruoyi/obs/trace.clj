@@ -75,7 +75,7 @@
 
 (defn spans-atom
   [t]
-  "暴露某 Trace 的 spans atom，便于测试在“闭 trace”上直接 append。"
+  "暴露某 Trace 的 spans atom,便于测试在“闭 trace”上直接 append."
   [t] (:spans t))
 
 
@@ -94,7 +94,7 @@
 
 (defn spans
   [t]
-  "取出某 Trace 的全部 span（不可变快照）。"
+  "取出某 Trace 的全部 span(不可变快照)."
   @(:spans t))
 
 
@@ -294,7 +294,7 @@
 
 (defn- json-safe
   [x]
-  "把不可 JSON 序列化的值（函数 / 异常）替换成可读标记。"
+  "把不可 JSON 序列化的值(函数 / 异常)替换成可读标记."
   (cond
     (fn? x)
     :<fn>

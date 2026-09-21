@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.cache
-  "缓存监控页面，按 RuoYi-Vue 缓存监控布局展示 Redis 基本信息、命令统计和内存信息。"
+  "缓存监控页面,按 RuoYi-Vue 缓存监控布局展示 Redis 基本信息,命令统计和内存信息."
   (:require
     ["@ant-design/icons" :refer [DashboardOutlined DeleteOutlined PieChartOutlined ReloadOutlined]]
     ["antd" :refer [Modal Spin]]
@@ -17,7 +17,7 @@
 
 
 (defn- monitor-card
-  "渲染 RuoYi 风格监控卡片。"
+  "渲染 RuoYi 风格监控卡片."
   [{:keys [icon title style]} & children]
   (into
     [:div {:style (merge card-style style)}
@@ -36,7 +36,7 @@
 
 
 (defn- info-grid
-  "渲染基本信息的四列三行表格。"
+  "渲染基本信息的四列三行表格."
   [items]
   [:table {:style {:width "100%"
                    :borderCollapse "collapse"
@@ -58,7 +58,7 @@
 
 
 (defn- command-rows
-  "把命令统计转换为柱状图数据。"
+  "把命令统计转换为柱状图数据."
   [stats]
   (let [rows (or (seq stats)
                  [{:name "get" :value 0}
@@ -70,7 +70,7 @@
 
 
 (defn- command-chart
-  "用轻量 SVG/HTML 复刻 RuoYi 命令统计图区域。"
+  "用轻量 SVG/HTML 复刻 RuoYi 命令统计图区域."
   [stats]
   (let [rows (command-rows stats)]
     [:div {:style {:height 360 :padding "22px 34px 28px"}}
@@ -94,7 +94,7 @@
 
 
 (defn- donut-chart
-  "用 SVG 复刻内存占用环形图。"
+  "用 SVG 复刻内存占用环形图."
   [{:keys [memoryUsed memoryMax]}]
   (let [used (or memoryUsed 0)
         total (max 1 (or memoryMax 1))
@@ -119,7 +119,7 @@
 
 
 (defn- basic-items
-  "生成 RuoYi 缓存基本信息字段。"
+  "生成 RuoYi 缓存基本信息字段."
   [cache-data]
   [{:label "Redis版本" :value (or (:redisVersion cache-data) (:type cache-data) "Clojure Atom")}
    {:label "运行模式" :value (or (:redisMode cache-data) "standalone")}

@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.server
-  "服务器监控页面，按 RuoYi-Vue 服务监控布局展示 CPU、内存、JVM 与磁盘状态。"
+  "服务器监控页面,按 RuoYi-Vue 服务监控布局展示 CPU,内存,JVM 与磁盘状态."
   (:require
     ["@ant-design/icons" :refer [CloudServerOutlined DatabaseOutlined DesktopOutlined HddOutlined LaptopOutlined ReloadOutlined]]
     ["antd" :refer [Spin Table]]
@@ -17,7 +17,7 @@
 
 
 (defn- monitor-card
-  "渲染 RuoYi 监控页面的白底卡片。"
+  "渲染 RuoYi 监控页面的白底卡片."
   [{:keys [icon title style]} & children]
   (into
     [:div {:style (merge card-style style)}
@@ -36,20 +36,20 @@
 
 
 (defn- value-cell
-  "渲染表格值单元格，超过阈值时使用 RuoYi 风险红色。"
+  "渲染表格值单元格,超过阈值时使用 RuoYi 风险红色."
   ([value] (value-cell value false))
   ([value danger?]
    [:span {:style {:color (if danger? "#f56c6c" "#606266")}} (or value "-")]))
 
 
 (defn- percent
-  "格式化百分比数字。"
+  "格式化百分比数字."
   [n]
   (str (.toFixed (js/Number. (or n 0)) 2) "%"))
 
 
 (defn- format-mb
-  "把 MB 数值格式化为 RuoYi 常用容量展示。"
+  "把 MB 数值格式化为 RuoYi 常用容量展示."
   [mb]
   (let [n (js/Number. (or mb 0))]
     (if (>= n 1024)
@@ -58,7 +58,7 @@
 
 
 (defn- format-bytes
-  "把字节数格式化为磁盘容量。"
+  "把字节数格式化为磁盘容量."
   [bytes]
   (let [n (js/Number. (or bytes 0))]
     (cond
@@ -69,7 +69,7 @@
 
 
 (defn- info-table
-  "用普通表格复刻 Element table 的细线和密度。"
+  "用普通表格复刻 Element table 的细线和密度."
   [headers rows]
   [:table {:style {:width "100%"
                    :borderCollapse "collapse"
@@ -103,7 +103,7 @@
 
 
 (defn- cpu-card
-  "渲染 CPU 信息卡片。"
+  "渲染 CPU 信息卡片."
   [{:keys [cpu]}]
   [monitor-card {:title "CPU" :icon (r/as-element [:> DesktopOutlined])}
    [info-table ["属性" "值"]
@@ -114,7 +114,7 @@
 
 
 (defn- memory-card
-  "渲染内存与 JVM 内存卡片。"
+  "渲染内存与 JVM 内存卡片."
   [{:keys [mem jvm]}]
   (let [mem-usage (:usage mem 0)
         jvm-usage (if (pos? (or (:max jvm) 0))
@@ -129,7 +129,7 @@
 
 
 (defn- server-info-card
-  "渲染服务器基本信息。"
+  "渲染服务器基本信息."
   [{:keys [sys]}]
   [monitor-card {:title "服务器信息" :icon (r/as-element [:> LaptopOutlined])}
    [info-table ["" "" "" ""]
@@ -138,7 +138,7 @@
 
 
 (defn- jvm-info-card
-  "渲染 Java 虚拟机信息。"
+  "渲染 Java 虚拟机信息."
   [{:keys [jvm sys]}]
   [monitor-card {:title "Java虚拟机信息" :icon (r/as-element [:> CloudServerOutlined])}
    [info-table ["" "" "" ""]
@@ -150,7 +150,7 @@
 
 
 (defn- disk-card
-  "渲染磁盘状态表格。"
+  "渲染磁盘状态表格."
   [{:keys [disk]}]
   [monitor-card {:title "磁盘状态" :icon (r/as-element [:> HddOutlined])}
    [:> Table {:size "small"

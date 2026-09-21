@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.user
-  "用户管理页面 - 对齐 RuoYi-Vue 功能。"
+  "用户管理页面 - 对齐 RuoYi-Vue 功能."
   (:require
     ["@ant-design/icons" :refer [SearchOutlined ReloadOutlined PlusOutlined EditOutlined DeleteOutlined UploadOutlined DownloadOutlined SettingOutlined
                                  FolderOpenOutlined FileTextOutlined AppstoreOutlined]]
@@ -17,14 +17,14 @@
 
 
 (defn- dayjs->date-string
-  "把 dayjs 日期格式化为 yyyy-MM-dd。"
+  "把 dayjs 日期格式化为 yyyy-MM-dd."
   [d]
   (when d
     (.format d "YYYY-MM-DD")))
 
 
 (defn- search-date-range
-  "根据查询参数生成 RangePicker 受控值。"
+  "根据查询参数生成 RangePicker 受控值."
   [{:keys [beginTime endTime]}]
   (when (or beginTime endTime)
     #js [(when beginTime (dayjs beginTime))
@@ -32,12 +32,12 @@
 
 
 (def phone-pattern
-  "RuoYi 手机号校验规则。"
+  "RuoYi 手机号校验规则."
   (js/RegExp. "^1[3-9][0-9]\\d{8}$"))
 
 
 (def password-pattern
-  "RuoYi 密码非法字符校验规则。"
+  "RuoYi 密码非法字符校验规则."
   (js/RegExp. "^[^<>\\\"\\x27|\\\\\\\\]+$"))
 
 
@@ -306,7 +306,7 @@
 
 (defn- form-modal
   []
-  "用户新增/编辑弹窗 — 使用 antd Form 管理表单状态。"
+  "用户新增/编辑弹窗 -- 使用 antd Form 管理表单状态."
   (let [visible? @(rf/subscribe [:users/modal-visible?])
         editing @(rf/subscribe [:users/editing])
         form-data @(rf/subscribe [:users/form-data])
@@ -439,7 +439,7 @@
 
 
 (defn- flatten-visible-tree
-  "展平可见的部门节点（只展开 expanded-ids 中的节点）。"
+  "展平可见的部门节点(只展开 expanded-ids 中的节点)."
   ([nodes expanded-ids depth]
    (mapcat (fn [node]
              (let [is-expanded? (contains? expanded-ids (:dept_id node))]
@@ -450,7 +450,7 @@
 
 
 (defn- filter-dept-tree
-  "按部门名称过滤部门树，并保留命中的祖先节点。"
+  "按部门名称过滤部门树,并保留命中的祖先节点."
   [nodes keyword]
   (let [kw (some-> keyword str str/lower-case)]
     (if (empty? kw)
@@ -547,7 +547,7 @@
 
 
 (defn- import-modal
-  "用户导入弹窗。"
+  "用户导入弹窗."
   []
   (let [visible? @(rf/subscribe [:users/import-visible?])
         loading? @(rf/subscribe [:users/import-loading?])

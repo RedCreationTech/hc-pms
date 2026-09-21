@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.dept
-  "部门管理页面 — 树形表格、CRUD。"
+  "部门管理页面 -- 树形表格,CRUD."
   (:require
     ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined ReloadOutlined SearchOutlined CheckOutlined ColumnHeightOutlined]]
     [com.ruoyi.frontend.antd :as antd]

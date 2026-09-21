@@ -1,7 +1,7 @@
 (ns com.ruoyi.business.bpm-p0-test
-  "BPM P0 UI 差距修复 REST 集成测试：
+  "BPM P0 UI 差距修复 REST 集成测试:
    P0-1 新建模型入口(key 校验/重名/默认值) / P0-4 allow_cancel·allow_withdraw 开关校验与接口返回 /
-   P0-5 抄送节点策略制解析 + 旧 copy-user-ids 兼容 / P0-6 办理人节点默认「办理」按钮。"
+   P0-5 抄送节点策略制解析 + 旧 copy-user-ids 兼容 / P0-6 办理人节点默认\"办理\"按钮."
   (:require
     [clojure.data.json :as json]
     [clojure.string :as str]
@@ -73,14 +73,14 @@
 ;; ── 用户与流程准备 ────────────────────────────────────────────────────
 
 (defn- user-id-of
-  "按登录名查用户 ID。"
+  "按登录名查用户 ID."
   [app h username]
   (let [q (parse-json (GET app (str "/api/system/user?user_name=" username "&page=1&size=10") {} h))]
     (get-in q [:data :rows 0 :user_id])))
 
 
 (defn- ensure-user!
-  "创建专用测试用户，返回 {:username u :user-id id :token t :hdr h}。"
+  "创建专用测试用户,返回 {:username u :user-id id :token t :hdr h}."
   [app admin-h]
   (let [u (str "p0u" (rand-int 100000))
         r (parse-json (POST app "/api/system/user"
@@ -95,7 +95,7 @@
 
 
 (defn- create-model!
-  "新建模型（P0-1 入口，POST /bpm/model），返回 {:model-id mid :model-key key}。"
+  "新建模型(P0-1 入口,POST /bpm/model),返回 {:model-id mid :model-key key}."
   [app h]
   (let [key (str "p0_" (System/currentTimeMillis) "_" (rand-int 1000))
         r (parse-json (POST app "/api/business/bpm/model"
@@ -109,7 +109,7 @@
 
 
 (defn- update-model!
-  "更新模型（部署前写入 BPMN 与权限开关）。flags 如 {:allow_cancel \"0\"}。"
+  "更新模型(部署前写入 BPMN 与权限开关).flags 如 {:allow_cancel \"0\"}."
   [app h mid bpmn-xml flags]
   (let [r (parse-json (PUT app (str "/api/business/bpm/model/" mid)
                            (merge {:model_id mid :model_name "P0测试流程" :category_id 0
@@ -126,7 +126,7 @@
 
 
 (defn- start-instance!
-  "以某用户发起流程实例，返回 process-instance-id。"
+  "以某用户发起流程实例,返回 process-instance-id."
   [app hdr mid form-data]
   (let [st (parse-json (POST app "/api/business/bpm/instance"
                              {:model_id mid :form_data (or form-data {:days 1 :reason "p0"})}
@@ -136,7 +136,7 @@
 
 
 (defn- todo-of
-  "某 token 对应用户在本实例上的待办任务列表（keywordized rows）。"
+  "某 token 对应用户在本实例上的待办任务列表(keywordized rows)."
   [app hdr pid]
   (let [r (parse-json (GET app "/api/business/bpm/todo" {} hdr))]
     (filter #(= pid (:process-instance-id %)) (get-in r [:data :rows] []))))

@@ -1,7 +1,7 @@
 (ns com.ruoyi.frontend.pages.business.bpm-model-editor
-  "流程模型全屏编辑器 —— 对齐 vben model/form/index.vue：
-   顶部固定导航条（返回 + 流程名 / 1-4 步骤条 / 保存·发布）+ 分步内容区。
-   基本信息 / 表单设计 / 更多设置 居中 760px，流程设计全宽。"
+  "流程模型全屏编辑器 -- 对齐 vben model/form/index.vue:
+   顶部固定导航条(返回 + 流程名 / 1-4 步骤条 / 保存·发布)+ 分步内容区.
+   基本信息 / 表单设计 / 更多设置 居中 760px,流程设计全宽."
   (:require
     ["@ant-design/icons" :refer [ArrowLeftOutlined SaveOutlined RocketOutlined]]
     [clojure.string :as str]

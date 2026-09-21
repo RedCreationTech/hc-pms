@@ -1,9 +1,9 @@
 (ns com.ruoyi.frontend.components.bpmn-modeler
-  "bpmn-js 流程建模器封装（Reagent hook 组件）。
-   通过 index.html 引入 UMD 构建，使用全局 BpmnJS，避免 shadow-cljs 打包 bpmn-js。
-   容器 div 用命令式创建并挂到 host 下，规避 React 对 ref 容器 reconciliation 造成 bpmn-js 内部错误。
-   支持选中节点(on-select)回调，供外部属性面板编辑。
-   注入中文翻译模块 + flowable moddle 扩展（对齐 vben bpmn-process-designer）。"
+  "bpmn-js 流程建模器封装(Reagent hook 组件).
+   通过 index.html 引入 UMD 构建,使用全局 BpmnJS,避免 shadow-cljs 打包 bpmn-js.
+   容器 div 用命令式创建并挂到 host 下,规避 React 对 ref 容器 reconciliation 造成 bpmn-js 内部错误.
+   支持选中节点(on-select)回调,供外部属性面板编辑.
+   注入中文翻译模块 + flowable moddle 扩展(对齐 vben bpmn-process-designer)."
   (:require
     [clojure.string :as str]
     [reagent.hooks :as hooks]))
@@ -13,7 +13,7 @@
 
 
 (defn- empty-bpmn
-  "空白 BPMN 定义（含 start + 结束事件，并带 BPMNDI 图元，bpmn-js 才能渲染）。"
+  "空白 BPMN 定义(含 start + 结束事件,并带 BPMNDI 图元,bpmn-js 才能渲染)."
   []
   (str "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
        "<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\""
@@ -33,7 +33,7 @@
 
 
 (defn- bpmn-js
-  "取全局 BpmnJS 构造器。"
+  "取全局 BpmnJS 构造器."
   []
   (or (js* "globalThis.BpmnJS")
       (aget js/window "BpmnJS")))
@@ -285,7 +285,7 @@
 
 
 (defn selected-props
-  "读取选中元素属性，返回 {:id :type :name :candidate-users :condition}。"
+  "读取选中元素属性,返回 {:id :type :name :candidate-users :condition}."
   [^js element]
   (when element
     (let [bo (.-businessObject element)
@@ -298,7 +298,7 @@
 
 
 (defn update-selected!
-  "更新选中元素属性（名称/审批人/条件）。candidate-users 写 flowable:candidateUsers；condition 写 conditionExpression.body。"
+  "更新选中元素属性(名称/审批人/条件).candidate-users 写 flowable:candidateUsers;condition 写 conditionExpression.body."
   [^js modeler ^js element {:keys [name candidate-users condition]}]
   (when element
     (let [modeling (.get modeler "modeling")
@@ -326,7 +326,7 @@
 
 
 (def ^:private plus-node-types
-  "连线上加号浮层可追加的节点类型（对齐 vben simple-process-design 的圆形图标菜单）。"
+  "连线上加号浮层可追加的节点类型(对齐 vben simple-process-design 的圆形图标菜单)."
   [{:label "审批人" :bpmn-type "bpmn:UserTask" :icon "bpmn-icon-user-task" :color "#ff943e"}
    {:label "办理人" :bpmn-type "bpmn:UserTask" :icon "bpmn-icon-user-task" :color "#330099"}
    {:label "抄送" :bpmn-type "bpmn:UserTask" :icon "bpmn-icon-user-task" :color "#3296fa"}
@@ -340,8 +340,8 @@
 
 
 (defn- build-plus-menu!
-  "构建连线上加号旁的浮动圆形图标菜单（对齐 vben simple-process-design handler 浮层）。
-   返回 [menu-el hide-fn]，on-add 签名为 (on-add conn bpmn-type name)。"
+  "构建连线上加号旁的浮动圆形图标菜单(对齐 vben simple-process-design handler 浮层).
+   返回 [menu-el hide-fn],on-add 签名为 (on-add conn bpmn-type name)."
   [conn on-add]
   (let [wrap (js/document.createElement "div")
         hide (fn [] (set! (.-display (.-style wrap)) "none"))]
@@ -371,8 +371,8 @@
 
 
 (defn add-plus-overlays!
-  "在所有连线上加 '+' 按钮；hover 按钮弹出圆形图标节点菜单（对齐 vben），
-   点击菜单项回调 (on-add conn bpmn-type name)。"
+  "在所有连线上加 '+' 按钮;hover 按钮弹出圆形图标节点菜单(对齐 vben),
+   点击菜单项回调 (on-add conn bpmn-type name)."
   [^js modeler on-add]
   (when modeler
     (let [^js registry (.get modeler "elementRegistry")
@@ -418,7 +418,7 @@
 
 
 (defn- import-with-fallback
-  "导入 BPMN，失败（如缺 BPMNDI）时回退空白画布。"
+  "导入 BPMN,失败(如缺 BPMNDI)时回退空白画布."
   [^js modeler xml on-error]
   (let [p (.importXML modeler xml)]
     (.catch p
@@ -429,7 +429,7 @@
 
 
 (defn bpmn-modeler
-  "渲染 bpmn-js 建模器。参数: {:xml :modeler-ref :on-error :on-select :on-add-node :on-zoom-change}"
+  "渲染 bpmn-js 建模器.参数: {:xml :modeler-ref :on-error :on-select :on-add-node :on-zoom-change}"
   [{:keys [xml modeler-ref on-error on-select on-add-node on-zoom-change]}]
   (let [host-ref (hooks/use-ref nil)]
     (hooks/use-effect
@@ -470,7 +470,7 @@
 
 
 (defn save-bpmn!
-  "保存当前流程图，回调返回 XML 字符串。"
+  "保存当前流程图,回调返回 XML 字符串."
   [^js modeler on-saved on-error]
   (when modeler
     (let [p (.saveXML modeler #js {:format true})]
@@ -506,8 +506,8 @@
 
 
 (defn style-nodes!
-  "按 BPMN 元素类型给画布节点着色（参照 vben simple-process-design 节点配色）。
-   给每个 shape 的 DOM 元素加 bpmn-node-<type> 类，配合 CSS 着色。"
+  "按 BPMN 元素类型给画布节点着色(参照 vben simple-process-design 节点配色).
+   给每个 shape 的 DOM 元素加 bpmn-node-<type> 类,配合 CSS 着色."
   [^js modeler]
   (when modeler
     (let [^js registry (.get modeler "elementRegistry")
@@ -529,7 +529,7 @@
 
 
 (defn save-svg!
-  "保存为 SVG 字符串，回调 (on-saved svg)。"
+  "保存为 SVG 字符串,回调 (on-saved svg)."
   [^js modeler on-saved on-error]
   (when modeler
     (-> (.saveSVG modeler)
@@ -538,7 +538,7 @@
 
 
 (defn- download-file!
-  "触发浏览器下载。"
+  "触发浏览器下载."
   [filename href]
   (let [a (.createElement js/document "a")]
     (set! (.-download a) filename)
@@ -548,7 +548,7 @@
 
 
 (defn export-bpmn!
-  "导出为文件。type ∈ :xml | :svg | :bpmn。"
+  "导出为文件.type ∈ :xml | :svg | :bpmn."
   [^js modeler type on-error]
   (when modeler
     (if (= type :svg)
@@ -567,7 +567,7 @@
 
 
 (defn align-elements!
-  "对齐选中的多个元素。align ∈ left|right|top|bottom|center|middle。返回是否执行。"
+  "对齐选中的多个元素.align ∈ left|right|top|bottom|center|middle.返回是否执行."
   [^js modeler align]
   (when modeler
     (let [^js selection (.get modeler "selection")
@@ -579,7 +579,7 @@
 
 
 (defn import-xml!
-  "导入 XML 字符串，重新渲染画布。"
+  "导入 XML 字符串,重新渲染画布."
   [^js modeler xml on-imported on-error]
   (when modeler
     (-> (.importXML modeler xml)
@@ -588,7 +588,7 @@
 
 
 (defn import-local-file!
-  "读取本地 XML/BPMN 文件并导入。返回 promise。"
+  "读取本地 XML/BPMN 文件并导入.返回 promise."
   [^js modeler file on-imported on-error]
   (let [reader (js/FileReader.)]
     (.addEventListener reader "load"
@@ -597,7 +597,7 @@
 
 
 (defn new-diagram!
-  "重新绘制空白流程图。"
+  "重新绘制空白流程图."
   [^js modeler on-imported on-error]
   (when modeler
     (-> (.importXML modeler (empty-bpmn))
@@ -606,7 +606,7 @@
 
 
 (defn preview-xml!
-  "预览 XML，回调 (on-preview xml)。"
+  "预览 XML,回调 (on-preview xml)."
   [^js modeler on-preview on-error]
   (when modeler
     (-> (.saveXML modeler #js {:format true})
@@ -615,7 +615,7 @@
 
 
 (defn selected-count
-  "当前选中的元素数量。"
+  "当前选中的元素数量."
   [^js modeler]
   (if modeler
     (.-length (.get (.get modeler "selection")))

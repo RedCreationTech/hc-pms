@@ -556,6 +556,7 @@ antd 无法自动向 Reagent 函数组件注入 `value`/`onChange`,需要通过 
 | [README.md](./README.md)                             | 完整项目调研文档(推荐新人先看此文档)    |
 | [CHANGELOG.md](./CHANGELOG.md)                       | 版本演进历史(2026-09-20 回溯整理)       |
 | [docs/guides/add-new-module.md](docs/guides/add-new-module.md) | 新增业务模块端到端指南(迁移→SQL→领域→控制器→前端→权限→测试) |
+| [docs/guides/deployment.md](docs/guides/deployment.md) | 部署与运维指南(uberjar 构建,环境变量,双库切换,备份恢复,生产清单) |
 | [ROADMAP.md](./ROADMAP.md)                           | 功能齐平路线图(**已归档**,2026-06)     |
 | [GAP_ANALYSIS.md](./GAP_ANALYSIS.md)                 | RuoYi-Vue 逐项对比分析(**已归档**,2026-06) |
 | [RUOYI_VUE_COMPARISON.md](./RUOYI_VUE_COMPARISON.md) | 更详细的功能对比(**已归档**,2026-06)   |

@@ -1,8 +1,8 @@
 (ns user.profile-demo
-  "nREPL 可调的 async-profiler + criterium 性能对比演示。
-   包含两个场景：
-   1. GC 压力 — 大量临时对象 vs 基本类型数组
-   2. 反射开销 — 无 type hint vs 有 type hint"
+  "nREPL 可调的 async-profiler + criterium 性能对比演示.
+   包含两个场景:
+   1. GC 压力 -- 大量临时对象 vs 基本类型数组
+   2. 反射开销 -- 无 type hint vs 有 type hint"
   (:require
    [clojure.java.io :as io]
    [clojure.string :as str]
@@ -16,13 +16,13 @@
 ;; ─────────────────────────────────────────────────────────────────
 
 (defn- mean->ns
-  "把 criterium 返回的 mean（单位秒）转换成纳秒。"
+  "把 criterium 返回的 mean(单位秒)转换成纳秒."
   [bench-result]
   (when-let [mean (:mean bench-result)]
     (* 1e9 (first mean))))
 
 (defn- fmt-time
-  "把纳秒格式化为友好字符串。"
+  "把纳秒格式化为友好字符串."
   [ns]
   (cond
     (>= ns 1e9) (format "%.3f s" (/ ns 1e9))
@@ -35,19 +35,19 @@
 ;; ─────────────────────────────────────────────────────────────────
 
 (defn heavy-gc
-  "产生大量临时对象，触发频繁 GC。"
+  "产生大量临时对象,触发频繁 GC."
   [n]
   (dotimes [_ n]
     (vec (range 1000))))
 
 (defn light-gc
-  "使用 long-array，避免大量装箱对象。"
+  "使用 long-array,避免大量装箱对象."
   [n]
   (dotimes [_ n]
     (long-array 1000)))
 
 (defn run-gc-bench
-  "对 GC 场景做 criterium 对比。"
+  "对 GC 场景做 criterium 对比."
   []
   (println "== GC 场景：heavy-gc ==")
   (let [bad (c/quick-benchmark (heavy-gc 200) {})]
@@ -62,23 +62,23 @@
 ;; ─────────────────────────────────────────────────────────────────
 
 (defn make-collections
-  "构造一组 java.util.ArrayList，用于反射测试。"
+  "构造一组 java.util.ArrayList,用于反射测试."
   [n]
   (vec (for [_ (range n)]
          (java.util.ArrayList. ^java.util.Collection (range 10)))))
 
 (defn slow-reflection
-  "没有 type hint，会触发反射。"
+  "没有 type hint,会触发反射."
   [colls]
   (reduce #(+ %1 (.size %2)) 0 colls))
 
 (defn fast-hinted
-  "给参数和元素加上 type hint，消除反射。"
+  "给参数和元素加上 type hint,消除反射."
   [^java.util.Collection colls]
   (reduce #(+ %1 (.size ^java.util.Collection %2)) 0 colls))
 
 (defn run-reflection-bench
-  "对反射场景做 criterium 对比。"
+  "对反射场景做 criterium 对比."
   []
   (let [colls (make-collections 10000)]
     (println "== 反射场景：slow-reflection（会有 reflection warning）==")
@@ -97,7 +97,7 @@
 (defonce ^:private last-reflection-profiles (atom nil))
 
 (defn profile-gc
-  "对 GC 场景做 allocation profiling，返回生成的两个火焰图路径。"
+  "对 GC 场景做 allocation profiling,返回生成的两个火焰图路径."
   []
   (println "开始 profiling heavy-gc (alloc)...")
   (prof/start {:event :alloc :title "heavy-gc"})
@@ -113,7 +113,7 @@
       [bad good])))
 
 (defn profile-reflection
-  "对反射场景做 CPU profiling，返回生成的两个火焰图路径。"
+  "对反射场景做 CPU profiling,返回生成的两个火焰图路径."
   []
   (let [colls (make-collections 10000)]
     (println "开始 profiling slow-reflection (cpu)...")
@@ -194,7 +194,7 @@
          "</body>\n</html>")))
 
 (defn generate-report
-  "生成包含 chart 的 HTML 报告。默认写到 target/profile-report.html。"
+  "生成包含 chart 的 HTML 报告.默认写到 target/profile-report.html."
   ([]
    (let [gc (run-gc-bench)
          ref (run-reflection-bench)]

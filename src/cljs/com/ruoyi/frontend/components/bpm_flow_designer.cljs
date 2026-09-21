@@ -1,8 +1,8 @@
 (ns com.ruoyi.frontend.components.bpm-flow-designer
-  "纯 HTML/CSS flex 流程编辑器（对齐 vben simple-process-design）。
+  "纯 HTML/CSS flex 流程编辑器(对齐 vben simple-process-design).
    节点树: {:id :type :name :config :child-node :condition-nodes}
-   垂直 flex 布局 + 卡片节点 + 灰线箭头 + 蓝色'＋'按钮 + 分支横向展开。
-   点击节点打开配置抽屉：审批人/抄送/条件/延迟等设置（对齐 vben nodes-config）。"
+   垂直 flex 布局 + 卡片节点 + 灰线箭头 + 蓝色'+'按钮 + 分支横向展开.
+   点击节点打开配置抽屉:审批人/抄送/条件/延迟等设置(对齐 vben nodes-config)."
   (:require
     ["dayjs" :as dayjs]
     [clojure.string :as str]
@@ -44,7 +44,7 @@
 
 
 (defn- rules->expression
-  "条件规则列表 → Flowable 表达式字符串（${days > 3 && amount < 100}）。"
+  "条件规则列表 → Flowable 表达式字符串(${days > 3 && amount < 100})."
   [rules]
   (when (seq rules)
     (let [parts (keep (fn [{:keys [left-side op-code right-side]}]
@@ -73,7 +73,7 @@
 
 
 (def ^:private copy-candidate-strategies
-  "抄送节点策略（复用审批人的 user-candidate-editor 参数编辑器；自选类策略不适用抄送）。"
+  "抄送节点策略(复用审批人的 user-candidate-editor 参数编辑器;自选类策略不适用抄送)."
   [{:value "USER" :label "指定用户"} {:value "ROLE" :label "指定角色"}
    {:value "DEPT_MEMBER" :label "指定部门成员"} {:value "DEPT_LEADER" :label "指定部门负责人"}
    {:value "POST" :label "指定岗位"} {:value "USER_GROUP" :label "用户组"}
@@ -133,7 +133,7 @@
 
 
 (def ^:private default-transactor-config
-  "办理人节点默认配置：与审批人同构，但按钮默认只开「办理」（其余操作隐藏）。"
+  "办理人节点默认配置:与审批人同构,但按钮默认只开\"办理\"(其余操作隐藏)."
   (assoc default-user-config
          :buttons {"approve" {"enable" true "displayName" "办理"}
                    "reject" {"enable" false "displayName" "驳回"}
@@ -144,7 +144,7 @@
 
 
 (def ^:private button-config-items
-  "可配置的操作按钮（nodeConfig.buttons）。"
+  "可配置的操作按钮(nodeConfig.buttons)."
   [{:key "approve" :label "通过"} {:key "reject" :label "驳回"}
    {:key "transfer" :label "转办"} {:key "delegate" :label "委派"}
    {:key "add-sign" :label "加签"} {:key "return" :label "退回"}])
@@ -182,7 +182,7 @@
 
 
 (defn- multi-select
-  "通用多选下拉。opts 为已构建的 select-option 序列。"
+  "通用多选下拉.opts 为已构建的 select-option 序列."
   [placeholder value on-change opts]
   [antd/select {:mode "multiple" :allowClear true :style {:width "100%" :marginTop 8}
                 :placeholder placeholder :value (or value []) :onChange on-change}
@@ -203,14 +203,14 @@
 
 
 (defn- remove-idx
-  "按序号移除集合中的元素。"
+  "按序号移除集合中的元素."
   [coll i]
   (vec (keep-indexed (fn [j row] (when (not= j i) row)) (or coll []))))
 
 
 (defn- kv-rows-editor
-  "通用 key-value 行编辑器（headers / bodyParams / params / 变量映射）。
-   coll: [{:key :value} ...]；on-change 回写整列。"
+  "通用 key-value 行编辑器(headers / bodyParams / params / 变量映射).
+   coll: [{:key :value} ...];on-change 回写整列."
   [label coll on-change]
   [:div {:style {:marginTop 8}}
    (f-label label)
@@ -235,7 +235,7 @@
 
 
 (defn- rule-rows-editor
-  "条件规则行编辑器（left-side 字段 / op / right-side 值），更新 (swap! cfg assoc-in path rows)。"
+  "条件规则行编辑器(left-side 字段 / op / right-side 值),更新 (swap! cfg assoc-in path rows)."
   [cfg path form-fields]
   (let [rules (or (get-in @cfg path) [])]
     [:div
@@ -275,7 +275,7 @@
 
 
 (defn- listeners-editor
-  "节点监听器（Create/Assign/Complete HTTP 回调）配置面板，存 nodeConfig.listeners。"
+  "节点监听器(Create/Assign/Complete HTTP 回调)配置面板,存 nodeConfig.listeners."
   [cfg]
   [:div {:style {:marginTop 14}}
    (f-label "节点监听器（HTTP 回调）")
@@ -299,10 +299,10 @@
 
 
 (defn- user-candidate-editor
-  "审批人设置：按候选策略渲染参数编辑器。
-   静态策略(USER/ROLE/DEPT/POST)直接生成 BPMN 候选属性；
+  "审批人设置:按候选策略渲染参数编辑器.
+   静态策略(USER/ROLE/DEPT/POST)直接生成 BPMN 候选属性;
    动态/新策略(INITIATOR_SELF/USER_GROUP/FORM_USER/FORM_DEPT_LEADER/EXPRESSION 等)配置进
-   nodeConfig，运行时由 TaskListener create 事件解析。"
+   nodeConfig,运行时由 TaskListener create 事件解析."
   [cfg users roles depts posts groups expressions form-fields]
   (let [s (:candidate-strategy @cfg)
         pi (fn [k v]
@@ -376,7 +376,7 @@
 
 
 (defn- user-buttons-editor
-  "操作按钮配置：每节点可配 approve/reject/transfer/delegate/add-sign/return 的启用与显示名。"
+  "操作按钮配置:每节点可配 approve/reject/transfer/delegate/add-sign/return 的启用与显示名."
   [cfg]
   [:div {:style {:marginTop 14}}
    (f-label "操作按钮配置")
@@ -397,7 +397,7 @@
 
 
 (defn- user-reject-editor
-  "审批人拒绝时设置。"
+  "审批人拒绝时设置."
   [cfg node user-task-nodes]
   [:div
    (f-label "审批人拒绝时")
@@ -417,7 +417,7 @@
 
 
 (defn- user-timeout-editor
-  "审批人超时未处理设置。"
+  "审批人超时未处理设置."
   [cfg]
   [:div
    (f-label "审批人超时未处理")
@@ -451,7 +451,7 @@
 
 
 (defn- user-empty-editor
-  "审批人为空时设置。"
+  "审批人为空时设置."
   [cfg users]
   [:div
    (f-label "审批人为空时")
@@ -536,7 +536,7 @@
 
 
 (defn render-node
-  "递归渲染节点树。path 为从根到当前节点的 assoc-in 路径。opts: {:read-only? :active-ids :completed-ids}"
+  "递归渲染节点树.path 为从根到当前节点的 assoc-in 路径.opts: {:read-only? :active-ids :completed-ids}"
   [node path on-edit on-add on-delete add-condition! show-text-fn opts]
   (if (nil? node)
     [:div]
@@ -557,7 +557,7 @@
 ;; ── 配置辅助函数 ─────────────────────────────────────────────────────
 
 (defn- user-show-text
-  "审批/办理/抄送节点 → 卡片内容区文本。"
+  "审批/办理/抄送节点 → 卡片内容区文本."
   [t cfg]
   (let [at (:approve-type cfg)]
     (cond
@@ -572,7 +572,7 @@
 
 
 (defn- delay-show-text
-  "延迟器 → 卡片内容区文本。P1：支持固定日期时间模式(time-date)。"
+  "延迟器 → 卡片内容区文本.P1:支持固定日期时间模式(time-date)."
   [{:keys [time-duration time-unit timer-type time-date]}]
   (if (= "DATE" timer-type)
     (when (seq (str time-date))
@@ -584,7 +584,7 @@
 ;; ── 设计器组件(r/atom + with-let component-did-mount)────────────────
 
 (def ^:private add-node-types
-  "可添加的节点类型（对齐 vben node-handler）。"
+  "可添加的节点类型(对齐 vben node-handler)."
   [{:type "USER_TASK_NODE" :label "审批人"} {:type "TRANSACTOR_NODE" :label "办理人"}
    {:type "COPY_TASK_NODE" :label "抄送"} {:type "CONDITION_BRANCH_NODE" :label "条件分支"}
    {:type "PARALLEL_BRANCH_NODE" :label "并行分支"} {:type "INCLUSIVE_BRANCH_NODE" :label "包容分支"}

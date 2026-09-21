@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.role
-  "角色管理页面 — 搜索、CRUD、菜单/数据/用户权限分配。"
+  "角色管理页面 -- 搜索,CRUD,菜单/数据/用户权限分配."
   (:require
     ["@ant-design/icons" :refer [DownloadOutlined SearchOutlined ReloadOutlined PlusOutlined EditOutlined DeleteOutlined]]
     [com.ruoyi.frontend.antd :as antd]
@@ -14,7 +14,7 @@
 ;; ─── 辅助函数 ──────────────────────────────────────────────────────
 
 (defn- menu->tree-node
-  "将菜单数据转换为 Ant Design Tree 节点格式。"
+  "将菜单数据转换为 Ant Design Tree 节点格式."
   [menu]
   (let [node {:title (:menu_name menu)
               :key (str (:menu_id menu))}]

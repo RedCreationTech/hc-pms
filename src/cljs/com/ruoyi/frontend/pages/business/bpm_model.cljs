@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.business.bpm-model
-  "流程模型管理 —— 分类卡片分组视图（P1 对齐 vben model/index.vue）；设计/新建跳转全屏编辑器页。"
+  "流程模型管理 -- 分类卡片分组视图(P1 对齐 vben model/index.vue);设计/新建跳转全屏编辑器页."
   (:require
     ["@ant-design/icons" :refer [ReloadOutlined PlayCircleOutlined EditOutlined
                                  PlusOutlined DownOutlined SearchOutlined]]
@@ -23,14 +23,14 @@
 
 
 (defn- color-of
-  "按名称稳定取色（图标色块用）。"
+  "按名称稳定取色(图标色块用)."
   [s]
   (let [h (reduce (fn [acc c] (unchecked-add (unchecked-multiply (int acc) 31) (int c))) 7 (str s))]
     (nth palette (mod (Math/abs h) (count palette)))))
 
 
 (defn- model-icon-view
-  "模型图标：有 icon 显示图片，否则名称前 2 字色块。"
+  "模型图标:有 icon 显示图片,否则名称前 2 字色块."
   ([model] (model-icon-view model 32))
   ([model size]
    (let [icon (:icon model)
@@ -45,7 +45,7 @@
 
 
 (defn- delete-model!
-  "删除模型（更多菜单入口）。"
+  "删除模型(更多菜单入口)."
   [m]
   (antd/modal-confirm!
     #(api/bpm-delete-model
@@ -61,7 +61,7 @@
 
 
 (defn- model-actions
-  "模型行操作：设计 / 部署 / 更多（历史·挂起↔激活·复制·报表·清理·删除）。"
+  "模型行操作:设计 / 部署 / 更多(历史·挂起↔激活·复制·报表·清理·删除)."
   [m]
   (let [mid (:model_id m)
         running? (= "1" (:status m))
@@ -104,7 +104,7 @@
 
 
 (defn- group-columns
-  "分类卡内模型表格列（P1 对齐 vben model/index.vue 信息密度）。"
+  "分类卡内模型表格列(P1 对齐 vben model/index.vue 信息密度)."
   [forms-by-id]
   #js [#js {:title "流程" :key "name" :width 240
             :render (fn [_ ^js record]
@@ -164,8 +164,8 @@
 
 
 (defn- group-models
-  "把模型按分类分组（排序：分类 order_num → 分类 id；组内 order_num → model_id 倒序），
-   无分类/分类已删除的归「未分类」组（恒在最后）。"
+  "把模型按分类分组(排序:分类 order_num → 分类 id;组内 order_num → model_id 倒序),
+   无分类/分类已删除的归\"未分类\"组(恒在最后)."
   [models categories]
   (let [cat-by-id (into {} (map (juxt :category_id identity)) categories)
         valid-ids (set (keys cat-by-id))
@@ -180,8 +180,8 @@
 
 ;; Tab 页内容组件(避免深层嵌套,拆成独立函数)
 (defn basic-info-tab
-  "P1 基本信息（对齐 vben base-info.vue）：名称/Key/分类/表单类型 +
-   流程图标 / 流程描述 / 谁可发起（全员·指定人员·指定部门）/ 流程管理员。"
+  "P1 基本信息(对齐 vben base-info.vue):名称/Key/分类/表单类型 +
+   流程图标 / 流程描述 / 谁可发起(全员·指定人员·指定部门)/ 流程管理员."
   [{:keys [mname set-mname! mkey set-mkey! mcat set-mcat! mform-type set-mform-type!
            categories micon set-micon! mremark set-mremark!
            mstart-type set-mstart-type! mstart-user-ids set-mstart-user-ids!
@@ -260,8 +260,8 @@
 
 
 (defn form-design-tab
-  "表单设计 Tab —— 对齐 vben form-design.vue：表单类型(无/动态/自定义) + 表单选择 + 只读预览。
-   未绑定独立表单时回退到模型内嵌 form_json（内置模型）。"
+  "表单设计 Tab -- 对齐 vben form-design.vue:表单类型(无/动态/自定义) + 表单选择 + 只读预览.
+   未绑定独立表单时回退到模型内嵌 form_json(内置模型)."
   [mform-type set-mform-type! mform-id set-mform-id! form-list
    mcustom-create set-mcustom-create! mcustom-view set-mcustom-view!
    mfields-perm set-mfields-perm! mform-json]
@@ -342,7 +342,7 @@
 
 
 (defn- kv-editor
-  "key-value 行编辑器（Webhook headers / bodyParams）。"
+  "key-value 行编辑器(Webhook headers / bodyParams)."
   [label rows on-change]
   [:div {:style {:marginTop 6}}
    [:div {:style {:fontSize 12 :color "#909399" :marginBottom 4}} label]
@@ -367,7 +367,7 @@
 
 
 (defn- template-insert-select
-  "模板变量插入下拉（P1）：选中后把 token 插入绑定输入框的光标处并恢复光标。"
+  "模板变量插入下拉(P1):选中后把 token 插入绑定输入框的光标处并恢复光标."
   [input-ref value on-change placeholder options]
   [antd/select {:style {:width 160} :size "small" :placeholder placeholder
                 :value nil
@@ -389,7 +389,7 @@
 
 
 (defn- template-input
-  "标题模板输入框 + 变量插入下拉（P1）。options: [{:value token :label 显示}]"
+  "标题模板输入框 + 变量插入下拉(P1).options: [{:value token :label 显示}]"
   [{:keys [value on-change placeholder options]}]
   (let [ref (hooks/use-ref nil)]
     [:div {:style {:display "flex" :gap 8}}
@@ -399,7 +399,7 @@
 
 
 (defn- print-template-editor
-  "打印模板编辑器（P1）：textarea + 变量插入下拉（{{xxx}} 格式）。"
+  "打印模板编辑器(P1):textarea + 变量插入下拉({{xxx}} 格式)."
   [value on-change options]
   (let [ref (hooks/use-ref nil)]
     [:div
@@ -411,9 +411,9 @@
 
 
 (defn extra-tab
-  "更多设置：Phase 3/4 治理能力（编号规则/自动去重/标题规则/摘要字段/打印模板/Webhook）
-   + P0-4 提交人/审批人权限开关 + P1 Webhook 响应回写。
-   （流程描述已移至基本信息 Tab）"
+  "更多设置:Phase 3/4 治理能力(编号规则/自动去重/标题规则/摘要字段/打印模板/Webhook)
+   + P0-4 提交人/审批人权限开关 + P1 Webhook 响应回写.
+   (流程描述已移至基本信息 Tab)"
   [{:keys [mwebhooks set-mwebhooks! mauto-type set-mauto-type! mname-rule set-mname-rule!
            mprocess-rule set-mprocess-rule! msummary-fields set-msummary-fields!
            mprint-enable set-mprint-enable! mprint-html set-mprint-html!
@@ -584,7 +584,7 @@
 
 
 (defn- refresh-categories!
-  "重新加载分类列表。"
+  "重新加载分类列表."
   [set-categories!]
   (api/bpm-list-categories {:page 1 :size 1000}
                            #(set-categories! (walk/keywordize-keys (get-in % [:data :rows])))
@@ -592,7 +592,7 @@
 
 
 (defn- category-manage-modal
-  "分类管理：新增 / 改名 / 删除 / 拖拽排序（对齐 vben 分类管理）。"
+  "分类管理:新增 / 改名 / 删除 / 拖拽排序(对齐 vben 分类管理)."
   [{:keys [open? on-close on-changed]}]
   (let [[cats set-cats!] (hooks/use-state [])
         [new-name set-new-name!] (hooks/use-state "")

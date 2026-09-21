@@ -1,5 +1,5 @@
 (ns com.ruoyi.infra.online-test
-  "在线用户管理测试。"
+  "在线用户管理测试."
   (:require
     [clojure.test :refer [deftest is testing use-fixtures]]
     [com.ruoyi.infra.online :as online]

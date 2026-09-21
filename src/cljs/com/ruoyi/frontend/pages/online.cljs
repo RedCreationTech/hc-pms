@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.online
-  "在线用户页面。"
+  "在线用户页面."
   (:require
     ["@ant-design/icons" :refer [SearchOutlined ReloadOutlined]]
     [com.ruoyi.frontend.antd :as antd]

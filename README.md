@@ -837,6 +837,7 @@ npm run test:e2e:report
 | [AGENTS.md](./AGENTS.md) | AI 代理开发指南,编码约定,前端规范 |
 | [CHANGELOG.md](./CHANGELOG.md) | 版本演进历史(2026-09-20 回溯整理) |
 | [docs/guides/add-new-module.md](./docs/guides/add-new-module.md) | 新增业务模块端到端指南(迁移→SQL→领域→控制器→前端→权限→测试) |
+| [docs/guides/deployment.md](./docs/guides/deployment.md) | 部署与运维指南(uberjar 构建,环境变量,双库切换,备份恢复,生产清单) |
 | [ROADMAP.md](./ROADMAP.md) | 功能齐平路线图(**已归档**,2026-06) |
 | [GAP_ANALYSIS.md](./GAP_ANALYSIS.md) | RuoYi-Vue 详细功能对比(**已归档**,2026-06) |
 | [RUOYI_VUE_COMPARISON.md](./RUOYI_VUE_COMPARISON.md) | RuoYi-Vue 逐项对比(**已归档**,2026-06) |

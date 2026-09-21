@@ -74,7 +74,7 @@
 
 (defn use-app-message
   []
-  "在 App 组件内部调用，获取 message 实例。"
+  "在 App 组件内部调用,获取 message 实例."
   (let [api (.useApp App)]
     (reset! message-api (.-message api))))
 

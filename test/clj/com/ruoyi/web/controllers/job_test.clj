@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.job-test
-  "定时任务控制器测试。"
+  "定时任务控制器测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.infra.scheduler :as scheduler-core]

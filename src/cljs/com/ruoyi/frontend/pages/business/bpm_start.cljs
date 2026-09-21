@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.business.bpm-start
-  "发起流程 —— 选择模型 → 动态表单渲染 → 提交（对齐 vben 流程中心发起）。"
+  "发起流程 -- 选择模型 → 动态表单渲染 → 提交(对齐 vben 流程中心发起)."
   (:require
     ["@ant-design/icons" :refer [ReloadOutlined PlayCircleOutlined]]
     [clojure.string :as str]
@@ -35,7 +35,7 @@
 
 
 (defn- validate-fields
-  "前端校验表单字段（必填 + 正则 pattern）。返回错误消息或 nil。"
+  "前端校验表单字段(必填 + 正则 pattern).返回错误消息或 nil."
   [fields values]
   (first (keep (fn [f]
                  (let [v (get values (:field f))
@@ -62,7 +62,7 @@
 
 
 (defn- build-dept-tree
-  "部门列表 → antd tree-data（两级，含 key）。"
+  "部门列表 → antd tree-data(两级,含 key)."
   [depts]
   (mapv (fn [d]
           {:key (:dept_id d) :title (:dept_name d) :value (:dept_id d)
@@ -73,7 +73,7 @@
 
 
 (defn- fill-field-data
-  "为 tree-select/dict-select 字段注入数据源。"
+  "为 tree-select/dict-select 字段注入数据源."
   [schema field-type data-key data]
   (update schema :fields
           (fn [fs]
@@ -85,7 +85,7 @@
 
 
 (defn- collect-start-select
-  "遍历流程树收集 START_USER_SELECT 节点（发起人自选审批人）。"
+  "遍历流程树收集 START_USER_SELECT 节点(发起人自选审批人)."
   [node]
   (let [cfg (:config node)
         me (when (and cfg (= "START_USER_SELECT" (get-in cfg [:candidate-strategy])))

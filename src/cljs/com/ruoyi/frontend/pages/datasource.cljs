@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.datasource
-  "连接池监视页面，按 RuoYi 数据监控入口展示 HikariCP 连接池状态。"
+  "连接池监视页面,按 RuoYi 数据监控入口展示 HikariCP 连接池状态."
   (:require
     ["@ant-design/icons" :refer [DatabaseOutlined ReloadOutlined]]
     ["antd" :refer [Spin Table]]
@@ -17,7 +17,7 @@
 
 
 (defn- monitor-card
-  "渲染 RuoYi 风格连接池监控卡片。"
+  "渲染 RuoYi 风格连接池监控卡片."
   [{:keys [icon title]} & children]
   (into
     [:div {:style card-style}
@@ -36,7 +36,7 @@
 
 
 (defn- metric-rows
-  "把连接池状态转换成表格行。"
+  "把连接池状态转换成表格行."
   [data]
   [{:name "数据库名称" :value (or (:db_name data) "-") :remark "当前 JDBC 数据源"}
    {:name "数据库版本" :value (or (:db_version data) "-") :remark "驱动或数据库版本"}
@@ -52,7 +52,7 @@
 
 
 (defn- pool-table
-  "渲染连接池状态表格。"
+  "渲染连接池状态表格."
   [data]
   [:> Table {:size "small"
              :pagination false

@@ -247,7 +247,7 @@
 
 (defn- ^:private sanitize-key
   [k]
-  "把 Integrant key 统一转成无冒号的字符串，方便前端匹配。"
+  "把 Integrant key 统一转成无冒号的字符串,方便前端匹配."
   (if (keyword? k)
     (subs (str k) 1)
     (str k)))
@@ -255,7 +255,7 @@
 
 (defn- sanitize-value
   [v]
-  "把 #ig/ref 等不可 JSON 序列化的值转成可序列化结构。"
+  "把 #ig/ref 等不可 JSON 序列化的值转成可序列化结构."
   (cond
     (ig/ref? v) {:__ig_ref true :key (str (:key v))}
     (map? v) (into {} (map (fn [[k v]] [k (sanitize-value v)])) v)
@@ -266,7 +266,7 @@
 
 (defn- summarize-system-value
   [v]
-  "对运行时组件做摘要，避免直接序列化连接池等对象。"
+  "对运行时组件做摘要,避免直接序列化连接池等对象."
   (cond
     (map? v) {:type (str (class v)) :kind "map" :keys (mapv sanitize-key (keys v))}
     (sequential? v) {:type (str (class v)) :kind "seq" :count (count v)}

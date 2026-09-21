@@ -1,6 +1,6 @@
 (ns com.ruoyi.frontend.pages.business.bpm-todo
-  "我的待办 —— 审批面板（通过/驳回/转办/委派/加签/抄送）。
-   Phase 2：按节点 buttons 配置显隐/改名操作按钮，支持手写签名(signEnable)与意见必填(reasonRequire)。"
+  "我的待办 -- 审批面板(通过/驳回/转办/委派/加签/抄送).
+   Phase 2:按节点 buttons 配置显隐/改名操作按钮,支持手写签名(signEnable)与意见必填(reasonRequire)."
   (:require
     ["@ant-design/icons" :refer [ReloadOutlined CheckOutlined CloseOutlined SwapOutlined SendOutlined EyeOutlined UserAddOutlined MailOutlined RollbackOutlined EditOutlined]]
     [clojure.string]
@@ -18,7 +18,7 @@
 ;; ── 节点按钮配置(task-detail / todo 行附带,未配置默认全启用)────────────────
 
 (defn- button-cfg
-  "取任务某按钮配置 → {:enable? bool :label str}。keys: approve/reject/transfer/delegate/add-sign/return"
+  "取任务某按钮配置 → {:enable? bool :label str}.keys: approve/reject/transfer/delegate/add-sign/return"
   [task k default-label]
   (let [buttons (:buttons task)
         b (or (get buttons k) (get buttons (keyword k)))]

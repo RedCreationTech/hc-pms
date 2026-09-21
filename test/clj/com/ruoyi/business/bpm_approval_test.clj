@@ -1,6 +1,6 @@
 (ns com.ruoyi.business.bpm-approval-test
-  "BPM Phase 1 审批闭环 REST 集成测试：加签/减签/取消/撤回/抄送/可退回节点。
-   断言不依赖待办总数（测试环境共享 rouyi.db/flowable，可能有历史遗留流程）。"
+  "BPM Phase 1 审批闭环 REST 集成测试:加签/减签/取消/撤回/抄送/可退回节点.
+   断言不依赖待办总数(测试环境共享 rouyi.db/flowable,可能有历史遗留流程)."
   (:require
     [clojure.data.json :as json]
     [clojure.test :refer [deftest testing is use-fixtures]]
@@ -72,7 +72,7 @@
 ;; ── 用户与流程准备 ────────────────────────────────────────────────────
 
 (defn- ensure-user!
-  "创建一个专用测试用户（共享 DB 中没有 ry，避免依赖固定账号），返回 {:username u :token t :hdr h}。"
+  "创建一个专用测试用户(共享 DB 中没有 ry,避免依赖固定账号),返回 {:username u :token t :hdr h}."
   [app admin-h]
   (let [u (str "ph1u" (rand-int 100000))
         r (parse-json (POST app "/api/system/user"
@@ -85,9 +85,9 @@
 
 
 (defn- two-task-bpmn
-  "start → approve1(admin) → [copy1(抄送人, COPY_TASK)] → approve2(admin) → end。
-   当 copy-user 非 nil 时在 approve1 之后插入抄送节点（nodeConfig 仅标 nodeType，
-   候选人走 candidateUsers 属性 → identityLink 兜底展开）。"
+  "start → approve1(admin) → [copy1(抄送人, COPY_TASK)] → approve2(admin) → end.
+   当 copy-user 非 nil 时在 approve1 之后插入抄送节点(nodeConfig 仅标 nodeType,
+   候选人走 candidateUsers 属性 → identityLink 兜底展开)."
   [key copy-user]
   (let [copy-el (when copy-user
                   (str "<userTask id=\"copy1\" name=\"抄送\" flowable:candidateUsers=\"" copy-user "\">"
@@ -113,7 +113,7 @@
 
 
 (defn- deploy-test-model!
-  "创建并部署一个测试流程模型，返回 {:model-id mid}。"
+  "创建并部署一个测试流程模型,返回 {:model-id mid}."
   [app h copy-user]
   (let [key (str "ph1" (System/currentTimeMillis) (rand-int 1000))
         cat (parse-json (POST app "/api/business/bpm/category" {:name "Phase1测试" :code "ph1" :sort 9} h))
@@ -137,7 +137,7 @@
 
 
 (defn- start-instance!
-  "发起流程实例，返回 process-instance-id。"
+  "发起流程实例,返回 process-instance-id."
   [app h mid]
   (let [st (parse-json (POST app "/api/business/bpm/instance"
                              {:model_id mid :form_data {:days 1 :reason "phase1"}} h))]

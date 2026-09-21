@@ -1,5 +1,5 @@
 (ns com.ruoyi.infra.db-test
-  "数据库抽象层测试。"
+  "数据库抽象层测试."
   (:require
     [clojure.string :as str]
     [clojure.test :refer [deftest is testing]]

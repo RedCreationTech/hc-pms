@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.register-test
-  "用户注册控制器测试。"
+  "用户注册控制器测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.web.controllers.register :as register]))

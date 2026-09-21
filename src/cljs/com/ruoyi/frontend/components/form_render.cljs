@@ -1,8 +1,8 @@
 (ns com.ruoyi.frontend.components.form-render
-  "动态表单渲染器 —— 把 @form-create 风格 conf/fields 渲染为 antd 表单（预览/发起/详情复用）。
+  "动态表单渲染器 -- 把 @form-create 风格 conf/fields 渲染为 antd 表单(预览/发起/详情复用).
    field: {:type :field :title :value :props :validate}
    type: input/textarea/number/date/time/radio/checkbox/select/switch/rate/user/dept
-   options: {:disabled? :values :on-change}（values 覆盖默认值，on-change 接收 {field value}）"
+   options: {:disabled? :values :on-change}(values 覆盖默认值,on-change 接收 {field value})"
   (:require
     [clojure.string :as str]
     [com.ruoyi.frontend.antd :as antd]
@@ -11,7 +11,7 @@
 
 
 (def ^:private area-data
-  "内置中国常用省市区数据（级联选择）。"
+  "内置中国常用省市区数据(级联选择)."
   [{:label "北京市" :value "110000" :children [{:label "北京市" :value "110100"}]}
    {:label "上海市" :value "310000" :children [{:label "上海市" :value "310100"}]}
    {:label "天津市" :value "120000" :children [{:label "天津市" :value "120100"}]}
@@ -39,7 +39,7 @@
 
 
 (defn- rich-text-editor
-  "轻量富文本编辑器（contenteditable + execCommand，兼容 React 19）。"
+  "轻量富文本编辑器(contenteditable + execCommand,兼容 React 19)."
   [{:keys [value on-change]}]
   (r/with-let [el (r/atom nil)
                exec (fn [cmd]
@@ -91,13 +91,13 @@
 
 
 (defn- field-title
-  "字段标题：兼容 :title（设计器标准）与 :label（旧数据）。"
+  "字段标题:兼容 :title(设计器标准)与 :label(旧数据)."
   [f]
   (or (:title f) (:label f) ""))
 
 
 (defn- render-divider
-  "分割线字段：antd Divider + 标题。"
+  "分割线字段:antd Divider + 标题."
   [f]
   [:div {:style {:margin "4px 0"}}
    [antd/divider {:orientation "left" :plain true :style {:fontSize 14 :fontWeight 600 :color "#303133"}}
@@ -105,7 +105,7 @@
 
 
 (defn- flatten-tree-options
-  "树节点 → 拉平 select 选项（带层级缩进）。"
+  "树节点 → 拉平 select 选项(带层级缩进)."
   [nodes depth]
   (mapcat (fn [n]
             (cons {:label (str (apply str (repeat depth "　")) (:title n)) :value (:value n)}
@@ -114,7 +114,7 @@
 
 
 (defn- render-options
-  "渲染 options 序列（label/value）。"
+  "渲染 options 序列(label/value)."
   [opts mode]
   (doall
     (for [o (or opts [])]
@@ -126,7 +126,7 @@
 
 
 (defn render-field
-  "渲染单个表单字段控件（不含 Form.Item）。"
+  "渲染单个表单字段控件(不含 Form.Item)."
   [f disabled? value on-change]
   (let [props (merge (get default-props (:type f) {}) (:props f))
         opts (or (:options f) (get props :options))

@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.components.bpmn-viewer
-  "bpmn-js 只读流程视图 + 进度高亮（复用全局 BpmnJS）。"
+  "bpmn-js 只读流程视图 + 进度高亮(复用全局 BpmnJS)."
   (:require
     [reagent.hooks :as hooks]))
 

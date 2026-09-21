@@ -99,7 +99,7 @@
 
 (defn- safe-snapshot
   [v]
-  "把任意值转成可 JSON 序列化的简短摘要。"
+  "把任意值转成可 JSON 序列化的简短摘要."
   (cond
     (nil? v) nil
     (map? v) (into {} (map (fn [[k v]] [(str k) (if (sensitive-key? k) "<redacted>" (safe-snapshot v))])) v)
@@ -186,7 +186,7 @@
 
 (defn start!
   [key-str]
-  "开始对某个 Integrant key 对应的函数进行调用追踪。"
+  "开始对某个 Integrant key 对应的函数进行调用追踪."
   (let [k (kw key-str)
         f (current-actual k)]
     (when (fn? f)
@@ -203,7 +203,7 @@
 
 (defn stop!
   [key-str]
-  "停止追踪并清空日志，恢复原始函数。"
+  "停止追踪并清空日志,恢复原始函数."
   (let [k (kw key-str)
         rec (get @registry key-str)]
     (when rec

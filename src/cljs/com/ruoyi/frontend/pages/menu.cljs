@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.menu
-  "菜单管理页面 — 树形表格、CRUD、图标选择器、行拖拽排序。"
+  "菜单管理页面 -- 树形表格,CRUD,图标选择器,行拖拽排序."
   (:require
     ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined ReloadOutlined SearchOutlined CheckOutlined ColumnHeightOutlined DragOutlined]]
     ["@dnd-kit/core" :as dnd-kit-core]
@@ -18,7 +18,7 @@
 ;; ─── 辅助:平铺菜单转树 ──────────────────────────────────────────────────────
 
 (defn- build-menu-tree
-  "将平铺菜单列表按 parent_id 构建为树形结构，并附加层级信息用于对齐 RuoYi 树形表格缩进。"
+  "将平铺菜单列表按 parent_id 构建为树形结构,并附加层级信息用于对齐 RuoYi 树形表格缩进."
   ([items parent-id]
    (build-menu-tree items parent-id 0))
   ([items parent-id level]
@@ -35,8 +35,8 @@
 ;; ─── 辅助:平铺转排序数组 ──────────────────────────────────────────────────────
 
 (defn- flatten-menu-keys
-  "将树形菜单平铺，按展平后的显示顺序返回 menu_id 列表，
-   保持现有的 parent-child 层级关系。"
+  "将树形菜单平铺,按展平后的显示顺序返回 menu_id 列表,
+   保持现有的 parent-child 层级关系."
   [items]
   (mapcat
     (fn [item]
@@ -49,7 +49,7 @@
 ;; ─── 辅助:菜单转树选项 ──────────────────────────────────────────────────────
 
 (defn- menu-tree-options
-  "将后端菜单树转为 TreeSelect 使用的选项。"
+  "将后端菜单树转为 TreeSelect 使用的选项."
   [menus]
   (when (seq menus)
     (mapv (fn [m]
@@ -133,7 +133,7 @@
 
 
 (defn- sortable-row
-  "可拖拽的行，包裹 antd Table tr。"
+  "可拖拽的行,包裹 antd Table tr."
   [{:keys [id row-props]}]
   (let [sortable (dnd-sortable/useSortable (clj->js {:id id}))
         attributes (.-attributes sortable)
@@ -436,7 +436,7 @@
 ;; ─── 辅助:同级兄弟节点重新编号 ──────────────────────────────────────────────
 
 (defn- reorder-siblings
-  "给定平铺 items 列表，对同一 parent_id 的兄弟节点按指定顺序重排 order_num。"
+  "给定平铺 items 列表,对同一 parent_id 的兄弟节点按指定顺序重排 order_num."
   [items parent-id ordered-ids]
   (let [siblings (filter #(= parent-id (:parent_id %)) items)
         id->order (into {} (map-indexed (fn [i id] [id (inc i)]) ordered-ids))]

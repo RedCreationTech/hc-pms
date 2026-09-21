@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.controllers.system.profile-test
-  "个人中心控制器测试。"
+  "个人中心控制器测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.infra.security :as security]

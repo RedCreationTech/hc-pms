@@ -1,8 +1,8 @@
 (ns com.ruoyi.business.bpm-p1-test
-  "BPM P1 模型页体验对齐 REST/单元集成测试：
+  "BPM P1 模型页体验对齐 REST/单元集成测试:
    发起权限拦截/放行(start_user_ids/start_dept_ids) / 模型·分类排序 API /
    子流程多实例 BPMN 生成(multiInstanceLoopCharacteristics) / 延迟器固定日期 timeDate 生成 /
-   Webhook 响应回写(JSON 路径 → 流程变量)。"
+   Webhook 响应回写(JSON 路径 → 流程变量)."
   (:require
     [clojure.data.json :as json]
     [clojure.test :refer [deftest testing is use-fixtures]]
@@ -77,14 +77,14 @@
 ;; ── 准备工具 ──────────────────────────────────────────────────────────
 
 (defn- user-row
-  "按登录名查用户行（含 user_id / dept_id）。"
+  "按登录名查用户行(含 user_id / dept_id)."
   [app h username]
   (let [q (parse-json (GET app (str "/api/system/user?user_name=" username "&page=1&size=10") {} h))]
     (get-in q [:data :rows 0])))
 
 
 (defn- ensure-user!
-  "创建专用测试用户，返回 {:username u :user-id id :hdr h}。"
+  "创建专用测试用户,返回 {:username u :user-id id :hdr h}."
   [app admin-h]
   (let [u (str "p1u" (rand-int 100000))
         r (parse-json (POST app "/api/system/user"
@@ -97,7 +97,7 @@
 
 
 (defn- one-node-bpmn
-  "start → a1(admin) → end。"
+  "start → a1(admin) → end."
   [key]
   (let [listener "<extensionElements><flowable:taskListener event=\"create\" delegateExpression=\"${bpmTaskListener}\"/></extensionElements>"]
     (str "<?xml version=\"1.0\"?><definitions xmlns=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" "
@@ -140,7 +140,7 @@
 
 
 (defn- start-instance
-  "发起（不断言），返回响应。form-data 可选。"
+  "发起(不断言),返回响应.form-data 可选."
   ([app hdr mid] (start-instance app hdr mid {}))
   ([app hdr mid form-data]
    (parse-json (POST app "/api/business/bpm/instance"
@@ -300,7 +300,7 @@
 ;; ── P1-7 Webhook 响应回写 ─────────────────────────────────────────────
 
 (defn- start-receiver!
-  "本地 /hook 端点：响应 JSON {\"data\":{\"level\":\"vip\"}}，供响应回写测试。"
+  "本地 /hook 端点:响应 JSON {\"data\":{\"level\":\"vip\"}},供响应回写测试."
   []
   (let [server (HttpServer/create (InetSocketAddress. "127.0.0.1" 0) 0)
         handler (proxy [HttpHandler] []

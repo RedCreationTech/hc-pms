@@ -25,6 +25,9 @@ test-results/
 playwright-report/
 /.codex/
 
+# Org HTML export artifacts (regenerate with org-export)
+docs/design/design.html
+
 # Dev logs
 /logs/
 # Polecat infrastructure (auto-generated)

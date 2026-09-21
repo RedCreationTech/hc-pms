@@ -1,5 +1,5 @@
 (ns com.ruoyi.frontend.pages.dashboard
-  "仪表盘首页 — 统计卡片 + 快捷入口 + 系统信息。"
+  "仪表盘首页 -- 统计卡片 + 快捷入口 + 系统信息."
   (:require
     ["@ant-design/icons" :refer [UserOutlined TeamOutlined MenuOutlined
                                  FileTextOutlined ScheduleOutlined
@@ -15,7 +15,7 @@
 ;; ─── 工具函数 ──────────────────────────────────────────────────────
 
 (defn- format-number
-  "格式化数字为千位分隔。"
+  "格式化数字为千位分隔."
   [n]
   (if (nil? n)
     "-"

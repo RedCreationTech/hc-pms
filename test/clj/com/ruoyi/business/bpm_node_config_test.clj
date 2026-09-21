@@ -1,9 +1,9 @@
 (ns com.ruoyi.business.bpm-node-config-test
-  "BPM Phase 2 节点配置补全 REST 集成测试：
-   新候选策略(INITIATOR_SELF/USER_GROUP/FORM_USER/FORM_DEPT_LEADER/EXPRESSION)、
-   随机审批(RANDOM)、审批人为空策略(emptyHandler)、操作按钮配置(buttons)、
-   手写签名(signEnable)、意见必填(reasonRequire)、驳回默认退回节点、超时 AUTO_PASS(10s 定时器)。
-   断言不依赖待办总数（测试环境共享 rouyi.db/flowable，可能有历史遗留流程）。"
+  "BPM Phase 2 节点配置补全 REST 集成测试:
+   新候选策略(INITIATOR_SELF/USER_GROUP/FORM_USER/FORM_DEPT_LEADER/EXPRESSION),
+   随机审批(RANDOM),审批人为空策略(emptyHandler),操作按钮配置(buttons),
+   手写签名(signEnable),意见必填(reasonRequire),驳回默认退回节点,超时 AUTO_PASS(10s 定时器).
+   断言不依赖待办总数(测试环境共享 rouyi.db/flowable,可能有历史遗留流程)."
   (:require
     [clojure.data.json :as json]
     [clojure.string :as str]
@@ -66,7 +66,7 @@
 ;; ── 用户/部门/分组准备 ────────────────────────────────────────────────────
 
 (defn- ensure-user!
-  "创建一个专用测试用户（共享 DB 中没有 ry，避免依赖固定账号），返回 {:username u :user_id id :token t :hdr h}。"
+  "创建一个专用测试用户(共享 DB 中没有 ry,避免依赖固定账号),返回 {:username u :user_id id :token t :hdr h}."
   [app admin-h]
   (let [u (str "ph2u" (rand-int 100000))
         r (parse-json (POST app "/api/system/user"
@@ -81,7 +81,7 @@
 
 
 (defn- two-users!
-  "创建两个测试用户。"
+  "创建两个测试用户."
   [app admin-h]
   [(ensure-user! app admin-h) (ensure-user! app admin-h)])
 
@@ -98,14 +98,14 @@
 
 
 (defn- node-config-prop
-  "nodeConfig JSON → flowable:properties XML 片段。"
+  "nodeConfig JSON → flowable:properties XML 片段."
   [cfg]
   (str "<flowable:properties><flowable:property name=\"nodeConfig\" value=\""
        (escape-attr cfg) "\"/></flowable:properties>"))
 
 
 (defn- task-el
-  "带 create 监听器 + nodeConfig 的 userTask 元素。"
+  "带 create 监听器 + nodeConfig 的 userTask 元素."
   ([id name cfg] (task-el id name cfg nil))
   ([id name cfg extra-attrs]
    (str "<userTask id=\"" id "\" name=\"" name "\"" (or extra-attrs "") ">"
@@ -116,7 +116,7 @@
 
 
 (defn- simple-bpmn
-  "start → tasks（元素字符串列表）→ end 的线性流程。process id 用占位符，deploy-bpmn! 会替换为模型 key。"
+  "start → tasks(元素字符串列表)→ end 的线性流程.process id 用占位符,deploy-bpmn! 会替换为模型 key."
   [task-els]
   (let [ids (map #(second (re-find #"id=\"([^\"]+)\"" %)) task-els)
         chain (concat ["start"] ids ["end"])]
@@ -134,7 +134,7 @@
 
 
 (defn- deploy-bpmn!
-  "创建分类+模型，写入 BPMN XML（process id 替换为模型 key）并部署。返回 {:model-id mid}。"
+  "创建分类+模型,写入 BPMN XML(process id 替换为模型 key)并部署.返回 {:model-id mid}."
   [app h bpmn-xml]
   (let [key (str "ph2" (System/currentTimeMillis) (rand-int 1000))
         bpmn-xml (str/replace bpmn-xml "PH2_PROCESS_KEY" key)
@@ -155,7 +155,7 @@
 
 
 (defn- start-instance!
-  "发起流程实例，返回 process-instance-id。"
+  "发起流程实例,返回 process-instance-id."
   [app h mid form-data]
   (let [st (parse-json (POST app "/api/business/bpm/instance"
                              {:model_id mid :form_data (or form-data {:reason "phase2"})} h))]
@@ -164,7 +164,7 @@
 
 
 (defn- todo-of
-  "某 token 对应用户在本实例上的待办任务列表（keywordized rows）。"
+  "某 token 对应用户在本实例上的待办任务列表(keywordized rows)."
   [app hdr pid]
   (let [r (parse-json (GET app "/api/business/bpm/todo" {} hdr))]
     (filter #(= pid (:process-instance-id %)) (get-in r [:data :rows] []))))
