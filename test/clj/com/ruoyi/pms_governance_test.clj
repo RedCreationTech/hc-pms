@@ -4,6 +4,7 @@
     [cheshire.core :as json]
     [clojure.test :refer [deftest is use-fixtures]]
     [com.ruoyi.domain.pms.governance :as gov]
+    [com.ruoyi.domain.pms.governance.evidence :as evidence]
     [com.ruoyi.domain.pms.planning :as planning]
     [com.ruoyi.domain.pms.queries :as queries]
     [com.ruoyi.domain.pms.service :as pms]
@@ -189,6 +190,59 @@
     (is (= 404 (error-status #(command! id :traces :create nil
                                         {:requirement_id (:id requirement) :target_kind "document"
                                          :target_id (:id (document! other "OTHER")) :relation "satisfies"}))))))
+
+
+(deftest traceability-report-computes-per-version-link-gaps
+  (let [reqs [{:id "r1" :code "URS-1" :revision 1 :priority "required"}
+              {:id "r1v2" :code "URS-1" :revision 2 :priority "required"}
+              {:id "r2" :code "URS-2" :revision 1 :priority "desired"}]
+        traces [{:requirement_id "r1" :relation "satisfies" :target_kind "document"}
+                {:requirement_id "r1" :relation "verifies" :target_kind "document"}
+                {:requirement_id "r2" :relation "satisfies" :target_kind "document"}]
+        report (evidence/traceability-report reqs traces)
+        u1 (first (filter #(= "URS-1" (:code %)) report))
+        u2 (first (filter #(= "URS-2" (:code %)) report))]
+    (is (= 2 (count report)))
+    (is (= 2 (:revision u1)) "只按最新版本聚合")
+    (is (false? (:satisfied? u1)) "新版本尚未追踪即缺链")
+    (is (= ["satisfies" "verifies"] (:missing u1)))
+    (is (true? (:satisfied? u2)))
+    (is (false? (:verified? u2)))
+    (is (= 1 (:design_links u2)))
+    (is (= ["verifies"] (:missing u2)))
+    (is (= {:requirements 2 :fully-traced 0 :missing-design 1 :missing-verification 2}
+           (evidence/trace-summary report)))))
+
+
+(deftest workspace-traceability-reflects-real-requirement-traces
+  (let [id (project!)
+        doc (document! id "TR-DOC")
+        r1 (command! id :requirements :create nil
+                     {:code "URS-A" :text "必须可验证" :category "功能" :priority "required" :owner_id 9301})
+        r2 (command! id :requirements :create nil
+                     {:code "URS-B" :text "期望项" :category "性能" :priority "desired" :owner_id 9301})
+        _ (command! id :traces :create nil
+                    {:requirement_id (:id r1) :target_kind "document" :target_id (:id doc) :relation "satisfies"})
+        _ (command! id :traces :create nil
+                    {:requirement_id (:id r1) :target_kind "document" :target_id (:id doc) :relation "verifies"})
+        ws (workspace id)
+        ua (first (filter #(= "URS-A" (:code %)) (:traceability ws)))
+        ub (first (filter #(= "URS-B" (:code %)) (:traceability ws)))]
+    (is (= 2 (:requirements (:trace_summary ws))))
+    (is (= 1 (:fully-traced (:trace_summary ws))))
+    (is (= 1 (:missing-design (:trace_summary ws))))
+    (is (true? (:satisfied? ua)))
+    (is (true? (:verified? ua)))
+    (is (= [] (:missing ua)))
+    (is (= ["satisfies" "verifies"] (:missing ub)))
+    (let [revised (command! id :requirements :revisions (:id r1)
+                            {:code "URS-A" :text "必须可验证(细化)" :category "功能" :priority "required" :owner_id 9301})
+          after (workspace id)
+          ua2 (first (filter #(= "URS-A" (:code %)) (:traceability after)))]
+      (is (= 2 (:revision ua2)))
+      (is (= (:id revised) (:requirement_id ua2)))
+      (is (= ["satisfies" "verifies"] (:missing ua2)) "修订新版本缺链")
+      (is (= 0 (:fully-traced (:trace_summary after)))))))
 
 
 (deftest csv-preflight-and-import-are-all-or-nothing

@@ -199,6 +199,24 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: `material_ids` 与整改/Gate 证据复用同一 `evidence!` 同项目文档版本校验语义; 不改变文档不可变版本与摘要校验. C07 与 B05 维持 `partial` (会前资料引用子集已 `implemented / local`), 自动到期提醒 (C07) 与专门售前资料/主计划版本关联 (B05) 仍待补齐, 不等于整行能力或生产签收完成.
 
+## C03 URS追踪矩阵与缺链检查 (本轮增补, 2026-09-22)
+
+设计与关闭口径: 补齐矩阵 C03 长期列为"自动缺链仍待定义"的一环——按需求最新版本只读聚合追踪链缺项. 领域新增纯函数 `evidence/traceability-report` 与 `evidence/trace-summary`; `governance/workspace` 读模型新增 `traceability` (逐需求最新版本 `{requirement_id, code, revision, priority, design_links, verification_links, satisfied?, verified?, missing}`) 与 `trace_summary` (`{requirements, fully-traced, missing-design, missing-verification}`). `design_links` 计数满足关系的文档版本, `verification_links` 计数验证关系, `missing` 为 `["satisfies"|"verifies"]` 中缺失项. 该矩阵是只读缺链提示, 分母仅取当前最新版本需求集合; 需求修订产生新版本后须重新追踪, 新版本无链即重新提示缺链. 明确不引入覆盖率分母, 不承诺对批准范围基线的覆盖率 (覆盖率分母规则仍待定义), 不改变追踪记录本身的双向校验与不可变版本语义. 前端"URS与追踪"页签新增"URS追踪完整性检查"面板, 顶部汇总标签与逐需求缺链标签 (追踪完整/缺设计满足/缺验证证据) 直接消费该读模型.
+
+本轮实际执行的验证:
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 治理命名空间 SQLite | 22 tests / 245 assertions, 0 失败/错误 | 新增 `traceability-report-computes-per-version-link-gaps` (纯单元: 三需求含 URS-1 rev1+rev2, 断言最新版本缺双链, 满足不验证 design_links=1 missing=["verifies"], 汇总计数) 与 `workspace-traceability-reflects-real-requirement-traces` (真实命令: URS-A 满足+验证双链齐备 missing=[], URS-B 未追踪缺双链; 修订 URS-A 后新版本 missing=["satisfies","verifies"] 且整链齐备归零) |
+| 全量 PMS 回归 SQLite | 74 tests / 574 assertions, 0 失败/错误 | `clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'`, 无回归 |
+| 前端编译 | 0 warnings | `npx shadow-cljs compile app` (4027 files), 追踪完整性检查面板与缺链标签列一并编译 |
+| 冷启动迁移 (隔离库) | 通过 | 以独立 `/tmp/c03-e2e.db` 全新迁移至 `:3100` (HTTP 3100 / nREPL 7100), 未触碰 `:3000` 现有实例与默认库 |
+| Chrome 浏览器 (Playwright) | 1 passed (26.7s) | `pms-c03.spec.js`: 界面登记设计/验证两份证据文档, 登记两条需求并对 REQ-1 建立满足+验证双向追踪, 打开"URS与追踪"页断言汇总标签 (需求版本 2/整链齐备 1/缺设计满足 1/缺验证证据 1), REQ-1 显示"追踪完整", REQ-2 显示"缺设计满足"+"缺验证证据"; 真实 HTTP GET 回显 traceability/trace_summary 一致; 再经 API 修订 REQ-1 断言新版本双缺链且整链齐备归零; 截图存 `reports/c03/` |
+
+本轮未执行 (如实记录): MySQL 回归, 本地无可用 MySQL 实例, 待有环境时补跑. 未实现覆盖率分母与对批准范围基线的覆盖率, 未实现 SIT/FAT/SAT 偏差分级对 Gate 的阻塞联动, 未做缺链到具体缺失交付物的下钻定位.
+
+边界: 缺链为读取时按最新版本计算的只读视图, 不写入存储, 不改变追踪记录创建时的同项目文档/任务与需求版本校验. C03 维持 `partial / 待规则` (按最新版本自动缺链与汇总子集已 `implemented / local`), 覆盖率分母与偏差级别仍待定义, 不等于整行能力或生产签收完成.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

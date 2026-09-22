@@ -58,18 +58,22 @@
 
 
 (defn workspace
-  "返回当前项目治理对象版本列表,附件正文须经独立下载接口读取."
+  "返回当前项目治理对象版本列表及需求追踪矩阵,附件正文须经独立下载接口读取."
   [svc actor id]
   (k/read! svc actor id "pms:project:query"
            (fn [q project]
-             (assoc (into {} (for [[section kind] sections]
-                               [section (mapv #(cond-> (dissoc % :content)
-                                                 (= kind "risk") reviews/risk-read-model
-                                                 (= kind "action") collab/action-read-model)
-                                              (store/records q project kind))]))
-                    :project_version (:version project) :blockers (blockers q project)
-                    :appointments (appointment/list-summaries q project)
-                    :raci_conflicts (stakeholders/conflicts q project)))))
+             (let [data (into {} (for [[section kind] sections]
+                                   [section (mapv #(cond-> (dissoc % :content)
+                                                     (= kind "risk") reviews/risk-read-model
+                                                     (= kind "action") collab/action-read-model)
+                                                  (store/records q project kind))]))
+                   traceability (evidence/traceability-report (:requirements data) (:traces data))]
+               (assoc data
+                      :project_version (:version project) :blockers (blockers q project)
+                      :appointments (appointment/list-summaries q project)
+                      :raci_conflicts (stakeholders/conflicts q project)
+                      :traceability traceability
+                      :trace_summary (evidence/trace-summary traceability))))))
 
 
 (defn- creating

@@ -171,6 +171,38 @@
     nil]])
 
 
+(defn- gap-tags
+  "把一条需求的缺链集合渲染为标签组, 无缺链时显示追踪完整."
+  [missing]
+  (let [gaps (js->clj missing)
+        text {"satisfies" "缺设计满足" "verifies" "缺验证证据"}]
+    (if (empty? gaps)
+      [antd/tag {:color "green"} "追踪完整"]
+      (into [antd/space {:wrap true}]
+            (for [g gaps] ^{:key g} [antd/tag {:color "red"} (get text g g)])))))
+
+
+(defn- traceability-section
+  "URS追踪完整性检查: 按需求当前版本列出设计满足与验证证据缺链, 修订后须重新追踪."
+  [{:keys [model]}]
+  (let [report (:traceability model) summary (:trace_summary model)]
+    [shared/panel "URS追踪完整性检查" "按需求当前版本检查设计满足与验证证据是否齐备, 修订产生新版本后须重新追踪"
+     [antd/space {:wrap true :style {:marginBottom 12}}
+      [antd/tag (str "需求版本 " (:requirements summary 0))]
+      [antd/tag {:color "green"} (str "整链齐备 " (:fully-traced summary 0))]
+      [antd/tag {:color (if (pos? (:missing-design summary 0)) "orange" "default")}
+       (str "缺设计满足 " (:missing-design summary 0))]
+      [antd/tag {:color (if (pos? (:missing-verification summary 0)) "red" "default")}
+       (str "缺验证证据 " (:missing-verification summary 0))]]
+     [w/record-table report
+      [(w/text-column :code "URS编号") (w/text-column :revision "版本")
+       {:title "优先级" :dataIndex "priority" :render #(get w/labels % %)}
+       (w/text-column :design_links "设计满足数") (w/text-column :verification_links "验证证据数")
+       {:title "缺链检查" :dataIndex "missing" :render #(r/as-element (gap-tags %))}
+       (w/state-column)]
+      nil]]))
+
+
 (defn- risk-actions
   "发生,复评和独立关闭保持明确操作路径."
   [{:keys [base model options editable? open!] :as context} risk]
@@ -314,7 +346,7 @@
                       {:key key :label label :children (r/as-element
                                                          (into [:div {:style {:display "grid" :gap 20}}] (map #(vector % context) components)))})
                     [["charter" "章程" [charter-section]]
-                     ["requirements" "URS与追踪" [requirement-section trace-section]]
+                     ["requirements" "URS与追踪" [requirement-section traceability-section trace-section]]
                      ["evidence" "证据版本" [document-section]]
                      ["appointments" "成员任命" [appointment-section]]
                      ["stakeholders" "干系人与沟通" [stakeholder-section raci-section comm-plan-section]]

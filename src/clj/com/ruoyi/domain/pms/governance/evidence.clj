@@ -174,3 +174,34 @@
                             {:code (str (:id req) ":" kind ":" target ":" relation)
                              :requirement_id (:id req) :target_kind kind :target_id target :relation relation}
                             {:status "registered"})))))
+
+
+(defn traceability-report
+  "按需求最新版本计算追踪链缺项: 只读聚合, 不引入覆盖率分母规则. 修订产生新版本后须重新追踪."
+  [requirements traces]
+  (let [by-req (group-by :requirement_id traces)]
+    (mapv (fn [req]
+            (let [links (get by-req (:id req) [])
+                  satisfies (filterv #(= "satisfies" (:relation %)) links)
+                  verifies (filterv #(= "verifies" (:relation %)) links)
+                  satisfied? (pos? (count satisfies))
+                  verified? (pos? (count verifies))]
+              {:requirement_id (:id req) :code (:code req) :revision (:revision req)
+               :priority (:priority req)
+               :design_links (count (filterv #(= "document" (:target_kind %)) satisfies))
+               :verification_links (count verifies)
+               :satisfied? satisfied?
+               :verified? verified?
+               :missing (cond-> []
+                          (not satisfied?) (conj "satisfies")
+                          (not verified?) (conj "verifies"))}))
+          (s/latest requirements))))
+
+
+(defn trace-summary
+  "汇总追踪矩阵整链齐备与缺链计数; 分母仅取当前最新版本需求集合, 不等于对批准范围基线的覆盖率."
+  [report]
+  {:requirements (count report)
+   :fully-traced (count (filterv #(and (:satisfied? %) (:verified? %)) report))
+   :missing-design (count (remove :satisfied? report))
+   :missing-verification (count (remove :verified? report))})
