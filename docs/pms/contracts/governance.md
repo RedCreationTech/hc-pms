@@ -1,6 +1,6 @@
 # 治理与质量 HTTP 合同
 
-状态: 已实现并通过本地 SQLite 26 tests / 307 assertions (含 A08 项目成员任命书, H02 干系人/RACI/沟通计划, C06 文档独立发布审批, C04 文档归集视图, H01 章程初始预算, H08 风险超阈值自动升级等用例), 属于本轮全量 PMS 回归 78 tests / 638 assertions 的组成部分. 新模块 MySQL 及生产验收采用 [验证记录](../verification.md) 的最终结果. 不包含真实外部系统写入, 二进制文件服务或自动应用变更. 所有路径以 `/api/pms/projects/:id/governance` 为前缀. 路由挂在现有 JWT 认证中间件内. 下述字段为明确白名单; 未列字段返回 400.
+状态: 已实现并通过本地 SQLite 29 tests / 343 assertions (含 A08 项目成员任命书, H02 干系人/RACI/沟通计划, C06 文档独立发布审批, C04 文档归集视图, H01 章程初始预算, H08 风险超阈值自动升级, C10 典型风险库一键实例化, H02 沟通节奏标记已沟通与到期预警, C09 问题逾期预警等用例), 属于本轮全量 PMS 回归 81 tests / 674 assertions 的组成部分. 新模块 MySQL 及生产验收采用 [验证记录](../verification.md) 的最终结果. 不包含真实外部系统写入, 二进制文件服务或自动应用变更. 所有路径以 `/api/pms/projects/:id/governance` 为前缀. 路由挂在现有 JWT 认证中间件内. 下述字段为明确白名单; 未列字段返回 400.
 
 ## 事务, 权限与读模型
 
@@ -8,6 +8,7 @@
 - 所有 POST 命令除预检外须传 `version`, 即 GET 返回的当前 `project_version`. 项目写入, 版本递增, 子对象变更和审计在同一数据库事务内. 陈旧版本和状态冲突返回 409; 未授权返回 403; 未找到当前项目内引用返回 404; 输入错误返回 400. 暂停和终态项目不可修改.
 - 成功响应为 `{code: 200, msg: "...", data: {result: ..., project_version: N}}`. GET 和预检的 `data` 直接是各自结果. 业务失败使用同样的响应信封, 未知异常不暴露 SQL 或堆栈.
 - `GET ""` 返回 `project_version`, `blockers.execution`, `blockers.closure`, 以及 `charters`, `requirements`, `documents`, `traces`, `risks`, `issues`, `meetings`, `actions`, `changes`, `gate_templates`, `gates`, `appointments`, `stakeholders`, `raci`, `comm_plans` 数组. 数组含全部不可变内容版本, 以 `id` 标识记录; `code` 是稳定业务编号, `revision` 是内容版本. 文档正文和任命书正文不进入列表. `blockers` 当前返回每个阶段的首个未满足条件. 另返回 `raci_conflicts`, 逐活动列出缺负责(A)或缺执行(R)的 `{activity, missing-accountable?, missing-responsible?}` 集合. 还返回只读追踪矩阵 `traceability` 与 `trace_summary`: `traceability` 按需求最新 `revision` 每行给出 `{requirement_id, code, revision, priority, design_links, verification_links, satisfied?, verified?, missing}`, 其中 `design_links` 计数满足关系的文档版本, `verification_links` 计数验证关系, `missing` 为 `["satisfies"|"verifies"]` 中缺失项; `trace_summary` 给出 `{requirements, fully-traced, missing-design, missing-verification}`. 分母仅取当前最新版本需求集合, 修订产生新版本后须重新追踪; 此矩阵是缺链提示, 不等于对批准范围基线的覆盖率(覆盖率分母规则仍待定义). 另返回只读文档归集视图 `document_collection`: 按每个文档 `code` 的最新 `revision` 聚合, 给出 `{total, by-stage, by-structure-node, by-classification}`; `by-stage` 与 `by-structure-node` 为 `[{key, count}]` 向量按 key 字典序且空值(未归集)排最后, `by-classification` 固定为 `[{classification, count}]` 覆盖 `public|internal|confidential` 三值. 该视图仅统计最新版本, 同一编号的旧修订不重复计数, 是只读归集, 不改变不可变版本, 授权或 SHA256 校验.
+- `GET ""` 另返回只读典型风险库 `risk_library` (C10): 服务端内置的 `{key, category, title, probability, impact, mitigation, stage}` 条目向量, 供前端"从典型风险库选用"下拉展示; 它是随代码发布的精选目录, 不落库为独立治理记录类型, 因此无新增迁移. `risks` 数组中原样回显由库实例化写入的可选字段 `source_key`(库条目 key), `source_category`(库分类) 与 `stage`(适用阶段), 手工登记的风险不含这三个键. `issues` 数组按服务器当天计算只读派生字段 `issue_overdue`(存在到期日, 状态非 closed 且到期日不晚于当天时为 true)与 `issue_critical`(严重度为 blocker 时为 true), 仅用于台账预警展示. `comm_plans` 数组按服务器当天计算只读派生字段 `comm_overdue`(状态 active 且 `next_date` 不晚于当天时为 true)与 `comm_days_until`(距下次沟通的整数天数, 无有效日期时为 null), 并回显 `last_communicated_on`, `last_communication_note` 与逐次追加的 `communication_log`. 以上派生字段均在读取时计算, 不写入存储, 也不构成主动提醒或通知投递.
 - 需求, 风险, 问题和行动负责人必须是当前项目有效成员. 章程赞助人和会议参与人使用有效本地用户. 创建和审批均记录创建人, 提交人或决定人. 正文不进入通用审计日志.
 - 章程可选初始预算: `initial_budget` 为最多两位小数的非负金额, 由服务端规范化为两位小数最小单位后回显 (如 `120000.5` -> `120000.50`), 负数或超过两位小数返回 400. `budget_currency` 取 `CNY|USD|EUR|GBP|HKD` 之一, 填预算而未选币种时缺省 `CNY`, 非法币种返回 400. 两字段随内容版本不可变冻结, 修订须重新提交完整内容 (旧版本预算值不漂移). 未填 `initial_budget` 则两键均不写入, 章程仍按原样创建. 预算是章程专属字段, 出现在变更申请体上按白名单返回 400. 此为立项期声明的初始预算, 不等于批准后锁定的财务基线或成本台账 (后者由财务域独立管理).
 
@@ -31,6 +32,7 @@
 | POST `/documents/:rid/decision` | decision: approved/rejected, reason | 只有指定审核人可决定当前最新提交版本; approved -> `approved` (正式签发发布, 记 `released_by`), rejected -> `rejected` (可再次提交) |
 | POST `/traces` | requirement_id, target_kind: document/task, target_id, relation: satisfies/verifies | 关联确切需求版本与同项目文档版本或真实 WBS 任务 |
 | POST `/risks` | title, probability: 1..5, impact: 1..5, owner_id, mitigation, due_date | 创建 open 风险, score = probability * impact; score >= 16 时自动标记 `escalated: true`, `escalation_state: pending`, 附 `escalation_level`(16..19 management, >=20 steering)与 `escalation_reason` |
+| POST `/risks/from-library` | template_key, owner_id, due_date | 从内置典型风险库(C10)选用一条, 按库中标准 probability*impact 自动评分并套用措施与适用阶段, 落库为一条 open 风险, 附加 `source_key`, `source_category`, `stage`; 与手工登记共用同一评分与超阈值自动升级门控(score>=16 即 `escalated`/`pending`); 未知 template_key 返回 404, 缺责任人或期限返回 400 |
 | POST `/risks/:rid/mitigate` | mitigation, evidence_ids | open/mitigated -> mitigated, 必须记录实际证据; 若 `escalated` 且 `escalation_state` 仍为 pending 则 409, 须先经升级确认 |
 | POST `/risks/:rid/escalate` | decision: approved/rejected, note | 由登记人之外的独立质量审批人(`pms:quality:approve` + 项目读范围)确认超阈值风险升级处置; approved -> `escalation_state: acknowledged`(责成处置), rejected -> `waived`(经评估可在现层处置), 均记录 `escalation_ack_by/note/on` 与 `workflow_history`; 仅 pending 可确认, 未升级或已确认返回 409, 登记人自确认返回 403 |
 | POST `/risks/:rid/materialize` | 可选 title | 幂等生成问题, 记录 source_risk_id 和 issue_id; impact >= 4 为 blocker, 否则 major |
@@ -62,12 +64,15 @@
 | POST `/comm-plans` | code, objective, channel: meeting/email/dashboard/report/review, frequency: daily/weekly/biweekly/monthly/quarterly, audience, next_date, 可选 owner_id | 登记 active 沟通计划首版; audience 为 1..50 个不重复同项目有效干系人; code 项目内唯一 |
 | POST `/comm-plans/:rid/revisions` | 同上 | code 不变的受控新内容版本, 形成可审计的节奏调整记录 |
 | POST `/comm-plans/:rid/meeting` | 可选 held_on | 由最新版本沟通计划生成 recorded 会议, 参会人取自受众干系人已绑定的项目成员, 无有效成员返回 409, 并回写计划 last_meeting_id |
+| POST `/comm-plans/:rid/log` | 可选 on, 可选 note | 记录沟通计划(H02)的一次实际沟通: `on` 缺省取服务器当天, 服务端按该计划 `frequency` 的既定节奏(daily/weekly/biweekly/monthly/quarterly 分别顺延 1/7/14/30/90 天)自动顺延 `next_date`, 写入 `last_communicated_on`, `last_communication_note` 并追加一条 `communication_log`; 仅允许最新版本(陈旧版本 409), 非法日期 400, 计划不存在 404 |
 
 所有日期均为有效 ISO 日期 `YYYY-MM-DD`. Gate 模板检查项是 `{code, title, required}`. Gate 检查结果是 `{code, passed, evidence_ids}`; 不能通过客户端改动模板的必需性. `evidence_ids` 是同项目真实文档版本 `id` 的不重复数组, 至多 50 条; 要求证据时至少 1 条. 不接受任意网址或自由文本作为已受控证据.
 
 问题整改和重开分别以 `review_action: closure/reopen` 标识, `workflow_history` 保留此前关闭结论及每次重开决定. 风险复审使用 `review_action: risk_review`, 含 `review_previous_status`, `requested_outcome`, `submitted_by` 和 `reviewer_id`. 非关闭结论的 `next_review_date` 必须严格晚于服务端当天; 提交及批准时均验证, 过期的待审申请不能直接批准. 风险关闭仍须实际证据和独立批准. 风险关联问题在提交及批准复审时均须已关闭, 历史问题 ID 不丢失. 读模型增加 `last_reviewed_on`, `review_due_date`, `review_overdue`; 到期日为今天或之前且风险未关闭时显示逾期, 本轮不自动发送升级通知.
 
 风险超阈值升级 (H08): `POST /risks` 在 `score = probability * impact` 达到阈值 16 时自动写入 `escalated: true` 与 `escalation_state: pending`, 并按分数给出 `escalation_level`(16..19 为 management, 20 及以上为 steering)与可读 `escalation_reason`; 未达阈值时 `escalated: false`. 升级状态随记录持久化, 读模型原样回显 `escalated`, `escalation_state`, `escalation_level`, `escalation_reason`, 确认后再回显 `escalation_decision`, `escalation_ack_by`, `escalation_ack_on`. 处于 pending 的升级会阻断该风险的 `mitigate`(返回 409), 必须由登记人之外的独立质量审批人调用 `escalate` 作出 approved(转为 acknowledged)或 rejected(转为 waived)后方可解除; `escalate` 走 `pms:quality:approve` 权限与项目读范围, 与既有独立批准命令一致采用只读写入范围, 因此只读审批人也能确认. 本轮仅对"新建时评分超阈值"和"独立确认解除缓解门控"这一条最小闭环负责, 复评后重新评分, 升级通知投递, 以及跨项目风险汇总升级仍待实现.
+
+典型风险库 (C10): 服务端内置一份精选风险目录 `risk-library` (含进度/供应/技术/成本/人员等常见条目, 每条固定 category, 标准 probability 与 impact, 应对措施与适用阶段), 通过工作台只读字段 `risk_library` 暴露给前端下拉. `POST /risks/from-library` 依 `template_key` 选出一条, 按库中标准概率×影响自动评分并套用措施与阶段, 落库为一条普通 `risk` (kind 仍为 `risk`, 不新增治理记录类型, 因而无迁移), 并额外写入 `source_key` 与 `source_category` 以保留来源可追溯. 库实例化与手工登记共用同一评分与 H08 超阈值自动升级门控 (score>=16 即自动 `escalated`/`pending`), 因此从库选用的重大风险同样需独立质量审批人确认后方可缓解. 本轮负责的是"内置典型风险分类可复用并一键转为项目风险"这一条闭环; 诚实边界: 该库是随代码发布的精选目录, 尚非用户可自行编写并持久化的模板 CRUD, 也没有自动扫描把库条目推送/提醒到项目的机制, MySQL 回归待补充.
 
 ## 真实文档与 CSV
 
@@ -95,9 +100,9 @@
 
 - 干系人登记分类 (internal/external/supplier/customer/regulator), 角色, 关注度与影响力等级, 可选绑定项目成员责任人 `owner_id`. 状态恒为 `active`.
 - RACI 为具体 `activity` 指派 R/A/C/I 之一. 同一活动同一干系人不得重复指派; 同一活动至多一个负责(A)角色, 违反返回 409. 读模型 `raci_conflicts` 逐活动汇总缺 A 或缺 R 的完整性缺口, 供工作台冲突检查, 不阻止登记本身.
-- 沟通计划维护目标, 渠道, 频率, 1..50 个不重复的同项目有效干系人受众和下次沟通日期, 状态 `active`; 受控修订形成可审计的节奏调整记录. `POST /comm-plans/:rid/meeting` 仅允许最新版本, 从受众干系人已绑定的项目成员去重生成参会人 (无有效成员返回 409), 落库一条 `recorded` 会议并把 `last_meeting_id` 回写到计划, 形成沟通计划到会议的闭环. `held_on` 缺省取计划 `next_date`.
+- 沟通计划维护目标, 渠道, 频率, 1..50 个不重复的同项目有效干系人受众和下次沟通日期, 状态 `active`; 受控修订形成可审计的节奏调整记录. `POST /comm-plans/:rid/meeting` 仅允许最新版本, 从受众干系人已绑定的项目成员去重生成参会人 (无有效成员返回 409), 落库一条 `recorded` 会议并把 `last_meeting_id` 回写到计划, 形成沟通计划到会议的闭环. `held_on` 缺省取计划 `next_date`. `POST /comm-plans/:rid/log` 记录一次实际沟通: `on` 缺省取服务器当天, 服务端按该计划 `frequency` 的既定节奏 (daily/weekly/biweekly/monthly/quarterly 分别顺延 1/7/14/30/90 天) 自动顺延 `next_date`, 写入 `last_communicated_on`, `last_communication_note` 并逐次追加 `communication_log`, 使"沟通节奏可执行并有调整记录"成为本地受控事实; 读模型据此输出 `comm_overdue` 与 `comm_days_until` 供台账到期预警.
 
-本轮未提供治理工作台前端干系人/RACI/沟通计划视图与浏览器验证, 亦未接通外部通知或消息渠道推送; 沟通节奏的执行由生成会议这一本地受控事实体现, 不声称自动提醒已交付.
+工作台"干系人与沟通"页签已提供干系人/RACI/沟通计划的前端视图与浏览器端到端验证; 沟通节奏的执行由"标记已沟通"顺延下次日期, 生成会议与逐次沟通留痕这三类本地受控事实体现. 仍待补齐: 外部通知或消息渠道自动推送, 以及按节奏定时派发提醒 (本轮不声称自动提醒已交付).
 
 ## 生命周期调用约定
 

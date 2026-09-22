@@ -39,23 +39,32 @@
        "处置后方可缓解."))
 
 
+(defn- insert-risk!
+  "写入风险记录: 统一按概率 x 影响评分, 达阈值自动标记超阈值升级, 可选携带阶段与风险库来源信息."
+  [q project actor fields]
+  (let [probability (score! (:probability fields)) impact (score! (:impact fields))
+        score (* probability impact) escalated? (>= score escalation-threshold)
+        level (escalation-level score)]
+    (s/insert! q project actor "risk"
+               (cond-> {:title (s/text! fields :title 200) :probability probability :impact impact
+                        :score score :owner_id (k/user! q project (:owner_id fields) "负责人")
+                        :mitigation (s/text! fields :mitigation) :due_date (s/date! fields :due_date)
+                        :escalated escalated?}
+                 (:stage fields) (assoc :stage (:stage fields))
+                 (:source_key fields) (assoc :source_key (:source_key fields))
+                 (:source_category fields) (assoc :source_category (:source_category fields))
+                 escalated? (assoc :escalation_state "pending" :escalation_level level
+                                   :escalation_reason (escalation-reason score level)))
+               {:status "open"})))
+
+
 (defn create-risk!
   "登记有明确责任人与预防措施的风险; 评分超阈值时自动标记升级待独立确认."
   [svc actor id body]
   (k/mutate! svc actor id "pms:project:edit" body "risk.created"
              (fn [q project]
                (s/input! body [:title :probability :impact :owner_id :mitigation :due_date])
-               (let [probability (score! (:probability body)) impact (score! (:impact body))
-                     score (* probability impact) escalated? (>= score escalation-threshold)
-                     level (escalation-level score)]
-                 (s/insert! q project actor "risk"
-                            (cond-> {:title (s/text! body :title 200) :probability probability :impact impact
-                                     :score score :owner_id (k/user! q project (:owner_id body) "负责人")
-                                     :mitigation (s/text! body :mitigation) :due_date (s/date! body :due_date)
-                                     :escalated escalated?}
-                              escalated? (assoc :escalation_state "pending" :escalation_level level
-                                                :escalation_reason (escalation-reason score level)))
-                            {:status "open"})))))
+               (insert-risk! q project actor body))))
 
 
 (defn mitigate!
@@ -92,6 +101,40 @@
                              :workflow_history (conj (vec (:workflow_history risk))
                                                      {:action "escalation_acknowledged" :actor_id (:user_id actor)
                                                       :on (str (LocalDate/now)) :decision decision})})))))
+
+
+(def risk-library
+  "内置典型风险库: 沉淀常见风险的标准类别, 概率, 影响, 应对措施与适用阶段, 供项目一键实例化并复用超阈值升级门控."
+  [{:key "schedule-delay" :category "schedule" :title "关键路径进度延误"
+    :probability 4 :impact 4 :mitigation "预留进度缓冲, 按周跟踪关键路径并及早纠偏" :stage "执行"}
+   {:key "supply-outage" :category "supply" :title "关键物料断供"
+    :probability 5 :impact 5 :mitigation "启用备选供应商并加严来料检验, 提前锁定安全库存" :stage "采购"}
+   {:key "tech-uncertainty" :category "technical" :title "关键技术方案不成熟"
+    :probability 3 :impact 3 :mitigation "先做技术验证原型, 预留备选技术方案" :stage "设计"}
+   {:key "cost-overrun" :category "cost" :title "项目成本超支"
+    :probability 4 :impact 5 :mitigation "建立挣值监控, 变更须走成本影响评估审批" :stage "执行"}
+   {:key "staff-turnover" :category "other" :title "关键人员流失"
+    :probability 2 :impact 3 :mitigation "关键岗位设置 AB 角并做好知识文档化" :stage "全周期"}])
+
+
+(defn- library-entry
+  "按 key 查找内置风险库条目, 未命中返回 404."
+  [template-key]
+  (or (first (filter #(= (:key %) template-key) risk-library))
+      (r/fail! 404 "风险库中不存在该典型风险")))
+
+
+(defn from-library!
+  "从内置典型风险库选用一条, 按当前责任人与期限实例化为真实风险, 继承评分并复用超阈值自动升级."
+  [svc actor id body]
+  (k/mutate! svc actor id "pms:project:edit" body "risk.created"
+             (fn [q project]
+               (s/input! body [:template_key :owner_id :due_date])
+               (let [entry (library-entry (:template_key body))]
+                 (insert-risk! q project actor
+                               (assoc entry :owner_id (:owner_id body) :due_date (:due_date body)
+                                      :source_key (:key entry)
+                                      :source_category (:category entry)))))))
 
 
 (defn- issue-fields!
@@ -272,3 +315,13 @@
          (boolean (and (:due_date action)
                        (not (contains? #{"closed" "converted"} (:status action)))
                        (not (.isAfter (LocalDate/parse (:due_date action)) (LocalDate/now)))))))
+
+
+(defn issue-read-model
+  "以服务器日期展示问题是否逾期未关闭, 并标记阻断级严重度供升级关注."
+  [issue]
+  (assoc issue
+         :issue_overdue (boolean (and (:due_date issue)
+                                      (not= "closed" (:status issue))
+                                      (not (.isAfter (LocalDate/parse (:due_date issue)) (LocalDate/now)))))
+         :issue_critical (= "blocker" (:severity issue))))

@@ -65,7 +65,9 @@
              (let [data (into {} (for [[section kind] sections]
                                    [section (mapv #(cond-> (dissoc % :content)
                                                      (= kind "risk") reviews/risk-read-model
-                                                     (= kind "action") collab/action-read-model)
+                                                     (= kind "action") collab/action-read-model
+                                                     (= kind "issue") collab/issue-read-model
+                                                     (= kind "comm-plan") stakeholders/comm-plan-read-model)
                                                   (store/records q project kind))]))
                    traceability (evidence/traceability-report (:requirements data) (:traces data))]
                (assoc data
@@ -74,7 +76,8 @@
                       :raci_conflicts (stakeholders/conflicts q project)
                       :traceability traceability
                       :trace_summary (evidence/trace-summary traceability)
-                      :document_collection (evidence/document-collection (:documents data)))))))
+                      :document_collection (evidence/document-collection (:documents data))
+                      :risk_library collab/risk-library)))))
 
 
 (defn- creating
@@ -128,7 +131,9 @@
    [:raci :create] (creating stakeholders/create-raci!)
    [:comm-plans :create] (creating stakeholders/create-comm-plan!)
    [:comm-plans :revisions] stakeholders/revise-comm-plan!
-   [:comm-plans :meeting] stakeholders/materialize-meeting!})
+   [:comm-plans :meeting] stakeholders/materialize-meeting!
+   [:comm-plans :log] stakeholders/log-communication!
+   [:risks :from-library] (creating collab/from-library!)})
 
 
 (defn command!

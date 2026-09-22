@@ -105,6 +105,26 @@
             {:key :due_date :label "计划应对日期" :type :date :required? true}]})
 
 
+(defn risk-library-options
+  "把内置典型风险库转为下拉选项, 标签并列类别与标准概率x影响评分."
+  [library]
+  (mapv (fn [entry]
+          {:value (:key entry)
+           :label (str "[" (:category entry) "] " (:title entry) " — "
+                        (:probability entry) "×" (:impact entry) "=" (* (:probability entry) (:impact entry)))})
+        library))
+
+
+(defn risk-library-dialog
+  "从内置典型风险库一键实例化真实风险, 继承标准评分与应对措施, 仅需指定责任人与期限."
+  [base library options]
+  {:title "从典型风险库选用" :path (str base "/risks/from-library")
+   :description "选择项目面临的典型风险, 服务端按库中标准概率×影响自动评分并套用应对措施与适用阶段; 达到升级阈值的条目将自动进入超阈值升级待独立确认门控."
+   :fields [{:key :template_key :label "典型风险" :type :select :required? true :options (risk-library-options library)}
+            (owner-field (:users options))
+            {:key :due_date :label "计划应对日期" :type :date :required? true}]})
+
+
 (defn risk-review-dialog
   "风险复评带证据提交独立审核,关闭前核查已发生问题."
   [base options documents risk]
@@ -296,6 +316,18 @@
   {:title "生成沟通计划会议" :path (str base "/comm-plans/" (:id plan) "/meeting")
    :description (str "由 " (:code plan) " / V" (:revision plan) " 生成, 参会人取自受众干系人已绑定的项目成员.")
    :fields [{:key :held_on :label "会议日期(可选)" :type :date :hint "留空则采用计划的下次沟通日期."}]})
+
+
+(defn comm-plan-log-dialog
+  "记录沟通计划一次实际沟通, 服务端按既定频率顺延下次沟通日期并留痕."
+  [base plan]
+  {:title "标记已沟通" :path (str base "/comm-plans/" (:id plan) "/log")
+   :description (str "记录 " (:code plan) " 的一次实际沟通; 系统按该计划的频率自动顺延下次沟通日期, 并保留可审计的沟通留痕.")
+   :transform (fn [data]
+                (reduce (fn [m k] (let [v (get data k)] (if (or (nil? v) (= "" v)) (dissoc m k) m)))
+                        data [:on :note]))
+   :fields [{:key :on :label "实际沟通日期(可选)" :type :date :hint "留空则采用今天"}
+            {:key :note :label "沟通纪要" :type :textarea :hint "本次沟通结论或要点, 可留空"}]})
 
 
 (defn action-complete-dialog

@@ -213,10 +213,20 @@
    (when editable? [antd/button {:on-click #(open! (forms/comm-plan-dialog base model options nil))} "登记沟通计划"])
    [w/record-table (:comm_plans model)
     [(w/text-column :code "编号") (w/text-column :objective "沟通目标") (w/text-column :channel "渠道")
-     (w/text-column :frequency "频率") (w/text-column :next_date "下次日期") (w/text-column :last_meeting_id "最近会议") (w/state-column)]
+     (w/text-column :frequency "频率") (w/text-column :next_date "下次日期")
+     {:title "沟通到期" :dataIndex "comm_overdue" :width 120
+      :render (fn [_ row]
+                (let [overdue (true? (aget row "comm_overdue")) days (aget row "comm_days_until")]
+                  (r/as-element
+                   (cond overdue [antd/tag {:color "red"} "沟通已到期"]
+                         (and (number? days) (pos? days)) [antd/tag {:color "gold"} (str days " 天后沟通")]
+                         (number? days) [antd/tag {:color "default"} "已过期"]
+                         :else [antd/tag "未排期"]))))}
+     (w/text-column :last_meeting_id "最近会议") (w/state-column)]
     (when editable?
       (fn [plan]
         [antd/space
+         [w/edit-button "标记已沟通" #(open! (forms/comm-plan-log-dialog base plan))]
          [w/edit-button "新修订" #(open! (forms/comm-plan-dialog base model options plan))]
          [w/edit-button "生成会议" #(open! (forms/comm-plan-meeting-dialog base plan))]]))]])
 
@@ -289,10 +299,15 @@
   "风险台账保留应对,复评期限与独立关闭状态."
   [{:keys [base model options editable? open!] :as context}]
   [shared/panel "项目风险" "风险持续复评,实际发生关联问题,关闭需要证据与独立审核; 评分达到阈值的重大风险自动升级, 未经独立确认不得自行缓解"
-   (when editable? [antd/button {:on-click #(open! (forms/risk-dialog base options))} "登记项目风险"])
+   (when editable?
+     [antd/space
+      [antd/button {:on-click #(open! (forms/risk-dialog base options))} "登记项目风险"]
+      [antd/button {:type "primary" :ghost true :on-click #(open! (forms/risk-library-dialog base (:risk_library model) options))} "从典型风险库选用"]])
    [w/record-table (:risks model)
     [(w/text-column :title "风险") (w/text-column :probability "概率") (w/text-column :impact "影响")
      (w/text-column :score "评分")
+     {:title "来源" :dataIndex "source_key" :width 90
+      :render (fn [_ row] (when (aget row "source_key") (r/as-element [antd/tag {:color "purple"} "风险库"])))}
      {:title "超阈值升级" :dataIndex "escalation_state" :width 180
       :render (fn [_ row]
                 (let [esc (aget row "escalated") state (aget row "escalation_state")]
@@ -315,7 +330,15 @@
    (when editable? [antd/button {:on-click #(open! (forms/issue-dialog base options))} "登记项目问题"])
    [w/record-table (:issues model)
     [(w/text-column :title "问题") {:title "严重程度" :dataIndex "severity" :render #(r/as-element [w/badge %])}
-     (w/text-column :due_date "到期日期") (w/text-column :resolution "解决说明")
+     (w/text-column :due_date "到期日期")
+     {:title "逾期预警" :dataIndex "issue_overdue" :width 130
+      :render (fn [_ row]
+                (let [overdue (true? (aget row "issue_overdue")) critical (true? (aget row "issue_critical"))]
+                  (r/as-element
+                   [antd/space {:wrap true}
+                    (when critical [antd/tag {:color "red"} "阻断级"])
+                    (when overdue [antd/tag {:color "volcano"} "已逾期"])])))}
+     (w/text-column :resolution "解决说明")
      {:title "评审事项" :dataIndex "review_action" :render #(if (= % "reopen") "申请重开" "解决验证")} (w/state-column)]
     (fn [issue]
       [antd/space

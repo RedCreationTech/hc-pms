@@ -37,6 +37,7 @@
     (command-route svc "/risks/:record_id/mitigate" :risks :mitigate)
     (command-route svc "/risks/:record_id/escalate" :risks :escalate)
     (command-route svc "/risks/:record_id/materialize" :risks :materialize)
+    (command-route svc "/risks/from-library" :risks :from-library)
     (command-route svc "/issues" :issues :create)
     (command-route svc "/issues/:record_id/resolve" :issues :resolve)
     (command-route svc "/issues/:record_id/reopen" :issues :reopen)
@@ -62,6 +63,7 @@
     (command-route svc "/comm-plans" :comm-plans :create)
     (command-route svc "/comm-plans/:record_id/revisions" :comm-plans :revisions)
     (command-route svc "/comm-plans/:record_id/meeting" :comm-plans :meeting)
+    (command-route svc "/comm-plans/:record_id/log" :comm-plans :log)
     (command-route svc "/appointments" :appointments :create)
     ["/appointments/:record_id/content" {:get {:handler (partial controller/appointment-content svc)}}]
     ["/appointments/:record_id/download" {:get {:handler (partial controller/appointment-download svc)}}]]])

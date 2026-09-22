@@ -733,6 +733,92 @@
       (is (= "acknowledged" (:escalation_state row))))))
 
 
+(deftest risk-library-instantiates-escalation-aware-risk
+  (let [id (project!)]
+    ;; 从内置典型风险库选用供应类高风险 (5x5=25), 继承标准评分/措施/阶段并复用超阈值升级门控.
+    (let [risk (command! id :risks :from-library nil
+                         {:template_key "supply-outage" :owner_id 9301 :due_date "2026-10-20"})
+          rid (:id risk)]
+      (is (= "关键物料断供" (:title risk)))
+      (is (= 25 (:score risk)))
+      (is (= "risk" (:kind risk)))
+      (is (true? (:escalated risk)))
+      (is (= "pending" (:escalation_state risk)))
+      (is (= "steering" (:escalation_level risk)))
+      (is (= "采购" (:stage risk)))
+      (is (= "supply-outage" (:source_key risk)))
+      (is (= "supply" (:source_category risk)))
+      ;; 超阈值未确认前不得自行缓解, 门控随选用一并生效.
+      (is (= 409 (error-status #(command! id :risks :mitigate rid
+                                          {:mitigation "已联系备选" :evidence_ids [(:id (document! id "LIB-ESC"))]}))))
+      (is (some #(= rid (:id %)) (:risks (workspace id)))))
+    ;; 中风险库条目 (4x4=16) 达阈值进入经理层升级.
+    (let [mid (command! id :risks :from-library nil
+                        {:template_key "schedule-delay" :owner_id 9301 :due_date "2026-10-20"})]
+      (is (= 16 (:score mid)))
+      (is (true? (:escalated mid)))
+      (is (= "management" (:escalation_level mid))))
+    ;; 低风险库条目 (3x3=9) 不触发升级, 无升级状态.
+    (let [low (command! id :risks :from-library nil
+                        {:template_key "tech-uncertainty" :owner_id 9301 :due_date "2026-10-20"})]
+      (is (= 9 (:score low)))
+      (is (false? (:escalated low)))
+      (is (nil? (:escalation_state low))))
+    ;; 风险库经工作台只读暴露给前端, 且不落库为新的治理记录类型.
+    (let [library (:risk_library (workspace id))]
+      (is (seq library))
+      (is (some #(= "supply-outage" (:key %)) library)))
+    ;; 未知风险库键与缺责任人分别被真实边界拒绝.
+    (is (= 404 (error-status #(command! id :risks :from-library nil
+                                        {:template_key "no-such" :owner_id 9301 :due_date "2026-10-20"}))))
+    (is (= 400 (error-status #(command! id :risks :from-library nil
+                                        {:template_key "cost-overrun" :due_date "2026-10-20"}))))))
+
+
+(deftest comm-plan-log-advances-next-date-and-flags-overdue
+  (let [id (project!)
+        st (command! id :stakeholders :create nil
+                     {:code "SH-1" :name "客户代表" :role "验收" :category "customer"
+                      :interest "high" :influence "high" :owner_id 9301})
+        plan (command! id :comm-plans :create nil
+                       {:code "CP-1" :objective "周度进展同步" :channel "meeting" :frequency "weekly"
+                        :audience [(:id st)] :next_date "2026-01-05" :owner_id 9301})
+        pid (:id plan)]
+    ;; 过去的下次沟通日期 -> 到期预警为真, 剩余天数为负.
+    (let [before (first (filter #(= pid (:id %)) (:comm_plans (workspace id))))]
+      (is (true? (:comm_overdue before)))
+      (is (neg? (:comm_days_until before)))
+      (is (= "2026-01-05" (:next_date before))))
+    ;; 标记一次实际沟通, 按周频顺延下次日期并留痕.
+    (let [logged (command! id :comm-plans :log pid {:on "2026-09-22" :note "已召开周会同步进展"})]
+      (is (= "2026-09-29" (:next_date logged)))
+      (is (= "2026-09-22" (:last_communicated_on logged)))
+      (is (= "已召开周会同步进展" (:last_communication_note logged)))
+      (is (= 1 (count (:communication_log logged)))))
+    ;; 顺延后不再到期, 剩余天数为正.
+    (let [after (first (filter #(= pid (:id %)) (:comm_plans (workspace id))))]
+      (is (false? (:comm_overdue after)))
+      (is (pos? (:comm_days_until after))))
+    ;; 非法日期与不存在计划分别被拒.
+    (is (= 400 (error-status #(command! id :comm-plans :log pid {:on "2026-13-99"}))))
+    (is (= 404 (error-status #(command! id :comm-plans :log "no-such-plan" {:on "2026-09-22"}))))))
+
+
+(deftest issue-read-model-flags-overdue-and-blocker
+  (let [id (project!)
+        open (command! id :issues :create nil
+                       {:title "现场接线错误" :severity "blocker" :owner_id 9301 :due_date "2026-01-10"})
+        future (command! id :issues :create nil
+                         {:title "轻微外观瑕疵" :severity "minor" :owner_id 9301 :due_date "2099-01-10"})
+        rows (:issues (workspace id))
+        o (first (filter #(= (:id open) (:id %)) rows))
+        f (first (filter #(= (:id future) (:id %)) rows))]
+    (is (true? (:issue_overdue o)))
+      (is (true? (:issue_critical o)))
+      (is (false? (:issue_overdue f)))
+      (is (false? (:issue_critical f)))))
+
+
 (deftest appointment-snapshot-matches-current-team-and-is-immutable
   (let [id (project!)
         orig (command! id :appointments :create nil {:issued_on "2026-09-22" :note "正式任命"})]

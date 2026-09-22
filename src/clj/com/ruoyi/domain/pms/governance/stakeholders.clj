@@ -3,7 +3,10 @@
   (:require
     [com.ruoyi.domain.pms.governance.store :as s]
     [com.ruoyi.domain.pms.kernel :as k]
-    [com.ruoyi.domain.pms.rules :as r]))
+    [com.ruoyi.domain.pms.rules :as r])
+  (:import
+    (java.time
+      LocalDate)))
 
 
 (def categories
@@ -194,3 +197,34 @@
                                         {:status "recorded"})]
                  (s/change! q project plan (:status plan) {:last_meeting_id (:id meeting)})
                  meeting))))
+
+
+(def cadence-days
+  "沟通节奏频率到推进天数的映射, 用于标记已沟通后顺延下次沟通日期."
+  {"daily" 1 "weekly" 7 "biweekly" 14 "monthly" 30 "quarterly" 90})
+
+
+(defn log-communication!
+  "记录沟通计划一次实际沟通, 按既定频率顺延下次沟通日期并保留可审计留痕."
+  [svc actor id rid body]
+  (k/mutate! svc actor id "pms:project:edit" body "comm-plan.logged"
+             (fn [q project]
+               (s/input! body [:on :note])
+               (let [plan (s/latest! q project (s/record! q project "comm-plan" rid))
+                     on (if (:on body) (s/date! body :on) (str (LocalDate/now)))
+                     note (s/optional-text! body :note 500)
+                     next-date (str (.plusDays (LocalDate/parse on) (get cadence-days (:frequency plan))))]
+                 (s/change! q project plan (:status plan)
+                            {:last_communicated_on on :last_communication_note note :next_date next-date
+                             :communication_log (conj (vec (:communication_log plan))
+                                                      {:on on :note note :next_date next-date})})))))
+
+
+(defn comm-plan-read-model
+  "以服务器日期展示沟通计划下次沟通是否到期及剩余天数, 供到期预警; 无有效日期时不计到期."
+  [plan]
+  (if-let [next (when-let [s (:next_date plan)]
+                  (try (LocalDate/parse s) (catch Exception _ nil)))]
+    (assoc plan :comm_overdue (boolean (and (= "active" (:status plan)) (not (.isAfter next (LocalDate/now)))))
+                :comm_days_until (int (- (.toEpochDay next) (.toEpochDay (LocalDate/now)))))
+    (assoc plan :comm_overdue false :comm_days_until nil)))

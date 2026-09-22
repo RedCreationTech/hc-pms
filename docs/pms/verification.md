@@ -289,6 +289,57 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 升级门控只约束"超阈值重大风险在未经登记人之外独立质量审批人确认前不得自行缓解", 不改变风险既有复评/独立关闭链与项目授权; 确认动作本身要求 `pms:quality:approve` 且不得由登记人本人完成, 与文档发布/行动核验的独立性口径一致. H08 维持 `partial` (评分自动触发升级、层级与理由、独立确认解除缓解门控均已 `implemented / local`), 改分重评、升级通知投递与跨项目汇总仍待补齐, 不等于整行能力或生产签收完成.
 
+## C10 典型风险库一键实例化 (本轮增补, 2026-09-22)
+
+设计与关闭口径: 补齐矩阵 C10 长期列为"典型风险模板/库仍待补齐"的一环. 本轮以代码内置的静态典型风险库交付, 复用既有 `risk` kind 与整条 H08 评分升级链, **无新增迁移** (来源字段随 payload JSON 存储). 领域 `governance.collaboration` 定义 `risk-library` 向量 (5 条: 进度延误 4×4=16 management, 关键物料断供 5×5=25 steering 且 stage="采购", 技术方案不成熟 3×3=9, 成本超支 4×5=20, 人员流失 2×3=6), 每条含 `key/category/title/probability/impact/mitigation/stage`. 新增 `from-library!` (命令 `[:risks :from-library]`, 路由 `POST /risks/from-library`) 入参白名单 `[:template_key :owner_id :due_date]` (+version), 按 key 查库 (未知 key 404), 与手工登记共用 `insert-risk!` 计算评分并触发 H08 自动升级门控, 同时回写 `source_key/source_category/stage` 以追溯来源; 未达阈值条目不写升级键. workspace 读模型新增 `assoc :risk_library` 供前端选用面板. 前端"风险与问题"页签在"登记项目风险"旁增加"从典型风险库选用"主按钮 (弹窗选条目 + 负责人 + 计划应对日期), 并新增"来源"列, 命中库源显示紫色"风险库"标签. 本轮不做用户自建/编辑风险模板库, 不做跨项目模板共享与治理层集中审批, 库内容为工程验收用的精选目录而非可运营知识库.
+
+本轮实际执行的验证:
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 治理命名空间 SQLite | 29 tests / 343 assertions, 0 失败/错误 | 新增 `risk-library-instantiates-escalation-aware-risk`: 选 supply-outage 得 `score=25`/`escalated=true`/`pending`/`steering`/`stage="采购"`/`source_key="supply-outage"`, 未确认自行缓解 409; schedule-delay 得 16/management; tech-uncertainty 得 9 不升级 (无 `escalated` 键); `(:risk_library workspace)` 非空且含 key "supply-outage"; 未知 key 404, 缺 owner 400 |
+| 全量 PMS 回归 SQLite | 81 tests / 674 assertions, 0 失败/错误 | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'`, 无回归 |
+| 前端编译 | 0 warnings | `npx shadow-cljs compile app`, 风险库选用弹窗与"来源"列一并编译 |
+| Chrome 浏览器 (Playwright) | 1 passed (批量 3 passed / 48.1s) | `BASE_URL=http://localhost:3100 npx playwright test tests/e2e/pms-c10.spec.js`: 界面"从典型风险库选用"关键物料断供 -> `score=25`/`escalated`/`pending`/`steering`/`source_key=supply-outage`, 台账显"待升级确认 / steering"与"风险库"来源标; 再选技术方案不成熟 -> `score=9`/`escalated=false`; 截图存 `reports/c10/` (c10-1 高风险升级带来源, c10-2 低风险不升级) |
+
+本轮未执行 (如实记录): MySQL 回归, 本地无可用 MySQL 实例, 待有环境时补跑. 未实现风险模板库的用户自建/编辑与版本化, 未实现跨项目模板共享与治理层集中确认, 未做库条目与具体项目类型/阶段的智能推荐.
+
+边界: 从库实例化只是一条"以精选目录快速登记真实风险"的受控入口, 落库仍是与普通登记同构、参与同一 H08 升级门控与复评/独立关闭链的真实 `risk` 记录; 精选目录为代码内置不可运营, 不等于可配置的风险知识库或生产签收完成. C10 因此标 `implemented / local`.
+
+## H02 沟通节奏标记已沟通与到期预警 (本轮增补, 2026-09-22)
+
+设计与关闭口径: 补齐 H02 沟通计划"沟通节奏执行"这一本地受控事实 (**不声称自动提醒/消息投递已交付**). 领域 `governance.stakeholders` 定义各频率到天数映射 `cadence-days` `{daily 1, weekly 7, biweekly 14, monthly 30, quarterly 90}`. 新增 `log-communication!` (命令 `[:comm-plans :log]`, 路由 `POST /comm-plans/:record_id/log`) 须 `pms:project:edit`, 经 `s/latest!` 仅允许对最新版本记录 (陈旧版本 409), 入参白名单 `[:on :note]` (+version); `on` 缺省取服务器当前日期, 校验不早于上次沟通, 按频率把 `next_date` 顺延 (`on` + cadence 天数), 写 `last_communicated_on/last_communication_note` 并追加 `communication_log` (payload JSON 存储, 无迁移). `comm-plan-read-model` 读取时计算派生字段 `comm_overdue` (`next_date` 早于服务器当前日期) 与 `comm_days_until`, 不写入存储, 不构成主动提醒. 前端沟通计划台账新增"沟通到期"列 (沟通已到期 / N天后沟通 / 未排期) 与首列动作"标记已沟通"入口 (弹窗填沟通日期与纪要). 本轮不做外部通知/邮件/IM 渠道推送与到期自动提醒调度.
+
+本轮实际执行的验证:
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 治理命名空间 SQLite | 29 tests / 343 assertions, 0 失败/错误 | 新增 `comm-plan-log-advances-next-date-and-flags-overdue`: 周频计划 `next_date` 过期时读模型 `comm_overdue=true`; 标记已沟通后 `next_date` 按 7 天从实际沟通日顺延, `last_communicated_on` 与 `communication_log` 各 1 条; 陈旧版本记录 log 409, 早于上次沟通的日期 400 |
+| 全量 PMS 回归 SQLite | 81 tests / 674 assertions, 0 失败/错误 | 无回归 |
+| 前端编译 | 0 warnings | 沟通到期列与"标记已沟通"弹窗一并编译 |
+| Chrome 浏览器 (Playwright) | 1 passed (批量 3 passed / 48.1s) | `pms-h02c.spec.js`: 造周频计划 `next_date=2026-01-05` -> 台账显"沟通已到期" -> 点"标记已沟通"填 `on=2026-09-22` 与纪要 -> 响应 `next_date=2026-09-29`/`last_communicated_on`/`communication_log` 长度 1 -> 刷新后徽标翻转为"N 天后沟通"; 截图存 `reports/h02c/` (h02c-1 到期, h02c-2 已沟通顺延) |
+
+本轮未执行 (如实记录): MySQL 回归, 本地无可用 MySQL 实例, 待有环境时补跑. 未实现到期/逾期的自动提醒投递与消息渠道推送, 未实现按日历/工作日的复杂沟通排期 (仅按固定频率天数顺延), 未实现受众分群多渠道差异化沟通记录.
+
+边界: "标记已沟通"记录一次真实发生的沟通并据此受控顺延节奏, 逾期与剩余天数为读取时派生展示, 不代表系统已主动向任何人发出提醒; 沟通计划到会议的闭环仍沿用既有 `POST /comm-plans/:rid/meeting`. H02 维持 `partial` (沟通节奏执行已 `implemented / local`, 自动提醒投递仍待补齐).
+
+## C09 问题逾期与阻断级读模型预警 (本轮增补, 2026-09-22)
+
+设计与关闭口径: 为问题台账补齐只读预警视图, 与行动 `action_overdue` 同构, **不写存储, 不构成主动提醒**. 领域 `governance.collaboration/issue-read-model` 对每条 issue 计算派生字段 `issue_overdue` (存在 `due_date` 且状态非 closed 且到期日不晚于服务器当前日期时为 true) 与 `issue_critical` (`severity="blocker"`); 派生键名省去尾随 `?` 以规避 JSON 序列化歧义 (关键字键会字面序列化为带 `?` 的名称). 前端"风险与问题"问题页签新增"逾期预警"列, 命中阻断级显示红色"阻断级"标签、逾期显示火山色"已逾期"标签, 二者可叠加. 本轮不做逾期自动升级/督办流转与提醒投递, 不改变既有问题重开与独立验证链.
+
+本轮实际执行的验证:
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 治理命名空间 SQLite | 29 tests / 343 assertions, 0 失败/错误 | 新增 `issue-read-model-flags-overdue-and-blocker`: 造 `due_date` 早于当前日期的 blocker 问题 -> 读模型行 `issue_overdue=true` 且 `issue_critical=true`; 造远期一般问题 -> 两字段均 false; closed 问题不计逾期 |
+| 全量 PMS 回归 SQLite | 81 tests / 674 assertions, 0 失败/错误 | 无回归 |
+| 前端编译 | 0 warnings | 问题"逾期预警"列一并编译 |
+| Chrome 浏览器 (Playwright) | 1 passed (批量 3 passed / 48.1s) | `pms-c09b.spec.js`: 界面登记 `due=2026-01-10` 的阻断问题 -> 台账显"已逾期"与"阻断级"标记; 远期一般问题无任何标记; 并经真实 HTTP 读模型确认 `issue_overdue`/`issue_critical`; 截图存 `reports/c09b/` (c09b-1 逾期阻断, c09b-2 远期无预警) |
+
+本轮未执行 (如实记录): MySQL 回归, 本地无可用 MySQL 实例, 待有环境时补跑. 未实现逾期问题自动升级/督办工作流与提醒投递, 未实现按责任人/项目的逾期汇总看板.
+
+边界: 逾期与阻断级仅为读取时派生的界面预警, 不写入存储也不推动任何状态迁移, 问题关闭/重开仍走既有受控命令. C09 因责任人与改派、复评与独立重开等既有子能力叠加本轮逾期预警仍不完整, 维持 `partial`.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.
