@@ -1,11 +1,14 @@
 (ns com.ruoyi.frontend.pages.pms.governance
   "需求,证据,风险与独立工程评审工作台."
-  (:require [com.ruoyi.frontend.antd :as antd]
-            [com.ruoyi.frontend.pages.pms.governance-forms :as forms]
-            [com.ruoyi.frontend.pages.pms.shared :as shared]
-            [com.ruoyi.frontend.pages.pms.widgets :as w]
-            [reagent.core :as r]
-            [reagent.hooks :as hooks]))
+  (:require
+    [clojure.string :as str]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.pages.pms.governance-forms :as forms]
+    [com.ruoyi.frontend.pages.pms.shared :as shared]
+    [com.ruoyi.frontend.pages.pms.widgets :as w]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
+
 
 (defn- review-actions
   "只向指定的独立审批人提供审批入口."
@@ -15,11 +18,12 @@
     [antd/space
      (when (and editable? (not (contains? #{"issues" "risks"} collection)) (contains? #{"draft" "rejected"} state))
        [w/edit-button "提交审批" #(open! {:title "提交独立审批" :path (str path "/submit")
-                                        :fields [(forms/reviewer-field options)]})])
+                                      :fields [(forms/reviewer-field options)]})])
      (when (and approve? (= "in_review" state) (= current (:reviewer_id record)) (not= current (:submitted_by record)))
        [:<>
         [w/edit-button "批准" #(open! (forms/decision-dialog (str path "/decision") "approved" (if (= "reopen" (:review_action record)) "批准问题重开" "批准评审")))]
         [w/edit-button "驳回" #(open! (forms/decision-dialog (str path "/decision") "rejected" (if (= "reopen" (:review_action record)) "驳回问题重开" "驳回评审")))]])]))
+
 
 (defn- charter-section
   "章程目标,范围和成功标准进入独立审批."
@@ -30,6 +34,7 @@
     [(w/text-column :title "标题") (w/text-column :objective "项目目标") (w/text-column :scope "范围")
      (w/text-column :success_criteria "成功标准") (w/state-column)]
     #(review-actions context "charters" %)]])
+
 
 (defn- requirement-section
   "需求版本和责任人形成可追踪的URS台账."
@@ -43,6 +48,7 @@
      (w/text-column :category "类别") {:title "优先级" :dataIndex "priority" :render #(get w/labels % %)}]
     (when editable? (fn [row] [w/edit-button "新修订" #(open! (forms/requirement-dialog base options row))]))]])
 
+
 (defn- document-section
   "列出可校验的真实证据文档及不可变版本."
   [{:keys [base model editable? open! document!]}]
@@ -51,8 +57,10 @@
    [w/record-table (:documents model)
     [(w/text-column :code "文档编号") (w/text-column :title "标题") (w/text-column :revision "版本")
      (w/text-column :filename "文件名") (w/text-column :sha256 "SHA256摘要")]
-    (fn [row] [antd/space [w/edit-button "查看内容" #(document! row)]
-               (when editable? [w/edit-button "新版本" #(open! (forms/document-dialog base row))])])]])
+    (fn [row]
+      [antd/space [w/edit-button "查看内容" #(document! row)]
+       (when editable? [w/edit-button "新版本" #(open! (forms/document-dialog base row))])])]])
+
 
 (defn- appointment-section
   "签发不可变的项目成员任命书, 内容由服务器按当前团队快照生成."
@@ -60,16 +68,71 @@
   [shared/panel "项目成员任命书" "任命内容绑定签发时的团队快照, 再次任命保留不可变旧版本"
    (when editable? [antd/button {:type "primary"
                                  :on-click #(open! {:title "签发项目成员任命书"
-                                                  :path (str base "/appointments")
-                                                  :description "系统将读取当前项目成员生成不可变任命书, 生效日期与说明写入正文, 客户端不能伪造内容."
-                                                  :fields [{:key :issued_on :label "任命生效日期" :type :date :required? true}
-                                                           {:key :note :label "任命说明" :type :textarea :max 500}]})}
+                                                    :path (str base "/appointments")
+                                                    :description "系统将读取当前项目成员生成不可变任命书, 生效日期与说明写入正文, 客户端不能伪造内容."
+                                                    :fields [{:key :issued_on :label "任命生效日期" :type :date :required? true}
+                                                             {:key :note :label "任命说明" :type :textarea :max 500}]})}
                     "签发任命书"])
    [w/record-table (:appointments model)
     [(w/text-column :code "编号") (w/text-column :revision "版本") (w/text-column :headcount "团队人数")
      (w/text-column :issued_on "生效日期") (w/text-column :issued_by "签发人")
      (w/text-column :snapshot_sha256 "快照摘要") (w/state-column)]
     (fn [row] [w/edit-button "查看任命书" #(appointment! row)])]])
+
+
+(defn stakeholder-section
+  "登记项目干系人并保留不可变修订."
+  [{:keys [base model options editable? open!]}]
+  [shared/panel "干系人识别" "记录利益相关者职责, 关注度与影响力, 修订保留历史"
+   (when editable? [antd/button {:on-click #(open! (forms/stakeholder-dialog base options nil))} "登记干系人"])
+   [w/record-table (:stakeholders model)
+    [(w/text-column :code "编号") (w/text-column :name "名称") (w/text-column :role "职责")
+     (w/text-column :category "分类") (w/text-column :interest "关注度") (w/text-column :influence "影响力") (w/state-column)]
+    (when editable? (fn [row] [w/edit-button "新修订" #(open! (forms/stakeholder-dialog base options row))]))]])
+
+
+(defn- raci-conflict-text
+  "把逐活动RACI缺口拼成一行行可读文本."
+  [conflicts]
+  (str/join "；"
+            (for [c conflicts]
+              (str (:activity c) ": "
+                   (str/join "、"
+                             (remove nil?
+                                     [(when (:missing-accountable? c) "缺少负责(A)")
+                                      (when (:missing-responsible? c) "缺少执行(R)")]))))))
+
+
+(defn raci-section
+  "RACI职责矩阵, 逐活动提示缺失的负责(A)或执行(R)."
+  [{:keys [base model editable? open!]}]
+  [shared/panel "RACI职责矩阵" "每项活动至多一个负责(A), 缺A或缺R在此提示"
+   (when editable? [antd/button {:on-click #(open! (forms/raci-dialog base model))} "指派RACI职责"])
+   (let [conflicts (:raci_conflicts model)]
+     (when (seq conflicts)
+       [antd/alert {:type "warning" :showIcon true :message "RACI完整性缺口"
+                    :style {:marginBottom 12} :description (raci-conflict-text conflicts)}]))
+   [w/record-table (:raci model)
+    [(w/text-column :activity "活动") (w/text-column :stakeholder_name "干系人")
+     {:title "职责" :dataIndex "responsibility" :render #(get {"R" "执行 R" "A" "负责 A" "C" "咨询 C" "I" "知会 I"} % %)}
+     (w/state-column)]
+    nil]])
+
+
+(defn comm-plan-section
+  "沟通计划受控调整, 由最新版本生成受控会议形成闭环."
+  [{:keys [base model options editable? open!]}]
+  [shared/panel "沟通计划" "维护渠道与节奏, 由最新版本生成受控会议并回写来源"
+   (when editable? [antd/button {:on-click #(open! (forms/comm-plan-dialog base model options nil))} "登记沟通计划"])
+   [w/record-table (:comm_plans model)
+    [(w/text-column :code "编号") (w/text-column :objective "沟通目标") (w/text-column :channel "渠道")
+     (w/text-column :frequency "频率") (w/text-column :next_date "下次日期") (w/text-column :last_meeting_id "最近会议") (w/state-column)]
+    (when editable?
+      (fn [plan]
+        [antd/space
+         [w/edit-button "新修订" #(open! (forms/comm-plan-dialog base model options plan))]
+         [w/edit-button "生成会议" #(open! (forms/comm-plan-meeting-dialog base plan))]]))]])
+
 
 (defn- trace-section
   "显式呈现需求到任务和证据的覆盖关系."
@@ -80,11 +143,12 @@
     [{:title "URS需求" :dataIndex "requirement_id" :render #(w/related-label (:requirements model) :id :code %)}
      {:title "关联类型" :dataIndex "target_kind" :render #(if (= % "task") "WBS任务" "证据文档版本")}
      {:title "关联对象" :key "target" :render (fn [_ row]
-        (let [item (js->clj row :keywordize-keys true)]
-          (if (= "task" (:target_kind item)) (w/related-label (:tasks planning) :task_id :name (:target_id item))
-              (w/related-label (:documents model) :id :title (:target_id item)))))}
+                                            (let [item (js->clj row :keywordize-keys true)]
+                                              (if (= "task" (:target_kind item)) (w/related-label (:tasks planning) :task_id :name (:target_id item))
+                                                  (w/related-label (:documents model) :id :title (:target_id item)))))}
      {:title "关系" :dataIndex "relation" :render #(if (= % "satisfies") "满足需求" "验证需求")}]
     nil]])
+
 
 (defn- risk-actions
   "发生,复评和独立关闭保持明确操作路径."
@@ -95,8 +159,9 @@
    (when (and editable? (= "open" (:status risk)))
      [w/edit-button "风险发生,转问题"
       #(open! {:title "风险转问题" :path (str base "/risks/" (:id risk) "/materialize")
-                :initial {:title (:title risk)} :fields [{:key :title :label "问题描述" :required? true}]})])
+               :initial {:title (:title risk)} :fields [{:key :title :label "问题描述" :required? true}]})])
    [review-actions context "risks" risk]])
+
 
 (defn- risk-section
   "风险台账保留应对,复评期限与独立关闭状态."
@@ -107,7 +172,8 @@
     [(w/text-column :title "风险") (w/text-column :probability "概率") (w/text-column :impact "影响")
      (w/text-column :mitigation "应对措施") (w/text-column :review_due_date "下次复评")
      {:title "复评提醒" :dataIndex "review_overdue" :render #(when % (r/as-element [antd/tag {:color "red"} "复评已逾期"]))}
-     (w/state-column)] #(risk-actions context %) ]])
+     (w/state-column)] #(risk-actions context %)]])
+
 
 (defn- issue-section
   "问题解决必须附证据并交独立人员验证."
@@ -129,6 +195,7 @@
                             (forms/evidence-field (:documents model)) (forms/reviewer-field options)]})])
        [review-actions context "issues" issue]])]])
 
+
 (defn- meeting-section
   "从会议纪要产生明确行动,避免只记录不执行."
   [{:keys [base model options editable? open!]}]
@@ -137,6 +204,7 @@
    [w/record-table (:meetings model)
     [(w/text-column :title "会议主题") (w/text-column :held_on "会议日期") (w/text-column :minutes "会议纪要")]
     (when editable? (fn [meeting] [w/edit-button "形成行动" #(open! (forms/action-dialog base options meeting))]))]])
+
 
 (defn- action-section
   "会议行动转为实际WBS任务并显示溯源关联."
@@ -153,7 +221,8 @@
                     :initial {:duration_days 1}
                     :fields [{:key :wbs_code :label "WBS编号"}
                              {:key :start_date :label "开始日期" :type :date :required? true}
-                             {:key :duration_days :label "工作日工期" :type :number :min 1 :required? true}]})]))) ]])
+                             {:key :duration_days :label "工作日工期" :type :number :min 1 :required? true}]})])))]])
+
 
 (defn- change-section
   "变更审批保留五维影响与独立判断."
@@ -165,6 +234,7 @@
      (w/text-column :schedule_impact "进度影响") (w/text-column :cost_impact "成本影响") (w/state-column)]
     #(review-actions context "changes" %)]])
 
+
 (defn- gate-actions
   "先逐项验证证据,再提交独立Gate决策."
   [{:keys [base model options editable? approve? open!]} gate]
@@ -175,12 +245,13 @@
         [w/edit-button "填写检查" #(open! (forms/gate-check-dialog base model gate))]
         [w/edit-button "提交评审" #(open! {:title "提交Gate评审" :path (str path "/submit") :fields []})]
         [w/edit-button "申请豁免" #(open! {:title "申请Gate豁免" :path (str path "/submit")
-                                          :fields [{:key :waiver_reason :label "豁免理由" :type :textarea :required? true}]})]])
+                                       :fields [{:key :waiver_reason :label "豁免理由" :type :textarea :required? true}]})]])
      (when (and approve? (= "in_review" (:status gate)) (= current (:reviewer_id gate)) (not= current (:submitted_by gate)))
        [:<>
         [w/edit-button "通过" #(open! (forms/decision-dialog (str path "/decision") "approved" "批准Gate"))]
         [w/edit-button "驳回" #(open! (forms/decision-dialog (str path "/decision") "rejected" "驳回Gate"))]
         [w/edit-button "豁免" #(open! (forms/decision-dialog (str path "/decision") "waived" "豁免Gate"))]])]))
+
 
 (defn- gate-section
   "Gate模板和逐项证据检查控制阶段准入."
@@ -197,21 +268,24 @@
                                     (w/text-column :reviewer_id "审批人") (w/text-column :decision_reason "评审意见")]
      #(gate-actions context %)]]])
 
+
 (defn- governance-content
   "按工程协作主题组织治理页面."
   [context]
   [antd/tabs {:items
-               (mapv (fn [[key label components]]
-                       {:key key :label label :children (r/as-element
-                         (into [:div {:style {:display "grid" :gap 20}}] (map #(vector % context) components)))})
-                     [["charter" "章程" [charter-section]]
-                      ["requirements" "URS与追踪" [requirement-section trace-section]]
-                      ["evidence" "证据版本" [document-section]]
-                      ["appointments" "成员任命" [appointment-section]]
-                      ["gates" "Gate评审" [gate-section]]
-                      ["risks" "风险与问题" [risk-section issue-section]]
-                      ["meetings" "会议行动" [meeting-section action-section]]
-                      ["changes" "变更控制" [change-section]]])}])
+              (mapv (fn [[key label components]]
+                      {:key key :label label :children (r/as-element
+                                                         (into [:div {:style {:display "grid" :gap 20}}] (map #(vector % context) components)))})
+                    [["charter" "章程" [charter-section]]
+                     ["requirements" "URS与追踪" [requirement-section trace-section]]
+                     ["evidence" "证据版本" [document-section]]
+                     ["appointments" "成员任命" [appointment-section]]
+                     ["stakeholders" "干系人与沟通" [stakeholder-section raci-section comm-plan-section]]
+                     ["gates" "Gate评审" [gate-section]]
+                     ["risks" "风险与问题" [risk-section issue-section]]
+                     ["meetings" "会议行动" [meeting-section action-section]]
+                     ["changes" "变更控制" [change-section]]])}])
+
 
 (defn- import-dialog
   "先预检标准CSV再原子导入需求."
@@ -234,6 +308,7 @@
                     [:p (str "预检记录 " (:count preview) " 条")]
                     (for [item (:errors preview)] ^{:key (:line item)} [:p {:role "alert"} (str "第 " (:line item) " 行: " (:error item))])])]))
 
+
 (defn- download-text!
   "把已授权读取的文本按给定文件名下载到本地,保留原始内容."
   [text filename]
@@ -244,10 +319,12 @@
     (.click link)
     (.revokeObjectURL js/URL url)))
 
+
 (defn- download-document!
   "使用已授权读取的真实正文生成本地下载,保留原始内容."
   [evidence]
   (download-text! (:content evidence) (:filename evidence)))
+
 
 (defn- appointment-preview
   "读取受控任命书正文, 展示团队快照摘要并提供本地下载."
@@ -264,6 +341,7 @@
          [:pre {:style {:whiteSpace "pre-wrap" :maxHeight "60vh" :overflow "auto" :background "#f7f8fa" :padding 16 :borderRadius 6}}
           (:content data)]])]]))
 
+
 (defn- document-preview
   "通过授权请求读取保存的证据正文."
   [base document on-close]
@@ -275,6 +353,7 @@
          [antd/button {:on-click #(download-document! data)} "下载此版本"]
          [:p {:style {:fontSize 12 :color "#718096" :overflowWrap "anywhere"}} (str "SHA256: " (:sha256 data))]
          [:pre {:style {:whiteSpace "pre-wrap" :maxHeight "60vh" :overflow "auto"}} (:content data)]])]]))
+
 
 (defn governance-workspace
   "集中加载治理读模型并协调独立审批与版本写入."
@@ -293,7 +372,7 @@
     [:div
      [w/resource-view resource (fn [_] [governance-content context])]
      (when dialog [w/mutation-dialog (merge dialog {:project project :on-close #(set-dialog! nil)
-                                                   :on-saved (fn [_] (set-dialog! nil) (changed!))})])
+                                                    :on-saved (fn [_] (set-dialog! nil) (changed!))})])
      (when importing? [import-dialog base project #(set-importing! false) (fn [_] (set-importing! false) (changed!))])
      (when document [document-preview base document #(set-document! nil)])
      (when appointment [appointment-preview base appointment #(set-appointment! nil)])]))

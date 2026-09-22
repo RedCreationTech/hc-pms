@@ -33,7 +33,7 @@
 
 planned 行的证据列使用 `待:` 表示尚缺的真实验收证据. partial 行把已经实现的本地子集和仍待完成的内容并列, 不抹去原目标. 后续验收包至少包含用例, 输入数据来源, 执行环境/版本, 结果, 失败恢复和业务签收人. 修改本表状态时同时更新 V 或对应批次验证记录.
 
-本轮 H02 增量后全新 CLI SQLite 集成运行 `clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'` 已通过 67 tests / 486 assertions, 0 failures/errors (本地无 MySQL 实例, H02 的 MySQL 回归本轮未执行, 迁移双库文件已同步). 此前提交 `cfe4b15` 的 [CI运行35682432061](https://github.com/RedCreationTech/hc-pms/actions/runs/35682432061) 中 SQLite和MySQL后端均已通过当时全量PMS回归. 本地8个浏览器用例, 生产构建及独立启动也已通过; Linux CI浏览器8例5.1分钟首次通过,无重试/flaky,三项作业全success,最终记录见V. 双库及浏览器通过不等于生产/UAT或所有复合条目已完成.
+本轮 H02 增量后全新 CLI SQLite 集成运行 `clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'` 已通过 67 tests / 486 assertions, 0 failures/errors (本地无 MySQL 实例, H02 的 MySQL 回归本轮未执行, 迁移双库文件已同步). 此前提交 `cfe4b15` 的 [CI运行35682432061](https://github.com/RedCreationTech/hc-pms/actions/runs/35682432061) 中 SQLite和MySQL后端均已通过当时全量PMS回归. 本地8个浏览器用例, 生产构建及独立启动也已通过; Linux CI浏览器8例5.1分钟首次通过,无重试/flaky,三项作业全success,最终记录见V. 本轮另在隔离 `:3100` 后端(独立空库全新迁移)跑通 H02 治理浏览器用例 `pms-h02.spec.js`(1 passed, 无未捕获JS错误), 覆盖界面登记干系人, RACI缺A冲突提示与沟通计划生成会议回写. 双库及浏览器通过不等于生产/UAT或所有复合条目已完成.
 
 ## A. 项目, 组织结构与立项
 
@@ -172,7 +172,7 @@ PPT中的财务表是设计示意. 字体较小或仅在原图显示而未核定
 | ID | 来源类型 | 新增/强化功能 | 业务闭环验收 | 批次 | 当前状态 | 验证证据 |
 |---|---|---|---|---|---|---|
 | H01 | 工程基线新增 | 项目章程, 正式批准与业务目标 | 记录目标/范围/成功标准/赞助人/授权PM/初始预算, 审批拒绝可修订, 批准后冻结章程版本 | B2 | partial | Q: charter-review-is-independent-and-versioned; 目标/范围/成功准则/赞助人和独立批准已实现, 初始预算与章程的正式关联仍待补齐 |
-| H02 | 工程基线新增 | 干系人, RACI与沟通计划 | 识别利益相关者及职责, 明确知会/参与/批准关系, 沟通节奏可执行并有调整记录 | B2+B3 | implemented / local | Q: stakeholder-raci-conflict-and-comm-plan-loop,stakeholder-comm-plan-http-contract; 干系人登记+不可变修订(编号不可改), RACI按活动至多一个A且不得重复指派并输出缺A/缺R冲突, 沟通计划受控修订+由最新版本生成会议并回写last_meeting_id形成闭环; 经复用通用治理存储pms_gov_record(stakeholder/raci/comm-plan)与工作台只读模型; 待: 前端治理工作台视图与浏览器验证未做, MySQL本轮未执行(本地无实例), 外部通知/消息渠道推送未接通 |
+| H02 | 工程基线新增 | 干系人, RACI与沟通计划 | 识别利益相关者及职责, 明确知会/参与/批准关系, 沟通节奏可执行并有调整记录 | B2+B3 | implemented / local | Q: stakeholder-raci-conflict-and-comm-plan-loop,stakeholder-comm-plan-http-contract; 干系人登记+不可变修订(编号不可改), RACI按活动至多一个A且不得重复指派并输出缺A/缺R冲突, 沟通计划受控修订+由最新版本生成会议并回写last_meeting_id形成闭环; 经复用通用治理存储pms_gov_record(stakeholder/raci/comm-plan)与工作台"干系人与沟通"页签; 浏览器端到端(pms-h02.spec.js)已验证界面登记干系人, RACI缺A冲突提示与沟通计划生成会议回写; 待: MySQL本轮未执行(本地无实例), 外部通知/消息渠道自动提醒与按节奏定时派发未接通 |
 | H03 | 工程基线强化 | 范围基线与WBS字典 | 可交付范围/排除项/验收准则映射到WBS叶节点, 覆盖性审查后冻结, 范围变更受控 | B2+B3 | partial | P: independent-approval-snapshot-and-revision; WBS设计冻结与变更已实现, 范围排除项和覆盖性审查尚未完整实现 |
 | H04 | 工程基线强化 | 排程与关键路径 | 依赖/工作日历/持续时间计算一致, 检测循环, 展示关键路径/浮动和基线偏差, 重排不覆盖原承诺 | B2 | implemented / local | P: four-dependency-types-and-calendar,parallel-critical-path-summary-and-milestone; 明确四类依赖/工作日/环/浮动/关键路径/不可变基线 |
 | H05 | 工程基线新增 | 资源容量, 技能与分派 | 资源需求到人员/角色/技能分派, 日历容量与任务投入匹配, 超配冲突提示并经协调解决 | B2 | partial | P: shared-person-capacity-preserves-other-project-privacy; 日容量和跨项目同人员超配保护已有, 技能匹配/替代人员/请假规则仍待补齐 |
