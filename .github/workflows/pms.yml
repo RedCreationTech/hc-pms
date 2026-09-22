@@ -17,7 +17,7 @@ jobs:
         with:
           cli: 1.12.4.1618
       - name: Project domain and API tests on fresh SQLite
-        run: clojure -M:test -n com.ruoyi.pms-test
+        run: clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'
   mysql:
     runs-on: ubuntu-latest
     services:
@@ -43,7 +43,7 @@ jobs:
       - name: Same project tests on isolated MySQL
         env:
           PMS_TEST_JDBC_URL: jdbc:mysql://127.0.0.1:3306/hc_pms_test?user=root&password=pms_ci_only&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
-        run: clojure -M:test -n com.ruoyi.pms-test
+        run: clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'
   web:
     runs-on: ubuntu-latest
     steps:
@@ -81,7 +81,7 @@ jobs:
       - name: Real browser project workflows
         env:
           BASE_URL: http://127.0.0.1:3100
-        run: pnpm exec playwright test tests/e2e/pms.spec.js --project=chromium
+        run: pnpm exec playwright test tests/e2e/pms.spec.js tests/e2e/pms-workbench.spec.js --project=chromium
       - uses: actions/upload-artifact@v4
         if: always()
         with:

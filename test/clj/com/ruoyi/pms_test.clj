@@ -22,7 +22,7 @@
 (defn- query-function
   "创建可显式注入事务连接的 HugSQL 查询函数."
   [db]
-  (let [queries (:fns (conman/bind-connection-map db {} "sql/pms.sql"))]
+  (let [queries (:fns (conman/bind-connection-map db {} "sql/pms.sql" "sql/pms_planning.sql" "sql/pms_planning_resources.sql" "sql/pms_planning_baselines.sql" "sql/pms_governance.sql" "sql/pms_finance.sql" "sql/pms_closure.sql" "sql/pms_integration.sql" "sql/pms_delivery.sql"))]
     (fn
       ([name params] ((get-in queries [name :fn]) params))
       ([tx name params] ((get-in queries [name :fn]) tx params)))))
@@ -178,7 +178,7 @@
     (let [blocked (request :post (str "/api/pms/projects/" id "/transition")
                            9101 {:status "execution" :version 3 :reason "开始执行"})]
       (is (= 409 (:status blocked)))
-      (is (re-find #"Gate" (get-in blocked [:body :msg]))))
+      (is (re-find #"批准基线" (get-in blocked [:body :msg]))))
     (is (= 400 (error-status #(step "cancelled" 3 ""))))
     (is (= "cancelled" (:status (step "cancelled" 3 "合同取消"))))
     (is (= 409 (error-status #(pms/update-project! *service* (actor 1) id {:name "禁止" :version 4}))))

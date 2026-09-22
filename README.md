@@ -2,26 +2,28 @@
 
 基于 `RedCreationTech/ruoyi_clojure` 的 `ruoyi-template` 分支开发, 将订单项目的结构, 团队, 计划与交付证据逐步连接起来.
 
-本轮完成 V1 工程设计, 并实现第一批项目核心功能. [设计入口](docs/pms/README.md) | [验证记录](docs/pms/verification.md) | [开发路线](docs/pms/10-development-roadmap.md) | [原模板文档](docs/template-readme.md)
+已实现项目核心工作台和本地业务闭环, 包括计划,治理,交付,工时成本与独立关闭. [设计入口](docs/pms/README.md) | [验证记录](docs/pms/verification.md) | [开发路线](docs/pms/10-development-roadmap.md) | [原模板文档](docs/template-readme.md)
 
 ## 项目目标
 
 1. 逐项对齐原PPT展示的全部PMS功能, 包括业务流程, 计划与关口, 过程管理, 四算, 看板和外部集成.
 2. 在上述能力基础上, 补齐标准PMS的业务闭环: 项目批准 -> 范围与计划基线 -> 资源安排 -> 执行跟踪 -> 风险/问题/变更控制 -> 质量与交付验收 -> 费用结算 -> 收尾归档与经验复用.
 
-这两项是最终产品目标, 首批项目中心只是起点. [功能与验收矩阵](docs/pms/11-feature-acceptance-matrix.md)逐项记录PPT来源, 补全项, 验收条件, 开发批次与实现状态. 本项目的标准PMS闭环是工程验收基线, 不代表取得某项正式标准认证. 功能必须具备持久化, 权限, 流程约束, 审计及真实操作证据后才能标记完成.
+这两项是最终产品目标, 当前进度不等于原PPT全部功能已经验收. [功能与验收矩阵](docs/pms/11-feature-acceptance-matrix.md)逐项记录PPT来源, 补全项, 验收条件, 开发批次与实现状态. 本项目的标准PMS闭环是工程验收基线, 不代表取得某项正式标准认证. 功能必须具备持久化, 权限, 流程约束, 审计及真实操作证据后才能标记完成.
 
 ## 当前功能
 
-- 项目中心: 创建/编辑, 搜索, 状态过滤, 分页和详情.
-- 项目结构: 创建项目时建立主节点, 支持主项目 -> BU子项目 -> 单机.
-- 项目团队: 关联现有系统用户, 管理者/协作/只读角色.
-- 生命周期: 草稿 -> 立项 -> 计划准备; 取消需要理由, 终态只读.
-- 访问控制: 实时功能权限 + 项目范围, 列表/统计/详情和写操作一致隔离.
-- 事务审计: 变更和审计原子提交, 聚合版本控制并发及事件顺序.
-- 驾驶舱: 当前授权项目的总量, 活跃, 逾期和草稿统计.
+- 项目中心,主/子/单机结构,团队及责任交接检查,有范围隔离的驾驶舱.
+- WBS,FS/SS/FF/SF依赖,工作日历,关键路径/浮动,跨项目匿名人员负荷,独立基线审批和批准变更关联.
+- 章程,URS版本与整批CSV预检,真实文本附件及下载,需求追踪,质量Gate,风险/问题,会议行动转任务,正式变更.
+- 物料申请,BOM冻结与齐套,装配交检,SIT/FAT/SAT实际结果与复验,发运签收,售后异常的独立验证.
+- 工时报工与独立审核,跨项目每日容量,四算不可变版本与独立审批,精确金额及按批准工时分摊.
+- 清单,遗留移交,经验,正式关闭审批及证据快照;已关闭项目可独立审批重开,重新关闭必须重新审批.
+- 接口运维收件去重/乱序保护,确定版本外发,真实HTTP回执/退避/死信/人工恢复及对账. 八类企业系统的真实字段适配和沙箱仍待配置.
 
-计划基线, Gate审批, URS验证, FAT/SIT/SAT证据, 文档签发, 四算, 外部系统适配和AI建议已完成 V1 设计, 待后续批次开发. 当前不会把切换状态当成质量批准, `planning -> execution` 返回409.
+生命周期为 draft -> initiated -> planning -> execution -> closing -> closed,并支持暂停恢复及取消. 进入执行须已批准基线/章程/Gate;最终关闭必须满足完整实际交付,质量,财务与独立审核条件. 终态只读,通用审计不泄露财务审核内容.
+
+精确API见[模块合同](docs/pms/contracts/). 本地闭环不等于全部PPT需求或生产验收. 二进制文档/密级批量下载,跨项目研发费用池/工时更正/税务经营口径,更多模板/RACI/组合看板,AI和八系统真实合同等剩余项见[验收矩阵](docs/pms/11-feature-acceptance-matrix.md), 不用模板遗留功能冒充PMS实现.
 
 ## 技术与来源
 
@@ -49,11 +51,11 @@ pnpm exec shadow-cljs watch app
 
 ```bash
 # 每次创建隔离临时SQLite, 不污染当前开发数据
-clojure -M:test -n com.ruoyi.pms-test
+clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'
 # MySQL必须使用独立空测试数据库
-PMS_TEST_JDBC_URL='jdbc:mysql://127.0.0.1:3306/hc_pms_test?user=USER&password=PASSWORD&useSSL=false&allowPublicKeyRetrieval=true' clojure -M:test -n com.ruoyi.pms-test
+PMS_TEST_JDBC_URL='jdbc:mysql://127.0.0.1:3306/hc_pms_test?user=USER&password=PASSWORD&useSSL=false&allowPublicKeyRetrieval=true' clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'
 # 浏览器完整流程, 需要当前服务与已编译页面
-BASE_URL=http://127.0.0.1:3100 pnpm exec playwright test tests/e2e/pms.spec.js --project=chromium
+BASE_URL=http://127.0.0.1:3100 pnpm exec playwright test tests/e2e/pms.spec.js tests/e2e/pms-workbench.spec.js --project=chromium
 # 生产构建
 pnpm exec shadow-cljs release app
 clojure -T:build all
@@ -61,6 +63,6 @@ clojure -T:build all
 
 新增 `.github/workflows/pms.yml` 包含SQLite/MySQL隔离测试, 前端生产编译和浏览器流程. CI是否执行以及双库实测结果以验证记录为准, 不能仅凭配置存在认为测试已通过.
 
-## 后续开发
+## 企业对接与后续验收
 
-下一批先完成WBS任务, 日历, 依赖DAG, 里程碑和基线版本, 再接入Gate/URS/验证/文档. 财务与企业集成按事实所有权和幂等事件设计实施, AI只基于有权限的证据生成待确认建议.
+部署连接器协议见[接口合同](docs/pms/contracts/integration.md),源码不携带真实凭据. 未配置时页面明确显示未配置,外发返回503,不会假装同步成功. 后续以真实业务签收的规则和外部沙箱完成剩余矩阵;当前上线前还需生产升级/恢复/容量/兼容性验收.

@@ -1,0 +1,4 @@
+DELETE FROM sys_role_menu WHERE menu_id BETWEEN 5030 AND 5041;
+--;;
+DELETE FROM sys_menu WHERE menu_id BETWEEN 5030 AND 5041;
+--;;

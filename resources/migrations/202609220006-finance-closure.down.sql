@@ -1,0 +1,18 @@
+DROP TABLE IF EXISTS pms_lifecycle_state;
+--;;
+DROP TABLE IF EXISTS pms_closure_approval;
+--;;
+DROP TABLE IF EXISTS pms_lesson;
+--;;
+DROP TABLE IF EXISTS pms_closure_item;
+--;;
+DROP TABLE IF EXISTS pms_cost_allocation;
+--;;
+DROP TABLE IF EXISTS pms_cost_entry;
+--;;
+DROP TABLE IF EXISTS pms_cost_version;
+--;;
+DROP TABLE IF EXISTS pms_time_entry;
+--;;
+DROP TABLE IF EXISTS pms_time_day;
+--;;

@@ -5,7 +5,7 @@
 > **上游模板**: RedCreationTech/ruoyi_clojure, `ruoyi-template`, commit `99706b06fea4ff9efed6822a70cbda1c2bd98552`
 > **PMS设计入口**: [docs/pms/README.md](docs/pms/README.md)
 > **最终目标**: 先逐项覆盖原PPT展示的全部PMS功能, 再补齐标准PMS从批准, 计划, 执行, 控制, 验收到结算, 收尾归档的完整闭环. 以[功能验收矩阵](docs/pms/11-feature-acceptance-matrix.md)追踪, 首批范围不能代替最终产品目标.
-> **交付范围**: 当前Batch 1, 不把计划/Gate/URS/四算/AI设计当作已实现功能.
+> **交付范围**: 项目,计划,治理,交付,财务和收尾本地闭环已实现,真实通过范围见verification与功能矩阵. 外部企业字段合同,生产验收和矩阵中的未完能力仍须逐项实现,不得把本地协议测试或界面当成全PPT验收.
 > **公开授权**: 用户于2026-09-22明确授权将本项目工程及其模板历史推送到公开仓库 RedCreationTech/hc-pms. 不需要再次询问同一公开推送的许可. 原PPT, 内部逐页提炼, 凭据和运行数据库不进入版本库.
 > **参考原版**: https://gitee.com/y_project/RuoYi-Vue (v3.9.2)
 

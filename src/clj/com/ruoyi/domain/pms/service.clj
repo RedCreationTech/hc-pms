@@ -3,6 +3,8 @@
   (:require [cheshire.core :as json]
             [clojure.string :as str]
             [com.ruoyi.domain.pms.rules :as rules]
+            [com.ruoyi.domain.pms.lifecycle :as lifecycle]
+            [com.ruoyi.domain.pms.planning :as planning]
             [integrant.core :as ig]
             [next.jdbc :as jdbc])
   (:import [java.sql SQLException]
@@ -100,7 +102,8 @@
   "读取当前用户有权访问的项目详情."
   [{:keys [query-fn]} actor id]
   (rules/permit! actor "pms:project:query")
-  (load-project! query-fn actor id false))
+  (let [project (load-project! query-fn actor id false)]
+    (assoc project :resume_status (:resume_status (query-fn :lifecycle/state {:project_id id})))))
 
 (defn create-project!
   "创建草稿项目,主节点,经理与创建者成员及审计事件."
@@ -140,6 +143,9 @@
         (let [node (q :pms/node-code {:project_id id :node_code (:project_no project)})]
           (when (and node (not= "main" (:node_type node)))
             (rules/fail! 409 "项目编号与已有结构节点编号冲突")))
+        (when (not= (select-keys old [:start_date :end_date])
+                    (select-keys project [:start_date :end_date]))
+          (planning/project-dates-changing! q old))
         (rules/changed! (q :pms/update-project! (assoc project :version version)))
         (rules/changed! (q :pms/update-root! project))
         (sync-manager! q old project)
@@ -149,19 +155,9 @@
         (q :pms/project {:project_id id})))))
 
 (defn transition-project!
-  "校验允许的状态边并原子更新状态,版本和审计事件."
+  "由计划,质量,财务与关闭审批证据约束真实生命周期迁移."
   [svc actor id body]
-  (rules/permit! actor "pms:project:transition")
-  (transaction! svc
-    (fn [q]
-      (let [project (load-project! q actor id true)
-            {:keys [status reason]} (rules/transition! project body)]
-        (rules/changed! (q :pms/transition!
-                           {:project_id id :version (:version project) :status status}))
-        (event! q actor project "project.transitioned"
-                (if (str/blank? reason) "推进项目状态" reason)
-                {:from_status (:status project) :to_status status :reason reason})
-        (q :pms/project {:project_id id})))))
+  (lifecycle/transition! svc actor id body))
 
 (defn- node-tree
   "把同一项目的平面节点构建为主项目,子项目和单机树."

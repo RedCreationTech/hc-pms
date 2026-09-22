@@ -5,6 +5,7 @@
     [com.ruoyi.frontend.antd :as antd]
     [com.ruoyi.frontend.pages.pms.form :as project-form]
     [com.ruoyi.frontend.pages.pms.shared :as shared]
+    [com.ruoyi.frontend.pages.pms.widgets :as w]
     [reagent.core :as r]
     [reagent.hooks :as hooks]))
 
@@ -92,7 +93,7 @@
 
 (defn- member-row
   "显示成员身份与项目角色."
-  [member]
+  [member remove!]
   (let [colors (shared/use-colors)
         name (or (:nick_name member) (:user_name member) (str (:user_id member)))]
     [:div {:style {:display "flex" :alignItems "center" :justifyContent "space-between" :padding "11px 0"
@@ -102,14 +103,18 @@
                       :color (:primary colors) :display "grid" :placeItems "center" :fontWeight 600}}
        (subs name 0 (min 1 (count name)))]
       [:span name]]
-     [antd/tag {:color (if (= "manager" (:role member)) "blue" "default")}
-      (get role-labels (:role member) (:role member))]]))
+     [antd/space
+      [antd/tag {:color (if (= "manager" (:role member)) "blue" "default")}
+       (get role-labels (:role member) (:role member))]
+      (when (and remove! (not= "manager" (:role member)))
+        [antd/button {:type "link" :danger true :size "small" :on-click #(remove! member)} "移除"])] ]))
 
 (defn project-members
   "加载与维护有真实权限的项目成员."
-  [id revision options editable? on-change]
+  [id revision options editable? on-change project-version]
   (let [{:keys [data loading? error refresh!]} (shared/use-resource (str "/projects/" id "/members") {} [revision])
         [adding? set-adding!] (hooks/use-state false)
+        [removing set-removing!] (hooks/use-state nil)
         can-edit? (and (shared/use-permission "pms:member:edit") editable?)]
     [shared/panel "项目团队" "项目角色决定协作范围"
      (when can-edit? [antd/button {:size "small" :on-click #(set-adding! true)} "维护成员"])
@@ -117,6 +122,11 @@
        error [shared/error-panel error refresh!]
        loading? [antd/spin]
        (empty? (:rows data)) [shared/empty-state "暂无项目成员" nil]
-       :else (into [:div] (map #(with-meta [member-row %] {:key (:user_id %)}) (:rows data))))
+       :else (into [:div] (map #(with-meta [member-row % (when can-edit? set-removing!)] {:key (:user_id %)}) (:rows data))))
      (when adding? [member-form id options #(set-adding! false)
-                    (fn [_] (set-adding! false) (refresh!) (on-change))])]))
+                    (fn [_] (set-adding! false) (refresh!) (on-change))])
+     (when removing [w/mutation-dialog
+                     {:title "移除项目成员" :description "移除后该成员立即失去此项目的访问资格."
+                      :path (str "/projects/" id "/members/" (:user_id removing)) :method :delete
+                      :fields [] :project {:version project-version} :on-close #(set-removing! nil)
+                      :on-saved (fn [_] (set-removing! nil) (refresh!) (on-change))}])]))

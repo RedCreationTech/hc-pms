@@ -49,7 +49,7 @@ async function createProject(page, suffix, name) {
   await form.locator('#end_date').fill('2027-03-31');
   await form.getByRole('button', { name: '保存项目', exact: true }).click();
   await expect(form).toBeHidden();
-  await expect(detail(page).getByText('项目概况', { exact: true })).toBeVisible();
+  await expect(detail(page).getByRole('tab', { name: '项目概况', exact: true })).toBeVisible();
   await expect(page).toHaveURL(/id=[0-9a-f-]{36}/);
   return { number, name, id: new URL(page.url()).searchParams.get('id') };
 }
@@ -126,6 +126,7 @@ test.describe('PMS 第一阶段真实浏览器验收', () => {
     await detail(page).getByRole('button', { name: '维护成员', exact: true }).click();
     const member = page.getByRole('dialog', { name: '维护项目成员', exact: true });
     await member.locator('#user_id').click();
+    await member.locator('#user_id').fill('pms_test_member');
     await option(page, '/ pms_test_member').click();
     await member.locator('#role').click();
     await option(page, '只读成员').click();
@@ -140,7 +141,16 @@ test.describe('PMS 第一阶段真实浏览器验收', () => {
     await expect(detail(page).getByText('演示客户 / 华川智能制造二厂', { exact: true })).toBeVisible();
     await advance(page, 'initiated');
     await advance(page, 'planning');
-    await expect(detail(page).getByRole('button', { name: /进入执行/ })).toHaveCount(0);
+    await detail(page).getByRole('button', { name: /进入执行/ }).click();
+    const execution = page.getByRole('dialog', { name: '进入执行阶段', exact: true });
+    const rejection = page.waitForResponse(response => response.url().endsWith(`/projects/${project.id}/transition`) && response.request().method() === 'POST');
+    await execution.getByRole('button', { name: '进入执行阶段', exact: true }).click();
+    const rejected = await (await rejection).json();
+    expect(rejected.code).toBe(409);
+    expect(rejected.msg).toMatch(/基线|章程|Gate/);
+    await expect(execution).toContainText(rejected.msg);
+    await execution.getByRole('button', { name: /返\s*回/, exact: true }).click();
+    await expect(detail(page).getByText('计划中', { exact: true }).first()).toBeVisible();
     await page.reload();
     await expect(detail(page).getByText('演示单机 / 自动拧紧工作站', { exact: true })).toBeVisible();
     await expect(detail(page).getByText('计划中', { exact: true }).first()).toBeVisible();
@@ -183,7 +193,7 @@ test.describe('PMS 第一阶段真实浏览器验收', () => {
     await expect(page.getByLabel('搜索项目', { exact: true })).toHaveValue(project.number);
     await expect(row).toBeVisible();
     await row.getByRole('button', { name: '详情', exact: true }).click();
-    await expect(detail(page).getByText('项目概况', { exact: true })).toBeVisible();
+    await expect(detail(page).getByRole('tab', { name: '项目概况', exact: true })).toBeVisible();
     await page.reload();
     await expect(detail(page).getByText(project.number, { exact: true }).first()).toBeVisible();
     expect(new URL(page.url()).searchParams.get('id')).toBe(project.id);

@@ -2,7 +2,7 @@
 SELECT p.*, COALESCE(u.nick_name, u.user_name) AS manager_name, d.dept_name
 FROM pms_project p LEFT JOIN sys_user u ON u.user_id = p.manager_id
 LEFT JOIN sys_dept d ON d.dept_id = p.dept_id
-WHERE (:admin = 1 OR p.created_by = :user_id OR p.manager_id = :user_id
+WHERE (:admin = 1 OR p.manager_id = :user_id
        OR EXISTS (SELECT 1 FROM pms_member pm WHERE pm.project_id = p.project_id AND pm.user_id = :user_id))
   AND (:q IS NULL OR INSTR(LOWER(p.name), LOWER(:q)) > 0 OR INSTR(LOWER(p.project_no), LOWER(:q)) > 0 OR INSTR(LOWER(p.customer), LOWER(:q)) > 0)
   AND (:status IS NULL OR p.status = :status)
@@ -11,7 +11,7 @@ ORDER BY p.created_at DESC, p.project_id LIMIT :page_size OFFSET :offset
 
 -- :name pms/project-count :? :1
 SELECT COUNT(*) AS total FROM pms_project p
-WHERE (:admin = 1 OR p.created_by = :user_id OR p.manager_id = :user_id
+WHERE (:admin = 1 OR p.manager_id = :user_id
        OR EXISTS (SELECT 1 FROM pms_member pm WHERE pm.project_id = p.project_id AND pm.user_id = :user_id))
   AND (:q IS NULL OR INSTR(LOWER(p.name), LOWER(:q)) > 0 OR INSTR(LOWER(p.project_no), LOWER(:q)) > 0 OR INSTR(LOWER(p.customer), LOWER(:q)) > 0)
   AND (:status IS NULL OR p.status = :status)
@@ -93,10 +93,10 @@ SELECT * FROM pms_event WHERE project_id=:project_id ORDER BY aggregate_version 
 
 -- :name pms/dashboard :? :1
 SELECT COUNT(*) AS total,
-COALESCE(SUM(CASE WHEN p.status IN ('initiated','planning','execution') THEN 1 ELSE 0 END),0) AS active,
+COALESCE(SUM(CASE WHEN p.status IN ('initiated','planning','execution','paused','closing') THEN 1 ELSE 0 END),0) AS active,
 COALESCE(SUM(CASE WHEN p.end_date < :today AND p.status NOT IN ('closed','cancelled') THEN 1 ELSE 0 END),0) AS overdue,
 COALESCE(SUM(CASE WHEN p.status='draft' THEN 1 ELSE 0 END),0) AS draft
-FROM pms_project p WHERE (:admin = 1 OR p.created_by = :user_id OR p.manager_id = :user_id
+FROM pms_project p WHERE (:admin = 1 OR p.manager_id = :user_id
        OR EXISTS (SELECT 1 FROM pms_member pm WHERE pm.project_id = p.project_id AND pm.user_id = :user_id))
 --;;
 

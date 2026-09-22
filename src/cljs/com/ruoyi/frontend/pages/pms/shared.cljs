@@ -12,6 +12,8 @@
    {:value "initiated" :label "已立项" :color "blue"}
    {:value "planning" :label "计划中" :color "cyan"}
    {:value "execution" :label "执行中" :color "processing"}
+   {:value "paused" :label "已暂停" :color "orange"}
+   {:value "closing" :label "收尾中" :color "purple"}
    {:value "closed" :label "已结项" :color "green"}
    {:value "cancelled" :label "已取消" :color "red"}])
 
@@ -55,17 +57,19 @@
     #(failure (error-message %))))
 
 (defn use-resource
-  "加载服务端资源并忽略已卸载组件的迟到响应."
+  "加载服务端资源并忽略已卸载组件的迟到响应,nil路径不发出请求."
   [path params dependencies]
   (let [[state set-state!] (hooks/use-state {:loading? true})
         [revision set-revision!] (hooks/use-state 0)]
     (hooks/use-effect
       (fn []
         (let [active? (volatile! true)]
-          (set-state! #(assoc % :loading? true :error nil))
-          (request! :get path params
-            #(when @active? (set-state! {:data % :loading? false}))
-            #(when @active? (set-state! {:error % :loading? false})))
+          (if path
+            (do (set-state! #(assoc % :loading? true :error nil))
+                (request! :get path params
+                  #(when @active? (set-state! {:data % :loading? false}))
+                  #(when @active? (set-state! {:error % :loading? false}))))
+            (set-state! {:data nil :loading? false}))
           #(vreset! active? false)))
       (into [path revision] dependencies))
     (assoc state :refresh! #(set-revision! inc))))

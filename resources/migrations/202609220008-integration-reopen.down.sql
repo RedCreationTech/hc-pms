@@ -1,0 +1,11 @@
+DROP TABLE pms_delivery_attempt;
+--;;
+DROP TABLE pms_outbox;
+--;;
+DROP TABLE pms_external_fact;
+--;;
+DROP TABLE pms_inbox;
+--;;
+ALTER TABLE pms_lifecycle_state DROP COLUMN reopened_version;
+--;;
+DROP TABLE pms_reopen_request;

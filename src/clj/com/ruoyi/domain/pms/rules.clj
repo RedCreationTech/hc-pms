@@ -11,7 +11,7 @@
 
 (def statuses
   "可识别的项目状态."
-  #{"draft" "initiated" "planning" "execution" "closed" "cancelled"})
+  #{"draft" "initiated" "planning" "execution" "paused" "closing" "closed" "cancelled"})
 
 (defn fail!
   "抛出带 HTTP 状态的可预期业务异常."
@@ -45,23 +45,23 @@
   {:admin (if (:admin? actor) 1 0) :user_id (:user_id actor)})
 
 (defn access!
-  "检查项目读取或编辑范围,创建者仅自动拥有读取资格."
+  "检查当前项目成员和管理者的读取或编辑范围,撤销成员立即失效."
   [query-fn actor project write?]
   (when-not project (fail! 404 "项目不存在"))
   (let [uid (:user_id actor)
         member (query-fn :pms/member {:project_id (:project_id project) :user_id uid})
         manager? (= uid (:manager_id project))
-        reader? (or (= uid (:created_by project)) manager? member)
+        reader? (or manager? member)
         writer? (or manager? (contains? #{"manager" "editor"} (:role member)))]
     (when-not (or (:admin? actor) (if write? writer? reader?))
       (fail! 403 "没有该项目的数据访问权限")))
   project)
 
 (defn editable!
-  "终态项目不允许继续修改."
+  "暂停及终态项目不允许普通业务修改."
   [project]
-  (when (contains? #{"closed" "cancelled"} (:status project))
-    (fail! 409 "项目已结束或取消,不允许修改")))
+  (when (contains? #{"paused" "closed" "cancelled"} (:status project))
+    (fail! 409 "项目已暂停,结束或取消,不允许修改")))
 
 (defn object!
   "要求请求体为对象且不包含不可写字段."
@@ -150,22 +150,3 @@
     (when (and status (not (statuses status))) (fail! 400 "无效项目状态"))
     {:page_size size :offset (* (dec page) size) :status status
      :q (not-empty (text! (:q params) "搜索内容" 200 false))}))
-
-(defn transition!
-  "只开放立项与计划准备阶段,执行阶段需要后续真实基线与 Gate."
-  [project body]
-  (object! body [:status :version :reason])
-  (editable! project)
-  (version! project (:version body))
-  (let [from (:status project) to (:status body)
-        reason (text! (:reason body) "变更说明" 500 false)]
-    (when (and (= from "planning") (= to "execution"))
-      (fail! 409 "尚未实现计划基线与 Gate 审核,暂不能进入执行阶段"))
-    (when-not (or (= [from to] ["draft" "initiated"])
-                  (= [from to] ["initiated" "planning"])
-                  (and (contains? #{"draft" "initiated" "planning"} from)
-                       (= to "cancelled")))
-      (fail! 409 "不允许执行此状态转换"))
-    (when (and (= to "cancelled") (str/blank? reason))
-      (fail! 400 "取消项目必须填写原因"))
-    {:status to :reason reason}))

@@ -6,15 +6,22 @@
     [com.ruoyi.frontend.pages.pms.form :as project-form]
     [com.ruoyi.frontend.pages.pms.shared :as shared]
     [com.ruoyi.frontend.pages.pms.structure :as structure]
+    [com.ruoyi.frontend.pages.pms.planning :as planning]
+    [com.ruoyi.frontend.pages.pms.governance :as governance]
+    [com.ruoyi.frontend.pages.pms.finance :as finance]
+    [com.ruoyi.frontend.pages.pms.closure :as closure]
+    [com.ruoyi.frontend.pages.pms.delivery :as delivery]
+    [com.ruoyi.frontend.pages.pms.integration :as integration]
     [reagent.core :as r]
     [reagent.hooks :as hooks]))
 
 (defn- lifecycle
-  "突出当前真实状态,规划后的阶段等待 Gate 能力上线."
+  "突出真实生命周期状态和阶段位置."
   [project]
   (let [colors (shared/use-colors)
         current (:status project)
-        stages [["draft" "01" "草稿"] ["initiated" "02" "立项"] ["planning" "03" "计划"]]]
+        stages [["draft" "01" "草稿"] ["initiated" "02" "立项"] ["planning" "03" "计划"]
+                ["execution" "04" "执行"] ["closing" "05" "收尾"] ["closed" "06" "关闭"]]]
     [:div {:style {:display "flex" :gap 12 :marginBottom 24 :alignItems "center" :flexWrap "wrap"}}
      (for [[status number label] stages]
        ^{:key status}
@@ -23,7 +30,7 @@
                       :border (str "1px solid " (if (= current status) (:primary colors) (:border colors)))}}
         [:span {:style {:fontSize 11 :fontWeight 700 :color (:muted colors) :marginRight 12}} number]
         [:span {:style {:fontWeight 600 :color (if (= current status) (:primary colors) (:muted colors))}} label]])
-     (when (= current "cancelled") [shared/status-tag current])]))
+     (when (contains? #{"paused" "cancelled"} current) [shared/status-tag current])]))
 
 (defn- summary-grid
   "展示项目标识,归属与计划日期."
@@ -40,7 +47,9 @@
   [project target on-close on-saved]
   (let [[form] (antd/form-use-form)
         cancelling? (= target "cancelled")
-        title (case target "initiated" "确认立项" "planning" "进入计划阶段" "取消项目")
+        reason-required? (contains? #{"cancelled" "paused"} target)
+        title (case target "initiated" "确认立项" "planning" "进入计划阶段" "execution" "进入执行阶段"
+                    "closing" "进入收尾阶段" "closed" "正式关闭项目" "paused" "暂停项目" "取消项目")
         {:keys [busy? error run!]} (shared/use-action on-saved)]
     [antd/modal {:title title :open true :onCancel on-close :onOk #(.submit form)
                  :okText title :cancelText "返回" :confirmLoading busy?
@@ -54,8 +63,8 @@
                  :onFinish #(run! :post (str "/projects/" (:project_id project) "/transition")
                                   (merge {:status target :version (:version project)}
                                          (js->clj % :keywordize-keys true)) "项目状态已更新")}
-      [antd/form-item {:name "reason" :label (if cancelling? "取消原因" "变更说明")
-                       :rules (when cancelling? [{:required true :whitespace true :message "请填写取消原因"}])}
+      [antd/form-item {:name "reason" :label (if reason-required? "变更原因" "变更说明")
+                       :rules (when reason-required? [{:required true :whitespace true :message (if cancelling? "请填写取消原因" "请填写暂停原因")}])}
        [antd/text-area {:rows 3 :maxLength 500 :showCount true
                         :placeholder (if cancelling? "说明取消原因" "可补充本次变更的背景")}]]]]))
 
@@ -64,15 +73,21 @@
   [project set-target!]
   (let [can-transition? (shared/use-permission "pms:project:transition")
         status (:status project)
-        next-status ({"draft" "initiated" "initiated" "planning"} status)]
+        next-status (if (= "paused" status) (:resume_status project)
+                      ({"draft" "initiated" "initiated" "planning" "planning" "execution"
+                        "execution" "closing" "closing" "closed"} status))]
     (when can-transition?
       [antd/space
-       (when (contains? #{"draft" "initiated" "planning"} status)
+       (when-not (contains? #{"closed" "cancelled"} status)
          [antd/button {:danger true :on-click #(set-target! "cancelled")} "取消项目"])
+       (when (contains? #{"execution" "closing"} status)
+         [antd/button {:on-click #(set-target! "paused")} "暂停项目"])
        (when next-status
          [antd/button {:type "primary" :icon (r/as-element [:> ArrowRightOutlined])
                        :on-click #(set-target! next-status)}
-          (if (= next-status "initiated") "确认立项" "进入计划")])])))
+          (if (= status "paused") "恢复项目"
+              (get {"initiated" "确认立项" "planning" "进入计划" "execution" "进入执行"
+                    "closing" "进入收尾" "closed" "正式关闭"} next-status))])])))
 
 (defn- event-content
   "展示服务端生成的审计记录."
@@ -102,20 +117,44 @@
 (defn- detail-body
   "以项目结构,团队与变更记录组织详情工作区."
   [project revision options changed! edit! target!]
-  (let [editable? (not (contains? #{"closed" "cancelled"} (:status project)))
+  (let [editable? (not (contains? #{"closed" "cancelled" "paused"} (:status project)))
         can-edit? (and (shared/use-permission "pms:project:edit") editable?)]
     [:div {:style {:display "grid" :gap 20}}
-     [shared/panel "项目概况" (when-not editable? "项目已结束,当前为只读视图")
+     [shared/panel "项目概况" (when-not editable? (if (= "paused" (:status project)) "项目已暂停,恢复后可继续维护" "项目已结束,当前为只读视图"))
       [antd/space
        (when can-edit? [antd/button {:icon (r/as-element [:> EditOutlined]) :on-click edit!} "编辑资料"])
        [lifecycle-actions project target!]]
       [lifecycle project] [summary-grid project]
       (when (= "planning" (:status project))
         [:p {:style {:margin "16px 0 0" :fontSize 12 :color "#7b8798"}}
-         "计划阶段: 可继续完善项目结构与团队.执行阶段将在 WBS 与基线能力完成后开放."])]
+         "完善计划并通过独立基线与阶段Gate评审后,可进入执行阶段."])]
      [structure/project-structure (:project_id project) revision editable? changed!]
-     [structure/project-members (:project_id project) revision options editable? changed!]
+     [structure/project-members (:project_id project) revision options editable? changed! (:version project)]
      [project-events (:project_id project) revision]]))
+
+(defn- workbench-content
+  "项目级工作台统一组织计划,治理,费用与结项."
+  [project revision options changed! edit! target!]
+  (let [members (shared/use-resource (str "/projects/" (:project_id project) "/members") {} [revision])
+        ids (set (map :user_id (get-in members [:data :rows])))
+        member-options (assoc options :users (filterv #(contains? ids (:user_id %)) (:users options)))]
+  [antd/tabs {:defaultActiveKey "overview" :destroyOnHidden false
+              :items [{:key "overview" :label "项目概况"
+                       :children (r/as-element [detail-body project revision options changed! edit! target!])}
+                      {:key "planning" :label "计划与执行"
+                       :children (r/as-element [planning/planning-workspace project revision member-options changed!])}
+                      {:key "governance" :label "需求与治理"
+                       :children (r/as-element [governance/governance-workspace project revision member-options changed!])}
+                      {:key "delivery" :label "工程交付"
+                       :children (r/as-element [delivery/delivery-workspace project revision member-options changed!])}
+                      {:key "time" :label "实际工时"
+                       :children (r/as-element [finance/time-workspace project revision member-options changed!])}
+                      {:key "finance" :label "项目费用"
+                       :children (r/as-element [finance/finance-workspace project revision member-options changed!])}
+                      {:key "integration" :label "接口运维"
+                       :children (r/as-element [integration/integration-workspace project revision member-options changed!])}
+                      {:key "closure" :label "结项与移交"
+                       :children (r/as-element [closure/closure-workspace project revision member-options changed!])}]}]))
 
 (defn project-detail
   "项目详情抽屉,集中维护版本与刷新关联数据."
@@ -129,12 +168,12 @@
                           [:div {:style {:display "flex" :gap 12 :alignItems "center"}}
                            [:span (or (:name data) "项目详情")]
                            (when data [shared/status-tag (:status data)])])
-                  :open true :size "min(980px, 100vw)"
+                  :open true :size "min(1440px, 100vw)"
                   :onClose on-close :destroyOnHidden true}
      (cond
        error [shared/error-panel error refresh!]
-       loading? [:div {:style {:padding 64 :textAlign "center"}} [antd/spin]]
-       :else [detail-body data revision options changed! #(set-editing! true) set-target!])
+       (and loading? (nil? data)) [:div {:style {:padding 64 :textAlign "center"}} [antd/spin]]
+       :else [workbench-content data revision options changed! #(set-editing! true) set-target!])
      (when editing? [project-form/project-form
                      {:project data :options options :on-close #(set-editing! false)
                       :on-saved (fn [_] (set-editing! false) (changed!))}])

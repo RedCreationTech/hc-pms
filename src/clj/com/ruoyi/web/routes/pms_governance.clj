@@ -1,0 +1,50 @@
+(ns com.ruoyi.web.routes.pms-governance
+  "项目治理资源与受控命令的明确路由."
+  (:require [com.ruoyi.web.controllers.pms-governance :as controller]))
+
+
+(defn- command-route
+  "构造固定业务资源的POST命令."
+  [svc path resource action]
+  [path {:post {:handler (partial controller/command svc resource action)}}])
+
+
+(defn governance-routes
+  "挂载在已认证的/api/pms内,所有命令仍执行领域权限检查."
+  [svc]
+  [["/projects/:id/governance"
+   ["" {:get {:handler (partial controller/workspace svc)}}]
+   (command-route svc "/charters" :charters :create)
+   (command-route svc "/charters/:record_id/revisions" :charters :revisions)
+   (command-route svc "/charters/:record_id/submit" :charters :submit)
+   (command-route svc "/charters/:record_id/decision" :charters :decision)
+   (command-route svc "/requirements" :requirements :create)
+   ["/requirements/preview" {:post {:handler (partial controller/preview svc)}}]
+   (command-route svc "/requirements/import" :requirements :import)
+   (command-route svc "/requirements/:record_id/revisions" :requirements :revisions)
+   (command-route svc "/documents" :documents :create)
+   (command-route svc "/documents/:record_id/revisions" :documents :revisions)
+   ["/documents/:record_id/content" {:get {:handler (partial controller/content svc)}}]
+   ["/documents/:record_id/download" {:get {:handler (partial controller/download svc)}}]
+   (command-route svc "/traces" :traces :create)
+   (command-route svc "/risks" :risks :create)
+   (command-route svc "/risks/:record_id/review" :risks :review)
+   (command-route svc "/risks/:record_id/decision" :risks :decision)
+   (command-route svc "/risks/:record_id/mitigate" :risks :mitigate)
+   (command-route svc "/risks/:record_id/materialize" :risks :materialize)
+   (command-route svc "/issues" :issues :create)
+   (command-route svc "/issues/:record_id/resolve" :issues :resolve)
+   (command-route svc "/issues/:record_id/reopen" :issues :reopen)
+   (command-route svc "/issues/:record_id/decision" :issues :decision)
+   (command-route svc "/meetings" :meetings :create)
+   (command-route svc "/meetings/:record_id/actions" :meetings :actions)
+   (command-route svc "/actions/:record_id/task" :actions :task)
+   (command-route svc "/changes" :changes :create)
+   (command-route svc "/changes/:record_id/revisions" :changes :revisions)
+   (command-route svc "/changes/:record_id/submit" :changes :submit)
+   (command-route svc "/changes/:record_id/decision" :changes :decision)
+   (command-route svc "/gate-templates" :gate-templates :create)
+   (command-route svc "/gates" :gates :create)
+   (command-route svc "/gates/:record_id/checks" :gates :checks)
+   (command-route svc "/gates/:record_id/submit" :gates :submit)
+   (command-route svc "/gates/:record_id/decision" :gates :decision)]])

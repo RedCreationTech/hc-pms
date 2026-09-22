@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS pms_plan_feedback;
+--;;
+DROP TABLE IF EXISTS pms_plan_baseline;
+--;;
+DROP TABLE IF EXISTS pms_plan_allocation;
+--;;
+DROP TABLE IF EXISTS pms_plan_capacity;
+--;;
+DROP TABLE IF EXISTS pms_plan_resource;
+--;;
+DROP TABLE IF EXISTS pms_plan_dependency;
+--;;
+DROP TABLE IF EXISTS pms_plan_task;
+--;;
+DROP TABLE IF EXISTS pms_plan;
+--;;
