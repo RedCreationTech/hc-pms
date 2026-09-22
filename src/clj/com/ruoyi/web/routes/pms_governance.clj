@@ -36,6 +36,7 @@
     (command-route svc "/issues" :issues :create)
     (command-route svc "/issues/:record_id/resolve" :issues :resolve)
     (command-route svc "/issues/:record_id/reopen" :issues :reopen)
+    (command-route svc "/issues/:record_id/reassign" :issues :reassign)
     (command-route svc "/issues/:record_id/decision" :issues :decision)
     (command-route svc "/meetings" :meetings :create)
     (command-route svc "/meetings/:record_id/actions" :meetings :actions)

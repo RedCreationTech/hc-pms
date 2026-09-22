@@ -193,6 +193,8 @@
           #(open! {:title "提交问题解决验证" :path (str base "/issues/" (:id issue) "/resolve")
                    :fields [{:key :resolution :label "解决方案与验证结果" :type :textarea :required? true}
                             (forms/evidence-field (:documents model)) (forms/reviewer-field options)]})])
+       (when (and editable? (contains? #{"open" "rejected"} (:status issue)))
+         [w/edit-button "转派" #(open! (forms/issue-reassign-dialog base options issue))])
        [review-actions context "issues" issue]])]])
 
 

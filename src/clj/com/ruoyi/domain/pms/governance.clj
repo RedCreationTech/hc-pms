@@ -107,6 +107,7 @@
    [:risks :materialize] collab/materialize!
    [:issues :create] (creating collab/create-issue!)
    [:issues :reopen] reviews/reopen-issue!
+   [:issues :reassign] collab/reassign-issue!
    [:issues :resolve] collab/resolve! [:issues :decision] collab/verify!
    [:meetings :create] (creating collab/create-meeting!)
    [:meetings :actions] collab/create-action! [:actions :task] collab/materialize-action!

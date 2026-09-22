@@ -119,6 +119,15 @@
             (owner-field (:users options)) {:key :due_date :label "计划解决日期" :type :date :required? true}]})
 
 
+(defn issue-reassign-dialog
+  "转派问题责任人并说明原因, 保留原责任人供审计."
+  [base options issue]
+  {:title "转派问题责任人" :path (str base "/issues/" (:id issue) "/reassign")
+   :description "新责任人须为当前项目成员, 转派保留原责任人与原因."
+   :fields [(owner-field (:users options))
+            {:key :reason :label "转派原因" :type :textarea :required? true}]})
+
+
 (defn meeting-dialog
   "记录实际会议结论与参会人."
   [base options]

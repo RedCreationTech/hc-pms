@@ -35,6 +35,7 @@
 | POST `/issues` | title, severity: blocker/major/minor, owner_id, due_date | 创建 open 问题 |
 | POST `/issues/:rid/resolve` | resolution, evidence_ids, reviewer_id | open/rejected -> in_review, 提交整改证据及独立验证人 |
 | POST `/issues/:rid/reopen` | reason, evidence_ids, reviewer_id | closed -> in_review, 以新原因和证据申请重开, 不直接恢复处理中 |
+| POST `/issues/:rid/reassign` | owner_id, reason | 转派责任人: 状态保持 open/rejected, 新责任人须为当前项目成员否则 400, 缺原因 400, 无编辑权 403, 已关闭 409; payload 记录 reassigned_from(原责任人), reassign_reason, reassigned_by 供审计 |
 | POST `/issues/:rid/decision` | decision: approved/rejected, reason | 整改验证时批准 -> closed, 拒绝 -> rejected; 重开评审时批准 -> open, 拒绝 -> closed; 必须指定人独立决定 |
 | POST `/meetings` | title, held_on, minutes, attendee_ids | 持久化纪要及 1..100 个参与人, 状态 recorded |
 | POST `/meetings/:rid/actions` | title, owner_id, due_date | 创建归属该会议的 open 行动项 |

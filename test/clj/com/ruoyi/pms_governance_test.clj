@@ -269,6 +269,35 @@
       (is (false? (overdue-row))))))
 
 
+(deftest issue-reassign-changes-owner-with-audit-and-guards-membership
+  (let [id (project!)
+        issue (command! id :issues :create nil
+                        {:title "需转派的问题" :severity "major" :owner_id 9301 :due_date "2026-10-01"})
+        iid (:id issue)
+        issue-row #(first (filterv (fn [i] (= iid (:id i))) (:issues (workspace id))))]
+    (is (= 9301 (:owner_id issue)))
+    ;; 新责任人必须为当前项目成员, 非成员 9304 -> 400
+    (is (= 400 (error-status #(command! id :issues :reassign iid {:owner_id 9304 :reason "转给外部人员"}))))
+    ;; 缺转派原因 -> 400
+    (is (= 400 (error-status #(command! id :issues :reassign iid {:owner_id 9303 :reason ""}))))
+    ;; 只读成员无编辑权 -> 403
+    (is (= 403 (error-status #(command! 9302 id :issues :reassign iid {:owner_id 9303 :reason "越权转派"}))))
+    ;; 正常转派给项目编辑者 9303, 保留原责任人与原因, 状态不变
+    (let [re (command! id :issues :reassign iid {:owner_id 9303 :reason "9301出差, 转9303跟进"})]
+      (is (= 9303 (:owner_id re)))
+      (is (= 9301 (:reassigned_from re)))
+      (is (= "9301出差, 转9303跟进" (:reassign_reason re)))
+      (is (= 9301 (:reassigned_by re)))
+      (is (= "open" (:status re)))
+      (is (= 9303 (:owner_id (issue-row)))))
+    ;; 关闭后不可再转派 -> 409
+    (let [evidence (:id (document! id "RSN-DOC"))]
+      (command! id :issues :resolve iid {:resolution "已处理" :evidence_ids [evidence] :reviewer_id 9302})
+      (command! 9302 id :issues :decision iid {:decision "approved" :reason "独立核验通过"})
+      (is (= "closed" (:status (issue-row))))
+      (is (= 409 (error-status #(command! id :issues :reassign iid {:owner_id 9301 :reason "关闭后转派"})))))))
+
+
 (defn- gate!
   "建立包含一项必需检查的指定阶段关口."
   [id stage]

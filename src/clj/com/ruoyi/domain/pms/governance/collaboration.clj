@@ -114,6 +114,21 @@
                                 {:verification_reason (s/text! body :reason) :verified_by (:user_id actor)})))))))
 
 
+(defn reassign-issue!
+  "转派问题责任人, 保留原责任人与转派原因供审计, 新责任人须为当前项目成员."
+  [svc actor id rid body]
+  (k/mutate! svc actor id "pms:project:edit" body "issue.reassigned"
+             (fn [q project]
+               (s/input! body [:owner_id :reason])
+               (let [issue (s/record! q project "issue" rid)]
+                 (s/status! issue #{"open" "rejected"})
+                 (s/change! q project issue (:status issue)
+                            {:owner_id (k/user! q project (:owner_id body) "新责任人")
+                             :reassigned_from (:owner_id issue)
+                             :reassign_reason (s/text! body :reason 500)
+                             :reassigned_by (:user_id actor)})))))
+
+
 (defn create-meeting!
   "持久化项目会议纪要和有效参会人员."
   [svc actor id body]

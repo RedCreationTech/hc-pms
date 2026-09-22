@@ -91,7 +91,7 @@ G1-G3 的业务编号映射尚未确认, 不在代码写死. 已核对总览中�
 | C06 | 4,58 | 文档交付与审批归档 | 从编制到评审/发布/签发留版本轨迹, Gate引用不可变版本, 新版本不漂移旧决定 | B2+B3 | partial | Q: gate-uses-pinned-evidence-and-formal-waiver; 已登记不可变证据并锁定Gate引用, 文档独立发布审批/正式签发仍待实现 |
 | C07 | 4,17-18 | 会议管理与会后行动追踪 | 会前资料/参会人员/纪要, 行动项负责人和期限, 提醒/完成/转计划闭环 | B3 | partial | Q: meeting-action-creates-one-real-task,meeting-action-completion-verifies-independently-and-flags-overdue; B: pms-c07.spec.js(逾期标记->提交完成附证据与独立审批人->核验人独立关闭); 纪要/参与人/责任期限/任务来源/完成证据/独立核验/逾期计算已实现, 自动到期提醒与会前资料包仍待补齐 |
 | C08 | 4,37-40,48-49 | SIT/FAT/SAT偏差管理 | 分阶段记录发现/分级/责任/整改/验证/关闭, 阻塞偏差影响对应Gate, 复测保留历史 | B3+B4 | implemented / local | X: failed-test-creates-one-traceable-independent-remediation,actual-dates-and-test-sequence-cannot-be-fabricated; 本地准则失败自动blocker问题,复验留历史且独立关闭才放行 |
-| C09 | 4,59 | 问题分类分级及处理关闭 | 提出人/责任人/严重度/目标日明确, 处理证据经验证再关闭, 超期可跟踪 | B3 | partial | Q: risk-becomes-one-issue-and-requires-independent-verification,closed-issue-reopens-only-through-independent-review; 已有分级/期限/证据/验证/受控重开, 转派与自动升级仍待实现 |
+| C09 | 4,59 | 问题分类分级及处理关闭 | 提出人/责任人/严重度/目标日明确, 处理证据经验证再关闭, 超期可跟踪 | B3 | partial | Q: risk-becomes-one-issue-and-requires-independent-verification,closed-issue-reopens-only-through-independent-review,issue-reassign-changes-owner-with-audit-and-guards-membership; B: pms-c09.spec.js(界面转派->新责任人+原因留痕, 非成员/缺原因/越权/关闭后均被拒); 已有分级/期限/证据/验证/受控重开/责任人转派, 自动升级规则仍待实现 |
 | C10 | 4,59 | 风险库, 预防措施与风险追踪 | 典型风险分类可复用, 识别后有责任/概率影响/措施/复审, 风险实现转问题保留关联 | B3 | partial / 待规则 | Q: risk-review-requires-evidence-and-future-followup; 已有评分/措施/复审到期/证据关闭/风险转问题, 典型风险库和自动升级规则仍待补齐 |
 | C11 | 4,6-7 | 通知/预警/待办 | 项目事件产生授权收件人的待办或提醒, 可去重/已读/处理, 重试不重复通知且不暴露跨项目内容 | B2-B4 | planned / 待合同 | 待: 到期提醒/通知失败/撤权/外部消息回执 |
 
