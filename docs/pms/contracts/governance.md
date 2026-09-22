@@ -69,6 +69,7 @@
 
 - `GET /documents/:rid/content` 返回统一 JSON 的 `data` 文档对象, 包含 content, filename, sha256, byte_size, revision 和 id, 便于带 JWT 预览和客户端下载.
 - `GET /documents/:rid/download` 返回裸文本附件, Content-Disposition 和 X-Content-SHA256. 读取仍执行项目授权.
+- `POST /documents/batch-download` 请求体 `{"record_ids": [...]}`, 须为 1 到 50 个不重复的文档版本ID (空, 重复或超上限返回 400). 服务端 `kernel/read!` 逐个校验为同项目 `document` (跨项目或类型不符 404, 无项目读取权 403), 任一非法整体失败. 成功返回 `application/zip` 附件 (Content-Disposition `documents.zip`, 附 `X-Batch-Count`), 每个版本以 `<id前8位>_<filename>` 入包并保留原始 UTF-8 正文, 另含 `MANIFEST.tsv` 逐行列出 `record_id, code, revision, entry, sha256, byte_size` 供离线逐文件摘要复核. 批量下载不改变任何记录状态, 不引入密级或二进制存储.
 - CSV 表头必须严格为 `code,text,category,priority,owner_id`. 最多 500 行和 1MiB. 返回 `{valid?: boolean, count, rows, errors: [{line, error}]}`; JSON 字段名是 `"valid?"`. 行号含表头, 第一条数据为 2. 检查现有编号, 文件内重复, 所有字段和有效成员. 非法表头或不可解析 CSV 直接返回 400.
 
 ## 项目成员任命书

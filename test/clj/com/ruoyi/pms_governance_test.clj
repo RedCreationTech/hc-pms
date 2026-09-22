@@ -16,10 +16,20 @@
     [reitit.ring :as ring]
     [ring.mock.request :as mock])
   (:import
+    (java.io
+      ByteArrayInputStream)
+    (java.math
+      BigInteger)
+    (java.nio.charset
+      StandardCharsets)
     (java.nio.file
       Files)
+    (java.security
+      MessageDigest)
     (java.util
-      UUID)))
+      UUID)
+    (java.util.zip
+      ZipInputStream)))
 
 
 (def ^:dynamic *service* nil)
@@ -296,6 +306,70 @@
       (command! 9302 id :issues :decision iid {:decision "approved" :reason "独立核验通过"})
       (is (= "closed" (:status (issue-row))))
       (is (= 409 (error-status #(command! id :issues :reassign iid {:owner_id 9301 :reason "关闭后转派"})))))))
+
+
+(defn- sha256-of
+  "对字节数组计算服务器同款SHA256十六进制串."
+  [^bytes bytes]
+  (format "%064x" (BigInteger. 1 (.digest (MessageDigest/getInstance "SHA-256") bytes))))
+
+
+(defn- read-zip
+  "解包ZIP字节为 {entry-name {:content :sha256}}."
+  [^bytes bytes]
+  (let [zis (ZipInputStream. (ByteArrayInputStream. bytes))]
+    (loop [acc {}]
+      (if-let [entry (.getNextEntry zis)]
+        (let [content (String. ^bytes (.readAllBytes zis) StandardCharsets/UTF_8)]
+          (recur (assoc acc (.getName entry)
+                        {:content content
+                         :sha256 (sha256-of (.getBytes ^String content StandardCharsets/UTF_8))})))
+        (do (.close zis) acc)))))
+
+
+(deftest document-batch-download-packages-authorized-versions-and-rejects-invalid
+  (let [id (project!) other (project!)
+        d1 (document! id "BATCH-1")
+        d2 (command! id :documents :create nil
+                     {:code "BATCH-2" :title "第二份" :filename "第二.txt" :content "第二份正文\n"})
+        ids [(:id d1) (:id d2)]]
+    (let [docs (:documents (gov/document-batch *service* (actor 9301) id {:record_ids ids}))]
+      (is (= 2 (count docs)))
+      (is (= #{" 真实证据\n" "第二份正文\n"} (set (map :content docs))))
+      (is (= (:sha256 d1) (:sha256 (first (filter #(= (:id d1) (:id %)) docs)))))
+      (is (every? :filename docs))
+      (is (every? #(not (contains? % :payload)) docs)))
+    (is (= 403 (error-status #(gov/document-batch *service* (actor 9304) id {:record_ids ids}))))
+    (is (= 404 (error-status #(gov/document-batch *service* (actor 9301) id {:record_ids [(:id d1) (str (UUID/randomUUID))]}))))
+    (is (= 404 (error-status #(gov/document-batch *service* (actor 9301) other {:record_ids [(:id d1)]}))))
+    (is (= 400 (error-status #(gov/document-batch *service* (actor 9301) id {:record_ids []}))))
+    (is (= 400 (error-status #(gov/document-batch *service* (actor 9301) id {:record_ids [(:id d1) (:id d1)]}))))
+    (is (= 400 (error-status #(gov/document-batch *service* (actor 9301) id {:record_ids (vec (repeat 51 (:id d1)))}))))
+    (is (= 400 (error-status #(gov/document-batch *service* (actor 9301) id {:ids ids}))))
+    (let [path (str "/api/pms/projects/" id "/governance")
+          url (str path "/documents/batch-download")
+          status (fn [uid payload]
+                   (:status (*handler* (cond-> (-> (mock/request :post url)
+                                                   (mock/content-type "application/json")
+                                                   (mock/header "accept" "application/json"))
+                                         uid (mock/header "authorization" (str "Bearer " (security/generate-token uid "test" [])))
+                                         payload (mock/body (json/generate-string payload))))))]
+      (is (= 401 (status nil {:record_ids ids})))
+      (is (= 403 (status 9304 {:record_ids ids})))
+      (let [resp (*handler* (-> (mock/request :post url)
+                                (mock/content-type "application/json")
+                                (mock/header "accept" "application/json")
+                                (mock/header "authorization" (str "Bearer " (security/generate-token 9301 "test" [])))
+                                (mock/body (json/generate-string {:record_ids ids}))))
+            entries (read-zip (:body resp))
+            d1-entry (get entries (str (subs (:id d1) 0 8) "_验收.txt"))]
+        (is (= 200 (:status resp)))
+        (is (= "application/zip" (get-in resp [:headers "Content-Type"])))
+        (is (= 2 (count (remove #(= "MANIFEST.tsv" (key %)) entries))))
+        (is (some? d1-entry))
+        (is (= " 真实证据\n" (:content d1-entry)))
+        (is (= (:sha256 d1) (:sha256 d1-entry)))
+        (is (re-find #"MANIFEST" (apply str (keys entries))))))))
 
 
 (defn- gate!

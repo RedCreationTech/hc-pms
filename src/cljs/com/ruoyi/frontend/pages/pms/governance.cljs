@@ -3,6 +3,7 @@
   (:require
     [clojure.string :as str]
     [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.api :as api]
     [com.ruoyi.frontend.pages.pms.governance-forms :as forms]
     [com.ruoyi.frontend.pages.pms.shared :as shared]
     [com.ruoyi.frontend.pages.pms.widgets :as w]
@@ -49,17 +50,33 @@
     (when editable? (fn [row] [w/edit-button "新修订" #(open! (forms/requirement-dialog base options row))]))]])
 
 
+(defn- latest-document-ids
+  "按文档编号取最新版本ID, 供批量下载打包."
+  [documents]
+  (->> (vals (group-by :code documents))
+       (mapv #(->> % (apply max-key :revision) :id))))
+
+
 (defn- document-section
-  "列出可校验的真实证据文档及不可变版本."
+  "列出可校验的真实证据文档及不可变版本, 支持打包批量下载."
   [{:keys [base model editable? open! document!]}]
-  [shared/panel "文档与版本证据" "证据引用绑定版本,内容由服务器计算SHA256摘要"
-   (when editable? [antd/button {:on-click #(open! (forms/document-dialog base nil))} "登记证据文档"])
-   [w/record-table (:documents model)
-    [(w/text-column :code "文档编号") (w/text-column :title "标题") (w/text-column :revision "版本")
-     (w/text-column :filename "文件名") (w/text-column :sha256 "SHA256摘要")]
-    (fn [row]
-      [antd/space [w/edit-button "查看内容" #(document! row)]
-       (when editable? [w/edit-button "新版本" #(open! (forms/document-dialog base row))])])]])
+  (let [ids (latest-document-ids (:documents model))]
+    [shared/panel "文档与版本证据" "证据引用绑定版本,内容由服务器计算SHA256摘要"
+     [antd/space
+      (when editable? [antd/button {:on-click #(open! (forms/document-dialog base nil))} "登记证据文档"])
+      (when (seq ids)
+        [antd/button {:on-click
+                      (fn []
+                        (api/pms-batch-download-documents
+                          (str base "/documents/batch-download") ids "证据文档.zip"
+                          (fn [e] (antd/error! (.-message e)))))}
+         "批量下载"])]
+     [w/record-table (:documents model)
+      [(w/text-column :code "文档编号") (w/text-column :title "标题") (w/text-column :revision "版本")
+       (w/text-column :filename "文件名") (w/text-column :sha256 "SHA256摘要")]
+      (fn [row]
+        [antd/space [w/edit-button "查看内容" #(document! row)]
+         (when editable? [w/edit-button "新版本" #(open! (forms/document-dialog base row))])])]]))
 
 
 (defn- appointment-section

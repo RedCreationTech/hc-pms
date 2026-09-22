@@ -38,6 +38,32 @@
             :on-success on-success :on-error on-error}))
 
 
+(defn pms-batch-download-documents
+  "以授权JWT POST 批量下载请求, 将服务器打包的ZIP证据保存到本地."
+  [path ids filename on-error]
+  (let [token (get-token)
+        headers (cond-> {"Content-Type" "application/json"}
+                  token (assoc "Authorization" (str "Bearer " token)))]
+    (-> (js/fetch (str api-base "/pms" path)
+                  #js {:method "POST"
+                       :headers (clj->js headers)
+                       :body (.stringify js/JSON (clj->js {:record_ids (vec ids)}))})
+        (.then (fn [resp]
+                 (if (.-ok resp)
+                   (.blob resp)
+                   (js/Promise.reject (js/Error. (str "批量下载失败: " (.-status resp)))))))
+        (.then (fn [blob]
+                 (let [url (js/URL.createObjectURL blob)
+                       a (.createElement js/document "a")]
+                   (set! (.-href a) url)
+                   (set! (.-download a) filename)
+                   (.appendChild (.-body js/document) a)
+                   (.click a)
+                   (.removeChild (.-body js/document) a)
+                   (js/URL.revokeObjectURL url))))
+        (.catch (fn [e] (when on-error (on-error e)))))))
+
+
 (defn login
   "用户登录."
   [params on-success on-error]

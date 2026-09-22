@@ -144,6 +144,12 @@
   (evidence/content svc actor id rid))
 
 
+(defn document-batch
+  "读取同项目多个确定文档版本正文, 供HTTP层打包批量下载."
+  [svc actor id body]
+  (evidence/batch-content svc actor id body))
+
+
 (defn appointment-content
   "读取确定任命书版本的完整正文与团队快照."
   [svc actor id rid]
