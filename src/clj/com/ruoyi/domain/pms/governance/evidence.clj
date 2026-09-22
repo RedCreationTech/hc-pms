@@ -30,10 +30,15 @@
    :owner_id (k/user! q project (:owner_id body) "需求负责人")})
 
 
+(def document-classifications
+  "文档密级取值, 仅用于归集与追踪, 不替代项目授权."
+  #{"public" "internal" "confidential"})
+
+
 (defn document!
-  "校验真实文本附件并由服务器计算字节数和SHA256."
+  "校验真实文本附件并由服务器计算字节数和SHA256; 密级/阶段/结构节点用于归集追踪, 密级缺省为内部."
   [_ _ body]
-  (s/input! body [:code :title :filename :content])
+  (s/input! body [:code :title :filename :content :classification :stage :structure_node])
   (let [filename (s/text! body :filename 150)
         content (:content body)
         _ (when-not (and (string? content) (not (str/blank? content)))
@@ -43,6 +48,11 @@
       (r/fail! 400 "文件名非法或文本附件超过1MiB"))
     {:code (s/text! body :code 100) :title (s/text! body :title 200)
      :filename filename :content content :byte_size (alength bytes)
+     :classification (if (contains? body :classification)
+                       (s/enum! (:classification body) document-classifications "classification")
+                       "internal")
+     :stage (s/optional-text! body :stage 100)
+     :structure_node (s/optional-text! body :structure_node 100)
      :content_type "text/plain; charset=utf-8"
      :sha256 (format "%064x" (BigInteger. 1 (.digest (MessageDigest/getInstance "SHA-256") bytes)))}))
 
@@ -85,7 +95,8 @@
                (when-not (and (vector? ids) (<= 1 (count ids) 50) (= (count ids) (count (set ids))))
                  (r/fail! 400 "批量下载须为1到50个不重复的文档版本ID"))
                {:documents (mapv #(select-keys (s/record! q project "document" %)
-                                               [:id :code :revision :filename :content_type :content :sha256 :byte_size])
+                                               [:id :code :revision :filename :content_type :content :sha256 :byte_size
+                                                :classification :stage :structure_node])
                                  ids)}))))
 
 

@@ -50,15 +50,23 @@
 
 
 (defn document-dialog
-  "保存真实文本内容,由服务端生成SHA256与不可变版本."
+  "保存真实文本内容,由服务端生成SHA256与不可变版本; 密级/阶段/结构节点用于项目内归集追踪."
   [base document]
   {:title (if document "新增证据文档版本" "登记证据文档")
    :path (str base "/documents" (when document (str "/" (:id document) "/revisions")))
-   :description "录入实际文本证据,内容将形成独立版本和校验摘要.二进制附件请使用组织文档库并记录其引用."
-   :initial (when document (select-keys document [:code :title :filename :content]))
+   :description "录入实际文本证据,内容将形成独立版本和校验摘要.密级/阶段/结构节点仅用于项目内归集与追踪,不替代项目授权.二进制附件请使用组织文档库并记录其引用."
+   :initial (when document (select-keys document [:code :title :filename :content :classification :stage :structure_node]))
+   :transform (fn [data]
+                (reduce (fn [m k] (let [v (get data k)] (if (or (nil? v) (= "" v)) (dissoc m k) m)))
+                        data [:classification :stage :structure_node]))
    :fields [{:key :code :label "文档编号" :required? true}
             {:key :title :label "文档标题" :required? true}
             {:key :filename :label "文件名" :required? true :hint "例如 design-review.txt"}
+            {:key :classification :label "密级" :type :select
+             :options [{:value "public" :label "公开"} {:value "internal" :label "内部"} {:value "confidential" :label "机密"}]
+             :hint "未选择时服务端记为内部"}
+            {:key :stage :label "所属阶段" :hint "例如 设计/DQ/制造/验证/过程, 可留空"}
+            {:key :structure_node :label "结构节点" :hint "例如 主机/控制柜, 可留空"}
             {:key :content :label "文档正文" :type :textarea :max 1048576 :required? true}]})
 
 

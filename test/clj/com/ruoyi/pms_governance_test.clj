@@ -372,6 +372,42 @@
         (is (re-find #"MANIFEST" (apply str (keys entries))))))))
 
 
+(deftest document-classification-stage-and-structure-are-traceable
+  (let [id (project!)
+        dflt (document! id "CLS-DEFAULT")
+        conf (command! id :documents :create nil
+                       {:code "CLS-CONF" :title "涉密设计" :filename "机密.txt" :content "机密正文\n"
+                        :classification "confidential" :stage "设计" :structure_node "主机/控制柜"})]
+    (is (= "internal" (:classification dflt)))
+    (is (= "" (:stage dflt)))
+    (is (= "confidential" (:classification conf)))
+    (is (= "设计" (:stage conf)))
+    (is (= "主机/控制柜" (:structure_node conf)))
+    (is (= 400 (error-status #(command! id :documents :create nil
+                                        {:code "CLS-BAD" :title "非法密级" :filename "x.txt" :content "正文"
+                                         :classification "top-secret"}))))
+    (is (= 400 (error-status #(command! id :documents :create nil
+                                        {:code "CLS-BAD2" :title "非法字段" :filename "x.txt" :content "正文"
+                                         :unknown_field "x"}))))
+    (let [rev (command! id :documents :revisions (:id conf)
+                        {:code "CLS-CONF" :title "涉密设计v2" :filename "机密2.txt" :content "机密正文v2\n"
+                         :classification "public" :stage "验证"})]
+      (is (= 2 (:revision rev)))
+      (is (= "CLS-CONF" (:code rev)))
+      (is (= "public" (:classification rev)))
+      (is (= "" (:structure_node rev))))
+    (let [url (str "/api/pms/projects/" id "/governance/documents/batch-download")
+          resp (*handler* (-> (mock/request :post url)
+                              (mock/content-type "application/json")
+                              (mock/header "accept" "application/json")
+                              (mock/header "authorization" (str "Bearer " (security/generate-token 9301 "test" [])))
+                              (mock/body (json/generate-string {:record_ids [(:id conf)]}))))
+          manifest (:content (get (read-zip (:body resp)) "MANIFEST.tsv"))]
+      (is (= 200 (:status resp)))
+      (is (re-find #"classification\tstage\tstructure_node" manifest))
+      (is (re-find #"confidential\t设计\t主机/控制柜" manifest)))))
+
+
 (defn- gate!
   "建立包含一项必需检查的指定阶段关口."
   [id stage]

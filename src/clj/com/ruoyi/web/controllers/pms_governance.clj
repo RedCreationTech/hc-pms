@@ -103,10 +103,11 @@
                   (.write zip bytes)
                   (.closeEntry zip)))
               (let [manifest (str/join "\n"
-                                       (cons "record_id\tcode\trevision\tentry\tsha256\tbyte_size"
+                                       (cons "record_id\tcode\trevision\tentry\tsha256\tbyte_size\tclassification\tstage\tstructure_node"
                                              (mapv (fn [doc]
                                                      (str (:id doc) "\t" (:code doc) "\t" (:revision doc) "\t"
-                                                          (zip-entry-name doc) "\t" (:sha256 doc) "\t" (:byte_size doc)))
+                                                          (zip-entry-name doc) "\t" (:sha256 doc) "\t" (:byte_size doc) "\t"
+                                                          (:classification doc) "\t" (:stage doc) "\t" (:structure_node doc)))
                                                    docs)))]
                 (.putNextEntry zip (ZipEntry. "MANIFEST.tsv"))
                 (.write zip (.getBytes ^String manifest StandardCharsets/UTF_8))

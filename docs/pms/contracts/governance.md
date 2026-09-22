@@ -67,9 +67,11 @@
 
 `content` 是真实提交文本, 包含首尾空格和换行的原始 UTF-8 字节; 非空且至多 1MiB. filename 不得含路径分隔符或换行. `registered` 表示已通过字段和摘要校验登记的不可变版本, 可用于验收引用; 本次不含独立文档发布审批. 新版本不会替换旧 Gate, 问题或验收所引用的版本.
 
+文档登记与修订接受可选归集字段: `classification` 密级为枚举 `public|internal|confidential`, 缺省记为 `internal`, 非法取值返回 400; `stage` 所属阶段与 `structure_node` 结构节点为至多 100 字符的可选文本, 留空记为空串. 这些字段随不可变版本存入 payload 并进入读模型, 仅用于项目内按阶段/结构/密级归集与追踪, 不替代项目授权, 本轮不据密级过滤下载或访问.
+
 - `GET /documents/:rid/content` 返回统一 JSON 的 `data` 文档对象, 包含 content, filename, sha256, byte_size, revision 和 id, 便于带 JWT 预览和客户端下载.
 - `GET /documents/:rid/download` 返回裸文本附件, Content-Disposition 和 X-Content-SHA256. 读取仍执行项目授权.
-- `POST /documents/batch-download` 请求体 `{"record_ids": [...]}`, 须为 1 到 50 个不重复的文档版本ID (空, 重复或超上限返回 400). 服务端 `kernel/read!` 逐个校验为同项目 `document` (跨项目或类型不符 404, 无项目读取权 403), 任一非法整体失败. 成功返回 `application/zip` 附件 (Content-Disposition `documents.zip`, 附 `X-Batch-Count`), 每个版本以 `<id前8位>_<filename>` 入包并保留原始 UTF-8 正文, 另含 `MANIFEST.tsv` 逐行列出 `record_id, code, revision, entry, sha256, byte_size` 供离线逐文件摘要复核. 批量下载不改变任何记录状态, 不引入密级或二进制存储.
+- `POST /documents/batch-download` 请求体 `{"record_ids": [...]}`, 须为 1 到 50 个不重复的文档版本ID (空, 重复或超上限返回 400). 服务端 `kernel/read!` 逐个校验为同项目 `document` (跨项目或类型不符 404, 无项目读取权 403), 任一非法整体失败. 成功返回 `application/zip` 附件 (Content-Disposition `documents.zip`, 附 `X-Batch-Count`), 每个版本以 `<id前8位>_<filename>` 入包并保留原始 UTF-8 正文, 另含 `MANIFEST.tsv` 逐行列出 `record_id, code, revision, entry, sha256, byte_size, classification, stage, structure_node` 供离线逐文件摘要与归集信息复核. 批量下载不改变任何记录状态, 不引入按密级过滤或二进制存储.
 - CSV 表头必须严格为 `code,text,category,priority,owner_id`. 最多 500 行和 1MiB. 返回 `{valid?: boolean, count, rows, errors: [{line, error}]}`; JSON 字段名是 `"valid?"`. 行号含表头, 第一条数据为 2. 检查现有编号, 文件内重复, 所有字段和有效成员. 非法表头或不可解析 CSV 直接返回 400.
 
 ## 项目成员任命书

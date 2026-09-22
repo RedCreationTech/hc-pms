@@ -73,7 +73,11 @@
          "批量下载"])]
      [w/record-table (:documents model)
       [(w/text-column :code "文档编号") (w/text-column :title "标题") (w/text-column :revision "版本")
-       (w/text-column :filename "文件名") (w/text-column :sha256 "SHA256摘要")]
+       (w/text-column :filename "文件名")
+       {:title "密级" :dataIndex "classification"
+        :render #(get {"public" "公开" "internal" "内部" "confidential" "机密"} % %)}
+       (w/text-column :stage "阶段")
+       (w/text-column :sha256 "SHA256摘要")]
       (fn [row]
         [antd/space [w/edit-button "查看内容" #(document! row)]
          (when editable? [w/edit-button "新版本" #(open! (forms/document-dialog base row))])])]]))
