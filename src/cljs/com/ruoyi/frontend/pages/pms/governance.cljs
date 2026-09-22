@@ -54,6 +54,23 @@
     (fn [row] [antd/space [w/edit-button "查看内容" #(document! row)]
                (when editable? [w/edit-button "新版本" #(open! (forms/document-dialog base row))])])]])
 
+(defn- appointment-section
+  "签发不可变的项目成员任命书, 内容由服务器按当前团队快照生成."
+  [{:keys [base model editable? open! appointment!]}]
+  [shared/panel "项目成员任命书" "任命内容绑定签发时的团队快照, 再次任命保留不可变旧版本"
+   (when editable? [antd/button {:type "primary"
+                                 :on-click #(open! {:title "签发项目成员任命书"
+                                                  :path (str base "/appointments")
+                                                  :description "系统将读取当前项目成员生成不可变任命书, 生效日期与说明写入正文, 客户端不能伪造内容."
+                                                  :fields [{:key :issued_on :label "任命生效日期" :type :date :required? true}
+                                                           {:key :note :label "任命说明" :type :textarea :max 500}]})}
+                    "签发任命书"])
+   [w/record-table (:appointments model)
+    [(w/text-column :code "编号") (w/text-column :revision "版本") (w/text-column :headcount "团队人数")
+     (w/text-column :issued_on "生效日期") (w/text-column :issued_by "签发人")
+     (w/text-column :snapshot_sha256 "快照摘要") (w/state-column)]
+    (fn [row] [w/edit-button "查看任命书" #(appointment! row)])]])
+
 (defn- trace-section
   "显式呈现需求到任务和证据的覆盖关系."
   [{:keys [base model planning editable? open!]}]
@@ -190,6 +207,7 @@
                      [["charter" "章程" [charter-section]]
                       ["requirements" "URS与追踪" [requirement-section trace-section]]
                       ["evidence" "证据版本" [document-section]]
+                      ["appointments" "成员任命" [appointment-section]]
                       ["gates" "Gate评审" [gate-section]]
                       ["risks" "风险与问题" [risk-section issue-section]]
                       ["meetings" "会议行动" [meeting-section action-section]]
@@ -216,15 +234,35 @@
                     [:p (str "预检记录 " (:count preview) " 条")]
                     (for [item (:errors preview)] ^{:key (:line item)} [:p {:role "alert"} (str "第 " (:line item) " 行: " (:error item))])])]))
 
+(defn- download-text!
+  "把已授权读取的文本按给定文件名下载到本地,保留原始内容."
+  [text filename]
+  (let [url (.createObjectURL js/URL (js/Blob. #js [text] #js {:type "text/plain;charset=utf-8"}))
+        link (.createElement js/document "a")]
+    (set! (.-href link) url)
+    (set! (.-download link) filename)
+    (.click link)
+    (.revokeObjectURL js/URL url)))
+
 (defn- download-document!
   "使用已授权读取的真实正文生成本地下载,保留原始内容."
   [evidence]
-  (let [url (.createObjectURL js/URL (js/Blob. #js [(:content evidence)] #js {:type "text/plain;charset=utf-8"}))
-        link (.createElement js/document "a")]
-    (set! (.-href link) url)
-    (set! (.-download link) (:filename evidence))
-    (.click link)
-    (.revokeObjectURL js/URL url)))
+  (download-text! (:content evidence) (:filename evidence)))
+
+(defn- appointment-preview
+  "读取受控任命书正文, 展示团队快照摘要并提供本地下载."
+  [base appointment on-close]
+  (let [resource (shared/use-resource (str base "/appointments/" (:id appointment) "/content") {} [])]
+    [antd/modal {:title (str "项目成员任命书 V" (:revision appointment)) :open true :onCancel on-close :footer nil
+                 :style {:maxWidth "calc(100vw - 32px)"} :width 760}
+     [w/resource-view resource
+      (fn [data]
+        [:div
+         [antd/button {:on-click #(download-text! (:content data) (str "appointment-v" (:revision data) ".txt"))} "下载此版本"]
+         [:p {:style {:fontSize 12 :color "#718096" :overflowWrap "anywhere"}}
+          (str "团队人数: " (:headcount data) "  |  团队快照SHA256: " (:snapshot_sha256 data))]
+         [:pre {:style {:whiteSpace "pre-wrap" :maxHeight "60vh" :overflow "auto" :background "#f7f8fa" :padding 16 :borderRadius 6}}
+          (:content data)]])]]))
 
 (defn- document-preview
   "通过授权请求读取保存的证据正文."
@@ -246,13 +284,16 @@
         planning (shared/use-resource (str root "/planning") {} [revision])
         [dialog set-dialog!] (hooks/use-state nil) [importing? set-importing!] (hooks/use-state false)
         [document set-document!] (hooks/use-state nil)
+        [appointment set-appointment!] (hooks/use-state nil)
         editable? (and (shared/use-permission "pms:project:edit") (not (contains? #{"closed" "cancelled" "paused"} (:status project))))
         context {:base base :model (:data resource) :planning (:data planning) :options options
                  :editable? editable? :approve? (and (shared/use-permission "pms:quality:approve") (not (contains? #{"closed" "cancelled" "paused"} (:status project))))
-                 :open! set-dialog! :import! #(set-importing! true) :document! set-document!}]
+                 :open! set-dialog! :import! #(set-importing! true) :document! set-document!
+                 :appointment! set-appointment!}]
     [:div
      [w/resource-view resource (fn [_] [governance-content context])]
      (when dialog [w/mutation-dialog (merge dialog {:project project :on-close #(set-dialog! nil)
                                                    :on-saved (fn [_] (set-dialog! nil) (changed!))})])
      (when importing? [import-dialog base project #(set-importing! false) (fn [_] (set-importing! false) (changed!))])
-     (when document [document-preview base document #(set-document! nil)])]))
+     (when document [document-preview base document #(set-document! nil)])
+     (when appointment [appointment-preview base appointment #(set-appointment! nil)])]))

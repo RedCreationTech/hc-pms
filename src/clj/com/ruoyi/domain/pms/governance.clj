@@ -1,6 +1,7 @@
 (ns com.ruoyi.domain.pms.governance
   "项目治理工作台的只读模型,类型化命令入口及生命周期条件."
   (:require [com.ruoyi.domain.pms.governance.approval :as approval]
+            [com.ruoyi.domain.pms.governance.appointment :as appointment]
             [com.ruoyi.domain.pms.governance.collaboration :as collab]
             [com.ruoyi.domain.pms.governance.evidence :as evidence]
             [com.ruoyi.domain.pms.governance.gates :as gates]
@@ -60,7 +61,8 @@
     (fn [q project]
       (assoc (into {} (for [[section kind] sections]
                         [section (mapv #(cond-> (dissoc % :content) (= kind "risk") reviews/risk-read-model) (store/records q project kind))]))
-             :project_version (:version project) :blockers (blockers q project)))))
+             :project_version (:version project) :blockers (blockers q project)
+             :appointments (appointment/list-summaries q project)))))
 
 
 (defn- creating
@@ -103,7 +105,8 @@
    [:meetings :actions] collab/create-action! [:actions :task] collab/materialize-action!
    [:gate-templates :create] (creating gates/create-template!)
    [:gates :create] (creating gates/create!) [:gates :checks] gates/checks!
-   [:gates :submit] gates/submit! [:gates :decision] gates/decide!})
+   [:gates :submit] gates/submit! [:gates :decision] gates/decide!
+   [:appointments :create] (creating appointment/issue!)})
 
 
 (defn command!
@@ -124,6 +127,12 @@
   "读取实际存储的确定文档版本内容."
   [svc actor id rid]
   (evidence/content svc actor id rid))
+
+
+(defn appointment-content
+  "读取确定任命书版本的完整正文与团队快照."
+  [svc actor id rid]
+  (appointment/content svc actor id rid))
 
 
 (defn member-removal-blockers

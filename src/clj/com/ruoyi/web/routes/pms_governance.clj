@@ -47,4 +47,7 @@
    (command-route svc "/gates" :gates :create)
    (command-route svc "/gates/:record_id/checks" :gates :checks)
    (command-route svc "/gates/:record_id/submit" :gates :submit)
-   (command-route svc "/gates/:record_id/decision" :gates :decision)]])
+   (command-route svc "/gates/:record_id/decision" :gates :decision)
+   (command-route svc "/appointments" :appointments :create)
+   ["/appointments/:record_id/content" {:get {:handler (partial controller/appointment-content svc)}}]
+   ["/appointments/:record_id/download" {:get {:handler (partial controller/appointment-download svc)}}]]])

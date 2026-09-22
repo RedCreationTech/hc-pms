@@ -1,13 +1,13 @@
 # 治理与质量 HTTP 合同
 
-状态: 已实现并通过本地 SQLite 10 tests / 92 assertions, 属于全量 56 tests / 381 assertions 的组成部分. 新模块 MySQL 及生产验收采用 [验证记录](../verification.md) 的最终结果. 不包含真实外部系统写入, 二进制文件服务或自动应用变更. 所有路径以 `/api/pms/projects/:id/governance` 为前缀. 路由挂在现有 JWT 认证中间件内. 下述字段为明确白名单; 未列字段返回 400.
+状态: 已实现并通过本地 SQLite 13 tests / 125 assertions (含 A08 项目成员任命书 3 个用例), 属于全量 65 tests / 456 assertions 的组成部分. 新模块 MySQL 及生产验收采用 [验证记录](../verification.md) 的最终结果. 不包含真实外部系统写入, 二进制文件服务或自动应用变更. 所有路径以 `/api/pms/projects/:id/governance` 为前缀. 路由挂在现有 JWT 认证中间件内. 下述字段为明确白名单; 未列字段返回 400.
 
 ## 事务, 权限与读模型
 
 - GET 和 CSV 预检要求 `pms:project:query` 及项目阅读资格. 普通命令要求 `pms:project:edit` 及项目编辑资格. 审批要求 `pms:quality:approve`, 项目阅读资格, 指定审批人本人, 且审批人不能是提交人. 管理员不能绕过独立审批.
 - 所有 POST 命令除预检外须传 `version`, 即 GET 返回的当前 `project_version`. 项目写入, 版本递增, 子对象变更和审计在同一数据库事务内. 陈旧版本和状态冲突返回 409; 未授权返回 403; 未找到当前项目内引用返回 404; 输入错误返回 400. 暂停和终态项目不可修改.
 - 成功响应为 `{code: 200, msg: "...", data: {result: ..., project_version: N}}`. GET 和预检的 `data` 直接是各自结果. 业务失败使用同样的响应信封, 未知异常不暴露 SQL 或堆栈.
-- `GET ""` 返回 `project_version`, `blockers.execution`, `blockers.closure`, 以及 `charters`, `requirements`, `documents`, `traces`, `risks`, `issues`, `meetings`, `actions`, `changes`, `gate_templates`, `gates` 数组. 数组含全部不可变内容版本, 以 `id` 标识记录; `code` 是稳定业务编号, `revision` 是内容版本. 文档正文不进入列表. `blockers` 当前返回每个阶段的首个未满足条件.
+- `GET ""` 返回 `project_version`, `blockers.execution`, `blockers.closure`, 以及 `charters`, `requirements`, `documents`, `traces`, `risks`, `issues`, `meetings`, `actions`, `changes`, `gate_templates`, `gates`, `appointments` 数组. 数组含全部不可变内容版本, 以 `id` 标识记录; `code` 是稳定业务编号, `revision` 是内容版本. 文档正文和任命书正文不进入列表. `blockers` 当前返回每个阶段的首个未满足条件.
 - 需求, 风险, 问题和行动负责人必须是当前项目有效成员. 章程赞助人和会议参与人使用有效本地用户. 创建和审批均记录创建人, 提交人或决定人. 正文不进入通用审计日志.
 
 ## 命令字段和状态
@@ -48,6 +48,7 @@
 | POST `/gates/:rid/checks` | checks | draft/ready/rejected -> ready; 完整提交所有模板项 |
 | POST `/gates/:rid/submit` | 可选 waiver_reason | 通过全部必需检查并附证据, 或以明确理由申请豁免, 进入 in_review |
 | POST `/gates/:rid/decision` | decision: approved/rejected/waived, reason | 独立签核; approved 再次验证证据; waived 必须已有豁免申请理由 |
+| POST `/appointments` | issued_on, note | 服务器读取当前项目成员表生成不可变团队快照任命书, code 固定 APPT, revision 递增, 状态 issued; 客户端不得提交 content 或 snapshot |
 
 所有日期均为有效 ISO 日期 `YYYY-MM-DD`. Gate 模板检查项是 `{code, title, required}`. Gate 检查结果是 `{code, passed, evidence_ids}`; 不能通过客户端改动模板的必需性. `evidence_ids` 是同项目真实文档版本 `id` 的不重复数组, 至多 50 条; 要求证据时至少 1 条. 不接受任意网址或自由文本作为已受控证据.
 
@@ -60,6 +61,15 @@
 - `GET /documents/:rid/content` 返回统一 JSON 的 `data` 文档对象, 包含 content, filename, sha256, byte_size, revision 和 id, 便于带 JWT 预览和客户端下载.
 - `GET /documents/:rid/download` 返回裸文本附件, Content-Disposition 和 X-Content-SHA256. 读取仍执行项目授权.
 - CSV 表头必须严格为 `code,text,category,priority,owner_id`. 最多 500 行和 1MiB. 返回 `{valid?: boolean, count, rows, errors: [{line, error}]}`; JSON 字段名是 `"valid?"`. 行号含表头, 第一条数据为 2. 检查现有编号, 文件内重复, 所有字段和有效成员. 非法表头或不可解析 CSV 直接返回 400.
+
+## 项目成员任命书
+
+任命书是受控的团队快照文书, 存于独立表 `pms_appointment`, 与通用 `pms_gov_record` 分离. 签发时服务器读取当前项目成员表 `pms_member` (含经理与创建者, 按 `user_id` 升序去重) 生成 `snapshot`, 由快照以固定键序序列化后计算 `snapshot_sha256`, 并派生 `content` 正文与 `headcount`. 客户端只能提交 `issued_on` 和可选 `note`, 不得提交 `content`, `snapshot` 或 `headcount`, 否则 400. 因此"任命内容与当时团队快照一致"由服务器保证, 不可被前端伪造.
+
+- `POST /appointments` 生成新的不可变版本, `code` 固定 `APPT`, `revision` 取当前 `MAX(revision)+1`, 状态恒为 `issued`. 再次任命不清空旧版; `UNIQUE(project_id, code, revision)` 保证版本链. 团队为空返回 409.
+- `GET /appointments/:rid/content` 返回统一 JSON 的 `data`, 含 `snapshot` (数组), `snapshot_sha256`, `content`, `headcount`, `revision`, `issued_on`, `issued_by`, `note`. 读取要求 `pms:project:query` 及项目阅读资格; 记录不属于该项目返回 404.
+- `GET /appointments/:rid/download` 返回裸文本 `text/plain` 附件, 附 `Content-Disposition: attachment; filename=appointment-v<revision>.txt` 和 `X-Content-SHA256`, 便于离线归档与摘要复核.
+- 列表读模型 `appointments` 省略 `content`, 仅保留快照与摘要供表格展示.
 
 ## 生命周期调用约定
 

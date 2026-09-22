@@ -41,3 +41,26 @@
             (response/header "X-Content-SHA256" (:sha256 document))
             (response/header "Content-Disposition"
                              (str "attachment; filename*=UTF-8''" (.replace (URLEncoder/encode (:filename document) "UTF-8") "+" "%20"))))))))
+
+
+(defn appointment-content
+  "读取统一JSON信封中的确定任命书正文与团队快照."
+  [svc request]
+  (http/invoke svc request
+    #(governance/appointment-content %1 %2 (http/project-id request) (http/param request :record_id))))
+
+
+(defn appointment-download
+  "下载经项目授权验证的任命书正文, 附带团队快照摘要."
+  [svc request]
+  (let [result (http/invoke svc request
+                 #(governance/appointment-content %1 %2 (http/project-id request)
+                                                  (http/param request :record_id)))]
+    (if-not (= 200 (:status result)) result
+      (let [appt (get-in result [:body :data])]
+        (-> (response/response (:content appt))
+            (response/content-type "text/plain; charset=utf-8")
+            (response/header "X-Content-SHA256" (:snapshot_sha256 appt))
+            (response/header "Content-Disposition"
+                             (str "attachment; filename*=UTF-8''"
+                                  (.replace (URLEncoder/encode (str "appointment-v" (:revision appt) ".txt") "UTF-8") "+" "%20"))))))))

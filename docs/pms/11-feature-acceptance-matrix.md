@@ -24,7 +24,7 @@
 | T | [后端测试](../../test/clj/com/ruoyi/pms_test.clj): 各行注明具体 deftest 名称, 测试源码须结合 V 的通过记录使用 |
 | U | [项目中心浏览器测试](../../tests/e2e/pms.spec.js)和[工作台浏览器测试](../../tests/e2e/pms-workbench.spec.js): 本地合计8 passed, 双用户独立操作项目/计划/治理/交付/工时财务/关闭与重开; 明细见V |
 | P | [规划测试](../../test/clj/com/ruoyi/pms_planning_test.clj): 本轮 SQLite/MySQL 各11 tests / 84 assertions 已通过; WBS/排程/资源容量/基线和变更约束 |
-| Q | [治理测试](../../test/clj/com/ruoyi/pms_governance_test.clj): 本轮 SQLite/MySQL 各10 tests / 92 assertions 通过; 含真实 JWT 路由, 独立审批, 文本证据, CSV, 问题重开和风险复审 |
+| Q | [治理测试](../../test/clj/com/ruoyi/pms_governance_test.clj): 本轮 SQLite 13 tests / 125 assertions 通过 (新增 A08 项目成员任命书 3 例); MySQL 本轮未执行(本地无实例), 迁移双库文件已同步; 含真实 JWT 路由, 独立审批, 文本证据, CSV, 问题重开, 风险复审和成员任命书 |
 | X | [交付测试](../../test/clj/com/ruoyi/pms_delivery_test.clj): 本轮 SQLite/MySQL 各8 tests / 45 assertions 通过; [完整场景](../../test/clj/com/ruoyi/pms_delivery_scenario.clj)通过公开服务完成物料到SIT/FAT/发运/SAT, 不直改状态 |
 | F | [工时财务及生命周期测试](../../test/clj/com/ruoyi/pms_finance_test.clj)及[合同](contracts/finance-closure.md): 本轮 SQLite/MySQL 各11 tests / 52 assertions 通过; 原子审批/分摊/收尾/重开 |
 | O | [集成运行时测试](../../test/clj/com/ruoyi/pms_ops_test.clj): 本轮 SQLite/MySQL 各6 tests / 33 assertions 通过; inbox/outbox和受控真实HTTP协议测试, 不等于任何实际企业系统适配器已接通 |
@@ -46,7 +46,7 @@ planned 行的证据列使用 `待:` 表示尚缺的真实验收证据. partial 
 | A05 | 11 | 外部立项审批与订单建立后自动建项目 | 审批及订单建立事实到达后建项目/结构/基本团队; 重复消息不重复建, 缺字段隔离并可恢复 | B4 | planned / 待合同 | 待: OA/CRM/ERP真实回执, 重复/失败/补发合同测试 |
 | A06 | 14-15 | 订单/订单行接收与物料匹配任务 | 订单导入生成PM待办, 在ERP完成匹配后回PMS确认并留来源; 不假设PMS已有ERP匹配算法 | B4 | planned / 待合同 | 待: 真实订单行, 任务下发/完成及错误物料案例 |
 | A07 | 4,12-13 | 单元/产品线/单机的完整项目网络 | 按批准模板建适用阶段和结构, 多层下钻到任务, 每层业务类型和外部编码明确 | B2+B4 | planned / 待规则 | 待: 主计划到子项目展开案例, 模板差异与聚合对账 |
-| A08 | 17 | 项目成员任命书 | 团队维护后生成受控任命书, 内容与当时团队快照一致, 再任命保留旧版 | B3 | planned | 待: 团队版本/文书生成/再任命验收 |
+| A08 | 17 | 项目成员任命书 | 团队维护后生成受控任命书, 内容与当时团队快照一致, 再任命保留旧版 | B3 | implemented / local | Q; T: appointment-snapshot-matches-current-team-and-is-immutable, appointment-issues-are-controlled-and-isolated, appointment-http-contract-and-download; SQLite 13 tests/125 assertions + 浏览器1例通过 (签发/不可变版本/快照SHA/下载); 待: MySQL本轮回归未执行(本地无实例), 生产签章/外部文书模板 |
 | A09 | 4,6 | 项目/计划/团队/文档/Gate模板与业务配置 | 模板按单元或机型版本化, 创建实例保留模板版本; 修改模板不追溯覆盖旧项目 | B2+B3 | planned | 待: 模板发布/实例化/版本升级用例 |
 | A10 | 4,6 | 编码, 版本, 生命周期与对象收集规则 | 同类对象编码唯一, 版本规则明确, 关口按范围收集确定版本对象; 配置变更可审计 | B2+B3 | planned / 待规则 | 待: 编码碰撞/证据收集范围/配置版本用例 |
 | A11 | 61; 边界见2 | 新产品/新技术/专题研发及部门事务项目 | 明确这些展示类别的独立流程/角色/交付物后配置, 覆盖立项到关闭; 不用订单模板假装替代研发内部流程 | B2-B5 | planned / 待规则 | 待: 缺失的研发内部业务规则与专项UAT清单 |

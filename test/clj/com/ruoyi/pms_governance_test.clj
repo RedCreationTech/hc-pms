@@ -351,3 +351,60 @@
     (is (= "closed" (:status (command! 9302 id :risks :decision (:id risk) {:decision "approved" :reason "已确认风险解除"}))))
     (is (nil? (:review_due_date (first (:risks (workspace id))))))
     (is (false? (:review_overdue (first (:risks (workspace id))))))))
+
+
+(deftest appointment-snapshot-matches-current-team-and-is-immutable
+  (let [id (project!)
+        orig (command! id :appointments :create nil {:issued_on "2026-09-22" :note "正式任命"})]
+    (is (= 1 (:revision orig)))
+    (is (= "issued" (:status orig)))
+    (is (= 4 (:headcount orig)))
+    (is (= [1 9301 9302 9303] (mapv :user_id (:snapshot orig))))
+    (is (= ["editor" "manager" "viewer" "editor"] (mapv :role (:snapshot orig))))
+    (is (re-matches #"[0-9a-f]{64}" (:snapshot_sha256 orig)))
+    (is (re-find #"项目成员任命书" (:content orig)))
+    (is (re-find #"担任 manager" (:content orig)))
+    (is (every? #(not (contains? % :content)) (:appointments (workspace id))))
+    (pms/set-member! *service* (actor 1) id {:user_id 9304 :role "editor"})
+    (let [reissued (command! id :appointments :create nil {:issued_on "2026-10-01"})
+          appointments (:appointments (workspace id))
+          kept (first (filter #(= (:id orig) (:id %)) appointments))]
+      (is (= 2 (:revision reissued)))
+      (is (= 5 (:headcount reissued)))
+      (is (= [1 9301 9302 9303 9304] (mapv :user_id (:snapshot reissued))))
+      (is (not= (:snapshot_sha256 orig) (:snapshot_sha256 reissued)))
+      (is (= 2 (count appointments)))
+      (is (= (:snapshot_sha256 orig) (:snapshot_sha256 kept)))
+      (is (= [1 9301 9302 9303] (mapv :user_id (:snapshot kept)))))))
+
+
+(deftest appointment-issues-are-controlled-and-isolated
+  (let [id (project!) other (project!)
+        issued (command! id :appointments :create nil {:issued_on "2026-09-22"})
+        stale (dec (version id))]
+    (is (= 403 (error-status #(command! 9302 id :appointments :create nil {:issued_on "2026-09-22"}))))
+    (is (= 403 (error-status #(command! 9305 id :appointments :create nil {:issued_on "2026-09-22"}))))
+    (is (= 409 (error-status #(gov/command! *service* (actor 9301) id :appointments :create nil
+                                            {:version stale :issued_on "2026-09-22"}))))
+    (is (= 400 (error-status #(command! id :appointments :create nil {:issued_on "2026-13-40"}))))
+    (is (= 400 (error-status #(command! id :appointments :create nil {:issued_on "2026-09-22" :content "伪造"}))))
+    (is (= 2 (:revision (command! id :appointments :create nil {:issued_on "2026-09-25"}))))
+    (is (nil? (error-status #(gov/appointment-content *service* (actor 9301) id (:id issued)))))
+    (is (= 403 (error-status #(gov/appointment-content *service* (actor 9305) id (:id issued)))))
+    (is (= 404 (error-status #(gov/appointment-content *service* (actor 9301) other (:id issued)))))))
+
+
+(deftest appointment-http-contract-and-download
+  (let [id (project!) path (str "/api/pms/projects/" id "/governance")
+        issued (command! id :appointments :create nil {:issued_on "2026-09-22"})]
+    (is (= 401 (:status (request :post (str path "/appointments") nil {:issued_on "2026-09-22" :version (version id)}))))
+    (is (= 403 (:status (request :post (str path "/appointments") 9302 {:issued_on "2026-09-22" :version (version id)}))))
+    (let [result (request :get (str path "/appointments/" (:id issued) "/content") 9301 nil)]
+      (is (= 200 (:status result)))
+      (is (= (:snapshot_sha256 issued) (get-in result [:body :data :snapshot_sha256])))
+      (is (= 4 (count (get-in result [:body :data :snapshot])))))
+    (let [dl (*handler* (-> (mock/request :get (str path "/appointments/" (:id issued) "/download"))
+                            (mock/header "authorization" (str "Bearer " (security/generate-token 9301 "test" [])))))]
+      (is (= 200 (:status dl)))
+      (is (= (:snapshot_sha256 issued) (get-in dl [:headers "X-Content-SHA256"])))
+      (is (re-find #"项目成员任命书" (:body dl))))))
