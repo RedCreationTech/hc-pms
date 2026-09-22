@@ -33,7 +33,14 @@
    (when editable? [antd/button {:type "primary" :on-click #(open! (forms/charter-dialog base options))} "编制项目章程"])
    [w/record-table (:charters model)
     [(w/text-column :title "标题") (w/text-column :objective "项目目标") (w/text-column :scope "范围")
-     (w/text-column :success_criteria "成功标准") (w/state-column)]
+     (w/text-column :success_criteria "成功标准")
+     {:title "初始预算" :dataIndex "initial_budget" :width 160
+      :render (fn [_ row]
+                (let [budget (aget row "initial_budget") currency (aget row "budget_currency")]
+                  (if (and budget (not= "" budget))
+                    (str budget " " currency)
+                    (r/as-element [:span {:style {:color "#98a2b3"}} "未设定"]))))}
+     (w/state-column)]
     #(review-actions context "charters" %)]])
 
 

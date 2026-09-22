@@ -166,6 +166,46 @@
       (is (re-find #"章程" (first (get-in (workspace id) [:blockers :execution])))))))
 
 
+(deftest charter-initial-budget-is-validated-and-versioned
+  (let [id (project!)]
+    ;; 缺省币种: 填金额未选币种记为CNY, 金额规范化为两位小数并随版本不可变持久化.
+    (let [charter (command! id :charters :create nil
+                            (assoc (charter-body) :initial_budget "120000.5"))
+          rid (:id charter)]
+      (is (= "120000.50" (:initial_budget charter)))
+      (is (= "CNY" (:budget_currency charter)))
+      ;; 独立批准后预算不漂移, 仍回显在安全治理模型中.
+      (approve! id :charters rid)
+      (let [stored (first (filter #(= rid (:id %)) (:charters (workspace id))))]
+        (is (= "approved" (:status stored)))
+        (is (= "120000.50" (:initial_budget stored)))
+        (is (= "CNY" (:budget_currency stored))))
+      ;; 修订生成新不可变版本, 旧版本预算保持原值.
+      (let [revision (command! id :charters :revisions rid
+                               (assoc (charter-body) :initial_budget "88.9" :budget_currency "USD"))]
+        (is (= 2 (:revision revision)))
+        (is (= "88.90" (:initial_budget revision)))
+        (is (= "USD" (:budget_currency revision)))
+        (let [old (first (filter #(= rid (:id %)) (:charters (workspace id))))]
+          (is (= "120000.50" (:initial_budget old)))
+          (is (= "CNY" (:budget_currency old))))))
+    ;; 未填预算: 章程仍可创建, 不含任何预算键.
+    (let [plain (command! id :charters :create nil (charter-body))]
+      (is (nil? (:initial_budget plain)))
+      (is (nil? (:budget_currency plain))))
+    ;; 非法金额, 负数, 非法币种均被真实类型边界拒绝.
+    (is (= 400 (error-status #(command! id :charters :create nil (assoc (charter-body) :initial_budget "1.234")))))
+    (is (= 400 (error-status #(command! id :charters :create nil (assoc (charter-body) :initial_budget "abc")))))
+    (is (= 400 (error-status #(command! id :charters :create nil (assoc (charter-body) :initial_budget "-5")))))
+    (is (= 400 (error-status #(command! id :charters :create nil
+                                        (assoc (charter-body) :initial_budget "100" :budget_currency "RUB")))))
+    ;; 预算是章程专属字段, 在合法的变更申请体上追加预算应被白名单拒绝.
+    (is (= 400 (error-status #(command! id :changes :create nil
+                                        {:title "更改设备范围" :reason "合同调整" :scope_impact "增加设备"
+                                         :schedule_impact "增加五日" :cost_impact "重新估价" :quality_impact "增加测试"
+                                         :resource_impact "追加工程师" :initial_budget "100"}))))))
+
+
 (deftest evidence-is-real-immutable-and-scoped
   (let [id (project!) other (project!) document (document! id "DOC-1") rid (:id document)
         revised (command! id :documents :revisions rid

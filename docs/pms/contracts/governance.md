@@ -1,6 +1,6 @@
 # 治理与质量 HTTP 合同
 
-状态: 已实现并通过本地 SQLite 15 tests / 155 assertions (含 A08 项目成员任命书 3 个用例与 H02 干系人/RACI/沟通计划 2 个用例), 属于本轮全量 PMS 回归 67 tests / 486 assertions 的组成部分. 新模块 MySQL 及生产验收采用 [验证记录](../verification.md) 的最终结果. 不包含真实外部系统写入, 二进制文件服务或自动应用变更. 所有路径以 `/api/pms/projects/:id/governance` 为前缀. 路由挂在现有 JWT 认证中间件内. 下述字段为明确白名单; 未列字段返回 400.
+状态: 已实现并通过本地 SQLite 25 tests / 288 assertions (含 A08 项目成员任命书, H02 干系人/RACI/沟通计划, C06 文档独立发布审批, C04 文档归集视图, H01 章程初始预算等用例), 属于本轮全量 PMS 回归 77 tests / 619 assertions 的组成部分. 新模块 MySQL 及生产验收采用 [验证记录](../verification.md) 的最终结果. 不包含真实外部系统写入, 二进制文件服务或自动应用变更. 所有路径以 `/api/pms/projects/:id/governance` 为前缀. 路由挂在现有 JWT 认证中间件内. 下述字段为明确白名单; 未列字段返回 400.
 
 ## 事务, 权限与读模型
 
@@ -9,6 +9,7 @@
 - 成功响应为 `{code: 200, msg: "...", data: {result: ..., project_version: N}}`. GET 和预检的 `data` 直接是各自结果. 业务失败使用同样的响应信封, 未知异常不暴露 SQL 或堆栈.
 - `GET ""` 返回 `project_version`, `blockers.execution`, `blockers.closure`, 以及 `charters`, `requirements`, `documents`, `traces`, `risks`, `issues`, `meetings`, `actions`, `changes`, `gate_templates`, `gates`, `appointments`, `stakeholders`, `raci`, `comm_plans` 数组. 数组含全部不可变内容版本, 以 `id` 标识记录; `code` 是稳定业务编号, `revision` 是内容版本. 文档正文和任命书正文不进入列表. `blockers` 当前返回每个阶段的首个未满足条件. 另返回 `raci_conflicts`, 逐活动列出缺负责(A)或缺执行(R)的 `{activity, missing-accountable?, missing-responsible?}` 集合. 还返回只读追踪矩阵 `traceability` 与 `trace_summary`: `traceability` 按需求最新 `revision` 每行给出 `{requirement_id, code, revision, priority, design_links, verification_links, satisfied?, verified?, missing}`, 其中 `design_links` 计数满足关系的文档版本, `verification_links` 计数验证关系, `missing` 为 `["satisfies"|"verifies"]` 中缺失项; `trace_summary` 给出 `{requirements, fully-traced, missing-design, missing-verification}`. 分母仅取当前最新版本需求集合, 修订产生新版本后须重新追踪; 此矩阵是缺链提示, 不等于对批准范围基线的覆盖率(覆盖率分母规则仍待定义). 另返回只读文档归集视图 `document_collection`: 按每个文档 `code` 的最新 `revision` 聚合, 给出 `{total, by-stage, by-structure-node, by-classification}`; `by-stage` 与 `by-structure-node` 为 `[{key, count}]` 向量按 key 字典序且空值(未归集)排最后, `by-classification` 固定为 `[{classification, count}]` 覆盖 `public|internal|confidential` 三值. 该视图仅统计最新版本, 同一编号的旧修订不重复计数, 是只读归集, 不改变不可变版本, 授权或 SHA256 校验.
 - 需求, 风险, 问题和行动负责人必须是当前项目有效成员. 章程赞助人和会议参与人使用有效本地用户. 创建和审批均记录创建人, 提交人或决定人. 正文不进入通用审计日志.
+- 章程可选初始预算: `initial_budget` 为最多两位小数的非负金额, 由服务端规范化为两位小数最小单位后回显 (如 `120000.5` -> `120000.50`), 负数或超过两位小数返回 400. `budget_currency` 取 `CNY|USD|EUR|GBP|HKD` 之一, 填预算而未选币种时缺省 `CNY`, 非法币种返回 400. 两字段随内容版本不可变冻结, 修订须重新提交完整内容 (旧版本预算值不漂移). 未填 `initial_budget` 则两键均不写入, 章程仍按原样创建. 预算是章程专属字段, 出现在变更申请体上按白名单返回 400. 此为立项期声明的初始预算, 不等于批准后锁定的财务基线或成本台账 (后者由财务域独立管理).
 
 ## 命令字段和状态
 
@@ -16,7 +17,7 @@
 
 | 路径 | 字段 | 业务结果 |
 | --- | --- | --- |
-| POST `/charters` | title, objective, scope, success_criteria, sponsor_id | 创建新的章程草稿版本, 稳定 code 为 charter |
+| POST `/charters` | title, objective, scope, success_criteria, sponsor_id; 可选 initial_budget, budget_currency | 创建新的章程草稿版本, 稳定 code 为 charter |
 | POST `/charters/:rid/revisions` | 同上 | 从最新版本派生新的草稿, 原版本不覆盖 |
 | POST `/charters/:rid/submit` | reviewer_id | draft/rejected -> in_review; 指定独立审批人 |
 | POST `/charters/:rid/decision` | decision: approved/rejected, reason | 只有指定审核人可决定当前最新提交版本 |

@@ -1,6 +1,7 @@
 (ns com.ruoyi.domain.pms.governance.approval
   "项目章程与正式变更的类型化内容和独立评审."
-  (:require [com.ruoyi.domain.pms.governance.store :as s]
+  (:require [com.ruoyi.domain.pms.finance-money :as money]
+            [com.ruoyi.domain.pms.governance.store :as s]
             [com.ruoyi.domain.pms.kernel :as k]
             [com.ruoyi.domain.pms.rules :as r]))
 
@@ -8,18 +9,35 @@
   "章程必备内容字段."
   [:title :objective :scope :success_criteria :sponsor_id])
 
+(def charter-budget-fields
+  "章程可选初始预算字段,随内容版本不可变持久化."
+  [:initial_budget :budget_currency])
+
 (def change-fields
   "变更必须明确的影响维度."
   [:title :reason :scope_impact :schedule_impact :cost_impact :quality_impact :resource_impact])
 
+(defn- charter-budget!
+  "校验章程可选初始预算:金额非负并规范化为两位小数,币种缺省CNY;未填预算时不写入任何预算键."
+  [body]
+  (when-let [raw (:initial_budget body)]
+    (let [amount (money/amount! raw "初始预算")]
+      (when (neg? amount) (r/fail! 400 "初始预算不得为负数"))
+      (let [currency (if-let [c (:budget_currency body)]
+                       (do (when-not (money/currencies c) (r/fail! 400 "暂仅支持CNY/USD/EUR/GBP/HKD")) c)
+                       "CNY")]
+        {:initial_budget (money/money amount) :budget_currency currency}))))
+
 (defn content!
   "分别校验章程和变更内容,拒绝任意JSON字段."
   [q kind body]
-  (let [fields (if (= kind "charter") charter-fields change-fields)]
-    (s/input! body fields)
+  (let [fields (if (= kind "charter") charter-fields change-fields)
+        allowed (if (= kind "charter") (into charter-fields charter-budget-fields) fields)]
+    (s/input! body allowed)
     (cond-> (into {} (for [field (remove #{:sponsor_id} fields)]
                        [field (s/text! body field (if (= field :title) 200 4000))]))
-      (= kind "charter") (assoc :sponsor_id (s/user! q (:sponsor_id body))))))
+      (= kind "charter") (assoc :sponsor_id (s/user! q (:sponsor_id body)))
+      (= kind "charter") (merge (charter-budget! body)))))
 
 (defn create!
   "创建章程的新版本或独立变更申请."

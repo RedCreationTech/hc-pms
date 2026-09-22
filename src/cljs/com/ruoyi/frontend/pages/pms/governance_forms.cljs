@@ -26,14 +26,21 @@
 
 
 (defn charter-dialog
-  "明确项目目标,范围与成功标准."
+  "明确项目目标,范围与成功标准; 初始预算可选并随版本不可变冻结."
   [base options]
   {:title "编制项目章程" :path (str base "/charters")
+   :description "初始预算为可选字段: 留空表示章程不含预算; 填写时金额最多两位小数并由服务端规范化, 币种缺省CNY, 将随内容版本不可变冻结."
+   :transform (fn [data]
+                (reduce (fn [m k] (let [v (get data k)] (if (or (nil? v) (= "" v)) (dissoc m k) m)))
+                        data [:initial_budget :budget_currency]))
    :fields [{:key :title :label "章程标题" :required? true}
             {:key :objective :label "项目目标" :type :textarea :required? true}
             {:key :scope :label "项目范围" :type :textarea :required? true}
             {:key :success_criteria :label "成功标准" :type :textarea :required? true}
-            {:key :sponsor_id :label "发起人" :type :select :options (w/user-options (:users options)) :required? true}]})
+            {:key :sponsor_id :label "发起人" :type :select :options (w/user-options (:users options)) :required? true}
+            {:key :initial_budget :label "初始预算" :hint "例如 120000.00, 可留空; 服务端规范化为两位小数"}
+            {:key :budget_currency :label "预算币种" :type :select :options (w/choices ["CNY" "USD" "EUR" "GBP" "HKD"])
+             :hint "填写预算时可留空, 缺省CNY"}]})
 
 
 (defn requirement-dialog

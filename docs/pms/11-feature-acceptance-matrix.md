@@ -24,7 +24,7 @@
 | T | [后端测试](../../test/clj/com/ruoyi/pms_test.clj): 各行注明具体 deftest 名称, 测试源码须结合 V 的通过记录使用 |
 | U | [项目中心浏览器测试](../../tests/e2e/pms.spec.js)和[工作台浏览器测试](../../tests/e2e/pms-workbench.spec.js): 本地合计8 passed, 双用户独立操作项目/计划/治理/交付/工时财务/关闭与重开; 明细见V |
 | P | [规划测试](../../test/clj/com/ruoyi/pms_planning_test.clj): 本轮 SQLite/MySQL 各11 tests / 84 assertions 已通过; WBS/排程/资源容量/基线和变更约束 |
-| Q | [治理测试](../../test/clj/com/ruoyi/pms_governance_test.clj): 本轮 SQLite 20 tests / 225 assertions 通过 (在 A08 任命书与 H02 干系人/RACI/沟通计划基础上再新增 C05 文档批量下载, C04 密级/阶段/结构节点归集, B05/C07 会议会前资料绑定各 1 例); MySQL 本轮未执行(本地无实例), 迁移双库文件已同步; 含真实 JWT 路由, 独立审批, 文本证据, CSV, 问题重开, 风险复审, 成员任命书, 干系人识别到沟通计划生成会议闭环, 文档密级归集与会前资料版本引用 |
+| Q | [治理测试](../../test/clj/com/ruoyi/pms_governance_test.clj): 本轮 SQLite 25 tests / 288 assertions 通过 (在 A08 任命书与 H02 干系人/RACI/沟通计划基础上再新增 C05 文档批量下载, C04 密级/阶段/结构节点归集与最新版本归集视图, C06 文档独立发布审批不漂移, B05/C07 会议会前资料绑定, H01 章程初始预算校验与版本不可变各 1 例); MySQL 本轮未执行(本地无实例), 迁移双库文件已同步; 含真实 JWT 路由, 独立审批, 文本证据, CSV, 问题重开, 风险复审, 成员任命书, 干系人识别到沟通计划生成会议闭环, 文档密级归集与会前资料版本引用, 章程可选初始预算金额/币种规范化 |
 | X | [交付测试](../../test/clj/com/ruoyi/pms_delivery_test.clj): 本轮 SQLite/MySQL 各8 tests / 45 assertions 通过; [完整场景](../../test/clj/com/ruoyi/pms_delivery_scenario.clj)通过公开服务完成物料到SIT/FAT/发运/SAT, 不直改状态 |
 | F | [工时财务及生命周期测试](../../test/clj/com/ruoyi/pms_finance_test.clj)及[合同](contracts/finance-closure.md): 本轮 SQLite/MySQL 各11 tests / 52 assertions 通过; 原子审批/分摊/收尾/重开 |
 | O | [集成运行时测试](../../test/clj/com/ruoyi/pms_ops_test.clj): 本轮 SQLite/MySQL 各6 tests / 33 assertions 通过; inbox/outbox和受控真实HTTP协议测试, 不等于任何实际企业系统适配器已接通 |
@@ -171,7 +171,7 @@ PPT中的财务表是设计示意. 字体较小或仅在原图显示而未核定
 
 | ID | 来源类型 | 新增/强化功能 | 业务闭环验收 | 批次 | 当前状态 | 验证证据 |
 |---|---|---|---|---|---|---|
-| H01 | 工程基线新增 | 项目章程, 正式批准与业务目标 | 记录目标/范围/成功标准/赞助人/授权PM/初始预算, 审批拒绝可修订, 批准后冻结章程版本 | B2 | partial | Q: charter-review-is-independent-and-versioned; 目标/范围/成功准则/赞助人和独立批准已实现, 初始预算与章程的正式关联仍待补齐 |
+| H01 | 工程基线新增 | 项目章程, 正式批准与业务目标 | 记录目标/范围/成功标准/赞助人/授权PM/初始预算, 审批拒绝可修订, 批准后冻结章程版本 | B2 | partial | Q: charter-review-is-independent-and-versioned,charter-initial-budget-is-validated-and-versioned; B: pms-h01.spec.js(界面登记章程填金额并选币种->规范化回显"88.90 USD"->修订未选币种缺省"120000.50 CNY"->再修订取消预算显示"未设定", 台账三不可变版本预算不漂移, 真实HTTP超两位小数金额与非法币种400); 目标/范围/成功准则/赞助人和独立批准已实现, 新增可选初始预算(initial_budget 非负且规范化为两位小数, budget_currency 限 CNY/USD/EUR/GBP/HKD 缺省 CNY)随内容版本不可变冻结, 非法金额/负数/非法币种返回400, 修订不漂移旧值, 预算为章程专属字段变更体拒绝; 待补齐: 授权PM作为章程显式字段(现由项目 manager_id 与编辑权限隐含承载), 以及初始预算与批准后财务基线的正式对账关联 |
 | H02 | 工程基线新增 | 干系人, RACI与沟通计划 | 识别利益相关者及职责, 明确知会/参与/批准关系, 沟通节奏可执行并有调整记录 | B2+B3 | implemented / local | Q: stakeholder-raci-conflict-and-comm-plan-loop,stakeholder-comm-plan-http-contract; 干系人登记+不可变修订(编号不可改), RACI按活动至多一个A且不得重复指派并输出缺A/缺R冲突, 沟通计划受控修订+由最新版本生成会议并回写last_meeting_id形成闭环; 经复用通用治理存储pms_gov_record(stakeholder/raci/comm-plan)与工作台"干系人与沟通"页签; 浏览器端到端(pms-h02.spec.js)已验证界面登记干系人, RACI缺A冲突提示与沟通计划生成会议回写; 待: MySQL本轮未执行(本地无实例), 外部通知/消息渠道自动提醒与按节奏定时派发未接通 |
 | H03 | 工程基线强化 | 范围基线与WBS字典 | 可交付范围/排除项/验收准则映射到WBS叶节点, 覆盖性审查后冻结, 范围变更受控 | B2+B3 | partial | P: independent-approval-snapshot-and-revision; WBS设计冻结与变更已实现, 范围排除项和覆盖性审查尚未完整实现 |
 | H04 | 工程基线强化 | 排程与关键路径 | 依赖/工作日历/持续时间计算一致, 检测循环, 展示关键路径/浮动和基线偏差, 重排不覆盖原承诺 | B2 | implemented / local | P: four-dependency-types-and-calendar,parallel-critical-path-summary-and-milestone; 明确四类依赖/工作日/环/浮动/关键路径/不可变基线 |
