@@ -24,7 +24,7 @@
 | T | [后端测试](../../test/clj/com/ruoyi/pms_test.clj): 各行注明具体 deftest 名称, 测试源码须结合 V 的通过记录使用 |
 | U | [项目中心浏览器测试](../../tests/e2e/pms.spec.js)和[工作台浏览器测试](../../tests/e2e/pms-workbench.spec.js): 本地合计8 passed, 双用户独立操作项目/计划/治理/交付/工时财务/关闭与重开; 明细见V |
 | P | [规划测试](../../test/clj/com/ruoyi/pms_planning_test.clj): 本轮 SQLite/MySQL 各11 tests / 84 assertions 已通过; WBS/排程/资源容量/基线和变更约束 |
-| Q | [治理测试](../../test/clj/com/ruoyi/pms_governance_test.clj): 本轮 SQLite 25 tests / 288 assertions 通过 (在 A08 任命书与 H02 干系人/RACI/沟通计划基础上再新增 C05 文档批量下载, C04 密级/阶段/结构节点归集与最新版本归集视图, C06 文档独立发布审批不漂移, B05/C07 会议会前资料绑定, H01 章程初始预算校验与版本不可变各 1 例); MySQL 本轮未执行(本地无实例), 迁移双库文件已同步; 含真实 JWT 路由, 独立审批, 文本证据, CSV, 问题重开, 风险复审, 成员任命书, 干系人识别到沟通计划生成会议闭环, 文档密级归集与会前资料版本引用, 章程可选初始预算金额/币种规范化 |
+| Q | [治理测试](../../test/clj/com/ruoyi/pms_governance_test.clj): 本轮 SQLite 26 tests / 307 assertions 通过 (在 A08 任命书与 H02 干系人/RACI/沟通计划基础上再新增 C05 文档批量下载, C04 密级/阶段/结构节点归集与最新版本归集视图, C06 文档独立发布审批不漂移, B05/C07 会议会前资料绑定, H01 章程初始预算校验与版本不可变, H08 风险超阈值自动升级并独立确认解除缓解门控各 1 例); MySQL 本轮未执行(本地无实例), 迁移双库文件已同步; 含真实 JWT 路由, 独立审批, 文本证据, CSV, 问题重开, 风险复审与升级, 成员任命书, 干系人识别到沟通计划生成会议闭环, 文档密级归集与会前资料版本引用, 章程可选初始预算金额/币种规范化 |
 | X | [交付测试](../../test/clj/com/ruoyi/pms_delivery_test.clj): 本轮 SQLite/MySQL 各8 tests / 45 assertions 通过; [完整场景](../../test/clj/com/ruoyi/pms_delivery_scenario.clj)通过公开服务完成物料到SIT/FAT/发运/SAT, 不直改状态 |
 | F | [工时财务及生命周期测试](../../test/clj/com/ruoyi/pms_finance_test.clj)及[合同](contracts/finance-closure.md): 本轮 SQLite/MySQL 各11 tests / 52 assertions 通过; 原子审批/分摊/收尾/重开 |
 | O | [集成运行时测试](../../test/clj/com/ruoyi/pms_ops_test.clj): 本轮 SQLite/MySQL 各6 tests / 33 assertions 通过; inbox/outbox和受控真实HTTP协议测试, 不等于任何实际企业系统适配器已接通 |
@@ -178,7 +178,7 @@ PPT中的财务表是设计示意. 字体较小或仅在原图显示而未核定
 | H05 | 工程基线新增 | 资源容量, 技能与分派 | 资源需求到人员/角色/技能分派, 日历容量与任务投入匹配, 超配冲突提示并经协调解决 | B2 | partial | P: shared-person-capacity-preserves-other-project-privacy; 日容量和跨项目同人员超配保护已有, 技能匹配/替代人员/请假规则仍待补齐 |
 | H06 | 工程基线强化 | 执行进展与预测 | 状态日期统一, 责任人提交完成量/实际时间/剩余估算, 审核后更新预测, 保留历史趋势和偏差措施 | B2+B4 | partial | P: rejection-and-progress-do-not-rewrite-baseline; 执行反馈/剩余工期/不可回退已有, 反馈独立审核/动态完工预测和完整趋势措施仍待补齐 |
 | H07 | 工程基线新增 | 工时与资源成本闭环 | 工时审批关联任务及费率有效期, 拒绝/更正/封期可控, 工时不能双计入成本 | B4+B5 | partial | F: allocation-is-idempotent-and-conserves-real-costs; 工时批准到费用池分摊已有, 人员费率有效期/追溯更正/封期尚缺 |
-| H08 | 工程基线强化 | 风险和问题的复审/升级/重开 | 风险评分口径和复审频率明确, 超阈值升级, 问题有验证人/关闭证据且可受控重开 | B3 | partial | Q: closed-issue-reopens-only-through-independent-review,risk-review-requires-evidence-and-future-followup; 独立重开/复审/证据关闭已有, 超阈值自动升级未实现 |
+| H08 | 工程基线强化 | 风险和问题的复审/升级/重开 | 风险评分口径和复审频率明确, 超阈值升级, 问题有验证人/关闭证据且可受控重开 | B3 | partial | Q: closed-issue-reopens-only-through-independent-review,risk-review-requires-evidence-and-future-followup,risk-escalation-requires-independent-acknowledgment-before-mitigation; B: pms-h08.spec.js; 独立重开/复审/证据关闭已有, 评分达到阈值的重大风险新建时自动升级并由登记人之外独立质量审批人确认方可解除缓解门控已 implemented/local; 复评后重新评分, 升级通知投递, 跨项目风险汇总升级仍待实现 |
 | H09 | 工程基线强化 | 变更控制委员会与影响决策 | 以B2计划基线为依赖, 对范围/工期/成本/质量/资源做影响分析, 有权批准或拒绝, 批准后同步基线和相关责任人 | B3-B5 | partial | Q: change-review-lock-and-audit-rollback; P: execution-rebaseline-requires-approved-change; 多维影响及独立批准关联执行期新基线已有, CCB多人表决/跨系统通知和财务自动应用未实现 |
 | H10 | 工程基线强化 | 质量计划与验收准则 | 可交付物预先定义质量准则/方法/角色/证据, 检查不通过产生整改, 复验到签收可追溯 | B2+B3+B4 | partial | X: failed-test-creates-one-traceable-independent-remediation; 明确试验准则/证据/角色/失败整改已有, 全项目质量计划和企业适用模板仍待签收 |
 | H11 | 工程基线新增 | 正式交付, 客户签收与遗留项 | 签发受控交付包, 记录接收/拒收/条件接受, 遗留项有责任/期限, 签收与项目关闭分离 | B3+B4 | partial | X: conditional-receipt-forces-service-resolution-before-acceptance; 接受/拒收/条件接受与售后独立关闭已实现, 受控交付包发布及客户外部签章未实现 |

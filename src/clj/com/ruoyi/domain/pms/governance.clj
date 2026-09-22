@@ -110,6 +110,7 @@
    [:risks :create] (creating collab/create-risk!)
    [:risks :review] reviews/submit-risk-review! [:risks :decision] reviews/decide-risk-review!
    [:risks :mitigate] collab/mitigate!
+   [:risks :escalate] collab/acknowledge-escalation!
    [:risks :materialize] collab/materialize!
    [:issues :create] (creating collab/create-issue!)
    [:issues :reopen] reviews/reopen-issue!

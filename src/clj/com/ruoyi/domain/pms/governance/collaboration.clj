@@ -18,31 +18,80 @@
   value)
 
 
+(def escalation-threshold
+  "风险评分(概率 x 影响, 1 到 25)达到该值即自动升级, 须独立质量审批人确认处置后方可缓解."
+  16)
+
+
+(defn- escalation-level
+  "按评分划分升级处置层级, 未达阈值返回 nil."
+  [score]
+  (cond (>= score 20) "steering"
+        (>= score escalation-threshold) "management"
+        :else nil))
+
+
+(defn- escalation-reason
+  "生成可读升级依据, 说明触发阈值与所需独立确认层级."
+  [score level]
+  (str "风险评分 " score " 已达到升级阈值 " escalation-threshold ", 须由独立质量审批人确认"
+       (case level "steering" "管理层" "经理层")
+       "处置后方可缓解."))
+
+
 (defn create-risk!
-  "登记有明确责任人与预防措施的风险."
+  "登记有明确责任人与预防措施的风险; 评分超阈值时自动标记升级待独立确认."
   [svc actor id body]
   (k/mutate! svc actor id "pms:project:edit" body "risk.created"
              (fn [q project]
                (s/input! body [:title :probability :impact :owner_id :mitigation :due_date])
-               (let [probability (score! (:probability body)) impact (score! (:impact body))]
+               (let [probability (score! (:probability body)) impact (score! (:impact body))
+                     score (* probability impact) escalated? (>= score escalation-threshold)
+                     level (escalation-level score)]
                  (s/insert! q project actor "risk"
-                            {:title (s/text! body :title 200) :probability probability :impact impact
-                             :score (* probability impact) :owner_id (k/user! q project (:owner_id body) "负责人")
-                             :mitigation (s/text! body :mitigation) :due_date (s/date! body :due_date)}
+                            (cond-> {:title (s/text! body :title 200) :probability probability :impact impact
+                                     :score score :owner_id (k/user! q project (:owner_id body) "负责人")
+                                     :mitigation (s/text! body :mitigation) :due_date (s/date! body :due_date)
+                                     :escalated escalated?}
+                              escalated? (assoc :escalation_state "pending" :escalation_level level
+                                                :escalation_reason (escalation-reason score level)))
                             {:status "open"})))))
 
 
 (defn mitigate!
-  "记录风险措施实际执行证据并保留其后转问题的能力."
+  "记录风险措施实际执行证据并保留其后转问题的能力; 超阈值升级未确认前不得自行缓解."
   [svc actor id rid body]
   (k/mutate! svc actor id "pms:project:edit" body "risk.mitigated"
              (fn [q project]
                (s/input! body [:mitigation :evidence_ids])
                (let [risk (s/record! q project "risk" rid)]
                  (s/status! risk #{"open" "mitigated"})
+                 (when (and (:escalated risk) (= "pending" (:escalation_state risk)))
+                   (r/fail! 409 "该风险已超阈值升级, 请先由独立质量审批人确认处置措施再缓解"))
                  (s/change! q project risk "mitigated"
                             {:mitigation (s/text! body :mitigation)
                              :evidence_ids (s/evidence! q project (:evidence_ids body) true)})))))
+
+
+(defn acknowledge-escalation!
+  "由独立质量审批人确认超阈值风险的升级处置, 批准责成处置或经评估豁免, 记录后方可继续缓解."
+  [svc actor id rid body]
+  (k/mutate! svc actor id "pms:quality:approve" body "risk.escalation-acknowledged" {:write? false}
+             (fn [q project]
+               (s/input! body [:decision :note])
+               (let [risk (s/record! q project "risk" rid)
+                     decision (s/enum! (:decision body) #{"approved" "rejected"} "decision")
+                     note (s/text! body :note 500)]
+                 (when-not (:escalated risk) (r/fail! 409 "该风险未触发升级, 无需确认"))
+                 (when-not (= "pending" (:escalation_state risk)) (r/fail! 409 "风险升级已确认, 请勿重复处理"))
+                 (when (= (:user_id actor) (:created_by risk)) (r/fail! 403 "升级确认不得由风险登记人本人完成"))
+                 (s/change! q project risk (:status risk)
+                            {:escalation_state (if (= "approved" decision) "acknowledged" "waived")
+                             :escalation_decision decision :escalation_note note
+                             :escalation_ack_by (:user_id actor) :escalation_ack_on (str (LocalDate/now))
+                             :workflow_history (conj (vec (:workflow_history risk))
+                                                     {:action "escalation_acknowledged" :actor_id (:user_id actor)
+                                                      :on (str (LocalDate/now)) :decision decision})})))))
 
 
 (defn- issue-fields!

@@ -270,9 +270,12 @@
 
 
 (defn- risk-actions
-  "发生,复评和独立关闭保持明确操作路径."
-  [{:keys [base model options editable? open!] :as context} risk]
+  "发生,复评和独立关闭保持明确操作路径; 超阈值升级须独立质量审批人确认."
+  [{:keys [base model options editable? approve? open!] :as context} risk]
   [antd/space {:wrap true}
+   (when (and approve? (:escalated risk) (= "pending" (:escalation_state risk))
+              (not= (:currentUserId options) (:created_by risk)))
+     [w/edit-button "确认升级处置" #(open! (forms/risk-escalation-dialog base risk))])
    (when (and editable? (contains? #{"open" "mitigated" "materialized" "closed"} (:status risk)))
      [w/edit-button "提交复评" #(open! (forms/risk-review-dialog base options (:documents model) risk))])
    (when (and editable? (= "open" (:status risk)))
@@ -285,10 +288,21 @@
 (defn- risk-section
   "风险台账保留应对,复评期限与独立关闭状态."
   [{:keys [base model options editable? open!] :as context}]
-  [shared/panel "项目风险" "风险持续复评,实际发生关联问题,关闭需要证据与独立审核"
+  [shared/panel "项目风险" "风险持续复评,实际发生关联问题,关闭需要证据与独立审核; 评分达到阈值的重大风险自动升级, 未经独立确认不得自行缓解"
    (when editable? [antd/button {:on-click #(open! (forms/risk-dialog base options))} "登记项目风险"])
    [w/record-table (:risks model)
     [(w/text-column :title "风险") (w/text-column :probability "概率") (w/text-column :impact "影响")
+     (w/text-column :score "评分")
+     {:title "超阈值升级" :dataIndex "escalation_state" :width 180
+      :render (fn [_ row]
+                (let [esc (aget row "escalated") state (aget row "escalation_state")]
+                  (r/as-element
+                   (cond
+                     (not esc) [:span {:style {:color "#98a2b3"}} "未触发"]
+                     (= state "pending") [antd/tag {:color "red"} (str "待升级确认 / " (aget row "escalation_level"))]
+                     (= state "acknowledged") [antd/tag {:color "green"} "升级已确认"]
+                     (= state "waived") [antd/tag {:color "blue"} "升级已豁免"]
+                     :else [antd/tag state]))))}
      (w/text-column :mitigation "应对措施") (w/text-column :review_due_date "下次复评")
      {:title "复评提醒" :dataIndex "review_overdue" :render #(when % (r/as-element [antd/tag {:color "red"} "复评已逾期"]))}
      (w/state-column)] #(risk-actions context %)]])

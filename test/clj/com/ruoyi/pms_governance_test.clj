@@ -696,6 +696,43 @@
     (is (false? (:review_overdue (first (:risks (workspace id))))))))
 
 
+(deftest risk-escalation-requires-independent-acknowledgment-before-mitigation
+  (let [id (project!) evidence (:id (document! id "ESC-1"))
+        high (command! id :risks :create nil {:title "关键交付风险" :probability 5 :impact 5
+                                              :owner_id 9301 :mitigation "备选供应商" :due_date "2026-10-10"})
+        low (command! id :risks :create nil {:title "轻微风险" :probability 2 :impact 3
+                                             :owner_id 9301 :mitigation "例会关注" :due_date "2026-10-10"})]
+    (is (= 25 (:score high)))
+    (is (true? (:escalated high)))
+    (is (= "pending" (:escalation_state high)))
+    (is (= "steering" (:escalation_level high)))
+    (is (some? (:escalation_reason high)))
+    (is (false? (:escalated low)))
+    (is (= 409 (error-status #(command! id :risks :mitigate (:id high)
+                                        {:mitigation "已联系备选供应商" :evidence_ids [evidence]}))))
+    (is (= "mitigated" (:status (command! id :risks :mitigate (:id low)
+                                          {:mitigation "已纳入例会跟踪" :evidence_ids [evidence]}))))
+    (is (= 409 (error-status #(command! id :risks :escalate (:id low)
+                                        {:decision "approved" :note "低风险未升级无需确认"}))))
+    (is (= 403 (error-status #(command! id :risks :escalate (:id high)
+                                        {:decision "approved" :note "登记人自确认"}))))
+    (is (= 400 (error-status #(command! 9302 id :risks :escalate (:id high)
+                                        {:decision "maybe" :note "无效决定"}))))
+    (let [acked (command! 9302 id :risks :escalate (:id high)
+                         {:decision "approved" :note "管理层责成启动备选供应商并加严来料检验"})]
+      (is (= "acknowledged" (:escalation_state acked)))
+      (is (= "open" (:status acked)))
+      (is (= 9302 (:escalation_ack_by acked)))
+      (is (= "approved" (:escalation_decision acked))))
+    (is (= 409 (error-status #(command! 9302 id :risks :escalate (:id high)
+                                        {:decision "approved" :note "重复确认"}))))
+    (is (= "mitigated" (:status (command! id :risks :mitigate (:id high)
+                                          {:mitigation "已启动备选供应商并加严检验" :evidence_ids [evidence]}))))
+    (let [row (first (filter #(= (:id high) (:id %)) (:risks (workspace id))))]
+      (is (true? (:escalated row)))
+      (is (= "acknowledged" (:escalation_state row))))))
+
+
 (deftest appointment-snapshot-matches-current-team-and-is-immutable
   (let [id (project!)
         orig (command! id :appointments :create nil {:issued_on "2026-09-22" :note "正式任命"})]

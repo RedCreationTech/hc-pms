@@ -271,6 +271,24 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 初始预算是立项期在章程中声明的可选金额, 随内容版本不可变冻结, 复用章程既有独立审批与最新版本约束; 不等于批准后锁定的财务基线或成本台账 (后者由财务域独立管理), 也不据此收紧任何访问授权. H01 维持 `partial` (目标/范围/成功标准/赞助人/独立批准/版本冻结与新增的初始预算规范化与校验均已 `implemented / local`), 授权PM显式字段与预算-财务基线对账仍待补齐, 不等于整行能力或生产签收完成.
 
+## H08 风险超阈值自动升级 (本轮增补, 2026-09-22)
+
+设计与关闭口径: 补齐矩阵 H08 长期列为"重大风险升级处置仍待补齐"的一环. 复用既有 `risk` kind 与整条复评/独立审核链, **无新增迁移** (升级字段随 payload JSON 存储). 领域 `governance.collaboration` 在 `create-risk!` 计算 `score = 概率 x 影响` (均 1-5, 评分 1-25) 后, 达到阈值 `escalation-threshold` (16) 即自动置 `escalated=true` 并写入 `escalation_state="pending"`, 按评分分层 `escalation-level` (>=20 为 `steering`, >=16 为 `management`) 与可读 `escalation-reason`; 未达阈值不写升级键, 既有 3x5=15 与 2x3=6 用例不受影响. 新增 `acknowledge-escalation!` (命令 `[:risks :escalate]`, 路由 `POST /risks/:record_id/escalate`) 须 `pms:quality:approve` 且 `{:write? false}` (只读范围审批人亦可确认), 校验: 未升级 409, 已确认再确认 409, 登记人本人确认 403, `decision` 限 `approved|rejected` (否则 400); 批准记 `escalation_state="acknowledged"`, 驳回(经评估可在现层处置)记 `"waived"`, 并留 `escalation_ack_by/decision/note/on` 与工作流历史. `mitigate!` 增加门控: 风险 `escalated` 且 `escalation_state="pending"` 时自行缓解返回 409, 须先经独立确认方可解除. 前端"风险与问题"页签台账新增"评分"列与"超阈值升级"列 (未触发/待升级确认·层级/升级已确认/升级已豁免), 仅对登记人之外的质量审批人在 pending 态显示"确认升级处置"入口, 弹窗 `risk-escalation-dialog` 选处置决定并填意见. 本轮不做复评后按新评分重新触发升级, 不做升级通知投递与跨项目风险汇总.
+
+本轮实际执行的验证:
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 治理命名空间 SQLite | 26 tests / 307 assertions, 0 失败/错误 | 新增 `risk-escalation-requires-independent-acknowledgment-before-mitigation`: 5x5 高风险自动 `escalated`/`pending`/`steering` 且带 `escalation_reason`, 2x3 低风险不升级; 未确认自行缓解 409, 低风险缓解成功 `mitigated`, 低风险误发升级确认 409, 登记人自确认 403, 非法决定 400, 独立审批人(9302)批准后 `acknowledged`/状态仍 `open`/`ack_by=9302`/`decision=approved`, 重复确认 409, 此后高风险缓解成功 `mitigated`, workspace 读模型行反映 `acknowledged` 且 `escalated=true` |
+| 全量 PMS 回归 SQLite | 78 tests / 638 assertions, 0 失败/错误 | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'`, 无回归 (既有 3x5=15 与 2x3=6 风险用例不受阈值 16 影响) |
+| 前端编译 | 0 warnings | `npx shadow-cljs compile app` (4027 files), 风险台账评分/升级列与"确认升级处置"弹窗一并编译 |
+| 冷启动迁移 (隔离库) | 通过 | 以独立 `/tmp/h08-e2e.db` 全新迁移至 `:3100` (HTTP 3100 / nREPL 7100), 不触碰 `:3000` 现有实例与默认库 |
+| Chrome 浏览器 (Playwright) | 1 passed (21.0s) | `BASE_URL=http://localhost:3100 npx playwright test tests/e2e/pms-h08.spec.js`: 界面登记 5x5 重大风险 -> 命令响应 `score=25`/`escalated=true`/`pending`/`steering` -> 台账"超阈值升级"列显示红色"待升级确认 / steering" 且登记人本人无"确认升级处置"入口 -> 真实 HTTP 未确认自行缓解 409、登记人自确认 403 -> 第二个已登录上下文合成独立质量审批人(只读+`pms:quality:approve`)视角出现"确认升级处置"入口并批准责成处置 -> 徽标翻转为"升级已确认"且确认入口消失 -> 门控解除后真实 HTTP 缓解 200 状态 `mitigated`; 截图存 `reports/h08/` (h08-1 待升级确认, h08-2 审批人确认入口, h08-3 升级已确认, h08-4 门控解除已缓解) |
+
+本轮未执行 (如实记录): MySQL 回归, 本地无可用 MySQL 实例, 待有环境时补跑. 未实现复评改分后重新评估升级层级, 未实现升级待办的通知/消息投递, 未实现跨项目重大风险汇总看板与治理层集中确认.
+
+边界: 升级门控只约束"超阈值重大风险在未经登记人之外独立质量审批人确认前不得自行缓解", 不改变风险既有复评/独立关闭链与项目授权; 确认动作本身要求 `pms:quality:approve` 且不得由登记人本人完成, 与文档发布/行动核验的独立性口径一致. H08 维持 `partial` (评分自动触发升级、层级与理由、独立确认解除缓解门控均已 `implemented / local`), 改分重评、升级通知投递与跨项目汇总仍待补齐, 不等于整行能力或生产签收完成.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.
