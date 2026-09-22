@@ -1,6 +1,6 @@
 # 治理与质量 HTTP 合同
 
-状态: 本次开发的本地业务实现. 不包含真实外部系统写入, 二进制文件服务或自动应用变更. 所有路径以 `/api/pms/projects/:id/governance` 为前缀. 路由挂在现有 JWT 认证中间件内. 下述字段为明确白名单; 未列字段返回 400.
+状态: 已实现并通过本地 SQLite 10 tests / 92 assertions, 属于全量 56 tests / 381 assertions 的组成部分. 新模块 MySQL 及生产验收采用 [验证记录](../verification.md) 的最终结果. 不包含真实外部系统写入, 二进制文件服务或自动应用变更. 所有路径以 `/api/pms/projects/:id/governance` 为前缀. 路由挂在现有 JWT 认证中间件内. 下述字段为明确白名单; 未列字段返回 400.
 
 ## 事务, 权限与读模型
 
@@ -30,9 +30,12 @@
 | POST `/risks` | title, probability: 1..5, impact: 1..5, owner_id, mitigation, due_date | 创建 open 风险, score = probability * impact |
 | POST `/risks/:rid/mitigate` | mitigation, evidence_ids | open/mitigated -> mitigated, 必须记录实际证据 |
 | POST `/risks/:rid/materialize` | 可选 title | 幂等生成问题, 记录 source_risk_id 和 issue_id; impact >= 4 为 blocker, 否则 major |
+| POST `/risks/:rid/review` | outcome: active/mitigated/closed, review_note, evidence_ids, reviewer_id, 非关闭时必填 next_review_date | open/mitigated/materialized/closed -> in_review; 关联问题均须已关闭; 保留此前状态和复审依据 |
+| POST `/risks/:rid/decision` | decision: approved/rejected, reason | 指定独立审核人批准后变为 open/mitigated/closed, 拒绝恢复复审前状态 |
 | POST `/issues` | title, severity: blocker/major/minor, owner_id, due_date | 创建 open 问题 |
 | POST `/issues/:rid/resolve` | resolution, evidence_ids, reviewer_id | open/rejected -> in_review, 提交整改证据及独立验证人 |
-| POST `/issues/:rid/decision` | decision: approved/rejected, reason | approved -> closed, rejected -> rejected; 独立验证 |
+| POST `/issues/:rid/reopen` | reason, evidence_ids, reviewer_id | closed -> in_review, 以新原因和证据申请重开, 不直接恢复处理中 |
+| POST `/issues/:rid/decision` | decision: approved/rejected, reason | 整改验证时批准 -> closed, 拒绝 -> rejected; 重开评审时批准 -> open, 拒绝 -> closed; 必须指定人独立决定 |
 | POST `/meetings` | title, held_on, minutes, attendee_ids | 持久化纪要及 1..100 个参与人, 状态 recorded |
 | POST `/meetings/:rid/actions` | title, owner_id, due_date | 创建归属该会议的 open 行动项 |
 | POST `/actions/:rid/task` | 可选 start_date, duration_days, wbs_code | 同事务创建真实 WBS 任务, 状态 converted, 保存 target_task_id; 重试不重复创建 |
@@ -48,6 +51,8 @@
 
 所有日期均为有效 ISO 日期 `YYYY-MM-DD`. Gate 模板检查项是 `{code, title, required}`. Gate 检查结果是 `{code, passed, evidence_ids}`; 不能通过客户端改动模板的必需性. `evidence_ids` 是同项目真实文档版本 `id` 的不重复数组, 至多 50 条; 要求证据时至少 1 条. 不接受任意网址或自由文本作为已受控证据.
 
+问题整改和重开分别以 `review_action: closure/reopen` 标识, `workflow_history` 保留此前关闭结论及每次重开决定. 风险复审使用 `review_action: risk_review`, 含 `review_previous_status`, `requested_outcome`, `submitted_by` 和 `reviewer_id`. 非关闭结论的 `next_review_date` 必须严格晚于服务端当天; 提交及批准时均验证, 过期的待审申请不能直接批准. 风险关闭仍须实际证据和独立批准. 风险关联问题在提交及批准复审时均须已关闭, 历史问题 ID 不丢失. 读模型增加 `last_reviewed_on`, `review_due_date`, `review_overdue`; 到期日为今天或之前且风险未关闭时显示逾期, 本轮不自动发送升级通知.
+
 ## 真实文档与 CSV
 
 `content` 是真实提交文本, 包含首尾空格和换行的原始 UTF-8 字节; 非空且至多 1MiB. filename 不得含路径分隔符或换行. `registered` 表示已通过字段和摘要校验登记的不可变版本, 可用于验收引用; 本次不含独立文档发布审批. 新版本不会替换旧 Gate, 问题或验收所引用的版本.
@@ -62,7 +67,7 @@
 
 `governance/closure-ready! [q project]` 要求无未 closed 的 blocker 问题, 且 required closure Gate 全部签核. 计划基线, 费用结算和正式收尾清单由各自模块再验证; 单独 Gate 通过不代表整个项目可以关闭.
 
-`governance/evidence-version! [q project id]` 验证同项目实际已登记文档版本, 返回含正文摘要的对象. `governance/approved-change! [q project id]` 验证最新正式变更已独立批准. 计划模块可将 change_id 固定在新的基线发布中, 仍需显式编辑和基线审批. `blockers` 供前端说明生命周期前置缺口.
+`governance/evidence-version! [q project id]` 验证同项目实际已登记文档版本, 返回含正文摘要的对象. `governance/approved-change! [q project id]` 验证最新正式变更已独立批准. 执行期间发布新计划基线必须引用已批准的 `change_id`, 仍需显式编辑计划和独立基线审批, 不会自动应用影响说明中的任务或费用变化. `blockers` 供前端说明生命周期前置缺口.
 
 会议行动转任务复用 planning/create-task-record!, 因而同样检查当前计划是否可编辑, 成员责任人和项目计划修订. 返回 `{target_task_id, action}`. 风险转问题与行动转任务在新项目版本下重试返回同一目标, 仍产生一条本次命令的审计记录; 陈旧版本直接 409.
 

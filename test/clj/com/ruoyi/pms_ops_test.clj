@@ -26,11 +26,11 @@
     (try
       (migratus/migrate {:store :database :db {:datasource db}
                         :migration-dir (if (.contains url "mysql") "migrations" "migrations-sqlite")})
-      (jdbc/execute! db ["INSERT INTO sys_role(role_id,role_name,role_key,role_sort,status,del_flag) VALUES(9500,'Ops test','ops-test',40,'0','0')"])
-      (jdbc/execute! db ["INSERT INTO sys_role_menu(role_id,menu_id) SELECT 9500,menu_id FROM sys_menu WHERE perms LIKE 'pms:%'"])
-      (doseq [id [9501 9502 9503]]
+      (jdbc/execute! db ["INSERT INTO sys_role(role_id,role_name,role_key,role_sort,status,del_flag) VALUES(9600,'Ops test','ops-test',40,'0','0')"])
+      (jdbc/execute! db ["INSERT INTO sys_role_menu(role_id,menu_id) SELECT 9600,menu_id FROM sys_menu WHERE perms LIKE 'pms:%'"])
+      (doseq [id [9601 9602 9603]]
         (jdbc/execute! db ["INSERT INTO sys_user(user_id,dept_id,user_name,nick_name,status,del_flag) VALUES(?,1,?,?,'0','0')" id (str "fin-" id) (str "财务测试" id)])
-        (jdbc/execute! db ["INSERT INTO sys_user_role(user_id,role_id) VALUES(?,9500)" id]))
+        (jdbc/execute! db ["INSERT INTO sys_user_role(user_id,role_id) VALUES(?,9600)" id]))
       (let [files (->> (.listFiles (io/file "resources/sql"))
                        (filter #(re-matches #"pms.*\.sql" (.getName %)))
                        (map #(str "sql/" (.getName %))) sort)
@@ -48,19 +48,19 @@
 
 (defn- command!
   "以指定成员携带真实版本执行业务命令."
-  ([f id args body] (command! 9501 f id args body))
+  ([f id args body] (command! 9601 f id args body))
   ([uid f id args body]
    (apply f *svc* (actor uid) id (concat args [(assoc body :version (version id))]))))
 
 (defn- project!
   "创建项目并设置审批人和普通成员,不直接改生命周期状态."
   []
-  (let [p (pms/create-project! *svc* (actor 9501)
+  (let [p (pms/create-project! *svc* (actor 9601)
              {:project_no (str "FIN-" (kernel/id)) :name "生命周期验收"
-              :manager_id 9501 :dept_id 1 :start_date "2026-09-01" :end_date "2026-12-31"})
+              :manager_id 9601 :dept_id 1 :start_date "2026-09-01" :end_date "2026-12-31"})
         id (:project_id p)]
-    (pms/set-member! *svc* (actor 9501) id {:user_id 9502 :role "viewer"})
-    (pms/set-member! *svc* (actor 9501) id {:user_id 9503 :role "editor"})
+    (pms/set-member! *svc* (actor 9601) id {:user_id 9602 :role "viewer"})
+    (pms/set-member! *svc* (actor 9601) id {:user_id 9603 :role "editor"})
     id))
 
 (defn- document!
@@ -105,12 +105,12 @@
     (is (= (:id first-message) (:id repeat-message)))
     (is (= 409 (error-status #(command! inbox/receive! id [] (assoc body :data {:status "changed"})))))
     (command! inbox/receive! id [] (assoc body :event_id "event-1" :source_revision 1 :data {:status "draft"}))
-    (let [workspace (integration/workspace *svc* (actor 9501) id)]
+    (let [workspace (integration/workspace *svc* (actor 9601) id)]
       (is (= 2 (count (:inbox workspace))))
       (is (= 2 (:source_revision (first (:facts workspace)))))
       (is (= 1 (get-in workspace [:reconciliation :ignored])))
       (is (every? #(not (contains? % :payload_json)) (:inbox workspace))))
-    (is (= "draft" (:status (pms/project *svc* (actor 9501) id))))
+    (is (= "draft" (:status (pms/project *svc* (actor 9601) id))))
     (is (= 400 (error-status #(command! inbox/receive! id [] (assoc body :source "unknown")))))))
 
 (deftest outbox-freezes-content-and-uses-source-permissions
@@ -119,12 +119,12 @@
     (is (= (:id message) (:id duplicate)))
     (command! gov/command! id [:documents :revisions (:id doc)]
               {:code (:code doc) :title "新版本" :filename "new.txt" :content "新内容"})
-    (is (= "  原始证据\n" (get-in (outbox/detail *svc* (actor 9501) id (:id message)) [:payload :data :content])))
+    (is (= "  原始证据\n" (get-in (outbox/detail *svc* (actor 9601) id (:id message)) [:payload :data :content])))
     (is (= 503 (error-status #(command! dispatch/deliver! id [(:id message)] {}))))
-    (is (= "queued" (:status (first (:outbox (integration/workspace *svc* (actor 9501) id))))))
+    (is (= "queued" (:status (first (:outbox (integration/workspace *svc* (actor 9601) id))))))
     (let [other (project!) foreign (document! other)]
       (is (= 404 (error-status #(enqueue! id foreign "wrong-scope")))))
-    (is (= 403 (error-status #(outbox/enqueue! *svc* (update (actor 9501) :permissions disj "pms:finance:query") id
+    (is (= 403 (error-status #(outbox/enqueue! *svc* (update (actor 9601) :permissions disj "pms:finance:query") id
                               {:version (version id) :target "erp" :topic "cost.approved" :source_id "fake" :idempotency_key "money"}))))))
 
 (deftest actual-http-requires-matching-business-receipt
@@ -132,7 +132,7 @@
     (with-endpoint (fn [body] [200 {:accepted true :message_id (:message_id body) :receipt_id "ACK-1"}])
       (fn [seen]
         (let [result (:result (command! dispatch/deliver! id [(:id message)] {}))
-              workspace (integration/workspace *svc* (actor 9501) id)]
+              workspace (integration/workspace *svc* (actor 9601) id)]
           (is (= "delivered" (:status result)))
           (is (= (:id message) (:key (first @seen))))
           (is (= 1 (count @seen)))
@@ -149,14 +149,14 @@
         (dotimes [_ 4]
           (jdbc/execute! (:db *svc*) ["UPDATE pms_outbox SET next_retry_at=0 WHERE message_id=?" (:id message)])
           (command! dispatch/deliver! id [(:id message)] {}))
-        (let [workspace (integration/workspace *svc* (actor 9501) id)]
+        (let [workspace (integration/workspace *svc* (actor 9601) id)]
           (is (= "dead_letter" (:status (first (:outbox workspace)))))
           (is (= 5 (count (:attempts workspace))))
           (is (= #{"receipt_mismatch"} (set (map :error_code (:attempts workspace)))))
           (is (= 5 (count @seen)))
           (is (= #{(:id message)} (set (map :key @seen)))))
         (command! dispatch/retry! id [(:id message)] {:reason "修正接收方后重试"})
-        (is (= "queued" (:status (first (:outbox (integration/workspace *svc* (actor 9501) id))))))))))
+        (is (= "queued" (:status (first (:outbox (integration/workspace *svc* (actor 9601) id))))))))))
 
 (deftest inbox-audit-failure-rolls-back-source-projection
   (let [id (project!) before (version id) query (:query-fn *svc*)
@@ -164,10 +164,10 @@
                                        ([tx k p] (when (= k :pms/insert-event!) (throw (ex-info "audit offline" {})))
                                         (query tx k p))))]
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"audit offline"
-          (inbox/receive! failing (actor 9501) id {:version before :source "crm" :event_id "rollback"
+          (inbox/receive! failing (actor 9601) id {:version before :source "crm" :event_id "rollback"
              :entity_type "material" :external_key "M-1" :source_revision 1 :data {:qty 4}})))
     (is (= before (version id)))
-    (is (empty? (:facts (integration/workspace *svc* (actor 9501) id))))))
+    (is (empty? (:facts (integration/workspace *svc* (actor 9601) id))))))
 
 (deftest response-body-has-bounded-size-and-completion-time
   (let [id (project!) message (enqueue! id (document! id) "bounded")]
