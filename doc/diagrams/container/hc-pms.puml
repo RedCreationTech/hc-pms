@@ -1,0 +1,24 @@
+@startuml
+!include <C4/C4_Container>
+HIDE_STEREOTYPE()
+title HC-PMS - Container Architecture and Delivery Boundaries
+Person(user, "Authorized user", "Uses project workspace")
+System_Boundary(pms, "HC-PMS") {
+  Container(web, "Web workspace", "ClojureScript / Reagent / Ant Design", "Dynamic menus, project center and dashboard")
+  Container(api, "Application API", "Clojure / Kit / Reitit", "Authentication, project policies, commands and audit")
+  ContainerDb(db, "Application database", "SQLite dev / MySQL target", "Projects, structure, membership and audit")
+  Container(bpm, "Workflow engine", "Embedded Flowable", "Existing office workflows; PMS approvals planned")
+  ContainerDb(bpmdb, "Workflow storage", "H2", "Existing engine persistence")
+  Container(worker, "Integration and AI workers [planned]", "Clojure workers", "Outbox, reconciliation and evidence-backed drafts")
+  ContainerDb(files, "Evidence storage [planned]", "Object or file storage", "Versioned delivery documents")
+}
+System_Ext(ext, "Enterprise systems", "CRM, SAP, PLM, MES, SRM, OA, service and BI")
+Rel(user, web, "Uses", "HTTPS")
+Rel(web, api, "Submits authenticated requests", "JSON / JWT")
+Rel(api, db, "Reads and writes atomically", "HugSQL / JDBC")
+Rel(api, bpm, "Runs existing office workflows", "Java API")
+Rel(bpm, bpmdb, "Persists engine state", "JDBC")
+Rel(worker, db, "Consumes outbox / records inbox [planned]", "JDBC")
+Rel(worker, ext, "Exchanges versioned facts [planned]", "Adapters")
+Rel(api, files, "Stores evidence revisions [planned]", "Storage adapter")
+@enduml

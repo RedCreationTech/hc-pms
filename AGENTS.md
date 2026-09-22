@@ -1,8 +1,11 @@
-# RuoYi-Clojure Agent Instructions
+# HC-PMS Agent Instructions
 
-> **开发分支**: `ruoyi-template`
-> **仓库**: RedCreationTech/ruoyi_clojure (git@github.com:RedCreationTech/ruoyi_clojure.git)
-> **当前 Git**: `ruoyi-template` 分支与 `origin/ruoyi-template` 同步 (HEAD `ee3b486` - "Format entire codebase with cljstyle")
+> **产品仓库**: RedCreationTech/hc-pms
+> **开发分支**: `feat/pms-foundation`
+> **上游模板**: RedCreationTech/ruoyi_clojure, `ruoyi-template`, commit `99706b06fea4ff9efed6822a70cbda1c2bd98552`
+> **PMS设计入口**: [docs/pms/README.md](docs/pms/README.md)
+> **交付范围**: 当前Batch 1, 不把计划/Gate/URS/四算/AI设计当作已实现功能.
+> **发布边界**: 源模板为私有仓库. 未确认源代码公开许可前, 不向公开仓库推送代码或Git历史. 原PPT与内部提炼不进入版本库.
 > **参考原版**: https://gitee.com/y_project/RuoYi-Vue (v3.9.2)
 
 ---
@@ -360,8 +363,8 @@ java -jar target/rouyi-standalone.jar # 运行
 ### Git 操作
 
 ```bash
-git checkout ruoyi-template    # 开发分支
-git push origin ruoyi-template # 推送
+git checkout feat/pms-foundation # 当前产品开发分支
+# 发布前先核对仓库可见性与源模板公开许可.
 ```
 
 ---
@@ -602,7 +605,7 @@ antd 无法自动向 Reagent 函数组件注入 `value`/`onChange`,需要通过 
 ```
 [ ] git status                              # 检查变更
 [ ] git add <files> && git commit -m "..."  # 提交代码
-[ ] git push origin ruoyi-template          # 推送到远程
+[ ] 核对源模板公开许可及目标仓库可见性后再发布
 [ ] 确认 nREPL 端口                         # cat .nrepl-port 2>/dev/null || echo 7000
 [ ] 验证 nREPL 可连接                       # clj-nrepl-eval -p $NREPL_PORT '(+ 1 1)'
 [ ] 检查后端是否正常运行                    # curl http://localhost:3000/api/health

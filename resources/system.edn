@@ -115,6 +115,10 @@
  {:query-fn #ig/ref :db.sql/query-fn
   :db       #ig/ref :db.sql/connection}
 
+ :app.pms/service
+ {:query-fn #ig/ref :db.sql/query-fn
+  :db #ig/ref :db.sql/connection}
+
  :reitit.routes/api
  {:base-path      "/api"
   :env            #ig/ref :system/env
@@ -135,7 +139,8 @@
   :crm-service          #ig/ref :app.business/crm-service
   :leave-service        #ig/ref :app.business/leave-service
   :reimburse-service    #ig/ref :app.business/reimburse-service
-  :mgmt-service         #ig/ref :app.business/bpm-mgmt-service}
+  :mgmt-service         #ig/ref :app.business/bpm-mgmt-service
+  :pms-service          #ig/ref :app.pms/service}
 
  :router/routes
  {:routes #ig/refset :reitit/routes}
@@ -176,7 +181,7 @@
  :db.sql/query-fn
  {:conn      #ig/ref :db.sql/connection
   :options   {}
-  :filenames ["queries.sql" "sql/system.sql" "sql/log.sql" "sql/job.sql" "sql/business.sql"]
+  :filenames ["queries.sql" "sql/system.sql" "sql/log.sql" "sql/job.sql" "sql/business.sql" "sql/pms.sql"]
   :env       #ig/ref :system/env}
 
  :db.sql/migrations

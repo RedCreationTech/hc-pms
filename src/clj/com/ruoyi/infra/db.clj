@@ -257,7 +257,7 @@
                            (let [bind-fn (resolve 'conman.core/bind-connection-map)]
                              (bind-fn conn {}
                                       "queries.sql" "sql/system.sql" "sql/log.sql"
-                                      "sql/job.sql" "sql/gen.sql" "sql/generated.sql" "sql/business.sql")))
+                                      "sql/job.sql" "sql/business.sql" "sql/pms.sql")))
             new-qf (fn
                      ([query params]
                       (let [f (get (:fns (load-queries)) query)]

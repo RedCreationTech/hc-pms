@@ -40,3 +40,6 @@ CLAUDE.md
 .beads/*
 !.beads/identity.toml
 .dev-pids
+
+# Local implementation scratch and temporary source material
+/work/

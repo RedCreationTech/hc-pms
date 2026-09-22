@@ -4,6 +4,12 @@
 #+SETUPFILE: https://gitee.com/zhaoyuKevin/org-html-themes/raw/master/org/setup/html-theme-readtheorg.setup
 #+description: 从 BPM_OA_DESIGN.md,BPM_GAP_PLAN.md,add-new-module.md,README.md,system.edn 提炼的单一设计文档.
 
+* HC-PMS 产品扩展入口
+
+本文保留上游平台设计. HC-PMS V1的订单项目边界, 领域规则, 数据库, API,
+界面和分批验收以 [[file:../pms/README.md][HC-PMS设计基线]] 为准. 实际实现范围与验证证据见
+[[file:../pms/verification.md][PMS验证记录]]. 上游办公模块的完成度不能当作PMS工业过程模块的完成度.
+
 #+begin_comment
 本文档中的 C4 架构视图(系统上下文 / 容器 / 组件)与两张流程图为 Org Babel
 内嵌 PlantUML 源码块(C4 视图使用 C4-PlantUML 宏),图片输出到 diagrams/ 目录.
@@ -523,7 +529,7 @@ bpm_flow_designer / bpmn_modeler / bpmn_viewer.
 - 流程定义版本页:定义分页(version/suspensionState/deployTime/form 绑定),
   查看 XML,历史版本恢复(反写回模型 bpmn_xml 重新编辑部署).
 - 模型启停/清理/复制:按 key 挂起/激活最新定义;清理历史实例+部署;
-  复制模型(名称+“副本”,key+_copy).
+  复制模型(名称+"副本",key+_copy).
 - *流程编号规则*:模型级 process_id_rule JSON,发起时生成单号
   (前缀+日期中缀+流水号,长度≥5,当日自增),存 biz_bpm_instance.bill_code.
 - *自动去重*:模型级 auto_approval_type:NONE / APPROVE_ONCE(同一审批人只审

@@ -31,6 +31,13 @@
                   (on-error result)))}))
 
 
+(defn pms-request
+  "请求 PMS 资源,沿用系统 JWT 与统一 HTTP 编解码."
+  [method path params on-success on-error]
+  (request {:method method :uri (str "/pms" path) :params params
+            :on-success on-success :on-error on-error}))
+
+
 (defn login
   "用户登录."
   [params on-success on-error]

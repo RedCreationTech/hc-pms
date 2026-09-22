@@ -1,0 +1,20 @@
+@startuml
+!include <C4/C4_Context>
+HIDE_STEREOTYPE()
+title HC-PMS - Industrial Order Project Context (V1 Target)
+Person(pm, "Project team", "PM, BU owners and project members")
+Person(quality, "Quality and acceptance", "Evidence review and acceptance decisions")
+Person(lead, "PMO and management", "Portfolio and delivery oversight")
+System(pms, "HC-PMS", "Order project lifecycle, plans, evidence and project traceability")
+System_Ext(office, "OA / IAM", "Organization, identities and collaboration")
+System_Ext(commercial, "CRM / SAP", "Customer, contract, order and accounting truth")
+System_Ext(engineering, "PLM / MES / SRM", "Design, manufacturing and supply facts")
+System_Ext(service, "Service materials / BI", "Field service and enterprise analytics")
+Rel(pm, pms, "Plans and executes authorized projects", "HTTPS")
+Rel(quality, pms, "Reviews evidence and acceptance", "HTTPS; future batch")
+Rel(lead, pms, "Views authorized project indicators", "HTTPS")
+Rel(office, pms, "Provides organizational identities", "Adapter; local IAM in Batch 1")
+Rel(commercial, pms, "Provides order and cost references", "Integration adapter; planned")
+Rel(engineering, pms, "Provides versioned delivery facts", "Integration adapter; planned")
+Rel(pms, service, "Exchanges project and delivery references", "Integration adapter; planned")
+@enduml

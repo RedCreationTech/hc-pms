@@ -59,6 +59,8 @@
     [com.ruoyi.frontend.pages.oper-log :as oper-log]
     [com.ruoyi.frontend.pages.post :as post]
     [com.ruoyi.frontend.pages.profile :as profile]
+    [com.ruoyi.frontend.pages.pms.project :as pms-project]
+    [com.ruoyi.frontend.pages.pms.dashboard :as pms-dashboard]
     [com.ruoyi.frontend.pages.role :as role]
     [com.ruoyi.frontend.pages.server :as server]
     [com.ruoyi.frontend.pages.swagger :as swagger]
@@ -329,11 +331,15 @@
    :integrant "monitor/integrant"
    :swagger "monitor/swagger"
    :profile "system/user/profile"
-   :dashboard "dashboard"})
+   :dashboard "dashboard"
+   :pms-project "pms/project"
+   :pms-dashboard "pms/dashboard"})
 
 
 (def page-breadcrumbs
   {:dashboard ["首页"]
+   :pms-project ["首页" "项目管理" "项目中心"]
+   :pms-dashboard ["首页" "项目管理" "项目驾驶舱"]
    :user ["首页" "系统管理" "用户管理"]
    :role ["首页" "系统管理" "角色管理"]
    :menu ["首页" "系统管理" "菜单管理"]
@@ -758,6 +764,8 @@
        [error-boundary/boundary
         (case page
           :dashboard [dashboard/dashboard-page]
+          :pms-project [pms-project/project-page]
+          :pms-dashboard [pms-dashboard/dashboard-page]
           :user [user/user-page]
           :role [role/role-page]
           :menu [menu/menu-page]

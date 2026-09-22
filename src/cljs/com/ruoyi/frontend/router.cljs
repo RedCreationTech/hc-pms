@@ -9,6 +9,8 @@
 (def routes
   ["/" {"" :dashboard
         "dashboard" :dashboard
+        "pms/project" :pms-project
+        "pms/dashboard" :pms-dashboard
         "system/user" :user
         "system/role" :role
         "system/menu" :menu
@@ -70,6 +72,8 @@
 ;; 页面名称映射
 (def page-names
   {:dashboard "首页"
+   :pms-project "项目中心"
+   :pms-dashboard "项目驾驶舱"
    :user "用户管理"
    :role "角色管理"
    :menu "菜单管理"
