@@ -1,7 +1,7 @@
 # HC-PMS Agent Instructions
 
 > **产品仓库**: RedCreationTech/hc-pms
-> **产品主分支**: `main`, 首版项目基础已纳入主分支, 后续开发使用按任务命名的功能分支.
+> **产品主分支**: `main`, 核心本地业务闭环已纳入主分支, 后续开发使用按任务命名的功能分支.
 > **上游模板**: RedCreationTech/ruoyi_clojure, `ruoyi-template`, commit `99706b06fea4ff9efed6822a70cbda1c2bd98552`
 > **PMS设计入口**: [docs/pms/README.md](docs/pms/README.md)
 > **最终目标**: 先逐项覆盖原PPT展示的全部PMS功能, 再补齐标准PMS从批准, 计划, 执行, 控制, 验收到结算, 收尾归档的完整闭环. 以[功能验收矩阵](docs/pms/11-feature-acceptance-matrix.md)追踪, 首批范围不能代替最终产品目标.

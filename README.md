@@ -2,7 +2,7 @@
 
 基于 `RedCreationTech/ruoyi_clojure` 的 `ruoyi-template` 分支开发, 将订单项目的结构, 团队, 计划与交付证据逐步连接起来.
 
-已实现项目核心工作台和本地业务闭环, 包括计划,治理,交付,工时成本与独立关闭. [设计入口](docs/pms/README.md) | [验证记录](docs/pms/verification.md) | [开发路线](docs/pms/10-development-roadmap.md) | [原模板文档](docs/template-readme.md)
+已实现项目核心工作台和本地业务闭环, 包括计划,治理,交付,工时成本与独立关闭. [操作体验指南](docs/pms/12-user-guide.md) | [设计入口](docs/pms/README.md) | [验证记录](docs/pms/verification.md) | [开发路线](docs/pms/10-development-roadmap.md) | [原模板文档](docs/template-readme.md)
 
 ## 项目目标
 
