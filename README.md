@@ -25,7 +25,7 @@
 
 ## 技术与来源
 
-Kit / Clojure 1.12, Reitit, HugSQL, Migratus; ClojureScript / Reagent 2 / re-frame / Ant Design 6. 本地默认SQLite, MySQL维护独立迁移. 保留模板身份, 组织, 动态权限菜单, 办公流程和Flowable.
+Kit / Clojure 1.12, Reitit, HugSQL, Migratus; ClojureScript / Reagent 2 / re-frame / Ant Design 6. 本地默认SQLite, MySQL 8.0.13+维护独立迁移. 保留模板身份, 组织, 动态权限菜单, 办公流程和Flowable.
 
 固定模板基线: `99706b06fea4ff9efed6822a70cbda1c2bd98552`. `upstream` 指向模板, `origin` 指向产品仓库. 用户于2026-09-22明确授权向公开的 `RedCreationTech/hc-pms` 推送本项目工程及其模板历史. 原始业务PPT, 内部逐页提炼, 凭据和运行数据库不随源码发布.
 

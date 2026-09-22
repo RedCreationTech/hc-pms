@@ -5,7 +5,7 @@
 -- start_dept_ids    谁可发起-指定部门(JSON 部门 id 数组)
 -- manager_user_ids  流程管理员(JSON 用户 id 数组,仅展示用)
 
-ALTER TABLE biz_bpm_model ADD COLUMN icon TEXT NOT NULL DEFAULT '';
+ALTER TABLE biz_bpm_model ADD COLUMN icon TEXT NOT NULL DEFAULT ('');
 --;;
 ALTER TABLE biz_bpm_model ADD COLUMN order_num INTEGER NOT NULL DEFAULT 0;
 --;;
