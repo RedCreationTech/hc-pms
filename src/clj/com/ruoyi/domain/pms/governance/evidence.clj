@@ -234,3 +234,19 @@
    :fully-traced (count (filterv #(and (:satisfied? %) (:verified? %)) report))
    :missing-design (count (remove :satisfied? report))
    :missing-verification (count (remove :verified? report))})
+
+
+(defn document-collection
+  "按阶段/结构节点/密级对每个业务编码的最新版本证据文档做只读归集, 供分层查看与密级过滤; 不改变不可变版本, 授权与SHA256校验."
+  [documents]
+  (let [latest (s/latest documents)
+        buckets (fn [keyfn]
+                  (->> (group-by keyfn latest)
+                       (mapv (fn [[k rows]] {:key k :count (count rows)}))
+                       (sort-by (fn [{:keys [key]}] [(if (= "" key) 1 0) key]))))
+        class-count (fn [c] (count (filterv #(= c (:classification %)) latest)))]
+    {:total (count latest)
+     :by-stage (buckets :stage)
+     :by-structure-node (buckets :structure_node)
+     :by-classification (mapv (fn [c] {:classification c :count (class-count c)})
+                              ["public" "internal" "confidential"])}))

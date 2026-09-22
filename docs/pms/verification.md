@@ -235,6 +235,24 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 发布审批复用与章程/变更一致的 `reviewer!`/`decision-actor!` 职责分离与 `latest!` 最新版本约束; 不改变文档不可变版本与 SHA256 摘要校验, 不改变 Gate/问题/验收对具体版本的固定引用. C06 维持 `partial` (文档独立发布审批链已 `implemented / local`), 电子签章与外部文书模板仍待实现, 不等于整行能力或生产签收完成.
 
+## C04 文档归集视图与密级过滤 (本轮增补, 2026-09-22)
+
+设计与关闭口径: 补齐矩阵 C04 长期列为"尚无按阶段/节点归集视图, 密级过滤"的一环——让已登记的不可变归集字段 (密级/阶段/结构节点) 在工作台形成可核验的分层视图. 复用既有 `document` kind 与已持久化的 `classification`/`stage`/`structure_node` 字段, **无新增迁移**. 领域新增纯只读函数 `evidence/document-collection`: 以 `store/latest` 取每个文档 `code` 的最新 `revision`, 按 `stage`/`structure_node`/`classification` 聚合计数与 `total`, 空值归"未归集"并排在最后, 密级固定覆盖 `public|internal|confidential` 三值; 同一编号的旧修订不重复计数. `governance/workspace` 读模型新增 `document_collection`. 前端"证据版本"页签新增"文档归集视图"面板展示三类聚合与最新版本总数, 并给"文档与版本证据"表加按密级的客户端过滤 (仅过滤当前展示行, 不改变服务端授权与批量下载范围). 本轮不引入二进制存储与多层下钻归集.
+
+本轮实际执行的验证:
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 治理命名空间 SQLite | 24 tests / 271 assertions, 0 失败/错误 | 新增 `document-collection-aggregates-latest-versions-only`: 登记跨阶段/密级/结构节点的四份文档并对 DOC-A 产生改阶段改密级的新修订, 断言 total=最新版本数 4, by-stage/by-structure-node 计数正确且空值归未归集排最后, by-classification 固定三值顺序稳定, 关键不变量——DOC-A 修订后离开"设计准备/机密"进入"测试/公开"且旧版本不重复计数 (机密计数归零) |
+| 全量 PMS 回归 SQLite | 76 tests / 602 assertions, 0 失败/错误 | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'`, 无回归 |
+| 前端编译 | 0 warnings | `npx shadow-cljs compile app` (4027 files), 归集面板与密级过滤入口一并编译 |
+| 冷启动迁移 (隔离库) | 通过 | 以独立 `/tmp/c04b-e2e.db` 全新迁移至 `:3100` (HTTP 3100 / nREPL 7100), 不触碰 `:3000` 现有实例与默认库 |
+| Chrome 浏览器 (Playwright) | 1 passed (18.4s) | `BASE_URL=http://localhost:3100 npx playwright test tests/e2e/pms-c04b.spec.js`: 界面登记跨阶段/密级/结构节点四份文档 -> 对 DOC-A 产生改阶段改密级的新修订 -> 归集视图按最新版本聚合(最新版本证据 4, 公开 2/内部 2/机密 0, 按阶段 测试·1/装配·1/设计·1/未归集·1, 按结构节点 主机·2/附件·1/未归集·1, 未归集排最后) -> 密级过滤表格 -> 真实 HTTP GET 回显 document_collection; 截图存 `reports/c04b/` (c04b-1, c04b-2) |
+
+本轮未执行 (如实记录): MySQL 回归, 本地无可用 MySQL 实例, 待有环境时补跑. 未实现二进制/大文件存储, 未做按阶段/结构节点的多层下钻归集与跨层卷积.
+
+边界: 归集为读取时按最新版本计算的只读视图, 不写入存储, 不改变文档不可变版本与 SHA256 摘要校验, 不改变项目授权与批量下载范围; 密级过滤仅作用于前端展示, 服务端仍按项目授权放行, 不据密级收紧访问. C04 维持 `partial` (按最新版本归集视图与密级过滤子集已 `implemented / local`), 二进制存储与多层下钻仍待实现, 不等于整行能力或生产签收完成.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

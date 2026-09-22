@@ -73,7 +73,8 @@
                       :appointments (appointment/list-summaries q project)
                       :raci_conflicts (stakeholders/conflicts q project)
                       :traceability traceability
-                      :trace_summary (evidence/trace-summary traceability))))))
+                      :trace_summary (evidence/trace-summary traceability)
+                      :document_collection (evidence/document-collection (:documents data)))))))
 
 
 (defn- creating

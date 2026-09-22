@@ -797,3 +797,29 @@
       (is (= 200 (:status ws)))
       (is (= 1 (count (get-in ws [:body :data :stakeholders]))))
       (is (some #(= "发布" (:activity %)) (get-in ws [:body :data :raci]))))))
+
+
+(deftest document-collection-aggregates-latest-versions-only
+  (let [id (project!)
+        reg (fn [code stage class node]
+              (command! id :documents :create nil
+                        {:code code :title (str "文档 " code) :filename (str code ".txt")
+                         :content "真实正文" :stage stage :classification class :structure_node node}))
+        a (reg "DOC-A" "设计准备" "confidential" "主机")
+        _ (reg "DOC-B" "设计准备" "internal" "")
+        _ (reg "DOC-C" "" "public" "附件")
+        _ (reg "DOC-D" "装配" "internal" "主机")
+        _ (command! id :documents :revisions (:id a)
+                    {:code "DOC-A" :title "文档 A 修订" :filename "DOC-A.txt"
+                     :content "修订正文" :stage "测试" :classification "public" :structure_node "主机"})
+        col (:document_collection (workspace id))
+        stage->count (into {} (map (juxt :key :count)) (:by-stage col))
+        node->count (into {} (map (juxt :key :count)) (:by-structure-node col))
+        class->count (into {} (map (juxt :classification :count)) (:by-classification col))]
+    (is (= 4 (:total col)))
+    (is (= {"设计准备" 1 "测试" 1 "装配" 1 "" 1} stage->count))
+    (is (= {"主机" 2 "附件" 1 "" 1} node->count))
+    (is (= {"public" 2 "internal" 2 "confidential" 0} class->count))
+    (is (= "" (:key (last (:by-stage col)))))
+    (is (= "" (:key (last (:by-structure-node col)))))
+    (is (= ["public" "internal" "confidential"] (map :classification (:by-classification col))))))

@@ -66,12 +66,46 @@
     [antd/tag {:color color} text]))
 
 
+(defn- collection-label
+  [k]
+  (if (= "" k) "未归集" k))
+
+
+(defn- collection-section
+  "按每个文档编号的最新版本只读聚合阶段/结构节点/密级, 修订不重复计数."
+  [{:keys [model]}]
+  (let [col (:document_collection model)
+        class-label {"public" "公开" "internal" "内部" "confidential" "机密"}]
+    [shared/panel "文档归集视图" "按每个文档编号的最新版本聚合阶段/结构节点/密级, 供分层查看; 修订不重复计数"
+     (if (pos? (:total col 0))
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "最新版本证据 " (:total col 0))]
+         (for [{:keys [classification count]} (:by-classification col)]
+           ^{:key classification} [antd/tag (str (get class-label classification classification) " " count)])]
+        [:div
+         [:span {:style {:fontWeight 500}} "按阶段: "]
+         [antd/space {:wrap true}
+          (for [{:keys [key count]} (:by-stage col)]
+            ^{:key (str "s-" key)} [antd/tag {:color (if (= "" key) "default" "purple")}
+                                    (str (collection-label key) " · " count)])]]
+        [:div
+         [:span {:style {:fontWeight 500}} "按结构节点: "]
+         [antd/space {:wrap true}
+          (for [{:keys [key count]} (:by-structure-node col)]
+            ^{:key (str "n-" key)} [antd/tag (str (collection-label key) " · " count)])]]]
+       [:span {:style {:color "#8793a3"}} "暂无证据文档, 登记后此处按阶段/结构/密级归集."])]))
+
+
 (defn- document-section
-  "列出可校验的真实证据文档及不可变版本, 支持打包批量下载与独立发布审批."
+  "列出可校验的真实证据文档及不可变版本, 支持打包批量下载, 密级过滤与独立发布审批."
   [{:keys [base model options editable? approve? open! document!]}]
-  (let [ids (latest-document-ids (:documents model)) current (:currentUserId options)]
+  (let [[class-filter set-class-filter!] (hooks/use-state nil)
+        ids (latest-document-ids (:documents model)) current (:currentUserId options)
+        all-docs (:documents model)
+        docs (if (nil? class-filter) all-docs (filterv #(= class-filter (:classification %)) all-docs))]
     [shared/panel "文档与版本证据" "证据引用绑定版本,内容由服务器计算SHA256摘要; 正式签发须经独立审批, 新修订不漂移旧批准"
-     [antd/space
+     [antd/space {:wrap true}
       (when editable? [antd/button {:on-click #(open! (forms/document-dialog base nil))} "登记证据文档"])
       (when (seq ids)
         [antd/button {:on-click
@@ -79,8 +113,13 @@
                         (api/pms-batch-download-documents
                           (str base "/documents/batch-download") ids "证据文档.zip"
                           (fn [e] (antd/error! (.-message e)))))}
-         "批量下载"])]
-     [w/record-table (:documents model)
+         "批量下载"])
+      [antd/select {:value class-filter :placeholder "全部密级" :allowClear true :aria-label "密级筛选"
+                    :style {:width 140} :options [{:value "public" :label "公开"}
+                                                  {:value "internal" :label "内部"}
+                                                  {:value "confidential" :label "机密"}]
+                    :onChange #(set-class-filter! (not-empty %))}]]
+     [w/record-table docs
       [(w/text-column :code "文档编号") (w/text-column :title "标题") (w/text-column :revision "版本")
        (w/text-column :filename "文件名")
        {:title "密级" :dataIndex "classification"
@@ -367,7 +406,7 @@
                                                          (into [:div {:style {:display "grid" :gap 20}}] (map #(vector % context) components)))})
                     [["charter" "章程" [charter-section]]
                      ["requirements" "URS与追踪" [requirement-section traceability-section trace-section]]
-                     ["evidence" "证据版本" [document-section]]
+                     ["evidence" "证据版本" [document-section collection-section]]
                      ["appointments" "成员任命" [appointment-section]]
                      ["stakeholders" "干系人与沟通" [stakeholder-section raci-section comm-plan-section]]
                      ["gates" "Gate评审" [gate-section]]
