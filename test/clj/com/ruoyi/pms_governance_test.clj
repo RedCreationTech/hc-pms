@@ -408,3 +408,89 @@
       (is (= 200 (:status dl)))
       (is (= (:snapshot_sha256 issued) (get-in dl [:headers "X-Content-SHA256"])))
       (is (re-find #"项目成员任命书" (:body dl))))))
+
+
+(defn- stakeholder!
+  "登记一个绑定项目成员责任人的干系人."
+  [id code owner]
+  (command! id :stakeholders :create nil
+            {:code code :name (str "干系人" code) :role "设备工程师"
+             :category "internal" :interest "high" :influence "medium" :owner_id owner}))
+
+
+(deftest stakeholder-raci-conflict-and-comm-plan-loop
+  (let [id (project!)
+        s1 (stakeholder! id "SH-1" 9301)
+        s2 (stakeholder! id "SH-2" 9302)
+        s3 (stakeholder! id "SH-3" 9303)]
+    (is (= "active" (:status s1)))
+    (is (= 409 (error-status #(stakeholder! id "SH-1" 9301))))
+    (is (= 403 (error-status #(command! 9302 id :stakeholders :create nil
+                                        {:code "SH-X" :name "越权" :role "r" :category "internal"
+                                         :interest "high" :influence "low"}))))
+    (let [revision (command! id :stakeholders :revisions (:id s1)
+                             {:code "SH-1" :name "改名" :role "主管" :category "internal"
+                              :interest "high" :influence "high" :owner_id 9301})]
+      (is (= 2 (:revision revision)))
+      (is (= (:id s1) (:previous_id revision)))
+      (is (= 400 (error-status #(command! id :stakeholders :revisions (:id revision)
+                                          {:code "SH-OTHER" :name "n" :role "r" :category "internal"
+                                           :interest "low" :influence "low"})))))
+    (command! id :raci :create nil {:activity "出厂验收" :stakeholder_id (:id s1) :responsibility "R"})
+    (is (= 409 (error-status #(command! id :raci :create nil
+                                        {:activity "出厂验收" :stakeholder_id (:id s1) :responsibility "A"}))))
+    (command! id :raci :create nil {:activity "出厂验收" :stakeholder_id (:id s2) :responsibility "A"})
+    (is (= 409 (error-status #(command! id :raci :create nil
+                                        {:activity "出厂验收" :stakeholder_id (:id s3) :responsibility "A"}))))
+    (is (empty? (filter #(= "出厂验收" (:activity %)) (:raci_conflicts (workspace id)))))
+    (command! id :raci :create nil {:activity "现场调试" :stakeholder_id (:id s3) :responsibility "C"})
+    (let [debug (first (filter #(= "现场调试" (:activity %)) (:raci_conflicts (workspace id))))]
+      (is (:missing-accountable? debug))
+      (is (:missing-responsible? debug)))
+    (let [plan (command! id :comm-plans :create nil
+                         {:code "CP-1" :objective "每周进度沟通" :channel "email" :frequency "weekly"
+                          :audience [(:id s1) (:id s2)] :next_date "2026-09-25" :owner_id 9301})
+          revised (command! id :comm-plans :revisions (:id plan)
+                            {:code "CP-1" :objective "双周进度沟通" :channel "meeting" :frequency "biweekly"
+                             :audience [(:id s1) (:id s2)] :next_date "2026-10-01" :owner_id 9301})]
+      (is (= "active" (:status plan)))
+      (is (= 2 (:revision revised)))
+      (is (= (:id plan) (:previous_id revised)))
+      (is (= 409 (error-status #(command! id :comm-plans :create nil
+                                          {:code "CP-1" :objective "dup" :channel "email" :frequency "weekly"
+                                           :audience [(:id s1)] :next_date "2026-09-25"}))))
+      (is (= 400 (error-status #(command! id :comm-plans :create nil
+                                          {:code "CP-2" :objective "无受众" :channel "email" :frequency "weekly"
+                                           :audience [] :next_date "2026-09-25"}))))
+      (is (= 409 (error-status #(command! id :comm-plans :meeting (:id plan) {:held_on "2026-09-26"}))))
+      (let [meeting (command! id :comm-plans :meeting (:id revised) {:held_on "2026-09-26"})
+            meetings (:meetings (workspace id))
+            latest-plan (first (filter #(= (:id revised) (:id %)) (:comm_plans (workspace id))))]
+        (is (= 1 (count meetings)))
+        (is (= (:id meeting) (:last_meeting_id latest-plan)))
+        (is (= [9301 9302] (sort (:attendee_ids (first meetings))))))
+      (let [other (project!)]
+        (is (empty? (:stakeholders (workspace other))))
+        (is (= 403 (error-status #(gov/workspace *service* (actor 9305) id))))
+        (is (= 404 (error-status #(gov/command! *service* (actor 9301) other :raci :create nil
+                                                {:version (:version (pms/project *service* (actor 1) other))
+                                                 :activity "出厂验收" :stakeholder_id (:id s1) :responsibility "A"}))))))))
+
+
+(deftest stakeholder-comm-plan-http-contract
+  (let [id (project!)
+        path (str "/api/pms/projects/" id "/governance")
+        s1 (stakeholder! id "HTTP-SH" 9301)]
+    (is (= 401 (:status (request :post (str path "/stakeholders") nil
+                                 {:code "SH" :name "n" :role "r" :category "internal"
+                                  :interest "high" :influence "low" :version (version id)}))))
+    (is (= 403 (:status (request :post (str path "/raci") 9302
+                                 {:activity "a" :stakeholder_id (:id s1) :responsibility "R" :version (version id)}))))
+    (let [result (request :post (str path "/raci") 9301
+                          {:activity "发布" :stakeholder_id (:id s1) :responsibility "R" :version (version id)})]
+      (is (= 200 (:status result)))
+      (is (= "R" (get-in result [:body :data :result :responsibility]))))
+    (let [ws (request :get path 9301 nil)]
+      (is (= 200 (:status ws)))
+      (is (= 1 (count (get-in ws [:body :data :stakeholders]))))
+      (is (some #(= "发布" (:activity %)) (get-in ws [:body :data :raci]))))))

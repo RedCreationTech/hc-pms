@@ -1,13 +1,13 @@
 # 治理与质量 HTTP 合同
 
-状态: 已实现并通过本地 SQLite 13 tests / 125 assertions (含 A08 项目成员任命书 3 个用例), 属于全量 65 tests / 456 assertions 的组成部分. 新模块 MySQL 及生产验收采用 [验证记录](../verification.md) 的最终结果. 不包含真实外部系统写入, 二进制文件服务或自动应用变更. 所有路径以 `/api/pms/projects/:id/governance` 为前缀. 路由挂在现有 JWT 认证中间件内. 下述字段为明确白名单; 未列字段返回 400.
+状态: 已实现并通过本地 SQLite 15 tests / 155 assertions (含 A08 项目成员任命书 3 个用例与 H02 干系人/RACI/沟通计划 2 个用例), 属于本轮全量 PMS 回归 67 tests / 486 assertions 的组成部分. 新模块 MySQL 及生产验收采用 [验证记录](../verification.md) 的最终结果. 不包含真实外部系统写入, 二进制文件服务或自动应用变更. 所有路径以 `/api/pms/projects/:id/governance` 为前缀. 路由挂在现有 JWT 认证中间件内. 下述字段为明确白名单; 未列字段返回 400.
 
 ## 事务, 权限与读模型
 
 - GET 和 CSV 预检要求 `pms:project:query` 及项目阅读资格. 普通命令要求 `pms:project:edit` 及项目编辑资格. 审批要求 `pms:quality:approve`, 项目阅读资格, 指定审批人本人, 且审批人不能是提交人. 管理员不能绕过独立审批.
 - 所有 POST 命令除预检外须传 `version`, 即 GET 返回的当前 `project_version`. 项目写入, 版本递增, 子对象变更和审计在同一数据库事务内. 陈旧版本和状态冲突返回 409; 未授权返回 403; 未找到当前项目内引用返回 404; 输入错误返回 400. 暂停和终态项目不可修改.
 - 成功响应为 `{code: 200, msg: "...", data: {result: ..., project_version: N}}`. GET 和预检的 `data` 直接是各自结果. 业务失败使用同样的响应信封, 未知异常不暴露 SQL 或堆栈.
-- `GET ""` 返回 `project_version`, `blockers.execution`, `blockers.closure`, 以及 `charters`, `requirements`, `documents`, `traces`, `risks`, `issues`, `meetings`, `actions`, `changes`, `gate_templates`, `gates`, `appointments` 数组. 数组含全部不可变内容版本, 以 `id` 标识记录; `code` 是稳定业务编号, `revision` 是内容版本. 文档正文和任命书正文不进入列表. `blockers` 当前返回每个阶段的首个未满足条件.
+- `GET ""` 返回 `project_version`, `blockers.execution`, `blockers.closure`, 以及 `charters`, `requirements`, `documents`, `traces`, `risks`, `issues`, `meetings`, `actions`, `changes`, `gate_templates`, `gates`, `appointments`, `stakeholders`, `raci`, `comm_plans` 数组. 数组含全部不可变内容版本, 以 `id` 标识记录; `code` 是稳定业务编号, `revision` 是内容版本. 文档正文和任命书正文不进入列表. `blockers` 当前返回每个阶段的首个未满足条件. 另返回 `raci_conflicts`, 逐活动列出缺负责(A)或缺执行(R)的 `{activity, missing-accountable?, missing-responsible?}` 集合.
 - 需求, 风险, 问题和行动负责人必须是当前项目有效成员. 章程赞助人和会议参与人使用有效本地用户. 创建和审批均记录创建人, 提交人或决定人. 正文不进入通用审计日志.
 
 ## 命令字段和状态
@@ -49,6 +49,12 @@
 | POST `/gates/:rid/submit` | 可选 waiver_reason | 通过全部必需检查并附证据, 或以明确理由申请豁免, 进入 in_review |
 | POST `/gates/:rid/decision` | decision: approved/rejected/waived, reason | 独立签核; approved 再次验证证据; waived 必须已有豁免申请理由 |
 | POST `/appointments` | issued_on, note | 服务器读取当前项目成员表生成不可变团队快照任命书, code 固定 APPT, revision 递增, 状态 issued; 客户端不得提交 content 或 snapshot |
+| POST `/stakeholders` | code, name, role, category: internal/external/supplier/customer/regulator, interest: high/medium/low, influence: high/medium/low, 可选 owner_id | 登记 active 干系人首版, code 项目内唯一, 重复返回 409 |
+| POST `/stakeholders/:rid/revisions` | 同上 | 从最新版本派生 active 新内容版本, code 不得改变, 保留 previous_id |
+| POST `/raci` | activity, stakeholder_id, responsibility: R/A/C/I | 为活动指派确定职责; 同活动同干系人不得重复, 同活动至多一个 A; code 固定 RACI:活动:干系人 |
+| POST `/comm-plans` | code, objective, channel: meeting/email/dashboard/report/review, frequency: daily/weekly/biweekly/monthly/quarterly, audience, next_date, 可选 owner_id | 登记 active 沟通计划首版; audience 为 1..50 个不重复同项目有效干系人; code 项目内唯一 |
+| POST `/comm-plans/:rid/revisions` | 同上 | code 不变的受控新内容版本, 形成可审计的节奏调整记录 |
+| POST `/comm-plans/:rid/meeting` | 可选 held_on | 由最新版本沟通计划生成 recorded 会议, 参会人取自受众干系人已绑定的项目成员, 无有效成员返回 409, 并回写计划 last_meeting_id |
 
 所有日期均为有效 ISO 日期 `YYYY-MM-DD`. Gate 模板检查项是 `{code, title, required}`. Gate 检查结果是 `{code, passed, evidence_ids}`; 不能通过客户端改动模板的必需性. `evidence_ids` 是同项目真实文档版本 `id` 的不重复数组, 至多 50 条; 要求证据时至少 1 条. 不接受任意网址或自由文本作为已受控证据.
 
@@ -70,6 +76,16 @@
 - `GET /appointments/:rid/content` 返回统一 JSON 的 `data`, 含 `snapshot` (数组), `snapshot_sha256`, `content`, `headcount`, `revision`, `issued_on`, `issued_by`, `note`. 读取要求 `pms:project:query` 及项目阅读资格; 记录不属于该项目返回 404.
 - `GET /appointments/:rid/download` 返回裸文本 `text/plain` 附件, 附 `Content-Disposition: attachment; filename=appointment-v<revision>.txt` 和 `X-Content-SHA256`, 便于离线归档与摘要复核.
 - 列表读模型 `appointments` 省略 `content`, 仅保留快照与摘要供表格展示.
+
+## 干系人, RACI与沟通计划
+
+干系人, RACI 职责矩阵和沟通计划三类对象复用通用治理存储 `pms_gov_record` (kind 为 `stakeholder`, `raci`, `comm-plan`), 不另建独立表. 三者都是不可变版本记录: 修订以 `previous_id` 回指前一版, `revision` 递增, `code` 项目内唯一且修订不得更改, 陈旧版本上继续修订返回 409.
+
+- 干系人登记分类 (internal/external/supplier/customer/regulator), 角色, 关注度与影响力等级, 可选绑定项目成员责任人 `owner_id`. 状态恒为 `active`.
+- RACI 为具体 `activity` 指派 R/A/C/I 之一. 同一活动同一干系人不得重复指派; 同一活动至多一个负责(A)角色, 违反返回 409. 读模型 `raci_conflicts` 逐活动汇总缺 A 或缺 R 的完整性缺口, 供工作台冲突检查, 不阻止登记本身.
+- 沟通计划维护目标, 渠道, 频率, 1..50 个不重复的同项目有效干系人受众和下次沟通日期, 状态 `active`; 受控修订形成可审计的节奏调整记录. `POST /comm-plans/:rid/meeting` 仅允许最新版本, 从受众干系人已绑定的项目成员去重生成参会人 (无有效成员返回 409), 落库一条 `recorded` 会议并把 `last_meeting_id` 回写到计划, 形成沟通计划到会议的闭环. `held_on` 缺省取计划 `next_date`.
+
+本轮未提供治理工作台前端干系人/RACI/沟通计划视图与浏览器验证, 亦未接通外部通知或消息渠道推送; 沟通节奏的执行由生成会议这一本地受控事实体现, 不声称自动提醒已交付.
 
 ## 生命周期调用约定
 

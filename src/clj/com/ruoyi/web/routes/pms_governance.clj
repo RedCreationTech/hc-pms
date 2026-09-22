@@ -48,6 +48,12 @@
    (command-route svc "/gates/:record_id/checks" :gates :checks)
    (command-route svc "/gates/:record_id/submit" :gates :submit)
    (command-route svc "/gates/:record_id/decision" :gates :decision)
+   (command-route svc "/stakeholders" :stakeholders :create)
+   (command-route svc "/stakeholders/:record_id/revisions" :stakeholders :revisions)
+   (command-route svc "/raci" :raci :create)
+   (command-route svc "/comm-plans" :comm-plans :create)
+   (command-route svc "/comm-plans/:record_id/revisions" :comm-plans :revisions)
+   (command-route svc "/comm-plans/:record_id/meeting" :comm-plans :meeting)
    (command-route svc "/appointments" :appointments :create)
    ["/appointments/:record_id/content" {:get {:handler (partial controller/appointment-content svc)}}]
    ["/appointments/:record_id/download" {:get {:handler (partial controller/appointment-download svc)}}]]])

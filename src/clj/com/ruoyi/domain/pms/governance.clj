@@ -5,6 +5,7 @@
             [com.ruoyi.domain.pms.governance.collaboration :as collab]
             [com.ruoyi.domain.pms.governance.evidence :as evidence]
             [com.ruoyi.domain.pms.governance.gates :as gates]
+            [com.ruoyi.domain.pms.governance.stakeholders :as stakeholders]
             [com.ruoyi.domain.pms.governance.store :as store]
             [com.ruoyi.domain.pms.governance.reviews :as reviews]
             [com.ruoyi.domain.pms.kernel :as k]
@@ -15,7 +16,8 @@
   "工作台集合与持久化对象类型的明确映射."
   {:charters "charter" :requirements "requirement" :documents "document" :traces "trace"
    :risks "risk" :issues "issue" :meetings "meeting" :actions "action" :changes "change"
-   :gate_templates "gate-template" :gates "gate"})
+   :gate_templates "gate-template" :gates "gate"
+   :stakeholders "stakeholder" :raci "raci" :comm_plans "comm-plan"})
 
 
 (defn execution-ready!
@@ -62,7 +64,8 @@
       (assoc (into {} (for [[section kind] sections]
                         [section (mapv #(cond-> (dissoc % :content) (= kind "risk") reviews/risk-read-model) (store/records q project kind))]))
              :project_version (:version project) :blockers (blockers q project)
-             :appointments (appointment/list-summaries q project)))))
+             :appointments (appointment/list-summaries q project)
+             :raci_conflicts (stakeholders/conflicts q project)))))
 
 
 (defn- creating
@@ -106,7 +109,13 @@
    [:gate-templates :create] (creating gates/create-template!)
    [:gates :create] (creating gates/create!) [:gates :checks] gates/checks!
    [:gates :submit] gates/submit! [:gates :decision] gates/decide!
-   [:appointments :create] (creating appointment/issue!)})
+   [:appointments :create] (creating appointment/issue!)
+   [:stakeholders :create] (creating stakeholders/create-stakeholder!)
+   [:stakeholders :revisions] stakeholders/revise-stakeholder!
+   [:raci :create] (creating stakeholders/create-raci!)
+   [:comm-plans :create] (creating stakeholders/create-comm-plan!)
+   [:comm-plans :revisions] stakeholders/revise-comm-plan!
+   [:comm-plans :meeting] stakeholders/materialize-meeting!})
 
 
 (defn command!

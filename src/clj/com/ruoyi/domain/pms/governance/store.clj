@@ -7,7 +7,8 @@
 (def kinds
   "允许持久化的治理对象类型."
   #{"charter" "requirement" "document" "trace" "risk" "issue"
-    "meeting" "action" "change" "gate-template" "gate"})
+    "meeting" "action" "change" "gate-template" "gate"
+    "stakeholder" "raci" "comm-plan"})
 
 (defn input!
   "校验请求字段白名单,保留聚合版本用于事务边界."
