@@ -4,6 +4,13 @@
 
 本轮完成 V1 工程设计, 并实现第一批项目核心功能. [设计入口](docs/pms/README.md) | [验证记录](docs/pms/verification.md) | [开发路线](docs/pms/10-development-roadmap.md) | [原模板文档](docs/template-readme.md)
 
+## 项目目标
+
+1. 逐项对齐原PPT展示的全部PMS功能, 包括业务流程, 计划与关口, 过程管理, 四算, 看板和外部集成.
+2. 在上述能力基础上, 补齐标准PMS的业务闭环: 项目批准 -> 范围与计划基线 -> 资源安排 -> 执行跟踪 -> 风险/问题/变更控制 -> 质量与交付验收 -> 费用结算 -> 收尾归档与经验复用.
+
+这两项是最终产品目标, 首批项目中心只是起点. [功能与验收矩阵](docs/pms/11-feature-acceptance-matrix.md)逐项记录PPT来源, 补全项, 验收条件, 开发批次与实现状态. 本项目的标准PMS闭环是工程验收基线, 不代表取得某项正式标准认证. 功能必须具备持久化, 权限, 流程约束, 审计及真实操作证据后才能标记完成.
+
 ## 当前功能
 
 - 项目中心: 创建/编辑, 搜索, 状态过滤, 分页和详情.
@@ -20,7 +27,7 @@
 
 Kit / Clojure 1.12, Reitit, HugSQL, Migratus; ClojureScript / Reagent 2 / re-frame / Ant Design 6. 本地默认SQLite, MySQL维护独立迁移. 保留模板身份, 组织, 动态权限菜单, 办公流程和Flowable.
 
-固定模板基线: `99706b06fea4ff9efed6822a70cbda1c2bd98552`. `upstream` 指向模板, `origin` 指向产品仓库. 模板源仓库为私有, 目标仓库当前为公开; 本地实现不代表已经授权公开模板源代码及历史.
+固定模板基线: `99706b06fea4ff9efed6822a70cbda1c2bd98552`. `upstream` 指向模板, `origin` 指向产品仓库. 用户于2026-09-22明确授权向公开的 `RedCreationTech/hc-pms` 推送本项目工程及其模板历史. 原始业务PPT, 内部逐页提炼, 凭据和运行数据库不随源码发布.
 
 ## 本地启动
 
