@@ -238,6 +238,37 @@
     (is (= (:id meeting) (:meeting_id (first (:actions (workspace id))))))))
 
 
+(deftest meeting-action-completion-verifies-independently-and-flags-overdue
+  (let [id (project!)
+        meeting (command! id :meetings :create nil
+                          {:title "周例会" :held_on "2026-09-10" :minutes "决定补齐接线图" :attendee_ids [9301 9302]})
+        action (command! id :meetings :actions (:id meeting)
+                         {:title "补齐接线图" :owner_id 9301 :due_date "2026-09-01"})
+        aid (:id action)
+        evidence (:id (document! id "ACT-DOC"))
+        overdue-row (fn []
+                      (->> (:actions (workspace id))
+                           (filterv (fn [a] (= aid (:id a))))
+                           first
+                           :action_overdue))]
+    (is (true? (overdue-row)))
+    (is (= 409 (error-status #(command! id :actions :complete aid {:result "完成" :evidence_ids [] :reviewer_id 9302}))))
+    (is (= 409 (error-status #(command! id :actions :complete aid {:result "完成" :evidence_ids [evidence] :reviewer_id 9301}))))
+    (is (= 403 (error-status #(command! id :actions :complete aid {:result "完成" :evidence_ids [evidence] :reviewer_id 9304}))))
+    (is (= 400 (error-status #(command! id :actions :complete aid {:result "完成" :evidence_ids [evidence]}))))
+    (let [reviewed (command! id :actions :complete aid {:result "已按规范补全" :evidence_ids [evidence] :reviewer_id 9302})]
+      (is (= "in_review" (:status reviewed)))
+      (is (= 9302 (:reviewer_id reviewed)))
+      (is (= 9301 (:submitted_by reviewed)))
+      (is (= "action_closure" (:review_action reviewed)))
+      (is (= 403 (error-status #(command! id :actions :verify aid {:decision "approved" :reason "自行核验"}))))
+      (is (= 403 (error-status #(command! 9303 id :actions :verify aid {:decision "approved" :reason "冒名核验"}))))
+      (is (= "rejected" (:status (command! 9302 id :actions :verify aid {:decision "rejected" :reason "证据不足"}))))
+      (command! id :actions :complete aid {:result "重新补全并附实测记录" :evidence_ids [evidence] :reviewer_id 9302})
+      (is (= "closed" (:status (command! 9302 id :actions :verify aid {:decision "approved" :reason "独立核验通过"}))))
+      (is (false? (overdue-row))))))
+
+
 (defn- gate!
   "建立包含一项必需检查的指定阶段关口."
   [id stage]

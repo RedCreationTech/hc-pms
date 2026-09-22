@@ -63,7 +63,10 @@
   (k/read! svc actor id "pms:project:query"
            (fn [q project]
              (assoc (into {} (for [[section kind] sections]
-                               [section (mapv #(cond-> (dissoc % :content) (= kind "risk") reviews/risk-read-model) (store/records q project kind))]))
+                               [section (mapv #(cond-> (dissoc % :content)
+                                                 (= kind "risk") reviews/risk-read-model
+                                                 (= kind "action") collab/action-read-model)
+                                              (store/records q project kind))]))
                     :project_version (:version project) :blockers (blockers q project)
                     :appointments (appointment/list-summaries q project)
                     :raci_conflicts (stakeholders/conflicts q project)))))
@@ -107,6 +110,7 @@
    [:issues :resolve] collab/resolve! [:issues :decision] collab/verify!
    [:meetings :create] (creating collab/create-meeting!)
    [:meetings :actions] collab/create-action! [:actions :task] collab/materialize-action!
+   [:actions :complete] collab/complete-action! [:actions :verify] collab/verify-action!
    [:gate-templates :create] (creating gates/create-template!)
    [:gates :create] (creating gates/create!) [:gates :checks] gates/checks!
    [:gates :submit] gates/submit! [:gates :decision] gates/decide!

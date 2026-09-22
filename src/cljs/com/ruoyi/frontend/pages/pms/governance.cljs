@@ -206,22 +206,35 @@
     (when editable? (fn [meeting] [w/edit-button "形成行动" #(open! (forms/action-dialog base options meeting))]))]])
 
 
+(defn- action-actions
+  "会议行动的转任务,完成提交与独立核验操作路径."
+  [{:keys [base model options editable? approve? open!]} action]
+  (let [state (:status action) current (:currentUserId options)]
+    [antd/space {:wrap true}
+     (when (and editable? (= "open" state))
+       [w/edit-button "转为WBS任务"
+        #(open! {:title "会议行动转WBS任务" :path (str base "/actions/" (:id action) "/task")
+                 :initial {:duration_days 1}
+                 :fields [{:key :wbs_code :label "WBS编号"}
+                          {:key :start_date :label "开始日期" :type :date :required? true}
+                          {:key :duration_days :label "工作日工期" :type :number :min 1 :required? true}]})])
+     (when (and editable? (contains? #{"open" "rejected"} state))
+       [w/edit-button "提交完成" #(open! (forms/action-complete-dialog base options (:documents model) action))])
+     (when (and approve? (= "in_review" state) (= current (:reviewer_id action)) (not= current (:submitted_by action)))
+       [:<>
+        [w/edit-button "批准关闭" #(open! (forms/decision-dialog (str base "/actions/" (:id action) "/verify") "approved" "核验通过并关闭行动"))]
+        [w/edit-button "驳回" #(open! (forms/decision-dialog (str base "/actions/" (:id action) "/verify") "rejected" "驳回行动完成"))]])]))
+
+
 (defn- action-section
-  "会议行动转为实际WBS任务并显示溯源关联."
-  [{:keys [base model editable? open!]}]
-  [shared/panel "会议行动" "转换后任务进入项目计划,重复转换保持同一任务" nil
+  "会议行动转为实际WBS任务, 完成须证据与独立核验并提示逾期."
+  [{:keys [base model editable? open!] :as context}]
+  [shared/panel "会议行动" "转换后任务进入项目计划,重复转换保持同一任务;完成需证据与独立核验" nil
    [w/record-table (:actions model)
-    [(w/text-column :title "行动内容") (w/text-column :due_date "到期日期") (w/state-column)
-     (w/text-column :target_task_id "关联任务")]
-    (when editable?
-      (fn [action]
-        (when (= "open" (:status action))
-          [w/edit-button "转为WBS任务"
-           #(open! {:title "会议行动转WBS任务" :path (str base "/actions/" (:id action) "/task")
-                    :initial {:duration_days 1}
-                    :fields [{:key :wbs_code :label "WBS编号"}
-                             {:key :start_date :label "开始日期" :type :date :required? true}
-                             {:key :duration_days :label "工作日工期" :type :number :min 1 :required? true}]})])))]])
+    [(w/text-column :title "行动内容") (w/text-column :due_date "到期日期")
+     {:title "逾期" :dataIndex "action_overdue" :render #(when % (r/as-element [antd/tag {:color "red"} "已逾期"]))}
+     (w/state-column) (w/text-column :result "完成说明") (w/text-column :target_task_id "关联任务")]
+    #(action-actions context %)]])
 
 
 (defn- change-section

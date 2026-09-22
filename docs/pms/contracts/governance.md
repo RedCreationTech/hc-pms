@@ -39,6 +39,8 @@
 | POST `/meetings` | title, held_on, minutes, attendee_ids | 持久化纪要及 1..100 个参与人, 状态 recorded |
 | POST `/meetings/:rid/actions` | title, owner_id, due_date | 创建归属该会议的 open 行动项 |
 | POST `/actions/:rid/task` | 可选 start_date, duration_days, wbs_code | 同事务创建真实 WBS 任务, 状态 converted, 保存 target_task_id; 重试不重复创建 |
+| POST `/actions/:rid/complete` | result, evidence_ids, reviewer_id | 提交行动完成: 状态 open/rejected -> in_review, 记录 review_action action_closure, result, 绑定的不可变证据版本 evidence_ids, 指定独立 reviewer_id(不得为提交人且具质量审批权与项目访问), submitted_by 为当前操作人; 缺证据 409, 审核人为本人 409, 无权限 403, 缺字段 400 |
+| POST `/actions/:rid/verify` | decision: approved/rejected, reason | 由指定 reviewer_id 独立核验: in_review -> closed(approved)或 rejected; 非指定核验人 403, 自行核验本人提交 409; 关闭后逾期计算不再触发 |
 | POST `/changes` | title, reason, scope_impact, schedule_impact, cost_impact, quality_impact, resource_impact | 创建正式变更申请草稿, 各影响维度均须说明 |
 | POST `/changes/:rid/revisions` | 同上 | 最新申请的不可变新内容版本 |
 | POST `/changes/:rid/submit` | reviewer_id | draft/rejected -> in_review |
@@ -96,6 +98,8 @@
 `governance/evidence-version! [q project id]` 验证同项目实际已登记文档版本, 返回含正文摘要的对象. `governance/approved-change! [q project id]` 验证最新正式变更已独立批准. 执行期间发布新计划基线必须引用已批准的 `change_id`, 仍需显式编辑计划和独立基线审批, 不会自动应用影响说明中的任务或费用变化. `blockers` 供前端说明生命周期前置缺口.
 
 会议行动转任务复用 planning/create-task-record!, 因而同样检查当前计划是否可编辑, 成员责任人和项目计划修订. 返回 `{target_task_id, action}`. 风险转问题与行动转任务在新项目版本下重试返回同一目标, 仍产生一条本次命令的审计记录; 陈旧版本直接 409.
+
+行动读模型对每条 action 计算派生字段 `action_overdue`: 当存在 `due_date` 且状态不属于 closed/converted 且到期日不晚于服务器当前日期时为 true; 完成提交进入 in_review 仍保持逾期, 独立核验关闭后转为 false. 该字段仅在读取时计算, 不写入存储, 也不构成主动提醒.
 
 ## 实现边界
 

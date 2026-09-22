@@ -257,3 +257,12 @@
   {:title "生成沟通计划会议" :path (str base "/comm-plans/" (:id plan) "/meeting")
    :description (str "由 " (:code plan) " / V" (:revision plan) " 生成, 参会人取自受众干系人已绑定的项目成员.")
    :fields [{:key :held_on :label "会议日期(可选)" :type :date :hint "留空则采用计划的下次沟通日期."}]})
+
+
+(defn action-complete-dialog
+  "会议行动完成须附结果说明, 真实证据与独立验证人, 关闭前经核验."
+  [base options documents action]
+  {:title "提交行动完成" :path (str base "/actions/" (:id action) "/complete")
+   :description (str "行动: " (:title action))
+   :fields [{:key :result :label "完成结果说明" :type :textarea :required? true}
+            (evidence-field documents) (reviewer-field options)]})
