@@ -137,13 +137,16 @@
 
 
 (defn meeting-dialog
-  "记录实际会议结论与参会人."
-  [base options]
+  "记录实际会议结论,参会人与可选会前资料(引用项目内真实文档版本)."
+  [base options documents]
   {:title "登记项目会议" :path (str base "/meetings")
    :fields [{:key :title :label "会议主题" :required? true}
             {:key :held_on :label "会议日期" :type :date :required? true}
             {:key :attendee_ids :label "参会人" :type :multi :options (w/user-options (:users options)) :required? true}
-            {:key :minutes :label "会议纪要" :type :textarea :required? true}]})
+            {:key :minutes :label "会议纪要" :type :textarea :required? true}
+            {:key :material_ids :label "会前资料" :type :multi
+             :options (mapv #(hash-map :value (:id %) :label (str (:code %) " / " (:title %) " / V" (:revision %))) documents)
+             :hint "选择项目内已登记的证据文档版本作为会前资料, 可留空"}]})
 
 
 (defn action-dialog

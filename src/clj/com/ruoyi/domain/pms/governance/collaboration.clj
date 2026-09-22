@@ -130,17 +130,18 @@
 
 
 (defn create-meeting!
-  "持久化项目会议纪要和有效参会人员."
+  "持久化项目会议纪要,有效参会人员和可选会前资料(真实文档版本)."
   [svc actor id body]
   (k/mutate! svc actor id "pms:project:edit" body "meeting.recorded"
              (fn [q project]
-               (s/input! body [:title :held_on :minutes :attendee_ids])
+               (s/input! body [:title :held_on :minutes :attendee_ids :material_ids])
                (when-not (and (vector? (:attendee_ids body)) (<= 1 (count (:attendee_ids body)) 100))
                  (r/fail! 400 "参会人员必须为1到100人的数组"))
                (s/insert! q project actor "meeting"
                           {:title (s/text! body :title 200) :held_on (s/date! body :held_on)
                            :minutes (s/text! body :minutes 20000)
-                           :attendee_ids (vec (distinct (map #(s/user! q %) (:attendee_ids body))))}
+                           :attendee_ids (vec (distinct (map #(s/user! q %) (:attendee_ids body))))
+                           :material_ids (s/evidence! q project (or (:material_ids body) []) false)}
                           {:status "recorded"}))))
 
 

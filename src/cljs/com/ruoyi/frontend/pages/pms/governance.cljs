@@ -220,12 +220,13 @@
 
 
 (defn- meeting-section
-  "从会议纪要产生明确行动,避免只记录不执行."
+  "从会议纪要产生明确行动,避免只记录不执行.会前资料绑定项目内真实文档版本."
   [{:keys [base model options editable? open!]}]
-  [shared/panel "会议与决策" "参会人员和正式纪要保留在项目中"
-   (when editable? [antd/button {:on-click #(open! (forms/meeting-dialog base options))} "登记项目会议"])
+  [shared/panel "会议与决策" "参会人员,正式纪要与会前资料版本保留在项目中"
+   (when editable? [antd/button {:on-click #(open! (forms/meeting-dialog base options (:documents model)))} "登记项目会议"])
    [w/record-table (:meetings model)
-    [(w/text-column :title "会议主题") (w/text-column :held_on "会议日期") (w/text-column :minutes "会议纪要")]
+    [(w/text-column :title "会议主题") (w/text-column :held_on "会议日期") (w/text-column :minutes "会议纪要")
+     {:title "会前资料" :dataIndex "material_ids" :render #(r/as-element [antd/tag {:color (if (pos? (count %)) "blue" "default")} (count %)])}]
     (when editable? (fn [meeting] [w/edit-button "形成行动" #(open! (forms/action-dialog base options meeting))]))]])
 
 

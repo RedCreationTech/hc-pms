@@ -248,6 +248,42 @@
     (is (= (:id meeting) (:meeting_id (first (:actions (workspace id))))))))
 
 
+(deftest meeting-can-reference-real-document-versions-as-pre-read-materials
+  (let [id (project!)
+        doc-a (document! id "MAT-A")
+        doc-b (command! id :documents :create nil
+                        {:code "MAT-B" :title "议程背景" :filename "b.txt" :content "背景正文\n"})
+        other (project!)
+        foreign (:id (document! other "MAT-FOREIGN"))
+        m1 (command! id :meetings :create nil
+                     {:title "启动会" :held_on "2026-09-22" :minutes "评审会前资料" :attendee_ids [9301 9302]
+                      :material_ids [(:id doc-a) (:id doc-b)]})
+        m0 (command! id :meetings :create nil
+                     {:title "无资料会议" :held_on "2026-09-23" :minutes "仅口头讨论" :attendee_ids [9301]})]
+    (is (= [(:id doc-a) (:id doc-b)] (:material_ids m1)))
+    (is (= [] (:material_ids m0)))
+    (let [read (first (filter #(= (:id m1) (:id %)) (:meetings (workspace id))))]
+      (is (= [(:id doc-a) (:id doc-b)] (:material_ids read))))
+    (is (= 404 (error-status #(command! id :meetings :create nil
+                                        {:title "坏资料" :held_on "2026-09-24" :minutes "x" :attendee_ids [9301]
+                                         :material_ids [(str (UUID/randomUUID))]}))))
+    (is (= 404 (error-status #(command! id :meetings :create nil
+                                        {:title "跨项目" :held_on "2026-09-24" :minutes "x" :attendee_ids [9301]
+                                         :material_ids [foreign]}))))
+    (is (= 404 (error-status #(command! id :meetings :create nil
+                                        {:title "错类型" :held_on "2026-09-24" :minutes "x" :attendee_ids [9301]
+                                         :material_ids [(:id m1)]}))))
+    (is (= 400 (error-status #(command! id :meetings :create nil
+                                        {:title "重复" :held_on "2026-09-24" :minutes "x" :attendee_ids [9301]
+                                         :material_ids [(:id doc-a) (:id doc-a)]}))))
+    (is (= 400 (error-status #(command! id :meetings :create nil
+                                        {:title "超限" :held_on "2026-09-24" :minutes "x" :attendee_ids [9301]
+                                         :material_ids (vec (repeat 51 (:id doc-a)))}))))
+    (is (= 400 (error-status #(command! id :meetings :create nil
+                                        {:title "多余" :held_on "2026-09-24" :minutes "x" :attendee_ids [9301]
+                                         :materials [(:id doc-a)]}))))))
+
+
 (deftest meeting-action-completion-verifies-independently-and-flags-overdue
   (let [id (project!)
         meeting (command! id :meetings :create nil
