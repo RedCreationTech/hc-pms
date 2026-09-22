@@ -217,6 +217,24 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 缺链为读取时按最新版本计算的只读视图, 不写入存储, 不改变追踪记录创建时的同项目文档/任务与需求版本校验. C03 维持 `partial / 待规则` (按最新版本自动缺链与汇总子集已 `implemented / local`), 覆盖率分母与偏差级别仍待定义, 不等于整行能力或生产签收完成.
 
+## C06 文档独立发布审批与正式签发 (本轮增补, 2026-09-22)
+
+设计与关闭口径: 补齐矩阵 C06 长期列为"文档独立发布审批/正式签发仍待实现"的一环——文档从登记到发布留受控版本轨迹. 复用通用治理存储 `pms_gov_record` 的 `document` kind 与既有 `registered`/`in_review`/`approved`/`rejected` 状态 (无新增迁移). 领域新增 `evidence/submit-release!` (`registered`/`rejected` -> `in_review`, 经 `reviewer!` 指定具备 `pms:quality:approve` 且非提交人的独立审核人) 与 `evidence/decide-release!` (`in_review` -> `approved` 记 `released_by`/`decision_reason`, 或 -> `rejected`), 提交与决定均走 `latest!` 只能在最新版本推进. 治理命令表新增 `[:documents :submit]`/`[:documents :decision]`, HTTP 新增 `POST /documents/:rid/submit` 与 `POST /documents/:rid/decision`. 前端"证据版本"页签新增发布状态列 (已登记/待发布审批/已发布/已退回) 与"提交发布"及审核人"批准发布/驳回"入口. 关键不变量: 新修订回到 `registered`, 已批准的旧版本保持 `approved` 不漂移, 也不替换旧 Gate/问题/验收所引用的版本. 本轮不引入正式电子签章或外部文书模板.
+
+本轮实际执行的验证:
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 治理命名空间 SQLite | 23 tests / 264 assertions, 0 失败/错误 | 新增 `document-release-requires-independent-approval-and-does-not-drift`: 提交审核人为本人 409, 无审批权审核人 403, 多余字段 400; 非指定审核人决定 403, 提交人自审 403, 非法决定取值 400; 批准 -> approved 且 released_by=审核人; 新修订 -> registered, 在旧批准版本再提交 409, 旧版本读模型仍 approved; 驳回 -> rejected 且不写 released_by, 可再次提交 |
+| 全量 PMS 回归 SQLite | 75 tests / 595 assertions, 0 失败/错误 | `clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'`, 无回归 |
+| 前端编译 | 0 warnings | `npx shadow-cljs compile app` (4027 files), 发布状态列与提交/审批入口一并编译 |
+| 冷启动迁移 (隔离库) | 通过 | 以独立 `/tmp/c06-e2e.db` 全新迁移至 `:3100` (HTTP 3100 / nREPL 7100), 未触碰 `:3000` 现有实例与默认库 |
+| Chrome 浏览器 (Playwright) | 1 passed (48.2s) | `BASE_URL=http://localhost:3100 npx playwright test tests/e2e/pms-c06.spec.js`: 界面登记证据文档 -> 提交发布选独立审核人 -> 审核人第二浏览器上下文批准发布填决策意见 -> 发布状态"已发布" -> admin 建新修订回到"已登记"且旧批准版本不漂移; 真实 HTTP GET 回显 status=approved 与 released_by=审核人; 截图存 `reports/c06/` (c06-1..c06-4) |
+
+本轮未执行 (如实记录): MySQL 回归, 本地无可用 MySQL 实例, 待有环境时补跑. 未实现正式电子签章, 外部文书模板与归档留存策略, 未做发布后撤回/作废的受控反向流程.
+
+边界: 发布审批复用与章程/变更一致的 `reviewer!`/`decision-actor!` 职责分离与 `latest!` 最新版本约束; 不改变文档不可变版本与 SHA256 摘要校验, 不改变 Gate/问题/验收对具体版本的固定引用. C06 维持 `partial` (文档独立发布审批链已 `implemented / local`), 电子签章与外部文书模板仍待实现, 不等于整行能力或生产签收完成.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

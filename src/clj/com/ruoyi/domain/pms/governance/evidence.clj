@@ -100,6 +100,35 @@
                                  ids)}))))
 
 
+(defn submit-release!
+  "冻结当前文档版本并选择具有质量审批权限的独立发布审核人."
+  [svc actor id rid body]
+  (k/mutate! svc actor id "pms:project:edit" body "document.submitted"
+             (fn [q project]
+               (s/input! body [:reviewer_id])
+               (let [record (s/latest! q project (s/record! q project "document" rid))
+                     reviewer (s/reviewer! q project actor (:reviewer_id body))]
+                 (s/status! record #{"registered" "rejected"})
+                 (s/change! q project record "in_review"
+                            {:reviewer_id reviewer :submitted_by (:user_id actor)})))))
+
+
+(defn decide-release!
+  "指定独立审核人正式签发(批准发布)或退回当前文档版本; 旧批准版本不随新修订漂移."
+  [svc actor id rid body]
+  (k/mutate! svc actor id "pms:quality:approve" body "document.released" {:write? false}
+             (fn [q project]
+               (s/input! body [:decision :reason])
+               (let [record (s/latest! q project (s/record! q project "document" rid))
+                     decision (s/enum! (:decision body) #{"approved" "rejected"} "decision")]
+                 (s/status! record #{"in_review"})
+                 (s/decision-actor! actor record)
+                 (s/change! q project record decision
+                            {:decision_reason (s/text! body :reason)
+                             :released_by (when (= "approved" decision) (:user_id actor))
+                             :decided_by (:user_id actor)})))))
+
+
 (defn- csv-rows!
   "解析限定大小的CSV并校验列名和列宽."
   [text]

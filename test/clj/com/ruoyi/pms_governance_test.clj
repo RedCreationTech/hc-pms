@@ -192,6 +192,43 @@
                                          :target_id (:id (document! other "OTHER")) :relation "satisfies"}))))))
 
 
+(deftest document-release-requires-independent-approval-and-does-not-drift
+  (let [id (project!) doc (document! id "REL-1") rid (:id doc)]
+    (is (= "registered" (:status doc)))
+    ;; 提交发布: 审核人不得为提交人本人, 且必须具备质量审批权限.
+    (is (= 409 (error-status #(command! id :documents :submit rid {:reviewer_id 9301}))))
+    (is (= 403 (error-status #(command! id :documents :submit rid {:reviewer_id 9304}))))
+    (is (= 400 (error-status #(command! id :documents :submit rid {:reviewer_id 9302 :decision "approved"}))))
+    (command! id :documents :submit rid {:reviewer_id 9302})
+    (is (= "in_review" (:status (first (filter #(= rid (:id %)) (:documents (workspace id)))))))
+    ;; 决定: 只有指定审核人可作决定, 提交人不得自审.
+    (is (= 403 (error-status #(command! 9303 id :documents :decision rid {:decision "approved" :reason "冒名签发"}))))
+    (is (= 403 (error-status #(command! id :documents :decision rid {:decision "approved" :reason "自行签发"}))))
+    (is (= 400 (error-status #(command! 9302 id :documents :decision rid {:decision "waived" :reason "非法决定取值"}))))
+    (let [released (command! 9302 id :documents :decision rid {:decision "approved" :reason "独立审查通过, 正式签发"})]
+      (is (= "approved" (:status released)))
+      (is (= 9302 (:released_by released)))
+      (is (= 9302 (:decided_by released))))
+    ;; 新修订回到 registered, 旧批准版本不可变且不漂移.
+    (let [v2 (command! id :documents :revisions rid
+                       {:code "REL-1" :title "记录更新" :filename "rel-v2.txt" :content "第二版正文"})]
+      (is (= 2 (:revision v2)))
+      (is (= "registered" (:status v2)))
+      ;; 在旧批准版本上再次提交被 latest! 拒绝.
+      (is (= 409 (error-status #(command! id :documents :submit rid {:reviewer_id 9302}))))
+      (let [docs (:documents (workspace id))
+            old (first (filter #(= rid (:id %)) docs))
+            new (first (filter #(= (:id v2) (:id %)) docs))]
+        (is (= "approved" (:status old)) "旧批准版本保持已发布")
+        (is (= "registered" (:status new)) "新修订尚未发布"))
+      ;; 退回路径: 提交 V2 后审核人驳回, 记为 rejected 且不写 released_by; 可再次提交.
+      (command! id :documents :submit (:id v2) {:reviewer_id 9302})
+      (let [rejected (command! 9302 id :documents :decision (:id v2) {:decision "rejected" :reason "证据不足"})]
+        (is (= "rejected" (:status rejected)))
+        (is (nil? (:released_by rejected))))
+      (is (= "in_review" (:status (command! id :documents :submit (:id v2) {:reviewer_id 9302})))))))
+
+
 (deftest traceability-report-computes-per-version-link-gaps
   (let [reqs [{:id "r1" :code "URS-1" :revision 1 :priority "required"}
               {:id "r1v2" :code "URS-1" :revision 2 :priority "required"}

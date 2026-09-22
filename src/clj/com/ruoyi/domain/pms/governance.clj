@@ -104,6 +104,7 @@
    [:requirements :import] (creating evidence/import!)
    [:documents :create] (approval-command evidence/create! "document" true)
    [:documents :revisions] (approval-command evidence/revise! "document" false)
+   [:documents :submit] evidence/submit-release! [:documents :decision] evidence/decide-release!
    [:traces :create] (creating evidence/trace!)
    [:risks :create] (creating collab/create-risk!)
    [:risks :review] reviews/submit-risk-review! [:risks :decision] reviews/decide-risk-review!

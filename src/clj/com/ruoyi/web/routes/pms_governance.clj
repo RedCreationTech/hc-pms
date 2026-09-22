@@ -25,6 +25,8 @@
     (command-route svc "/requirements/:record_id/revisions" :requirements :revisions)
     (command-route svc "/documents" :documents :create)
     (command-route svc "/documents/:record_id/revisions" :documents :revisions)
+    (command-route svc "/documents/:record_id/submit" :documents :submit)
+    (command-route svc "/documents/:record_id/decision" :documents :decision)
     ["/documents/:record_id/content" {:get {:handler (partial controller/content svc)}}]
     ["/documents/:record_id/download" {:get {:handler (partial controller/download svc)}}]
     ["/documents/batch-download" {:post {:handler (partial controller/batch-download svc)}}]

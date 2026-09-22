@@ -26,6 +26,8 @@
 | POST `/requirements/import` | csv | 任一行不合法则整批拒绝, 全部通过才事务导入 |
 | POST `/documents` | code, title, filename, content | 登记真实 UTF-8 文本版本, 计算 SHA256 和 byte_size |
 | POST `/documents/:rid/revisions` | 同上 | 不变 code 的新版本, 原正文与摘要不变 |
+| POST `/documents/:rid/submit` | reviewer_id | registered/rejected -> in_review; 冻结当前最新版本并指定具备 `pms:quality:approve` 的独立发布审核人 (审核人不得为提交人, 须有项目阅读资格) |
+| POST `/documents/:rid/decision` | decision: approved/rejected, reason | 只有指定审核人可决定当前最新提交版本; approved -> `approved` (正式签发发布, 记 `released_by`), rejected -> `rejected` (可再次提交) |
 | POST `/traces` | requirement_id, target_kind: document/task, target_id, relation: satisfies/verifies | 关联确切需求版本与同项目文档版本或真实 WBS 任务 |
 | POST `/risks` | title, probability: 1..5, impact: 1..5, owner_id, mitigation, due_date | 创建 open 风险, score = probability * impact |
 | POST `/risks/:rid/mitigate` | mitigation, evidence_ids | open/mitigated -> mitigated, 必须记录实际证据 |
@@ -65,7 +67,7 @@
 
 ## 真实文档与 CSV
 
-`content` 是真实提交文本, 包含首尾空格和换行的原始 UTF-8 字节; 非空且至多 1MiB. filename 不得含路径分隔符或换行. `registered` 表示已通过字段和摘要校验登记的不可变版本, 可用于验收引用; 本次不含独立文档发布审批. 新版本不会替换旧 Gate, 问题或验收所引用的版本.
+`content` 是真实提交文本, 包含首尾空格和换行的原始 UTF-8 字节; 非空且至多 1MiB. filename 不得含路径分隔符或换行. `registered` 表示已通过字段和摘要校验登记的不可变版本, 可用于验收引用. 文档发布审批: `POST /documents/:rid/submit` 使 `registered`/`rejected` -> `in_review` 并指定独立发布审核人, `POST /documents/:rid/decision` 由该审核人 `approved` -> `approved` (正式签发发布, 记 `released_by` 与 `decision_reason`) 或 `rejected` -> `rejected`. 提交与决定均走 `latest!`, 只能在最新版本上推进; 新修订回到 `registered`, 已批准的旧版本保持 `approved` 不漂移, 也不会替换旧 Gate, 问题或验收所引用的版本. 独立审批复用 `reviewer!` (须具备 `pms:quality:approve` 且非提交人) 与 `decision-actor!` (职责分离), 管理员不能绕过. 本轮不引入正式电子签章或外部文书模板.
 
 文档登记与修订接受可选归集字段: `classification` 密级为枚举 `public|internal|confidential`, 缺省记为 `internal`, 非法取值返回 400; `stage` 所属阶段与 `structure_node` 结构节点为至多 100 字符的可选文本, 留空记为空串. 这些字段随不可变版本存入 payload 并进入读模型, 仅用于项目内按阶段/结构/密级归集与追踪, 不替代项目授权, 本轮不据密级过滤下载或访问.
 

@@ -57,11 +57,20 @@
        (mapv #(->> % (apply max-key :revision) :id))))
 
 
+(defn- release-tag
+  "文档发布状态的语义标签."
+  [status]
+  (let [[text color] (get {"registered" ["已登记" "default"] "in_review" ["待发布审批" "blue"]
+                           "approved" ["已发布" "green"] "rejected" ["已退回" "red"]}
+                          status [status "default"])]
+    [antd/tag {:color color} text]))
+
+
 (defn- document-section
-  "列出可校验的真实证据文档及不可变版本, 支持打包批量下载."
-  [{:keys [base model editable? open! document!]}]
-  (let [ids (latest-document-ids (:documents model))]
-    [shared/panel "文档与版本证据" "证据引用绑定版本,内容由服务器计算SHA256摘要"
+  "列出可校验的真实证据文档及不可变版本, 支持打包批量下载与独立发布审批."
+  [{:keys [base model options editable? approve? open! document!]}]
+  (let [ids (latest-document-ids (:documents model)) current (:currentUserId options)]
+    [shared/panel "文档与版本证据" "证据引用绑定版本,内容由服务器计算SHA256摘要; 正式签发须经独立审批, 新修订不漂移旧批准"
      [antd/space
       (when editable? [antd/button {:on-click #(open! (forms/document-dialog base nil))} "登记证据文档"])
       (when (seq ids)
@@ -77,9 +86,20 @@
        {:title "密级" :dataIndex "classification"
         :render #(get {"public" "公开" "internal" "内部" "confidential" "机密"} % %)}
        (w/text-column :stage "阶段")
+       {:title "发布状态" :dataIndex "status" :render #(r/as-element (release-tag %))}
        (w/text-column :sha256 "SHA256摘要")]
       (fn [row]
-        [antd/space [w/edit-button "查看内容" #(document! row)]
+        [antd/space {:wrap true}
+         [w/edit-button "查看内容" #(document! row)]
+         (when (and editable? (contains? #{"registered" "rejected"} (:status row)))
+           [w/edit-button "提交发布"
+            #(open! {:title "提交文档发布审批" :path (str base "/documents/" (:id row) "/submit")
+                     :description "选择具备质量审批权限的独立审核人, 冻结当前版本进入发布评审."
+                     :fields [(forms/reviewer-field options)]})])
+         (when (and approve? (= "in_review" (:status row)) (= current (:reviewer_id row)) (not= current (:submitted_by row)))
+           [:<>
+            [w/edit-button "批准发布" #(open! (forms/decision-dialog (str base "/documents/" (:id row) "/decision") "approved" "正式签发发布"))]
+            [w/edit-button "驳回" #(open! (forms/decision-dialog (str base "/documents/" (:id row) "/decision") "rejected" "驳回文档发布"))]])
          (when editable? [w/edit-button "新版本" #(open! (forms/document-dialog base row))])])]]))
 
 
