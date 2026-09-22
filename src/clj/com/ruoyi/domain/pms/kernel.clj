@@ -2,7 +2,7 @@
   "PMS扩展模块共享的事务, 权限, 乐观锁和审计边界."
   (:require [cheshire.core :as json]
             [com.ruoyi.domain.pms.rules :as rules]
-            [next.jdbc :as jdbc])
+            [com.ruoyi.domain.pms.transaction :as transaction])
   (:import [java.sql SQLException]
            [java.util UUID]))
 
@@ -30,8 +30,8 @@
   "在同一连接执行参数化查询, 异常时原子回滚."
   [{:keys [db query-fn]} f]
   (try
-    (jdbc/with-transaction [tx db]
-      (f (fn [query params] (query-fn tx query params))))
+    (transaction/execute! db
+      (fn [tx] (f (fn [query params] (query-fn tx query params)))))
     (catch Exception e (database-error! e))))
 
 (defn read!

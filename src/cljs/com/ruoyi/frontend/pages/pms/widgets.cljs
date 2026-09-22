@@ -98,12 +98,21 @@
   [label on-click]
   [antd/button {:type "link" :size "small" :on-click on-click} label])
 
+(defn refresh-boundary
+  "刷新期间保留组件和页签状态,禁用依赖旧数据的操作."
+  [loading? content]
+  [:fieldset {:disabled (boolean loading?) :aria-busy (boolean loading?)
+              :style {:border 0 :padding 0 :margin 0 :minWidth 0
+                      :opacity (if loading? 0.65 1)
+                      :pointerEvents (when loading? "none")}}
+   content])
+
 (defn resource-view
-  "统一加载与错误反馈,初次加载后保留数据."
+  "初次加载后保留数据,刷新完成前不允许操作旧模型."
   [{:keys [data loading? error refresh!]} render-data]
   (cond error [shared/error-panel error refresh!]
         (and loading? (nil? data)) [:div {:style {:padding 48 :textAlign "center"}} [antd/spin]]
-        :else (render-data data)))
+        :else [refresh-boundary loading? (render-data data)]))
 
 (defn section
   "工作台内部业务区块."

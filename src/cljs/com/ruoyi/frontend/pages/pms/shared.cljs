@@ -57,22 +57,25 @@
     #(failure (error-message %))))
 
 (defn use-resource
-  "加载服务端资源并忽略已卸载组件的迟到响应,nil路径不发出请求."
+  "加载资源并在依赖变化当次渲染标记刷新,忽略过期响应."
   [path params dependencies]
   (let [[state set-state!] (hooks/use-state {:loading? true})
-        [revision set-revision!] (hooks/use-state 0)]
+        [revision set-revision!] (hooks/use-state 0)
+        request-key (into [path revision] dependencies)]
     (hooks/use-effect
       (fn []
-        (let [active? (volatile! true)]
+        (let [active? (volatile! true)
+              complete! #(when @active? (set-state! (assoc % :request-key request-key)))]
           (if path
             (do (set-state! #(assoc % :loading? true :error nil))
                 (request! :get path params
-                  #(when @active? (set-state! {:data % :loading? false}))
-                  #(when @active? (set-state! {:error % :loading? false}))))
-            (set-state! {:data nil :loading? false}))
+                  #(complete! {:data % :loading? false})
+                  #(complete! {:error % :loading? false})))
+            (complete! {:data nil :loading? false}))
           #(vreset! active? false)))
-      (into [path revision] dependencies))
-    (assoc state :refresh! #(set-revision! inc))))
+      request-key)
+    (assoc state :loading? (or (:loading? state) (not= request-key (:request-key state)))
+                 :refresh! #(set-revision! inc))))
 
 (defn use-action
   "提交修改并保留错误信息,成功后刷新调用方资源."

@@ -553,4 +553,55 @@ test.describe('PMS 工作台真实浏览器验收', () => {
     } finally { await f.context.close(); }
   });
 
+
+  test('保存后等待项目版本与关联模型同步,保留当前页签并禁止旧数据操作', async ({ page, browser }) => {
+    const f = await fixture(page, browser, '刷新一致性');
+    let releaseProject, releasePlan;
+    const projectGate = new Promise(resolve => { releaseProject = resolve; });
+    const planGate = new Promise(resolve => { releasePlan = resolve; });
+    let projectIntercepted, planIntercepted;
+    const projectStarted = new Promise(resolve => { projectIntercepted = resolve; });
+    const planStarted = new Promise(resolve => { planIntercepted = resolve; });
+    try {
+      await open(page, f.id, '计划与执行');
+      await task(page, '1', '已存在的计划任务');
+      await page.route(url => url.pathname === base(f.id), async route => {
+        if (route.request().method() === 'GET') { projectIntercepted(); await projectGate; }
+        await route.continue();
+      });
+      await page.route(url => url.pathname === base(f.id) + "/planning", async route => {
+        planIntercepted(); await planGate; await route.continue();
+      });
+      await drawer(page).getByRole('button', { name: '新建WBS任务', exact: true }).click();
+      const form = modal(page, '新建WBS任务');
+      await fill(form, { wbs_code: '2', name: '刷新后才可关联的任务', duration_days: 1, start_date: '2026-09-22' });
+      await choose(page, form, 'owner_id', /\/ admin$/);
+      const saved = page.waitForResponse(r => r.url().endsWith('/tasks') && r.request().method() === 'POST');
+      await form.getByRole('button', { name: /^保\s*存$/ }).click();
+      const result = await (await saved).json();
+      expect(result.code, result.msg).toBe(200);
+      await expect(form).toBeHidden();
+      await Promise.all([projectStarted, planStarted]);
+      const addDependency = drawer(page).getByRole('button', { name: '添加任务依赖', exact: true });
+      await expect(addDependency).toBeDisabled();
+      await expect(drawer(page).getByRole('tab', { name: '计划与执行', exact: true })).toHaveAttribute('aria-selected', 'true');
+      await expect(row(page, '已存在的计划任务')).toBeVisible();
+      releasePlan();
+      await expect(row(page, '刷新后才可关联的任务')).toBeVisible();
+      await expect(addDependency).toBeDisabled();
+      releaseProject();
+      await expect(addDependency).toBeEnabled();
+      await addDependency.click();
+      await choose(page, modal(page, '添加任务依赖'), 'predecessor_id', '已存在的计划任务');
+      await choose(page, modal(page, '添加任务依赖'), 'successor_id', '刷新后才可关联的任务');
+      const mutation = page.waitForRequest(r => r.url().endsWith('/dependencies') && r.method() === 'POST');
+      await save(page, '添加任务依赖');
+      expect((await mutation).postDataJSON().version).toBe(result.data.project_version);
+      expect(f.errors).toEqual([]);
+    } finally {
+      releaseProject(); releasePlan();
+      await page.unrouteAll({ behavior: 'wait' });
+      await f.context.close();
+    }
+  });
 });

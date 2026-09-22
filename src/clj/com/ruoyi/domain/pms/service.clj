@@ -6,7 +6,7 @@
             [com.ruoyi.domain.pms.lifecycle :as lifecycle]
             [com.ruoyi.domain.pms.planning :as planning]
             [integrant.core :as ig]
-            [next.jdbc :as jdbc])
+            [com.ruoyi.domain.pms.transaction :as transaction])
   (:import [java.sql SQLException]
            [java.time LocalDate]
            [java.util UUID]))
@@ -49,8 +49,8 @@
   "执行事务,确保业务写入和审计同时提交或回滚."
   [{:keys [db query-fn]} f]
   (try
-    (jdbc/with-transaction [tx db]
-      (f (fn [query params] (query-fn tx query params))))
+    (transaction/execute! db
+      (fn [tx] (f (fn [query params] (query-fn tx query params)))))
     (catch Exception e (database-error! e))))
 
 (defn- load-project!

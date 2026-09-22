@@ -16,7 +16,7 @@ jobs:
       - uses: DeLaGuardo/setup-clojure@13.7.0
         with:
           cli: 1.12.4.1618
-      - name: Project domain and API tests on fresh SQLite
+      - name: PMS domain and API tests on fresh SQLite
         run: clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'
   mysql:
     runs-on: ubuntu-latest
@@ -40,7 +40,7 @@ jobs:
       - uses: DeLaGuardo/setup-clojure@13.7.0
         with:
           cli: 1.12.4.1618
-      - name: Same project tests on isolated MySQL
+      - name: Same PMS tests on isolated MySQL
         env:
           PMS_TEST_JDBC_URL: jdbc:mysql://127.0.0.1:3306/hc_pms_test?user=root&password=pms_ci_only&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
         run: clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'
@@ -82,6 +82,11 @@ jobs:
         env:
           BASE_URL: http://127.0.0.1:3100
         run: pnpm exec playwright test tests/e2e/pms.spec.js tests/e2e/pms-workbench.spec.js --project=chromium
+      - name: Preserve application diagnostics
+        if: always()
+        run: |
+          mkdir -p playwright-report
+          if [ -f /tmp/pms-ci.log ]; then cp /tmp/pms-ci.log playwright-report/application.log; fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:

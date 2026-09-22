@@ -5,6 +5,7 @@
     [com.ruoyi.frontend.antd :as antd]
     [com.ruoyi.frontend.pages.pms.form :as project-form]
     [com.ruoyi.frontend.pages.pms.shared :as shared]
+    [com.ruoyi.frontend.pages.pms.widgets :as w]
     [com.ruoyi.frontend.pages.pms.structure :as structure]
     [com.ruoyi.frontend.pages.pms.planning :as planning]
     [com.ruoyi.frontend.pages.pms.governance :as governance]
@@ -173,7 +174,8 @@
      (cond
        error [shared/error-panel error refresh!]
        (and loading? (nil? data)) [:div {:style {:padding 64 :textAlign "center"}} [antd/spin]]
-       :else [workbench-content data revision options changed! #(set-editing! true) set-target!])
+       :else [w/refresh-boundary loading?
+              [workbench-content data revision options changed! #(set-editing! true) set-target!]])
      (when editing? [project-form/project-form
                      {:project data :options options :on-close #(set-editing! false)
                       :on-saved (fn [_] (set-editing! false) (changed!))}])
