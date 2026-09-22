@@ -1,21 +1,25 @@
 (ns com.ruoyi.pms-governance-test
   "真实数据库上的治理审批,证据,整批导入和跨模块闭环测试."
-  (:require [cheshire.core :as json]
-            [clojure.test :refer [deftest is use-fixtures]]
-            [com.ruoyi.domain.pms.governance :as gov]
-            [com.ruoyi.domain.pms.planning :as planning]
-            [com.ruoyi.domain.pms.queries :as queries]
-            [com.ruoyi.domain.pms.service :as pms]
-            [com.ruoyi.infra.security :as security]
-            [com.ruoyi.web.routes.api :as api]
-            [com.ruoyi.web.routes.pms :as routes]
-            [conman.core :as conman]
-            [migratus.core :as migratus]
-            [next.jdbc :as jdbc]
-            [reitit.ring :as ring]
-            [ring.mock.request :as mock])
-  (:import [java.nio.file Files]
-           [java.util UUID]))
+  (:require
+    [cheshire.core :as json]
+    [clojure.test :refer [deftest is use-fixtures]]
+    [com.ruoyi.domain.pms.governance :as gov]
+    [com.ruoyi.domain.pms.planning :as planning]
+    [com.ruoyi.domain.pms.queries :as queries]
+    [com.ruoyi.domain.pms.service :as pms]
+    [com.ruoyi.infra.security :as security]
+    [com.ruoyi.web.routes.api :as api]
+    [com.ruoyi.web.routes.pms :as routes]
+    [conman.core :as conman]
+    [migratus.core :as migratus]
+    [next.jdbc :as jdbc]
+    [reitit.ring :as ring]
+    [ring.mock.request :as mock])
+  (:import
+    (java.nio.file
+      Files)
+    (java.util
+      UUID)))
 
 
 (def ^:dynamic *service* nil)
@@ -56,13 +60,14 @@
         db (jdbc/get-datasource {:jdbcUrl url})]
     (try
       (migratus/migrate {:store :database :db {:datasource db}
-                        :migration-dir (if (.contains url "mysql") "migrations" "migrations-sqlite")})
+                         :migration-dir (if (.contains url "mysql") "migrations" "migrations-sqlite")})
       (seed! db)
       (let [svc {:db db :query-fn (query-function db)}
             handler (ring/ring-handler (ring/router [["/api" api/route-data
                                                       (routes/pms-routes {:pms-service svc})]]))]
         (binding [*service* svc *handler* handler] (f)))
       (finally (when file (Files/deleteIfExists file))))))
+
 
 (use-fixtures :once database-fixture)
 
@@ -77,9 +82,9 @@
   "创建项目并分离管理者,只读审批人和普通编辑者."
   []
   (let [project (pms/create-project! *service* (actor 1)
-                 {:project_no (str "GOV-" (UUID/randomUUID)) :name "治理闭环验证"
-                  :customer "本地测试" :contract_no "GOV-TEST" :project_type "equipment"
-                  :manager_id 9301 :dept_id 1 :start_date "2026-09-01" :end_date "2026-12-31"})
+                                     {:project_no (str "GOV-" (UUID/randomUUID)) :name "治理闭环验证"
+                                      :customer "本地测试" :contract_no "GOV-TEST" :project_type "equipment"
+                                      :manager_id 9301 :dept_id 1 :start_date "2026-09-01" :end_date "2026-12-31"})
         id (:project_id project)]
     (pms/set-member! *service* (actor 1) id {:user_id 9302 :role "viewer"})
     (pms/set-member! *service* (actor 1) id {:user_id 9303 :role "editor"})
@@ -167,13 +172,13 @@
     (is (= 400 (error-status #(command! id :documents :create nil {:code "BAD" :title "无文件" :filename "../x" :content "abc"}))))
     (is (= 400 (error-status #(command! id :documents :create nil {:code "EMPTY" :title "空" :filename "empty" :content "  "}))))
     (let [trace (command! id :traces :create nil
-                         {:requirement_id (:id requirement) :target_kind "document" :target_id rid :relation "verifies"})]
+                          {:requirement_id (:id requirement) :target_kind "document" :target_id rid :relation "verifies"})]
       (is (= rid (:target_id trace)))
       (is (= 409 (error-status #(command! id :traces :create nil
-                                        {:requirement_id (:id requirement) :target_kind "document" :target_id rid :relation "verifies"})))))
+                                          {:requirement_id (:id requirement) :target_kind "document" :target_id rid :relation "verifies"})))))
     (is (= 404 (error-status #(command! id :traces :create nil
-                                      {:requirement_id (:id requirement) :target_kind "document"
-                                       :target_id (:id (document! other "OTHER")) :relation "satisfies"}))))))
+                                        {:requirement_id (:id requirement) :target_kind "document"
+                                         :target_id (:id (document! other "OTHER")) :relation "satisfies"}))))))
 
 
 (deftest csv-preflight-and-import-are-all-or-nothing
@@ -198,7 +203,7 @@
 (deftest risk-becomes-one-issue-and-requires-independent-verification
   (let [id (project!) evidence (:id (document! id "FIX-1"))
         risk (command! id :risks :create nil {:title "关键调试风险" :probability 3 :impact 5
-                                            :owner_id 9301 :mitigation "准备复测" :due_date "2026-10-01"})
+                                              :owner_id 9301 :mitigation "准备复测" :due_date "2026-10-01"})
         _ (command! id :risks :mitigate (:id risk) {:mitigation "复测已执行" :evidence_ids [evidence]})
         issue (command! id :risks :materialize (:id risk) {})
         again (command! id :risks :materialize (:id risk) {})]
@@ -208,7 +213,7 @@
     (is (= "blocker" (:severity issue)))
     (is (re-find #"阻塞" (first (get-in (workspace id) [:blockers :closure]))))
     (is (= 409 (error-status #(command! id :issues :resolve (:id issue)
-                                      {:resolution "修复" :evidence_ids [] :reviewer_id 9302}))))
+                                        {:resolution "修复" :evidence_ids [] :reviewer_id 9302}))))
     (command! id :issues :resolve (:id issue) {:resolution "重新接线并复测" :evidence_ids [evidence] :reviewer_id 9302})
     (is (= 403 (error-status #(command! id :issues :decision (:id issue) {:decision "approved" :reason "自己验证"}))))
     (is (= "closed" (:status (command! 9302 id :issues :decision (:id issue) {:decision "approved" :reason "独立复测通过"}))))
@@ -217,7 +222,7 @@
 
 (deftest meeting-action-creates-one-real-task
   (let [id (project!) meeting (command! id :meetings :create nil
-                                      {:title "设计评审" :held_on "2026-09-22" :minutes "补齐验证任务" :attendee_ids [9301 9302]})
+                                        {:title "设计评审" :held_on "2026-09-22" :minutes "补齐验证任务" :attendee_ids [9301 9302]})
         action (command! id :meetings :actions (:id meeting)
                          {:title "补充验证" :owner_id 9301 :due_date "2026-09-25"})
         task (command! id :actions :task (:id action) {:start_date "2026-09-23" :duration_days 2})
@@ -228,7 +233,7 @@
     (is (= (:id action) (:source_id (first rows))))
     (is (= "meeting_action" (:source_type (first rows))))
     (is (= 409 (error-status #(planning/delete-task! *service* (actor 9301) id
-                                                    (:target_task_id task) {:version (version id)}))))
+                                                     (:target_task_id task) {:version (version id)}))))
     (is (= "converted" (:status (first (:actions (workspace id))))))
     (is (= (:id meeting) (:meeting_id (first (:actions (workspace id))))))))
 
@@ -248,7 +253,7 @@
     (approve! id :charters (:id charter))
     (is (= 409 (error-status #(command! id :gates :submit (:id gate) {}))))
     (is (= 400 (error-status #(command! id :gates :checks (:id gate)
-                                      {:checks [{:code "C-1" :passed true :required false :evidence_ids [(:id document)]}]}))))
+                                        {:checks [{:code "C-1" :passed true :required false :evidence_ids [(:id document)]}]}))))
     (command! id :gates :checks (:id gate) {:checks [{:code "C-1" :passed true :evidence_ids [(:id document)]}]})
     (command! id :gates :submit (:id gate) {})
     (is (= 403 (error-status #(command! id :gates :decision (:id gate) {:decision "approved" :reason "自审"}))))
@@ -270,18 +275,19 @@
               :resource_impact "追加工程师"}
         change (command! id :changes :create nil body) stale (dec (version id))]
     (is (= 409 (error-status #(gov/command! *service* (actor 9301) id :changes :submit (:id change)
-                                           {:version stale :reviewer_id 9302}))))
+                                            {:version stale :reviewer_id 9302}))))
     (approve! id :changes (:id change))
     (is (= "approved" (:status (gov/approved-change! (:query-fn *service*)
                                                      (pms/project *service* (actor 1) id) (:id change)))))
     (let [original (:query-fn *service*) before (version id)
           broken (assoc *service* :query-fn
-                        (fn ([name params] (original name params))
+                        (fn
+                          ([name params] (original name params))
                           ([tx name params] (if (= name :pms/insert-event!)
                                               (throw (ex-info "audit unavailable" {})) (original tx name params)))))]
       (is (thrown? clojure.lang.ExceptionInfo
-                   (gov/command! broken (actor 9301) id :documents :create nil
-                                 {:version before :code "ROLLBACK" :title "回滚" :filename "rollback.txt" :content "不应保留"})))
+            (gov/command! broken (actor 9301) id :documents :create nil
+                          {:version before :code "ROLLBACK" :title "回滚" :filename "rollback.txt" :content "不应保留"})))
       (is (= before (version id)))
       (is (empty? (:documents (workspace id)))))))
 
@@ -336,7 +342,7 @@
   (let [id (project!) evidence (:id (document! id "RISK-REVIEW"))
         today (java.time.LocalDate/now) tomorrow (str (.plusDays today 10))
         risk (command! id :risks :create nil {:title "周期复审风险" :probability 2 :impact 3 :owner_id 9301
-                                            :mitigation "定期验证" :due_date (str (.minusDays today 1))})
+                                              :mitigation "定期验证" :due_date (str (.minusDays today 1))})
         body {:outcome "active" :review_note "复审后继续监控" :reviewer_id 9302 :evidence_ids [evidence]
               :next_review_date tomorrow}]
     (is (:review_overdue (first (:risks (workspace id)))))

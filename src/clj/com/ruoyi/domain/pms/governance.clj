@@ -1,15 +1,16 @@
 (ns com.ruoyi.domain.pms.governance
   "项目治理工作台的只读模型,类型化命令入口及生命周期条件."
-  (:require [com.ruoyi.domain.pms.governance.approval :as approval]
-            [com.ruoyi.domain.pms.governance.appointment :as appointment]
-            [com.ruoyi.domain.pms.governance.collaboration :as collab]
-            [com.ruoyi.domain.pms.governance.evidence :as evidence]
-            [com.ruoyi.domain.pms.governance.gates :as gates]
-            [com.ruoyi.domain.pms.governance.stakeholders :as stakeholders]
-            [com.ruoyi.domain.pms.governance.store :as store]
-            [com.ruoyi.domain.pms.governance.reviews :as reviews]
-            [com.ruoyi.domain.pms.kernel :as k]
-            [com.ruoyi.domain.pms.rules :as r]))
+  (:require
+    [com.ruoyi.domain.pms.governance.appointment :as appointment]
+    [com.ruoyi.domain.pms.governance.approval :as approval]
+    [com.ruoyi.domain.pms.governance.collaboration :as collab]
+    [com.ruoyi.domain.pms.governance.evidence :as evidence]
+    [com.ruoyi.domain.pms.governance.gates :as gates]
+    [com.ruoyi.domain.pms.governance.reviews :as reviews]
+    [com.ruoyi.domain.pms.governance.stakeholders :as stakeholders]
+    [com.ruoyi.domain.pms.governance.store :as store]
+    [com.ruoyi.domain.pms.kernel :as k]
+    [com.ruoyi.domain.pms.rules :as r]))
 
 
 (def sections
@@ -60,12 +61,12 @@
   "返回当前项目治理对象版本列表,附件正文须经独立下载接口读取."
   [svc actor id]
   (k/read! svc actor id "pms:project:query"
-    (fn [q project]
-      (assoc (into {} (for [[section kind] sections]
-                        [section (mapv #(cond-> (dissoc % :content) (= kind "risk") reviews/risk-read-model) (store/records q project kind))]))
-             :project_version (:version project) :blockers (blockers q project)
-             :appointments (appointment/list-summaries q project)
-             :raci_conflicts (stakeholders/conflicts q project)))))
+           (fn [q project]
+             (assoc (into {} (for [[section kind] sections]
+                               [section (mapv #(cond-> (dissoc % :content) (= kind "risk") reviews/risk-read-model) (store/records q project kind))]))
+                    :project_version (:version project) :blockers (blockers q project)
+                    :appointments (appointment/list-summaries q project)
+                    :raci_conflicts (stakeholders/conflicts q project)))))
 
 
 (defn- creating
