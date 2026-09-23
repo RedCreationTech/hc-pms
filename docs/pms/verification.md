@@ -463,6 +463,23 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 责任人跨类负载是"识别一人被集中指派"的只读预警列, 与规划域基于日历容量的资源超配保护(H05)口径不同, 不替代资源容量冲突检测; 负载只在读取时按当前未关闭事项计算, 不持久化, 不构成主动通知. 该洞察横跨 C07/C09/C10 三行, 记为对 C07(行动台账负载可见)的增强, 相关行 `partial` 状态不变.
 
+## 问题与行动到期倒计时只读洞察 (本轮增补, 2026-09-23)
+
+设计与关闭口径: 延续"给治理台账加免迁移派生列"套路, 把 C09 问题台账与 C07 会议行动台账已有的二元"逾期预警"细化为一条只读"到期倒计时"列. 领域层新增纯函数 `collaboration/days-until`(以 `java.time.LocalDate` 计算到期日相对服务器当天的剩余天数, 负值表示已逾期天数, 空日期返回 `nil`)与常量 `due-soon-days`(3, 未决事项剩余 1..3 天视为临期). `issue-read-model` 与 `action-read-model` 各在原 `assoc` 中补充 `issue_due_in_days`/`action_due_in_days`(整数剩余天数, 已完成/已关闭/已转真实任务或未填到期日时为 `nil`), 以及 `issue_due_soon`/`action_due_soon`(剩余天数落在 `1..due-soon-days` 时为 true). 逾期/临期与既有 `*_overdue` 用同一"服务器当天 + 排除 closed(行动另排除 converted)"口径, 只是把结论从是否逾期细化到还剩几天. 派生键一律去尾随 `?` 以原样序列化到 JSON. workspace 无需改动(单 kind 读模型新增字段自动透传). 前端"风险与问题"页签的问题台账与"会议行动"页签的行动台账各新增一列只读"到期倒计时": 逾期红色"已逾期 N 天", 今天到期橙色"今天到期", 临期金色"剩 N 天临期", 尚远蓝色"剩 N 天", 已完成或无到期日显示灰色短横. 全程免迁移, 免新命令, 免新 kind, 免新状态值(纯读取时计算, 不落库不投递).
+
+本轮实际执行的验证:
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 治理命名空间 SQLite | 41 tests / 467 assertions, 0 失败/错误 | 新增 `issue-and-action-due-countdown-flags-remaining-days`(相对服务器当天登记 +30 远期 / +2 临期 / -5 逾期的问题 -> `issue_due_in_days` 分别 30/2/-5, `issue_due_soon` 仅 +2 为 true, `issue_overdue` 仅 -5 为 true; +2 天行动同样临期; 远期行动"转真实任务"后 `action_due_in_days` 转 `nil`、`action_due_soon`/`action_overdue` 转 false; 问题经 resolve+独立审批关闭后 `issue_due_in_days` 转 `nil`、`issue_due_soon` 转 false). 全量 PMS 无回归 |
+| 全量 PMS 回归 SQLite | 93 tests / 798 assertions, 0 失败/错误 | 无回归 |
+| 前端编译 | shadow-cljs 0 warnings | `due-countdown-column` 复用列, 问题与行动两处一并编译 |
+| Chrome 浏览器 (Playwright) | 1 passed | `pms-due.spec.js`: 界面登记约 +2/+30/-5 天到期的三条问题 -> 问题台账"到期倒计时"列分别显示"剩 N 天临期"/"剩 N 天"/"已逾期 N 天"; 真实 HTTP GET governance 回显 `issue_due_soon`/`issue_due_in_days`/`issue_overdue` 同口径落在预期窗口; HTTP 挂一条约 +2 天到期的会议行动 -> 行动台账也显示"剩 N 天临期"; 界面点该行动"转为WBS任务"后倒计时列不再显示临期/逾期且回显 `action_due_in_days=null`/`action_due_soon=false`; 断言按类别正则与剩余天数窗口取值以免疫 ±1 天服务器/浏览器日期漂移; 截图存 `reports/due/` (due-1-issue-countdown/due-2-action-countdown/due-3-after-convert) |
+
+本轮未执行 (如实记录): MySQL 迁移与回归(本地无可用实例, 但本洞察完全免迁移, 不新增 DDL); 未接通按剩余天数自动派发提醒(C11 通知/预警仍为 planned); 风险台账的到期倒计时暂不在本轮范围(风险已有独立复审到期口径).
+
+边界: 到期倒计时是把既有二元逾期标记细化的只读洞察, 只在读取时按服务器当天计算剩余天数, 不持久化、不构成主动通知; 与 C11"到期提醒投递"是不同能力, 不据此宣称通知闭环. 该洞察横跨 C07(会议行动)与 C09(问题)两行, 记为对二者的增强, 相关行 `partial` 状态不变.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

@@ -259,7 +259,22 @@
              (let [load (aget row "owner_open_load") over (true? (aget row "owner_overloaded"))]
                (r/as-element [antd/space {:wrap true}
                               [antd/tag {:color (if (pos? load) "blue" "default")} (str "未关闭 x " load)]
-                              (when over [antd/tag {:color "red"} "负载过重"])])))})
+                                     (when over [antd/tag {:color "red"} "负载过重"])])))})
+
+
+(defn- due-countdown-column
+  "按服务端派生的剩余天数渲染未决事项到期倒计时: 逾期红色, 今天到期橙色, 临期金色, 尚远蓝色, 已完成或无到期日显示短横; 只读派生列."
+  [js-key]
+  {:title "到期倒计时" :dataIndex js-key :width 150
+   :render (fn [_ row]
+             (let [v (aget row js-key)]
+               (r/as-element
+                 (cond
+                   (not (number? v)) [:span {:style {:color "#98a2b3"}} "-"]
+                   (neg? v) [antd/tag {:color "red"} (str "已逾期 " (- v) " 天")]
+                   (zero? v) [antd/tag {:color "volcano"} "今天到期"]
+                   (<= v 3) [antd/tag {:color "gold"} (str "剩 " v " 天临期")]
+                   :else [antd/tag {:color "blue"} (str "剩 " v " 天")]))))})
 
 
 (defn comm-plan-section
@@ -395,6 +410,7 @@
                    [antd/space {:wrap true}
                     (when critical [antd/tag {:color "red"} "阻断级"])
                     (when overdue [antd/tag {:color "volcano"} "已逾期"])])))}
+     (due-countdown-column "issue_due_in_days")
      {:title "超阈值升级" :dataIndex "escalation_state" :width 180
       :render (fn [_ row]
                 (let [esc (aget row "escalated") state (aget row "escalation_state")]
@@ -474,6 +490,7 @@
    [w/record-table (:actions model)
     [(w/text-column :title "行动内容") (w/text-column :due_date "到期日期")
      {:title "逾期" :dataIndex "action_overdue" :render #(when % (r/as-element [antd/tag {:color "red"} "已逾期"]))}
+     (due-countdown-column "action_due_in_days")
      (owner-load-column)
      (w/state-column) (w/text-column :result "完成说明") (w/text-column :target_task_id "关联任务")]
     #(action-actions context %)]])

@@ -928,6 +928,55 @@
       (is (false? (:owner_overloaded bare))))))
 
 
+(deftest issue-and-action-due-countdown-flags-remaining-days
+  (let [id (project!) evidence (:id (document! id "CD-DOC"))
+        today (java.time.LocalDate/now)
+        far (str (.plusDays today 30))
+        soon (str (.plusDays today 2))
+        over (str (.minusDays today 5))
+        meeting (command! id :meetings :create nil
+                          {:title "倒计时例会" :held_on (str today) :minutes "行动到期跟踪" :attendee_ids [9301 9303]})
+        mid (:id meeting)
+        ifar (command! id :issues :create nil {:title "远期问题" :severity "major" :owner_id 9301 :due_date far})
+        isoon (command! id :issues :create nil {:title "临期问题" :severity "major" :owner_id 9301 :due_date soon})
+        iover (command! id :issues :create nil {:title "逾期问题" :severity "major" :owner_id 9301 :due_date over})
+        asoon (command! id :meetings :actions mid {:title "临期行动" :owner_id 9301 :due_date soon})
+        aclose (command! id :meetings :actions mid {:title "转任务行动" :owner_id 9301 :due_date far})
+        row-in (fn [section rid] (first (filterv #(= rid (:id %)) (section (workspace id)))))]
+    ;; 问题: 远期剩余 30 天, 非临期且未逾期
+    (let [r (row-in :issues (:id ifar))]
+      (is (= 30 (:issue_due_in_days r)))
+      (is (false? (:issue_due_soon r)))
+      (is (false? (:issue_overdue r))))
+    ;; 问题: 剩余 2 天 -> 临期且未逾期
+    (let [r (row-in :issues (:id isoon))]
+      (is (= 2 (:issue_due_in_days r)))
+      (is (true? (:issue_due_soon r)))
+      (is (false? (:issue_overdue r))))
+    ;; 问题: 逾期 5 天 -> 剩余 -5 天, 不计临期但计逾期
+    (let [r (row-in :issues (:id iover))]
+      (is (= -5 (:issue_due_in_days r)))
+      (is (false? (:issue_due_soon r)))
+      (is (true? (:issue_overdue r))))
+    ;; 行动: 剩余 2 天 -> 临期且未逾期
+    (let [r (row-in :actions (:id asoon))]
+      (is (= 2 (:action_due_in_days r)))
+      (is (true? (:action_due_soon r)))
+      (is (false? (:action_overdue r))))
+    ;; 行动转真实任务后 -> 不再计倒计时与临期
+    (command! id :actions :task (:id aclose) {:start_date (str today) :duration_days 2})
+    (let [r (row-in :actions (:id aclose))]
+      (is (nil? (:action_due_in_days r)))
+      (is (false? (:action_due_soon r)))
+      (is (false? (:action_overdue r))))
+    ;; 问题独立验证关闭后 -> 不再计倒计时
+    (command! id :issues :resolve (:id ifar) {:resolution "已复验" :reviewer_id 9302 :evidence_ids [evidence]})
+    (command! 9302 id :issues :decision (:id ifar) {:decision "approved" :reason "独立通过"})
+    (let [r (row-in :issues (:id ifar))]
+      (is (nil? (:issue_due_in_days r)))
+      (is (false? (:issue_due_soon r))))))
+
+
 (deftest appointment-snapshot-matches-current-team-and-is-immutable
   (let [id (project!)
         orig (command! id :appointments :create nil {:issued_on "2026-09-22" :note "正式任命"})]

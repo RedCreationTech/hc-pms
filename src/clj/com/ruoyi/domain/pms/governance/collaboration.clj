@@ -354,10 +354,26 @@
                 (not (.isAfter (LocalDate/parse (:due_date action)) (LocalDate/now))))))
 
 
+(def due-soon-days
+  "未决事项到期日距服务器当天不超过该天数(不含当天)即视为临期, 供到期倒计时提前关注."
+  3)
+
+
+(defn- days-until
+  "到期日相对服务器当天的剩余天数; 负值表示已逾期天数, 空日期返回 nil. 只读派生不落库."
+  [due]
+  (when (some? due) (- (.toEpochDay (LocalDate/parse due)) (.toEpochDay (LocalDate/now)))))
+
+
 (defn action-read-model
-  "以服务器日期展示会议行动是否逾期未完成, 已关闭或已转真实任务的行动不再计逾期."
+  "以服务器日期展示会议行动是否逾期未完成及剩余到期天数; 已关闭或已转真实任务的行动不再计逾期与倒计时."
   [action]
-  (assoc action :action_overdue (action-overdue? action)))
+  (let [done? (contains? #{"closed" "converted"} (:status action))
+        days (when-not done? (days-until (:due_date action)))]
+    (assoc action
+           :action_overdue (action-overdue? action)
+           :action_due_in_days days
+           :action_due_soon (boolean (and (some? days) (<= 1 days due-soon-days))))))
 
 
 (defn enrich-meetings
@@ -374,13 +390,17 @@
 
 
 (defn issue-read-model
-  "以服务器日期展示问题是否逾期未关闭, 并标记阻断级严重度供升级关注."
+  "以服务器日期展示问题是否逾期未关闭, 标记阻断级严重度, 并给出剩余到期天数与临期提示供台账倒计时."
   [issue]
-  (assoc issue
-         :issue_overdue (boolean (and (:due_date issue)
-                                      (not= "closed" (:status issue))
-                                      (not (.isAfter (LocalDate/parse (:due_date issue)) (LocalDate/now)))))
-         :issue_critical (= "blocker" (:severity issue))))
+  (let [closed? (= "closed" (:status issue))
+        days (when-not closed? (days-until (:due_date issue)))]
+    (assoc issue
+           :issue_overdue (boolean (and (:due_date issue)
+                                        (not closed?)
+                                        (not (.isAfter (LocalDate/parse (:due_date issue)) (LocalDate/now)))))
+           :issue_critical (= "blocker" (:severity issue))
+           :issue_due_in_days days
+           :issue_due_soon (boolean (and (some? days) (<= 1 days due-soon-days))))))
 
 
 (def owner-workload-threshold
