@@ -123,10 +123,25 @@
                      approved? (merge (approved-risk-patch risk))))))))
 
 
+(def review-due-soon-days
+  "未关闭风险复审到期日距服务器当天不超过该天数(不含当天)即视为临期, 供复审到期倒计时提前关注."
+  3)
+
+
+(defn- days-until
+  "到期日相对服务器当天的剩余天数; 负值表示已逾期天数, 空日期返回 nil. collaboration.clj 依赖本命名空间, 故此处独立定义私有副本以避免循环依赖, 只读派生不落库."
+  [due]
+  (when (some? due) (- (.toEpochDay (LocalDate/parse due)) (.toEpochDay (LocalDate/now)))))
+
+
 (defn risk-read-model
-  "以服务器日期展示风险复审是否已到期,已关闭风险无逾期标记."
+  "以服务器日期展示风险复审是否已到期及剩余复审天数与临期提示, 已关闭风险无逾期与倒计时标记."
   [risk]
-  (let [due (if (contains? risk :review_due_date) (:review_due_date risk) (:due_date risk))]
+  (let [closed? (= "closed" (:status risk))
+        due (if (contains? risk :review_due_date) (:review_due_date risk) (:due_date risk))
+        days (when-not closed? (days-until due))]
     (assoc risk :review_due_date due
-                :review_overdue (boolean (and (not= "closed" (:status risk)) due
-                                              (not (.isAfter (LocalDate/parse due) (LocalDate/now))))))))
+                :review_overdue (boolean (and (not closed?) due
+                                              (not (.isAfter (LocalDate/parse due) (LocalDate/now)))))
+                :review_due_in_days days
+                :review_due_soon (boolean (and (some? days) (<= 1 days review-due-soon-days))))))

@@ -147,6 +147,8 @@
 
 到期倒计时读模型 (免迁移的只读派生列): 问题与会议行动两条以 `due_date` 为到期口径的台账在读取时额外计算剩余天数与临期标记, 供台账"到期倒计时"列把原有的二元"已逾期"细化为可提前关注的剩余天数. `issue_due_in_days` / `action_due_in_days` 为到期日相对服务器当天的剩余天数 (负值表示已逾期天数), 仅在记录未关闭 (行动为未 closed 且未 converted) 时给出, 否则为 `nil`; `issue_due_soon` / `action_due_soon` 在剩余 1 到 `due-soon-days` (当前 3) 天时为 true, 逾期当天及以前不算临期. 该计算与既有 `issue_overdue` / `action_overdue` 同源同口径 (服务器当天, 排除关闭), 只读取派生, 不写入存储, 不构成提醒投递. 键名不带尾随问号以稳定 JSON 序列化.
 
+风险台账复用同一"到期倒计时"列口径, 但到期基准是 `review_due_date` (下次复审日): 未复审过的风险回退到其 `due_date`, 经独立批准设置 `next_review_date` 后改为该复审日. `risk-read-model` 额外计算 `review_due_in_days` (相对服务器当天的剩余复审天数, 负值即逾期) 与 `review_due_soon` (剩余 1 到 `review-due-soon-days` (当前 3) 天时为 true), 均在状态为 closed 时给出 `nil`/false, 与既有 `review_overdue` 同源同口径, 只读派生不落库不投递.
+
 ## 实现边界
 
 记录表的 kind 和状态有数据库约束, 服务层按业务类型逐字段校验, 再由固定命令推进状态. 未提供任意 payload CRUD, 直接写状态或删除证据入口. 章程/变更审批冻结提交版本; URS/文档版本不可覆盖; Gate 保存模板及证据版本快照. 所有引用由项目作用域查询验证.

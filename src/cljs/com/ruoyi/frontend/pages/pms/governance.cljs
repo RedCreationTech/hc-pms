@@ -391,6 +391,7 @@
                      :else [antd/tag state]))))}
      (w/text-column :mitigation "应对措施") (w/text-column :review_due_date "下次复评")
      {:title "复评提醒" :dataIndex "review_overdue" :render #(when % (r/as-element [antd/tag {:color "red"} "复评已逾期"]))}
+     (due-countdown-column "review_due_in_days")
      (owner-load-column)
      (w/state-column)] #(risk-actions context %)]])
 

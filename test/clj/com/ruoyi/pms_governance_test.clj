@@ -699,6 +699,52 @@
     (is (false? (:review_overdue (first (:risks (workspace id))))))))
 
 
+(deftest risk-review-due-countdown-flags-remaining-days
+  (let [id (project!) evidence (:id (document! id "RR-DOC"))
+        today (java.time.LocalDate/now)
+        far (str (.plusDays today 30))
+        soon (str (.plusDays today 2))
+        over (str (.minusDays today 5))
+        rf (command! id :risks :create nil {:title "远期复审风险" :probability 2 :impact 3 :owner_id 9301
+                                             :mitigation "例会跟踪" :due_date far})
+        rs (command! id :risks :create nil {:title "临期复审风险" :probability 2 :impact 3 :owner_id 9301
+                                            :mitigation "例会跟踪" :due_date soon})
+        ro (command! id :risks :create nil {:title "逾期复审风险" :probability 2 :impact 3 :owner_id 9301
+                                            :mitigation "例会跟踪" :due_date over})
+        row (fn [rid] (first (filterv #(= rid (:id %)) (:risks (workspace id)))))]
+    ;; 远期风险: 剩余 30 天, 非临期且未逾期
+    (let [r (row (:id rf))]
+      (is (= 30 (:review_due_in_days r)))
+      (is (false? (:review_due_soon r)))
+      (is (false? (:review_overdue r))))
+    ;; 临期风险: 剩余 2 天 -> 临期且未逾期
+    (let [r (row (:id rs))]
+      (is (= 2 (:review_due_in_days r)))
+      (is (true? (:review_due_soon r)))
+      (is (false? (:review_overdue r))))
+    ;; 逾期风险: 剩余 -5 天 -> 不计临期但计逾期
+    (let [r (row (:id ro))]
+      (is (= -5 (:review_due_in_days r)))
+      (is (false? (:review_due_soon r)))
+      (is (true? (:review_overdue r))))
+    ;; 对远期风险提交复审并把下次复评审成临期(+2天), 独立批准后倒计时按复审日重算
+    (command! id :risks :review (:id rf) {:outcome "active" :review_note "复审继续监控"
+                                           :reviewer_id 9302 :evidence_ids [evidence] :next_review_date soon})
+    (command! 9302 id :risks :decision (:id rf) {:decision "approved" :reason "监控有效"})
+    (let [r (row (:id rf))]
+      (is (= soon (:review_due_date r)))
+      (is (= 2 (:review_due_in_days r)))
+      (is (true? (:review_due_soon r))))
+    ;; 关闭风险后: 状态 closed -> 倒计时归 nil 且不临期
+    (command! id :risks :review (:id rs) {:outcome "closed" :review_note "风险已解除"
+                                          :reviewer_id 9302 :evidence_ids [evidence]})
+    (command! 9302 id :risks :decision (:id rs) {:decision "approved" :reason "已确认解除"})
+    (let [r (row (:id rs))]
+      (is (= "closed" (:status r)))
+      (is (nil? (:review_due_in_days r)))
+      (is (false? (:review_due_soon r))))))
+
+
 (deftest risk-escalation-requires-independent-acknowledgment-before-mitigation
   (let [id (project!) evidence (:id (document! id "ESC-1"))
         high (command! id :risks :create nil {:title "关键交付风险" :probability 5 :impact 5

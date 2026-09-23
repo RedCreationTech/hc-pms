@@ -480,6 +480,23 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 到期倒计时是把既有二元逾期标记细化的只读洞察, 只在读取时按服务器当天计算剩余天数, 不持久化、不构成主动通知; 与 C11"到期提醒投递"是不同能力, 不据此宣称通知闭环. 该洞察横跨 C07(会议行动)与 C09(问题)两行, 记为对二者的增强, 相关行 `partial` 状态不变.
 
+## 风险复审到期倒计时只读洞察 (本轮增补, 2026-09-23)
+
+设计与关闭口径: 把上一轮"到期倒计时"只读洞察从问题/行动台账扩展到 H08 项目风险台账, 沿用同一列组件与阈值口径, 但到期基准换成风险复审到期日. `reviews/risk-read-model` 内以私有副本 `days-until`(与 `collaboration/days-until` 同算法, 独立定义以避免 `collaboration` 依赖 `reviews` 造成的循环引用)按服务器当天计算剩余天数, 到期日取 `review_due_date`(不存在时回落到风险自身 `due_date`, 与既有 `review_overdue` 完全同源同基准); 新增 `review_due_in_days`(整数剩余天数, 负=已逾期, 无日期=`nil`)与 `review_due_soon`(剩余落在 `1..review-due-soon-days`(3) 为 true), 二者在状态为 `closed` 时给出 `nil`/false, 与 `review_overdue` 一致. 关键生命周期语义: `review_due_date` 仅在复审经独立审批通过(`decision approved`)后由 `approved-risk-patch` 改写为 `next_review_date`; 未进入复审前以 `due_date` 为准, 关闭后倒计时归零. 派生键去尾随 `?`. workspace 无需改动(单 kind 读模型新字段自动透传). 前端"风险与问题"页签风险台账复用 `due-countdown-column`(标题"到期倒计时", 传入键 `review_due_in_days`), 与相邻"下次复评"/"复评提醒"两列共同表达复审到期. 全程免迁移, 免新命令, 免新 kind, 免新状态值.
+
+本轮实际执行的验证:
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 治理命名空间 SQLite | 42 tests / 482 assertions, 0 失败/错误 | 新增 `risk-review-due-countdown-flags-remaining-days`(三条 2x3=6 不触发升级的风险登记 +30/+2/-5 天到期 -> `review_due_in_days` 分别 30/2/-5, `review_due_soon` 仅 +2 为 true, `review_overdue` 仅 -5 为 true; 对 +2 风险提交复审并独立审批通过后 `review_due_date` 改写为 `next_review_date`, 倒计时随之后顺延仍临期; 关闭风险后 `review_due_in_days` 转 `nil`、`review_due_soon` 转 false). 全量 PMS 无回归 |
+| 全量 PMS 回归 SQLite | 94 tests / 813 assertions, 0 失败/错误 | 无回归 |
+| 前端编译 | shadow-cljs 0 warnings | 复用 `due-countdown-column`, 风险台账新增一列一并编译 |
+| Chrome 浏览器 (Playwright) | 1 passed | `pms-rrc.spec.js`(隔离 `:3100` 后端, 独立空库): 界面登记约 +2/+30/-5 天到期的三条风险 -> 风险台账"到期倒计时"列分别显示金色"剩 N 天临期"/蓝色"剩 N 天"/红色"已逾期 N 天"; 真实 HTTP GET governance 回显 `review_due_in_days`/`review_due_soon`/`review_overdue` 同口径落在预期窗口; 标题避开"临期/逾期/剩"子串防 getByText 严格模式误命中; 断言按类别正则 + 剩余天数窗口取值免疫 ±1 天日期漂移; 截图存 `reports/rrc/` (rrc-1-risk-review-countdown) |
+
+本轮未执行 (如实记录): MySQL 迁移与回归(本地无可用实例, 本洞察完全免迁移, 不新增 DDL); 复审通过后倒计时的"重新计算并界面二次翻转"未在浏览器 E2E 内独立复现(需第二个独立审批人上下文), 该重算路径由治理测试 `risk-review-due-countdown-flags-remaining-days` 确定性地覆盖; 未接通按剩余天数自动派发复审提醒(C11 通知/预警仍为 planned).
+
+边界: 风险复审到期倒计时是"到期倒计时"只读洞察在风险台账的同口径延伸, 以复审到期日(回落 `due_date`)为基准, 只读取时计算, 不持久化、不构成主动通知, 不替代 H08 的评分超阈值升级门控; 与 C11"到期提醒投递"是不同能力. 记为对 H08(风险复审可见性)的增强, H08 相关 `partial` 状态不变.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.
