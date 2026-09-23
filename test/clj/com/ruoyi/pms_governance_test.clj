@@ -1132,3 +1132,68 @@
     (is (= "active" (:status (command! id :stakeholders :restore (:id sh) {:reason "人员回归"}))))
     (is (some? (:id (command! id :raci :create nil
                               {:activity "回归活动" :stakeholder_id (:id sh) :responsibility "A"}))))))
+
+
+(deftest document-collection-excludes-discarded-latest-versions
+  (let [id (project!)
+        reg (fn [code stage class node]
+              (command! id :documents :create nil
+                        {:code code :title (str "文档 " code) :filename (str code ".txt")
+                         :content "真实正文" :stage stage :classification class :structure_node node}))
+        keep-a (reg "CA-A" "设计准备" "internal" "主机")
+        keep-b (reg "CA-B" "装配" "public" "附件")
+        void (reg "CA-C" "测试" "confidential" "主机")
+        col0 (:document_collection (workspace id))]
+    (is (= 3 (:total col0)))
+    (is (= 0 (:discarded-count col0)))
+    (command! id :documents :discard (:id void) {:reason "重复上传"})
+    (let [col1 (:document_collection (workspace id))
+          class->count (into {} (map (juxt :classification :count)) (:by-classification col1))]
+      (is (= 2 (:total col1)))
+      (is (= 1 (:discarded-count col1)))
+      (is (= {"public" 1 "internal" 1 "confidential" 0} class->count))
+      (is (= #{"设计准备" "装配"} (into #{} (map :key) (:by-stage col1)))
+          "已作废文档的阶段不再进入归集")
+      (is (= #{"主机" "附件"} (into #{} (map :key) (:by-structure-node col1)))))
+    ;; 恢复后重新计入归集
+    (command! id :documents :restore (:id void) {:reason "误作废恢复"})
+    (let [col2 (:document_collection (workspace id))]
+      (is (= 3 (:total col2)))
+      (is (= 0 (:discarded-count col2))))))
+
+
+(deftest discard-preview-reports-guards-without-mutating
+  (let [id (project!)
+        doc (document! id "DP-DOC")
+        free-req (command! id :requirements :create nil
+                           {:code "URS-FREE" :text "可作废需求" :category "功能" :priority "required" :owner_id 9301})
+        traced-req (command! id :requirements :create nil
+                             {:code "URS-TRACED" :text "被追踪需求" :category "功能" :priority "required" :owner_id 9301})
+        _ (command! id :traces :create nil
+                    {:requirement_id (:id traced-req) :target_kind "document" :target_id (:id doc) :relation "verifies"})
+        free-preview (gov/discard-preview *service* (actor 9301) id "requirement" (:id free-req))
+        traced-preview (gov/discard-preview *service* (actor 9301) id "requirement" (:id traced-req))]
+    (is (true? (:discardable? free-preview)))
+    (is (true? (:latest? free-preview)))
+    (is (true? (:status_discardable? free-preview)))
+    (is (empty? (:references free-preview)))
+    (is (false? (:discardable? traced-preview)))
+    (is (= 1 (count (:references traced-preview))))
+    (is (re-find #"需求追踪" (first (:references traced-preview))))
+    ;; 文档被追踪指向 -> 有引用, 不可作废
+    (let [doc-preview (gov/discard-preview *service* (actor 9301) id "document" (:id doc))]
+      (is (false? (:discardable? doc-preview)))
+      (is (pos? (count (:references doc-preview)))))
+    ;; 预览只读: 不改变任何记录状态
+    (is (= "registered" (:status (first (filter #(= (:id free-req) (:id %)) (:requirements (workspace id)))))))
+    ;; 已作废记录: status_discardable? 为 false (不在可作废集合)
+    (let [gone (document! id "DP-GONE")]
+      (command! id :documents :discard (:id gone) {:reason "重复"})
+      (let [p (gov/discard-preview *service* (actor 9301) id "document" (:id gone))]
+        (is (= "discarded" (:status p)))
+        (is (false? (:status_discardable? p)))
+        (is (false? (:discardable? p)))))
+    ;; 未知记录 404
+    (is (= 404 (error-status #(gov/discard-preview *service* (actor 9301) id "requirement" (str (UUID/randomUUID))))))
+    ;; 无 pms 功能权限用户 403
+    (is (= 403 (error-status #(gov/discard-preview *service* (actor 9305) id "requirement" (:id free-req)))))))

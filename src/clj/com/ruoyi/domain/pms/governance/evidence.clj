@@ -237,15 +237,18 @@
 
 
 (defn document-collection
-  "按阶段/结构节点/密级对每个业务编码的最新版本证据文档做只读归集, 供分层查看与密级过滤; 不改变不可变版本, 授权与SHA256校验."
+  "按阶段/结构节点/密级对每个业务编码的最新版本证据文档做只读归集, 供分层查看与密级过滤; 不改变不可变版本, 授权与SHA256校验. 最新版本已被受控作废(discarded)的编号不计入归集, 单独以 discarded-count 透明呈现."
   [documents]
   (let [latest (s/latest documents)
+        active (filterv #(not= "discarded" (:status %)) latest)
+        discarded-count (- (count latest) (count active))
         buckets (fn [keyfn]
-                  (->> (group-by keyfn latest)
+                  (->> (group-by keyfn active)
                        (mapv (fn [[k rows]] {:key k :count (count rows)}))
                        (sort-by (fn [{:keys [key]}] [(if (= "" key) 1 0) key]))))
-        class-count (fn [c] (count (filterv #(= c (:classification %)) latest)))]
-    {:total (count latest)
+        class-count (fn [c] (count (filterv #(= c (:classification %)) active)))]
+    {:total (count active)
+     :discarded-count discarded-count
      :by-stage (buckets :stage)
      :by-structure-node (buckets :structure_node)
      :by-classification (mapv (fn [c] {:classification c :count (class-count c)})

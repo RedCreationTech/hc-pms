@@ -46,7 +46,7 @@
 
 (defn- requirement-section
   "需求版本和责任人形成可追踪的URS台账."
-  [{:keys [base model options editable? open! import!]}]
+  [{:keys [base model options editable? open! import! preview!]}]
   [shared/panel "URS 需求版本" "保留每次修订,追踪对应交付物和验证证据"
    (when editable? [antd/space
                     [antd/button {:on-click import!} "导入URS"]
@@ -56,6 +56,7 @@
      (w/text-column :category "类别") {:title "优先级" :dataIndex "priority" :render #(get w/labels % %)}]
     (when editable? (fn [row] [antd/space {:wrap true}
                               [w/edit-button "新修订" #(open! (forms/requirement-dialog base options row))]
+                              [w/edit-button "级联影响" #(preview! {:collection "requirements" :id (:id row) :label (str "URS需求 " (:code row))})]
                               (when (= "registered" (:status row))
                                 [w/edit-button "作废" #(open! (forms/discard-dialog (str base "/requirements/" (:id row) "/discard") "URS需求"))])
                               (when (= "discarded" (:status row))
@@ -84,34 +85,40 @@
 
 
 (defn- collection-section
-  "按每个文档编号的最新版本只读聚合阶段/结构节点/密级, 修订不重复计数."
+  "按每个文档编号的最新版本只读聚合阶段/结构节点/密级, 修订不重复计数; 最新版本已作废的编号不计入并单独提示."
   [{:keys [model]}]
   (let [col (:document_collection model)
+        total (:total col 0)
+        discarded (get col :discarded-count 0)
         class-label {"public" "公开" "internal" "内部" "confidential" "机密"}]
-    [shared/panel "文档归集视图" "按每个文档编号的最新版本聚合阶段/结构节点/密级, 供分层查看; 修订不重复计数"
-     (if (pos? (:total col 0))
+    [shared/panel "文档归集视图" "按每个文档编号的最新版本聚合阶段/结构节点/密级, 供分层查看; 修订不重复计数, 已作废不计入"
+     (if (and (zero? total) (zero? discarded))
+       [:span {:style {:color "#8793a3"}} "暂无证据文档, 登记后此处按阶段/结构/密级归集."]
        [:div {:style {:display "grid" :gap 12}}
         [antd/space {:wrap true}
-         [antd/tag {:color "blue"} (str "最新版本证据 " (:total col 0))]
+         [antd/tag {:color "blue"} (str "最新版本证据 " total)]
+         (when (pos? discarded)
+           [antd/tag {:color "red"} (str "已作废 " discarded " 未计入")])
          (for [{:keys [classification count]} (:by-classification col)]
            ^{:key classification} [antd/tag (str (get class-label classification classification) " " count)])]
-        [:div
-         [:span {:style {:fontWeight 500}} "按阶段: "]
-         [antd/space {:wrap true}
-          (for [{:keys [key count]} (:by-stage col)]
-            ^{:key (str "s-" key)} [antd/tag {:color (if (= "" key) "default" "purple")}
-                                    (str (collection-label key) " · " count)])]]
-        [:div
-         [:span {:style {:fontWeight 500}} "按结构节点: "]
-         [antd/space {:wrap true}
-          (for [{:keys [key count]} (:by-structure-node col)]
-            ^{:key (str "n-" key)} [antd/tag (str (collection-label key) " · " count)])]]]
-       [:span {:style {:color "#8793a3"}} "暂无证据文档, 登记后此处按阶段/结构/密级归集."])]))
+        (when (pos? total)
+          ^{:key "by-stage"} [:div
+                              [:span {:style {:fontWeight 500}} "按阶段: "]
+                              [antd/space {:wrap true}
+                               (for [{:keys [key count]} (:by-stage col)]
+                                 ^{:key (str "s-" key)} [antd/tag {:color (if (= "" key) "default" "purple")}
+                                                         (str (collection-label key) " · " count)])]])
+        (when (pos? total)
+          ^{:key "by-node"} [:div
+                             [:span {:style {:fontWeight 500}} "按结构节点: "]
+                             [antd/space {:wrap true}
+                              (for [{:keys [key count]} (:by-structure-node col)]
+                                ^{:key (str "n-" key)} [antd/tag (str (collection-label key) " · " count)])]])])]))
 
 
 (defn- document-section
   "列出可校验的真实证据文档及不可变版本, 支持打包批量下载, 密级过滤与独立发布审批."
-  [{:keys [base model options editable? approve? open! document!]}]
+  [{:keys [base model options editable? approve? open! document! preview!]}]
   (let [[class-filter set-class-filter!] (hooks/use-state nil)
         ids (latest-document-ids (:documents model)) current (:currentUserId options)
         all-docs (:documents model)
@@ -152,6 +159,7 @@
             [w/edit-button "批准发布" #(open! (forms/decision-dialog (str base "/documents/" (:id row) "/decision") "approved" "正式签发发布"))]
             [w/edit-button "驳回" #(open! (forms/decision-dialog (str base "/documents/" (:id row) "/decision") "rejected" "驳回文档发布"))]])
          (when editable? [w/edit-button "新版本" #(open! (forms/document-dialog base row))])
+         (when editable? [w/edit-button "级联影响" #(preview! {:collection "documents" :id (:id row) :label (str "证据文档 " (:code row))})])
          (when (and editable? (contains? #{"registered" "rejected"} (:status row)))
            [w/edit-button "作废" #(open! (forms/discard-dialog (str base "/documents/" (:id row) "/discard") "证据文档"))])
          (when (and editable? (= "discarded" (:status row)))
@@ -192,7 +200,7 @@
 
 (defn stakeholder-section
   "登记项目干系人并保留不可变修订."
-  [{:keys [base model options editable? open!]}]
+  [{:keys [base model options editable? open! preview!]}]
   [shared/panel "干系人识别" "记录利益相关者职责, 关注度与影响力, 按权力-利益矩阵给出管理策略, 修订保留历史"
    (when editable? [antd/button {:on-click #(open! (forms/stakeholder-dialog base options nil))} "登记干系人"])
    [w/record-table (:stakeholders model)
@@ -202,6 +210,7 @@
      (w/state-column)]
     (when editable? (fn [row] [antd/space {:wrap true}
                          [w/edit-button "新修订" #(open! (forms/stakeholder-dialog base options row))]
+                         [w/edit-button "级联影响" #(preview! {:collection "stakeholders" :id (:id row) :label (str "干系人 " (:code row))})]
                          (when (= "active" (:status row))
                            [w/edit-button "作废" #(open! (forms/discard-dialog (str base "/stakeholders/" (:id row) "/discard") "干系人"))])
                          (when (= "discarded" (:status row))
@@ -574,6 +583,32 @@
          [:pre {:style {:whiteSpace "pre-wrap" :maxHeight "60vh" :overflow "auto"}} (:content data)]])]]))
 
 
+(defn- discard-preview-modal
+  "只读展示对某记录发起受控作废将命中的状态门控与级联引用清单, 不改变任何状态."
+  [base collection target on-close]
+  (let [resource (shared/use-resource (str base "/" collection "/" (:id target) "/discard-preview") {} [])]
+    [antd/modal {:title (str "级联影响预览 · " (:label target)) :open true :onCancel on-close :footer nil
+                 :style {:maxWidth "calc(100vw - 32px)"} :width 640}
+     [w/resource-view resource
+      (fn [data]
+        (let [status-text (get {"registered" "已登记" "rejected" "已退回" "in_review" "待审批"
+                                "active" "有效" "discarded" "已作废"} (:status data) (:status data))]
+          [:div {:style {:display "grid" :gap 12}}
+           [antd/space {:wrap true}
+            [antd/tag (str "当前状态: " status-text " (v" (:revision data) ")")]
+            [antd/tag {:color (if (:latest? data) "green" "red")} (if (:latest? data) "最新版本" "非最新版本")]
+            [antd/tag {:color (if (:status_discardable? data) "green" "orange")}
+             (if (:status_discardable? data) "状态可作废" "状态不可作废")]
+            [antd/tag {:color (if (:discardable? data) "green" "red")}
+             (if (:discardable? data) "可安全作废" "不可作废")]]
+           (if (seq (:references data))
+             [:div
+              [:div {:style {:fontWeight 500}} (str "仍被以下 " (count (:references data)) " 个对象引用, 需先解除引用才能作废:")]
+              [:ul {:style {:margin "6px 0" :paddingLeft 22}}
+               (for [ref (:references data)] ^{:key ref} [:li ref])]]
+             [:div {:style {:color "#52708a"}} "未发现引用该记录的其它对象."])]))]]))
+
+
 (defn governance-workspace
   "集中加载治理读模型并协调独立审批与版本写入."
   [project revision options changed!]
@@ -583,15 +618,17 @@
         [dialog set-dialog!] (hooks/use-state nil) [importing? set-importing!] (hooks/use-state false)
         [document set-document!] (hooks/use-state nil)
         [appointment set-appointment!] (hooks/use-state nil)
+        [preview set-preview!] (hooks/use-state nil)
         editable? (and (shared/use-permission "pms:project:edit") (not (contains? #{"closed" "cancelled" "paused"} (:status project))))
         context {:base base :model (:data resource) :planning (:data planning) :options options
                  :editable? editable? :approve? (and (shared/use-permission "pms:quality:approve") (not (contains? #{"closed" "cancelled" "paused"} (:status project))))
                  :open! set-dialog! :import! #(set-importing! true) :document! set-document!
-                 :appointment! set-appointment!}]
+                 :appointment! set-appointment! :preview! set-preview!}]
     [:div
      [w/resource-view resource (fn [_] [governance-content context])]
      (when dialog [w/mutation-dialog (merge dialog {:project project :on-close #(set-dialog! nil)
                                                     :on-saved (fn [_] (set-dialog! nil) (changed!))})])
      (when importing? [import-dialog base project #(set-importing! false) (fn [_] (set-importing! false) (changed!))])
      (when document [document-preview base document #(set-document! nil)])
-     (when appointment [appointment-preview base appointment #(set-appointment! nil)])]))
+     (when appointment [appointment-preview base appointment #(set-appointment! nil)])
+     (when preview [discard-preview-modal base (:collection preview) preview #(set-preview! nil)])]))

@@ -44,6 +44,13 @@
                #(governance/document-content %1 %2 (http/project-id request) (http/param request :record_id))))
 
 
+(defn discard-preview
+  "读取受控作废的级联影响预览(只读, 不改变任何状态)."
+  [svc kind request]
+  (http/invoke svc request
+               #(governance/discard-preview %1 %2 (http/project-id request) kind (http/param request :record_id))))
+
+
 (defn download
   "下载经项目授权验证的持久化文本文件版本."
   [svc request]

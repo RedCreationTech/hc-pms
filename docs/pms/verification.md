@@ -410,7 +410,24 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 本轮未执行 (如实记录): MySQL 迁移与回归(本地无可用实例), 状态 CHECK 表重建迁移仅经 SQLite 往返实证, MySQL 版待有环境时补跑并做升级/回退演练.
 
-边界: H18 原目标是"草稿清理与资料保留策略"整行, 本轮交付其中"不把取消当删除, 软作废需权限/引用校验, 作废行为可审计"以及对称的"受控撤销作废 (恢复)"这一子集, 故矩阵记 `partial`. 恢复由 `lifecycle/restore!` 注册为 `[:requirements :documents :stakeholders :restore]` 三条命令, 路由 `POST /<collection>/:record_id/restore`, 同样走 `pms:project:edit` 权限+项目作用域+未知字段 400, 三层门控 `latest!`(陈旧 409)+`status!`(只允许 `discarded`, 否则 409), 从 `workflow_history` 最近一条 `discarded` 审计项取回作废前状态并 `change!` 退回, 追加 `restored` 审计项(含 `restored_to`), 记 `restore_reason`/`restored_by`/`restored_on`; 免迁移(`discarded` 已在状态 CHECK 内). 仍缺: 正式历史按保留策略归档, 级联影响预览, 把已作废文档从 `document_collection` 归集口径中剔除 (当前归集不区分状态, 已作废仍计入总数), 生产验收. 界面在记录 `discarded` 时隐藏作废入口改为"恢复"入口, 恢复后状态回退并复现作废入口, 记录全程可见.
+边界: H18 原目标是"草稿清理与资料保留策略"整行, 本轮交付其中"不把取消当删除, 软作废需权限/引用校验, 作废行为可审计"以及对称的"受控撤销作废 (恢复)"这一子集, 故矩阵记 `partial`. 恢复由 `lifecycle/restore!` 注册为 `[:requirements :documents :stakeholders :restore]` 三条命令, 路由 `POST /<collection>/:record_id/restore`, 同样走 `pms:project:edit` 权限+项目作用域+未知字段 400, 三层门控 `latest!`(陈旧 409)+`status!`(只允许 `discarded`, 否则 409), 从 `workflow_history` 最近一条 `discarded` 审计项取回作废前状态并 `change!` 退回, 追加 `restored` 审计项(含 `restored_to`), 记 `restore_reason`/`restored_by`/`restored_on`; 免迁移(`discarded` 已在状态 CHECK 内). 级联影响预览与把已作废文档从 `document_collection` 归集口径中剔除已在紧随其后的 H18c 增量交付 (见下节). 仍缺: 正式历史按保留策略归档, 已作废证据对历史 Gate/验收快照的显式标注, 生产验收. 界面在记录 `discarded` 时隐藏作废入口改为"恢复"入口, 恢复后状态回退并复现作废入口, 记录全程可见.
+
+## H18c 文档归集剔除已作废与级联影响只读预览 (本轮增补, 2026-09-23)
+
+设计与关闭口径: 补齐 H18 遗留的两项"作废即生效于全局口径"的闭环. (a) 文档归集视图 `document-collection` 改为按每个编号最新版本且状态非 `discarded` 聚合, 已被受控作废的最新版本编号不计入 `total` 及各分桶, 而单独以 `discarded-count` 透明呈现, 前端"文档归集视图"据此显示红色"已作废 N 未计入"标签, 恢复后重新计入. (b) 新增只读级联影响预览 `lifecycle/discard-preview`, 走 `k/read!` + `pms:project:query` 读权限与项目作用域 (无读取权 403, 未知记录 404), 复用与作废守卫同一套 `references-of` 引用收集逻辑, 返回 `{kind, record_id, code, revision, status, latest?, status_discardable?, references, discardable?}`, 不写入不改任何状态; 注册为 `[:requirements :documents :stakeholders :discard-preview]` 三条命令, 路由 `GET /<collection>/:record_id/discard-preview`, 前端在需求/证据文档/干系人行内提供"级联影响"按钮打开只读弹窗呈现"可安全作废"或"不可作废"并列出引用清单. 两项均免迁移 (纯读派生, `discarded` 状态已在 CHECK 内).
+
+本轮实际执行的验证:
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 治理命名空间 SQLite | 38 tests / 414 assertions, 0 失败/错误 | 新增 `document-collection-excludes-discarded-latest-versions`(登记三份不同密级/阶段/结构节点文档 -> 归集 total 3 discarded-count 0; 作废机密件 -> total 2 discarded-count 1 且该密级归零, by-stage/by-structure-node 不再含其分桶; 恢复 -> 回到 total 3 discarded-count 0) 与 `discard-preview-reports-guards-without-mutating`(未被引用需求 `discardable?` true; 被追踪指向的需求/被追踪引用的文档 `discardable?` false 且 `references` 命中对应来源; 预览调用后 workspace 状态不变; 已作废记录 `status_discardable?` false; 未知记录 404; 无读取权 actor 403) |
+| 全量 PMS 回归 SQLite | 90 tests / 745 assertions, 0 失败/错误 | 无回归 |
+| 前端编译 | shadow-cljs 0 warnings | 归集"已作废 N 未计入"标签, `discard-preview-modal` 只读弹窗, 三处"级联影响"按钮一并编译 |
+| Chrome 浏览器 (Playwright) | 3 passed | `pms-h18c.spec.js`: 证据文档页签登记两份不同密级/阶段/结构文档 -> 归集"最新版本证据 2"无"已作废"标签; 未被引用文档"级联影响"弹窗显示"可安全作废"+"未发现引用该记录的其它对象"; 作废后归集降到"最新版本证据 1"并出现红色"已作废 1 未计入", 真实 HTTP GET 回显 `document_collection.discarded-count=1` 且对应密级归零; 被会议会前资料引用的文档"级联影响"显示"不可作废"并列出"会议 <标题>", 关闭后记录仍"已登记"(预览只读); 被 RACI 指派干系人"级联影响"显示"不可作废"并列出"RACI <活动>"; 截图存 `reports/h18c/` (h18c-1..h18c-5) |
+
+本轮未执行 (如实记录): MySQL 迁移与回归(本地无可用实例, 但 H18c 两项均免迁移, 不新增 DDL); 级联预览与真实作废之间的并发窗口未做专门压测.
+
+边界: H18c 交付的是"作废口径一致性"(归集剔除)与"作废前可预检"(级联影响只读预览), 仍属 H18 整行的子集, 故 H18 记 `partial` 不变. 预览为只读提示, 与作废命令共用引用守卫口径, 但并发下实际作废仍可能命中守卫 409; 仍缺正式历史归档策略, 已作废证据对历史 Gate/验收快照的显式标注与生产验收.
 
 ## 核心通过场景
 

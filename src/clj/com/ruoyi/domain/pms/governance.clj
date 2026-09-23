@@ -174,6 +174,12 @@
   (evidence/batch-content svc actor id body))
 
 
+(defn discard-preview
+  "只读预览对某记录发起受控作废将命中的状态门控与级联引用清单, 不改变任何状态."
+  [svc actor id kind rid]
+  (lifecycle/discard-preview svc actor id kind rid))
+
+
 (defn appointment-content
   "读取确定任命书版本的完整正文与团队快照."
   [svc actor id rid]

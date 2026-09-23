@@ -100,3 +100,20 @@
                                             {:action "restored" :actor_id (:user_id actor)
                                              :on (str (LocalDate/now)) :prior_status "discarded"
                                              :restored_to prior :reason reason})})))))
+
+
+(defn discard-preview
+  "只读级联影响预览: 报告若对该记录发起受控作废将命中的状态门控与引用清单, 不写入不改变任何状态."
+  [svc actor id kind rid]
+  (k/read! svc actor id "pms:project:query"
+    (fn [q project]
+      (let [record (s/record! q project kind rid)
+            newer? (some #(and (= (:code %) (:code record)) (> (:revision %) (:revision record)))
+                         (s/records q project kind))
+            status (:status record)
+            status-ok? (boolean (contains? (get discardable-status kind #{}) status))
+            refs (references-of q project kind rid)]
+        {:kind kind :record_id rid :code (:code record) :revision (:revision record)
+         :status status :latest? (not newer?) :status_discardable? status-ok?
+         :references (vec refs)
+         :discardable? (boolean (and (not newer?) status-ok? (empty? refs)))}))))
