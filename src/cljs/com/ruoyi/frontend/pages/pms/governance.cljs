@@ -406,6 +406,13 @@
                    (if (some? proposed)
                      [antd/tag {:color "orange"} (str (aget row "score") " → " proposed " 待批准")]
                      [:span {:style {:color "#98a2b3"}} "—"]))))}
+     {:title "应对策略" :dataIndex "response_strategy" :width 110
+      :render (fn [_ row]
+                (let [s (aget row "response_strategy")
+                      label (cond (= s "avoid") "规避" (= s "transfer") "转移"
+                                  (= s "mitigate") "减轻" (= s "accept") "接受" :else nil)]
+                  (r/as-element (if label [antd/tag {:color "geekblue"} label]
+                                    [:span {:style {:color "#98a2b3"}} "未设定"]))))}
      (w/text-column :mitigation "应对措施") (w/text-column :review_due_date "下次复评")
      {:title "复评提醒" :dataIndex "review_overdue" :render #(when % (r/as-element [antd/tag {:color "red"} "复评已逾期"]))}
      (due-countdown-column "review_due_in_days")

@@ -979,6 +979,29 @@
                                         {:template_key "cost-overrun" :due_date "2026-10-20"}))))))
 
 
+(deftest risk-response-strategy-is-optional-enum-persisted
+  (let [id (project!)
+        risk (command! id :risks :create nil {:title "供应中断风险" :probability 2 :impact 3
+                                              :owner_id 9301 :mitigation "锁定备选供应商" :due_date "2026-10-20"
+                                              :response_strategy "transfer"})]
+    ;; 合法枚举回显并随 payload 不可变持久化, 读模型原样返回.
+    (is (= "transfer" (:response_strategy risk)))
+    (is (= "transfer" (:response_strategy (first (filter #(= (:id risk) (:id %)) (:risks (workspace id)))))))
+    ;; 未填策略则不写入该键, 风险仍正常创建.
+    (let [plain (command! id :risks :create nil {:title "常规观察风险" :probability 2 :impact 3
+                                                 :owner_id 9301 :mitigation "持续观察" :due_date "2026-10-20"})]
+      (is (nil? (:response_strategy plain)))
+      (is (false? (:escalated plain))))
+    ;; 非法枚举被白名单校验拒绝.
+    (is (= 400 (error-status #(command! id :risks :create nil {:title "非法策略风险" :probability 2 :impact 3
+                                                               :owner_id 9301 :mitigation "x" :due_date "2026-10-20"
+                                                               :response_strategy "ignore"}))))
+    ;; 从风险库实例化不含该可选键仍正常.
+    (let [lib (command! id :risks :from-library nil {:template_key "cost-overrun" :owner_id 9301 :due_date "2026-10-20"})]
+      (is (nil? (:response_strategy lib)))
+      (is (= "cost-overrun" (:source_key lib))))))
+
+
 (deftest comm-plan-log-advances-next-date-and-flags-overdue
   (let [id (project!)
         st (command! id :stakeholders :create nil

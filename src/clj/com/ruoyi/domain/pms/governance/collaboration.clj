@@ -12,6 +12,11 @@
       LocalDate)))
 
 
+(def risk-response-strategies
+  "风险应对策略枚举: 规避/转移/减轻/接受."
+  #{"avoid" "transfer" "mitigate" "accept"})
+
+
 (defn- insert-risk!
   "写入风险记录: 统一按概率 x 影响评分, 达阈值自动标记超阈值升级, 可选携带阶段与风险库来源信息; 评分与升级判定共用 risk-assessment 纯函数."
   [q project actor fields]
@@ -25,7 +30,9 @@
                               :due_date (s/date! fields :due_date)}
                        (:stage fields) (assoc :stage (:stage fields))
                        (:source_key fields) (assoc :source_key (:source_key fields))
-                       (:source_category fields) (assoc :source_category (:source_category fields))))
+                       (:source_category fields) (assoc :source_category (:source_category fields))
+                       (:response_strategy fields) (assoc :response_strategy
+                                                          (s/enum! (:response_strategy fields) risk-response-strategies "应对策略"))))
                {:status "open"})))
 
 
@@ -34,7 +41,7 @@
   [svc actor id body]
   (k/mutate! svc actor id "pms:project:edit" body "risk.created"
              (fn [q project]
-               (s/input! body [:title :probability :impact :owner_id :mitigation :due_date])
+               (s/input! body [:title :probability :impact :owner_id :mitigation :due_date :response_strategy])
                (insert-risk! q project actor body))))
 
 

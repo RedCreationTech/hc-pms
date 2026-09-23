@@ -559,6 +559,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 变更量化影响是 H09"多维影响分析"口径中"量化(工期/成本)影响 + 高影响预警"一项的 `implemented / local` 落地(可选强类型字段 + 校验 + 版本冻结不漂移 + 变更专属白名单 + 只读派生高影响徽标); 但 H09 行仍含"CCB 多人表决""跨系统通知""财务自动应用""量化阈值联动自动升级审批"等未完成子项, 故 H09 保持 `partial`, 不因这一子能力上行.
 
+## H08 风险应对策略可选枚举字段 (本轮增补, 2026-09-23)
+
+设计与关闭口径: 兑现矩阵 H08"风险评分口径和复审频率明确"里"识别后登记结构化应对策略"的一环. 复用既有 `risk` kind 与整条登记/复评/独立关闭链, **无新增迁移** (字段随风险记录 payload JSON 存储). 沿用"免迁移给治理 kind 加可选强类型字段"套路的**枚举变体**: 在 `governance.collaboration` 新增集合 `risk-response-strategies` = `#{"avoid" "transfer" "mitigate" "accept"}` (PMI 四类风险应对策略), `insert-risk!` 的 `cond->` 增加一条 `(:response_strategy fields) (assoc :response_strategy (s/enum! ...))` 分支, 只在字段存在时经 `s/enum!` 校验并写入, 非法取值返回 400, 未填则不写键; `create-risk!` 的 `s/input!` 白名单新增 `:response_strategy`. 因未填不写键且分支只在字段存在时触发, 既有登记/复评/库实例化用例 (均不带该字段) 零回归. 该字段与评分/超阈值升级门控相互独立: `from-library` 实例化的风险默认不带 `response_strategy`(仍为 `nil`), 手工登记选策略也不改变 `score`/`escalated` 计算. 前端 `risk-dialog` 在期限字段后新增 `:response_strategy` `:select` 下拉(规避/转移/减轻/接受), 风险台账在"复审重评"列后新增只读"应对策略"列, 以 geekblue 标签回显中文策略名, 未设定显示灰字"未设定". 全程免迁移, 免新命令, 免新 kind, 免新状态值.
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| 治理测试 (SQLite) | 47 tests / 551 assertions, 0 failures/errors | 新增 `risk-response-strategy-is-optional-enum-persisted`: 不填策略登记 3x3 风险 -> `response_strategy` 为 `nil`; 填 "transfer" 登记 2x3 风险 -> 回显 "transfer" 且 `escalated` false、`score` 6, 读模型 `risk-row` 二次回显 "transfer"; 非法 "ignore" 返回 400; `from-library` 实例化 `cost-overrun` -> `response_strategy` 为 `nil` 且 `source_key` "cost-overrun" 仍在 |
+| 全量 PMS 回归 (CLI SQLite) | 99 tests / 882 assertions, 0 failures/errors | `clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'` 全新库通过, 既有风险登记/复评/升级/库实例化用例无回归 |
+| 前端编译 | 0 warnings | `npx shadow-cljs compile app` 通过, 应对策略表单下拉与台账"应对策略"列一并编译 |
+| Chrome 浏览器 (Playwright) | 1 passed | `pms-h08r.spec.js` (隔离 `:3100` 后端, 独立空库): 界面"登记项目风险"新增"应对策略"下拉, 登记一条选"转移"且 2x3=6 不触发升级的风险 -> 命令响应 `result.response_strategy="transfer"`/`escalated=false` (截图 h08r-1-dialog-strategy.png), 台账"应对策略"列 geekblue 标签显示"转移"; 另一条不选策略 -> 回显 `response_strategy=null` 且台账列显示灰字"未设定" (截图 h08r-2-ledger-column.png); GET governance 二次确认两条回显一致; 真实 HTTP POST 非法取值 "ignore" 命中枚举校验返回 400; 截图存 `reports/h08r/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归(本地无可用实例, 本轮完全免迁移, 不新增 DDL); 应对策略目前仅为登记属性, 未与后续 `mitigate` 缓解动作或审批流做联动约束(如"接受"策略是否需额外审批), 未做按策略聚合的只读统计看板, 未做策略变更历史留痕.
+
+边界: 风险应对策略是 H08 风险识别登记口径中"结构化声明应对策略并可视"一项的 `implemented / local` 落地(可选枚举 + `s/enum!` 校验 + 缺省不写键零回归 + 免迁移持久化 + 台账只读回显); 但 H08 行仍含"升级通知投递""跨项目风险汇总升级""策略与缓解/审批联动"等未完成子项, 故 H08 保持 `partial`, 不因这一子能力上行.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

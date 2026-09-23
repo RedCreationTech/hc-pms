@@ -104,7 +104,10 @@
             {:key :impact :label "影响程度(1-5)" :type :number :min 1 :max 5 :required? true}
             (owner-field (:users options))
             {:key :mitigation :label "应对措施" :type :textarea :required? true}
-            {:key :due_date :label "计划应对日期" :type :date :required? true}]})
+            {:key :due_date :label "计划应对日期" :type :date :required? true}
+            {:key :response_strategy :label "应对策略" :type :select
+             :options [{:value "avoid" :label "规避"} {:value "transfer" :label "转移"}
+                       {:value "mitigate" :label "减轻"} {:value "accept" :label "接受"}]}]})
 
 
 (defn risk-library-options
