@@ -105,6 +105,20 @@
 
 工作台"干系人与沟通"页签已提供干系人/RACI/沟通计划的前端视图与浏览器端到端验证; 沟通节奏的执行由"标记已沟通"顺延下次日期, 生成会议与逐次沟通留痕这三类本地受控事实体现. 仍待补齐: 外部通知或消息渠道自动推送, 以及按节奏定时派发提醒 (本轮不声称自动提醒已交付).
 
+## 受控作废 (H18)
+
+对 `requirement` (URS需求), `document` (证据文档) 与 `stakeholder` (干系人) 三类记录提供受控作废命令, 把"这条记录不再有效"表达为一次可审计的状态迁移, 而不是物理删除. 命令走 `pms:project:edit` 写权限与项目作用域, 无编辑权用户 403, 携带未知字段 400:
+
+- `POST /requirements/:rid/discard`
+- `POST /documents/:rid/discard`
+- `POST /stakeholders/:rid/discard`
+
+请求体仅接受 `reason` (可选, 至多 500 字符) 与 `version`. 三层门控按序执行: `latest!` 只允许最新版本 (陈旧版本 409), `status!` 只允许处于可作废状态集合的记录 (requirement 须 `registered`, document 须 `registered`/`rejected`, stakeholder 须 `active`, 否则 409; 例如提交进入发布评审 `in_review` 的文档不能直接作废), 再做引用守卫. 服务端在事务内收集该记录被其它对象引用的证据 (requirement 被追踪指向, document 被追踪/会议会前资料/问题与风险证据/行动证据引用, stakeholder 被 RACI 指派或列入沟通受众), 命中任一引用即 409 并在消息里列出前若干条引用来源, 拒绝作废. 通过守卫后调用 `change!` 把状态写为 `discarded`, 同时记录 `discard_reason`, `discarded_by`, `discarded_on` 并追加一条 `workflow_history` 审计项 (含作废前状态), 记录内容, 编号与既有版本链全部保留可追溯.
+
+作废是终态: 已作废记录再次作废命中状态守卫返回 409. 读模型原样回显 `status: "discarded"` 与作废字段, 工作台据此在状态列显示"已作废"并隐藏作废入口; 已作废干系人不再满足"有效干系人"前置, 后续 RACI 指派或沟通受众引用它按既有 `active-stakeholder!` 状态守卫返回 409. 注意 `document_collection` 归集视图按业务编码取最新版本聚合, 当前不区分状态, 因此已作废文档仍会计入归集总数 (把它从归集口径中剔除是本轮之后待补的一项, 见诚实边界).
+
+诚实边界: `discarded` 是 `pms_gov_record` 状态 CHECK 约束新增的取值, 需要一次表重建迁移 (`202609220011-gov-status-discard`, SQLite 与 MySQL 各一份, 因 SQLite 不能 ALTER CHECK 故按 PRAGMA foreign_keys 关闭 -> 建新表 -> 迁移数据 -> 换名 -> 重建索引 -> 恢复外键的整表重建套路). 本轮只负责"作废即软删除+引用守卫+审计留痕"这一条本地闭环; 级联影响提示 (作废前预览受影响对象), 撤销/恢复已作废记录, 以及已作废证据对历史 Gate/验收快照的显式标注仍待实现, MySQL 迁移回归亦待补充.
+
 ## 生命周期调用约定
 
 `governance/execution-ready! [q project]` 要求当前最新章程 approved, 至少配置一个 required execution 模板, 且这些模板对应的所有实例均 approved 或 waived. 没有实例不算通过. 前段 Gate 编号未被假定为已确认业务规则, 使用配置的模板名称和阶段.

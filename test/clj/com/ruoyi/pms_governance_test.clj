@@ -1052,3 +1052,55 @@
     (is (= "" (:key (last (:by-stage col)))))
     (is (= "" (:key (last (:by-structure-node col)))))
     (is (= ["public" "internal" "confidential"] (map :classification (:by-classification col))))))
+
+
+(deftest requirement-discard-is-soft-and-reference-guarded
+  (let [id (project!)
+        doc (document! id "RD-1")
+        req (command! id :requirements :create nil
+                      {:code "URS-D" :text "可作废需求" :category "功能" :priority "required" :owner_id 9301})]
+    (is (= "registered" (:status req)))
+    (is (= 403 (error-status #(command! 9302 id :requirements :discard (:id req) {:reason "越权"}))))
+    (is (= 400 (error-status #(command! id :requirements :discard (:id req) {:reason "缺少白名单外字段" :extra 1}))))
+    (let [discarded (command! id :requirements :discard (:id req) {:reason "需求并入其它条目"})]
+      (is (= "discarded" (:status discarded)))
+      (is (= "需求并入其它条目" (:discard_reason discarded)))
+      (is (= 9301 (:discarded_by discarded)))
+      (is (some? (:discarded_on discarded)))
+      (is (= "discarded" (->> (:requirements (workspace id)) (filter #(= (:id req) (:id %))) first :status))))
+    (is (= 409 (error-status #(command! id :requirements :discard (:id req) {:reason "重复作废"}))))
+    (let [id2 (project!)
+          req2 (command! id2 :requirements :create nil
+                         {:code "URS-T" :text "被追踪需求" :category "功能" :priority "required" :owner_id 9301})
+          doc2 (document! id2 "RD-T")]
+      (command! id2 :traces :create nil
+                {:requirement_id (:id req2) :target_kind "document" :target_id (:id doc2) :relation "verifies"})
+      (is (= 409 (error-status #(command! id2 :requirements :discard (:id req2) {:reason "仍被追踪引用"})))))))
+
+
+(deftest document-discard-rejects-referenced-and-non-discardable-status
+  (let [id (project!)
+        referenced (document! id "DD-REF")
+        free (document! id "DD-FREE")
+        _ (command! id :meetings :create nil
+                    {:title "含资料会议" :held_on "2026-09-22" :minutes "会前阅读" :attendee_ids [9301 9302]
+                     :material_ids [(:id referenced)]})]
+    (is (= 409 (error-status #(command! id :documents :discard (:id referenced) {:reason "被会议引用"}))))
+    (let [discarded (command! id :documents :discard (:id free) {:reason "重复上传"})]
+      (is (= "discarded" (:status discarded)))
+      (is (= "重复上传" (:discard_reason discarded))))
+    (let [pending (document! id "DD-PEND")]
+      (command! id :documents :submit (:id pending) {:reviewer_id 9302})
+      (is (= 409 (error-status #(command! id :documents :discard (:id pending) {:reason "评审中不可作废"})))))))
+
+
+(deftest stakeholder-discard-rejects-referenced-record
+  (let [id (project!)
+        s1 (stakeholder! id "SD-1" 9301)
+        s2 (stakeholder! id "SD-2" 9301)]
+    (command! id :raci :create nil {:activity "出厂检验" :stakeholder_id (:id s1) :responsibility "R"})
+    (is (= 409 (error-status #(command! id :stakeholders :discard (:id s1) {:reason "仍承担RACI"}))))
+    (let [discarded (command! id :stakeholders :discard (:id s2) {:reason "人员退出项目"})]
+      (is (= "discarded" (:status discarded)))
+      (is (= 409 (error-status #(command! id :raci :create nil
+                                          {:activity "新活动" :stakeholder_id (:id s2) :responsibility "A"})))))))

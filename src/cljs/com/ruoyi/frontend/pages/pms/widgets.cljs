@@ -8,7 +8,7 @@
   {"draft" "草稿" "submitted" "待审批" "approved" "已批准" "rejected" "已驳回"
    "in_review" "待评审" "completed" "已完成" "materialized" "已转问题" "mitigated" "已缓解"
    "todo" "未开始" "converted" "已转任务" "ready" "待提交" "open" "待处理" "in_progress" "处理中" "blocked" "受阻" "done" "已完成"
-   "closed" "已关闭" "resolved" "待验证" "waived" "已豁免" "active" "有效"
+   "closed" "已关闭" "resolved" "待验证" "waived" "已豁免" "active" "有效" "discarded" "已作废"
    "required" "必需" "desired" "期望" "blocker" "阻断" "major" "严重" "minor" "一般"
    "summary" "汇总" "task" "任务" "milestone" "里程碑" "person" "人员" "equipment" "设备"})
 
@@ -16,7 +16,7 @@
   "统一呈现业务记录状态."
   [status]
   [antd/tag {:color (cond (contains? #{"approved" "done" "closed" "active"} status) "green"
-                          (contains? #{"rejected" "blocked" "blocker"} status) "red"
+                          (contains? #{"rejected" "blocked" "blocker" "discarded"} status) "red"
                           (contains? #{"submitted" "in_progress" "resolved"} status) "blue"
                           :else "default")}
    (get labels status (shared/display-value status))])

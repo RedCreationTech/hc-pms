@@ -257,6 +257,14 @@
    :fields [{:key :reason :label "决策意见" :type :textarea :required? true}]})
 
 
+(defn discard-dialog
+  "受控作废: 只软置为已作废并保留审计, 仍被引用的记录由服务端拒绝."
+  [path label]
+  {:title (str "作废" label) :path path
+   :description "作废不是删除, 记录将标记为已作废并保留可追溯的审计痕迹; 若仍被其它对象引用会被拒绝."
+   :fields [{:key :reason :label "作废原因" :type :textarea :required? true}]})
+
+
 (defn stakeholder-options
   "把有效干系人转为下拉选项, 编号与名称并列."
   [stakeholders]

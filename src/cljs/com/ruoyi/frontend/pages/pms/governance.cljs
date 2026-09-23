@@ -54,7 +54,10 @@
    [w/record-table (:requirements model)
     [(w/text-column :code "编号") (w/text-column :revision "版本") (w/text-column :text "需求描述")
      (w/text-column :category "类别") {:title "优先级" :dataIndex "priority" :render #(get w/labels % %)}]
-    (when editable? (fn [row] [w/edit-button "新修订" #(open! (forms/requirement-dialog base options row))]))]])
+    (when editable? (fn [row] [antd/space {:wrap true}
+                              [w/edit-button "新修订" #(open! (forms/requirement-dialog base options row))]
+                              (when (= "registered" (:status row))
+                                [w/edit-button "作废" #(open! (forms/discard-dialog (str base "/requirements/" (:id row) "/discard") "URS需求"))])]))]])
 
 
 (defn- latest-document-ids
@@ -68,7 +71,7 @@
   "文档发布状态的语义标签."
   [status]
   (let [[text color] (get {"registered" ["已登记" "default"] "in_review" ["待发布审批" "blue"]
-                           "approved" ["已发布" "green"] "rejected" ["已退回" "red"]}
+                           "approved" ["已发布" "green"] "rejected" ["已退回" "red"] "discarded" ["已作废" "red"]}
                           status [status "default"])]
     [antd/tag {:color color} text]))
 
@@ -146,7 +149,9 @@
            [:<>
             [w/edit-button "批准发布" #(open! (forms/decision-dialog (str base "/documents/" (:id row) "/decision") "approved" "正式签发发布"))]
             [w/edit-button "驳回" #(open! (forms/decision-dialog (str base "/documents/" (:id row) "/decision") "rejected" "驳回文档发布"))]])
-         (when editable? [w/edit-button "新版本" #(open! (forms/document-dialog base row))])])]]))
+         (when editable? [w/edit-button "新版本" #(open! (forms/document-dialog base row))])
+         (when (and editable? (contains? #{"registered" "rejected"} (:status row)))
+           [w/edit-button "作废" #(open! (forms/discard-dialog (str base "/documents/" (:id row) "/discard") "证据文档"))])])]]))
 
 
 (defn- appointment-section
@@ -191,7 +196,10 @@
      (w/text-column :category "分类") (w/text-column :interest "关注度") (w/text-column :influence "影响力")
      {:title "管理策略" :dataIndex "stakeholder_quadrant" :width 200 :render (fn [_ row] (quadrant-cell row))}
      (w/state-column)]
-    (when editable? (fn [row] [w/edit-button "新修订" #(open! (forms/stakeholder-dialog base options row))]))]])
+    (when editable? (fn [row] [antd/space {:wrap true}
+                         [w/edit-button "新修订" #(open! (forms/stakeholder-dialog base options row))]
+                         (when (= "active" (:status row))
+                           [w/edit-button "作废" #(open! (forms/discard-dialog (str base "/stakeholders/" (:id row) "/discard") "干系人"))])]))]])
 
 
 (defn- raci-conflict-text

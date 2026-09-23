@@ -6,6 +6,7 @@
     [com.ruoyi.domain.pms.governance.collaboration :as collab]
     [com.ruoyi.domain.pms.governance.evidence :as evidence]
     [com.ruoyi.domain.pms.governance.gates :as gates]
+    [com.ruoyi.domain.pms.governance.lifecycle :as lifecycle]
     [com.ruoyi.domain.pms.governance.reviews :as reviews]
     [com.ruoyi.domain.pms.governance.stakeholders :as stakeholders]
     [com.ruoyi.domain.pms.governance.store :as store]
@@ -111,9 +112,11 @@
    [:requirements :create] (approval-command evidence/create! "requirement" true)
    [:requirements :revisions] (approval-command evidence/revise! "requirement" false)
    [:requirements :import] (creating evidence/import!)
+   [:requirements :discard] (approval-command lifecycle/discard! "requirement" false)
    [:documents :create] (approval-command evidence/create! "document" true)
    [:documents :revisions] (approval-command evidence/revise! "document" false)
    [:documents :submit] evidence/submit-release! [:documents :decision] evidence/decide-release!
+   [:documents :discard] (approval-command lifecycle/discard! "document" false)
    [:traces :create] (creating evidence/trace!)
    [:risks :create] (creating collab/create-risk!)
    [:risks :review] reviews/submit-risk-review! [:risks :decision] reviews/decide-risk-review!
@@ -133,6 +136,7 @@
    [:appointments :create] (creating appointment/issue!)
    [:stakeholders :create] (creating stakeholders/create-stakeholder!)
    [:stakeholders :revisions] stakeholders/revise-stakeholder!
+   [:stakeholders :discard] (approval-command lifecycle/discard! "stakeholder" false)
    [:raci :create] (creating stakeholders/create-raci!)
    [:comm-plans :create] (creating stakeholders/create-comm-plan!)
    [:comm-plans :revisions] stakeholders/revise-comm-plan!
