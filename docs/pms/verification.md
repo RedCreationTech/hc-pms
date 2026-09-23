@@ -429,6 +429,23 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: H18c 交付的是"作废口径一致性"(归集剔除)与"作废前可预检"(级联影响只读预览), 仍属 H18 整行的子集, 故 H18 记 `partial` 不变. 预览为只读提示, 与作废命令共用引用守卫口径, 但并发下实际作废仍可能命中守卫 409; 仍缺正式历史归档策略, 已作废证据对历史 Gate/验收快照的显式标注与生产验收.
 
+## C09d 问题阻断级自动升级与独立确认解除提交解决门控 (本轮增补, 2026-09-23)
+
+设计与关闭口径: 把 H08 风险超阈值自动升级的门控套路复用到问题闭环. `create-issue!` 在 `severity = blocker` 时登记即自动升级, 写入 `escalated: true` 与 `escalation_state: pending`, 按登记时是否已逾期给出 `escalation_level`(到期日早于或等于服务端当天为 steering 管理层, 否则 management 经理层)与可读 `escalation_reason`; 非阻断级不写任何升级键, 保证既有 major/minor 用例不回归. 新增独立确认命令 `acknowledge-issue-escalation!` 走 `k/mutate!` 的 `{:write? false}` 只读范围审批人也能确认(同 H08 与 verify!), 自写"登记人不得自确认"职责分离校验(403, 因 `s/reviewer!`/`decision-actor!` 需 reviewer_id/submitted_by 不适用自动升级), 未升级或重复确认返回 409, decision enum `approved|rejected` 转为 `acknowledged|waived` 并记录 `escalation_ack_by/note/on` 与 `workflow_history`. `resolve!` 增加门控: 当 `escalated` 且 `escalation_state` 仍为 pending 时返回 409, 须先经独立确认方可提交解决. 注册为 `[:issues :escalate]`, 路由 `POST /issues/:record_id/escalate`. 前端"问题闭环"台账新增只读"超阈值升级"徽标列(待升级确认 / level, 升级已确认, 升级已豁免, 未触发), 并在审批人视角(具备 `pms:quality:approve` 且非登记人)提供"确认升级处置"入口打开决策弹窗. 全程免迁移(升级字段随 payload JSON 持久化).
+
+本轮实际执行的验证:
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 治理命名空间 SQLite | 39 tests / 437 assertions, 0 失败/错误 | 新增 `issue-escalation-requires-independent-acknowledgment-before-resolution`(blocker 登记即 `escalated`/pending/management 且 reason 非空; major 不写升级键; pending 时 resolve 409; 未升级 escalate 409; 登记人自确认 403; 非法 decision 400; 9302 独立批准 -> acknowledged/open/ack_by 9302/workflow_history 含 escalation_acknowledged; 重复确认 409; 确认后可 resolve 进入 in_review; 逾期 blocker 升级到 steering, 独立驳回 -> waived 后仍可 resolve). 既有 `closed-issue-reopens-only-through-independent-review` 因新门控在首次 resolve 前补一步独立确认, workflow_history 断言由 4 调整为 5(升级确认新增一条) |
+| 全量 PMS 回归 SQLite | 91 tests / 768 assertions, 0 失败/错误 | 无回归 |
+| 前端编译 | shadow-cljs 0 warnings | "超阈值升级"徽标列, `issue-escalation-dialog` 决策弹窗, "确认升级处置"入口一并编译 |
+| Chrome 浏览器 (Playwright) | 2 passed | `pms-c09d.spec.js`: 界面登记 blocker 问题 -> "超阈值升级"列显示红色"待升级确认 / management", 登记人看不到"确认升级处置"入口, 真实 HTTP resolve 409、自确认 escalate 403; 独立审批人第二上下文"确认升级处置"选"确认升级并责成处置" -> 徽标翻转"升级已确认"、确认人为审批人, 此后 resolve 放行 200 进入 in_review; 另一例逾期 blocker 升级到 steering, major "未触发"且无需独立升级确认即可径直 resolve 200; 截图存 `reports/c09d/` (c09d-1..c09d-5) |
+
+本轮未执行 (如实记录): MySQL 迁移与回归(本地无可用实例, 但 C09d 免迁移, 不新增 DDL); 由风险 `materialize` 生成的问题暂不自动升级(避免与既有 materialize 用例回归), 逾期后对已登记问题的追溯升级与提醒投递未实现.
+
+边界: C09d 交付的是"阻断级问题登记即升级 + 独立确认解除提交解决门控"这一条最小闭环, 与 H08 风险升级门控同构, 属 C09 整行子集, 故 C09 记 `partial` 不变. 升级判定只在登记时按严重度与到期日计算一次, 不做后续追溯重算; 升级通知投递与跨项目问题汇总升级仍待实现.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

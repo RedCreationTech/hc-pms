@@ -146,11 +146,26 @@
    :owner_id (k/user! q project (:owner_id body) "负责人") :due_date (s/date! body :due_date)})
 
 
+(defn- issue-escalation
+  "按严重度与到期日计算问题自动升级处置: 阻断级(blocker)问题登记即升级到经理层, 若登记时已逾期则升到管理层; 其它严重度不触发升级(返回 nil, 不写任何 escalation 键, 与既有问题用例兼容)."
+  [{:keys [severity due_date]}]
+  (when (= "blocker" severity)
+    (let [overdue? (and due_date (not (.isAfter (LocalDate/parse due_date) (LocalDate/now))))
+          level (if overdue? "steering" "management")]
+      {:escalated true
+       :escalation_state "pending"
+       :escalation_level level
+       :escalation_reason (str "阻断级问题" (when overdue? "且登记时已逾期")
+                               ", 须由独立质量审批人确认" (if (= level "steering") "管理层" "经理层") "处置后方可提交解决.")})))
+
+
 (defn create-issue!
-  "创建需经过独立验证才能关闭的问题."
+  "创建需经过独立验证才能关闭的问题; 阻断级问题登记即自动升级, 待独立质量审批人确认处置后方可提交解决."
   [svc actor id body]
   (k/mutate! svc actor id "pms:project:edit" body "issue.created"
-             (fn [q project] (s/insert! q project actor "issue" (issue-fields! q project body) {:status "open"}))))
+             (fn [q project]
+               (let [fields (issue-fields! q project body)]
+                 (s/insert! q project actor "issue" (merge fields (issue-escalation fields)) {:status "open"})))))
 
 
 (defn materialize!
@@ -181,6 +196,8 @@
                (s/input! body [:resolution :evidence_ids :reviewer_id])
                (let [issue (s/record! q project "issue" rid)]
                  (s/status! issue #{"open" "rejected"})
+                 (when (and (:escalated issue) (= "pending" (:escalation_state issue)))
+                   (r/fail! 409 "该问题已超阈值升级, 请先由独立质量审批人确认处置措施再提交解决"))
                  (s/change! q project issue "in_review"
                             {:review_action "closure" :resolution (s/text! body :resolution)
                              :evidence_ids (s/evidence! q project (:evidence_ids body) true)
@@ -219,6 +236,27 @@
                              :reassigned_from (:owner_id issue)
                              :reassign_reason (s/text! body :reason 500)
                              :reassigned_by (:user_id actor)})))))
+
+
+(defn acknowledge-issue-escalation!
+  "由独立质量审批人确认阻断级问题的升级处置, 批准责成处置或经评估豁免, 记录后方可提交解决."
+  [svc actor id rid body]
+  (k/mutate! svc actor id "pms:quality:approve" body "issue.escalation-acknowledged" {:write? false}
+             (fn [q project]
+               (s/input! body [:decision :note])
+               (let [issue (s/record! q project "issue" rid)
+                     decision (s/enum! (:decision body) #{"approved" "rejected"} "decision")
+                     note (s/text! body :note 500)]
+                 (when-not (:escalated issue) (r/fail! 409 "该问题未触发升级, 无需确认"))
+                 (when-not (= "pending" (:escalation_state issue)) (r/fail! 409 "问题升级已确认, 请勿重复处理"))
+                 (when (= (:user_id actor) (:created_by issue)) (r/fail! 403 "升级确认不得由问题登记人本人完成"))
+                 (s/change! q project issue (:status issue)
+                            {:escalation_state (if (= "approved" decision) "acknowledged" "waived")
+                             :escalation_decision decision :escalation_note note
+                             :escalation_ack_by (:user_id actor) :escalation_ack_on (str (LocalDate/now))
+                             :workflow_history (conj (vec (:workflow_history issue))
+                                                     {:action "escalation_acknowledged" :actor_id (:user_id actor)
+                                                      :on (str (LocalDate/now)) :decision decision})})))))
 
 
 (defn create-meeting!

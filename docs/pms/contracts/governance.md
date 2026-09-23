@@ -1,6 +1,6 @@
 # 治理与质量 HTTP 合同
 
-状态: 已实现并通过本地 SQLite 38 tests / 414 assertions (含 A08 项目成员任命书, H02 干系人/RACI/沟通计划, C06 文档独立发布审批, C04 文档归集视图, H01 章程初始预算, H08 风险超阈值自动升级, C10 典型风险库一键实例化, H02 沟通节奏标记已沟通与到期预警, C09 问题逾期预警, H18 受控作废与受控恢复, H18c 归集剔除已作废与级联影响预览等用例), 属于本轮全量 PMS 回归 90 tests / 745 assertions 的组成部分. 新模块 MySQL 及生产验收采用 [验证记录](../verification.md) 的最终结果. 不包含真实外部系统写入, 二进制文件服务或自动应用变更. 所有路径以 `/api/pms/projects/:id/governance` 为前缀. 路由挂在现有 JWT 认证中间件内. 下述字段为明确白名单; 未列字段返回 400.
+状态: 已实现并通过本地 SQLite 39 tests / 437 assertions (含 A08 项目成员任命书, H02 干系人/RACI/沟通计划, C06 文档独立发布审批, C04 文档归集视图, H01 章程初始预算, H08 风险超阈值自动升级, C10 典型风险库一键实例化, H02 沟通节奏标记已沟通与到期预警, C09 问题逾期预警, C09d 问题阻断级自动升级, H18 受控作废与受控恢复, H18c 归集剔除已作废与级联影响预览等用例), 属于本轮全量 PMS 回归 91 tests / 768 assertions 的组成部分. 新模块 MySQL 及生产验收采用 [验证记录](../verification.md) 的最终结果. 不包含真实外部系统写入, 二进制文件服务或自动应用变更. 所有路径以 `/api/pms/projects/:id/governance` 为前缀. 路由挂在现有 JWT 认证中间件内. 下述字段为明确白名单; 未列字段返回 400.
 
 ## 事务, 权限与读模型
 
@@ -39,8 +39,9 @@
 | POST `/risks/:rid/materialize` | 可选 title | 幂等生成问题, 记录 source_risk_id 和 issue_id; impact >= 4 为 blocker, 否则 major |
 | POST `/risks/:rid/review` | outcome: active/mitigated/closed, review_note, evidence_ids, reviewer_id, 非关闭时必填 next_review_date | open/mitigated/materialized/closed -> in_review; 关联问题均须已关闭; 保留此前状态和复审依据 |
 | POST `/risks/:rid/decision` | decision: approved/rejected, reason | 指定独立审核人批准后变为 open/mitigated/closed, 拒绝恢复复审前状态 |
-| POST `/issues` | title, severity: blocker/major/minor, owner_id, due_date | 创建 open 问题 |
-| POST `/issues/:rid/resolve` | resolution, evidence_ids, reviewer_id | open/rejected -> in_review, 提交整改证据及独立验证人 |
+| POST `/issues` | title, severity: blocker/major/minor, owner_id, due_date | 创建 open 问题; severity=blocker 时登记即自动升级: 写入 `escalated: true`, `escalation_state: pending`, `escalation_level`(登记时已逾期为 steering, 否则 management)与 `escalation_reason`; 非阻断级不写任何升级键 |
+| POST `/issues/:rid/resolve` | resolution, evidence_ids, reviewer_id | open/rejected -> in_review, 提交整改证据及独立验证人; 若 `escalated` 且 `escalation_state` 仍为 pending 则 409, 须先经独立升级确认 |
+| POST `/issues/:rid/escalate` | decision: approved/rejected, note | 由登记人之外的独立质量审批人(`pms:quality:approve` + 项目读范围)确认阻断级问题升级处置; approved -> `escalation_state: acknowledged`(责成处置), rejected -> `waived`(经评估可在现层处置), 均记录 `escalation_ack_by/note/on` 与 `workflow_history`; 仅 pending 可确认, 未升级或已确认返回 409, 登记人自确认返回 403 |
 | POST `/issues/:rid/reopen` | reason, evidence_ids, reviewer_id | closed -> in_review, 以新原因和证据申请重开, 不直接恢复处理中 |
 | POST `/issues/:rid/reassign` | owner_id, reason | 转派责任人: 状态保持 open/rejected, 新责任人须为当前项目成员否则 400, 缺原因 400, 无编辑权 403, 已关闭 409; payload 记录 reassigned_from(原责任人), reassign_reason, reassigned_by 供审计 |
 | POST `/issues/:rid/decision` | decision: approved/rejected, reason | 整改验证时批准 -> closed, 拒绝 -> rejected; 重开评审时批准 -> open, 拒绝 -> closed; 必须指定人独立决定 |
@@ -72,6 +73,8 @@
 问题整改和重开分别以 `review_action: closure/reopen` 标识, `workflow_history` 保留此前关闭结论及每次重开决定. 风险复审使用 `review_action: risk_review`, 含 `review_previous_status`, `requested_outcome`, `submitted_by` 和 `reviewer_id`. 非关闭结论的 `next_review_date` 必须严格晚于服务端当天; 提交及批准时均验证, 过期的待审申请不能直接批准. 风险关闭仍须实际证据和独立批准. 风险关联问题在提交及批准复审时均须已关闭, 历史问题 ID 不丢失. 读模型增加 `last_reviewed_on`, `review_due_date`, `review_overdue`; 到期日为今天或之前且风险未关闭时显示逾期, 本轮不自动发送升级通知.
 
 风险超阈值升级 (H08): `POST /risks` 在 `score = probability * impact` 达到阈值 16 时自动写入 `escalated: true` 与 `escalation_state: pending`, 并按分数给出 `escalation_level`(16..19 为 management, 20 及以上为 steering)与可读 `escalation_reason`; 未达阈值时 `escalated: false`. 升级状态随记录持久化, 读模型原样回显 `escalated`, `escalation_state`, `escalation_level`, `escalation_reason`, 确认后再回显 `escalation_decision`, `escalation_ack_by`, `escalation_ack_on`. 处于 pending 的升级会阻断该风险的 `mitigate`(返回 409), 必须由登记人之外的独立质量审批人调用 `escalate` 作出 approved(转为 acknowledged)或 rejected(转为 waived)后方可解除; `escalate` 走 `pms:quality:approve` 权限与项目读范围, 与既有独立批准命令一致采用只读写入范围, 因此只读审批人也能确认. 本轮仅对"新建时评分超阈值"和"独立确认解除缓解门控"这一条最小闭环负责, 复评后重新评分, 升级通知投递, 以及跨项目风险汇总升级仍待实现.
+
+问题阻断级自动升级 (C09d): `POST /issues` 在 `severity = blocker` 时登记即自动升级, 写入 `escalated: true` 与 `escalation_state: pending`, 并按登记时是否已逾期给出 `escalation_level`(到期日早于或等于服务端当天为 steering 管理层, 否则 management 经理层)与可读 `escalation_reason`; 非阻断级(major/minor)不写任何升级键, 与既有问题用例兼容. 升级状态随记录持久化, 读模型原样回显 `escalated`, `escalation_state`, `escalation_level`, `escalation_reason`, 确认后再回显 `escalation_decision`, `escalation_ack_by`, `escalation_ack_on`. 处于 pending 的升级会阻断该问题的 `resolve`(返回 409), 必须由登记人之外的独立质量审批人调用 `escalate` 作出 approved(转为 acknowledged)或 rejected(转为 waived)后方可解除; `escalate` 走 `pms:quality:approve` 权限与项目读范围, 与既有独立批准命令一致采用只读写入范围, 因此只读审批人也能确认, 登记人自确认返回 403. 诚实边界: 本轮仅对"阻断级登记即升级"和"独立确认解除提交解决门控"这一条最小闭环负责; 由风险 `materialize` 生成的问题暂不自动升级(避免与既有 materialize 用例回归), 逾期后对已登记问题的追溯升级, 升级通知投递与跨项目汇总仍待实现.
 
 典型风险库 (C10): 服务端内置一份精选风险目录 `risk-library` (含进度/供应/技术/成本/人员等常见条目, 每条固定 category, 标准 probability 与 impact, 应对措施与适用阶段), 通过工作台只读字段 `risk_library` 暴露给前端下拉. `POST /risks/from-library` 依 `template_key` 选出一条, 按库中标准概率×影响自动评分并套用措施与阶段, 落库为一条普通 `risk` (kind 仍为 `risk`, 不新增治理记录类型, 因而无迁移), 并额外写入 `source_key` 与 `source_category` 以保留来源可追溯. 库实例化与手工登记共用同一评分与 H08 超阈值自动升级门控 (score>=16 即自动 `escalated`/`pending`), 因此从库选用的重大风险同样需独立质量审批人确认后方可缓解. 本轮负责的是"内置典型风险分类可复用并一键转为项目风险"这一条闭环; 诚实边界: 该库是随代码发布的精选目录, 尚非用户可自行编写并持久化的模板 CRUD, 也没有自动扫描把库条目推送/提醒到项目的机制, MySQL 回归待补充.
 

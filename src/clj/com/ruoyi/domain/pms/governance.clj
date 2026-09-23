@@ -129,6 +129,7 @@
    [:issues :reopen] reviews/reopen-issue!
    [:issues :reassign] collab/reassign-issue!
    [:issues :resolve] collab/resolve! [:issues :decision] collab/verify!
+   [:issues :escalate] collab/acknowledge-issue-escalation!
    [:meetings :create] (creating collab/create-meeting!)
    [:meetings :actions] collab/create-action! [:actions :task] collab/materialize-action!
    [:actions :complete] collab/complete-action! [:actions :verify] collab/verify-action!

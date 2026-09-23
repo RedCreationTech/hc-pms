@@ -369,9 +369,9 @@
 
 
 (defn- issue-section
-  "问题解决必须附证据并交独立人员验证."
-  [{:keys [base model options editable? open!] :as context}]
-  [shared/panel "问题闭环" "提交解决证据后,由独立审批人验证关闭"
+  "问题解决必须附证据并交独立人员验证; 阻断级问题登记即自动升级, 未经独立确认不得提交解决."
+  [{:keys [base model options editable? approve? open!] :as context}]
+  [shared/panel "问题闭环" "提交解决证据后由独立审批人验证关闭; 阻断级问题自动升级, 待独立确认处置后方可提交解决"
    (when editable? [antd/button {:on-click #(open! (forms/issue-dialog base options))} "登记项目问题"])
    [w/record-table (:issues model)
     [(w/text-column :title "问题") {:title "严重程度" :dataIndex "severity" :render #(r/as-element [w/badge %])}
@@ -383,10 +383,23 @@
                    [antd/space {:wrap true}
                     (when critical [antd/tag {:color "red"} "阻断级"])
                     (when overdue [antd/tag {:color "volcano"} "已逾期"])])))}
+     {:title "超阈值升级" :dataIndex "escalation_state" :width 180
+      :render (fn [_ row]
+                (let [esc (aget row "escalated") state (aget row "escalation_state")]
+                  (r/as-element
+                   (cond
+                     (not esc) [:span {:style {:color "#98a2b3"}} "未触发"]
+                     (= state "pending") [antd/tag {:color "red"} (str "待升级确认 / " (aget row "escalation_level"))]
+                     (= state "acknowledged") [antd/tag {:color "green"} "升级已确认"]
+                     (= state "waived") [antd/tag {:color "blue"} "升级已豁免"]
+                     :else [antd/tag state]))))}
      (w/text-column :resolution "解决说明")
      {:title "评审事项" :dataIndex "review_action" :render #(if (= % "reopen") "申请重开" "解决验证")} (w/state-column)]
     (fn [issue]
       [antd/space
+       (when (and approve? (:escalated issue) (= "pending" (:escalation_state issue))
+                  (not= (:currentUserId options) (:created_by issue)))
+         [w/edit-button "确认升级处置" #(open! (forms/issue-escalation-dialog base issue))])
        (when (and editable? (= "closed" (:status issue)))
          [w/edit-button "申请重开" #(open! (forms/issue-reopen-dialog base options (:documents model) issue))])
        (when (and editable? (contains? #{"open" "rejected"} (:status issue)))

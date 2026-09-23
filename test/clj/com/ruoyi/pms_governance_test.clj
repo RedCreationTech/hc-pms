@@ -659,6 +659,8 @@
   (let [id (project!) evidence (:id (document! id "REOPEN-EVIDENCE"))
         issue (command! id :issues :create nil {:title "需验证的问题" :severity "blocker" :owner_id 9301 :due_date "2026-10-01"})
         body {:reason "发现新的复现证据" :reviewer_id 9302 :evidence_ids [evidence]}]
+    ;; 阻断级问题登记即自动升级, 须先由独立质量审批人确认处置方可提交解决.
+    (command! 9302 id :issues :escalate (:id issue) {:decision "approved" :note "阻断级问题独立确认处置"})
     (command! id :issues :resolve (:id issue) {:resolution "初次整改" :reviewer_id 9302 :evidence_ids [evidence]})
     (command! 9302 id :issues :decision (:id issue) {:decision "approved" :reason "初次验证通过"})
     (is (= 400 (error-status #(command! id :issues :reopen (:id issue) (assoc body :reason "")))))
@@ -672,7 +674,7 @@
     (let [closed (command! 9302 id :issues :decision (:id issue) {:decision "approved" :reason "复验通过"})]
       (is (= "closed" (:status closed)))
       (is (= "closure" (:review_action closed)))
-      (is (= 4 (count (:workflow_history closed)))))))
+      (is (= 5 (count (:workflow_history closed)))))))  ;; created + 升级确认 + 提交解决 + 复开 + 关闭
 
 
 (deftest risk-review-requires-evidence-and-future-followup
@@ -1197,3 +1199,57 @@
     (is (= 404 (error-status #(gov/discard-preview *service* (actor 9301) id "requirement" (str (UUID/randomUUID))))))
     ;; 无 pms 功能权限用户 403
     (is (= 403 (error-status #(gov/discard-preview *service* (actor 9305) id "requirement" (:id free-req)))))))
+
+
+(deftest issue-escalation-requires-independent-acknowledgment-before-resolution
+  (let [id (project!) evidence (:id (document! id "ISS-ESC-1"))
+        blocker (command! id :issues :create nil {:title "阻断级装配缺陷" :severity "blocker"
+                                                  :owner_id 9301 :due_date "2026-10-10"})
+        major (command! id :issues :create nil {:title "一般缺陷" :severity "major"
+                                                :owner_id 9301 :due_date "2026-10-10"})]
+    ;; 阻断级问题登记即自动升级到经理层待确认; 非阻断不写任何 escalation 键 (与既有用例兼容).
+    (is (true? (:escalated blocker)))
+    (is (= "pending" (:escalation_state blocker)))
+    (is (= "management" (:escalation_level blocker)))
+    (is (some? (:escalation_reason blocker)))
+    (is (nil? (:escalated major)))
+    ;; 未确认前不得提交解决; 非阻断问题可正常提交解决.
+    (is (= 409 (error-status #(command! id :issues :resolve (:id blocker)
+                                        {:resolution "重新装配并复测" :evidence_ids [evidence] :reviewer_id 9302}))))
+    (is (= "in_review" (:status (command! id :issues :resolve (:id major)
+                                          {:resolution "调整间隙" :evidence_ids [evidence] :reviewer_id 9302}))))
+    ;; 升级确认门控: 非升级问题 409, 登记人自确认 403, 无效决定 400.
+    (is (= 409 (error-status #(command! id :issues :escalate (:id major)
+                                        {:decision "approved" :note "非阻断无需确认"}))))
+    (is (= 403 (error-status #(command! id :issues :escalate (:id blocker)
+                                        {:decision "approved" :note "登记人自确认"}))))
+    (is (= 400 (error-status #(command! 9302 id :issues :escalate (:id blocker)
+                                        {:decision "maybe" :note "无效决定"}))))
+    ;; 独立质量审批人确认后状态翻转为 acknowledged, 问题仍 open, 记录确认人/决定与审计.
+    (let [acked (command! 9302 id :issues :escalate (:id blocker)
+                         {:decision "approved" :note "责成停线整改并复测"})]
+      (is (= "acknowledged" (:escalation_state acked)))
+      (is (= "open" (:status acked)))
+      (is (= 9302 (:escalation_ack_by acked)))
+      (is (= "approved" (:escalation_decision acked)))
+      (is (some #(= "escalation_acknowledged" (:action %)) (:workflow_history acked))))
+    ;; 重复确认 409.
+    (is (= 409 (error-status #(command! 9302 id :issues :escalate (:id blocker)
+                                        {:decision "approved" :note "重复确认"}))))
+    ;; 确认后方可提交解决.
+    (is (= "in_review" (:status (command! id :issues :resolve (:id blocker)
+                                          {:resolution "重新装配并复测通过" :evidence_ids [evidence] :reviewer_id 9302}))))
+    ;; workspace 回显升级字段.
+    (let [row (first (filter #(= (:id blocker) (:id %)) (:issues (workspace id))))]
+      (is (true? (:escalated row)))
+      (is (= "acknowledged" (:escalation_state row))))
+    ;; 登记时已逾期的阻断问题升级到管理层(steering); 经评估豁免(rejected)记为 waived 并解除门控.
+    (let [late (command! id :issues :create nil {:title "逾期阻断" :severity "blocker"
+                                                 :owner_id 9301 :due_date "2026-01-01"})]
+      (is (= "steering" (:escalation_level late)))
+      (is (= 409 (error-status #(command! id :issues :resolve (:id late)
+                                          {:resolution "补做整改" :evidence_ids [evidence] :reviewer_id 9302}))))
+      (let [waived (command! 9302 id :issues :escalate (:id late) {:decision "rejected" :note "评估后豁免"})]
+        (is (= "waived" (:escalation_state waived)))
+        (is (= "in_review" (:status (command! id :issues :resolve (:id late)
+                                              {:resolution "补做整改并复测" :evidence_ids [evidence] :reviewer_id 9302}))))))))

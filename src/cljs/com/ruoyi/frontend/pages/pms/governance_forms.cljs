@@ -149,6 +149,18 @@
             {:key :note :label "处置意见" :type :textarea :required? true}]})
 
 
+(defn issue-escalation-dialog
+  "独立质量审批人确认阻断级问题的升级处置, 批准责成处置或经评估豁免."
+  [base issue]
+  {:title "确认问题升级" :path (str base "/issues/" (:id issue) "/escalate")
+   :initial {:decision "approved"}
+   :description (str (:escalation_reason issue)
+                     " 须由登记人之外的独立质量审批人确认后方可提交解决: 批准=按升级责成处置; 驳回=经评估可在现层处置并解除升级门控.")
+   :fields [{:key :decision :label "升级处置决定" :type :select :required? true
+             :options [{:value "approved" :label "确认升级并责成处置"} {:value "rejected" :label "评估后可在现层处置"}]}
+            {:key :note :label "处置意见" :type :textarea :required? true}]})
+
+
 (defn issue-reopen-dialog
   "已关闭问题重开须明确新证据与独立责任人."
   [base options documents issue]
