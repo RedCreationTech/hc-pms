@@ -529,6 +529,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 复评重新评分是 H08 复审链的一个子能力闭环(提议->独立批准->重算并重新判定升级门控), 免迁移不落新 kind; 但 H08 行仍含"升级通知投递""跨项目风险汇总升级"等未完成子项, 故 H08 保持 `partial`, 不因这一子能力上行.
 
+## H01 章程显式授权项目经理字段 (本轮增补, 2026-09-23)
+
+设计与关闭口径: 兑现矩阵 H01 长期列为"授权PM作为章程显式字段仍待补齐"的一环. 复用既有 `charter` kind 与整条 create/revise/submit/decide 独立审批链, **无新增迁移** (授权 PM 字段随内容版本 payload JSON 存储). 沿用上一轮 `initial_budget` 的"免迁移给治理 kind 加可选强类型字段"套路: 在 `governance.approval` 新增 charter 专属白名单向量 `charter-pm-fields` = `[:authorized_pm_id]`, 并入 `content!` 的 `allowed` 计算; 新增私有 `charter-pm!` 校验器, 对 `body` 中出现的 `authorized_pm_id` 走 `s/user!` (须为有效本地用户, 不存在或已停用返回 400), 未填时返回 nil 并在 `cond->` 里 `merge` 为 no-op, 因此既有章程用例(不含该字段)不受影响. 字段随内容版本不可变冻结, 修订派生新版本而旧版本授权 PM 不漂移; 与预算同为章程专属字段, 出现在变更申请体上按白名单返回 400. 留空时不写入该键, 项目经理仍由项目 `manager_id` 隐含承载. 前端 `charter-dialog` 新增"授权项目经理"可选下拉(复用 `user-options`), `transform` 把空串归一 dissoc; 章程台账新增"授权PM"列, 有值时按 `user_id` 匹配回显用户姓名, 无值显示"未指定". 本轮不据该字段自动改写项目编辑/审批权限或触发通知投递.
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| 治理测试 (SQLite) | 45 tests / 528 assertions, 0 failures/errors | 新增 `charter-authorized-pm-is-explicit-validated-and-versioned`: 建章程填 `authorized_pm_id` 9303 回显并存储, 独立批准后授权 PM 不漂移, 修订至 9301 生成 rev2 而旧版本仍 9303, 未填时不含该键, 不存在人员 99999 返回 400, 合法变更体追加 `authorized_pm_id` 按白名单返回 400 |
+| 全量 PMS 回归 (CLI SQLite) | 97 tests / 859 assertions, 0 failures/errors | `clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'` 全新库通过, 既有章程预算/审批/版本用例无回归 |
+| 前端编译 | 0 warnings | `npx shadow-cljs compile app` 通过, 章程授权 PM 表单字段与台账"授权PM"列一并编译 |
+| Chrome 浏览器 (Playwright) | 1 passed | `pms-h01pm.spec.js` (隔离 `:3100` 后端, 独立空库): 界面"编制项目章程"用"授权项目经理"下拉显式选人 -> 命令响应回显 `authorized_pm_id` 且 `revision=1` (截图 h01pm-1-dialog-select.png) -> HTTP 修订链改授权对象至 admin 生成 rev2 -> 再修订取消授权生成 rev3 `authorized_pm_id` 为空 -> GET governance 校验三不可变版本授权 PM 不漂移 -> 重进台账"授权PM"列对选人版本回显用户姓名, 未选版本显示"未指定" (截图 h01pm-2-ledger-column.png) -> 真实 HTTP 不存在人员作授权 PM 返回 400 且变更体追加该字段被白名单拒 400; 截图存 `reports/h01pm/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归(本地无可用实例, 本轮完全免迁移, 不新增 DDL); 未把授权 PM 字段与项目实际编辑/审批权限联动, 未接通授权后的通知投递; 未做初始预算与批准后财务基线的对账关联(仍属 H01 其它待补齐子项).
+
+边界: 显式授权项目经理是 H01 章程"记录目标/范围/成功标准/赞助人/授权PM/初始预算"口径中"授权PM"一项的 `implemented / local` 落地(可选强类型字段 + 有效用户校验 + 版本冻结不漂移 + 章程专属白名单); 但 H01 行仍含"授权PM与权限/通知联动""预算-财务基线对账"等未完成子项, 故 H01 保持 `partial`, 不因这一子能力上行.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

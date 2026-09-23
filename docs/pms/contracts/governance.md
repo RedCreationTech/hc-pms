@@ -1,6 +1,6 @@
 # 治理与质量 HTTP 合同
 
-状态: 已实现并通过本地 SQLite 44 tests / 519 assertions (含 A08 项目成员任命书, H02 干系人/RACI/沟通计划, C06 文档独立发布审批, C04 文档归集视图, H01 章程初始预算, H08 风险超阈值自动升级, H08 复评重新评分并重算升级门控, C10 典型风险库一键实例化, H02 沟通节奏标记已沟通与到期预警, C09 问题逾期预警, C09d 问题阻断级自动升级, H18 受控作废与受控恢复, H18c 归集剔除已作废与级联影响预览, 责任人跨类负载预警等用例), 属于本轮全量 PMS 回归 96 tests / 850 assertions 的组成部分. 新模块 MySQL 及生产验收采用 [验证记录](../verification.md) 的最终结果. 不包含真实外部系统写入, 二进制文件服务或自动应用变更. 所有路径以 `/api/pms/projects/:id/governance` 为前缀. 路由挂在现有 JWT 认证中间件内. 下述字段为明确白名单; 未列字段返回 400.
+状态: 已实现并通过本地 SQLite 45 tests / 528 assertions (含 A08 项目成员任命书, H02 干系人/RACI/沟通计划, C06 文档独立发布审批, C04 文档归集视图, H01 章程初始预算, H01 章程显式授权项目经理, H08 风险超阈值自动升级, H08 复评重新评分并重算升级门控, C10 典型风险库一键实例化, H02 沟通节奏标记已沟通与到期预警, C09 问题逾期预警, C09d 问题阻断级自动升级, H18 受控作废与受控恢复, H18c 归集剔除已作废与级联影响预览, 责任人跨类负载预警等用例), 属于本轮全量 PMS 回归 97 tests / 859 assertions 的组成部分. 新模块 MySQL 及生产验收采用 [验证记录](../verification.md) 的最终结果. 不包含真实外部系统写入, 二进制文件服务或自动应用变更. 所有路径以 `/api/pms/projects/:id/governance` 为前缀. 路由挂在现有 JWT 认证中间件内. 下述字段为明确白名单; 未列字段返回 400.
 
 ## 事务, 权限与读模型
 
@@ -13,6 +13,7 @@
 - `GET ""` 另在 `issues`, `risks`, `actions` 三张台账的每条记录上补充同一套只读跨类负载派生字段, 均在读取时按当前数据计算, 不写入存储, 不新增迁移, 也不构成提醒投递: `owner_open_load` 为该记录 `owner_id`(责任人)在"问题+风险+行动"三类中当前未关闭的事项总数(问题与风险排除 `closed`, 行动排除 `closed`/`converted`, 与逾期/闭环口径一致), `owner_overloaded` 在该跨类负载达到阈值 4 时为 true. 无 `owner_id` 的记录 `owner_open_load` 为 0 且 `owner_overloaded` 为 false. 三张台账对同一责任人回显相同的 `owner_open_load`, 用于暴露"一人跨问题/风险/行动被集中指派"的负载失衡.
 - 需求, 风险, 问题和行动负责人必须是当前项目有效成员. 章程赞助人和会议参与人使用有效本地用户. 创建和审批均记录创建人, 提交人或决定人. 正文不进入通用审计日志.
 - 章程可选初始预算: `initial_budget` 为最多两位小数的非负金额, 由服务端规范化为两位小数最小单位后回显 (如 `120000.5` -> `120000.50`), 负数或超过两位小数返回 400. `budget_currency` 取 `CNY|USD|EUR|GBP|HKD` 之一, 填预算而未选币种时缺省 `CNY`, 非法币种返回 400. 两字段随内容版本不可变冻结, 修订须重新提交完整内容 (旧版本预算值不漂移). 未填 `initial_budget` 则两键均不写入, 章程仍按原样创建. 预算是章程专属字段, 出现在变更申请体上按白名单返回 400. 此为立项期声明的初始预算, 不等于批准后锁定的财务基线或成本台账 (后者由财务域独立管理).
+- 章程可选授权项目经理: `authorized_pm_id` 为可选显式字段, 须为有效本地用户 (经 `s/user!` 校验, 不存在或已停用返回 400). 填写时随内容版本不可变冻结, 修订须重新提交完整内容 (旧版本授权 PM 不漂移, 批准依据保持); 未填则不写入该键, 项目经理仍由项目 `manager_id` 隐含承载. 该字段是章程专属, 出现在变更申请体上按白名单返回 400. 此为章程显式记录的授权对象, 本轮不据此自动改写下述项目编辑/审批权限或触发通知投递 (仍待与权限联动补齐).
 
 ## 命令字段和状态
 
@@ -20,7 +21,7 @@
 
 | 路径 | 字段 | 业务结果 |
 | --- | --- | --- |
-| POST `/charters` | title, objective, scope, success_criteria, sponsor_id; 可选 initial_budget, budget_currency | 创建新的章程草稿版本, 稳定 code 为 charter |
+| POST `/charters` | title, objective, scope, success_criteria, sponsor_id; 可选 initial_budget, budget_currency, authorized_pm_id | 创建新的章程草稿版本, 稳定 code 为 charter |
 | POST `/charters/:rid/revisions` | 同上 | 从最新版本派生新的草稿, 原版本不覆盖 |
 | POST `/charters/:rid/submit` | reviewer_id | draft/rejected -> in_review; 指定独立审批人 |
 | POST `/charters/:rid/decision` | decision: approved/rejected, reason | 只有指定审核人可决定当前最新提交版本 |

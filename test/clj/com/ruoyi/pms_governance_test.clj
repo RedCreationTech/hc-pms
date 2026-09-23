@@ -207,6 +207,34 @@
                                          :resource_impact "追加工程师" :initial_budget "100"}))))))
 
 
+(deftest charter-authorized-pm-is-explicit-validated-and-versioned
+  (let [id (project!)
+        charter (command! id :charters :create nil (assoc (charter-body) :authorized_pm_id 9303))
+        rid (:id charter)]
+    (is (= 9303 (:authorized_pm_id charter)))
+    ;; 独立批准后授权 PM 不漂移, 仍回显在冻结的章程版本中.
+    (approve! id :charters rid)
+    (let [stored (first (filter #(= rid (:id %)) (:charters (workspace id))))]
+      (is (= "approved" (:status stored)))
+      (is (= 9303 (:authorized_pm_id stored))))
+    ;; 修订生成新不可变版本, 旧版本授权 PM 保持原值(批准依据不漂移).
+    (let [revision (command! id :charters :revisions rid (assoc (charter-body) :authorized_pm_id 9301))
+          old (first (filter #(= rid (:id %)) (:charters (workspace id))))]
+      (is (= 2 (:revision revision)))
+      (is (= 9301 (:authorized_pm_id revision)))
+      (is (= 9303 (:authorized_pm_id old))))
+    ;; 未指定授权 PM: 章程仍可创建, 不含该键(此时仍由项目 manager_id 隐含承载).
+    (let [plain (command! id :charters :create nil (charter-body))]
+      (is (nil? (:authorized_pm_id plain))))
+    ;; 非法授权 PM(不存在或非本地用户)被真实人员边界拒绝.
+    (is (= 400 (error-status #(command! id :charters :create nil (assoc (charter-body) :authorized_pm_id 99999)))))
+    ;; 授权 PM 是章程专属字段, 在合法变更申请体上追加应被白名单拒绝.
+    (is (= 400 (error-status #(command! id :changes :create nil
+                                        {:title "更改设备范围" :reason "合同调整" :scope_impact "增加设备"
+                                         :schedule_impact "增加五日" :cost_impact "重新估价" :quality_impact "增加测试"
+                                         :resource_impact "追加工程师" :authorized_pm_id 9303}))))))
+
+
 (deftest evidence-is-real-immutable-and-scoped
   (let [id (project!) other (project!) document (document! id "DOC-1") rid (:id document)
         revised (command! id :documents :revisions rid

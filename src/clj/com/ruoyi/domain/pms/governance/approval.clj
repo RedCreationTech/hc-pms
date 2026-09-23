@@ -13,6 +13,10 @@
   "章程可选初始预算字段,随内容版本不可变持久化."
   [:initial_budget :budget_currency])
 
+(def charter-pm-fields
+  "章程可选授权项目经理字段,随内容版本不可变持久化."
+  [:authorized_pm_id])
+
 (def change-fields
   "变更必须明确的影响维度."
   [:title :reason :scope_impact :schedule_impact :cost_impact :quality_impact :resource_impact])
@@ -28,16 +32,23 @@
                        "CNY")]
         {:initial_budget (money/money amount) :budget_currency currency}))))
 
+(defn- charter-pm!
+  "校验章程可选授权项目经理:须为有效本地用户;未指定时不写入任何授权PM键,仍由项目 manager_id 隐含承载."
+  [q body]
+  (when-let [uid (:authorized_pm_id body)]
+    {:authorized_pm_id (s/user! q uid)}))
+
 (defn content!
   "分别校验章程和变更内容,拒绝任意JSON字段."
   [q kind body]
   (let [fields (if (= kind "charter") charter-fields change-fields)
-        allowed (if (= kind "charter") (into charter-fields charter-budget-fields) fields)]
+        allowed (if (= kind "charter") (into (into charter-fields charter-budget-fields) charter-pm-fields) fields)]
     (s/input! body allowed)
     (cond-> (into {} (for [field (remove #{:sponsor_id} fields)]
                        [field (s/text! body field (if (= field :title) 200 4000))]))
       (= kind "charter") (assoc :sponsor_id (s/user! q (:sponsor_id body)))
-      (= kind "charter") (merge (charter-budget! body)))))
+      (= kind "charter") (merge (charter-budget! body))
+      (= kind "charter") (merge (charter-pm! q body)))))
 
 (defn create!
   "创建章程的新版本或独立变更申请."

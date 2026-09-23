@@ -40,6 +40,16 @@
                   (if (and budget (not= "" budget))
                     (str budget " " currency)
                     (r/as-element [:span {:style {:color "#98a2b3"}} "未设定"]))))}
+     {:title "授权PM" :dataIndex "authorized_pm_id" :width 140
+      :render (fn [_ row]
+                (let [uid (aget row "authorized_pm_id")
+                      user (when (some? uid)
+                             (first (filter #(= (str (:user_id %)) (str uid)) (:users options))))
+                      label (when user (or (:nick_name user) (:user_name user)))]
+                  (r/as-element
+                   (if (some? uid)
+                     [:span (or label (str uid))]
+                     [:span {:style {:color "#98a2b3"}} "未指定"]))))}
      (w/state-column)]
     #(review-actions context "charters" %)]])
 
