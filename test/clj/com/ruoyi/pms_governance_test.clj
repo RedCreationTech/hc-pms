@@ -685,6 +685,45 @@
       (is (empty? (:documents (workspace id)))))))
 
 
+(deftest change-impact-is-quantified-validated-and-high-impact-flagged
+  (let [id (project!)
+        base-body {:title "更改设备范围" :reason "合同调整" :scope_impact "增加设备"
+                   :schedule_impact "增加十日" :cost_impact "重新估价" :quality_impact "增加测试"
+                   :resource_impact "追加工程师"}
+        change (command! id :changes :create nil
+                         (assoc base-body :schedule_impact_days 12 :cost_impact_amount "150000.5"))]
+    ;; 量化影响回显并规范化(金额两位小数), 存于不可变版本.
+    (is (= 12 (:schedule_impact_days change)))
+    (is (= "150000.50" (:cost_impact_amount change)))
+    ;; 高影响判定: 工期12>=10 或 成本150000.50>=100000 -> true.
+    (is (true? (:change_high_impact (first (filter #(= (:id change) (:id %)) (:changes (workspace id)))))))
+    ;; 低于阈值 -> 非高影响.
+    (let [low (command! id :changes :create nil (assoc base-body :schedule_impact_days 3 :cost_impact_amount "99999.99"))
+          low-row (first (filter #(= (:id low) (:id %)) (:changes (workspace id))))]
+      (is (= 3 (:schedule_impact_days low-row)))
+      (is (false? (:change_high_impact low-row))))
+    ;; 未量化 -> 不含量化键且非高影响.
+    (let [plain (command! id :changes :create nil base-body)
+          plain-row (first (filter #(= (:id plain) (:id %)) (:changes (workspace id))))]
+      (is (nil? (:schedule_impact_days plain-row)))
+      (is (nil? (:cost_impact_amount plain-row)))
+      (is (false? (:change_high_impact plain-row))))
+    ;; 修订形成新不可变版本, 旧版本量化影响不漂移.
+    (let [revision (command! id :changes :revisions (:id change)
+                             (assoc base-body :schedule_impact_days 20 :cost_impact_amount "1.00"))
+          old (first (filter #(= (:id change) (:id %)) (:changes (workspace id))))]
+      (is (= 2 (:revision revision)))
+      (is (= 20 (:schedule_impact_days revision)))
+      (is (= 12 (:schedule_impact_days old))))
+    ;; 非法量化值被拒: 非整数天 / 超范围天 / 负成本 / 超两位小数成本.
+    (is (= 400 (error-status #(command! id :changes :create nil (assoc base-body :schedule_impact_days "abc")))))
+    (is (= 400 (error-status #(command! id :changes :create nil (assoc base-body :schedule_impact_days 4000)))))
+    (is (= 400 (error-status #(command! id :changes :create nil (assoc base-body :cost_impact_amount "-5")))))
+    (is (= 400 (error-status #(command! id :changes :create nil (assoc base-body :cost_impact_amount "1.234")))))
+    ;; 量化影响是变更专属字段, 追加到章程体被白名单拒绝.
+    (is (= 400 (error-status #(command! id :charters :create nil (assoc (charter-body) :schedule_impact_days 12)))))))
+
+
 (defn- request
   "经真实JWT及JSON中间件验证治理路由."
   [method path uid payload]

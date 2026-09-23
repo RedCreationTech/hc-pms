@@ -1,6 +1,6 @@
 # 治理与质量 HTTP 合同
 
-状态: 已实现并通过本地 SQLite 45 tests / 528 assertions (含 A08 项目成员任命书, H02 干系人/RACI/沟通计划, C06 文档独立发布审批, C04 文档归集视图, H01 章程初始预算, H01 章程显式授权项目经理, H08 风险超阈值自动升级, H08 复评重新评分并重算升级门控, C10 典型风险库一键实例化, H02 沟通节奏标记已沟通与到期预警, C09 问题逾期预警, C09d 问题阻断级自动升级, H18 受控作废与受控恢复, H18c 归集剔除已作废与级联影响预览, 责任人跨类负载预警等用例), 属于本轮全量 PMS 回归 97 tests / 859 assertions 的组成部分. 新模块 MySQL 及生产验收采用 [验证记录](../verification.md) 的最终结果. 不包含真实外部系统写入, 二进制文件服务或自动应用变更. 所有路径以 `/api/pms/projects/:id/governance` 为前缀. 路由挂在现有 JWT 认证中间件内. 下述字段为明确白名单; 未列字段返回 400.
+状态: 已实现并通过本地 SQLite 46 tests / 544 assertions (含 A08 项目成员任命书, H02 干系人/RACI/沟通计划, C06 文档独立发布审批, C04 文档归集视图, H01 章程初始预算, H01 章程显式授权项目经理, H09 变更量化影响与高影响只读派生, H08 风险超阈值自动升级, H08 复评重新评分并重算升级门控, C10 典型风险库一键实例化, H02 沟通节奏标记已沟通与到期预警, C09 问题逾期预警, C09d 问题阻断级自动升级, H18 受控作废与受控恢复, H18c 归集剔除已作废与级联影响预览, 责任人跨类负载预警等用例), 属于本轮全量 PMS 回归 98 tests / 875 assertions 的组成部分. 新模块 MySQL 及生产验收采用 [验证记录](../verification.md) 的最终结果. 不包含真实外部系统写入, 二进制文件服务或自动应用变更. 所有路径以 `/api/pms/projects/:id/governance` 为前缀. 路由挂在现有 JWT 认证中间件内. 下述字段为明确白名单; 未列字段返回 400.
 
 ## 事务, 权限与读模型
 
@@ -14,6 +14,7 @@
 - 需求, 风险, 问题和行动负责人必须是当前项目有效成员. 章程赞助人和会议参与人使用有效本地用户. 创建和审批均记录创建人, 提交人或决定人. 正文不进入通用审计日志.
 - 章程可选初始预算: `initial_budget` 为最多两位小数的非负金额, 由服务端规范化为两位小数最小单位后回显 (如 `120000.5` -> `120000.50`), 负数或超过两位小数返回 400. `budget_currency` 取 `CNY|USD|EUR|GBP|HKD` 之一, 填预算而未选币种时缺省 `CNY`, 非法币种返回 400. 两字段随内容版本不可变冻结, 修订须重新提交完整内容 (旧版本预算值不漂移). 未填 `initial_budget` 则两键均不写入, 章程仍按原样创建. 预算是章程专属字段, 出现在变更申请体上按白名单返回 400. 此为立项期声明的初始预算, 不等于批准后锁定的财务基线或成本台账 (后者由财务域独立管理).
 - 章程可选授权项目经理: `authorized_pm_id` 为可选显式字段, 须为有效本地用户 (经 `s/user!` 校验, 不存在或已停用返回 400). 填写时随内容版本不可变冻结, 修订须重新提交完整内容 (旧版本授权 PM 不漂移, 批准依据保持); 未填则不写入该键, 项目经理仍由项目 `manager_id` 隐含承载. 该字段是章程专属, 出现在变更申请体上按白名单返回 400. 此为章程显式记录的授权对象, 本轮不据此自动改写下述项目编辑/审批权限或触发通知投递 (仍待与权限联动补齐).
+- 变更可选量化影响: `schedule_impact_days` 为可选整数天 (须为 0 至 3650 的整数, 非整数, 负数或超范围返回 400), `cost_impact_amount` 为可选金额 (最多两位小数的非负金额, 由服务端规范化为两位小数后回显, 如 `150000.5` -> `150000.50`; 负数或超两位小数返回 400). 两字段随内容版本不可变冻结, 修订须重新提交完整内容 (旧版本量化值不漂移); 未填则不写入对应键, 变更仍按原样创建. 两字段是变更专属, 出现在章程体上按白名单返回 400. `GET ""` 的 `changes` 每条按服务器读取时派生只读布尔 `change_high_impact`: 当 `schedule_impact_days >= 10` 或 `cost_impact_amount >= 100000.00` 时为 `true`, 否则为 `false` (未量化亦为 `false`); 该判定仅用于台账高影响预警展示, 不写入存储, 不新增迁移, 不自动升级审批链或改变状态机 (阈值联动审批仍待补齐).
 
 ## 命令字段和状态
 
@@ -52,7 +53,7 @@
 | POST `/actions/:rid/task` | 可选 start_date, duration_days, wbs_code | 同事务创建真实 WBS 任务, 状态 converted, 保存 target_task_id; 重试不重复创建 |
 | POST `/actions/:rid/complete` | result, evidence_ids, reviewer_id | 提交行动完成: 状态 open/rejected -> in_review, 记录 review_action action_closure, result, 绑定的不可变证据版本 evidence_ids, 指定独立 reviewer_id(不得为提交人且具质量审批权与项目访问), submitted_by 为当前操作人; 缺证据 409, 审核人为本人 409, 无权限 403, 缺字段 400 |
 | POST `/actions/:rid/verify` | decision: approved/rejected, reason | 由指定 reviewer_id 独立核验: in_review -> closed(approved)或 rejected; 非指定核验人 403, 自行核验本人提交 409; 关闭后逾期计算不再触发 |
-| POST `/changes` | title, reason, scope_impact, schedule_impact, cost_impact, quality_impact, resource_impact | 创建正式变更申请草稿, 各影响维度均须说明 |
+| POST `/changes` | title, reason, scope_impact, schedule_impact, cost_impact, quality_impact, resource_impact; 可选 schedule_impact_days, cost_impact_amount | 创建正式变更申请草稿, 各影响维度均须说明 |
 | POST `/changes/:rid/revisions` | 同上 | 最新申请的不可变新内容版本 |
 | POST `/changes/:rid/submit` | reviewer_id | draft/rejected -> in_review |
 | POST `/changes/:rid/decision` | decision: approved/rejected, reason | 独立批准或拒绝; 不会暗中修改任务或预算 |

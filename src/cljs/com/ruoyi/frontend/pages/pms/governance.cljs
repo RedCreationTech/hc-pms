@@ -529,7 +529,22 @@
    (when editable? [antd/button {:on-click #(open! (forms/change-dialog base))} "提出项目变更"])
    [w/record-table (:changes model)
     [(w/text-column :title "变更") (w/text-column :reason "原因") (w/text-column :scope_impact "范围影响")
-     (w/text-column :schedule_impact "进度影响") (w/text-column :cost_impact "成本影响") (w/state-column)]
+     (w/text-column :schedule_impact "进度影响") (w/text-column :cost_impact "成本影响")
+     {:title "量化影响" :dataIndex "schedule_impact_days" :width 220
+      :render (fn [_ row]
+                (let [days (aget row "schedule_impact_days")
+                      cost (aget row "cost_impact_amount")
+                      high (true? (aget row "change_high_impact"))
+                      quant? (or (some? days) (and (some? cost) (not= "" cost)))]
+                  (r/as-element
+                   (if (or quant? high)
+                     (into [antd/space {:wrap true}]
+                           (cond-> []
+                             (some? days) (conj [antd/tag {:color "blue"} (str "工期 +" days " 天")])
+                             (and (some? cost) (not= "" cost)) (conj [antd/tag {:color "blue"} (str "成本 +" cost)])
+                             high (conj [antd/tag {:color "red"} "高影响"])))
+                     [:span {:style {:color "#98a2b3"}} "未量化"]))))}
+     (w/state-column)]
     #(review-actions context "changes" %)]])
 
 

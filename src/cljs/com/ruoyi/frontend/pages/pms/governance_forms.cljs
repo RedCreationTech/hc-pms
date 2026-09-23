@@ -215,16 +215,23 @@
 
 
 (defn change-dialog
-  "记录变更对五个工程维度的影响."
+  "记录变更对五个工程维度的影响; 可选量化工期与成本影响用于高影响判定."
   [base]
   {:title "提出项目变更" :path (str base "/changes")
+   :transform (fn [data]
+                (reduce (fn [m k] (let [v (get data k)] (if (or (nil? v) (= "" v)) (dissoc m k) m)))
+                        data [:schedule_impact_days :cost_impact_amount]))
    :fields [{:key :title :label "变更标题" :required? true}
             {:key :reason :label "变更原因" :type :textarea :required? true}
             {:key :scope_impact :label "范围影响" :type :textarea :required? true}
             {:key :schedule_impact :label "进度影响" :type :textarea :required? true}
             {:key :cost_impact :label "成本影响" :type :textarea :required? true}
             {:key :quality_impact :label "质量影响" :type :textarea :required? true}
-            {:key :resource_impact :label "资源影响" :type :textarea :required? true}]})
+            {:key :resource_impact :label "资源影响" :type :textarea :required? true}
+            {:key :schedule_impact_days :label "工期影响(天)" :type :number :min 0 :max 3650
+             :hint "可选, 0-3650整数天; 用于量化影响分析与高影响判定"}
+            {:key :cost_impact_amount :label "成本影响金额"
+             :hint "可选, 最多两位小数, 如 150000.00; 用于量化影响分析与高影响判定"}]})
 
 
 (defn template-dialog

@@ -544,6 +544,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 显式授权项目经理是 H01 章程"记录目标/范围/成功标准/赞助人/授权PM/初始预算"口径中"授权PM"一项的 `implemented / local` 落地(可选强类型字段 + 有效用户校验 + 版本冻结不漂移 + 章程专属白名单); 但 H01 行仍含"授权PM与权限/通知联动""预算-财务基线对账"等未完成子项, 故 H01 保持 `partial`, 不因这一子能力上行.
 
+## H09 变更量化影响与高影响只读派生 (本轮增补, 2026-09-23)
+
+设计与关闭口径: 兑现矩阵 H09"对范围/工期/成本/质量/资源做影响分析"中"量化影响"的一环. 复用既有 `change` kind 与整条 create/revise/submit/decide 独立审批链, **无新增迁移** (量化字段随内容版本 payload JSON 存储). 沿用"免迁移给治理 kind 加可选强类型字段"套路: 在 `governance.approval` 新增 change 专属白名单向量 `change-impact-fields` = `[:schedule_impact_days :cost_impact_amount]`, 并入 `content!` 的 `allowed` 计算; 新增私有 `change-impact!` 校验器: `schedule_impact_days` 须为 0 至 3650 的整数 (非整数, 负数或超范围返回 400), `cost_impact_amount` 复用 `finance-money/amount!` 规范化为两位小数最小单位并要求非负 (负数或超两位小数返回 400); 未填时对应键不写入, `cond->` 里 `merge` 空 map 为 no-op, 因此既有变更用例(不含量化字段)不受影响. 字段随内容版本不可变冻结, 修订派生新版本而旧版本量化值不漂移; 与授权 PM 相反, 量化字段是变更专属, 出现在章程体上按白名单返回 400. 高影响判定为**只读派生**: `change-read-model` 在读取时按 `schedule_impact_days >= 10` 或 `cost_impact_amount >= 100000.00` 计算 `change_high_impact` 布尔, 不落存储, 不新增迁移, 不自动升级审批链或改变状态机. 前端 `change-dialog` 新增"工期影响(天)"(`:number`) 与"成本影响金额"(文本) 两个可选字段, `transform` 把空值 dissoc; 变更台账新增"量化影响"列, 回显蓝色"工期 +N 天"/"成本 +X"标签, 达阈值追加红色"高影响"徽标, 未量化显示灰色"未量化".
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| 治理测试 (SQLite) | 46 tests / 544 assertions, 0 failures/errors | 新增 `change-impact-is-quantified-validated-and-high-impact-flagged`: 建变更填 `schedule_impact_days` 12 + `cost_impact_amount` "150000.5" 回显 12 与规范化 "150000.50", 读模型 `change_high_impact` 为 true; 低于阈值 (3 天 / 99999.99) 为 false; 未量化不含键且为 false; 修订至 20 天生成 rev2 而旧版本仍 12 (不漂移); 非法 "abc"/4000/"-5"/"1.234" 返回 400; 章程体追加 `schedule_impact_days` 按白名单返回 400 |
+| 全量 PMS 回归 (CLI SQLite) | 98 tests / 875 assertions, 0 failures/errors | `clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'` 全新库通过, 既有变更审批/版本用例无回归 |
+| 前端编译 | 0 warnings | `npx shadow-cljs compile app` 通过, 变更量化字段表单与"量化影响"列一并编译 |
+| Chrome 浏览器 (Playwright) | 1 passed | `pms-h09.spec.js` (隔离 `:3100` 后端, 独立空库): 界面"提出项目变更"填工期 12 天 + 成本 150000.5 -> 命令响应回显 `schedule_impact_days=12` 与 `cost_impact_amount="150000.50"` (截图 h09-1-dialog-quantify.png) -> 再建未量化变更 -> GET governance 校验高影响行 `change_high_impact=true`, 未量化行 `=false` -> 真实 HTTP 建低影响变更 (3 天 / 99999.99) 派生 `=false` -> 重进台账"量化影响"列对高影响行回显"工期 +12 天"/"成本 +150000.50"及红色"高影响"徽标, 低影响行有量化标签但无徽标, 未量化行显示"未量化" (截图 h09-2-ledger-column.png) -> 真实 HTTP 非法量化值 ("abc"/4000/"-5"/"1.234") 均返回 400 且章程体追加量化字段被白名单拒 400; 截图存 `reports/h09/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归(本地无可用实例, 本轮完全免迁移, 不新增 DDL); 高影响判定仅到台账只读预警, 未据此自动升级审批链/改状态机/触发通知投递; 未做量化影响与财务成本台账或计划基线重排的自动对账.
+
+边界: 变更量化影响是 H09"多维影响分析"口径中"量化(工期/成本)影响 + 高影响预警"一项的 `implemented / local` 落地(可选强类型字段 + 校验 + 版本冻结不漂移 + 变更专属白名单 + 只读派生高影响徽标); 但 H09 行仍含"CCB 多人表决""跨系统通知""财务自动应用""量化阈值联动自动升级审批"等未完成子项, 故 H09 保持 `partial`, 不因这一子能力上行.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

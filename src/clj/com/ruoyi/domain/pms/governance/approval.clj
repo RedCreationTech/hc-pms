@@ -21,6 +21,18 @@
   "变更必须明确的影响维度."
   [:title :reason :scope_impact :schedule_impact :cost_impact :quality_impact :resource_impact])
 
+(def change-impact-fields
+  "变更可选量化影响字段,随内容版本不可变持久化."
+  [:schedule_impact_days :cost_impact_amount])
+
+(def high-impact-schedule-days
+  "工期影响达到该天数即判定为高影响变更."
+  10)
+
+(def high-impact-cost-minor
+  "成本影响达到该最小单位(即100000.00)即判定为高影响变更."
+  10000000)
+
 (defn- charter-budget!
   "校验章程可选初始预算:金额非负并规范化为两位小数,币种缺省CNY;未填预算时不写入任何预算键."
   [body]
@@ -38,17 +50,37 @@
   (when-let [uid (:authorized_pm_id body)]
     {:authorized_pm_id (s/user! q uid)}))
 
+(defn- change-impact!
+  "校验变更可选量化影响: 工期影响为0..3650整数天, 成本影响为最多两位小数非负金额并规范化; 未填时不写入对应键."
+  [body]
+  (cond-> {}
+    (some? (:schedule_impact_days body))
+    (assoc :schedule_impact_days
+           (let [s (str (:schedule_impact_days body))]
+             (when-not (re-matches #"[0-9]{1,4}" s) (r/fail! 400 "工期影响须为0至3650的整数天"))
+             (let [d (Long/parseLong s)]
+               (when (> d 3650) (r/fail! 400 "工期影响不得超过3650天"))
+               d)))
+    (some? (:cost_impact_amount body))
+    (assoc :cost_impact_amount
+           (let [amount (money/amount! (:cost_impact_amount body) "成本影响")]
+             (when (neg? amount) (r/fail! 400 "成本影响金额不得为负数"))
+             (money/money amount)))))
+
 (defn content!
   "分别校验章程和变更内容,拒绝任意JSON字段."
   [q kind body]
   (let [fields (if (= kind "charter") charter-fields change-fields)
-        allowed (if (= kind "charter") (into (into charter-fields charter-budget-fields) charter-pm-fields) fields)]
+        allowed (if (= kind "charter")
+                  (into (into charter-fields charter-budget-fields) charter-pm-fields)
+                  (into change-fields change-impact-fields))]
     (s/input! body allowed)
     (cond-> (into {} (for [field (remove #{:sponsor_id} fields)]
                        [field (s/text! body field (if (= field :title) 200 4000))]))
       (= kind "charter") (assoc :sponsor_id (s/user! q (:sponsor_id body)))
       (= kind "charter") (merge (charter-budget! body))
-      (= kind "charter") (merge (charter-pm! q body)))))
+      (= kind "charter") (merge (charter-pm! q body))
+      (= kind "change") (merge (change-impact! body)))))
 
 (defn create!
   "创建章程的新版本或独立变更申请."
@@ -104,3 +136,13 @@
   (let [record (s/latest! q project (s/record! q project "change" rid))]
     (s/status! record #{"approved"})
     record))
+
+(defn change-read-model
+  "为变更读模型补充只读派生高影响判定: 工期影响达到阈值或成本影响金额达到阈值时 change_high_impact 为 true; 仅读取时计算, 不落存储."
+  [record]
+  (let [days (:schedule_impact_days record)
+        cost-str (:cost_impact_amount record)
+        cost-minor (when (and (some? cost-str) (not= "" cost-str)) (money/amount! cost-str "成本影响"))
+        high? (or (when (number? days) (>= days high-impact-schedule-days))
+                  (when (some? cost-minor) (>= cost-minor high-impact-cost-minor)))]
+    (assoc record :change_high_impact (boolean high?))))
