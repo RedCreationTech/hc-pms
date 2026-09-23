@@ -81,6 +81,7 @@
                    (update :issues #(mapv (partial collab/owner-workload-read-model owner-loads) %))
                    (update :risks #(mapv (partial collab/owner-workload-read-model owner-loads) %))
                    (update :actions #(mapv (partial collab/owner-workload-read-model owner-loads) %))
+                   (collab/enrich-risk-issue-links)
                    (assoc :project_version (:version project) :blockers (blockers q project)
                           :appointments (appointment/list-summaries q project)
                           :raci_conflicts (stakeholders/conflicts q project)

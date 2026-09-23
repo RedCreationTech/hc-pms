@@ -497,6 +497,23 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 风险复审到期倒计时是"到期倒计时"只读洞察在风险台账的同口径延伸, 以复审到期日(回落 `due_date`)为基准, 只读取时计算, 不持久化、不构成主动通知, 不替代 H08 的评分超阈值升级门控; 与 C11"到期提醒投递"是不同能力. 记为对 H08(风险复审可见性)的增强, H08 相关 `partial` 状态不变.
 
+## 风险与问题双向来源关联只读洞察 (本轮增补, 2026-09-23)
+
+设计与可见性口径: 兑现 C10"风险实现转问题保留关联"的界面可见性. `POST /risks/:rid/materialize` 早已把双向关联 ID 落进记录 payload (问题侧 `source_risk_id`, 风险侧 `issue_id`), 二者在 `(dissoc % :content)` 后仍随 `risks`/`issues` 数组回显, 但工作台两张台账此前只呈现各自的标题, 无法一眼看出"这条问题由哪条风险转出 / 这条风险已转出哪条问题". 本轮不新增迁移、不新增命令、不新增 kind、不改动 `materialize` 幂等语义, 只在 workspace 结果聚合层追加一次纯读标注 `collab/enrich-risk-issue-links`: 以 `:id` 建风险/问题双向索引后, 对命中来源的问题补 `issue_source_risk_id` 与 `issue_source_risk_title`(来源风险标题), 对命中转出记录的风险补 `risk_issue_id` 与 `risk_issue_title`(转出问题标题); 手工登记问题(无 `source_risk_id`)与未转出问题(无 `issue_id`)原样不写这些键, 对端缺失时标题回落 `nil`. 派生键去尾随 `?` 以稳定 JSON 序列化. 前端"风险与问题"页签问题台账新增"来源风险"列(geekblue 标签回显来源风险标题, 无来源显示灰字"手工登记"), 风险台账新增"转出问题"列(cyan 标签回显转出问题标题, 未转出显示灰字"未转出"), 用 antd 标签色 class 区分同页签两表间的同名歧义.
+
+本轮实际执行的验证:
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 治理命名空间 SQLite | 43 tests / 492 assertions, 0 失败/错误 | 新增 `risk-issue-bidirectional-source-link-is-surfaced`(登记 3x5=15 风险(不触发超阈值升级, 可直接从 open 转出)+ 2x3=6 常规风险, `materialize` 生成带 title 的问题, 另手工登记一条独立问题 -> workspace 回显: 转出问题 `issue_source_risk_id`=风险 id 且 `issue_source_risk_title`="供应商交付风险", 源风险 `risk_issue_id`=问题 id 且 `risk_issue_title`="到货延迟整改"; 手工问题 `issue_source_risk_id`/`title` 均 `nil`, 未转出风险 `risk_issue_id`/`title` 均 `nil`). 全量 PMS 无回归 |
+| 全量 PMS 回归 SQLite | 95 tests / 823 assertions, 0 失败/错误 | 无回归 |
+| 前端编译 | shadow-cljs 0 warnings | 问题/风险台账各新增一列一并编译 |
+| Chrome 浏览器 (Playwright) | 1 passed | `pms-ri.spec.js`(隔离 `:3100` 后端, 独立空库): 界面登记一条 3x5 风险并"风险发生,转问题"生成一条标题不同于风险的问题, 再手工登记一条独立问题 -> 问题台账"来源风险"列对该转出问题显示 geekblue 标签=风险标题、对手工问题显示"手工登记", 风险台账"转出问题"列对该风险显示 cyan 标签=转出问题标题; 真实 HTTP GET governance 回显 `issue_source_risk_id`/`issue_source_risk_title`/`risk_issue_id`/`risk_issue_title` 与手工记录的 `nil` 均落在预期; 转出问题标题与风险标题故意取不同文案、并以标签色 class 定位规避同页签两表 getByText 严格模式误命中; 截图存 `reports/ri/` (ri-1-bidirectional-source-link) |
+
+本轮未执行 (如实记录): MySQL 迁移与回归(本地无可用实例, 本洞察完全免迁移, 不新增 DDL); 关联 ID 的实际写入由既有 `materialize` 命令与其回归用例保证, 本轮只在读取层补标题, 未新增独立"关联变更/解绑"命令; 未接通转出后向责任人自动派发提醒(C11 通知仍为 planned).
+
+边界: 双向来源关联只读洞察只把 `materialize` 已持久化的关联 ID 在读取时互相标注对方标题, 供两张台账可见, 不写入存储、不新增迁移、不构成通知; 关联本身仍是 `materialize` 的既有幂等副作用. 记为对 C10"风险实现转问题保留关联"可见性的增强, C10 保持 `implemented / local`, 与其相关的横切 `partial` 口径不因这一子能力上行.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

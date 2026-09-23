@@ -426,3 +426,24 @@
     (assoc row
            :owner_open_load load
            :owner_overloaded (boolean (and (:owner_id row) (>= load owner-workload-threshold))))))
+
+
+(defn enrich-risk-issue-links
+  "读取时把已持久化的风险<->问题双向来源关联互相标注对方标题, 供台账可见; 只读派生不落库.
+   issue.source_risk_id -> issue_source_risk_id/issue_source_risk_title; risk.issue_id -> risk_issue_id/risk_issue_title; 对端记录缺失时标题为 nil."
+  [data]
+  (let [risk-by-id (into {} (map (juxt :id identity)) (:risks data))
+        issue-by-id (into {} (map (juxt :id identity)) (:issues data))]
+    (-> data
+        (update :issues #(mapv (fn [issue]
+                                 (if-let [rid (:source_risk_id issue)]
+                                   (assoc issue :issue_source_risk_id rid
+                                                  :issue_source_risk_title (:title (get risk-by-id rid)))
+                                   issue))
+                               %))
+        (update :risks #(mapv (fn [risk]
+                                (if-let [iid (:issue_id risk)]
+                                  (assoc risk :risk_issue_id iid
+                                                 :risk_issue_title (:title (get issue-by-id iid)))
+                                  risk))
+                              %)))))

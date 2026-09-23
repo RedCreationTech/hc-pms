@@ -149,6 +149,8 @@
 
 风险台账复用同一"到期倒计时"列口径, 但到期基准是 `review_due_date` (下次复审日): 未复审过的风险回退到其 `due_date`, 经独立批准设置 `next_review_date` 后改为该复审日. `risk-read-model` 额外计算 `review_due_in_days` (相对服务器当天的剩余复审天数, 负值即逾期) 与 `review_due_soon` (剩余 1 到 `review-due-soon-days` (当前 3) 天时为 true), 均在状态为 closed 时给出 `nil`/false, 与既有 `review_overdue` 同源同口径, 只读派生不落库不投递.
 
+风险与问题双向来源关联读模型 (免迁移的只读可见性): `POST /risks/:rid/materialize` 在生成问题时已把双向关联 ID 持久化在记录 payload 里 (问题侧 `source_risk_id`, 风险侧 `issue_id`), 二者在 `(dissoc % :content)` 后仍随 `risks`/`issues` 数组回显. 为让 C10"风险实现转问题保留关联"在界面直接可读, workspace 读取层在结果聚合后追加一次 `enrich-risk-issue-links`: 问题的 `source_risk_id` 命中风险时补 `issue_source_risk_id` 与 `issue_source_risk_title` (来源风险标题), 风险的 `issue_id` 命中问题时补 `risk_issue_id` 与 `risk_issue_title` (转出问题标题); 手工登记的问题 (无 `source_risk_id`) 与未转问题的风险 (无 `issue_id`) 不写这些键, 对端记录缺失时标题回落 `nil`. 前端问题台账"来源风险"列以 geekblue 标签回显来源风险标题 (无来源显示"手工登记"), 风险台账"转出问题"列以 cyan 标签回显转出问题标题 (未转出显示灰字). 该标注仅在读取时按当前数据互相补全标题, 不写入存储, 不新增迁移, 不改变 `materialize` 的幂等语义, 也不构成提醒投递. 键名不带尾随问号以稳定 JSON 序列化.
+
 ## 实现边界
 
 记录表的 kind 和状态有数据库约束, 服务层按业务类型逐字段校验, 再由固定命令推进状态. 未提供任意 payload CRUD, 直接写状态或删除证据入口. 章程/变更审批冻结提交版本; URS/文档版本不可覆盖; Gate 保存模板及证据版本快照. 所有引用由项目作用域查询验证.

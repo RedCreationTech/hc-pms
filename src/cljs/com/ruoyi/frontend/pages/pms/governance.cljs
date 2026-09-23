@@ -392,6 +392,10 @@
      (w/text-column :mitigation "应对措施") (w/text-column :review_due_date "下次复评")
      {:title "复评提醒" :dataIndex "review_overdue" :render #(when % (r/as-element [antd/tag {:color "red"} "复评已逾期"]))}
      (due-countdown-column "review_due_in_days")
+     {:title "转出问题" :dataIndex "risk_issue_title" :width 160
+      :render (fn [_ row]
+                (let [t (aget row "risk_issue_title")]
+                  (r/as-element (if (some? t) [antd/tag {:color "cyan"} t] [:span {:style {:color "#98a2b3"}} "未转出"]))))}
      (owner-load-column)
      (w/state-column)] #(risk-actions context %)]])
 
@@ -404,6 +408,10 @@
    [w/record-table (:issues model)
     [(w/text-column :title "问题") {:title "严重程度" :dataIndex "severity" :render #(r/as-element [w/badge %])}
      (w/text-column :due_date "到期日期")
+     {:title "来源风险" :dataIndex "issue_source_risk_title" :width 160
+      :render (fn [_ row]
+                (let [t (aget row "issue_source_risk_title")]
+                  (r/as-element (if (some? t) [antd/tag {:color "geekblue"} t] [:span {:style {:color "#98a2b3"}} "手工登记"]))))}
      {:title "逾期预警" :dataIndex "issue_overdue" :width 130
       :render (fn [_ row]
                 (let [overdue (true? (aget row "issue_overdue")) critical (true? (aget row "issue_critical"))]

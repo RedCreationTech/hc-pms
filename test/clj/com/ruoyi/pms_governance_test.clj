@@ -362,6 +362,33 @@
     (is (not (re-find #"阻塞" (first (get-in (workspace id) [:blockers :closure])))))))
 
 
+(deftest risk-issue-bidirectional-source-link-is-surfaced
+  (let [id (project!)
+        risk (command! id :risks :create nil {:title "供应商交付风险" :probability 3 :impact 5
+                                              :owner_id 9301 :mitigation "备选供应商" :due_date "2026-10-01"})
+        plain (command! id :risks :create nil {:title "常规观察风险" :probability 2 :impact 3
+                                               :owner_id 9301 :mitigation "例会关注" :due_date "2026-10-01"})
+        issue (command! id :risks :materialize (:id risk) {:title "到货延迟整改"})
+        manual (command! id :issues :create nil {:title "独立登记问题" :severity "minor"
+                                                 :owner_id 9301 :due_date "2026-11-01"})
+        gov (workspace id)
+        pick (fn [rows rid] (first (filter #(= rid (:id %)) rows)))
+        linked-issue (pick (:issues gov) (:id issue))
+        source-risk (pick (:risks gov) (:id risk))
+        plain-risk (pick (:risks gov) (:id plain))
+        manual-issue (pick (:issues gov) (:id manual))]
+    (is (= 15 (:score risk)))
+    (is (= (:id risk) (:source_risk_id issue)))
+    (is (= (:id risk) (:issue_source_risk_id linked-issue)))
+    (is (= "供应商交付风险" (:issue_source_risk_title linked-issue)))
+    (is (= (:id issue) (:risk_issue_id source-risk)))
+    (is (= "到货延迟整改" (:risk_issue_title source-risk)))
+    (is (nil? (:issue_source_risk_id manual-issue)))
+    (is (nil? (:issue_source_risk_title manual-issue)))
+    (is (nil? (:risk_issue_id plain-risk)))
+    (is (nil? (:risk_issue_title plain-risk)))))
+
+
 (deftest meeting-action-creates-one-real-task
   (let [id (project!) meeting (command! id :meetings :create nil
                                         {:title "设计评审" :held_on "2026-09-22" :minutes "补齐验证任务" :attendee_ids [9301 9302]})
