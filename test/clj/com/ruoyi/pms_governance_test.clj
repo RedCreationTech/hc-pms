@@ -1104,3 +1104,31 @@
       (is (= "discarded" (:status discarded)))
       (is (= 409 (error-status #(command! id :raci :create nil
                                           {:activity "新活动" :stakeholder_id (:id s2) :responsibility "A"})))))))
+
+
+(deftest discarded-records-can-be-restored-with-audit
+  (let [id (project!)
+        req (command! id :requirements :create nil
+                      {:code "URS-R" :text "可恢复需求" :category "功能" :priority "required" :owner_id 9301})
+        doc (document! id "RR-1")
+        sh (stakeholder! id "RR-S" 9301)]
+    ;; 需求: 作废 -> 恢复到作废前 registered, 审计含 discarded+restored 两项; 越权 403; 非作废再恢复 409; 未知字段 400
+    (command! id :requirements :discard (:id req) {:reason "先作废"})
+    (is (= 403 (error-status #(command! 9302 id :requirements :restore (:id req) {:reason "越权恢复"}))))
+    (let [restored (command! id :requirements :restore (:id req) {:reason "误操作恢复"})]
+      (is (= "registered" (:status restored)))
+      (is (= "误操作恢复" (:restore_reason restored)))
+      (is (= 9301 (:restored_by restored)))
+      (is (some? (:restored_on restored)))
+      (is (= ["discarded" "restored"] (map :action (:workflow_history restored))))
+      (is (= "registered" (:restored_to (last (:workflow_history restored))))))
+    (is (= 409 (error-status #(command! id :requirements :restore (:id req) {:reason "非作废不可恢复"}))))
+    (is (= 400 (error-status #(command! id :requirements :restore (:id req) {:reason "x" :extra 1}))))
+    ;; 文档: 作废 -> 恢复到 registered
+    (command! id :documents :discard (:id doc) {:reason "重复上传"})
+    (is (= "registered" (:status (command! id :documents :restore (:id doc) {:reason "恢复归档"}))))
+    ;; 干系人: 作废 -> 恢复到 active, 恢复后可再被 RACI 引用
+    (command! id :stakeholders :discard (:id sh) {:reason "人员退出"})
+    (is (= "active" (:status (command! id :stakeholders :restore (:id sh) {:reason "人员回归"}))))
+    (is (some? (:id (command! id :raci :create nil
+                              {:activity "回归活动" :stakeholder_id (:id sh) :responsibility "A"}))))))

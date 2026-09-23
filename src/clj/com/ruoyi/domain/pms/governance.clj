@@ -113,10 +113,12 @@
    [:requirements :revisions] (approval-command evidence/revise! "requirement" false)
    [:requirements :import] (creating evidence/import!)
    [:requirements :discard] (approval-command lifecycle/discard! "requirement" false)
+   [:requirements :restore] (approval-command lifecycle/restore! "requirement" false)
    [:documents :create] (approval-command evidence/create! "document" true)
    [:documents :revisions] (approval-command evidence/revise! "document" false)
    [:documents :submit] evidence/submit-release! [:documents :decision] evidence/decide-release!
    [:documents :discard] (approval-command lifecycle/discard! "document" false)
+   [:documents :restore] (approval-command lifecycle/restore! "document" false)
    [:traces :create] (creating evidence/trace!)
    [:risks :create] (creating collab/create-risk!)
    [:risks :review] reviews/submit-risk-review! [:risks :decision] reviews/decide-risk-review!
@@ -137,6 +139,7 @@
    [:stakeholders :create] (creating stakeholders/create-stakeholder!)
    [:stakeholders :revisions] stakeholders/revise-stakeholder!
    [:stakeholders :discard] (approval-command lifecycle/discard! "stakeholder" false)
+   [:stakeholders :restore] (approval-command lifecycle/restore! "stakeholder" false)
    [:raci :create] (creating stakeholders/create-raci!)
    [:comm-plans :create] (creating stakeholders/create-comm-plan!)
    [:comm-plans :revisions] stakeholders/revise-comm-plan!

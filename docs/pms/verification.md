@@ -391,9 +391,9 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 闭环计数为读取时按当前行动状态与服务器日期派生的界面洞察, 不写入存储也不推动行动状态迁移, 行动完成/核验/转任务仍走既有受控命令. C07 因自动到期提醒仍缺, 维持 `partial`; 本洞察是"会后行动追踪"的界面强化, 不改变状态口径.
 
-## H18 需求/文档/干系人受控软作废 (本轮增补, 2026-09-23)
+## H18 需求/文档/干系人受控软作废与受控恢复 (本轮增补, 2026-09-23)
 
-设计与关闭口径: 把"这条记录不再有效"表达为一次**可审计的状态迁移**(`discarded`), 而不是物理删除; 保留内容, 编号与既有版本链, 供追溯. 新领域 `governance/lifecycle.clj` 暴露 `discard!`, 由 governance 以 `approval-command lifecycle/discard! "<kind>" false` 注册为 `[:requirements :discard]`, `[:documents :discard]`, `[:stakeholders :discard]` 三条命令, 路由 `POST /<collection>/:record_id/discard`. 三层门控按序: `latest!` 只允许最新版本(陈旧 409), `status!` 只允许可作废状态(requirement=`registered`, document=`registered`/`rejected`, stakeholder=`active`, 否则 409; 提交进入 `in_review` 的文档因此不可直接作废), 再收集引用证据(requirement 被追踪指向, document 被追踪 target/会议会前 material_ids/问题与风险 evidence_ids/行动 evidence_ids 引用, stakeholder 被 RACI stakeholder_id 或沟通受众引用), 命中即 409 并在消息里列出前若干来源. 通过后 `change!` 写 `discarded` 并记 `discard_reason`/`discarded_by`/`discarded_on` + 追加 `workflow_history` 审计项(含作废前状态). 命令走 `pms:project:edit` 写权限与项目作用域, 无编辑权 403, 未知字段 400.
+设计与关闭口径: 把"这条记录不再有效"表达为一次**可审计的状态迁移**(`discarded`), 而不是物理删除; 保留内容, 编号与既有版本链, 供追溯. 新领域 `governance/lifecycle.clj` 暴露 `discard!`, 由 governance 以 `approval-command lifecycle/discard! "<kind>" false` 注册为 `[:requirements :discard]`, `[:documents :discard]`, `[:stakeholders :discard]` 三条命令, 路由 `POST /<collection>/:record_id/discard`. 三层门控按序: `latest!` 只允许最新版本(陈旧 409), `status!` 只允许可作废状态(requirement=`registered`, document=`registered`/`rejected`, stakeholder=`active`, 否则 409; 提交进入 `in_review` 的文档因此不可直接作废), 再收集引用证据(requirement 被追踪指向, document 被追踪 target/会议会前 material_ids/问题与风险 evidence_ids/行动 evidence_ids 引用, stakeholder 被 RACI stakeholder_id 或沟通受众引用), 命中即 409 并在消息里列出前若干来源. 通过后 `change!` 写 `discarded` 并记 `discard_reason`/`discarded_by`/`discarded_on` + 追加 `workflow_history` 审计项(含作废前状态). 命令走 `pms:project:edit` 写权限与项目作用域, 无编辑权 403, 未知字段 400. 对称地, `restore!` 注册为 `[:requirements :documents :stakeholders :restore]` 三条命令实现受控撤销作废: 仅对最新版本且状态为 `discarded` 的记录可恢复(否则 409), 从 `workflow_history` 最近一条 `discarded` 审计项读回作废前状态, `change!` 退回该状态并追加 `restored` 审计项(含 `restored_to`), 记 `restore_reason`/`restored_by`/`restored_on`; 因 `discarded` 已在本轮迁移的状态 CHECK 内, 恢复不需新迁移.
 
 因 `pms_gov_record` 状态 CHECK 约束原不含 `discarded`, 本轮新增整表重建迁移 `202609220011-gov-status-discard`(SQLite + MySQL 各 up/down): SQLite 不能 ALTER CHECK, 按 `PRAGMA foreign_keys=OFF` -> 建新表(状态 CHECK 增列 `discarded`) -> `INSERT...SELECT` -> `DROP` 旧表 -> `ALTER...RENAME` -> 重建索引 -> `PRAGMA foreign_keys=ON`; MySQL 采用建表 -> 拷贝 -> `DROP` -> `RENAME` -> 建索引. 该表仅有指向 `pms_project` 的出向外键, 无入向外键引用, 重建安全.
 
@@ -402,14 +402,15 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 | 验证 | 实际结果 | 说明 |
 |---|---|---|
 | 迁移 | SQLite 全新空库迁移成功含 `discarded` 状态 | down 迁移回退原状态集合并过滤 discarded 行 |
-| 治理命名空间 SQLite | 35 tests / 378 assertions, 0 失败/错误 | 新增 `requirement-discard-is-soft-and-reference-guarded`(viewer 403 + 未知字段 400 + 作废→`discarded` 带 reason/by/on + workspace 回显 + 重复 409 + 被追踪引用 409), `document-discard-rejects-referenced-and-non-discardable-status`(会议资料引用 409 + 独立文档作废 + `in_review` 状态门控 409), `stakeholder-discard-rejects-referenced-record`(RACI 引用 409 + 独立作废 + 作废后再被 RACI 引用命中 active 守卫 409) |
-| 全量 PMS 回归 SQLite | 87 tests / 709 assertions, 0 失败/错误 | 无回归 |
-| 前端编译 | shadow-cljs 0 warnings | "作废"按钮, `discard-dialog`, 状态列"已作废"与发布标签一并编译 |
+| 治理命名空间 SQLite | 36 tests / 390 assertions, 0 失败/错误 | 新增 `requirement-discard-is-soft-and-reference-guarded`(viewer 403 + 未知字段 400 + 作废→`discarded` 带 reason/by/on + workspace 回显 + 重复 409 + 被追踪引用 409), `document-discard-rejects-referenced-and-non-discardable-status`(会议资料引用 409 + 独立文档作废 + `in_review` 状态门控 409), `stakeholder-discard-rejects-referenced-record`(RACI 引用 409 + 独立作废 + 作废后再被 RACI 引用命中 active 守卫 409), `discarded-records-can-be-restored-with-audit`(requirement 作废→恢复到 `registered` 带 restore_reason/restored_by/restored_on + workflow_history 追加 `discarded`->`restored` 审计且 `restored_to` + viewer 403 + 非 discarded 恢复 409 + 未知字段 400; document 作废→恢复; stakeholder 作废→恢复 `active` 后可再被 RACI 引用) |
+| 全量 PMS 回归 SQLite | 88 tests / 721 assertions, 0 失败/错误 | 无回归 |
+| 前端编译 | shadow-cljs 0 warnings | "作废"/"恢复"按钮, `discard-dialog`/`restore-dialog`, 状态列"已作废"与发布标签一并编译 |
 | Chrome 浏览器 (Playwright) | 2 passed | `pms-h18.spec.js`: 证据文档页签未被引用文档点"作废"->"已作废"且入口消失, 被会议会前资料引用文档 409 拒绝并在弹窗错误面板显示"记录仍被其它对象引用, 不能作废"且仍"已登记", 已作废文档再作废经真实 HTTP 命中状态守卫 409; URS与干系人页签未被引用需求/干系人作废成功, 被追踪需求与被 RACI 指派干系人被拒且仍"已登记/有效"; 截图存 `reports/h18/` (h18-1..h18-5) |
+| Chrome 浏览器 (Playwright) | 2 passed | `pms-h18b.spec.js` (受控恢复): 证据文档页签作废后"恢复"入口出现且"作废"入口消失, 点"恢复"填原因->状态回到"已登记"且"作废"入口复现, 经真实 HTTP 确认 `status=registered` + `restore_reason`/`restored_by` + `workflow_history` 为 `['discarded','restored']` 且 `restored_to=registered`; 干系人作废→"已作废"→恢复→"有效", 需求作废/恢复靠入口翻转+HTTP 核实; 截图存 `reports/h18b/` (h18b-1..h18b-4) |
 
 本轮未执行 (如实记录): MySQL 迁移与回归(本地无可用实例), 状态 CHECK 表重建迁移仅经 SQLite 往返实证, MySQL 版待有环境时补跑并做升级/回退演练.
 
-边界: H18 原目标是"草稿清理与资料保留策略"整行, 本轮仅交付其中"不把取消当删除, 软作废需权限/引用校验, 作废行为可审计"这一子集, 故矩阵记 `partial`. 仍缺: 正式历史按保留策略归档, 撤销/恢复已作废记录及其审计, 级联影响预览, 把已作废文档从 `document_collection` 归集口径中剔除 (当前归集不区分状态, 已作废仍计入总数), 生产验收. `discarded` 为终态, 无恢复命令; 界面隐藏已作废记录的作废入口但保留记录可见.
+边界: H18 原目标是"草稿清理与资料保留策略"整行, 本轮交付其中"不把取消当删除, 软作废需权限/引用校验, 作废行为可审计"以及对称的"受控撤销作废 (恢复)"这一子集, 故矩阵记 `partial`. 恢复由 `lifecycle/restore!` 注册为 `[:requirements :documents :stakeholders :restore]` 三条命令, 路由 `POST /<collection>/:record_id/restore`, 同样走 `pms:project:edit` 权限+项目作用域+未知字段 400, 三层门控 `latest!`(陈旧 409)+`status!`(只允许 `discarded`, 否则 409), 从 `workflow_history` 最近一条 `discarded` 审计项取回作废前状态并 `change!` 退回, 追加 `restored` 审计项(含 `restored_to`), 记 `restore_reason`/`restored_by`/`restored_on`; 免迁移(`discarded` 已在状态 CHECK 内). 仍缺: 正式历史按保留策略归档, 级联影响预览, 把已作废文档从 `document_collection` 归集口径中剔除 (当前归集不区分状态, 已作废仍计入总数), 生产验收. 界面在记录 `discarded` 时隐藏作废入口改为"恢复"入口, 恢复后状态回退并复现作废入口, 记录全程可见.
 
 ## 核心通过场景
 

@@ -117,7 +117,9 @@
 
 作废是终态: 已作废记录再次作废命中状态守卫返回 409. 读模型原样回显 `status: "discarded"` 与作废字段, 工作台据此在状态列显示"已作废"并隐藏作废入口; 已作废干系人不再满足"有效干系人"前置, 后续 RACI 指派或沟通受众引用它按既有 `active-stakeholder!` 状态守卫返回 409. 注意 `document_collection` 归集视图按业务编码取最新版本聚合, 当前不区分状态, 因此已作废文档仍会计入归集总数 (把它从归集口径中剔除是本轮之后待补的一项, 见诚实边界).
 
-诚实边界: `discarded` 是 `pms_gov_record` 状态 CHECK 约束新增的取值, 需要一次表重建迁移 (`202609220011-gov-status-discard`, SQLite 与 MySQL 各一份, 因 SQLite 不能 ALTER CHECK 故按 PRAGMA foreign_keys 关闭 -> 建新表 -> 迁移数据 -> 换名 -> 重建索引 -> 恢复外键的整表重建套路). 本轮只负责"作废即软删除+引用守卫+审计留痕"这一条本地闭环; 级联影响提示 (作废前预览受影响对象), 撤销/恢复已作废记录, 以及已作废证据对历史 Gate/验收快照的显式标注仍待实现, MySQL 迁移回归亦待补充.
+受控撤销作废 (恢复): 与作废对称, 每类记录另有 `POST /requirements/:rid/restore`, `POST /documents/:rid/restore`, `POST /stakeholders/:rid/restore` 三条命令, 同样走 `pms:project:edit` 权限与项目作用域, 请求体仅接受 `reason` 与 `version`. 门控为 `latest!` (陈旧 409) + `status!` 要求当前恰为 `discarded` (非作废记录恢复返回 409). 服务端从该记录 `workflow_history` 里最近一条 `discarded` 审计项取回作废前状态, 用 `change!` 把状态回退到该前态 (requirement/document 回 `registered`, 被拒文档回 `rejected`, 干系人回 `active`), 并记 `restore_reason`/`restored_by`/`restored_on` + 追加一条 `workflow_history` 的 `restored` 审计项 (含 `restored_to`), 不重放任何业务副作用. 若历史里找不到可解析的作废前状态则返回 409 拒绝恢复. 恢复后记录重新满足各自状态前置 (如已恢复干系人可再被 RACI 指派), 界面"恢复"入口消失, "作废"入口重新出现. 恢复免迁移 (`discarded` 与目标状态均已在 CHECK 内).
+
+诚实边界: `discarded` 是 `pms_gov_record` 状态 CHECK 约束新增的取值, 需要一次表重建迁移 (`202609220011-gov-status-discard`, SQLite 与 MySQL 各一份, 因 SQLite 不能 ALTER CHECK 故按 PRAGMA foreign_keys 关闭 -> 建新表 -> 迁移数据 -> 换名 -> 重建索引 -> 恢复外键的整表重建套路). 本轮负责"作废即软删除+引用守卫+审计留痕"与"受控恢复回作废前状态+审计留痕"这一对本地闭环; 级联影响提示 (作废前预览受影响对象), 把已作废文档从归集口径剔除, 正式历史按保留策略归档, 以及已作废证据对历史 Gate/验收快照的显式标注仍待实现, MySQL 迁移回归亦待补充.
 
 ## 生命周期调用约定
 

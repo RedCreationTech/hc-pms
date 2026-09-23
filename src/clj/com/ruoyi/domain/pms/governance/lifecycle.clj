@@ -70,3 +70,33 @@
                                             {:action "discarded" :actor_id (:user_id actor)
                                              :on (str (LocalDate/now)) :prior_status (:status record)
                                              :reason reason})})))))
+
+
+(defn- prior-status-before-discard
+  "从 workflow_history 里最近一条 discarded 审计项取回作废前状态; 无则返回 nil."
+  [record]
+  (some->> (:workflow_history record)
+           (filterv #(= "discarded" (:action %)))
+           (last)
+           (:prior_status)))
+
+
+(defn restore!
+  "受控撤销作废: 只把处于 discarded 的最新版本恢复到作废前状态, 保留审计, 不重放任何副作用."
+  [svc actor id kind rid body]
+  (k/mutate! svc actor id "pms:project:edit" body (str kind ".restored")
+    (fn [q project]
+      (s/input! body [:reason])
+      (let [record (s/record! q project kind rid)
+            _ (s/latest! q project record)
+            _ (s/status! record #{"discarded"})
+            prior (prior-status-before-discard record)
+            reason (s/optional-text! body :reason 500)]
+        (when (nil? prior)
+          (r/fail! 409 "无法确定作废前状态, 不能恢复"))
+        (s/change! q project record prior
+                   {:restore_reason reason :restored_by (:user_id actor) :restored_on (str (LocalDate/now))
+                    :workflow_history (conj (vec (:workflow_history record))
+                                            {:action "restored" :actor_id (:user_id actor)
+                                             :on (str (LocalDate/now)) :prior_status "discarded"
+                                             :restored_to prior :reason reason})})))))

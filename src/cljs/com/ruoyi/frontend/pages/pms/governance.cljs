@@ -57,7 +57,9 @@
     (when editable? (fn [row] [antd/space {:wrap true}
                               [w/edit-button "新修订" #(open! (forms/requirement-dialog base options row))]
                               (when (= "registered" (:status row))
-                                [w/edit-button "作废" #(open! (forms/discard-dialog (str base "/requirements/" (:id row) "/discard") "URS需求"))])]))]])
+                                [w/edit-button "作废" #(open! (forms/discard-dialog (str base "/requirements/" (:id row) "/discard") "URS需求"))])
+                              (when (= "discarded" (:status row))
+                                [w/edit-button "恢复" #(open! (forms/restore-dialog (str base "/requirements/" (:id row) "/restore") "URS需求"))])]))]])
 
 
 (defn- latest-document-ids
@@ -151,7 +153,9 @@
             [w/edit-button "驳回" #(open! (forms/decision-dialog (str base "/documents/" (:id row) "/decision") "rejected" "驳回文档发布"))]])
          (when editable? [w/edit-button "新版本" #(open! (forms/document-dialog base row))])
          (when (and editable? (contains? #{"registered" "rejected"} (:status row)))
-           [w/edit-button "作废" #(open! (forms/discard-dialog (str base "/documents/" (:id row) "/discard") "证据文档"))])])]]))
+           [w/edit-button "作废" #(open! (forms/discard-dialog (str base "/documents/" (:id row) "/discard") "证据文档"))])
+         (when (and editable? (= "discarded" (:status row)))
+           [w/edit-button "恢复" #(open! (forms/restore-dialog (str base "/documents/" (:id row) "/restore") "证据文档"))])])]]))
 
 
 (defn- appointment-section
@@ -199,7 +203,9 @@
     (when editable? (fn [row] [antd/space {:wrap true}
                          [w/edit-button "新修订" #(open! (forms/stakeholder-dialog base options row))]
                          (when (= "active" (:status row))
-                           [w/edit-button "作废" #(open! (forms/discard-dialog (str base "/stakeholders/" (:id row) "/discard") "干系人"))])]))]])
+                           [w/edit-button "作废" #(open! (forms/discard-dialog (str base "/stakeholders/" (:id row) "/discard") "干系人"))])
+                         (when (= "discarded" (:status row))
+                           [w/edit-button "恢复" #(open! (forms/restore-dialog (str base "/stakeholders/" (:id row) "/restore") "干系人"))])]))]])
 
 
 (defn- raci-conflict-text

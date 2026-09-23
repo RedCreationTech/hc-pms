@@ -24,11 +24,13 @@
     (command-route svc "/requirements/import" :requirements :import)
     (command-route svc "/requirements/:record_id/revisions" :requirements :revisions)
     (command-route svc "/requirements/:record_id/discard" :requirements :discard)
+    (command-route svc "/requirements/:record_id/restore" :requirements :restore)
     (command-route svc "/documents" :documents :create)
     (command-route svc "/documents/:record_id/revisions" :documents :revisions)
     (command-route svc "/documents/:record_id/submit" :documents :submit)
     (command-route svc "/documents/:record_id/decision" :documents :decision)
     (command-route svc "/documents/:record_id/discard" :documents :discard)
+    (command-route svc "/documents/:record_id/restore" :documents :restore)
     ["/documents/:record_id/content" {:get {:handler (partial controller/content svc)}}]
     ["/documents/:record_id/download" {:get {:handler (partial controller/download svc)}}]
     ["/documents/batch-download" {:post {:handler (partial controller/batch-download svc)}}]
@@ -62,6 +64,7 @@
     (command-route svc "/stakeholders" :stakeholders :create)
     (command-route svc "/stakeholders/:record_id/revisions" :stakeholders :revisions)
     (command-route svc "/stakeholders/:record_id/discard" :stakeholders :discard)
+    (command-route svc "/stakeholders/:record_id/restore" :stakeholders :restore)
     (command-route svc "/raci" :raci :create)
     (command-route svc "/comm-plans" :comm-plans :create)
     (command-route svc "/comm-plans/:record_id/revisions" :comm-plans :revisions)

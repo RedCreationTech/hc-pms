@@ -265,6 +265,14 @@
    :fields [{:key :reason :label "作废原因" :type :textarea :required? true}]})
 
 
+(defn restore-dialog
+  "受控撤销作废: 把已作废记录恢复到作废前状态并保留审计."
+  [path label]
+  {:title (str "恢复" label) :path path
+   :description "恢复不是新建, 记录将退回作废前的状态并保留可追溯的审计痕迹; 仅对已作废记录可用."
+   :fields [{:key :reason :label "恢复原因" :type :textarea :required? true}]})
+
+
 (defn stakeholder-options
   "把有效干系人转为下拉选项, 编号与名称并列."
   [stakeholders]
