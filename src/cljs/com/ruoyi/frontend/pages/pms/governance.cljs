@@ -251,6 +251,17 @@
     nil]])
 
 
+(defn- owner-load-column
+  "跨问题/风险/行动统一展示责任人当前未关闭事项负载, 达到阈值时提示负载过重, 只读派生列."
+  []
+  {:title "责任人负载" :dataIndex "owner_open_load" :width 160
+   :render (fn [_ row]
+             (let [load (aget row "owner_open_load") over (true? (aget row "owner_overloaded"))]
+               (r/as-element [antd/space {:wrap true}
+                              [antd/tag {:color (if (pos? load) "blue" "default")} (str "未关闭 x " load)]
+                              (when over [antd/tag {:color "red"} "负载过重"])])))})
+
+
 (defn comm-plan-section
   "沟通计划受控调整, 由最新版本生成受控会议形成闭环."
   [{:keys [base model options editable? open!]}]
@@ -365,6 +376,7 @@
                      :else [antd/tag state]))))}
      (w/text-column :mitigation "应对措施") (w/text-column :review_due_date "下次复评")
      {:title "复评提醒" :dataIndex "review_overdue" :render #(when % (r/as-element [antd/tag {:color "red"} "复评已逾期"]))}
+     (owner-load-column)
      (w/state-column)] #(risk-actions context %)]])
 
 
@@ -393,6 +405,7 @@
                      (= state "acknowledged") [antd/tag {:color "green"} "升级已确认"]
                      (= state "waived") [antd/tag {:color "blue"} "升级已豁免"]
                      :else [antd/tag state]))))}
+     (owner-load-column)
      (w/text-column :resolution "解决说明")
      {:title "评审事项" :dataIndex "review_action" :render #(if (= % "reopen") "申请重开" "解决验证")} (w/state-column)]
     (fn [issue]
@@ -461,6 +474,7 @@
    [w/record-table (:actions model)
     [(w/text-column :title "行动内容") (w/text-column :due_date "到期日期")
      {:title "逾期" :dataIndex "action_overdue" :render #(when % (r/as-element [antd/tag {:color "red"} "已逾期"]))}
+     (owner-load-column)
      (w/state-column) (w/text-column :result "完成说明") (w/text-column :target_task_id "关联任务")]
     #(action-actions context %)]])
 

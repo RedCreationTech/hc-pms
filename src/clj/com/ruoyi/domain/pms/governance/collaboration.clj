@@ -381,3 +381,28 @@
                                       (not= "closed" (:status issue))
                                       (not (.isAfter (LocalDate/parse (:due_date issue)) (LocalDate/now)))))
          :issue_critical (= "blocker" (:severity issue))))
+
+
+(def owner-workload-threshold
+  "同一责任人跨问题/风险/行动承担的未关闭事项数达到该值即视为负载过重."
+  4)
+
+
+(defn owner-workloads
+  "跨问题/风险/行动统计每位责任人当前未关闭的事项数(问题与风险排除 closed, 行动排除 closed/converted), 供负载与过载预警. 只读派生不落库."
+  [issues risks actions]
+  (frequencies
+    (keep :owner_id
+          (concat
+            (remove #(= "closed" (:status %)) issues)
+            (remove #(= "closed" (:status %)) risks)
+            (remove #(contains? #{"closed" "converted"} (:status %)) actions)))))
+
+
+(defn owner-workload-read-model
+  "为问题/风险/行动行补充其责任人跨类未关闭负载与是否过载; 只读计算不改状态, 无责任人则负载 0 且不过载."
+  [loads row]
+  (let [load (get loads (:owner_id row) 0)]
+    (assoc row
+           :owner_open_load load
+           :owner_overloaded (boolean (and (:owner_id row) (>= load owner-workload-threshold))))))

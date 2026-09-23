@@ -4,6 +4,7 @@
     [cheshire.core :as json]
     [clojure.test :refer [deftest is use-fixtures]]
     [com.ruoyi.domain.pms.governance :as gov]
+    [com.ruoyi.domain.pms.governance.collaboration :as collab]
     [com.ruoyi.domain.pms.governance.evidence :as evidence]
     [com.ruoyi.domain.pms.planning :as planning]
     [com.ruoyi.domain.pms.queries :as queries]
@@ -885,6 +886,46 @@
     (is (= 1 (:meeting_overdue_actions row)))
     (is (some? (:id overdue)))
     (is (some? (:id future)))))
+
+
+(deftest owner-workload-aggregates-open-items-across-kinds
+  (let [id (project!) evidence (:id (document! id "LOAD-DOC"))
+        meeting (command! id :meetings :create nil
+                          {:title "负载例会" :held_on "2026-09-01" :minutes "分派多项行动" :attendee_ids [9301 9303]})
+        mid (:id meeting)
+        ;; 责任人 9301 跨问题/风险/行动共 4 项未关闭事项 -> 达到阈值 4 判定过载
+        i1 (command! id :issues :create nil {:title "问题甲" :severity "major" :owner_id 9301 :due_date "2026-10-01"})
+        i2 (command! id :issues :create nil {:title "问题乙" :severity "major" :owner_id 9301 :due_date "2026-10-01"})
+        r1 (command! id :risks :create nil {:title "风险甲" :probability 2 :impact 3 :owner_id 9301
+                                            :mitigation "例会跟踪" :due_date "2026-10-01"})
+        a1 (command! id :meetings :actions mid {:title "行动甲" :owner_id 9301 :due_date "2026-10-01"})
+        ;; 责任人 9303 仅 1 项 -> 不过载
+        i3 (command! id :issues :create nil {:title "问题丙" :severity "major" :owner_id 9303 :due_date "2026-10-01"})
+        row-in (fn [section rid] (first (filterv #(= rid (:id %)) (section (workspace id)))))
+        load-of (fn [section rid] (:owner_open_load (row-in section rid)))
+        over-of (fn [section rid] (:owner_overloaded (row-in section rid)))]
+    ;; 每类行都回显同一责任人的跨类未关闭负载 4, 并一致判定过载
+    (is (= 4 (load-of :issues (:id i1))))
+    (is (= 4 (load-of :risks (:id r1))))
+    (is (= 4 (load-of :actions (:id a1))))
+    (is (true? (over-of :issues (:id i1))))
+    (is (true? (over-of :risks (:id r1))))
+    (is (true? (over-of :actions (:id a1))))
+    ;; 单事项责任人负载 1 不过载
+    (is (= 1 (load-of :issues (:id i3))))
+    (is (false? (over-of :issues (:id i3))))
+    ;; 独立关闭 i2 -> 9301 跨类负载降到 3, 解除过载
+    (command! id :issues :resolve (:id i2) {:resolution "已处理根因" :reviewer_id 9302 :evidence_ids [evidence]})
+    (command! 9302 id :issues :decision (:id i2) {:decision "approved" :reason "复验通过"})
+    (is (= 3 (load-of :issues (:id i1))))
+    (is (false? (over-of :issues (:id i1))))
+    ;; 行动转真实任务后同样从负载中剔除 -> 降到 2
+    (command! id :actions :task (:id a1) {:start_date "2026-09-23" :duration_days 2})
+    (is (= 2 (load-of :risks (:id r1))))
+    ;; 无责任人行的纯函数边界: 负载 0 且不过载
+    (let [bare (collab/owner-workload-read-model {9301 9} {:status "open"})]
+      (is (= 0 (:owner_open_load bare)))
+      (is (false? (:owner_overloaded bare))))))
 
 
 (deftest appointment-snapshot-matches-current-team-and-is-immutable

@@ -73,10 +73,14 @@
                                                   (store/records q project kind))]))
                    actions-by-meeting (group-by :meeting_id (:actions data))
                    raci-loads (stakeholders/raci-r-loads (:raci data))
+                   owner-loads (collab/owner-workloads (:issues data) (:risks data) (:actions data))
                    traceability (evidence/traceability-report (:requirements data) (:traces data))]
                (-> data
                    (update :meetings collab/enrich-meetings actions-by-meeting)
                    (update :raci #(mapv (partial stakeholders/raci-read-model raci-loads) %))
+                   (update :issues #(mapv (partial collab/owner-workload-read-model owner-loads) %))
+                   (update :risks #(mapv (partial collab/owner-workload-read-model owner-loads) %))
+                   (update :actions #(mapv (partial collab/owner-workload-read-model owner-loads) %))
                    (assoc :project_version (:version project) :blockers (blockers q project)
                           :appointments (appointment/list-summaries q project)
                           :raci_conflicts (stakeholders/conflicts q project)

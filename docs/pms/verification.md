@@ -446,6 +446,23 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: C09d 交付的是"阻断级问题登记即升级 + 独立确认解除提交解决门控"这一条最小闭环, 与 H08 风险升级门控同构, 属 C09 整行子集, 故 C09 记 `partial` 不变. 升级判定只在登记时按严重度与到期日计算一次, 不做后续追溯重算; 升级通知投递与跨项目问题汇总升级仍待实现.
 
+## 责任人跨类负载只读洞察 (本轮增补, 2026-09-23)
+
+设计与关闭口径: 延续 H02 三项只读治理洞察(干系人象限/RACI负载/会议闭环)的"给治理台账加免迁移派生列"套路, 新增跨问题/风险/行动三张台账的"责任人负载"只读洞察. 领域层纯函数 `collaboration/owner-workloads` 对同一 `owner_id` 统计其在三类中当前未关闭的事项总数(问题与风险排除 `closed`, 行动排除 `closed`/`converted`, 与既有逾期/闭环口径一致), `owner-workload-read-model` 对每条记录 `assoc` `owner_open_load`(整数)与 `owner_overloaded`(负载达到阈值 4 时为 true); 无 `owner_id` 的行负载 0 且不过载. workspace 里先算一次跨类 `owner-loads`, 再在结果层对 `:issues`, `:risks`, `:actions` 三个数组分别 `update` 补充派生键, 使同一责任人在三张台账回显相同的负载数. 前端"风险与问题"页签(risk-section/issue-section)与"会议行动"页签(action-section)各新增一列只读"责任人负载", 用蓝色标签显示"未关闭 x N", 过载时追加红色"负载过重"标签. 全程免迁移, 免新命令, 免新状态值(纯读取时计算, 不落库不投递), 派生键去尾随 `?` 以原样序列化到 JSON.
+
+本轮实际执行的验证:
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 治理命名空间 SQLite | 40 tests / 450 assertions, 0 失败/错误 | 新增 `owner-workload-aggregates-open-items-across-kinds`(同一责任人 9301 跨 2 问题+1 风险+1 行动共 4 项未关闭 -> 三张台账每行 `owner_open_load` 均为 4 且 `owner_overloaded` true; 另一责任人 9303 单问题负载 1 不过载; 独立关闭其中一条问题 -> 9301 降到 3 且解除过载; 行动转真实任务 converted -> 再降到 2 证实 converted 被剔除; 直接对纯函数传无 `owner_id` 行 -> 负载 0 且不过载). 全量 PMS 无回归 |
+| 全量 PMS 回归 SQLite | 92 tests / 781 assertions, 0 失败/错误 | 无回归 |
+| 前端编译 | shadow-cljs 0 warnings | `owner-load-column` 复用列, risk/issue/action 三处一并编译 |
+| Chrome 浏览器 (Playwright) | 1 passed | `pms-g-load.spec.js`: 同一责任人 admin 界面登记 2 条问题+1 条风险并经真实 HTTP 挂 1 条会议行动 -> "责任人负载"列在"风险与问题"与"会议行动"两张台账一致回显跨类"未关闭 x 4"并出现红色"负载过重"; 界面点该行动"转为WBS任务"后三台账同步降到"未关闭 x 3"且"负载过重"消失; 真实 HTTP GET governance 回显三台账 admin 行 `owner_open_load=3`; 截图存 `reports/g-load/` (g-load-1..g-load-3) |
+
+本轮未执行 (如实记录): MySQL 迁移与回归(本地无可用实例, 但本洞察完全免迁移, 不新增 DDL); 阈值 4 为固定代码常量, 未做项目级可调阈值; 未接通按负载自动重分配或提醒投递.
+
+边界: 责任人跨类负载是"识别一人被集中指派"的只读预警列, 与规划域基于日历容量的资源超配保护(H05)口径不同, 不替代资源容量冲突检测; 负载只在读取时按当前未关闭事项计算, 不持久化, 不构成主动通知. 该洞察横跨 C07/C09/C10 三行, 记为对 C07(行动台账负载可见)的增强, 相关行 `partial` 状态不变.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.
