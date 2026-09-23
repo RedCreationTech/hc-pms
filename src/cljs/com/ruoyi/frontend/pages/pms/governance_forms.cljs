@@ -50,11 +50,14 @@
   [base options requirement]
   {:title (if requirement "修订URS需求" "新增URS需求")
    :path (str base "/requirements" (when requirement (str "/" (:id requirement) "/revisions")))
-   :initial (if requirement (select-keys requirement [:code :text :category :priority :owner_id]) {:priority "required" :category "功能"})
+   :initial (if requirement (select-keys requirement [:code :text :category :priority :owner_id :verification_method]) {:priority "required" :category "功能"})
    :fields [{:key :code :label "需求编号" :required? true}
             {:key :text :label "需求描述与验收标准" :type :textarea :required? true}
             {:key :category :label "需求类别" :required? true}
             {:key :priority :label "需求优先级" :type :select :options (w/choices ["required" "desired"]) :required? true}
+            {:key :verification_method :label "验证方式" :type :select
+             :options [{:value "test" :label "测试"} {:value "inspection" :label "检验"}
+                       {:value "demonstration" :label "演示"} {:value "analysis" :label "分析"}]}
             (owner-field (:users options))]})
 
 

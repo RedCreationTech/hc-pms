@@ -370,6 +370,40 @@
       (is (false? (:valid? (gov/preview *service* (actor 9301) id {:csv good})))))))
 
 
+(deftest requirement-verification-method-is-optional-enum-persisted
+  (let [id (project!)
+        req (command! id :requirements :create nil
+                      {:code "URS-VM-1" :text "控制器固件须支持远程升级" :category "功能"
+                       :priority "required" :owner_id 9301 :verification_method "test"})]
+    ;; 合法枚举回显并随 payload 不可变持久化, 读模型原样返回.
+    (is (= "test" (:verification_method req)))
+    (is (= "test" (:verification_method (first (filter #(= (:id req) (:id %)) (:requirements (workspace id)))))))
+    ;; 未填验证方式则不写入该键, 需求仍正常创建.
+    (let [plain (command! id :requirements :create nil
+                          {:code "URS-VM-2" :text "面板须达到防水等级" :category "功能"
+                           :priority "desired" :owner_id 9301})]
+      (is (nil? (:verification_method plain)))
+      (is (= "registered" (:status plain))))
+    ;; 非法枚举被白名单校验拒绝.
+    (is (= 400 (error-status #(command! id :requirements :create nil
+                                        {:code "URS-VM-3" :text "非法验证方式" :category "功能"
+                                         :priority "required" :owner_id 9301 :verification_method "vibes"}))))
+    ;; 修订生成新版本可改验证方式, 旧版本不漂移.
+    (let [rev (command! id :requirements :revisions (:id req)
+                        {:code "URS-VM-1" :text "控制器固件须支持远程升级 (补充)" :category "功能"
+                         :priority "required" :owner_id 9301 :verification_method "demonstration"})]
+      (is (= "demonstration" (:verification_method rev)))
+      (is (= 2 (:revision rev)))
+      (is (= "test" (:verification_method (first (filter #(= (:id req) (:id %)) (:requirements (workspace id))))))))
+    ;; CSV 五列批量导入不受可选字段影响, 导入的需求不含验证方式键.
+    (let [id2 (project!)
+          header "code,text,category,priority,owner_id\n"
+          _ (command! id2 :requirements :import nil {:csv (str header "URS-VM-CSV,批量导入需求,功能,required,9301\n")})
+          csv-req (first (filter #(= "URS-VM-CSV" (:code %)) (:requirements (workspace id2))))]
+      (is (= "URS-VM-CSV" (:code csv-req)))
+      (is (nil? (:verification_method csv-req))))))
+
+
 (deftest risk-becomes-one-issue-and-requires-independent-verification
   (let [id (project!) evidence (:id (document! id "FIX-1"))
         risk (command! id :risks :create nil {:title "关键调试风险" :probability 3 :impact 5

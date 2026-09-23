@@ -1,6 +1,6 @@
 # 治理与质量 HTTP 合同
 
-状态: 已实现并通过本地 SQLite 47 tests / 551 assertions (含 A08 项目成员任命书, H02 干系人/RACI/沟通计划, C06 文档独立发布审批, C04 文档归集视图, H01 章程初始预算, H01 章程显式授权项目经理, H09 变更量化影响与高影响只读派生, H08 风险超阈值自动升级, H08 复评重新评分并重算升级门控, H08 风险应对策略可选枚举字段, C10 典型风险库一键实例化, H02 沟通节奏标记已沟通与到期预警, C09 问题逾期预警, C09d 问题阻断级自动升级, H18 受控作废与受控恢复, H18c 归集剔除已作废与级联影响预览, 责任人跨类负载预警等用例), 属于本轮全量 PMS 回归 99 tests / 882 assertions 的组成部分. 新模块 MySQL 及生产验收采用 [验证记录](../verification.md) 的最终结果. 不包含真实外部系统写入, 二进制文件服务或自动应用变更. 所有路径以 `/api/pms/projects/:id/governance` 为前缀. 路由挂在现有 JWT 认证中间件内. 下述字段为明确白名单; 未列字段返回 400.
+状态: 已实现并通过本地 SQLite 48 tests / 561 assertions (含 A08 项目成员任命书, H02 干系人/RACI/沟通计划, C06 文档独立发布审批, C04 文档归集视图, H01 章程初始预算, H01 章程显式授权项目经理, H09 变更量化影响与高影响只读派生, H08 风险超阈值自动升级, H08 复评重新评分并重算升级门控, H08 风险应对策略可选枚举字段, C02 需求验证方式可选枚举字段, C10 典型风险库一键实例化, H02 沟通节奏标记已沟通与到期预警, C09 问题逾期预警, C09d 问题阻断级自动升级, H18 受控作废与受控恢复, H18c 归集剔除已作废与级联影响预览, 责任人跨类负载预警等用例), 属于本轮全量 PMS 回归 100 tests / 892 assertions 的组成部分. 新模块 MySQL 及生产验收采用 [验证记录](../verification.md) 的最终结果. 不包含真实外部系统写入, 二进制文件服务或自动应用变更. 所有路径以 `/api/pms/projects/:id/governance` 为前缀. 路由挂在现有 JWT 认证中间件内. 下述字段为明确白名单; 未列字段返回 400.
 
 ## 事务, 权限与读模型
 
@@ -26,8 +26,8 @@
 | POST `/charters/:rid/revisions` | 同上 | 从最新版本派生新的草稿, 原版本不覆盖 |
 | POST `/charters/:rid/submit` | reviewer_id | draft/rejected -> in_review; 指定独立审批人 |
 | POST `/charters/:rid/decision` | decision: approved/rejected, reason | 只有指定审核人可决定当前最新提交版本 |
-| POST `/requirements` | code, text, category, priority: required/desired, owner_id | 登记不可变需求版本 |
-| POST `/requirements/:rid/revisions` | 同上 | code 不变, revision + 1, 保留 previous_id |
+| POST `/requirements` | code, text, category, priority: required/desired, owner_id, 可选 verification_method (test/inspection/demonstration/analysis, 缺省或空值不写键, 非法取值 400) | 登记不可变需求版本 |
+| POST `/requirements/:rid/revisions` | 同上 | code 不变, revision + 1, 保留 previous_id; 修订可改 verification_method, 原版本值不漂移 |
 | POST `/requirements/preview` | csv; 无 version | 全量预检, 不写库 |
 | POST `/requirements/import` | csv | 任一行不合法则整批拒绝, 全部通过才事务导入 |
 | POST `/documents` | code, title, filename, content | 登记真实 UTF-8 文本版本, 计算 SHA256 和 byte_size |
@@ -78,6 +78,8 @@
 风险超阈值升级 (H08): `POST /risks` 在 `score = probability * impact` 达到阈值 16 时自动写入 `escalated: true` 与 `escalation_state: pending`, 并按分数给出 `escalation_level`(16..19 为 management, 20 及以上为 steering)与可读 `escalation_reason`; 未达阈值时 `escalated: false`. 升级状态随记录持久化, 读模型原样回显 `escalated`, `escalation_state`, `escalation_level`, `escalation_reason`, 确认后再回显 `escalation_decision`, `escalation_ack_by`, `escalation_ack_on`. 处于 pending 的升级会阻断该风险的 `mitigate`(返回 409), 必须由登记人之外的独立质量审批人调用 `escalate` 作出 approved(转为 acknowledged)或 rejected(转为 waived)后方可解除; `escalate` 走 `pms:quality:approve` 权限与项目读范围, 与既有独立批准命令一致采用只读写入范围, 因此只读审批人也能确认. 复评期间可对该风险重新评分: `POST /risks/:rid/review` 允许成对提交新的 `probability` 与 `impact`, 服务端以 `review_proposed_*` 键暂存为待批准提议而不立即改动 `score`; 独立审批人 `decision` 批准(且结论非关闭)后按新概率×影响重算 `score` 并重新判定同一套超阈值升级门控 (达阈值重新 `escalated`/`pending`, 未达阈值则清理 escalation 键), 拒绝或关闭则维持原评分并清理提议临时键. 评分与升级判定的纯函数抽取到 `risk-assessment` 命名空间, 供登记, 库实例化与复评重算共用, 避免命名空间循环引用. 本轮负责"新建超阈值升级 + 独立确认解除缓解门控 + 复评重新评分并重算门控"这一闭环; 诚实边界: 升级通知投递, 跨项目风险汇总升级仍待实现, MySQL 回归待补充.
 
 风险应对策略 (H08 延伸): `POST /risks` 接受可选枚举字段 `response_strategy`, 取值为 PMI 四类应对策略 `avoid`(规避)/`transfer`(转移)/`mitigate`(减轻)/`accept`(接受); 服务端用 `risk-response-strategies` 集合经 `s/enum!` 校验, 非法取值返回 400, 未填则不写入该键 (与既有登记用例零回归). 该字段随风险记录 payload JSON 持久化, 读模型原样回显, 前端"登记项目风险"表单以下拉供选择, 风险台账"应对策略"列以 geekblue 标签回显中文策略名 (未设定显示灰字"未设定"). 这是复用"免迁移给治理 kind 加可选强类型字段"套路的一个枚举变体: 不新增治理记录类型, 不加数据库迁移, 不改变评分与升级门控逻辑 (从典型风险库 `from-library` 实例化的风险默认不带 `response_strategy`, 仍为 `nil`). 本轮负责"登记风险时可声明结构化应对策略并在台账可视"这一最小能力; 诚实边界: 应对策略目前仅为登记属性, 尚未与后续缓解动作或审批流做联动约束, 也未做按策略聚合的只读统计, MySQL 回归待补充.
+
+需求验证方式 (C02 延伸): `POST /requirements` 接受可选枚举字段 `verification_method`, 取值为 ISO/IEC/IEEE 29148 四类验证方法 `test`(测试)/`inspection`(检验)/`demonstration`(演示)/`analysis`(分析); 服务端用 `requirement-verification-methods` 集合经 `s/enum!` 校验, 非法取值返回 400. 该字段随需求记录 payload JSON 持久化, 读模型原样回显, 前端"新增URS需求"表单以下拉供选择, 需求台账"验证方式"列以 geekblue 标签回显中文方法名 (未设定显示灰字"未设定"). 这是复用"免迁移给治理 kind 加可选强类型字段"套路的一个枚举变体: 不新增治理记录类型, 不加数据库迁移, 不改读模型 (字段随 payload 自动往返). 关键取舍: 可选枚举的写入门控用值存在性 `(seq vm)` 判定而非键存在性 `(contains? body ...)`, 使前端未选中的 `:select` 提交空串或缺键时都视为"未设定"零回归, 而显式非法值仍触发 400. 批量导入的 CSV 表头仍严格保持 `code,text,category,priority,owner_id` 五列 (导入行不含 `verification_method`, 记为 `nil`), 可选字段仅追加进创建/修订请求体白名单 `requirement-input-fields` 而不污染 `requirement-fields`. 修订可改 `verification_method`, 但每个版本是不可变记录, 原版本值不漂移. 本轮负责"需求可声明验证方式并在台账可视"这一最小能力; 诚实边界: 验证方式目前仅为登记属性, 尚未与追踪矩阵的"验证需求"关系或关闭证据做联动校验 (即声明了 test 不代表已挂验证证据), 也未做按验证方式聚合的只读统计, MySQL 回归待补充.
 
 问题阻断级自动升级 (C09d): `POST /issues` 在 `severity = blocker` 时登记即自动升级, 写入 `escalated: true` 与 `escalation_state: pending`, 并按登记时是否已逾期给出 `escalation_level`(到期日早于或等于服务端当天为 steering 管理层, 否则 management 经理层)与可读 `escalation_reason`; 非阻断级(major/minor)不写任何升级键, 与既有问题用例兼容. 升级状态随记录持久化, 读模型原样回显 `escalated`, `escalation_state`, `escalation_level`, `escalation_reason`, 确认后再回显 `escalation_decision`, `escalation_ack_by`, `escalation_ack_on`. 处于 pending 的升级会阻断该问题的 `resolve`(返回 409), 必须由登记人之外的独立质量审批人调用 `escalate` 作出 approved(转为 acknowledged)或 rejected(转为 waived)后方可解除; `escalate` 走 `pms:quality:approve` 权限与项目读范围, 与既有独立批准命令一致采用只读写入范围, 因此只读审批人也能确认, 登记人自确认返回 403. 诚实边界: 本轮仅对"阻断级登记即升级"和"独立确认解除提交解决门控"这一条最小闭环负责; 由风险 `materialize` 生成的问题暂不自动升级(避免与既有 materialize 用例回归), 逾期后对已登记问题的追溯升级, 升级通知投递与跨项目汇总仍待实现.
 

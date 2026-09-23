@@ -63,7 +63,12 @@
                     [antd/button {:type "primary" :on-click #(open! (forms/requirement-dialog base options nil))} "新增URS需求"]])
    [w/record-table (:requirements model)
     [(w/text-column :code "编号") (w/text-column :revision "版本") (w/text-column :text "需求描述")
-     (w/text-column :category "类别") {:title "优先级" :dataIndex "priority" :render #(get w/labels % %)}]
+     (w/text-column :category "类别") {:title "优先级" :dataIndex "priority" :render #(get w/labels % %)}
+     {:title "验证方式" :dataIndex "verification_method" :width 100
+      :render (fn [v] (let [label (cond (= v "test") "测试" (= v "inspection") "检验"
+                                         (= v "demonstration") "演示" (= v "analysis") "分析" :else nil)]
+                         (r/as-element (if label [antd/tag {:color "geekblue"} label]
+                                           [:span {:style {:color "#98a2b3"}} "未设定"]))))}]
     (when editable? (fn [row] [antd/space {:wrap true}
                               [w/edit-button "新修订" #(open! (forms/requirement-dialog base options row))]
                               [w/edit-button "级联影响" #(preview! {:collection "requirements" :id (:id row) :label (str "URS需求 " (:code row))})]

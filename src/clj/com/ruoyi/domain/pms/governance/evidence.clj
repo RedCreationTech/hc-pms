@@ -16,18 +16,31 @@
 
 
 (def requirement-fields
-  "需求条目的明确字段."
+  "需求条目的明确字段 (CSV 批量导入表头, 保持五列不变)."
   [:code :text :category :priority :owner_id])
 
 
+(def requirement-input-fields
+  "需求创建/修订请求体白名单: 在 CSV 五列基础上追加可选验证方式, 不影响批量导入."
+  (conj requirement-fields :verification_method))
+
+
+(def requirement-verification-methods
+  "需求验证方式取值 (ISO/IEC/IEEE 29148 四类: 测试/检验/演示/分析), 仅用于验收规划, 不替代追踪与关闭证据."
+  #{"test" "inspection" "demonstration" "analysis"})
+
+
 (defn requirement!
-  "校验需求编号,内容,分类,必要性和责任人."
+  "校验需求编号,内容,分类,必要性和责任人; 验证方式为可选枚举, 缺省或空值不写键."
   [q project body]
-  (s/input! body requirement-fields)
-  {:code (s/text! body :code 100) :text (s/text! body :text 10000)
-   :category (s/text! body :category 100)
-   :priority (s/enum! (:priority body) #{"required" "desired"} "priority")
-   :owner_id (k/user! q project (:owner_id body) "需求负责人")})
+  (s/input! body requirement-input-fields)
+  (let [vm (:verification_method body)]
+    (cond-> {:code (s/text! body :code 100) :text (s/text! body :text 10000)
+             :category (s/text! body :category 100)
+             :priority (s/enum! (:priority body) #{"required" "desired"} "priority")
+             :owner_id (k/user! q project (:owner_id body) "需求负责人")}
+      (seq vm)
+      (assoc :verification_method (s/enum! vm requirement-verification-methods "验证方式")))))
 
 
 (def document-classifications

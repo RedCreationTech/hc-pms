@@ -574,6 +574,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 风险应对策略是 H08 风险识别登记口径中"结构化声明应对策略并可视"一项的 `implemented / local` 落地(可选枚举 + `s/enum!` 校验 + 缺省不写键零回归 + 免迁移持久化 + 台账只读回显); 但 H08 行仍含"升级通知投递""跨项目风险汇总升级""策略与缓解/审批联动"等未完成子项, 故 H08 保持 `partial`, 不因这一子能力上行.
 
+## C02 需求验证方式可选枚举字段 (本轮增补, 2026-09-23)
+
+设计与关闭口径: 兑现矩阵 C02/C01"需求可追踪且带验证方法"里"为需求条目声明结构化验证方式"的一环. 复用既有 `requirement` kind 与整条创建/修订/批量导入链, **无新增迁移** (字段随需求记录 payload JSON 存储, `store/insert!` 对 fields 里任意新增键自动序列化落库, 故读模型与 workspace 均无需改动). 沿用"免迁移给治理 kind 加可选强类型字段"套路的**枚举变体**: 在 `governance.evidence` 新增集合 `requirement-verification-methods` = `#{"test" "inspection" "demonstration" "analysis"}` (ISO/IEC/IEEE 29148 四类验证方法, 仅用于验收规划, 不替代追踪与关闭证据). 关键点一: CSV 批量导入的表头必须严格等于 `requirement-fields` 五列, 因此不能把可选字段塞进 `requirement-fields`; 改为主张用独立的 `requirement-input-fields` = `(conj requirement-fields :verification_method)` 作为创建/修订请求体的 `s/input!` 白名单, 导入路径仍走五列不变. 关键点二: 可选枚举的写入以**值存在** `(seq vm)` 为门控, 而非键存在 `(contains? body :key)`; 因为前端 antd `:select` 未选择时仍会把键以空值提交上来, 若按键存在判断会误触发 `s/enum!` 对空串校验返回 400; 用 `(seq vm)` 把 `nil` 与空串一并视作"未设定"不写键, 从而既有导入与不填用例零回归. 非法取值返回 400. 前端 `requirement-dialog` 在优先级字段后新增 `:verification_method` `:select` 下拉(测试/检验/演示/分析), URS 台账在"优先级"列后新增只读"验证方式"列, 以 geekblue 标签回显中文名, 未设定显示灰字"未设定". 全程免迁移, 免新命令, 免新 kind.
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| 治理测试 (SQLite) | 48 tests / 561 assertions, 0 failures/errors | 新增 `requirement-verification-method-is-optional-enum-persisted`: 填 "test" 创建 -> 回显 "test" 且读模型二次回显; 不填创建 -> `verification_method` 为 `nil`; 非法 "vibes" 返回 400; 修订为 "demonstration" -> rev2 回显 "demonstration" 而原记录仍为 "test"; CSV 批量导入行 -> `verification_method` 为 `nil` (五列表头不变) |
+| 全量 PMS 回归 (CLI SQLite) | 100 tests / 892 assertions, 0 failures/errors | `clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'` 全新库通过, 既有需求创建/修订/预检/导入用例无回归 |
+| 前端编译 | 0 warnings | `npx shadow-cljs compile app` 通过, 验证方式表单下拉与台账"验证方式"列一并编译 |
+| Chrome 浏览器 (Playwright) | 1 passed | `pms-c02v.spec.js` (隔离 `:3100` 后端, 独立空库): 界面"新增URS需求"新增"验证方式"下拉, 建一条选"测试"的需求 -> 命令响应 `result.verification_method="test"` (截图 c02v-1-dialog-method.png); 另一条不选 -> 回显 `verification_method=null`; GET governance 二次确认回显一致; 真实 HTTP 修订为 "demonstration" -> `result.verification_method="demonstration"` 且 revision 2、原记录仍 "test"; 台账"验证方式"列 geekblue 标签显示"演示"、未选行显示灰字"未设定" (截图 c02v-2-ledger-column.png); CSV 导入行 `result.rows` 里 `verification_method=null`; 真实 HTTP POST 非法取值 "vibes" 命中枚举校验返回 400; 截图存 `reports/c02v/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归(本地无可用实例, 本轮完全免迁移, 不新增 DDL); 验证方式目前仅为需求登记属性, 未与后续验收/关闭证据做联动约束(如"test"类需求是否强制要求测试通过证据), 未做按验证方式聚合的只读统计看板, CSV 导入暂不提供验证方式列(表头仍为五列).
+
+边界: 需求验证方式是 C01/C02"需求可追踪且带验证方法"口径中"声明结构化验证方式并可视"一项的 `implemented / local` 落地(可选枚举 + 值存在门控 + `s/enum!` 校验 + 导入白名单分离 + 免迁移持久化 + 台账只读回显); 但需求"验证方法与验收证据闭环""双向追踪覆盖度"等子项仍未完备, 相关矩阵行保持既有 honest 状态, 不因这一子能力上行.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.
