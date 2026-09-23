@@ -809,6 +809,67 @@
       (is (= "acknowledged" (:escalation_state row))))))
 
 
+(deftest risk-review-rescore-recomputes-escalation-gate
+  (let [id (project!)
+        evidence (:id (document! id "RS-DOC"))
+        next-date "2026-11-01"]
+    ;; 上升重评: 3x5=15 未达阈值风险, 复评提议 5x5=25, 批准前评分与升级不变, 批准后重算触发升级门控.
+    (let [risk (command! id :risks :create nil {:title "复评上升风险" :probability 3 :impact 5
+                                                :owner_id 9301 :mitigation "例会跟踪" :due_date "2026-10-10"})
+          rid (:id risk)]
+      (is (= 15 (:score risk)))
+      (is (false? (:escalated risk)))
+      (let [submitted (command! id :risks :review rid {:outcome "active" :review_note "供应商产能下降需上调"
+                                                       :reviewer_id 9302 :evidence_ids [evidence]
+                                                       :next_review_date next-date :probability 5 :impact 5})]
+        (is (= "in_review" (:status submitted)))
+        (is (= 25 (:review_proposed_score submitted)))
+        (is (= 15 (:score submitted)))
+        (is (false? (:escalated submitted))))
+      (let [decided (command! 9302 id :risks :decision rid {:decision "approved" :reason "确认上调概率与影响"})]
+        (is (= 25 (:score decided)))
+        (is (= 5 (:probability decided)))
+        (is (= 5 (:impact decided)))
+        (is (true? (:escalated decided)))
+        (is (= "pending" (:escalation_state decided)))
+        (is (= "steering" (:escalation_level decided)))
+        (is (nil? (:review_proposed_score decided))))
+      (is (= 409 (error-status #(command! id :risks :mitigate rid
+                                          {:mitigation "启动备选" :evidence_ids [evidence]}))))
+      (command! 9302 id :risks :escalate rid {:decision "approved" :note "管理层责成处置"})
+      (is (= "mitigated" (:status (command! id :risks :mitigate rid
+                                            {:mitigation "已启动备选供应商" :evidence_ids [evidence]})))))
+    ;; 下降重评: 5x5=25 升级并确认后, 复评降至 1x1=1, 批准解除升级门控与 escalation 键.
+    (let [risk (command! id :risks :create nil {:title "复评下降风险" :probability 5 :impact 5
+                                                :owner_id 9301 :mitigation "备选供应商" :due_date "2026-10-10"})
+          rid (:id risk)]
+      (command! 9302 id :risks :escalate rid {:decision "approved" :note "确认升级"})
+      (command! id :risks :review rid {:outcome "active" :review_note "根因已消除可降级"
+                                       :reviewer_id 9302 :evidence_ids [evidence]
+                                       :next_review_date next-date :probability 1 :impact 1})
+      (let [decided (command! 9302 id :risks :decision rid {:decision "approved" :reason "确认降级"})]
+        (is (= 1 (:score decided)))
+        (is (false? (:escalated decided)))
+        (is (nil? (:escalation_state decided)))
+        (is (nil? (:escalation_level decided)))))
+    ;; 校验: 只填概率或只填影响, 或非法概率 -> 400; 拒绝重评则评分不变且清理提议临时键.
+    (let [risk (command! id :risks :create nil {:title "复评校验风险" :probability 2 :impact 3
+                                                :owner_id 9301 :mitigation "观察" :due_date "2026-10-10"})
+          rid (:id risk)
+          base {:outcome "active" :review_note "校验" :reviewer_id 9302 :evidence_ids [evidence]
+                :next_review_date next-date}]
+      (is (= 400 (error-status #(command! id :risks :review rid (assoc base :probability 4)))))
+      (is (= 400 (error-status #(command! id :risks :review rid (assoc base :impact 4)))))
+      (is (= 400 (error-status #(command! id :risks :review rid (assoc base :probability 9 :impact 1)))))
+      (let [submitted (command! id :risks :review rid (assoc base :probability 5 :impact 5))]
+        (is (= 25 (:review_proposed_score submitted)))
+        (is (= 6 (:score submitted))))
+      (let [rejected (command! 9302 id :risks :decision rid {:decision "rejected" :reason "证据不足不予重评"})]
+        (is (= "open" (:status rejected)))
+        (is (= 6 (:score rejected)))
+        (is (nil? (:review_proposed_score rejected)))))))
+
+
 (deftest risk-library-instantiates-escalation-aware-risk
   (let [id (project!)]
     ;; 从内置典型风险库选用供应类高风险 (5x5=25), 继承标准评分/措施/阶段并复用超阈值升级门控.

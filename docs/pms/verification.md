@@ -514,6 +514,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 双向来源关联只读洞察只把 `materialize` 已持久化的关联 ID 在读取时互相标注对方标题, 供两张台账可见, 不写入存储、不新增迁移、不构成通知; 关联本身仍是 `materialize` 的既有幂等副作用. 记为对 C10"风险实现转问题保留关联"可见性的增强, C10 保持 `implemented / local`, 与其相关的横切 `partial` 口径不因这一子能力上行.
 
+## H08 风险复评重新评分并重算升级门控 (本轮增补, 2026-09-23)
+
+设计与关闭口径: 兑现矩阵 H08 长期列为"复评后重新评分仍待实现"的一环, 把上一轮"到期倒计时/双向来源关联"等只读洞察推进为一条真正的命令驱动闭环, 复用既有 `risk` kind 与整条复评/独立审核链, **无新增迁移** (提议与重算字段随 payload JSON 存储). 为避免 `collaboration`(登记/库实例化)与 `reviews`(复评)相互 `require` 造成循环引用, 把评分与升级判定的纯函数(`score!`, `escalation-threshold`=16, `escalation-level`, `escalation-reason`, `assessment`)抽取到新命名空间 `governance.risk-assessment`(仅依赖 `rules`), 供登记, 库实例化与复评重算三方共用, `collaboration/insert-risk!` 改为调用 `ra/assessment`. `submit-risk-review!` 白名单新增可选 `:probability` 与 `:impact`: 二者皆空视为不重评(既有复评用例不受影响); 只填其一返回 400; 越界(非 1..5)返回 400; 成对提供则以 `review_proposed_probability`/`review_proposed_impact`/`review_proposed_score` 暂存为待批准提议, **不改动现有 `score` 与升级状态**(提交只是提议). `decide-risk-review!` 在批准且结论非关闭且存在提议时按新概率×影响重算 `score` 并重新判定同一套 H08 超阈值升级门控(达阈值重新置 `escalated`/`pending`/层级, 未达阈值则清理 escalation 键), 无论批准或拒绝都清理 `review_proposed_*` 提议键, 拒绝或关闭维持原评分. 派生/提议键一律去尾随 `?` 以原样序列化到 JSON. 前端 `risk-review-dialog` 新增两个选填 `:number` 概率/影响输入(带"留空维持原评分, 填一项须同时填另一项"提示), 风险台账新增只读"复审重评"列, 处于 in_review 且有提议时以橙色标签回显"旧评分 → 新提议 待批准", 批准或清理后显示灰色短横.
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| 治理测试 (SQLite) | 44 tests / 519 assertions, 0 failures | 新增 `risk-review-rescore-recomputes-escalation-gate`: 上升重评(3x5=15 风险提议 5x5=25, 批准前回显 `review_proposed_score=25` 而 `score` 仍 15 且 `escalated` false, 批准后 `score=25`/`escalated=true`/`pending`/`steering` 并重新门控缓解 409, 独立确认后放行缓解), 下降重评(5x5 升级确认后复评降至 1x1, 批准后 `escalated=false` 且 escalation 键清空), 只填一项/非法概率 400, 拒绝重评评分不变且提议键清理 |
+| 全量 PMS 回归 (CLI SQLite) | 96 tests / 850 assertions, 0 failures/errors | `clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'` 全新库通过, 既有复评/升级/到期用例无回归 |
+| 前端编译 | 0 warnings | `npx shadow-cljs compile app` 通过 |
+| Chrome 浏览器 (Playwright) | 1 passed | `pms-rs.spec.js` (隔离 `:3100` 后端, 独立空库): 界面登记 3x5=15 风险->"提交复评"填新概率/影响 5/5 并指定独立审批人+证据->"复审重评"列回显"15 → 25 待批准"且"超阈值升级"仍"未触发", 真实 HTTP 回显 `review_proposed_score=25`/`score=15`/`escalated=false`; 独立审批人第二上下文以本人 token 真实 HTTP `decision approved`->评分落定 25 并自动重触发"待升级确认 / steering", "复审重评"列清空为"—", GET governance 二次确认 `score=25`/`escalated=true`/`escalation_state=pending`/`review_proposed_score` 已清理; 截图存 `reports/rs/` (rs-1-proposed-rescore, rs-2-approved-escalated) |
+
+本轮未执行 (如实记录): MySQL 迁移与回归(本地无可用实例, 本轮完全免迁移, 不新增 DDL); 批准后的进一步"确认升级处置并解除缓解门控"由既有 H08 用例 `risk-escalation-requires-independent-acknowledgment-before-mitigation` 覆盖, 本增量用例只证明复评重算这一环; 未接通重评/升级后的通知投递, 未做跨项目风险汇总升级.
+
+边界: 复评重新评分是 H08 复审链的一个子能力闭环(提议->独立批准->重算并重新判定升级门控), 免迁移不落新 kind; 但 H08 行仍含"升级通知投递""跨项目风险汇总升级"等未完成子项, 故 H08 保持 `partial`, 不因这一子能力上行.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

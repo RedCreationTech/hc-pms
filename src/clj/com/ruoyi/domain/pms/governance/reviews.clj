@@ -1,6 +1,7 @@
 (ns com.ruoyi.domain.pms.governance.reviews
   "问题受控重开及风险周期复审,所有决定由指定独立人员确认."
   (:require [com.ruoyi.domain.pms.governance.store :as s]
+            [com.ruoyi.domain.pms.governance.risk-assessment :as ra]
             [com.ruoyi.domain.pms.kernel :as k]
             [com.ruoyi.domain.pms.rules :as r])
   (:import [java.time LocalDate]))
@@ -71,24 +72,41 @@
 
 
 
+(defn- proposed-rescore
+  "复评可选地同时提交新概率与新影响以重新评分; 只填其一返回 400, 均不填返回 nil; 否则返回待批准的提议评分字段."
+  [body]
+  (let [p (:probability body)
+        i (:impact body)]
+    (cond
+      (and (nil? p) (nil? i)) nil
+      (or (nil? p) (nil? i)) (r/fail! 400 "重新评分须同时提供新的概率与影响")
+      :else (let [p (ra/score! p)
+                  i (ra/score! i)]
+              {:review_proposed_probability p
+               :review_proposed_impact i
+               :review_proposed_score (* p i)}))))
+
+
 (defn submit-risk-review!
-  "提交带真实证据的风险周期复审或关闭申请,待独立审批."
+  "提交带真实证据的风险周期复审或关闭申请, 可同时提议重新评分, 待独立审批."
   [svc actor id rid body]
   (k/mutate! svc actor id "pms:project:edit" body "risk.review-submitted"
     (fn [q project]
-      (s/input! body [:outcome :review_note :evidence_ids :reviewer_id :next_review_date])
+      (s/input! body [:outcome :review_note :evidence_ids :reviewer_id :next_review_date :probability :impact])
       (let [risk (s/record! q project "risk" rid)
             outcome (s/enum! (:outcome body) #{"active" "mitigated" "closed"} "outcome")
-            note (s/text! body :review_note)]
+            note (s/text! body :review_note)
+            rescore (proposed-rescore body)
+            patch (merge {:review_action "risk_review" :review_previous_status (:status risk)
+                          :requested_outcome outcome :review_note note
+                          :next_review_date (next-review! body outcome)
+                          :review_evidence_ids (s/evidence! q project (:evidence_ids body) true)
+                          :reviewer_id (s/reviewer! q project actor (:reviewer_id body)) :submitted_by (:user_id actor)
+                          :workflow_history (history risk actor "review_requested" {:outcome outcome :note note})}
+                         rescore)]
         (s/status! risk #{"open" "mitigated" "materialized" "closed"})
         (linked-issues-closed! q project risk)
-        (s/change! q project risk "in_review"
-                   {:review_action "risk_review" :review_previous_status (:status risk)
-                    :requested_outcome outcome :review_note note
-                    :next_review_date (next-review! body outcome)
-                    :review_evidence_ids (s/evidence! q project (:evidence_ids body) true)
-                    :reviewer_id (s/reviewer! q project actor (:reviewer_id body)) :submitted_by (:user_id actor)
-                    :workflow_history (history risk actor "review_requested" {:outcome outcome :note note})})))))
+        (s/change! q project risk "in_review" patch)))))
 
 
 
@@ -100,8 +118,22 @@
    :issue_id nil})
 
 
+(defn- rescore-patch
+  "批准且结论非关闭时应用复评提议的重新评分: 按新概率x影响重算评分并重新判定 H08 升级门控(升级则重置 pending, 降级则清理 escalation 键); 无论批准或拒绝都清理提议临时键. 返回 {:rescoring? bool :patch map}."
+  [risk approved? state]
+  (let [p (:review_proposed_probability risk)
+        i (:review_proposed_impact risk)
+        apply? (boolean (and approved? p i (not= "closed" state)))
+        assessed (when apply? (ra/assessment (ra/score! p) (ra/score! i)))]
+    {:rescoring? apply?
+     :patch (cond-> {:review_proposed_probability nil :review_proposed_impact nil :review_proposed_score nil}
+              apply? (merge assessed)
+              (and apply? (not (:escalated assessed)))
+              (merge {:escalation_state nil :escalation_level nil :escalation_reason nil}))}))
+
+
 (defn decide-risk-review!
-  "指定独立审核人批准复审结果,或恢复提交之前的风险状态."
+  "指定独立审核人批准复审结果(可同时应用复评期间的重新评分),或恢复提交之前的风险状态."
   [svc actor id rid body]
   (k/mutate! svc actor id "pms:quality:approve" body "risk.review-decided" {:write? false}
     (fn [q project]
@@ -110,7 +142,8 @@
             decision (s/enum! (:decision body) #{"approved" "rejected"} "decision")
             reason (s/text! body :reason) approved? (= "approved" decision)
             state (if approved? (case (:requested_outcome risk) "active" "open" "mitigated" "mitigated" "closed")
-                      (:review_previous_status risk))]
+                      (:review_previous_status risk))
+            {:keys [rescoring? patch]} (rescore-patch risk approved? state)]
         (s/status! risk #{"in_review"})
         (s/decision-actor! actor risk)
         (s/evidence! q project (:review_evidence_ids risk) true)
@@ -119,7 +152,12 @@
           (next-review! risk (:requested_outcome risk)))
         (s/change! q project risk state
                    (cond-> {:review_decided_by (:user_id actor) :review_decision_reason reason
-                            :workflow_history (history risk actor "review_decided" {:decision decision :reason reason})}
+                            :workflow_history (cond-> (history risk actor "review_decided" {:decision decision :reason reason})
+                                                rescoring? (conj {:action "rescored" :actor_id (:user_id actor)
+                                                                  :on (str (LocalDate/now))
+                                                                  :from_score (:score risk)
+                                                                  :to_score (:review_proposed_score risk)}))}
+                     true (merge patch)
                      approved? (merge (approved-risk-patch risk))))))))
 
 

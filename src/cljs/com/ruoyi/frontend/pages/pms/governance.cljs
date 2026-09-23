@@ -389,6 +389,13 @@
                      (= state "acknowledged") [antd/tag {:color "green"} "升级已确认"]
                      (= state "waived") [antd/tag {:color "blue"} "升级已豁免"]
                      :else [antd/tag state]))))}
+     {:title "复审重评" :dataIndex "review_proposed_score" :width 150
+      :render (fn [_ row]
+                (let [proposed (aget row "review_proposed_score")]
+                  (r/as-element
+                   (if (some? proposed)
+                     [antd/tag {:color "orange"} (str (aget row "score") " → " proposed " 待批准")]
+                     [:span {:style {:color "#98a2b3"}} "—"]))))}
      (w/text-column :mitigation "应对措施") (w/text-column :review_due_date "下次复评")
      {:title "复评提醒" :dataIndex "review_overdue" :render #(when % (r/as-element [antd/tag {:color "red"} "复评已逾期"]))}
      (due-countdown-column "review_due_in_days")

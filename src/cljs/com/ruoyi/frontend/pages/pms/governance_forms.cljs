@@ -129,10 +129,13 @@
   "风险复评带证据提交独立审核,关闭前核查已发生问题."
   [base options documents risk]
   {:title "提交风险复评" :path (str base "/risks/" (:id risk) "/review")
+   :description "如需根据最新情况重新评估风险, 可同时填写新的发生概率与影响程度 (须成对填写); 审批通过后系统按新评分重算并重新触发超阈值升级门控, 留空则维持原评分."
    :initial {:outcome "active"}
    :fields [{:key :outcome :label "复评结论" :type :select :required? true
              :options [{:value "active" :label "继续跟踪"} {:value "mitigated" :label "已采取缓解措施"} {:value "closed" :label "关闭风险"}]}
             {:key :review_note :label "复评依据" :type :textarea :required? true}
+            {:key :probability :label "新发生概率(1-5,选填)" :type :number :min 1 :max 5 :hint "留空维持原评分; 填此项须同时填写新影响程度."}
+            {:key :impact :label "新影响程度(1-5,选填)" :type :number :min 1 :max 5 :hint "留空维持原评分; 填此项须同时填写新发生概率."}
             {:key :next_review_date :label "下次复评日期" :type :date :hint "继续跟踪或缓解时必填,必须晚于今天.关闭风险时可留空."}
             (evidence-field documents) (reviewer-field options)]})
 

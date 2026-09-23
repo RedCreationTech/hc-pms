@@ -2,6 +2,7 @@
   "项目风险问题的验证关闭及会议行动转真实计划任务."
   (:require
     [com.ruoyi.domain.pms.governance.reviews :as reviews]
+    [com.ruoyi.domain.pms.governance.risk-assessment :as ra]
     [com.ruoyi.domain.pms.governance.store :as s]
     [com.ruoyi.domain.pms.kernel :as k]
     [com.ruoyi.domain.pms.planning :as planning]
@@ -11,50 +12,20 @@
       LocalDate)))
 
 
-(defn- score!
-  "校验风险概率或影响等级为1到5."
-  [value]
-  (when-not (and (integer? value) (<= 1 value 5)) (r/fail! 400 "概率与影响必须为1到5整数"))
-  value)
-
-
-(def escalation-threshold
-  "风险评分(概率 x 影响, 1 到 25)达到该值即自动升级, 须独立质量审批人确认处置后方可缓解."
-  16)
-
-
-(defn- escalation-level
-  "按评分划分升级处置层级, 未达阈值返回 nil."
-  [score]
-  (cond (>= score 20) "steering"
-        (>= score escalation-threshold) "management"
-        :else nil))
-
-
-(defn- escalation-reason
-  "生成可读升级依据, 说明触发阈值与所需独立确认层级."
-  [score level]
-  (str "风险评分 " score " 已达到升级阈值 " escalation-threshold ", 须由独立质量审批人确认"
-       (case level "steering" "管理层" "经理层")
-       "处置后方可缓解."))
-
-
 (defn- insert-risk!
-  "写入风险记录: 统一按概率 x 影响评分, 达阈值自动标记超阈值升级, 可选携带阶段与风险库来源信息."
+  "写入风险记录: 统一按概率 x 影响评分, 达阈值自动标记超阈值升级, 可选携带阶段与风险库来源信息; 评分与升级判定共用 risk-assessment 纯函数."
   [q project actor fields]
-  (let [probability (score! (:probability fields)) impact (score! (:impact fields))
-        score (* probability impact) escalated? (>= score escalation-threshold)
-        level (escalation-level score)]
+  (let [probability (ra/score! (:probability fields))
+        impact (ra/score! (:impact fields))]
     (s/insert! q project actor "risk"
-               (cond-> {:title (s/text! fields :title 200) :probability probability :impact impact
-                        :score score :owner_id (k/user! q project (:owner_id fields) "负责人")
-                        :mitigation (s/text! fields :mitigation) :due_date (s/date! fields :due_date)
-                        :escalated escalated?}
-                 (:stage fields) (assoc :stage (:stage fields))
-                 (:source_key fields) (assoc :source_key (:source_key fields))
-                 (:source_category fields) (assoc :source_category (:source_category fields))
-                 escalated? (assoc :escalation_state "pending" :escalation_level level
-                                   :escalation_reason (escalation-reason score level)))
+               (into (ra/assessment probability impact)
+                     (cond-> {:title (s/text! fields :title 200)
+                              :owner_id (k/user! q project (:owner_id fields) "负责人")
+                              :mitigation (s/text! fields :mitigation)
+                              :due_date (s/date! fields :due_date)}
+                       (:stage fields) (assoc :stage (:stage fields))
+                       (:source_key fields) (assoc :source_key (:source_key fields))
+                       (:source_category fields) (assoc :source_category (:source_category fields))))
                {:status "open"})))
 
 
