@@ -589,6 +589,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 需求验证方式是 C01/C02"需求可追踪且带验证方法"口径中"声明结构化验证方式并可视"一项的 `implemented / local` 落地(可选枚举 + 值存在门控 + `s/enum!` 校验 + 导入白名单分离 + 免迁移持久化 + 台账只读回显); 但需求"验证方法与验收证据闭环""双向追踪覆盖度"等子项仍未完备, 相关矩阵行保持既有 honest 状态, 不因这一子能力上行.
 
+## C02 需求验证方式覆盖度只读派生 (本轮增补, 2026-09-23)
+
+设计与关闭口径: 兑现上一轮 C02v 遗留的"未做按验证方式聚合的只读统计"边界, 为需求验证方式提供只读覆盖度聚合. 沿用"给治理台账加只读派生洞察"套路(承 C04 文档归集/H18c 归集剔除/C09-C02v 只读派生), 在 `governance.evidence` 新增纯函数 `verification-coverage`, 对传入的需求记录聚合; **不落库、不投递、不改动任何不可变版本, 免迁移, 免新命令, 免新 kind**. 统计口径: 复用 `store/latest` 对需求按业务编码 `code` 分组取最高 revision 的既有不变量, 使同一逻辑需求的多次修订只计入一次(与 C04 文档归集"修订不重复计数"同源), 再过滤掉最新版本处于受控作废 `discarded` 的编号(沿用 H18c 归集剔除口径). 输出 `{:total :declared :undeclared :coverage-pct :by-method}`: `total` 为计入的需求编号数, `declared` 为其中已声明四类验证方法(`test`/`inspection`/`demonstration`/`analysis`)之一者, `coverage-pct` 为 `declared/total` 四舍五入整数百分比(`total` 为 0 给 0, 用 `(int (Math/round ^double (* 100.0 (/ declared total))))` 避免 ratio 序列化), `by-method` 固定四类各 `{method, count}`. 派生键一律无尾随 `?`(Clojure keyword 会把 `?` 字面序列化进 JSON); `:coverage-pct` 经 `clj->js` 后是字面 `"coverage-pct"`(保留连字符), 故前端/E2E 用 `['coverage-pct']` 中括号取值而非驼峰. workspace 里 `governance.clj` 在需求读模型之后 `assoc :verification_coverage (evidence/verification-coverage (:requirements data))` 暴露. 前端"URS与追踪"页签在需求台账之后新增 `coverage-section` 面板: 蓝色标签"最新版本需求 N", 百分比标签按 100% 绿/0% 红/其余金着色"已声明验证方式 P%", 有未设定项时追加橙色"未设定 K", 四类方法以 geekblue(计数>0)/default 标签回显"方法 · 计数", 需求为空时显示占位提示.
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| 治理测试 (SQLite) | 49 tests / 577 assertions, 0 failures/errors | 新增 `requirement-verification-method-coverage-is-derived-read-only`: 四条需求(test/inspection/nil/test) -> total=4, declared=3, undeclared=1, coverage-pct=75, by-method test=2 inspection=1 demonstration=0 analysis=0; 把 nil 那条修订为 demonstration -> 按 code 去重后 total 仍=4, declared=4, pct=100, demonstration=1(修订不重复计数); 作废其中一条 -> total=3, declared=3, pct=100, test=1(剔除已作废最新版本) |
+| 全量 PMS 回归 (CLI SQLite) | 101 tests / 908 assertions, 0 failures/errors | `clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'` 全新库通过, workspace 新增 `:verification_coverage` 未造成既有需求/文档/归集用例回归 |
+| 前端编译 | 0 warnings | `npx shadow-cljs compile app` 通过, `coverage-section` 面板一并编译 |
+| Chrome 浏览器 (Playwright) | 1 passed | `pms-c02v2.spec.js` (隔离 `:3100` 后端, 独立空库): 界面登记三条需求(测试/检验/不选) -> "验证方式覆盖度"面板显示"最新版本需求 3"、金色"已声明验证方式 67%"、橙色"未设定 1"及"测试·1 检验·1 演示·0 分析·0" (截图 c02v2-1-coverage-panel.png); 真实 HTTP 把不选那条修订为 demonstration 后重开 -> 面板升到绿色"100%"、"演示·1"、"未设定"标签消失, 计入需求数仍为 3 而非 4(证明按 code 最新有效版本聚合, 修订不重复计数), 台账同时可见 rev2"演示"与 rev1"未设定"两行 (截图 c02v2-2-coverage-full.png); 真实 HTTP GET governance 二次确认 `verification_coverage['coverage-pct']=100` 与 `by-method` 计数一致; 截图存 `reports/c02v2/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归(本地无可用实例, 本轮完全免迁移, 不新增 DDL); 覆盖度只反映"是否声明了验证方式", 不等于已配齐对应验收证据, 亦未与追踪矩阵"验证需求"关系做联动校验; 暂不做按类别/优先级的更细切分统计, 无导出.
+
+边界: 验证方式覆盖度只读派生是 C01"需求可追踪且带验证方法"口径中"按验证方式聚合只读统计"一项的 `implemented / local` 落地(纯函数聚合 + latest 去重 + 剔除已作废 + 免迁移 + workspace 暴露 + 界面面板); 但需求"验证方法与验收证据闭环""双向追踪覆盖率分母界定"等子项仍未完备, 相关矩阵行保持既有 honest 状态(C01/C03 不上行), 不因这一子能力上行.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

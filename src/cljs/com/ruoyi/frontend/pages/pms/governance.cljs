@@ -131,6 +131,32 @@
                                 ^{:key (str "n-" key)} [antd/tag (str (collection-label key) " · " count)])]])])]))
 
 
+(defn- coverage-section
+  "按每个需求编号的最新有效版本只读聚合验证方式声明覆盖度: 四类方法各自计数与覆盖率; 修订不重复计数, 已作废不计入."
+  [{:keys [model]}]
+  (let [cov (:verification_coverage model)
+        total (:total cov 0)
+        undeclared (:undeclared cov 0)
+        pct (:coverage-pct cov 0)
+        method-label {"test" "测试" "inspection" "检验" "demonstration" "演示" "analysis" "分析"}]
+    [shared/panel "验证方式覆盖度" "按每个需求编号的最新有效版本统计验证方式声明情况; 修订不重复计数, 已作废不计入"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无URS需求, 登记后可在此查看验证方式覆盖度."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "最新版本需求 " total)]
+         [antd/tag {:color (cond (= pct 100) "green" (zero? pct) "red" :else "gold")}
+          (str "已声明验证方式 " pct "%")]
+         (when (pos? undeclared)
+           [antd/tag {:color "orange"} (str "未设定 " undeclared)])]
+        [:div
+         [:span {:style {:fontWeight 500}} "按验证方式: "]
+         [antd/space {:wrap true}
+          (for [{:keys [method count]} (:by-method cov)]
+            ^{:key method} [antd/tag {:color (if (pos? count) "geekblue" "default")}
+                            (str (get method-label method method) " · " count)])]]])]))
+
+
 (defn- document-section
   "列出可校验的真实证据文档及不可变版本, 支持打包批量下载, 密级过滤与独立发布审批."
   [{:keys [base model options editable? approve? open! document! preview!]}]
@@ -602,7 +628,7 @@
                       {:key key :label label :children (r/as-element
                                                          (into [:div {:style {:display "grid" :gap 20}}] (map #(vector % context) components)))})
                     [["charter" "章程" [charter-section]]
-                     ["requirements" "URS与追踪" [requirement-section traceability-section trace-section]]
+                     ["requirements" "URS与追踪" [requirement-section coverage-section traceability-section trace-section]]
                      ["evidence" "证据版本" [document-section collection-section]]
                      ["appointments" "成员任命" [appointment-section]]
                      ["stakeholders" "干系人与沟通" [stakeholder-section raci-section comm-plan-section]]

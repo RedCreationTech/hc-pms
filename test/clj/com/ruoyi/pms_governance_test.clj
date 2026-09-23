@@ -404,6 +404,42 @@
       (is (nil? (:verification_method csv-req))))))
 
 
+(deftest requirement-verification-method-coverage-is-derived-read-only
+  (let [id (project!)
+        cov (fn [] (:verification_coverage (workspace id)))
+        _ (command! id :requirements :create nil {:code "URS-COV-A" :text "需求甲" :category "功能"
+                                                  :priority "required" :owner_id 9301 :verification_method "test"})
+        b (command! id :requirements :create nil {:code "URS-COV-B" :text "需求乙" :category "功能"
+                                                  :priority "required" :owner_id 9301 :verification_method "inspection"})
+        c (command! id :requirements :create nil {:code "URS-COV-C" :text "需求丙" :category "功能"
+                                                  :priority "desired" :owner_id 9301})
+        d (command! id :requirements :create nil {:code "URS-COV-D" :text "需求丁" :category "功能"
+                                                  :priority "required" :owner_id 9301 :verification_method "test"})
+        m (fn [k] (:count (first (filter #(= k (:method %)) (:by-method (cov))))))]
+    ;; 四类方法各自计数与覆盖率(按每个编号最新版本, 未声明计入分母不计入分子).
+    (is (= 4 (:total (cov))))
+    (is (= 3 (:declared (cov))))
+    (is (= 1 (:undeclared (cov))))
+    (is (= 75 (:coverage-pct (cov))))
+    (is (= 2 (m "test")))
+    (is (= 1 (m "inspection")))
+    (is (= 0 (m "demonstration")))
+    (is (= 0 (m "analysis")))
+    ;; 修订给未声明的需求补上验证方式: 覆盖度上升而需求总数不变(按最新版本去重).
+    (command! id :requirements :revisions (:id c) {:code "URS-COV-C" :text "需求丙(补验证方式)" :category "功能"
+                                                   :priority "desired" :owner_id 9301 :verification_method "demonstration"})
+    (is (= 4 (:total (cov))))
+    (is (= 4 (:declared (cov))))
+    (is (= 100 (:coverage-pct (cov))))
+    (is (= 1 (m "demonstration")))
+    ;; 作废最新版本的某需求后, 其不再计入覆盖度分母.
+    (command! id :requirements :discard (:id d) {:reason "并入需求甲"})
+    (is (= 3 (:total (cov))))
+    (is (= 3 (:declared (cov))))
+    (is (= 1 (m "test")))
+    (is (= 100 (:coverage-pct (cov))))))
+
+
 (deftest risk-becomes-one-issue-and-requires-independent-verification
   (let [id (project!) evidence (:id (document! id "FIX-1"))
         risk (command! id :risks :create nil {:title "关键调试风险" :probability 3 :impact 5

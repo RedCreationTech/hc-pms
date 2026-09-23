@@ -266,3 +266,20 @@
      :by-structure-node (buckets :structure_node)
      :by-classification (mapv (fn [c] {:classification c :count (class-count c)})
                               ["public" "internal" "confidential"])}))
+
+
+(defn verification-coverage
+  "按每个业务编码最新有效版本统计需求验证方式声明的只读覆盖度: 四类方法各自计数, 已声明/未设定与百分比覆盖率; 最新版本被受控作废(discarded)的编号不计入. 只读派生, 不落库不投递, 不改变不可变版本."
+  [requirements]
+  (let [methods ["test" "inspection" "demonstration" "analysis"]
+        active (filterv #(not= "discarded" (:status %)) (s/latest requirements))
+        total (count active)
+        declared (count (filterv #(some #{(:verification_method %)} methods) active))
+        method-count (fn [m] (count (filterv #(= m (:verification_method %)) active)))]
+    {:total total
+     :declared declared
+     :undeclared (- total declared)
+     :coverage-pct (if (pos? total)
+                     (int (Math/round ^double (* 100.0 (/ declared total))))
+                     0)
+     :by-method (mapv (fn [m] {:method m :count (method-count m)}) methods)}))
