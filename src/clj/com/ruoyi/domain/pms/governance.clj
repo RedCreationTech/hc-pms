@@ -67,17 +67,22 @@
                                                      (= kind "risk") reviews/risk-read-model
                                                      (= kind "action") collab/action-read-model
                                                      (= kind "issue") collab/issue-read-model
-                                                     (= kind "comm-plan") stakeholders/comm-plan-read-model)
+                                                     (= kind "comm-plan") stakeholders/comm-plan-read-model
+                                                     (= kind "stakeholder") stakeholders/stakeholder-read-model)
                                                   (store/records q project kind))]))
+                   actions-by-meeting (group-by :meeting_id (:actions data))
+                   raci-loads (stakeholders/raci-r-loads (:raci data))
                    traceability (evidence/traceability-report (:requirements data) (:traces data))]
-               (assoc data
-                      :project_version (:version project) :blockers (blockers q project)
-                      :appointments (appointment/list-summaries q project)
-                      :raci_conflicts (stakeholders/conflicts q project)
-                      :traceability traceability
-                      :trace_summary (evidence/trace-summary traceability)
-                      :document_collection (evidence/document-collection (:documents data))
-                      :risk_library collab/risk-library)))))
+               (-> data
+                   (update :meetings collab/enrich-meetings actions-by-meeting)
+                   (update :raci #(mapv (partial stakeholders/raci-read-model raci-loads) %))
+                   (assoc :project_version (:version project) :blockers (blockers q project)
+                          :appointments (appointment/list-summaries q project)
+                          :raci_conflicts (stakeholders/conflicts q project)
+                          :traceability traceability
+                          :trace_summary (evidence/trace-summary traceability)
+                          :document_collection (evidence/document-collection (:documents data))
+                          :risk_library collab/risk-library))))))
 
 
 (defn- creating

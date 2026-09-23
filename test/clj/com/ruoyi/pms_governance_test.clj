@@ -819,6 +819,72 @@
       (is (false? (:issue_critical f)))))
 
 
+(deftest stakeholder-quadrant-and-unbound-owner-read-model
+  (let [id (project!)
+        key-player (command! id :stakeholders :create nil
+                             {:code "SH-K" :name "客户方决策人" :role "验收决策" :category "customer"
+                              :interest "high" :influence "high" :owner_id 9301})
+        satisfied (command! id :stakeholders :create nil
+                            {:code "SH-S" :name "政府监管" :role "合规" :category "regulator"
+                             :interest "low" :influence "high" :owner_id 9302})
+        informed (command! id :stakeholders :create nil
+                           {:code "SH-I" :name "一线用户" :role "使用反馈" :category "internal"
+                            :interest "high" :influence "low"})
+        monitor (command! id :stakeholders :create nil
+                          {:code "SH-M" :name "外围供应商" :role "备件" :category "supplier"
+                           :interest "low" :influence "low" :owner_id 9303})
+        rows (:stakeholders (workspace id))
+        find-row (fn [rec] (first (filter #(= (:code rec) (:code %)) rows)))]
+    (is (= "manage-close" (:stakeholder_quadrant (find-row key-player))))
+    (is (false? (:stakeholder_unbound (find-row key-player))))
+    (is (= "keep-satisfied" (:stakeholder_quadrant (find-row satisfied))))
+    (is (= "keep-informed" (:stakeholder_quadrant (find-row informed))))
+    (is (true? (:stakeholder_unbound (find-row informed))))
+    (is (= "monitor" (:stakeholder_quadrant (find-row monitor))))))
+
+
+(deftest raci-r-load-and-overload-read-model
+  (let [id (project!)
+        s1 (command! id :stakeholders :create nil
+                     {:code "SH-R1" :name "负责人甲" :role "设备工程师" :category "internal" :interest "high" :influence "medium" :owner_id 9301})
+        s2 (command! id :stakeholders :create nil
+                     {:code "SH-R2" :name "负责人乙" :role "测试工程师" :category "internal" :interest "high" :influence "medium" :owner_id 9302})
+        s3 (command! id :stakeholders :create nil
+                     {:code "SH-R3" :name "负责人丙" :role "质量" :category "internal" :interest "high" :influence "medium" :owner_id 9303})
+        _ (doseq [act ["活动一" "活动二" "活动三"]]
+            (command! id :raci :create nil {:activity act :stakeholder_id (:id s1) :responsibility "R"}))
+        _ (command! id :raci :create nil {:activity "活动一" :stakeholder_id (:id s2) :responsibility "R"})
+        _ (command! id :raci :create nil {:activity "活动一" :stakeholder_id (:id s3) :responsibility "A"})
+        rows (:raci (workspace id))
+        s1-rows (filterv #(= (:id s1) (:stakeholder_id %)) rows)]
+    (is (= 3 (count s1-rows)))
+    (is (every? #(= 3 (:raci_r_load %)) s1-rows))
+    (is (every? #(true? (:raci_overloaded %)) s1-rows))
+    (let [r2 (first (filter #(= (:id s2) (:stakeholder_id %)) rows))]
+      (is (= 1 (:raci_r_load r2)))
+      (is (false? (:raci_overloaded r2))))
+    (let [r3 (first (filter #(= (:id s3) (:stakeholder_id %)) rows))]
+      (is (= 0 (:raci_r_load r3)))
+      (is (false? (:raci_overloaded r3))))))
+
+
+(deftest meeting-action-closure-counts-and-overdue
+  (let [id (project!)
+        meeting (command! id :meetings :create nil
+                          {:title "月度例会" :held_on "2026-09-01" :minutes "确定三项行动" :attendee_ids [9301 9303]})
+        mid (:id meeting)
+        overdue (command! id :meetings :actions mid {:title "补齐接线图" :owner_id 9301 :due_date "2026-01-10"})
+        future (command! id :meetings :actions mid {:title "更新验收计划" :owner_id 9303 :due_date "2099-12-31"})
+        conv (command! id :meetings :actions mid {:title "转任务项" :owner_id 9301 :due_date "2026-02-01"})
+        _ (command! id :actions :task (:id conv) {:start_date "2026-09-23" :duration_days 2})
+        row (first (filter #(= mid (:id %)) (:meetings (workspace id))))]
+    (is (= 3 (:meeting_action_total row)))
+    (is (= 2 (:meeting_open_actions row)))
+    (is (= 1 (:meeting_overdue_actions row)))
+    (is (some? (:id overdue)))
+    (is (some? (:id future)))))
+
+
 (deftest appointment-snapshot-matches-current-team-and-is-immutable
   (let [id (project!)
         orig (command! id :appointments :create nil {:issued_on "2026-09-22" :note "正式任命"})]

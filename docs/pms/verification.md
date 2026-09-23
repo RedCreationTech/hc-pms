@@ -340,6 +340,57 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 逾期与阻断级仅为读取时派生的界面预警, 不写入存储也不推动任何状态迁移, 问题关闭/重开仍走既有受控命令. C09 因责任人与改派、复评与独立重开等既有子能力叠加本轮逾期预警仍不完整, 维持 `partial`.
 
+## H02 干系人权力-利益象限与未绑定责任人读模型洞察 (本轮增补, 2026-09-23)
+
+设计与关闭口径: 为"干系人识别"台账补齐只读的权力-利益矩阵洞察, **不写存储, 不构成主动提醒**. 领域 `governance.stakeholders/stakeholder-read-model` 对每条 stakeholder 按 `influence`(权力)与 `interest`(利益)派生 `stakeholder_quadrant` (高高=manage-close, 高权力=keep-satisfied, 高利益=keep-informed, 其余=monitor) 与 `stakeholder_unbound` (未绑定 `owner_id` 时为 true); 派生键名省去尾随 `?` 以规避 JSON 序列化歧义. 前端"干系人与沟通"页签新增"管理策略"列, 四象限分别渲染红/橙/蓝/灰标签, 未绑定责任人追加火山色"未绑定责任人"标签. 本轮不做按象限的自动沟通策略下发或提醒投递, 不改变既有干系人登记与不可变修订链.
+
+本轮实际执行的验证:
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 治理命名空间 SQLite | 32 tests / 361 assertions, 0 失败/错误 | 新增 `stakeholder-quadrant-and-unbound-owner-read-model`: 造四种影响力x关注度组合 -> 读模型分别给出 manage-close/keep-satisfied/keep-informed/monitor; 无 owner_id 的行 `stakeholder_unbound=true`, 有 owner_id 的行为 false |
+| 全量 PMS 回归 SQLite | 84 tests / 692 assertions, 0 失败/错误 | 无回归 |
+| 前端编译 | 0 warnings | "管理策略"列一并编译 |
+| Chrome 浏览器 (Playwright) | 1 passed (批量 3 passed / 1.0m) | `pms-h02d.spec.js`: 界面"登记干系人"选不同权力-利益组合 -> 台账"管理策略"列显示四象限徽标, 未选责任人的行显示"未绑定责任人", 已绑定行不显示; 并经 GET 读模型二次确认 `stakeholder_quadrant`/`stakeholder_unbound`; 截图存 `reports/h02d/` (h02d-1-quadrants) |
+
+本轮未执行 (如实记录): MySQL 回归, 本地无可用 MySQL 实例, 待有环境时补跑. 未实现按象限自动生成沟通计划或推送提醒, 未实现权力-利益图的可视化散点图 (当前为台账列形式).
+
+边界: 象限与未绑定标记仅为读取时按当前干系人数据派生的界面洞察, 不写入存储也不推动状态迁移, 干系人登记/修订仍走既有受控命令. H02 核心闭环 (识别+RACI+沟通节奏) 已 `implemented / local`, 本洞察是对其"识别利益相关者及职责"目标的强化, 不改变状态口径.
+
+## H02 RACI执行R职责负载与过载读模型洞察 (本轮增补, 2026-09-23)
+
+设计与关闭口径: 为"RACI职责矩阵"台账补齐只读的职责集中度洞察, **不写存储, 不构成主动提醒**. 领域 `governance.stakeholders/raci-r-loads` 统计每个干系人被指派为执行(R)的活动数, `raci-read-model` 为每条 RACI 行补充 `raci_r_load` (该干系人的 R 总负载) 与 `raci_overloaded` (负载达到阈值 `raci-overload-threshold`=3 时为 true); 负责(A)/咨询(C)/知会(I) 不计入 R 负载. 前端新增"R职责负载"列, 负载为正显示蓝色"执行 R x N"标签, 过载追加红色"职责过载"标签. 本轮不做过载后的自动重分配或提醒投递.
+
+本轮实际执行的验证:
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 治理命名空间 SQLite | 32 tests / 361 assertions, 0 失败/错误 | 新增 `raci-r-load-and-overload-read-model`: 一名干系人承担 3 条执行R -> 各行 `raci_r_load=3` 且 `raci_overloaded=true`; 另一名仅 1 条 R -> 负载 1 不过载; 只有 A 的干系人负载 0 |
+| 全量 PMS 回归 SQLite | 84 tests / 692 assertions, 0 失败/错误 | 无回归 |
+| 前端编译 | 0 warnings | "R职责负载"列一并编译 |
+| Chrome 浏览器 (Playwright) | 1 passed (批量 3 passed / 1.0m) | `pms-h02e.spec.js`: 界面"指派RACI职责"为同一干系人在三活动指派执行R -> "R职责负载"列显示"执行 R x 3"与"职责过载"; 另一干系人 1 条 R 显"执行 R x 1"无过载, 其负责A行也显示该人 R 负载 1 且不过载; GET 读模型二次确认 `raci_r_load`/`raci_overloaded`; 截图存 `reports/h02e/` (h02e-1-rac-load) |
+
+本轮未执行 (如实记录): MySQL 回归, 本地无可用 MySQL 实例, 待有环境时补跑. 阈值 3 为代码内置常量, 未做项目级可调; 未实现过载后跨干系人再平衡建议或通知.
+
+边界: 负载与过载为读取时按当前 RACI 指派派生的界面洞察, 不写入存储也不阻止指派本身 (缺 A/缺 R 冲突仍由既有 `raci_conflicts` 提示). 与 H02 核心闭环同属 `implemented / local` 强化项.
+
+## B05/C07 会议行动闭环计数与逾期读模型洞察 (本轮增补, 2026-09-23)
+
+设计与关闭口径: 为"会议行动"台账补齐只读的行动闭环汇总, **不写存储, 不构成主动提醒**. 领域 `governance.collaboration/enrich-meetings` 按 `meeting_id` 分组会议派生的 action, 为每条 meeting 补充 `meeting_action_total` (行动总数), `meeting_open_actions` (状态非 closed/converted 的未完成数) 与 `meeting_overdue_actions` (其中到期日不晚于服务器当天的未完成数); 复用既有 `action-overdue?` 判定, 已转真实任务(converted)或已关闭(closed)的行动不计入未完成. 前端新增"行动闭环"列: 无行动显示"无行动", 全部闭环显示绿色"行动已全部闭环", 否则金色"未完成 open/total"并在有逾期时叠加红色"逾期 N". 本轮不做逾期行动自动督办或提醒投递.
+
+本轮实际执行的验证:
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 治理命名空间 SQLite | 32 tests / 361 assertions, 0 失败/错误 | 新增 `meeting-action-closure-counts-and-overdue`: 造一场会议 + 3 条行动 (一条转真实任务 converted, 一条到期日已过, 一条远期) -> 读模型 `meeting_action_total=3`, `meeting_open_actions=2`, `meeting_overdue_actions=1` |
+| 全量 PMS 回归 SQLite | 84 tests / 692 assertions, 0 失败/错误 | 无回归 |
+| 前端编译 | 0 warnings | "行动闭环"列一并编译 |
+| Chrome 浏览器 (Playwright) | 1 passed (批量 3 passed / 1.0m) | `pms-b05b.spec.js`: 界面"登记项目会议"后逐条"形成行动" (一条到期日 2026-09-15 已过, 一条 2026-10-10 远期) -> 台账"行动闭环"列显示"未完成 2/2"与"逾期 1"; 将远期行动转真实任务后变"未完成 1/2"仍"逾期 1"; 无行动时显示"无行动"; GET 读模型二次确认三个计数字段; 截图存 `reports/b05b/` (b05b-1-open-overdue, b05b-2-converted) |
+
+本轮未执行 (如实记录): MySQL 回归, 本地无可用 MySQL 实例, 待有环境时补跑. 未实现逾期行动的自动到期提醒/督办工作流, 未实现按责任人或跨会议的逾期行动汇总看板.
+
+边界: 闭环计数为读取时按当前行动状态与服务器日期派生的界面洞察, 不写入存储也不推动行动状态迁移, 行动完成/核验/转任务仍走既有受控命令. C07 因自动到期提醒仍缺, 维持 `partial`; 本洞察是"会后行动追踪"的界面强化, 不改变状态口径.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

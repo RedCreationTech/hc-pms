@@ -167,14 +167,30 @@
     (fn [row] [w/edit-button "查看任命书" #(appointment! row)])]])
 
 
+(defn- quadrant-cell
+  "渲染干系人权力-利益象限管理策略标签, 未绑定项目成员责任人时追加提示."
+  [row]
+  (let [q (aget row "stakeholder_quadrant")
+        unbound (true? (aget row "stakeholder_unbound"))
+        label (get {"manage-close" "重点管理" "keep-satisfied" "保持满意"
+                    "keep-informed" "保持知会" "monitor" "持续监控"} q "-")
+        color (get {"manage-close" "red" "keep-satisfied" "orange"
+                    "keep-informed" "blue" "monitor" "default"} q "default")]
+    (r/as-element [antd/space {:wrap true}
+                   [antd/tag {:color color} label]
+                   (when unbound [antd/tag {:color "volcano"} "未绑定责任人"])])))
+
+
 (defn stakeholder-section
   "登记项目干系人并保留不可变修订."
   [{:keys [base model options editable? open!]}]
-  [shared/panel "干系人识别" "记录利益相关者职责, 关注度与影响力, 修订保留历史"
+  [shared/panel "干系人识别" "记录利益相关者职责, 关注度与影响力, 按权力-利益矩阵给出管理策略, 修订保留历史"
    (when editable? [antd/button {:on-click #(open! (forms/stakeholder-dialog base options nil))} "登记干系人"])
    [w/record-table (:stakeholders model)
     [(w/text-column :code "编号") (w/text-column :name "名称") (w/text-column :role "职责")
-     (w/text-column :category "分类") (w/text-column :interest "关注度") (w/text-column :influence "影响力") (w/state-column)]
+     (w/text-column :category "分类") (w/text-column :interest "关注度") (w/text-column :influence "影响力")
+     {:title "管理策略" :dataIndex "stakeholder_quadrant" :width 200 :render (fn [_ row] (quadrant-cell row))}
+     (w/state-column)]
     (when editable? (fn [row] [w/edit-button "新修订" #(open! (forms/stakeholder-dialog base options row))]))]])
 
 
@@ -202,6 +218,12 @@
    [w/record-table (:raci model)
     [(w/text-column :activity "活动") (w/text-column :stakeholder_name "干系人")
      {:title "职责" :dataIndex "responsibility" :render #(get {"R" "执行 R" "A" "负责 A" "C" "咨询 C" "I" "知会 I"} % %)}
+     {:title "R职责负载" :dataIndex "raci_r_load" :width 160
+      :render (fn [_ row]
+                (let [load (aget row "raci_r_load") over (true? (aget row "raci_overloaded"))]
+                  (r/as-element [antd/space {:wrap true}
+                                 [antd/tag {:color (if (pos? load) "blue" "default")} (str "执行 R x " load)]
+                                 (when over [antd/tag {:color "red"} "职责过载"])])))}
      (w/state-column)]
     nil]])
 
@@ -361,7 +383,18 @@
    (when editable? [antd/button {:on-click #(open! (forms/meeting-dialog base options (:documents model)))} "登记项目会议"])
    [w/record-table (:meetings model)
     [(w/text-column :title "会议主题") (w/text-column :held_on "会议日期") (w/text-column :minutes "会议纪要")
-     {:title "会前资料" :dataIndex "material_ids" :render #(r/as-element [antd/tag {:color (if (pos? (count %)) "blue" "default")} (count %)])}]
+     {:title "会前资料" :dataIndex "material_ids" :render #(r/as-element [antd/tag {:color (if (pos? (count %)) "blue" "default")} (count %)])}
+     {:title "行动闭环" :dataIndex "meeting_open_actions" :width 180
+      :render (fn [_ row]
+                (let [total (aget row "meeting_action_total")
+                      open (aget row "meeting_open_actions")
+                      overdue (aget row "meeting_overdue_actions")]
+                  (r/as-element
+                   [antd/space {:wrap true}
+                    (cond (zero? total) [:span {:style {:color "#98a2b3"}} "无行动"]
+                          (zero? open) [antd/tag {:color "green"} "行动已全部闭环"]
+                          :else [antd/tag {:color "gold"} (str "未完成 " open "/" total)])
+                    (when (and (number? overdue) (pos? overdue)) [antd/tag {:color "red"} (str "逾期 " overdue)])])))}]
     (when editable? (fn [meeting] [w/edit-button "形成行动" #(open! (forms/action-dialog base options meeting))]))]])
 
 

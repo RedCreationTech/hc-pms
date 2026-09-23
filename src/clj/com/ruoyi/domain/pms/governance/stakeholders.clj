@@ -228,3 +228,45 @@
     (assoc plan :comm_overdue (boolean (and (= "active" (:status plan)) (not (.isAfter next (LocalDate/now)))))
                 :comm_days_until (int (- (.toEpochDay next) (.toEpochDay (LocalDate/now)))))
     (assoc plan :comm_overdue false :comm_days_until nil)))
+
+
+(def quadrant-labels
+  "权力-利益矩阵四象限对应的干系人管理策略."
+  {"manage-close" "重点管理" "keep-satisfied" "保持满意" "keep-informed" "保持知会" "monitor" "持续监控"})
+
+
+(defn- quadrant-of
+  "按干系人影响力(权力)与关注度定位权力-利益象限."
+  [stakeholder]
+  (let [hi-influence (= "high" (:influence stakeholder))
+        hi-interest (= "high" (:interest stakeholder))]
+    (cond (and hi-influence hi-interest) "manage-close"
+          hi-influence "keep-satisfied"
+          hi-interest "keep-informed"
+          :else "monitor")))
+
+
+(defn stakeholder-read-model
+  "以影响力与关注度派生权力-利益管理象限, 并标记是否尚未绑定项目成员责任人; 只读计算不改状态."
+  [stakeholder]
+  (assoc stakeholder :stakeholder_quadrant (quadrant-of stakeholder)
+                     :stakeholder_unbound (not (:owner_id stakeholder))))
+
+
+(def raci-overload-threshold
+  "同一干系人承担执行(R)职责的活动数达到该值即视为负载过重."
+  3)
+
+
+(defn raci-r-loads
+  "统计每个干系人被指派为执行(R)的职责数量, 供RACI职责负载与过载预警."
+  [raci-rows]
+  (frequencies (keep #(when (= "R" (:responsibility %)) (:stakeholder_id %)) raci-rows)))
+
+
+(defn raci-read-model
+  "为RACI指派行补充该干系人的执行R总负载与是否过载; 只读计算不改状态."
+  [r-loads row]
+  (let [load (get r-loads (:stakeholder_id row) 0)]
+    (assoc row :raci_r_load load
+               :raci_overloaded (>= load raci-overload-threshold))))

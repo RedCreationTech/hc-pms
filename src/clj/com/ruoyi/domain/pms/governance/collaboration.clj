@@ -308,13 +308,31 @@
                              :verified_by (:user_id actor)})))))
 
 
+(defn action-overdue?
+  "行动存在到期日且未关闭未转任务且到期日不晚于服务器当天即视为逾期."
+  [action]
+  (boolean (and (:due_date action)
+                (not (contains? #{"closed" "converted"} (:status action)))
+                (not (.isAfter (LocalDate/parse (:due_date action)) (LocalDate/now))))))
+
+
 (defn action-read-model
   "以服务器日期展示会议行动是否逾期未完成, 已关闭或已转真实任务的行动不再计逾期."
   [action]
-  (assoc action :action_overdue
-         (boolean (and (:due_date action)
-                       (not (contains? #{"closed" "converted"} (:status action)))
-                       (not (.isAfter (LocalDate/parse (:due_date action)) (LocalDate/now)))))))
+  (assoc action :action_overdue (action-overdue? action)))
+
+
+(defn enrich-meetings
+  "为会议行汇总其派生行动的闭环情况: 行动总数/未完成(排除已关闭与已转真实任务)/其中逾期, 只读计算不改状态."
+  [meetings actions-by-meeting]
+  (mapv (fn [meeting]
+          (let [acts (get actions-by-meeting (:id meeting) [])
+                open (filterv #(not (contains? #{"closed" "converted"} (:status %))) acts)
+                overdue (filterv action-overdue? open)]
+            (assoc meeting :meeting_action_total (count acts)
+                             :meeting_open_actions (count open)
+                             :meeting_overdue_actions (count overdue))))
+        meetings))
 
 
 (defn issue-read-model
