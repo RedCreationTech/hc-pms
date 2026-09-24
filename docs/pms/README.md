@@ -25,6 +25,7 @@
 | [11 功能验收矩阵](11-feature-acceptance-matrix.md) | PPT逐项覆盖, 标准PMS补全, 状态与验收证据 |
 | [12 操作体验指南](12-user-guide.md) | 从新建项目到独立审批, 实际交付, 财务收尾与受控重开的操作顺序 |
 | [13 整体完成计划](13-completion-plan.md) | 2026-09-24 起无外部依赖范围的增量 5-10 顺序, 放行标准与仍保持的边界 |
+| [14 完整展示流程 (演示剧本)](14-demo-script.md) | 用同一个设备订单项目从平台模板走到正式关闭的 37 步演示剧本 (入口/操作/预期/边界), 对应 `tests/e2e/pms-demo-flow.spec.js` 与 `reports/demo-flow/` 真实截图报告 |
 | [当前验证记录](verification.md) | 本轮双库, 浏览器, 构建与运行的真实证据和限制 |
 | [Batch 1 历史验证](verification-batch1.md) | 首批项目中心的历史基线, 不替代本轮回归 |
 
