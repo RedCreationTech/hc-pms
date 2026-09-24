@@ -258,12 +258,14 @@
                         :payload (json/generate-string (assoc (dissoc fields :code) :history (history nil (if (= status "locked") "locked" "created") actor nil)))})
     (record! q kind id)))
 
-(defn- change!
-  [q kind record status actor action reason]
-  (let [payload (apply dissoc (assoc record :history (history record action actor reason))
-                       [:id :config_id :kind :code :revision :status :created_by :created_at :updated_at :created_by_name])]
-    (r/changed! (q :config/update! {:config_id (:id record) :status status :payload (json/generate-string payload)}))
-    (record! q kind (:id record))))
+(defn change!
+  "受控改变配置状态并追加历史, 可附带命令产生的补充字段 (如费用池分摊结果)."
+  ([q kind record status actor action reason] (change! q kind record status actor action reason {}))
+  ([q kind record status actor action reason patch]
+   (let [payload (apply dissoc (merge (assoc record :history (history record action actor reason)) patch)
+                        [:id :config_id :kind :code :revision :status :created_by :created_at :updated_at :created_by_name])]
+     (r/changed! (q :config/update! {:config_id (:id record) :status status :payload (json/generate-string payload)}))
+     (record! q kind (:id record)))))
 
 (defn create!
   "创建新编码的首个版本: 常规类型为草稿, 封期直接锁定."
@@ -272,10 +274,12 @@
   (r/permit! actor (write-permissions kind))
   (k/transaction! svc
     (fn [q]
-      (let [fields (content! kind body)]
-        (when (some #(= (:code fields) (:code %)) (records q kind))
+      (let [fields (content! kind body)
+            existing (filter #(= (:code fields) (:code %)) (records q kind))]
+        (when (some #(not= "retired" (:status %)) existing)
           (r/fail! 409 "编码已存在, 请对最新版本创建修订"))
-        (insert! q actor kind fields 1 (if (= kind "period-lock") "locked" "draft"))))))
+        ;; 同编码全部已退役 (如解锁后的封期, 已退役的费用池) 时以新修订号重新建立, 保留历史.
+        (insert! q actor kind fields (inc (reduce max 0 (map :revision existing))) (if (= kind "period-lock") "locked" "draft"))))))
 
 (defn revise!
   "从最新版本创建新修订草稿, 旧版本内容不变."

@@ -28,7 +28,7 @@
   {"project" "项目" "sub" "子项目/单元" "machine" "单机" "document" "证据文档" "requirement" "URS需求" "task" "WBS任务"})
 
 
-(defn- config-dialog
+(defn config-dialog
   "平台配置命令弹窗: 不携带项目版本, 成功后刷新列表."
   [{:keys [title path fields initial transform description on-close on-saved]}]
   (let [[form] (antd/form-use-form)
@@ -233,14 +233,82 @@
       (for [h (:history record)] ^{:key (:at h)} [:li (str (:at h) " · " (:action h) " · " (:actor_name h))])])])
 
 
+(defn- pool-preview
+  "只读预览费用池按项目已批准工时的分摊结果 (守恒)."
+  [pool on-close]
+  (let [resource (shared/use-resource (str "/config/rd-pool/" (:id pool) "/preview") {} [])]
+    [antd/modal {:title (str "分摊预览 · " (:code pool)) :open true :onCancel on-close :footer nil :width 760}
+     [w/resource-view resource
+      (fn [data]
+        [:div {:style {:display "grid" :gap 12}}
+         [antd/space {:wrap true}
+          [antd/tag {:color "blue"} (str "费用池 " (get-in data [:pool :amount]) " " (get-in data [:pool :currency]))]
+          [antd/tag (str "期间已批准工时 " (:total_minutes data) " 分钟")]
+          [antd/tag {:color (if (:conserved data) "green" "red")} (if (:conserved data) "总额守恒" "不守恒")]]
+         (if (empty? (:rows data))
+           [:span {:style {:color "#98a2b3"}} "期间内没有已批准工时, 不能分摊."]
+           [w/record-table (:rows data)
+            [(w/text-column :project_no "项目编号") (w/text-column :project_name "项目") (w/text-column :hours "已批准工时(h)")
+             (w/text-column :minutes "分钟") (w/text-column :amount "分摊金额")] nil])])]]))
+
+
+(defn- pool-section
+  "F05 跨项目研发费用池: 冻结后按期间内各项目已批准工时分摊, 在各项目生成待审核核算版本."
+  [{:keys [data editable? open! detail!] :as context}]
+  (let [approver? (shared/use-permission "pms:finance:approve")]
+    [shared/panel "跨项目研发费用池" "冻结费用池与期间工时后按批准算法分摊 (最大余数法, 舍入守恒, 零工时项目不分摊, 直接人工不重计), 各项目核算版本仍需独立财务审批"
+     (when approver?
+       [antd/button {:type "primary" :on-click (fn [] (open! {:title "建立研发费用池" :path "/config/rd-pool" :initial {:currency "CNY"}
+                                                               :fields [{:key :period :label "期间 (YYYY-MM)" :required? true}
+                                                                        {:key :amount :label "费用池金额" :required? true}
+                                                                        {:key :currency :label "币种" :type :select :options (mapv (fn [c] {:value c :label c}) ["CNY" "USD" "EUR" "GBP" "HKD"])}
+                                                                        {:key :description :label "说明" :type :textarea}]}))} "建立研发费用池"])
+     [w/record-table (:rows data)
+      [(w/text-column :code "费用池") (w/text-column :period "期间") (w/text-column :amount "金额") (w/text-column :currency "币种")
+       {:title "分摊" :dataIndex "allocation" :width 200
+        :render (fn [v] (r/as-element (if v [antd/tag {:color "green"} (str "已分摊到 " (count (aget v "rows")) " 个项目")] [antd/tag "未分摊"])))}
+       {:title "状态" :dataIndex "status" :width 100 :render #(r/as-element [status-badge %])}]
+      (fn [row]
+        [antd/space {:wrap true}
+         [w/edit-button "预览分摊" #(detail! row)]
+         (when (and approver? (= "draft" (:status row)))
+           [w/edit-button "冻结" #(open! {:title "冻结费用池" :path (str "/config/rd-pool/" (:id row) "/publish") :fields [{:key :reason :label "说明" :type :textarea}]})])
+         (when (and approver? (= "frozen" (:status row)) (nil? (:allocation row)))
+           [w/edit-button "执行分摊" (fn [] (open! {:title "执行跨项目分摊" :path (str "/config/rd-pool/" (:id row) "/allocate")
+                                                    :description "在每个有已批准工时的项目生成待审核的核算版本与人工成本条目; 幂等不重复计费."
+                                                    :fields [{:key :reviewer_id :label "各项目核算版本的财务审批人" :type :select :required? true
+                                                              :options (w/user-options (:users (:options context)))}
+                                                             {:key :name :label "版本名称"}]}))])
+         (when (and approver? (contains? #{"draft" "frozen"} (:status row)))
+           [w/edit-button "退役" #(open! {:title "退役费用池" :path (str "/config/rd-pool/" (:id row) "/retire") :fields [{:key :reason :label "原因" :type :textarea :required? true}]})])])]]))
+
+
+(defn- lock-section
+  "F04 工时封期: 锁定期间后该期间工时不可提交/更正, 解锁保留审计."
+  [{:keys [data open!]}]
+  (let [approver? (shared/use-permission "pms:finance:approve")]
+    [shared/panel "工时封期" "封期后该期间的工时提交与批准后更正均被拒绝; 解锁记录原因与操作人"
+     (when approver?
+       [antd/button {:type "primary" :on-click #(open! {:title "锁定期间" :path "/config/period-lock"
+                                                         :fields [{:key :period :label "期间 (YYYY-MM)" :required? true}
+                                                                  {:key :reason :label "封期原因" :type :textarea :required? true}]})} "锁定期间"])
+     [w/record-table (:rows data)
+      [(w/text-column :period "期间") (w/text-column :reason "原因") (w/text-column :created_by_name "操作人")
+       {:title "状态" :dataIndex "status" :width 100 :render #(r/as-element [status-badge %])}]
+      (fn [row]
+        (when (and approver? (= "locked" (:status row)))
+          [w/edit-button "解锁" #(open! {:title "解锁期间" :path (str "/config/period-lock/" (:id row) "/retire") :fields [{:key :reason :label "解锁原因" :type :textarea :required? true}]})]))]]))
+
+
 (defn- kind-workspace
   "按类型加载配置列表并协调命令弹窗."
   [kind section detail-view]
   (let [resource (shared/use-resource (str "/config/" kind) {} [])
+        options (shared/use-resource "/options" {} [])
         [dialog set-dialog!] (hooks/use-state nil)
         [detail set-detail!] (hooks/use-state nil)
         editable? (shared/use-permission "pms:config:edit")
-        context {:kind kind :data (:data resource) :editable? editable? :open! set-dialog! :detail! set-detail!}]
+        context {:kind kind :data (:data resource) :options (:data options) :editable? editable? :open! set-dialog! :detail! set-detail!}]
     [:div
      [w/resource-view resource (fn [_] [section context])]
      (when dialog [config-dialog (merge dialog {:on-close #(set-dialog! nil)
@@ -257,4 +325,8 @@
    [antd/tabs {:items [{:key "templates" :label "项目模板"
                         :children (r/as-element [kind-workspace "project-template" template-section template-detail])}
                        {:key "rules" :label "编码与版本规则"
-                        :children (r/as-element [kind-workspace "coding-rule" rule-section rule-detail])}]}]])
+                        :children (r/as-element [kind-workspace "coding-rule" rule-section rule-detail])}
+                       {:key "pools" :label "研发费用池"
+                        :children (r/as-element [kind-workspace "rd-pool" pool-section pool-preview])}
+                       {:key "locks" :label "工时封期"
+                        :children (r/as-element [kind-workspace "period-lock" lock-section rule-detail])}]}]])

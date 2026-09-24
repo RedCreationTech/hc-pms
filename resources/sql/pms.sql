@@ -129,3 +129,12 @@ WHERE ur.user_id=:user_id AND r.status='0' AND r.del_flag='0' AND m.status='0'
 -- :name pms/update-root! :! :n
 UPDATE pms_node SET node_code=:project_no,name=:name WHERE project_id=:project_id AND node_type='main'
 --;;
+
+-- :name pms/authorized-projects :? :*
+SELECT p.*, COALESCE(u.nick_name, u.user_name) AS manager_name, d.dept_name
+FROM pms_project p LEFT JOIN sys_user u ON u.user_id = p.manager_id
+LEFT JOIN sys_dept d ON d.dept_id = p.dept_id
+WHERE (:admin = 1 OR p.manager_id = :user_id
+       OR EXISTS (SELECT 1 FROM pms_member pm WHERE pm.project_id = p.project_id AND pm.user_id = :user_id))
+ORDER BY p.created_at DESC, p.project_id
+--;;

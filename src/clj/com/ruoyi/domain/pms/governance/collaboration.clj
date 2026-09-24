@@ -397,15 +397,34 @@
         meetings))
 
 
+(defn escalate-overdue!
+  "C09 逾期追溯升级: 对已逾期且尚未升级的未关闭问题追溯升级到经理层, 进入待独立确认, 提交解决须先确认."
+  [svc actor id rid body]
+  (k/mutate! svc actor id "pms:project:edit" body "issue.escalated"
+             (fn [q project]
+               (s/input! body [:reason])
+               (let [issue (s/record! q project "issue" rid)]
+                 (s/status! issue #{"open" "rejected"})
+                 (when (:escalated issue) (r/fail! 409 "问题已处于升级处置中"))
+                 (when-not (and (:due_date issue) (not (.isAfter (LocalDate/parse (:due_date issue)) (LocalDate/now))))
+                   (r/fail! 409 "问题尚未逾期, 不能追溯升级"))
+                 (s/change! q project issue (:status issue)
+                            {:escalated true :escalation_state "pending" :escalation_level "management"
+                             :escalation_source "overdue_retroactive"
+                             :escalation_reason (str "逾期追溯升级: " (s/optional-text! body :reason 500))
+                             :escalated_by (:user_id actor)})))))
+
+
 (defn issue-read-model
-  "以服务器日期展示问题是否逾期未关闭, 标记阻断级严重度, 并给出剩余到期天数与临期提示供台账倒计时."
+  "以服务器日期展示问题是否逾期未关闭, 标记阻断级严重度, 并给出剩余到期天数与临期提示供台账倒计时; 逾期且未升级时给出追溯升级建议."
   [issue]
   (let [closed? (= "closed" (:status issue))
-        days (when-not closed? (days-until (:due_date issue)))]
+        days (when-not closed? (days-until (:due_date issue)))
+        overdue? (boolean (and (:due_date issue) (not closed?)
+                               (not (.isAfter (LocalDate/parse (:due_date issue)) (LocalDate/now)))))]
     (assoc issue
-           :issue_overdue (boolean (and (:due_date issue)
-                                        (not closed?)
-                                        (not (.isAfter (LocalDate/parse (:due_date issue)) (LocalDate/now)))))
+           :issue_escalation_suggested (boolean (and overdue? (not (:escalated issue)) (contains? #{"open" "rejected"} (:status issue))))
+           :issue_overdue overdue?
            :issue_critical (= "blocker" (:severity issue))
            :issue_due_in_days days
            :issue_due_soon (boolean (and (some? days) (<= 1 days due-soon-days))))))

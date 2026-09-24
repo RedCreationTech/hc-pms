@@ -263,7 +263,7 @@
 
 
 (deftest preship-conditions-handover-deadline-and-site-tasks
-  (let [ctx (context! {:pre_ship_conditions ["warehouse_in" "payment"] :handover_deadline_days 2 :site_lag_days 1})
+  (let [ctx (context! {:pre_ship_conditions ["warehouse_in" "payment"] :handover_deadline_days 2 :site_lag_days 1 :handover_required true})
         id (:id ctx) shipment (shipped-shipment! ctx)]
     ;; E04: 未确认入库/提货款 -> 发运提交被拒; 读模型给出条件清单.
     (is (= 409 (error-status #(command! id :shipments :submit (:id shipment) {:evidence_ids [(:evidence ctx)]}))))

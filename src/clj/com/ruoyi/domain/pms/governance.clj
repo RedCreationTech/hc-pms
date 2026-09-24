@@ -95,6 +95,7 @@
                           :traceability traceability
                           :trace_summary (evidence/trace-summary traceability)
                           :document_collection (evidence/document-collection (:documents data))
+                          :document_tree (evidence/document-tree (:documents data))
                           :verification_coverage (evidence/verification-coverage (:requirements data))
                           :release_coverage (evidence/release-coverage (:documents data))
                           :gate_progress (gates/gate-progress (:gate_templates data) (:gates data))
@@ -146,6 +147,7 @@
    [:issues :reassign] collab/reassign-issue!
    [:issues :resolve] collab/resolve! [:issues :decision] collab/verify!
    [:issues :escalate] collab/acknowledge-issue-escalation!
+   [:issues :escalate-overdue] collab/escalate-overdue!
    [:meetings :create] (creating collab/create-meeting!)
    [:meetings :actions] collab/create-action! [:actions :task] collab/materialize-action!
    [:actions :complete] collab/complete-action! [:actions :verify] collab/verify-action!

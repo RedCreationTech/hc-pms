@@ -91,11 +91,21 @@
                             {:revision (inc (:revision old)) :status "registered"})))))
 
 
+(defn classified!
+  "C05 密级过滤: 机密文档的正文预览/下载/打包须具备 pms:document:confidential 权限, 逐次访问逐文件检查."
+  [actor document]
+  (when (= "confidential" (:classification document))
+    (when-not (or (:admin? actor) (contains? (:permissions actor) "*:*:*")
+                  (contains? (:permissions actor) "pms:document:confidential"))
+      (r/fail! 403 (str "无机密文档访问权限: " (:code document)))))
+  document)
+
+
 (defn content
-  "读取已授权项目中的确切文件版本内容."
+  "读取已授权项目中的确切文件版本内容, 机密文档须具备密级权限."
   [svc actor id rid]
   (k/read! svc actor id "pms:project:query"
-           (fn [q project] (s/record! q project "document" rid))))
+           (fn [q project] (classified! actor (s/record! q project "document" rid)))))
 
 
 (defn batch-content
@@ -107,7 +117,7 @@
              (let [ids (:record_ids body)]
                (when-not (and (vector? ids) (<= 1 (count ids) 50) (= (count ids) (count (set ids))))
                  (r/fail! 400 "批量下载须为1到50个不重复的文档版本ID"))
-               {:documents (mapv #(select-keys (s/record! q project "document" %)
+               {:documents (mapv #(select-keys (classified! actor (s/record! q project "document" %))
                                                [:id :code :revision :filename :content_type :content :sha256 :byte_size
                                                 :classification :stage :structure_node])
                                  ids)}))))
@@ -199,22 +209,38 @@
                   :count (:count checked)}))))
 
 
+(def trace-phases
+  "追踪关系所属阶段: 设计/需求确认/SIT/FAT/SAT."
+  #{"design" "requirement-confirm" "SIT" "FAT" "SAT"})
+
+
+(def deviation-levels
+  "偏差分级: 无/一般/严重/阻塞."
+  #{"none" "minor" "major" "blocker"})
+
+
 (defn trace!
-  "将确定需求版本关联到同项目文档版本或真实WBS任务."
+  "将确定需求版本关联到同项目文档版本或真实WBS任务, 可选标注阶段与偏差分级 (C03 偏差校准)."
   [svc actor id body]
   (k/mutate! svc actor id "pms:project:edit" body "trace.created"
              (fn [q project]
-               (s/input! body [:requirement_id :target_kind :target_id :relation])
+               (s/input! body [:requirement_id :target_kind :target_id :relation :phase :deviation_level :deviation_note])
                (let [req (s/record! q project "requirement" (:requirement_id body))
                      kind (s/enum! (:target_kind body) #{"document" "task"} "target_kind")
                      target (s/text! body :target_id 36)
-                     relation (s/enum! (:relation body) #{"satisfies" "verifies"} "relation")]
+                     relation (s/enum! (:relation body) #{"satisfies" "verifies"} "relation")
+                     phase (when (seq (:phase body)) (s/enum! (:phase body) trace-phases "phase"))
+                     deviation (when (seq (:deviation_level body)) (s/enum! (:deviation_level body) deviation-levels "deviation_level"))]
                  (if (= kind "document") (s/record! q project "document" target)
                      (when-not (q :planning/task {:project_id (:project_id project) :task_id target})
                        (r/fail! 404 "任务不存在或不属于本项目")))
+                 (when (and deviation (not= "none" deviation) (empty? (:deviation_note body)))
+                   (r/fail! 400 "登记偏差必须填写偏差说明"))
                  (s/insert! q project actor "trace"
-                            {:code (str (:id req) ":" kind ":" target ":" relation)
-                             :requirement_id (:id req) :target_kind kind :target_id target :relation relation}
+                            (cond-> {:code (str (:id req) ":" kind ":" target ":" relation)
+                                     :requirement_id (:id req) :target_kind kind :target_id target :relation relation}
+                              phase (assoc :phase phase)
+                              deviation (assoc :deviation_level deviation :deviation_note (s/optional-text! body :deviation_note 1000)))
                             {:status "registered"})))))
 
 
@@ -234,19 +260,48 @@
                :verification_links (count verifies)
                :satisfied? satisfied?
                :verified? verified?
+               :phases (vec (distinct (remove nil? (map :phase links))))
+               :worst_deviation (let [order ["none" "minor" "major" "blocker"]
+                                      levels (remove nil? (map :deviation_level links))]
+                                  (when (seq levels) (last (sort-by #(.indexOf ^java.util.List order %) levels))))
                :missing (cond-> []
                           (not satisfied?) (conj "satisfies")
                           (not verified?) (conj "verifies"))}))
-          (s/latest requirements))))
+          (filterv #(not= "discarded" (:status %)) (s/latest requirements)))))
 
 
 (defn trace-summary
   "汇总追踪矩阵整链齐备与缺链计数; 分母仅取当前最新版本需求集合, 不等于对批准范围基线的覆盖率."
   [report]
-  {:requirements (count report)
-   :fully-traced (count (filterv #(and (:satisfied? %) (:verified? %)) report))
-   :missing-design (count (remove :satisfied? report))
-   :missing-verification (count (remove :verified? report))})
+  (let [total (count report)
+        full (count (filterv #(and (:satisfied? %) (:verified? %)) report))
+        pct (fn [n] (if (zero? total) 0 (int (Math/round (* 100.0 (/ n total))))))]
+    {:requirements total
+     :fully-traced full
+     :missing-design (count (remove :satisfied? report))
+     :missing-verification (count (remove :verified? report))
+     :coverage-pct (pct full)
+     :design-pct (pct (count (filter :satisfied? report)))
+     :verification-pct (pct (count (filter :verified? report)))
+     :by-phase (into {} (for [phase ["design" "requirement-confirm" "SIT" "FAT" "SAT"]]
+                          [phase (count (filter #(some #{phase} (:phases %)) report))]))
+     :deviations (into {} (for [level ["minor" "major" "blocker"]]
+                            [level (count (filter #(= level (:worst_deviation %)) report))]))
+     :blocking-deviations (count (filter #(= "blocker" (:worst_deviation %)) report))}))
+
+
+(defn document-tree
+  "C04 多层下钻: 阶段 -> 结构节点 -> 密级 -> 最新版本文档 (含编号/版本/状态/创建人/密级), 只读派生, 已作废最新版本不计."
+  [documents]
+  (let [latest (filterv #(not= "discarded" (:status %)) (s/latest documents))
+        leaf (fn [doc] (select-keys doc [:id :code :revision :title :status :created_by :classification :stage :structure_node :filename :created_at]))]
+    (vec (for [[stage stage-docs] (sort-by first (group-by #(or (:stage %) "") latest))]
+           {:stage (if (= "" stage) "未归集阶段" stage) :count (count stage-docs)
+            :nodes (vec (for [[node node-docs] (sort-by first (group-by #(or (:structure_node %) "") stage-docs))]
+                          {:structure_node (if (= "" node) "未归集节点" node) :count (count node-docs)
+                           :classifications (vec (for [[cls cls-docs] (sort-by first (group-by #(or (:classification %) "internal") node-docs))]
+                                                   {:classification cls :count (count cls-docs)
+                                                    :documents (mapv leaf (sort-by :code cls-docs))}))}))}))))
 
 
 (defn document-collection

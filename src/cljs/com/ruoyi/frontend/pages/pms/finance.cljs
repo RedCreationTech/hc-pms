@@ -88,12 +88,51 @@
    [w/record-table (:time_entries model)
     [{:title "任务" :dataIndex "task_id" :render #(w/related-label (:tasks planning) :task_id :name %)}
      (w/text-column :work_date "工作日期") (w/text-column :hours "小时")
-     (w/text-column :note "工作内容") (w/state-column)]
+     (w/text-column :note "工作内容")
+     {:title "更正" :dataIndex "corrects_entry_id" :width 160
+      :render (fn [v row] (r/as-element (cond (seq v) [antd/tag {:color "orange"} (str "更正单 · " (aget row "correction_reason"))]
+                                              (= "corrected" (aget row "status")) [antd/tag "已被更正"]
+                                              :else [:span "—"])))}
+     {:title "状态" :dataIndex "status" :width 100
+      :render #(r/as-element [antd/tag {:color (case % "approved" "green" "rejected" "red" "corrected" "default" "blue")}
+                              (get {"submitted" "待审核" "approved" "已批准" "rejected" "已驳回" "corrected" "已更正"} % %)])}]
     (fn [entry]
-      (when (and time-approve? (= "submitted" (:status entry)) (reviewer? options entry))
-        [antd/space
-         [w/edit-button "批准" #(open! (review-dialog (str base "/time-entries/" (:id entry) "/review") "approved" "批准工时单"))]
-         [w/edit-button "驳回" #(open! (review-dialog (str base "/time-entries/" (:id entry) "/review") "rejected" "驳回工时单"))]]))]])
+      [antd/space
+       (when (and time-approve? (= "submitted" (:status entry)) (reviewer? options entry))
+         [:<>
+          [w/edit-button "批准" #(open! (review-dialog (str base "/time-entries/" (:id entry) "/review") "approved" "批准工时单"))]
+          [w/edit-button "驳回" #(open! (review-dialog (str base "/time-entries/" (:id entry) "/review") "rejected" "驳回工时单"))]])
+       (when (and time-editable? (= "approved" (:status entry)) (= (:currentUserId options) (:user_id entry)))
+         [w/edit-button "更正" #(open! {:title "更正已批准工时" :path (str base "/time-entries/" (:id entry) "/correct")
+                                       :description "原工时单置为已更正并释放容量, 更正单重新独立审核; 封期内不可更正."
+                                       :initial {:hours (:hours entry) :note (:note entry)}
+                                       :fields [{:key :hours :label "更正后小时" :required? true}
+                                                {:key :note :label "工作内容" :required? true}
+                                                {:key :reason :label "更正原因" :type :textarea :required? true}
+                                                (forms/reviewer-field options)]})])])]])
+
+(def category-labels
+  {"material" "材料" "labor" "人工" "manufacturing" "制造" "travel" "差旅/现场" "other" "其它" "change_loss" "变更损失"})
+
+(defn- four-count-section
+  "F06 四算拉通: 概算/预算/核算/决算最新批准版本按分类对比与逐级差异 (只读派生)."
+  [{:keys [model]}]
+  (let [fc (:four_count model) v (:versions fc)]
+    [shared/panel "四算拉通" (if (:comparable fc) (str "各口径最新已批准版本 · " (or (:currency fc) "")) "各口径币种不一致, 不可直接比较") nil
+     (if (empty? (:rows fc))
+       [:span {:style {:color "#98a2b3"}} "尚无已批准的成本版本, 批准后自动拉通比较."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         (for [[k label] [[:budget_vs_estimate "预算-概算"] [:actual_vs_budget "核算-预算"] [:settlement_vs_actual "决算-核算"] [:settlement_vs_budget "决算-预算"]]
+               :let [val (get-in fc [:variances k])] :when val] ^{:key k}
+           [antd/tag {:color (if (.startsWith val "-") "green" "volcano")} (str label " " val)])]
+        [antd/table {:rowKey "category" :size "small" :pagination false
+                     :dataSource (clj->js (conj (vec (:rows fc)) (assoc (:totals fc) :category "合计")))
+                     :columns (clj->js [{:title "分类" :dataIndex "category" :render (fn [c] (get category-labels c c))}
+                                        {:title (str "概算" (when (:estimate v) (str " v" (:version_no (:estimate v))))) :dataIndex "estimate" :render (fn [x] (or x "—"))}
+                                        {:title (str "预算" (when (:budget v) (str " v" (:version_no (:budget v))))) :dataIndex "budget" :render (fn [x] (or x "—"))}
+                                        {:title (str "核算" (when (:actual v) (str " v" (:version_no (:actual v))))) :dataIndex "actual" :render (fn [x] (or x "—"))}
+                                        {:title (str "决算" (when (:settlement v) (str " v" (:version_no (:settlement v))))) :dataIndex "settlement" :render (fn [x] (or x "—"))}])}]])]))
 
 (defn- cost-actions
   "根据版本状态提供条目维护,提交或独立审批."
@@ -163,6 +202,7 @@
    [summary-cards (:model context)]
    [antd/tabs {:items [{:key "costs" :label "成本与分摊"
                         :children (r/as-element [:div {:style {:display "grid" :gap 20}}
+                                                [four-count-section context]
                                                 [cost-section context] [ledger-section context selected] [allocation-history (:model context)]])}
                        {:key "time" :label "实际工时" :children (r/as-element [time-section context])}]}]])
 

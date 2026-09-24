@@ -19,6 +19,27 @@
                                  (assoc (select-keys v [:version_id :period :currency :revenue :margin])
                                         :amount (:total v)))]))}))
 
+(defn four-count-comparison
+  "F06 四算拉通: 各口径取最新已批准版本, 按费用分类对比金额, 并给出概算->预算->核算->决算的逐级差异; 只读派生, 币种不一致时标注不可比."
+  [versions]
+  (let [approved (filter #(= "approved" (:status %)) versions)
+        latest (into {} (for [kind ["estimate" "budget" "actual" "settlement"]]
+                          [kind (->> approved (filter #(= kind (:kind %))) (sort-by :version_no >) first)]))
+        currencies (distinct (map :currency (remove nil? (vals latest))))
+        categories (distinct (mapcat #(map :category (:entries %)) (remove nil? (vals latest))))
+        sum (fn [version category] (reduce + 0 (map :amount_minor (filter #(= category (:category %)) (:entries version)))))
+        rows (mapv (fn [category]
+                     (into {:category category}
+                           (for [[kind version] latest] [(keyword kind) (when version (money/money (sum version category)))])))
+                   categories)
+        totals (into {} (for [[kind version] latest] [(keyword kind) (when version (:total version))]))
+        diff (fn [a b] (when (and (get latest a) (get latest b)) (money/money (- (:total_minor (get latest b)) (:total_minor (get latest a))))))]
+    {:comparable (<= (count currencies) 1) :currency (first currencies)
+     :versions (into {} (for [[kind version] latest] [(keyword kind) (when version (select-keys version [:id :version_no :period :name :revenue :total :margin]))]))
+     :rows rows :totals totals
+     :variances {:budget_vs_estimate (diff "estimate" "budget") :actual_vs_budget (diff "budget" "actual")
+                 :settlement_vs_actual (diff "actual" "settlement") :settlement_vs_budget (diff "budget" "settlement")}}))
+
 (defn overview
   "在项目权限和财务权限交集内返回可对账四算与工时数据."
   [svc actor project-id]
@@ -27,7 +48,8 @@
       (let [versions (mapv #(cost/dto q %) (q :finance/versions {:project_id project-id}))]
         (merge {:project_version (:version project) :cost_versions versions
                 :time_entries (mapv time/dto (q :finance/times {:project_id project-id}))
-                :allocations (mapv allocation/dto (q :finance/allocations {:project_id project-id}))}
+                :allocations (mapv allocation/dto (q :finance/allocations {:project_id project-id}))
+                :four_count (four-count-comparison versions)}
                (summary versions))))))
 
 (defn times

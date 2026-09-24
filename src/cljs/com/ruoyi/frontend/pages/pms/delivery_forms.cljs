@@ -177,7 +177,7 @@
   [{:keys [base model]}]
   {:title "配置交付验收要求" :path (str base "/configuration")
    :initial (select-keys (:configuration model) [:required_stages :required_test_types :required_survey_visits :pre_ship_conditions
-                                                 :handover_deadline_days :site_lag_days])
+                                                 :handover_deadline_days :site_lag_days :handover_required])
    :fields [{:key :required_stages :label "必需交付环节" :type :multi :required? true
              :options [{:value "materials" :label "备料与BOM"} {:value "assembly" :label "装配交检"}
                        {:value "quality" :label "质量试验"} {:value "shipment" :label "发运签收"}]}
@@ -186,6 +186,8 @@
             {:key :pre_ship_conditions :label "发货前本地条件" :type :multi
              :options [{:value "warehouse_in" :label "入库/装箱已确认"} {:value "payment" :label "提货款条件已确认"}]}
             {:key :handover_deadline_days :label "发货后交底截止 (自然日)" :type :number :min 0 :max 30}
+            {:key :handover_required :label "交底未完成是否阻塞收尾" :type :select
+             :options [{:value true :label "阻塞收尾"} {:value false :label "仅提示"}]}
             {:key :site_lag_days :label "交底后现场任务滞后 (自然日)" :type :number :min 0 :max 30}
             {:key :reason :label "配置依据" :type :textarea :required? true}]})
 

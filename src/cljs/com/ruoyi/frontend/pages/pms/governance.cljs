@@ -99,6 +99,34 @@
   (if (= "" k) "未归集" k))
 
 
+(def class-labels {"public" "公开" "internal" "内部" "confidential" "机密"})
+
+
+(defn- tree-section
+  "C04 多层下钻: 阶段 -> 结构节点 -> 密级 -> 最新版本文档, 只读派生."
+  [{:keys [model document!]}]
+  (let [tree (:document_tree model)
+        node (fn [key title children] {:key key :title (r/as-element title) :children children})
+        data (mapv (fn [stage]
+                     (node (str "s:" (:stage stage)) [:span [:strong (:stage stage)] (str "  " (:count stage) " 份")]
+                           (mapv (fn [n]
+                                   (node (str "s:" (:stage stage) ":n:" (:structure_node n)) [:span (:structure_node n) (str "  " (:count n) " 份")]
+                                         (mapv (fn [c]
+                                                 (node (str "s:" (:stage stage) ":n:" (:structure_node n) ":c:" (:classification c))
+                                                       [antd/tag {:color (get {"public" "green" "internal" "blue" "confidential" "red"} (:classification c))} (str (get class-labels (:classification c) (:classification c)) " " (:count c))]
+                                                       (mapv (fn [d] {:key (:id d) :isLeaf true
+                                                                      :title (r/as-element [antd/button {:type "link" :size "small" :style {:padding 0} :on-click #(document! d)}
+                                                                                            (str (:code d) " V" (:revision d) " · " (:title d) " · " (get {"registered" "已登记" "in_review" "待发布审批" "approved" "已发布" "rejected" "已退回"} (:status d) (:status d)))])})
+                                                             (:documents c))))
+                                               (:classifications n))))
+                                 (:nodes stage))))
+                   tree)]
+    [shared/panel "文档多层下钻" "阶段 -> 结构节点 -> 密级 -> 最新版本证据 (编号/版本/状态), 点击文档查看正文 (机密文档须密级权限)" nil
+     (if (empty? tree)
+       [:span {:style {:color "#8793a3"}} "暂无证据文档."]
+       [antd/tree {:treeData (clj->js data) :defaultExpandAll true :selectable false :showLine true}])]))
+
+
 (defn- collection-section
   "按每个文档编号的最新版本只读聚合阶段/结构节点/密级, 修订不重复计数; 最新版本已作废的编号不计入并单独提示."
   [{:keys [model]}]
@@ -382,7 +410,12 @@
                                             (let [item (js->clj row :keywordize-keys true)]
                                               (if (= "task" (:target_kind item)) (w/related-label (:tasks planning) :task_id :name (:target_id item))
                                                   (w/related-label (:documents model) :id :title (:target_id item)))))}
-     {:title "关系" :dataIndex "relation" :render #(if (= % "satisfies") "满足需求" "验证需求")}]
+     {:title "关系" :dataIndex "relation" :render #(if (= % "satisfies") "满足需求" "验证需求")}
+     {:title "阶段" :dataIndex "phase" :width 110 :render #(get forms/phase-labels % (or % "—"))}
+     {:title "偏差" :dataIndex "deviation_level" :width 200
+      :render (fn [v row] (r/as-element (cond (or (nil? v) (= v "none")) [:span {:style {:color "#98a2b3"}} "无偏差"]
+                                              :else [antd/space [antd/tag {:color (get {"minor" "gold" "major" "orange" "blocker" "red"} v "default")} (get forms/deviation-labels v v)]
+                                                     [:span {:style {:fontSize 12 :color "#718096"}} (aget row "deviation_note")]])))}]
     nil]])
 
 
@@ -405,14 +438,24 @@
      [antd/space {:wrap true :style {:marginBottom 12}}
       [antd/tag (str "需求版本 " (:requirements summary 0))]
       [antd/tag {:color "green"} (str "整链齐备 " (:fully-traced summary 0))]
+      [antd/tag {:color (cond (>= (get summary :coverage-pct 0) 100) "green" (pos? (get summary :coverage-pct 0)) "gold" :else "default")}
+       (str "整链覆盖率 " (get summary :coverage-pct 0) "%")]
+      [antd/tag {:color "blue"} (str "设计覆盖 " (get summary :design-pct 0) "% · 验证覆盖 " (get summary :verification-pct 0) "%")]
       [antd/tag {:color (if (pos? (:missing-design summary 0)) "orange" "default")}
        (str "缺设计满足 " (:missing-design summary 0))]
       [antd/tag {:color (if (pos? (:missing-verification summary 0)) "red" "default")}
-       (str "缺验证证据 " (:missing-verification summary 0))]]
+       (str "缺验证证据 " (:missing-verification summary 0))]
+      (for [[phase n] (get summary :by-phase)] ^{:key phase}
+        [antd/tag (str (get forms/phase-labels (name phase) (name phase)) " " n)])
+      (for [[level n] (get summary :deviations) :when (pos? n)] ^{:key level}
+        [antd/tag {:color (get {"minor" "gold" "major" "orange" "blocker" "red"} (name level) "default")} (str (get forms/deviation-labels (name level) (name level)) "偏差 " n)])]
      [w/record-table report
       [(w/text-column :code "URS编号") (w/text-column :revision "版本")
        {:title "优先级" :dataIndex "priority" :render #(get w/labels % %)}
        (w/text-column :design_links "设计满足数") (w/text-column :verification_links "验证证据数")
+       {:title "阶段" :dataIndex "phases" :width 160 :render (fn [v] (str/join ", " (map #(get forms/phase-labels % %) (js->clj v))))}
+       {:title "最严重偏差" :dataIndex "worst_deviation" :width 110
+        :render (fn [v] (r/as-element (if (or (nil? v) (= v "none")) [:span {:style {:color "#98a2b3"}} "无"] [antd/tag {:color (get {"minor" "gold" "major" "orange" "blocker" "red"} v)} (get forms/deviation-labels v v)])))}
        {:title "缺链检查" :dataIndex "missing" :render #(r/as-element (gap-tags %))}
        (w/state-column)]
       nil]]))
@@ -452,8 +495,9 @@
                 (let [esc (aget row "escalated") state (aget row "escalation_state")]
                   (r/as-element
                    (cond
+                     (and (not esc) (true? (aget row "issue_escalation_suggested"))) [antd/tag {:color "orange"} "逾期未升级, 建议追溯升级"]
                      (not esc) [:span {:style {:color "#98a2b3"}} "未触发"]
-                     (= state "pending") [antd/tag {:color "red"} (str "待升级确认 / " (aget row "escalation_level"))]
+                     (= state "pending") [antd/tag {:color "red"} (str "待升级确认 / " (aget row "escalation_level") (when (= "overdue_retroactive" (aget row "escalation_source")) " (逾期追溯)"))]
                      (= state "acknowledged") [antd/tag {:color "green"} "升级已确认"]
                      (= state "waived") [antd/tag {:color "blue"} "升级已豁免"]
                      :else [antd/tag state]))))}
@@ -507,8 +551,9 @@
                 (let [esc (aget row "escalated") state (aget row "escalation_state")]
                   (r/as-element
                    (cond
+                     (and (not esc) (true? (aget row "issue_escalation_suggested"))) [antd/tag {:color "orange"} "逾期未升级, 建议追溯升级"]
                      (not esc) [:span {:style {:color "#98a2b3"}} "未触发"]
-                     (= state "pending") [antd/tag {:color "red"} (str "待升级确认 / " (aget row "escalation_level"))]
+                     (= state "pending") [antd/tag {:color "red"} (str "待升级确认 / " (aget row "escalation_level") (when (= "overdue_retroactive" (aget row "escalation_source")) " (逾期追溯)"))]
                      (= state "acknowledged") [antd/tag {:color "green"} "升级已确认"]
                      (= state "waived") [antd/tag {:color "blue"} "升级已豁免"]
                      :else [antd/tag state]))))}
@@ -520,6 +565,10 @@
        (when (and approve? (:escalated issue) (= "pending" (:escalation_state issue))
                   (not= (:currentUserId options) (:created_by issue)))
          [w/edit-button "确认升级处置" #(open! (forms/issue-escalation-dialog base issue))])
+       (when (and editable? (:issue_escalation_suggested issue))
+         [w/edit-button "追溯升级" #(open! {:title "逾期追溯升级" :path (str base "/issues/" (:id issue) "/escalate-overdue")
+                                          :description "问题已逾期且未升级: 追溯升级到经理层并进入待独立确认, 确认前不能提交解决."
+                                          :fields [{:key :reason :label "升级说明" :type :textarea}]})])
        (when (and editable? (= "closed" (:status issue)))
          [w/edit-button "申请重开" #(open! (forms/issue-reopen-dialog base options (:documents model) issue))])
        (when (and editable? (contains? #{"open" "rejected"} (:status issue)))
@@ -749,7 +798,7 @@
                                                          (into [:div {:style {:display "grid" :gap 20}}] (map #(vector % context) components)))})
                     [["charter" "章程" [charter-section]]
                      ["requirements" "URS与追踪" [requirement-section coverage-section traceability-section trace-section]]
-                     ["evidence" "证据版本" [document-section collection-section release-coverage-section]]
+                     ["evidence" "证据版本" [document-section collection-section tree-section release-coverage-section]]
                      ["appointments" "成员任命" [appointment-section]]
                      ["stakeholders" "干系人与沟通" [stakeholder-section raci-section comm-plan-section]]
                      ["gates" "Gate评审" [gate-section]]

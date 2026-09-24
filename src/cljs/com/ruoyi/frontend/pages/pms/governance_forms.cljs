@@ -82,20 +82,35 @@
             {:key :content :label "文档正文" :type :textarea :max 1048576 :required? true}]})
 
 
+(def phase-labels
+  {"design" "设计" "requirement-confirm" "需求确认" "SIT" "SIT" "FAT" "FAT" "SAT" "SAT"})
+
+
+(def deviation-labels
+  {"none" "无" "minor" "一般" "major" "严重" "blocker" "阻塞"})
+
+
 (defn trace-dialog
-  "建立URS需求与文档版本或WBS任务的明确追踪关系."
+  "建立URS需求与文档版本或WBS任务的明确追踪关系, 可选阶段与偏差分级 (C03)."
   [base model planning]
   {:title "建立需求追踪" :path (str base "/traces") :initial {:relation "verifies"}
    :transform (fn [data]
                 (let [[kind id] (str/split (:target data) #":" 2)]
-                  (-> data (dissoc :target) (assoc :target_kind kind :target_id id))))
+                  (-> data (dissoc :target) (assoc :target_kind kind :target_id id)
+                      (cond-> (str/blank? (:phase data)) (dissoc :phase)
+                              (str/blank? (:deviation_level data)) (dissoc :deviation_level)
+                              (str/blank? (:deviation_note data)) (dissoc :deviation_note)))))
    :fields [{:key :requirement_id :label "URS需求版本" :type :select :required? true
              :options (mapv #(hash-map :value (:id %) :label (str (:code %) " / V" (:revision %) " / " (:text %))) (:requirements model))}
             {:key :target :label "关联交付物" :type :select :required? true
              :options (vec (concat (map #(hash-map :value (str "document:" (:id %)) :label (str "证据 / " (:title %) " V" (:revision %))) (:documents model))
                                    (map #(hash-map :value (str "task:" (:task_id %)) :label (str "任务 / " (:name %))) (:tasks planning))))}
             {:key :relation :label "追踪关系" :type :select :required? true
-             :options [{:value "satisfies" :label "满足需求"} {:value "verifies" :label "验证需求"}]}]})
+             :options [{:value "satisfies" :label "满足需求"} {:value "verifies" :label "验证需求"}]}
+            {:key :phase :label "所属阶段" :type :select :options (mapv (fn [[v l]] {:value v :label l}) phase-labels)}
+            {:key :deviation_level :label "偏差分级" :type :select :options (mapv (fn [[v l]] {:value v :label l}) deviation-labels)
+             :hint "SIT/FAT/SAT 验证发现偏差时分级登记, 阻塞级偏差会在追踪汇总中突出."}
+            {:key :deviation_note :label "偏差说明" :type :textarea}]})
 
 
 (defn risk-dialog

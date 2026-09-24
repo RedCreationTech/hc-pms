@@ -29,6 +29,21 @@ WHERE user_id=:user_id AND work_date=:work_date AND status<>'rejected'
 INSERT INTO pms_time_entry(entry_id,project_id,task_id,user_id,work_date,minutes,note,status,submitted_by,reviewer_id)
 VALUES (:entry_id,:project_id,:task_id,:user_id,:work_date,:minutes,:note,'submitted',:submitted_by,:reviewer_id)
 --;;
+-- :name finance/insert-correction! :! :n
+INSERT INTO pms_time_entry(entry_id,project_id,task_id,user_id,work_date,minutes,note,status,submitted_by,reviewer_id,corrects_entry_id,correction_reason)
+VALUES (:entry_id,:project_id,:task_id,:user_id,:work_date,:minutes,:note,'submitted',:submitted_by,:reviewer_id,:corrects_entry_id,:correction_reason)
+--;;
+-- :name finance/set-time-status! :! :n
+UPDATE pms_time_entry SET status=:status WHERE project_id=:project_id AND entry_id=:entry_id AND status=:from_status
+--;;
+-- :name finance/approved-times-in-period :? :*
+SELECT project_id,user_id,task_id,work_date,minutes FROM pms_time_entry
+WHERE status='approved' AND work_date>=:from_date AND work_date<=:to_date ORDER BY project_id,entry_id
+--;;
+-- :name finance/insert-plain-version! :! :n
+INSERT INTO pms_cost_version(version_id,project_id,kind,period,currency,name,revenue_minor,version_no,status,submitted_by,reviewer_id)
+VALUES (:version_id,:project_id,:kind,:period,:currency,:name,0,:version_no,'draft',:submitted_by,:reviewer_id)
+--;;
 -- :name finance/review-time! :! :n
 UPDATE pms_time_entry SET status=:status,review_note=:review_note,reviewed_at=CURRENT_TIMESTAMP
 WHERE project_id=:project_id AND entry_id=:entry_id AND status='submitted'

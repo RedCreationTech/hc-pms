@@ -22,6 +22,7 @@
   [["/projects/:id/finance" {:get (query svc finance/overview)}]
    ["/projects/:id/time-entries" {:get (query svc finance/times) :post (command svc time/submit! [])}]
    ["/projects/:id/time-entries/:entry_id/review" {:post (command svc time/review! [:entry_id])}]
+   ["/projects/:id/time-entries/:entry_id/correct" {:post (command svc time/correct! [:entry_id])}]
    ["/projects/:id/cost-versions" {:post (command svc cost/create! [])}]
    ["/projects/:id/cost-versions/:cost_id/entries" {:post (command svc cost/add-entry! [:cost_id])}]
    ["/projects/:id/cost-versions/:cost_id/entries/:entry_id" {:delete (command svc cost/delete-entry! [:cost_id :entry_id])}]

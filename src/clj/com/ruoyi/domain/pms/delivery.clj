@@ -46,8 +46,9 @@
            (for [service services :when (not= "closed" (:status service))]
              (str "售后异常尚未独立关闭: " (:title service)))
            (fieldwork/survey-blockers q project config)
-           (for [handover (d/records q project "handover") :when (= "open" (:status handover))]
-             (str "交底尚未完成: " (:code handover)))))))
+           (when (:handover_required config)
+             (for [handover (d/records q project "handover") :when (= "open" (:status handover))]
+               (str "交底尚未完成: " (:code handover))))))))
 
 
 (defn closure-ready!

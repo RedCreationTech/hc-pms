@@ -14,6 +14,7 @@
     [com.ruoyi.frontend.pages.pms.closure :as closure]
     [com.ruoyi.frontend.pages.pms.delivery :as delivery]
     [com.ruoyi.frontend.pages.pms.integration :as integration]
+    [com.ruoyi.frontend.pages.pms.process :as process]
     [reagent.core :as r]
     [reagent.hooks :as hooks]))
 
@@ -188,6 +189,8 @@
                        :children (r/as-element [governance/governance-workspace project revision member-options changed!])}
                       {:key "delivery" :label "工程交付"
                        :children (r/as-element [delivery/delivery-workspace project revision member-options changed!])}
+                      {:key "process" :label "过程看板"
+                       :children (r/as-element [process/process-workspace project revision])}
                       {:key "time" :label "实际工时"
                        :children (r/as-element [finance/time-workspace project revision member-options changed!])}
                       {:key "finance" :label "项目费用"
