@@ -58,6 +58,10 @@
 - 未做的本地能力: 反馈独立审核与偏差措施, 费率生成人工成本与金额口径挣值 (增量7), 多币种/期间关账 (增量7), Docker/K8S 部署件与恢复演练 (增量10), AI 问答 (需模型接入).
 - 定时扫描的 06:00 真实 cron 触发只由 Quartz 表达式与 "执行一次" 证明.
 
+## 演示视频
+
+同一流程另有带章节大标题, 底部字幕与原创配乐的演示视频 (13 分 18 秒, 1080p, 11 个功能节点章节卡, 90 条字幕): 分镜与字幕见 [15-demo-video-storyboard.md](15-demo-video-storyboard.md), 制作工具与命令见 `scripts/demo-video/README.md`, 成片输出到 `reports/demo-video/hc-pms-demo.mp4` (附 SRT 字幕), 验证记录见 [verification.md](verification.md) "品牌更名与完整流程演示视频".
+
 ## 重跑截图
 
 ```bash

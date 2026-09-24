@@ -44,3 +44,7 @@ CLAUDE.md
 # Local implementation scratch and temporary source material
 /work/
 data/pms-files/
+
+# Python bytecode (scripts/demo-video)
+__pycache__/
+*.pyc
