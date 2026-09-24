@@ -3,6 +3,7 @@
   (:require
     [clojure.data.csv :as csv]
     [clojure.string :as str]
+    [com.ruoyi.domain.pms.governance.files :as files]
     [com.ruoyi.domain.pms.governance.store :as s]
     [com.ruoyi.domain.pms.kernel :as k]
     [com.ruoyi.domain.pms.rules :as r])
@@ -48,10 +49,22 @@
   #{"public" "internal" "confidential"})
 
 
+(defn- document-meta!
+  "文本与文件两类证据共用的归集字段: 编号/标题/密级/阶段/结构节点/文档类别 (类别可选, 用于按模板文档类别归集)."
+  [body]
+  {:code (s/text! body :code 100) :title (s/text! body :title 200)
+   :classification (if (contains? body :classification)
+                     (s/enum! (:classification body) document-classifications "classification")
+                     "internal")
+   :stage (s/optional-text! body :stage 100)
+   :structure_node (s/optional-text! body :structure_node 100)
+   :category (s/optional-text! body :category 50)})
+
+
 (defn document!
-  "校验真实文本附件并由服务器计算字节数和SHA256; 密级/阶段/结构节点用于归集追踪, 密级缺省为内部."
+  "校验真实文本附件并由服务器计算字节数和SHA256; 密级/阶段/结构节点/类别用于归集追踪, 密级缺省为内部."
   [_ _ body]
-  (s/input! body [:code :title :filename :content :classification :stage :structure_node])
+  (s/input! body [:code :title :filename :content :classification :stage :structure_node :category])
   (let [filename (s/text! body :filename 150)
         content (:content body)
         _ (when-not (and (string? content) (not (str/blank? content)))
@@ -59,15 +72,21 @@
         bytes (.getBytes ^String content StandardCharsets/UTF_8)]
     (when (or (re-find #"[/\\\r\n]" filename) (> (alength bytes) 1048576))
       (r/fail! 400 "文件名非法或文本附件超过1MiB"))
-    {:code (s/text! body :code 100) :title (s/text! body :title 200)
-     :filename filename :content content :byte_size (alength bytes)
-     :classification (if (contains? body :classification)
-                       (s/enum! (:classification body) document-classifications "classification")
-                       "internal")
-     :stage (s/optional-text! body :stage 100)
-     :structure_node (s/optional-text! body :structure_node 100)
-     :content_type "text/plain; charset=utf-8"
-     :sha256 (format "%064x" (BigInteger. 1 (.digest (MessageDigest/getInstance "SHA-256") bytes)))}))
+    (merge (document-meta! body)
+           {:filename filename :content content :byte_size (alength bytes) :content_kind "text"
+            :content_type "text/plain; charset=utf-8"
+            :sha256 (format "%064x" (BigInteger. 1 (.digest (MessageDigest/getInstance "SHA-256") bytes)))})))
+
+
+(defn file-document!
+  "校验二进制证据: 表单字段白名单 + 文件名/类型白名单 + 大小上限, 文件按内容寻址落盘, 记录只保存元数据与摘要 (正文不进 JSON 载荷)."
+  [svc project body file]
+  (s/input! body [:code :title :classification :stage :structure_node :category])
+  (let [filename (files/filename! (:filename file))
+        stored (files/store! svc (:project_id project) filename (:tempfile file))]
+    (merge (document-meta! body)
+           (dissoc stored :preview)
+           {:filename filename :content_kind "file" :preview (:preview stored)})))
 
 
 (defn create!
@@ -89,6 +108,34 @@
                  (when-not (= (:code old) (:code fields)) (r/fail! 400 "修订不得改变业务编号"))
                  (s/insert! q project actor kind (assoc fields :previous_id rid)
                             {:revision (inc (:revision old)) :status "registered"})))))
+
+
+(defn upload!
+  "以真实上传文件登记证据文档首版 (multipart); 与文本证据共用编号/版本/发布/归集口径."
+  [svc actor id body file]
+  (k/mutate! svc actor id "pms:project:edit" body "document.created"
+             (fn [q project]
+               (s/insert! q project actor "document" (file-document! svc project body file) {:status "registered"}))))
+
+
+(defn upload-revision!
+  "以真实上传文件新增不可变修订, 保持原编号; 旧版本的物理文件与摘要不变."
+  [svc actor id rid body file]
+  (k/mutate! svc actor id "pms:project:edit" body "document.revised"
+             (fn [q project]
+               (let [old (s/latest! q project (s/record! q project "document" rid))
+                     fields (file-document! svc project body file)]
+                 (when-not (= (:code old) (:code fields)) (r/fail! 400 "修订不得改变业务编号"))
+                 (s/insert! q project actor "document" (assoc fields :previous_id rid)
+                            {:revision (inc (:revision old)) :status "registered"})))))
+
+
+(defn file-bytes
+  "读取二进制证据的完整字节并复核 SHA256 (仅 content_kind=file); 文本证据直接取 UTF-8 字节."
+  ^bytes [svc document]
+  (if (= "file" (:content_kind document))
+    (files/verified-bytes svc document)
+    (.getBytes ^String (or (:content document) "") StandardCharsets/UTF_8)))
 
 
 (defn classified!
@@ -118,8 +165,8 @@
                (when-not (and (vector? ids) (<= 1 (count ids) 50) (= (count ids) (count (set ids))))
                  (r/fail! 400 "批量下载须为1到50个不重复的文档版本ID"))
                {:documents (mapv #(select-keys (classified! actor (s/record! q project "document" %))
-                                               [:id :code :revision :filename :content_type :content :sha256 :byte_size
-                                                :classification :stage :structure_node])
+                                               [:id :code :revision :filename :content_type :content :content_kind :storage_key
+                                                :sha256 :byte_size :classification :stage :structure_node :category])
                                  ids)}))))
 
 
@@ -149,6 +196,8 @@
                  (s/change! q project record decision
                             {:decision_reason (s/text! body :reason)
                              :released_by (when (= "approved" decision) (:user_id actor))
+                             :released_at (when (= "approved" decision) (str (java.time.Instant/now)))
+                             :release_sha256 (when (= "approved" decision) (:sha256 record))
                              :decided_by (:user_id actor)})))))
 
 

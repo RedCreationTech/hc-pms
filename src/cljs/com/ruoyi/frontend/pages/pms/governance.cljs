@@ -11,6 +11,12 @@
     [reagent.hooks :as hooks]))
 
 
+(defn- file-size
+  [bytes]
+  (cond (nil? bytes) "-" (< bytes 1024) (str bytes " B") (< bytes 1048576) (str (.toFixed (/ bytes 1024) 1) " KiB")
+        :else (str (.toFixed (/ bytes 1048576) 2) " MiB")))
+
+
 (defn- review-actions
   "只向指定的独立审批人提供审批入口."
   [{:keys [base options editable? approve? open!]} collection record]
@@ -214,14 +220,16 @@
 
 (defn- document-section
   "列出可校验的真实证据文档及不可变版本, 支持打包批量下载, 密级过滤与独立发布审批."
-  [{:keys [base model options editable? approve? open! document! preview!]}]
+  [{:keys [base model options editable? approve? open! document! preview! upload!]}]
   (let [[class-filter set-class-filter!] (hooks/use-state nil)
         ids (latest-document-ids (:documents model)) current (:currentUserId options)
         all-docs (:documents model)
+        categories (:document_categories (first (:template_instances model)))
         docs (if (nil? class-filter) all-docs (filterv #(= class-filter (:classification %)) all-docs))]
-    [shared/panel "文档与版本证据" "证据引用绑定版本,内容由服务器计算SHA256摘要; 正式签发须经独立审批, 新修订不漂移旧批准"
+    [shared/panel "文档与版本证据" "文本与真实文件 (PDF/图片/Office 等) 均形成不可变版本, 服务器计算并复核 SHA256; 正式签发须经独立审批, 新修订不漂移旧批准"
      [antd/space {:wrap true}
-      (when editable? [antd/button {:on-click #(open! (forms/document-dialog base nil))} "登记证据文档"])
+      (when editable? [antd/button {:type "primary" :on-click #(upload! {:document nil :categories categories})} "上传证据文件"])
+      (when editable? [antd/button {:on-click #(open! (forms/document-dialog base nil categories))} "登记证据文档"])
       (when (seq ids)
         [antd/button {:on-click
                       (fn []
@@ -236,7 +244,11 @@
                     :onChange #(set-class-filter! (not-empty %))}]]
      [w/record-table docs
       [(w/text-column :code "文档编号") (w/text-column :title "标题") (w/text-column :revision "版本")
-       (w/text-column :filename "文件名")
+       {:title "文件" :key "file" :width 200 :ellipsis true
+        :render (fn [_ row] (r/as-element [:span (aget row "filename")
+                                           [:span {:style {:color "#98a2b3" :marginLeft 6 :fontSize 12}}
+                                            (if (= "file" (aget row "content_kind")) (file-size (aget row "byte_size")) "文本")]]))}
+       (w/text-column :category "类别")
        {:title "密级" :dataIndex "classification"
         :render #(get {"public" "公开" "internal" "内部" "confidential" "机密"} % %)}
        (w/text-column :stage "阶段")
@@ -244,7 +256,7 @@
        (w/text-column :sha256 "SHA256摘要")]
       (fn [row]
         [antd/space {:wrap true}
-         [w/edit-button "查看内容" #(document! row)]
+         [w/edit-button (if (= "file" (:content_kind row)) "预览/下载" "查看内容") #(document! row)]
          (when (and editable? (contains? #{"registered" "rejected"} (:status row)))
            [w/edit-button "提交发布"
             #(open! {:title "提交文档发布审批" :path (str base "/documents/" (:id row) "/submit")
@@ -254,7 +266,9 @@
            [:<>
             [w/edit-button "批准发布" #(open! (forms/decision-dialog (str base "/documents/" (:id row) "/decision") "approved" "正式签发发布"))]
             [w/edit-button "驳回" #(open! (forms/decision-dialog (str base "/documents/" (:id row) "/decision") "rejected" "驳回文档发布"))]])
-         (when editable? [w/edit-button "新版本" #(open! (forms/document-dialog base row))])
+         (when editable? [w/edit-button "新版本" (fn [] (if (= "file" (:content_kind row))
+                                                       (upload! {:document row :categories categories})
+                                                       (open! (forms/document-dialog base row categories))))])
          (when editable? [w/edit-button "级联影响" #(preview! {:collection "documents" :id (:id row) :label (str "证据文档 " (:code row))})])
          (when (and editable? (contains? #{"registered" "rejected"} (:status row)))
            [w/edit-button "作废" #(open! (forms/discard-dialog (str base "/documents/" (:id row) "/discard") "证据文档"))])
@@ -863,17 +877,94 @@
           (:content data)]])]]))
 
 
-(defn- document-preview
-  "通过授权请求读取保存的证据正文."
+(defn upload-dialog
+  "以真实文件 (multipart) 登记或修订证据文档: 文件按内容寻址落盘, 服务端计算 SHA256 并形成不可变版本."
+  [{:keys [base document categories project on-close on-saved]}]
+  (let [[form] (antd/form-use-form)
+        [file set-file!] (hooks/use-state nil)
+        [busy? set-busy!] (hooks/use-state false)
+        [error set-error!] (hooks/use-state nil)
+        revision? (some? document)
+        path (str base "/documents" (if revision? (str "/" (:id document) "/upload-revision") "/upload"))]
+    [antd/modal {:title (if revision? "新增证据文档版本 (上传文件)" "上传证据文件") :open true :onCancel on-close :onOk #(.submit form)
+                 :okText "上传" :cancelText "返回" :confirmLoading busy? :destroyOnHidden true
+                 :style {:maxWidth "calc(100vw - 32px)"} :width 640}
+     [:p {:style {:color "#718096" :lineHeight 1.8}}
+      "支持 PDF / 图片 / Office / ZIP / DWG / STEP 等工程证据 (可执行文件不允许), 单文件上限由服务端配置; 文件按内容寻址存储, 服务端计算 SHA256, 下载时复核摘要, 版本不可变."]
+     (when error [shared/error-panel error nil])
+     [antd/form {:form form :layout "vertical" :disabled busy?
+                 :initialValues (when document (select-keys document [:code :title :classification :stage :structure_node :category]))
+                 :onFinish (fn [values]
+                             (if-not file
+                               (set-error! "请选择要上传的文件")
+                               (let [data (js->clj values :keywordize-keys true)
+                                     fd (js/FormData.)]
+                                 (doseq [[k v] (select-keys data [:code :title :classification :stage :structure_node :category])
+                                         :when (and (some? v) (not= "" v))]
+                                   (.append fd (name k) v))
+                                 (.append fd "version" (str (:version project)))
+                                 (.append fd "file" file (.-name file))
+                                 (set-busy! true) (set-error! nil)
+                                 (api/pms-upload path fd
+                                                 (fn [body] (set-busy! false) (antd/success! "上传成功") (on-saved (:data body)))
+                                                 (fn [body] (set-busy! false) (set-error! (or (:msg body) "上传失败")))))))}
+      (for [field (forms/document-meta-fields categories)] ^{:key (:key field)} [w/form-field field])
+      [antd/form-item {:label "证据文件" :required true
+                       :extra (if file (str (.-name file) " · " (file-size (.-size file))) "选择一个文件; 修订时可上传同编号的新文件版本")}
+       [:input {:id "document_file" :type "file" :aria-label "证据文件"
+                :on-change (fn [e] (let [f (aget (.. e -target -files) 0)] (set-file! f)))}]]]]))
+
+
+(defn- file-preview
+  "预览/下载二进制证据: PDF 用内嵌框, 图片直接显示, 文本取正文; 其它类型只提供下载; 摘要来自服务端响应头."
   [base document on-close]
-  (let [resource (shared/use-resource (str base "/documents/" (:id document) "/content") {} [])]
-    [antd/modal {:title (str (:title document) " / V" (:revision document)) :open true :onCancel on-close :footer nil :width 800}
-     [w/resource-view resource
-      (fn [data]
-        [:div
-         [antd/button {:on-click #(download-document! data)} "下载此版本"]
-         [:p {:style {:fontSize 12 :color "#718096" :overflowWrap "anywhere"}} (str "SHA256: " (:sha256 data))]
-         [:pre {:style {:whiteSpace "pre-wrap" :maxHeight "60vh" :overflow "auto"}} (:content data)]])]]))
+  (let [[state set-state!] (hooks/use-state {:loading? (boolean (:preview document))})
+        path (str base "/documents/" (:id document))]
+    (hooks/use-effect
+      (fn []
+        (when (:preview document)
+          (api/pms-fetch-blob (str path "/preview")
+                              (fn [blob meta]
+                                (let [ct (or (:content-type meta) "")]
+                                  (if (.startsWith ct "text/")
+                                    (.then (.text blob) (fn [text] (set-state! {:text text :meta meta})))
+                                    (set-state! {:url (js/URL.createObjectURL blob) :meta meta}))))
+                              (fn [body] (set-state! {:error (:msg body)}))))
+        (fn [] (when-let [u (:url state)] (js/URL.revokeObjectURL u))))
+      [(:id document)])
+    [antd/modal {:title (str (:title document) " / V" (:revision document) " · " (:filename document)) :open true :onCancel on-close :footer nil
+                 :style {:maxWidth "calc(100vw - 32px)"} :width 960}
+     [:div {:style {:display "grid" :gap 10}}
+      [antd/space {:wrap true}
+       [antd/button {:on-click (fn [] (api/pms-fetch-blob (str path "/download")
+                                                          (fn [blob _] (api/save-blob! blob (:filename document)))
+                                                          (fn [body] (antd/error! (or (:msg body) "下载失败")))))} "下载此版本"]
+       [antd/tag (str (:content_type document))] [antd/tag (file-size (:byte_size document))]
+       (when (:category document) [antd/tag {:color "blue"} (:category document)])]
+      [:p {:style {:fontSize 12 :color "#718096" :overflowWrap "anywhere" :margin 0}} (str "SHA256: " (:sha256 document)
+                                                                                         (when-let [m (:meta state)] (str " · 服务端复核: " (if (= (:sha256 m) (:sha256 document)) "一致" "不一致"))))]
+      (cond
+        (:error state) [shared/error-panel (:error state) nil]
+        (not (:preview document)) [:div {:style {:color "#98a2b3"}} "该文件类型不支持在线预览, 请下载后查看."]
+        (:loading? state) [:div {:style {:padding 32 :textAlign "center"}} [antd/spin]]
+        (:text state) [:pre {:style {:whiteSpace "pre-wrap" :maxHeight "60vh" :overflow "auto" :background "#f7f8fa" :padding 16 :borderRadius 6}} (:text state)]
+        (.startsWith (or (:content_type document) "") "image/") [:img {:src (:url state) :alt (:filename document) :style {:maxWidth "100%" :maxHeight "70vh" :objectFit "contain"}}]
+        :else [:iframe {:src (:url state) :title (:filename document) :style {:width "100%" :height "70vh" :border "1px solid #e4e8ee" :borderRadius 6}}])]]))
+
+
+(defn- document-preview
+  "通过授权请求读取保存的证据正文 (文本证据); 二进制证据走 file-preview."
+  [base document on-close]
+  (if (= "file" (:content_kind document))
+    [file-preview base document on-close]
+    (let [resource (shared/use-resource (str base "/documents/" (:id document) "/content") {} [])]
+      [antd/modal {:title (str (:title document) " / V" (:revision document)) :open true :onCancel on-close :footer nil :width 800}
+       [w/resource-view resource
+        (fn [data]
+          [:div
+           [antd/button {:on-click #(download-document! data)} "下载此版本"]
+           [:p {:style {:fontSize 12 :color "#718096" :overflowWrap "anywhere"}} (str "SHA256: " (:sha256 data))]
+           [:pre {:style {:whiteSpace "pre-wrap" :maxHeight "60vh" :overflow "auto"}} (:content data)]])]])))
 
 
 (defn- discard-preview-modal
@@ -910,12 +1001,13 @@
         planning (shared/use-resource (str root "/planning") {} [revision])
         [dialog set-dialog!] (hooks/use-state nil) [importing? set-importing!] (hooks/use-state false)
         [document set-document!] (hooks/use-state nil)
+        [upload set-upload!] (hooks/use-state nil)
         [appointment set-appointment!] (hooks/use-state nil)
         [preview set-preview!] (hooks/use-state nil)
         editable? (and (shared/use-permission "pms:project:edit") (not (contains? #{"closed" "cancelled" "paused"} (:status project))))
         context {:base base :model (:data resource) :planning (:data planning) :options options
                  :editable? editable? :approve? (and (shared/use-permission "pms:quality:approve") (not (contains? #{"closed" "cancelled" "paused"} (:status project))))
-                 :open! set-dialog! :import! #(set-importing! true) :document! set-document!
+                 :open! set-dialog! :import! #(set-importing! true) :document! set-document! :upload! set-upload!
                  :appointment! set-appointment! :preview! set-preview!}]
     [:div
      [w/resource-view resource (fn [_] [governance-content context])]
@@ -923,5 +1015,7 @@
                                                     :on-saved (fn [_] (set-dialog! nil) (changed!))})])
      (when importing? [import-dialog base project #(set-importing! false) (fn [_] (set-importing! false) (changed!))])
      (when document [document-preview base document #(set-document! nil)])
+     (when upload [upload-dialog {:base base :document (:document upload) :categories (:categories upload) :project project
+                                  :on-close #(set-upload! nil) :on-saved (fn [_] (set-upload! nil) (changed!))}])
      (when appointment [appointment-preview base appointment #(set-appointment! nil)])
      (when preview [discard-preview-modal base (:collection preview) preview #(set-preview! nil)])]))

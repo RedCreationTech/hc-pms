@@ -35,6 +35,9 @@
     ["/documents/:record_id/discard-preview" {:get {:handler (partial controller/discard-preview svc "document")}}]
     ["/documents/:record_id/content" {:get {:handler (partial controller/content svc)}}]
     ["/documents/:record_id/download" {:get {:handler (partial controller/download svc)}}]
+    ["/documents/:record_id/preview" {:get {:handler (partial controller/preview svc)}}]
+    ["/documents/:record_id/upload-revision" {:post {:handler (partial controller/upload-revision svc)}}]
+    ["/documents/upload" {:post {:handler (partial controller/upload svc)}}]
     ["/documents/batch-download" {:post {:handler (partial controller/batch-download svc)}}]
     (command-route svc "/traces" :traces :create)
     (command-route svc "/risks" :risks :create)

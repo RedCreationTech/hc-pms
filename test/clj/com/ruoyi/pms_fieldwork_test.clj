@@ -31,12 +31,12 @@
 
 (defn- seed!
   [db]
-  (jdbc/execute! db ["INSERT INTO sys_role(role_id,role_name,role_key,role_sort,status,del_flag) VALUES (9600,'Fieldwork test','pms-fieldwork-test',60,'0','0')"])
-  (jdbc/execute! db ["INSERT INTO sys_role_menu(role_id,menu_id) SELECT 9600,menu_id FROM sys_menu WHERE perms LIKE 'pms:%'"])
-  (doseq [id [9601 9602 9603]]
+  (jdbc/execute! db ["INSERT INTO sys_role(role_id,role_name,role_key,role_sort,status,del_flag) VALUES (9640,'Fieldwork test','pms-fieldwork-test',60,'0','0')"])
+  (jdbc/execute! db ["INSERT INTO sys_role_menu(role_id,menu_id) SELECT 9640,menu_id FROM sys_menu WHERE perms LIKE 'pms:%'"])
+  (doseq [id [9641 9642 9643]]
     (jdbc/execute! db ["INSERT INTO sys_user(user_id,dept_id,user_name,nick_name,status,del_flag) VALUES (?,1,?,?,'0','0')"
                        id (str "fieldwork-test-" id) (str "现场测试" id)])
-    (jdbc/execute! db ["INSERT INTO sys_user_role(user_id,role_id) VALUES (?,9600)" id])))
+    (jdbc/execute! db ["INSERT INTO sys_user_role(user_id,role_id) VALUES (?,9640)" id])))
 
 
 (defn- database-fixture
@@ -63,64 +63,64 @@
   (try (f) nil (catch clojure.lang.ExceptionInfo e (:status (ex-data e)))))
 
 
-(defn- version [id] (:version (pms/project *service* (actor 9601) id)))
+(defn- version [id] (:version (pms/project *service* (actor 9641) id)))
 
 
 (defn- gov!
-  ([id resource action rid body] (gov! 9601 id resource action rid body))
+  ([id resource action rid body] (gov! 9641 id resource action rid body))
   ([uid id resource action rid body]
    (:result (gov/command! *service* (actor uid) id resource action rid (assoc body :version (version id))))))
 
 
 (defn- command!
-  ([id resource action rid body] (command! 9601 id resource action rid body))
+  ([id resource action rid body] (command! 9641 id resource action rid body))
   ([uid id resource action rid body]
    (:result (delivery/command! *service* (actor uid) id resource action rid (assoc body :version (version id))))))
 
 
 (defn- transition!
   [id status]
-  (pms/transition-project! *service* (actor 9601) id {:version (version id) :status status :reason "现场集成测试"}))
+  (pms/transition-project! *service* (actor 9641) id {:version (version id) :status status :reason "现场集成测试"}))
 
 
 (defn- approve!
   [id resource rid]
-  (gov! id resource :submit rid {:reviewer_id 9602})
-  (gov! 9602 id resource :decision rid {:decision "approved" :reason "独立审查通过"}))
+  (gov! id resource :submit rid {:reviewer_id 9642})
+  (gov! 9642 id resource :decision rid {:decision "approved" :reason "独立审查通过"}))
 
 
 (defn- context!
   "建立带子项目/单机节点, 配置了工勘/发货前条件/交底期限的执行中项目."
   [config]
-  (let [project (pms/create-project! *service* (actor 9601)
+  (let [project (pms/create-project! *service* (actor 9641)
                                      {:project_no (str "FW-" (subs (str (UUID/randomUUID)) 0 8)) :name "现场闭环验证"
                                       :customer "本地测试" :contract_no "FW-TEST" :project_type "equipment"
-                                      :manager_id 9601 :dept_id 1 :start_date "2026-09-01" :end_date "2026-12-31"})
+                                      :manager_id 9641 :dept_id 1 :start_date "2026-09-01" :end_date "2026-12-31"})
         id (:project_id project)
-        _ (pms/set-member! *service* (actor 9601) id {:user_id 9602 :role "viewer"})
-        _ (pms/set-member! *service* (actor 9601) id {:user_id 9603 :role "editor"})
-        main (first (filter #(= "main" (:node_type %)) (:rows (pms/nodes *service* (actor 9601) id))))
-        sub (pms/create-node! *service* (actor 9601) id {:parent_id (:node_id main) :node_type "sub" :node_code "U1" :name "主机单元"})
-        machine (pms/create-node! *service* (actor 9601) id {:parent_id (:node_id sub) :node_type "machine" :node_code "M1" :name "主机#1"})
+        _ (pms/set-member! *service* (actor 9641) id {:user_id 9642 :role "viewer"})
+        _ (pms/set-member! *service* (actor 9641) id {:user_id 9643 :role "editor"})
+        main (first (filter #(= "main" (:node_type %)) (:rows (pms/nodes *service* (actor 9641) id))))
+        sub (pms/create-node! *service* (actor 9641) id {:parent_id (:node_id main) :node_type "sub" :node_code "U1" :name "主机单元"})
+        machine (pms/create-node! *service* (actor 9641) id {:parent_id (:node_id sub) :node_type "machine" :node_code "M1" :name "主机#1"})
         document (gov! id :documents :create nil {:code "FW-EV" :title "现场证据" :filename "fw.txt" :content "现场记录"})
-        req (gov! id :requirements :create nil {:code "URS-1" :text "现场交付须验证" :category "验收" :priority "required" :owner_id 9601})
-        task (:result (planning/create-task! *service* (actor 9601) id
-                                             {:version (version id) :wbs_code "D-1" :name "单机交付任务" :owner_id 9601
+        req (gov! id :requirements :create nil {:code "URS-1" :text "现场交付须验证" :category "验收" :priority "required" :owner_id 9641})
+        task (:result (planning/create-task! *service* (actor 9641) id
+                                             {:version (version id) :wbs_code "D-1" :name "单机交付任务" :owner_id 9641
                                               :start_date "2026-09-22" :duration_days 1 :node_id (:node_id machine)}))
-        charter (gov! id :charters :create nil {:title "章程" :objective "目标" :scope "范围" :success_criteria "准则" :sponsor_id 9603})
+        charter (gov! id :charters :create nil {:title "章程" :objective "目标" :scope "范围" :success_criteria "准则" :sponsor_id 9643})
         template (gov! id :gate-templates :create nil {:code "EXEC-G" :title "执行前确认" :stage "execution" :required true
                                                       :checks [{:code "C" :title "证据齐全" :required true}]})
-        gate (gov! id :gates :create nil {:template_id (:id template) :title "执行确认" :reviewer_id 9602})]
+        gate (gov! id :gates :create nil {:template_id (:id template) :title "执行确认" :reviewer_id 9642})]
     (when config (command! id :configuration :update nil (merge {:required_stages ["materials" "assembly" "quality" "shipment"]
                                                                 :required_test_types ["SIT" "FAT" "SAT"] :reason "测试配置"} config)))
     (approve! id :charters (:id charter))
     (gov! id :gates :checks (:id gate) {:checks [{:code "C" :passed true :evidence_ids [(:id document)]}]})
     (gov! id :gates :submit (:id gate) {})
-    (gov! 9602 id :gates :decision (:id gate) {:decision "approved" :reason "独立验证"})
+    (gov! 9642 id :gates :decision (:id gate) {:decision "approved" :reason "独立验证"})
     (transition! id "initiated")
     (transition! id "planning")
-    (let [baseline (:result (planning/submit-plan! *service* (actor 9601) id {:version (version id) :comment "提交"}))]
-      (planning/review-plan! *service* (actor 9602) id (:baseline_id baseline) {:version (version id) :decision "approved" :comment "独立确认"}))
+    (let [baseline (:result (planning/submit-plan! *service* (actor 9641) id {:version (version id) :comment "提交"}))]
+      (planning/review-plan! *service* (actor 9642) id (:baseline_id baseline) {:version (version id) :decision "approved" :comment "独立确认"}))
     (transition! id "execution")
     {:id id :evidence (:id document) :task_id (:task_id task) :requirement_ids [(:id req)]
      :sub sub :machine machine :main main}))
@@ -132,22 +132,22 @@
 (defn- review!
   [ctx resource rid action]
   (let [id (:id ctx) evidence {:evidence_ids [(:evidence ctx)]}]
-    (command! id resource action rid (cond-> evidence (not= :shipments resource) (assoc :reviewer_id 9602)))
-    (command! 9602 id resource :decision rid {:decision "approved" :reason "独立核实证据"})))
+    (command! id resource action rid (cond-> evidence (not= :shipments resource) (assoc :reviewer_id 9642)))
+    (command! 9642 id resource :decision rid {:decision "approved" :reason "独立核实证据"})))
 
 
 (defn- frozen-bom!
   [ctx]
   (let [id (:id ctx)
         material (command! id :material-requests :create nil
-                           (merge (refs ctx) {:code "MR-1" :title "长周期件预投" :request_type "long_lead" :owner_id 9601 :needed_on "2026-10-01"
+                           (merge (refs ctx) {:code "MR-1" :title "长周期件预投" :request_type "long_lead" :owner_id 9641 :needed_on "2026-10-01"
                                              :items [{:code "M-1" :name "执行器" :quantity 2 :unit "个"} {:code "M-2" :name "连接线" :quantity 4 :unit "根"}]}))]
     (review! ctx :material-requests (:id material) :submit)
     (let [bom (command! id :boms :create nil {:code "BOM-1" :title "受控配置" :material_request_id (:id material)})]
       (review! ctx :boms (:id bom) :freeze))))
 
 
-(defn- workspace [id] (delivery/workspace *service* (actor 9601) id))
+(defn- workspace [id] (delivery/workspace *service* (actor 9641) id))
 
 
 (defn- today-minus [days] (str (.minusDays (LocalDate/now) days)))
@@ -156,18 +156,18 @@
 (deftest survey-visits-are-controlled-and-block-closure
   (let [ctx (context! {:required_survey_visits 1}) id (:id ctx)]
     (is (some #(re-find #"工勘" %) (:blockers (workspace id))))
-    (let [survey (command! id :surveys :create nil {:code "SV-1" :title "首次工勘" :visit_no 1 :owner_id 9601
+    (let [survey (command! id :surveys :create nil {:code "SV-1" :title "首次工勘" :visit_no 1 :owner_id 9641
                                                     :planned_date "2026-10-10" :deliverable "现场勘察报告" :task_id (:task_id ctx)})]
       (is (= "draft" (:status survey)))
-      (is (= 409 (error-status #(command! id :surveys :create nil {:code "SV-1B" :title "重复次序" :visit_no 1 :owner_id 9601 :planned_date "2026-10-11" :deliverable "x"}))))
-      (is (= 400 (error-status #(command! id :surveys :create nil {:code "SV-X" :title "非法次序" :visit_no 0 :owner_id 9601 :planned_date "2026-10-11" :deliverable "x"}))))
+      (is (= 409 (error-status #(command! id :surveys :create nil {:code "SV-1B" :title "重复次序" :visit_no 1 :owner_id 9641 :planned_date "2026-10-11" :deliverable "x"}))))
+      (is (= 400 (error-status #(command! id :surveys :create nil {:code "SV-X" :title "非法次序" :visit_no 0 :owner_id 9641 :planned_date "2026-10-11" :deliverable "x"}))))
       ;; 实际日期不得晚于今天; 提交后由独立审核人确认.
-      (is (= 400 (error-status #(command! id :surveys :submit (:id survey) {:reviewer_id 9602 :evidence_ids [(:evidence ctx)] :actual_date "2099-01-01"}))))
-      (let [submitted (command! id :surveys :submit (:id survey) {:reviewer_id 9602 :evidence_ids [(:evidence ctx)] :actual_date (today-minus 1) :findings "地基满足要求"})]
+      (is (= 400 (error-status #(command! id :surveys :submit (:id survey) {:reviewer_id 9642 :evidence_ids [(:evidence ctx)] :actual_date "2099-01-01"}))))
+      (let [submitted (command! id :surveys :submit (:id survey) {:reviewer_id 9642 :evidence_ids [(:evidence ctx)] :actual_date (today-minus 1) :findings "地基满足要求"})]
         (is (= "in_review" (:status submitted)))
         (is (= (today-minus 1) (:actual_date submitted)))
-        (is (= 403 (error-status #(command! 9603 id :surveys :decision (:id survey) {:decision "approved" :reason "冒名"}))))
-        (is (= "approved" (:status (command! 9602 id :surveys :decision (:id survey) {:decision "approved" :reason "确认交付物"})))))
+        (is (= 403 (error-status #(command! 9643 id :surveys :decision (:id survey) {:decision "approved" :reason "冒名"}))))
+        (is (= "approved" (:status (command! 9642 id :surveys :decision (:id survey) {:decision "approved" :reason "确认交付物"})))))
       (is (not-any? #(re-find #"工勘" %) (:blockers (workspace id))))
       (is (= 1 (count (get (:task_links (workspace id)) (:task_id ctx))))))))
 
@@ -175,10 +175,10 @@
 (deftest packaging-request-requires-spec-and-links-back-to-task
   (let [ctx (context! nil) id (:id ctx)]
     (is (= 400 (error-status #(command! id :material-requests :create nil
-                                        (merge (refs ctx) {:code "PK-0" :title "包材" :request_type "packaging" :owner_id 9601 :needed_on "2026-10-01"
+                                        (merge (refs ctx) {:code "PK-0" :title "包材" :request_type "packaging" :owner_id 9641 :needed_on "2026-10-01"
                                                            :items [{:code "BOX" :name "木箱" :quantity 1 :unit "个"}]})))))
     (let [request (command! id :material-requests :create nil
-                            (merge (refs ctx) {:code "PK-1" :title "包材申请" :request_type "packaging" :owner_id 9601 :needed_on "2026-10-01"
+                            (merge (refs ctx) {:code "PK-1" :title "包材申请" :request_type "packaging" :owner_id 9641 :needed_on "2026-10-01"
                                                :packaging_spec "出口木箱 2000x1200x1500 熏蒸" :node_id (:node_id (:machine ctx))
                                                :items [{:code "BOX" :name "木箱" :quantity 1 :unit "个"}]}))]
       (is (= "packaging" (:request_type request)))
@@ -192,14 +192,14 @@
   (let [ctx (context! nil) id (:id ctx) bom (frozen-bom! ctx)]
     (command! id :boms :kit (:id bom) {:items [{:code "M-1" :available_quantity 2} {:code "M-2" :available_quantity 4}] :evidence_ids [(:evidence ctx)]})
     (let [kitting (gov! id :gate-templates :from-catalog nil {:gate_type "kitting"})
-          assembly (command! id :assemblies :create nil (merge (refs ctx) {:code "ASS-1" :title "执行装配" :bom_id (:id bom) :owner_id 9601}))]
+          assembly (command! id :assemblies :create nil (merge (refs ctx) {:code "ASS-1" :title "执行装配" :bom_id (:id bom) :owner_id 9641}))]
       ;; B11: 齐套Gate未通过 -> 装配开工被阻断.
       (is (= 409 (error-status #(command! id :assemblies :start (:id assembly) {:evidence_ids [(:evidence ctx)]}))))
-      (let [gate (gov! id :gates :create nil {:template_id (:id kitting) :title "齐套放行" :reviewer_id 9602})]
+      (let [gate (gov! id :gates :create nil {:template_id (:id kitting) :title "齐套放行" :reviewer_id 9642})]
         (gov! id :gates :checks (:id gate) {:checks [{:code "KIT-1" :passed true :evidence_ids [(:evidence ctx)]}
                                                    {:code "KIT-2" :passed true :evidence_ids [(:evidence ctx)]}]})
         (gov! id :gates :submit (:id gate) {})
-        (gov! 9602 id :gates :decision (:id gate) {:decision "approved" :reason "齐套确认"}))
+        (gov! 9642 id :gates :decision (:id gate) {:decision "approved" :reason "齐套确认"}))
       (is (= "in_progress" (:status (command! id :assemblies :start (:id assembly) {:evidence_ids [(:evidence ctx)]}))))
       ;; E01: 上岛 -> 装配 -> 单机交检 ... 顺序单调, 日期不倒退, 不得晚于今天.
       (is (= 409 (error-status #(command! id :assemblies :steps (:id assembly) {:step "assembling" :actual_date (today-minus 3)}))))
@@ -248,18 +248,18 @@
   [ctx]
   (let [id (:id ctx) bom (frozen-bom! ctx)]
     (command! id :boms :kit (:id bom) {:items [{:code "M-1" :available_quantity 2} {:code "M-2" :available_quantity 4}] :evidence_ids [(:evidence ctx)]})
-    (let [assembly (command! id :assemblies :create nil (merge (refs ctx) {:code "ASS-1" :title "执行装配" :bom_id (:id bom) :owner_id 9601}))]
+    (let [assembly (command! id :assemblies :create nil (merge (refs ctx) {:code "ASS-1" :title "执行装配" :bom_id (:id bom) :owner_id 9641}))]
       (command! id :assemblies :start (:id assembly) {:evidence_ids [(:evidence ctx)]})
       (review! ctx :assemblies (:id assembly) :submit)
       (doseq [type ["SIT" "FAT"]]
         (let [test (command! id :tests :create nil (merge (refs ctx) {:code (str type "-1") :title (str type "验证") :assembly_id (:id assembly)
-                                                                     :test_type type :owner_id 9601
+                                                                     :test_type type :owner_id 9641
                                                                      :criteria [{:code "Q-1" :title "动作满足URS" :required true}]}))]
           (command! id :tests :results (:id test) {:checks [{:code "Q-1" :passed true :actual "通过" :evidence_ids [(:evidence ctx)]}] :due_date "2026-10-03"})
           (review! ctx :tests (:id test) :submit)))
       (command! id :shipments :create nil (merge (refs ctx) {:code "SHIP-1" :title "设备发运" :assembly_ids [(:id assembly)]
                                                             :consignee "现场接收团队" :delivery_address "客户指定地址"
-                                                            :planned_date "2026-10-05" :reviewer_id 9602})))))
+                                                            :planned_date "2026-10-05" :reviewer_id 9642})))))
 
 
 (deftest preship-conditions-handover-deadline-and-site-tasks
@@ -309,42 +309,42 @@
 (deftest dq-checklist-deliverables-and-stale-flag
   (let [ctx (context! nil) id (:id ctx)
         doc (gov! id :documents :create nil {:code "DQ-DOC" :title "DQ设计文件" :filename "dq.txt" :content "DQ v1"})
-        dq (gov! id :dqs :create nil {:code "DQ-1" :title "主机DQ编制" :owner_id 9601
+        dq (gov! id :dqs :create nil {:code "DQ-1" :title "主机DQ编制" :owner_id 9641
                                       :checklist [{:code "D1" :title "设计输入完整" :required true} {:code "D2" :title "图纸编号规范" :required false}]
                                       :deliverable_ids [(:id doc)] :task_id (:task_id ctx)})]
     (is (= "draft" (:status dq)))
-    (is (= 409 (error-status #(gov! id :dqs :create nil {:code "DQ-1" :title "重复" :owner_id 9601 :checklist [{:code "D1" :title "x"}]}))))
+    (is (= 409 (error-status #(gov! id :dqs :create nil {:code "DQ-1" :title "重复" :owner_id 9641 :checklist [{:code "D1" :title "x"}]}))))
     ;; 必需项未通过 -> 仍为草稿, 提交被拒.
     (gov! id :dqs :checks (:id dq) {:results [{:code "D1" :passed false :note "缺输入"} {:code "D2" :passed true :note ""}]})
-    (is (= 409 (error-status #(gov! id :dqs :submit (:id dq) {:reviewer_id 9602}))))
+    (is (= 409 (error-status #(gov! id :dqs :submit (:id dq) {:reviewer_id 9642}))))
     (is (= "ready" (:status (gov! id :dqs :checks (:id dq) {:results [{:code "D1" :passed true :note "已补齐"} {:code "D2" :passed true :note ""}]}))))
-    (is (= "in_review" (:status (gov! id :dqs :submit (:id dq) {:reviewer_id 9602}))))
-    (is (= 403 (error-status #(gov! 9603 id :dqs :decision (:id dq) {:decision "approved" :reason "冒名"}))))
-    (is (= "approved" (:status (gov! 9602 id :dqs :decision (:id dq) {:decision "approved" :reason "签认"}))))
-    (let [model (first (:dqs (gov/workspace *service* (actor 9601) id)))]
+    (is (= "in_review" (:status (gov! id :dqs :submit (:id dq) {:reviewer_id 9642}))))
+    (is (= 403 (error-status #(gov! 9643 id :dqs :decision (:id dq) {:decision "approved" :reason "冒名"}))))
+    (is (= "approved" (:status (gov! 9642 id :dqs :decision (:id dq) {:decision "approved" :reason "签认"}))))
+    (let [model (first (:dqs (gov/workspace *service* (actor 9641) id)))]
       (is (false? (:dq_stale model)))
       (is (= 2 (:dq_passed model))))
     ;; 交付件出现新版本 -> 只读标注签认依据失效.
     (gov! id :documents :revisions (:id doc) {:code "DQ-DOC" :title "DQ设计文件" :filename "dq.txt" :content "DQ v2"})
-    (let [model (first (:dqs (gov/workspace *service* (actor 9601) id)))]
+    (let [model (first (:dqs (gov/workspace *service* (actor 9641) id)))]
       (is (true? (:dq_stale model)))
       (is (= 1 (:dq_stale_count model))))))
 
 
 (deftest node-pause-blocks-feedback-and-resumes-with-audit
   (let [ctx (context! nil) id (:id ctx)
-        other (:result (planning/create-task! *service* (actor 9601) id {:version (version id) :wbs_code "D-2" :name "主计划任务" :owner_id 9601 :start_date "2026-09-22" :duration_days 1}))]
+        other (:result (planning/create-task! *service* (actor 9641) id {:version (version id) :wbs_code "D-2" :name "主计划任务" :owner_id 9641 :start_date "2026-09-22" :duration_days 1}))]
     (is (= 400 (error-status #(gov! id :node-pauses :create nil {:node_id (:node_id (:main ctx)) :reason "主项目"}))))
     (let [pause (gov! id :node-pauses :create nil {:node_id (:node_id (:sub ctx)) :reason "客户暂缓主机单元"})]
       (is (= "active" (:status pause)))
       (is (= "execution" (:project_status_at_pause pause)))
       (is (= 409 (error-status #(gov! id :node-pauses :create nil {:node_id (:node_id (:sub ctx)) :reason "重复"}))))
       ;; 子项目暂停后, 其下单机任务禁止反馈; 主计划任务不受影响.
-      (is (= 409 (error-status #(planning/task-feedback! *service* (actor 9601) id (:task_id ctx)
+      (is (= 409 (error-status #(planning/task-feedback! *service* (actor 9641) id (:task_id ctx)
                                                          {:version (version id) :status "in_progress" :percent_complete 10 :remaining_days 1}))))
-      (is (some? (planning/task-feedback! *service* (actor 9601) id (:task_id other)
+      (is (some? (planning/task-feedback! *service* (actor 9641) id (:task_id other)
                                           {:version (version id) :status "in_progress" :percent_complete 10 :remaining_days 1})))
-      (let [plan (planning/read-plan *service* (actor 9601) id)]
+      (let [plan (planning/read-plan *service* (actor 9641) id)]
         (is (true? (:node_paused (first (filter #(= (:task_id ctx) (:task_id %)) (:tasks plan))))))
         (is (false? (:node_paused (first (filter #(= (:task_id other) (:task_id %)) (:tasks plan))))))
         (is (= 2 (count (:paused_node_ids plan)))))
@@ -352,23 +352,23 @@
         (is (= "closed" (:status resumed)))
         (is (= "顺延两周, 重排单机计划" (:impact_note resumed)))
         (is (= 409 (error-status #(gov! id :node-pauses :resume (:id pause) {:impact_note "again"})))))
-      (is (some? (planning/task-feedback! *service* (actor 9601) id (:task_id ctx)
+      (is (some? (planning/task-feedback! *service* (actor 9641) id (:task_id ctx)
                                           {:version (version id) :status "in_progress" :percent_complete 20 :remaining_days 1}))))))
 
 
 (deftest kickoff-meeting-requires-pre-read-pack-and-baseline
   (let [ctx (context! nil) id (:id ctx)
-        baseline (first (:baselines (planning/read-plan *service* (actor 9601) id)))]
-    (is (= 409 (error-status #(gov! id :meetings :create nil {:title "启动会" :held_on "2026-09-23" :minutes "纪要" :attendee_ids [9601] :meeting_type "kickoff"}))))
-    (is (= 409 (error-status #(gov! id :meetings :create nil {:title "启动会" :held_on "2026-09-23" :minutes "纪要" :attendee_ids [9601] :meeting_type "kickoff" :material_ids [(:evidence ctx)]}))))
-    (is (= 404 (error-status #(gov! id :meetings :create nil {:title "启动会" :held_on "2026-09-23" :minutes "纪要" :attendee_ids [9601] :meeting_type "kickoff" :material_ids [(:evidence ctx)] :baseline_id "nope"}))))
-    (is (= 400 (error-status #(gov! id :meetings :create nil {:title "会" :held_on "2026-09-23" :minutes "纪要" :attendee_ids [9601] :meeting_type "party"}))))
-    (let [meeting (gov! id :meetings :create nil {:title "项目启动会" :held_on "2026-09-23" :minutes "确认主计划与售前资料" :attendee_ids [9601 9603]
+        baseline (first (:baselines (planning/read-plan *service* (actor 9641) id)))]
+    (is (= 409 (error-status #(gov! id :meetings :create nil {:title "启动会" :held_on "2026-09-23" :minutes "纪要" :attendee_ids [9641] :meeting_type "kickoff"}))))
+    (is (= 409 (error-status #(gov! id :meetings :create nil {:title "启动会" :held_on "2026-09-23" :minutes "纪要" :attendee_ids [9641] :meeting_type "kickoff" :material_ids [(:evidence ctx)]}))))
+    (is (= 404 (error-status #(gov! id :meetings :create nil {:title "启动会" :held_on "2026-09-23" :minutes "纪要" :attendee_ids [9641] :meeting_type "kickoff" :material_ids [(:evidence ctx)] :baseline_id "nope"}))))
+    (is (= 400 (error-status #(gov! id :meetings :create nil {:title "会" :held_on "2026-09-23" :minutes "纪要" :attendee_ids [9641] :meeting_type "party"}))))
+    (let [meeting (gov! id :meetings :create nil {:title "项目启动会" :held_on "2026-09-23" :minutes "确认主计划与售前资料" :attendee_ids [9641 9643]
                                                   :meeting_type "kickoff" :material_ids [(:evidence ctx)] :baseline_id (:baseline_id baseline)})]
       (is (= "kickoff" (:meeting_type meeting)))
       (is (= (:baseline_id baseline) (:baseline_id meeting)))
       (is (= "approved" (:baseline_status meeting)))
-      (let [model (first (filter #(= (:id meeting) (:id %)) (:meetings (gov/workspace *service* (actor 9601) id))))]
+      (let [model (first (filter #(= (:id meeting) (:id %)) (:meetings (gov/workspace *service* (actor 9641) id))))]
         (is (false? (:baseline_stale model)))
         (is (= "approved" (:baseline_current_status model)))))
-    (is (= "regular" (:meeting_type (gov! id :meetings :create nil {:title "例会" :held_on "2026-09-24" :minutes "纪要" :attendee_ids [9601]}))))))
+    (is (= "regular" (:meeting_type (gov! id :meetings :create nil {:title "例会" :held_on "2026-09-24" :minutes "纪要" :attendee_ids [9641]}))))))

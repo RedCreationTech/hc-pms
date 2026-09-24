@@ -64,6 +64,56 @@
         (.catch (fn [e] (when on-error (on-error e)))))))
 
 
+(defn- auth-headers
+  [extra]
+  (let [token (get-token)]
+    (clj->js (cond-> extra token (assoc "Authorization" (str "Bearer " token))))))
+
+
+(defn- envelope
+  "把 fetch 响应解析为统一 JSON 信封 {:code :msg :data}; 非 JSON 响应按状态码合成信封."
+  [resp]
+  (-> (.text resp)
+      (.then (fn [text]
+               (try (js->clj (.parse js/JSON text) :keywordize-keys true)
+                    (catch :default _ {:code (.-status resp) :msg (str "HTTP " (.-status resp)) :data nil}))))))
+
+
+(defn pms-upload
+  "以 multipart 上传真实文件 (FormData 含业务字段与项目版本), 返回统一信封给调用方判定 code."
+  [path form-data on-success on-error]
+  (-> (js/fetch (str api-base "/pms" path) #js {:method "POST" :headers (auth-headers {}) :body form-data})
+      (.then envelope)
+      (.then (fn [body] (if (= 200 (:code body)) (on-success body) (on-error body))))
+      (.catch (fn [e] (on-error {:code 0 :msg (.-message e)})))))
+
+
+(defn pms-fetch-blob
+  "以授权JWT GET 二进制资源 (预览/下载), 成功时回调 blob 与响应头, 失败时回调信封."
+  [path on-blob on-error]
+  (-> (js/fetch (str api-base "/pms" path) #js {:method "GET" :headers (auth-headers {})})
+      (.then (fn [resp]
+               (if (.-ok resp)
+                 (.then (.blob resp) (fn [blob] (on-blob blob {:sha256 (.get (.-headers resp) "X-Content-SHA256")
+                                                              :content-type (.get (.-headers resp) "Content-Type")
+                                                              :kind (.get (.-headers resp) "X-Content-Kind")})))
+                 (.then (envelope resp) on-error))))
+      (.catch (fn [e] (on-error {:code 0 :msg (.-message e)})))))
+
+
+(defn save-blob!
+  "把 blob 保存为本地文件."
+  [blob filename]
+  (let [url (js/URL.createObjectURL blob)
+        a (.createElement js/document "a")]
+    (set! (.-href a) url)
+    (set! (.-download a) filename)
+    (.appendChild (.-body js/document) a)
+    (.click a)
+    (.removeChild (.-body js/document) a)
+    (js/URL.revokeObjectURL url)))
+
+
 (defn login
   "用户登录."
   [params on-success on-error]

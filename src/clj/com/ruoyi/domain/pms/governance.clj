@@ -198,6 +198,24 @@
   (evidence/batch-content svc actor id body))
 
 
+(defn document-upload
+  "以 multipart 上传的真实文件登记证据文档首版 (C05 二进制附件)."
+  [svc actor id body file]
+  (evidence/upload! svc actor id body file))
+
+
+(defn document-upload-revision
+  "以 multipart 上传的真实文件新增不可变修订."
+  [svc actor id rid body file]
+  (evidence/upload-revision! svc actor id rid body file))
+
+
+(defn document-bytes
+  "读取确定文档版本的完整字节 (二进制证据复核 SHA256), 供HTTP层下载/预览."
+  [svc document]
+  (evidence/file-bytes svc document))
+
+
 (defn discard-preview
   "只读预览对某记录发起受控作废将命中的状态门控与级联引用清单, 不改变任何状态."
   [svc actor id kind rid]

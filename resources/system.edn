@@ -117,7 +117,9 @@
 
  :app.pms/service
  {:query-fn #ig/ref :db.sql/query-fn
-  :db #ig/ref :db.sql/connection}
+  :db #ig/ref :db.sql/connection
+  :file-dir #or [#env PMS_FILE_DIR "data/pms-files"]
+  :file-max-mb #long #or [#env PMS_FILE_MAX_MB 50]}
 
  :reitit.routes/api
  {:base-path      "/api"

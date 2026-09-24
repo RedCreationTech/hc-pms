@@ -32,6 +32,8 @@
 | POST `/requirements/import` | csv | 任一行不合法则整批拒绝, 全部通过才事务导入 |
 | POST `/documents` | code, title, filename, content | 登记真实 UTF-8 文本版本, 计算 SHA256 和 byte_size |
 | POST `/documents/:rid/revisions` | 同上 | 不变 code 的新版本, 原正文与摘要不变 |
+| POST `/documents/upload` (multipart) | file, code, title, [classification, stage, structure_node, category], version | 以真实文件登记二进制证据首版 (增量5): 文件名 / 扩展名白名单 / 大小上限校验后按内容寻址落盘, 记录只存元数据与 SHA256 |
+| POST `/documents/:rid/upload-revision` (multipart) | 同上 | 不变 code 的新文件版本, 旧版本物理文件与摘要不变 |
 | POST `/documents/:rid/submit` | reviewer_id | registered/rejected -> in_review; 冻结当前最新版本并指定具备 `pms:quality:approve` 的独立发布审核人 (审核人不得为提交人, 须有项目阅读资格) |
 | POST `/documents/:rid/decision` | decision: approved/rejected, reason | 只有指定审核人可决定当前最新提交版本; approved -> `approved` (正式签发发布, 记 `released_by`), rejected -> `rejected` (可再次提交) |
 | POST `/traces` | requirement_id, target_kind: document/task, target_id, relation: satisfies/verifies | 关联确切需求版本与同项目文档版本或真实 WBS 任务 |
@@ -96,8 +98,11 @@
 文档登记与修订接受可选归集字段: `classification` 密级为枚举 `public|internal|confidential`, 缺省记为 `internal`, 非法取值返回 400; `stage` 所属阶段与 `structure_node` 结构节点为至多 100 字符的可选文本, 留空记为空串. 这些字段随不可变版本存入 payload 并进入读模型, 仅用于项目内按阶段/结构/密级归集与追踪, 不替代项目授权, 本轮不据密级过滤下载或访问. 读模型 `document_collection` 按每个编号的最新版本且状态非 `discarded` 聚合这些字段供工作台"文档归集视图"分层展示 (已被受控作废的最新版本编号不计入, 单独以 `discarded-count` 呈现), 前端"文档与版本证据"另提供按密级的客户端过滤(仅过滤当前展示行, 不改变服务端授权与批量下载范围).
 
 - `GET /documents/:rid/content` 返回统一 JSON 的 `data` 文档对象, 包含 content, filename, sha256, byte_size, revision 和 id, 便于带 JWT 预览和客户端下载.
-- `GET /documents/:rid/download` 返回裸文本附件, Content-Disposition 和 X-Content-SHA256. 读取仍执行项目授权.
-- `POST /documents/batch-download` 请求体 `{"record_ids": [...]}`, 须为 1 到 50 个不重复的文档版本ID (空, 重复或超上限返回 400). 服务端 `kernel/read!` 逐个校验为同项目 `document` (跨项目或类型不符 404, 无项目读取权 403), 任一非法整体失败. 成功返回 `application/zip` 附件 (Content-Disposition `documents.zip`, 附 `X-Batch-Count`), 每个版本以 `<id前8位>_<filename>` 入包并保留原始 UTF-8 正文, 另含 `MANIFEST.tsv` 逐行列出 `record_id, code, revision, entry, sha256, byte_size, classification, stage, structure_node` 供离线逐文件摘要与归集信息复核. 批量下载不改变任何记录状态, 不引入按密级过滤或二进制存储.
+- `GET /documents/:rid/download` 返回附件字节 (文本证据为 UTF-8 正文, 二进制证据为物理文件), Content-Disposition `attachment; filename*=UTF-8''<原文件名>`, `X-Content-SHA256` 与 `X-Content-Kind` (`text|file`). 读取仍执行项目授权与密级校验; 二进制证据在下发前整文件复核 SHA256, 不一致返回 500 "证据文件校验失败", 物理文件缺失返回 500 "证据文件缺失", 不把损坏或被篡改的文件当原件下发.
+- `GET /documents/:rid/preview` 与 download 相同校验, 但 Content-Disposition 为 `inline`, 供前端以 blob URL 内嵌预览; 仅 PDF / 图片 / 文本类扩展名可预览 (记录 `preview=true`), 其它类型返回 415.
+- `POST /documents/batch-download` 请求体 `{"record_ids": [...]}`, 须为 1 到 50 个不重复的文档版本ID (空, 重复或超上限返回 400). 服务端 `kernel/read!` 逐个校验为同项目 `document` (跨项目或类型不符 404, 无项目读取权 403), 任一非法整体失败. 成功返回 `application/zip` 附件 (Content-Disposition `documents.zip`, 附 `X-Batch-Count`), 每个版本以 `<id前8位>_<filename>` 入包并保留原始字节 (文本证据为 UTF-8 正文, 二进制证据为复核 SHA256 后的物理文件), 另含 `MANIFEST.tsv` 逐行列出 `record_id, code, revision, entry, sha256, byte_size, classification, stage, structure_node, content_kind, category` 供离线逐文件摘要与归集信息复核. 批量下载不改变任何记录状态; 机密文档逐文件校验密级权限, 任一无权整体 403.
+
+二进制证据 (增量5, C04/C05/C06): `POST /documents/upload` 与 `POST /documents/:rid/upload-revision` 接受 multipart 表单: 文件部件 `file` 加业务字段 `code`, `title`, 可选 `classification`, `stage`, `structure_node`, `category` (文档类别, 至多 50 字符, 用于按模板文档类别归集) 与 `version` (项目版本, 字符串整数). 服务端校验: 文件名非空且不含路径分隔符, 扩展名须在白名单 (`pdf png jpg jpeg gif webp bmp svg txt csv md log json xml doc docx xls xlsx ppt pptx zip 7z dwg dxf step stp igs iges`), 空文件与超过上限 (服务配置 `:file-max-mb`, 环境变量 `PMS_FILE_MAX_MB`, 缺省 50) 返回 400, 其它字段走白名单 (客户端不能伪造 `sha256`/`byte_size` 等). 文件按内容寻址写入 `:file-dir` (`PMS_FILE_DIR`, 缺省 `data/pms-files`) 下 `<project_id>/<sha256>`, 同项目相同内容共用一份物理文件, 已存在的文件不覆盖 (不可变). 记录 payload 保存 `content_kind="file"`, `filename`, `content_type` (按扩展名由服务端确定, 不信任客户端声明), `byte_size`, `sha256`, `storage_key`, `preview`; 文本证据记 `content_kind="text"`. 上传与修订走 `kernel/mutate!` (版本号校验, 审计 `document.created/revised`), 返回 `{result, project_version}`. 文本证据的 `POST /documents` 同样接受可选 `category`. 发布签发: `decision=approved` 时记录另固化 `released_at` 与 `release_sha256` (被批准版本的摘要), 作为受控签发记录; 这不是法定电子签章, 外部 CA 签章与外部文书模板不在本地范围.
 - CSV 表头必须严格为 `code,text,category,priority,owner_id`. 最多 500 行和 1MiB. 返回 `{valid?: boolean, count, rows, errors: [{line, error}]}`; JSON 字段名是 `"valid?"`. 行号含表头, 第一条数据为 2. 检查现有编号, 文件内重复, 所有字段和有效成员. 非法表头或不可解析 CSV 直接返回 400.
 
 ## 项目成员任命书

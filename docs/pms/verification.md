@@ -642,6 +642,23 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 本轮把无外部依赖的 PPT 功能行推进到 `implemented / local` 或 `partial`, 具体到行的诚实状态与"待:"内容以矩阵为准. 明确不上行的复合能力: 采购/供应商进度与 ERP/MES/CRM 回传 (待合同), 编码规则/Gate 适用编号/交底自然日或工作日等待批准的业务口径 (待规则), 生产 MySQL 目标环境与 UAT (H19/H20). 模板/编码规则修改不追溯已实例化项目, 费用池按已批准工时守恒分摊不含费率/税额/汇率, 经营目标实际值只取季度内关闭项目已批准决算, 均为本地确定性口径而非财务权威数据.
 
+## 增量5: 证据文档二进制附件与证据链 + 云端 MySQL 8 真实回归 (2026-09-24)
+
+范围: [完成计划](13-completion-plan.md) 增量5, 矩阵 C04 / C05 / C06 (A09 文档类别归集). 设计: 文本证据保持原样 (`content_kind=text`), 新增真实文件证据 (`content_kind=file`): `POST /documents/upload` 与 `POST /documents/:rid/upload-revision` 接受 multipart (文件 + 编号/标题/密级/阶段/结构节点/类别 + 项目版本), 服务端校验文件名与扩展名白名单 (可执行等不允许) / 空文件 / 大小上限 (`PMS_FILE_MAX_MB` 缺省 50), 文件按内容寻址写入 `PMS_FILE_DIR/<project_id>/<sha256>` (同项目同内容共用一份, 已存在不覆盖, 版本不可变), 记录只存元数据与 SHA256 (正文不进 JSON 载荷); 下载 / 内联预览 / 批量 ZIP 在下发前整文件复核 SHA256, 被篡改或缺失拒绝下发 (500) 而不是把损坏件当原件; 每次访问与包内每文件校验项目授权与 `pms:document:confidential`; 发布批准时固化 `released_at` 与 `release_sha256` 作为受控签发记录 (非法定电子签章). 前端"证据版本"新增"上传证据文件" (multipart, 文件选择器) 与文件行"预览/下载" (PDF 内嵌框 / 图片 / 文本, 其它类型只下载, 显示服务端复核一致与否), 文本与文件证据共用文档类别下拉 (取已实例化模板的 document_categories). 沿用 `kernel/mutate!` 版本校验与审计, 免迁移 (字段随 payload).
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| 文档附件测试 (SQLite) | 5 tests / 68 assertions, 0 failures/errors | `pms_documents_test.clj`: 内容寻址 + 摘要 + 去重 + 修订链 (只对最新版本, 编号不变); 类型白名单 / 空文件 / 超限 (测试配置 2MiB) / 路径穿越 / 缺文件 / 伪造 sha256 字段 / 非法密级 400, 只读用户 403; 机密文件无密级权限 403 (单文件与批量), 篡改文件 500 "证据文件校验失败", 删除文件 500 "证据文件缺失"; 签发固化 release_sha256 / released_at, 已签发不能再提交 409; multipart HTTP 合同: 401 / 403 / 400 (exe) / 200 上传, 下载字节与摘要头一致, preview inline 与 415, 修订 200, 文本与文件混合批量 ZIP 4 个条目且 MANIFEST 含 content_kind |
+| 全量 PMS 回归 (CLI SQLite, 全新库) | 128 tests / 1272 assertions, 0 failures/errors | `clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'` |
+| 全量 PMS 回归 (MySQL 8.0.46, 云端 apt 安装, 全新库) | 128 tests / 1241 assertions, 0 failures/errors | `PMS_TEST_JDBC_URL='jdbc:mysql://127.0.0.1:3306/hc_pms_test?user=pms&password=pms123&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai' clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'`; 全部迁移 (含 202609240001-blueprint-extension) 在 MySQL 实际执行; 与 SQLite 差 31 条为并发套件 SQLite 驱动专属断言 (与既往 CI 口径一致); 首轮暴露 config/fieldwork 测试的合成角色编号与 finance/ops 测试冲突 (共享 MySQL 库下 Duplicate entry 9400/9600), 已改为 9440/9640 段后通过 |
+| 前端编译 | 0 warnings | `npx shadow-cljs compile app` |
+| Chrome 浏览器 (Playwright, Linux Chromium 141, 隔离 `:3100` 后端, `PMS_FILE_DIR` 指向隔离目录) | `pms-d-documents.spec.js` 1 passed (33s) | 界面上传真实生成的可渲染 PDF (机密, 类别 设计) -> 表格显示文件名 / 600 B / 类别 / 密级 (截图 d-1); 预览弹窗内嵌 PDF 查看器并显示 "服务端复核: 一致" (d-2); 上传 PNG (公开) -> 图片预览 (d-3); 上传 .exe -> 弹窗错误面板 "不允许的文件类型: exe" (d-4); 真实 HTTP 下载字节 SHA256 与本地文件一致且响应头 X-Content-SHA256 一致, preview 为 inline application/pdf; 无密级权限的独立审核人第二浏览器上下文: 机密 PDF 下载 403 且界面预览弹窗显示 "无机密文档访问权限" (d-5), 公开 PNG 可下载且摘要一致; 批量 ZIP 解包后 PDF 条目摘要与原件一致, MANIFEST 含 content_kind=file; 界面上传同编号新文件版本 -> V2, V1 摘要不变; 提交发布 -> 审核人签发 -> `release_sha256` 等于 V2 摘要, 台账 "已发布" (d-6); 无未捕获 JS 错误; 截图存 `reports/d-documents/` |
+| 既有文档相关浏览器用例复跑 | c04, c04b, c06, c06b, b05, h18 (2), h18b (2), h18c (3), workbench (4) 通过; c05 仅环境文件名断言 | 上传入口与文本登记并列, 既有 "登记证据文档" 入口与弹窗标题保持不变 |
+
+本轮未执行 (如实记录): 本机 macOS Chrome 复验 (含 c05 文件名); 生产对象存储 / 分布式文件系统 (G17) 仍待, 当前为本地目录内容寻址存储 (备份须包含 `PMS_FILE_DIR`); 病毒扫描与文件内容嗅探 (只按扩展名白名单与服务端 MIME 映射); 外部 CA 电子签章与外部文书模板不在本地范围.
+
+边界: C04 / C05 / C06 三行按各自验收口径上行为 `implemented / local` (分层归集与可追踪, 逐次逐文件权限与摘要一致, 编制到签发的版本轨迹与 Gate 引用不漂移); 生产存储与签章边界如上, 不据此把 G17 或 H14 上行.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

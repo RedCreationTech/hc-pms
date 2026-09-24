@@ -14,8 +14,8 @@
            [java.util UUID]))
 
 (defmethod ig/init-key :app.pms/service
-  [_ {:keys [query-fn db]}]
-  {:query-fn query-fn :db db})
+  [_ {:keys [query-fn db file-dir file-max-mb]}]
+  {:query-fn query-fn :db db :file-dir file-dir :file-max-mb file-max-mb})
 
 (defn- uuid
   "生成跨数据库一致的业务标识."

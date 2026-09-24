@@ -61,25 +61,46 @@
             (owner-field (:users options))]})
 
 
+(def default-document-categories
+  "无项目模板时的文档类别缺省 (与内置模板目录一致)."
+  ["立项" "设计" "DQ" "制造" "验证" "过程" "现场" "验收" "总结"])
+
+
+(defn category-field
+  "文档类别下拉: 优先取已实例化项目模板的文档类别, 否则用缺省目录; 可留空."
+  [categories]
+  {:key :category :label "文档类别" :type :select
+   :options (mapv (fn [c] {:value c :label c}) (or (seq categories) default-document-categories))
+   :hint "用于按模板文档类别归集, 可留空"})
+
+
+(defn document-meta-fields
+  "文本与文件两类证据共用的归集字段."
+  [categories]
+  [{:key :code :label "文档编号" :required? true}
+   {:key :title :label "文档标题" :required? true}
+   {:key :classification :label "密级" :type :select
+    :options [{:value "public" :label "公开"} {:value "internal" :label "内部"} {:value "confidential" :label "机密"}]
+    :hint "未选择时服务端记为内部; 机密文档正文仅具备密级权限者可读"}
+   {:key :stage :label "所属阶段" :hint "例如 设计/DQ/制造/验证/过程, 可留空"}
+   {:key :structure_node :label "结构节点" :hint "例如 主机/控制柜, 可留空"}
+   (category-field categories)])
+
+
 (defn document-dialog
-  "保存真实文本内容,由服务端生成SHA256与不可变版本; 密级/阶段/结构节点用于项目内归集追踪."
-  [base document]
-  {:title (if document "新增证据文档版本" "登记证据文档")
-   :path (str base "/documents" (when document (str "/" (:id document) "/revisions")))
-   :description "录入实际文本证据,内容将形成独立版本和校验摘要.密级/阶段/结构节点仅用于项目内归集与追踪,不替代项目授权.二进制附件请使用组织文档库并记录其引用."
-   :initial (when document (select-keys document [:code :title :filename :content :classification :stage :structure_node]))
-   :transform (fn [data]
-                (reduce (fn [m k] (let [v (get data k)] (if (or (nil? v) (= "" v)) (dissoc m k) m)))
-                        data [:classification :stage :structure_node]))
-   :fields [{:key :code :label "文档编号" :required? true}
-            {:key :title :label "文档标题" :required? true}
-            {:key :filename :label "文件名" :required? true :hint "例如 design-review.txt"}
-            {:key :classification :label "密级" :type :select
-             :options [{:value "public" :label "公开"} {:value "internal" :label "内部"} {:value "confidential" :label "机密"}]
-             :hint "未选择时服务端记为内部"}
-            {:key :stage :label "所属阶段" :hint "例如 设计/DQ/制造/验证/过程, 可留空"}
-            {:key :structure_node :label "结构节点" :hint "例如 主机/控制柜, 可留空"}
-            {:key :content :label "文档正文" :type :textarea :max 1048576 :required? true}]})
+  "保存真实文本内容,由服务端生成SHA256与不可变版本; 密级/阶段/结构节点/类别用于项目内归集追踪."
+  ([base document] (document-dialog base document nil))
+  ([base document categories]
+   {:title (if document "新增证据文档版本" "登记证据文档")
+    :path (str base "/documents" (when document (str "/" (:id document) "/revisions")))
+    :description "录入实际文本证据,内容将形成独立版本和校验摘要.密级/阶段/结构节点/类别仅用于项目内归集与追踪,不替代项目授权. PDF/图片/Office 等文件请用 '上传证据文件'."
+    :initial (when document (select-keys document [:code :title :filename :content :classification :stage :structure_node :category]))
+    :transform (fn [data]
+                 (reduce (fn [m k] (let [v (get data k)] (if (or (nil? v) (= "" v)) (dissoc m k) m)))
+                         data [:classification :stage :structure_node :category]))
+    :fields (into (document-meta-fields categories)
+                  [{:key :filename :label "文件名" :required? true :hint "例如 design-review.txt"}
+                   {:key :content :label "文档正文" :type :textarea :max 1048576 :required? true}])}))
 
 
 (def phase-labels

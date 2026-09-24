@@ -45,7 +45,7 @@ PORT=3100 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false clojure -M:dev -
 pnpm exec shadow-cljs watch app
 ```
 
-打开 [项目中心](http://127.0.0.1:3100/pms/project) 或 [项目驾驶舱](http://127.0.0.1:3100/pms/dashboard). 新建本地数据库的模板演示账号为 `admin / admin123`. 对外部署前替换默认口令并设置 `JWT_SECRET`, `COOKIE_SECRET`. 不要将开发nREPL对外开放.
+打开 [项目中心](http://127.0.0.1:3100/pms/project) 或 [项目驾驶舱](http://127.0.0.1:3100/pms/dashboard). 新建本地数据库的模板演示账号为 `admin / admin123`. 对外部署前替换默认口令并设置 `JWT_SECRET`, `COOKIE_SECRET`; 证据文件 (PDF/图片/Office 等真实附件) 按内容寻址存放在 `PMS_FILE_DIR` (缺省 `data/pms-files`, 单文件上限 `PMS_FILE_MAX_MB` 缺省 50), 备份须包含该目录. 不要将开发nREPL对外开放.
 
 数据库默认为仓库内 `rouyi.db`, 首次启动自动迁移. 自定义数据库使用 `JDBC_URL`, MySQL同时设置 `MIGRATION_DIR=migrations`. 运行文件已被Git忽略.
 

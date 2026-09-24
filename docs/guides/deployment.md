@@ -77,6 +77,8 @@ curl -s http://localhost:3000/api/health
 | `FLOWABLE_ASYNC` | `true` | Flowable 异步执行器开关; 超时边界/定时事件依赖它, 只有明确不需要时才设 `false` | resources/system.edn:85; 消费处 src/clj/com/ruoyi/bpm/engine.clj:26-31, 38, 42 |
 | `JWT_SECRET` | `rouyi-default-jwt-secret-key-change-in-production` | JWT 签名密钥.**生产必须显式设置**, 否则使用公开源码中的默认密钥 | src/clj/com/ruoyi/infra/security.clj:9-12 |
 | `COOKIE_SECRET` | `KWGRWFTDVZAHISQO` | ring session cookie 密钥 | resources/system.edn:19 |
+| `PMS_FILE_DIR` | `data/pms-files` | PMS 证据文件 (PDF/图片/Office 等真实附件) 的内容寻址存储目录, 结构 `<project_id>/<sha256>`; 生产须放在持久卷并纳入备份 | resources/system.edn `:app.pms/service`; 消费处 src/clj/com/ruoyi/domain/pms/governance/files.clj |
+| `PMS_FILE_MAX_MB` | `50` | 单个证据文件上限 (MiB), 超过返回 400 | 同上 |
 
 生产启动示例:
 
