@@ -12,7 +12,7 @@
 
 (def kinds
   "允许持久化的平台配置类型."
-  #{"project-template" "coding-rule" "quarterly-target" "rd-pool" "period-lock"})
+  #{"project-template" "coding-rule" "quarterly-target" "rd-pool" "period-lock" "approval-policy"})
 
 (def project-types
   "项目类别: 订单型三类与研发/部门事务型 (A11)."
@@ -29,7 +29,8 @@
 (def write-permissions
   "各类型的维护权限."
   {"project-template" "pms:config:edit" "coding-rule" "pms:config:edit"
-   "quarterly-target" "pms:target:edit" "rd-pool" "pms:finance:approve" "period-lock" "pms:finance:approve"})
+   "quarterly-target" "pms:target:edit" "rd-pool" "pms:finance:approve" "period-lock" "pms:finance:approve"
+   "approval-policy" "pms:config:edit"})
 
 (def read-permissions
   "读取平台配置的任一权限."
@@ -239,6 +240,51 @@
   (r/object! body [:period :reason])
   {:code (period! (:period body)) :period (:period body) :reason (s/text! body :reason 500)})
 
+(def approval-types
+  "可按策略配置多级审批的业务类型 (编码即类型); 带金额的类型允许按金额设置级别条件."
+  {"plan-baseline" {:label "计划基线" :amount? false}
+   "charter" {:label "项目章程" :amount? true}
+   "cost-version" {:label "费用版本" :amount? true}
+   "closure" {:label "项目结项" :amount? false}})
+
+(def approval-rules
+  "审批人规则: 指定角色, 项目所属部门负责人 (可上溯), 项目经理, 指定用户, 提交人选择."
+  #{"role" "dept_leader" "project_manager" "user" "submitter_choice"})
+
+(defn- approval-level!
+  [amount? level]
+  (when-not (map? level) (r/fail! 400 "审批级别必须是对象"))
+  (let [rule (s/enum! (:rule level) approval-rules "审批人规则")
+        mode (s/enum! (or (:mode level) "any") #{"any" "all"} "会签/或签")
+        on-empty (s/enum! (or (:on_empty level) "reject") #{"reject" "skip"} "无审批人处理")
+        min-amount (when-let [v (not-empty (str (or (:min_amount level) "")))]
+                     (when-not amount? (r/fail! 400 "该审批类型没有金额, 不能设置金额条件"))
+                     (let [minor (money/amount! v "金额条件")]
+                       (when (neg? minor) (r/fail! 400 "金额条件不能为负数"))
+                       (money/money minor)))
+        base {:name (r/text! (:name level) "级别名称" 50 true) :rule rule :mode mode :on_empty on-empty
+              :min_amount min-amount}]
+    (case rule
+      "role" (assoc base :role_key (r/text! (:role_key level) "角色" 100 true)
+                    :members_only (true? (:members_only level)))
+      "dept_leader" (let [up (or (:up level) 0)]
+                      (when-not (and (integer? up) (<= 0 up 5)) (r/fail! 400 "上溯级数必须为0到5"))
+                      (assoc base :up up))
+      "user" (let [ids (:user_ids level)]
+               (when-not (and (vector? ids) (<= 1 (count ids) 20)) (r/fail! 400 "指定用户需要1到20人"))
+               (assoc base :user_ids (vec (distinct (map #(r/positive-id! % "审批用户") ids)))))
+      base)))
+
+(defn- approval-policy!
+  "审批策略: 编码为业务类型, 1 到 6 级, 每级一个审批人规则."
+  [body]
+  (let [code (s/enum! (:code body) (set (keys approval-types)) "审批类型")
+        levels (:levels body)]
+    (when-not (and (vector? levels) (<= 1 (count levels) 6)) (r/fail! 400 "审批策略需要1到6级"))
+    {:code code
+     :name (r/text! (or (:name body) (str (get-in approval-types [code :label]) "审批")) "策略名称" 100 true)
+     :levels (mapv #(approval-level! (get-in approval-types [code :amount?]) %) levels)}))
+
 (defn content!
   "按类型校验配置内容."
   [kind body]
@@ -247,7 +293,8 @@
     "coding-rule" (coding-rule! body)
     "quarterly-target" (quarterly-target! body)
     "rd-pool" (rd-pool! body)
-    "period-lock" (period-lock! body)))
+    "period-lock" (period-lock! body)
+    "approval-policy" (approval-policy! body)))
 
 ;; ── 命令 ────────────────────────────────────────────────────────
 
@@ -300,7 +347,7 @@
             latest (apply max-key :revision (filter #(= (:code old) (:code %)) all))]
         (when-not (= (:id latest) (:id old)) (r/fail! 409 "对象已有更新版本,请使用最新版本"))
         (when (= "draft" (:status old)) (r/fail! 409 "当前版本仍是草稿, 可直接发布或作废"))
-        (let [fields (content! kind (if (contains? #{"project-template" "coding-rule"} kind)
+        (let [fields (content! kind (if (contains? #{"project-template" "coding-rule" "approval-policy"} kind)
                                       (assoc body :code (:code old)) (dissoc body :code)))]
           (when-not (= (:code fields) (:code old)) (r/fail! 400 "修订不能改变配置编码"))
           (insert! q actor kind (assoc fields :previous_id (:id old)) (inc (:revision old)) "draft"))))))
@@ -340,6 +387,7 @@
   (let [item (case kind
                "project-template" (some #(when (= (:code body) (:code %)) %) catalog/project-templates)
                "coding-rule" (some #(when (= (:code body) (:code %)) %) catalog/coding-rules)
+               "approval-policy" (some #(when (= (:code body) (:code %)) %) catalog/approval-policies)
                nil)]
     (when-not item (r/fail! 404 "目录项不存在"))
     (create! svc actor kind item)))
@@ -356,6 +404,7 @@
      :catalog (case kind
                 "project-template" catalog/project-templates
                 "coding-rule" catalog/coding-rules
+                "approval-policy" catalog/approval-policies
                 [])
      :gate_types catalog/gate-types
      :current_user_id (:user_id actor)}))

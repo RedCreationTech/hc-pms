@@ -222,14 +222,14 @@
 (defn suspend!
   "挂起流程实例."
   [^ProcessEngine engine process-instance-id]
-  (.suspendProcessInstanceById (.getRuntimeService engine process-instance-id))
+  (.suspendProcessInstanceById (.getRuntimeService engine) process-instance-id)
   true)
 
 
 (defn activate!
   "激活流程实例."
   [^ProcessEngine engine process-instance-id]
-  (.activateProcessInstanceById (.getRuntimeService engine process-instance-id))
+  (.activateProcessInstanceById (.getRuntimeService engine) process-instance-id)
   true)
 
 
@@ -281,25 +281,27 @@
           (let [user (.newUser id-svc uid)]
             (.setFirstName user (str (or (:nick_name u) (:user_name u) (:user_id u))))
             (.saveUser id-svc user)))))
-    ;; 3) memberships(忽略重复,保证幂等)
-    (doseq [ur user-roles]
-      (when (and (:user_id ur) (:role_id ur))
-        (try (.createMembership id-svc (uname (first (filter #(= (:user_id ur) (:user_id %)) users)))
-                                (str "role:" (str-id (:role_id ur))))
-             (catch Exception _ nil))))
-    (doseq [u users]
-      (when (:dept_id u)
-        (try (.createMembership id-svc (uname u) (str "dept:" (str-id (:dept_id u))))
-             (catch Exception _ nil))
-        (when-let [d (first (filter #(= (:dept_id u) (:dept_id %)) depts))]
-          (when (= (str-id (:user_id u)) (str-id (:leader d)))
-            (try (.createMembership id-svc (uname u) (str "dept-leader:" (str-id (:dept_id u))))
-                 (catch Exception _ nil))))))
-    (doseq [up user-posts]
-      (when (and (:user_id up) (:post_id up))
-        (try (.createMembership id-svc (uname (first (filter #(= (:user_id up) (:user_id %)) users)))
-                                (str "post:" (str-id (:post_id up))))
-             (catch Exception _ nil))))
+    ;; 3) memberships: 按系统当前数据计算应有成员关系, 删除失效的 (换部门/换岗/撤角色/停用/更换负责人), 补齐缺失的
+    (let [active (filter #(contains? #{nil "0"} (some-> (:status %) str)) users)
+          by-id (into {} (map (juxt (comp str-id :user_id) identity)) active)
+          desired (set (concat
+                         (for [ur user-roles :let [u (by-id (str-id (:user_id ur)))] :when (and u (:role_id ur))]
+                           [(uname u) (str "role:" (str-id (:role_id ur)))])
+                         (for [u active :when (:dept_id u)]
+                           [(uname u) (str "dept:" (str-id (:dept_id u)))])
+                         (for [d depts :let [u (by-id (str-id (or (:leader_id d) (:leader d))))] :when u]
+                           [(uname u) (str "dept-leader:" (str-id (:dept_id d)))])
+                         (for [up user-posts :let [u (by-id (str-id (:user_id up)))] :when (and u (:post_id up))]
+                           [(uname u) (str "post:" (str-id (:post_id up)))])))
+          managed? (fn [gid] (some #(str/starts-with? gid %) ["role:" "dept:" "dept-leader:" "post:"]))
+          current (set (for [^org.flowable.idm.api.Group g (.list (.createGroupQuery id-svc))
+                             :let [gid (.getId g)] :when (managed? gid)
+                             ^org.flowable.idm.api.User u (.list (.memberOfGroup (.createUserQuery id-svc) gid))]
+                         [(.getId u) gid]))]
+      (doseq [[uid gid] (remove desired current)]
+        (try (.deleteMembership id-svc uid gid) (catch Exception _ nil)))
+      (doseq [[uid gid] (remove current desired)]
+        (try (.createMembership id-svc uid gid) (catch Exception _ nil))))
     true))
 
 

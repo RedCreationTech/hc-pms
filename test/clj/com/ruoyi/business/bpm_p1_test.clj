@@ -88,7 +88,7 @@
   [app admin-h]
   (let [u (str "p1u" (rand-int 100000))
         r (parse-json (POST app "/api/system/user"
-                            {:user_name u :nick_name "P1测试" :password "admin123"}
+                            {:user_name u :nick_name "P1测试" :password "admin123" :roles [2]}
                             admin-h))]
     (is (= 200 (:code r)))
     {:username u

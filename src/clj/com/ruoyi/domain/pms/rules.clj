@@ -45,15 +45,17 @@
   {:admin (if (:admin? actor) 1 0) :user_id (:user_id actor)})
 
 (defn access!
-  "检查当前项目成员和管理者的读取或编辑范围,撤销成员立即失效."
+  "检查当前项目成员和管理者的读取或编辑范围,撤销成员立即失效.
+   审批链的参与人 (已轮到或已处理过的审批人) 即使不是项目成员也可只读查看, 以便依据项目资料作出审批."
   [query-fn actor project write?]
   (when-not project (fail! 404 "项目不存在"))
   (let [uid (:user_id actor)
         member (query-fn :pms/member {:project_id (:project_id project) :user_id uid})
         manager? (= uid (:manager_id project))
         reader? (or manager? member)
-        writer? (or manager? (contains? #{"manager" "editor"} (:role member)))]
-    (when-not (or (:admin? actor) (if write? writer? reader?))
+        writer? (or manager? (contains? #{"manager" "editor"} (:role member)))
+        approver? (fn [] (map? (query-fn :approval/participant {:project_id (:project_id project) :user_id uid})))]
+    (when-not (or (:admin? actor) (if write? writer? (or reader? (approver?))))
       (fail! 403 "没有该项目的数据访问权限")))
   project)
 

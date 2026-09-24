@@ -8,6 +8,7 @@
     [clojure.string :as str]
     [com.ruoyi.frontend.antd :as antd]
     [com.ruoyi.frontend.components.dept-tree-select :refer [dept-tree-select]]
+    [com.ruoyi.frontend.permission :as permission]
     [re-frame.core :as rf]
     [reagent.core :as r]
     [reagent.hooks :as hooks]))
@@ -136,38 +137,43 @@
     [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center"
                    :padding "8px 22px 8px 22px" :background "transparent"}}
      [:div {:style {:display "flex" :gap 8}}
+      (when (permission/permitted? "system:user:add")
       [antd/button {:type "primary" :ghost true
                     :style (btn-style "#409eff" "#a0cfff" "#ecf5ff"
                                       "#70b8ff" "rgba(64,158,255,0.45)" "rgba(64,158,255,0.15)")
                     :icon (r/as-element [:> PlusOutlined])
                     :on-click #(rf/dispatch [:users/open-add])}
-       "新增"]
+       "新增"])
+      (when (permission/permitted? "system:user:edit")
       [antd/button {:ghost true
                     :style (btn-style "#67c23a" "#b3e19d" "#f0f9eb"
                                       "#85ce61" "rgba(103,194,58,0.45)" "rgba(103,194,58,0.15)")
                     :icon (r/as-element [:> EditOutlined])
                     :disabled @(rf/subscribe [:users/selected-empty?])
                     :on-click #(rf/dispatch [:users/open-edit-selected])}
-       "修改"]
+       "修改"])
+      (when (permission/permitted? "system:user:remove")
       [antd/button {:danger true :ghost true
                     :style (btn-style "#f56c6c" "#fab6b6" "#fef0f0"
                                       "#f78989" "rgba(245,108,108,0.45)" "rgba(245,108,108,0.15)")
                     :icon (r/as-element [:> DeleteOutlined])
                     :disabled @(rf/subscribe [:users/selected-empty?])
                     :on-click #(rf/dispatch [:users/batch-delete])}
-       "删除"]
+       "删除"])
+      (when (permission/permitted? "system:user:import")
       [antd/button {:ghost true
                     :style (btn-style "#909399" "#d3d4d6" "#f4f4f5"
                                       "#a6a9ad" "rgba(144,147,153,0.45)" "rgba(144,147,153,0.15)")
                     :icon (r/as-element [:> UploadOutlined])
                     :on-click #(rf/dispatch [:users/open-import])}
-       "导入"]
+       "导入"])
+      (when (permission/permitted? "system:user:export")
       [antd/button {:ghost true
                     :style (btn-style "#e6a23c" "#f3d19e" "#fdf6ec"
                                       "#ebb563" "rgba(230,162,60,0.45)" "rgba(230,162,60,0.15)")
                     :icon (r/as-element [:> DownloadOutlined])
                     :on-click #(rf/dispatch [:users/export])}
-       "导出"]]
+       "导出"])]
      [:div {:style {:display "flex" :gap 12}}
       [antd/tooltip {:title "显示搜索"}
        [antd/button {:shape "circle"
@@ -203,7 +209,10 @@
 
 (defn- user-columns
   []
-  (let [columns-config @(rf/subscribe [:users/columns])]
+  (let [columns-config @(rf/subscribe [:users/columns])
+        can-edit? (permission/permitted? "system:user:edit")
+        can-remove? (permission/permitted? "system:user:remove")
+        can-reset? (permission/permitted? "system:user:resetPwd")]
     (clj->js
       (filterv some?
                [(when (get-in columns-config [:user_id :visible?])
@@ -227,6 +236,7 @@
                    :render (fn [v record]
                              (r/as-element
                                [antd/switch {:checked (= v "0")
+                                             :disabled (not can-edit?)
                                              :on-change (fn [checked?]
                                                           (rf/dispatch [:users/change-status
                                                                         (.-user_id ^js record)
@@ -238,19 +248,23 @@
                            (r/as-element
                              (when (not= "admin" (.-user_name ^js record))
                                [antd/space
+                                (when can-edit?
                                 [antd/button {:type "link" :size "small"
                                               :style {:color "#409eff"}
                                               :icon (r/as-element [:> EditOutlined])
                                               :on-click #(rf/dispatch [:users/open-edit (.-user_id ^js record)])}
-                                 "修改"]
+                                 "修改"])
+                                (when can-remove?
                                 [antd/button {:type "link" :size "small"
                                               :disabled (= 1 (.-user_id ^js record))
                                               :style {:color (if (= 1 (.-user_id ^js record)) "#c0c4cc" "#409eff")}
                                               :icon (r/as-element [:> DeleteOutlined])
                                               :on-click #(rf/dispatch [:users/delete (.-user_id ^js record)])}
-                                 "删除"]
-                                [antd/dropdown {:menu {:items (clj->js [{:key "resetPwd" :label (r/as-element [:span "重置密码"])}
-                                                                        {:key "authRole" :label (r/as-element [:span "分配角色"])}])
+                                 "删除"])
+                                (when (or can-edit? can-reset?)
+                                [antd/dropdown {:menu {:items (clj->js (cond-> []
+                                                                         can-reset? (conj {:key "resetPwd" :label (r/as-element [:span "重置密码"])})
+                                                                         can-edit? (conj {:key "authRole" :label (r/as-element [:span "分配角色"])})))
                                                        :onClick (fn [e]
                                                                   (case (.-key e)
                                                                     "resetPwd" (rf/dispatch [:users/reset-password (.-user_id ^js record)])
@@ -258,7 +272,7 @@
                                                                     nil))}}
                                  [antd/button {:type "link" :size "small"
                                                :style {:color "#409eff"}}
-                                  "更多"]]])))}]))))
+                                  "更多"]])])))}]))))
 
 
 ;; ─── 自定义弹窗(替代 antd/modal,避免 antd 6 + Reagent 兼容问题)──
@@ -505,7 +519,7 @@
          [:div {:style {:display "flex" :alignItems "center" :gap 16 :color "#a8abb2"}}
           [:span {:style {:fontSize 18 :lineHeight 1 :cursor "pointer"}} "⌄"]
           [:> ReloadOutlined {:style {:fontSize 15 :cursor "pointer"}
-                              :on-click #(rf/dispatch [:depts/fetch {}])}]]]
+                              :on-click #(rf/dispatch [:depts/fetch-user-tree])}]]]
         [:div {:style {:padding "12px 12px 8px"}}
          [antd/input {:placeholder "请输入部门名称"
                       :prefix (r/as-element [:> SearchOutlined {:style {:color "#c0c4cc"}}])
@@ -666,7 +680,7 @@
   []
   (hooks/use-effect
     (fn []
-      (rf/dispatch [:depts/fetch {}])
+      (rf/dispatch [:depts/fetch-user-tree])
       (rf/dispatch [:users/fetch {}])
       js/undefined)
     [])

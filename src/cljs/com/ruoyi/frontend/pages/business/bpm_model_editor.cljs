@@ -212,10 +212,10 @@
         (api/bpm-list-categories {:page 1 :size 1000}
                                  #(set-categories! (walk/keywordize-keys (get-in % [:data :rows])))
                                  #())
-        (api/list-users {:page 1 :size 1000}
+        (api/user-options {:page 1 :size 1000}
                         #(set-users! (walk/keywordize-keys (get-in % [:data :rows])))
                         #())
-        (api/list-depts {:page 1 :size 1000}
+        (api/dept-options {:page 1 :size 1000}
                         #(set-depts! (walk/keywordize-keys (get-in % [:data :rows])))
                         #())
         js/undefined)

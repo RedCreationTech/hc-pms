@@ -110,7 +110,7 @@ bpm/engine.clj     ← Flowable ProcessEngine 的 Integrant 组件封装(唯一�
 bpm/core.clj       ← 高层 API:部署/发起/审批/驳回/转办/待办/已办/流程图
 ```
 
-- **权限**:复用现有 `sys_menu` 动态菜单 + `sys_role_menu` + `require-perms`(遵守 AGENTS 7.4).
+- **权限**:复用现有 `sys_menu` 动态菜单 + `sys_role_menu`, 路由数据声明 `:perms` 由 `authz/perms-middleware` 校验 (2026-09-25 起, 替代早期的 `require-perms`); 个人办理类接口为 `:login` + 任务归属校验(遵守 AGENTS 7.4).
   每个新模块的菜单/按钮权限都插入 `sys_menu`,前端从接口动态加载.
 - **分页**:前端传 `page`/`size`(遵守 AGENTS 7.3).
 - **迁移**:业务表 `biz_*`,双库同步(`migrations-sqlite/` 与 `migrations/`),迁移号顺延.

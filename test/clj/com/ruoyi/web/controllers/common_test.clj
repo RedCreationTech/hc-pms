@@ -50,11 +50,13 @@
               response (common/upload {} request)]
           (is (= 200 (:status response)))
           (is (= 200 (get-in response [:body :code])))
-          (is (= "hello.txt" (get-in response [:body :data :fileName])))
-          (is (= "/uploads/hello.txt" (get-in response [:body :data :url])))
-          (let [target (io/file common/upload-dir "hello.txt")]
-            (is (.exists target))
-            (is (= "hello world" (slurp target)))))
+          (let [stored (get-in response [:body :data :fileName])]
+            (is (re-matches #"[0-9a-f-]{36}\.txt" stored) "存储名由服务端生成, 保留扩展名")
+            (is (= "hello.txt" (get-in response [:body :data :originalFilename])))
+            (is (= (str "/uploads/" stored) (get-in response [:body :data :url])))
+            (let [target (io/file common/upload-dir stored)]
+              (is (.exists target))
+              (is (= "hello world" (slurp target))))))
         (finally
           (.delete source))))))
 
@@ -87,7 +89,7 @@
             (is (= 200 (:status response)))
             (is (= 200 (get-in response [:body :code])))
             (is (.exists nested))
-            (is (.exists (io/file nested "nested.txt")))))
+            (is (.exists (io/file nested (get-in response [:body :data :fileName]))))))
         (finally
           (.delete source))))))
 
@@ -113,10 +115,11 @@
 
 (deftest test-download-resource-success
   (testing "下载资源文件成功"
-    (let [f (io/file common/resource-dir "templates" "demo.xlsx")]
-      (.mkdirs (.getParentFile f))
+    (let [f (io/file common/resource-dir "demo.xlsx")]
       (spit f "resource content")
-      (let [response (common/download-resource {} {:query-params {:resource "templates/demo.xlsx"}})]
+      (is (= 400 (get-in (common/download-resource {} {:query-params {:resource "templates/demo.xlsx"}}) [:body :code]))
+          "只接受单层文件名")
+      (let [response (common/download-resource {} {:query-params {:resource "demo.xlsx"}})]
         (is (= 200 (:status response)))
         (is (= "application/octet-stream" (get-in response [:headers "Content-Type"])))
         (is (= "attachment; filename=\"demo.xlsx\"" (get-in response [:headers "Content-Disposition"])))

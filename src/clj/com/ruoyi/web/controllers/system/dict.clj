@@ -3,7 +3,6 @@
   (:require
     [clojure.walk :as walk]
     [com.ruoyi.domain.system.dict :as dict-service]
-    [com.ruoyi.infra.data-perm :as data-perm]
     [ring.util.response :as response]))
 
 
@@ -26,12 +25,9 @@
 
 
 (defn list-dict-types
-  "查询字典类型列表(带数据权限过滤)."
+  "查询字典类型列表."
   [{:keys [dict-service]} request]
-  (let [params (walk/keywordize-keys (:query-params request))
-        identity (:identity request)
-        data-perm-filter (data-perm/data-perm-filter identity "default" :alias "u")
-        params (merge params (:params data-perm-filter))]
+  (let [params (walk/keywordize-keys (:query-params request))]
     (ok (dict-service/list-dict-types dict-service params))))
 
 
@@ -72,12 +68,9 @@
 
 
 (defn list-dict-data
-  "查询字典数据列表(带数据权限过滤)."
+  "查询字典数据列表."
   [{:keys [dict-service]} request]
-  (let [params (walk/keywordize-keys (:query-params request))
-        identity (:identity request)
-        data-perm-filter (data-perm/data-perm-filter identity "default" :alias "u")
-        params (merge params (:params data-perm-filter))]
+  (let [params (walk/keywordize-keys (:query-params request))]
     (ok (dict-service/list-dict-data dict-service params))))
 
 

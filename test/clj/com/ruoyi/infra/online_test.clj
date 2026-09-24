@@ -1,209 +1,134 @@
 (ns com.ruoyi.infra.online-test
-  "在线用户管理测试."
+  "在线会话与令牌撤销测试 (模拟 query-fn)."
   (:require
+    [buddy.sign.jwt]
     [clojure.test :refer [deftest is testing use-fixtures]]
     [com.ruoyi.infra.online :as online]
     [com.ruoyi.infra.security :as security]))
 
 
-(use-fixtures :each
-  (fn [f]
-    (reset! @#'online/token-blacklist {})
-    (reset! @#'online/query-fn-atom nil)
-    (f)
-    (reset! @#'online/token-blacklist {})
-    (reset! @#'online/query-fn-atom nil)))
-
-
 (defn- make-mock-query-fn
-  "返回 [query-fn calls-atom].query-fn 根据 query key 返回预设值,
-   并将每次调用记录到 calls-atom."
-  [& {:keys [list-return count-return]
-      :or {list-return [] count-return {:total 0}}}]
-  (let [calls (atom [])]
+  "返回 [query-fn calls-atom store-atom]; store 模拟 sys_token_revoke 表."
+  [& {:keys [list-return count-return update-return]
+      :or {list-return [] count-return {:total 0} update-return 1}}]
+  (let [calls (atom [])
+        store (atom {})]
     [(fn [q params]
        (swap! calls conj [q params])
        (case q
-         :create-online-user! nil
-         :update-online-user! nil
-         :delete-online-user! nil
+         :create-online-user! 1
+         :update-online-user! update-return
+         :delete-online-user! 1
+         :delete-online-users-by-name! 1
          :list-online-users list-return
          :count-online-users count-return
+         :insert-token-revoke! (do (swap! store assoc (:revoke_key params) params) 1)
+         :delete-token-revoke! (do (swap! store dissoc (:revoke_key params)) 1)
+         :delete-expired-token-revokes! (do (swap! store #(into {} (remove (fn [[_ v]] (< (:expires_at v) (:now params)))) %)) 1)
+         :list-token-revokes (vec (vals @store))
          nil))
-     calls]))
+     calls
+     store]))
 
 
-(deftest test-set-query-fn!
-  (testing "注入 query-fn 后查询生效"
-    (let [[mock-fn calls] (make-mock-query-fn :count-return {:total 0})]
-      (online/set-query-fn! mock-fn)
-      (online/list-online)
-      (is (= 1 (count (filter #(= :list-online-users (first %)) @calls))))
-      (is (= 1 (count (filter #(= :count-online-users (first %)) @calls)))))))
+(use-fixtures :each
+  (fn [f]
+    (with-redefs [online/cleanup-executor (delay nil)]
+      (online/set-query-fn! nil)
+      (f)
+      (online/set-query-fn! nil))))
 
 
-(deftest test-blacklist-and-check
-  (testing "令牌加入黑名单并可查询"
-    (is (not (online/blacklisted? "token-1")))
-    (online/blacklist! "token-1" (+ (System/currentTimeMillis) 10000))
-    (is (online/blacklisted? "token-1"))
-    (is (not (online/blacklisted? "token-2")))))
+(defn- calls-of
+  [calls k]
+  (filter #(= k (first %)) @calls))
 
 
-(deftest test-cleanup-blacklist!
-  (testing "清理过期黑名单，保留未过期项"
-    (let [now (System/currentTimeMillis)]
-      (online/blacklist! "expired" (- now 1000))
-      (online/blacklist! "valid" (+ now 10000))
-      (online/cleanup-blacklist!)
-      (is (not (online/blacklisted? "expired")))
-      (is (online/blacklisted? "valid")))))
+(deftest valid-claims-and-legacy-tokens
+  (testing "未注入 query-fn 时不做撤销检查, 有效令牌返回声明"
+    (let [token (security/generate-token 7 "u7" [2])
+          claims (online/valid-claims token)]
+      (is (= 7 (:user-id claims)))
+      (is (string? (:jti claims)))))
+  (testing "无效或缺少会话编号的令牌无效"
+    (is (nil? (online/valid-claims nil)))
+    (is (nil? (online/valid-claims "not-a-token")))
+    (is (nil? (online/valid-claims (buddy.sign.jwt/sign {:user-id 1 :exp (+ (quot (System/currentTimeMillis) 1000) 60)}
+                                                        security/secret-key {:alg :hs256}))))))
 
 
-(deftest test-register!
-  (testing "注册在线用户写入数据库"
-    (let [[mock-fn calls] (make-mock-query-fn)]
-      (online/set-query-fn! mock-fn)
-      ;; 避免测试启动真实调度线程
-      (with-redefs [online/cleanup-executor (delay nil)]
-        (is (nil? (online/register! "session-1" "admin" "192.168.1.1")))
-        (is (= 1 (count (filter #(= :create-online-user! (first %)) @calls))))
-        (let [[_ params] (first (filter #(= :create-online-user! (first %)) @calls))]
-          (is (= "session-1" (:session_id params)))
-          (is (= "admin" (:login_name params)))
-          (is (= "192.168.1.1" (:ipaddr params)))
-          (is (= "on_line" (:status params)))
-          (is (number? (:start_timestamp params)))
-          (is (number? (:last_access_time params)))
-          (is (number? (:expire_time params))))))))
+(deftest register-uses-session-id-not-token
+  (let [[q calls] (make-mock-query-fn)
+        token (security/generate-token 1 "admin" [1])]
+    (online/set-query-fn! q)
+    (online/register! token "admin" "10.0.0.1")
+    (let [[_ params] (first (calls-of calls :create-online-user!))]
+      (is (= (:jti (security/parse-token token)) (:session_id params)))
+      (is (not= token (:session_id params)))
+      (is (= "admin" (:login_name params)))
+      (is (= "10.0.0.1" (:ipaddr params))))))
 
 
-(deftest test-heartbeat!
-  (testing "更新心跳时间"
-    (let [[mock-fn calls] (make-mock-query-fn)]
-      (online/set-query-fn! mock-fn)
-      (is (nil? (online/heartbeat! "session-1")))
-      (is (= 1 (count (filter #(= :update-online-user! (first %)) @calls))))
-      (let [[_ params] (first (filter #(= :update-online-user! (first %)) @calls))]
-        (is (= "session-1" (:session_id params)))
-        (is (number? (:last_access_time params)))
-        (is (nil? (:status params)))
-        (is (nil? (:expire_time params)))))))
+(deftest logout-and-force-logout-revoke-persistently
+  (let [[q calls store] (make-mock-query-fn)
+        token (security/generate-token 1 "admin" [1])
+        other (security/generate-token 1 "admin" [1])
+        jti (:jti (security/parse-token other))]
+    (online/set-query-fn! q)
+    (testing "退出撤销当前会话"
+      (online/unregister! token)
+      (is (nil? (online/valid-claims token)))
+      (is (some? (online/valid-claims other)))
+      (is (seq (calls-of calls :delete-online-user!))))
+    (testing "强退按会话编号撤销, 并写入持久化存储"
+      (online/force-logout! jti)
+      (is (nil? (online/valid-claims other)))
+      (is (contains? @store (str "jti:" jti))))
+    (testing "重新加载 (模拟重启) 后撤销仍然有效"
+      (online/set-query-fn! q)
+      (is (nil? (online/valid-claims token)))
+      (is (nil? (online/valid-claims other))))))
 
 
-(deftest test-heartbeat-nil-token
-  (testing "nil token 不触发数据库操作"
-    (let [[mock-fn calls] (make-mock-query-fn)]
-      (online/set-query-fn! mock-fn)
-      (is (nil? (online/heartbeat! nil)))
-      (is (empty? @calls)))))
+(deftest revoke-user-invalidates-earlier-tokens-only
+  (let [[q calls] (make-mock-query-fn)
+        before (security/generate-token 5 "u5" [2])]
+    (online/set-query-fn! q)
+    (Thread/sleep 5)
+    (online/revoke-user! 5 "u5")
+    (Thread/sleep 5)
+    (let [after (security/generate-token 5 "u5" [2])]
+      (is (nil? (online/valid-claims before)))
+      (is (some? (online/valid-claims after)))
+      (is (some? (online/valid-claims (security/generate-token 6 "u6" [2]))) "其他用户不受影响")
+      (is (= [{:login_name "u5"}] (map second (calls-of calls :delete-online-users-by-name!)))))))
 
 
-(deftest test-unregister!
-  (testing "注销在线用户并将有效令牌加入黑名单"
-    (let [[mock-fn calls] (make-mock-query-fn)
-          token (security/generate-token 1 "admin" ["admin"] :exp-hours 24)]
-      (online/set-query-fn! mock-fn)
-      (is (nil? (online/unregister! token)))
-      (is (= 1 (count (filter #(= :delete-online-user! (first %)) @calls))))
-      (is (online/blacklisted? token)))))
+(deftest heartbeat-is-throttled-and-recreates-cleaned-session
+  (let [[q calls] (make-mock-query-fn :update-return 0)
+        claims (security/parse-token (security/generate-token 3 "u3" [2]))]
+    (online/set-query-fn! q)
+    (online/heartbeat! claims)
+    (online/heartbeat! claims)
+    (is (= 1 (count (calls-of calls :update-online-user!))) "60 秒内只写一次")
+    (is (= 1 (count (calls-of calls :create-online-user!))) "记录已被清理时重新登记")))
 
 
-(deftest test-unregister-invalid-token
-  (testing "无效 token 只删除记录，不加黑名单"
-    (let [[mock-fn calls] (make-mock-query-fn)]
-      (online/set-query-fn! mock-fn)
-      (is (nil? (online/unregister! "invalid-token")))
-      (is (= 1 (count (filter #(= :delete-online-user! (first %)) @calls))))
-      (is (not (online/blacklisted? "invalid-token"))))))
+(deftest list-online-exposes-session-id-only
+  (let [[q] (make-mock-query-fn :list-return [{:session_id "abc" :login_name "admin" :ipaddr "1.1.1.1"
+                                               :start_timestamp 1 :last_access_time 2}]
+                                :count-return {:total 1})]
+    (online/set-query-fn! q)
+    (let [{:keys [rows total]} (online/list-online :page-num 1 :page-size 10)]
+      (is (= 1 total))
+      (is (= "abc" (:token-id (first rows))))
+      (is (not (contains? (first rows) :token))))))
 
 
-(deftest test-unregister-nil-token
-  (testing "nil token 不触发任何操作"
-    (let [[mock-fn calls] (make-mock-query-fn)]
-      (online/set-query-fn! mock-fn)
-      (is (nil? (online/unregister! nil)))
-      (is (empty? @calls))
-      (is (not (online/blacklisted? nil))))))
-
-
-(deftest test-cleanup-expired-sessions!
-  (testing "清理超过过期阈值的会话"
-    (let [now (System/currentTimeMillis)
-          threshold (- now (* 30 60 1000))
-          expired {:session_id "expired" :last_access_time (- threshold 1000)}
-          active {:session_id "active" :last_access_time (+ threshold 1000)}
-          [mock-fn calls] (make-mock-query-fn :list-return [expired active])]
-      (online/set-query-fn! mock-fn)
-      (is (nil? (online/cleanup-expired-sessions!)))
-      ;; 一次 __cleanup__ 占位删除 + 一条过期记录删除
-      (is (= 2 (count (filter #(= :delete-online-user! (first %)) @calls))))
-      (let [deleted-ids (->> @calls
-                             (filter #(= :delete-online-user! (first %)))
-                             (map #(get-in % [1 :session_id]))
-                             set)]
-        (is (contains? deleted-ids "expired"))
-        (is (not (contains? deleted-ids "active")))))))
-
-
-(deftest test-list-online
-  (testing "查询在线用户列表并映射字段"
-    (let [row {:session_id "s1"
-               :login_name "admin"
-               :ipaddr "127.0.0.1"
-               :start_timestamp 1000
-               :last_access_time 2000}
-          [mock-fn calls] (make-mock-query-fn
-                            :list-return [row]
-                            :count-return {:total 1})]
-      (online/set-query-fn! mock-fn)
-      (let [result (online/list-online
-                     :login-name "admin"
-                     :ipaddr "127"
-                     :page-num 1
-                     :page-size 10)]
-        (is (= 1 (:total result)))
-        (is (= 1 (count (:rows result))))
-        (let [mapped (first (:rows result))]
-          (is (= "s1" (:token-id mapped)))
-          (is (= "s1" (:token mapped)))
-          (is (= "admin" (:user-id mapped)))
-          (is (= "admin" (:user-name mapped)))
-          (is (= "127.0.0.1" (:login-ip mapped)))
-          (is (= 1000 (:login-time mapped)))
-          (is (= 2000 (:last-access mapped))))
-        (let [[_ list-params] (first (filter #(= :list-online-users (first %)) @calls))
-              [_ count-params] (first (filter #(= :count-online-users (first %)) @calls))]
-          (is (= "admin" (:login_name list-params)))
-          (is (= "127" (:ipaddr list-params)))
-          (is (= 10 (:page_size list-params)))
-          (is (= 0 (:offset list-params)))
-          (is (= "admin" (:login_name count-params)))
-          (is (= "127" (:ipaddr count-params))))))))
-
-
-(deftest test-force-logout!
-  (testing "强退用户并黑名单令牌"
-    (let [[mock-fn calls] (make-mock-query-fn)
-          token (security/generate-token 1 "admin" ["admin"] :exp-hours 24)]
-      (online/set-query-fn! mock-fn)
-      (is (= {:success true} (online/force-logout! token)))
-      (is (= 1 (count (filter #(= :delete-online-user! (first %)) @calls))))
-      (is (online/blacklisted? token)))))
-
-
-(deftest test-force-logout-invalid-token
-  (testing "强退无效 token 只删除记录"
-    (let [[mock-fn calls] (make-mock-query-fn)]
-      (online/set-query-fn! mock-fn)
-      (is (= {:success true} (online/force-logout! "invalid-token")))
-      (is (= 1 (count (filter #(= :delete-online-user! (first %)) @calls))))
-      (is (not (online/blacklisted? "invalid-token"))))))
-
-
-(deftest test-force-logout-nil-token
-  (testing "nil token 强退无操作但返回成功"
-    (let [[mock-fn calls] (make-mock-query-fn)]
-      (online/set-query-fn! mock-fn)
-      (is (= {:success true} (online/force-logout! nil)))
-      (is (empty? @calls)))))
+(deftest cleanup-removes-idle-sessions
+  (let [now (System/currentTimeMillis)
+        [q calls] (make-mock-query-fn :list-return [{:session_id "old" :last_access_time (- now (* 31 60 1000))}
+                                                    {:session_id "new" :last_access_time now}])]
+    (online/set-query-fn! q)
+    (online/cleanup-expired-sessions!)
+    (is (= [{:session_id "old"}] (map second (calls-of calls :delete-online-user!))))))

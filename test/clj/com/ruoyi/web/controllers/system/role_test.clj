@@ -8,13 +8,16 @@
 (def mock-role-service
   {:query-fn (fn [q p]
                (case q
-                 :list-roles [{:role_id 1 :role_name "admin" :role_key "admin"}]
-                 :find-role-by-id {:role_id 1 :role_name "admin" :role_key "admin" :dept_ids "1,2"}
+                 :list-roles [{:role_id 1 :role_name "admin" :role_key "admin"}
+                              {:role_id 2 :role_name "普通角色" :role_key "common"}]
+                 :find-role-by-id (if (= 1 (:role_id p))
+                                    {:role_id 1 :role_name "admin" :role_key "admin" :dept_ids "1,2"}
+                                    {:role_id (:role_id p) :role_name "普通角色" :role_key "common"})
                  :list-menus-by-role-id [{:menu_id 1}]
                  :create-role! [{:role_id 2}]
                  :update-role! nil
                  :delete-role! nil
-                 :list-users-by-role [{:user_id 1 :user_name "user"}]
+                 :list-users-by-role (if (= 1 (:role_id p)) [{:user_id 1 :user_name "user"}] [])
                  :list-users-not-in-role [{:user_id 2 :user_name "other"}]
                  :delete-user-role! nil
                  :insert-user-role! nil
@@ -54,7 +57,7 @@
 
 (deftest test-update-role
   (testing "更新角色"
-    (let [request {:path-params {:id "1"} :body-params {:role_name "updated"}}
+    (let [request {:path-params {:id "2"} :body-params {:role_name "updated"}}
           response (role/update-role {:role-service mock-role-service} request)]
       (is (map? response))
       (is (= 200 (get-in response [:body :code]))))))
@@ -62,7 +65,7 @@
 
 (deftest test-delete-role
   (testing "删除角色"
-    (let [request {:path-params {:id "1"}}
+    (let [request {:path-params {:id "2"}}
           response (role/delete-role {:role-service mock-role-service} request)]
       (is (map? response))
       (is (= 200 (get-in response [:body :code]))))))
@@ -70,7 +73,7 @@
 
 (deftest test-change-status
   (testing "修改角色状态"
-    (let [request {:path-params {:id "1"} :body-params {:status "1"}}
+    (let [request {:path-params {:id "2"} :body-params {:status "1"}}
           response (role/change-status {:role-service mock-role-service} request)]
       (is (map? response))
       (is (= 200 (get-in response [:body :code]))))))
@@ -78,7 +81,7 @@
 
 (deftest test-data-scope
   (testing "设置角色数据权限范围"
-    (let [request {:parameters {:body {:role_id 1 :data_scope "1"}}}
+    (let [request {:parameters {:body {:role_id 2 :data_scope "1"}}}
           response (role/data-scope {:role-service mock-role-service} request)]
       (is (map? response))
       (is (= 200 (get-in response [:body :code]))))))
@@ -109,7 +112,7 @@
 
 (deftest test-cancel-auth-user
   (testing "取消用户角色授权"
-    (let [request {:parameters {:body {:role_id 1 :user_id 2}}}
+    (let [request {:parameters {:body {:role_id 2 :user_id 2}}}
           response (role/cancel-auth-user {:role-service mock-role-service} request)]
       (is (map? response))
       (is (= 200 (get-in response [:body :code]))))))
@@ -117,7 +120,7 @@
 
 (deftest test-cancel-auth-user-all
   (testing "批量取消用户角色授权"
-    (let [request {:parameters {:query {:role_id 1 :user_ids "2,3"}}}
+    (let [request {:parameters {:query {:role_id 2 :user_ids "2,3"}}}
           response (role/cancel-auth-user-all {:role-service mock-role-service} request)]
       (is (map? response))
       (is (= 200 (get-in response [:body :code]))))))
@@ -125,7 +128,7 @@
 
 (deftest test-select-auth-user-all
   (testing "批量授权用户角色"
-    (let [request {:parameters {:query {:role_id 1 :user_ids "2,3"}}}
+    (let [request {:parameters {:query {:role_id 2 :user_ids "2,3"}}}
           response (role/select-auth-user-all {:role-service mock-role-service} request)]
       (is (map? response))
       (is (= 200 (get-in response [:body :code]))))))
@@ -136,4 +139,24 @@
     (let [request {:path-params {:id "1"}}
           response (role/dept-tree-by-role {:role-service mock-role-service :dept-service mock-dept-service} request)]
       (is (map? response))
-      (is (= 200 (get-in response [:body :code]))))))
+      (is (= 200 (get-in response [:body :code])))
+      (is (contains? (get-in response [:body :data]) :checked-keys)))))
+
+
+(deftest test-super-admin-role-is-protected
+  (testing "超级管理员角色不可修改, 停用, 删除或调整数据权限; 非超级管理员不能授予该角色"
+    (let [svc {:role-service mock-role-service}]
+      (is (= 403 (get-in (role/update-role svc {:path-params {:id "1"} :body-params {:role_name "x"}}) [:body :code])))
+      (is (= 403 (get-in (role/delete-role svc {:path-params {:id "1"}}) [:body :code])))
+      (is (= 403 (get-in (role/change-status svc {:path-params {:id "1"} :body-params {:status "1"}}) [:body :code])))
+      (is (= 403 (get-in (role/data-scope svc {:parameters {:body {:role_id 1 :data_scope "5"}}}) [:body :code])))
+      (is (= 403 (get-in (role/select-auth-user-all svc {:parameters {:query {:role_id 1 :user_ids "2"}} :actor {:admin? false}}) [:body :code])))
+      (is (= 200 (get-in (role/select-auth-user-all svc {:parameters {:query {:role_id 1 :user_ids "2"}} :actor {:admin? true}}) [:body :code]))))))
+
+
+(deftest test-role-key-unique-and-reserved
+  (testing "角色字符重复或使用保留的 admin 字符时拒绝创建"
+    (let [svc {:role-service mock-role-service}]
+      (is (= 400 (get-in (role/create-role svc {:body-params {:role_name "新角色" :role_key "common"}}) [:body :code])))
+      (is (= 400 (get-in (role/create-role svc {:body-params {:role_name "新角色" :role_key "admin"}}) [:body :code])))
+      (is (= 400 (get-in (role/create-role svc {:body-params {:role_name "普通角色" :role_key "fresh"}}) [:body :code]))))))

@@ -23,6 +23,13 @@
   (get-in request [:identity :user-name] ""))
 
 
+(defn post-options
+  "选岗位组件: 有效岗位."
+  [{:keys [post-service]} _]
+  (-> (response/response {:code 200 :msg "操作成功" :data ((:query-fn post-service) :post-options {})})
+      (response/content-type "application/json")))
+
+
 (defn list-posts
   "查询岗位列表."
   [{:keys [post-service]} request]

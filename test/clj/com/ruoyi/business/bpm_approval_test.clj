@@ -76,7 +76,7 @@
   [app admin-h]
   (let [u (str "ph1u" (rand-int 100000))
         r (parse-json (POST app "/api/system/user"
-                            {:user_name u :nick_name "Phase1测试" :password "admin123"}
+                            {:user_name u :nick_name "Phase1测试" :password "admin123" :roles [2]}
                             admin-h))
         _ (is (= 200 (:code r)))
         token (login-token u)
@@ -236,7 +236,7 @@
     (testing "非发起人/非管理员不能取消"
       (let [r (parse-json (DELETE app "/api/business/bpm/instance/cancel"
                                   {:id pid :reason "恶作剧"} hdr))]
-        (is (= 500 (:code r)))
+        (is (= 403 (:code r)))
         (is (re-find #"发起人或管理员" (:msg r)))))
     (testing "发起人可以取消，状态变为 CANCELED"
       (let [r (parse-json (DELETE app "/api/business/bpm/instance/cancel"

@@ -5,6 +5,7 @@
     [com.ruoyi.config :as config]
     [com.ruoyi.integrant.state :as integrant-state]
     [com.ruoyi.integrant.trace :as trace]
+    [com.ruoyi.web.middleware.authz :as authz]
     [integrant.core :as ig]
     [ring.util.response :as response]
     [weavejester.dependency :as dep])
@@ -188,13 +189,14 @@
 
 
 (defn dashboard-stats
-  "首页仪表盘统计聚合接口,返回用户数,在线数,日志数,任务数,最近操作和系统信息."
-  [{:keys [query-fn]} _]
+  "首页仪表盘统计聚合接口,返回用户数,在线数,日志数,任务数,最近操作和系统信息.
+  所有登录用户可见汇总数字; 最近操作与服务器信息只返回给拥有对应监控权限的用户."
+  [{:keys [query-fn]} request]
   (let [user-count (:total (query-fn :count-users
                                      {:user_name nil :phonenumber nil :status nil
                                       :begin_time nil :end_time nil
                                       :dept_filter_enabled 0 :dept_ids [-1]
-                                      :data_user_id nil}))
+                                      :scope_all 1 :scope_dept_ids [-1] :scope_user_id -1}))
         online-count (:total (query-fn :count-online-users {:ipaddr nil :login_name nil}))
         oper-log-count (:total (query-fn :count-oper-logs
                                          {:title nil :oper_name nil :business_type nil
@@ -211,14 +213,17 @@
          :operLogCount (or oper-log-count 0)
          :jobTotal job-total
          :jobRunning job-running
-         :recentOps (mapv (fn [op]
-                            {:title (:title op)
-                             :oper_name (:oper_name op)
-                             :oper_time (:oper_time op)
-                             :business_type (:business_type op)})
-                          recent-ops)
-         :server {:os (get-os-info)
-                  :jvm (get-jvm-info)}})))
+         :recentOps (if (authz/permitted? (:actor request) "monitor:operlog:list")
+                      (mapv (fn [op]
+                              {:title (:title op)
+                               :oper_name (:oper_name op)
+                               :oper_time (:oper_time op)
+                               :business_type (:business_type op)})
+                            recent-ops)
+                      [])
+         :server (when (authz/permitted? (:actor request) "monitor:server:list")
+                   {:os (get-os-info)
+                    :jvm (get-jvm-info)})})))
 
 
 (defn datasource-info

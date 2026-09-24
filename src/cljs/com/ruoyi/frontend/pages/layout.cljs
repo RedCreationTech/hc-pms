@@ -70,6 +70,7 @@
     [com.ruoyi.frontend.pages.server :as server]
     [com.ruoyi.frontend.pages.swagger :as swagger]
     [com.ruoyi.frontend.pages.user :as user]
+    [com.ruoyi.frontend.permission :as permission]
     [com.ruoyi.frontend.router :as router]
     [re-frame.core :as rf]
     [reagent.core :as r]
@@ -402,10 +403,11 @@
 ;; ─── 动态菜单构建 ──────────────────────────────────────────────────────
 
 (defn- filter-visible-menus
-  "过滤掉 F 类型(按钮权限)菜单,只保留 M 目录和 C 菜单."
+  "侧边栏只显示目录 (M) 与菜单 (C), 且不显示隐藏菜单 (visible = 1, 仍可通过地址访问)."
   [menus]
   (->> menus
-       (filter #(contains? #{"M" "C"} (:menu_type %)))
+       (filter #(and (contains? #{"M" "C"} (:menu_type %))
+                     (not= "1" (str (:visible %)))))
        (mapv (fn [m]
                (if (seq (:children m))
                  (assoc m :children (filter-visible-menus (:children m)))
@@ -601,6 +603,19 @@
    "红"])
 
 
+(defn- forbidden-page
+  "路由守卫: 当前角色未授权的页面 (菜单被收回, 或直接输入地址)."
+  [page]
+  [:div {:style {:padding "64px 24px" :textAlign "center"}}
+   [:div {:style {:fontSize 64 :fontWeight 700 :color "#faad14" :lineHeight 1}} "403"]
+   [:div {:style {:marginTop 16 :fontSize 18 :fontWeight 600}} "无权访问该页面"]
+   [:div {:style {:marginTop 8 :color "#8c8c8c"}}
+    (str "当前角色没有 \"" (get router/page-names page (name page)) "\" 菜单的权限, 请联系管理员在角色管理中授权.")]
+   [:> Button {:type "primary" :style {:marginTop 24}
+               :onClick #(rf/dispatch [:navigate :dashboard])}
+    "返回首页"]])
+
+
 (defn main-layout
   []
   (let [[collapsed set-collapsed!] (hooks/use-state false)
@@ -785,6 +800,8 @@
                           :key (name page)
                           :class "tab-content-enter"}
        [error-boundary/boundary
+        (if (and (seq user) (not (permission/page-allowed? user page)))
+          [forbidden-page page]
         (case page
           :dashboard [dashboard/dashboard-page]
           :pms-project [pms-project/project-page]
@@ -837,7 +854,7 @@
           :oa-meeting [oa-meeting/oa-meeting-page]
           :crm-customer [crm/crm-customer-page]
           [:div {:style {:padding 48 :textAlign "center" :color "#999" :fontSize 16}}
-           "页面建设中"])]
+           "页面建设中"]))]
        [:div {:class "app-layout-float"
               :style {:position "fixed" :right 14 :bottom 54
                       :width 42 :height 42 :borderRadius "50%"

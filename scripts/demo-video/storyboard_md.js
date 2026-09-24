@@ -2,16 +2,23 @@
 // 用法: node scripts/demo-video/storyboard_md.js
 const fs = require('node:fs');
 const path = require('node:path');
-const S = require('./storyboard.js');
+// DEMO_STORYBOARD 选择分镜数据源; 数据源可用 doc 字段给出文档路径, 标题与说明 (默认完整业务流程视频).
+const S = require(process.env.DEMO_STORYBOARD ? path.resolve(process.env.DEMO_STORYBOARD) : './storyboard.js');
 
-const out = path.resolve(__dirname, '../../docs/pms/15-demo-video-storyboard.md');
+const out = path.resolve(__dirname, '../..', (S.doc && S.doc.path) || 'docs/pms/15-demo-video-storyboard.md');
 const esc = s => String(s).replace(/\|/g, '\\|');
-const who = w => (w === 'reviewer' ? '独立审核人' : '项目经理');
+const who = w => ((S.accounts && S.accounts[w]) || (w === 'reviewer' ? '独立审核人' : '项目经理')).replace(/账号$/, '');
 const lines = [];
 
+if (S.doc) {
+  lines.push(`# ${S.doc.title}`);
+  lines.push('');
+  lines.push(S.doc.intro);
+} else {
 lines.push('# 红创PMS 完整流程演示视频: 分镜与字幕');
 lines.push('');
 lines.push('本文件由 `scripts/demo-video/storyboard_md.js` 从 `scripts/demo-video/storyboard.js` 生成, 请修改数据源后重新生成, 不要直接编辑. 视频用同一个设备订单项目把 PMS 从平台模板走到正式关闭, 与 [演示剧本](14-demo-script.md) 的 37 步一致; 录屏由 `tests/e2e/pms-demo-video.spec.js` 在真实系统上自动完成, 字幕按本分镜逐条出现.');
+}
 lines.push('');
 lines.push('## 画面与节奏');
 lines.push('');
@@ -57,6 +64,11 @@ for (const p of S.ending.points) lines.push(`- ${p}`);
 lines.push('');
 lines.push('## 制作流程');
 lines.push('');
+if (S.doc && S.doc.make) {
+  lines.push(`共 ${S.chapters.length} 个章节, ${S.shots.length} 个镜头, ${n} 条字幕.`);
+  lines.push('');
+  for (const l of S.doc.make) lines.push(l);
+} else {
 lines.push(`共 ${S.chapters.length} 个章节, ${S.shots.length} 个镜头, ${n} 条字幕. 在隔离后端 (空库或已有演示数据均可, 用例每次新建演示项目与审核账号) 上执行:`);
 lines.push('');
 lines.push('```bash');
@@ -71,5 +83,6 @@ lines.push('录屏中断后去掉 `PMS_DEMO_VIDEO_FRESH` 重跑, 用例读取 `s
 lines.push('');
 lines.push('产物在 `reports/demo-video/` (不入库): `hc-pms-demo.mp4` 成片, `hc-pms-demo.srt` 字幕, `timeline.json` 录屏时间轴, `edl.json` 成片剪辑表, `music.wav` 配乐. 录屏依赖 Playwright 的页面录像 (`recordVideo`), 需要本机有 ffmpeg (libx264 / libass) 与中文字体 (Noto Sans CJK SC).');
 lines.push('');
+}
 fs.writeFileSync(out, lines.join('\n'));
 console.log(`written ${out}`);

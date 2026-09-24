@@ -34,11 +34,12 @@ test.describe('办公一体化业务流', () => {
     await page.goto('/office/bpm/todo');
     await expect(page.getByText('我的待办').first()).toBeVisible();
     const firstTask = page.locator('table tbody tr:not(.ant-table-measure-row)', { hasText: '部门经理审批' }).first();
-    await firstTask.getByRole('button', { name: '通过' }).click();
-    const approveModal = page.getByRole('dialog', { name: /审批通过/ });
+    await firstTask.getByRole('button', { name: /通\s*过/ }).click();
+    // 审批弹窗标题为 "通过 · <节点名>"
+    const approveModal = page.getByRole('dialog', { name: /通过 · 部门经理审批/ });
     await expect(approveModal).toBeVisible();
     await approveModal.locator('textarea').fill('E2E同意');
-    await approveModal.locator('form').last().evaluate(form => form.requestSubmit());
+    await approveModal.getByRole('button', { name: /确\s*定/ }).click();
     await expect(page.getByText('审批通过').first()).toBeVisible({ timeout: 10000 });
     await expect(approveModal).toBeHidden({ timeout: 10000 });
 

@@ -48,7 +48,7 @@
                          "dept-leader" (map :user_name
                                             (filter (fn [u]
                                                       (some #(and (= did (str (:dept_id %)))
-                                                                  (= (str (:user_id u)) (str (:leader %))))
+                                                                  (= (str (:user_id u)) (str (or (:leader_id %) (:leader %)))))
                                                             depts))
                                                     users))
                          [])))))]
@@ -105,9 +105,7 @@
 
 (defn- list-all-users
   [query-fn]
-  (query-fn :list-users {:user_name nil :phonenumber nil :status nil
-                         :begin_time nil :end_time nil :dept_filter_enabled 0
-                         :dept_ids [0] :data_user_id nil :page_size 100000 :offset 0}))
+  (query-fn :list-all-users {}))
 
 
 (defn- resolve-candidate-users
@@ -120,7 +118,7 @@
         user-names-of (fn [ids] (distinct (vec (keep user-name-of ids))))
         leaders-of (fn [dept-id]
                      (when-let [d (first (filter #(= (str dept-id) (str (:dept_id %))) depts))]
-                       (when-let [leader (:leader d)]
+                       (when-let [leader (or (:leader_id d) (:leader d))]
                          (user-names-of [leader]))))]
     (case strategy
       "INITIATOR_SELF"
@@ -276,7 +274,7 @@
                     start-user (some-> (.getVariable task "startUserId") str)
                     leaders-of (fn [dept-id]
                                  (when-let [d (first (filter #(= (str dept-id) (str (:dept_id %))) depts))]
-                                   (when-let [leader (:leader d)]
+                                   (when-let [leader (or (:leader_id d) (:leader d))]
                                      (user-names-of users [leader]))))
                     base (resolve-candidate-users engine query-fn task strategy param node-config users depts)
                     start-handler (:assign-start-user-handler-type node-config)
@@ -650,9 +648,7 @@
 (defn- load-identity-data
   "加载系统用户/角色/部门/岗位关系,用于同步到 Flowable identity."
   [query-fn]
-  {:users (query-fn :list-users {:user_name nil :phonenumber nil :status nil
-                                 :begin_time nil :end_time nil :dept_filter_enabled 0
-                                 :dept_ids [0] :data_user_id nil :page_size 100000 :offset 0})
+  {:users (query-fn :list-all-users {})
    :roles (query-fn :list-roles {:role_name nil :role_key nil :status nil})
    :depts (query-fn :list-all-depts {})
    :posts (query-fn :list-posts {:post_code nil :post_name nil :status nil})
@@ -686,9 +682,7 @@
    P1:新列(icon/start_user_ids/start_dept_ids/manager_user_ids)传 nil 走 COALESCE 保留原值."
   [{:keys [query-fn]} id tree user]
   (let [m (query-fn :bpm/find-model-by-id {:model_id id})
-        users (query-fn :list-users {:user_name nil :phonenumber nil :status nil
-                                     :begin_time nil :end_time nil :dept_filter_enabled 0
-                                     :dept_ids [0] :data_user_id nil :page_size 100000 :offset 0})
+        users (query-fn :list-all-users {})
         user-map (into {} (map (juxt (comp str :user_id) :user_name)) users)
         groups (into {} (map (fn [g]
                                [(str (:group_id g))
@@ -871,6 +865,8 @@
             (throw (ex-info "模型未部署，请先部署" {:model_id model-id :key (:model_key m)})))
         _ (when (:suspended? (bpm/latest-definition engine (:model_key m)))
             (throw (ex-info "流程定义已挂起，不可发起" {:model_id model-id :key (:model_key m)})))
+        ;; 发起前同步组织身份 (角色/部门/岗位/部门负责人成员关系), 组织调整后无需重新部署模型
+        _ (bpm/sync-identity! engine (load-identity-data query-fn))
         biz-key (or business-key (str "biz-" (System/currentTimeMillis)))
         fd (or form-data {})
         ;; 表单字段展开为流程变量(条件表达式 ${days > 3} 可直接引用),formData 保留完整 JSON
@@ -879,9 +875,7 @@
                                  (when (not= (name k) "startUserSelected")
                                    [(name k) v])))
                          fd)
-        users (query-fn :list-users {:user_name nil :phonenumber nil :status nil
-                                     :begin_time nil :end_time nil :dept_filter_enabled 0
-                                     :dept_ids [0] :data_user_id nil :page_size 100000 :offset 0})
+        users (query-fn :list-all-users {})
         tree (bpm-flow/bpmn->tree (:bpmn_xml m))
         multi-vars (into {}
                          (map (fn [{:keys [id config]}]
@@ -998,6 +992,107 @@
         (bpm/done-list engine user)))
 
 
+;; ── 任务与实例的归属校验 ─────────────────────────────────────────────
+;; 个人办理类接口只要求登录, 授权来自任务归属: 流程配置把谁设为审批人, 谁就能办理,
+;; 不会因为角色未授权菜单而卡住流程; 越权操作返回 403.
+
+(defn- forbidden
+  [msg data]
+  (ex-info msg (assoc data :status 403)))
+
+
+(defn task-actor?
+  "用户是否可以办理运行中的任务: 已指派给本人, 或未认领且本人是候选人 (含候选组)."
+  [engine task-id user]
+  (boolean
+    (and (some? task-id) (not (str/blank? (str user)))
+         (pos? (.count (.taskCandidateOrAssigned
+                         (.taskId (.createTaskQuery (.getTaskService engine)) (str task-id))
+                         (str user)))))))
+
+
+(defn check-task-actor!
+  "运行中任务必须存在且当前用户可以办理."
+  [engine task-id user]
+  (when-not (bpm/task-of engine (str task-id))
+    (throw (ex-info "任务不存在或已完成" {:task-id task-id})))
+  (when-not (task-actor? engine task-id user)
+    (throw (forbidden "无权办理该任务(非本人)" {:task-id task-id}))))
+
+
+(defn instance-participant?
+  "用户是否参与了流程实例: 发起人, 抄送人, 历史或当前任务的办理人, 所有者或候选人."
+  [{:keys [engine query-fn]} pid user]
+  (let [user (str user)
+        pid (str pid)]
+    (boolean
+      (and (not (str/blank? user)) (not (str/blank? pid))
+           (or (= user (str (:starter_id (query-fn :bpm/find-instance-by-pid {:process_instance_id pid}))))
+               (pos? (long (or (:total (query-fn :bpm/count-copy-of-user {:process_instance_id pid :user_id user})) 0)))
+               (pos? (.count (-> (.createHistoricTaskInstanceQuery (.getHistoryService engine))
+                                 (.processInstanceId pid)
+                                 (.taskInvolvedUser user))))
+               (pos? (.count (-> (.createTaskQuery (.getTaskService engine))
+                                 (.processInstanceId pid)
+                                 (.taskCandidateOrAssigned user)))))))))
+
+
+(defn check-instance-viewer!
+  "查看实例 (详情, 轨迹, 流程图, 打印) 需要是参与人或拥有流程管理权限 (manager? 由调用方按权限判断)."
+  [service pid user manager?]
+  (when-not (or manager? (instance-participant? service pid user))
+    (throw (forbidden "无权查看该流程实例" {:process-instance-id pid}))))
+
+
+(defn task-instance-id
+  "运行中或历史任务所属的流程实例编号."
+  [engine task-id]
+  (or (:process-instance-id (bpm/task-of engine (str task-id)))
+      (:process-instance-id (bpm/historic-task-of engine (str task-id)))))
+
+
+(defn check-task-viewer!
+  "查看任务相关信息: 任务所属实例的参与人或流程管理员."
+  [{:keys [engine] :as service} task-id user manager?]
+  (let [pid (task-instance-id engine task-id)]
+    (when-not pid (throw (ex-info "任务不存在" {:task-id task-id})))
+    (check-instance-viewer! service pid user manager?)))
+
+
+(defn task-claim!
+  "认领: 只有候选人可以认领未指派的任务."
+  [{:keys [engine]} task-id user]
+  (check-task-actor! engine task-id user)
+  (bpm/claim! engine task-id user))
+
+
+(defn task-transfer!
+  "转办: 只有当前办理人 (或未认领任务的候选人) 可以转办."
+  [{:keys [engine]} task-id user to-user]
+  (check-task-actor! engine task-id user)
+  (bpm/transfer! engine task-id user to-user))
+
+
+(defn task-delegate!
+  "委派: 只有当前办理人可以委派, 本人保留为任务所有者."
+  [{:keys [engine]} task-id user to-user]
+  (check-task-actor! engine task-id user)
+  (let [t (bpm/task-of engine (str task-id))]
+    (when (nil? (:assignee t))
+      (bpm/claim! engine task-id user)))
+  (bpm/delegate! engine task-id to-user))
+
+
+(defn task-resolve!
+  "委派办结: 只有被委派人 (当前办理人) 可以办结, 任务回到所有者."
+  [{:keys [engine]} task-id user]
+  (let [t (bpm/task-of engine (str task-id))]
+    (when-not t (throw (ex-info "任务不存在或已完成" {:task-id task-id})))
+    (when-not (= (str user) (str (:assignee t)))
+      (throw (forbidden "只有被委派人可以办结" {:task-id task-id}))))
+  (bpm/resolve! engine task-id))
+
+
 (defn- reason-required?
   "任务节点是否配置审批意见必填."
   [engine task-id]
@@ -1009,6 +1104,7 @@
 (defn task-approve!
   "审批通过:意见必填校验(nodeConfig.reason-require)+ 手写签名存任务局部变量."
   [{:keys [engine]} task-id user comment sign-pic-url]
+  (check-task-actor! engine task-id user)
   (when (and (reason-required? engine task-id) (str/blank? (or comment "")))
     (throw (ex-info "当前节点要求填写审批意见" {:task-id task-id})))
   (bpm/approve! engine task-id user comment sign-pic-url))
@@ -1017,6 +1113,7 @@
 (defn task-reject!
   "审批驳回:意见必填校验 + 手写签名存任务局部变量."
   [{:keys [engine]} task-id user comment return-node-id sign-pic-url]
+  (check-task-actor! engine task-id user)
   (when (and (reason-required? engine task-id) (str/blank? (or comment "")))
     (throw (ex-info "当前节点要求填写审批意见" {:task-id task-id})))
   (bpm/reject! engine task-id user comment return-node-id sign-pic-url))
@@ -1098,10 +1195,9 @@
 (defn task-create-sign!
   "加签:仅任务当前办理人可操作.节点配置意见必填时 reason 不能为空."
   [{:keys [engine]} task-id user-names sign-type reason user]
-  (let [t (bpm/task-of engine task-id)]
-    (when-not t (throw (ex-info "任务不存在" {:task-id task-id})))
-    (when (and (:assignee t) (not= (:assignee t) user))
-      (throw (ex-info "只有任务办理人可以加签" {:task-id task-id}))))
+  (when-not (bpm/task-of engine task-id) (throw (ex-info "任务不存在" {:task-id task-id})))
+  (when-not (task-actor? engine task-id user)
+    (throw (forbidden "只有任务办理人可以加签" {:task-id task-id})))
   (when (and (reason-required? engine task-id) (str/blank? (or reason "")))
     (throw (ex-info "当前节点要求填写审批意见" {:task-id task-id})))
   (bpm/create-sign! engine task-id user-names sign-type reason))
@@ -1110,10 +1206,9 @@
 (defn task-delete-sign!
   "减签:仅任务当前办理人可操作."
   [{:keys [engine]} task-id user-names reason user]
-  (let [t (bpm/task-of engine task-id)]
-    (when-not t (throw (ex-info "任务不存在" {:task-id task-id})))
-    (when (and (:assignee t) (not= (:assignee t) user))
-      (throw (ex-info "只有任务办理人可以减签" {:task-id task-id}))))
+  (when-not (bpm/task-of engine task-id) (throw (ex-info "任务不存在" {:task-id task-id})))
+  (when-not (task-actor? engine task-id user)
+    (throw (forbidden "只有任务办理人可以减签" {:task-id task-id})))
   (bpm/delete-sign! engine task-id user-names reason))
 
 
@@ -1136,7 +1231,7 @@
   (let [inst (query-fn :bpm/find-instance-by-pid {:process_instance_id process-instance-id})]
     (when-not inst (throw (ex-info "流程实例不存在" {:process-instance-id process-instance-id})))
     (when-not (or admin? (= user (:starter_id inst)))
-      (throw (ex-info "只有发起人或管理员可以取消流程" {:process-instance-id process-instance-id})))
+      (throw (forbidden "只有发起人或管理员可以取消流程" {:process-instance-id process-instance-id})))
     (when-not admin?
       (let [model (query-fn :bpm/find-model-by-id {:model_id (:model_id inst)})]
         (when (and model (= "0" (str (:allow_cancel model))))
@@ -1171,14 +1266,16 @@
   (let [inst (query-fn :bpm/find-instance-by-pid {:process_instance_id process-instance-id})]
     (when-not inst (throw (ex-info "流程实例不存在" {:process-instance-id process-instance-id})))
     (when-not (or admin? (= user (:starter_id inst)))
-      (throw (ex-info "只有发起人或管理员可以撤回流程" {:process-instance-id process-instance-id})))
+      (throw (forbidden "只有发起人或管理员可以撤回流程" {:process-instance-id process-instance-id})))
     (check-model-withdraw-allowed! query-fn process-instance-id)
     (bpm/withdraw-to-start! engine process-instance-id)))
 
 
 (defn task-copy!
   "手动抄送:为每个抄送人插 biz_bpm_copy 记录."
-  [{:keys [query-fn]} process-instance-id user-names reason activity-id activity-name user]
+  [{:keys [query-fn] :as service} process-instance-id user-names reason activity-id activity-name user]
+  (when-not (instance-participant? service process-instance-id user)
+    (throw (forbidden "只有流程参与人可以抄送" {:process-instance-id process-instance-id})))
   (when (empty? (seq user-names))
     (throw (ex-info "抄送人不能为空" {:process-instance-id process-instance-id})))
   (doseq [u user-names]

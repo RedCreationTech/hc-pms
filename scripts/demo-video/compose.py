@@ -31,7 +31,9 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.environ.get('DEMO_VIDEO_DIR') or os.path.normpath(os.path.join(HERE, '../../reports/demo-video'))
+OUT = os.path.abspath(os.environ.get('DEMO_VIDEO_DIR') or os.path.join(HERE, '../../reports/demo-video'))
+# 成片文件名 (不含扩展名), 多支视频共用本脚本时区分输出.
+NAME = os.environ.get('DEMO_VIDEO_NAME') or 'hc-pms-demo'
 WORK = os.path.join(OUT, 'work')
 FPS = 25
 OPEN_DUR, CARD_DUR, END_DUR = 4.0, 3.2, 7.0
@@ -240,7 +242,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     # Small account tag at the lower left: which account is on screen.
     for it in edl['items']:
         if it['type'] == 'clip':
-            who = '独立审核人账号' if it['who'] == 'reviewer' else '项目经理账号'
+            who = ACCOUNTS.get(it['who']) or ('独立审核人账号' if it['who'] == 'reviewer' else '项目经理账号')
             lines.append(f"Dialogue: 0,{ts_ass(it['at'])},{ts_ass(it['at'] + it['duration'])},Tag,,0,0,0,,{who}\n")
             # Fast-forward badge in the chapter rail (below the chapter list) while a piece plays sped up.
             for pc in it.get('pieces', []):
@@ -288,6 +290,9 @@ def render_clip(it, screen, dest):
          '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '14', '-pix_fmt', 'yuv420p', dest])
 
 
+ACCOUNTS = {}
+
+
 def main():
     keep = '--keep' in sys.argv
     limit = next((int(a.split('=')[1]) for a in sys.argv if a.startswith('--limit=')), None)
@@ -295,6 +300,8 @@ def main():
     if limit:
         timeline['clips'] = timeline['clips'][:limit]
     board = json.load(open(os.path.join(OUT, 'storyboard.json'), encoding='utf-8'))
+    # 分镜可声明各录像账号的画面标签 (accounts: {who: 标签}); 未声明时沿用 项目经理/独立审核人.
+    ACCOUNTS.update(board.get('accounts') or {})
     decoded = align(timeline)
     if decoded:
         lags = [c['lag'] for c in timeline['clips'] if 'lag' in c]
@@ -311,7 +318,7 @@ def main():
 
     events = subtitle_events(edl)
     write_ass(edl, events, os.path.join(OUT, 'subtitles.ass'))
-    write_srt(events, os.path.join(OUT, 'hc-pms-demo.srt'))
+    write_srt(events, os.path.join(OUT, NAME + '.srt'))
     print(f'subtitles: {len(events)} lines')
 
     cards = [{'start': it['at'], 'duration': it['duration'], 'kind': it['card']} for it in edl['items'] if it['type'] == 'card']
@@ -341,7 +348,7 @@ def main():
     vf = (f"[0:v]ass='{ass}'[s];color=c=0xE53935:s=1920x6:r={FPS}[bar];"
           f"[s][bar]overlay=x='-W+W*t/{total:.3f}':y=1074:shortest=1[v];"
           f"[1:a]loudnorm=I=-20:TP=-1.5:LRA=11,aresample=48000[a]")
-    final = os.path.join(OUT, 'hc-pms-demo.mp4')
+    final = os.path.join(OUT, NAME + '.mp4')
     run(['ffmpeg', '-y', '-v', 'error', '-i', body, '-i', os.path.join(OUT, 'music.wav'), '-filter_complex', vf,
          '-map', '[v]', '-map', '[a]', '-t', f'{total:.3f}', '-c:v', 'libx264', '-preset', 'slow', '-crf', '25',
          '-tune', 'stillimage', '-x264-params', 'keyint=250:min-keyint=25', '-pix_fmt', 'yuv420p',

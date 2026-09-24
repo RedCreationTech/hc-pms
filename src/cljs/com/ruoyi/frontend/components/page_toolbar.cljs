@@ -2,6 +2,7 @@
   "页面工具栏容器."
   (:require
     [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.permission :as permission]
     [re-frame.core :as rf]
     [reagent.core :as r]))
 
@@ -37,8 +38,10 @@
 
 
 (defn toolbar-button
-  [{:keys [kind icon on-click disabled? children label]}]
+  "工具栏按钮; 传 :perms 时只对拥有任一权限的用户显示 (对应若依 v-hasPermi)."
+  [{:keys [kind icon on-click disabled? children label perms]}]
   (let [is-dark? (= @(rf/subscribe [:theme/mode]) :dark)]
+    (when (or (nil? perms) (permission/permitted? perms))
     [antd/button {:icon icon
                   :disabled disabled?
                   :on-click on-click
@@ -50,7 +53,7 @@
                                 (get (button-colors is-dark?) kind)
                                 (when disabled?
                                   {:opacity 0.55}))}
-     (or label children)]))
+     (or label children)])))
 
 
 (defn toolbar-left

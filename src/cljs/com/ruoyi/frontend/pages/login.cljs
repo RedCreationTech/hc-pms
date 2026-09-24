@@ -3,6 +3,7 @@
   (:require
     ["@ant-design/icons" :refer [UserOutlined LockOutlined SafetyOutlined]]
     [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.api :as api]
     [re-frame.core :as rf]
     [reagent.core :as r]
     [reagent.hooks :as hooks]))
@@ -16,7 +17,15 @@
         [captcha set-captcha!] (hooks/use-state "")
         [captcha-uuid set-captcha-uuid!] (hooks/use-state initial-uuid)
         [captcha-url set-captcha-url!] (hooks/use-state (str "/api/captcha/image?r=" initial-uuid))
-        [loading? set-loading!] (hooks/use-state false)
+        ;; 登录中状态取自全局 (失败时由 :auth/login-failure 复位, 按钮可再次点击)
+        loading? @(rf/subscribe [:auth/loading?])
+        ;; 验证码按参数 sys.account.captchaEnabled 显示 (服务端同样按参数校验)
+        [captcha-enabled? set-captcha-enabled!] (hooks/use-state false)
+        _ (hooks/use-effect
+            (fn []
+              (api/login-config #(set-captcha-enabled! (true? (get-in % [:data :captchaEnabled]))) (fn [_]))
+              js/undefined)
+            [])
         refresh-captcha (fn []
                           (let [uuid (str (random-uuid))]
                             (set-captcha-uuid! uuid)
@@ -60,31 +69,32 @@
                   :onFocus (fn [e] (set! (.. e -target -style -borderColor) "#1677ff"))
                   :onBlur (fn [e] (set! (.. e -target -style -borderColor) "#d9d9d9"))}]]]
        ;; 验证码
-       [:div {:style {:marginBottom 24}}
-        [:div {:style {:display "flex" :gap 12}}
-         [:div {:style {:position "relative" :flex 1}}
-          [:span {:style {:position "absolute" :left 12 :top "50%" :transform "translateY(-50%)"
-                          :color "#bfbfbf" :fontSize 16 :zIndex 1}}
-           [:> SafetyOutlined]]
-          [:input {:type "text" :placeholder "验证码" :value captcha :maxLength 4
-                   :onChange #(set-captcha! (-> % .-target .-value))
-                   :style {:width "100%" :height 44 :paddingLeft 38 :border "1px solid #d9d9d9"
-                           :borderRadius 6 :fontSize 14 :outline "none" :transition "border-color 0.2s"}
-                   :onFocus (fn [e] (set! (.. e -target -style -borderColor) "#1677ff"))
-                   :onBlur (fn [e] (set! (.. e -target -style -borderColor) "#d9d9d9"))}]]
-         [:img {:src captcha-url :alt "验证码" :onClick refresh-captcha
-                :style {:height 44 :cursor "pointer" :borderRadius 6 :border "1px solid #d9d9d9"
-                        :userSelect "none"}
-                :title "点击刷新验证码"}]]]
+       (when captcha-enabled?
+         [:div {:style {:marginBottom 24}}
+          [:div {:style {:display "flex" :gap 12}}
+           [:div {:style {:position "relative" :flex 1}}
+            [:span {:style {:position "absolute" :left 12 :top "50%" :transform "translateY(-50%)"
+                            :color "#bfbfbf" :fontSize 16 :zIndex 1}}
+             [:> SafetyOutlined]]
+            [:input {:type "text" :placeholder "验证码" :value captcha :maxLength 4
+                     :onChange #(set-captcha! (-> % .-target .-value))
+                     :style {:width "100%" :height 44 :paddingLeft 38 :border "1px solid #d9d9d9"
+                             :borderRadius 6 :fontSize 14 :outline "none" :transition "border-color 0.2s"}
+                     :onFocus (fn [e] (set! (.. e -target -style -borderColor) "#1677ff"))
+                     :onBlur (fn [e] (set! (.. e -target -style -borderColor) "#d9d9d9"))}]]
+           [:img {:src captcha-url :alt "验证码" :onClick refresh-captcha
+                  :style {:height 44 :cursor "pointer" :borderRadius 6 :border "1px solid #d9d9d9"
+                          :userSelect "none"}
+                  :title "点击刷新验证码"}]]])
        ;; 登录按钮
        [:button {:onClick (fn []
-                            (set-loading! true)
                             (rf/dispatch [:auth/login {:username username
                                                        :password password
                                                        :captcha captcha
                                                        :uuid captcha-uuid}]))
                  :disabled loading?
-                 :style {:width "100%" :height 44 :background "#1677ff" :color "#fff"
+                 :style {:width "100%" :height 44 :marginTop (if captcha-enabled? 0 4)
+                         :background "#1677ff" :color "#fff"
                          :border "none" :borderRadius 6 :fontSize 16 :fontWeight 500
                          :cursor (if loading? "not-allowed" "pointer")
                          :opacity (if loading? 0.65 1)

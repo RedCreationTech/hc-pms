@@ -84,7 +84,7 @@
   [app admin-h]
   (let [u (str "p0u" (rand-int 100000))
         r (parse-json (POST app "/api/system/user"
-                            {:user_name u :nick_name "P0测试" :password "admin123"}
+                            {:user_name u :nick_name "P0测试" :password "admin123" :roles [2]}
                             admin-h))
         _ (is (= 200 (:code r)))
         token (login-token u)
@@ -262,7 +262,7 @@
       (testing "非发起人/非管理员仍不能撤回（权限优先于开关）"
         (let [other (ensure-user! app h)
               r (parse-json (PUT app "/api/business/bpm/task/withdraw-to-start" {:processInstanceId pid} (:hdr other)))]
-          (is (= 500 (:code r)))
+          (is (= 403 (:code r)))
           (is (re-find #"发起人或管理员" (:msg r)))))))
 
   ;; ── P0-5 抄送节点策略扩展 ─────────────────────────────────────────────

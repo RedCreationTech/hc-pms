@@ -2,7 +2,7 @@
 // 运行: npx playwright test tests/e2e/updated-report.spec.js
 // 截图输出: test-results/updated-report/
 const { test, expect } = require('playwright/test');
-const { login } = require('./auth-helper');
+const { login, ensureBpmForm } = require('./auth-helper');
 const fs = require('fs');
 
 const SHOT_DIR = 'test-results/updated-report';
@@ -55,7 +55,7 @@ test('流程详情只读设计器（与编辑界面一致）', async ({ page }) 
   await page.waitForTimeout(1000);
   await page.locator('table tbody tr:not(.ant-table-measure-row)').filter({ hasText: 'reimburse' }).first()
     .getByRole('button', { name: '设计' }).click();
-  await page.getByRole('dialog').getByText('流程设计', { exact: true }).first().click();
+  await page.getByText('流程设计', { exact: true }).first().click(); // 模型设计器为独立页面
   await expect(page.locator('.bpm-flow-root').first()).toBeVisible({ timeout: 15000 });
   await page.waitForTimeout(1500);
   await shot(page, '05-编辑界面(对比一致)');
@@ -63,6 +63,7 @@ test('流程详情只读设计器（与编辑界面一致）', async ({ page }) 
 
 test('动态表单补强：日期范围/日期时间/禁用/隐藏', async ({ page }) => {
   await login(page);
+  await ensureBpmForm(page);
   // 1) 表单设计器新组件
   await page.goto('/office/bpm/form');
   await page.getByText('流程表单').first().waitFor({ timeout: 25000 });

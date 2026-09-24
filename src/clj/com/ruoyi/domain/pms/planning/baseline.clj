@@ -3,6 +3,7 @@
   (:require [cheshire.core :as json]
             [clojure.set :as set]
             [clojure.string :as str]
+            [com.ruoyi.domain.pms.approval-chain :as chain]
             [com.ruoyi.domain.pms.kernel :as kernel]
             [com.ruoyi.domain.pms.governance.approval :as approval]
             [com.ruoyi.domain.pms.rules :as rules]
@@ -75,6 +76,9 @@
         (when (some #(= (:revision plan) (:plan_revision %)) revisions)
           (rules/fail! 409 "此计划修订已提交,请修改设计后再发起新的审批"))
         (q :planning/create-baseline! record)
+        ;; 已发布 "计划基线" 审批策略时按策略逐级审批, 否则由有审批权限的非提交成员审批
+        (chain/start! q actor project "plan-baseline" (:baseline_id record)
+                      {:title (str "计划基线 " (:project_no project) " 修订 " (:revision plan))})
         (dissoc (record! q project (:baseline_id record)) :snapshot)))))
 
 (defn- approval-ready!
@@ -97,6 +101,7 @@
       (let [record (record! q project baseline-id)
             decision (:decision body) comment (rules/text! (:comment body) "审批意见" 2000 false)]
         (when-not (= "submitted" (:status record)) (rules/fail! 409 "该计划申请已完成审批"))
+        (chain/guard-legacy-decision! q "plan-baseline" baseline-id)
         (when (= (:user_id actor) (:submitted_by record)) (rules/fail! 403 "提交者不能审批自己的计划"))
         (when-not (contains? #{"approved" "rejected"} decision) (rules/fail! 400 "审批决定必须为 approved 或 rejected"))
         (when (and (= decision "rejected") (str/blank? comment)) (rules/fail! 400 "拒绝计划必须填写原因"))
@@ -105,6 +110,20 @@
                            {:project_id id :baseline_id baseline-id :status decision
                             :reviewed_by (:user_id actor) :review_comment comment}))
         (dissoc (record! q project baseline-id) :snapshot)))))
+
+(defn- finalize!
+  "审批链落定计划基线: 通过前重验变更, 冻结内容与共享资源; 审批人记为末级决定人."
+  [q actor project baseline-id decision comment]
+  (let [record (record! q project baseline-id)]
+    (when-not (= "submitted" (:status record)) (rules/fail! 409 "该计划申请已完成审批"))
+    (when (= decision "approved") (approval-ready! q project record))
+    (rules/changed! (q :planning/review-baseline!
+                       {:project_id (:project_id project) :baseline_id baseline-id :status decision
+                        :reviewed_by (:user_id actor) :review_comment (or comment "")}))))
+
+
+(chain/register-adapter! "plan-baseline" {:finalize finalize!})
+
 
 (defn execution-ready!
   "要求最新设计修订存在已批准且内容一致的冻结基线."

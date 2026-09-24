@@ -20,7 +20,12 @@
   (testing "查询参数列表"
     (let [request {:query-params {}}
           response (config/list-configs {:config-service mock-config-service} request)]
-      (is (map? response)))))
+      (is (map? response))))
+  (testing "字符串键查询条件传到 SQL 参数, 空值不过滤"
+    (let [seen (atom nil)
+          svc {:query-fn (fn [q p] (when (= q :list-configs) (reset! seen p)) [])}]
+      (config/list-configs {:config-service svc} {:query-params {"config_name" "测试" "config_key" "" "config_type" "Y"}})
+      (is (= {:config_name "测试" :config_key nil :config_type "Y"} @seen)))))
 
 
 (deftest test-get-config

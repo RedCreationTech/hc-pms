@@ -355,13 +355,19 @@ mgmt-service),路由用 =(partial handler {:service-key service})= 把服务递�
 - *决策*:
   - 模型:=用户 ── N:N ── 角色 ── N:N ── 菜单(含 perms 按钮权限标识)=,
     用户另属部门(树形).
-  - 数据权限范围四种:全部 / 自定义(指定部门)/ 本部门 / 本部门及以下,
-    存于角色;运行时由 =infra/data_perm.clj= 的 =apply-data-scope= 过滤.
+  - 数据权限范围五种:全部 / 自定义(指定部门)/ 本部门 / 本部门及以下 / 仅本人,
+    存于角色 (自定义部门存 sys_role_dept); 可见部门集合为用户各有效角色范围的并集,
+    用于用户与部门的列表, 导出, 详情与写操作 (S2 落地, 见 docs/pms/16-permission-org-workflow.md).
   - 菜单/按钮权限动态下发:菜单种子迁移插入 sys_menu(目录/菜单 'C'/按钮 'F'
     三级)+ sys_role_menu 授权;登录后 getInfo 返回 perms 集合,前端据
     此渲染菜单和按钮显隐,*不可在前端写死*.
-  - 管理类端点沿 =wrap-jwt-auth= + perms 检查;业务路由当前主要靠前端按
-    perms 控制按钮显隐(require-perms 已有实现,业务路由未强制使用).
+  - 后端是权限边界 (2026-09-25 S1): 系统, 办公与 PMS 路由的每个接口在路由数据声明
+    =:perms= (权限字符串 / 任一匹配向量 / =:login= / 按请求计算的函数), 由
+    =web/middleware/authz.clj= 的 =perms-middleware= 在编译期挂载, 每次请求从数据库读取
+    实时身份, 未声明即拒绝 (fail closed); 拥有 =admin= 角色者为 =*:*:*=.
+    前端按 perms 控制按钮显隐只是体验.
+  - 办公流程的个人办理类接口只要求登录, 授权来自任务归属 (办理人/候选人/发起人/抄送人),
+    避免 "被配置为审批人却因角色未授权菜单而流程卡死".
 - *后果*:新增模块必须附带菜单种子迁移;权限改动需同时更新 sys_menu 与
   sys_role_menu.
 

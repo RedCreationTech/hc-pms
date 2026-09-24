@@ -70,7 +70,7 @@
   [app admin-h]
   (let [u (str "ph2u" (rand-int 100000))
         r (parse-json (POST app "/api/system/user"
-                            {:user_name u :nick_name "Phase2测试" :password "admin123"}
+                            {:user_name u :nick_name "Phase2测试" :password "admin123" :roles [2]}
                             admin-h))
         _ (is (= 200 (:code r)))
         q (parse-json (GET app (str "/api/system/user?user_name=" u "&page=1&size=10") {} admin-h))
@@ -217,7 +217,7 @@
         dept-name (str "PH2部门" (rand-int 100000))
         dept (parse-json (POST app "/api/system/dept"
                                {:parent_id 0 :dept_name dept-name :order_num 99
-                                :leader (str user-id) :status "0"} h))
+                                :leader_id user-id :status "0"} h))
         _ (is (= 200 (:code dept)))
         dl (parse-json (GET app (str "/api/system/dept?dept_name=" dept-name) {} h))
         dept-id (:dept_id (first (filter #(= dept-name (:dept_name %)) (:data dl))))

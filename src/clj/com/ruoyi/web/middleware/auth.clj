@@ -1,5 +1,5 @@
 (ns com.ruoyi.web.middleware.auth
-  "认证与授权中间件,提供 JWT 校验,在线心跳和权限拦截."
+  "认证中间件,提供 JWT 校验 (含撤销检查) 与在线心跳; 功能权限见 authz 命名空间."
   (:require
     [com.ruoyi.infra.online :as online]
     [com.ruoyi.infra.security :as security]
@@ -8,16 +8,14 @@
 
 (defn wrap-jwt-auth
   "为请求附加当前认证用户,并更新在线心跳.
-  如果令牌无效,继续执行但 :identity 为 nil."
+  令牌无效, 已过期或已被撤销 (退出, 强退, 停用, 改密) 时继续执行但 :identity 为 nil."
   [handler]
   (fn [request]
-    (let [token (security/extract-token request)
-          claims (when token (security/parse-token token))
-          blacklisted? (and token (online/blacklisted? token))
-          _ (when (and claims (not blacklisted?)) (online/heartbeat! token))
-          request (if (and claims (not blacklisted?))
+    (let [claims (online/valid-claims (security/extract-token request))
+          _ (when claims (online/heartbeat! claims))
+          request (if claims
                     (assoc request :identity claims)
-                    request)]
+                    (dissoc request :identity))]
       (handler request))))
 
 
@@ -32,26 +30,12 @@
           (response/content-type "application/json")))))
 
 
-(defn require-perms
-  "要求当前用户拥有指定权限中的任意一个,否则返回 403."
-  [perms]
-  (let [required (set (if (sequential? perms) perms [perms]))]
-    (fn [handler]
-      (fn [request]
-        (let [user-perms (set (get-in request [:identity :perms] []))]
-          (if (some required user-perms)
-            (handler request)
-            (-> (response/response {:code 403 :msg "没有操作权限"})
-                (response/status 403)
-                (response/content-type "application/json"))))))))
-
-
 (defn auth-middleware
-  "组合中间件:JWT 解析 + 在线心跳 + 可选认证要求."
+  "组合中间件:JWT 解析 + 在线心跳 + 可选认证要求.
+  接口级功能权限由 com.ruoyi.web.middleware.authz 按路由数据 :perms 校验."
   ([] (auth-middleware {}))
-  ([{:keys [required? perms]}]
+  ([{:keys [required?]}]
    (fn [handler]
      (let [h (if required? (require-auth handler) handler)
-           h (if perms ((require-perms perms) h) h)
            h (wrap-jwt-auth h)]
        h))))

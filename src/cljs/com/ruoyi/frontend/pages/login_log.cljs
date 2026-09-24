@@ -106,16 +106,16 @@
                                 :onConfirm #(when (seq selected-ids)
                                               (rf/dispatch [:login-logs/delete (selected-id-string)])
                                               (set-selected-ids! []))}
-               [page-toolbar/toolbar-button {:kind :delete
+               [page-toolbar/toolbar-button {:perms "monitor:logininfor:remove" :kind :delete
                                              :icon (r/as-element [:> DeleteOutlined])
                                              :disabled? (empty? selected-ids)
                                              :label "删除"}]]
               [antd/popconfirm {:title "确认清空所有登录日志？"
                                 :onConfirm #(rf/dispatch [:login-logs/clear])}
-               [page-toolbar/toolbar-button {:kind :delete
+               [page-toolbar/toolbar-button {:perms "monitor:logininfor:remove" :kind :delete
                                              :icon (r/as-element [:> DeleteOutlined])
                                              :label "清空"}]]
-              [page-toolbar/toolbar-button {:kind :add
+              [page-toolbar/toolbar-button {:perms "monitor:logininfor:unlock" :kind :add
                                             :icon (r/as-element [:> LockOutlined])
                                             :disabled? (empty? selected-ids)
                                             :on-click #(when-let [row (some (fn [item]
@@ -123,7 +123,7 @@
                                                                             items)]
                                                          (rf/dispatch [:login-logs/unlock (:user_name row)]))
                                             :label "解锁"}]
-              [page-toolbar/toolbar-button {:kind :export
+              [page-toolbar/toolbar-button {:perms "monitor:logininfor:export" :kind :export
                                             :icon (r/as-element [:> DownloadOutlined])
                                             :on-click #(rf/dispatch [:login-logs/export])
                                             :label "导出"}]]

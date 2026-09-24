@@ -54,12 +54,13 @@ test('前端功能截图报告', async ({ page }) => {
 
   // 6. 审批通过弹窗
   const taskRow = page.locator('table tbody tr:not(.ant-table-measure-row)', { hasText: '部门经理审批' }).first();
-  await taskRow.getByRole('button', { name: '通过' }).click();
-  const approveModal = page.getByRole('dialog', { name: /审批通过/ });
+  await taskRow.getByRole('button', { name: /通\s*过/ }).click();
+  // 审批弹窗标题为 "通过 · <节点名>"
+  const approveModal = page.getByRole('dialog', { name: /通过 · 部门经理审批/ });
   await expect(approveModal).toBeVisible();
   await shot(page, '08-审批通过弹窗');
   await approveModal.locator('textarea').fill('同意');
-  await approveModal.locator('form').last().evaluate(form => form.requestSubmit());
+  await approveModal.getByRole('button', { name: /确\s*定/ }).click();
   await expect(approveModal).toBeHidden({ timeout: 10000 });
 
   // 7. 我的已办
@@ -93,8 +94,8 @@ test('流程模型页与设计器', async ({ page }) => {
   // 打开设计器（纯 HTML/CSS flex 编辑器）
   await page.locator('table tbody tr:not(.ant-table-measure-row)').first()
     .getByRole('button', { name: '设计' }).click();
-  const designer = page.getByRole('dialog', { name: /流程模型/ });
-  await expect(designer).toBeVisible({ timeout: 15000 });
+  // 模型设计器为独立页面 (原为弹窗)
+  await expect(page.getByText('流程模型设计').first()).toBeVisible({ timeout: 15000 });
   // 4-tab 设计器默认打开“基本信息”，需切到“流程设计”才渲染画布
   await page.getByText('流程设计', { exact: true }).first().click();
   await expect(page.locator('.bpm-flow-root').first()).toBeVisible({ timeout: 15000 });

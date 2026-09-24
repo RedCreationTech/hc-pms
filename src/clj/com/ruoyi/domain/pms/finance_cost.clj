@@ -1,6 +1,7 @@
 (ns com.ruoyi.domain.pms.finance-cost
   "四算版本和成本明细, 提交快照及独立审批后保持不可变."
   (:require [cheshire.core :as json]
+            [com.ruoyi.domain.pms.approval-chain :as chain]
             [com.ruoyi.domain.pms.finance-money :as money]
             [com.ruoyi.domain.pms.kernel :as kernel]
             [com.ruoyi.domain.pms.rules :as rules])
@@ -36,7 +37,10 @@
         (assoc :id (:version_id version) :entries entries
                :revenue (money/money (:revenue_minor version))
                :total (money/money total) :total_minor total
-               :margin (money/money (- (:revenue_minor version) total))))))
+               :margin (money/money (- (:revenue_minor version) total))
+               ;; 按审批策略逐级审批中 (前端据此隐藏原单人审核入口)
+               :chain_pending (and (= "submitted" (:status version))
+                                   (some? (chain/pending-flow q "cost-version" (:version_id version))))))))
 
 (defn- input!
   "校验口径, 期间, 币种和指定审批人."
@@ -110,6 +114,10 @@
         (rules/changed! (q :finance/submit-version!
                            (assoc version :submitted_by (:user_id actor)
                                   :snapshot_json (json/generate-string snapshot))))
+        ;; 已发布 "费用版本" 审批策略时按策略逐级审批; 指定审批人作为 "提交人选择" 级别的审批人
+        (chain/start! q actor project "cost-version" version-id
+                      {:reviewer-id (:reviewer_id version) :amount (:total snapshot)
+                       :title (str "费用版本 " (:name version) " (" (:total snapshot) " " (:currency version) ")")})
         (dto q (version! q project-id version-id))))))
 
 (defn review!
@@ -122,6 +130,7 @@
       (let [version (version! q project-id version-id)
             reason (rules/text! (:reason body) "审核意见" 1000 (= "rejected" (:decision body)))]
         (when-not (= "submitted" (:status version)) (rules/fail! 409 "费用版本不在待审批状态"))
+        (chain/guard-legacy-decision! q "cost-version" version-id)
         (kernel/independent-review! actor (:submitted_by version) (:reviewer_id version))
         (kernel/user! q project (:reviewer_id version) "财务审批人")
         (rules/changed! (q :finance/review-version! (assoc version :status (:decision body) :review_note reason)))
@@ -157,3 +166,14 @@
           (rules/fail! 409 "只能取消费用草稿或驳回版本"))
         (rules/changed! (q :finance/cancel-version! (assoc version :review_note reason)))
         (dto q (version! q project-id version-id))))))
+
+
+(defn- finalize!
+  "审批链末级通过或任一级驳回后落定费用版本状态 (快照与明细保持不变)."
+  [q _actor project version-id decision reason]
+  (let [version (version! q (:project_id project) version-id)]
+    (when-not (= "submitted" (:status version)) (rules/fail! 409 "费用版本不在待审批状态"))
+    (rules/changed! (q :finance/review-version! (assoc version :status decision :review_note (or reason ""))))))
+
+
+(chain/register-adapter! "cost-version" {:finalize finalize!})

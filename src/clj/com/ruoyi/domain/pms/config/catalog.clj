@@ -150,3 +150,20 @@
     :description "URS需求: 项目编号 + 三位流水" :version_rule "同编号递增 revision" :collection_rule "追踪按最新版本"}
    {:code "RULE-TASK" :object_type "task" :pattern "WBS-{SEQ:3}" :enforced false
     :description "WBS任务编号" :version_rule "随计划修订" :collection_rule "计划基线快照"}])
+
+(def approval-policies
+  "内置审批策略示例 (导入为草稿后按公司组织调整再发布). 规则: role 指定角色, dept_leader 项目所属部门负责人 (up 上溯级数),
+   project_manager 项目经理, user 指定用户, submitter_choice 提交人选择; mode any 或签 / all 会签; min_amount 金额达到阈值才需要本级."
+  [{:code "cost-version" :name "费用版本两级审批"
+    :levels [{:name "部门负责人审批" :rule "dept_leader" :up 0 :mode "any" :on_empty "skip"}
+             {:name "财务复核" :rule "submitter_choice" :mode "any" :on_empty "reject"}]}
+   {:code "charter" :name "项目章程审批"
+    :levels [{:name "部门负责人审批" :rule "dept_leader" :up 0 :mode "any" :on_empty "skip"}
+             {:name "上级部门负责人审批 (预算10万元及以上)" :rule "dept_leader" :up 1 :mode "any" :on_empty "skip"
+              :min_amount "100000.00"}]}
+   {:code "plan-baseline" :name "计划基线审批"
+    :levels [{:name "项目经理确认" :rule "project_manager" :mode "any" :on_empty "skip"}
+             {:name "部门负责人审批" :rule "dept_leader" :up 0 :mode "any" :on_empty "reject"}]}
+   {:code "closure" :name "项目结项审批"
+    :levels [{:name "部门负责人审批" :rule "dept_leader" :up 0 :mode "any" :on_empty "skip"}
+             {:name "指定审批人" :rule "submitter_choice" :mode "any" :on_empty "reject"}]}])

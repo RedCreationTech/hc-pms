@@ -1,6 +1,7 @@
 (ns com.ruoyi.web.routes.pms-config
   "平台级模板/编码规则/经营目标/费用池/封期配置路由, 以及跨项目待办/检索/组合看板/经营目标达成的只读路由, 挂载在已认证的 /api/pms 内."
-  (:require [com.ruoyi.domain.pms.config :as config]
+  (:require [com.ruoyi.domain.pms.approval-chain :as chain]
+            [com.ruoyi.domain.pms.config :as config]
             [com.ruoyi.domain.pms.finance-pool :as pool]
             [com.ruoyi.domain.pms.portfolio :as portfolio]
             [com.ruoyi.domain.pms.scan :as scan]
@@ -43,6 +44,15 @@
   [svc]
   [["/coding-rules/next" {:get {:handler (partial next-code svc)}}]
    ["/todo" {:get {:handler (fn [request] (http/invoke svc request portfolio/todo))}}]
+   ;; 可配置审批链: 当前生效策略, 审批详情, 逐级决定, 项目内审批进度
+   ["/approval-policies" {:get {:handler (fn [request] (http/invoke svc request chain/active-policies))}}]
+   ["/approvals/:flow_id" {:get {:handler (fn [request] (http/invoke svc request #(chain/flow %1 %2 (http/param request :flow_id))))}}]
+   ["/approvals/:flow_id/decide" {:post {:handler (fn [request] (http/invoke svc request #(chain/decide! %1 %2 (http/param request :flow_id) (:body-params request))))}}]
+   ["/projects/:id/approvals" {:get {:handler (fn [request]
+                                                (let [params (:query-params request)]
+                                                  (http/invoke svc request #(chain/project-flows %1 %2 (http/project-id request)
+                                                                                                 {:biz_type (not-empty (get params "biz_type"))
+                                                                                                  :biz_id (not-empty (get params "biz_id"))}))))}}]
    ["/scan" {:post {:handler (fn [request] (http/invoke svc request (fn [svc actor]
                                                                        (scan/run-all! svc actor (or (get-in request [:body-params :date]) (str (java.time.LocalDate/now)))))))}}]
    ["/search" {:get {:handler (partial search svc)}}]

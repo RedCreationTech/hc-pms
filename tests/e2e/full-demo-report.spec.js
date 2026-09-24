@@ -2,7 +2,7 @@
 // 运行: npx playwright test tests/e2e/full-demo-report.spec.js
 // 截图: test-results/full-demo/
 const { test, expect } = require('playwright/test');
-const { login } = require('./auth-helper');
+const { login, ensureBpmForm } = require('./auth-helper');
 const fs = require('fs');
 
 const SHOT_DIR = 'test-results/full-demo';
@@ -20,6 +20,7 @@ test('完整流程演示：配置表单+流程 → 发起 → 审批通过', asy
   page.on('pageerror', e => errs.push('PE: ' + e.message.slice(0, 120)));
 
   await login(page);
+  await ensureBpmForm(page);
 
   // ═══ 1. 配置动态表单 ═══
   await page.goto('/office/bpm/form');
@@ -67,8 +68,8 @@ test('完整流程演示：配置表单+流程 → 发起 → 审批通过', asy
   // 打开请假流程设计器
   const leaveRow = page.locator('table tbody tr:not(.ant-table-measure-row)').filter({ hasText: 'leaveApproval' }).first();
   await leaveRow.getByRole('button', { name: '设计' }).click();
-  const wrap = page.getByRole('dialog');
-  await expect(wrap).toBeVisible({ timeout: 15000 });
+  const wrap = page; // 模型设计器为独立页面 (原为弹窗)
+  await expect(page.getByText('流程模型设计').first()).toBeVisible({ timeout: 15000 });
   await wrap.getByText('流程设计', { exact: true }).first().click();
   await expect(page.locator('.bpm-flow-root').first()).toBeVisible({ timeout: 15000 });
   await page.waitForTimeout(1500);
@@ -100,7 +101,8 @@ test('完整流程演示：配置表单+流程 → 发起 → 审批通过', asy
 
   // 填表（按 label 精确定位，兼容 input-number/textarea）
   const formItem = page.locator('.ant-modal .ant-form-item');
-  const reasonInp = formItem.filter({ hasText: '请假事由' }).first().locator('input');
+  // 请假审批模型内嵌表单: 请假天数 (数字) / 请假原因 (多行文本)
+  const reasonInp = formItem.filter({ hasText: /请假(事由|原因)/ }).first().locator('input:not([type=hidden]), textarea').first();
   await reasonInp.click();
   await reasonInp.pressSequentially('出差广州参加客户会议');
   const daysInp = formItem.filter({ hasText: '请假天数' }).first().locator('input');

@@ -3,6 +3,7 @@
   (:require
     [clojure.string :as str]
     [com.ruoyi.domain.system.log :as log-service]
+    [com.ruoyi.infra.login-guard :as login-guard]
     [ring.util.response :as response]))
 
 
@@ -65,6 +66,13 @@
   [{:keys [log-service]} request]
   (log-service/delete-login-logs! log-service (parse-ids (get-in request [:path-params :ids])))
   (ok "删除成功"))
+
+
+(defn unlock-user
+  "清除账号的登录失败锁定."
+  [_ request]
+  (login-guard/clear! (get-in request [:path-params :user_name]))
+  (ok "解锁成功"))
 
 
 (defn list-online-users

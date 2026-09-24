@@ -36,4 +36,22 @@ async function logout(page) {
   await page.getByRole('button', { name: /登\s*录/ }).waitFor();
 }
 
-module.exports = { login, logout };
+/**
+ * 截图类报告用例需要 "流程表单" 列表里至少有一张表单; 全新库没有时经真实 HTTP 建一张通用申请表单.
+ * @param {import('playwright/test').Page} page 已登录的管理员页面
+ */
+async function ensureBpmForm(page) {
+  const token = await page.evaluate(() => localStorage.getItem('ruoyi_token'));
+  const headers = { Authorization: `Bearer ${token}` };
+  const list = await (await page.request.get('/api/business/bpm/form', { headers })).json();
+  if ((list.data && list.data.rows || []).length) return;
+  const form_json = JSON.stringify({ fields: [
+    { type: 'input', field: 'title', title: '申请标题', value: '', props: {}, validate: [{ required: true }] },
+    { type: 'number', field: 'amount', title: '申请金额', value: 0, props: {}, validate: [] },
+  ] });
+  const created = await (await page.request.post('/api/business/bpm/form', {
+    headers, data: { form_name: '通用申请表单', form_key: 'e2e_general_form', form_json, status: '0' } })).json();
+  if (created.code !== 200) throw new Error(`创建流程表单失败: ${created.msg}`);
+}
+
+module.exports = { login, logout, ensureBpmForm };

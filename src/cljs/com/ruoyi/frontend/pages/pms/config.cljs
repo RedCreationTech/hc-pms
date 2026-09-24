@@ -3,6 +3,7 @@
   (:require
     [clojure.string :as str]
     [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.pages.pms.approval :as approval]
     [com.ruoyi.frontend.pages.pms.shared :as shared]
     [com.ruoyi.frontend.pages.pms.widgets :as w]
     [reagent.core :as r]
@@ -308,7 +309,8 @@
         [dialog set-dialog!] (hooks/use-state nil)
         [detail set-detail!] (hooks/use-state nil)
         editable? (shared/use-permission "pms:config:edit")
-        context {:kind kind :data (:data resource) :options (:data options) :editable? editable? :open! set-dialog! :detail! set-detail!}]
+        context {:kind kind :data (:data resource) :options (:data options) :editable? editable? :open! set-dialog! :detail! set-detail!
+                 :refresh! (:refresh! resource)}]
     [:div
      [w/resource-view resource (fn [_] [section context])]
      (when dialog [config-dialog (merge dialog {:on-close #(set-dialog! nil)
@@ -329,4 +331,6 @@
                        {:key "pools" :label "研发费用池"
                         :children (r/as-element [kind-workspace "rd-pool" pool-section pool-preview])}
                        {:key "locks" :label "工时封期"
-                        :children (r/as-element [kind-workspace "period-lock" lock-section rule-detail])}]}]])
+                        :children (r/as-element [kind-workspace "period-lock" lock-section rule-detail])}
+                       {:key "approvals" :label "审批策略"
+                        :children (r/as-element [kind-workspace "approval-policy" approval/policy-section approval/policy-detail])}]}]])

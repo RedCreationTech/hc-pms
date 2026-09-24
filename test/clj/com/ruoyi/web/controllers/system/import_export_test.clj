@@ -110,7 +110,7 @@
     (let [file (temp-csv-file (str "user_name,nick_name,email,phonenumber,sex,status,dept_id,remark\n"
                                    "testuser,测试用户,test@example.com,13800138001,0,0,1,备注"))
           request {:multipart-params {"file" {:tempfile file :filename "users.csv"}}
-                   :identity {:user_name "admin"}}
+                   :identity {:user_name "admin"} :actor {:admin? true}}
           response (ie/import-users {:user-service mock-user-service} request)]
       (is (= 200 (:status response)))
       (is (= 200 (get-in response [:body :code])))
@@ -164,7 +164,7 @@
 
 (deftest test-export-depts
   (testing "导出部门 CSV"
-    (let [response (ie/export-depts {:dept-service mock-dept-service} {})]
+    (let [response (ie/export-depts {:dept-service mock-dept-service} {:actor {:admin? true}})]
       (is (= 200 (:status response)))
       (is (= "text/csv; charset=utf-8" (get-in response [:headers "Content-Type"])))
       (is (.contains (:body response) "研发部")))))
@@ -200,3 +200,15 @@
       (is (= 200 (:status response)))
       (is (= "text/csv; charset=utf-8" (get-in response [:headers "Content-Type"])))
       (is (.contains (:body response) "系统版本")))))
+
+
+(deftest test-import-users-respects-data-scope
+  (testing "导入目标部门不在数据范围内时该行失败"
+    (let [file (temp-csv-file (str "user_name,nick_name,email,phonenumber,sex,status,dept_id,remark\n"
+                                   "scopeuser,范围外,s@example.com,13800138009,0,0,5,"))
+          request {:multipart-params {"file" {:tempfile file :filename "users.csv"}}
+                   :identity {:user_name "mgr"}
+                   :actor {:user_id 7 :dept_id 4 :roles [{:role_id 3 :data_scope "3"}]}}
+          response (ie/import-users {:user-service mock-user-service} request)]
+      (is (= 0 (get-in response [:body :data :success])))
+      (is (= 1 (get-in response [:body :data :failed]))))))

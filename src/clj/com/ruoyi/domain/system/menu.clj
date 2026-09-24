@@ -74,3 +74,22 @@
     (let [menus (query-fn :list-menus-by-role-ids {:role-ids role-ids})]
       (build-tree menus 0))
     []))
+
+
+(defn menu-tree-for-actor
+  "当前身份可见的菜单树: 超级管理员为全部启用菜单; 其他用户为有效角色授权的菜单及其完整祖先链.
+  停用菜单 (及其下级) 不出现; 按钮 (F) 保留在树中供前端判断, 侧边栏只渲染目录与菜单."
+  [{:keys [query-fn]} actor]
+  (let [menus (query-fn :list-menus {:menu_name nil :status "0" :menu_type nil})
+        by-id (into {} (map (juxt :menu_id identity)) menus)
+        granted (if (:admin? actor)
+                  (set (keys by-id))
+                  (set (map :menu_id (query-fn :authz-user-menu-ids {:user_id (:user_id actor)}))))
+        with-ancestors (reduce (fn [acc id]
+                                 (loop [acc acc id id]
+                                   (if-let [m (get by-id id)]
+                                     (let [acc (conj acc id)]
+                                       (if (pos? (or (:parent_id m) 0)) (recur acc (:parent_id m)) acc))
+                                     acc)))
+                               #{} granted)]
+    (build-tree (filter #(contains? with-ancestors (:menu_id %)) menus) 0)))

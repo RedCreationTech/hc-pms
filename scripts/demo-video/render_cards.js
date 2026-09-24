@@ -5,9 +5,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('playwright');
-const S = require('./storyboard.js');
+// DEMO_STORYBOARD 选择分镜数据源 (默认完整业务流程), DEMO_VIDEO_DIR 选择产物目录.
+const S = require(process.env.DEMO_STORYBOARD ? path.resolve(process.env.DEMO_STORYBOARD) : './storyboard.js');
 
-const OUT = path.resolve(__dirname, '../../reports/demo-video');
+const OUT = process.env.DEMO_VIDEO_DIR ? path.resolve(process.env.DEMO_VIDEO_DIR) : path.resolve(__dirname, '../../reports/demo-video');
 const CARDS = path.join(OUT, 'cards');
 const W = 1920;
 const H = 1080;
@@ -120,7 +121,7 @@ async function main() {
   }
   await render('end.png', endCard());
   await browser.close();
-  fs.writeFileSync(path.join(OUT, 'storyboard.json'), JSON.stringify({ title: S.title, ending: S.ending, chapters: S.chapters, shots: S.shots, screen: SCREEN, size: { w: W, h: H } }, null, 2));
+  fs.writeFileSync(path.join(OUT, 'storyboard.json'), JSON.stringify({ title: S.title, ending: S.ending, chapters: S.chapters, shots: S.shots, accounts: S.accounts || {}, screen: SCREEN, size: { w: W, h: H } }, null, 2));
   console.log(`rendered ${2 + S.chapters.length * 2} images to ${CARDS}`);
 }
 

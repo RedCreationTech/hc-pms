@@ -406,7 +406,7 @@
                  detail-diagram (r/atom nil)
                  detail-history (r/atom [])
                  users (r/atom [])
-                 _ (api/list-users {:page 1 :size 1000}
+                 _ (api/user-options {:page 1 :size 1000}
                                    #(reset! users (walk/keywordize-keys (or (:rows (:data %)) [])))
                                    #())
                  open-ops (fn [task type]

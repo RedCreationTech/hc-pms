@@ -5,7 +5,9 @@
     [com.ruoyi.frontend.antd :as antd]
     [com.ruoyi.frontend.api :as api]
     [com.ruoyi.frontend.components.page-search :as page-search]
+    [com.ruoyi.frontend.components.dept-tree-select :refer [build-tree]]
     [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+    [com.ruoyi.frontend.permission :as permission]
     [re-frame.core :as rf]
     [reagent.core :as r]
     [reagent.hooks :as hooks]))
@@ -23,14 +25,10 @@
       node)))
 
 
-(defn- dept->tree-node
-  "将部门数据转换为 Ant Design Tree 节点格式."
-  [dept]
-  (let [node {:title (:dept_name dept)
-              :key (str (:dept_id dept))}]
-    (if-let [children (seq (:children dept))]
-      (assoc node :children (mapv dept->tree-node children))
-      node)))
+(defn- dept-tree-data
+  "部门平铺列表 -> Ant Design Tree 节点."
+  [depts]
+  (build-tree depts (fn [d] {:title (:dept_name d) :key (str (:dept_id d))})))
 
 
 (defn- user-columns
@@ -96,22 +94,16 @@
   (let [query-params @(rf/subscribe [:roles/query-params])]
     [page-toolbar/page-toolbar
      {:left [page-toolbar/toolbar-left
-             [page-toolbar/toolbar-button {:kind :add
-                                           :icon (r/as-element [:> PlusOutlined])
-                                           :on-click #(rf/dispatch [:roles/open-modal])
-                                           :label "新增"}]
-             [page-toolbar/toolbar-button {:kind :edit
-                                           :icon (r/as-element [:> EditOutlined])
-                                           :disabled? true
-                                           :label "修改"}]
-             [page-toolbar/toolbar-button {:kind :delete
-                                           :icon (r/as-element [:> DeleteOutlined])
-                                           :disabled? true
-                                           :label "删除"}]
-             [page-toolbar/toolbar-button {:kind :export
-                                           :icon (r/as-element [:> DownloadOutlined])
-                                           :on-click #(api/export-roles {})
-                                           :label "导出"}]]
+             (when (permission/permitted? "system:role:add")
+               [page-toolbar/toolbar-button {:kind :add
+                                             :icon (r/as-element [:> PlusOutlined])
+                                             :on-click #(rf/dispatch [:roles/open-modal])
+                                             :label "新增"}])
+             (when (permission/permitted? "system:role:export")
+               [page-toolbar/toolbar-button {:kind :export
+                                             :icon (r/as-element [:> DownloadOutlined])
+                                             :on-click #(api/export-roles {})
+                                             :label "导出"}])]
       :right [page-toolbar/toolbar-right
               [page-toolbar/round-tool-button {:title "搜索"
                                                :icon (r/as-element [:> SearchOutlined])
@@ -124,7 +116,7 @@
 ;; ─── 表格列定义 ──────────────────────────────────────────────────────
 
 (defn- role-columns
-  []
+  [{:keys [can-edit? can-remove?]}]
   #js [#js {:title "角色编号" :dataIndex "role_id" :key "role_id" :width 80}
        #js {:title "角色名称" :dataIndex "role_name" :key "role_name"
             :render (fn [v record]
@@ -144,19 +136,22 @@
             :render (fn [_ ^js record]
                       (let [record-clj (js->clj record :keywordize-keys true)]
                         (r/as-element
-                          (if (= "admin" (:role_key record-clj))
+                          (if (or (= "admin" (:role_key record-clj)) (not (or can-edit? can-remove?)))
                             [:div]
                             [:div {:className "ruoyi-menu-actions"}
-                             [antd/button {:type "link" :size "small"
-                                           :icon (r/as-element [:> EditOutlined])
-                                           :on-click #(rf/dispatch [:roles/edit record-clj])}
-                              "修改"]
-                             [antd/popconfirm {:title "确认删除该角色？"
-                                               :onConfirm #(rf/dispatch [:roles/delete (.-role_id record)])}
-                              [antd/button {:type "link" :danger true :size "small"
-                                            :icon (r/as-element [:> DeleteOutlined])}
-                               "删除"]]
-                             [antd/dropdown {:menu {:items (clj->js [{:key "data" :label "数据权限"}
+                             (when can-edit?
+                               [antd/button {:type "link" :size "small"
+                                             :icon (r/as-element [:> EditOutlined])
+                                             :on-click #(rf/dispatch [:roles/edit record-clj])}
+                                "修改"])
+                             (when can-remove?
+                               [antd/popconfirm {:title "确认删除该角色？"
+                                                 :onConfirm #(rf/dispatch [:roles/delete (.-role_id record)])}
+                                [antd/button {:type "link" :danger true :size "small"
+                                              :icon (r/as-element [:> DeleteOutlined])}
+                                 "删除"]])
+                             (when can-edit?
+                               [antd/dropdown {:menu {:items (clj->js [{:key "data" :label "数据权限"}
                                                                      {:key "users" :label "分配用户"}
                                                                      {:key "perm" :label "分配权限"}])
                                                     :onClick (fn [e]
@@ -165,8 +160,8 @@
                                                                  "users" (rf/dispatch [:roles/open-user-alloc record-clj])
                                                                  "perm" (rf/dispatch [:roles/open-permission record-clj])
                                                                  nil))}}
-                              [antd/button {:type "link" :size "small"}
-                               "更多"]]]))))}])
+                                [antd/button {:type "link" :size "small"}
+                                 "更多"]])]))))}])
 
 
 ;; ─── 编辑弹窗 ──────────────────────────────────────────────────────
@@ -213,80 +208,141 @@
 
 ;; ─── 数据权限弹窗 ──────────────────────────────────────────────────
 
+(def ^:private scope-options
+  [["1" "全部数据权限" "可以看到全公司的用户与部门"]
+   ["2" "自定数据权限" "只能看到下面勾选的部门"]
+   ["3" "本部门数据权限" "只能看到本人所在部门"]
+   ["4" "本部门及以下数据权限" "本人所在部门及其全部下级部门"]
+   ["5" "仅本人数据权限" "只能看到本人"]])
+
+
 (defn- data-scope-modal
+  "数据权限: 5 种范围; 自定义时勾选部门 (保存到 sys_role_dept). 一个用户有多个角色时取并集."
   []
   (let [visible? @(rf/subscribe [:roles/data-scope-visible?])
         role @(rf/subscribe [:roles/data-scope-role])
-        [form] (antd/form-use-form)]
+        depts @(rf/subscribe [:roles/data-scope-dept-tree])
+        loaded-keys @(rf/subscribe [:roles/data-scope-checked-keys])
+        [scope set-scope!] (hooks/use-state "1")
+        [checked set-checked!] (hooks/use-state [])]
     (hooks/use-effect
       (fn []
-        (when visible?
-          (.setFieldsValue form (clj->js {:data_scope (:data_scope role "1")})))
+        (when visible? (set-scope! (str (or (:data_scope role) "1"))))
         js/undefined)
       [visible? role])
+    (hooks/use-effect
+      (fn []
+        (set-checked! (vec loaded-keys))
+        js/undefined)
+      [loaded-keys])
     [antd/modal {:title (str "分配数据权限 - " (:role_name role))
                  :open visible?
-                 :onOk #(.submit form)
+                 :width 560
+                 :okButtonProps {:disabled (and (= "2" scope) (empty? checked))}
+                 :onOk #(rf/dispatch [:roles/save-data-scope {:role_id (:role_id role)
+                                                              :data_scope scope
+                                                              :dept_ids (if (= "2" scope) checked [])}])
                  :onCancel #(rf/dispatch [:roles/close-data-scope])
                  :destroyOnHidden true}
-     [antd/form {:form form
-                 :preserve false
-                 :onFinish (fn [values]
-                             (rf/dispatch [:roles/save-data-scope
-                                           (:role_id role)
-                                           (js->clj values :keywordize-keys true)]))}
-      [antd/form-item {:label "权限范围" :name "data_scope"
-                       :rules [{:required true :message "请选择权限范围"}]}
-       [antd/radio-group
-        [antd/radio {:value "1"} "全部数据权限"]
-        [antd/radio {:value "2"} "自定数据权限"]
-        [antd/radio {:value "3"} "本部门数据权限"]
-        [antd/radio {:value "4"} "本部门及以下数据权限"]
-        [antd/radio {:value "5"} "仅本人数据权限"]]]
-      (when (= "2" (:data_scope role "1"))
-        [antd/form-item {:label "数据权限" :name "dept_ids"}
-         [antd/tree-select {:treeData (clj->js (mapv dept->tree-node @(rf/subscribe [:roles/data-scope-dept-tree])))
-                            :multiple true
-                            :placeholder "请选择部门"
-                            :treeCheckable true
-                            :showCheckedStrategy "SHOW_PARENT"}]])]]))
+     [:div {:style {:marginBottom 8 :color "#8c8c8c"}} "决定拥有该角色的用户在用户管理, 部门管理中能看到和操作哪些数据."]
+     [antd/radio-group {:value scope :onChange #(set-scope! (.. % -target -value))
+                        :style {:display "flex" :flexDirection "column" :gap 6}}
+      (for [[v label hint] scope-options]
+        ^{:key v}
+        [antd/radio {:value v} [:span label [:span {:style {:color "#8c8c8c" :marginLeft 8 :fontSize 12}} hint]]])]
+     (when (= "2" scope)
+       [:div {:style {:marginTop 12 :padding 8 :border "1px solid #f0f0f0" :borderRadius 6 :maxHeight 280 :overflow "auto"}}
+        [antd/tree {:checkable true
+                    :checkStrictly true
+                    :defaultExpandAll true
+                    :checkedKeys (clj->js checked)
+                    :onCheck (fn [v] (set-checked! (vec (.-checked v))))
+                    :treeData (clj->js (dept-tree-data depts))}]])]))
 
 
 ;; ─── 分配用户弹窗 ──────────────────────────────────────────────────
 
 (defn- user-alloc-modal
+  "分配用户: 已分配 (可取消授权) 与 添加用户 (勾选未分配用户授权)."
   []
   (let [visible? @(rf/subscribe [:roles/user-alloc-visible?])
         role @(rf/subscribe [:roles/user-alloc-role])
-        selected-users @(rf/subscribe [:roles/allocated-selected])]
+        allocated-selected @(rf/subscribe [:roles/allocated-selected])
+        unallocated-selected @(rf/subscribe [:roles/unallocated-selected])
+        [tab set-tab!] (hooks/use-state "allocated")]
+    (hooks/use-effect
+      (fn []
+        (when visible? (set-tab! "allocated"))
+        js/undefined)
+      [visible?])
     [antd/modal {:title (str "分配用户 - " (:role_name role))
                  :open visible?
-                 :onOk #(rf/dispatch [:roles/save-user-alloc (:role_id role) selected-users])
+                 :footer nil
                  :onCancel #(rf/dispatch [:roles/close-user-alloc])
                  :destroyOnHidden true
-                 :width 800}
-     [antd/table {:columns (user-columns "取消授权" #(rf/dispatch [:roles/unauth-user (:role_id role) %]))
-                  :dataSource (clj->js @(rf/subscribe [:roles/allocated-items]))
-                  :rowKey "user_id"
-                  :pagination {:pageSize 10}}]]))
+                 :width 820}
+     [antd/tabs {:activeKey tab
+                 :onChange (fn [k]
+                             (set-tab! k)
+                             (if (= "unallocated" k)
+                               (rf/dispatch [:roles/fetch-unallocated])
+                               (rf/dispatch [:roles/fetch-allocated])))
+                 :items (clj->js
+                          [{:key "allocated" :label "已分配用户"
+                            :children (r/as-element
+                                        [:div
+                                         [antd/button {:danger true :disabled (empty? allocated-selected) :style {:marginBottom 8}
+                                                       :onClick #(rf/dispatch [:roles/cancel-all-users])}
+                                          "批量取消授权"]
+                                         [antd/table {:columns (user-columns "取消授权" #(rf/dispatch [:roles/cancel-user %]))
+                                                      :dataSource (clj->js @(rf/subscribe [:roles/allocated-items]))
+                                                      :rowKey "user_id" :size "small"
+                                                      :rowSelection {:selectedRowKeys (clj->js allocated-selected)
+                                                                     :onChange #(rf/dispatch [:roles/set-allocated-selected (vec %)])}
+                                                      :pagination {:pageSize 8}}]])}
+                           {:key "unallocated" :label "添加用户"
+                            :children (r/as-element
+                                        [:div
+                                         [antd/button {:type "primary" :disabled (empty? unallocated-selected) :style {:marginBottom 8}
+                                                       :onClick #(rf/dispatch [:roles/select-all-users])}
+                                          "授权选中用户"]
+                                         [antd/table {:columns (user-columns "授权" #(rf/dispatch [:roles/select-users [%]]))
+                                                      :dataSource (clj->js @(rf/subscribe [:roles/unallocated-items]))
+                                                      :rowKey "user_id" :size "small"
+                                                      :rowSelection {:selectedRowKeys (clj->js unallocated-selected)
+                                                                     :onChange #(rf/dispatch [:roles/set-unallocated-selected (vec %)])}
+                                                      :pagination {:pageSize 8}}]])}])}]]))
 
 
 ;; ─── 菜单权限弹窗 ──────────────────────────────────────────────────
 
+(defn- leaf-keys
+  "菜单树中没有下级的节点 key."
+  [menus]
+  (into #{} (mapcat (fn [m] (if (seq (:children m)) (leaf-keys (:children m)) [(str (:menu_id m))]))) menus))
+
+
 (defn- permission-modal
+  "父子联动勾选菜单与按钮. 已授权集合含上级目录, 显示时只把叶子交给树, 上级的全选/半选由树推导."
   []
   (let [visible? @(rf/subscribe [:roles/permission-visible?])
         role @(rf/subscribe [:roles/permission-role])
-        selected-keys @(rf/subscribe [:roles/checked-keys])]
+        selected-keys @(rf/subscribe [:roles/checked-keys])
+        menus @(rf/subscribe [:roles/menu-tree])
+        leaves (leaf-keys menus)]
     [antd/modal {:title (str "分配菜单权限 - " (:role_name role))
                  :open visible?
+                 :width 560
                  :onOk #(rf/dispatch [:roles/save-permission (:role_id role) selected-keys])
                  :onCancel #(rf/dispatch [:roles/close-permission])
                  :destroyOnHidden true}
-     [antd/tree {:checkable true
-                 :checkedKeys (clj->js selected-keys)
-                 :onCheck #(rf/dispatch [:roles/update-menu-selection (js->clj % :keywordize-keys false)])
-                 :treeData (clj->js (mapv menu->tree-node @(rf/subscribe [:roles/menu-tree])))}]]))
+     [:div {:style {:color "#667085" :marginBottom 8}} "勾选菜单即授予其页面与按钮; 展开后可单独取消某个按钮 (如删除)."]
+     [:div {:style {:maxHeight 460 :overflowY "auto"}}
+      [antd/tree {:checkable true
+                  :checkedKeys (clj->js (filterv leaves selected-keys))
+                  :onCheck (fn [checked ^js info]
+                             (rf/dispatch [:roles/update-menu-selection (js->clj checked) (js->clj (.-halfCheckedKeys info))]))
+                  :treeData (clj->js (mapv menu->tree-node menus))}]]]))
 
 
 ;; ─── 主页面 ────────────────────────────────────────────────────────
@@ -296,7 +352,8 @@
   [:div {:style {:padding "20px"}}
    [search-form]
    [toolbar]
-   [antd/table {:columns (role-columns)
+   [antd/table {:columns (role-columns {:can-edit? (permission/permitted? "system:role:edit")
+                                        :can-remove? (permission/permitted? "system:role:remove")})
                 :dataSource (clj->js @(rf/subscribe [:roles/items]))
                 :rowKey "role_id"
                 :loading @(rf/subscribe [:roles/loading?])

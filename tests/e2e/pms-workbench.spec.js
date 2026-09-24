@@ -76,6 +76,8 @@ async function tab(page, name) {
 async function choose(page, form, key, text) {
   const input = form.locator(`#${key}`);
   await input.click();
+  // 共享库累积用户/任务后长列表被 antd 虚拟滚动裁剪, 可搜索的下拉先按标签过滤再选.
+  if (typeof text === 'string' && await input.isEditable()) await input.fill(text);
   const list = await input.getAttribute('aria-controls');
   const dropdown = page.locator('.ant-select-dropdown').filter({ has: page.locator(`[id="${list}"]`) });
   await dropdown.locator('.ant-select-item-option').filter({ hasText: text }).first().click();

@@ -634,13 +634,13 @@
                                                                   (reset! form-fields (or (:fields schema) []))))
                                                               #()))))
                                       #()))
-               _ (api/list-users {:page 1 :size 1000}
+               _ (api/user-options {:page 1 :size 1000}
                                  #(reset! users (walk/keywordize-keys (rows-or-vec %))) #())
-               _ (api/list-roles {:page 1 :size 1000}
+               _ (api/role-options {:page 1 :size 1000}
                                  #(reset! roles (walk/keywordize-keys (rows-or-vec %))) #())
-               _ (api/list-depts {:page 1 :size 1000}
+               _ (api/dept-options {:page 1 :size 1000}
                                  #(reset! depts (walk/keywordize-keys (rows-or-vec %))) #())
-               _ (api/list-posts {:page 1 :size 1000}
+               _ (api/post-options {:page 1 :size 1000}
                                  #(reset! posts (walk/keywordize-keys (rows-or-vec %))) #())
                _ (api/bpmmgmt-list "user-group" {:page 1 :size 1000}
                                    #(reset! groups (walk/keywordize-keys (rows-or-vec %))) #())

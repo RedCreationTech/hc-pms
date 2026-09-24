@@ -98,6 +98,8 @@
   ;; 如果 localStorage 中有 token,获取用户信息
   (when-let [token (try (.getItem js/localStorage "ruoyi_token") (catch js/Error _ nil))]
     (rf/dispatch [:auth/fetch-info]))
+  ;; 窗口重新获得焦点时刷新权限 (节流), 管理员调整角色菜单后界面随之更新
+  (.addEventListener js/window "focus" #(rf/dispatch [:auth/refresh-info]))
   (r/set-default-compiler! (r/create-compiler {:function-components true}))
   (let [container (.getElementById js/document "app")]
     (reset! root (rdc/create-root container))

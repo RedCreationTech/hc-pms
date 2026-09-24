@@ -13,8 +13,9 @@ const drawer = page => page.getByRole('dialog').filter({ has: page.getByRole('ta
 const row = (page, text) => drawer(page).locator('tbody tr:visible').filter({ hasText: text }).first();
 const modal = (page, title) => page.getByRole('dialog', { name: title, exact: true });
 const base = id => `/api/pms/projects/${id}`;
-const today = () => new Date().toISOString().slice(0, 10);
-const daysAgo = n => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+const localDate = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; // 本地日期 (与后端所在时区的 "今天" 一致, 避免 0-8 点 UTC 跨日)
+const today = () => localDate(new Date());
+const daysAgo = n => { const d = new Date(); d.setDate(d.getDate() - n); return localDate(d); };
 
 async function login(page, user = 'admin', password = 'admin123') {
   await page.goto('/');
@@ -24,9 +25,9 @@ async function login(page, user = 'admin', password = 'admin123') {
   await expect.poll(() => page.evaluate(() => localStorage.getItem('ruoyi_token'))).toBeTruthy();
 }
 
-async function api(page, method, url, data, expected = 200) {
+async function api(page, method, url, data, expected = 200, timeout = 30000) {
   const token = await page.evaluate(() => localStorage.getItem('ruoyi_token'));
-  const response = await page.request.fetch(url, { method, headers: { Authorization: `Bearer ${token}` }, data });
+  const response = await page.request.fetch(url, { method, headers: { Authorization: `Bearer ${token}` }, data, timeout });
   const body = await response.json();
   expect(body.code, `${method} ${url}: ${body.msg}`).toBe(expected);
   return body.data;
@@ -316,7 +317,8 @@ test.describe('E 节 增量6 计划与进度深化', () => {
     const todo = await api(f.reviewer, 'GET', '/api/pms/todo');
     expect(todo.reminders.filter(r => r.project_id === id).map(r => r.target_kind).sort()).toEqual(['issue', 'task']);
     expect(todo.summary.reminders).toBeGreaterThanOrEqual(2);
-    const scan = await api(page, 'POST', '/api/pms/scan', {});
+    // 全量扫描同步处理全部在途项目, 耗时随共享库项目数增长 (本库 66 个在途项目约 32 秒), 单独放宽该调用的超时.
+    const scan = await api(page, 'POST', '/api/pms/scan', {}, 200, 180000);
     expect(scan.results.some(r => r.project_id === id && r.snapshot_id === snapshot.snapshot_id)).toBe(true);
     await api(f.reviewer, 'POST', '/api/pms/scan', {}, 403);
     // 逾期任务完成 -> 再扫描后提醒自动关闭.

@@ -2,6 +2,12 @@ const { test, expect } = require('playwright/test');
 const { login } = require('./auth-helper');
 const { fillInput, clickOk } = require('./dom-helper');
 
+// 参数较多时新记录可能不在第一页: 按名称检索 (新增/修改/删除后的刷新沿用检索条件)
+async function searchByName(page, name) {
+  await page.getByPlaceholder('请输入参数名称').first().fill(name);
+  await page.getByRole('button', { name: /搜\s*索/ }).click();
+}
+
 test.describe('参数配置 CRUD', () => {
   test.beforeEach(async ({ page }) => {
     await login(page);
@@ -29,6 +35,7 @@ test.describe('参数配置 CRUD', () => {
     await expect(modal).toBeHidden();
 
     // 验证列表出现新记录
+    await searchByName(page, configName);
     const newRow = page.locator('table tbody tr', { hasText: configName });
     await expect(newRow).toBeVisible({ timeout: 10000 });
   });
@@ -51,6 +58,7 @@ test.describe('参数配置 CRUD', () => {
     await addModal.getByRole('button', { name: /确\s*定/ }).click();
     await expect(addModal).toBeHidden();
 
+    await searchByName(page, configName);
     const row = page.locator('table tbody tr', { hasText: configName });
     await expect(row).toBeVisible({ timeout: 10000 });
 
@@ -83,6 +91,7 @@ test.describe('参数配置 CRUD', () => {
     await addModal.getByRole('button', { name: /确\s*定/ }).click();
     await expect(addModal).toBeHidden();
 
+    await searchByName(page, configName);
     const row = page.locator('table tbody tr', { hasText: configName });
     await expect(row).toBeVisible({ timeout: 10000 });
 

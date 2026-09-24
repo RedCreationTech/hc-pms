@@ -2,6 +2,7 @@
   "认证控制器测试."
   (:require
     [clojure.test :refer [deftest is testing use-fixtures]]
+    [com.ruoyi.infra.login-guard :as login-guard]
     [com.ruoyi.infra.online :as online]
     [com.ruoyi.infra.security :as security]
     [com.ruoyi.web.controllers.auth :as auth]
@@ -31,11 +32,21 @@
   [{:menu_id 1 :menu_name "System" :parent_id 0 :perms "system:user:list" :status "0"}])
 
 
+(def ^:dynamic *captcha* "false")
+
+
 (defn- make-query-fn
   ([] (make-query-fn base-user))
   ([user]
    (fn [q p]
      (case q
+       :find-config-by-key (when (= "sys.account.captchaEnabled" (:config_key p)) {:config_value *captcha*})
+       :authz-user (when (and user (= (:user_id p) (:user_id user)) (= "0" (:status user)))
+                     (select-keys user [:user_id :user_name :nick_name]))
+       :authz-user-roles base-roles
+       :authz-user-perms [{:perms "system:user:list"}]
+       :authz-user-menu-ids [{:menu_id 1}]
+       :list-menus base-menus
        :find-user-by-name user
        :find-user-by-id (when (= (:user_id p) (:user_id user))
                           (dissoc user :password))
@@ -58,14 +69,17 @@
 (def mock-menu-service
   {:query-fn (fn [q _]
                (case q
-                 :list-menus-by-role-ids base-menus
+                 :list-menus base-menus
+                 :authz-user-menu-ids [{:menu_id 1}]
                  nil))})
 
 
 (use-fixtures :each
   (fn [test-fn]
-    (online/set-query-fn! (fn [_q _p] nil))
+    (online/set-query-fn! nil)
     (reset! captcha/captcha-store {})
+    (login-guard/clear! "admin")
+    (login-guard/clear! "nobody")
     (test-fn)))
 
 
@@ -81,8 +95,9 @@
 
 
 (deftest test-login-success-with-captcha
-  (testing "验证码正确时登录成功"
-    (let [uuid "test-uuid"]
+  (testing "开启验证码参数后, 验证码正确时登录成功"
+    (binding [*captcha* "true"]
+     (let [uuid "test-uuid"]
       (swap! captcha/captcha-store assoc uuid {:code "abcd"
                                                :expire (+ (System/currentTimeMillis) 60000)})
       (let [request {:body-params {:username "admin" :password "admin123"
@@ -92,12 +107,15 @@
                                   :log-service (make-user-service)}
                                  request)]
         (is (= 200 (-> response :body :code)))
-        (is (string? (-> response :body :data :token)))))))
+        (is (string? (-> response :body :data :token))))))))
 
 
 (deftest test-login-invalid-captcha
-  (testing "验证码错误返回 400"
-    (let [uuid "bad-uuid"]
+  (testing "开启验证码参数后, 验证码错误或缺失返回 400"
+    (binding [*captcha* "true"]
+     (is (= "验证码错误或已过期"
+            (-> (auth/login {:user-service (make-user-service)} {:body-params {:username "admin" :password "admin123"}}) :body :msg)))
+     (let [uuid "bad-uuid"]
       (swap! captcha/captcha-store assoc uuid {:code "abcd"
                                                :expire (+ (System/currentTimeMillis) 60000)})
       (let [request {:body-params {:username "admin" :password "admin123"
@@ -107,7 +125,7 @@
                                   :log-service (make-user-service)}
                                  request)]
         (is (= 400 (-> response :body :code)))
-        (is (= "验证码错误或已过期" (-> response :body :msg)))))))
+        (is (= "验证码错误或已过期" (-> response :body :msg))))))))
 
 
 (deftest test-login-blank-credentials
@@ -129,7 +147,7 @@
                                 :log-service (make-user-service nil)}
                                request)]
       (is (= 400 (-> response :body :code)))
-      (is (= "用户不存在" (-> response :body :msg))))))
+      (is (= "用户名或密码错误" (-> response :body :msg))))))
 
 
 (deftest test-login-wrong-password
@@ -140,7 +158,7 @@
                                 :log-service (make-user-service)}
                                request)]
       (is (= 400 (-> response :body :code)))
-      (is (= "密码错误" (-> response :body :msg))))))
+      (is (= "用户名或密码错误" (-> response :body :msg))))))
 
 
 (deftest test-login-disabled
@@ -162,9 +180,9 @@
                                   request)]
       (is (= 200 (-> response :body :code)))
       (is (= "admin" (-> response :body :data :user :user_name)))
-      (is (seq (-> response :body :data :roles)))
-      (is (seq (-> response :body :data :permissions)))
-      (is (vector? (-> response :body :data :menus))))))
+      (is (= ["admin"] (-> response :body :data :roles)))
+      (is (= ["*:*:*"] (-> response :body :data :permissions)) "超级管理员拥有全部权限")
+      (is (= ["System"] (mapv :menu_name (-> response :body :data :menus)))))))
 
 
 (deftest test-get-info-user-not-found
@@ -174,7 +192,7 @@
                                    :menu-service mock-menu-service}
                                   request)]
       (is (= 401 (-> response :body :code)))
-      (is (= "用户不存在" (-> response :body :msg))))))
+      (is (= "用户不存在或已停用" (-> response :body :msg))))))
 
 
 (deftest test-logout-with-token

@@ -244,10 +244,10 @@ VALUES (:user_id, :user_name, :days, :reason, :process_instance_id, :status, CUR
 
    ;; ── 示例模块 ──
    ["/demo/item"
-    ["" {:get    {:summary "示例列表" :handler (partial demo/list-items {:demo-service demo-service})}
-         :post   {:summary "新增示例" :handler (partial demo/create-item {:demo-service demo-service})}}]
-    ["/:id" {:get    {:summary "示例详情" :handler (partial demo/get-item {:demo-service demo-service})}
-             :delete {:summary "删除示例" :handler (partial demo/delete-item {:demo-service demo-service})}}]]
+    ["" {:get    {:perms "demo:item:list" :summary "示例列表" :handler (partial demo/list-items {:demo-service demo-service})}
+         :post   {:perms "demo:item:add" :summary "新增示例" :handler (partial demo/create-item {:demo-service demo-service})}}]
+    ["/:id" {:get    {:perms "demo:item:list" :summary "示例详情" :handler (partial demo/get-item {:demo-service demo-service})}
+             :delete {:perms "demo:item:remove" :summary "删除示例" :handler (partial demo/delete-item {:demo-service demo-service})}}]]
 
    ;; ── OA 请假(完整示例)──
    ["/oa/leave" ...]])
@@ -256,10 +256,13 @@ VALUES (:user_id, :user_name, :days, :reason, :process_instance_id, :status, CUR
 - 服务通过 `(partial handler {:service-key service})` 注入,handler 签名如上.
 - 路由挂在 `/api` 下(`system.edn` 的 `:reitit.routes/api :base-path`),
   即实际路径 `/api/business/oa/leave`.
-- `/business` 组已挂 `auth-middleware {:required? true}`(JWT 认证,未登录 401).
-  如需按钮级权限保护,可在路由数据里挂 `auth-mw/require-perms`(已有实现,
-  匹配 `(:identity :perms)` 任意一个权限标识,否则 403);当前业务路由未使用,
-  权限主要由前端按 perms 控制按钮显隐(见第 6 步).
+- `/business` 组已挂 `auth-middleware {:required? true}`(JWT 认证,未登录 401)
+  与 `authz/perms-middleware`(实时权限). **每个接口必须在路由数据里声明 `:perms`**:
+  权限字符串 (如 `"oa:leave:list"`), 任一匹配的向量, `:login` (仅需登录, 个人数据类接口),
+  或 `(fn [request] ...)` 按请求计算. 未声明的接口一律 403 (fail closed),
+  `test/clj/com/ruoyi/web/authz_test.clj` 的路由覆盖测试会失败提醒.
+  新权限字符串要在迁移里登记为菜单按钮 (`menu_type 'F'`) 并授予需要的角色;
+  前端按 perms 控制按钮显隐(见第 6 步)只是体验, 后端才是权限边界.
 
 ### Integrant 接线(resources/system.edn)
 

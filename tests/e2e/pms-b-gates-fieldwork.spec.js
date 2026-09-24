@@ -9,7 +9,8 @@ const drawer = page => page.getByRole('dialog').filter({ has: page.getByRole('ta
 const row = (page, text) => drawer(page).locator('tbody tr:visible').filter({ hasText: text }).first();
 const modal = (page, title) => page.getByRole('dialog', { name: title, exact: true });
 const base = id => `/api/pms/projects/${id}`;
-const daysAgo = n => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+const localDate = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; // 本地日期 (与后端所在时区的 "今天" 一致, 避免 0-8 点 UTC 跨日)
+const daysAgo = n => { const d = new Date(); d.setDate(d.getDate() - n); return localDate(d); };
 
 async function login(page, user = 'admin', password = 'admin123') {
   await page.goto('/');
@@ -47,6 +48,8 @@ async function open(page, id, section, subsection) {
 async function choose(page, form, key, text) {
   const input = form.locator(`#${key}`);
   await input.click();
+  // 共享库累积用户/任务后长列表被 antd 虚拟滚动裁剪, 可搜索的下拉先按标签过滤再选.
+  if (typeof text === 'string' && await input.isEditable()) await input.fill(text);
   const list = await input.getAttribute('aria-controls');
   const dropdown = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)').filter({ has: page.locator(`[id="${list}"]`) });
   await dropdown.locator('.ant-select-item-option').filter({ hasText: text }).first().click();

@@ -602,6 +602,10 @@ LIMIT :page_size OFFSET :offset
 SELECT COUNT(*) AS total FROM biz_bpm_copy WHERE user_id = :user_id
 --;;
 
+-- :name bpm/count-copy-of-user :? :1
+SELECT COUNT(*) AS total FROM biz_bpm_copy WHERE user_id = :user_id AND process_instance_id = :process_instance_id
+--;;
+
 -- ============================ BPM 治理能力(Phase 3)=====================
 -- 单号当日递增:取该模型下以 base 前缀的最大单号(定长数字尾部,字典序即可)
 -- :name bpm/max-bill-code :? :1

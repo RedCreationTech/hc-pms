@@ -37,7 +37,9 @@
   (try
     (let [identity (:identity request)
           user-id (:user-id identity)
-          params (assoc (:body-params request) :user-id user-id)]
+          ;; 个人中心只允许维护昵称, 邮箱, 手机与性别; 角色, 部门, 状态与密码走各自受控入口
+          params (merge (select-keys (:body-params request) [:nick_name :email :phonenumber :sex])
+                        {:user-id user-id :update_by (:user-name identity "")})]
       (user-service/update-user! user-service params)
       (ok "更新成功"))
     (catch Exception e
@@ -47,7 +49,10 @@
 (defn- save-avatar!
   "保存上传的头像文件."
   [upload]
-  (let [filename (str (System/currentTimeMillis) "_" (:filename upload))
+  (let [ext (some->> (:filename upload) (re-find #"(?i)\.(jpg|jpeg|png|gif|webp|bmp)$") first str/lower-case)
+        _ (when-not ext (throw (Exception. "头像只支持 jpg, png, gif, webp, bmp 图片")))
+        ;; 存储文件名由服务端生成, 不使用客户端文件名
+        filename (str (System/currentTimeMillis) "_" (java.util.UUID/randomUUID) ext)
         upload-dir (or (System/getProperty "app.upload.dir") "uploads/avatar")
         file (java.io.File. (str upload-dir "/" filename))]
     (.mkdirs (.getParentFile file))
@@ -83,7 +88,9 @@
           (if (security/verify-password old_password (:password user))
             (do
               (user-service/update-user! user-service {:user-id user-id :password new_password})
-              (ok "密码修改成功"))
+              ;; 改密后此前签发的全部令牌失效 (含当前会话), 前端提示重新登录
+              (online/revoke-user! user-id (:user_name user))
+              (ok 200 "密码修改成功, 请重新登录" {:relogin true}))
             (fail "旧密码错误")))))
     (catch Exception e
       (fail (.getMessage e)))))

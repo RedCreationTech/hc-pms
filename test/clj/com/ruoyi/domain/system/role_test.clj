@@ -120,12 +120,31 @@
 
 
 (deftest test-dept-tree-by-role
-  (testing "获取角色关联部门树"
-    (let [dept-service {:query-fn mock-query-fn :list-depts :list-depts}
-          result (role/dept-tree-by-role mock-service dept-service 1)]
-      (is (map? result))
-      (is (contains? result :depts))
-      (is (contains? result :checked-keys)))))
+  (testing "获取角色关联部门树: 全部有效部门 + 已选自定义部门"
+    (let [svc {:query-fn (fn [q _]
+                           (case q
+                             :dept-options [{:dept_id 1 :parent_id 0 :dept_name "总部"} {:dept_id 2 :parent_id 1 :dept_name "研发"}]
+                             :list-role-dept-ids [{:dept_id 2}]
+                             nil))}
+          result (role/dept-tree-by-role svc 7)]
+      (is (= 2 (count (:depts result))))
+      (is (= [2] (:checked-keys result))))))
+
+
+(deftest test-update-data-scope
+  (testing "自定义范围替换角色部门; 其他范围清空; 非法范围与空自定义部门拒绝"
+    (let [calls (atom [])
+          svc {:query-fn (fn [q p] (swap! calls conj [q p]) nil)}]
+      (role/update-data-scope! svc 7 "2" ["4" 5 "4"])
+      (is (= [[:insert-role-dept! {:role_id 7 :dept_id 4}] [:insert-role-dept! {:role_id 7 :dept_id 5}]]
+             (filterv #(= :insert-role-dept! (first %)) @calls)))
+      (is (= "2" (:data_scope (second (first (filter #(= :update-role! (first %)) @calls))))))
+      (reset! calls [])
+      (role/update-data-scope! svc 7 "3" [4])
+      (is (some #(= :delete-role-depts! (first %)) @calls))
+      (is (not-any? #(= :insert-role-dept! (first %)) @calls))
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"无效" (role/update-data-scope! svc 7 "9" [])))
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"至少选择" (role/update-data-scope! svc 7 "2" []))))))
 
 
 (deftest test-get-role-perms

@@ -1,6 +1,7 @@
 (ns com.ruoyi.frontend.pages.pms.finance
   "项目工时,成本版本与按实际工时分摊工作台."
   (:require [com.ruoyi.frontend.antd :as antd]
+            [com.ruoyi.frontend.pages.pms.approval :as approval]
             [com.ruoyi.frontend.pages.pms.governance-forms :as forms]
             [com.ruoyi.frontend.pages.pms.shared :as shared]
             [com.ruoyi.frontend.pages.pms.widgets :as w]
@@ -151,7 +152,7 @@
      (when (and editable? (contains? #{"draft" "rejected"} (:status cost)))
        [w/edit-button "放弃版本" #(open! {:title "放弃成本版本" :path (str path "/cancel")
                                          :fields [{:key :reason :label "放弃原因" :type :textarea :required? true}]})])
-     (when (and approve? (= "submitted" (:status cost)) (reviewer? options cost))
+     (when (and approve? (= "submitted" (:status cost)) (not (:chain_pending cost)) (reviewer? options cost))
        [:<>
         [w/edit-button "批准" #(open! (review-dialog (str path "/review") "approved" "批准成本版本"))]
         [w/edit-button "驳回" #(open! (review-dialog (str path "/review") "rejected" "驳回成本版本"))]])]))
@@ -171,6 +172,7 @@
   [{:keys [base model editable? open!]} selected]
   (when-let [cost (some #(when (= selected (:id %)) %) (:cost_versions model))]
     [shared/panel (str "成本明细 / " (:name cost)) (:currency cost) nil
+     [approval/biz-flow base "cost-version" (:id cost)]
      [w/record-table (:entries cost)
       [(w/text-column :label "条目") {:title "类别" :dataIndex "category" :render #(or (:label (some (fn [x] (when (= % (:value x)) x)) categories)) %)}
        (w/text-column :amount "金额") (w/text-column :source_ref "来源引用")]

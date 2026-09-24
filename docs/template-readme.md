@@ -176,9 +176,9 @@ db.sql/migrations ── db.sql/connection ──┬── db.sql/query-fn ─�
 | `infra/db.clj` | 数据库抽象层,SQLite/MySQL 双库兼容 | `detect-db-type`, `paginate-query`, `get-tables`, `get-table-columns` |
 | `infra/cache.clj` | 内存缓存 (clojure.core.cache) | `get-cache`, `put-cache!`, `list-cache-keys`, `clear-cache!` |
 | `infra/cron.clj` | CRON 调度工具 | `cron->description` |
-| `infra/data_perm.clj` | 数据权限过滤 (部门级) | `apply-data-scope` |
+| `infra/login_guard.clj` | 登录失败计数与锁定 (5 次锁 10 分钟) | `locked?`, `record-failure!`, `clear!` |
 | `infra/datasource.clj` | 数据源监控 (HikariCP) | `get-datasource-status`, `list-queries` |
-| `infra/online.clj` | 在线用户管理 + 令牌黑名单 | `heartbeat!`, `blacklisted?`, `list-online-users`, `force-logout!` |
+| `infra/online.clj` | 在线会话 + 持久化令牌撤销 (sys_token_revoke) | `valid-claims`, `heartbeat!`, `revoke-user!`, `force-logout!`, `list-online` |
 | `infra/scheduler.clj` | Quartz 任务调度封装 | `create-job!`, `pause-job!`, `resume-job!`, `run-job-now!` |
 
 #### Web 层 (`web/`)
@@ -334,7 +334,7 @@ db.sql/migrations ── db.sql/connection ──┬── db.sql/query-fn ─�
 |------|--------|----------|
 | `core_test.clj` / `task_test.clj` | 2 | 应用启动与基本路由,定时任务目标函数 |
 | `domain/system/` | 8 | user, role, menu, dept, post, dict, config, log |
-| `infra/` | 6 | cache, data_perm, db, online, scheduler, security |
+| `infra/` | 6 | cache, db, login_guard, online, scheduler, security |
 | `bpm/` + `business/` | 9 | Flowable 引擎封装,BPM 审批闭环 (加签/撤回/退回),请假/报销集成 |
 | `web/controllers/` | 19+ | 顶层控制器 (auth/captcha/common/health/job/register) + `system/` 13 个接口测试 |
 | `web/middleware/` | 3 | auth, exception, operlog |
@@ -433,7 +433,7 @@ db.sql/migrations ── db.sql/connection ──┬── db.sql/query-fn ─�
 ### 中间件链
 
 ```
-请求 → 参数解析 → JWT 校验 (wrap-jwt-auth) → 数据权限 → 操作日志 → 格式转换 → 控制器
+请求 → 参数解析 → JWT 与会话校验 (wrap-jwt-auth) → 操作日志 → 格式转换 → 强制登录 → 路由声明的 :perms 实时校验 (authz) → 控制器
                                                            ↓
                                                    401 未认证 / 403 无权限
 ```

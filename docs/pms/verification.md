@@ -705,6 +705,32 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 未执行 (如实记录): 本机 macOS Chrome 复验; 视频无配音 (只有字幕与配乐); 视频与录屏素材在 `reports/demo-video/` (不入库, 本机文件夹同步了成片与字幕).
 
+## S1-S3 权限, 组织与审批流程整改 + 组织/菜单/流程配置演示视频 (2026-09-25)
+
+范围: [16 权限, 组织与审批流程整改](16-permission-org-workflow.md) 的 S1 安全与权限底线, S2 组织/数据权限/菜单, S3 审批策略可配置与统一待办 (实施记录见该文档). 迁移 `202609250001-security-baseline`, `202609250002-org-data-scope`, `202609250003-approval-chain` (双库). 演示视频分镜见 [17-config-video-storyboard.md](17-config-video-storyboard.md).
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| 后端全量回归 (CLI SQLite, 全新库) | 522 tests / 3102 assertions, 0 failures/errors (最终代码复跑) | `JDBC_URL=jdbc:sqlite:<新库> FLOWABLE_JDBC_URL='jdbc:h2:mem:<名>;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE' clojure -M:test -d test/clj`; 含新增 `authz_test` (遍历路由表, 每个系统/办公接口声明权限), `online_test`, `org_data_scope_test` (4 tests / 75 assertions: 五种数据范围并集, 越权 403, 部门祖级/同级重名/删除约束), `pms_approval_chain_test` (4 / 52: 三级策略解析, 或签/会签, 金额阈值, 提交人排除与 403, 末级通过生效, 策略快照, 旧单人审核 409), `bpm_e2e_fixes_test` (9 / 120: 办理/查看归属, 挂起/激活, 请假/报销发起, 身份同步增删) (参数配置列表检索修复并补断言后复跑) |
+| PMS 回归 (MySQL 8.0, 全新库) | 140 tests / 1405 assertions, 0 failures/errors | `PMS_TEST_JDBC_URL='jdbc:mysql://127.0.0.1:3306/hc_pms_test?...' clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'` (含审批链测试) |
+| 迁移 (MySQL 8 + SQLite) | 全新 MySQL 库启动时三个迁移全部执行; 两库 `down 202609250003/2/1` 后 `migrate` 均成功 | MySQL: `pms_config_record_kind_chk` 含 `approval-policy`, 菜单 48 权限为 `bpm:instance:manage`, `sys_role_dept` / `pms_approval_flow` / `pms_approval_step` 存在, 接口冒烟 (`/api/pms/approval-policies`, `/api/system/role/deptTree/2`, `/api/system/user/deptTree`) 返回 200. down 会删除审批流/审批步骤与审批策略记录 (SQLite 探针库 1 条策略 + 1 条审批流), 属预期回退行为 |
+| 前端编译 | 0 warnings | `npx shadow-cljs compile app` (4035 files) |
+| 专项浏览器 (Playwright, Linux Chromium, 隔离 `:3100` 后端) | `security-baseline` 3 passed, `org-data-scope` 1 passed, `approval-chain` 1 passed, `role-crud` 6 passed, `user-crud` 5 passed | 截图: `reports/s1-security/` (登录无验证码, 锁定与解锁, 普通员工菜单, 在线用户只显示会话编号, 强退回登录页), `reports/s2-org/` (部门负责人, 角色数据权限, 部门经理只看本部门, 403 守卫, 菜单收回, 隐藏菜单可路由), `reports/s3-approval/` (审批策略编辑器, 发布, 提交后逐级进度, 部门负责人与财务在我的待办审批, 三级通过后已批准); `role-crud` 新增 "分配菜单权限: 父子联动, 半选上级一并授权, 取消的按钮不授权" 用例 |
+| 全量浏览器套件 (同一隔离后端单库连续运行) | 首轮 95 passed / 14 failed / 2 skipped (43.4m); 修复后失败用例复跑 13 个全部通过; 第二轮全量 106 passed / 3 failed / 2 skipped (44.4m), 其中 `pms-workbench` 费用用例单独复跑通过, `pms-e-progress` 放宽全量扫描调用超时后复跑 1 passed (2.6m) | 对照: S1 前基线工作树 (同一 SQLite 库副本, `:3200`) 已有 12 个失败 (办公业务流, 设计器/前端/流程/完整演示等截图报告, 角色 x2, 用户, `pms-c05`). 首轮 14 个失败的归因与处理见下文; 仅 `pms-c05` 批量下载的中文文件名断言仍失败 (Linux headless Chromium 对 blob 非 ASCII 文件名返回 "download", 增量4 已归因; 本轮尝试延后释放 blob URL 无效, 已还原, 未改断言). 第二轮另两个失败: `pms-workbench` 提交成本版本时 30 秒无响应, 同时段后端日志有定时任务日志写入的 SQLite 忙锁 (进度扫描与 "执行一次" 并发), 无负载复跑通过; `pms-e-progress` 的同步全量扫描 `POST /api/pms/scan` 在共享库 66 个在途项目时实测 31.7 秒 (约 0.5 秒/项目), 超过请求默认 30 秒, 该调用单独放宽到 180 秒 |
+| 配置演示视频录屏 | `config-demo-video.spec.js` 1 passed (4.7m, 全新 SQLite 库 `:3300` 与独立 Flowable 库) | 5 章 17 个镜头与分镜顺序一致, 8 段录像共 12631 帧 (时间码全部可读), 无未捕获 JS 错误; 周经理视角只见授权菜单与研发一部人员, 无删除按钮, 角色管理 403; 收回 "部门管理" 后切换页面菜单消失且地址访问 403; 三级审批由周经理与财务在界面通过, 事业部负责人经真实 HTTP 批准 (不入镜) |
+| 成片 | `hc-pms-config-demo.mp4` 207.2 秒 (3 分 27 秒), 1920x1080 25 fps H.264 + AAC 48 kHz 立体声, 16.4 MiB; `hc-pms-config-demo.srt` 37 条 | 片头 4 秒, 5 张章节卡各 3.2 秒, 片尾 7 秒 + 17 个录屏片段; 录屏素材 184.1 秒经长表单加速到 180.2 秒 (37 个字幕区间中 5 个加速, 最高 1.21 倍); 配乐 EBU R128 实测 -19.8 LUFS, LRA 1.5 LU, 峰值 -6.1 dBFS; 抽帧核对章节卡, 菜单树勾选 (取消 "用户删除"), 部门经理视角, 403, 策略编辑器三级规则, 待办审批弹窗, 三级全部通过与 "已批准" |
+
+回归与录屏中发现并修复的问题:
+
+1. 角色 "分配权限" 弹窗在界面上无法使用 (菜单树从未加载, 勾选事件未注册), 已修复并支持父子联动与半选上级授权, 保存后刷新本人权限而不整页刷新 (见 16 号文档 S2 实施记录). "分配用户" 批量授权/取消按查询参数提交 (原先 400).
+2. 列表刷新丢失检索条件: 角色, 用户列表在新增/修改/删除后改为沿用搜索条件刷新; 参数配置列表的检索条件从未生效 (后端把字符串键查询参数直接并入关键字参数, 前端参数名也不一致), 已修复并补单元测试, 刷新沿用检索条件.
+3. 测试路由构造 (未关闭冲突检查) 暴露 `/api/pms/approvals/policies` 与 `/approvals/:flow_id` 路径冲突, 改为 `/api/pms/approval-policies`.
+4. 审批策略列表 "审批级别" 列溢出遮挡状态列, 改为定宽列并自动换行.
+5. 合成脚本 `compose.py` 在 `DEMO_VIDEO_DIR` 为相对路径时 concat 列表路径重复, 改为绝对路径.
+6. 用例健壮性 (不放宽断言): 共享 E2E 库累积 200 多个用户后 antd 虚拟滚动只渲染前几项, 24 个 PMS 用例的下拉选择改为可搜索时先按标签过滤再选; 5 个用例的日期辅助函数由 UTC 日期改为本地日期 (北京时间 0-8 点 UTC 日期比后端 "今天" 早一天, 导致逾期天数与快照日期断言失败); antd 两字按钮带空格 ("审 批", "通 过") 改为正则匹配; antd 时间线复用 `ant-steps` 类名, 审批进度加 `approval-flow` 容器定位; 角色/用户/参数 CRUD 新记录不在第一页时先检索; 办公与截图报告类用例 (办公业务流, 设计器, 前端报告, 流程设计器, 完整演示, 更新报告) 按当前界面更新: 审批弹窗标题 "通过 · 节点名", 流程模型设计器为独立页面 (原为弹窗), 全新库无流程表单时经真实 HTTP 建一张通用表单, 请假模型内嵌表单字段为 "请假天数 / 请假原因".
+
+未执行 (如实记录): 本机 macOS Chrome 复验; 视频无配音 (字幕 + 原创配乐); 事业部负责人第三级审批经真实 HTTP 完成而未入镜; 视频与录屏素材在 `reports/config-video/` (不入库, 本机文件夹同步成片与字幕). 性能提示: 全量进度扫描是同步逐项目处理, SQLite 开发库上约 0.5 秒/项目, 项目数上百时手动触发的 HTTP 扫描会超过常见网关超时 (定时任务不受影响), 未在本轮优化.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

@@ -153,7 +153,7 @@
                                                     (when (seq nodes)
                                                       (reset! start-select-nodes nodes)
                                                       (when (empty? @users)
-                                                        (api/list-users {:page 1 :size 1000}
+                                                        (api/user-options {:page 1 :size 1000}
                                                                         (fn [r] (reset! users (or (:rows (:data r)) [])))
                                                                         (fn [_] nil))))))
                                                 (fn [_] nil))
@@ -167,7 +167,7 @@
                                     (let [tree-fields (filter #(= "tree-select" (:type %)) (:fields schema))
                                           dict-fields (filter #(= "dict-select" (:type %)) (:fields schema))]
                                       (when (seq tree-fields)
-                                        (api/list-depts {:parent_id 0}
+                                        (api/dept-options {:parent_id 0}
                                                         (fn [dr]
                                                           (reset! form-schema
                                                                   (fill-field-data schema "tree-select" :tree-data

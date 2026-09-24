@@ -1,133 +1,87 @@
 (ns com.ruoyi.web.middleware.auth-test
-  "认证与授权中间件测试."
+  "认证中间件与路由级权限中间件测试."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.infra.online :as online]
     [com.ruoyi.infra.security :as security]
-    [com.ruoyi.web.middleware.auth :as auth]))
+    [com.ruoyi.web.middleware.auth :as auth]
+    [com.ruoyi.web.middleware.authz :as authz]))
 
 
 (deftest test-wrap-jwt-auth-with-valid-token
-  (testing "合法 Token 附加 identity 并更新心跳"
+  (testing "有效且未撤销的令牌附加 identity 并更新心跳"
     (let [calls (atom [])]
       (with-redefs [security/extract-token (fn [_] "valid-token")
-                    security/parse-token (fn [_] {:user-id 1 :user-name "admin"})
-                    online/blacklisted? (fn [_] false)
-                    online/heartbeat! (fn [token] (swap! calls conj [:heartbeat token]))]
+                    online/valid-claims (fn [_] {:user-id 1 :user-name "admin" :jti "j1"})
+                    online/heartbeat! (fn [claims] (swap! calls conj [:heartbeat (:jti claims)]))]
         (let [handler (auth/wrap-jwt-auth (fn [req] {:identity (:identity req)}))
               response (handler {:headers {"authorization" "Bearer valid-token"}})]
-          (is (= {:user-id 1 :user-name "admin"} (:identity response)))
-          (is (= [[:heartbeat "valid-token"]] @calls)))))))
+          (is (= {:user-id 1 :user-name "admin" :jti "j1"} (:identity response)))
+          (is (= [[:heartbeat "j1"]] @calls)))))))
 
 
-(deftest test-wrap-jwt-auth-with-blacklisted-token
-  (testing "黑名单 Token 不附加 identity 且不更新心跳"
+(deftest test-wrap-jwt-auth-with-revoked-or-invalid-token
+  (testing "已撤销或无效令牌不附加 identity, 也不更新心跳; 已有 identity 被清除"
     (let [calls (atom [])]
-      (with-redefs [security/extract-token (fn [_] "blacklisted-token")
-                    security/parse-token (fn [_] {:user-id 1})
-                    online/blacklisted? (fn [_] true)
-                    online/heartbeat! (fn [token] (swap! calls conj [:heartbeat token]))]
+      (with-redefs [security/extract-token (fn [_] "revoked")
+                    online/valid-claims (fn [_] nil)
+                    online/heartbeat! (fn [c] (swap! calls conj c))]
         (let [handler (auth/wrap-jwt-auth (fn [req] {:identity (:identity req)}))
-              response (handler {})]
+              response (handler {:identity {:user-id 9}})]
           (is (nil? (:identity response)))
           (is (empty? @calls)))))))
 
 
-(deftest test-wrap-jwt-auth-with-invalid-token
-  (testing "无效 Token 不附加 identity"
-    (with-redefs [security/extract-token (fn [_] "invalid-token")
-                  security/parse-token (fn [_] nil)
-                  online/blacklisted? (fn [_] false)
-                  online/heartbeat! (fn [_] (throw (Exception. "不应调用")))]
-      (let [handler (auth/wrap-jwt-auth (fn [req] {:identity (:identity req)}))
-            response (handler {})]
-        (is (nil? (:identity response)))))))
+(deftest test-require-auth
+  (testing "已认证请求放行, 未认证返回 401"
+    (is (= {:ok true} ((auth/require-auth (fn [_] {:ok true})) {:identity {:user-id 1}})))
+    (is (= 401 (:status ((auth/require-auth (fn [_] {:ok true})) {}))))))
 
 
-(deftest test-wrap-jwt-auth-without-token
-  (testing "无 Token 时不附加 identity"
-    (with-redefs [security/extract-token (fn [_] nil)
-                  security/parse-token (fn [_] (throw (Exception. "不应调用")))
-                  online/blacklisted? (fn [_] (throw (Exception. "不应调用")))
-                  online/heartbeat! (fn [_] (throw (Exception. "不应调用")))]
-      (let [handler (auth/wrap-jwt-auth (fn [req] {:identity (:identity req)}))
-            response (handler {})]
-        (is (nil? (:identity response)))))))
+(deftest test-auth-middleware
+  (testing "组合中间件: 强制认证时未登录返回 401, 非强制时放行"
+    (with-redefs [security/extract-token (fn [_] nil)]
+      (is (= 401 (:status (((auth/auth-middleware {:required? true}) (fn [_] {:ok true})) {}))))
+      (is (= {:ok true} (((auth/auth-middleware {}) (fn [_] {:ok true})) {}))))))
 
 
-(deftest test-require-auth-authorized
-  (testing "已认证请求放行"
-    (let [handler (auth/require-auth (fn [req] {:ok true}))
-          response (handler {:identity {:user-id 1}})]
-      (is (= {:ok true} response)))))
+(defn- perms-handler
+  "按声明的 perms 编译路由级权限中间件; 实时身份由调用方 with-redefs authz/load-actor 提供."
+  [perms _actor]
+  (let [mw (authz/perms-middleware (fn [& _] nil))
+        wrapped ((:compile mw) {:perms perms} nil)]
+    (wrapped (fn [req] {:status 200 :actor (:actor req)}))))
 
 
-(deftest test-require-auth-unauthorized
-  (testing "未认证请求返回 401"
-    (let [handler (auth/require-auth (fn [req] {:ok true}))
-          response (handler {})]
-      (is (= 401 (:status response)))
-      (is (= {:code 401 :msg "未登录或令牌已过期"} (:body response)))
-      (is (= "application/json" (get-in response [:headers "Content-Type"]))))))
+(deftest test-perms-middleware
+  (let [viewer {:user_id 2 :admin? false :permissions #{"system:user:list"}}
+        admin {:user_id 1 :admin? true :permissions #{"*:*:*"}}
+        req {:identity {:user-id 2}}]
+    (testing "拥有任一所需权限放行, 并附加实时身份"
+      (with-redefs [authz/load-actor (fn [_ _] viewer)]
+        (is (= 200 (:status ((perms-handler "system:user:list" viewer) req))))
+        (is (= 200 (:status ((perms-handler ["system:user:add" "system:user:list"] viewer) req))))
+        (is (= viewer (:actor ((perms-handler :login viewer) req))))))
+    (testing "缺少权限 403, 未声明权限 403 (fail closed)"
+      (with-redefs [authz/load-actor (fn [_ _] viewer)]
+        (is (= 403 (:status ((perms-handler "system:user:add" viewer) req))))
+        (is (= 403 (:status ((perms-handler nil viewer) req))))))
+    (testing "超级管理员放行; 用户停用 (无实时身份) 401; 未登录 401"
+      (with-redefs [authz/load-actor (fn [_ _] admin)]
+        (is (= 200 (:status ((perms-handler "anything:any:thing" admin) {:identity {:user-id 1}})))))
+      (with-redefs [authz/load-actor (fn [_ _] nil)]
+        (is (= 401 (:status ((perms-handler :login nil) req)))))
+      (is (= 401 (:status ((perms-handler :login viewer) {})))))
+    (testing "权限可由请求决定 (按路径参数)"
+      (with-redefs [authz/load-actor (fn [_ _] viewer)]
+        (let [f (fn [r] (if (= "user" (get-in r [:path-params :m])) "system:user:list" "x:y:z"))]
+          (is (= 200 (:status ((perms-handler f viewer) (assoc req :path-params {:m "user"})))))
+          (is (= 403 (:status ((perms-handler f viewer) (assoc req :path-params {:m "other"}))))))))))
 
 
-(deftest test-require-perms-allowed
-  (testing "拥有任一所需权限时放行"
-    (let [handler ((auth/require-perms ["system:user:list" "system:user:add"])
-                   (fn [req] {:ok true}))
-          response (handler {:identity {:perms #{"system:user:add"}}})]
-      (is (= {:ok true} response)))))
-
-
-(deftest test-require-perms-denied
-  (testing "无所需权限时返回 403"
-    (let [handler ((auth/require-perms ["system:user:list"])
-                   (fn [req] {:ok true}))
-          response (handler {:identity {:perms #{"system:user:add"}}})]
-      (is (= 403 (:status response)))
-      (is (= {:code 403 :msg "没有操作权限"} (:body response)))
-      (is (= "application/json" (get-in response [:headers "Content-Type"]))))))
-
-
-(deftest test-require-perms-no-identity
-  (testing "无身份时返回 403"
-    (let [handler ((auth/require-perms ["system:user:list"])
-                   (fn [req] {:ok true}))
-          response (handler {})]
-      (is (= 403 (:status response)))
-      (is (= {:code 403 :msg "没有操作权限"} (:body response))))))
-
-
-(deftest test-require-perms-single-string
-  (testing "单个字符串权限也正常工作"
-    (let [handler ((auth/require-perms "system:user:list")
-                   (fn [req] {:ok true}))
-          response (handler {:identity {:perms #{"system:user:list"}}})]
-      (is (= {:ok true} response)))))
-
-
-(deftest test-auth-middleware-combined
-  (testing "组合中间件：JWT + 认证 + 权限"
-    (let [calls (atom [])]
-      (with-redefs [security/extract-token (fn [_] "token")
-                    security/parse-token (fn [_] {:user-id 1 :perms ["system:user:list"]})
-                    online/blacklisted? (fn [_] false)
-                    online/heartbeat! (fn [token] (swap! calls conj [:heartbeat token]))]
-        (let [middleware (auth/auth-middleware {:required? true
-                                                :perms ["system:user:list"]})
-              handler (middleware (fn [req] {:identity (:identity req)}))
-              response (handler {})]
-          (is (= {:user-id 1 :perms ["system:user:list"]} (:identity response)))
-          (is (= [[:heartbeat "token"]] @calls)))))))
-
-
-(deftest test-auth-middleware-optional-auth
-  (testing "组合中间件：不强制认证时未登录也能访问"
-    (with-redefs [security/extract-token (fn [_] nil)
-                  security/parse-token (fn [_] nil)
-                  online/blacklisted? (fn [_] false)
-                  online/heartbeat! (fn [_] nil)]
-      (let [middleware (auth/auth-middleware {})
-            handler (middleware (fn [req] {:ok true}))
-            response (handler {})]
-        (is (= {:ok true} response))))))
+(deftest test-permitted?
+  (is (authz/permitted? {:permissions #{"a"}} "a"))
+  (is (authz/permitted? {:permissions #{"a"}} ["b" "a"]))
+  (is (not (authz/permitted? {:permissions #{"a"}} "b")))
+  (is (authz/permitted? {:permissions #{"*:*:*"}} "b"))
+  (is (authz/permitted? {:admin? true :permissions #{}} "b")))

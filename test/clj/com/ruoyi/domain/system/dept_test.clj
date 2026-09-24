@@ -22,6 +22,11 @@
     :update-dept! nil
     :update-dept-ancestors! nil
     :delete-dept! nil
+    :find-sibling-dept-by-name nil
+    :list-all-depts mock-depts
+    :count-child-depts {:total 0}
+    :count-enabled-child-depts {:total 0}
+    :count-dept-users {:total 0}
     []))
 
 

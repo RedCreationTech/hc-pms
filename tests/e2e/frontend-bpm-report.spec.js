@@ -69,8 +69,8 @@ test('BPM 流程设计器：条件规则编辑器 + 字段权限截图', async (
   // 2. 打开报销审批设计器 → 流程设计 tab
   const row = page.locator('table tbody tr:not(.ant-table-measure-row)').filter({ hasText: 'reimburse' }).first();
   await row.getByRole('button', { name: '设计' }).click();
-  const wrap = page.getByRole('dialog');
-  await expect(wrap).toBeVisible({ timeout: 15000 });
+  const wrap = page; // 模型设计器为独立页面 (原为弹窗)
+  await expect(page.getByText('流程模型设计').first()).toBeVisible({ timeout: 15000 });
   await wrap.getByText('流程设计', { exact: true }).first().click();
   await expect(page.locator('.bpm-flow-root').first()).toBeVisible({ timeout: 15000 });
   await page.waitForTimeout(1500);
@@ -94,7 +94,7 @@ test('BPM 流程设计器：条件规则编辑器 + 字段权限截图', async (
   // 选动态表单（leaveApproval 已关联请假申请单）
   await wrap.locator('.ant-radio-wrapper').filter({ hasText: '动态表单' }).click();
   await page.waitForTimeout(600);
-  await wrap.locator('.ant-select').first().click();
+  await wrap.locator('.ant-select:visible').first().click();
   await page.waitForTimeout(800);
   await page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option').first().click();
   await page.waitForTimeout(1200);

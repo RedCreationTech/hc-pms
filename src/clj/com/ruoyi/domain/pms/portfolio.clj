@@ -3,6 +3,7 @@
    项目组合看板 (G02, 主/子/单机进度/齐套/试验/问题/成本下钻) 与经营目标达成 (F09).
    全部读取时计算, 不落库, 仅覆盖当前用户可访问的项目."
   (:require [clojure.string :as str]
+            [com.ruoyi.domain.pms.approval-chain :as chain]
             [com.ruoyi.domain.pms.config :as config]
             [com.ruoyi.domain.pms.delivery.materials :as materials]
             [com.ruoyi.domain.pms.delivery.store :as d]
@@ -71,12 +72,15 @@
         gov-by (by-project q :pms/gov-in-projects active {:kinds ["charter" "change" "document" "gate" "risk" "issue" "action" "dq" "reminder"]} g/decode)
         del-by (by-project q :pms/delivery-in-projects active {:kinds ["material" "bom" "assembly" "test" "shipment" "service" "survey" "handover" "site-task"]} g/decode)
         times-by (by-project q :pms/times-in-projects active)
+        ;; 章程按审批策略逐级审批时由 "审批" 分组承载, 不在原单人审核分组重复出现
+        chained-charters (set (map :biz_id (q :approval/pending-biz-ids {:biz_type "charter"})))
         items (for [project active
                     :let [gov (get gov-by (:project_id project) [])
                           del (get del-by (:project_id project) [])
                           times (get times-by (:project_id project) [])]]
                 (concat
-                  (for [rec (concat gov del) :when (and (= "in_review" (:status rec)) (= uid (:reviewer_id rec)) (not= uid (:submitted_by rec)))
+                  (for [rec (concat gov del) :when (and (= "in_review" (:status rec)) (= uid (:reviewer_id rec)) (not= uid (:submitted_by rec))
+                                                         (not (and (= "charter" (:kind rec)) (contains? chained-charters (:id rec)))))
                         :let [[label tab] (get review-kinds (:kind rec) ["审批" "需求与治理"])]]
                     (assoc (item project today "review" label tab rec (:due_date rec)) :group "reviews"))
                   (for [rec del :when (and (contains? #{"shipped" "conditional" "returned"} (:status rec)) (= "shipment" (:kind rec)) (= uid (:reviewer_id rec)))]
@@ -98,12 +102,32 @@
                     (assoc (item project today "reminder" (str "系统提醒: " (get {"task" "任务逾期" "issue" "问题逾期" "action" "行动逾期" "handover" "交底逾期" "site-task" "现场任务未开始"} (:target_kind rec) "逾期"))
                                  (:tab rec) rec (:due_date rec))
                            :group "reminders" :target_kind (:target_kind rec) :target_id (:target_id rec) :raised_on (:raised_on rec)))))
-        all (vec (apply concat items))]
-    {:reviews (filterv #(= "reviews" (:group %)) all)
+        legacy (concat
+                 ;; 原单人审核 (未发布审批策略的类型): 费用版本, 关闭, 重开指定审批人; 计划基线由有审批权限的非提交成员审批
+                 (for [v (q :approval/legacy-costs {:user_id uid})]
+                   {:group "reviews" :kind "cost-version" :label "费用版本审批" :tab "成本与四算" :project_id (:project_id v)
+                    :project_no (:project_no v) :project_name (:project_name v) :id (:version_id v) :title (:name v) :status "submitted"})
+                 (for [a (q :approval/legacy-closures {:user_id uid})]
+                   {:group "reviews" :kind "closure" :label "项目关闭审批" :tab "收尾与关闭" :project_id (:project_id a)
+                    :project_no (:project_no a) :project_name (:project_name a) :id (:approval_id a) :title "关闭申请" :status "submitted"})
+                 (for [r (q :approval/legacy-reopens {:user_id uid})]
+                   {:group "reviews" :kind "reopen" :label "重开申请审批" :tab "收尾与关闭" :project_id (:project_id r)
+                    :project_no (:project_no r) :project_name (:project_name r) :id (:request_id r) :title "重开申请" :status "submitted"})
+                 (when (and (seq active) (or (:admin? actor) (contains? (:permissions actor) "pms:plan:approve")))
+                   (for [b (q :approval/legacy-baselines {:user_id uid :project_ids (mapv :project_id active)})]
+                     {:group "reviews" :kind "plan-baseline" :label "计划基线审批" :tab "计划与进度" :project_id (:project_id b)
+                      :project_no (:project_no b) :project_name (:project_name b) :id (:baseline_id b)
+                      :title (str "计划修订 " (:plan_revision b)) :status "submitted"})))
+        approvals (mapv #(assoc % :group "approvals" :label (str (:type_label %) " - " (:level_name %)))
+                        (chain/my-pending q actor))
+        all (vec (concat (apply concat items) legacy approvals))]
+    {:approvals (filterv #(= "approvals" (:group %)) all)
+     :reviews (filterv #(= "reviews" (:group %)) all)
      :escalations (filterv #(= "escalations" (:group %)) all)
      :owned (sort-by (fn [i] [(if (:overdue i) 0 1) (or (:days i) 9999)]) (filterv #(= "owned" (:group %)) all))
      :reminders (sort-by (fn [i] (or (:days i) 0)) (filterv #(= "reminders" (:group %)) all))
-     :summary {:reviews (count (filter #(= "reviews" (:group %)) all))
+     :summary {:approvals (count (filter #(= "approvals" (:group %)) all))
+               :reviews (count (filter #(= "reviews" (:group %)) all))
                :escalations (count (filter #(= "escalations" (:group %)) all))
                :owned (count (filter #(= "owned" (:group %)) all))
                :reminders (count (filter #(= "reminders" (:group %)) all))

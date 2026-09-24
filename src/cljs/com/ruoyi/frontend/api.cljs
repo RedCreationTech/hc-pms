@@ -3,6 +3,7 @@
   (:require
     [ajax.core :as ajax]
     [clojure.string :as str]
+    [re-frame.core :as rf]
     [re-frame.db :as rf-db]))
 
 
@@ -15,20 +16,23 @@
 
 
 (defn- request
-  "发起 HTTP 请求,从 re-frame app-db 读取 token."
-  [{:keys [method uri params on-success on-error]}]
-  (ajax/ajax-request
-    {:method method
-     :uri (str api-base uri)
-     :params params
-     :headers (when-let [token (get-token)]
-                {"Authorization" (str "Bearer " token)})
-     :format (ajax/json-request-format)
-     :response-format (ajax/json-response-format {:keywords? true})
-     :handler (fn [[ok result]]
-                (if ok
-                  (on-success result)
-                  (on-error result)))}))
+  "发起 HTTP 请求,从 re-frame app-db 读取 token (也可显式传入 :token).
+  已登录状态下收到 401 (令牌过期或已被退出, 强退, 停用, 改密撤销) 时回到登录页."
+  [{:keys [method uri params on-success on-error token]}]
+  (let [token (or token (get-token))]
+    (ajax/ajax-request
+      {:method method
+       :uri (str api-base uri)
+       :params params
+       :headers (when token {"Authorization" (str "Bearer " token)})
+       :format (ajax/json-request-format)
+       :response-format (ajax/json-response-format {:keywords? true})
+       :handler (fn [[ok result]]
+                  (if ok
+                    (on-success result)
+                    (do (when (and token (= 401 (:status result)) (not= uri "/auth/logout"))
+                          (rf/dispatch [:auth/session-expired]))
+                        (on-error result))))})))
 
 
 (defn pms-request
@@ -126,6 +130,42 @@
   [on-success on-error]
   (request {:method :get :uri "/auth/getInfo"
             :on-success on-success :on-error on-error}))
+
+
+(defn- as-rows
+  "把选项接口返回的数组包装成列表接口的 {:data {:rows ..}} 形状, 便于复用既有回调."
+  [on-success]
+  (fn [resp]
+    (let [data (:data resp)]
+      (on-success (assoc resp :data {:rows data :total (count data)})))))
+
+
+(defn user-options
+  "选人组件: 有效用户 (仅需登录)."
+  [_params on-success on-error]
+  (request {:method :get :uri "/system/user/options"
+            :on-success (as-rows on-success) :on-error on-error}))
+
+
+(defn dept-options
+  "选部门组件: 有效部门 (仅需登录)."
+  [_params on-success on-error]
+  (request {:method :get :uri "/system/dept/options"
+            :on-success (as-rows on-success) :on-error on-error}))
+
+
+(defn role-options
+  "选角色组件: 角色编号, 名称与字符 (仅需登录)."
+  [_params on-success on-error]
+  (request {:method :get :uri "/system/role/optionselect"
+            :on-success (as-rows on-success) :on-error on-error}))
+
+
+(defn post-options
+  "选岗位组件: 有效岗位 (仅需登录)."
+  [_params on-success on-error]
+  (request {:method :get :uri "/system/post/options"
+            :on-success (as-rows on-success) :on-error on-error}))
 
 
 (defn list-users
@@ -273,16 +313,18 @@
 
 
 (defn cancel-role-auth-user-all
-  "批量取消用户角色授权."
-  [params on-success on-error]
-  (request {:method :put :uri "/system/role/authUser/cancelAll" :params params
+  "批量取消用户角色授权. 后端按查询参数 role_id 与 user_ids (逗号分隔) 接收."
+  [{:keys [role_id user_ids]} on-success on-error]
+  (request {:method :put
+            :uri (str "/system/role/authUser/cancelAll?role_id=" role_id "&user_ids=" (js/encodeURIComponent (str user_ids)))
             :on-success on-success :on-error on-error}))
 
 
 (defn select-role-auth-user-all
-  "批量授权用户角色."
-  [params on-success on-error]
-  (request {:method :put :uri "/system/role/authUser/selectAll" :params params
+  "批量授权用户角色. 后端按查询参数 role_id 与 user_ids (逗号分隔) 接收."
+  [{:keys [role_id user_ids]} on-success on-error]
+  (request {:method :put
+            :uri (str "/system/role/authUser/selectAll?role_id=" role_id "&user_ids=" (js/encodeURIComponent (str user_ids)))
             :on-success on-success :on-error on-error}))
 
 
@@ -340,6 +382,13 @@
   "获取部门列表."
   [params on-success on-error]
   (request {:method :get :uri "/system/dept" :params params
+            :on-success on-success :on-error on-error}))
+
+
+(defn user-dept-tree
+  "用户管理左侧部门树 (有用户管理权限即可, 按数据权限过滤)."
+  [on-success on-error]
+  (request {:method :get :uri "/system/user/deptTree"
             :on-success on-success :on-error on-error}))
 
 
@@ -465,10 +514,16 @@
 
 
 (defn logout
-  "用户登出."
-  [on-success on-error]
-  (request {:method :post :uri "/auth/logout"
+  "用户登出: 用退出前的令牌通知服务端撤销会话."
+  [token on-success on-error]
+  (request {:method :post :uri "/auth/logout" :token token
             :on-success on-success :on-error on-error}))
+
+
+(defn login-config
+  "登录页配置: 是否需要验证码, 是否开放注册 (无需登录)."
+  [on-success on-error]
+  (request {:method :get :uri "/auth/loginConfig" :on-success on-success :on-error on-error}))
 
 
 ;; ─── 服务器监控 ──────────────────────────────────────────────────────
@@ -711,6 +766,13 @@
   "清空登录日志."
   [on-success on-error]
   (request {:method :delete :uri "/system/login-log"
+            :on-success on-success :on-error on-error}))
+
+
+(defn unlock-login-user
+  "解除账户的登录失败锁定."
+  [user-name on-success on-error]
+  (request {:method :put :uri (str "/system/login-log/unlock/" (js/encodeURIComponent user-name))
             :on-success on-success :on-error on-error}))
 
 

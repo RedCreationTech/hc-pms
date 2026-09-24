@@ -2,6 +2,7 @@
   "项目收尾清单, 遗留移交, 经验与绑定确定证据快照的独立关闭审批."
   (:require [cheshire.core :as json]
             [clojure.walk :as walk]
+            [com.ruoyi.domain.pms.approval-chain :as chain]
             [com.ruoyi.domain.pms.finance :as finance]
             [com.ruoyi.domain.pms.delivery :as delivery]
             [com.ruoyi.domain.pms.finance-money :as money]
@@ -136,13 +137,20 @@
       (when-not (= "closing" (:status project)) (rules/fail! 409 "项目必须先进入收尾阶段"))
       (when-let [message (first (blockers q project))] (rules/fail! 409 message))
       (let [existing (q :closure/approval {:project_id project-id})
-            reviewer (kernel/user! q project (:reviewer_id body) "关闭审批人")
-            snapshot (encoded-snapshot q project)]
+            ;; 已发布 "项目结项" 审批策略时指定审批人可选 (只用于 "提交人选择" 级别)
+            policy? (some? (chain/policy q "closure"))
+            reviewer (when (or (not policy?) (some? (:reviewer_id body)))
+                       (kernel/user! q project (:reviewer_id body) "关闭审批人"))
+            snapshot (encoded-snapshot q project)
+            approval-id (kernel/id)]
         (when (= "submitted" (:status existing)) (rules/fail! 409 "已有待处理的关闭申请"))
         (when (= reviewer (:user_id actor)) (rules/fail! 400 "不能审批自己提交的关闭申请"))
-        (q :closure/insert-approval! {:approval_id (kernel/id) :project_id project-id
-            :project_version (inc (:version project)) :submitted_by (:user_id actor) :reviewer_id reviewer
-            :snapshot_hash (money/digest snapshot) :snapshot_json snapshot})
+        (let [started (chain/start! q actor project "closure" approval-id
+                                    {:reviewer-id reviewer :title (str "项目结项 " (:project_no project) " " (:name project))})]
+          (q :closure/insert-approval! {:approval_id approval-id :project_id project-id
+              :project_version (inc (:version project)) :submitted_by (:user_id actor)
+              :reviewer_id (or reviewer (:first-approver started))
+              :snapshot_hash (money/digest snapshot) :snapshot_json snapshot}))
         (dissoc (q :closure/approval {:project_id project-id}) :snapshot_json)))))
 
 (defn review!
@@ -155,6 +163,7 @@
       (let [approval (q :closure/approval {:project_id project-id})
             reason (rules/text! (:reason body) "审批意见" 1000 (= "rejected" (:decision body)))]
         (when-not (= "submitted" (:status approval)) (rules/fail! 409 "没有待处理的关闭申请"))
+        (chain/guard-legacy-decision! q "closure" (:approval_id approval))
         (kernel/independent-review! actor (:submitted_by approval) (:reviewer_id approval))
         (when (= "approved" (:decision body))
           (when-let [message (first (blockers q project))] (rules/fail! 409 message))
@@ -162,3 +171,19 @@
             (rules/fail! 409 "关闭依据已变化,请驳回并重新提交")))
         (rules/changed! (q :closure/review! (assoc approval :status (:decision body) :review_note reason)))
         (dissoc (q :closure/approval {:project_id project-id}) :snapshot_json)))))
+
+
+(defn- finalize!
+  "审批链落定关闭申请: 通过前重新确认收尾条件与关闭依据未变化."
+  [q _actor project approval-id decision reason]
+  (let [approval (q :closure/approval {:project_id (:project_id project)})]
+    (when-not (and (= approval-id (:approval_id approval)) (= "submitted" (:status approval)))
+      (rules/fail! 409 "没有待处理的关闭申请"))
+    (when (= "approved" decision)
+      (when-let [message (first (blockers q project))] (rules/fail! 409 message))
+      (when-not (= (:snapshot_hash approval) (money/digest (encoded-snapshot q project)))
+        (rules/fail! 409 "关闭依据已变化,请驳回并重新提交")))
+    (rules/changed! (q :closure/review! (assoc approval :status decision :review_note (or reason ""))))))
+
+
+(chain/register-adapter! "closure" {:finalize finalize!})

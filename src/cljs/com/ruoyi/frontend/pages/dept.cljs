@@ -1,11 +1,13 @@
 (ns com.ruoyi.frontend.pages.dept
-  "部门管理页面 -- 树形表格,CRUD."
+  "部门管理页面 -- 树形表格, CRUD, 部门负责人 (选择用户), 按钮按权限显示."
   (:require
-    ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined ReloadOutlined SearchOutlined CheckOutlined ColumnHeightOutlined]]
+    ["@ant-design/icons" :refer [PlusOutlined EditOutlined DeleteOutlined ReloadOutlined SearchOutlined ColumnHeightOutlined]]
     [com.ruoyi.frontend.antd :as antd]
-    [com.ruoyi.frontend.components.dept-tree-select :refer [dept-tree-select]]
+    [com.ruoyi.frontend.api :as api]
+    [com.ruoyi.frontend.components.dept-tree-select :refer [dept-tree-select build-tree]]
     [com.ruoyi.frontend.components.page-search :as page-search]
     [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+    [com.ruoyi.frontend.permission :as permission]
     [re-frame.core :as rf]
     [reagent.core :as r]
     [reagent.hooks :as hooks]))
@@ -14,15 +16,9 @@
 ;; ─── 辅助函数 ──────────────────────────────────────────────────────
 
 (defn- build-dept-tree
-  "将平铺部门列表转换为树形结构."
-  [items parent-id]
-  (->> items
-       (filter #(= parent-id (:parent_id %)))
-       (mapv (fn [d]
-               (let [children (build-dept-tree items (:dept_id d))]
-                 (if (seq children)
-                   (assoc d :children children)
-                   d))))))
+  "将平铺部门列表转换为树形结构 (以可见部门的最高层为根)."
+  [items]
+  (build-tree items identity))
 
 
 ;; ─── 工具栏 ────────────────────────────────────────────────────────
@@ -58,18 +54,17 @@
 
 
 (defn- toolbar
-  []
+  [on-toggle-expand]
   [page-toolbar/page-toolbar
    {:left [page-toolbar/toolbar-left
-           [page-toolbar/toolbar-button {:kind :add
-                                         :icon (r/as-element [:> PlusOutlined])
-                                         :on-click #(rf/dispatch [:depts/open-modal])
-                                         :label "新增"}]
-           [page-toolbar/toolbar-button {:kind :export
-                                         :icon (r/as-element [:> CheckOutlined])
-                                         :label "保存排序"}]
+           (when (permission/permitted? "system:dept:add")
+             [page-toolbar/toolbar-button {:kind :add
+                                           :icon (r/as-element [:> PlusOutlined])
+                                           :on-click #(rf/dispatch [:depts/open-modal])
+                                           :label "新增"}])
            [page-toolbar/toolbar-button {:kind :import
                                          :icon (r/as-element [:> ColumnHeightOutlined])
+                                         :on-click on-toggle-expand
                                          :label "展开/折叠"}]]
     :right [page-toolbar/toolbar-right
             [page-toolbar/round-tool-button {:title "搜索"
@@ -83,7 +78,7 @@
 ;; ─── 表格列 ──────────────────────────────────────────────────────
 
 (defn- dept-columns
-  []
+  [{:keys [can-add? can-edit? can-remove?]}]
   #js [#js {:title "部门名称" :dataIndex "dept_name" :key "dept_name" :width 200}
        #js {:title "排序" :dataIndex "order_num" :key "order_num" :width 80}
        #js {:title "负责人" :dataIndex "leader" :key "leader" :width 120}
@@ -98,19 +93,22 @@
             :render (fn [_ ^js record]
                       (r/as-element
                         [antd/space
-                         [antd/button {:type "link" :size "small"
-                                       :icon (r/as-element [:> EditOutlined])
-                                       :on-click #(rf/dispatch [:depts/edit (js->clj record :keywordize-keys true)])}
-                          "修改"]
-                         [antd/button {:type "link" :size "small"
-                                       :icon (r/as-element [:> PlusOutlined])
-                                       :on-click #(rf/dispatch [:depts/open-modal {:parent_id (.-dept_id record)}])}
-                          "新增"]
-                         [antd/popconfirm {:title "确认删除该部门？"
-                                           :onConfirm #(rf/dispatch [:depts/delete (.-dept_id record)])}
-                          [antd/button {:type "link" :danger true :size "small"
-                                        :icon (r/as-element [:> DeleteOutlined])}
-                           "删除"]]]))}])
+                         (when can-edit?
+                           [antd/button {:type "link" :size "small"
+                                         :icon (r/as-element [:> EditOutlined])
+                                         :on-click #(rf/dispatch [:depts/edit (dissoc (js->clj record :keywordize-keys true) :children)])}
+                            "修改"])
+                         (when can-add?
+                           [antd/button {:type "link" :size "small"
+                                         :icon (r/as-element [:> PlusOutlined])
+                                         :on-click #(rf/dispatch [:depts/open-modal {:parent_id (.-dept_id record)}])}
+                            "新增"])
+                         (when can-remove?
+                           [antd/popconfirm {:title "确认删除该部门？"
+                                             :onConfirm #(rf/dispatch [:depts/delete (.-dept_id record)])}
+                            [antd/button {:type "link" :danger true :size "small"
+                                          :icon (r/as-element [:> DeleteOutlined])}
+                             "删除"]])]))}])
 
 
 ;; ─── 编辑弹窗 ──────────────────────────────────────────────────────
@@ -120,11 +118,13 @@
   (let [visible? @(rf/subscribe [:depts/modal-visible?])
         editing @(rf/subscribe [:depts/editing])
         form-data @(rf/subscribe [:depts/form-data])
-        [form] (antd/form-use-form)]
+        [form] (antd/form-use-form)
+        [users set-users!] (hooks/use-state [])]
     (hooks/use-effect
       (fn []
         (when visible?
-          (.setFieldsValue form (clj->js (merge {:order_num 0 :status "0"} form-data))))
+          (.setFieldsValue form (clj->js (merge {:order_num 0 :status "0"} form-data)))
+          (api/user-options {} #(set-users! (get-in % [:data :rows] [])) (fn [_])))
         js/undefined)
       [visible? form-data])
     [antd/modal {:title (if editing "修改部门" "新增部门")
@@ -147,8 +147,16 @@
        [antd/input {:placeholder "请输入部门名称"}]]
       [antd/form-item {:label "显示排序" :name "order_num"}
        [antd/input {:type "number" :placeholder "请输入显示排序"}]]
-      [antd/form-item {:label "负责人" :name "leader"}
-       [antd/input {:placeholder "请输入负责人"}]]
+      [antd/form-item {:label "负责人" :name "leader_id"
+                       :extra "负责人可作为审批规则中的\"部门负责人\""}
+       [antd/select {:placeholder "选择部门负责人 (用户)"
+                     :allowClear true
+                     :showSearch true
+                     :optionFilterProp "label"
+                     :options (clj->js (mapv (fn [u] {:value (:user_id u)
+                                                      :label (str (or (not-empty (:nick_name u)) (:user_name u))
+                                                                  " (" (:user_name u) ")")})
+                                             users))}]]
       [antd/form-item {:label "联系电话" :name "phone"}
        [antd/input {:placeholder "请输入联系电话"}]]
       [antd/form-item {:label "邮箱" :name "email"}
@@ -170,15 +178,21 @@
     [])
   (let [items @(rf/subscribe [:depts/items])
         loading? @(rf/subscribe [:depts/loading?])
-        tree-data (build-dept-tree items 0)]
+        [expanded? set-expanded!] (hooks/use-state true)
+        tree-data (build-dept-tree items)
+        perms {:can-add? (permission/permitted? "system:dept:add")
+               :can-edit? (permission/permitted? "system:dept:edit")
+               :can-remove? (permission/permitted? "system:dept:remove")}]
     [:div
      [search-bar]
-     [toolbar]
+     [toolbar #(set-expanded! (not expanded?))]
      [antd/table {:scroll #js {:x "max-content"} :rowKey "dept_id"
+                  ;; 展开/折叠通过 key 重建表格, 让 defaultExpandAllRows 重新生效
+                  :key (str "dept-table-" expanded? "-" (count items))
                   :loading loading?
-                  :columns (dept-columns)
+                  :columns (dept-columns perms)
                   :dataSource (clj->js tree-data)
                   :pagination false
-                  :defaultExpandAllRows true
+                  :defaultExpandAllRows expanded?
                   :childrenColumnName "children"}]
      [edit-modal]]))

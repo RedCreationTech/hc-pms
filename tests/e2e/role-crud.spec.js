@@ -59,7 +59,9 @@ test.describe('角色管理 CRUD', () => {
     await addModal.getByRole('button', { name: /确\s*定/ }).click();
     await expect(addModal).toBeHidden({ timeout: 5000 });
 
-    // 确认列表中出现了新增记录（排除 antd 隐藏的 measure row）
+    // 角色较多时新记录可能不在第一页: 按名称检索后再确认（排除 antd 隐藏的 measure row）
+    await page.locator('.ant-form, form, body').first().getByPlaceholder('请输入角色名称').first().fill(roleName);
+    await page.getByRole('button', { name: /搜\s*索/ }).click();
     const newRow = page.locator('table tbody tr:not(.ant-table-measure-row)', { hasText: roleName });
     await expect(newRow).toBeVisible({ timeout: 10000 });
 
@@ -139,6 +141,48 @@ test.describe('角色管理 CRUD', () => {
     await page.waitForTimeout(500);
   });
 
+  test('分配菜单权限: 父子联动勾选, 半选的上级一并授权, 取消的按钮不授权', async ({ page }) => {
+    const stamp = Date.now().toString(36);
+    const token = await page.evaluate(() => localStorage.getItem('ruoyi_token'));
+    const call = async (method, url, data) => {
+      const res = await page.request.fetch(url, { method, headers: { Authorization: `Bearer ${token}` }, data });
+      const body = await res.json();
+      expect(body.code, `${method} ${url}: ${body.msg}`).toBe(200);
+      return body.data;
+    };
+    await call('POST', '/api/system/role', { role_name: `菜单树${stamp}`, role_key: `tree_${stamp}`, role_sort: 9, status: '0', 'menu-ids': [] });
+    const roleId = (await call('GET', `/api/system/role?role_key=tree_${stamp}`)).find(r => r.role_key === `tree_${stamp}`).role_id;
+
+    await page.getByPlaceholder('请输入角色名称').first().fill(`菜单树${stamp}`);
+    await page.getByRole('button', { name: /搜\s*索/ }).click();
+    const row = page.locator('table tbody tr:not(.ant-table-measure-row)', { hasText: `tree_${stamp}` });
+    await row.locator('button').filter({ hasText: '更多' }).click();
+    await page.locator('.ant-dropdown-menu').getByText('分配权限').click();
+    const modal = page.getByRole('dialog').filter({ hasText: '分配菜单权限' });
+    const node = title => modal.locator('.ant-tree-treenode').filter({ has: page.locator('.ant-tree-title', { hasText: new RegExp(`^${title}$`) }) }).first();
+    await node('系统管理').locator('.ant-tree-switcher').click();
+    await node('用户管理').locator('.ant-tree-checkbox').click();
+    await node('用户管理').locator('.ant-tree-switcher').click();
+    await expect(node('用户删除').locator('.ant-tree-checkbox')).toHaveClass(/ant-tree-checkbox-checked/);
+    await node('用户删除').locator('.ant-tree-checkbox').click();
+    await expect(node('用户管理').locator('.ant-tree-checkbox')).toHaveClass(/ant-tree-checkbox-indeterminate/);
+    await modal.getByRole('button', { name: /确\s*定/ }).click();
+    await expect(page.getByText('权限更新成功')).toBeVisible();
+
+    const ids = (await call('GET', `/api/system/role/${roleId}`))['menu-ids'].map(Number);
+    expect(ids).toEqual(expect.arrayContaining([1, 3, 100, 101, 102, 104]));
+    expect(ids).not.toContain(103);
+    expect(ids).not.toContain(4);
+
+    // 重新打开: 用户管理为半选, 用户删除未勾选
+    await row.locator('button').filter({ hasText: '更多' }).click();
+    await page.locator('.ant-dropdown-menu').getByText('分配权限').click();
+    await node('系统管理').locator('.ant-tree-switcher').click();
+    await expect(node('用户管理').locator('.ant-tree-checkbox')).toHaveClass(/ant-tree-checkbox-indeterminate/);
+    await modal.locator('.ant-modal-close').click();
+    await call('DELETE', `/api/system/role/${roleId}`);
+  });
+
   test('分配用户', async ({ page }) => {
     // 等待表格数据加载完成，避免遍历时行未渲染导致误 skip
     await expect(page.locator('table tbody tr:not(.ant-table-measure-row)').first()).toBeVisible({ timeout: 10000 });
@@ -168,32 +212,25 @@ test.describe('角色管理 CRUD', () => {
     await expect(allocItem).toBeVisible();
     await allocItem.click();
 
-    // 等待分配用户弹窗
-    await expect(page.getByText('分配用户').first()).toBeVisible({ timeout: 5000 });
-
-    // 切换到"未分配用户" tab（如果存在；当前 UI 可能直接展示已分配/未分配列表）
-    const unallocatedTab = page.getByText('未分配用户');
-    if (await unallocatedTab.isVisible().catch(() => false)) {
-      await unallocatedTab.click();
-      await page.waitForTimeout(500);
-    }
-
-    // 如果有未分配用户，选择第一个
-    const userCheckbox = page.locator('table tbody tr .ant-checkbox-input').first();
-    if (await userCheckbox.isVisible().catch(() => false)) {
-      await userCheckbox.click({ force: true });
-      await page.waitForTimeout(300);
-
-      // 点击"批量选择授权"
-      const batchAuthBtn = page.getByRole('button', { name: '批量选择授权' });
-      if (await batchAuthBtn.isVisible().catch(() => false)) {
-        await batchAuthBtn.click();
-        await page.waitForTimeout(500);
-      }
+    // 等待分配用户弹窗: "已分配用户" 与 "添加用户" 两个页签
+    const modal = page.locator('.ant-modal').filter({ hasText: '分配用户' }).last();
+    await expect(modal).toBeVisible({ timeout: 5000 });
+    await modal.getByRole('tab', { name: '添加用户' }).click();
+    const candidate = modal.locator('.ant-tabs-tabpane-active tbody tr:not(.ant-table-measure-row)').first();
+    if (await candidate.isVisible().catch(() => false)) {
+      const userName = (await candidate.locator('td').nth(2).innerText()).trim();
+      await candidate.locator('.ant-checkbox-input').click({ force: true });
+      await modal.getByRole('button', { name: '授权选中用户' }).click();
+      await expect(page.getByText('授权成功')).toBeVisible();
+      await modal.getByRole('tab', { name: '已分配用户' }).click();
+      await expect(modal.locator('.ant-tabs-tabpane-active tbody')).toContainText(userName);
+      // 取消授权后恢复原状
+      await modal.locator('.ant-tabs-tabpane-active tbody tr').filter({ hasText: userName }).getByRole('button', { name: '取消授权' }).click();
+      await expect(page.getByText('取消授权成功')).toBeVisible();
     }
 
     // 关闭弹窗
-    await page.locator('.ant-modal').last().getByRole('button', { name: /取\s*消/ }).click();
-    await page.waitForTimeout(500);
+    await modal.locator('.ant-modal-close').click();
+    await expect(modal).toBeHidden();
   });
 });

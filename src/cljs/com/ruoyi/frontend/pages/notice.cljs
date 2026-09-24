@@ -106,7 +106,7 @@
                                                      (rf/dispatch [:notices/fetch {}]))}]]]])
      [page-toolbar/page-toolbar
       {:left [page-toolbar/toolbar-left
-              [page-toolbar/toolbar-button {:kind :add
+              [page-toolbar/toolbar-button {:perms "system:notice:add" :kind :add
                                             :icon (r/as-element [:> PlusOutlined])
                                             :on-click #(rf/dispatch [:notices/open-modal])
                                             :label "新增"}]]

@@ -50,19 +50,19 @@
   []
   [page-toolbar/page-toolbar
    {:left [page-toolbar/toolbar-left
-           [page-toolbar/toolbar-button {:kind :add
+           [page-toolbar/toolbar-button {:perms "system:post:add" :kind :add
                                          :icon (r/as-element [:> PlusOutlined])
                                          :on-click #(rf/dispatch [:posts/open-modal])
                                          :label "新增"}]
-           [page-toolbar/toolbar-button {:kind :edit
+           [page-toolbar/toolbar-button {:perms "system:post:edit" :kind :edit
                                          :icon (r/as-element [:> EditOutlined])
                                          :disabled? true
                                          :label "修改"}]
-           [page-toolbar/toolbar-button {:kind :delete
+           [page-toolbar/toolbar-button {:perms "system:post:remove" :kind :delete
                                          :icon (r/as-element [:> DeleteOutlined])
                                          :disabled? true
                                          :label "删除"}]
-           [page-toolbar/toolbar-button {:kind :export
+           [page-toolbar/toolbar-button {:perms "system:post:export" :kind :export
                                          :icon (r/as-element [:> DownloadOutlined])
                                          :on-click #(api/export-posts {})
                                          :label "导出"}]]

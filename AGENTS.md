@@ -80,13 +80,18 @@ bidi router → pages (reagent component + re-frame) → api.cljs (fetch) → HT
 
 ```
 用户 ── N:N ── 角色 ── N:N ── 菜单(含 perms 按钮权限标识)
-                  └── 数据权限范围: 全部/自定义/本部门/本部门及以下
+                  └── 数据权限范围: 全部/自定义/本部门/本部门及以下/仅本人 (S2 落地)
 ```
+
+- 路由级权限: `/api/system`, `/api/business`, `/api/pms` 每个接口在路由数据声明 `:perms` (权限字符串, 任一匹配的向量, `:login` 仅需登录, 或按请求计算的函数). `web/middleware/authz.clj` 的 `perms-middleware` 在路由编译期挂载, 每次请求从数据库读取实时身份 (有效用户, 有效角色, 启用菜单权限), 未声明 `:perms` 的接口一律 403 (fail closed); `test/clj/com/ruoyi/web/authz_test.clj` 遍历路由表保证全部声明.
+- 超级管理员: 拥有有效 `admin` 角色的用户视为 `*:*:*`. 超级管理员用户 (user_id 1) 与角色不可在管理界面修改/停用/删除, 只有超级管理员可以授予 `admin` 角色.
+- 会话: JWT 携带 jti, 过期按秒; 退出, 强退, 停用, 删除, 重置密码, 本人改密会撤销令牌 (表 `sys_token_revoke`, 重启不丢); 30 分钟无访问的在线会话被清理.
+- 办公流程的个人办理类接口 (待办, 已办, 抄送, 我的流程, 任务办理, 实例查看) 只要求登录, 授权来自任务归属 (办理人/候选人/发起人/抄送人), 越权返回业务码 403; 流程管理类接口按 `bpm:*` 权限控制.
 
 ### 中间件链 (RING)
 
 ```
-请求 → 参数解析(ring-defaults) → wrap-jwt-auth(鉴权) → wrap-exception → wrap-operlog → muuntaja → 路由 → 控制器
+请求 → 参数解析(ring-defaults) → wrap-jwt-auth(令牌 + 会话撤销校验) → wrap-exception → wrap-operlog → muuntaja → 路由 → auth-middleware(强制登录) → perms-middleware(实时权限) → 控制器
 ```
 
 ---
@@ -165,7 +170,8 @@ bidi router → pages (reagent component + re-frame) → api.cljs (fetch) → HT
 | 账号  | 密码     | 角色                  |
 |-------|----------|-----------------------|
 | admin | admin123 | 超级管理员 (所有权限) |
-| ry    | admin123 | 普通用户 (只读)       |
+
+种子库只内置 admin. 角色 `common` (普通角色) 默认授予办公自助菜单 (我的流程, 发起流程, 我的待办, 我的已办, 抄送我的); 其他账号由管理员在用户管理中创建并分配角色. 登录连续失败 5 次锁定 10 分钟 (登录日志页可解锁), 验证码与自助注册由参数 `sys.account.captchaEnabled` / `sys.account.registerUser` 控制 (默认关闭).
 
 ---
 

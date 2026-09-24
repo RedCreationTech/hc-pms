@@ -7,6 +7,7 @@
                                  SafetyOutlined DatabaseOutlined
                                  CloudOutlined]]
     [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.permission :as permission]
     [re-frame.core :as rf]
     [reagent.core :as r]
     [reagent.hooks :as hooks]))
@@ -134,7 +135,7 @@
        [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center"}}
         [:div
          [:div {:style {:fontSize 24 :fontWeight 600 :color "#fff" :marginBottom 8}}
-          (str greeting "，" (or (:nick_name user) (:user_name user) "管理员"))]
+          (str greeting "，" (or (not-empty (get-in user [:user :nick_name])) (get-in user [:user :user_name]) "欢迎"))]
          [:div {:style {:fontSize 14 :color "rgba(255,255,255,0.85)"}}
           "欢迎回到红创PMS，今天也是元气满满的一天！"]]
         [:div {:style {:textAlign "right"}}
@@ -164,14 +165,22 @@
         ;; 快捷入口
         [antd/card {:title "快捷操作" :style {:marginBottom 16 :borderRadius 8}
                     :styles {:body {:padding "12px 16px"}}}
-         [:div {:style {:display "grid" :gridTemplateColumns "repeat(4, 1fr)" :gap 8}}
-          [quick-link {:title "用户管理" :icon UserOutlined :color "#1677ff" :route :user}]
-          [quick-link {:title "角色管理" :icon SafetyOutlined :color "#52c41a" :route :role}]
-          [quick-link {:title "菜单管理" :icon MenuOutlined :color "#faad14" :route :menu}]
-          [quick-link {:title "部门管理" :icon TeamOutlined :color "#f5222d" :route :dept}]
-          [quick-link {:title "字典管理" :icon DatabaseOutlined :color "#722ed1" :route :dict}]
-          [quick-link {:title "参数设置" :icon SettingOutlined :color "#13c2c2" :route :config}]
-          [quick-link {:title "系统接口" :icon CloudOutlined :color "#2f54eb" :route :swagger}]]]
+         ;; 只显示当前角色有权进入的页面
+         (let [links (filter #(permission/page-allowed? user (:route %))
+                             [{:title "用户管理" :icon UserOutlined :color "#1677ff" :route :user}
+                              {:title "角色管理" :icon SafetyOutlined :color "#52c41a" :route :role}
+                              {:title "菜单管理" :icon MenuOutlined :color "#faad14" :route :menu}
+                              {:title "部门管理" :icon TeamOutlined :color "#f5222d" :route :dept}
+                              {:title "字典管理" :icon DatabaseOutlined :color "#722ed1" :route :dict}
+                              {:title "参数设置" :icon SettingOutlined :color "#13c2c2" :route :config}
+                              {:title "系统接口" :icon CloudOutlined :color "#2f54eb" :route :swagger}
+                              {:title "我的待办" :icon ScheduleOutlined :color "#fa8c16" :route :bpm-todo}
+                              {:title "我的流程" :icon FileTextOutlined :color "#1677ff" :route :bpm-instance}
+                              {:title "项目台账" :icon DatabaseOutlined :color "#c41d7f" :route :pms-project}])]
+           (if (seq links)
+             (into [:div {:style {:display "grid" :gridTemplateColumns "repeat(4, 1fr)" :gap 8}}]
+                   (map (fn [l] ^{:key (name (:route l))} [quick-link l]) links))
+             [:div {:style {:color "var(--ant-color-text-tertiary)"}} "暂无可用的快捷入口"]))]
 
         ;; 最近操作
         [antd/card {:title "最近操作" :style {:borderRadius 8}

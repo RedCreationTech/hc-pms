@@ -2,6 +2,7 @@
   "结项检查,交付移交与独立关闭审批工作台."
   (:require [com.ruoyi.frontend.antd :as antd]
             [com.ruoyi.frontend.pages.pms.governance-forms :as forms]
+            [com.ruoyi.frontend.pages.pms.approval :as chain]
             [com.ruoyi.frontend.pages.pms.shared :as shared]
             [com.ruoyi.frontend.pages.pms.widgets :as w]
             [reagent.hooks :as hooks]))
@@ -59,9 +60,12 @@
    [w/record-table (:lessons model) [(w/text-column :title "主题") (w/text-column :category "类别") (w/text-column :content "经验内容")] nil]])
 
 (defn- approval
-  "所有前置项通过后提交独立结项审批."
-  [{:keys [base model options project editable? approve? open!]}]
-  (let [record (:approval model) current (:currentUserId options)]
+  "所有前置项通过后提交独立结项审批 (已发布 \"项目结项\" 审批策略时按策略逐级审批)."
+  [{:keys [root base model options project editable? approve? open!]}]
+  (let [record (:approval model) current (:currentUserId options)
+        policies (chain/use-policies)
+        {:keys [flows]} (chain/use-project-flows root "closure" (str (:approval_id record) (:status record)))
+        chained? (contains? (chain/pending-ids flows) (:approval_id record))]
     [shared/panel "正式关闭审批" "批准后项目经理可执行关闭,审批本身不隐式改变生命周期" nil
      [w/badge (:status record)]
      (when (:review_note record) [:p (:review_note record)])
@@ -69,11 +73,13 @@
       (when (and editable? (= "closing" (:status project)) (empty? (:blockers model))
                  (not (contains? #{"submitted" "approved"} (:status record))))
         [antd/button {:type "primary" :on-click #(open! {:title "提交项目关闭审批" :path (str base "/submit")
-                                                        :fields [(forms/reviewer-field options)]})} "提交关闭审批"])
-      (when (and approve? (= "closing" (:status project)) (= "submitted" (:status record)) (= current (:reviewer_id record)) (not= current (:submitted_by record)))
+                                                        :fields (chain/reviewer-fields policies "closure" (forms/reviewer-field options))})} "提交关闭审批"])
+      (when (and approve? (not chained?) (= "closing" (:status project)) (= "submitted" (:status record)) (= current (:reviewer_id record)) (not= current (:submitted_by record)))
         [:<>
          [antd/button {:type "primary" :on-click #(open! (forms/decision-dialog (str base "/review") "approved" "批准项目关闭"))} "批准关闭"]
-         [antd/button {:danger true :on-click #(open! (forms/decision-dialog (str base "/review") "rejected" "驳回项目关闭"))} "驳回关闭"]])]]))
+         [antd/button {:danger true :on-click #(open! (forms/decision-dialog (str base "/review") "rejected" "驳回项目关闭"))} "驳回关闭"]])]
+     (when (some #(= (:approval_id record) (:biz_id %)) flows)
+       [chain/latest-flow-panel (filter #(= (:approval_id record) (:biz_id %)) flows) "关闭审批进度"])]))
 
 (defn- reopen-panel
   "关闭后通过明确修正范围和独立决定受控重开."

@@ -124,7 +124,7 @@
        ;; 工具栏
        [page-toolbar/page-toolbar
         {:left [page-toolbar/toolbar-left
-                [page-toolbar/toolbar-button {:kind :add
+                [page-toolbar/toolbar-button {:perms "monitor:job:add" :kind :add
                                               :icon (r/as-element [:> PlusOutlined])
                                               :on-click #(do (set-editing-record! nil)
                                                              (set-form-name! "")

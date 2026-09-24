@@ -5,6 +5,7 @@
     [com.ruoyi.bpm.core :as bpm-core]
     [com.ruoyi.domain.business.bpm :as bpm]
     [com.ruoyi.web.controllers.business.util :as bu]
+    [com.ruoyi.web.middleware.authz :as authz]
     [ring.util.response :as response]))
 
 
@@ -25,12 +26,13 @@
 
 
 (defn- wrap-err
-  "把服务异常转成 500 响应."
+  "把服务异常转成失败响应; ex-data 中的整数 :status (如 403) 作为业务码, 否则 500."
   [f]
   (try
     (f)
     (catch Exception e
-      (fail (.getMessage e)))))
+      (let [status (:status (ex-data e))]
+        (fail (if (integer? status) status 500) (.getMessage e))))))
 
 
 (defn- parse-id
@@ -43,12 +45,20 @@
   (get-in request [:identity :user-name]))
 
 
-(defn- admin?
-  "是否超级管理员:admin 用户或角色 1."
+(defn- has-perm?
+  "当前实时身份 (权限中间件附加的 :actor) 是否拥有任一权限; 超级管理员拥有全部权限."
+  [request perms]
+  (authz/permitted? (:actor request) perms))
+
+
+(def manager-perms
+  "流程管理权限: 可查看任意流程实例与任务."
+  ["bpm:instance:manage" "bpm:instance:ops" "bpm:task:list"])
+
+
+(defn- manager?
   [request]
-  (let [id (:identity request)]
-    (or (= "admin" (:user-name id))
-        (some #(= "1" (str %)) (:roles id)))))
+  (has-perm? request manager-perms))
 
 
 (defn- body-or-query
@@ -175,10 +185,13 @@
 
 
 (defn print-data
-  "打印数据.query: id(biz_bpm_instance.instance_id)"
+  "打印数据.query: id(biz_bpm_instance.instance_id); 参与人或流程管理员可打印."
   [{:keys [bpm-service]} request]
-  (wrap-err #(ok (bpm/instance-print-data bpm-service
-                                          (some-> (get (bu/kquery request) :id) Integer/parseInt)))))
+  (wrap-err #(let [id (some-> (get (bu/kquery request) :id) Integer/parseInt)
+                   pid (:process_instance_id ((:query-fn bpm-service) :bpm/find-instance-by-id {:instance_id id}))]
+               (when pid
+                 (bpm/check-instance-viewer! bpm-service pid (current-user request) (manager? request)))
+               (ok (bpm/instance-print-data bpm-service id)))))
 
 
 ;; ── 动态表单 ──────────────────────────────────────────────────────────
@@ -219,18 +232,27 @@
 
 
 (defn list-instances
+  "流程实例列表: 流程管理员可查全部 (可按发起人过滤), 其他用户只返回本人发起的."
   [{:keys [bpm-service]} request]
-  (wrap-err #(ok (bpm/instance-list bpm-service (bu/kquery request)))))
+  (wrap-err #(let [params (bu/kquery request)
+                   params (if (manager? request)
+                            params
+                            (assoc params :starter_id (current-user request)))]
+               (ok (bpm/instance-list bpm-service params)))))
 
 
 (defn instance-history
   [{:keys [bpm-service]} request]
-  (wrap-err #(ok (bpm/instance-history bpm-service (get-in request [:path-params :pid])))))
+  (wrap-err #(let [pid (get-in request [:path-params :pid])]
+               (bpm/check-instance-viewer! bpm-service pid (current-user request) (manager? request))
+               (ok (bpm/instance-history bpm-service pid)))))
 
 
 (defn instance-diagram
   [{:keys [bpm-service]} request]
-  (wrap-err #(ok (bpm/instance-diagram bpm-service (get-in request [:path-params :pid])))))
+  (wrap-err #(let [pid (get-in request [:path-params :pid])]
+               (bpm/check-instance-viewer! bpm-service pid (current-user request) (manager? request))
+               (ok (bpm/instance-diagram bpm-service pid)))))
 
 
 (defn office-stats
@@ -254,7 +276,9 @@
 
 (defn task-detail
   [{:keys [bpm-service]} request]
-  (wrap-err #(ok (bpm/task-detail bpm-service (get-in request [:path-params :id])))))
+  (wrap-err #(let [task-id (get-in request [:path-params :id])]
+               (bpm/check-task-viewer! bpm-service task-id (current-user request) (manager? request))
+               (ok (bpm/task-detail bpm-service task-id)))))
 
 
 (defn approve-task
@@ -298,13 +322,17 @@
 (defn sign-list
   "加签子任务列表.query: taskId="
   [{:keys [bpm-service]} request]
-  (wrap-err #(ok {:rows (bpm/task-sign-list bpm-service (get (bu/kquery request) :taskId))})))
+  (wrap-err #(let [task-id (get (bu/kquery request) :taskId)]
+               (bpm/check-task-viewer! bpm-service task-id (current-user request) (manager? request))
+               (ok {:rows (bpm/task-sign-list bpm-service task-id)}))))
 
 
 (defn return-list
   "可退回节点列表.query: taskId="
   [{:keys [bpm-service]} request]
-  (wrap-err #(ok {:rows (bpm/task-return-list bpm-service (get (bu/kquery request) :taskId))})))
+  (wrap-err #(let [task-id (get (bu/kquery request) :taskId)]
+               (bpm/check-task-actor! (:engine bpm-service) task-id (current-user request))
+               (ok {:rows (bpm/task-return-list bpm-service task-id)}))))
 
 
 (defn copy-task
@@ -326,7 +354,7 @@
   "取消流程实例(发起人或管理员).body/query: {:id(实例process_instance_id) :reason}"
   [{:keys [bpm-service]} request]
   (wrap-err #(let [{:keys [id reason]} (body-or-query request)]
-               (bpm/instance-cancel! bpm-service id reason (current-user request) (admin? request))
+               (bpm/instance-cancel! bpm-service id reason (current-user request) (has-perm? request "bpm:instance:cancel"))
                (ok nil))))
 
 
@@ -342,13 +370,13 @@
   "发起人撤回到起始节点.body: {:processInstanceId x}"
   [{:keys [bpm-service]} request]
   (wrap-err #(let [pid (get (:body-params request) :processInstanceId)]
-               (bpm/task-withdraw-to-start! bpm-service pid (current-user request) (admin? request))
+               (bpm/task-withdraw-to-start! bpm-service pid (current-user request) (has-perm? request "bpm:instance:ops"))
                (ok nil))))
 
 
 (defn claim-task
   [{:keys [bpm-service]} request]
-  (wrap-err #(do (bpm-core/claim! (:engine bpm-service) (get-in request [:path-params :id]) (current-user request))
+  (wrap-err #(do (bpm/task-claim! bpm-service (get-in request [:path-params :id]) (current-user request))
                  (ok nil))))
 
 
@@ -359,7 +387,7 @@
                    to-user (get-in request [:body-params :to_user])]
                (when (clojure.string/blank? (str (or to-user "")))
                  (throw (ex-info "转办人(to_user)不能为空" {:task-id task-id})))
-               (bpm-core/transfer! (:engine bpm-service) task-id (current-user request) to-user)
+               (bpm/task-transfer! bpm-service task-id (current-user request) to-user)
                (ok nil))))
 
 
@@ -370,7 +398,7 @@
                    to-user (get-in request [:body-params :to_user])]
                (when (clojure.string/blank? (str (or to-user "")))
                  (throw (ex-info "委派人(to_user)不能为空" {:task-id task-id})))
-               (bpm-core/delegate! (:engine bpm-service) task-id to-user)
+               (bpm/task-delegate! bpm-service task-id (current-user request) to-user)
                (ok nil))))
 
 
@@ -379,7 +407,7 @@
   [{:keys [bpm-service]} request]
   (wrap-err #(let [task-id (or (get (:body-params request) :taskId)
                                (get-in request [:path-params :id]))]
-               (bpm-core/resolve! (:engine bpm-service) task-id)
+               (bpm/task-resolve! bpm-service task-id (current-user request))
                (ok nil))))
 
 

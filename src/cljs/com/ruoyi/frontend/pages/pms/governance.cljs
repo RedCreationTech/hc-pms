@@ -5,6 +5,7 @@
     [com.ruoyi.frontend.antd :as antd]
     [com.ruoyi.frontend.api :as api]
     [com.ruoyi.frontend.pages.pms.governance-forms :as forms]
+    [com.ruoyi.frontend.pages.pms.approval :as approval]
     [com.ruoyi.frontend.pages.pms.shared :as shared]
     [com.ruoyi.frontend.pages.pms.widgets :as w]
     [reagent.core :as r]
@@ -19,22 +20,29 @@
 
 (defn- review-actions
   "只向指定的独立审批人提供审批入口."
-  [{:keys [base options editable? approve? open!]} collection record]
+  [{:keys [base options editable? approve? open! policies chain-pending]} collection record]
   (let [state (:status record) path (str base "/" collection "/" (:id record))
-        current (:currentUserId options)]
+        current (:currentUserId options)
+        charter? (= "charters" collection)]
     [antd/space
      (when (and editable? (not (contains? #{"issues" "risks"} collection)) (contains? #{"draft" "rejected"} state))
        [w/edit-button "提交审批" #(open! {:title "提交独立审批" :path (str path "/submit")
-                                      :fields [(forms/reviewer-field options)]})])
-     (when (and approve? (= "in_review" state) (= current (:reviewer_id record)) (not= current (:submitted_by record)))
+                                      :fields (if charter?
+                                                (approval/reviewer-fields policies "charter" (forms/reviewer-field options))
+                                                [(forms/reviewer-field options)])})])
+     (when (and approve? (= "in_review" state) (= current (:reviewer_id record)) (not= current (:submitted_by record))
+                (not (and charter? (contains? chain-pending (:id record)))))
        [:<>
         [w/edit-button "批准" #(open! (forms/decision-dialog (str path "/decision") "approved" (if (= "reopen" (:review_action record)) "批准问题重开" "批准评审")))]
         [w/edit-button "驳回" #(open! (forms/decision-dialog (str path "/decision") "rejected" (if (= "reopen" (:review_action record)) "驳回问题重开" "驳回评审")))]])]))
 
 
 (defn- charter-section
-  "章程目标,范围和成功标准进入独立审批."
+  "章程目标,范围和成功标准进入独立审批 (已发布 \"项目章程\" 审批策略时按策略逐级审批)."
   [{:keys [base model options editable? open!] :as context}]
+  (let [policies (approval/use-policies)
+        {:keys [flows]} (approval/use-project-flows base "charter" (hash (map (juxt :id :status) (:charters model))))
+        context (assoc context :policies policies :chain-pending (approval/pending-ids flows))]
   [shared/panel "项目章程" "立项依据与责任共识"
    (when editable? [antd/button {:type "primary" :on-click #(open! (forms/charter-dialog base options))} "编制项目章程"])
    [w/record-table (:charters model)
@@ -57,7 +65,8 @@
                      [:span (or label (str uid))]
                      [:span {:style {:color "#98a2b3"}} "未指定"]))))}
      (w/state-column)]
-    #(review-actions context "charters" %)]])
+    #(review-actions context "charters" %)]
+   [approval/latest-flow-panel flows "章程审批进度"]]))
 
 
 (defn- requirement-section

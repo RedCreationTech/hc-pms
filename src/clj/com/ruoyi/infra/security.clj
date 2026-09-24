@@ -24,15 +24,24 @@
   (hashers/check plain-text hashed))
 
 
+(def token-lifetime-hours
+  "令牌绝对有效期 (小时), 可用 JWT_EXPIRE_HOURS 覆盖."
+  (or (some-> (System/getenv "JWT_EXPIRE_HOURS") parse-long) 24))
+
+
 (defn generate-token
-  "为用户生成 JWT 访问令牌,包含用户ID,用户名和角色列表."
+  "为用户生成 JWT 访问令牌. 标准声明按秒 (exp/iat), 另带会话编号 jti 与签发毫秒 issued-ms,
+  用于强退, 退出与按用户撤销."
   [user-id user-name roles & {:keys [exp-hours]
-                              :or {exp-hours 24}}]
-  (let [claims {:user-id user-id
+                              :or {exp-hours token-lifetime-hours}}]
+  (let [now (System/currentTimeMillis)
+        claims {:user-id user-id
                 :user-name user-name
                 :roles roles
-                :exp (+ (System/currentTimeMillis)
-                        (* exp-hours 60 60 1000))}]
+                :jti (str (java.util.UUID/randomUUID))
+                :iat (quot now 1000)
+                :issued-ms now
+                :exp (+ (quot now 1000) (* exp-hours 60 60))}]
     (jwt/sign claims secret-key {:alg :hs256})))
 
 

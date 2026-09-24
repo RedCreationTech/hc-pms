@@ -3,6 +3,7 @@
   (:require
     [clojure.set :as set]
     [clojure.string :as str]
+    [com.ruoyi.domain.system.data-scope :as data-scope]
     [com.ruoyi.infra.db :as db]
     [com.ruoyi.infra.security :as security]))
 
@@ -32,95 +33,23 @@
       s)))
 
 
-(defn- descendants-of
-  "返回部门本身及其可识别下级部门 ID."
-  [depts dept-id]
-  (let [dept-id (parse-long-safe dept-id)
-        by-parent (group-by :parent_id depts)
-        child-ids (fn child-ids
-                    [id]
-                    (mapcat (fn [d]
-                              (cons (:dept_id d) (child-ids (:dept_id d))))
-                            (get by-parent id [])))
-        ancestor-hit? (fn [d]
-                        (let [ancestors (str "," (or (:ancestors d) "") ",")]
-                          (str/includes? ancestors (str "," dept-id ","))))]
-    (when dept-id
-      (->> (concat [dept-id]
-                   (child-ids dept-id)
-                   (map :dept_id (filter ancestor-hit? depts)))
-           (remove nil?)
-           distinct
-           vec))))
-
-
-(defn- admin-user?
-  "判断当前用户是否为超级管理员."
-  [user]
-  (or (= 1 (:user_id user))
-      (= "admin" (:user_name user))
-      (some #(or (= 1 (:role_id %)) (= "admin" (:role_key %))) (:roles user))))
-
-
-(defn- strongest-scope
-  "从用户角色中推导可用的数据权限范围."
-  [roles]
-  (let [scopes (set (map #(str (or (:data_scope %) (:data-scope %) "5")) roles))]
-    (cond
-      (contains? scopes "1") :all
-      (contains? scopes "4") :dept-child
-      (contains? scopes "2") :dept-child
-      (contains? scopes "3") :dept
-      :else :self)))
-
-
-(defn- data-scope-filter
-  "根据当前用户生成数据范围过滤参数."
-  [query-fn current-user]
-  (cond
-    (or (nil? current-user) (admin-user? current-user))
-    {:dept-ids nil :user-id nil}
-
-    (= :all (strongest-scope (:roles current-user)))
-    {:dept-ids nil :user-id nil}
-
-    (= :self (strongest-scope (:roles current-user)))
-    {:dept-ids nil :user-id (:user_id current-user)}
-
-    :else
-    (let [scope (strongest-scope (:roles current-user))
-          dept-id (:dept_id current-user)
-          depts (query-fn :list-depts {:status nil :dept_name nil})]
-      {:dept-ids (if (= :dept scope)
-                   (when dept-id [dept-id])
-                   (descendants-of depts dept-id))
-       :user-id nil})))
-
-
 (defn- normalize-list-filters
-  "把页面查询,部门过滤和数据权限合并为 SQL 参数."
+  "把页面查询 (部门含下级) 与数据权限范围合并为 SQL 参数. 未提供 :scope 时只能看到空结果 (fail closed)."
   [query-fn params offset page-size]
-  (let [depts (query-fn :list-depts {:status nil :dept_name nil})
-        query-dept-ids (descendants-of depts (:dept_id params))
-        scope (data-scope-filter query-fn (:current-user params))
-        scope-dept-ids (:dept-ids scope)
-        final-dept-ids (cond
-                         (and (seq query-dept-ids) (seq scope-dept-ids))
-                         (vec (set/intersection (set query-dept-ids) (set scope-dept-ids)))
-
-                         (seq query-dept-ids) query-dept-ids
-                         (seq scope-dept-ids) scope-dept-ids
-                         :else nil)]
-    {:user_name (blank->nil (:user_name params))
-     :phonenumber (blank->nil (:phonenumber params))
-     :status (blank->nil (:status params))
-     :begin_time (or (blank->nil (:begin_time params)) (blank->nil (:beginTime params)))
-     :end_time (end-of-day (or (:end_time params) (:endTime params)))
-     :dept_filter_enabled (if (seq final-dept-ids) 1 0)
-     :dept_ids (if (seq final-dept-ids) final-dept-ids [-1])
-     :data_user_id (:user-id scope)
-     :offset offset
-     :page_size page-size}))
+  (let [query-dept-ids (when-let [d (parse-long-safe (:dept_id params))]
+                         (vec (data-scope/descendant-ids (query-fn :list-all-depts {}) d)))
+        scope (or (:scope params) {:all? false :dept-ids #{} :user-id nil})]
+    (merge
+      {:user_name (blank->nil (:user_name params))
+       :phonenumber (blank->nil (:phonenumber params))
+       :status (blank->nil (:status params))
+       :begin_time (or (blank->nil (:begin_time params)) (blank->nil (:beginTime params)))
+       :end_time (end-of-day (or (:end_time params) (:endTime params)))
+       :dept_filter_enabled (if (seq query-dept-ids) 1 0)
+       :dept_ids (if (seq query-dept-ids) query-dept-ids [-1])
+       :offset offset
+       :page_size page-size}
+      (data-scope/sql-params scope))))
 
 
 (defn list-users
@@ -150,6 +79,46 @@
   (query-fn :find-user-by-name {:user_name user-name}))
 
 
+(def super-admin-user-id
+  "超级管理员用户 (若依 userId = 1), 只能由本人在个人中心维护."
+  1)
+
+
+(defn validate-password!
+  "密码策略: 长度 5-20 (对应若依 UserConstants.PASSWORD_MIN/MAX_LENGTH)."
+  [password]
+  (let [p (str password)]
+    (when-not (<= 5 (count p) 20)
+      (throw (ex-info "密码长度必须在5到20个字符之间" {:status 400})))))
+
+
+(defn check-user-allowed!
+  "不允许经用户管理操作超级管理员用户 (修改, 停用, 重置密码, 分配角色, 删除)."
+  [user-id]
+  (when (= super-admin-user-id user-id)
+    (throw (ex-info "不允许操作超级管理员用户" {:status 403}))))
+
+
+(defn- admin-role-ids
+  [query-fn]
+  (set (map :role_id (filter #(= "admin" (:role_key %))
+                             (query-fn :list-roles {:role_name nil :role_key nil :status nil})))))
+
+
+(defn check-role-grant!
+  "只有超级管理员可以授予或收回超级管理员角色."
+  [{:keys [query-fn]} actor role-ids]
+  (when (and (seq (set/intersection (admin-role-ids query-fn) (set (map #(if (string? %) (parse-long %) %) role-ids))))
+             (not (:admin? actor)))
+    (throw (ex-info "只有超级管理员可以授予超级管理员角色" {:status 403}))))
+
+
+(defn public-user
+  "对外返回的用户信息, 不含密码."
+  [user]
+  (some-> user (dissoc :password)))
+
+
 (defn- ensure-unique!
   "按指定查询检查唯一性."
   [query-fn query-key param-key value current-user-id message]
@@ -168,8 +137,9 @@
 
 
 (defn create-user!
-  "创建新用户,自动加密密码."
+  "创建新用户,校验密码策略并加密密码."
   [{:keys [query-fn db]} {:keys [password roles posts] :as params}]
+  (validate-password! password)
   (ensure-unique-user! {:query-fn query-fn} params nil)
   (let [hashed (security/hash-password password)]
     (let [user-id (db/insert-and-get-id! query-fn db :create-user!
@@ -186,15 +156,17 @@
 
 
 (defn update-user!
-  "更新用户信息,可选更新密码."
+  "更新用户信息. :password 只能是新的明文密码 (校验策略后加密); 不传则不改密码."
   [{:keys [query-fn]} {:keys [user-id password roles posts] :as params}]
   (ensure-unique-user! {:query-fn query-fn} params user-id)
+  (when password (validate-password! password))
   (let [update-data (-> params
-                        (dissoc :roles :posts :user-id)
+                        (dissoc :roles :posts :user-id :password)
                         (assoc :user_id user-id))
-        update-data (if password
-                      (assoc update-data :password (security/hash-password password))
-                      update-data)]
+        update-data (merge {:dept_id nil :nick_name nil :user_type nil :email nil :phonenumber nil
+                            :sex nil :avatar nil :status nil :remark nil :update_by nil}
+                           update-data
+                           {:password (when password (security/hash-password password))})]
     (query-fn :update-user! update-data)
     ;; 更新角色关联
     (when roles
@@ -210,10 +182,10 @@
 
 
 (defn delete-user!
-  "逻辑删除单个用户,保护 admin 用户."
+  "逻辑删除单个用户,保护超级管理员用户."
   [{:keys [query-fn]} user-id]
   (let [user (query-fn :find-user-by-id {:user_id user-id})]
-    (when (or (nil? user) (= 1 user-id) (= "admin" (:user_name user)))
+    (when (or (nil? user) (= super-admin-user-id user-id))
       (throw (ex-info "admin 用户不能删除" {:user_id user-id})))
     (query-fn :delete-user! {:user_id user-id})))
 
@@ -237,3 +209,9 @@
   (query-fn :delete-user-roles! {:user_id user-id})
   (doseq [rid role-ids]
     (query-fn :insert-user-role! {:user_id user-id :role_id rid})))
+
+
+(defn user-options
+  "选人组件: 有效用户的编号, 账号, 昵称与部门."
+  [{:keys [query-fn]}]
+  (query-fn :user-options {}))

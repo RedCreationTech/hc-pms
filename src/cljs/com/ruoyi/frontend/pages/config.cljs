@@ -24,7 +24,7 @@
                     :on-change #(set-keyword! (.. % -target -value))}]]
       [page-search/search-actions
        [page-toolbar/search-button {:icon (r/as-element [:> SearchOutlined])
-                                    :on-click #(rf/dispatch [:configs/fetch {:configName keyword}])}]
+                                    :on-click #(rf/dispatch [:configs/fetch {:config_name keyword}])}]
        [page-toolbar/reset-button {:icon (r/as-element [:> ReloadOutlined])
                                    :on-click #(do (set-keyword! "")
                                                   (rf/dispatch [:configs/fetch {}]))}]]]]))
@@ -108,11 +108,11 @@
      [search-bar]
      [page-toolbar/page-toolbar
       {:left [page-toolbar/toolbar-left
-              [page-toolbar/toolbar-button {:kind :add
+              [page-toolbar/toolbar-button {:perms "system:config:add" :kind :add
                                             :icon (r/as-element [:> PlusOutlined])
                                             :on-click #(do (set-editing! nil) (set-modal-visible! true))
                                             :label "新增"}]
-              [page-toolbar/toolbar-button {:kind :export
+              [page-toolbar/toolbar-button {:perms "system:config:export" :kind :export
                                             :icon (r/as-element [:> DownloadOutlined])
                                             :on-click #(api/export-configs {})
                                             :label "导出"}]]
@@ -122,7 +122,7 @@
                                                 :on-click #(rf/dispatch [:configs/fetch {}])}]
                [page-toolbar/round-tool-button {:title "刷新"
                                                 :icon (r/as-element [:> ReloadOutlined])
-                                                :on-click #(rf/dispatch [:configs/fetch {}])}]]}]
+                                                :on-click #(rf/dispatch [:configs/refetch])}]]}]
      [antd/table {:rowKey "config_id" :loading loading? :scroll #js {:x 800}
                   :rowSelection #js {}
                   :columns (config-columns

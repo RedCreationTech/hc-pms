@@ -2,7 +2,7 @@
 // 运行: npx playwright test tests/e2e/designer-report.spec.js
 // 截图: test-results/designer-report/
 const { test, expect } = require('playwright/test');
-const { login } = require('./auth-helper');
+const { login, ensureBpmForm } = require('./auth-helper');
 const fs = require('fs');
 
 const SHOT_DIR = 'test-results/designer-report';
@@ -20,6 +20,7 @@ test('设计器能力 + BPM 全链路', async ({ page }) => {
   page.on('pageerror', e => errs.push('PE: ' + e.message.slice(0, 120)));
 
   await login(page);
+  await ensureBpmForm(page);
 
   // ═══ 1. 表单设计器总览 ═══
   await page.goto('/office/bpm/form');
@@ -75,17 +76,26 @@ test('设计器能力 + BPM 全链路', async ({ page }) => {
 
   // ═══ 8. 填表 + 校验 ═══
   const fi = page.locator('.ant-modal .ant-form-item');
-  const reason = fi.filter({ hasText: '报销事由' }).first().locator('input');
-  await reason.click();
-  await reason.pressSequentially('客户招待费');
-  const amount = fi.filter({ hasText: '报销金额' }).first().locator('input');
-  await amount.click();
-  await amount.pressSequentially('500');
-  await page.getByRole('button', { name: /添加一行/ }).click();
-  await page.waitForTimeout(600);
-  const subInputs = fi.filter({ hasText: '费用明细' }).locator('input');
-  await subInputs.first().click();
-  await subInputs.first().pressSequentially('餐费');
+  const fillField = async (label, text) => {
+    const item = fi.filter({ hasText: label }).first();
+    if (!(await item.count())) return false;
+    const box = item.locator('input:not([type=hidden]), textarea').first();
+    await box.click();
+    await box.pressSequentially(text);
+    return true;
+  };
+  if (await fillField('报销事由', '客户招待费')) {
+    await fillField('报销金额', '500');
+    await page.getByRole('button', { name: /添加一行/ }).click();
+    await page.waitForTimeout(600);
+    const subInputs = fi.filter({ hasText: '费用明细' }).locator('input');
+    await subInputs.first().click();
+    await subInputs.first().pressSequentially('餐费');
+  } else {
+    // 当前种子: 请假审批使用模型内嵌表单 (请假天数 / 请假原因), 未绑定上面编辑的独立表单
+    await fillField('请假天数', '2');
+    await fillField('请假原因', '客户现场支持');
+  }
   await page.waitForTimeout(600);
   await shot(page, '08-填表完成(子表单一行)');
 
@@ -102,7 +112,7 @@ test('设计器能力 + BPM 全链路', async ({ page }) => {
   await taskRows.last().getByRole('button', { name: '通过' }).click();
   await page.waitForTimeout(3000);
   await shot(page, '10-审批弹窗(子表单回显+意见)');
-  const opinion = page.locator('.ant-modal textarea[placeholder*="审批意见"]');
+  const opinion = page.locator('.ant-modal textarea[placeholder*="意见"]').first(); // 占位 "请输入意见(可选)"
   await opinion.fill('同意');
   await page.getByRole('button', { name: /确\s*定/ }).click();
   await page.waitForTimeout(2000);

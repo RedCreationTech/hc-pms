@@ -90,3 +90,20 @@ DELETE FROM sys_online WHERE session_id = :session_id
 
 -- :name find-online-user-by-session :? :1
 SELECT * FROM sys_online WHERE session_id = :session_id
+
+-- :name delete-online-users-by-name! :! :n
+-- :doc 删除某用户的全部在线记录 (停用, 删除, 重置密码时)
+DELETE FROM sys_online WHERE login_name = :login_name
+
+-- :name list-token-revokes :? :*
+-- :doc 未过期的令牌撤销记录
+SELECT revoke_key, revoked_at, expires_at FROM sys_token_revoke
+
+-- :name insert-token-revoke! :! :n
+INSERT INTO sys_token_revoke (revoke_key, revoked_at, expires_at) VALUES (:revoke_key, :revoked_at, :expires_at)
+
+-- :name delete-token-revoke! :! :n
+DELETE FROM sys_token_revoke WHERE revoke_key = :revoke_key
+
+-- :name delete-expired-token-revokes! :! :n
+DELETE FROM sys_token_revoke WHERE expires_at < :now

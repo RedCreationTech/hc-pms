@@ -119,9 +119,25 @@
                          effects {:db (activate-page-tab db page)
                                   :router/navigate! (cond-> [page]
                                                       (seq query) (conj query))}]
-                     (if fetch
-                       (assoc effects :dispatch fetch)
-                       effects))))
+                     ;; 切换页面时顺带刷新权限 (节流), 角色/菜单调整后无需重新登录
+                     (assoc effects :dispatch-n (cond-> [[:auth/refresh-info]]
+                                                  fetch (conj fetch))))))
+
+
+(def info-refresh-interval-ms
+  "权限信息刷新节流间隔."
+  3000)
+
+
+(rf/reg-event-fx :auth/refresh-info
+                 ;; 可传 :force 跳过节流 (例如刚修改了角色菜单).
+                 (fn [{:keys [db]} [_ force]]
+                   (let [now (.now js/Date)
+                         last-at (get-in db [:auth :info-fetched-at] 0)]
+                     (when (and (get-in db [:auth :token])
+                                (or (= :force force) (> (- now last-at) info-refresh-interval-ms)))
+                       {:db (assoc-in db [:auth :info-fetched-at] now)
+                        :api/get-info nil}))))
 
 
 (rf/reg-event-db :auth/set-token
@@ -185,36 +201,42 @@
                             (assoc :notification {:type :error :message msg}))}))
 
 
+(defn- clear-session
+  "清除本地会话状态与缓存的用户/菜单快照."
+  [db]
+  (try
+    (.removeItem js/localStorage "ruoyi_token")
+    (.removeItem js/localStorage "ruoyi_user")
+    (catch js/Error _))
+  (-> db
+      (assoc-in [:auth :token] nil)
+      (assoc-in [:auth :user] nil)
+      (assoc-in [:menus :items] [])
+      (assoc-in [:menus :tree-data] [])
+      (assoc :tabs {:items [{:key :dashboard :label "首页" :closable false}]
+                    :active :dashboard})))
+
+
 (rf/reg-event-fx :auth/logout
                  (fn [{:keys [db]} _]
-                   (try
-                     (.removeItem js/localStorage "ruoyi_token")
-                     (.removeItem js/localStorage "ruoyi_user")
-                     (catch js/Error _))
-                   {:db (-> db
-                            (assoc-in [:auth :token] nil)
-                            (assoc-in [:auth :user] nil)
-                            (assoc-in [:menus :items] [])
-                            (assoc-in [:menus :tree-data] [])
-                            (assoc :tabs {:items [{:key :dashboard :label "首页" :closable false}]
-                                          :active :dashboard}))
-                    :api/logout nil
+                   ;; 先取出令牌再清除本地状态, 服务端据此撤销会话
+                   {:api/logout (get-in db [:auth :token])
+                    :db (clear-session db)
+                    :dispatch [:navigate :login]}))
+
+
+(rf/reg-event-fx :auth/session-expired
+                 (fn [{:keys [db]} [_ msg]]
+                   (when (get-in db [:auth :token])
+                     (antd/warning! (or msg "登录已失效, 请重新登录")))
+                   {:db (clear-session db)
                     :dispatch [:navigate :login]}))
 
 
 (rf/reg-fx :api/logout
-           (fn [_]
-             (api/logout
-               (fn [_]
-                 (try
-                   (.removeItem js/localStorage "ruoyi_token")
-                   (.removeItem js/localStorage "ruoyi_user")
-                   (catch js/Error _)))
-               (fn [_]
-                 (try
-                   (.removeItem js/localStorage "ruoyi_token")
-                   (.removeItem js/localStorage "ruoyi_user")
-                   (catch js/Error _))))))
+           (fn [token]
+             (when token
+               (api/logout token (fn [_]) (fn [_])))))
 
 
 (rf/reg-event-fx :auth/fetch-info
@@ -351,9 +373,10 @@
 
 
 (rf/reg-event-fx :users/fetch
+                 ;; 新增/修改/删除后的刷新沿用搜索框中的条件, 列表与输入框保持一致.
                  (fn [{:keys [db]} [_ params]]
                    {:db (assoc-in db [:users :loading?] true)
-                    :api/list-users params}))
+                    :api/list-users (merge (get-in db [:users :query-params]) params)}))
 
 
 (rf/reg-event-db :dicts/set-types
@@ -451,9 +474,17 @@
 
 
 (rf/reg-event-fx :configs/fetch
+                 ;; 记住本次查询条件, 新增/修改/删除后按同一条件刷新 (:configs/refetch).
                  (fn [{:keys [db]} [_ params]]
-                   {:db (assoc-in db [:configs :loading?] true)
+                   {:db (-> db
+                            (assoc-in [:configs :loading?] true)
+                            (assoc-in [:configs :params] params))
                     :api/list-configs params}))
+
+
+(rf/reg-event-fx :configs/refetch
+                 (fn [{:keys [db]} _]
+                   {:dispatch [:configs/fetch (get-in db [:configs :params] {})]}))
 
 
 (rf/reg-fx :api/list-configs
@@ -486,7 +517,7 @@
 (rf/reg-event-fx :configs/created
                  (fn [{:keys [db]} _]
                    {:db (assoc-in db [:notification] nil)
-                    :dispatch [:configs/fetch {}]}))
+                    :dispatch [:configs/refetch]}))
 
 
 (rf/reg-event-fx :configs/update
@@ -510,7 +541,7 @@
 (rf/reg-event-fx :configs/updated
                  (fn [{:keys [db]} _]
                    {:db db
-                    :dispatch [:configs/fetch {}]}))
+                    :dispatch [:configs/refetch]}))
 
 
 (rf/reg-event-fx :configs/delete
@@ -534,7 +565,7 @@
 (rf/reg-event-fx :configs/deleted
                  (fn [{:keys [db]} _]
                    {:db db
-                    :dispatch [:configs/fetch {}]}))
+                    :dispatch [:configs/refetch]}))
 
 
 (rf/reg-event-db :oper-logs/set-list
@@ -678,9 +709,19 @@
 
 
 (rf/reg-event-fx :login-logs/unlock
-                 (fn [{:keys [db]} [_ username]]
+                 (fn [_ [_ username]]
+                   {:api/unlock-login-user username}))
+
+
+(rf/reg-fx :api/unlock-login-user
+           (fn [username]
+             (api/unlock-login-user
+               username
+               (fn [result]
+                 (if (= 200 (:code result))
                    (antd/success! (str "用户 " username " 解锁成功"))
-                   {:db db}))
+                   (antd/error! (or (:msg result) "解锁失败"))))
+               (fn [_] (antd/error! "网络错误")))))
 
 
 (rf/reg-fx :api/clear-login-logs
@@ -973,9 +1014,9 @@
            (fn [params]
              (api/change-password params
                                   (fn [result]
-                                    (when (= 200 (:code result))
-                                      (js/alert "密码修改成功"))
-                                    (when (not= 200 (:code result))
+                                    (if (= 200 (:code result))
+                                      ;; 改密后服务端撤销了全部令牌 (含当前会话), 需要重新登录
+                                      (rf/dispatch [:auth/session-expired "密码修改成功, 请使用新密码重新登录"])
                                       (js/alert (:msg result))))
                                   (fn [_]))))
 
@@ -1003,9 +1044,10 @@
 
 
 (rf/reg-event-fx :roles/fetch
+                 ;; 新增/修改/删除后的刷新沿用搜索框中的条件, 列表与输入框保持一致.
                  (fn [{:keys [db]} [_ params]]
                    {:db (assoc-in db [:roles :loading?] true)
-                    :api/list-roles params}))
+                    :api/list-roles (merge (get-in db [:roles :query-params]) params)}))
 
 
 (rf/reg-fx :api/list-roles
@@ -1074,11 +1116,12 @@
            (fn [[id params]]
              (api/update-role id params
                               (fn [result]
-                                (when (= 200 (:code result))
-                                  (antd/success! "权限更新成功，正在刷新...")
-                                  (rf/dispatch [:roles/fetch {}])
-                                  ;; 刷新页面以更新菜单
-                                  (js/setTimeout #(.reload js/location) 500)))
+                                (if (= 200 (:code result))
+                                  (do (antd/success! "权限更新成功")
+                                      (rf/dispatch [:roles/fetch {}])
+                                      ;; 当前账号若也持有该角色, 立即刷新自己的菜单与按钮权限 (无需整页刷新)
+                                      (rf/dispatch [:auth/refresh-info :force]))
+                                  (antd/error! (or (:msg result) "权限更新失败"))))
                               (fn [_] (antd/error! "网络错误")))))
 
 
@@ -1118,8 +1161,10 @@
                  (fn [{:keys [db]} [_ role]]
                    {:db (-> db
                             (assoc-in [:roles :permission-visible?] true)
-                            (assoc-in [:roles :permission-role] role))
-                    :api/fetch-role-for-permission (:role_id role)}))
+                            (assoc-in [:roles :permission-role] role)
+                            (assoc-in [:roles :checked-keys] []))
+                    :api/fetch-role-for-permission (:role_id role)
+                    :api/menu-tree nil}))
 
 
 (rf/reg-fx :api/fetch-role-for-permission
@@ -1255,6 +1300,12 @@
                    (assoc-in db [:roles :checked-keys] keys)))
 
 
+(rf/reg-event-db :roles/update-menu-selection
+                 ;; 父子联动勾选: 授权集合 = 全选节点 + 半选的上级目录/菜单 (上级不授权则子菜单与按钮不可达).
+                 (fn [db [_ checked half-checked]]
+                   (assoc-in db [:roles :checked-keys] (vec (distinct (map str (concat checked half-checked)))))))
+
+
 (rf/reg-event-fx :roles/save-permission
                  (fn [{:keys [db]} _]
                    (let [role-id (get-in db [:roles :permission-role :role_id])
@@ -1308,23 +1359,21 @@
 
 
 (rf/reg-event-fx :roles/save-data-scope
-                 (fn [{:keys [db]} _]
-                   (let [role-id (get-in db [:roles :data-scope-role :role_id])
-                         data-scope (get-in db [:roles :data-scope] "1")
-                         dept-ids (get-in db [:roles :data-scope-checked-keys] [])]
-                     {:db (assoc-in db [:roles :data-scope-visible?] false)
-                      :api/save-data-scope {:role_id role-id
-                                            :data_scope data-scope
-                                            :dept_ids (clojure.string/join "," dept-ids)}})))
+                 (fn [{:keys [db]} [_ {:keys [role_id data_scope dept_ids]}]]
+                   {:db (assoc-in db [:roles :data-scope-visible?] false)
+                    :api/save-data-scope {:role_id role_id
+                                          :data_scope data_scope
+                                          :dept_ids (clojure.string/join "," dept_ids)}}))
 
 
 (rf/reg-fx :api/save-data-scope
            (fn [params]
              (api/set-role-data-scope params
                                       (fn [result]
-                                        (when (= 200 (:code result))
-                                          (antd/success! "数据权限设置成功")
-                                          (rf/dispatch [:roles/fetch {}])))
+                                        (if (= 200 (:code result))
+                                          (do (antd/success! "数据权限设置成功")
+                                              (rf/dispatch [:roles/fetch {}]))
+                                          (antd/error! (or (:msg result) "设置失败"))))
                                       (fn [_] (antd/error! "设置失败")))))
 
 
@@ -1499,11 +1548,20 @@
              (api/select-role-auth-user-all
                params
                (fn [result]
-                 (when (= 200 (:code result))
-                   (antd/success! "批量授权成功")
-                   (rf/dispatch [:roles/fetch-unallocated])
-                   (rf/dispatch [:roles/set-unallocated-selected []])))
+                 (if (= 200 (:code result))
+                   (do (antd/success! "授权成功")
+                       (rf/dispatch [:roles/fetch-unallocated])
+                       (rf/dispatch [:roles/fetch-allocated])
+                       (rf/dispatch [:roles/set-unallocated-selected []]))
+                   (antd/error! (or (:msg result) "授权失败"))))
                (fn [_] (antd/error! "批量授权失败")))))
+
+
+(rf/reg-event-fx :roles/select-users
+                 (fn [{:keys [db]} [_ ids]]
+                   (let [role (get-in db [:roles :user-alloc-role])]
+                     {:api/select-role-auth-user-all {:role_id (:role_id role)
+                                                      :user_ids (clojure.string/join "," ids)}})))
 
 
 ;; ────── 部门管理 ──────
@@ -1514,8 +1572,10 @@
 (rf/reg-event-db :depts/set-list
                  (fn [db [_ data]]
                    (let [items (if (sequential? data) data (:rows data []))
-                         tree (build-dept-tree items 0)
-                         _ (js/console.log "[depts/set-list] tree count:" (count tree) "first:" (clj->js (first tree)))]
+                         ;; 以可见部门的最高层为根 (数据权限只返回部分部门时, 上级不在列表中)
+                         ids (set (map :dept_id items))
+                         tree (vec (mapcat #(build-dept-tree items %)
+                                           (distinct (keep #(when-not (contains? ids (:parent_id %)) (:parent_id %)) items))))]
                      (-> db
                          (assoc-in [:depts :items] items)
                          (assoc-in [:depts :tree] tree)
@@ -1543,6 +1603,22 @@
                                                   (filter #(= (:status params) (:status %))))]
                                    (rf/dispatch [:depts/set-list filtered]))))
                              (fn [_]))))
+
+
+(rf/reg-event-fx :depts/fetch-user-tree
+                 (fn [{:keys [db]} _]
+                   {:db (assoc-in db [:depts :loading?] true)
+                    :api/user-dept-tree nil}))
+
+
+(rf/reg-fx :api/user-dept-tree
+           (fn [_]
+             (api/user-dept-tree
+               (fn [result]
+                 (if (= 200 (:code result))
+                   (rf/dispatch [:depts/set-list (:data result)])
+                   (rf/dispatch [:depts/set-list []])))
+               (fn [_] (rf/dispatch [:depts/set-list []])))))
 
 
 (rf/reg-event-fx :depts/fetch
@@ -1585,14 +1661,23 @@
                        {:db (assoc-in db [:depts :modal-visible?] false) :api/create-dept values}))))
 
 
+(defn- dept-result
+  "部门操作回调: 成功提示并刷新, 失败显示服务端原因 (如同级重名, 存在下级, 越权)."
+  [ok-msg]
+  (fn [r]
+    (if (= 200 (:code r))
+      (do (antd/success! ok-msg) (rf/dispatch [:depts/fetch {}]))
+      (antd/error! (or (:msg r) "操作失败")))))
+
+
 (rf/reg-fx :api/create-dept
            (fn [params]
-             (api/create-dept params (fn [r] (when (= 200 (:code r)) (antd/success! "创建成功") (rf/dispatch [:depts/fetch {}]))) (fn [_] (antd/error! "网络错误")))))
+             (api/create-dept params (dept-result "创建成功") (fn [_] (antd/error! "网络错误")))))
 
 
 (rf/reg-fx :api/update-dept
            (fn [[id params]]
-             (api/update-dept id params (fn [r] (when (= 200 (:code r)) (antd/success! "更新成功") (rf/dispatch [:depts/fetch {}]))) (fn [_] (antd/error! "网络错误")))))
+             (api/update-dept id params (dept-result "更新成功") (fn [_] (antd/error! "网络错误")))))
 
 
 (rf/reg-event-fx :depts/delete
@@ -1606,7 +1691,7 @@
 
 (rf/reg-fx :api/delete-dept
            (fn [id]
-             (api/delete-dept id (fn [r] (when (= 200 (:code r)) (antd/success! "删除成功") (rf/dispatch [:depts/fetch {}]))) (fn [_] (antd/error! "网络错误")))))
+             (api/delete-dept id (dept-result "删除成功") (fn [_] (antd/error! "网络错误")))))
 
 
 (rf/reg-fx :api/change-dept-status
@@ -2845,7 +2930,8 @@
 
 (rf/reg-fx :api/list-role-options
            (fn [_]
-             (api/list-roles {:page 1 :size 1000}
+             ;; 选项接口仅需登录 (只返回编号/名称/字符/状态), 部门管理员没有角色管理权限也能给用户选角色
+             (api/role-options {}
                              (fn [result]
                                (when (= 200 (:code result))
                                  (rf/dispatch [:users/set-role-options (:data result)])))
@@ -2854,7 +2940,7 @@
 
 (rf/reg-fx :api/list-post-options
            (fn [_]
-             (api/list-posts {:page 1 :size 1000}
+             (api/post-options {}
                              (fn [result]
                                (when (= 200 (:code result))
                                  (rf/dispatch [:users/set-post-options (:data result)])))

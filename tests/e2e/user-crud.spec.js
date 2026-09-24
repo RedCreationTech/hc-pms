@@ -77,7 +77,9 @@ test.describe('用户管理 CRUD', () => {
     // 等待弹窗关闭
     await expect(page.getByRole('heading', { name: '添加用户' })).toBeHidden({ timeout: 10000 });
 
-    // 确认列表中出现了新增记录（排除 antd 隐藏的 measure row）
+    // 用户较多时新记录可能不在第一页: 按用户名检索后再确认（排除 antd 隐藏的 measure row）
+    await page.getByPlaceholder('请输入用户名称').first().fill(userName);
+    await page.getByRole('button', { name: /搜\s*索/ }).click();
     const newRow = page.locator('table tbody tr:not(.ant-table-measure-row)', { hasText: userName });
     await expect(newRow).toBeVisible({ timeout: 10000 });
 

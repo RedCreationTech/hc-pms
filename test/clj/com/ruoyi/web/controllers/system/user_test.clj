@@ -72,7 +72,25 @@
       (is (= 1 (:dept_filter_enabled @captured)))
       (is (= [4] (:dept_ids @captured)))
       (is (= "2026-06-02" (:begin_time @captured)))
-      (is (= "2026-06-30 23:59:59" (:end_time @captured))))))
+      (is (= "2026-06-30 23:59:59" (:end_time @captured)))
+      (is (= 0 (:scope_all @captured)) "无实时身份时数据范围为空 (fail closed)")
+      (is (= [-1] (:scope_dept_ids @captured))))))
+
+
+(deftest test-list-users-data-scope-params
+  (testing "超级管理员不过滤; 本部门范围只查本部门"
+    (let [captured (atom nil)
+          service {:query-fn (fn [q p]
+                               (case q
+                                 :list-users (do (reset! captured p) [])
+                                 :count-users {:total 0}
+                                 []))}]
+      (user/list-users {:user-service service} {:query-params {} :actor {:admin? true}})
+      (is (= 1 (:scope_all @captured)))
+      (user/list-users {:user-service service} {:query-params {} :actor {:user_id 7 :dept_id 4 :roles [{:role_id 3 :data_scope "3"}]}})
+      (is (= 0 (:scope_all @captured)))
+      (is (= [4] (:scope_dept_ids @captured)))
+      (is (= -1 (:scope_user_id @captured))))))
 
 
 (deftest test-get-user
@@ -161,24 +179,6 @@
       (is (= 200 (:status response))))))
 
 
-(deftest test-import-users
-  (testing "导入用户"
-    (let [request {:body-params {:rows [{:user_name "import1" :nick_name "导入1"}
-                                        {:user_name "import2" :nick_name "导入2"}]}
-                   :identity admin-identity}
-          response (user/import-users {:user-service mock-user-service} request)]
-      (is (map? response))
-      (is (= 200 (:status response))))))
-
-
-(deftest test-export-users
-  (testing "导出用户CSV"
-    (let [request {:query-params {} :identity admin-identity}
-          response (user/export-users {:user-service mock-user-service} request)]
-      (is (map? response))
-      (is (= 200 (:status response))))))
-
-
 (deftest test-auth-role
   (testing "获取用户角色列表"
     (let [request {:path-params {:id "1"} :identity admin-identity}
@@ -193,12 +193,5 @@
                    :body-params {:role_ids [1 2]}
                    :identity admin-identity}
           response (user/update-auth-role {:user-service mock-user-service} request)]
-      (is (map? response))
-      (is (= 200 (:status response))))))
-
-
-(deftest test-import-template
-  (testing "下载用户导入模板"
-    (let [response (user/import-template {} {})]
       (is (map? response))
       (is (= 200 (:status response))))))

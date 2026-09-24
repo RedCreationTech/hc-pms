@@ -109,11 +109,11 @@
                                                    (rf/dispatch [:dicts/fetch-types {}]))}]]]]
      [page-toolbar/page-toolbar
       {:left [page-toolbar/toolbar-left
-              [page-toolbar/toolbar-button {:kind :add
+              [page-toolbar/toolbar-button {:perms "system:dict:add" :kind :add
                                             :icon (r/as-element [:> PlusOutlined])
                                             :on-click #(do (set-editing! nil) (set-modal-visible! true))
                                             :label "新增"}]
-              [page-toolbar/toolbar-button {:kind :export
+              [page-toolbar/toolbar-button {:perms "system:dict:export" :kind :export
                                             :icon (r/as-element [:> DownloadOutlined])
                                             :on-click #(api/export-dicts {})
                                             :label "导出"}]]
@@ -232,7 +232,7 @@
          "返回类型列表"]]
        [page-toolbar/page-toolbar
         {:left [page-toolbar/toolbar-left
-                [page-toolbar/toolbar-button {:kind :add
+                [page-toolbar/toolbar-button {:perms "system:dict:add" :kind :add
                                               :icon (r/as-element [:> PlusOutlined])
                                               :on-click #(do (set-editing! nil) (set-modal-visible! true))
                                               :label "新增"}]]

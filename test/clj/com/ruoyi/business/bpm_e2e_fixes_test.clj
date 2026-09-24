@@ -203,7 +203,7 @@
   (let [app (handler) token (login-token "admin") h (auth-hdr token)
         u (str "dlgu" (rand-int 100000))
         _ (is (= 200 (:code (parse-json (POST app "/api/system/user"
-                                              {:user_name u :nick_name "委派测试" :password "admin123"} h)))))
+                                              {:user_name u :nick_name "委派测试" :password "admin123" :roles [2]} h)))))
         u-token (login-token u)
         u-hdr (auth-hdr u-token)
         {:keys [model-id]} (deploy-model! app h)
@@ -244,3 +244,122 @@
       (let [r (parse-json (POST app (str "/api/business/bpm/task/" t1 "/delegate") {} h))]
         (is (= 500 (:code r)))
         (is (re-find #"to_user" (:msg r)))))))
+
+
+(defn- DELETE
+  [app path body headers]
+  (:response (-> (p/session app)
+                 (p/request path
+                            :request-method :delete
+                            :content-type "application/json"
+                            :headers headers
+                            :body (json/write-str body)))))
+
+
+(deftest bpm-task-ownership-test
+  (let [app (handler) h (auth-hdr (login-token "admin"))
+        u (str "ownu" (rand-int 100000))
+        _ (is (= 200 (:code (parse-json (POST app "/api/system/user"
+                                              {:user_name u :nick_name "归属测试" :password "admin123" :roles [2]} h)))))
+        u-hdr (auth-hdr (login-token u))
+        {:keys [model-id]} (deploy-model! app h)
+        pid (start-instance! app h model-id)
+        t1 (:task-id (first (todo-of app h pid)))
+        code #(:code (parse-json %))]
+    (is (some? t1))
+    (testing "非办理人不能审批, 驳回, 认领, 转办, 委派, 办结, 加签, 退回列表"
+      (is (= 403 (code (POST app (str "/api/business/bpm/task/" t1 "/approve") {:comment "越权"} u-hdr))))
+      (is (= 403 (code (POST app (str "/api/business/bpm/task/" t1 "/reject") {:comment "越权"} u-hdr))))
+      (is (= 403 (code (POST app (str "/api/business/bpm/task/" t1 "/reject") {:comment "越权" :return_node_id "approve1"} u-hdr))))
+      (is (= 403 (code (POST app (str "/api/business/bpm/task/" t1 "/claim") {} u-hdr))))
+      (is (= 403 (code (POST app (str "/api/business/bpm/task/" t1 "/transfer") {:to_user u} u-hdr))))
+      (is (= 403 (code (POST app (str "/api/business/bpm/task/" t1 "/delegate") {:to_user u} u-hdr))))
+      (is (= 403 (code (POST app "/api/business/bpm/task/resolve" {:taskId t1} u-hdr))))
+      (is (= 403 (code (POST app "/api/business/bpm/task/create-sign" {:taskId t1 :userIds [u] :type "after" :reason "x"} u-hdr))))
+      (is (= 403 (code (GET app (str "/api/business/bpm/task/return-list?taskId=" t1) {} u-hdr)))))
+    (testing "非参与人不能查看任务, 轨迹, 流程图, 也不能抄送或取消"
+      (is (= 403 (code (GET app (str "/api/business/bpm/task/" t1 "/detail") {} u-hdr))))
+      (is (= 403 (code (GET app (str "/api/business/bpm/instance/history/" pid) {} u-hdr))))
+      (is (= 403 (code (GET app (str "/api/business/bpm/instance/diagram/" pid) {} u-hdr))))
+      (is (= 403 (code (POST app "/api/business/bpm/task/copy" {:processInstanceId pid :userIds [u] :reason "x"} u-hdr))))
+      (is (= 403 (code (DELETE app "/api/business/bpm/instance/cancel" {:id pid :reason "x"} u-hdr)))))
+    (testing "非流程管理员的实例列表只返回本人发起的"
+      (let [own-pid (start-instance! app u-hdr model-id)
+            rows (get-in (parse-json (GET app "/api/business/bpm/instance?page=1&size=200" {} u-hdr)) [:data :rows])
+            admin-rows (get-in (parse-json (GET app "/api/business/bpm/instance?page=1&size=200" {} h)) [:data :rows])]
+        (is (seq rows))
+        (is (every? #(= u (:starter_id %)) rows))
+        (is (some #(= own-pid (:process_instance_id %)) rows))
+        (is (some #(= pid (:process_instance_id %)) admin-rows) "流程管理员可以看到全部")))
+    (testing "被抄送后成为参与人, 可以查看轨迹"
+      (is (= 200 (code (POST app "/api/business/bpm/task/copy" {:processInstanceId pid :userIds [u] :reason "知会"} h))))
+      (is (= 200 (code (GET app (str "/api/business/bpm/instance/history/" pid) {} u-hdr)))))
+    (testing "转办给该用户后, 该用户可以办理"
+      (is (= 200 (code (POST app (str "/api/business/bpm/task/" t1 "/transfer") {:to_user u} h))))
+      (is (= 200 (code (GET app (str "/api/business/bpm/task/" t1 "/detail") {} u-hdr))))
+      (is (= 200 (code (POST app (str "/api/business/bpm/task/" t1 "/approve") {:comment "同意"} u-hdr)))))))
+
+
+(deftest bpm-instance-suspend-activate-test
+  (let [app (handler) h (auth-hdr (login-token "admin"))
+        {:keys [model-id]} (deploy-model! app h)
+        pid (start-instance! app h model-id)
+        t1 (:task-id (first (todo-of app h pid)))]
+    (testing "挂起后不能审批, 激活后恢复"
+      (is (= 200 (:code (parse-json (POST app (str "/api/business/bpm/instance/" pid "/suspend") {} h)))))
+      (is (= 500 (:code (parse-json (POST app (str "/api/business/bpm/task/" t1 "/approve") {:comment "挂起中"} h)))))
+      (is (= 200 (:code (parse-json (POST app (str "/api/business/bpm/instance/" pid "/activate") {} h)))))
+      (is (= 200 (:code (parse-json (POST app (str "/api/business/bpm/task/" t1 "/approve") {:comment "同意"} h))))))))
+
+
+(deftest oa-leave-and-reimburse-start-test
+  (testing "请假与报销发起写入流程实例映射 (含实例名), 我的流程可见"
+    (let [app (handler) h (auth-hdr (login-token "admin"))
+          leave (parse-json (POST app "/api/business/oa/leave" {:days 2 :reason "单元测试请假"} h))
+          reimb (parse-json (POST app "/api/business/oa/reimburse" {:amount 88.5 :reason "单元测试报销"} h))
+          rows (get-in (parse-json (GET app "/api/business/bpm/instance?page=1&size=200" {} h)) [:data :rows])]
+      (is (= 200 (:code leave)) (:msg leave))
+      (is (= 200 (:code reimb)) (:msg reimb))
+      (is (some #(re-find #"请假申请 2天" (str (:name %))) rows))
+      (is (some #(re-find #"报销申请" (str (:name %))) rows)))))
+
+
+(defn- dept-leader-bpmn
+  [key dept-id]
+  (str "<?xml version=\"1.0\"?><definitions xmlns=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" "
+       "xmlns:flowable=\"http://flowable.org/bpmn\" id=\"d\" targetNamespace=\"http://bpmn.io/schema/bpmn\">"
+       "<process id=\"" key "\" name=\"部门负责人审批\" isExecutable=\"true\">"
+       "<startEvent id=\"start\"/>"
+       "<userTask id=\"leader\" name=\"部门负责人审批\" flowable:candidateGroups=\"dept-leader:" dept-id "\"/>"
+       "<endEvent id=\"end\"/>"
+       "<sequenceFlow id=\"f1\" sourceRef=\"start\" targetRef=\"leader\"/>"
+       "<sequenceFlow id=\"f2\" sourceRef=\"leader\" targetRef=\"end\"/>"
+       "</process></definitions>"))
+
+
+(deftest bpm-identity-sync-follows-org-changes-test
+  (testing "更换部门负责人后, 下次发起即同步: 新负责人收到待办, 原负责人不再是候选人 (成员关系被移除)"
+    (let [app (handler) h (auth-hdr (login-token "admin"))
+          u (str "leadu" (rand-int 100000))
+          _ (is (= 200 (:code (parse-json (POST app "/api/system/user" {:user_name u :nick_name "负责人测试" :password "admin123" :roles [2]} h)))))
+          uid (get-in (parse-json (GET app (str "/api/system/user?user_name=" u "&page=1&size=5") {} h)) [:data :rows 0 :user_id])
+          dname (str "同步部门" (rand-int 100000))
+          _ (is (= 200 (:code (parse-json (POST app "/api/system/dept" {:parent_id 1 :dept_name dname :order_num 9 :leader_id uid} h)))))
+          dept-id (:dept_id (first (filter #(= dname (:dept_name %)) (:data (parse-json (GET app "/api/system/dept" {} h))))))
+          u-hdr (auth-hdr (login-token u))
+          key (str "leadsync" (System/currentTimeMillis))
+          m (parse-json (POST app "/api/business/bpm/model" {:model_key key :model_name "负责人同步" :category_id 0 :form_type "1"
+                                                             :form_json "{\"fields\":[]}"} h))
+          _ (is (= 200 (:code m)))
+          mid (:model_id (first (filter #(= key (:model_key %)) (get-in (parse-json (GET app "/api/business/bpm/model?page=1&size=500" {} h)) [:data :rows]))))
+          _ (is (= 200 (:code (parse-json (PUT app (str "/api/business/bpm/model/" mid)
+                                               {:model_id mid :model_name "负责人同步" :category_id 0 :form_type "1" :form_json "{\"fields\":[]}"
+                                                :bpmn_xml (dept-leader-bpmn key dept-id) :status "1" :remark ""} h)))))
+          _ (is (= 200 (:code (parse-json (POST app (str "/api/business/bpm/model/deploy/" mid) {} h)))))
+          pid1 (start-instance! app h mid)]
+      (is (seq (todo-of app u-hdr pid1)) "负责人收到待办")
+      (is (= 200 (:code (parse-json (PUT app (str "/api/system/dept/" dept-id) {:leader_id 1} h)))))
+      (let [pid2 (start-instance! app h mid)]
+        (is (seq (todo-of app h pid2)) "新负责人 (admin) 收到新待办")
+        (is (empty? (todo-of app u-hdr pid2)) "原负责人不再收到新待办")
+        (is (empty? (todo-of app u-hdr pid1)) "原负责人的候选资格随成员关系移除")))))

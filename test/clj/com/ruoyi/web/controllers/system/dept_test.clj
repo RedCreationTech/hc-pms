@@ -18,6 +18,10 @@
                  :last-insert-rowid {:last_insert_rowid 2}
                  :update-dept! nil
                  :delete-dept! nil
+                 :find-sibling-dept-by-name nil
+                 :count-child-depts {:total 0}
+                 :count-enabled-child-depts {:total 0}
+                 :count-dept-users {:total 0}
                  []))})
 
 
@@ -55,7 +59,7 @@
 (deftest test-create-dept
   (testing "创建部门"
     (let [request {:body-params {:dept_name "test" :parent_id 0}
-                   :identity admin-identity}
+                   :identity admin-identity :actor {:admin? true}}
           response (dept/create-dept {:dept-service mock-dept-service} request)]
       (is (map? response)))))
 
@@ -63,7 +67,7 @@
 (deftest test-update-dept
   (testing "更新部门"
     (let [request {:path-params {:id "1"} :body-params {:dept_name "updated"}
-                   :identity admin-identity}
+                   :identity admin-identity :actor {:admin? true}}
           response (dept/update-dept {:dept-service mock-dept-service} request)]
       (is (map? response)))))
 
@@ -79,7 +83,7 @@
   (testing "修改部门状态"
     (let [request {:path-params {:id "1"}
                    :body-params {:status "1"}
-                   :identity admin-identity}
+                   :identity admin-identity :actor {:admin? true}}
           response (dept/change-status {:dept-service mock-dept-service} request)]
       (is (map? response))
       (is (= 200 (:status response)))

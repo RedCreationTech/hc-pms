@@ -1,17 +1,19 @@
-// 通用 antd 表单交互辅助函数
+// 通用 antd 表单交互辅助函数.
+// 原文件合并时留下了两份 fillInput/clickOk 声明 (语法错误, 导致整个 e2e 目录无法一次加载), 这里合并为一份.
 const { expect } = require('playwright/test');
 
 /**
- * 向输入框填充值。
+ * 向输入框填充值 (Playwright fill 会派发 input 事件, antd 受控输入可正常响应).
  * @param {import('playwright/test').Locator} input
  * @param {string} value
  */
 async function fillInput(input, value) {
   await input.fill(value);
+  await expect(input).toHaveValue(value);
 }
 
 /**
- * 点击弹窗"确定"按钮。
+ * 点击弹窗"确定"按钮 (适配 antd "确 定" 带空格的 accessible name) 并等待弹窗关闭.
  * @param {import('playwright/test').Locator} modal
  */
 async function clickOk(modal) {
@@ -19,60 +21,18 @@ async function clickOk(modal) {
   await expect(modal).toBeHidden({ timeout: 10000 });
 }
 
-module.exports = { fillInput, clickOk };
-// DOM 操作辅助函数，处理 Ant Design/Reagent 组件在 Playwright 中的兼容性问题
-
 /**
- * 稳定填充输入框。
- * 先尝试标准 fill；若值未写入（常见于无 placeholder 的裸 input），
- * 则通过 JS 设置 value 并派发 input/change 事件。
- */
-/**
- * 稳定填充输入框。
- * 该项目的 ClojureScript + Ant Design 输入框对 Playwright 的 fill/type 不响应，
- * 因此通过 JS 逐字符设置 value 并派发 input 事件。
- */
-async function fillInput(input, value) {
-  await input.evaluate(el => { el.value = ''; });
-  for (const ch of value) {
-    await input.evaluate((el, c) => {
-      el.value += c;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-    }, ch);
-    await new Promise(r => setTimeout(r, 30));
-  }
-  await input.evaluate(el => {
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-  });
-
-  const actual = await input.inputValue().catch(() => '');
-  if (actual !== value) {
-    throw new Error(`Failed to fill input: expected "${value}", got "${actual}"`);
-  }
-}
-
-/**
- * 点击确定按钮（适配 Ant Design Modal 中 "确 定" 带空格的 accessible name）。
- */
-async function clickOk(scope) {
-  const btn = scope.getByRole('button', { name: /确\s*定/ });
-  await btn.click();
-}
-
-/**
- * 点击取消按钮。
+ * 点击取消按钮.
  */
 async function clickCancel(scope) {
-  const btn = scope.getByRole('button', { name: /取\s*消/ });
-  await btn.click();
+  await scope.getByRole('button', { name: /取\s*消/ }).click();
 }
 
 /**
- * 在弹窗或页面范围内点击第一个匹配文本的按钮。
+ * 在弹窗或页面范围内点击第一个匹配文本的按钮.
  */
 async function clickButton(scope, nameRegex) {
-  const btn = scope.getByRole('button', { name: nameRegex });
-  await btn.click();
+  await scope.getByRole('button', { name: nameRegex }).click();
 }
 
 module.exports = { fillInput, clickOk, clickCancel, clickButton };

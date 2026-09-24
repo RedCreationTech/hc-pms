@@ -10,6 +10,7 @@
     [com.ruoyi.frontend.components.icon-picker :as icon-picker]
     [com.ruoyi.frontend.components.page-search :as page-search]
     [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
+    [com.ruoyi.frontend.permission :as permission]
     [re-frame.core :as rf]
     [reagent.core :as r]
     [reagent.hooks :as hooks]))
@@ -171,14 +172,16 @@
   [page-toolbar/page-toolbar
    {:style {:padding "8px 22px 10px 22px"}
     :left [page-toolbar/toolbar-left
-           [page-toolbar/toolbar-button {:kind :add
-                                         :icon (r/as-element [:> PlusOutlined])
-                                         :on-click #(rf/dispatch [:menus/open-modal])
-                                         :label "新增"}]
-           [page-toolbar/toolbar-button {:kind :export
-                                         :icon (r/as-element [:> CheckOutlined])
-                                         :on-click on-save-sort
-                                         :label "保存排序"}]
+           (when (permission/permitted? "system:menu:add")
+             [page-toolbar/toolbar-button {:kind :add
+                                           :icon (r/as-element [:> PlusOutlined])
+                                           :on-click #(rf/dispatch [:menus/open-modal])
+                                           :label "新增"}])
+           (when (permission/permitted? "system:menu:edit")
+             [page-toolbar/toolbar-button {:kind :export
+                                           :icon (r/as-element [:> CheckOutlined])
+                                           :on-click on-save-sort
+                                           :label "保存排序"}])
            [page-toolbar/toolbar-button {:kind :import
                                          :icon (r/as-element [:> ColumnHeightOutlined])
                                          :on-click on-toggle-expand
@@ -195,7 +198,7 @@
 ;; ─── 表格列 ──────────────────────────────────────────────────────
 
 (defn- menu-columns
-  [on-order-change on-delete-click]
+  [on-order-change on-delete-click {:keys [can-add? can-edit? can-remove?]}]
   #js [#js {:title "菜单名称" :dataIndex "menu_name" :key "menu_name" :width 220
             :className "ruoyi-tree-name-cell"
             :render (fn [v ^js record]
@@ -237,18 +240,21 @@
             :render (fn [_ ^js record]
                       (r/as-element
                         [:div {:className "ruoyi-menu-actions"}
-                         [antd/button {:type "link" :size "small" :className "ruoyi-menu-action-btn"
-                                       :icon (r/as-element [:> EditOutlined])
-                                       :on-click #(rf/dispatch [:menus/edit (js->clj record :keywordize-keys true)])}
-                          "修改"]
-                         [antd/button {:type "link" :size "small" :className "ruoyi-menu-action-btn"
-                                       :icon (r/as-element [:> PlusOutlined])
-                                       :on-click #(rf/dispatch [:menus/open-modal {:parent_id (.-menu_id record)}])}
-                          "新增"]
-                         [antd/button {:type "link" :danger true :size "small" :className "ruoyi-menu-action-btn"
-                                       :icon (r/as-element [:> DeleteOutlined])
-                                       :on-click #(on-delete-click (js->clj record :keywordize-keys true))}
-                          "删除"]]))}])
+                         (when can-edit?
+                           [antd/button {:type "link" :size "small" :className "ruoyi-menu-action-btn"
+                                         :icon (r/as-element [:> EditOutlined])
+                                         :on-click #(rf/dispatch [:menus/edit (js->clj record :keywordize-keys true)])}
+                            "修改"])
+                         (when can-add?
+                           [antd/button {:type "link" :size "small" :className "ruoyi-menu-action-btn"
+                                         :icon (r/as-element [:> PlusOutlined])
+                                         :on-click #(rf/dispatch [:menus/open-modal {:parent_id (.-menu_id record)}])}
+                            "新增"])
+                         (when can-remove?
+                           [antd/button {:type "link" :danger true :size "small" :className "ruoyi-menu-action-btn"
+                                         :icon (r/as-element [:> DeleteOutlined])
+                                         :on-click #(on-delete-click (js->clj record :keywordize-keys true))}
+                            "删除"])]))}])
 
 
 ;; ─── 菜单编辑弹窗 ──────────────────────────────────────────────────────
@@ -673,7 +679,10 @@
           [antd/table {:scroll #js {:x 1180}
                        :rowKey "menu_id"
                        :loading loading?
-                       :columns (menu-columns handle-order-change set-delete-target!)
+                       :columns (menu-columns handle-order-change set-delete-target!
+                                               {:can-add? (permission/permitted? "system:menu:add")
+                                                :can-edit? (permission/permitted? "system:menu:edit")
+                                                :can-remove? (permission/permitted? "system:menu:remove")})
                        :dataSource (clj->js tree-data)
                        :pagination false
                        :indentSize 24

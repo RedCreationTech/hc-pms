@@ -5,13 +5,13 @@
     [clojure.java.io :as io]
     [clojure.string :as str]
     [com.ruoyi.domain.system.config :as config-service]
+    [com.ruoyi.domain.system.data-scope :as data-scope]
     [com.ruoyi.domain.system.dept :as dept-service]
     [com.ruoyi.domain.system.dict :as dict-service]
     [com.ruoyi.domain.system.menu :as menu-service]
     [com.ruoyi.domain.system.post :as post-service]
     [com.ruoyi.domain.system.role :as role-service]
     [com.ruoyi.domain.system.user :as user-service]
-    [com.ruoyi.infra.data-perm :as data-perm]
     [ring.middleware.multipart-params :as multipart]
     [ring.util.response :as response]))
 
@@ -70,20 +70,26 @@
 
 
 (defn- import-one-user!
-  "导入单个用户,按 updateSupport 决定新增或覆盖."
-  [user-service identity update-support? default-password row-user]
+  "导入单个用户,按 updateSupport 决定新增或覆盖. 目标部门与被覆盖用户都必须在当前用户的数据范围内,
+   超级管理员用户不可被覆盖."
+  [user-service identity scope update-support? default-password row-user]
   (when (str/blank? (:user_name row-user))
     (throw (Exception. "用户名不能为空")))
   (when (str/blank? (:nick_name row-user))
     (throw (Exception. "用户昵称不能为空")))
+  (data-scope/check-dept! scope (:dept_id row-user))
   (if-let [existing (user-service/find-user-by-name user-service (:user_name row-user))]
     (if update-support?
+      (do
+        (user-service/check-user-allowed! (:user_id existing))
+        (when-not (data-scope/user-visible? scope existing)
+          (throw (Exception. "没有权限访问该用户数据")))
       (user-service/update-user! user-service
                                  (assoc row-user
                                         :user-id (:user_id existing)
                                         :roles []
                                         :posts []
-                                        :update_by (:user_name identity "")))
+                                        :update_by (:user_name identity ""))))
       (throw (Exception. "登录账号不能重复")))
     (user-service/create-user! user-service
                                (assoc row-user
@@ -106,11 +112,14 @@
           rows (read-csv-rows file)
           headers (mapv str/trim (first rows))
           data-rows (rest rows)
-          default-password "123456"
+          default-password (or (some-> ((:query-fn user-service) :find-config-by-key {:config_key "sys.user.initPassword"})
+                                       :config_value not-empty)
+                               "123456")
+          scope (data-scope/scope-of (:query-fn user-service) (:actor request))
           results (mapv (fn [row]
                           (try
                             (let [user (csv-row->user headers row)]
-                              (import-one-user! user-service identity update-support? default-password user)
+                              (import-one-user! user-service identity scope update-support? default-password user)
                               {:user_name (:user_name user) :status "success"})
                             (catch Exception e
                               {:user_name (first row) :status "failed" :msg (.getMessage e)})))
@@ -152,10 +161,11 @@
   (try
     (let [identity (:identity request)
           raw (:query-params request)
-          data-perm-filter (data-perm/data-perm-filter identity "default" :alias "u")
-          params (merge {:page-num 1 :page-size 10000}
-                        (dissoc raw "page" "size")
-                        (:params data-perm-filter))
+          params {:page-num 1 :page-size 10000
+                  :user_name (get raw "user_name") :phonenumber (get raw "phonenumber")
+                  :status (get raw "status") :dept_id (get raw "dept_id")
+                  :beginTime (get raw "beginTime") :endTime (get raw "endTime")
+                  :scope (data-scope/scope-of (:query-fn user-service) (:actor request))}
           result (user-service/list-users user-service params)
           selected-ids (set (parse-id-list (get raw "ids")))
           rows (cond->> (:rows result)
@@ -232,7 +242,9 @@
   [{:keys [dept-service]} request]
   (let [header ["dept_id" "parent_id" "dept_name" "order_num" "leader" "status"]
         csv-fn (fn [d] [(:dept_id d) (:parent_id d) (:dept_name d) (:order_num d) (:leader d) (:status d)])]
-    (generic-export dept-service/list-depts dept-service {} header csv-fn "depts.csv" request)))
+    (generic-export dept-service/list-depts dept-service
+                    {:scope (data-scope/scope-of (:query-fn dept-service) (:actor request))}
+                    header csv-fn "depts.csv" request)))
 
 
 (defn export-posts

@@ -2,7 +2,6 @@
   "参数配置控制器."
   (:require
     [com.ruoyi.domain.system.config :as config-service]
-    [com.ruoyi.infra.data-perm :as data-perm]
     [ring.util.response :as response]))
 
 
@@ -25,13 +24,13 @@
 
 
 (defn list-configs
-  "查询参数列表(带数据权限过滤)."
+  "查询参数列表. 查询参数为字符串键 (config_name / config_key / config_type), 空值视为不过滤."
   [{:keys [config-service]} request]
-  (let [params (:query-params request)
-        identity (:identity request)
-        data-perm-filter (data-perm/data-perm-filter identity "default" :alias "u")
-        params (merge params (:params data-perm-filter))]
-    (ok (config-service/list-configs config-service params))))
+  (let [q (:query-params request)
+        param (fn [k] (not-empty (str (or (get q k) (get q (keyword k)) ""))))]
+    (ok (config-service/list-configs config-service {:config_name (param "config_name")
+                                                     :config_key (param "config_key")
+                                                     :config_type (param "config_type")}))))
 
 
 (defn get-config

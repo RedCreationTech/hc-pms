@@ -68,7 +68,9 @@
               {:process_instance_id pid :model_id (:model_id model)
                :model_key default-model-key :business_key biz-key
                :form_data_json "{}" :starter_id (or user-name "")
-               :status "1" :current_task ""})
+               :status "1" :current_task ""
+               ;; 实例名/单号列 (Phase 3 新增) 需显式传入, 否则 HugSQL 参数缺失导致发起失败
+               :name (str user-name "的请假申请 " (or days 0) "天") :bill_code nil})
     {:leave-process-instance-id pid :business-key biz-key :model-key default-model-key}))
 
 

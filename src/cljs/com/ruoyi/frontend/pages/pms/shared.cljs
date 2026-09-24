@@ -4,7 +4,7 @@
     ["antd" :refer [theme]]
     [com.ruoyi.frontend.antd :as antd]
     [com.ruoyi.frontend.api :as api]
-    [re-frame.core :as rf]
+    [com.ruoyi.frontend.permission :as permission]
     [reagent.hooks :as hooks]))
 
 (def statuses
@@ -41,13 +41,9 @@
      :accent (.-colorInfoBg token) :danger (.-colorError token)}))
 
 (defn use-permission
-  "沿用认证信息中的按钮权限."
+  "沿用认证信息中的按钮权限 (与系统页面共用 permission/permitted?)."
   [permission]
-  (let [auth @(rf/subscribe [:auth/user])
-        permissions (set (:permissions auth))]
-    (boolean (or (contains? (set (:roles auth)) "admin")
-                 (contains? permissions "*:*:*")
-                 (contains? permissions permission)))))
+  (permission/permitted? permission))
 
 (defn error-message
   "提取可读的服务器错误."

@@ -203,16 +203,16 @@
                                 :onConfirm #(when (seq selected-ids)
                                               (rf/dispatch [:oper-logs/delete (selected-id-string)])
                                               (set-selected-ids! []))}
-               [page-toolbar/toolbar-button {:kind :delete
+               [page-toolbar/toolbar-button {:perms "monitor:operlog:remove" :kind :delete
                                              :icon (r/as-element [:> DeleteOutlined])
                                              :disabled? (empty? selected-ids)
                                              :label "删除"}]]
               [antd/popconfirm {:title "确认清空所有操作日志？"
                                 :onConfirm #(rf/dispatch [:oper-logs/clear])}
-               [page-toolbar/toolbar-button {:kind :delete
+               [page-toolbar/toolbar-button {:perms "monitor:operlog:remove" :kind :delete
                                              :icon (r/as-element [:> DeleteOutlined])
                                              :label "清空"}]]
-              [page-toolbar/toolbar-button {:kind :export
+              [page-toolbar/toolbar-button {:perms "monitor:operlog:export" :kind :export
                                             :icon (r/as-element [:> DownloadOutlined])
                                             :on-click #(rf/dispatch [:oper-logs/export])
                                             :label "导出"}]]

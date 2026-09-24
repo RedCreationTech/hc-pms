@@ -1,7 +1,7 @@
 -- :name list-users :? :*
 -- :doc 查询用户列表,支持用户名,手机号,状态筛选
 SELECT u.user_id, u.dept_id, u.user_name, u.nick_name, u.user_type, u.email,
-       u.phonenumber, u.sex, u.avatar, u.password, u.status, u.del_flag,
+       u.phonenumber, u.sex, u.avatar, u.status, u.del_flag,
        u.login_ip, u.login_date, u.create_by, u.create_time, u.update_by,
        u.update_time, u.remark, d.dept_name
 FROM sys_user u
@@ -13,7 +13,7 @@ WHERE u.del_flag = '0'
   AND (:begin_time IS NULL OR u.create_time >= :begin_time)
   AND (:end_time IS NULL OR u.create_time <= :end_time)
   AND (:dept_filter_enabled = 0 OR u.dept_id IN (:v*:dept_ids))
-  AND (:data_user_id IS NULL OR u.user_id = :data_user_id)
+  AND (:scope_all = 1 OR u.dept_id IN (:v*:scope_dept_ids) OR u.user_id = :scope_user_id)
 ORDER BY u.user_id
 LIMIT :page_size OFFSET :offset
 
@@ -29,7 +29,7 @@ WHERE u.del_flag = '0'
   AND (:begin_time IS NULL OR u.create_time >= :begin_time)
   AND (:end_time IS NULL OR u.create_time <= :end_time)
   AND (:dept_filter_enabled = 0 OR u.dept_id IN (:v*:dept_ids))
-  AND (:data_user_id IS NULL OR u.user_id = :data_user_id)
+  AND (:scope_all = 1 OR u.dept_id IN (:v*:scope_dept_ids) OR u.user_id = :scope_user_id)
 
 -- :name find-user-by-id :? :1
 -- :doc 根据ID查询用户
@@ -145,8 +145,51 @@ SET parent_id = COALESCE(:parent_id, parent_id),
 WHERE dept_id = :dept_id
 
 -- :name list-all-depts :? :*
--- :doc 查询所有部门(用于 Flowable identity 同步)
-SELECT dept_id, parent_id, dept_name, leader, status FROM sys_dept WHERE del_flag = '0'
+-- :doc 查询所有部门(用于 Flowable identity 同步, 数据权限计算)
+SELECT dept_id, parent_id, dept_name, leader, leader_id, status FROM sys_dept WHERE del_flag = '0'
+
+-- :name count-child-depts :? :1
+-- :doc 未删除的下级部门数
+SELECT COUNT(*) AS total FROM sys_dept WHERE parent_id = :dept_id AND del_flag = '0'
+
+-- :name count-enabled-child-depts :? :1
+-- :doc 未停用的下级部门数
+SELECT COUNT(*) AS total FROM sys_dept WHERE parent_id = :dept_id AND del_flag = '0' AND status = '0'
+
+-- :name count-dept-users :? :1
+-- :doc 部门内未删除的用户数
+SELECT COUNT(*) AS total FROM sys_user WHERE dept_id = :dept_id AND del_flag = '0'
+
+-- :name find-sibling-dept-by-name :? :1
+-- :doc 同一上级下的同名部门
+SELECT dept_id FROM sys_dept WHERE parent_id = :parent_id AND dept_name = :dept_name AND del_flag = '0'
+
+-- :name update-dept-leader! :! :n
+-- :doc 设置部门负责人 (用户编号与显示名), 可清空
+UPDATE sys_dept SET leader_id = :leader_id, leader = :leader WHERE dept_id = :dept_id
+
+-- :name list-all-users :? :*
+-- :doc 系统内部使用: 全部未删除用户, 不含密码, 不做数据权限过滤 (流程候选人解析, 身份同步)
+SELECT u.user_id, u.dept_id, u.user_name, u.nick_name, u.user_type, u.email,
+       u.phonenumber, u.sex, u.avatar, u.status, u.del_flag, u.create_time, u.remark, d.dept_name
+FROM sys_user u
+LEFT JOIN sys_dept d ON u.dept_id = d.dept_id
+WHERE u.del_flag = '0'
+ORDER BY u.user_id
+
+-- :name list-role-dept-ids :? :*
+-- :doc 角色的自定义数据权限部门
+SELECT dept_id FROM sys_role_dept WHERE role_id = :role_id
+
+-- :name list-role-depts-for-roles :? :*
+-- :doc 多个角色的自定义数据权限部门
+SELECT DISTINCT dept_id FROM sys_role_dept WHERE role_id IN (:v*:role_ids)
+
+-- :name delete-role-depts! :! :n
+DELETE FROM sys_role_dept WHERE role_id = :role_id
+
+-- :name insert-role-dept! :! :n
+INSERT INTO sys_role_dept (role_id, dept_id) VALUES (:role_id, :dept_id)
 
 -- :name list-depts-by-parent :? :*
 SELECT * FROM sys_dept WHERE parent_id = :parent_id AND del_flag = '0'
@@ -160,7 +203,7 @@ UPDATE sys_dept SET del_flag = '2', update_time = CURRENT_TIMESTAMP WHERE dept_i
 -- :name list-roles :? :*
 SELECT * FROM sys_role WHERE del_flag = '0'
   AND (:role_name IS NULL OR INSTR(role_name, :role_name) > 0)
-  AND (:role_key IS NULL OR role_key = :role_key)
+  AND (:role_key IS NULL OR INSTR(role_key, :role_key) > 0)
   AND (:status IS NULL OR status = :status)
 ORDER BY role_sort
 
@@ -420,8 +463,9 @@ SELECT last_insert_rowid() AS last_insert_rowid
 SELECT LAST_INSERT_ID() AS last_insert_rowid
 
 -- :name list-users-by-role :? :*
--- :doc 查询已分配某角色的用户
-SELECT u.* FROM sys_user u
+-- :doc 查询已分配某角色的用户 (不含密码)
+SELECT u.user_id, u.dept_id, u.user_name, u.nick_name, u.user_type, u.email, u.phonenumber, u.sex,
+       u.avatar, u.status, u.del_flag, u.login_ip, u.login_date, u.create_by, u.create_time, u.remark FROM sys_user u
 INNER JOIN sys_user_role ur ON u.user_id = ur.user_id
 WHERE ur.role_id = :role_id
   AND u.del_flag = '0'
@@ -430,8 +474,9 @@ WHERE ur.role_id = :role_id
 ORDER BY u.create_time DESC
 
 -- :name list-users-not-in-role :? :*
--- :doc 查询未分配某角色的用户
-SELECT u.* FROM sys_user u
+-- :doc 查询未分配某角色的用户 (不含密码)
+SELECT u.user_id, u.dept_id, u.user_name, u.nick_name, u.user_type, u.email, u.phonenumber, u.sex,
+       u.avatar, u.status, u.del_flag, u.login_ip, u.login_date, u.create_by, u.create_time, u.remark FROM sys_user u
 WHERE u.del_flag = '0'
   AND u.user_id NOT IN (SELECT user_id FROM sys_user_role WHERE role_id = :role_id)
   AND (:user_name IS NULL OR INSTR(u.user_name, :user_name) > 0)
@@ -468,3 +513,41 @@ WHERE m.menu_id IN (
 ORDER BY m.parent_id, m.order_num
 
 
+
+-- :name authz-user :? :1
+-- :doc 实时权限: 有效用户 (未停用, 未删除)
+SELECT user_id, user_name, nick_name, dept_id FROM sys_user WHERE user_id = :user_id AND status = '0' AND del_flag = '0'
+
+-- :name authz-user-roles :? :*
+-- :doc 实时权限: 用户的有效角色 (含数据权限范围)
+SELECT r.role_id, r.role_key, r.role_name, r.data_scope
+FROM sys_role r INNER JOIN sys_user_role ur ON ur.role_id = r.role_id
+WHERE ur.user_id = :user_id AND r.status = '0' AND r.del_flag = '0'
+
+-- :name authz-user-perms :? :*
+-- :doc 实时权限: 有效角色在启用菜单上的权限字符串
+SELECT DISTINCT m.perms FROM sys_menu m
+INNER JOIN sys_role_menu rm ON rm.menu_id = m.menu_id
+INNER JOIN sys_role r ON r.role_id = rm.role_id
+INNER JOIN sys_user_role ur ON ur.role_id = r.role_id
+WHERE ur.user_id = :user_id AND r.status = '0' AND r.del_flag = '0' AND m.status = '0'
+  AND m.perms IS NOT NULL AND m.perms <> ''
+
+-- :name authz-user-menu-ids :? :*
+-- :doc 实时权限: 用户有效角色授权的菜单编号
+SELECT DISTINCT rm.menu_id FROM sys_role_menu rm
+INNER JOIN sys_role r ON r.role_id = rm.role_id
+INNER JOIN sys_user_role ur ON ur.role_id = r.role_id
+WHERE ur.user_id = :user_id AND r.status = '0' AND r.del_flag = '0'
+
+-- :name user-options :? :*
+-- :doc 选人组件: 有效用户
+SELECT user_id, user_name, nick_name, dept_id FROM sys_user WHERE status = '0' AND del_flag = '0' ORDER BY user_id
+
+-- :name dept-options :? :*
+-- :doc 选部门组件: 有效部门
+SELECT dept_id, parent_id, dept_name FROM sys_dept WHERE status = '0' AND del_flag = '0' ORDER BY parent_id, order_num, dept_id
+
+-- :name post-options :? :*
+-- :doc 选岗位组件: 有效岗位
+SELECT post_id, post_code, post_name FROM sys_post WHERE status = '0' ORDER BY post_sort, post_id

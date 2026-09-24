@@ -1,6 +1,7 @@
 (ns com.ruoyi.domain.pms.governance.approval
   "项目章程与正式变更的类型化内容和独立评审."
-  (:require [com.ruoyi.domain.pms.finance-money :as money]
+  (:require [com.ruoyi.domain.pms.approval-chain :as chain]
+            [com.ruoyi.domain.pms.finance-money :as money]
             [com.ruoyi.domain.pms.governance.store :as s]
             [com.ruoyi.domain.pms.kernel :as k]
             [com.ruoyi.domain.pms.rules :as r]))
@@ -111,10 +112,17 @@
     (fn [q project]
       (s/input! body [:reviewer_id])
       (let [record (s/latest! q project (s/record! q project kind rid))
-            reviewer (s/reviewer! q project actor (:reviewer_id body))]
+            ;; 章程在已发布 "项目章程" 审批策略时按策略逐级审批, 指定审核人可选 (用于 "提交人选择" 级别)
+            chain? (and (= "charter" kind) (some? (chain/policy q "charter")))
+            reviewer (when (or (not chain?) (some? (:reviewer_id body)))
+                       (s/reviewer! q project actor (:reviewer_id body)))]
         (s/status! record #{"draft" "rejected"})
-        (s/change! q project record "in_review"
-                   {:reviewer_id reviewer :submitted_by (:user_id actor)})))))
+        (let [started (when chain?
+                        (chain/start! q actor project "charter" (:id record)
+                                      {:reviewer-id reviewer :amount (:initial_budget record)
+                                       :title (str "项目章程 " (:code record) " 第" (:revision record) "版 " (:title record))}))]
+          (s/change! q project record "in_review"
+                     {:reviewer_id (or reviewer (:first-approver started)) :submitted_by (:user_id actor)}))))))
 
 (defn decide!
   "指定独立审核人批准或退回当前提交版本."
@@ -125,6 +133,7 @@
       (let [record (s/latest! q project (s/record! q project kind rid))
             decision (s/enum! (:decision body) #{"approved" "rejected"} "decision")]
         (s/status! record #{"in_review"})
+        (when (= "charter" kind) (chain/guard-legacy-decision! q "charter" (:id record)))
         (s/decision-actor! actor record)
         (s/change! q project record decision
                    {:decision_reason (s/text! body :reason)
@@ -146,3 +155,14 @@
         high? (or (when (number? days) (>= days high-impact-schedule-days))
                   (when (some? cost-minor) (>= cost-minor high-impact-cost-minor)))]
     (assoc record :change_high_impact (boolean high?))))
+
+
+(defn- finalize-charter!
+  "审批链落定章程: 末级通过即批准, 任一级驳回即退回."
+  [q actor project rid decision reason]
+  (let [record (s/latest! q project (s/record! q project "charter" rid))]
+    (s/status! record #{"in_review"})
+    (s/change! q project record decision {:decision_reason (or reason "") :decided_by (:user_id actor)})))
+
+
+(chain/register-adapter! "charter" {:finalize finalize-charter!})

@@ -1,6 +1,7 @@
 (ns com.ruoyi.frontend.pages.pms.planning
   "项目计划,资源与独立基线审批工作台."
   (:require [com.ruoyi.frontend.antd :as antd]
+            [com.ruoyi.frontend.pages.pms.approval :as approval]
             [com.ruoyi.frontend.pages.pms.plan-forms :as forms]
             [com.ruoyi.frontend.pages.pms.plan-views :as views]
             [com.ruoyi.frontend.pages.pms.shared :as shared]
@@ -98,8 +99,11 @@
                     :hint "执行期调整须先完成独立变更评审,再形成新计划基线."}))})
 
 (defn- baseline-section
-  "展示不可变基线并要求提交者以外的审批人决策."
+  "展示不可变基线并要求提交者以外的审批人决策 (已发布 \"计划基线\" 审批策略时按策略逐级审批)."
   [{:keys [base model project editable? can-approve? open! compare!]}]
+  (let [{:keys [flows]} (approval/use-project-flows (str "/projects/" (:project_id project)) "plan-baseline"
+                                                    (hash (map (juxt :baseline_id :status) (:baselines model))))
+        chained (approval/pending-ids flows)]
   [shared/panel "计划提交与基线" "提交时冻结当前计划,独立审批后成为正式基线"
    (when (and editable? (contains? #{"planning" "execution"} (:status project)))
      [antd/button {:type "primary" :on-click #(open! (submit-dialog base model project))} "提交计划审批"])
@@ -109,10 +113,12 @@
     (fn [baseline]
       [antd/space
        [w/edit-button "查看差异" #(compare! baseline)]
-       (when (and can-approve? (= "submitted" (:status baseline)) (not= (:current_user_id model) (:submitted_by baseline)))
+       (when (and can-approve? (= "submitted" (:status baseline)) (not (contains? chained (:baseline_id baseline)))
+                  (not= (:current_user_id model) (:submitted_by baseline)))
          [:<>
           [w/edit-button "批准" #(open! (forms/approval-dialog base baseline "approved"))]
-          [w/edit-button "驳回" #(open! (forms/approval-dialog base baseline "rejected"))]])])]])
+          [w/edit-button "驳回" #(open! (forms/approval-dialog base baseline "rejected"))]])])]
+   [approval/latest-flow-panel flows "计划基线审批进度"]]))
 
 (defn- feedback-section
   "保留每次实际执行反馈及责任人."
