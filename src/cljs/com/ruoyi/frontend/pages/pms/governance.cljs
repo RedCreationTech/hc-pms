@@ -157,6 +157,33 @@
                             (str (get method-label method method) " · " count)])]]])]))
 
 
+(defn- release-coverage-section
+  "按每个文档编号的最新有效版本只读聚合发布审批链覆盖度: 已发布/待审/未提交/已驳回与已发布率; 修订不重复计数, 已作废不计入."
+  [{:keys [model]}]
+  (let [rel (:release_coverage model)
+        total (:total rel 0)
+        approved (:approved rel 0)
+        in-review (:in-review rel 0)
+        registered (:registered rel 0)
+        rejected (:rejected rel 0)
+        pct (:released-pct rel 0)]
+    [shared/panel "证据发布覆盖度" "按每个文档编号的最新有效版本统计发布审批进度; 修订不重复计数, 已作废不计入"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无证据文档, 登记后可在此查看发布覆盖度."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "覆盖文档 " total)]
+         [antd/tag {:color (cond (= pct 100) "green" (zero? pct) "red" :else "gold")}
+          (str "已发布率 " pct "%")]
+         [antd/tag {:color "green"} (str "已发布 " approved)]
+         (when (pos? in-review)
+           [antd/tag {:color "processing"} (str "待审 " in-review)])
+         (when (pos? registered)
+           [antd/tag {:color "default"} (str "未提交 " registered)])
+         (when (pos? rejected)
+           [antd/tag {:color "red"} (str "已驳回 " rejected)])]])]))
+
+
 (defn- document-section
   "列出可校验的真实证据文档及不可变版本, 支持打包批量下载, 密级过滤与独立发布审批."
   [{:keys [base model options editable? approve? open! document! preview!]}]
@@ -629,7 +656,7 @@
                                                          (into [:div {:style {:display "grid" :gap 20}}] (map #(vector % context) components)))})
                     [["charter" "章程" [charter-section]]
                      ["requirements" "URS与追踪" [requirement-section coverage-section traceability-section trace-section]]
-                     ["evidence" "证据版本" [document-section collection-section]]
+                     ["evidence" "证据版本" [document-section collection-section release-coverage-section]]
                      ["appointments" "成员任命" [appointment-section]]
                      ["stakeholders" "干系人与沟通" [stakeholder-section raci-section comm-plan-section]]
                      ["gates" "Gate评审" [gate-section]]

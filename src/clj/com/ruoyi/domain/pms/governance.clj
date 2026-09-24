@@ -90,6 +90,7 @@
                           :trace_summary (evidence/trace-summary traceability)
                           :document_collection (evidence/document-collection (:documents data))
                           :verification_coverage (evidence/verification-coverage (:requirements data))
+                          :release_coverage (evidence/release-coverage (:documents data))
                           :risk_library collab/risk-library))))))
 
 

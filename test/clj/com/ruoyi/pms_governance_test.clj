@@ -440,6 +440,38 @@
     (is (= 100 (:coverage-pct (cov))))))
 
 
+(deftest document-release-coverage-is-derived-read-only
+  (let [id (project!)
+        rel (fn [] (:release_coverage (workspace id)))
+        a (document! id "REL-COV-A")
+        b (document! id "REL-COV-B")
+        c (document! id "REL-COV-C")
+        _d (document! id "REL-COV-D")]
+    ;; A 独立批准发布, B 提交待审, C 提交后被驳回, D 保持已登记未提交.
+    (command! id :documents :submit (:id a) {:reviewer_id 9302})
+    (command! 9302 id :documents :decision (:id a) {:decision "approved" :reason "独立签发"})
+    (command! id :documents :submit (:id b) {:reviewer_id 9302})
+    (command! id :documents :submit (:id c) {:reviewer_id 9302})
+    (command! 9302 id :documents :decision (:id c) {:decision "rejected" :reason "证据不足"})
+    (is (= 4 (:total (rel))))
+    (is (= 1 (:approved (rel))))
+    (is (= 1 (:in-review (rel))))
+    (is (= 1 (:rejected (rel))))
+    (is (= 1 (:registered (rel))))
+    (is (= 25 (:released-pct (rel))))
+    ;; 修订 A 产生新的未发布版本: 按最新有效版本聚合, A 回落为未提交, 已发布率下降而文档总数不变(按 code 去重).
+    (command! id :documents :revisions (:id a) {:code "REL-COV-A" :title "更新" :filename "a-v2.txt" :content "第二版正文"})
+    (is (= 4 (:total (rel))))
+    (is (= 0 (:approved (rel))))
+    (is (= 2 (:registered (rel))))
+    (is (= 0 (:released-pct (rel))))
+    ;; 作废处于已驳回(可作废状态)的 C 最新版本后, 其从覆盖度分母剔除; 待审的 B 仍在.
+    (command! id :documents :discard (:id c) {:reason "重复证据"})
+    (is (= 3 (:total (rel))))
+    (is (= 0 (:rejected (rel))))
+    (is (= 1 (:in-review (rel))))))
+
+
 (deftest risk-becomes-one-issue-and-requires-independent-verification
   (let [id (project!) evidence (:id (document! id "FIX-1"))
         risk (command! id :risks :create nil {:title "关键调试风险" :probability 3 :impact 5

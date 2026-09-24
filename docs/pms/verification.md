@@ -604,6 +604,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 验证方式覆盖度只读派生是 C01"需求可追踪且带验证方法"口径中"按验证方式聚合只读统计"一项的 `implemented / local` 落地(纯函数聚合 + latest 去重 + 剔除已作废 + 免迁移 + workspace 暴露 + 界面面板); 但需求"验证方法与验收证据闭环""双向追踪覆盖率分母界定"等子项仍未完备, 相关矩阵行保持既有 honest 状态(C01/C03 不上行), 不因这一子能力上行.
 
+## C06 证据发布覆盖度只读派生 (本轮增补, 2026-09-23)
+
+设计与关闭口径: 为 C06 文档发布审批链提供"按发布生命周期聚合"的只读覆盖度洞察, 与 C04 文档归集(按阶段/结构节点/密级聚合)互补——归集看"证据分布在哪", 本项看"证据发布审批推进到哪一步". 沿用"给治理台账加只读派生洞察"套路(承 C04 归集/H18c 剔除/C02v2 覆盖度), 在 `governance.evidence` 新增纯函数 `release-coverage`, 对传入的文档记录聚合; **不落库、不投递、不改动任何不可变版本, 免迁移, 免新命令, 免新 kind**. 统计口径: 复用 `store/latest` 对文档按业务编码 `code` 分组取最高 revision 的既有不变量, 使同一逻辑文档的多次修订只计入一次(与 C04/C02v2 同一套"修订不重复计数"), 再过滤掉最新版本处于受控作废 `discarded` 的编号(沿用 H18c 归集剔除口径). 输出 `{:total :approved :in-review :registered :rejected :released-pct}`: `total` 为计入的文档编号数, 其余按发布生命周期四态各自计数(`approved` 已发布, `in_review` 待审, `registered` 未提交, `rejected` 已驳回), `released-pct` 为 `approved/total` 四舍五入整数百分比(`total` 为 0 给 0, 用 `(int (Math/round ^double (* 100.0 (/ approved total))))` 避免 ratio 序列化). 派生键一律无尾随 `?`; `:released-pct`/`:in-review` 经 `clj->js` 后是字面 `"released-pct"`/`"in-review"`(保留连字符), 故前端用 Clojure keyword 取值无碍而 E2E 原始 JSON 需 `['released-pct']`/`['in-review']` 中括号取值. workspace 里 `governance.clj` 在 `:verification_coverage` 之后 `assoc :release_coverage (evidence/release-coverage (:documents data))` 暴露. 前端"证据版本"页签在文档归集视图之后新增 `release-coverage-section` 面板: 蓝色标签"覆盖文档 N"(命名区别于归集面板的"最新版本证据", 避免同页两面板文案相撞), 百分比标签按 100% 绿/0% 红/其余金着色"已发布率 P%", 另以绿"已发布"、processing"待审"、default"未提交"、红"已驳回"标签回显各态计数(计数为 0 的状态标签不渲染), 文档为空时显示占位提示.
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| 治理测试 (SQLite) | 50 tests / 590 assertions, 0 failures/errors | 新增 `document-release-coverage-is-derived-read-only`: 四文档 A(提交+独立批准->approved)/B(提交->in_review)/C(提交+驳回->rejected)/D(保持 registered) -> total=4, approved=1, in-review=1, rejected=1, registered=1, released-pct=25; 修订 A 产生新未发布版本 -> 按 code 去重 total 仍=4, approved=0, registered=2, released-pct=0(修订不重复计数, 最新有效版本回退); 作废处于已驳回(可作废状态)的 C -> total=3, rejected=0, in-review 仍=1(剔除已作废最新版本; 处于 in_review 的 B 不可直接作废, 符合 `discardable-status` 门控) |
+| 全量 PMS 回归 (CLI SQLite) | 102 tests / 921 assertions, 0 failures/errors | `clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'` 全新库通过, workspace 新增 `:release_coverage` 未造成既有需求/文档/归集/覆盖度用例回归 |
+| 前端编译 | 0 warnings | `npx shadow-cljs compile app` 通过, `release-coverage-section` 面板一并编译 |
+| Chrome 浏览器 (Playwright) | 1 passed | `pms-c06b.spec.js` (隔离 `:3100` 后端, 独立空库): 界面登记四份证据文档 -> A 提交并由独立审核人第二浏览器上下文"批准发布"、B 提交停留"待发布审批"、C 提交后审核人"驳回"、D 保持"已登记"; "证据发布覆盖度"面板显示蓝色"覆盖文档 4"、金色"已发布率 25%"、绿"已发布 1"、"待审 1"、"未提交 1"、红"已驳回 1" (截图 c06b-1-release-coverage-partial.png); 真实 HTTP GET governance 二次确认 `release_coverage` 各态计数与 `['released-pct']=25` 一致; 界面给已发布的 A 点"新版本"建 rev2 -> 面板"覆盖文档"仍 4(按 code 去重)而"已发布率"降为 0%、"未提交"变 2, 台账同时可见 A-v2"已登记"与 A-v1"已发布"不漂移 (截图 c06b-2-revision-dedup.png); 真实 HTTP 作废处于已驳回的 C -> 面板"覆盖文档"降到 3、"已驳回"标签消失、"待审 1"仍在, 归集面板同步显示"已作废 1 未计入" (截图 c06b-3-discarded-excluded.png); 截图存 `reports/c06b/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归(本地无可用实例, 本轮完全免迁移, 不新增 DDL); 覆盖度只反映"各文档最新版本处于哪个发布状态", 不等于文档内容质量或签章合规; 暂不做按阶段/密级切分的发布进度漏斗, 无导出.
+
+边界: 证据发布覆盖度只读派生是 C06"文档从编制到评审/发布/签发留版本轨迹"口径中"按发布生命周期聚合只读统计并界面可视"一项的 `implemented / local` 落地(纯函数聚合 + latest 去重 + 剔除已作废 + 免迁移 + workspace 暴露 + 界面面板); 但 C06 行仍含"正式电子签章""外部文书模板""Gate 引用与发布状态联动阻断"等未完成子项, 故 C06 保持 `partial`, 不因这一子能力上行.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

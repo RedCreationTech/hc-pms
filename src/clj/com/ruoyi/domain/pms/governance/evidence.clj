@@ -283,3 +283,23 @@
                      (int (Math/round ^double (* 100.0 (/ declared total))))
                      0)
      :by-method (mapv (fn [m] {:method m :count (method-count m)}) methods)}))
+
+
+(defn release-coverage
+  "按每个业务编码最新有效版本统计证据文档发布审批链的只读覆盖度: registered/in_review/approved/rejected 各计数与已发布率; 最新版本被受控作废(discarded)的编号不计入. 只读派生, 不落库不投递, 不改变不可变版本."
+  [documents]
+  (let [active (filterv #(not= "discarded" (:status %)) (s/latest documents))
+        total (count active)
+        status-count (fn [s] (count (filterv #(= s (:status %)) active)))
+        approved (status-count "approved")
+        in-review (status-count "in_review")
+        registered (status-count "registered")
+        rejected (status-count "rejected")]
+    {:total total
+     :approved approved
+     :in-review in-review
+     :registered registered
+     :rejected rejected
+     :released-pct (if (pos? total)
+                     (int (Math/round ^double (* 100.0 (/ approved total))))
+                     0)}))
