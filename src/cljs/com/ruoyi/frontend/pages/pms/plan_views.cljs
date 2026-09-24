@@ -89,3 +89,42 @@
              {:title "基线内容" :dataIndex "before" :render #(describe-record (js->clj % :keywordize-keys true))}
              {:title "当前内容" :dataIndex "after" :render #(describe-record (js->clj % :keywordize-keys true))}] nil]
            [shared/empty-state "当前计划与该基线一致" nil])])]]))
+
+(defn- percent-bar
+  "带百分比文字的进度条."
+  [percent color]
+  [antd/progress {:percent (or percent 0) :size "small" :strokeColor color :style {:width 200}}])
+
+(defn progress-rollup
+  "阶段权重进度卷积与主/子/单机结构进度 (B02/B03): 权重来自模板实例, 未实例化时等权; 读取时派生不落库."
+  [model]
+  (let [rollup (:progress_rollup model) colors (shared/use-colors)
+        node-labels {"main" "主项目" "sub" "子项目" "machine" "单机"}]
+    [:div {:style {:display "grid" :gap 20}}
+     [shared/panel "阶段进度卷积" (if (= "template" (:source rollup)) "权重来自已实例化项目模板的阶段定义" "未实例化模板, 按已使用阶段等权卷积")
+      [antd/space {:wrap true}
+       [antd/tag {:color "blue"} (str "总体进度 " (:overall_percent rollup) "%")]
+       [antd/tag (str "叶子任务 " (:leaf_count rollup))]
+       (when (pos? (or (:unassigned_task_count rollup) 0))
+         [antd/tag {:color "orange"} (str "未归属阶段任务 " (:unassigned_task_count rollup))])]
+      (if (empty? (:stages rollup))
+        [:span {:style {:color (:muted colors)}} "尚无阶段定义: 应用项目模板或为任务设置所属阶段后可见."]
+        [antd/table {:rowKey "code" :size "small" :pagination false :dataSource (clj->js (:stages rollup))
+                     :columns (clj->js [{:title "阶段" :dataIndex "code" :width 90}
+                                        {:title "名称" :dataIndex "name"}
+                                        {:title "权重%" :dataIndex "weight" :width 90}
+                                        {:title "任务数" :dataIndex "task_count" :width 90}
+                                        {:title "已完成" :dataIndex "done_count" :width 90}
+                                        {:title "阶段进度" :dataIndex "percent" :width 240
+                                         :render (fn [v] (r/as-element [percent-bar v (:primary colors)]))}])}])]
+     [shared/panel "主/子/单机结构进度" "按任务所属结构节点 (含后代节点) 卷积, 子项目/单机分别可见" nil
+      (if (empty? (:nodes rollup))
+        [:span {:style {:color (:muted colors)}} "暂无结构节点."]
+        [antd/table {:rowKey "node_id" :size "small" :pagination false :dataSource (clj->js (:nodes rollup))
+                     :columns (clj->js [{:title "层级" :dataIndex "node_type" :width 90 :render (fn [v] (get node-labels v v))}
+                                        {:title "节点编号" :dataIndex "node_code" :width 160}
+                                        {:title "名称" :dataIndex "name"}
+                                        {:title "任务数" :dataIndex "task_count" :width 90}
+                                        {:title "已完成" :dataIndex "done_count" :width 90}
+                                        {:title "节点进度" :dataIndex "percent" :width 240
+                                         :render (fn [v] (r/as-element [percent-bar v (:primary colors)]))}])}])]]))

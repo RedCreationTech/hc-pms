@@ -10,7 +10,7 @@
   "允许持久化的治理对象类型."
   #{"charter" "requirement" "document" "trace" "risk" "issue"
     "meeting" "action" "change" "gate-template" "gate"
-    "stakeholder" "raci" "comm-plan"})
+    "stakeholder" "raci" "comm-plan" "template-instance" "dq" "node-pause"})
 
 
 (defn input!

@@ -3,6 +3,8 @@
   (:require [com.ruoyi.domain.pms.kernel :as kernel]
             [com.ruoyi.domain.pms.governance.store :as governance]
             [com.ruoyi.domain.pms.planning.capacity :as capacity]
+            [com.ruoyi.domain.pms.governance.quality :as quality]
+            [com.ruoyi.domain.pms.planning.progress :as progress]
             [com.ruoyi.domain.pms.planning.store :as store]
             [com.ruoyi.domain.pms.planning.tasks :as tasks]
             [com.ruoyi.domain.pms.planning.resources :as resources]
@@ -15,9 +17,17 @@
     (fn [q project]
       (let [plan (store/plan q project) snapshot (store/snapshot q project)
             baselines (store/rows q project :planning/baselines)
-            current (first (filter #(= (:revision plan) (:plan_revision %)) baselines))]
+            current (first (filter #(= (:revision plan) (:plan_revision %)) baselines))
+            raw-tasks (store/rows q project :planning/tasks)
+            paused (quality/paused-node-ids q project)
+            tasks (mapv #(assoc % :node_paused (boolean (some->> (progress/task-node raw-tasks %) (contains? paused)))) raw-tasks)
+            nodes (vec (q :pms/nodes {:project_id (:project_id project)}))
+            stages (:stages (first (governance/records q project "template-instance")))]
         (merge snapshot
-               {:tasks (store/rows q project :planning/tasks)
+               {:tasks tasks :nodes nodes :stages (or stages [])
+                :node_pauses (governance/records q project "node-pause")
+                :paused_node_ids (vec paused)
+                :progress_rollup (progress/rollup tasks nodes stages)
                 :project_version (:version project) :plan_revision (:revision plan)
                 :plan_status (or (:status current) "draft") :baselines baselines
                 :feedback (store/rows q project :planning/feedback)

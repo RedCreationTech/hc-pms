@@ -7,7 +7,8 @@
             [com.ruoyi.web.routes.pms-finance :as finance]
             [com.ruoyi.web.routes.pms-closure :as closure]
             [com.ruoyi.web.routes.pms-integration :as integration]
-            [com.ruoyi.web.routes.pms-delivery :as delivery]))
+            [com.ruoyi.web.routes.pms-delivery :as delivery]
+            [com.ruoyi.web.routes.pms-config :as config]))
 
 (defn- endpoint
   "为控制器注入项目服务."
@@ -38,4 +39,5 @@
                 (finance/finance-routes (:pms-service opts))
                 (closure/closure-routes (:pms-service opts))
                 (integration/integration-routes (:pms-service opts))
-                (delivery/delivery-routes (:pms-service opts)))))
+                (delivery/delivery-routes (:pms-service opts))
+                (config/config-routes (:pms-service opts)))))

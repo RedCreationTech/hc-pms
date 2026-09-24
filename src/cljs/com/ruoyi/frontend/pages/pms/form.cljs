@@ -19,17 +19,34 @@
                   :rules (when required? [{:required true :whitespace true :message (str "请输入" label)}])}
    [antd/input {:placeholder placeholder :maxLength 200}]])
 
+(defn- generate-code!
+  "按生效编码规则请求建议编号并写入表单 (A10)."
+  [form set-hint!]
+  (let [type (or (.getFieldValue form "project_type") "equipment")]
+    (shared/request! :get "/coding-rules/next" {:object_type "project" :type type}
+      (fn [data]
+        (if (:code data)
+          (do (.setFieldsValue form #js {:project_no (:code data)})
+              (set-hint! (str "按规则 " (get-in data [:rule :pattern]) " 生成" (when (get-in data [:rule :enforced]) " (强制校验)"))))
+          (set-hint! "当前没有生效的项目编码规则, 请手工填写")))
+      set-hint!)))
+
 (defn- identity-fields
   "项目唯一标识与业务来源."
-  []
+  [form]
+  (let [[hint set-hint!] (hooks/use-state nil)]
   [:<>
-   [text-field "project_no" "项目编号" true "例如 HC-2026-001"]
+   [:div {:style {:display "grid" :gridTemplateColumns "minmax(0, 1fr) auto" :gap 12 :alignItems "end"}}
+    [text-field "project_no" "项目编号" true "例如 HC-2026-001"]
+    [antd/form-item {:label " "}
+     [antd/button {:on-click #(generate-code! form set-hint!)} "按规则生成编号"]]]
+   (when hint [:p {:style {:margin "-12px 0 12px" :fontSize 12 :color "#718096"}} hint])
    [text-field "name" "项目名称" true "填写便于团队识别的项目名称"]
    [:div {:style {:display "grid" :gridTemplateColumns "repeat(2, minmax(0, 1fr))" :gap 16}}
     [antd/form-item {:name "project_type" :label "项目类型" :rules [{:required true}]}
      [antd/select {:options shared/project-types}]]
     [text-field "contract_no" "合同编号" false "关联合同"]]
-   [text-field "customer" "客户名称" false "客户或业主单位"]])
+   [text-field "customer" "客户名称" false "客户或业主单位"]]))
 
 (defn- ownership-fields
   "项目责任人与计划时间."
@@ -81,5 +98,5 @@
      (when (or validation error) [shared/error-panel (or validation error) nil])
      [antd/form {:form form :layout "vertical" :disabled busy?
                  :onFinish #(submit-project! project % set-validation! run!)}
-      [identity-fields]
+      [identity-fields form]
       [ownership-fields options]]]))

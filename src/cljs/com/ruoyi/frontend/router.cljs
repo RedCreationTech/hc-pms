@@ -11,6 +11,11 @@
         "dashboard" :dashboard
         "pms/project" :pms-project
         "pms/dashboard" :pms-dashboard
+        "pms/config" :pms-config
+        "pms/portfolio" :pms-portfolio
+        "pms/todo" :pms-todo
+        "pms/search" :pms-search
+        "pms/targets" :pms-targets
         "system/user" :user
         "system/role" :role
         "system/menu" :menu
@@ -74,6 +79,11 @@
   {:dashboard "首页"
    :pms-project "项目中心"
    :pms-dashboard "项目驾驶舱"
+   :pms-config "模板与规则"
+   :pms-portfolio "项目组合看板"
+   :pms-todo "我的待办"
+   :pms-search "全局检索"
+   :pms-targets "经营目标看板"
    :user "用户管理"
    :role "角色管理"
    :menu "菜单管理"

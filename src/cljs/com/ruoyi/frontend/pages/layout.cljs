@@ -61,6 +61,11 @@
     [com.ruoyi.frontend.pages.profile :as profile]
     [com.ruoyi.frontend.pages.pms.project :as pms-project]
     [com.ruoyi.frontend.pages.pms.dashboard :as pms-dashboard]
+    [com.ruoyi.frontend.pages.pms.config :as pms-config]
+    [com.ruoyi.frontend.pages.pms.portfolio :as pms-portfolio]
+    [com.ruoyi.frontend.pages.pms.todo :as pms-todo]
+    [com.ruoyi.frontend.pages.pms.search :as pms-search]
+    [com.ruoyi.frontend.pages.pms.targets :as pms-targets]
     [com.ruoyi.frontend.pages.role :as role]
     [com.ruoyi.frontend.pages.server :as server]
     [com.ruoyi.frontend.pages.swagger :as swagger]
@@ -333,13 +338,23 @@
    :profile "system/user/profile"
    :dashboard "dashboard"
    :pms-project "pms/project"
-   :pms-dashboard "pms/dashboard"})
+   :pms-dashboard "pms/dashboard"
+   :pms-config "pms/config"
+   :pms-portfolio "pms/portfolio"
+   :pms-todo "pms/todo"
+   :pms-search "pms/search"
+   :pms-targets "pms/targets"})
 
 
 (def page-breadcrumbs
   {:dashboard ["首页"]
    :pms-project ["首页" "项目管理" "项目中心"]
    :pms-dashboard ["首页" "项目管理" "项目驾驶舱"]
+   :pms-config ["首页" "项目管理" "模板与规则"]
+   :pms-portfolio ["首页" "项目管理" "项目组合看板"]
+   :pms-todo ["首页" "项目管理" "我的待办"]
+   :pms-search ["首页" "项目管理" "全局检索"]
+   :pms-targets ["首页" "项目管理" "经营目标看板"]
    :user ["首页" "系统管理" "用户管理"]
    :role ["首页" "系统管理" "角色管理"]
    :menu ["首页" "系统管理" "菜单管理"]
@@ -766,6 +781,11 @@
           :dashboard [dashboard/dashboard-page]
           :pms-project [pms-project/project-page]
           :pms-dashboard [pms-dashboard/dashboard-page]
+          :pms-config [pms-config/config-page]
+          :pms-portfolio [pms-portfolio/portfolio-page]
+          :pms-todo [pms-todo/todo-page]
+          :pms-search [pms-search/search-page]
+          :pms-targets [pms-targets/targets-page]
           :user [user/user-page]
           :role [role/role-page]
           :menu [menu/menu-page]

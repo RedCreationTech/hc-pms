@@ -1,15 +1,18 @@
 (ns com.ruoyi.domain.pms.governance
   "项目治理工作台的只读模型,类型化命令入口及生命周期条件."
   (:require
+    [com.ruoyi.domain.pms.config.catalog :as catalog]
     [com.ruoyi.domain.pms.governance.appointment :as appointment]
     [com.ruoyi.domain.pms.governance.approval :as approval]
     [com.ruoyi.domain.pms.governance.collaboration :as collab]
     [com.ruoyi.domain.pms.governance.evidence :as evidence]
     [com.ruoyi.domain.pms.governance.gates :as gates]
     [com.ruoyi.domain.pms.governance.lifecycle :as lifecycle]
+    [com.ruoyi.domain.pms.governance.quality :as quality]
     [com.ruoyi.domain.pms.governance.reviews :as reviews]
     [com.ruoyi.domain.pms.governance.stakeholders :as stakeholders]
     [com.ruoyi.domain.pms.governance.store :as store]
+    [com.ruoyi.domain.pms.governance.templates :as templates]
     [com.ruoyi.domain.pms.kernel :as k]
     [com.ruoyi.domain.pms.rules :as r]))
 
@@ -19,7 +22,8 @@
   {:charters "charter" :requirements "requirement" :documents "document" :traces "trace"
    :risks "risk" :issues "issue" :meetings "meeting" :actions "action" :changes "change"
    :gate_templates "gate-template" :gates "gate"
-   :stakeholders "stakeholder" :raci "raci" :comm_plans "comm-plan"})
+   :stakeholders "stakeholder" :raci "raci" :comm_plans "comm-plan"
+   :template_instances "template-instance" :dqs "dq" :node_pauses "node-pause"})
 
 
 (defn execution-ready!
@@ -78,6 +82,8 @@
                    traceability (evidence/traceability-report (:requirements data) (:traces data))]
                (-> data
                    (update :meetings collab/enrich-meetings actions-by-meeting)
+                   (update :meetings collab/flag-meeting-baselines (q :planning/baselines {:project_id (:project_id project)}))
+                   (update :dqs #(mapv (partial quality/dq-read-model (:documents data)) %))
                    (update :raci #(mapv (partial stakeholders/raci-read-model raci-loads) %))
                    (update :issues #(mapv (partial collab/owner-workload-read-model owner-loads) %))
                    (update :risks #(mapv (partial collab/owner-workload-read-model owner-loads) %))
@@ -91,6 +97,8 @@
                           :document_collection (evidence/document-collection (:documents data))
                           :verification_coverage (evidence/verification-coverage (:requirements data))
                           :release_coverage (evidence/release-coverage (:documents data))
+                          :gate_progress (gates/gate-progress (:gate_templates data) (:gates data))
+                          :gate_catalog (mapv #(select-keys % [:gate_type :title :stage :page :blocks]) catalog/gate-types)
                           :risk_library collab/risk-library))))))
 
 
@@ -142,6 +150,11 @@
    [:meetings :actions] collab/create-action! [:actions :task] collab/materialize-action!
    [:actions :complete] collab/complete-action! [:actions :verify] collab/verify-action!
    [:gate-templates :create] (creating gates/create-template!)
+   [:gate-templates :from-catalog] (creating gates/from-catalog!)
+   [:template-instances :create] (creating templates/instantiate!)
+   [:dqs :create] (creating quality/create-dq!) [:dqs :checks] quality/check-dq!
+   [:dqs :submit] quality/submit-dq! [:dqs :decision] quality/decide-dq!
+   [:node-pauses :create] (creating quality/pause-node!) [:node-pauses :resume] quality/resume-node!
    [:gates :create] (creating gates/create!) [:gates :checks] gates/checks!
    [:gates :submit] gates/submit! [:gates :decision] gates/decide!
    [:appointments :create] (creating appointment/issue!)

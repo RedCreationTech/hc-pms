@@ -7,7 +7,7 @@
   (:import [java.time LocalDate]))
 
 
-(def kinds "交付对象白名单." #{"configuration" "material" "bom" "assembly" "test" "shipment" "service"})
+(def kinds "交付对象白名单." #{"configuration" "material" "bom" "assembly" "test" "shipment" "service" "survey" "handover" "site-task"})
 
 
 (defn records

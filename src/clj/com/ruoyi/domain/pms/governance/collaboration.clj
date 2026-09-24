@@ -237,20 +237,50 @@
                                                       :on (str (LocalDate/now)) :decision decision})})))))
 
 
+(def meeting-types
+  "会议类型: 常规/启动会/评审会/FAT启动会/FAT总结会."
+  #{"regular" "kickoff" "review" "fat-kickoff" "fat-summary"})
+
+
+(defn flag-meeting-baselines
+  "只读标注会议引用的基线是否仍是当前最新已批准基线 (引用版本失效校验), 不改状态."
+  [meetings baselines]
+  (let [approved (last (sort-by :plan_revision (filter #(= "approved" (:status %)) baselines)))
+        by-id (into {} (map (juxt :baseline_id identity) baselines))]
+    (mapv (fn [meeting]
+            (if-let [bid (:baseline_id meeting)]
+              (let [current (get by-id bid)]
+                (assoc meeting :baseline_current_status (:status current)
+                       :baseline_stale (boolean (and approved (not= bid (:baseline_id approved))))))
+              meeting))
+          meetings)))
+
+
 (defn create-meeting!
-  "持久化项目会议纪要,有效参会人员和可选会前资料(真实文档版本)."
+  "持久化项目会议纪要,有效参会人员,可选会前资料(真实文档版本), 会议类型与主计划基线引用."
   [svc actor id body]
   (k/mutate! svc actor id "pms:project:edit" body "meeting.recorded"
              (fn [q project]
-               (s/input! body [:title :held_on :minutes :attendee_ids :material_ids])
+               (s/input! body [:title :held_on :minutes :attendee_ids :material_ids :meeting_type :baseline_id])
                (when-not (and (vector? (:attendee_ids body)) (<= 1 (count (:attendee_ids body)) 100))
                  (r/fail! 400 "参会人员必须为1到100人的数组"))
-               (s/insert! q project actor "meeting"
-                          {:title (s/text! body :title 200) :held_on (s/date! body :held_on)
-                           :minutes (s/text! body :minutes 20000)
-                           :attendee_ids (vec (distinct (map #(s/user! q %) (:attendee_ids body))))
-                           :material_ids (s/evidence! q project (or (:material_ids body) []) false)}
-                          {:status "recorded"}))))
+               (let [type (s/enum! (or (:meeting_type body) "regular") meeting-types "meeting_type")
+                     materials (s/evidence! q project (or (:material_ids body) []) false)
+                     baseline (when (seq (:baseline_id body))
+                                (or (q :planning/baseline {:project_id (:project_id project) :baseline_id (:baseline_id body)})
+                                    (r/fail! 404 "计划基线不存在或不属于本项目")))]
+                 ;; B05: 启动会必须携带会前包 (售前/需求资料版本) 并引用主计划基线, 形成强制关联.
+                 (when (= "kickoff" type)
+                   (when (empty? materials) (r/fail! 409 "启动会必须绑定售前/需求资料作为会前包"))
+                   (when-not baseline (r/fail! 409 "启动会必须引用主计划基线")))
+                 (s/insert! q project actor "meeting"
+                            (cond-> {:title (s/text! body :title 200) :held_on (s/date! body :held_on)
+                                     :minutes (s/text! body :minutes 20000) :meeting_type type
+                                     :attendee_ids (vec (distinct (map #(s/user! q %) (:attendee_ids body))))
+                                     :material_ids materials}
+                              baseline (assoc :baseline_id (:baseline_id baseline) :baseline_revision (:plan_revision baseline)
+                                              :baseline_status (:status baseline)))
+                            {:status "recorded"})))))
 
 
 (defn create-action!

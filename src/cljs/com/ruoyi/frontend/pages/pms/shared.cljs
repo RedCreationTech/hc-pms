@@ -20,7 +20,16 @@
 (def project-types
   [{:value "equipment" :label "单机设备"}
    {:value "line" :label "整线工程"}
-   {:value "service" :label "技术服务"}])
+   {:value "service" :label "技术服务"}
+   {:value "new_product" :label "新产品研发"}
+   {:value "new_technology" :label "新技术研发"}
+   {:value "special_rd" :label "专题研发"}
+   {:value "dept_affairs" :label "部门事务"}])
+
+(defn project-type-label
+  "项目类别的可读名称."
+  [value]
+  (or (some #(when (= value (:value %)) (:label %)) project-types) value))
 
 (defn use-colors
   "读取当前 Ant Design 主题,保持亮暗模式一致."

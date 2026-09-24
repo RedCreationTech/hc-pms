@@ -631,18 +631,63 @@
         [w/edit-button "豁免" #(open! (forms/decision-dialog (str path "/decision") "waived" "豁免Gate"))]])]))
 
 
+(def gate-stage-labels
+  {"execution" "执行准入" "closure" "结项准出" "design" "设计阶段" "manufacturing" "制造阶段" "delivery" "交付阶段" "site" "现场阶段"})
+
+(def checkpoint-labels
+  {"assembly.start" "装配开工" "test.SIT" "SIT试验" "test.FAT" "FAT试验" "test.SAT" "SAT试验" "shipment.dispatch" "发运"})
+
+(def gate-status-labels
+  {"not_started" "未发起" "draft" "草稿" "ready" "待提交" "in_review" "评审中" "approved" "已通过" "rejected" "已驳回" "waived" "已豁免"})
+
+(defn- gate-progress-section
+  "只读汇总各关口模板的实例进展与检查项通过情况, 供主机/附件汇总等 Gate 下钻 (B09/B10)."
+  [{:keys [model]}]
+  (let [rows (:gate_progress model)]
+    [shared/panel "Gate进展汇总" "按模板汇总实例状态与检查项通过数; 阻断型关口未通过时对应交付命令被 409 拒绝" nil
+     (if (empty? rows)
+       [:span {:style {:color "#8793a3"}} "尚无Gate模板, 可从关口目录建立或应用项目模板."]
+       [antd/space {:wrap true}
+        (for [row rows] ^{:key (:template_id row)}
+          [:div {:style {:border "1px solid #e4e8ee" :borderRadius 8 :padding "10px 14px" :minWidth 220}}
+           [:div {:style {:fontWeight 600}} (:title row)]
+           [:div {:style {:fontSize 12 :color "#718096" :margin "4px 0"}} (str (get gate-stage-labels (:stage row) (:stage row)) " · " (:gate_type row))]
+           [antd/space {:wrap true}
+            [antd/tag {:color (cond (:passed row) "green" (= "not_started" (:status row)) "default" (= "rejected" (:status row)) "red" :else "blue")}
+             (get gate-status-labels (:status row) (:status row))]
+            [antd/tag (str "检查 " (:passed_checks row) "/" (:total_checks row))]
+            (for [b (:blocks row)] ^{:key b} [antd/tag {:color "orange"} (str "阻断 " (get checkpoint-labels b b))])]])])]))
+
 (defn- gate-section
   "Gate模板和逐项证据检查控制阶段准入."
   [{:keys [base model options editable? open!] :as context}]
   [:div {:style {:display "grid" :gap 20}}
-   [shared/panel "Gate模板" "每个控制点声明适用阶段与必需检查项"
-    (when editable? [antd/button {:on-click #(open! (forms/template-dialog base))} "建立Gate模板"])
+   [gate-progress-section context]
+   [shared/panel "Gate模板" "每个控制点声明类型, 适用阶段, 阻断检查点与必需检查项 (含须已发布证据的检查)"
+    (when editable?
+      [antd/space
+       [antd/button {:on-click (fn []
+                                 (open! {:title "从关口目录建立" :path (str base "/gate-templates/from-catalog")
+                                         :description "原蓝图关口目录 (需求确认/主机汇总/附件汇总/齐套G4/装配测试交接G5/FAT确认G6/交底G7/SAT确认G8), 适用范围待业务签收."
+                                         :fields [{:key :gate_type :label "关口类型" :type :select :required? true
+                                                   :options (mapv (fn [g] {:value (:gate_type g) :label (str (:title g) " · " (get gate-stage-labels (:stage g) (:stage g)) " · 第" (:page g) "页")}) (:gate_catalog model))}]}))}
+        "从关口目录建立"]
+       [antd/button {:on-click #(open! (forms/template-dialog base))} "建立Gate模板"]])
     [w/record-table (:gate_templates model)
      [(w/text-column :code "编号") (w/text-column :title "模板")
-      {:title "控制阶段" :dataIndex "stage" :render #(if (= % "execution") "执行准入" "结项准出")}] nil]]
+      {:title "类型" :dataIndex "gate_type" :width 170 :render #(shared/display-value %)}
+      {:title "控制阶段" :dataIndex "stage" :width 100 :render #(get gate-stage-labels % %)}
+      {:title "阻断检查点" :dataIndex "blocks" :width 160
+       :render (fn [v] (let [items (array-seq (or v #js []))]
+                         (r/as-element (if (seq items) (into [antd/space {:wrap true}] (map (fn [b] [antd/tag {:color "orange"} (get checkpoint-labels b b)]) items))
+                                           [:span {:style {:color "#98a2b3"}} "无"]))))}
+      {:title "检查项" :dataIndex "checks" :width 90 :render (fn [v] (count (array-seq (or v #js []))))}] nil]]
    [shared/panel "Gate检查与评审" "审批绑定具体检查结果及证据版本"
     (when editable? [antd/button {:type "primary" :on-click #(open! (forms/gate-dialog base model options))} "发起Gate检查"])
-    [w/record-table (:gates model) [(w/text-column :title "检查") (w/state-column)
+    [w/record-table (:gates model) [(w/text-column :title "检查")
+                                    {:title "类型" :dataIndex "gate_type" :width 160 :render #(shared/display-value %)}
+                                    {:title "阶段" :dataIndex "stage" :width 100 :render #(get gate-stage-labels % %)}
+                                    (w/state-column)
                                     (w/text-column :reviewer_id "审批人") (w/text-column :decision_reason "评审意见")]
      #(gate-actions context %)]]])
 

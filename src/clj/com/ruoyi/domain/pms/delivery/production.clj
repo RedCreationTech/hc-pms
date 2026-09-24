@@ -1,6 +1,7 @@
 (ns com.ruoyi.domain.pms.delivery.production
   "装配交检及SIT,FAT,SAT的受控试验,失败整改和独立确认."
   (:require [com.ruoyi.domain.pms.delivery.store :as d]
+            [com.ruoyi.domain.pms.governance.gates :as gates]
             [com.ruoyi.domain.pms.governance.store :as g]
             [com.ruoyi.domain.pms.rules :as r]))
 
@@ -31,6 +32,7 @@
       (let [assembly (d/record! q project "assembly" rid)]
         (g/status! assembly #{"draft" "rejected"})
         (g/status! (d/record! q project "bom" (:bom_id assembly)) #{"ready"})
+        (gates/checkpoint-ready! q project "assembly.start")
         (d/change! q project assembly "in_progress"
                    {:started_by (:user_id actor) :start_evidence_ids (g/evidence! q project (:evidence_ids body) true)})))))
 
@@ -174,6 +176,7 @@
       (d/execution! project)
       (let [test (d/record! q project "test" rid)]
         (g/status! test #{"draft" "ready" "rejected"})
+        (gates/checkpoint-ready! q project (str "test." (:test_type test)))
         (when (>= (count (:result_history test)) 100) (r/fail! 409 "复验次数已达100,请创建新的受控试验记录"))
         (let [prerequisites (prerequisites! q project test)
               checks (results! q project actor test body)]

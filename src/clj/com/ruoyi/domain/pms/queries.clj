@@ -5,4 +5,5 @@
   "业务查询文件, 各模块由HugSQL绑定并使用参数化SQL."
   ["sql/pms.sql" "sql/pms_planning.sql" "sql/pms_planning_resources.sql"
    "sql/pms_planning_baselines.sql" "sql/pms_governance.sql"
-   "sql/pms_finance.sql" "sql/pms_closure.sql" "sql/pms_integration.sql" "sql/pms_delivery.sql"])
+   "sql/pms_finance.sql" "sql/pms_closure.sql" "sql/pms_integration.sql" "sql/pms_delivery.sql"
+   "sql/pms_config.sql"])

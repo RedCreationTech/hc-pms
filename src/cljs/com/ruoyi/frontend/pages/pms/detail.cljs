@@ -2,6 +2,7 @@
   "项目详情与生命周期操作."
   (:require
     ["@ant-design/icons" :refer [ArrowRightOutlined EditOutlined]]
+    [clojure.string :as str]
     [com.ruoyi.frontend.antd :as antd]
     [com.ruoyi.frontend.pages.pms.form :as project-form]
     [com.ruoyi.frontend.pages.pms.shared :as shared]
@@ -38,8 +39,9 @@
   [project]
   [antd/descriptions {:column {:xs 1 :sm 2 :md 3} :size "small"
                       :items (mapv (fn [[key label]]
-                                     {:key (name key) :label label :children (shared/display-value (get project key))})
-                                   [[:project_no "项目编号"] [:customer "客户"] [:contract_no "合同编号"]
+                                     {:key (name key) :label label
+                                      :children (shared/display-value (get (assoc project :project_type_label (shared/project-type-label (:project_type project))) key))})
+                                   [[:project_no "项目编号"] [:project_type_label "项目类别"] [:customer "客户"] [:contract_no "合同编号"]
                                     [:manager_name "项目经理"] [:dept_name "所属部门"]
                                     [:start_date "计划开始"] [:end_date "计划完成"]])}])
 
@@ -115,17 +117,55 @@
        :else [antd/timeline {:items (mapv #(hash-map :key (:event_id %) :content (r/as-element [event-content %]))
                                          (:rows data))}])]))
 
+(defn- template-dialog
+  "从已发布且适用于当前项目类别的平台模板中选择并一次性实例化项目网络 (A07/A09)."
+  [project on-close on-saved]
+  (let [resource (shared/use-resource "/config/project-template" {} [])
+        templates (filterv #(and (= "published" (:status %)) (some #{(:project_type project)} (:project_types %)))
+                           (get-in resource [:data :rows]))]
+    (cond
+      (:error resource) [antd/modal {:title "应用项目模板" :open true :onCancel on-close :footer nil} [shared/error-panel (:error resource) (:refresh! resource)]]
+      (:loading? resource) [antd/modal {:title "应用项目模板" :open true :onCancel on-close :footer nil} [antd/spin]]
+      :else
+      [w/mutation-dialog {:title "应用项目模板" :path (str "/projects/" (:project_id project) "/governance/template-instances")
+                          :project project :on-close on-close :on-saved on-saved
+                          :description (if (seq templates)
+                                         "按模板一次性建立子项目/单机结构, Gate模板, 阶段与结构计划容器, 交付要求与收尾清单; 每个项目只能实例化一次, 后续模板修订不追溯覆盖."
+                                         "当前项目类别没有已发布模板, 请先在 模板与规则 页面导入并发布.")
+                          :fields [{:key :template_id :label "已发布模板" :type :select :required? true
+                                    :options (mapv #(hash-map :value (:id %) :label (str (:title %) " (" (:code %) " v" (:revision %) ")")) templates)}
+                                   {:key :reason :label "应用说明" :type :textarea}]}])))
+
+(defn- template-summary
+  "展示已实例化模板的版本快照."
+  [template]
+  (let [colors (shared/use-colors)]
+    [:div {:style {:marginTop 16 :padding "12px 16px" :borderRadius 8 :background (:soft colors)}}
+     [antd/space {:wrap true}
+      [antd/tag {:color "geekblue"} (str "项目模板 " (:title template) " · " (:code template) " v" (:template_revision template))]
+      [antd/tag (str "阶段 " (count (:stages template)))]
+      [antd/tag (str "结构节点 " (:node_count template))]
+      [antd/tag (str "Gate模板 " (:gate_template_count template))]
+      [antd/tag (str "计划容器 " (:task_count template))]
+      [antd/tag (str "收尾清单 " (:closure_item_count template))]]
+     [:div {:style {:fontSize 12 :color (:muted colors) :marginTop 8}}
+      (str "阶段权重: " (str/join " / " (map #(str (:name %) " " (:weight %) "%") (:stages template)))
+           (when (seq (:team_roles template)) (str "  |  团队角色: " (str/join ", " (:team_roles template)))))]]))
+
 (defn- detail-body
   "以项目结构,团队与变更记录组织详情工作区."
-  [project revision options changed! edit! target!]
+  [project revision options changed! edit! target! apply-template!]
   (let [editable? (not (contains? #{"closed" "cancelled" "paused"} (:status project)))
         can-edit? (and (shared/use-permission "pms:project:edit") editable?)]
     [:div {:style {:display "grid" :gap 20}}
      [shared/panel "项目概况" (when-not editable? (if (= "paused" (:status project)) "项目已暂停,恢复后可继续维护" "项目已结束,当前为只读视图"))
       [antd/space
        (when can-edit? [antd/button {:icon (r/as-element [:> EditOutlined]) :on-click edit!} "编辑资料"])
+       (when (and can-edit? (nil? (:template project)) (contains? #{"draft" "initiated" "planning"} (:status project)))
+         [antd/button {:on-click apply-template!} "应用项目模板"])
        [lifecycle-actions project target!]]
       [lifecycle project] [summary-grid project]
+      (when (:template project) [template-summary (:template project)])
       (when (= "planning" (:status project))
         [:p {:style {:margin "16px 0 0" :fontSize 12 :color "#7b8798"}}
          "完善计划并通过独立基线与阶段Gate评审后,可进入执行阶段."])]
@@ -135,13 +175,13 @@
 
 (defn- workbench-content
   "项目级工作台统一组织计划,治理,费用与结项."
-  [project revision options changed! edit! target!]
+  [project revision options changed! edit! target! apply-template!]
   (let [members (shared/use-resource (str "/projects/" (:project_id project) "/members") {} [revision])
         ids (set (map :user_id (get-in members [:data :rows])))
         member-options (assoc options :users (filterv #(contains? ids (:user_id %)) (:users options)))]
   [antd/tabs {:defaultActiveKey "overview" :destroyOnHidden false
               :items [{:key "overview" :label "项目概况"
-                       :children (r/as-element [detail-body project revision options changed! edit! target!])}
+                       :children (r/as-element [detail-body project revision options changed! edit! target! apply-template!])}
                       {:key "planning" :label "计划与执行"
                        :children (r/as-element [planning/planning-workspace project revision member-options changed!])}
                       {:key "governance" :label "需求与治理"
@@ -163,6 +203,7 @@
   (let [[revision set-revision!] (hooks/use-state 0)
         [editing? set-editing!] (hooks/use-state false)
         [target set-target!] (hooks/use-state nil)
+        [applying? set-applying!] (hooks/use-state false)
         {:keys [data loading? error refresh!]} (shared/use-resource (str "/projects/" id) {} [revision])
         changed! (fn [] (set-revision! inc) (on-change))]
     [antd/drawer {:title (r/as-element
@@ -175,7 +216,8 @@
        error [shared/error-panel error refresh!]
        (and loading? (nil? data)) [:div {:style {:padding 64 :textAlign "center"}} [antd/spin]]
        :else [w/refresh-boundary loading?
-              [workbench-content data revision options changed! #(set-editing! true) set-target!]])
+              [workbench-content data revision options changed! #(set-editing! true) set-target! #(set-applying! true)]])
+     (when applying? [template-dialog data #(set-applying! false) (fn [_] (set-applying! false) (changed!))])
      (when editing? [project-form/project-form
                      {:project data :options options :on-close #(set-editing! false)
                       :on-saved (fn [_] (set-editing! false) (changed!))}])

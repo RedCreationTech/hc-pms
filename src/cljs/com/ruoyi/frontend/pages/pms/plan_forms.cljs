@@ -12,6 +12,12 @@
    {:key :parent_id :label "汇总父项" :type :select
     :options (w/options (filter #(= "summary" (:task_type %)) (:tasks model)) :task_id :name)}
    {:key :owner_id :label "责任人" :type :select :options (w/user-options (:users options))}
+   {:key :node_id :label "结构节点 (主/子/单机计划)" :type :select
+    :options (mapv #(hash-map :value (:node_id %) :label (str (:node_code %) " · " (:name %))) (:nodes model))
+    :hint "留空表示主计划层; 子项目/单机任务映射到对应节点后参与分层卷积."}
+   {:key :stage_code :label "所属阶段" :type :select
+    :options (mapv #(hash-map :value (:code %) :label (str (:code %) " · " (:name %) " (" (:weight %) "%)")) (:stages model))
+    :hint "阶段权重来自已实例化的项目模板, 用于进度卷积."}
    {:key :duration_days :label "工期(工作日)" :type :number :min 0 :required? true
     :hint "普通任务至少1天,汇总任务和里程碑填0."}
    {:key :start_date :label "最早开始日期" :type :date}
@@ -23,7 +29,7 @@
   {:title (if task "编辑WBS任务" "新建WBS任务")
    :path (str base "/tasks" (when task (str "/" (:task_id task))))
    :method (if task :put :post) :fields (task-fields model options)
-   :initial (if task (select-keys task [:wbs_code :name :task_type :parent_id :owner_id :duration_days :start_date :description])
+   :initial (if task (select-keys task [:wbs_code :name :task_type :parent_id :owner_id :duration_days :start_date :description :node_id :stage_code])
                 {:task_type "task" :duration_days 1})})
 
 (defn dependency-dialog

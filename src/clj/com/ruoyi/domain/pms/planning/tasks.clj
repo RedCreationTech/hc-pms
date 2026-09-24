@@ -2,7 +2,9 @@
   "WBS任务,依赖图与实际进度反馈的项目内操作."
   (:require [clojure.string :as str]
             [com.ruoyi.domain.pms.kernel :as kernel]
+            [com.ruoyi.domain.pms.governance.quality :as quality]
             [com.ruoyi.domain.pms.governance.store :as governance]
+            [com.ruoyi.domain.pms.planning.progress :as progress]
             [com.ruoyi.domain.pms.delivery.store :as delivery]
             [com.ruoyi.domain.pms.rules :as rules]
             [com.ruoyi.domain.pms.planning.schedule :as schedule]
@@ -10,7 +12,15 @@
 
 (def fields
   "客户端允许维护的任务设计字段."
-  [:version :parent_id :wbs_code :name :task_type :duration_days :owner_id :start_date :description])
+  [:version :parent_id :wbs_code :name :task_type :duration_days :owner_id :start_date :description :node_id :stage_code])
+
+(defn- node!
+  "任务可映射到同项目的结构节点 (主/子/单机计划), 留空表示主计划层."
+  [q project node-id]
+  (when (and (some? node-id) (not= "" node-id))
+    (when-not (and (string? node-id) (q :pms/node {:project_id (:project_id project) :node_id node-id}))
+      (rules/fail! 400 "结构节点不存在或不属于当前项目"))
+    node-id))
 
 (defn- parent!
   "要求WBS父级是同项目汇总任务,检查循环和层级上限."
@@ -42,6 +52,8 @@
      :task_type type :duration_days duration :start_date start
      :owner_id (when (:owner_id body) (kernel/user! q project (:owner_id body) "任务负责人"))
      :description (rules/text! (:description body) "任务说明" 2000 false)
+     :node_id (node! q project (:node_id body))
+     :stage_code (not-empty (rules/text! (:stage_code body) "阶段编码" 50 false))
      :source_type (:source_type body) :source_id (:source_id body)}))
 
 (defn create-record!
@@ -161,6 +173,9 @@
                     :project_version (inc (:version project))
                     :comment (rules/text! (:comment body) "进度说明" 2000 false)}]
         (when (= "summary" (:task_type task)) (rules/fail! 400 "汇总任务不能直接反馈进度"))
+        (let [node (progress/task-node (store/rows q project :planning/tasks) task)]
+          (when (and node (contains? (quality/paused-node-ids q project) node))
+            (rules/fail! 409 "所属子项目/单机已局部暂停,恢复后才能反馈进度")))
         (when-not (contains? #{"in_progress" "blocked" "done"} status) (rules/fail! 400 "无效任务状态"))
         (when (or (< percent (:percent_complete task))
                   (and (= "done" (:status task)) (not= status "done")))

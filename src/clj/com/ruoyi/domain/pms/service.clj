@@ -2,6 +2,8 @@
   "项目管理应用服务,所有写入和审计在同一数据库事务中完成."
   (:require [cheshire.core :as json]
             [clojure.string :as str]
+            [com.ruoyi.domain.pms.config :as config]
+            [com.ruoyi.domain.pms.governance.store :as gov-store]
             [com.ruoyi.domain.pms.rules :as rules]
             [com.ruoyi.domain.pms.lifecycle :as lifecycle]
             [com.ruoyi.domain.pms.planning :as planning]
@@ -102,8 +104,13 @@
   "读取当前用户有权访问的项目详情."
   [{:keys [query-fn]} actor id]
   (rules/permit! actor "pms:project:query")
-  (let [project (load-project! query-fn actor id false)]
-    (assoc project :resume_status (:resume_status (query-fn :lifecycle/state {:project_id id})))))
+  (let [project (load-project! query-fn actor id false)
+        instance (first (gov-store/records query-fn project "template-instance"))]
+    (assoc project :resume_status (:resume_status (query-fn :lifecycle/state {:project_id id}))
+           :template (when instance
+                       (select-keys instance [:id :code :title :template_revision :template_config_id :node_count
+                                              :gate_template_count :task_count :closure_item_count :stages :team_roles
+                                              :document_categories :created_at])))))
 
 (defn create-project!
   "创建草稿项目,主节点,经理与创建者成员及审计事件."
@@ -115,6 +122,7 @@
       (let [project (assoc (rules/project-input! q body)
                            :project_id (uuid) :created_by (:user_id actor)
                            :version 1 :status "draft")]
+        (config/enforce! q "project" (:project_no project))
         (unique-project-no! q project)
         (q :pms/insert-project! project)
         (q :pms/insert-node! {:node_id (uuid) :project_id (:project_id project)
@@ -190,6 +198,7 @@
                          [(:node_type parent) node-type])
       (rules/fail! 400 "节点必须按主项目 -> 子项目 -> 单机层级创建"))
     (when (q :pms/node-code node) (rules/fail! 409 "项目内节点编号已存在"))
+    (config/enforce! q node-type (:node_code node))
     node))
 
 (defn create-node!

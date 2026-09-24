@@ -243,15 +243,30 @@
 (defn template-dialog
   "将具体验收准则定义为逐项Gate检查."
   [base]
-  {:title "建立Gate模板" :path (str base "/gate-templates") :initial {:stage "execution"}
+  {:title "建立Gate模板" :path (str base "/gate-templates") :initial {:stage "execution" :gate_type "generic" :blocks [] :require_released false}
    :transform (fn [data]
-                (-> data (dissoc :check_titles) (assoc :required true
-                                                       :checks (mapv (fn [i title] {:code (str "C" (inc i)) :title title :required true})
-                                                                     (range) (remove str/blank? (str/split-lines (:check_titles data)))))))
+                (-> data (dissoc :check_titles :require_released)
+                    (assoc :required true
+                           :blocks (vec (or (:blocks data) []))
+                           :checks (mapv (fn [i title] {:code (str "C" (inc i)) :title title :required true
+                                                         :require_released (true? (:require_released data))})
+                                         (range) (remove str/blank? (str/split-lines (:check_titles data)))))))
    :fields [{:key :code :label "Gate编号" :required? true}
             {:key :title :label "Gate名称" :required? true}
+            {:key :gate_type :label "关口类型" :type :select :required? true
+             :options [{:value "generic" :label "通用"} {:value "requirement-confirm" :label "需求确认"} {:value "host-summary" :label "主机汇总"}
+                       {:value "attachment-summary" :label "附件汇总"} {:value "kitting" :label "零件齐套(G4)"}
+                       {:value "assembly-test-handover" :label "装配测试交接(G5)"} {:value "fat-confirm" :label "FAT确认(G6)"}
+                       {:value "handover" :label "项目交底(G7)"} {:value "sat-confirm" :label "SAT确认(G8)"}]}
             {:key :stage :label "控制阶段" :type :select :required? true
-             :options [{:value "execution" :label "执行准入"} {:value "closure" :label "结项准出"}]}
+             :options [{:value "execution" :label "执行准入"} {:value "closure" :label "结项准出"} {:value "design" :label "设计阶段"}
+                       {:value "manufacturing" :label "制造阶段"} {:value "delivery" :label "交付阶段"} {:value "site" :label "现场阶段"}]}
+            {:key :blocks :label "阻断的交付检查点" :type :multi
+             :options [{:value "assembly.start" :label "装配开工"} {:value "test.SIT" :label "SIT试验"} {:value "test.FAT" :label "FAT试验"}
+                       {:value "test.SAT" :label "SAT试验"} {:value "shipment.dispatch" :label "发运"}]
+             :hint "未通过该关口前, 对应交付命令被拒绝."}
+            {:key :require_released :label "检查证据须已发布" :type :select
+             :options [{:value false :label "登记版本即可"} {:value true :label "须经独立发布审批"}]}
             {:key :check_titles :label "必需检查项" :type :textarea :required? true :hint "每行一项具体、可验证的验收标准."}]})
 
 

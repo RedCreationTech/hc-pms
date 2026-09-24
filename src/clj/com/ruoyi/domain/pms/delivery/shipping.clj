@@ -2,6 +2,7 @@
   "真实发运记录,独立签收验证和售后异常处理闭环."
   (:require [com.ruoyi.domain.pms.delivery.production :as production]
             [com.ruoyi.domain.pms.delivery.store :as d]
+            [com.ruoyi.domain.pms.governance.gates :as gates]
             [com.ruoyi.domain.pms.governance.store :as g]
             [com.ruoyi.domain.pms.rules :as r]))
 
@@ -74,6 +75,7 @@
       (let [shipment (d/record! q project "shipment" rid)]
         (g/status! shipment #{"released"})
         (shipping-ready! q project shipment)
+        (gates/checkpoint-ready! q project "shipment.dispatch")
         (when (= (:user_id actor) (:reviewer_id shipment))
           (r/fail! 409 "指定签收验证人不能同时登记实际发运"))
         (d/change! q project shipment "shipped"

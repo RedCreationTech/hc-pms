@@ -1,36 +1,37 @@
 (ns com.ruoyi.domain.pms.governance.gates
   "关口模板,指定版本证据,独立签核及生命周期前置检查."
-  (:require [com.ruoyi.domain.pms.governance.store :as s]
+  (:require [clojure.string :as str]
+            [com.ruoyi.domain.pms.config :as config]
+            [com.ruoyi.domain.pms.config.catalog :as catalog]
+            [com.ruoyi.domain.pms.governance.store :as s]
             [com.ruoyi.domain.pms.kernel :as k]
             [com.ruoyi.domain.pms.rules :as r]))
 
-(defn- template-checks!
-  "校验关口模板的非空且唯一检查项."
-  [checks]
-  (when-not (and (vector? checks) (<= 1 (count checks) 30))
-    (r/fail! 400 "关口模板需要1到30个检查项"))
-  (let [result (mapv (fn [check]
-                       (r/object! check [:code :title :required])
-                       {:code (s/text! check :code 50) :title (s/text! check :title 200)
-                        :required (s/boolean! (:required check) "required")}) checks)]
-    (when-not (= (count result) (count (set (map :code result))))
-      (r/fail! 400 "关口检查项编码重复"))
-    result))
-
 (defn create-template!
-  "登记不可变的项目关口模板和适用阶段."
+  "登记不可变的项目关口模板: 类型, 适用阶段, 阻断检查点与检查项 (含发布版本要求)."
   [svc actor id body]
   (k/mutate! svc actor id "pms:project:edit" body "gate-template.created"
     (fn [q project]
-      (s/input! body [:code :title :stage :required :checks])
-      (let [checks (template-checks! (:checks body))]
-        (when (and (:required body) (not-any? :required checks))
-          (r/fail! 400 "必需关口模板至少应有一个必需检查项")))
-      (s/insert! q project actor "gate-template"
-                 {:code (s/text! body :code 100) :title (s/text! body :title 200)
-                  :stage (s/enum! (:stage body) #{"execution" "closure"} "stage")
-                  :required (s/boolean! (:required body) "required")
-                  :checks (template-checks! (:checks body))} {:status "registered"}))))
+      (s/input! body [:code :title :stage :required :checks :gate_type :blocks])
+      (let [template (config/gate-template! (dissoc body :version))]
+        (when (some #(= (:code template) (:code %)) (s/records q project "gate-template"))
+          (r/fail! 409 "关口模板编号已存在"))
+        (s/insert! q project actor "gate-template" template {:status "registered"})))))
+
+(defn from-catalog!
+  "按原蓝图关口目录一键建立项目内 Gate 模板 (B06-B15 模板候选, 适用范围待业务签收)."
+  [svc actor id body]
+  (k/mutate! svc actor id "pms:project:edit" body "gate-template.created"
+    (fn [q project]
+      (s/input! body [:gate_type :required])
+      (let [item (or (catalog/gate-type (:gate_type body)) (r/fail! 404 "关口目录项不存在"))
+            template (config/gate-template! {:code (str "GT-" (str/upper-case (:gate_type item)))
+                                             :title (:title item) :gate_type (:gate_type item) :stage (:stage item)
+                                             :required (if (false? (:required body)) false true)
+                                             :blocks (or (:blocks item) []) :checks (:checks item)})]
+        (when (some #(= (:code template) (:code %)) (s/records q project "gate-template"))
+          (r/fail! 409 "该类型关口模板已建立"))
+        (s/insert! q project actor "gate-template" (assoc template :source "catalog") {:status "registered"})))))
 
 (defn create!
   "从确定模板创建关口实例并绑定独立审核人."
@@ -42,6 +43,7 @@
         (s/insert! q project actor "gate"
                    {:title (s/text! body :title 200) :template_id (:id template)
                     :stage (:stage template) :required (:required template)
+                    :gate_type (:gate_type template "generic")
                     :reviewer_id (s/reviewer! q project actor (:reviewer_id body))
                     :checks (mapv #(assoc % :passed false :evidence_ids []) (:checks template))}
                    {})))))
@@ -73,12 +75,40 @@
                    {:checks (completed-checks! q project gate (:checks body))})))))
 
 (defn- evidence-ready!
-  "所有必需项须通过并提供确定文档版本."
+  "所有必需项须通过并提供确定文档版本; 声明 require_released 的检查项其证据须已经独立发布 (C06 发布链联动)."
   [q project gate]
   (doseq [check (:checks gate) :when (:required check)]
     (when-not (:passed check) (r/fail! 409 (str "必需检查未通过: " (:code check))))
-    (s/evidence! q project (:evidence_ids check) true))
+    (s/evidence! q project (:evidence_ids check) true)
+    (when (:require_released check)
+      (doseq [id (:evidence_ids check)]
+        (when-not (= "approved" (:status (s/record! q project "document" id)))
+          (r/fail! 409 (str "检查项 " (:code check) " 引用的证据尚未发布"))))))
   true)
+
+(defn checkpoint-ready!
+  "阻断型关口: 声明了该交付检查点的模板必须已有通过或豁免的实例, 否则拒绝后续交付命令."
+  [q project checkpoint]
+  (doseq [template (filter #(some #{checkpoint} (:blocks %)) (s/records q project "gate-template"))]
+    (let [instances (filter #(= (:id template) (:template_id %)) (s/records q project "gate"))]
+      (when-not (some #(contains? #{"approved" "waived"} (:status %)) instances)
+        (r/fail! 409 (str "阻断关口尚未通过: " (:title template))))))
+  true)
+
+(defn gate-progress
+  "只读汇总各关口模板的实例进展与检查项通过数, 供汇总 Gate 下钻 (B09/B10)."
+  [templates gates]
+  (mapv (fn [template]
+          (let [instances (filter #(= (:id template) (:template_id %)) gates)
+                latest (last (sort-by :created_at instances))
+                checks (:checks latest)]
+            {:template_id (:id template) :code (:code template) :title (:title template)
+             :gate_type (:gate_type template "generic") :stage (:stage template) :blocks (:blocks template [])
+             :required (:required template) :instance_count (count instances)
+             :status (if latest (:status latest) "not_started")
+             :passed_checks (count (filter :passed checks)) :total_checks (count (:checks template))
+             :passed (boolean (some #(contains? #{"approved" "waived"} (:status %)) instances))}))
+        templates))
 
 (defn submit!
   "提交关口审核,允许完整检查或有理由的豁免申请."

@@ -27,13 +27,13 @@ SELECT task_id FROM pms_plan_task WHERE project_id=:project_id AND wbs_code=:wbs
 --;;
 
 -- :name planning/create-task! :! :n
-INSERT INTO pms_plan_task(task_id,project_id,parent_id,wbs_code,name,task_type,duration_days,owner_id,start_date,description,remaining_days,source_type,source_id)
-VALUES (:task_id,:project_id,:parent_id,:wbs_code,:name,:task_type,:duration_days,:owner_id,:start_date,:description,:duration_days,:source_type,:source_id)
+INSERT INTO pms_plan_task(task_id,project_id,parent_id,wbs_code,name,task_type,duration_days,owner_id,start_date,description,remaining_days,source_type,source_id,node_id,stage_code)
+VALUES (:task_id,:project_id,:parent_id,:wbs_code,:name,:task_type,:duration_days,:owner_id,:start_date,:description,:duration_days,:source_type,:source_id,:node_id,:stage_code)
 --;;
 
 -- :name planning/update-task! :! :n
 UPDATE pms_plan_task SET parent_id=:parent_id,wbs_code=:wbs_code,name=:name,task_type=:task_type,
-duration_days=:duration_days,owner_id=:owner_id,start_date=:start_date,description=:description,
+duration_days=:duration_days,owner_id=:owner_id,start_date=:start_date,description=:description,node_id=:node_id,stage_code=:stage_code,
 remaining_days=CASE WHEN status='todo' THEN :duration_days ELSE remaining_days END
 WHERE project_id=:project_id AND task_id=:task_id
 --;;

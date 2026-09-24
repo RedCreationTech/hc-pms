@@ -21,6 +21,8 @@
    [w/record-table (:tasks model)
     [(w/text-column :wbs_code "WBS编号") (w/text-column :name "任务名称")
      {:title "类型" :dataIndex "task_type" :render #(get w/labels % %)}
+     {:title "节点" :dataIndex "node_id" :width 130 :render #(w/related-label (:nodes model) :node_id :node_code %)}
+     {:title "阶段" :dataIndex "stage_code" :width 110 :render shared/display-value}
      (w/text-column :owner_name "责任人") (w/text-column :duration_days "工作日")
      (w/state-column) (w/text-column :percent_complete "进度%")]
     (fn [task]
@@ -132,6 +134,7 @@
                    {:key "resources" :label "资源与日历" :children (r/as-element [:div {:style {:display "grid" :gap 20}}
                                                                                 [resource-section context] [allocation-section context]
                                                                                 [calendar-section context] [views/overloads model]])}
+                   {:key "rollup" :label "进度卷积" :children (r/as-element [views/progress-rollup model])}
                    {:key "baselines" :label "审批与基线" :children (r/as-element [baseline-section context])}
                    {:key "feedback" :label "执行反馈" :children (r/as-element [feedback-section context])}]}]]))
 

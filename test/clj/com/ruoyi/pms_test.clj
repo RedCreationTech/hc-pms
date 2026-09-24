@@ -22,7 +22,7 @@
 (defn- query-function
   "创建可显式注入事务连接的 HugSQL 查询函数."
   [db]
-  (let [queries (:fns (conman/bind-connection-map db {} "sql/pms.sql" "sql/pms_planning.sql" "sql/pms_planning_resources.sql" "sql/pms_planning_baselines.sql" "sql/pms_governance.sql" "sql/pms_finance.sql" "sql/pms_closure.sql" "sql/pms_integration.sql" "sql/pms_delivery.sql"))]
+  (let [queries (:fns (conman/bind-connection-map db {} "sql/pms.sql" "sql/pms_planning.sql" "sql/pms_planning_resources.sql" "sql/pms_planning_baselines.sql" "sql/pms_governance.sql" "sql/pms_finance.sql" "sql/pms_closure.sql" "sql/pms_integration.sql" "sql/pms_delivery.sql" "sql/pms_config.sql"))]
     (fn
       ([name params] ((get-in queries [name :fn]) params))
       ([tx name params] ((get-in queries [name :fn]) tx params)))))

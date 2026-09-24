@@ -115,8 +115,8 @@
                      :start_date (date! (:start_date body) "开始日期")
                      :end_date (date! (:end_date body) "结束日期")
                      :project_type (or (:project_type body) "equipment")))]
-    (when-not (contains? #{"equipment" "line" "service"} (:project_type m))
-      (fail! 400 "项目类型必须为 equipment,line 或 service"))
+    (when-not (contains? #{"equipment" "line" "service" "new_product" "new_technology" "special_rd" "dept_affairs"} (:project_type m))
+      (fail! 400 "项目类型必须为 equipment,line,service,new_product,new_technology,special_rd 或 dept_affairs"))
     (when (and (:start_date m) (:end_date m)
                (pos? (compare (:start_date m) (:end_date m))))
       (fail! 400 "结束日期不能早于开始日期"))
