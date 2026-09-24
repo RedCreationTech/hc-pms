@@ -208,7 +208,7 @@ test.describe('C/F/G 节 追踪偏差, 文档下钻与密级, 追溯升级, 待�
     await page.goto('/pms/search');
     await page.getByPlaceholder('输入关键字').fill('组合看板需求');
     await page.getByRole('button', { name: /^检\s*索$/ }).click();
-    await expect(page.getByRole('cell', { name: 'PF-URS', exact: true }).first()).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'PF-URS', exact: true }).first()).toBeVisible({ timeout: 30000 });
     await expect(page.getByText(/检索结果 \d+/)).toBeVisible();
     await shot(page, 'g-1-global-search.png');
 

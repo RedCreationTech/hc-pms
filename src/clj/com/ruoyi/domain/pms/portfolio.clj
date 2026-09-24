@@ -111,12 +111,17 @@
         classification (not-empty (r/text! (:classification params) "密级" 20 false))
         confidential? (or (:admin? actor) (contains? (:permissions actor) "*:*:*") (contains? (:permissions actor) "pms:document:confidential"))
         projects (authorized-projects q actor)
-        results (for [project projects
-                      :let [tasks (map #(assoc % :kind "task") (q :planning/tasks {:project_id (:project_id project)}))
-                            gov (mapcat #(g/records q project %) (keys (select-keys search-kinds ["requirement" "document" "risk" "issue" "meeting" "action" "change" "charter" "gate" "gate-template" "stakeholder" "dq"])))
-                            del (mapcat #(d/records q project %) ["material" "bom" "assembly" "test" "shipment" "service" "survey" "handover" "site-task"])]
-                      rec (concat (when (matches? needle project) [(assoc project :kind "project" :code (:project_no project) :title (:name project))]) tasks gov del)
-                      :when (and (matches? needle rec)
+        by-project (into {} (map (juxt :project_id identity) projects))
+        params (assoc (r/access-params actor) :q needle)
+        ;; SQL 先按授权范围与关键字预筛 (编号/JSON载荷/任务名), 再在内存按可读字段精确匹配, 避免逐项目逐类型扫描.
+        candidates (concat (map #(assoc % :kind "project" :code (:project_no %) :title (:name %)) (filter #(matches? needle %) projects))
+                           (map #(assoc % :kind "task") (q :pms/search-tasks params))
+                           (map g/decode (q :pms/search-gov params))
+                           (map g/decode (q :pms/search-delivery params)))
+        results (for [rec candidates
+                      :let [project (get by-project (:project_id rec))]
+                      :when (and project (contains? (set (concat (keys search-kinds) ["project" "task"])) (:kind rec))
+                                 (matches? needle rec)
                                  (or (not= "document" (:kind rec)) (and (or confidential? (not= "confidential" (:classification rec)))
                                                                         (or (nil? classification) (= classification (:classification rec))))))
                       :let [[label tab] (get search-kinds (:kind rec) (if (= "task" (:kind rec)) ["WBS任务" "计划与执行"] ["项目" "项目概况"]))]]

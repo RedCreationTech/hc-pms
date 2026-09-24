@@ -111,11 +111,11 @@ test.describe('C09 问题逾期预警浏览器验收', () => {
 
     // 台账: 逾期阻断问题在"逾期预警"列同时出现"阻断级"与"已逾期".
     await open(page, id, '需求与治理', '风险与问题');
-    await expect(row(page, lateTitle).getByText('已逾期')).toBeVisible();
+    await expect(row(page, lateTitle).getByText('已逾期', { exact: true })).toBeVisible();
     await expect(row(page, lateTitle).getByText('阻断级')).toBeVisible();
     await shot(page, 'c09b-1-overdue-blocker.png');
     // 远期一般问题: 无逾期预警.
-    await expect(row(page, futureTitle).getByText('已逾期')).toHaveCount(0);
+    await expect(row(page, futureTitle).getByText('已逾期', { exact: true })).toHaveCount(0);
     await expect(row(page, futureTitle).getByText('阻断级')).toHaveCount(0);
     await shot(page, 'c09b-2-clear.png');
 

@@ -118,7 +118,7 @@ test.describe('C07 会议行动完成与独立核验浏览器验收', () => {
     // 截图1: admin 在治理 -> 会议行动页签看到逾期未关闭的行动带"已逾期"标记和"提交完成"入口.
     await open(page, id, '需求与治理', '会议行动');
     await expect(row(page, '补齐接线图')).toBeVisible();
-    await expect(row(page, '补齐接线图').getByText('已逾期')).toBeVisible();
+    await expect(row(page, '补齐接线图').getByText('已逾期', { exact: true })).toBeVisible();
     await expect(row(page, '补齐接线图').getByRole('button', { name: '提交完成', exact: true })).toBeVisible();
     await shot(page, 'c07-1-overdue-open.png');
 
@@ -160,7 +160,7 @@ test.describe('C07 会议行动完成与独立核验浏览器验收', () => {
     expect(closed.verified_by).toBe(reviewerId);
     expect(closed.action_overdue, '关闭后不再逾期').toBe(false);
     await open(reviewer, id, '需求与治理', '会议行动');
-    await expect(row(reviewer, '补齐接线图').getByText('已逾期')).toHaveCount(0);
+    await expect(row(reviewer, '补齐接线图').getByText('已逾期', { exact: true })).toHaveCount(0);
     // 截图4: 关闭后带完成说明且无逾期标记.
     await shot(reviewer, 'c07-4-closed.png');
 

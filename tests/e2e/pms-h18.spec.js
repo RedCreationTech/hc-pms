@@ -142,9 +142,10 @@ test.describe('H18 治理记录受控作废浏览器验收', () => {
     const gov = await api(page, 'GET', base(id) + '/governance');
     expect(gov.documents.find(d => d.code === `FREE-${suffix}`).status).toBe('discarded');
     expect(gov.documents.find(d => d.code === `REF-${suffix}`).status).toBe('registered');
-    // 归集只计最新版本 (不区分作废状态): FREE 与 REF 各一份最新版本.
+    // 归集只计最新有效版本 (H18c 起已作废编号不计入, 以 discarded-count 透明呈现): REF 计入, FREE 作废后不计入.
     const collection = gov.document_collection;
-    expect(collection.total).toBe(2);
+    expect(collection.total).toBe(1);
+    expect(collection['discarded-count']).toBe(1);
 
     await open(page, id, '需求与治理', '证据版本');
     await shot(page, 'h18-3-documents-final.png');

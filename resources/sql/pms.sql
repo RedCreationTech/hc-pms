@@ -138,3 +138,27 @@ WHERE (:admin = 1 OR p.manager_id = :user_id
        OR EXISTS (SELECT 1 FROM pms_member pm WHERE pm.project_id = p.project_id AND pm.user_id = :user_id))
 ORDER BY p.created_at DESC, p.project_id
 --;;
+
+-- :name pms/search-gov :? :*
+SELECT r.* FROM pms_gov_record r JOIN pms_project p ON p.project_id = r.project_id
+WHERE (:admin = 1 OR p.manager_id = :user_id
+       OR EXISTS (SELECT 1 FROM pms_member pm WHERE pm.project_id = p.project_id AND pm.user_id = :user_id))
+  AND (INSTR(LOWER(r.code), :q) > 0 OR INSTR(LOWER(r.payload), :q) > 0)
+ORDER BY r.created_at DESC LIMIT 500
+--;;
+
+-- :name pms/search-delivery :? :*
+SELECT r.* FROM pms_delivery_record r JOIN pms_project p ON p.project_id = r.project_id
+WHERE (:admin = 1 OR p.manager_id = :user_id
+       OR EXISTS (SELECT 1 FROM pms_member pm WHERE pm.project_id = p.project_id AND pm.user_id = :user_id))
+  AND (INSTR(LOWER(r.code), :q) > 0 OR INSTR(LOWER(r.payload), :q) > 0)
+ORDER BY r.created_at DESC LIMIT 500
+--;;
+
+-- :name pms/search-tasks :? :*
+SELECT t.* FROM pms_plan_task t JOIN pms_project p ON p.project_id = t.project_id
+WHERE (:admin = 1 OR p.manager_id = :user_id
+       OR EXISTS (SELECT 1 FROM pms_member pm WHERE pm.project_id = p.project_id AND pm.user_id = :user_id))
+  AND (INSTR(LOWER(t.wbs_code), :q) > 0 OR INSTR(LOWER(t.name), :q) > 0 OR INSTR(LOWER(t.description), :q) > 0)
+ORDER BY t.wbs_code LIMIT 500
+--;;

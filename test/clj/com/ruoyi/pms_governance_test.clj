@@ -317,7 +317,9 @@
     (is (= 1 (:design_links u2)))
     (is (= ["verifies"] (:missing u2)))
     (is (= {:requirements 2 :fully-traced 0 :missing-design 1 :missing-verification 2}
-           (evidence/trace-summary report)))))
+           (select-keys (evidence/trace-summary report) [:requirements :fully-traced :missing-design :missing-verification])))
+    (is (= 0 (get (evidence/trace-summary report) :coverage-pct)))
+    (is (= 50 (get (evidence/trace-summary report) :design-pct)))))
 
 
 (deftest workspace-traceability-reflects-real-requirement-traces

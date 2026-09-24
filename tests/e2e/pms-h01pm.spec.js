@@ -102,6 +102,8 @@ test.describe('H01 章程显式授权项目经理浏览器验收', () => {
     const project = await api(page, 'POST', '/api/pms/projects', { project_no: `H01PM-${suffix}`, name: `章程授权PM验收 / ${suffix}`,
       project_type: 'line', manager_id: adminId, dept_id: deptId, start_date: '2026-09-01', end_date: '2026-12-31' });
     const id = project.project_id;
+    // 工作台人员下拉只列项目成员 (detail.cljs member-options), 非 admin 的候选授权 PM 须先加入成员, 否则下拉中不存在该选项.
+    if (pmId !== adminId) await api(page, 'POST', base(id) + '/members', { user_id: pmId, role: 'viewer' });
     await open(page, id, '需求与治理', '章程');
 
     // 1) 界面登记: 选择授权项目经理 (与发起人分列在两个下拉), 保存前截图证明该显式字段可选.
