@@ -291,6 +291,10 @@ test.describe('C/F/G 节 追踪偏差, 文档下钻与密级, 追溯升级, 待�
     expect(finance.cost_versions.some(v => v.kind === 'actual' && v.status === 'draft' && v.entries.some(e => e.source_ref === `rd-pool:${pool.id}`))).toBe(true);
 
     // 7. F09: 界面下达季度目标并发布 -> 看板显示达成率.
+    //    目标编码由 年/季度/指标 确定 (2026Q3-revenue), 先退役此前运行遗留的非退役版本, 保证同库可重复执行.
+    for (const t of (await api(page, 'GET', '/api/pms/config/quarterly-target')).rows) {
+      if (t.code === '2026Q3-revenue' && ['draft', 'published'].includes(t.status)) await api(page, 'POST', `/api/pms/config/quarterly-target/${t.id}/retire`, { reason: 'E2E 清理' });
+    }
     await page.goto('/pms/targets');
     await page.getByRole('button', { name: '下达季度目标' }).click();
     const target = modal(page, '下达季度目标');
@@ -298,7 +302,8 @@ test.describe('C/F/G 节 追踪偏差, 文档下钻与密级, 追溯升级, 待�
     await choose(page, target, 'quarter', 'Q3');
     await fill(target, { target_value: '5000000', basis: '年度经营计划分解' });
     const targetRecord = (await save(page, '下达季度目标')).data;
-    const targetRow = page.locator('tbody tr').filter({ hasText: '2026 Q3' }).filter({ hasText: '收入' }).first();
+    // 看板按 年/季度/指标/版本 升序, 新下达版本是同指标的最后一行 (此前运行遗留的已退役版本排在前面).
+    const targetRow = page.locator('tbody tr').filter({ hasText: '2026 Q3' }).filter({ hasText: '收入' }).last();
     await targetRow.getByRole('button', { name: '发布' }).click();
     await save(page, '发布目标版本');
     await expect(targetRow.getByText('已发布')).toBeVisible();

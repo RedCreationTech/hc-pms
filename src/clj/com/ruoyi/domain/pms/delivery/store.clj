@@ -111,13 +111,19 @@
              {:decision_reason (g/text! body :reason) :decided_by (:user_id actor)})))
 
 
+(defn configuration-of
+  "把显式配置记录 (可为 nil) 合成执行链配置: 缺省为本地工程默认, 不声称是企业已确认规则."
+  [explicit]
+  (merge {:required_survey_visits 0 :pre_ship_conditions [] :handover_deadline_days 2 :site_lag_days 2 :handover_required false}
+         (or explicit
+             {:required_stages ["materials" "assembly" "quality" "shipment"]
+              :required_test_types ["SIT" "FAT" "SAT"] :source "engineering_default"})))
+
+
 (defn configuration
   "返回显式配置或本地工程默认的执行链,不声称是企业已确认规则."
   [q project]
-  (merge {:required_survey_visits 0 :pre_ship_conditions [] :handover_deadline_days 2 :site_lag_days 2 :handover_required false}
-         (or (first (records q project "configuration"))
-             {:required_stages ["materials" "assembly" "quality" "shipment"]
-              :required_test_types ["SIT" "FAT" "SAT"] :source "engineering_default"})))
+  (configuration-of (first (records q project "configuration"))))
 
 
 (defn- stages!

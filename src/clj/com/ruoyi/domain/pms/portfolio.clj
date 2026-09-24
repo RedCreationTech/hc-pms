@@ -28,6 +28,19 @@
   [project]
   (select-keys project [:project_id :project_no :name :status]))
 
+(defn- by-project
+  "按授权项目集合一次性批量读取并按 project_id 分组, 避免逐项目逐类型的 N+1 查询; 空集合不发查询.
+   xf 对每行做解码 (治理/交付记录需解开受控 payload)."
+  ([q query projects] (by-project q query projects {} identity))
+  ([q query projects extra xf]
+   (if (seq projects)
+     (group-by :project_id (map xf (q query (merge {:project_ids (mapv :project_id projects)} extra))))
+     {})))
+
+(defn- of-kind
+  [rows kind]
+  (filterv #(= kind (:kind %)) rows))
+
 ;; ── 我的待办 ────────────────────────────────────────────────────
 
 (def review-kinds
@@ -54,11 +67,14 @@
   (r/permit! actor ["pms:project:list" "pms:project:query"])
   (let [q (:query-fn svc) uid (:user_id actor) today (LocalDate/now)
         approver? (or (:admin? actor) (contains? (:permissions actor) "pms:quality:approve"))
-        items (for [project (authorized-projects q actor)
-                    :when (not (contains? #{"closed" "cancelled"} (:status project)))
-                    :let [gov (mapcat #(g/records q project %) (keys (select-keys review-kinds ["charter" "change" "document" "gate" "risk" "issue" "action" "dq"])))
-                          del (mapcat #(d/records q project %) ["material" "bom" "assembly" "test" "shipment" "service" "survey" "handover" "site-task"])
-                          times (q :finance/times {:project_id (:project_id project)})]]
+        active (filterv #(not (contains? #{"closed" "cancelled"} (:status %))) (authorized-projects q actor))
+        gov-by (by-project q :pms/gov-in-projects active {:kinds ["charter" "change" "document" "gate" "risk" "issue" "action" "dq"]} g/decode)
+        del-by (by-project q :pms/delivery-in-projects active {:kinds ["material" "bom" "assembly" "test" "shipment" "service" "survey" "handover" "site-task"]} g/decode)
+        times-by (by-project q :pms/times-in-projects active)
+        items (for [project active
+                    :let [gov (get gov-by (:project_id project) [])
+                          del (get del-by (:project_id project) [])
+                          times (get times-by (:project_id project) [])]]
                 (concat
                   (for [rec (concat gov del) :when (and (= "in_review" (:status rec)) (= uid (:reviewer_id rec)) (not= uid (:submitted_by rec)))
                         :let [[label tab] (get review-kinds (:kind rec) ["审批" "需求与治理"])]]
@@ -134,10 +150,20 @@
 
 ;; ── 项目组合看板 ────────────────────────────────────────────────
 
+(defn- version-summary
+  "用批量读取的明细复算版本总额, 与 cost/dto 同一口径 (整数分相加, 不用数据库浮点 SUM), 不含明细列表."
+  [version entries]
+  (let [total (reduce + 0 (map :amount_minor entries))]
+    (-> version (dissoc :snapshot_json)
+        (assoc :id (:version_id version) :revenue (money/money (:revenue_minor version))
+               :total (money/money total) :total_minor total
+               :margin (money/money (- (:revenue_minor version) total))))))
+
 (defn- finance-summary
-  [q actor project]
+  [actor versions entries]
   (when (or (:admin? actor) (contains? (:permissions actor) "pms:finance:query"))
-    (let [versions (mapv #(cost/dto q %) (q :finance/versions {:project_id (:project_id project)}))
+    (let [entries-by (group-by :version_id entries)
+          versions (mapv #(version-summary % (get entries-by (:version_id %) [])) versions)
           latest (fn [kind] (->> versions (filter #(and (= kind (:kind %)) (= "approved" (:status %)))) (sort-by :version_no >) first))
           budget (latest "budget") actual (latest "actual") settlement (latest "settlement") estimate (latest "estimate")]
       {:currency (:currency (or settlement actual budget estimate))
@@ -145,17 +171,19 @@
        :revenue (:revenue (or settlement actual budget estimate)) :margin (:margin (or settlement actual budget))
        :budget_variance (when (and budget actual) (money/money (- (:total_minor actual) (:total_minor budget))))})))
 
+(def ^:private card-gov-kinds ["template-instance" "issue" "risk" "gate-template" "gate"])
+(def ^:private card-delivery-kinds ["bom" "test" "shipment" "configuration"])
+
 (defn- project-card
-  [q actor project]
-  (let [tasks (vec (q :planning/tasks {:project_id (:project_id project)}))
-        nodes (vec (q :pms/nodes {:project_id (:project_id project)}))
-        stages (:stages (first (g/records q project "template-instance")))
+  "用批量预读的同项目数据卷积一张项目卡片; 读取时派生, 不落库."
+  [actor project {:keys [tasks nodes gov del versions entries]}]
+  (let [stages (:stages (first (of-kind gov "template-instance")))
         rollup (progress/rollup tasks nodes stages)
-        issues (g/records q project "issue") risks (g/records q project "risk")
-        templates (g/records q project "gate-template") gates (g/records q project "gate")
+        issues (of-kind gov "issue") risks (of-kind gov "risk")
+        templates (of-kind gov "gate-template") gates (of-kind gov "gate")
         progress-rows (gates/gate-progress templates gates)
-        boms (d/records q project "bom") tests (d/records q project "test") shipments (d/records q project "shipment")
-        config (d/configuration q project)
+        boms (of-kind del "bom") tests (of-kind del "test") shipments (of-kind del "shipment")
+        config (d/configuration-of (first (of-kind del "configuration")))
         kitting (materials/kitting-rollup boms tasks nodes)
         today (LocalDate/now)]
     (merge (project-ref project)
@@ -175,15 +203,28 @@
             :open_risks (count (remove #(= "closed" (:status %)) risks))
             :escalations (count (filter #(= "pending" (:escalation_state %)) (concat issues risks)))
             :gates_passed (count (filter :passed progress-rows)) :gates_total (count progress-rows)
-            :finance (finance-summary q actor project)
+            :finance (finance-summary actor versions entries)
             :data_time (str (java.time.Instant/now))})))
 
 (defn portfolio
-  "多项目组合看板: 每个可见项目的进度/齐套/试验/问题/关口/成本卷积, 结构节点可下钻."
+  "多项目组合看板: 每个可见项目的进度/齐套/试验/问题/关口/成本卷积, 结构节点可下钻.
+   全部数据按授权项目集合分七次批量读取 (任务/节点/治理/交付/费用版本/明细), 项目数增加不再线性增加查询次数."
   [svc actor]
   (r/permit! actor ["pms:dashboard:query" "pms:project:list"])
   (let [q (:query-fn svc) projects (authorized-projects q actor)
-        cards (mapv (partial project-card q actor) projects)]
+        tasks-by (by-project q :pms/tasks-in-projects projects)
+        nodes-by (by-project q :pms/nodes-in-projects projects)
+        gov-by (by-project q :pms/gov-in-projects projects {:kinds card-gov-kinds} g/decode)
+        del-by (by-project q :pms/delivery-in-projects projects {:kinds card-delivery-kinds} g/decode)
+        finance? (or (:admin? actor) (contains? (:permissions actor) "pms:finance:query"))
+        versions-by (if finance? (by-project q :pms/cost-versions-in-projects projects) {})
+        entries-by (if finance? (by-project q :pms/cost-entries-in-projects projects) {})
+        cards (mapv (fn [project]
+                      (let [pid (:project_id project)]
+                        (project-card actor project {:tasks (vec (get tasks-by pid [])) :nodes (vec (get nodes-by pid []))
+                                                     :gov (get gov-by pid []) :del (get del-by pid [])
+                                                     :versions (get versions-by pid []) :entries (get entries-by pid [])})))
+                    projects)]
     {:projects cards
      :summary {:total (count cards)
                :active (count (filter #(contains? #{"initiated" "planning" "execution" "paused" "closing"} (:status %)) cards))

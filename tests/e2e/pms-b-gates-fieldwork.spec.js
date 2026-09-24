@@ -320,6 +320,7 @@ test.describe('B/D/E 节 关口阻断, DQ, 启动会, 局部暂停, 工勘, 齐�
     await f.command(`/delivery/shipments/${shipment.id}/dispatch`, { shipped_on: shippedOn, tracking_no: 'FW-TRACK', evidence_ids: [f.evidence.id] });
     await open(page, id, '工程交付', '工勘与现场');
     await expect(row(page, 'HO-SHIP-1').getByText(/已逾期 \d+ 天/)).toBeVisible();
+    await row(page, 'HO-SHIP-1').scrollIntoViewIfNeeded();
     await shot(page, 'e-1-handover-overdue.png');
     await row(page, 'HO-SHIP-1').getByRole('button', { name: '完成交底' }).click();
     const ho = modal(page, '完成项目交底');

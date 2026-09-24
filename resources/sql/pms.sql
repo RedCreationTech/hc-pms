@@ -139,6 +139,42 @@ WHERE (:admin = 1 OR p.manager_id = :user_id
 ORDER BY p.created_at DESC, p.project_id
 --;;
 
+-- 组合看板/我的待办按授权项目集合一次性批量读取, 避免逐项目逐类型 N+1 查询; 结果在内存按 project_id 分组.
+-- :name pms/gov-in-projects :? :*
+SELECT * FROM pms_gov_record WHERE project_id IN (:v*:project_ids) AND kind IN (:v*:kinds)
+ORDER BY project_id,kind,created_at DESC,revision DESC,record_id
+--;;
+
+-- :name pms/delivery-in-projects :? :*
+SELECT * FROM pms_delivery_record WHERE project_id IN (:v*:project_ids) AND kind IN (:v*:kinds)
+ORDER BY project_id,kind,created_at DESC,record_id
+--;;
+
+-- :name pms/tasks-in-projects :? :*
+SELECT t.*,u.nick_name AS owner_name FROM pms_plan_task t LEFT JOIN sys_user u ON u.user_id=t.owner_id
+WHERE t.project_id IN (:v*:project_ids) ORDER BY t.project_id,t.wbs_code,t.task_id
+--;;
+
+-- :name pms/nodes-in-projects :? :*
+SELECT * FROM pms_node WHERE project_id IN (:v*:project_ids) ORDER BY project_id,created_at,node_code
+--;;
+
+-- :name pms/cost-versions-in-projects :? :*
+SELECT v.*,r.nick_name AS reviewer_name FROM pms_cost_version v LEFT JOIN sys_user r ON r.user_id=v.reviewer_id
+WHERE v.project_id IN (:v*:project_ids) ORDER BY v.project_id,v.period DESC,v.version_no DESC,v.version_id
+--;;
+
+-- :name pms/cost-entries-in-projects :? :*
+SELECT * FROM pms_cost_entry WHERE project_id IN (:v*:project_ids) ORDER BY project_id,version_id,created_at,entry_id
+--;;
+
+-- :name pms/times-in-projects :? :*
+SELECT t.*,u.nick_name AS user_name,r.nick_name AS reviewer_name
+FROM pms_time_entry t LEFT JOIN sys_user u ON u.user_id=t.user_id
+LEFT JOIN sys_user r ON r.user_id=t.reviewer_id
+WHERE t.project_id IN (:v*:project_ids) ORDER BY t.project_id,t.created_at,t.entry_id
+--;;
+
 -- :name pms/search-gov :? :*
 SELECT r.* FROM pms_gov_record r JOIN pms_project p ON p.project_id = r.project_id
 WHERE (:admin = 1 OR p.manager_id = :user_id
