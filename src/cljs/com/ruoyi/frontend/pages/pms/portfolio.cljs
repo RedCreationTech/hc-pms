@@ -45,6 +45,13 @@
    {:title "状态" :dataIndex "status" :width 100 :render #(r/as-element [shared/status-tag %])}
    {:title "类别" :dataIndex "project_type" :width 100 :render #(shared/project-type-label %)}
    {:title "进度" :dataIndex "overall_percent" :width 180 :render (fn [v] (r/as-element [antd/progress {:percent (or v 0) :size "small" :style {:width 140}}]))}
+   {:title "SPI / CPI" :key "evm" :width 150
+    :render (fn [_ row] (let [spi (aget row "spi") cpi (aget row "cpi")]
+                          (r/as-element (if (and (nil? spi) (nil? cpi))
+                                          [:span {:style {:color "#98a2b3" :fontSize 12}} "无快照"]
+                                          [antd/space
+                                           [antd/tag {:color (cond (nil? spi) "default" (< spi 0.9) "red" (> spi 1.1) "blue" :else "green")} (str "SPI " (if (nil? spi) "—" spi))]
+                                           [antd/tag {:color (cond (nil? cpi) "default" (< cpi 0.9) "red" :else "green")} (str "CPI " (if (nil? cpi) "—" cpi))]]))))}
    {:title "阶段" :dataIndex "stages" :width 260
     :render (fn [v] (r/as-element (into [antd/space {:wrap true}] (map (fn [s] [antd/tag {:color (cond (>= (:percent s) 100) "green" (pos? (:percent s)) "blue" :else "default")} (str (:name s) " " (:percent s) "%")]) (js->clj v :keywordize-keys true)))))}
    {:title "齐套" :dataIndex "kit_percent" :width 110 :render (fn [v row] (r/as-element [:span (str v "% " (when (pos? (aget row "shortage_count")) (str "缺 " (aget row "shortage_count"))))]))}

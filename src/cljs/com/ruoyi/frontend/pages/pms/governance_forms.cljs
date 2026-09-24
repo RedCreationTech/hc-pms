@@ -371,15 +371,21 @@
   (let [template (some #(when (= (:id %) (:template_id gate)) %) (:gate_templates model))
         checks (:checks template)]
     {:title "填写Gate检查结果" :path (str base "/gates/" (:id gate) "/checks")
+     :description "每项可选 通过 / 未通过 / 例外 (接收责任人确认先行放行, 须填写例外说明); 例外项计入通过数并在关口进展中单独标注."
      :transform (fn [data]
                   {:checks (mapv (fn [check]
-                                   {:code (:code check)
-                                    :passed (= "passed" (get data (keyword (str "passed_" (:code check)))))
-                                    :evidence_ids (get data (keyword (str "evidence_" (:code check))) [])}) checks)})
+                                   (let [result (get data (keyword (str "passed_" (:code check))))
+                                         reason (get data (keyword (str "waiver_" (:code check))))]
+                                     (cond-> {:code (:code check)
+                                              :passed (= "passed" result)
+                                              :evidence_ids (get data (keyword (str "evidence_" (:code check))) [])}
+                                       (= "waived" result) (assoc :waived true :waiver_reason (or reason ""))))) checks)})
      :fields (vec (mapcat (fn [check]
                             [{:key (keyword (str "passed_" (:code check))) :label (str (:code check) " / " (:title check))
-                              :type :select :required? true :options [{:value "passed" :label "检查通过"} {:value "failed" :label "检查未通过"}]}
-                             (assoc (evidence-field (:documents model)) :key (keyword (str "evidence_" (:code check))) :label "对应证据版本")]) checks))}))
+                              :type :select :required? true :options [{:value "passed" :label "检查通过"} {:value "failed" :label "检查未通过"} {:value "waived" :label "例外放行 (需说明)"}]}
+                             (assoc (evidence-field (:documents model)) :key (keyword (str "evidence_" (:code check))) :label "对应证据版本"
+                                    :required? false :hint "检查通过时必须绑定确定的文档版本 (服务端校验); 例外放行可不绑定")
+                             {:key (keyword (str "waiver_" (:code check))) :label "例外说明" :hint "选择例外放行时必填, 例如: 测试工装下周到位, 接收人同意先交接"}]) checks))}))
 
 
 (defn decision-dialog

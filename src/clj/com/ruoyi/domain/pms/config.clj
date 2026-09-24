@@ -79,11 +79,17 @@
   [stages]
   (when-not (and (vector? stages) (<= 1 (count stages) 20)) (r/fail! 400 "模板需要1到20个阶段"))
   (let [rows (mapv (fn [stage]
-                     (r/object! stage [:code :name :weight :gate_type])
-                     (let [weight (:weight stage)]
+                     (r/object! stage [:code :name :weight :gate_type :levels :default_days])
+                     (let [weight (:weight stage) levels (:levels stage) days (:default_days stage)]
                        (when-not (and (integer? weight) (<= 0 weight 100)) (r/fail! 400 "阶段权重必须是0到100的整数"))
+                       (when (and (some? levels) (not (and (vector? levels) (seq levels) (every? #{"main" "sub" "machine"} levels))))
+                         (r/fail! 400 "阶段派生层级只能是 main/sub/machine"))
+                       (when (and (some? days) (not (and (integer? days) (<= 1 days 3650))))
+                         (r/fail! 400 "阶段默认工期必须是1到3650的整数"))
                        (cond-> {:code (s/text! stage :code 20) :name (s/text! stage :name 100) :weight weight}
-                         (seq (:gate_type stage)) (assoc :gate_type (:gate_type stage)))))
+                         (seq (:gate_type stage)) (assoc :gate_type (:gate_type stage))
+                         (some? levels) (assoc :levels (vec (distinct levels)))
+                         (some? days) (assoc :default_days days))))
                    stages)]
     (when-not (= (count rows) (count (set (map :code rows)))) (r/fail! 400 "阶段编码重复"))
     (when-not (= 100 (reduce + (map :weight rows))) (r/fail! 400 "阶段权重合计必须等于100"))

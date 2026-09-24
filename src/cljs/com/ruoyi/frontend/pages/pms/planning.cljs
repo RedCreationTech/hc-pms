@@ -24,7 +24,10 @@
      {:title "节点" :dataIndex "node_id" :width 130 :render #(w/related-label (:nodes model) :node_id :node_code %)}
      {:title "阶段" :dataIndex "stage_code" :width 110 :render shared/display-value}
      (w/text-column :owner_name "责任人") (w/text-column :duration_days "工作日")
-     (w/state-column) (w/text-column :percent_complete "进度%")]
+     (w/state-column) (w/text-column :percent_complete "进度%")
+     {:title "实际开始/完成" :key "actual" :width 190
+      :render (fn [_ row] (let [a (aget row "actual_start") b (aget row "actual_end")] (if (or a b) (str (or a "—") " / " (or b "—")) "—")))}
+     {:title "来源" :dataIndex "source_type" :width 90 :render #(get {"derived" "模板派生" "template" "模板容器" "meeting_action" "会议行动"} % (or % "手工"))}]
     (fn [task]
       [antd/space
        (when editable? [w/edit-button "编辑" #(open! (forms/task-dialog base model options task))])
@@ -118,7 +121,29 @@
    [w/record-table (:feedback model)
     [{:title "任务" :dataIndex "task_id" :render #(w/related-label (:tasks model) :task_id :name %)}
      (w/text-column :user_name "反馈人") (w/state-column) (w/text-column :percent_complete "进度%")
-     (w/text-column :remaining_days "剩余天数") (w/text-column :comment "说明") (w/text-column :created_at "时间")] nil]])
+     (w/text-column :remaining_days "剩余天数") (w/text-column :actual_start "实际开始") (w/text-column :actual_end "实际完成")
+     (w/text-column :comment "说明") (w/text-column :created_at "时间")] nil]])
+
+(defn- rollup-tab
+  "进度卷积 + 挣值预测 + 主子冲突 + 趋势快照 + 重排记录 (增量6)."
+  [{:keys [base model editable? can-feedback? project open!]}]
+  (let [actions [antd/space {:wrap true}
+                 (when (and editable? (seq (:stages model)))
+                   [antd/button {:size "small" :on-click #(open! (forms/derive-dialog base))} "派生主/子/单机计划"])
+                 (when (and editable? (seq (:stages model)))
+                   [antd/button {:size "small" :on-click #(open! (forms/stage-weights-dialog base (:stages model)))} "覆盖阶段权重"])
+                 (when (and can-feedback? (= "execution" (:status project)))
+                   [antd/button {:size "small" :on-click #(open! (forms/snapshot-dialog base))} "生成进度快照"])]
+        node-action (when editable?
+                      (fn [node] (when (not= "main" (:node_type node))
+                                   [w/edit-button "重排" #(open! (forms/reschedule-dialog base node))])))]
+    [:div {:style {:display "grid" :gap 20}}
+     [views/progress-rollup model actions node-action]
+     [views/conflicts-panel model]
+     [views/earned-value-panel model]
+     [views/history-panel model]
+     [views/reschedules-panel model]]))
+
 
 (defn- planning-content
   "按计划编制,资源,基线和反馈组织工作台."
@@ -127,14 +152,16 @@
     [:div
      [:div {:style {:display "flex" :gap 12 :alignItems "center" :marginBottom 16}}
       [:strong (str "计划修订 " (:plan_revision model))] [w/badge (:plan_status model)]
-      (when (= "submitted" (:plan_status model)) [:span {:style {:color "#718096"}} "计划已冻结,等待独立审批."])]
+      (when (= "submitted" (:plan_status model)) [:span {:style {:color "#718096"}} "计划已冻结,等待独立审批."])
+      (when (seq (:plan_conflicts model)) [antd/tag {:color "red"} (str "主子约束冲突 " (count (:plan_conflicts model)))])
+      (when-let [spi (get-in model [:earned_value :spi])] [antd/tag {:color (if (< spi 0.9) "red" "blue")} (str "SPI " spi)])]
      [antd/tabs {:items
                   [{:key "wbs" :label "WBS与排程" :children (r/as-element [:div {:style {:display "grid" :gap 20}}
                                                                           [task-section context] [dependency-section context] [views/gantt model]])}
                    {:key "resources" :label "资源与日历" :children (r/as-element [:div {:style {:display "grid" :gap 20}}
                                                                                 [resource-section context] [allocation-section context]
                                                                                 [calendar-section context] [views/overloads model]])}
-                   {:key "rollup" :label "进度卷积" :children (r/as-element [views/progress-rollup model])}
+                   {:key "rollup" :label "进度卷积" :children (r/as-element [rollup-tab context])}
                    {:key "baselines" :label "审批与基线" :children (r/as-element [baseline-section context])}
                    {:key "feedback" :label "执行反馈" :children (r/as-element [feedback-section context])}]}]]))
 

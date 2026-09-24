@@ -16,6 +16,30 @@
              (contains? (set (:working_days calendar))
                         (.getValue (.getDayOfWeek (LocalDate/parse date))))))))
 
+(defn shift-working-days
+  "把日期按项目日历移动 n 个工作日 (n 可为负), 结果落在工作日上; n 为 0 时返回当日或之后的首个工作日."
+  [calendar date n]
+  (let [step (if (neg? n) -1 1)]
+    (loop [d (LocalDate/parse (str date)) remaining (Math/abs (long n)) guard 0]
+      (when (> guard 40000) (rules/fail! 400 "日期移动超过支持范围"))
+      (cond (and (zero? remaining) (working-day? calendar d)) (str d)
+            (zero? remaining) (recur (.plusDays d 1) 0 (inc guard))
+            :else (let [next (.plusDays d step)]
+                    (recur next (if (working-day? calendar next) (dec remaining) remaining) (inc guard)))))))
+
+
+(defn working-days-between
+  "从 from 到 to 之间的工作日数 (to 在 from 之后为正, 之前为负, 相同为 0), 不含 from 含 to."
+  [calendar from to]
+  (let [a (LocalDate/parse (str from)) b (LocalDate/parse (str to))
+        sign (if (.isBefore b a) -1 1)]
+    (loop [d a n 0 guard 0]
+      (when (> guard 40000) (rules/fail! 400 "日期跨度超过支持范围"))
+      (if (= d b) (* sign n)
+          (let [next (.plusDays d sign)]
+            (recur next (if (working-day? calendar next) (inc n) n) (inc guard)))))))
+
+
 (defn topological-order
   "按有向无环图顺序返回任务,遇到缺失任务或依赖环拒绝排程."
   [tasks dependencies]

@@ -247,7 +247,7 @@
              :delete {:summary "删除任务" :parameters {:path PathId}
                       :handler (partial job/delete-job {:query-fn (:query-fn user-service) :db datasource})}}]
     ["/:id/changeStatus" {:put {:summary "修改任务状态" :handler (partial job/change-status {:query-fn (:query-fn user-service) :db datasource})}}]
-    ["/:id/run" {:put {:summary "执行一次" :handler (partial job/run-once {})}}]]
+    ["/:id/run" {:put {:summary "执行一次" :handler (partial job/run-once {:query-fn (:query-fn user-service) :db datasource})}}]]
 
    ["/job-log"
     ["" {:get {:summary "任务执行日志" :description "查询定时任务执行日志列表"

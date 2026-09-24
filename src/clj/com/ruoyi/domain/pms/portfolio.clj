@@ -68,7 +68,7 @@
   (let [q (:query-fn svc) uid (:user_id actor) today (LocalDate/now)
         approver? (or (:admin? actor) (contains? (:permissions actor) "pms:quality:approve"))
         active (filterv #(not (contains? #{"closed" "cancelled"} (:status %))) (authorized-projects q actor))
-        gov-by (by-project q :pms/gov-in-projects active {:kinds ["charter" "change" "document" "gate" "risk" "issue" "action" "dq"]} g/decode)
+        gov-by (by-project q :pms/gov-in-projects active {:kinds ["charter" "change" "document" "gate" "risk" "issue" "action" "dq" "reminder"]} g/decode)
         del-by (by-project q :pms/delivery-in-projects active {:kinds ["material" "bom" "assembly" "test" "shipment" "service" "survey" "handover" "site-task"]} g/decode)
         times-by (by-project q :pms/times-in-projects active)
         items (for [project active
@@ -92,14 +92,21 @@
                   (for [rec del :when (and (= uid (:owner_id rec)) (= "handover" (:kind rec)) (= "open" (:status rec)))]
                     (assoc (item project today "handover" "交底截止" "工程交付" rec (:deadline rec)) :group "owned"))
                   (for [rec del :when (and (= uid (:owner_id rec)) (= "site-task" (:kind rec)) (= "draft" (:status rec)))]
-                    (assoc (item project today "site-task" "现场任务计划开始" "工程交付" rec (:planned_start rec)) :group "owned"))))
+                    (assoc (item project today "site-task" "现场任务计划开始" "工程交付" rec (:planned_start rec)) :group "owned"))
+                  (for [rec gov :when (and (= "reminder" (:kind rec)) (= "open" (:status rec))
+                                           (or (= uid (:owner_id rec)) (= uid (:manager_id project))))]
+                    (assoc (item project today "reminder" (str "系统提醒: " (get {"task" "任务逾期" "issue" "问题逾期" "action" "行动逾期" "handover" "交底逾期" "site-task" "现场任务未开始"} (:target_kind rec) "逾期"))
+                                 (:tab rec) rec (:due_date rec))
+                           :group "reminders" :target_kind (:target_kind rec) :target_id (:target_id rec) :raised_on (:raised_on rec)))))
         all (vec (apply concat items))]
     {:reviews (filterv #(= "reviews" (:group %)) all)
      :escalations (filterv #(= "escalations" (:group %)) all)
      :owned (sort-by (fn [i] [(if (:overdue i) 0 1) (or (:days i) 9999)]) (filterv #(= "owned" (:group %)) all))
+     :reminders (sort-by (fn [i] (or (:days i) 0)) (filterv #(= "reminders" (:group %)) all))
      :summary {:reviews (count (filter #(= "reviews" (:group %)) all))
                :escalations (count (filter #(= "escalations" (:group %)) all))
                :owned (count (filter #(= "owned" (:group %)) all))
+               :reminders (count (filter #(= "reminders" (:group %)) all))
                :overdue (count (filter :overdue all))
                :due_soon (count (filter :due_soon all))}
      :delivery_status "local_only" :generated_at (str today)}))
@@ -171,14 +178,17 @@
        :revenue (:revenue (or settlement actual budget estimate)) :margin (:margin (or settlement actual budget))
        :budget_variance (when (and budget actual) (money/money (- (:total_minor actual) (:total_minor budget))))})))
 
-(def ^:private card-gov-kinds ["template-instance" "issue" "risk" "gate-template" "gate"])
+(def ^:private card-gov-kinds ["template-instance" "stage-weights" "issue" "risk" "gate-template" "gate" "progress-snapshot"])
 (def ^:private card-delivery-kinds ["bom" "test" "shipment" "configuration"])
 
 (defn- project-card
   "用批量预读的同项目数据卷积一张项目卡片; 读取时派生, 不落库."
   [actor project {:keys [tasks nodes gov del versions entries]}]
-  (let [stages (:stages (first (of-kind gov "template-instance")))
+  (let [template-stages (:stages (first (of-kind gov "template-instance")))
+        override (into {} (map (juxt :code :weight) (:stages (first (of-kind gov "stage-weights")))))
+        stages (when template-stages (mapv #(if (contains? override (:code %)) (assoc % :weight (override (:code %))) %) template-stages))
         rollup (progress/rollup tasks nodes stages)
+        latest-snapshot (first (sort-by :snapshot_date #(compare %2 %1) (of-kind gov "progress-snapshot")))
         issues (of-kind gov "issue") risks (of-kind gov "risk")
         templates (of-kind gov "gate-template") gates (of-kind gov "gate")
         progress-rows (gates/gate-progress templates gates)
@@ -190,6 +200,8 @@
            {:project_type (:project_type project) :manager_name (:manager_name project) :end_date (:end_date project)
             :days_to_end (days-until today (:end_date project))
             :overall_percent (:overall_percent rollup) :leaf_count (:leaf_count rollup)
+            :spi (:spi latest-snapshot) :cpi (:cpi latest-snapshot) :forecast_finish (:forecast_finish latest-snapshot)
+            :snapshot_date (:snapshot_date latest-snapshot)
             :stages (mapv #(select-keys % [:code :name :weight :percent]) (:stages rollup))
             :nodes (:nodes rollup)
             :node_count (count nodes)

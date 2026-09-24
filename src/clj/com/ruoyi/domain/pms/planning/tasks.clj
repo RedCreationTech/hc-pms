@@ -161,15 +161,24 @@
 (defn feedback!
   "执行期间记录实际进度,完成任务不可回退,不修改计划设计修订."
   [svc actor id task-id body]
-  (rules/object! body [:version :status :percent_complete :remaining_days :comment])
+  (rules/object! body [:version :status :percent_complete :remaining_days :comment :actual_start :actual_end])
   (kernel/mutate! svc actor id "pms:project:edit" body "plan.task.feedback"
     (fn [q project]
       (when-not (= "execution" (:status project)) (rules/fail! 409 "仅执行阶段可以反馈任务进度"))
       (let [task (store/task! q project task-id) status (:status body)
             percent (store/integer! (:percent_complete body) "完成百分比" 0 100)
             remaining (store/integer! (:remaining_days body) "剩余工期" 0 3650)
+            today (str (java.time.LocalDate/now))
+            actual-start (or (some-> (:actual_start body) (rules/date! "实际开始日期")) (:actual_start task) (when (contains? #{"in_progress" "blocked" "done"} status) today))
+            actual-end (some-> (:actual_end body) (rules/date! "实际完成日期"))
+            _ (when (and actual-start (pos? (compare actual-start today))) (rules/fail! 400 "实际开始日期不能晚于今天"))
+            _ (when (and actual-end (pos? (compare actual-end today))) (rules/fail! 400 "实际完成日期不能晚于今天"))
+            _ (when (and actual-end (not= "done" status)) (rules/fail! 400 "只有完成状态可以填写实际完成日期"))
+            _ (when (and actual-start actual-end (neg? (compare actual-end actual-start))) (rules/fail! 400 "实际完成日期不能早于实际开始日期"))
+            actual-end (if (= "done" status) (or actual-end (:actual_end task) today) (:actual_end task))
             record {:feedback_id (kernel/id) :project_id id :task_id task-id :user_id (:user_id actor)
                     :status status :percent_complete percent :remaining_days remaining
+                    :actual_start actual-start :actual_end actual-end
                     :project_version (inc (:version project))
                     :comment (rules/text! (:comment body) "进度说明" 2000 false)}]
         (when (= "summary" (:task_type task)) (rules/fail! 400 "汇总任务不能直接反馈进度"))

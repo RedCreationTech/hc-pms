@@ -42,6 +42,7 @@
    [antd/tag {:color "blue" :style {:fontSize 14 :padding "4px 10px"}} (str "待我审批 " (:reviews summary 0))]
    [antd/tag {:color "purple" :style {:fontSize 14 :padding "4px 10px"}} (str "待我确认升级 " (:escalations summary 0))]
    [antd/tag {:color "geekblue" :style {:fontSize 14 :padding "4px 10px"}} (str "我负责的事项 " (:owned summary 0))]
+   [antd/tag {:color "volcano" :style {:fontSize 14 :padding "4px 10px"}} (str "系统提醒 " (:reminders summary 0))]
    [antd/tag {:color "red" :style {:fontSize 14 :padding "4px 10px"}} (str "已逾期 " (:overdue summary 0))]
    [antd/tag {:color "gold" :style {:fontSize 14 :padding "4px 10px"}} (str "3天内到期 " (:due_soon summary 0))]])
 
@@ -63,4 +64,6 @@
          [shared/panel "待我确认升级" "超阈值风险与阻断/逾期追溯升级的问题, 须由登记人之外的独立质量审批人确认" nil
           [item-table (:escalations data)]]
          [shared/panel "我负责的事项" "未关闭的问题/行动/风险复审, 待完成的交底与现场任务, 按逾期优先排序" nil
-          [item-table (:owned data)]]])]]))
+          [item-table (:owned data)]]
+         [shared/panel "系统提醒" "每日 06:00 定时扫描 (或手动快照) 登记的逾期任务/问题/行动/交底/现场任务, 责任人与项目经理可见; 对象不再逾期时自动关闭" nil
+          [item-table (:reminders data)]]])]]))

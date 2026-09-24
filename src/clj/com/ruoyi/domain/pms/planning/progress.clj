@@ -23,15 +23,15 @@
     (if (zero? total) 0
         (int (Math/round (double (/ (reduce + 0 (map * (map #(or (:percent_complete %) 0) tasks) weights)) total)))))))
 
-(defn- leaf-rows
-  "为每个叶子任务标注其阶段与节点归属."
+(defn leaf-rows
+  "为每个叶子任务标注其阶段与节点归属 (沿父链继承)."
   [tasks]
   (let [by-id (into {} (map (juxt :task_id identity) tasks))]
     (->> tasks
          (remove #(= "summary" (:task_type %)))
          (mapv #(assoc % :stage (inherit by-id % :stage_code) :node (inherit by-id % :node_id))))))
 
-(defn- node-descendants
+(defn node-descendants
   "返回节点及其全部后代节点 id 集合."
   [nodes node-id]
   (loop [result #{node-id} frontier [node-id]]

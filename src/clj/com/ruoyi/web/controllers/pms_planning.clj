@@ -92,3 +92,24 @@
   "调用计划领域服务并返回项目接口响应."
   [svc request]
   (http/invoke svc request #(planning/review-plan! %1 %2 (http/project-id request) (http/param request :baseline_id) (:body-params request))))
+
+
+(defn derive-network
+  "从模板阶段派生子项目/单机计划."
+  [svc request]
+  (http/invoke svc request #(planning/derive-network! %1 %2 (http/project-id request) (:body-params request))))
+
+(defn reschedule-node
+  "重排节点计划, 保留原基线."
+  [svc request]
+  (http/invoke svc request #(planning/reschedule-node! %1 %2 (http/project-id request) (http/param request :node_id) (:body-params request))))
+
+(defn set-stage-weights
+  "项目级阶段权重覆盖."
+  [svc request]
+  (http/invoke svc request #(planning/set-stage-weights! %1 %2 (http/project-id request) (:body-params request))))
+
+(defn snapshot-now
+  "手动生成进度快照与逾期提醒."
+  [svc request]
+  (http/invoke svc request #(planning/snapshot-now! %1 %2 (http/project-id request) (:body-params request))))

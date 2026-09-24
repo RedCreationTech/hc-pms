@@ -61,12 +61,12 @@ WHERE f.project_id=:project_id ORDER BY f.project_version DESC
 --;;
 
 -- :name planning/create-feedback! :! :n
-INSERT INTO pms_plan_feedback(feedback_id,project_id,task_id,user_id,status,percent_complete,remaining_days,comment,project_version)
-VALUES (:feedback_id,:project_id,:task_id,:user_id,:status,:percent_complete,:remaining_days,:comment,:project_version)
+INSERT INTO pms_plan_feedback(feedback_id,project_id,task_id,user_id,status,percent_complete,remaining_days,comment,project_version,actual_start,actual_end)
+VALUES (:feedback_id,:project_id,:task_id,:user_id,:status,:percent_complete,:remaining_days,:comment,:project_version,:actual_start,:actual_end)
 --;;
 
 -- :name planning/task-progress! :! :n
-UPDATE pms_plan_task SET status=:status,percent_complete=:percent_complete,remaining_days=:remaining_days
+UPDATE pms_plan_task SET status=:status,percent_complete=:percent_complete,remaining_days=:remaining_days,actual_start=:actual_start,actual_end=:actual_end
 WHERE project_id=:project_id AND task_id=:task_id
 --;;
 

@@ -175,6 +175,11 @@ LEFT JOIN sys_user r ON r.user_id=t.reviewer_id
 WHERE t.project_id IN (:v*:project_ids) ORDER BY t.project_id,t.created_at,t.entry_id
 --;;
 
+-- 定时进度扫描: 全部处于执行中的项目 (不按用户授权过滤, 由系统任务调用).
+-- :name pms/projects-in-status :? :*
+SELECT * FROM pms_project WHERE status = :status ORDER BY created_at, project_id
+--;;
+
 -- :name pms/search-gov :? :*
 SELECT r.* FROM pms_gov_record r JOIN pms_project p ON p.project_id = r.project_id
 WHERE (:admin = 1 OR p.manager_id = :user_id

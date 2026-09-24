@@ -659,6 +659,26 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: C04 / C05 / C06 三行按各自验收口径上行为 `implemented / local` (分层归集与可追踪, 逐次逐文件权限与摘要一致, 编制到签发的版本轨迹与 Gate 引用不漂移); 生产存储与签章边界如上, 不据此把 G17 或 H14 上行.
 
+## 增量6: 计划与进度深化 (2026-09-24)
+
+范围: [完成计划](13-completion-plan.md) 增量6, 矩阵 B02 / B03 / B12 / B15 / B19 / H04 / H06. 设计: 迁移 `202609240002-plan-progress` (双库同步: 治理记录 CHECK 新增 stage-weights / reschedule / progress-snapshot / reminder 四类 (建新表-拷贝-改名重建), 计划任务与执行反馈增加 actual_start / actual_end, 登记 sys_job 9001 `com.ruoyi.task/pms-progress-scan` 每日 06:00; down 双库可回退并可再次 up). 模板阶段声明 `levels` (main/sub/machine) 与 `default_days`, `POST /planning/derive` 按层级在阶段容器/节点容器下派生任务并 FS 串联 (幂等); `plan_conflicts` 读取时定位子/单机阶段任务晚于主计划同阶段窗口; `POST /planning/nodes/:id/reschedule` 按工作日偏移整体后移未开始叶子任务并写 reschedule 记录, 已批准基线不改写; `POST /planning/stage-weights` 版本化项目级权重覆盖 (合计 100, 覆盖全部模板阶段), 卷积与组合看板同口径; 反馈 actual_start / actual_end 校验 (不晚于当天, 完成才可填实际完成, 不早于实际开始); `earned_value` 以计划工作日为单位 (PV 按排程应完成, EV = 工期 x 完成比例, AC = 已批准工时折算, SPI/CPI/EAC/ETC/预测完工, 按阶段/节点分组); `POST /planning/snapshot` 与定时扫描同一实现 (`scan/scan-project!`: 日快照同日覆盖 + 逾期提醒同对象一条/刷新/自动关闭, 不递增项目版本不写 pms_event), `POST /api/pms/scan` 需 `pms:config:edit`; Gate 检查项 `waived + waiver_reason` 例外放行 (计入通过, 单独标注, 缺说明 409), 交接/SAT 关口检查项细化 (AT-1..AT-4, SAT-1..SAT-5). 前端: 进度卷积页签新增 派生 / 覆盖阶段权重 / 生成进度快照 按钮与节点 重排 操作, 主子约束冲突 / 挣值与完工预测 / 进度趋势 (快照) / 节点重排记录 面板, 头部 冲突数 与 SPI 标签, 任务表 实际开始/完成 与 来源 列, 反馈表单实际日期; Gate 检查弹窗 例外放行 (需说明) 选项与 例外 N 标签 (对应证据版本改为服务端校验的可选项); 我的待办 系统提醒 分组; 组合看板 SPI / CPI 列. 同时修正 RuoYi 定时任务 "执行一次" 只按 DEFAULT 组触发的缺陷 (按 sys_job 记录的任务组触发, 否则 PMS 组任务无法立即执行).
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| 计划与进度深化测试 (SQLite) | 8 tests / 112 assertions, 0 failures/errors | `pms_progress_test.clj`: 派生 3 节点 / 5 主阶段 / 15 任务 / 11 依赖且重复派生全部跳过; 拉长单机任务后冲突定位到 M1 S7 (天数为正), 主计划无该阶段任务时不判定; 重排移动未开始任务并保留已批准基线 (revision 递增), 主项目 400 / 已开始 409; 权重覆盖版本化 (revision 2 生效, 模板快照不变), 编码缺失 / 合计错误 400; 挣值纯函数确定性 (PV/EV/AC/SPI/CPI/EAC/预测完工/状态); 反馈实际日期校验 (未来 / 非完成填实际完成 / 早于开始 400) 与 read-plan 暴露挣值 (480 分钟批准工时 -> AC 1.0); 扫描同日快照幂等, 提醒同对象一条 / 刷新 / 完成后自动关闭, 责任人与项目经理待办可见, 非配置权限 403; Gate 例外放行需说明, 同时 passed 400, 提交时缺说明 409 |
+| 全量 PMS 回归 (CLI SQLite, 全新库) | 136 tests / 1384 assertions, 0 failures/errors | `clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'` (增量6 代码定稿后复跑) |
+| 全量 PMS 回归 (MySQL 8.0.46, 全新库) | 136 tests / 1353 assertions, 0 failures/errors | 同一命令加 `PMS_TEST_JDBC_URL` (见增量5); 首轮 8 failures / 5 errors 全部源于共享 MySQL 库下 config 套件先发布了改成单阶段的 `TPL-EQUIPMENT` 修订, 进度测试复用该版本导致派生 1 阶段; 改为 "已发布版本阶段与目录不一致时按目录建修订并发布" 后通过 (SQLite 每命名空间独立临时库, 未暴露此依赖); 与 SQLite 差 31 条为并发套件 SQLite 专属断言 |
+| 迁移回退探针 (SQLite + MySQL) | `migratus/down 202609240002` 后 `up` 均成功 | SQLite down 原先保留实际日期列导致再次 up 报重复列, 已改为 DROP COLUMN (与仓库既有 SQLite down 一致); down 丢弃四类新记录 (MySQL 探针库 61 条) 并删除 job 9001, up 后 job 重新登记 |
+| 前端编译 | 0 warnings | `npx shadow-cljs compile app` (4033 files, 10 compiled) |
+| Chrome 浏览器 (Playwright, Linux Chromium 141, 隔离 `:3100` 后端, 迁移 202609240002 在该库实际执行) | `pms-e-progress.spec.js` 1 passed (1.9m) | 发布带层级的设备模板 -> 建项目应用模板 (3 节点) -> 界面 "派生主/子/单机计划" 返回 node_count 3 / main_stage_count 5 / derived_count 15 / dependency_count 11, WBS 表 "来源" 列 "模板派生" (截图 e-1), 重复派生 skipped 15; 真实 HTTP 把 M1-S4 工期改 60 -> 头部 "主子约束冲突 1", 面板定位 M1-S7 晚于主计划窗口 70 天 (e-2); 界面 "覆盖阶段权重" S4=30 -> "权重来自项目级覆盖 (模板快照不变)" (e-3), 合计错误 400; 章程 / 模板必需执行关口 (需求确认Gate) / 基线批准 -> 执行; 界面 "重排" 附件单元 U2 到 2026-10-12 -> "节点重排记录" (e-4), 基线仍 approved 且计划修订递增, 重排后 U2-S2 晚于主计划 S2 窗口 -> 冲突 2 条, 主项目 400; 界面反馈 S1-MAIN 已完成 (实际 2026-09-01 / 2026-09-12) 与 S2-MAIN 处理中 (实际开始 2026-09-14) -> 任务表 "实际开始/完成" 列 (e-5), 非完成状态填实际完成 400, 已开始节点重排 409; 批准 2h 工时 -> AC 0.25; 管理员对迁移登记的定时任务 9001 "执行一次" (`PUT /api/system/job/9001/run`) -> Quartz 调用 `com.ruoyi.task/pms-progress-scan` (后端日志 "PMS 进度扫描完成: 2026-09-24 项目数 26"), 轮询真实 HTTP 看到项目当日快照; 界面 "生成进度快照" 同日覆盖同一条 (仍 1 行), "挣值与完工预测" 面板 BAC 238 / PV 57 / EV 23 / AC 0.25 / SPI 0.4 / CPI 92 / EAC 2.59 与阶段分组 (e-6), "进度趋势 (快照)" 当日行 conflict_count 2 (e-6b); 审核人 "我的待办" 出现 "系统提醒: 任务逾期 SVC-1" 与 "问题逾期" (e-7), 管理员 `POST /api/pms/scan` 覆盖执行中项目, 审核人 403, 逾期任务补录完成后再扫描提醒 closed 1; 界面填写 G5 检查 AT-1..AT-3 通过 + AT-4 "例外放行 (需说明)" -> Gate进展汇总 "检查 4/4" 与 "例外 1" (e-8), 审核人批准通过证据校验, 例外缺说明 400; 组合看板行显示 "SPI x / CPI y" (e-9), 卡片 snapshot_date 为当天且 S4 权重 30; 无未捕获 JS 错误; 截图存 `reports/e-progress/` |
+| 全量 PMS 浏览器套件复跑 (同一隔离后端单库连续运行) | 52 passed / 1 failed (25.7m) | 唯一失败仍是 `pms-c05` 文件名断言 (Linux headless Chromium 对 blob 非 ASCII 文件名的环境差异, 增量4 已归因, 未改代码); 含 workbench 4 / a-templates / b-gates-fieldwork 2 / c-portfolio 2 / d-documents 及全部 c/h 用例, 说明任务表新列, Gate 检查弹窗可选证据, 我的待办新分组与组合看板新列未破坏既有用例 |
+
+本轮未执行 (如实记录): 本机 macOS Chrome 复验; 06:00 真实 cron 触发只由 Quartz 表达式与 "执行一次" 路径证明, 未等待到次日实际触发; 提醒只写本地待办, 未投递任何外部消息 (C11 待合同); 财务金额口径挣值 (费率) 在增量7; 反馈独立审核与偏差措施登记未做 (H06 保持 partial); 权重与提醒阈值口径未经业务批准 (B02 / B19 保持 partial / 待规则); 交接 / SAT 检查项企业口径未经业务批准 (B12 / B15 保持 partial).
+
+挣值口径提示: 早期项目 AC 很小时 CPI / EAC 会失真 (截图中 2 小时批准工时对应 CPI 92, EAC 2.59 个工作日), 这是公式的数学结果而非估算; 页面已标注价值单位与口径, 财务金额口径在增量7 费率之后.
+
+边界: B03 上行为 `implemented / local` (派生只建任务与 FS 依赖, 里程碑与跨节点依赖手工登记; 单元/产品线外部编码映射归 A07 待规则); H04 保持 `implemented / local` 并补节点重排证据; 其余五行状态不变但证据列记录已实现子集与仍待部分, 不据此把复合行上行.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

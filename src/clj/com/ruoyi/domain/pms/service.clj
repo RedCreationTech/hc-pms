@@ -15,7 +15,9 @@
 
 (defmethod ig/init-key :app.pms/service
   [_ {:keys [query-fn db file-dir file-max-mb]}]
-  {:query-fn query-fn :db db :file-dir file-dir :file-max-mb file-max-mb})
+  (let [svc {:query-fn query-fn :db db :file-dir file-dir :file-max-mb file-max-mb}]
+    ((requiring-resolve 'com.ruoyi.task/register-pms-service!) svc)
+    svc))
 
 (defn- uuid
   "生成跨数据库一致的业务标识."

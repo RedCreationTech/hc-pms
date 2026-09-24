@@ -726,6 +726,7 @@
             [antd/tag {:color (cond (:passed row) "green" (= "not_started" (:status row)) "default" (= "rejected" (:status row)) "red" :else "blue")}
              (get gate-status-labels (:status row) (:status row))]
             [antd/tag (str "检查 " (:passed_checks row) "/" (:total_checks row))]
+            (when (pos? (or (:waived_checks row) 0)) [antd/tag {:color "gold"} (str "例外 " (:waived_checks row))])
             (for [b (:blocks row)] ^{:key b} [antd/tag {:color "orange"} (str "阻断 " (get checkpoint-labels b b))])]])])]))
 
 (defn- gate-section

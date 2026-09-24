@@ -3,6 +3,7 @@
   (:require [com.ruoyi.domain.pms.config :as config]
             [com.ruoyi.domain.pms.finance-pool :as pool]
             [com.ruoyi.domain.pms.portfolio :as portfolio]
+            [com.ruoyi.domain.pms.scan :as scan]
             [com.ruoyi.web.controllers.pms-http :as http]))
 
 (defn- kind
@@ -42,6 +43,8 @@
   [svc]
   [["/coding-rules/next" {:get {:handler (partial next-code svc)}}]
    ["/todo" {:get {:handler (fn [request] (http/invoke svc request portfolio/todo))}}]
+   ["/scan" {:post {:handler (fn [request] (http/invoke svc request (fn [svc actor]
+                                                                       (scan/run-all! svc actor (or (get-in request [:body-params :date]) (str (java.time.LocalDate/now)))))))}}]
    ["/search" {:get {:handler (partial search svc)}}]
    ["/portfolio" {:get {:handler (fn [request] (http/invoke svc request portfolio/portfolio))}}]
    ["/targets/board" {:get {:handler (fn [request] (http/invoke svc request portfolio/targets))}}]

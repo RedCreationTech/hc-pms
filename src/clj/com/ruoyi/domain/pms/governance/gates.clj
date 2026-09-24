@@ -57,10 +57,16 @@
     (r/fail! 400 "检查项编码与模板不一致"))
   (let [results (into {} (map (juxt :code identity) checks))]
     (mapv (fn [item]
-            (let [result (get results (:code item))]
-              (r/object! result [:code :passed :evidence_ids])
-              (assoc item :passed (s/boolean! (:passed result) "passed")
-                     :evidence_ids (s/evidence! q project (:evidence_ids result) false))))
+            (let [result (get results (:code item))
+                  waived (boolean (:waived result))]
+              (r/object! result [:code :passed :evidence_ids :waived :waiver_reason])
+              (when (and (contains? result :waived) (not (boolean? (:waived result)))) (r/fail! 400 "waived必须为布尔值"))
+              (when (and waived (s/boolean! (:passed result) "passed")) (r/fail! 400 (str "检查项 " (:code item) " 已通过, 无需例外")))
+              (cond-> (assoc item :passed (s/boolean! (:passed result) "passed")
+                             :evidence_ids (s/evidence! q project (or (:evidence_ids result) []) false)
+                             :waived waived)
+                waived (assoc :waiver_reason (r/text! (:waiver_reason result) "例外说明" 500 true))
+                (not waived) (dissoc :waiver_reason))))
           (:checks gate))))
 
 (defn checks!
@@ -78,8 +84,9 @@
   "所有必需项须通过并提供确定文档版本; 声明 require_released 的检查项其证据须已经独立发布 (C06 发布链联动)."
   [q project gate]
   (doseq [check (:checks gate) :when (:required check)]
-    (when-not (:passed check) (r/fail! 409 (str "必需检查未通过: " (:code check))))
-    (s/evidence! q project (:evidence_ids check) true)
+    (when-not (or (:passed check) (:waived check)) (r/fail! 409 (str "必需检查未通过: " (:code check))))
+    (when (:waived check) (when-not (seq (:waiver_reason check)) (r/fail! 409 (str "例外检查项缺少说明: " (:code check)))))
+    (when (:passed check) (s/evidence! q project (:evidence_ids check) true))
     (when (:require_released check)
       (doseq [id (:evidence_ids check)]
         (when-not (= "approved" (:status (s/record! q project "document" id)))
@@ -106,7 +113,8 @@
              :gate_type (:gate_type template "generic") :stage (:stage template) :blocks (:blocks template [])
              :required (:required template) :instance_count (count instances)
              :status (if latest (:status latest) "not_started")
-             :passed_checks (count (filter :passed checks)) :total_checks (count (:checks template))
+             :passed_checks (count (filter #(or (:passed %) (:waived %)) checks)) :waived_checks (count (filter :waived checks))
+             :total_checks (count (:checks template))
              :passed (boolean (some #(contains? #{"approved" "waived"} (:status %)) instances))}))
         templates))
 

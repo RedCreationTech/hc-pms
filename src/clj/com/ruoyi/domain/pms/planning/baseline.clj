@@ -49,7 +49,7 @@
     (doseq [task leaves]
       (when-not (:owner_id task) (rules/fail! 409 (str "任务缺少负责人: " (:name task))))
       (kernel/user! q project (:owner_id task) "任务负责人"))
-    (doseq [task (filter #(= "summary" (:task_type %)) tasks)]
+    (doseq [task (filter #(and (= "summary" (:task_type %)) (not= "template" (:source_type %))) tasks)]
       (when-not (some #(= (:task_id task) (:parent_id %)) tasks)
         (rules/fail! 409 "空汇总任务不能提交审批"))))
   (when (seq (capacity/overloads q project snapshot))

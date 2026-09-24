@@ -19,8 +19,10 @@
     :checks [{:code "KIT-1" :title "冻结BOM逐行齐套率达到放行口径" :required true}
              {:code "KIT-2" :title "缺件处置方案与工单已明确" :required true}]}
    {:gate_type "assembly-test-handover" :title "装配与测试交接Gate (G5)" :stage "manufacturing" :page "36" :blocks ["test.SIT"]
-    :checks [{:code "AT-1" :title "装配执行与交检完成" :required true}
-             {:code "AT-2" :title "测试条件齐备并由接收责任人确认" :required true}]}
+    :checks [{:code "AT-1" :title "装配执行与单机交检完成" :required true}
+             {:code "AT-2" :title "连线交检与下岛记录完整" :required true}
+             {:code "AT-3" :title "测试条件齐备 (工装/程序/文档)" :required true}
+             {:code "AT-4" :title "接收责任人确认交接, 例外项已登记" :required true}]}
    {:gate_type "fat-confirm" :title "FAT确认Gate (G6)" :stage "delivery" :page "39-40" :blocks ["shipment.dispatch"]
     :checks [{:code "FAT-1" :title "FAT结果与报告满足验收条件" :required true}
              {:code "FAT-2" :title "阻塞整改已关闭" :required true}]}
@@ -28,8 +30,11 @@
     :checks [{:code "HO-1" :title "交底资料清单版本已确认" :required true}
              {:code "HO-2" :title "在配置期限内完成签交" :required true}]}
    {:gate_type "sat-confirm" :title "SAT条件与SAT确认Gate (G8)" :stage "closure" :page "48-49"
-    :checks [{:code "SAT-1" :title "现场任务与SAT执行证据齐备" :required true}
-             {:code "SAT-2" :title "客户/质量确认及遗留问题安排完整" :required true}]}
+    :checks [{:code "SAT-1" :title "现场定位/安装/调试任务完成" :required true}
+             {:code "SAT-2" :title "SAT 执行证据与报告齐备" :required true}
+             {:code "SAT-3" :title "客户确认记录" :required true}
+             {:code "SAT-4" :title "质量确认" :required true}
+             {:code "SAT-5" :title "遗留问题清单与责任安排" :required true}]}
    {:gate_type "generic" :title "通用Gate" :stage "execution" :page "4"
     :checks [{:code "C1" :title "实际证据齐全" :required true}]}])
 
@@ -39,18 +44,24 @@
   (some #(when (= type (:gate_type %)) %) gate-types))
 
 (def ^:private order-stages
-  [{:code "S1" :name "设计准备" :weight 10} {:code "S2" :name "研发设计" :weight 20}
-   {:code "S3" :name "齐套备料" :weight 10} {:code "S4" :name "装配调试" :weight 20}
-   {:code "S5" :name "测试验证" :weight 15} {:code "S6" :name "发货交付" :weight 10}
-   {:code "S7" :name "现场SAT" :weight 10} {:code "S8" :name "收尾归档" :weight 5}])
+  "订单项目阶段: levels 声明该阶段派生到哪一层计划 (main 主计划 / sub 子项目 / machine 单机), default_days 为派生任务的工程默认工期."
+  [{:code "S1" :name "设计准备" :weight 10 :levels ["main"] :default_days 10}
+   {:code "S2" :name "研发设计" :weight 20 :levels ["main" "sub"] :default_days 20}
+   {:code "S3" :name "齐套备料" :weight 10 :levels ["sub" "machine"] :default_days 15}
+   {:code "S4" :name "装配调试" :weight 20 :levels ["machine"] :default_days 15}
+   {:code "S5" :name "测试验证" :weight 15 :levels ["sub" "machine"] :default_days 10}
+   {:code "S6" :name "发货交付" :weight 10 :levels ["main"] :default_days 5}
+   {:code "S7" :name "现场SAT" :weight 10 :levels ["main" "machine"] :default_days 10}
+   {:code "S8" :name "收尾归档" :weight 5 :levels ["main"] :default_days 5}])
 
 (def ^:private rd-stages
-  [{:code "R1" :name "立项论证" :weight 15} {:code "R2" :name "方案设计" :weight 25}
-   {:code "R3" :name "样机试制" :weight 25} {:code "R4" :name "测试验证" :weight 20}
-   {:code "R5" :name "总结归档" :weight 15}])
+  [{:code "R1" :name "立项论证" :weight 15 :levels ["main"] :default_days 10} {:code "R2" :name "方案设计" :weight 25 :levels ["main"] :default_days 20}
+   {:code "R3" :name "样机试制" :weight 25 :levels ["main"] :default_days 20} {:code "R4" :name "测试验证" :weight 20 :levels ["main"] :default_days 15}
+   {:code "R5" :name "总结归档" :weight 15 :levels ["main"] :default_days 5}])
 
 (def ^:private dept-stages
-  [{:code "D1" :name "任务立项" :weight 20} {:code "D2" :name "执行推进" :weight 60} {:code "D3" :name "总结关闭" :weight 20}])
+  [{:code "D1" :name "任务立项" :weight 20 :levels ["main"] :default_days 5} {:code "D2" :name "执行推进" :weight 60 :levels ["main"] :default_days 20}
+   {:code "D3" :name "总结关闭" :weight 20 :levels ["main"] :default_days 5}])
 
 (defn- gate-templates
   "按类型从目录展开模板内 Gate 定义."

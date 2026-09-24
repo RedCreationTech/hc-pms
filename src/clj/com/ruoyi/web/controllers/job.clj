@@ -147,10 +147,11 @@
 
 
 (defn run-once
-  "立即执行一次任务."
-  [_ request]
-  (let [job-id (parse-long (get-in request [:path-params :id]))]
-    (scheduler-core/trigger-job! job-id "DEFAULT")
+  "立即执行一次任务: 按 sys_job 记录的任务组触发 (非 DEFAULT 组的任务, 如 PMS 进度扫描, 也能立即执行)."
+  [{:keys [query-fn]} request]
+  (let [job-id (parse-long (get-in request [:path-params :id]))
+        job (when query-fn (query-fn :find-job-by-id {:job_id job-id}))]
+    (scheduler-core/trigger-job! job-id (or (not-empty (:job_group job)) "DEFAULT"))
     (ok (str "任务 " job-id " 已触发执行"))))
 
 

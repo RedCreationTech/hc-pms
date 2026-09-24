@@ -95,10 +95,51 @@
   [base task]
   {:title "反馈任务进度" :path (str base "/tasks/" (:task_id task) "/feedback")
    :initial {:status "in_progress" :percent_complete (:percent_complete task 0) :remaining_days (or (:remaining_days task) (:duration_days task))}
+   :transform (fn [data] (reduce (fn [m k] (if (or (nil? (get m k)) (= "" (get m k))) (dissoc m k) m)) data [:actual_start :actual_end]))
    :fields [{:key :status :label "执行状态" :type :select :options (w/choices ["in_progress" "blocked" "done"]) :required? true}
             {:key :percent_complete :label "完成比例(%)" :type :number :min 0 :max 100 :required? true}
             {:key :remaining_days :label "剩余工作日" :type :number :min 0 :required? true}
+            {:key :actual_start :label "实际开始日期" :type :date :hint "首次反馈未填时记为今天, 不能晚于今天"}
+            {:key :actual_end :label "实际完成日期" :type :date :hint "仅完成状态可填, 未填时记为今天"}
             {:key :comment :label "进度说明" :type :textarea :required? true}]})
+
+
+(defn derive-dialog
+  "从模板阶段派生主/子/单机计划 (幂等)."
+  [base]
+  {:title "派生主/子/单机计划" :path (str base "/planning/derive")
+   :description "按已实例化模板的阶段层级 (main/sub/machine) 在阶段容器与节点容器下生成任务并按阶段顺序 FS 串联; 已有同 WBS 编号的任务跳过, 不改动已有任务与实际进度."
+   :fields [{:key :reason :label "说明" :type :textarea}]})
+
+
+(defn reschedule-dialog
+  "重排子项目/单机节点下的未开始任务."
+  [base node]
+  {:title (str "重排节点计划 " (:node_code node)) :path (str base "/planning/nodes/" (:node_id node) "/reschedule")
+   :description "把该节点 (含后代单机) 下全部未开始叶子任务的最早开始日移到新日期, 其余任务保持相同的工作日偏移; 已批准基线不变, 执行期须再次提交基线并绑定已批准变更."
+   :fields [{:key :start_date :label "新开始日期" :type :date :required? true}
+            {:key :reason :label "重排原因" :type :textarea :required? true}]})
+
+
+(defn stage-weights-dialog
+  "项目级阶段权重覆盖: 每个阶段一个整数权重, 合计 100."
+  [base stages]
+  {:title "覆盖阶段权重" :path (str base "/planning/stage-weights")
+   :description "工程默认为模板权重; 覆盖后进度卷积按新权重计算, 模板快照不变, 每次覆盖生成新版本. 待业务口径批准前只是本地规则."
+   :initial (into {} (map (fn [s] [(keyword (str "w_" (:code s))) (:weight s)]) stages))
+   :transform (fn [data] {:stages (mapv (fn [s] {:code (:code s) :weight (js/parseInt (get data (keyword (str "w_" (:code s)))))}) stages)
+                          :reason (:reason data)})
+   :fields (conj (mapv (fn [s] {:key (keyword (str "w_" (:code s))) :label (str (:code s) " " (:name s) " 权重%") :type :number :min 0 :max 100 :required? true}) stages)
+                 {:key :reason :label "覆盖说明" :type :textarea})})
+
+
+(defn snapshot-dialog
+  "手动生成当日进度快照与逾期提醒."
+  [base]
+  {:title "生成进度快照" :path (str base "/planning/snapshot")
+   :description "与每日 06:00 定时扫描同一实现: 记录当日 PV/EV/AC/SPI/CPI 与完工预测进入趋势, 登记逾期对象的本地提醒 (只写我的待办, 不投递外部消息)."
+   :fields [{:key :date :label "快照日期" :type :date :hint "留空为今天"}]
+   :transform (fn [data] (if (or (nil? (:date data)) (= "" (:date data))) (dissoc data :date) data))})
 
 (defn approval-dialog
   "审批冻结的计划版本并保留独立决策意见."

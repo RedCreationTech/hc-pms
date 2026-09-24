@@ -30,6 +30,7 @@
 | 增量 | 完成日期 | 实际结果 | 矩阵行变化 |
 |---|---|---|---|
 | 5 文档二进制附件与证据链 | 2026-09-24 | 文档附件测试 5/68; 全量回归 SQLite 128/1272, MySQL 8.0.46 128/1241 (云端真实执行, 关闭 "MySQL 未执行" 缺口); 前端 0 warnings; `pms-d-documents.spec.js` 1 passed, 既有文档用例复跑通过 (c05 仅环境文件名断言) | C04 / C05 / C06 partial -> implemented / local; A09 文档类别进入文档归集 |
+| 6 计划与进度深化 | 2026-09-24 | 计划与进度深化测试 8/112; 全量回归 SQLite 136/1384, MySQL 8.0.46 136/1353 (首轮暴露共享库下模板版本依赖, 测试改为按目录恢复阶段定义后通过); 迁移 202609240002 双库 down/up 探针通过 (SQLite down 补 DROP COLUMN); 前端 0 warnings; `pms-e-progress.spec.js` 1 passed (含定时任务 9001 "执行一次" 经 Quartz 真实调用扫描); 全量 PMS 浏览器套件 52 passed / 1 failed (仅 c05 环境文件名断言) | B03 partial -> implemented / local; H04 补节点重排证据; B02 / B19 保持 partial / 待规则 (权重与提醒口径), B12 / B15 保持 partial (检查项企业口径), H06 保持 partial (反馈独立审核与偏差措施仍待) |
 
 ## 不在本计划内 (如实列出)
 

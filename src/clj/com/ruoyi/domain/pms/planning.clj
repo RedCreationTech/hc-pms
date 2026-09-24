@@ -4,7 +4,11 @@
             [com.ruoyi.domain.pms.governance.store :as governance]
             [com.ruoyi.domain.pms.planning.capacity :as capacity]
             [com.ruoyi.domain.pms.governance.quality :as quality]
+            [com.ruoyi.domain.pms.planning.earned-value :as ev]
+            [com.ruoyi.domain.pms.planning.network :as network]
             [com.ruoyi.domain.pms.planning.progress :as progress]
+            [com.ruoyi.domain.pms.rules :as rules]
+            [com.ruoyi.domain.pms.scan :as scan]
             [com.ruoyi.domain.pms.planning.store :as store]
             [com.ruoyi.domain.pms.planning.tasks :as tasks]
             [com.ruoyi.domain.pms.planning.resources :as resources]
@@ -22,12 +26,21 @@
             paused (quality/paused-node-ids q project)
             tasks (mapv #(assoc % :node_paused (boolean (some->> (progress/task-node raw-tasks %) (contains? paused)))) raw-tasks)
             nodes (vec (q :pms/nodes {:project_id (:project_id project)}))
-            stages (:stages (first (governance/records q project "template-instance")))]
+            stages (network/effective-stages q project)
+            today (str (java.time.LocalDate/now))
+            entries (q :finance/times {:project_id (:project_id project)})]
         (merge snapshot
                {:tasks tasks :nodes nodes :stages (or stages [])
+                :stage_weight_source (network/stage-weight-source q project)
+                :stage_weights (first (governance/records q project "stage-weights"))
                 :node_pauses (governance/records q project "node-pause")
                 :paused_node_ids (vec paused)
-                :progress_rollup (progress/rollup tasks nodes stages)
+                :progress_rollup (assoc (progress/rollup tasks nodes stages) :source (network/stage-weight-source q project))
+                :plan_conflicts (network/conflicts raw-tasks (:schedule snapshot) nodes)
+                :earned_value (ev/earned-value raw-tasks (:schedule snapshot) (:calendar snapshot) entries nodes today)
+                :progress_history (->> (governance/records q project "progress-snapshot") (sort-by :snapshot_date) vec)
+                :reschedules (governance/records q project "reschedule")
+                :reminders (filterv #(= "open" (:status %)) (governance/records q project "reminder"))
                 :project_version (:version project) :plan_revision (:revision plan)
                 :plan_status (or (:status current) "draft") :baselines baselines
                 :feedback (store/rows q project :planning/feedback)
@@ -70,3 +83,13 @@
 (def delete-allocation! "移除任务资源分配." resources/delete-allocation!)
 (def submit-plan! "提交并冻结待审计划快照." baseline/submit!)
 (def review-plan! "独立审批计划基线." baseline/review!)
+(def derive-network! "从模板阶段派生子项目/单机计划 (B03)." network/derive!)
+(def reschedule-node! "重排节点下未开始任务, 保留原基线 (H04)." network/reschedule!)
+(def set-stage-weights! "项目级阶段权重覆盖 (B02)." network/set-stage-weights!)
+
+(defn snapshot-now!
+  "手动生成当日进度快照与逾期提醒 (与定时扫描同一实现), 须具备项目编辑权限与项目读取范围."
+  [svc actor id body]
+  (rules/object! body [:version :date])
+  (kernel/read! svc actor id "pms:project:edit" (fn [_ _] nil))
+  (scan/scan-project! svc actor id (or (some-> (:date body) (rules/date! "快照日期")) (str (java.time.LocalDate/now)))))
