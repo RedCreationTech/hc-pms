@@ -591,11 +591,24 @@
                :icon (r/as-element [:> FontSizeOutlined])}]])
 
 
+(defn- brand-mark
+  "红创PMS 品牌标记: 红色圆角方块内显示红字."
+  []
+  [:div {:style {:width 24 :height 24 :borderRadius 6 :flex "none"
+                 :display "flex" :alignItems "center" :justifyContent "center"
+                 :background "linear-gradient(135deg,#ef5350,#b71c1c)"
+                 :color "#fff" :fontSize 13 :fontWeight 700 :lineHeight 1}}
+   "红"])
+
+
 (defn main-layout
   []
   (let [[collapsed set-collapsed!] (hooks/use-state false)
         [settings-open? set-settings-open!] (hooks/use-state false)
         user @(rf/subscribe [:auth/user])
+        display-name (let [info (:user user)
+                           name (or (not-empty (:nick_name info)) (not-empty (:user_name info)))]
+                       (if (string? name) name "红创PMS"))
         page @(rf/subscribe [:page])
         layout-settings @(rf/subscribe [:layout/settings])
         sider-width 196
@@ -632,8 +645,8 @@
       (fn []
         (set! (.-title js/document)
               (if (get layout-settings :dynamic-title? true)
-                (str (last breadcrumbs) " - 若依管理系统")
-                "若依管理系统"))
+                (str (last breadcrumbs) " - 红创PMS")
+                "红创PMS"))
         js/undefined)
       [page (get layout-settings :dynamic-title? true)])
     [:> Layout {:style {:minHeight "100vh"
@@ -657,11 +670,8 @@
                          :justifyContent "center" :gap 8 :fontSize 16 :fontWeight 700
                          :color "#303133"
                          :background "#ffffff"}}
-           [:div {:style {:width 24 :height 24 :borderRadius "50%"
-                          :display "flex" :alignItems "center" :justifyContent "center"
-                          :color "#79e0c2" :fontSize 20 :fontWeight 300}}
-            "⌁"]
-           (when-not collapsed [:span "若依管理系统"])])
+           [brand-mark]
+           (when-not collapsed [:span "红创PMS"])])
         [:> Menu {:key (str "side-" menu-instance-key)
                   :theme "light"
                   :mode "inline"
@@ -692,11 +702,8 @@
              [:div {:style {:display "flex" :alignItems "center" :gap 8
                             :height 56 :paddingRight 16 :fontSize 16 :fontWeight 700
                             :color "#303133" :whiteSpace "nowrap"}}
-              [:div {:style {:width 24 :height 24 :borderRadius "50%"
-                             :display "flex" :alignItems "center" :justifyContent "center"
-                             :color "#23b99a" :fontSize 20 :fontWeight 300}}
-               "⌁"]
-              [:span "若依管理系统"]])
+              [brand-mark]
+              [:span "红创PMS"]])
            [:> Menu {:key (str "top-" menu-instance-key)
                      :mode "horizontal"
                      :selectedKeys (clj->js [selected-menu-key])
@@ -753,13 +760,14 @@
                                           "logout" (rf/dispatch [:auth/logout])
                                           nil))}
                       :trigger (clj->js ["click"])}
-         [:div {:style {:display "flex" :alignItems "center" :gap 8 :cursor "pointer" :padding "0 6px"}}
+         [:div {:className "header-user"
+                :style {:display "flex" :alignItems "center" :gap 8 :cursor "pointer" :padding "0 6px"}}
           [:> Avatar {:size 32
-                      :style {:background "linear-gradient(135deg,#f7d7c4,#9bc9ff)"
+                      :style {:background "linear-gradient(135deg,#f3a4a0,#c62828)"
                               :color "#fff"
                               :fontWeight 700}}
-           "若"]
-          [:span {:style {:fontSize 14 :fontWeight 600 :color text-primary}} "若依"]]]]
+           (subs display-name 0 1)]
+          [:span {:style {:fontSize 14 :fontWeight 600 :color text-primary}} display-name]]]]
        [layout-settings/layout-settings-drawer {:open? settings-open?
                                                 :on-close #(set-settings-open! false)}]]
       ;; Tab 栏
@@ -845,4 +853,4 @@
                         :height 36 :display "flex" :alignItems "center" :justifyContent "flex-end"
                         :padding "0 20px" :borderTop (str "1px solid " border-color)
                         :color text-secondary :fontSize 14 :background bg-header :zIndex 10}}
-          "Copyright © 2018-2026 RuoYi. All Rights Reserved."])]]]))
+          "Copyright © 2026 红创PMS. All Rights Reserved."])]]]))

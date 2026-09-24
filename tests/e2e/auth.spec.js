@@ -7,7 +7,7 @@ test.describe('认证流程', () => {
 
     // 验证进入首页
     await expect(page).toHaveURL('/');
-    await expect(page.getByText('若依管理系统').nth(1)).toBeVisible();
+    await expect(page.getByText('红创PMS').nth(1)).toBeVisible();
 
     // 左侧菜单应包含系统管理
     await expect(page.getByText('系统管理').first()).toBeVisible();

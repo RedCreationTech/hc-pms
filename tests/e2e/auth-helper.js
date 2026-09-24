@@ -22,7 +22,7 @@ async function login(page, username = 'admin', password = 'admin123') {
   await page.getByRole('button', { name: /登\s*录/ }).click();
 
   // 等待进入主布局
-  await page.getByText('若依管理系统').nth(1).waitFor();
+  await page.getByText('红创PMS').nth(1).waitFor();
 }
 
 /**
@@ -30,8 +30,8 @@ async function login(page, username = 'admin', password = 'admin123') {
  * @param {import('playwright/test').Page} page
  */
 async function logout(page) {
-  // 点击头像下拉
-  await page.locator('.ant-layout-header').getByText('若依').click();
+  // 点击头像下拉 (页头显示当前用户昵称)
+  await page.locator('.ant-layout-header .header-user').click();
   await page.getByText('退出登录').click();
   await page.getByRole('button', { name: /登\s*录/ }).waitFor();
 }

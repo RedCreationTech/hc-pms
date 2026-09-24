@@ -16,7 +16,7 @@ test.describe('用户管理 CRUD', () => {
   test('列表页面正常渲染', async ({ page }) => {
     // 左侧部门树可见
     await expect(page.getByText('组织机构')).toBeVisible();
-    await expect(page.getByText('若依科技').first()).toBeVisible();
+    await expect(page.getByText('红创科技').first()).toBeVisible();
 
     // 工具栏按钮可见（表内行操作按钮也有"修改"文本，取第一个/限定工具栏）
     await expect(page.getByRole('button', { name: '新增' }).first()).toBeVisible();

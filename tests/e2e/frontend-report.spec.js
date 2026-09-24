@@ -22,7 +22,7 @@ test('前端功能截图报告', async ({ page }) => {
   await page.getByPlaceholder('用户名').fill('admin');
   await page.getByPlaceholder('密码').fill('admin123');
   await page.getByRole('button', { name: /登\s*录/ }).click();
-  await page.getByText('若依管理系统').nth(1).waitFor();
+  await page.getByText('红创PMS').nth(1).waitFor();
   await shot(page, '02-首页');
 
   // 2. 请假申请列表页

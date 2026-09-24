@@ -136,7 +136,7 @@
          [:div {:style {:fontSize 24 :fontWeight 600 :color "#fff" :marginBottom 8}}
           (str greeting "，" (or (:nick_name user) (:user_name user) "管理员"))]
          [:div {:style {:fontSize 14 :color "rgba(255,255,255,0.85)"}}
-          "欢迎回到若依管理系统，今天也是元气满满的一天！"]]
+          "欢迎回到红创PMS，今天也是元气满满的一天！"]]
         [:div {:style {:textAlign "right"}}
          [:div {:style {:fontSize 14 :color "rgba(255,255,255,0.65)"}} "当前时间"]
          [:div {:style {:fontSize 28 :fontWeight 600 :color "#fff" :fontFamily "monospace"}}

@@ -16,7 +16,7 @@
 (defn- seed-cache
   []
   {"user"
-   {"admin" {:user_name "admin" :nick_name "若依管理员" :status "0"}}
+   {"admin" {:user_name "admin" :nick_name "红创管理员" :status "0"}}
    "dict"
    {"sys_user_status:0" {:label "正常" :value "0"}
     "sys_user_status:1" {:label "停用" :value "1"}}

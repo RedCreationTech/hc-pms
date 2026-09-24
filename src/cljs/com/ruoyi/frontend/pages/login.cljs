@@ -30,9 +30,9 @@
       [:div {:style {:background "rgba(255,255,255,0.1)" :padding "32px 40px 24px"
                      :textAlign "center" :backdropFilter "blur(10px)"}}
        [:h1 {:style {:margin 0 :fontSize 28 :fontWeight 600 :color "#fff" :letterSpacing 2}}
-        "若依管理系统"]
+        "红创PMS"]
        [:p {:style {:margin "8px 0 0" :fontSize 14 :color "rgba(255,255,255,0.7)"}}
-        "Clojure + ClojureScript + Ant Design"]]
+        "订单项目管理系统"]]
       ;; 表单区域
       [:div {:style {:background "#fff" :padding "32px 40px 40px"}}
        ;; 用户名

@@ -140,7 +140,7 @@ test.describe('H01 章程显式授权项目经理浏览器验收', () => {
     expect(v3.authorized_pm_id == null, '第三版无授权PM').toBeTruthy();
 
     // 5) 台账界面 (重新进入拉取最新读模型): "授权PM"列回显姓名, 取消授权PM的行显示"未指定".
-    //    限定到表格单元格, 避免与"项目概况"页签里同样显示为"若依管理员"的负责人描述项(隐藏)串台.
+    //    限定到表格单元格, 避免与"项目概况"页签里同样显示为管理员昵称的负责人描述项(隐藏)串台.
     await open(page, id, '需求与治理', '章程');
     await expect(drawer(page).locator('.ant-table-cell', { hasText: pmLabel }).first()).toBeVisible();
     await expect(drawer(page).locator('.ant-table-cell', { hasText: '未指定' }).first()).toBeVisible();

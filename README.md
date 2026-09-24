@@ -1,4 +1,4 @@
-# HC-PMS 工业项目管理系统
+# 红创PMS (HC-PMS) 工业项目管理系统
 
 基于 `RedCreationTech/ruoyi_clojure` 的 `ruoyi-template` 分支开发, 将订单项目的结构, 团队, 计划与交付证据逐步连接起来.
 
