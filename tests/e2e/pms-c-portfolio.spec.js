@@ -47,6 +47,8 @@ async function open(page, id, section, subsection) {
 async function choose(page, form, key, text) {
   const input = form.locator(`#${key}`);
   await input.click();
+  // 共享库累积用户/任务后长列表被 antd 虚拟滚动裁剪, 可搜索的下拉先按标签过滤再选.
+  if (typeof text === 'string' && await input.isEditable()) await input.fill(text);
   const list = await input.getAttribute('aria-controls');
   const dropdown = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)').filter({ has: page.locator(`[id="${list}"]`) });
   await dropdown.locator('.ant-select-item-option').filter({ hasText: text }).first().click();
@@ -278,7 +280,13 @@ test.describe('C/F/G 节 追踪偏差, 文档下钻与密级, 追溯升级, 待�
     await save(page, '冻结费用池');
     await poolRow.getByRole('button', { name: '预览分摊' }).click();
     await expect(page.getByText('总额守恒')).toBeVisible();
-    await expect(page.getByRole('dialog', { name: /分摊预览/ }).getByRole('cell', { name: '1000.00', exact: true })).toBeVisible();
+    // 共享库里同一期间可能留有此前运行 (含中断的运行) 批准的工时, 分摊行不止本项目; 断言本项目在分摊行中且各行金额合计守恒.
+    const preview = page.getByRole('dialog', { name: /分摊预览/ });
+    await expect(preview.locator('tbody tr').filter({ hasText: `PF-${f.suffix}` })).toBeVisible();
+    const amounts = (await preview.locator('tbody tr td:last-child').allInnerTexts())
+      .map(a => a.trim().replace(/,/g, '')).filter(a => /^-?\d+(\.\d+)?$/.test(a));
+    expect(amounts.length).toBeGreaterThanOrEqual(1);
+    expect(amounts.reduce((sum, a) => sum + Math.round(Number(a) * 100), 0)).toBe(100000);
     await shot(page, 'f-4-pool-preview.png');
     await page.getByRole('dialog', { name: /分摊预览/ }).getByRole('button', { name: 'Close' }).click();
     await poolRow.getByRole('button', { name: '执行分摊' }).click();

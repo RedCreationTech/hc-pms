@@ -219,7 +219,7 @@
                  :approve? (and (shared/use-permission "pms:finance:approve") (not (contains? #{"closed" "cancelled" "paused"} (:status project)))) :time-approve? (and (shared/use-permission "pms:time:approve") (not (contains? #{"closed" "cancelled" "paused"} (:status project))))
                  :open! set-dialog! :select! set-selected!}]
     [:div
-     [w/resource-view resource (fn [_] [finance-content context selected])]
+     [w/resource-view (shared/first-load resource planning) (fn [_] [finance-content context selected])]
      (when dialog [w/mutation-dialog (merge dialog {:project project :on-close #(set-dialog! nil)
                                                    :on-saved (fn [_] (set-dialog! nil) (changed!))})])]))
 
@@ -234,7 +234,8 @@
                  :planning (:data planning) :options options :open! set-dialog!
                  :time-editable? (and (shared/use-permission "pms:project:edit") (= "execution" (:status project)))
                  :time-approve? (and (shared/use-permission "pms:time:approve") (not (contains? #{"closed" "cancelled" "paused"} (:status project))))}]
-    [:div [w/resource-view resource (fn [_] [time-section context])]
+    ;; 弹窗在点击时固化计划读模型里的任务/节点选项; 首次加载时两类资源都返回后才渲染可操作内容 (与工程交付页一致).
+    [:div [w/resource-view (shared/first-load resource planning) (fn [_] [time-section context])]
      (when dialog [w/mutation-dialog (merge dialog {:project project :on-close #(set-dialog! nil)
                                                    :on-saved (fn [_] (set-dialog! nil) (changed!))})])]))
 

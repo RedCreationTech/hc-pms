@@ -86,6 +86,14 @@
     (assoc state :loading? (or (:loading? state) (not= request-key (:request-key state)))
                  :refresh! #(set-revision! inc))))
 
+(defn first-load
+  "给 resource-view 的主资源附加首次加载等待: 辅助资源 (如计划读模型) 首次返回前按加载中显示, 之后刷新保留旧数据不闪烁.
+  辅助资源读取失败不阻断主资源, 错误仍只取主资源."
+  [resource & others]
+  (let [pending? (boolean (some #(and (:loading? %) (nil? (:data %)) (nil? (:error %))) others))]
+    (cond-> resource
+      pending? (assoc :loading? true :data nil))))
+
 (defn use-action
   "提交修改并保留错误信息,成功后刷新调用方资源."
   [on-success]

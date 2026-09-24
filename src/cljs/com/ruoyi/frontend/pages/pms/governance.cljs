@@ -1010,8 +1010,9 @@
                  :editable? editable? :approve? (and (shared/use-permission "pms:quality:approve") (not (contains? #{"closed" "cancelled" "paused"} (:status project))))
                  :open! set-dialog! :import! #(set-importing! true) :document! set-document! :upload! set-upload!
                  :appointment! set-appointment! :preview! set-preview!}]
+    ;; 弹窗在点击时固化计划读模型里的任务/节点选项; 首次加载时两类资源都返回后才渲染可操作内容 (与工程交付页一致).
     [:div
-     [w/resource-view resource (fn [_] [governance-content context])]
+     [w/resource-view (shared/first-load resource planning) (fn [_] [governance-content context])]
      (when dialog [w/mutation-dialog (merge dialog {:project project :on-close #(set-dialog! nil)
                                                     :on-saved (fn [_] (set-dialog! nil) (changed!))})])
      (when importing? [import-dialog base project #(set-importing! false) (fn [_] (set-importing! false) (changed!))])
