@@ -198,17 +198,68 @@
             {:key :reason :label "转派原因" :type :textarea :required? true}]})
 
 
+(def meeting-type-labels
+  {"regular" "常规会议" "kickoff" "项目启动会" "review" "评审会" "fat-kickoff" "FAT启动会" "fat-summary" "FAT总结会"})
+
 (defn meeting-dialog
-  "记录实际会议结论,参会人与可选会前资料(引用项目内真实文档版本)."
-  [base options documents]
-  {:title "登记项目会议" :path (str base "/meetings")
+  "记录实际会议结论,参会人,会议类型,主计划基线引用与可选会前资料(引用项目内真实文档版本)."
+  [base options documents baselines]
+  {:title "登记项目会议" :path (str base "/meetings") :initial {:meeting_type "regular"}
+   :transform (fn [data] (cond-> data (str/blank? (:baseline_id data)) (dissoc :baseline_id)))
    :fields [{:key :title :label "会议主题" :required? true}
+            {:key :meeting_type :label "会议类型" :type :select :required? true
+             :options (mapv (fn [[v l]] {:value v :label l}) meeting-type-labels)
+             :hint "启动会必须绑定会前资料并引用主计划基线."}
             {:key :held_on :label "会议日期" :type :date :required? true}
             {:key :attendee_ids :label "参会人" :type :multi :options (w/user-options (:users options)) :required? true}
             {:key :minutes :label "会议纪要" :type :textarea :required? true}
             {:key :material_ids :label "会前资料" :type :multi
              :options (mapv #(hash-map :value (:id %) :label (str (:code %) " / " (:title %) " / V" (:revision %))) documents)
-             :hint "选择项目内已登记的证据文档版本作为会前资料, 可留空"}]})
+             :hint "选择项目内已登记的证据文档版本作为会前资料 (售前资料/需求), 可留空"}
+            {:key :baseline_id :label "引用主计划基线" :type :select
+             :options (mapv #(hash-map :value (:baseline_id %) :label (str "计划修订 " (:plan_revision %) " · " (get w/labels (:status %) (:status %)))) baselines)}]})
+
+(defn dq-dialog
+  "建立 DQ 关键任务: 检查清单逐行, 交付件绑定确定文档版本."
+  [base options documents planning]
+  {:title "建立DQ关键任务" :path (str base "/dqs")
+   :transform (fn [data]
+                (-> data (dissoc :check_titles)
+                    (assoc :checklist (mapv (fn [i title] {:code (str "D" (inc i)) :title title :required true})
+                                            (range) (remove str/blank? (str/split-lines (:check_titles data)))))
+                    (cond-> (str/blank? (:task_id data)) (dissoc :task_id))))
+   :fields [{:key :code :label "DQ编号" :required? true} {:key :title :label "DQ任务" :required? true}
+            (owner-field (:users options))
+            {:key :check_titles :label "检查清单" :type :textarea :required? true :hint "每行一项检查, 均为必需项."}
+            {:key :deliverable_ids :label "确定版本交付件" :type :multi :required? true
+             :options (mapv #(hash-map :value (:id %) :label (str (:code %) " / " (:title %) " / V" (:revision %))) documents)}
+            {:key :task_id :label "关联WBS任务" :type :select :options (w/options (:tasks planning) :task_id :name)}]})
+
+(defn dq-check-dialog
+  "逐项登记 DQ 检查结果."
+  [base dq]
+  {:title "填写DQ检查结果" :path (str base "/dqs/" (:id dq) "/checks")
+   :transform (fn [data]
+                {:results (mapv (fn [item] {:code (:code item) :passed (= "passed" (get data (keyword (str "passed_" (:code item)))))
+                                            :note (or (get data (keyword (str "note_" (:code item)))) "")}) (:checklist dq))})
+   :fields (vec (mapcat (fn [item]
+                          [{:key (keyword (str "passed_" (:code item))) :label (str (:code item) " / " (:title item)) :type :select :required? true
+                            :options [{:value "passed" :label "检查通过"} {:value "failed" :label "检查未通过"}]}
+                           {:key (keyword (str "note_" (:code item))) :label "检查说明"}]) (:checklist dq)))})
+
+(defn node-pause-dialog
+  "对子项目/单机发起局部暂停."
+  [base nodes]
+  {:title "局部暂停单机/子项目" :path (str base "/node-pauses")
+   :description "暂停期间该节点及其下属单机的任务禁止进度反馈, 不影响无关单机; 恢复时记录重排影响."
+   :fields [{:key :node_id :label "结构节点" :type :select :required? true
+             :options (mapv #(hash-map :value (:node_id %) :label (str (:node_code %) " · " (:name %))) (remove #(= "main" (:node_type %)) nodes))}
+            {:key :reason :label "暂停原因" :type :textarea :required? true}]})
+
+(defn node-resume-dialog
+  [base pause]
+  {:title "恢复节点执行" :path (str base "/node-pauses/" (:id pause) "/resume")
+   :fields [{:key :impact_note :label "恢复条件与重排影响" :type :textarea :required? true}]})
 
 
 (defn action-dialog

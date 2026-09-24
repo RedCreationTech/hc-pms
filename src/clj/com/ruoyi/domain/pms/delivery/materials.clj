@@ -2,6 +2,7 @@
   "物料申请,独立批准,冻结BOM和可核对齐套备料."
   (:require [com.ruoyi.domain.pms.delivery.store :as d]
             [com.ruoyi.domain.pms.governance.store :as g]
+            [com.ruoyi.domain.pms.planning.progress :as progress]
             [com.ruoyi.domain.pms.rules :as r]))
 
 
@@ -31,14 +32,21 @@
   [svc actor id _ body]
   (d/mutate! svc actor id body "delivery.material.created" false
     (fn [q project]
-      (g/input! body [:code :title :request_type :owner_id :needed_on :items :task_id :requirement_ids])
-      (d/insert! q project actor "material"
-                 (merge (d/references! q project body)
-                        {:code (g/text! body :code 100) :title (g/text! body :title 200)
-                         :request_type (g/enum! (:request_type body) #{"standard" "long_lead" "raw_material" "direct_ship"} "request_type")
-                         :owner_id (d/owner! q project (:owner_id body))
-                         :needed_on (g/date! body :needed_on) :items (items! (:items body))
-                         :external_sync_status "not_configured"}) "draft"))))
+      (g/input! body [:code :title :request_type :owner_id :needed_on :items :task_id :requirement_ids :packaging_spec :node_id])
+      (when (seq (:node_id body))
+        (when-not (q :pms/node {:project_id (:project_id project) :node_id (:node_id body)})
+          (r/fail! 404 "结构节点不存在或不属于本项目")))
+      (let [type (g/enum! (:request_type body) #{"standard" "long_lead" "raw_material" "direct_ship" "packaging"} "request_type")]
+        (when (and (= "packaging" type) (empty? (:packaging_spec body))) (r/fail! 400 "包材申请必须填写包装规格"))
+        (d/insert! q project actor "material"
+                   (merge (d/references! q project body)
+                          (cond-> {:code (g/text! body :code 100) :title (g/text! body :title 200)
+                                   :request_type type
+                                   :owner_id (d/owner! q project (:owner_id body))
+                                   :needed_on (g/date! body :needed_on) :items (items! (:items body))
+                                   :external_sync_status "not_configured"}
+                            (seq (:packaging_spec body)) (assoc :packaging_spec (g/text! body :packaging_spec 1000))
+                            (seq (:node_id body)) (assoc :node_id (:node_id body)))) "draft")))))
 
 
 (defn submit-request!
@@ -127,3 +135,44 @@
                     :kit_percent (/ (* 100.0 complete) total)
                     :kit_evidence_ids (g/evidence! q project (:evidence_ids body) true)
                     :kit_recorded_by (:user_id actor)})))))
+
+
+(defn kitting-rollup
+  "D06 齐套率多层只读卷积: 冻结BOM按其关联任务所属结构节点归集 (主/子/单机), 分子=齐套行数, 分母=冻结行数;
+   缺件清单逐行给出需求量/实际量/缺口与责任人, 读取时派生不落库. 替代料与跨工单口径仍待业务确认."
+  [boms tasks nodes]
+  (let [frozen (filter #(contains? #{"frozen" "partial" "ready"} (:status %)) boms)
+        task-by-id (into {} (map (juxt :task_id identity) tasks))
+        bom-node (fn [bom] (when-let [task (get task-by-id (:task_id bom))]
+                             (progress/task-node tasks task)))
+        with-node (mapv #(assoc % :node_id (bom-node %)
+                                :required_lines (count (:items %))
+                                :complete_lines (or (:complete_line_count %) 0)) frozen)
+        descendants (fn [node-id]
+                      (loop [result #{node-id} frontier [node-id]]
+                        (let [children (map :node_id (filter #(contains? (set frontier) (:parent_id %)) nodes))]
+                          (if (empty? children) result (recur (into result children) (vec children))))))
+        percent (fn [complete required] (if (zero? required) 0 (int (Math/round (* 100.0 (/ complete required))))))
+        node-rows (mapv (fn [node]
+                          (let [ids (descendants (:node_id node))
+                                rows (if (= "main" (:node_type node)) with-node (filter #(contains? ids (:node_id %)) with-node))
+                                required (reduce + 0 (map :required_lines rows))
+                                complete (reduce + 0 (map :complete_lines rows))]
+                            {:node_id (:node_id node) :parent_id (:parent_id node) :node_type (:node_type node)
+                             :node_code (:node_code node) :name (:name node) :bom_count (count rows)
+                             :required_lines required :complete_lines complete :kit_percent (percent complete required)
+                             :shortage_lines (- required complete)}))
+                        nodes)
+        shortages (vec (for [bom with-node
+                             item (or (:availability bom) (map #(assoc % :available_quantity 0 :complete false) (:items bom)))
+                             :when (not (:complete item))]
+                         {:bom_id (:id bom) :bom_code (:code bom) :node_id (:node_id bom)
+                          :code (:code item) :name (:name item) :unit (:unit item)
+                          :quantity (:quantity item) :available_quantity (or (:available_quantity item) 0)
+                          :shortage (- (:quantity item) (or (:available_quantity item) 0))
+                          :owner_id (:owner_id bom) :kit_recorded (boolean (:availability bom))}))
+        required (reduce + 0 (map :required_lines with-node))
+        complete (reduce + 0 (map :complete_lines with-node))]
+    {:bom_count (count with-node) :required_lines required :complete_lines complete
+     :kit_percent (percent complete required) :nodes node-rows :shortages shortages
+     :unassigned_bom_count (count (remove :node_id with-node))}))

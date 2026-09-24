@@ -88,7 +88,7 @@
 (defn dq-read-model
   "只读标注: 交付件是否出现更新版本 (签认依据失效), 检查项通过数."
   [documents dq]
-  (let [latest-by-code (into {} (map (fn [[code rows]] [code (apply max :revision (map :revision rows))]) (group-by :code documents)))
+  (let [latest-by-code (into {} (map (fn [[code rows]] [code (apply max (map :revision rows))]) (group-by :code documents)))
         by-id (into {} (map (juxt :id identity) documents))
         stale (filterv (fn [id] (let [doc (get by-id id)]
                                   (and doc (> (get latest-by-code (:code doc) 0) (:revision doc)))))

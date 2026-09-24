@@ -534,11 +534,18 @@
 
 (defn- meeting-section
   "从会议纪要产生明确行动,避免只记录不执行.会前资料绑定项目内真实文档版本."
-  [{:keys [base model options editable? open!]}]
-  [shared/panel "会议与决策" "参会人员,正式纪要与会前资料版本保留在项目中"
-   (when editable? [antd/button {:on-click #(open! (forms/meeting-dialog base options (:documents model)))} "登记项目会议"])
+  [{:keys [base model options planning editable? open!]}]
+  [shared/panel "会议与决策" "参会人员,正式纪要,会议类型,主计划基线引用与会前资料版本保留在项目中"
+   (when editable? [antd/button {:on-click #(open! (forms/meeting-dialog base options (:documents model) (:baselines planning)))} "登记项目会议"])
    [w/record-table (:meetings model)
-    [(w/text-column :title "会议主题") (w/text-column :held_on "会议日期") (w/text-column :minutes "会议纪要")
+    [(w/text-column :title "会议主题")
+     {:title "类型" :dataIndex "meeting_type" :width 100 :render #(get forms/meeting-type-labels % (or % "常规会议"))}
+     (w/text-column :held_on "会议日期") (w/text-column :minutes "会议纪要")
+     {:title "主计划基线" :dataIndex "baseline_revision" :width 150
+      :render (fn [_ row] (let [rev (aget row "baseline_revision") stale (true? (aget row "baseline_stale"))]
+                            (r/as-element (if (some? rev)
+                                            [antd/space [antd/tag {:color "blue"} (str "计划修订 " rev)] (when stale [antd/tag {:color "red"} "基线已失效"])]
+                                            [:span {:style {:color "#98a2b3"}} "未引用"]))))}
      {:title "会前资料" :dataIndex "material_ids" :render #(r/as-element [antd/tag {:color (if (pos? (count %)) "blue" "default")} (count %)])}
      {:title "行动闭环" :dataIndex "meeting_open_actions" :width 180
       :render (fn [_ row]
@@ -692,6 +699,47 @@
      #(gate-actions context %)]]])
 
 
+(defn- dq-actions
+  [{:keys [base options editable? approve? open!]} dq]
+  (let [current (:currentUserId options)]
+    [antd/space {:wrap true}
+     (when (and editable? (contains? #{"draft" "ready" "rejected"} (:status dq)))
+       [w/edit-button "填写检查" #(open! (forms/dq-check-dialog base dq))])
+     (when (and editable? (contains? #{"ready" "rejected"} (:status dq)))
+       [w/edit-button "提交签认" #(open! {:title "提交DQ签认" :path (str base "/dqs/" (:id dq) "/submit") :fields [(forms/reviewer-field options)]})])
+     (when (and approve? (= "in_review" (:status dq)) (= current (:reviewer_id dq)) (not= current (:submitted_by dq)))
+       [:<>
+        [w/edit-button "签认" #(open! (forms/decision-dialog (str base "/dqs/" (:id dq) "/decision") "approved" "签认DQ"))]
+        [w/edit-button "退回" #(open! (forms/decision-dialog (str base "/dqs/" (:id dq) "/decision") "rejected" "退回DQ"))]])]))
+
+(defn- dq-section
+  "B08 DQ 编制与确认关键任务: 检查清单 + 确定版本交付件 + 独立签认, 交付件更新即标注失效."
+  [{:keys [base model options planning editable? open!] :as context}]
+  [shared/panel "DQ 编制与确认" "管理检查清单与确定版本交付件, 满足条件并签认才完成; 交付件出现新版本时签认依据标注失效"
+   (when editable? [antd/button {:type "primary" :on-click #(open! (forms/dq-dialog base options (:documents model) planning))} "建立DQ关键任务"])
+   [w/record-table (:dqs model)
+    [(w/text-column :code "编号") (w/text-column :title "DQ任务")
+     {:title "检查通过" :key "checks" :width 100 :render (fn [_ row] (str (aget row "dq_passed") "/" (aget row "dq_total")))}
+     {:title "交付件" :dataIndex "deliverable_ids" :width 220
+      :render (fn [v] (str/join ", " (map #(w/related-label (:documents model) :id :code %) (js->clj v))))}
+     {:title "版本失效" :dataIndex "dq_stale" :width 110
+      :render (fn [v] (r/as-element (if (true? v) [antd/tag {:color "red"} "交付件已更新"] [antd/tag {:color "green"} "版本有效"])))}
+     (w/state-column) (w/text-column :decision_reason "签认意见")]
+    #(dq-actions context %)]])
+
+(defn- pause-section
+  "B16 项目/单机局部暂停与恢复."
+  [{:keys [base model planning editable? open!]}]
+  [shared/panel "单机/子项目局部暂停" "记录范围和原状态, 暂停期间冻结该节点任务的进度反馈, 恢复时校验并记录重排影响; 不误影响无关单机"
+   (when editable? [antd/button {:danger true :on-click #(open! (forms/node-pause-dialog base (:nodes planning)))} "局部暂停"])
+   [w/record-table (:node_pauses model)
+    [(w/text-column :node_code "节点") (w/text-column :node_name "名称") (w/text-column :reason "暂停原因")
+     (w/text-column :project_status_at_pause "暂停时项目状态") (w/text-column :paused_at "暂停时间")
+     (w/text-column :impact_note "恢复影响说明") (w/text-column :resumed_at "恢复时间")
+     {:title "状态" :dataIndex "status" :width 100 :render #(r/as-element [antd/tag {:color (if (= % "active") "red" "green")} (if (= % "active") "暂停中" "已恢复")])}]
+    (fn [row] (when (and editable? (= "active" (:status row)))
+                [w/edit-button "恢复" #(open! (forms/node-resume-dialog base row))]))]])
+
 (defn- governance-content
   "按工程协作主题组织治理页面."
   [context]
@@ -707,7 +755,8 @@
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section issue-section]]
                      ["meetings" "会议行动" [meeting-section action-section]]
-                     ["changes" "变更控制" [change-section]]])}])
+                     ["changes" "变更控制" [change-section]]
+                     ["quality" "DQ与局部暂停" [dq-section pause-section]]])}])
 
 
 (defn- import-dialog

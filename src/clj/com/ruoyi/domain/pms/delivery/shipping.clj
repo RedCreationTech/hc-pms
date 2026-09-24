@@ -1,6 +1,7 @@
 (ns com.ruoyi.domain.pms.delivery.shipping
   "真实发运记录,独立签收验证和售后异常处理闭环."
-  (:require [com.ruoyi.domain.pms.delivery.production :as production]
+  (:require [com.ruoyi.domain.pms.delivery.fieldwork :as fieldwork]
+            [com.ruoyi.domain.pms.delivery.production :as production]
             [com.ruoyi.domain.pms.delivery.store :as d]
             [com.ruoyi.domain.pms.governance.gates :as gates]
             [com.ruoyi.domain.pms.governance.store :as g]
@@ -34,6 +35,7 @@
     (r/fail! 409 "仍有未独立关闭的阻塞问题,不能发运"))
   (let [config (d/configuration q project)
         types (remove #{"SAT"} (:required_test_types config))]
+    (fieldwork/conditions-ready! config shipment)
     (doseq [rid (:assembly_ids shipment)]
       (g/status! (d/record! q project "assembly" rid) #{"approved"})
       (when (some #{"quality"} (:required_stages config))
@@ -78,10 +80,14 @@
         (gates/checkpoint-ready! q project "shipment.dispatch")
         (when (= (:user_id actor) (:reviewer_id shipment))
           (r/fail! 409 "指定签收验证人不能同时登记实际发运"))
-        (d/change! q project shipment "shipped"
-                   {:shipped_on (d/actual-date! body :shipped_on) :tracking_no (g/text! body :tracking_no 200)
-                    :shipped_by (:user_id actor) :shipment_source "manual_record"
-                    :dispatch_evidence_ids (g/evidence! q project (:evidence_ids body) true)})))))
+        (let [shipped (d/change! q project shipment "shipped"
+                                 {:shipped_on (d/actual-date! body :shipped_on) :tracking_no (g/text! body :tracking_no 200)
+                                  :shipped_by (:user_id actor) :shipment_source "manual_record"
+                                  :dispatch_evidence_ids (g/evidence! q project (:evidence_ids body) true)})]
+          ;; E07: 发运事实触发交底任务与截止期.
+          (when-not (some #(= (:id shipped) (:shipment_id %)) (d/records q project "handover"))
+            (fieldwork/create-handover! q project actor shipped (d/configuration q project)))
+          shipped)))))
 
 
 (defn- receipt-service!

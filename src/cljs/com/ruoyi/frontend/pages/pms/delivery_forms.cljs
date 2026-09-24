@@ -1,6 +1,7 @@
 (ns com.ruoyi.frontend.pages.pms.delivery-forms
   "交付执行的追踪表单和逐行物料,齐套与试验结果录入."
   (:require ["antd" :refer [Form]]
+            [clojure.string :as str]
             [com.ruoyi.frontend.antd :as antd]
             [com.ruoyi.frontend.pages.pms.governance-forms :as governance]
             [com.ruoyi.frontend.pages.pms.shared :as shared]
@@ -36,9 +37,15 @@
    :fields (vec (concat (identity-fields)
                        [{:key :request_type :label "申请类型" :type :select :required? true
                          :options [{:value "standard" :label "标准备料"} {:value "long_lead" :label "长周期物料"}
-                                   {:value "raw_material" :label "原材料"} {:value "direct_ship" :label "直发物料"}]}
+                                   {:value "raw_material" :label "原材料预投"} {:value "direct_ship" :label "直发物料"}
+                                   {:value "packaging" :label "包材申请"}]}
+                        {:key :packaging_spec :label "包装规格 (包材申请必填)" :type :textarea :hint "包材申请须填写包装规格/熏蒸/尺寸等要求."}
+                        {:key :node_id :label "目标子项目/单机" :type :select
+                         :options (mapv #(hash-map :value (:node_id %) :label (str (:node_code %) " · " (:name %))) (:nodes planning))}
                         (governance/owner-field (:users options)) {:key :needed_on :label "需求日期" :type :date :required? true}]
                        (trace-fields planning governance)))
+   :transform (fn [data] (cond-> data (str/blank? (:packaging_spec data)) (dissoc :packaging_spec)
+                                      (str/blank? (:node_id data)) (dissoc :node_id)))
    :rows-key :items :rows-title "物料明细" :editable-rows? true :new-row {:quantity 1 :unit "件"}
    :rows-fields [{:key :code :label "物料编号" :required? true} {:key :name :label "物料名称" :required? true}
                  {:key :quantity :label "数量" :type :number :min 1 :required? true} {:key :unit :label "计量单位" :required? true}]})
@@ -166,15 +173,90 @@
             (governance/evidence-field (:documents governance)) (governance/reviewer-field options)]})
 
 (defn configuration-dialog
-  "在执行前明确本项目适用交付环节和试验."
+  "在执行前明确本项目适用交付环节, 试验, 工勘次数, 发货前条件与交底/现场期限."
   [{:keys [base model]}]
   {:title "配置交付验收要求" :path (str base "/configuration")
-   :initial (select-keys (:configuration model) [:required_stages :required_test_types])
+   :initial (select-keys (:configuration model) [:required_stages :required_test_types :required_survey_visits :pre_ship_conditions
+                                                 :handover_deadline_days :site_lag_days])
    :fields [{:key :required_stages :label "必需交付环节" :type :multi :required? true
              :options [{:value "materials" :label "备料与BOM"} {:value "assembly" :label "装配交检"}
                        {:value "quality" :label "质量试验"} {:value "shipment" :label "发运签收"}]}
             {:key :required_test_types :label "必需试验类别" :type :multi :required? true :options (w/choices ["SIT" "FAT" "SAT"])}
+            {:key :required_survey_visits :label "必需工勘次数" :type :number :min 0 :max 10 :hint "按项目适用性配置, 不默认强制三次; 0 表示不要求."}
+            {:key :pre_ship_conditions :label "发货前本地条件" :type :multi
+             :options [{:value "warehouse_in" :label "入库/装箱已确认"} {:value "payment" :label "提货款条件已确认"}]}
+            {:key :handover_deadline_days :label "发货后交底截止 (自然日)" :type :number :min 0 :max 30}
+            {:key :site_lag_days :label "交底后现场任务滞后 (自然日)" :type :number :min 0 :max 30}
             {:key :reason :label "配置依据" :type :textarea :required? true}]})
+
+(defn survey-dialog
+  "按适用性登记一次工勘."
+  [{:keys [base options planning]}]
+  {:title "登记工勘任务" :path (str base "/surveys") :initial {:visit_no 1}
+   :fields (vec (concat (identity-fields)
+                       [{:key :visit_no :label "工勘次序" :type :number :min 1 :max 20 :required? true}
+                        (governance/owner-field (:users options)) {:key :planned_date :label "计划日期" :type :date :required? true}
+                        {:key :deliverable :label "交付物要求" :type :textarea :required? true}
+                        {:key :task_id :label "关联WBS任务" :type :select :options (w/options (:tasks planning) :task_id :name)}]))
+   :transform (fn [data] (cond-> data (str/blank? (:task_id data)) (dissoc :task_id)))})
+
+(defn survey-submit-dialog
+  "以实际日期与交付证据提交工勘确认."
+  [{:keys [base options governance]} row]
+  {:title "提交工勘确认" :path (str base "/surveys/" (:id row) "/submit")
+   :fields [{:key :actual_date :label "实际工勘日期" :type :date :required? true}
+            {:key :findings :label "勘察结论" :type :textarea}
+            (governance/evidence-field (:documents governance)) (governance/reviewer-field options)]})
+
+(def step-order
+  ["on_island" "assembling" "unit_inspection" "wiring_inspection" "off_island" "handover"])
+
+(def step-labels
+  {"on_island" "上岛" "assembling" "装配" "unit_inspection" "单机交检" "wiring_inspection" "连线交检" "off_island" "下岛" "handover" "交接"})
+
+(defn step-dialog
+  "登记装配执行明细的下一步骤."
+  [{:keys [base governance]} row]
+  {:title "登记装配步骤" :path (str base "/assemblies/" (:id row) "/steps")
+   :initial {:step (:next_step row)}
+   :fields [{:key :step :label "步骤" :type :select :required? true
+             :options (mapv (fn [[v l]] {:value v :label l}) step-labels)}
+            {:key :actual_date :label "实际日期" :type :date :required? true}
+            {:key :note :label "说明"}
+            (assoc (governance/evidence-field (:documents governance)) :required? false)]})
+
+(defn conditions-dialog
+  "登记发货前本地事实 (入库/提货款), 不冒充外部回执."
+  [{:keys [base governance]} row]
+  {:title "确认发货前条件" :path (str base "/shipments/" (:id row) "/conditions")
+   :initial (select-keys (:preconditions row) [:warehouse_in_confirmed :warehouse_note :payment_confirmed :payment_note])
+   :fields [{:key :warehouse_in_confirmed :label "入库/装箱已确认" :type :select
+             :options [{:value true :label "已确认"} {:value false :label "未确认"}]}
+            {:key :warehouse_note :label "入库依据 (如 WMS 单号)"}
+            {:key :payment_confirmed :label "提货款条件已确认" :type :select
+             :options [{:value true :label "已确认"} {:value false :label "未确认"}]}
+            {:key :payment_note :label "提货款依据 (如财务确认)"}
+            (assoc (governance/evidence-field (:documents governance)) :required? false)]})
+
+(defn handover-dialog
+  "在期限内完成交底资料签交."
+  [{:keys [base governance]} row]
+  {:title "完成项目交底" :path (str base "/handovers/" (:id row) "/complete")
+   :fields [{:key :completed_on :label "交底完成日期" :type :date :required? true}
+            {:key :checklist_note :label "检查清单版本说明"}
+            (assoc (governance/evidence-field (:documents governance)) :key :document_ids :label "交底文件清单 (文档版本)")]})
+
+(defn site-start-dialog
+  [{:keys [base]} row]
+  {:title "开始现场任务" :path (str base "/site-tasks/" (:id row) "/start")
+   :fields [{:key :actual_start :label "实际开始日期" :type :date :required? true} {:key :note :label "说明"}]})
+
+(defn site-complete-dialog
+  [{:keys [base governance]} row]
+  {:title "完成现场任务" :path (str base "/site-tasks/" (:id row) "/complete")
+   :fields [{:key :actual_end :label "实际完成日期" :type :date :required? true}
+            {:key :result :label "现场结果" :type :textarea}
+            (governance/evidence-field (:documents governance))]})
 
 (defn- nested-field
   "在业务明细行中渲染具名字段,布尔值使用明确开关."

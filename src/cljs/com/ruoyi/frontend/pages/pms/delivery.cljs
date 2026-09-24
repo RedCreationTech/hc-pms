@@ -56,13 +56,32 @@
      [action context "登记齐套" (forms/kit-dialog context row)])])
 
 (defn- assembly-actions
-  "实际开工和交检分别保留证据与责任."
+  "实际开工和交检分别保留证据与责任; 上岛/装配/交检/连线/下岛/交接步骤逐项登记."
   [{:keys [executing?] :as context} row]
   [antd/space
    (when (and executing? (contains? #{"draft" "rejected"} (:status row)))
      [action context "登记开工" (forms/submit-dialog context "assemblies" row "start" false "登记装配开工")])
    (when (and executing? (= "in_progress" (:status row)))
-     [action context "提交交检" (forms/submit-dialog context "assemblies" row "submit" true "提交装配交检")])])
+     [action context "提交交检" (forms/submit-dialog context "assemblies" row "submit" true "提交装配交检")])
+   (when (and executing? (contains? #{"in_progress" "in_review" "approved"} (:status row)) (:next_step row))
+     [action context "登记步骤" (forms/step-dialog context row)])])
+
+(defn- survey-actions
+  "工勘完成后提交独立确认."
+  [{:keys [editable?] :as context} row]
+  (when (and editable? (contains? #{"draft" "rejected"} (:status row)))
+    [action context "提交工勘确认" (forms/survey-submit-dialog context row)]))
+
+(defn- handover-actions
+  [{:keys [executing?] :as context} row]
+  (when (and executing? (= "open" (:status row)))
+    [action context "完成交底" (forms/handover-dialog context row)]))
+
+(defn- site-task-actions
+  [{:keys [executing?] :as context} row]
+  [antd/space
+   (when (and executing? (= "draft" (:status row))) [action context "开始" (forms/site-start-dialog context row)])
+   (when (and executing? (= "in_progress" (:status row))) [action context "完成" (forms/site-complete-dialog context row)])])
 
 (defn- test-actions
   "试验结果逐项登记后提交独立评审."
@@ -78,6 +97,8 @@
   [{:keys [editable? executing? approve? options project] :as context} row]
   (let [current (:currentUserId options)]
     [antd/space
+     (when (and editable? (contains? #{"draft" "rejected" "released"} (:status row)))
+       [action context "发货前条件" (forms/conditions-dialog context row)])
      (when (and editable? (contains? #{"draft" "rejected"} (:status row)))
        [action context "申请放行" (forms/submit-dialog context "shipments" row "submit" false "提交发运放行")])
      (when (and executing? (= "released" (:status row)) (not= current (:reviewer_id row)))
@@ -99,7 +120,8 @@
   [antd/space {:wrap true}
    [w/edit-button "查看明细" #(inspect! (assoc row :collection collection))]
    [(case collection "material-requests" material-actions "boms" bom-actions "assemblies" assembly-actions
-                     "tests" test-actions "shipments" shipment-actions "service-cases" service-actions) context row]
+                     "tests" test-actions "shipments" shipment-actions "service-cases" service-actions
+                     "surveys" survey-actions "handovers" handover-actions "site-tasks" site-task-actions) context row]
    [review-actions context collection row]])
 
 (defn- record-section
@@ -111,22 +133,94 @@
     (vec (concat [(w/text-column :code "编号") (w/text-column :title "标题")] columns [(state-column)]))
     #(record-actions context collection %)]])
 
+(def request-type-labels
+  {"standard" "标准备料" "long_lead" "长周期物料" "raw_material" "原材料预投" "direct_ship" "直发物料" "packaging" "包材申请"})
+
+(defn- kitting-rollup-section
+  "D06 齐套率按主/子/单机多层卷积并可下钻缺件清单 (读取时派生)."
+  [{:keys [model options]}]
+  (let [rollup (:kitting_rollup model) node-labels {"main" "主项目" "sub" "子项目" "machine" "单机"}]
+    [shared/panel "齐套率多层视图" "冻结BOM按关联任务所属结构节点归集: 分子=齐套行数, 分母=冻结行数; 缺件清单可定位责任人"
+     [antd/space {:wrap true}
+      [antd/tag {:color "blue"} (str "整体齐套率 " (:kit_percent rollup) "%")]
+      [antd/tag (str "冻结BOM " (:bom_count rollup))]
+      [antd/tag (str "齐套行 " (:complete_lines rollup) "/" (:required_lines rollup))]
+      (when (pos? (or (:unassigned_bom_count rollup) 0)) [antd/tag {:color "orange"} (str "未映射节点BOM " (:unassigned_bom_count rollup))])]
+     [:div {:style {:display "grid" :gap 16}}
+      [antd/table {:rowKey "node_id" :size "small" :pagination false :dataSource (clj->js (:nodes rollup))
+                   :columns (clj->js [{:title "层级" :dataIndex "node_type" :width 90 :render (fn [v] (get node-labels v v))}
+                                      {:title "节点编号" :dataIndex "node_code" :width 160} {:title "名称" :dataIndex "name"}
+                                      {:title "BOM数" :dataIndex "bom_count" :width 80} {:title "齐套行/冻结行" :key "lines" :width 130
+                                                                                        :render (fn [_ row] (str (aget row "complete_lines") "/" (aget row "required_lines")))}
+                                      {:title "缺件行" :dataIndex "shortage_lines" :width 90}
+                                      {:title "齐套率" :dataIndex "kit_percent" :width 220
+                                       :render (fn [v] (r/as-element [antd/progress {:percent (or v 0) :size "small" :style {:width 180}}]))}])}]
+      [:details
+       [:summary (str "缺件清单 " (count (:shortages rollup)) " 行")]
+       [w/record-table (:shortages rollup)
+        [(w/text-column :bom_code "BOM") (w/text-column :code "物料编号") (w/text-column :name "物料名称")
+         (w/text-column :quantity "冻结需求") (w/text-column :available_quantity "实际可用") (w/text-column :shortage "缺口")
+         {:title "责任人" :dataIndex "owner_id" :render #(w/related-label (:users options) :user_id :nick_name %)}
+         {:title "齐套登记" :dataIndex "kit_recorded" :render #(if % "已登记" "未登记")}] nil]]]]))
+
 (defn- materials-section
   "备料审批与冻结BOM保留清晰来源关系."
   [context]
   [:div {:style {:display "grid" :gap 20}}
-   [record-section context :material_requests "material-requests" "备料申请" "审批申请形成BOM来源,不把手工登记标记为已采购"
-    "新建备料申请" forms/material-dialog [(w/text-column :needed_on "需求日期")]]
+   [record-section context :material_requests "material-requests" "备料申请" "审批申请形成BOM来源 (含长周期/原材预投/直发/包材), 不把手工登记标记为已采购"
+    "新建备料申请" forms/material-dialog [{:title "类型" :dataIndex "request_type" :width 110 :render #(get request-type-labels % %)}
+                                          (w/text-column :needed_on "需求日期")
+                                          {:title "目标节点" :dataIndex "node_id" :width 120 :render #(w/related-label (get-in context [:planning :nodes]) :node_id :node_code %)}]]
    [record-section context :boms "boms" "BOM与齐套" "冻结清单保持不变,齐套率按满足数量的物料行计算"
     "建立BOM" forms/bom-dialog [(w/text-column :complete_line_count "齐套行数")
-                             (w/text-column :required_line_count "总行数") (w/text-column :kit_percent "齐套率%")]]])
+                             (w/text-column :required_line_count "总行数") (w/text-column :kit_percent "齐套率%")]]
+   [kitting-rollup-section context]])
+
+(defn- step-timeline
+  "装配执行明细: 上岛/装配/单机交检/连线交检/下岛/交接."
+  [row]
+  (let [done (into {} (map (juxt :step identity) (:steps row)))]
+    [antd/space {:wrap true}
+     (for [step forms/step-order] ^{:key step}
+       [antd/tag {:color (if (get done step) "green" "default")}
+        (str (get forms/step-labels step step) (when-let [d (get done step)] (str " " (:actual_date d))))])]))
+
+(defn- fieldwork-section
+  "B07 工勘, E07 交底时限与 E08/E09 现场任务 (本地事实, 外部回传未配置)."
+  [context]
+  [:div {:style {:display "grid" :gap 20}}
+   [record-section context :surveys "surveys" "工勘任务" "按项目适用性登记各次工勘, 责任/日期/交付物明确, 完成须证据并独立确认"
+    "登记工勘任务" forms/survey-dialog [(w/text-column :visit_no "次序") (w/text-column :planned_date "计划日期")
+                                       (w/text-column :actual_date "实际日期") (w/text-column :deliverable "交付物")]]
+   [shared/panel "发货后交底" "发运登记后自动生成, 截止期 = 发运日 + 配置天数 (自然日); 文件清单推CRM未配置, 仅本地签交" nil
+    [w/record-table (:handovers (:model context))
+     [(w/text-column :code "编号") (w/text-column :shipped_on "发运日期") (w/text-column :deadline "截止日期")
+      {:title "时限" :key "days" :width 140
+       :render (fn [_ row] (let [left (aget row "handover_days_left") overdue (true? (aget row "handover_overdue")) late (true? (aget row "completed_late"))]
+                             (r/as-element (cond overdue [antd/tag {:color "red"} (str "已逾期 " (- left) " 天")]
+                                                 (some? left) [antd/tag {:color "gold"} (str "剩 " left " 天")]
+                                                 late [antd/tag {:color "orange"} "逾期完成"]
+                                                 :else [antd/tag {:color "green"} "按期完成"]))))}
+      (w/text-column :completed_on "完成日期") (w/text-column :checklist_note "清单说明")
+      {:title "CRM推送" :dataIndex "crm_sync_status" :width 100 :render (fn [v] (if (= v "not_configured") "未配置" v))}
+      (state-column)]
+     #(record-actions context "handovers" %)]]
+   [shared/panel "现场任务 (定位/安装/调试/SAT)" "交底完成后按配置滞后期自动生成, 顺序执行不可乱序; ERP下发与CRM回传未配置" nil
+    [w/record-table (sort-by (juxt :handover_id :sequence) (:site_tasks (:model context)))
+     [(w/text-column :sequence "序") (w/text-column :title "任务") (w/text-column :planned_start "计划开始")
+      {:title "延误" :key "delay" :width 110
+       :render (fn [_ row] (r/as-element (if (true? (aget row "site_delayed")) [antd/tag {:color "red"} "计划开始已过"]
+                                             (if-let [d (aget row "site_days_to_start")] [antd/tag (str "距开始 " d " 天")] [:span "—"]))))}
+      (w/text-column :actual_start "实际开始") (w/text-column :actual_end "实际完成") (w/text-column :result "结果") (state-column)]
+     #(record-actions context "site-tasks" %)]]])
 
 (defn- assemblies-section
-  "装配台账展示实际开工与独立交检."
+  "装配台账展示实际开工, 执行步骤明细与独立交检."
   [context]
-  [record-section context :assemblies "assemblies" "装配与交检" "齐套后实际开工,完工后提交独立交检"
+  [record-section context :assemblies "assemblies" "装配与交检" "齐套后实际开工 (齐套Gate阻断时拒绝), 上岛/装配/交检/连线/下岛/交接逐步登记, 完工后提交独立交检"
    "建立装配任务" forms/assembly-dialog
-   [{:title "BOM来源" :dataIndex "bom_id" :render #(w/related-label (get-in context [:model :boms]) :id :title %)}]])
+   [{:title "BOM来源" :dataIndex "bom_id" :render #(w/related-label (get-in context [:model :boms]) :id :title %)}
+    {:title "执行步骤" :dataIndex "steps" :width 420 :render (fn [_ row] (r/as-element [step-timeline (js->clj row :keywordize-keys true)]))}]])
 
 (defn- tests-section
   "质量试验明确类别,逐项记录证据和失败整改."
@@ -141,6 +235,10 @@
   [context]
   [record-section context :shipments "shipments" "发运与签收" "质量合格后放行,独立审核人依据实际证据验证客户签收"
    "建立发运计划" forms/shipment-dialog [(w/text-column :consignee "收货方") (w/text-column :planned_date "计划日期")
+                                        {:title "发货前条件" :dataIndex "preship_checklist" :width 260
+                                         :render (fn [v] (r/as-element (into [antd/space {:wrap true}]
+                                                                             (map (fn [c] [antd/tag {:color (if (:satisfied c) "green" "red")} (:label c)])
+                                                                                  (js->clj v :keywordize-keys true)))))}
                                         (w/text-column :tracking_no "运单编号") (w/text-column :received_on "签收日期")]])
 
 (defn- services-section
@@ -158,7 +256,11 @@
        [antd/button {:on-click #(open! (forms/configuration-dialog context))} "配置交付要求"])
      [:div {:style {:display "flex" :gap 8 :flexWrap "wrap" :marginBottom 16}}
       (for [stage (:required_stages config)] ^{:key stage} [antd/tag (get labels stage stage)])
-      (for [test (:required_test_types config)] ^{:key test} [antd/tag {:color "blue"} test])]
+      (for [test (:required_test_types config)] ^{:key test} [antd/tag {:color "blue"} test])
+      [antd/tag {:color "purple"} (str "工勘 " (or (:required_survey_visits config) 0) " 次")]
+      (for [c (:pre_ship_conditions config)] ^{:key c} [antd/tag {:color "orange"} (get {"warehouse_in" "发货前须入库确认" "payment" "发货前须提货款确认"} c c)])
+      [antd/tag (str "交底截止 +" (or (:handover_deadline_days config) 2) " 天")]
+      [antd/tag (str "现场滞后 +" (or (:site_lag_days config) 2) " 天")]]
      (when (seq (:blockers model))
        [:> Alert {:type "warning" :showIcon true :message "交付尚有待完成事项"
                     :description (r/as-element [:ul {:style {:paddingLeft 20 :margin 0}}
@@ -235,6 +337,7 @@
                              {:key key :label label :children (r/as-element [component context])})
                            [["materials" "备料与BOM" materials-section] ["assemblies" "装配交检" assemblies-section]
                             ["tests" "质量试验" tests-section] ["shipments" "发运签收" shipments-section]
+                            ["fieldwork" "工勘与现场" fieldwork-section]
                             ["services" "售后闭环" services-section]])}]])
 
 (defn delivery-workspace

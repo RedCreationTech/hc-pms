@@ -114,9 +114,10 @@
 (defn configuration
   "返回显式配置或本地工程默认的执行链,不声称是企业已确认规则."
   [q project]
-  (or (first (records q project "configuration"))
-      {:required_stages ["materials" "assembly" "quality" "shipment"]
-       :required_test_types ["SIT" "FAT" "SAT"] :source "engineering_default"}))
+  (merge {:required_survey_visits 0 :pre_ship_conditions [] :handover_deadline_days 2 :site_lag_days 2}
+         (or (first (records q project "configuration"))
+             {:required_stages ["materials" "assembly" "quality" "shipment"]
+              :required_test_types ["SIT" "FAT" "SAT"] :source "engineering_default"})))
 
 
 (defn- stages!
@@ -134,9 +135,19 @@
   [svc actor id body]
   (mutate! svc actor id body "delivery.configured" false
     (fn [q project]
-      (g/input! body [:required_stages :required_test_types :reason])
+      (g/input! body [:required_stages :required_test_types :reason :required_survey_visits :pre_ship_conditions
+                      :handover_deadline_days :site_lag_days])
       (when-not (contains? #{"draft" "initiated" "planning"} (:status project))
         (r/fail! 409 "执行开始后不可修改适用交付流程"))
+      (doseq [[key limit] [[:required_survey_visits 10] [:handover_deadline_days 30] [:site_lag_days 30]]]
+        (when (contains? body key)
+          (when-not (and (integer? (get body key)) (<= 0 (get body key) limit))
+            (r/fail! 400 (str (name key) " 必须是0到" limit "的整数")))))
+      (when (contains? body :pre_ship_conditions)
+        (let [values (:pre_ship_conditions body)]
+          (when-not (and (vector? values) (= (count values) (count (set values))))
+            (r/fail! 400 "发货前条件必须为不重复数组"))
+          (doseq [value values] (g/enum! value #{"warehouse_in" "payment"} "pre_ship_conditions"))))
       (doseq [[key allowed] [[:required_stages #{"materials" "assembly" "quality" "shipment"}]
                              [:required_test_types #{"SIT" "FAT" "SAT"}]]]
         (let [values (get body key)]
@@ -144,7 +155,8 @@
             (r/fail! 400 "适用流程与试验类型必须为非空不重复数组"))
           (doseq [value values] (g/enum! value allowed (name key)))))
       (stages! (:required_stages body))
-      (let [fields (assoc (select-keys body [:required_stages :required_test_types])
+      (let [fields (assoc (select-keys body [:required_stages :required_test_types :required_survey_visits
+                                             :pre_ship_conditions :handover_deadline_days :site_lag_days])
                           :code "configuration" :source "project_configuration" :reason (g/text! body :reason))]
         (if-let [old (first (records q project "configuration"))]
           (change! q project old "registered" fields)

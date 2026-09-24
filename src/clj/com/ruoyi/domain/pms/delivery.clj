@@ -1,15 +1,19 @@
 (ns com.ruoyi.domain.pms.delivery
   "交付执行工作台,受控业务命令及收尾阻塞检查."
-  (:require [com.ruoyi.domain.pms.delivery.materials :as materials]
+  (:require [com.ruoyi.domain.pms.delivery.fieldwork :as fieldwork]
+            [com.ruoyi.domain.pms.delivery.materials :as materials]
             [com.ruoyi.domain.pms.delivery.production :as production]
             [com.ruoyi.domain.pms.delivery.shipping :as shipping]
             [com.ruoyi.domain.pms.delivery.store :as d]
+            [com.ruoyi.domain.pms.governance.store :as g]
             [com.ruoyi.domain.pms.kernel :as k]
-            [com.ruoyi.domain.pms.rules :as r]))
+            [com.ruoyi.domain.pms.rules :as r])
+  (:import [java.time LocalDate]))
 
 
 (def sections "交付工作台类型集合." {:material_requests "material" :boms "bom" :assemblies "assembly"
-                                     :tests "test" :shipments "shipment" :service_cases "service"})
+                                     :tests "test" :shipments "shipment" :service_cases "service"
+                                     :surveys "survey" :handovers "handover" :site_tasks "site-task"})
 
 
 (defn- quality-blockers
@@ -40,7 +44,10 @@
              (for [assembly assemblies :when (not-any? #(some #{(:id assembly)} (:assembly_ids %)) received)]
                (str "装配范围尚未完整交付: " (:code assembly))))
            (for [service services :when (not= "closed" (:status service))]
-             (str "售后异常尚未独立关闭: " (:title service)))))))
+             (str "售后异常尚未独立关闭: " (:title service)))
+           (fieldwork/survey-blockers q project config)
+           (for [handover (d/records q project "handover") :when (= "open" (:status handover))]
+             (str "交底尚未完成: " (:code handover)))))))
 
 
 (defn closure-ready!
@@ -60,14 +67,39 @@
       (some #(= uid (:reviewer_id %)) active) (conj "该成员仍是未完成交付执行记录的指定审批人"))))
 
 
+(defn- task-links
+  "按来源任务归集其发起的申请/交付记录状态, 供任务侧回看结果 (D03 回到来源任务)."
+  [data]
+  (->> (concat (:material_requests data) (:surveys data) (:assemblies data) (:tests data) (:shipments data))
+       (filter :task_id)
+       (group-by :task_id)
+       (map (fn [[task-id rows]] [task-id (mapv #(select-keys % [:id :kind :code :title :status :request_type]) rows)]))
+       (into {})))
+
+
 (defn workspace
-  "读取实际交付对象和明确的未接入外部同步状态."
+  "读取实际交付对象, 只读派生 (齐套卷积/装配步骤/发货前条件/交底时限/现场任务延误) 和明确的未接入外部同步状态."
   [svc actor id]
   (k/read! svc actor id "pms:project:query"
     (fn [q project]
-      (merge (into {} (for [[section kind] sections] [section (d/records q project kind)]))
-             {:configuration (d/configuration q project) :project_version (:version project)
-              :blockers (closure-blockers q project) :external_sync_status "not_configured"}))))
+      (let [config (d/configuration q project)
+            today (LocalDate/now)
+            data (into {} (for [[section kind] sections] [section (d/records q project kind)]))
+            tasks (vec (q :planning/tasks {:project_id (:project_id project)}))
+            nodes (vec (q :pms/nodes {:project_id (:project_id project)}))
+            blocker-free? (not-any? #(and (= "blocker" (:severity %)) (not= "closed" (:status %))) (g/records q project "issue"))
+            types (remove #{"SAT"} (:required_test_types config))
+            fat-ok? (fn [shipment] (every? (fn [rid] (every? #(production/type-approved? q project rid %) types)) (:assembly_ids shipment)))]
+        (-> data
+            (update :assemblies #(mapv fieldwork/assembly-read-model %))
+            (update :shipments #(mapv (fn [s] (fieldwork/shipment-read-model config (fat-ok? s) blocker-free? s)) %))
+            (update :handovers #(mapv (partial fieldwork/handover-read-model today) %))
+            (update :site_tasks #(mapv (partial fieldwork/site-task-read-model today) %))
+            (assoc :configuration config :project_version (:version project)
+                   :blockers (closure-blockers q project) :external_sync_status "not_configured"
+                   :kitting_rollup (materials/kitting-rollup (:boms data) tasks nodes)
+                   :task_links (task-links data)
+                   :assembly_steps fieldwork/assembly-steps))))))
 
 
 (def commands
@@ -82,7 +114,13 @@
    [:shipments :create] shipping/create-shipment! [:shipments :submit] shipping/submit-shipment!
    [:shipments :decision] shipping/decide-shipment! [:shipments :dispatch] shipping/dispatch!
    [:shipments :receipt] shipping/receipt! [:service-cases :create] shipping/create-service!
-   [:service-cases :resolve] shipping/resolve-service! [:service-cases :decision] shipping/decide-service!})
+   [:service-cases :resolve] shipping/resolve-service! [:service-cases :decision] shipping/decide-service!
+   [:surveys :create] fieldwork/create-survey! [:surveys :submit] fieldwork/submit-survey!
+   [:surveys :decision] fieldwork/decide-survey!
+   [:assemblies :steps] fieldwork/record-step!
+   [:shipments :conditions] fieldwork/confirm-conditions!
+   [:handovers :complete] fieldwork/complete-handover!
+   [:site-tasks :start] fieldwork/start-site-task! [:site-tasks :complete] fieldwork/complete-site-task!})
 
 
 (defn command!
