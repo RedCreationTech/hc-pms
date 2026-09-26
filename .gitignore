@@ -48,3 +48,6 @@ data/pms-files/
 # Python bytecode (scripts/demo-video)
 __pycache__/
 *.pyc
+
+# Project-local toolchain (static ffmpeg with libass, python venv): local artifacts, not committed
+/tools/

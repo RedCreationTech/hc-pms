@@ -22,3 +22,13 @@ python3 scripts/demo-video/compose.py            # 内部调用 music.py; --keep
 录屏中断 (机器重启, 超时) 时: 若设置了 `PMS_DEMO_DB`, 先停后端, 用 `raw/ckpt-XX.db` (XX 为 `state.json` 中 `inProgress.chapter`) 覆盖数据库再启动后端, 然后去掉 `PMS_DEMO_VIDEO_FRESH` 重跑同一命令, 已完成的章节不会重录.
 
 依赖: Node + Playwright (Chromium), Python 3 + numpy + scipy, ffmpeg (libx264, libass), 中文字体 Noto Sans CJK SC. 录屏约 20 分钟 (字幕按可读时长自动停留), 合成约 10 分钟 (2 核); 录屏期间不要在同一台机器上跑重负载任务, 否则动画变慢会影响下拉选择的时机. 产物在 `reports/demo-video/` (不入库).
+
+## 本机 (macOS) 复现要点 (2026-09-26 实测)
+
+管线代码不需要改动, 换机器只需补环境. 在 macOS 上遇到过三个缺口:
+
+- **ffmpeg 缺 libass**: Homebrew 的 ffmpeg 可能未编译 `subtitles` / `drawtext` 滤镜, `compose.py` 烧字幕会直接失败 (用 `ffmpeg -filters | grep subtitles` 确认). 解决: 下载一个含 libass 的静态 ffmpeg 放到项目内 (如 `tools/ffmpeg/ffmpeg`), 再建 `tools/bin/ffmpeg` 软链, 跑合成时用 `PATH="$PWD/tools/bin:$PATH"` 前置即可, 不改系统也不改脚本. `compose.py` 另外单独调用 `ffprobe` 取时长, 那个不需要 libass, 可以软链到系统版本.
+- **python 缺 scipy**: `music.py` 用 `scipy.signal`; 系统 Python 若受 PEP 668 保护则不能直接 `pip install`. 解决: 项目内建虚拟环境 `python3 -m venv --system-site-packages tools/pyenv` (复用已装的 numpy), 再 `tools/pyenv/bin/pip install scipy`, 合成时用该解释器执行 `compose.py`.
+- **Playwright 浏览器版本不匹配**: 若 `node_modules` 里的 `@playwright/test` 要求的 chromium 修订号未安装, `render_cards.js` 的 `chromium.launch()` 会报 `Executable doesn't exist`. 解决: 用脚本已支持的 `PW_CHROMIUM=<Chrome 可执行文件路径>` 指向可用的 Chrome/Chromium (录屏用例本身走 `playwright.config.js` 的 `channel: 'chrome'`, 通常不受影响).
+
+另外: 录屏前必须先重编译前端 (`npx shadow-cljs compile app`), 否则新页面的元素在旧 `app.js` 里不存在, 用例会找不到控件. `tools/` 与 `reports/` 均为本地产物, 不入库.
