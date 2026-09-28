@@ -763,6 +763,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: H13a 交付的是"已封账会计期间的成本版本六条写路径门控 409 + 独立审批不受门控 + 读模型暴露 locked_periods + 界面封账徽标与横幅可见 + 锁定/解锁留痕"这一条本地闭环, 覆盖矩阵 H13"封期"子项的 `implemented / local`; H13 行的税额/收入确认/汇率/结算对账仍属 planned, 不等于生产财务签收.
 
+## H13c 承诺成本纳入会计期间封期 (本轮增补, 2026-09-28)
+
+设计与关闭口径: 承接 H13a 的"封期"闭环, 把承诺成本纳入同一会计期间门控. 与 H13a 免迁移不同, 承诺原先不携带期间, 故本轮新增一份迁移为 `pms_cost_commitment` 增加可空 `period VARCHAR(7)` 列, 并按 `created_at` 回填历史承诺 (SQLite `substr(created_at,1,7)` / MySQL `DATE_FORMAT(created_at,'%Y-%m')`), 双库 `.up.sql` 每条语句后均带 `--;;` 分隔符, `.down.sql` 对称 DROP. 领域 `finance_commitment/period-open!` 复用 `config/published-by-code q "period-lock" period`, 命中 locked 期间返回 409; 门控覆盖五条承诺写路径 create/update-draft/submit/release/cancel (update-draft 同时检查原期间与新期间), 独立审批 `review!` 有意不受门控 (与成本版本/工时口径一致). 承诺登记 `period` 为可选: 留空默认当前月, 填写强制 YYYY-MM + `YearMonth/parse` 校验. 前端承诺表单增加"会计期间"输入, 承诺台账"期间"列对已封账期间渲染红色"已封账"徽标并在面板顶部展示警告横幅, 复用 H13a 的 `r/as-element` 自定义列写法与 `locked_periods` 读模型.
+
+| 验证项 | 结果 | 证据 |
+|---|---|---|
+| H13c 承诺封期测试 (CLI SQLite) | 9 tests / 60 assertions, 0 failures/errors | `clojure -M:test -n com.ruoyi.pms-finance-commitment-test`: 新增 `period-lock-gates-commitment-writes` (锁定 2026-08 后 create 同期间/update-draft/submit 均 409, 新期间 2026-11 可建, overview 暴露 locked_periods 含 2026-08, retire 后 submit 成功) 与 `period-lock-does-not-gate-independent-commitment-review` (提交后锁定, 独立 review! 仍 approved); 迁移 `202609280001-commitment-accounting-period` 在测试库正常应用并回填 |
+| 全量 PMS 回归 (CLI SQLite) | 151 tests / 1507 assertions, 0 failures/errors | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` (较 H13a 的 149/1500 增加 2 tests/7 assertions, 即本轮两条封期用例) |
+| 前端编译 | 4035 files, 5 compiled, 0 warnings | `npx shadow-cljs compile app` |
+| 浏览器 E2E | 1 passed | `BASE_URL=http://localhost:3100 npx playwright test tests/e2e/pms-h13c.spec.js` (隔离 :3100 + 独立 /tmp/h13c-e2e.db 冷启动): 界面登记 2026-08 采购承诺草稿 -> 真实 HTTP 锁定 2026-08 -> 刷新后承诺台账"期间"列红色"已封账"徽标与警告横幅真实可见 -> 界面提交命中封期门控真实 409 且弹窗内联告警"期间 2026-08 已封账, 不能再登记或变更该期间的承诺"不关闭 -> 真实 HTTP 回显草稿仍 draft 且 period 回显 2026-08 无副作用 -> 真实 HTTP 解锁 -> 徽标消失且提交成功 status 回显 submitted; 5 张真实截图 reports/h13c/*.png |
+
+本轮未执行 (如实记录): MySQL 迁移与回归本机无实例未实跑 (双库迁移文件已同步, SQLite 侧已实跑回填); 封期与结算/税额/汇率的联动未做; 工时/费用/承诺三处 `period-open!` 仍是各自领域内的同名助手, 未抽出统一抽象层 (行为口径已一致); 界面未在项目费用页提供直接锁定/解锁入口 (按设计统一到平台配置页).
+
+边界: H13c 交付的是"承诺成本纳入已封账会计期间的五条写路径门控 409 + 独立审批不受门控 + 承诺携带会计期间并回填历史 + 界面封账徽标与横幅可见"这一条本地闭环, 使矩阵 H13"封期"子项在工时/费用/承诺三类写路径上口径统一; 仍为 `implemented / local`, 不等于生产财务签收.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

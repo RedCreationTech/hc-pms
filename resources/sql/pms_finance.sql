@@ -116,11 +116,11 @@ SELECT COALESCE(MAX(version_no),0)+1 AS next_no FROM pms_cost_commitment
 WHERE project_id=:project_id AND code=:code
 --;;
 -- :name finance/insert-commitment! :! :n
-INSERT INTO pms_cost_commitment(commitment_id,project_id,kind,code,supplier,currency,gross_minor,base_currency,base_minor,exchange_rate,description,version_no,status,submitted_by,reviewer_id)
-VALUES (:commitment_id,:project_id,:kind,:code,:supplier,:currency,:gross_minor,:base_currency,:base_minor,:exchange_rate,:description,:version_no,'draft',:submitted_by,:reviewer_id)
+INSERT INTO pms_cost_commitment(commitment_id,project_id,kind,code,period,supplier,currency,gross_minor,base_currency,base_minor,exchange_rate,description,version_no,status,submitted_by,reviewer_id)
+VALUES (:commitment_id,:project_id,:kind,:code,:period,:supplier,:currency,:gross_minor,:base_currency,:base_minor,:exchange_rate,:description,:version_no,'draft',:submitted_by,:reviewer_id)
 --;;
 -- :name finance/update-commitment-draft! :! :n
-UPDATE pms_cost_commitment SET kind=:kind, supplier=:supplier, currency=:currency,
+UPDATE pms_cost_commitment SET kind=:kind, period=:period, supplier=:supplier, currency=:currency,
   gross_minor=:gross_minor, base_currency=:base_currency, base_minor=:base_minor,
   exchange_rate=:exchange_rate, description=:description
 WHERE project_id=:project_id AND commitment_id=:commitment_id AND status='draft'

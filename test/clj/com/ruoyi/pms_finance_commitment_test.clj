@@ -2,6 +2,7 @@
   "H12 承诺成本与预算控制: 状态机, 币种汇率, 独立审批, 释放守恒, 预算占用门控与规则维护."
   (:require [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing use-fixtures]]
+            [com.ruoyi.domain.pms.config :as config]
             [com.ruoyi.domain.pms.finance :as finance]
             [com.ruoyi.domain.pms.finance-budget :as budget]
             [com.ruoyi.domain.pms.finance-commitment :as commitment]
@@ -235,4 +236,35 @@
         (is (>= 3 (count (:budget_rules state))))
         (is (:comparable control))
         (is (= 6000 (:consumed_minor control)))
-        (is (= "200.00" (money/money (get-in control [:budget :total_minor]))))))))
+        (is (= "200.00" (money/money (get-in control [:budget :total_minor]))))))
+
+(deftest period-lock-gates-commitment-writes
+  (testing "已封账会计期间的承诺登记/修改/提交/释放/取消全部 409; 未封账期间不受影响; 解锁后草稿可提交."
+    (let [id (project!)
+          c (:result (command! commitment/create! id [] {:kind "purchase" :code "P1" :supplier "甲"
+                                                          :currency "CNY" :gross "100.00" :period "2026-08" :reviewer_id 9502}))
+          cid (:id c)]
+      (config/create! *svc* (actor 9501) "period-lock" {:period "2026-08" :reason "月结封账"})
+      (is (= 409 (error-status #(command! commitment/create! id [] {:kind "purchase" :code "P2" :supplier "乙"
+                                                                    :currency "CNY" :gross "50.00" :period "2026-08" :reviewer_id 9502}))))
+      (is (= 409 (error-status #(command! commitment/update-draft! id [cid] {:supplier "改" :currency "CNY" :base_currency "CNY"
+                                                                            :gross "120.00" :exchange_rate "1" :kind "purchase" :period "2026-08" :reviewer_id 9502}))))
+      (is (= 409 (error-status #(command! commitment/submit! id [cid] {:baseline "budget"}))))
+      (is (:id (:result (command! commitment/create! id [] {:kind "contract" :code "P3" :supplier "丙"
+                                                            :currency "CNY" :gross "30.00" :period "2026-11" :reviewer_id 9502}))))
+      (is (some #{"2026-08"} (:locked_periods (finance/overview *svc* (actor 9501) id))))
+      (let [lock (first (filter #(= "2026-08" (:period %)) (config/published (:query-fn *svc*) "period-lock")))]
+        (config/retire! *svc* (actor 9501) "period-lock" (:id lock) {:reason "重开月结"}))
+      (is (= "submitted" (:status (:result (command! commitment/submit! id [cid] {:baseline "budget"}))))))))
+
+(deftest period-lock-does-not-gate-independent-commitment-review
+  (testing "承诺已提交后即使所属期间封账, 独立审批 review! 仍可批准 (与费用版本同口径)."
+    (let [id (project!)
+          c (:result (command! commitment/create! id [] {:kind "purchase" :code "R1" :supplier "甲"
+                                                         :currency "CNY" :gross "100.00" :period "2026-08" :reviewer_id 9502}))
+          cid (:id c)]
+      (command! commitment/submit! id [cid] {:baseline "budget"})
+      (config/create! *svc* (actor 9501) "period-lock" {:period "2026-08" :reason "月结封账"})
+      (is (= "approved" (:status (:result (command! 9502 commitment/review! id [cid] {:decision "approved" :reason "封期后独立批准"})))))
+      (let [lock (first (filter #(= "2026-08" (:period %)) (config/published (:query-fn *svc*) "period-lock")))]
+        (config/retire! *svc* (actor 9501) "period-lock" (:id lock) {:reason "重开月结"})))))))

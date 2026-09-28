@@ -70,11 +70,13 @@
    :fields [{:key :reason :label "审批意见" :type :textarea :required? true}]})
 
 (defn- commitment-dialog
-  "H12 登记承诺草稿, 支持本位币种和汇率折算."
+  "H12 登记承诺草稿, 支持本位币种和汇率折算; H13c 可指定会计期间."
   [base options]
   {:title "登记承诺" :path (str base "/commitments") :initial {:kind "purchase" :currency "CNY" :base_currency "CNY" :exchange_rate "1"}
-   :description "承诺=已下达但尚未验收/结算的义务. 外币需填写折算汇率, 本位金额=总额×汇率, 保留两位小数."
+   :transform #(if (empty? (str/trim (or (:period %) ""))) (dissoc % :period) (update % :period str/trim))
+   :description "承诺=已下达但尚未验收/结算的义务. 外币需填写折算汇率, 本位金额=总额×汇率, 保留两位小数. 会计期间留空默认当前月."
    :fields [{:key :code :label "承诺编号" :required? true :hint "同一项目内不可重复"}
+            {:key :period :label "会计期间" :hint "YYYY-MM, 留空默认当前月; 已封账期间不可登记"}
             {:key :kind :label "承诺类别" :type :select :options commitment-kinds :required? true}
             {:key :supplier :label "供应商/承包方" :required? true}
             {:key :currency :label "结算币种" :type :select :options (mapv #(hash-map :value % :label %) currencies) :required? true}
@@ -85,11 +87,13 @@
             (forms/reviewer-field options)]})
 
 (defn- commitment-edit-dialog
-  "H12 草稿可修改, 提交后禁止."
+  "H12 草稿可修改, 提交后禁止; H13c 可调整会计期间."
   [base options commitment]
   {:title "修改承诺草稿" :method :put :path (str base "/commitments/" (:id commitment))
-   :initial (select-keys commitment [:kind :supplier :currency :gross :base_currency :exchange_rate :description])
-   :fields [{:key :kind :label "承诺类别" :type :select :options commitment-kinds :required? true}
+   :initial (select-keys commitment [:period :kind :supplier :currency :gross :base_currency :exchange_rate :description])
+   :transform #(if (empty? (str/trim (or (:period %) ""))) (dissoc % :period) (update % :period str/trim))
+   :fields [{:key :period :label "会计期间" :hint "YYYY-MM; 留空保持原期间, 原期间或新期间已封账均不可变更"}
+            {:key :kind :label "承诺类别" :type :select :options commitment-kinds :required? true}
             {:key :supplier :label "供应商/承包方" :required? true}
             {:key :currency :label "结算币种" :type :select :options (mapv #(hash-map :value % :label %) currencies) :required? true}
             {:key :gross :label "结算总额" :required? true}
@@ -329,20 +333,26 @@
        [w/edit-button "转实付" #(open! (commitment-release-dialog base commitment))])]))
 
 (defn- commitment-section
-  "H12 承诺台账: 已下达但未验收/结算的义务, 独立审批+预算占用评估."
+  "H12 承诺台账: 已下达但未验收/结算的义务, 独立审批+预算占用评估; H13c 纳入会计期间封期."
   [{:keys [base model options editable? open!] :as context}]
-  [shared/panel "承诺台账" "合同/采购/人工/其他承诺, 提交时按预算占用评估, 支持部分转实付"
-   (when editable? [antd/button {:type "primary" :on-click #(open! (commitment-dialog base options))} "登记承诺"])
-   [w/record-table (:commitments model)
-    [(w/text-column :code "承诺编号")
-     {:title "类别" :dataIndex "kind" :render #(or (:label (some (fn [x] (when (= % (:value x)) x)) commitment-kinds)) %)}
-     (w/text-column :supplier "供应商/承包方")
-     (w/text-column :gross "结算总额") (w/text-column :currency "币种")
-     (w/text-column :base "本位金额") (w/text-column :released "已释放")
-     (w/text-column :remaining "剩余")
-     {:title "预算评估" :dataIndex "control_note" :width 220 :render (fn [v] (r/as-element [:span {:style {:fontSize 12 :color "#718096"}} (or v "—")]))}
-     {:title "状态" :dataIndex "status" :width 100 :render commitment-status-tag}]
-    (fn [row] (commitment-actions context row))]])
+  (let [locked (set (:locked_periods model))]
+    [shared/panel "承诺台账" "合同/采购/人工/其他承诺, 提交时按预算占用评估, 支持部分转实付"
+     (when (seq locked)
+       [antd/alert {:type "warning" :show-icon true :style #js {:marginBottom 12}
+                    :message (str "已封账会计期间: " (str/join " " (sort locked)) " - 该期间的承诺不可登记或变更, 需先在平台配置解锁")
+                    :description "封期后该期间的承诺登记,草稿修改,提交,转实付与取消均被拒绝; 已提交承诺的独立审批不受影响"}])
+     (when editable? [antd/button {:type "primary" :on-click #(open! (commitment-dialog base options))} "登记承诺"])
+     [w/record-table (:commitments model)
+      [(w/text-column :code "承诺编号")
+       {:title "期间" :dataIndex "period" :width 110 :render (fn [period] (if (locked period) (r/as-element [:span (or period "—") " " [antd/tag {:color "red"} "已封账"]]) (or period "—")))}
+       {:title "类别" :dataIndex "kind" :render #(or (:label (some (fn [x] (when (= % (:value x)) x)) commitment-kinds)) %)}
+       (w/text-column :supplier "供应商/承包方")
+       (w/text-column :gross "结算总额") (w/text-column :currency "币种")
+       (w/text-column :base "本位金额") (w/text-column :released "已释放")
+       (w/text-column :remaining "剩余")
+       {:title "预算评估" :dataIndex "control_note" :width 220 :render (fn [v] (r/as-element [:span {:style {:fontSize 12 :color "#718096"}} (or v "—")]))}
+       {:title "状态" :dataIndex "status" :width 100 :render commitment-status-tag}]
+      (fn [row] (commitment-actions context row))]]))
 
 (defn- format-minor
   [v]

@@ -2,10 +2,12 @@
   "H12 承诺成本台账: 合同/采购/人工/其他承诺登记, 预算门控提交, 独立审批, 部分或全额释放, 受控取消."
   (:require [cheshire.core :as json]
             [clojure.string :as str]
+            [com.ruoyi.domain.pms.config :as config]
             [com.ruoyi.domain.pms.finance-budget :as budget]
             [com.ruoyi.domain.pms.finance-money :as money]
             [com.ruoyi.domain.pms.kernel :as kernel]
-            [com.ruoyi.domain.pms.rules :as rules]))
+            [com.ruoyi.domain.pms.rules :as rules])
+  (:import [java.time LocalDate YearMonth]))
 
 (def kinds
   "承诺登记允许的业务分类."
@@ -14,6 +16,13 @@
 (def statuses
   "承诺台账的合法状态集."
   #{"draft" "submitted" "approved" "rejected" "released" "cancelled"})
+
+(defn- period-open!
+  "H13c 封期: 复用平台级 period-lock 配置, 承诺所属会计期间已封账时拒绝登记/变更/提交/释放/取消 (与费用版本同口径). 独立审批 review! 不受门控."
+  [q period]
+  (when-let [lock (config/published-by-code q "period-lock" period)]
+    (rules/fail! 409 (str "期间 " (:period lock) " 已封账, 不能再登记或变更该期间的承诺")))
+  period)
 
 (defn- commitment!
   "读取指定承诺, 缺失返回404."
@@ -52,11 +61,15 @@
 (defn- input!
   "校验承诺输入并生成本位金额, 返回可插入结构."
   [q actor project body]
-  (rules/object! body [:version :kind :code :supplier :currency :base_currency
+  (rules/object! body [:version :kind :period :code :supplier :currency :base_currency
                         :gross :exchange_rate :description :reviewer_id])
   (when-not (kinds (:kind body)) (rules/fail! 400 "承诺分类只能为合同/采购/人工/其他"))
   (when-not (money/currencies (:currency body)) (rules/fail! 400 "承诺币种不在支持范围"))
-  (let [base-currency (or (:base_currency body) "CNY")]
+  (let [period (let [p (some-> (:period body) str/trim)]
+                 (if (empty? p) (subs (str (LocalDate/now)) 0 7) p))
+        _ (when-not (re-matches #"[0-9]{4}-[0-9]{2}" period) (rules/fail! 400 "会计期间格式必须为YYYY-MM"))
+        _ (try (YearMonth/parse period) (catch Exception _ (rules/fail! 400 "会计期间无效")))
+        base-currency (or (:base_currency body) "CNY")]
     (when-not (money/currencies base-currency) (rules/fail! 400 "本位币种不在支持范围"))
     (let [gross (money/amount! (:gross body) "承诺金额")
           _ (when (neg? gross) (rules/fail! 400 "承诺金额不能为负"))
@@ -68,6 +81,7 @@
       {:commitment_id (kernel/id)
        :project_id (:project_id project)
        :kind (:kind body)
+       :period period
        :code (rules/text! (:code body) "承诺编号" 100 true)
        :supplier (rules/text! (:supplier body) "相对方" 200 true)
        :currency (:currency body)
@@ -85,6 +99,7 @@
   (kernel/mutate! svc actor project-id "pms:finance:edit" body "commitment.created"
     (fn [q project]
       (let [input (input! q actor project body)
+            _ (period-open! q (:period input))
             next-no (:next_no (q :finance/commitment-next-no
                                  {:project_id project-id :code (:code input)}))]
         (q :finance/insert-commitment! (assoc input :version_no (int next-no)))
@@ -93,14 +108,17 @@
 (defn update-draft!
   "修改草稿承诺的字段, 保留版本号与编号."
   [svc actor project-id commitment-id body]
-  (rules/object! body [:version :kind :supplier :currency :base_currency
+  (rules/object! body [:version :kind :period :supplier :currency :base_currency
                         :gross :exchange_rate :description :reviewer_id])
   (kernel/mutate! svc actor project-id "pms:finance:edit" body "commitment.draft.updated"
     (fn [q project]
       (let [existing (draft! (commitment! q project-id commitment-id))
+            period-in (let [p (:period body)]
+                        (if (and (string? p) (not (empty? (str/trim p)))) (str/trim p) (:period existing)))
+            _ (do (period-open! q (:period existing)) (period-open! q period-in))
             input (input! q actor project
                           (-> body
-                              (assoc :code (:code existing))
+                              (assoc :code (:code existing) :period period-in)
                               (update :kind #(or % (:kind existing)))
                               (update :supplier #(or % (:supplier existing)))
                               (update :currency #(or % (:currency existing)))
@@ -131,6 +149,7 @@
   (kernel/mutate! svc actor project-id "pms:finance:edit" body "commitment.submitted"
     (fn [q _project]
       (let [existing (draft! (commitment! q project-id commitment-id))
+            _ (period-open! q (:period existing))
             baseline (or (:baseline body) "budget")
             _ (when-not (budget/baselines baseline) (rules/fail! 400 "预算基线只能为 estimate 或 budget"))
             evaluation (evaluate-and-gate! q project-id existing baseline (true? (:override_block body)))
@@ -178,6 +197,7 @@
       (let [existing (commitment! q project-id commitment-id)]
         (when-not (= "approved" (:status existing))
           (rules/fail! 409 "只有已批准承诺可以转为实付"))
+        (period-open! q (:period existing))
         (let [delta (money/amount! (:amount body) "释放金额")]
           (when (neg? delta) (rules/fail! 400 "释放金额必须为正"))
           (let [next-released (+ (:released_minor existing) delta)]
@@ -200,6 +220,7 @@
       (let [existing (commitment! q project-id commitment-id)]
         (when-not (contains? #{"draft" "rejected"} (:status existing))
           (rules/fail! 409 "只能取消草稿或被驳回的承诺"))
+        (period-open! q (:period existing))
         (rules/changed!
          (q :finance/cancel-commitment!
             {:project_id project-id
