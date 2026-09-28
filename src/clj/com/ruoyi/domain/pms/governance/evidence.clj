@@ -424,3 +424,20 @@
       (assoc trace :evidence_status status
              :evidence_release_state state
              :evidence_released (= "approved" status)))))
+
+
+(defn requirement-trace-model
+  "只读派生每条需求版本已登记的追踪关联: 按 relation 统计设计满足(satisfies)与验证(verifies)关联的条数与齐备状态, 免迁移读取时计算, 不写存储, 不门控, 键名不带尾随问号."
+  [traces-by-req req]
+  (let [links (get traces-by-req (:id req) [])
+        design (filterv #(= "satisfies" (:relation %)) links)
+        verif (filterv #(= "verifies" (:relation %)) links)
+        state (cond
+                (empty? links) "untracked"
+                (and (seq design) (seq verif)) "complete"
+                (empty? design) "missing-design"
+                :else "missing-verification")]
+    (assoc req
+      :trace_design_links (count design)
+      :trace_verification_links (count verif)
+      :trace_state state)))

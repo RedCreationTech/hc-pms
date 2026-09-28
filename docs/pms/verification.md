@@ -621,6 +621,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 本增量把 C03 追踪矩阵的**证据发布可见性**推进到 `implemented / local` (免迁移读取时按所引用文档版本派生发布状态, 界面标签呈现); 但 C03 行仍含"阻塞偏差与 Gate 联动""覆盖率分母正式规则"等未完成子项, 故 C03 保持 `partial`, 不因这一子能力上行.
 
+## C03 URS 需求台账内联追踪状态只读派生 (本轮增补, 2026-09-28)
+
+设计与关闭口径: 为治理台账"URS 需求版本"主视图补齐**逐条需求追踪齐备度的内联可见性**. 上一轮 C03 的"证据发布"列挂在汇总"需求追踪矩阵"面板的追踪行上, 需求台账本身仍看不出"这条需求到底缺设计还是缺验证", 用户须自行对照矩阵. 本轮把这一判断**内联到需求台账每一行**, 与既有汇总矩阵面板互补而非重复. 免迁移: 纯读模型在读取时派生, **无新增迁移**, **无新增 kind**, **无新命令**, **无新状态值**, 不改动 `trace!`/`requirement` 创建/修订等任何写路径或门控, 也**不做任何强制拦截** (缺链需求照样可登记与流转, 是否据缺链阻断关闭/Gate 仍属"待规则"). 在 `governance.evidence` 新增纯函数 `requirement-trace-model [traces-by-req req]`, 以 `traces-by-req` (需求版本 `id` -> 该版本追踪关联向量) 对单条需求派生 `{:trace_design_links satisfies 关联数 :trace_verification_links verifies 关联数 :trace_state 齐备态}`: 无任何关联->`untracked`, 设计+验证皆非空->`complete`, 无设计关联->`missing-design`, 有设计缺验证->`missing-verification`. 关键口径: 追踪按 `requirement_id` 精确命中**具体需求版本 id** (修订产生新版本后旧版本关联不自动迁移, 新版本无关联即重新计为 `untracked`), 与既有 `traceability-report` 的按版本聚合一致. 派生键一律去尾随 `?`. 在 `governance/workspace` 的 `let` 里加 `traces-by-req (group-by :requirement_id (:traces data))` 绑定, 在结果 `->` 链里 (`:traces` 证据发布 update 之后, `collab/enrich-risk-issue-links` 之前) 加 `(update :requirements #(mapv (partial evidence/requirement-trace-model traces-by-req) %))`, 与既有跨类只读标注同构. 前端"URS 需求版本"台账在"验证方式"列后新增只读"追踪状态"列: 绿"追踪完整"/金"缺设计关联"/橙"缺验证关联"/灰"未追踪", 并附 `设计/验证` 关联数 (如 "追踪完整 1/1"), 用 `(aget row "jsKey")` 渲染, 无值显示灰"—".
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| 治理测试 (SQLite) | 57 tests / 677 assertions, 0 failures/errors | 新增 `requirement-trace-state-is-derived-read-only`: 建三条需求 (URS-U 无追踪 / URS-D 仅 satisfies / URS-F satisfies+verifies 齐备) -> workspace `:requirements` 分别派生 `trace_state` "untracked" (0/0) / "missing-verification" (1/0) / "complete" (1/1), 且 URS-F `code` 不漂移; 另纯函数直测仅 verifies 无 satisfies -> "missing-design", 关联挂在别的版本 id -> 当前版本仍 "untracked" |
+| 全量 PMS 回归 (CLI SQLite) | 158 tests / 1592 assertions, 0 failures/errors | `clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'` 全新库通过, 既有追踪矩阵/证据发布列/缺链检查/文档发布审批用例无回归 |
+| 前端编译 | 0 warnings | `npx shadow-cljs compile app` 通过, URS 台账"追踪状态"列一并编译 |
+| Chrome 浏览器 (Playwright) | 1 passed | `pms-c03-trace-state.spec.js` (隔离 `:3100` 后端, 独立空库): admin 真实 HTTP 建三条需求 (A 无追踪 / B satisfies+verifies / C 仅 satisfies) + 证据文档 -> 打开"URS与追踪"页签, "URS 需求版本"台账"追踪状态"列显示 A "未追踪 0/0", B "追踪完整 1/1", C "缺验证关联 1/0" (截图 c03-trace-state-1-states.png), 真实 HTTP 回显 `trace_state`/`trace_design_links`/`trace_verification_links` 一致 -> 对 C 追加一条 `verifies` 追踪 -> 重载同列翻"追踪完整 1/1" (截图 c03-trace-state-2-complete.png), 真实 HTTP 回显 complete; 全程只读不门控, A 需求 `status` 仍 "registered" 无漂移; 追踪仅需 `pms:project:edit` 无需独立审批人故单上下文即可; 无未捕获 JS 错误; 截图存 `reports/c03-trace-state/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归(本地无实例, 本轮完全免迁移不新增 DDL); 追踪状态仅界面只读呈现, 未据此新增/改动任何追踪登记或需求关闭/Gate 门控 (缺设计或缺验证不拦截); 未做"缺链即阻断需求关闭/关口签核"的联动 (属"待规则").
+
+边界: 本增量把 C03 需求台账的**逐条追踪齐备度内联可见性**推进到 `implemented / local` (免迁移读取时按需求版本已登记 satisfies/verifies 关联派生, 界面标签呈现, 与汇总矩阵面板互补); 但 C03 行仍含"阻塞偏差与 Gate 联动""覆盖率分母正式规则"等未完成子项, 故 C03 保持 `partial`, 不因这一子能力上行.
+
 ## H08 风险应对策略可选枚举字段 (本轮增补, 2026-09-23)
 
 设计与关闭口径: 兑现矩阵 H08"风险评分口径和复审频率明确"里"识别后登记结构化应对策略"的一环. 复用既有 `risk` kind 与整条登记/复评/独立关闭链, **无新增迁移** (字段随风险记录 payload JSON 存储). 沿用"免迁移给治理 kind 加可选强类型字段"套路的**枚举变体**: 在 `governance.collaboration` 新增集合 `risk-response-strategies` = `#{"avoid" "transfer" "mitigate" "accept"}` (PMI 四类风险应对策略), `insert-risk!` 的 `cond->` 增加一条 `(:response_strategy fields) (assoc :response_strategy (s/enum! ...))` 分支, 只在字段存在时经 `s/enum!` 校验并写入, 非法取值返回 400, 未填则不写键; `create-risk!` 的 `s/input!` 白名单新增 `:response_strategy`. 因未填不写键且分支只在字段存在时触发, 既有登记/复评/库实例化用例 (均不带该字段) 零回归. 该字段与评分/超阈值升级门控相互独立: `from-library` 实例化的风险默认不带 `response_strategy`(仍为 `nil`), 手工登记选策略也不改变 `score`/`escalated` 计算. 前端 `risk-dialog` 在期限字段后新增 `:response_strategy` `:select` 下拉(规避/转移/减轻/接受), 风险台账在"复审重评"列后新增只读"应对策略"列, 以 geekblue 标签回显中文策略名, 未设定显示灰字"未设定". 全程免迁移, 免新命令, 免新 kind, 免新状态值.

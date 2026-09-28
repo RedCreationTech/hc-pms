@@ -509,6 +509,42 @@
                                                  {:target_kind "document" :target_id "d1"})))))
 
 
+(deftest requirement-trace-state-is-derived-read-only
+  ;; C03c: URS 需求台账内联只读"追踪状态"列 - 按已登记 satisfies(设计)/verifies(验证) 关联派生齐备状态, 免迁移读取时计算, 不写存储不门控.
+  (let [id (project!)
+        d1 (document! id "TRS-DES")
+        d2 (document! id "TRS-VER")
+        base {:category "功能" :priority "required" :owner_id 9301}
+        req-u (command! id :requirements :create nil (assoc base :code "URS-U" :text "未追踪需求"))
+        req-d (command! id :requirements :create nil (assoc base :code "URS-D" :text "仅设计需求"))
+        req-f (command! id :requirements :create nil (assoc base :code "URS-F" :text "完整追踪需求"))
+        _ (command! id :traces :create nil {:requirement_id (:id req-d) :target_kind "document" :target_id (:id d1) :relation "satisfies"})
+        _ (command! id :traces :create nil {:requirement_id (:id req-f) :target_kind "document" :target_id (:id d1) :relation "satisfies"})
+        _ (command! id :traces :create nil {:requirement_id (:id req-f) :target_kind "document" :target_id (:id d2) :relation "verifies"})
+        rs (fn [rid] (first (filter #(= rid (:id %)) (:requirements (workspace id)))))]
+    ;; 无任何追踪关联: 未追踪.
+    (is (= "untracked" (:trace_state (rs (:id req-u)))))
+    (is (= 0 (:trace_design_links (rs (:id req-u)))))
+    (is (= 0 (:trace_verification_links (rs (:id req-u)))))
+    ;; 仅 satisfies: 缺验证关联, 设计关联计数为 1.
+    (is (= "missing-verification" (:trace_state (rs (:id req-d)))))
+    (is (= 1 (:trace_design_links (rs (:id req-d)))))
+    (is (= 0 (:trace_verification_links (rs (:id req-d)))))
+    ;; satisfies + verifies 齐备: 追踪完整.
+    (is (= "complete" (:trace_state (rs (:id req-f)))))
+    (is (= 1 (:trace_design_links (rs (:id req-f)))))
+    (is (= 1 (:trace_verification_links (rs (:id req-f)))))
+    ;; 只读派生不漂移既有不可变版本字段: code/revision 原样.
+    (is (= "URS-F" (:code (rs (:id req-f))))))
+  ;; 纯函数直测: 仅 verifies 无 satisfies -> missing-design.
+  (let [m (evidence/requirement-trace-model {"r1" [{:relation "verifies"}]} {:id "r1"})]
+    (is (= "missing-design" (:trace_state m)))
+    (is (= 0 (:trace_design_links m)))
+    (is (= 1 (:trace_verification_links m))))
+  ;; 修订产生新版本(新 id)不继承旧版追踪链接 -> 新版本未追踪.
+  (is (= "untracked" (:trace_state (evidence/requirement-trace-model {"old" [{:relation "satisfies"}]} {:id "new"})))))
+
+
 (deftest risk-becomes-one-issue-and-requires-independent-verification
   (let [id (project!) evidence (:id (document! id "FIX-1"))
         risk (command! id :risks :create nil {:title "关键调试风险" :probability 3 :impact 5

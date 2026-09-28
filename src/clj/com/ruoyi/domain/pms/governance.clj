@@ -81,6 +81,7 @@
                    raci-loads (stakeholders/raci-r-loads (:raci data))
                    owner-loads (collab/owner-workloads (:issues data) (:risks data) (:actions data))
                    docs-by-id (into {} (map (juxt :id identity)) (:documents data))
+                   traces-by-req (group-by :requirement_id (:traces data))
                    traceability (evidence/traceability-report (:requirements data) (:traces data))]
                (-> data
                    (update :meetings collab/enrich-meetings actions-by-meeting)
@@ -91,6 +92,7 @@
                    (update :risks #(mapv (partial collab/owner-workload-read-model owner-loads) %))
                    (update :actions #(mapv (partial collab/owner-workload-read-model owner-loads) %))
                    (update :traces #(mapv (partial evidence/trace-read-model docs-by-id) %))
+                   (update :requirements #(mapv (partial evidence/requirement-trace-model traces-by-req) %))
                    (collab/enrich-risk-issue-links)
                    (assoc :project_version (:version project) :blockers (blockers q project)
                           :appointments (appointment/list-summaries q project)

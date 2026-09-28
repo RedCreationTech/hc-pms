@@ -83,7 +83,15 @@
       :render (fn [v] (let [label (cond (= v "test") "测试" (= v "inspection") "检验"
                                          (= v "demonstration") "演示" (= v "analysis") "分析" :else nil)]
                          (r/as-element (if label [antd/tag {:color "geekblue"} label]
-                                           [:span {:style {:color "#98a2b3"}} "未设定"]))))}]
+                                           [:span {:style {:color "#98a2b3"}} "未设定"]))))}
+     {:title "追踪状态" :dataIndex "trace_state" :width 130
+      :render (fn [v row]
+                (let [color ({"complete" "green" "missing-design" "gold" "missing-verification" "volcano" "untracked" "default"} v)
+                      label ({"complete" "追踪完整" "missing-design" "缺设计关联" "missing-verification" "缺验证关联" "untracked" "未追踪"} v)
+                      des (aget row "trace_design_links")
+                      ver (aget row "trace_verification_links")]
+                  (r/as-element (if (nil? label) [:span {:style {:color "#98a2b3"}} "—"]
+                                    [antd/tag {:color color} (str label " " des "/" ver)]))))}]
     (when editable? (fn [row] [antd/space {:wrap true}
                               [w/edit-button "新修订" #(open! (forms/requirement-dialog base options row))]
                               [w/edit-button "级联影响" #(preview! {:collection "requirements" :id (:id row) :label (str "URS需求 " (:code row))})]
