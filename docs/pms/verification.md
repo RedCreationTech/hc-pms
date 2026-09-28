@@ -591,6 +591,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 本节把 H09"变更控制委员会多人表决"子项从仅有层级标签推进到 `implemented / local` (可设立 1 至 15 人不重复委员会与赞成门槛 + 成员逐人可覆写表决 + 达到赞成门槛方可批准否则 409 + 登记人/提交人及非成员投票守卫 + 重置清空 + 未设委员会不受门控 + 台账只读表决状态可见); 但 H09 行仍含"跨系统通知""财务自动应用"等未完成子项, 故 H09 整体保持 `partial`, 不因这一子能力上行.
 
+## B09 关口实例检查就绪度只读派生 (本轮增补, 2026-09-28)
+
+设计与关闭口径: 为治理台账"Gate检查与评审"的**关口实例**补齐此前缺失的**实例级**签核就绪度洞察 (既有 `gate-progress` 仅是模板级汇总). 免迁移: 纯读模型在读取时派生, **无新增迁移**, **无新增 kind**, **无新命令**, **无新状态值**, 不改动 `submit!`/`decide!`/`evidence-ready!` 等任何写路径或门控. 在 `governance.gates` 新增纯函数 `gate-read-model`, 对单个 `gate` 记录读其 `:checks` 派生 `{:gate_total 检查项总数 :gate_passed 已满足数(通过或豁免) :gate_waived 豁免数 :blocking_checks 必需且未满足项的 code 向量 :ready_to_sign 布尔(必需项是否全部通过或豁免, 无尾随 ? 以免 JSON 键名污染)}`; 在 `governance/workspace` 的 `cond->` 里加 `(= kind "gate") gates/gate-read-model` 分支, 与既有 risk/action/issue/change 等只读派生同构. 前端关口台账在"阶段"列后新增只读"检查就绪度"列: 绿色/红色"检查 passed/total"徽标 + 蓝色"豁免 N" + 橙色"待满足 <必需未满足编码>" + 就绪时绿色"可签核", 与 `dq-section` 的 `aget row "jsKey"` 派生列渲染同套路.
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| 治理测试 (SQLite) | 55 tests / 649 assertions, 0 failures/errors | 新增 `gate-read-model-derives-check-readiness`: 建含 R-1/R-2 必需 + O-1 可选检查的模板与关口实例 -> 读模型初值 {gate_total 3, gate_passed 0, gate_waived 0, blocking_checks ["R-1" "R-2"], ready_to_sign false} -> `checks!` 令 R-1 通过后 blocking 缩为 ["R-2"] 且 gate_passed 1 -> 再令 R-2 例外放行(带说明)后 {gate_passed 2, gate_waived 1, blocking_checks [], ready_to_sign true}; 可选项 O-1 未通过不计入门控 |
+| 全量 PMS 回归 (CLI SQLite) | 156 tests / 1564 assertions, 0 failures/errors | `clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'` 全新库通过, 既有关口检查/豁免/评审/阻断门控用例无回归 |
+| 前端编译 | 0 warnings | `npx shadow-cljs compile app` 通过, 关口台账"检查就绪度"列一并编译 |
+| Chrome 浏览器 (Playwright) | 1 passed | `pms-gate-readiness.spec.js` (隔离 `:3100` 后端, 独立空库): admin 真实 HTTP 建含 2 必需 1 可选检查的模板与关口实例 (审核人为合成独立质量审批人) -> 打开 Gate 页签, 台账"检查就绪度"列显示红色"检查 0/3"与橙色"待满足 R-1, R-2"且无"可签核" (截图 gate-readiness-1-pending.png) -> 界面点"填写检查"选 R-1 检查通过 / R-2 例外放行(填说明) / O-1 未通过 (截图 gate-readiness-2-check-dialog.png) -> 重载后同列翻绿"检查 2/3"+蓝色"豁免 1"+绿色"可签核", "待满足"消失 (截图 gate-readiness-3-ready.png) -> 真实 HTTP 回显 `ready_to_sign=true`, `blocking_checks=[]`, `gate_waived=1`, `gate_passed=2`, `gate_total=3`; 无未捕获 JS 错误; 截图存 `reports/gate-readiness/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归(本地无实例, 本轮完全免迁移不新增 DDL); 就绪度仅界面只读呈现, 未据此新增/改动任何提交或批准门控 (提交/批准的强制校验仍由既有 `evidence-ready!`/`stage-ready!` 承担); 未做"就绪即自动提交评审"的自动化.
+
+边界: 本增量把 B09 关口实例台账的**签核就绪度可见性**推进到 `implemented / local` (免迁移读取时派生必需项满足度与可签核标记, 界面徽标呈现); B09 行既有的模板级 `gate-progress` 汇总与实例独立签核不受影响, 主机交付清单业务口径仍为待办, 故不改变 B09 整体状态.
+
 ## H08 风险应对策略可选枚举字段 (本轮增补, 2026-09-23)
 
 设计与关闭口径: 兑现矩阵 H08"风险评分口径和复审频率明确"里"识别后登记结构化应对策略"的一环. 复用既有 `risk` kind 与整条登记/复评/独立关闭链, **无新增迁移** (字段随风险记录 payload JSON 存储). 沿用"免迁移给治理 kind 加可选强类型字段"套路的**枚举变体**: 在 `governance.collaboration` 新增集合 `risk-response-strategies` = `#{"avoid" "transfer" "mitigate" "accept"}` (PMI 四类风险应对策略), `insert-risk!` 的 `cond->` 增加一条 `(:response_strategy fields) (assoc :response_strategy (s/enum! ...))` 分支, 只在字段存在时经 `s/enum!` 校验并写入, 非法取值返回 400, 未填则不写键; `create-risk!` 的 `s/input!` 白名单新增 `:response_strategy`. 因未填不写键且分支只在字段存在时触发, 既有登记/复评/库实例化用例 (均不带该字段) 零回归. 该字段与评分/超阈值升级门控相互独立: `from-library` 实例化的风险默认不带 `response_strategy`(仍为 `nil`), 手工登记选策略也不改变 `score`/`escalated` 计算. 前端 `risk-dialog` 在期限字段后新增 `:response_strategy` `:select` 下拉(规避/转移/减轻/接受), 风险台账在"复审重评"列后新增只读"应对策略"列, 以 geekblue 标签回显中文策略名, 未设定显示灰字"未设定". 全程免迁移, 免新命令, 免新 kind, 免新状态值.

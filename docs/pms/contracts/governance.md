@@ -173,6 +173,8 @@
 
 风险与问题双向来源关联读模型 (免迁移的只读可见性): `POST /risks/:rid/materialize` 在生成问题时已把双向关联 ID 持久化在记录 payload 里 (问题侧 `source_risk_id`, 风险侧 `issue_id`), 二者在 `(dissoc % :content)` 后仍随 `risks`/`issues` 数组回显. 为让 C10"风险实现转问题保留关联"在界面直接可读, workspace 读取层在结果聚合后追加一次 `enrich-risk-issue-links`: 问题的 `source_risk_id` 命中风险时补 `issue_source_risk_id` 与 `issue_source_risk_title` (来源风险标题), 风险的 `issue_id` 命中问题时补 `risk_issue_id` 与 `risk_issue_title` (转出问题标题); 手工登记的问题 (无 `source_risk_id`) 与未转问题的风险 (无 `issue_id`) 不写这些键, 对端记录缺失时标题回落 `nil`. 前端问题台账"来源风险"列以 geekblue 标签回显来源风险标题 (无来源显示"手工登记"), 风险台账"转出问题"列以 cyan 标签回显转出问题标题 (未转出显示灰字). 该标注仅在读取时按当前数据互相补全标题, 不写入存储, 不新增迁移, 不改变 `materialize` 的幂等语义, 也不构成提醒投递. 键名不带尾随问号以稳定 JSON 序列化.
 
+关口实例检查就绪度读模型 (免迁移的只读派生列): 既有 `gate-progress` 只在模板层汇总实例进展, 单个关口实例的"还差哪些必需检查, 能否签核"在台账里不可直接读. `gates/gate-read-model` 在 workspace 读取时对每条 `gate` 记录派生 `gate_total` (检查项总数), `gate_passed` (已满足数, 通过或豁免均计入), `gate_waived` (豁免数), `blocking_checks` (必需且既未通过也未豁免的检查项 `code` 向量, 按模板顺序) 与 `ready_to_sign` (布尔, 当 `blocking_checks` 为空即所有必需项均已通过或豁免时为 true). 该派生只读记录已有的 `:checks` 快照, 不写入存储, 不新增迁移/kind/命令/状态值, 也不改动 `submit!`/`decide!`/`evidence-ready!` 的任何强制门控 (提交与批准仍各自按 `evidence-ready!` 校验已发布证据等硬条件). 前端关口台账"检查就绪度"列以红/绿"检查 passed/total"徽标 + 蓝色"豁免 N" + 橙色"待满足 <必需未满足编码>" + 就绪时绿色"可签核"呈现, 让评审人一眼看出实例是否可提交签核. 键名不带尾随问号以稳定 JSON 序列化.
+
 ## 实现边界
 
 记录表的 kind 和状态有数据库约束, 服务层按业务类型逐字段校验, 再由固定命令推进状态. 未提供任意 payload CRUD, 直接写状态或删除证据入口. 章程/变更审批冻结提交版本; URS/文档版本不可覆盖; Gate 保存模板及证据版本快照. 所有引用由项目作用域查询验证.

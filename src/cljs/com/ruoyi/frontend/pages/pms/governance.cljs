@@ -809,6 +809,20 @@
     [w/record-table (:gates model) [(w/text-column :title "检查")
                                     {:title "类型" :dataIndex "gate_type" :width 160 :render #(shared/display-value %)}
                                     {:title "阶段" :dataIndex "stage" :width 100 :render #(get gate-stage-labels % %)}
+                                    {:title "检查就绪度" :key "readiness" :width 180
+                                     :render (fn [_ row]
+                                               (let [total (aget row "gate_total")
+                                                     passed (aget row "gate_passed")
+                                                     waived (aget row "gate_waived")
+                                                     blocking (array-seq (or (aget row "blocking_checks") #js []))
+                                                     ready (true? (aget row "ready_to_sign"))]
+                                                 (r/as-element
+                                                  (into [antd/space {:wrap true}]
+                                                        (cons [antd/tag {:color (if ready "green" "red")} (str "检查 " passed "/" total)]
+                                                              (cond-> []
+                                                                (pos? waived) (conj [antd/tag {:color "blue"} (str "豁免 " waived)])
+                                                                (seq blocking) (conj [antd/tag {:color "orange"} (str "待满足 " (str/join ", " blocking))])
+                                                                ready (conj [antd/tag {:color "green"} "可签核"])))))))}
                                     (w/state-column)
                                     (w/text-column :reviewer_id "审批人") (w/text-column :decision_reason "评审意见")]
      #(gate-actions context %)]]])

@@ -118,6 +118,19 @@
              :passed (boolean (some #(contains? #{"approved" "waived"} (:status %)) instances))}))
         templates))
 
+(defn gate-read-model
+  "只读派生单个关口实例的签核就绪度: 检查项总数/已满足数/豁免数, 必需未满足项编码及是否可签核, 不写存储."
+  [gate]
+  (let [checks (or (:checks gate) [])
+        satisfied? (fn [c] (or (:passed c) (:waived c)))
+        blocking (mapv :code (remove satisfied? (filter :required checks)))]
+    (assoc gate
+           :gate_total (count checks)
+           :gate_passed (count (filter satisfied? checks))
+           :gate_waived (count (filter :waived checks))
+           :blocking_checks blocking
+           :ready_to_sign (empty? blocking))))
+
 (defn submit!
   "提交关口审核,允许完整检查或有理由的豁免申请."
   [svc actor id rid body]

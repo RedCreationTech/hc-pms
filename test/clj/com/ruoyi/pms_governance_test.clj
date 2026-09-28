@@ -765,6 +765,31 @@
       (is (empty? (get-in (workspace id) [:blockers :closure]))))))
 
 
+(deftest gate-read-model-derives-check-readiness
+  (let [id (project!)
+        keys [:gate_total :gate_passed :gate_waived :blocking_checks :ready_to_sign]
+        template (command! id :gate-templates :create nil
+                           {:code "G-RM" :title "就绪度关口" :stage "execution" :required true
+                            :checks [{:code "R-1" :title "必需一" :required true}
+                                     {:code "R-2" :title "必需二" :required true}
+                                     {:code "O-1" :title "可选一" :required false}]})
+        gate (command! id :gates :create nil {:template_id (:id template) :title "评审" :reviewer_id 9302})
+        find-gate (fn [] (first (filter #(= (:id gate) (:id %)) (:gates (workspace id)))))]
+    (is (= {:gate_total 3 :gate_passed 0 :gate_waived 0 :blocking_checks ["R-1" "R-2"] :ready_to_sign false}
+           (select-keys (find-gate) keys)))
+    (command! id :gates :checks (:id gate) {:checks [{:code "R-1" :passed true :evidence_ids []}
+                                                     {:code "R-2" :passed false :evidence_ids []}
+                                                     {:code "O-1" :passed false :evidence_ids []}]})
+    (is (= ["R-2"] (:blocking_checks (find-gate))))
+    (is (false? (:ready_to_sign (find-gate))))
+    (is (= 1 (:gate_passed (find-gate))))
+    (command! id :gates :checks (:id gate) {:checks [{:code "R-1" :passed true :evidence_ids []}
+                                                     {:code "R-2" :passed false :waived true :waiver_reason "剩余风险已接受" :evidence_ids []}
+                                                     {:code "O-1" :passed false :evidence_ids []}]})
+    (is (= {:gate_total 3 :gate_passed 2 :gate_waived 1 :blocking_checks [] :ready_to_sign true}
+           (select-keys (find-gate) keys)))))
+
+
 (deftest change-review-lock-and-audit-rollback
   (let [id (project!)
         body {:title "更改设备范围" :reason "合同调整" :scope_impact "增加设备"
