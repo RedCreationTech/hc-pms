@@ -127,6 +127,8 @@
    [:changes :submit] (approval-command approval/submit! "change" false)
    [:changes :decision] (approval-command approval/decide! "change" false)
    [:changes :escalation] approval/acknowledge-change-escalation!
+   [:changes :ccb] approval/set-ccb!
+   [:changes :ballot] approval/cast-ccb-ballot!
    [:requirements :create] (approval-command evidence/create! "requirement" true)
    [:requirements :revisions] (approval-command evidence/revise! "requirement" false)
    [:requirements :import] (creating evidence/import!)

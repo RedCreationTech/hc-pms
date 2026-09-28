@@ -667,11 +667,19 @@
 
 
 (defn- change-actions
-  "变更审批操作: 高影响变更须先由变更控制独立确认升级处置, 再交由指定审核人批准或驳回."
+  "变更审批操作: 可设立或重置变更控制委员会并表决; 高影响变更须先独立确认升级, 达到表决门槛后方可批准."
   [{:keys [base model options approve? open!] :as context} change]
-  (let [current (:currentUserId options)]
+  (let [current (:currentUserId options)
+        status (:status change)
+        members (vec (:ccb_members change))]
     [antd/space {:wrap true}
-     (when (and approve? (= "in_review" (:status change)) (true? (:escalated change)) (= "pending" (:escalation_state change))
+     (when (and approve? (contains? #{"draft" "in_review"} status))
+       [w/edit-button (if (:ccb_required change) "重置变更控制委员会" "设立变更控制委员会")
+        #(open! (forms/change-ccb-dialog base (:users options) change))])
+     (when (and approve? (= "in_review" status) (some #(= % current) members)
+                (not= current (:created_by change)) (not= current (:submitted_by change)))
+       [w/edit-button "委员会表决" #(open! (forms/change-ballot-dialog base change))])
+     (when (and approve? (= "in_review" status) (true? (:escalated change)) (= "pending" (:escalation_state change))
                 (not= current (:created_by change)) (not= current (:submitted_by change)))
        [w/edit-button "确认升级处置" #(open! (forms/change-escalation-dialog base change))])
      (review-actions context "changes" change)]))
@@ -709,6 +717,19 @@
                      (= state "acknowledged") [antd/tag {:color "green"} "升级已确认"]
                      (= state "waived") [antd/tag {:color "blue"} "升级已豁免"]
                      :else [antd/tag state]))))}
+     {:title "变更控制表决" :dataIndex "ccb_summary" :width 190
+      :render (fn [_ row]
+                (let [s (aget row "ccb_summary")
+                      state (when s (aget s "state"))
+                      approve (when s (aget s "approve"))
+                      required (when s (aget s "required"))
+                      members (when s (aget s "members"))]
+                  (r/as-element
+                   (cond
+                     (or (nil? s) (= state "none")) [:span {:style {:color "#98a2b3"}} "未设立委员会"]
+                     (= state "passed") [antd/tag {:color "green"} (str "表决通过 " approve "/" required)]
+                     (= state "failed") [antd/tag {:color "red"} (str "表决未通过 " approve "/" required " / 成员 " members)]
+                     :else [antd/tag {:color "gold"} (str "表决中 " approve "/" required " / 成员 " members)]))))}
      (w/state-column)]
     #(change-actions context %)]])
 

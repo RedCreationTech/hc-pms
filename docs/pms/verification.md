@@ -571,9 +571,25 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 | 前端编译 | 0 warnings | `npx shadow-cljs compile app` 通过, "确认升级处置"入口, 确认对话框与"变更控制升级"列一并编译 |
 | Chrome 浏览器 (Playwright) | 1 passed | `pms-h09esc.spec.js` (隔离 `:3100` 后端, 独立空库, 双真实上下文): admin 界面"提出项目变更"填工期 12 天 (截图 h09esc-1-dialog-quantify.png) -> 读模型 `change_high_impact=true` 且草稿未升级 -> 界面"提交独立审批"选独立审批人 -> GET 校验提交后 `escalated true` / `pending` / `ccb` -> 台账"变更控制升级"列显示红"待独立确认", 登记人 admin 看不到"确认升级处置"入口 (截图 h09esc-2-pending-escalation.png) -> 真实 HTTP admin 自确认升级 -> 403 -> 第二上下文独立审批人登录, 先点"批准"命中门控: 弹窗内联 `[role=alert]` 显示"尚未完成变更控制升级独立确认"且返回 409 不关闭 (截图 h09esc-3-approve-gated-409.png) -> 点"确认升级处置"选"确认升级并责成处置"保存 -> GET `escalation_state=acknowledged` 且 `escalation_ack_by` 为独立审批人, 列翻绿"升级已确认" (截图 h09esc-4-acknowledged.png) -> 再点"批准"成功, 状态 `approved` (截图 h09esc-5-approved.png); 无未捕获 JS 错误; 截图存 `reports/h09esc/` |
 
-本轮未执行 (如实记录): MySQL 迁移与回归(本地无实例, 本轮完全免迁移不新增 DDL); `escalation_level: ccb` 目前仅是升级层级标签, 未实现 CCB 多人表决; 未做升级通知投递, 未实现批准后自动改写计划基线/任务/费用台账.
+本轮未执行 (如实记录): MySQL 迁移与回归(本地无实例, 本轮完全免迁移不新增 DDL); `escalation_level: ccb` 本轮仅为升级层级标签, 其对应的 CCB 多人表决门槛在下一节 (H09 变更控制委员会多人表决门槛) 单独落地; 未做升级通知投递, 未实现批准后自动改写计划基线/任务/费用台账.
 
-边界: 本节把 H09 的"量化阈值联动自动升级审批"子项从缺口推进到 `implemented / local` (提交即自动升级 + 批准前强制既非登记人也非提交人的独立审批人确认 + 门控界面真实可见); 但 H09 行仍含"CCB 多人表决""跨系统通知""财务自动应用"等未完成子项, 故 H09 整体保持 `partial`, 不上行.
+边界: 本节把 H09 的"量化阈值联动自动升级审批"子项从缺口推进到 `implemented / local` (提交即自动升级 + 批准前强制既非登记人也非提交人的独立审批人确认 + 门控界面真实可见); 但 H09 行仍含"CCB 多人表决""跨系统通知""财务自动应用"等未完成子项, 故 H09 整体保持 `partial`, 不上行. (其中"CCB 多人表决"已由下一节单独推进到 `implemented / local`, 剩余"跨系统通知""财务自动应用"仍未完成, H09 整体仍 `partial`.)
+
+## H09 变更控制委员会多人表决门槛 (本轮增补, 2026-09-28)
+
+设计与关闭口径: 兑现矩阵 H09"变更控制委员会与影响决策"标题中此前仅剩标签的"CCB 多人表决"一环, 把 `escalation_level: ccb` 从"只是一个层级字符串"推进到"真实由委员会多人逐人表决并达到赞成门槛后方可批准". 复用既有 `change` kind 与整条 create/revise/submit/decide 独立审批链, **无新增迁移** (委员会名单/门槛/表决票随记录 payload JSON 存储), **无新增 kind**, **无新状态值**. 在 `governance.approval` 抽出纯函数 `ccb-tally` (定义在 `decide!` 之前以规避本项目 Clojure 1.12.4 对同 ns 内后置 `defn-` 前向引用的拒绝), 读 `:ccb_members`/`:ccb_required`/`:ccb_ballots` 计算 {:members :required :approve :reject :quorum_met :state}, `state` ∈ none(未设名单)/voting(赞成未达门槛)/passed(达到门槛)/failed(剩余票已不可能达标). `decide!` 在既有升级门控之后**独立**新增 CCB 门控: 仅当 `kind=change` 且 `decision=approved` 且记录带 `:ccb_required` 且 `approve < required` 时 `fail! 409`, 驳回不受门控, 未设委员会的变更不受门控 (与升级门控可叠加, 二者互不干扰). 新增两条命令 `set-ccb!` (`[:changes :ccb]`, 路由 `POST /changes/:record_id/ccb`) 与 `cast-ccb-ballot!` (`[:changes :ballot]`, 路由 `POST /changes/:record_id/ballot`), 均走 `k/mutate! "pms:quality:approve" {:write? false}` (只读质量审批人可发起, 与既有独立批准/确认口径一致): `set-ccb!` 校验 `members` 为 1 至 15 个不重复用户标识 (否则 400), 逐个 `s/user!` 存在性 (未知成员 404/400), `required` 为正整数且不超过成员数 (否则 400), 状态须 ∈ #{draft in_review}; 写入 `{:ccb_members :ccb_required :ccb_ballots []}` 并追加 `ccj_set` 到 `workflow_history`, 重置亦清空既有表决. `cast-ccb-ballot!` 校验 `vote` ∈ #{approve reject} (否则 400), 状态须 `in_review` (draft 投票 409), 无名单则 409; 投票人 = `created_by` 或 = `submitted_by` 或不在 `members` 中均 403; 同人重复投票以 `filterv` 覆写旧票后 `conj {:member_id :vote :note :on}`. `change-read-model` 读取时 `assoc :ccb_summary` 供台账只读呈现. 前端 `change-actions` 增加"设立/重置变更控制委员会"入口 (`approve?` 且 `draft`/`in_review`) 与"委员会表决"入口 (`approve?` 且 `in_review` 且当前用户在名单内且非登记人/提交人); 变更台账在"变更控制升级"列后新增"变更控制表决"列: 未设委员会灰字, voting 金标"表决中 a/r / 成员 m", passed 绿标"表决通过 a/r", failed 红标"表决未通过 a/r / 成员 m".
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| 治理测试 (SQLite) | 54 tests / 644 assertions, 0 failures/errors | 新增 `ccb-ballot-quorum-gates-change-approval`: 非升级的低影响变更提交 (审核人 9302) -> 设立委员会 [9302 9303] 门槛 2 -> 0 票批准 409 (state voting) -> 9302 投赞成 (1/2 仍 409) -> 9303 投赞成 (2/2 passed) -> 批准成功 `approved`; 另一条驳回不受 CCB 门控. 新增 `ccb-roster-and-ballot-rules-are-enforced`: draft 投票 409; 无名单投票 409; 名单 400 (空/重复/门槛超人数/门槛 0/未知成员 999999); 登记人 9301 自投 403; 非成员 9303 投 403; 非法票 400; 覆写 (赞成改反对 -> approve 0/reject 1/state failed); 0 赞成批准 409; 重置清空表决; 无名单变更直接批准成功 (state none) |
+| 全量 PMS 回归 (CLI SQLite) | 155 tests / 1559 assertions, 0 failures/errors | `clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'` 全新库通过, 既有变更审批/版本/升级/风险/问题用例无回归 |
+| 授权路由遍历 | 7 tests / 89 assertions, 0 failures/errors | `authz_test` 遍历路由表, 新路由 `POST /changes/:record_id/ccb` 与 `.../ballot` 均已声明权限, fail-closed 不破 |
+| 前端编译 | 0 warnings | `npx shadow-cljs compile app` 通过, "设立/重置变更控制委员会"与"委员会表决"入口及"变更控制表决"列一并编译 |
+| Chrome 浏览器 (Playwright) | 1 passed | `pms-h09ccb.spec.js` (隔离 `:3100` 后端, 独立空库, 委员会甲/乙双真实上下文 + admin): admin 界面登记低影响变更并"提交独立审批"选委员会甲为审核人 -> admin 点"设立变更控制委员会"填成员 [甲,乙] 门槛 2 (截图 h09ccb-1-roster-dialog.png) -> 台账"变更控制表决"列显示金标"表决中 0/2 / 成员 2" (截图 h09ccb-2-voting-0of2.png) -> 真实 HTTP admin 自投命中 403 -> 甲上下文投赞成后点"批准"命中门控: 弹窗内联 `[role=alert]` 显示"变更控制委员会表决未达通过票数"且返回 409 不关闭 (截图 h09ccb-3-approve-gated-409.png) -> 乙上下文投赞成 -> 列翻绿"表决通过 2/2" (截图 h09ccb-4-passed-2of2.png) -> 甲"批准"成功, 状态 `approved` (截图 h09ccb-5-approved.png); 无未捕获 JS 错误; 截图存 `reports/h09ccb/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归(本地无实例, 本轮完全免迁移不新增 DDL); 委员会目前为单轮顺次表决 (达到赞成门槛即通过), 未实现加权票/弃权/法定最低出席人数 (quorum of attendance) 与匿名表决; 未做表决结果向委员会成员的自动通知投递; 未实现批准后按变更自动改写计划基线/任务/费用台账 (归"财务自动应用"与基线联动子项).
+
+边界: 本节把 H09"变更控制委员会多人表决"子项从仅有层级标签推进到 `implemented / local` (可设立 1 至 15 人不重复委员会与赞成门槛 + 成员逐人可覆写表决 + 达到赞成门槛方可批准否则 409 + 登记人/提交人及非成员投票守卫 + 重置清空 + 未设委员会不受门控 + 台账只读表决状态可见); 但 H09 行仍含"跨系统通知""财务自动应用"等未完成子项, 故 H09 整体保持 `partial`, 不因这一子能力上行.
 
 ## H08 风险应对策略可选枚举字段 (本轮增补, 2026-09-23)
 

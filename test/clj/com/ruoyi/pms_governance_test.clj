@@ -879,6 +879,102 @@
         (is (= "rejected" (:status (command! 9302 id :changes :decision hid {:decision "rejected" :reason "高影响但直接否决无需确认"}))))))))
 
 
+
+(deftest ccb-ballot-quorum-gates-change-approval
+  (let [id (project!)
+        base-body {:title "更改设备范围" :reason "合同调整" :scope_impact "增加设备"
+                   :schedule_impact "增加五日" :cost_impact "重新估价" :quality_impact "增加测试"
+                   :resource_impact "追加工程师"}
+        change (command! id :changes :create nil base-body)
+        rid (:id change)]
+    ;; 提交后进入 in_review; 未设立委员会时汇总 state 为 none.
+    (command! id :changes :submit rid {:reviewer_id 9302})
+    (let [row (first (filter #(= rid (:id %)) (:changes (workspace id))))]
+      (is (= "in_review" (:status row)))
+      (is (= "none" (get-in row [:ccb_summary :state]))))
+    ;; 登记委员会: 成员 9302/9303, 通过门槛 2, 清空既有表决.
+    (let [roster (command! id :changes :ccb rid {:members [9302 9303] :required 2})]
+      (is (= [9302 9303] (:ccb_members roster)))
+      (is (= 2 (:ccb_required roster)))
+      (is (empty? (:ccb_ballots roster))))
+    ;; 门槛未达: 零赞成票时批准被 409 门控拒绝, 汇总 state voting.
+    (let [row (first (filter #(= rid (:id %)) (:changes (workspace id))))]
+      (is (= 2 (get-in row [:ccb_summary :members])))
+      (is (= 0 (get-in row [:ccb_summary :approve])))
+      (is (false? (get-in row [:ccb_summary :quorum_met])))
+      (is (= "voting" (get-in row [:ccb_summary :state])))
+      (is (= 409 (error-status #(command! 9302 id :changes :decision rid {:decision "approved" :reason "票数不足"})))))
+    ;; 一名成员赞成: 仍差一票, 批准继续被拒.
+    (command! 9302 id :changes :ballot rid {:vote "approve" :note "评估可行"})
+    (let [row (first (filter #(= rid (:id %)) (:changes (workspace id))))]
+      (is (= 1 (get-in row [:ccb_summary :approve])))
+      (is (= 409 (error-status #(command! 9302 id :changes :decision rid {:decision "approved" :reason "仍差一票"})))))
+    ;; 第二名成员赞成: 达到门槛, 汇总 passed, 独立批准成功.
+    (command! 9303 id :changes :ballot rid {:vote "approve" :note "同意"})
+    (let [row (first (filter #(= rid (:id %)) (:changes (workspace id))))]
+      (is (= 2 (get-in row [:ccb_summary :approve])))
+      (is (true? (get-in row [:ccb_summary :quorum_met])))
+      (is (= "passed" (get-in row [:ccb_summary :state])))
+      (is (= "approved" (:status (command! 9302 id :changes :decision rid {:decision "approved" :reason "达到门槛后独立通过"})))))
+    ;; 驳回不受表决门控: 另一变更零票时可直接否决.
+    (let [id2 id
+          other (command! id2 :changes :create nil (assoc base-body :title "另一项变更"))
+          oid (:id other)]
+      (command! id2 :changes :submit oid {:reviewer_id 9302})
+      (command! id2 :changes :ccb oid {:members [9302 9303] :required 2})
+      (is (= "rejected" (:status (command! 9302 id2 :changes :decision oid {:decision "rejected" :reason "多数反对无需凑票"})))))))
+
+
+(deftest ccb-roster-and-ballot-rules-are-enforced
+  (let [id (project!)
+        base-body {:title "更改设备范围" :reason "合同调整" :scope_impact "增加设备"
+                   :schedule_impact "增加五日" :cost_impact "重新估价" :quality_impact "增加测试"
+                   :resource_impact "追加工程师"}
+        change (command! id :changes :create nil base-body)
+        rid (:id change)]
+    ;; draft 状态不能表决 (要求 in_review) -> 409.
+    (is (= 409 (error-status #(command! 9302 id :changes :ballot rid {:vote "approve"}))))
+    ;; 提交后未设立委员会即表决 -> 409.
+    (command! id :changes :submit rid {:reviewer_id 9302})
+    (is (= 409 (error-status #(command! 9302 id :changes :ballot rid {:vote "approve" :note "无委员会"}))))
+    ;; 名单校验: 空/重复/门槛越界/非法门槛/非法成员 均 400.
+    (is (= 400 (error-status #(command! id :changes :ccb rid {:members [] :required 1}))))
+    (is (= 400 (error-status #(command! id :changes :ccb rid {:members [9302 9302] :required 1}))))
+    (is (= 400 (error-status #(command! id :changes :ccb rid {:members [9302 9303] :required 3}))))
+    (is (= 400 (error-status #(command! id :changes :ccb rid {:members [9302 9303] :required 0}))))
+    (is (= 400 (error-status #(command! id :changes :ccb rid {:members [999999] :required 1}))))
+    ;; 合法登记: 单成员 9302, 门槛 1.
+    (command! id :changes :ccb rid {:members [9302] :required 1})
+    ;; 登记人(created_by=9301)不得表决 -> 403.
+    (is (= 403 (error-status #(command! 9301 id :changes :ballot rid {:vote "approve" :note "本人"}))))
+    ;; 非成员(9303)不得表决 -> 403.
+    (is (= 403 (error-status #(command! 9303 id :changes :ballot rid {:vote "approve" :note "外人和票"}))))
+    ;; 非法表决取值 -> 400.
+    (is (= 400 (error-status #(command! 9302 id :changes :ballot rid {:vote "maybe" :note "非法"}))))
+    ;; 成员重复投票覆盖上一票: 先赞成后反对, 赞成计数归零, 汇总 failed.
+    (command! 9302 id :changes :ballot rid {:vote "approve" :note "初投赞成"})
+    (let [row (first (filter #(= rid (:id %)) (:changes (workspace id))))]
+      (is (= 1 (get-in row [:ccb_summary :approve]))))
+    (command! 9302 id :changes :ballot rid {:vote "reject" :note "改投反对"})
+    (let [row (first (filter #(= rid (:id %)) (:changes (workspace id))))]
+      (is (= 0 (get-in row [:ccb_summary :approve])))
+      (is (= 1 (get-in row [:ccb_summary :reject])))
+      (is (= "failed" (get-in row [:ccb_summary :state]))))
+    ;; 零赞成票时批准仍被门控 -> 409.
+    (is (= 409 (error-status #(command! 9302 id :changes :decision rid {:decision "approved" :reason "无赞成票"}))))
+    ;; 重置名单清空既有表决.
+    (let [reset (command! id :changes :ccb rid {:members [9302 9303] :required 1})]
+      (is (empty? (:ccb_ballots reset)))
+      (is (= 0 (get-in (first (filter #(= rid (:id %)) (:changes (workspace id)))) [:ccb_summary :approve]))))
+    ;; 未设立委员会的普通变更不受表决门控: 可直接独立批准, 汇总仍为 none.
+    (let [other (command! id :changes :create nil (assoc base-body :title "无需委员会的变更"))
+          oid (:id other)]
+      (approve! id :changes oid)
+      (let [orow (first (filter #(= oid (:id %)) (:changes (workspace id))))]
+        (is (= "approved" (:status orow)))
+        (is (= "none" (get-in orow [:ccb_summary :state])))))))
+
+
 (defn- request
   "经真实JWT及JSON中间件验证治理路由."
   [method path uid payload]

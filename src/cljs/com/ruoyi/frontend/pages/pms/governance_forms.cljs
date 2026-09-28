@@ -220,6 +220,30 @@
             {:key :note :label "处置意见" :type :textarea :required? true}]})
 
 
+(defn change-ccb-dialog
+  "登记或重置变更控制委员会名单与通过门槛; 重新登记将清空既有表决记录, 须重新表决."
+  [base users change]
+  {:title "设立变更控制委员会" :path (str base "/changes/" (:id change) "/ccb")
+   :description "选择委员会成员并设定通过门槛(赞成达到该票数方可批准). 重新登记会清空既有表决, 需重新投票. 登记人与提交人不在可投票之列."
+   :initial (when (seq (:ccb_members change)) {:members (:ccb_members change) :required (:ccb_required change)})
+   :fields [{:key :members :label "委员会成员" :type :multi :required? true :options (w/user-options users)}
+            {:key :required :label "通过门槛(赞成票数)" :type :number :min 1 :required? true}]})
+
+
+(defn change-ballot-dialog
+  "变更控制委员会成员投下赞成或反对票, 重复投票覆盖本人上一票."
+  [base change]
+  {:title "委员会表决" :path (str base "/changes/" (:id change) "/ballot")
+   :description (let [s (:ccb_summary change)
+                      approve (:approve s) required (:required s) members (:members s)]
+                  (str "当前表决: 赞成 " (or approve 0) "/" (or required 0) " 成员共 " (or members 0) " 人. 您的投票将覆盖本人上一票."))
+   :transform (fn [data] (let [v (:note data)] (if (or (nil? v) (= "" v)) (dissoc data :note) data)))
+   :fields [{:key :vote :label "表决意见" :type :select :required? true
+             :options [{:value "approve" :label "赞成"} {:value "reject" :label "反对"}]}
+            {:key :note :label "表决说明" :type :textarea :hint "可留空"}]})
+
+
+
 (defn issue-reopen-dialog
   "已关闭问题重开须明确新证据与独立责任人."
   [base options documents issue]

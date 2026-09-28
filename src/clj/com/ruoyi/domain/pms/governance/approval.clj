@@ -146,6 +146,27 @@
                      (cond-> {:reviewer_id (or reviewer (:first-approver started)) :submitted_by (:user_id actor)}
                        (= "change" kind) (merge (change-escalation record)))))))))
 
+(defn- ccb-tally
+  "只读汇总变更控制委员会表决进度; 未设置委员会时 state 为 none, 仅读取时计算, 不落存储."
+  [record]
+  (let [members (vec (:ccb_members record))
+        required (:ccb_required record)
+        ballots (vec (:ccb_ballots record))
+        approve (count (filter #(= "approve" (:vote %)) ballots))
+        reject (count (filter #(= "reject" (:vote %)) ballots))
+        n (count members)]
+    {:members n
+     :required required
+     :approve approve
+     :reject reject
+     :quorum_met (boolean (and (some? required) (>= approve required)))
+     :state (cond
+              (nil? required) "none"
+              (>= approve required) "passed"
+              (> reject (- n required)) "failed"
+              :else "voting")}))
+
+
 (defn decide!
   "指定独立审核人批准或退回当前提交版本."
   [svc actor id kind rid body]
@@ -158,6 +179,11 @@
         (when (and (= "change" kind) (= "approved" decision)
                    (:escalated record) (= "pending" (:escalation_state record)))
           (r/fail! 409 "该高影响变更尚未完成变更控制升级独立确认, 请先由独立审批人确认升级处置后再批准"))
+        (when (and (= "change" kind) (= "approved" decision)
+                   (some? (:ccb_required record)))
+          (let [{:keys [approve required members]} (ccb-tally record)]
+            (when (< approve required)
+              (r/fail! 409 (str "变更控制委员会表决未达通过票数 (需 " required "/" members " 赞成, 现 " approve " 票), 请补足赞成票后再批准")))))
         (when (= "charter" kind) (chain/guard-legacy-decision! q "charter" (:id record)))
         (s/decision-actor! actor record)
         (s/change! q project record decision
@@ -186,6 +212,61 @@
                                             {:action "escalation_acknowledged" :actor_id (:user_id actor)
                                              :on (str (LocalDate/now)) :decision decision})})))))
 
+(defn set-ccb!
+  "为变更申请登记或重置变更控制委员会名单与通过门槛; 重新登记将清空既有表决记录, 须重新表决; 只读质量审批人亦可登记."
+  [svc actor id rid body]
+  (k/mutate! svc actor id "pms:quality:approve" body "change.ccb-set" {:write? false}
+    (fn [q project]
+      (s/input! body [:members :required])
+      (let [record (s/latest! q project (s/record! q project "change" rid))
+            raw (:members body)]
+        (when-not (and (vector? raw) (pos? (count raw)) (<= (count raw) 15)
+                       (= (count raw) (count (set raw))))
+          (r/fail! 400 "委员会成员须为1至15个不重复的用户标识数组"))
+        (s/status! record #{"draft" "in_review"})
+        (let [members (mapv #(s/user! q %) raw)
+              required (r/positive-id! (:required body) "通过门槛")]
+          (when (> required (count members))
+            (r/fail! 400 "通过门槛不得超过委员会成员人数"))
+          (s/change! q project record (:status record)
+            {:ccb_members members
+             :ccb_required required
+             :ccb_ballots []
+             :workflow_history
+             (conj (vec (:workflow_history record))
+               {:action "ccb_set" :actor_id (:user_id actor)
+                :on (str (LocalDate/now))
+                :member_count (count members)
+                :required required})}))))))
+
+(defn cast-ccb-ballot!
+  "变更控制委员会成员投下赞成或反对票, 重复投票覆盖本人上一票; 仅委员会成员且非登记人/提交人可投票."
+  [svc actor id rid body]
+  (k/mutate! svc actor id "pms:quality:approve" body "change.ccb-ballot" {:write? false}
+    (fn [q project]
+      (s/input! body [:vote :note])
+      (let [record (s/latest! q project (s/record! q project "change" rid))
+            vote (s/enum! (:vote body) #{"approve" "reject"} "表决")
+            note (s/optional-text! body :note 500)
+            uid (:user_id actor)
+            members (vec (:ccb_members record))]
+        (s/status! record #{"in_review"})
+        (when (empty? members) (r/fail! 409 "该变更尚未设立变更控制委员会, 无法表决"))
+        (when (= uid (:created_by record)) (r/fail! 403 "变更登记人不得参与自身变更表决"))
+        (when (= uid (:submitted_by record)) (r/fail! 403 "变更提交人不得参与自身变更表决"))
+        (when-not (some #(= % uid) members) (r/fail! 403 "仅变更控制委员会成员可投票"))
+        (let [ballots (vec (:ccb_ballots record))
+              others (filterv #(not= (:member_id %) uid) ballots)
+              cast (conj others {:member_id uid :vote vote :note note
+                                 :on (str (LocalDate/now))})]
+          (s/change! q project record (:status record)
+            {:ccb_ballots cast
+             :workflow_history
+             (conj (vec (:workflow_history record))
+               {:action "ccb_ballot" :actor_id uid
+                :on (str (LocalDate/now)) :vote vote})}))))))
+
+
 (defn approved-change!
   "验证后续基线命令所引用的变更确已通过独立批准."
   [q project rid]
@@ -196,7 +277,9 @@
 (defn change-read-model
   "为变更读模型补充只读派生高影响判定: 工期影响达到阈值或成本影响金额达到阈值时 change_high_impact 为 true; 仅读取时计算, 不落存储."
   [record]
-  (assoc record :change_high_impact (high-impact? record)))
+  (-> record
+      (assoc :change_high_impact (high-impact? record))
+      (assoc :ccb_summary (ccb-tally record))))
 
 
 (defn- finalize-charter!

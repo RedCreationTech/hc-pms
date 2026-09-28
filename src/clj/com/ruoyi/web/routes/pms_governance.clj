@@ -64,6 +64,8 @@
     (command-route svc "/changes/:record_id/submit" :changes :submit)
     (command-route svc "/changes/:record_id/decision" :changes :decision)
     (command-route svc "/changes/:record_id/escalation" :changes :escalation)
+    (command-route svc "/changes/:record_id/ccb" :changes :ccb)
+    (command-route svc "/changes/:record_id/ballot" :changes :ballot)
     (command-route svc "/gate-templates" :gate-templates :create)
     (command-route svc "/gate-templates/from-catalog" :gate-templates :from-catalog)
     (command-route svc "/template-instances" :template-instances :create)
