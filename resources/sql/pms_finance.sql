@@ -103,3 +103,74 @@ VALUES (:allocation_id,:project_id,:version_id,:idempotency_key,:amount_minor,:f
 UPDATE pms_cost_version SET status='cancelled',review_note=:review_note
 WHERE project_id=:project_id AND version_id=:version_id AND status IN ('draft','rejected')
 --;;
+-- :name finance/commitments :? :*
+SELECT c.*,r.nick_name AS reviewer_name FROM pms_cost_commitment c
+LEFT JOIN sys_user r ON r.user_id=c.reviewer_id
+WHERE c.project_id=:project_id ORDER BY c.created_at DESC, c.commitment_id
+--;;
+-- :name finance/commitment :? :1
+SELECT * FROM pms_cost_commitment WHERE project_id=:project_id AND commitment_id=:commitment_id
+--;;
+-- :name finance/commitment-next-no :? :1
+SELECT COALESCE(MAX(version_no),0)+1 AS next_no FROM pms_cost_commitment
+WHERE project_id=:project_id AND code=:code
+--;;
+-- :name finance/insert-commitment! :! :n
+INSERT INTO pms_cost_commitment(commitment_id,project_id,kind,code,supplier,currency,gross_minor,base_currency,base_minor,exchange_rate,description,version_no,status,submitted_by,reviewer_id)
+VALUES (:commitment_id,:project_id,:kind,:code,:supplier,:currency,:gross_minor,:base_currency,:base_minor,:exchange_rate,:description,:version_no,'draft',:submitted_by,:reviewer_id)
+--;;
+-- :name finance/update-commitment-draft! :! :n
+UPDATE pms_cost_commitment SET kind=:kind, supplier=:supplier, currency=:currency,
+  gross_minor=:gross_minor, base_currency=:base_currency, base_minor=:base_minor,
+  exchange_rate=:exchange_rate, description=:description
+WHERE project_id=:project_id AND commitment_id=:commitment_id AND status='draft'
+--;;
+-- :name finance/submit-commitment! :! :n
+UPDATE pms_cost_commitment SET status='submitted', submitted_by=:submitted_by,
+  snapshot_json=:snapshot_json, control_note=:control_note
+WHERE project_id=:project_id AND commitment_id=:commitment_id AND status='draft'
+--;;
+-- :name finance/review-commitment! :! :n
+UPDATE pms_cost_commitment SET status=:status, review_note=:review_note, reviewed_at=CURRENT_TIMESTAMP
+WHERE project_id=:project_id AND commitment_id=:commitment_id AND status='submitted'
+--;;
+-- :name finance/release-commitment! :! :n
+UPDATE pms_cost_commitment SET released_minor=:released_minor, status=:status, released_at=CURRENT_TIMESTAMP
+WHERE project_id=:project_id AND commitment_id=:commitment_id AND status='approved'
+--;;
+-- :name finance/cancel-commitment! :! :n
+UPDATE pms_cost_commitment SET status='cancelled', review_note=:review_note
+WHERE project_id=:project_id AND commitment_id=:commitment_id AND status IN ('draft','rejected')
+--;;
+-- :name finance/commitment-consumed :? :1
+SELECT COALESCE(SUM(base_minor),0) AS committed_minor FROM pms_cost_commitment
+WHERE project_id=:project_id AND status IN ('submitted','approved')
+--;;
+-- :name finance/budget-rules :? :*
+SELECT * FROM pms_budget_control_rule
+WHERE (project_id=:project_id OR project_id IS NULL)
+ORDER BY (project_id IS NULL), baseline, threshold_pct
+--;;
+-- :name finance/budget-rule :? :1
+SELECT * FROM pms_budget_control_rule WHERE rule_id=:rule_id
+--;;
+-- :name finance/insert-budget-rule! :! :n
+INSERT INTO pms_budget_control_rule(rule_id,project_id,baseline,threshold_pct,action,enabled,note,created_by)
+VALUES (:rule_id,:project_id,:baseline,:threshold_pct,:action,:enabled,:note,:created_by)
+--;;
+-- :name finance/update-budget-rule! :! :n
+UPDATE pms_budget_control_rule SET threshold_pct=:threshold_pct, action=:action,
+  enabled=:enabled, note=:note, updated_at=CURRENT_TIMESTAMP
+WHERE rule_id=:rule_id
+--;;
+-- :name finance/latest-approved-total :? :1
+SELECT v.version_id, v.currency,
+  COALESCE((SELECT SUM(e.amount_minor) FROM pms_cost_entry e WHERE e.project_id=v.project_id AND e.version_id=v.version_id),0) AS total_minor
+FROM pms_cost_version v
+WHERE v.project_id=:project_id AND v.kind=:kind AND v.status='approved'
+ORDER BY v.period DESC, v.version_no DESC LIMIT 1
+--;;
+-- :name finance/disable-budget-rule! :! :n
+UPDATE pms_budget_control_rule SET enabled=0, note=:note, updated_at=CURRENT_TIMESTAMP
+WHERE rule_id=:rule_id
+--;;

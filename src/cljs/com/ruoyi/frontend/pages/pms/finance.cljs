@@ -13,6 +13,12 @@
 (def categories [{:value "material" :label "材料"} {:value "labor" :label "人工"}
                  {:value "manufacturing" :label "制造"} {:value "travel" :label "差旅"}
                  {:value "other" :label "其他"} {:value "change_loss" :label "变更损失"}])
+(def commitment-kinds [{:value "contract" :label "合同"} {:value "purchase" :label "采购"}
+                       {:value "labor" :label "人工"} {:value "other" :label "其他"}])
+(def currencies ["CNY" "USD" "EUR" "GBP" "HKD"])
+(def budget-baselines [{:value "estimate" :label "概算"} {:value "budget" :label "预算"}])
+(def budget-action-options [{:value "warn" :label "提醒"} {:value "require_approval" :label "需上级审批"}
+                            {:value "block" :label "阻断"}])
 
 (defn- cost-dialog
   "新建固定期间与币种的独立成本版本."
@@ -21,7 +27,7 @@
    :fields [{:key :name :label "成本版本名称" :required? true}
             {:key :kind :label "成本阶段" :type :select :options kinds :required? true}
             {:key :period :label "核算期间" :required? true :hint "YYYY-MM,例如2026-09"}
-            {:key :currency :label "币种" :type :select :options (mapv #(hash-map :value % :label %) ["CNY" "USD" "EUR" "GBP" "HKD"]) :required? true}
+            {:key :currency :label "币种" :type :select :options (mapv #(hash-map :value % :label %) currencies) :required? true}
             {:key :revenue :label "收入金额" :required? true :hint "精确到小数点后两位,同版本禁止混币."}
             (forms/reviewer-field options)]})
 
@@ -61,6 +67,95 @@
   [path decision title]
   {:title title :path path :transform #(assoc % :decision decision)
    :fields [{:key :reason :label "审批意见" :type :textarea :required? true}]})
+
+(defn- commitment-dialog
+  "H12 登记承诺草稿, 支持本位币种和汇率折算."
+  [base options]
+  {:title "登记承诺" :path (str base "/commitments") :initial {:kind "purchase" :currency "CNY" :base_currency "CNY" :exchange_rate "1"}
+   :description "承诺=已下达但尚未验收/结算的义务. 外币需填写折算汇率, 本位金额=总额×汇率, 保留两位小数."
+   :fields [{:key :code :label "承诺编号" :required? true :hint "同一项目内不可重复"}
+            {:key :kind :label "承诺类别" :type :select :options commitment-kinds :required? true}
+            {:key :supplier :label "供应商/承包方" :required? true}
+            {:key :currency :label "结算币种" :type :select :options (mapv #(hash-map :value % :label %) currencies) :required? true}
+            {:key :gross :label "结算总额" :required? true :hint "精确到小数点后两位."}
+            {:key :base_currency :label "本位币种" :type :select :options (mapv #(hash-map :value % :label %) currencies) :required? true}
+            {:key :exchange_rate :label "折算汇率" :required? true :hint "结算币种→本位币种, 例如 7.1234"}
+            {:key :description :label "备注" :type :textarea}
+            (forms/reviewer-field options)]})
+
+(defn- commitment-edit-dialog
+  "H12 草稿可修改, 提交后禁止."
+  [base options commitment]
+  {:title "修改承诺草稿" :method :put :path (str base "/commitments/" (:id commitment))
+   :initial (select-keys commitment [:kind :supplier :currency :gross :base_currency :exchange_rate :description])
+   :fields [{:key :kind :label "承诺类别" :type :select :options commitment-kinds :required? true}
+            {:key :supplier :label "供应商/承包方" :required? true}
+            {:key :currency :label "结算币种" :type :select :options (mapv #(hash-map :value % :label %) currencies) :required? true}
+            {:key :gross :label "结算总额" :required? true}
+            {:key :base_currency :label "本位币种" :type :select :options (mapv #(hash-map :value % :label %) currencies) :required? true}
+            {:key :exchange_rate :label "折算汇率" :required? true}
+            {:key :description :label "备注" :type :textarea}
+            (forms/reviewer-field options)]})
+
+(defn- commitment-submit-dialog
+  "H12 提交承诺触发预算占用评估; 常规提交不携带 override_block."
+  [base commitment]
+  {:title "提交承诺" :path (str base "/commitments/" (:id commitment) "/submit")
+   :description (str "将按所选基线评估预算占用率. 上次评估: " (or (:control_note commitment) "首次提交"))
+   :initial {:baseline "budget"}
+   :fields [{:key :baseline :label "评估基线" :type :select :options budget-baselines :required? true}
+            {:key :reason :label "备注" :type :textarea}]})
+
+(defn- commitment-override-dialog
+  "H12 阻断时携带 override_block=true 强制放行, 记录审批理由."
+  [base commitment]
+  {:title "强制放行提交" :path (str base "/commitments/" (:id commitment) "/submit")
+   :description "预算占用已触发阻断规则. 强制放行会写入审计, 请说明理由并确认权限."
+   :initial {:baseline "budget"}
+   :transform #(assoc % :override_block true)
+   :fields [{:key :baseline :label "评估基线" :type :select :options budget-baselines :required? true}
+            {:key :reason :label "放行理由" :type :textarea :required? true}]})
+
+(defn- commitment-release-dialog
+  "H12 已批准承诺可按剩余转实付."
+  [base commitment]
+  {:title "转实付" :path (str base "/commitments/" (:id commitment) "/release")
+   :description (str "剩余可释放: " (or (:remaining commitment) "0.00") ", 全额释放后自动进入已释放状态.")
+   :fields [{:key :amount :label "本次释放金额" :required? true :hint "本位币种口径, 精确到小数点后两位."}]})
+
+(defn- commitment-cancel-dialog
+  "H12 只有草稿或被驳回可取消."
+  [base commitment]
+  {:title "取消承诺" :path (str base "/commitments/" (:id commitment) "/cancel")
+   :description "已批准或已释放的承诺不允许直接取消."
+   :fields [{:key :reason :label "取消原因" :type :textarea :required? true}]})
+
+(defn- commitment-review-dialog
+  "H12 独立审批承诺."
+  [base commitment decision]
+  {:title (if (= decision "approved") "批准承诺" "驳回承诺")
+   :path (str base "/commitments/" (:id commitment) "/review")
+   :transform #(assoc % :decision decision)
+   :fields [{:key :reason :label (if (= decision "rejected") "驳回原因" "审批意见") :type :textarea :required? (= decision "rejected")}]})
+
+(defn- budget-rule-dialog
+  "H12 新增项目层预算控制规则."
+  [base]
+  {:title "新增项目预算控制规则" :path (str base "/budget-rules")
+   :initial {:baseline "budget" :action "warn" :threshold_pct 90}
+   :description "项目层规则只影响本项目; 阈值=预算占用率百分比, 达到即触发. 触发阻断时提交需要显式强制放行."
+   :transform #(assoc % :enabled true :project_scoped true)
+   :fields [{:key :baseline :label "评估基线" :type :select :options budget-baselines :required? true}
+            {:key :threshold_pct :label "阈值(%)" :type :number :min 5 :max 500 :required? true}
+            {:key :action :label "动作" :type :select :options budget-action-options :required? true}
+            {:key :note :label "备注" :type :textarea :required? true}]})
+
+(defn- budget-rule-disable-dialog
+  "H12 停用预算控制规则, 保留历史."
+  [base rule]
+  {:title "停用规则" :path (str base "/budget-rules/" (:id rule) "/disable")
+   :description (str "基线=" (:baseline rule) ", 阈值=" (:threshold_pct rule) "%, 动作=" (:action rule))
+   :fields [{:key :reason :label "停用原因" :type :textarea :required? true}]})
 
 (defn- reviewer?
   "限定指定审批人与提交人分离."
@@ -193,6 +288,99 @@
      (w/text-column :from_date "开始日期") (w/text-column :to_date "结束日期")
      (w/text-column :idempotency_key "业务批次") (w/text-column :input_hash "输入摘要")] nil]])
 
+(defn- commitment-status-tag
+  [status]
+  (r/as-element [antd/tag {:color (case status
+                                    "draft" "default"
+                                    "submitted" "blue"
+                                    "approved" "green"
+                                    "rejected" "red"
+                                    "released" "purple"
+                                    "cancelled" "default"
+                                    "blue")}
+                 (get {"draft" "草稿" "submitted" "待审批" "approved" "已批准"
+                       "rejected" "已驳回" "released" "已释放" "cancelled" "已取消"} status status)]))
+
+(defn- commitment-actions
+  "按承诺状态提供草稿修改/提交/审批/释放/取消入口."
+  [{:keys [base options editable? approve? open!]} commitment]
+  (let [status (:status commitment)]
+    [antd/space {:wrap true}
+     (when (and editable? (= "draft" status))
+       [:<>
+        [w/edit-button "修改" #(open! (commitment-edit-dialog base options commitment))]
+        [w/edit-button "提交" #(open! (commitment-submit-dialog base commitment))]
+        [w/edit-button "强制放行" #(open! (commitment-override-dialog base commitment))]
+        [w/edit-button "取消" #(open! (commitment-cancel-dialog base commitment))]])
+     (when (and editable? (= "rejected" status))
+       [w/edit-button "取消" #(open! (commitment-cancel-dialog base commitment))])
+     (when (and approve? (= "submitted" status) (reviewer? options commitment))
+       [:<>
+        [w/edit-button "批准" #(open! (commitment-review-dialog base commitment "approved"))]
+        [w/edit-button "驳回" #(open! (commitment-review-dialog base commitment "rejected"))]])
+     (when (and editable? (= "approved" status))
+       [w/edit-button "转实付" #(open! (commitment-release-dialog base commitment))])]))
+
+(defn- commitment-section
+  "H12 承诺台账: 已下达但未验收/结算的义务, 独立审批+预算占用评估."
+  [{:keys [base model options editable? open!] :as context}]
+  [shared/panel "承诺台账" "合同/采购/人工/其他承诺, 提交时按预算占用评估, 支持部分转实付"
+   (when editable? [antd/button {:type "primary" :on-click #(open! (commitment-dialog base options))} "登记承诺"])
+   [w/record-table (:commitments model)
+    [(w/text-column :code "承诺编号")
+     {:title "类别" :dataIndex "kind" :render #(or (:label (some (fn [x] (when (= % (:value x)) x)) commitment-kinds)) %)}
+     (w/text-column :supplier "供应商/承包方")
+     (w/text-column :gross "结算总额") (w/text-column :currency "币种")
+     (w/text-column :base "本位金额") (w/text-column :released "已释放")
+     (w/text-column :remaining "剩余")
+     {:title "预算评估" :dataIndex "control_note" :width 220 :render (fn [v] (r/as-element [:span {:style {:fontSize 12 :color "#718096"}} (or v "—")]))}
+     {:title "状态" :dataIndex "status" :width 100 :render commitment-status-tag}]
+    (fn [row] (commitment-actions context row))]])
+
+(defn- format-minor
+  [v]
+  (if (nil? v) "—" (.toFixed (/ (double v) 100.0) 2)))
+
+(defn- budget-control-panel
+  "H12 预算占用评估: 显示基线/占用率/触发规则/决策."
+  [{:keys [model]}]
+  (let [control (get-in model [:budget_control :budget])]
+    [shared/panel "预算占用评估" "预算基线口径下的已承诺占用率与最近一次提交的门控决定" nil
+     (if-not (:comparable control)
+       [:span {:style {:color "#98a2b3"}} "尚无已批准预算基线, 无法评估占用率."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "已批准预算 " (or (:currency control) "") " " (format-minor (get-in control [:budget :total_minor])))]
+         [antd/tag (str "已承诺 " (format-minor (:consumed_minor control)))]
+         [antd/tag {:color (if (and (:remaining_minor control) (neg? (:remaining_minor control))) "red" "default")}
+                    (str "剩余 " (format-minor (:remaining_minor control)))]
+         [antd/tag {:color (case (:decision control) "block" "red" "require_approval" "orange" "warn" "gold" "green")}
+                    (str "占用率 " (or (:ratio_pct control) 0) "% · "
+                         (get {"ok" "未触发" "warn" "触发提醒" "require_approval" "需上级审批" "block" "触发阻断"} (:decision control) ""))]]
+        (when (seq (:triggered control))
+          [antd/space {:wrap true}
+           (for [t (:triggered control)] ^{:key (:rule_id t)}
+             [antd/tag {:color (get {"warn" "gold" "require_approval" "orange" "block" "red"} (:action t) "blue")}
+                        (str (:action t) " @ " (:threshold_pct t) "%")])])])]))
+
+(defn- budget-rules-section
+  "H12 预算控制规则: 系统默认与项目层叠加, 项目层可覆盖."
+  [{:keys [base model editable? open!]}]
+  [shared/panel "预算控制规则" "系统默认与项目层规则共同生效, 阈值命中即触发"
+   (when editable? [antd/button {:on-click #(open! (budget-rule-dialog base))} "新增项目规则"])
+   [w/record-table (:budget_rules model)
+    [{:title "作用域" :dataIndex "project_id" :width 90
+      :render (fn [v] (r/as-element [antd/tag {:color (if v "green" "blue")} (if v "项目层" "系统默认")]))}
+     (w/text-column :baseline "基线")
+     (w/text-column :threshold_pct "阈值(%)")
+     {:title "动作" :dataIndex "action" :render (fn [v] (r/as-element [antd/tag {:color (get {"warn" "gold" "require_approval" "orange" "block" "red"} v "default")} v]))}
+     {:title "启用" :dataIndex "enabled" :width 80
+      :render (fn [v] (r/as-element [antd/tag {:color (if v "green" "default")} (if v "已启用" "已停用")]))}
+     (w/text-column :note "备注")]
+    (fn [rule]
+      (when (and editable? (:enabled rule))
+        [w/edit-button "停用" #(open! (budget-rule-disable-dialog base rule))]))]])
+
 (defn- finance-content
   "以成本与工时双视图组织财务工作."
   [context selected]
@@ -206,6 +394,11 @@
                         :children (r/as-element [:div {:style {:display "grid" :gap 20}}
                                                 [four-count-section context]
                                                 [cost-section context] [ledger-section context selected] [allocation-history (:model context)]])}
+                       {:key "commitments" :label "承诺与预算控制"
+                        :children (r/as-element [:div {:style {:display "grid" :gap 20}}
+                                                 [budget-control-panel context]
+                                                 [commitment-section context]
+                                                 [budget-rules-section context]])}
                        {:key "time" :label "实际工时" :children (r/as-element [time-section context])}]}]])
 
 (defn- finance-data

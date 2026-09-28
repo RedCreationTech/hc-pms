@@ -22,6 +22,30 @@ POST版本路径的 `/submit` 冻结快照; `/review` 需finance:approve且指�
 
 POST `/cost-versions/:cost_id/allocate`: amount/from_date/to_date/idempotency_key/label. 仅当前费用期间内已批准工时参与,按任务分钟权重用最大余数法精确分摊,差额确定地分给最高余数任务,总额守恒. 没有批准工时409. 输入工时ID/金额/版本/输出结果与SHA256持久化,重复幂等键同内容返回旧结果,不同内容409. 生成的labor条目不可单独删除. 当前是单项目费用池到任务的分配,不声称完成跨项目共享研发池或人工费率有效期核算.
 
+## 承诺成本与预算控制 (H12)
+
+承诺是"已签合同/已下订单但尚未实际发生"的占用, 与实际费用分列, 转实付时按释放金额从承诺扣除并计入实际, 不双计. 预算控制规则按基线口径(estimate或budget)对占用率设阈值, 提交承诺时评估并门控.
+
+GET `/finance` 在四算之外追加 `commitments`(承诺台账列表) 与 `budget_control`(以budget基线、本次追加0占用评估的当前快照, 字段comparable/currency/budget/consumed_minor/remaining_minor/ratio_pct/triggered/decision). 金额均以整数最小货币单位存储并回显两位小数字符串, 不做隐式换汇.
+
+POST `/commitments`: finance:edit, 登记草稿. 字段kind(contract/purchase/labor/other),code(必填唯一编号),supplier,currency,base_currency(缺省CNY),gross(>0,最多两位小数),exchange_rate(同币种时强制为1),description,reviewer_id(须为另一有效项目成员). 本位金额base=gross×exchange_rate(HALF_UP到最小单位). 状态draft.
+
+PUT `/commitments/:commitment_id`: 仅draft可改, 字段同登记(不含code). 提交后不可回改.
+
+POST `/commitments/:commitment_id/submit`: 字段baseline(estimate/budget,缺省budget),reason,override_block(boolean). 提交前用 `budget/evaluate` 计算占用率 = round(100×(已承诺 + 本次base) / 已批准基线总额). 命中action=block的启用规则且未勾选override_block时返回409并给出占用率与触发规则, 承诺保持draft; 携带override_block=true可强制放行进入submitted, 放行理由写入control_note. 基线不可比(无已批准基线或总额为0)时不门控直接进入submitted. submitted/approved状态的承诺计入"已承诺"占用, released/cancelled不再计入.
+
+POST `/commitments/:commitment_id/review`: finance:approve,指定非提交者的独立审批人,decision为approved/rejected,拒绝须reason. 决定不可覆盖.
+
+POST `/commitments/:commitment_id/release`: 部分或全部转实付,字段amount(>0,不超过剩余). 释放额累加到released并回写实际口径, 剩余=base−released守恒, 全部释放后状态转released, 部分释放保持approved.
+
+POST `/commitments/:commitment_id/cancel`: 字段reason, 仅draft/submitted/approved可取消, 转cancelled并释放占用.
+
+POST `/budget-rules`: finance:approve,新增或更新预算控制规则. 字段baseline(estimate/budget),threshold_pct(5–500),action(warn/require_approval/block),note. 带project_scoped时绑定本项目(project_id非空), 否则为系统默认(project_id为空). 系统内置默认规则: budget warn@80、budget block@100. GET `/finance` 的规则台账同时展示系统默认与项目层规则.
+
+POST `/budget-rules/:rule_id/disable`: finance:approve,停用规则(enabled=0),字段note. 停用不删除历史, 只退出后续评估.
+
+评估决策decision为ok/warn/require_approval/block四档, 由触发规则中的最高severity决定; warn与require_approval不阻断提交(block以外), 仅在面板提示. 本轮为本地预算占用门控与承诺-实际分离, 不宣称完成税额/收入确认/多币种对账/封期(见H13)或与外部ERP总账同步.
+
 ## 收尾和关闭
 
 GET `/closure`: project:query,返回checks/handoffs/lessons/approval/reopen_request/blockers/ready/project_version. 不包含成本金额或批准快照正文. ready只表示业务材料齐备,最终closed仍须独立批准.

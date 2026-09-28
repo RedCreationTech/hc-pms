@@ -731,6 +731,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 未执行 (如实记录): 本机 macOS Chrome 复验; 视频无配音 (字幕 + 原创配乐); 事业部负责人第三级审批经真实 HTTP 完成而未入镜; 视频与录屏素材在 `reports/config-video/` (不入库, 本机文件夹同步成片与字幕). 性能提示: 全量进度扫描是同步逐项目处理, SQLite 开发库上约 0.5 秒/项目, 项目数上百时手动触发的 HTTP 扫描会超过常见网关超时 (定时任务不受影响), 未在本轮优化.
 
+## H12 承诺成本与预算控制 (本轮增补, 2026-09-27)
+
+设计与关闭口径: 兑现矩阵 H12 长期列为"承诺与实际分列不双计 / 超支审批样例仍待补齐"的一环. 这是财务域一条**新增迁移**的纵切(不同于近期一批免迁移增量): 新表 `pms_cost_commitment`(承诺台账, 状态机 draft/submitted/approved/rejected/released/cancelled, 含 currency/base_currency/exchange_rate/gross_minor/base_minor/released_minor/control_note/reviewer_id) 与 `pms_budget_control_rule`(预算控制规则, baseline=estimate|budget, action=warn|require_approval|block, threshold_pct 5-500, project_id 可空=系统默认), SQLite 与 MySQL 两套迁移同步, 每条语句以 `--;;` 分隔, 并种子两条系统默认规则(budget warn@80、budget block@100). 领域拆为 `finance-commitment`(状态机命令 create!/update-draft!/submit!/review!/release!/cancel!) 与 `finance-budget`(纯函数 `evaluate` 计算占用率 = round(100×(已承诺 + 本次base)/已批准基线总额), `active-rules`/`upsert-rule!`/`disable-rule!`/`list-rules`). 关键门控: `submit!` 调 `evaluate-and-gate!`, 命中 action=block 的启用规则且未携带 `override_block` 时返回 409 并保持 draft, 携带 override_block 强制放行进入 submitted 且把理由写入 control_note; 基线不可比(无已批准基线或总额为0)不门控. 占用口径 `commitment-consumed` 只累加 status IN (submitted,approved) 的 base_minor, 故 released/cancelled 不再计入, 部分转实付 `release!` 按 amount 累加 released 并保证剩余=base−released 守恒、不双计. GET `/finance` 追加 `commitments` 与 `budget_control`(以 budget 基线、本次追加0评估的当前快照). 前端"项目费用"页签新增第三子页签"承诺与预算控制": 承诺台账(登记/修改/提交/强制放行/批准/转实付/取消) + "预算占用评估"面板(已批准预算/已承诺/剩余/占用率·决策 + 触发规则标签) + 预算控制规则台账(系统默认与项目层并存). 关键前端坑: 后端 `:decision` keyword 经 cheshire 序列化为 JSON 字符串, 前端 `js->clj :keywordize-keys true` 只关键字化键不关键字化值, 故面板决策 `case`/`get` 必须用字符串键("block"/"warn"/"require_approval"/"ok"), 否则决策标签与颜色为空.
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| H12 财务承诺测试 (CLI SQLite) | 7 tests / 53 assertions, 0 failures/errors | `clojure -M:test -n com.ruoyi.pms-finance-commitment-test`: 状态机与约束/币种汇率校验/草稿编辑与取消/预算评估与阻断/warn规则与强制放行/规则upsert/概览暴露承诺与控制快照 |
+| 全量 PMS 回归 (CLI SQLite) | 147 tests / 1489 assertions, 0 failures/errors | `clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'` 全新库通过, 新增两表迁移与既有四算/工时/收尾用例无回归 |
+| 前端编译 | 5 files / 0 warnings | `npx shadow-cljs compile app` 通过, 承诺台账/占用评估面板/预算规则台账与决策字符串键修复一并编译 |
+| Chrome 浏览器 (Playwright) | 1 passed | `pms-h12.spec.js` (隔离 `:3100` 后端, 独立空库, 双真实上下文): admin 经第二审批人建立已批准预算基线 1000.00 CNY -> 界面登记承诺 CMT 1200.00 (截图 h12-1) -> 界面提交命中系统默认 block@100% 真实 409, 弹窗内红色告警"预算占用率 120% 触发阻断规则, 需上级修改规则或勾选强制放行才能提交"(截图 h12-2) -> 强制放行(理由"总经理特批: 战略设备锁定产能")进入待审批, 面板显示"占用率 120% · 触发阻断"与 warn@80%/block@100% 触发标签, admin 无批准入口(截图 h12-3) -> 独立审批人第二上下文批准(截图 h12-4) -> 部分转实付 700.00 剩余 500.00 状态保持已批准(截图 h12-5) -> 新增项目层规则 95%需上级审批与系统默认并存可见(截图 h12-6); GET `/finance` 二次确认 status=released 前为 approved、released=700.00、control_note 含放行/特批/战略、budget_control.comparable=true、consumed_minor=120000; 全程无 pageerrors; 截图存 `reports/h12/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归仅在 SQLite 本地跑通, 双库迁移文件已同步但本机无 MySQL 实例未实跑; 预测完工成本 EAC(基于绩效/剩余估算的完工预测)未实现, 面板只做"已承诺占用率"不做 EAC 曲线; 税额/收入确认/多币种对账/封期/开票回款付款结算归 H13 未触碰; 强制放行(override_block)目前只留痕不做额外上级会签门槛, 未接通放行后的通知投递; 未与外部 ERP 总账同步.
+
+边界: H12 交付的是"承诺与实际分列不双计 + 预算基线口径占用率门控(warn/require_approval/block) + 强制放行留痕 + 部分转实付剩余守恒"这一条本地闭环, 覆盖矩阵 H12"已批准预算/已承诺未发生/实际与剩余区分/阈值超支进入批准流程"的 `implemented / local` 子集; 但 H12 行仍含"预测完工成本 EAC 公式""税额/多币种/封期对账(与 H13 交叠)"等未完成子项, 故按整行完整目标看仍属工程验证, 不等于生产财务签收.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

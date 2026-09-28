@@ -1,6 +1,8 @@
 (ns com.ruoyi.domain.pms.finance
   "四算, 工时和费用分摊读取模型, 财务金额查询拥有独立功能权限."
   (:require [com.ruoyi.domain.pms.finance-allocation :as allocation]
+            [com.ruoyi.domain.pms.finance-budget :as budget]
+            [com.ruoyi.domain.pms.finance-commitment :as commitment]
             [com.ruoyi.domain.pms.finance-cost :as cost]
             [com.ruoyi.domain.pms.finance-money :as money]
             [com.ruoyi.domain.pms.finance-time :as time]
@@ -49,7 +51,11 @@
         (merge {:project_version (:version project) :cost_versions versions
                 :time_entries (mapv time/dto (q :finance/times {:project_id project-id}))
                 :allocations (mapv allocation/dto (q :finance/allocations {:project_id project-id}))
-                :four_count (four-count-comparison versions)}
+                :four_count (four-count-comparison versions)
+                :commitments (commitment/list-all q project-id)
+                :budget_rules (budget/list-rules q project-id)
+                :budget_control {:budget (budget/evaluate q project-id "budget" 0)
+                                 :estimate (budget/evaluate q project-id "estimate" 0)}}
                (summary versions))))))
 
 (defn times

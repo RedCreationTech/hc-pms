@@ -2,6 +2,8 @@
   "挂载在/api/pms下的财务版本, 成本和独立工时业务路由."
   (:require [com.ruoyi.domain.pms.finance :as finance]
             [com.ruoyi.domain.pms.finance-allocation :as allocation]
+            [com.ruoyi.domain.pms.finance-budget :as budget]
+            [com.ruoyi.domain.pms.finance-commitment :as commitment]
             [com.ruoyi.domain.pms.finance-cost :as cost]
             [com.ruoyi.domain.pms.finance-time :as time]
             [com.ruoyi.web.controllers.pms-finance :as controller]))
@@ -30,4 +32,12 @@
    ["/projects/:id/cost-versions/:cost_id/review" {:post (command svc cost/review! [:cost_id])}]
    ["/projects/:id/cost-versions/:cost_id/revise" {:post (command svc cost/revise! [:cost_id])}]
    ["/projects/:id/cost-versions/:cost_id/cancel" {:post (command svc cost/cancel! [:cost_id])}]
-   ["/projects/:id/cost-versions/:cost_id/allocate" {:post (command svc allocation/allocate! [:cost_id])}]])
+   ["/projects/:id/cost-versions/:cost_id/allocate" {:post (command svc allocation/allocate! [:cost_id])}]
+   ["/projects/:id/commitments" {:post (command svc commitment/create! [])}]
+   ["/projects/:id/commitments/:commitment_id" {:put (command svc commitment/update-draft! [:commitment_id])}]
+   ["/projects/:id/commitments/:commitment_id/submit" {:post (command svc commitment/submit! [:commitment_id])}]
+   ["/projects/:id/commitments/:commitment_id/review" {:post (command svc commitment/review! [:commitment_id])}]
+   ["/projects/:id/commitments/:commitment_id/release" {:post (command svc commitment/release! [:commitment_id])}]
+   ["/projects/:id/commitments/:commitment_id/cancel" {:post (command svc commitment/cancel! [:commitment_id])}]
+   ["/projects/:id/budget-rules" {:post (command svc budget/upsert-rule! [])}]
+   ["/projects/:id/budget-rules/:rule_id/disable" {:post (command svc budget/disable-rule! [:rule_id])}]])
