@@ -17,6 +17,23 @@
   #{"avoid" "transfer" "mitigate" "accept"})
 
 
+(defn risk-response-coverage
+  "按每个风险最新有效版本统计应对策略声明的只读覆盖度: PMI 四类策略各自计数, 已声明/未设定与覆盖率; 只读派生, 不落库不投递, 不改变风险状态."
+  [risks]
+  (let [strategies ["avoid" "transfer" "mitigate" "accept"]
+        active (s/latest risks)
+        total (count active)
+        declared (count (filterv #(some #{(:response_strategy %)} strategies) active))
+        strategy-count (fn [x] (count (filterv #(= x (:response_strategy %)) active)))]
+    {:total total
+     :declared declared
+     :undeclared (- total declared)
+     :coverage-pct (if (pos? total)
+                     (int (Math/round ^double (* 100.0 (/ declared total))))
+                     0)
+     :by-strategy (mapv (fn [x] {:strategy x :count (strategy-count x)}) strategies)}))
+
+
 (defn- insert-risk!
   "写入风险记录: 统一按概率 x 影响评分, 达阈值自动标记超阈值升级, 可选携带阶段与风险库来源信息; 评分与升级判定共用 risk-assessment 纯函数."
   [q project actor fields]

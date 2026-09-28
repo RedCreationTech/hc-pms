@@ -1349,6 +1349,47 @@
       (is (= "cost-overrun" (:source_key lib))))))
 
 
+(deftest risk-response-strategy-coverage-is-derived-read-only
+  (let [id (project!)
+        cov (fn [] (:risk_response_coverage (workspace id)))
+        risk (fn [title strategy]
+               (command! id :risks :create nil
+                         (cond-> {:title title :probability 2 :impact 3
+                                  :owner_id 9301 :mitigation "常规措施" :due_date "2026-10-20"}
+                           strategy (assoc :response_strategy strategy))))
+        s (fn [k] (:count (first (filter #(= k (:strategy %)) (:by-strategy (cov))))))]
+    ;; 四类策略按每个风险最新有效版本统计声明覆盖度: 已声明计入分子, 未设定只计入分母.
+    (risk "供应中断风险" "transfer")
+    (risk "技术选型风险" "avoid")
+    (risk "到货延迟风险" "transfer")
+    (risk "常规观察风险" nil)
+    (is (= 4 (:total (cov))))
+    (is (= 3 (:declared (cov))))
+    (is (= 1 (:undeclared (cov))))
+    (is (= 75 (:coverage-pct (cov))))
+    (is (= 2 (s "transfer")))
+    (is (= 1 (s "avoid")))
+    (is (= 0 (s "mitigate")))
+    (is (= 0 (s "accept")))
+    ;; 再登记一条声明 mitigate 的风险: 覆盖度随已声明数上升, 四类顺序固定.
+    (risk "质量整改风险" "mitigate")
+    (is (= 5 (:total (cov))))
+    (is (= 4 (:declared (cov))))
+    (is (= 80 (:coverage-pct (cov))))
+    (is (= 1 (s "mitigate")))
+    ;; 从典型风险库实例化的风险同样计入分母 (库实例化默认不含策略, 记为未设定).
+    (command! id :risks :from-library nil {:template_key "cost-overrun" :owner_id 9301 :due_date "2026-10-20"})
+    (is (= 6 (:total (cov))))
+    (is (= 4 (:declared (cov))))
+    (is (= 2 (:undeclared (cov))))
+    (is (= 67 (:coverage-pct (cov))))
+    ;; 只读派生不改变风险状态: 重复读取覆盖度稳定, 既有风险仍为登记态且应对策略不漂移.
+    (is (= (cov) (:risk_response_coverage (workspace id))))
+    (let [row (first (filter #(= "供应中断风险" (:title %)) (:risks (workspace id))))]
+      (is (= "open" (:status row)))
+      (is (= "transfer" (:response_strategy row))))))
+
+
 (deftest comm-plan-log-advances-next-date-and-flags-overdue
   (let [id (project!)
         st (command! id :stakeholders :create nil

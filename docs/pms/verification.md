@@ -855,6 +855,19 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: H13c 交付的是"承诺成本纳入已封账会计期间的五条写路径门控 409 + 独立审批不受门控 + 承诺携带会计期间并回填历史 + 界面封账徽标与横幅可见"这一条本地闭环, 使矩阵 H13"封期"子项在工时/费用/承诺三类写路径上口径统一; 仍为 `implemented / local`, 不等于生产财务签收.
 
+## H08 风险应对策略覆盖度只读派生 (本轮增补, 2026-09-28)
+
+给治理工作台读模型新增派生字段 `risk_response_coverage`, 在"需求与治理 > 风险与问题"页签风险台账之后放一块"风险应对覆盖度"面板, 按每个风险的最新有效版本统计 PMI 四类应对策略 (规避 avoid / 转移 transfer / 减轻 mitigate / 接受 accept) 的声明情况: 总数, 已声明数, 未设定数, 覆盖率百分比与四类各自计数. 未选策略的风险只计入分母不计入分子, 从典型风险库实例化的风险默认不带策略同样计入未设定. 这是免迁移, 无新命令, 无新 kind 的只读派生 (与 C02v2 验证方式覆盖度, C06b 证据发布覆盖度同一模式), 不落库不投递, 不改变任何风险状态.
+
+| 证据 | 实际记录 |
+|---|---|
+| 治理单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 58 tests / 696 assertions, 0 failures/errors (新增 `risk-response-strategy-coverage-is-derived-read-only` 1 例 19 断言: 四类计数与 75%/80% 覆盖率, 库实例化计入未设定分母, 重复读取稳定, 既有风险仍登记态且策略不漂移) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 159 tests / 1611 assertions, 0 failures/errors, workspace 新增 `:risk_response_coverage` 未造成既有风险/问题/审批用例回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 warnings |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-h08rc.spec.js` 1 passed, 无未捕获 JS 错误: 界面登记转移/规避/不选三条风险 -> "风险应对覆盖度"面板显示"风险总数 3 / 已声明应对策略 67% / 未设定 1 / 规避·1 转移·1 减轻·0 接受·0" (截图 h08rc-1-coverage-panel.png); 再登记一条声明减轻 -> 升到"总数 4 / 75% / 减轻·1" (截图 h08rc-2-after-declare.png); 真实 HTTP GET governance 二次确认 `risk_response_coverage` 的 total/declared/undeclared/`['coverage-pct']`/`['by-strategy']` 与界面一致, 既有风险 `status=open` 且 `response_strategy=transfer` 不漂移 |
+
+边界: 该面板是"是否声明应对策略"的只读覆盖度聚合, 反映登记完整性而非"措施是否已落实/有效", 也不与缓解门控或复审联动拦截; H08 行仍为 `partial`, 升级通知投递与跨项目风险汇总升级仍待实现.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

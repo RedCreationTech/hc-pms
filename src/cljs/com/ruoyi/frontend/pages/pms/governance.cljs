@@ -514,6 +514,32 @@
    [review-actions context "risks" risk]])
 
 
+(defn- risk-coverage-section
+  "按每个风险最新有效版本只读聚合应对策略声明覆盖度: 四类策略各自计数与覆盖率; 只读派生, 不改变风险状态."
+  [{:keys [model]}]
+  (let [cov (:risk_response_coverage model)
+        total (:total cov 0)
+        undeclared (:undeclared cov 0)
+        pct (:coverage-pct cov 0)
+        strategy-label {"avoid" "规避" "transfer" "转移" "mitigate" "减轻" "accept" "接受"}]
+    [shared/panel "风险应对覆盖度" "按每个风险的最新有效版本统计 PMI 四类应对策略声明情况; 只读派生, 不改变风险状态"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无项目风险, 登记后可在此查看应对策略覆盖度."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "风险总数 " total)]
+         [antd/tag {:color (cond (= pct 100) "green" (zero? pct) "red" :else "gold")}
+          (str "已声明应对策略 " pct "%")]
+         (when (pos? undeclared)
+           [antd/tag {:color "orange"} (str "未设定 " undeclared)])]
+        [:div
+         [:span {:style {:fontWeight 500}} "按应对策略: "]
+         [antd/space {:wrap true}
+          (for [{:keys [strategy count]} (:by-strategy cov)]
+            ^{:key strategy} [antd/tag {:color (if (pos? count) "geekblue" "default")}
+                            (str (get strategy-label strategy strategy) " · " count)])]]])]))
+
+
 (defn- risk-section
   "风险台账保留应对,复评期限与独立关闭状态."
   [{:keys [base model options editable? open!] :as context}]
@@ -896,7 +922,7 @@
                      ["appointments" "成员任命" [appointment-section]]
                      ["stakeholders" "干系人与沟通" [stakeholder-section raci-section comm-plan-section]]
                      ["gates" "Gate评审" [gate-section]]
-                     ["risks" "风险与问题" [risk-section issue-section]]
+                     ["risks" "风险与问题" [risk-section risk-coverage-section issue-section]]
                      ["meetings" "会议行动" [meeting-section action-section]]
                      ["changes" "变更控制" [change-section]]
                      ["quality" "DQ与局部暂停" [dq-section pause-section]]])}])
