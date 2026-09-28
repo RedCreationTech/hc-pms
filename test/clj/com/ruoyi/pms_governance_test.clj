@@ -828,6 +828,57 @@
     (is (= 400 (error-status #(command! id :charters :create nil (assoc (charter-body) :schedule_impact_days 12)))))))
 
 
+(deftest high-impact-change-auto-escalates-and-gates-approval
+  (let [id (project!)
+        base-body {:title "更改设备范围" :reason "合同调整" :scope_impact "增加设备"
+                   :schedule_impact "增加十日" :cost_impact "重新估价" :quality_impact "增加测试"
+                   :resource_impact "追加工程师"}
+        change (command! id :changes :create nil
+                         (assoc base-body :schedule_impact_days 12 :cost_impact_amount "150000.5"))
+        rid (:id change)]
+    ;; 提交: 高影响变更自动进入升级待确认 (escalated + pending, level ccb), 状态 in_review.
+    (command! id :changes :submit rid {:reviewer_id 9302})
+    (let [row (first (filter #(= rid (:id %)) (:changes (workspace id))))]
+      (is (= "in_review" (:status row)))
+      (is (true? (:escalated row)))
+      (is (= "pending" (:escalation_state row)))
+      (is (= "ccb" (:escalation_level row)))
+      ;; 批准前必须先由变更控制独立确认: 指定审核人直接批准被 409 门控拒绝.
+      (is (= 409 (error-status #(command! 9302 id :changes :decision rid {:decision "approved" :reason "试图直接批准"})))))
+    ;; 升级确认不得由登记人/提交人本人完成 (登记与提交均为 9301).
+    (is (= 403 (error-status #(command! 9301 id :changes :escalation rid {:decision "approved" :note "本人确认被拒"}))))
+    ;; 由变更控制独立审批人(9303)确认后 -> acknowledged, 指定审核人方可批准.
+    (let [acked (command! 9303 id :changes :escalation rid {:decision "approved" :note "变更控制确认责成处置"})]
+      (is (= "acknowledged" (:escalation_state acked)))
+      (is (= 409 (error-status #(command! 9303 id :changes :escalation rid {:decision "approved" :note "重复确认"}))))
+      (is (= "approved" (:status (command! 9302 id :changes :decision rid {:decision "approved" :reason "确认后独立通过"}))))
+      (let [row (first (filter #(= rid (:id %)) (:changes (workspace id))))]
+        (is (= "approved" (:status row)))
+        (is (= "acknowledged" (:escalation_state row)))))))
+
+
+(deftest low-impact-and-high-impact-reject-are-not-escalation-gated
+  (let [id (project!)
+        base-body {:title "小范围调整" :reason "现场微调" :scope_impact "少量设备"
+                   :schedule_impact "增加两日" :cost_impact "小幅" :quality_impact "无额外"
+                   :resource_impact "无"}]
+    ;; 低量化影响: 提交不触发升级, 指定审核人可直接批准.
+    (let [low (command! id :changes :create nil (assoc base-body :schedule_impact_days 3 :cost_impact_amount "99999.99"))
+          lid (:id low)]
+      (command! id :changes :submit lid {:reviewer_id 9302})
+      (let [row (first (filter #(= lid (:id %)) (:changes (workspace id))))]
+        (is (nil? (:escalated row)))
+        (is (= "approved" (:status (command! 9302 id :changes :decision lid {:decision "approved" :reason "低影响直接通过"}))))))
+    ;; 高影响变更在升级待确认时仍可被驳回 (驳回不受门控).
+    (let [hi (command! id :changes :create nil (assoc base-body :title "重大范围变更" :schedule_impact_days 15 :cost_impact_amount "200000"))
+          hid (:id hi)]
+      (command! id :changes :submit hid {:reviewer_id 9302})
+      (let [row (first (filter #(= hid (:id %)) (:changes (workspace id))))]
+        (is (= "pending" (:escalation_state row)))
+        (is (= 409 (error-status #(command! 9302 id :changes :decision hid {:decision "approved" :reason "未确认不得批准"}))))
+        (is (= "rejected" (:status (command! 9302 id :changes :decision hid {:decision "rejected" :reason "高影响但直接否决无需确认"}))))))))
+
+
 (defn- request
   "经真实JWT及JSON中间件验证治理路由."
   [method path uid payload]

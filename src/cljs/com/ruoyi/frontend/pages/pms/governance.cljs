@@ -666,6 +666,17 @@
     #(action-actions context %)]])
 
 
+(defn- change-actions
+  "变更审批操作: 高影响变更须先由变更控制独立确认升级处置, 再交由指定审核人批准或驳回."
+  [{:keys [base model options approve? open!] :as context} change]
+  (let [current (:currentUserId options)]
+    [antd/space {:wrap true}
+     (when (and approve? (= "in_review" (:status change)) (true? (:escalated change)) (= "pending" (:escalation_state change))
+                (not= current (:created_by change)) (not= current (:submitted_by change)))
+       [w/edit-button "确认升级处置" #(open! (forms/change-escalation-dialog base change))])
+     (review-actions context "changes" change)]))
+
+
 (defn- change-section
   "变更审批保留五维影响与独立判断."
   [{:keys [base model editable? open!] :as context}]
@@ -688,8 +699,18 @@
                              (and (some? cost) (not= "" cost)) (conj [antd/tag {:color "blue"} (str "成本 +" cost)])
                              high (conj [antd/tag {:color "red"} "高影响"])))
                      [:span {:style {:color "#98a2b3"}} "未量化"]))))}
+     {:title "变更控制升级" :dataIndex "escalation_state" :width 150
+      :render (fn [_ row]
+                (let [esc (aget row "escalated") state (aget row "escalation_state")]
+                  (r/as-element
+                   (cond
+                     (not esc) [:span {:style {:color "#98a2b3"}} "未触发"]
+                     (= state "pending") [antd/tag {:color "red"} "待独立确认"]
+                     (= state "acknowledged") [antd/tag {:color "green"} "升级已确认"]
+                     (= state "waived") [antd/tag {:color "blue"} "升级已豁免"]
+                     :else [antd/tag state]))))}
      (w/state-column)]
-    #(review-actions context "changes" %)]])
+    #(change-actions context %)]])
 
 
 (defn- gate-actions

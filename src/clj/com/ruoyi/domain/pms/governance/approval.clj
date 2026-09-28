@@ -4,7 +4,10 @@
             [com.ruoyi.domain.pms.finance-money :as money]
             [com.ruoyi.domain.pms.governance.store :as s]
             [com.ruoyi.domain.pms.kernel :as k]
-            [com.ruoyi.domain.pms.rules :as r]))
+            [com.ruoyi.domain.pms.rules :as r])
+  (:import
+    (java.time
+      LocalDate)))
 
 (def charter-fields
   "章程必备内容字段."
@@ -68,6 +71,24 @@
              (when (neg? amount) (r/fail! 400 "成本影响金额不得为负数"))
              (money/money amount)))))
 
+(defn- high-impact?
+  "判定变更内容是否达到高影响阈值: 工期影响达到阈值天数或成本影响金额达到阈值最小单位."
+  [record]
+  (let [days (:schedule_impact_days record)
+        cost-str (:cost_impact_amount record)
+        cost-minor (when (and (some? cost-str) (not= "" cost-str)) (money/amount! cost-str "成本影响"))]
+    (boolean (or (when (number? days) (>= days high-impact-schedule-days))
+                 (when (some? cost-minor) (>= cost-minor high-impact-cost-minor))))))
+
+(defn- change-escalation
+  "为达到高影响阈值的变更生成升级处置字段 (待变更控制独立确认); 未达阈值不写任何 escalation 键, 与低影响变更用例兼容."
+  [record]
+  (when (high-impact? record)
+    {:escalated true
+     :escalation_state "pending"
+     :escalation_level "ccb"
+     :escalation_reason (str "变更量化影响达到高影响阈值 (工期 >= " high-impact-schedule-days " 天或成本 >= 100000.00), 须由变更控制独立审批人在批准前确认升级处置.")}))
+
 (defn content!
   "分别校验章程和变更内容,拒绝任意JSON字段."
   [q kind body]
@@ -122,7 +143,8 @@
                                       {:reviewer-id reviewer :amount (:initial_budget record)
                                        :title (str "项目章程 " (:code record) " 第" (:revision record) "版 " (:title record))}))]
           (s/change! q project record "in_review"
-                     {:reviewer_id (or reviewer (:first-approver started)) :submitted_by (:user_id actor)}))))))
+                     (cond-> {:reviewer_id (or reviewer (:first-approver started)) :submitted_by (:user_id actor)}
+                       (= "change" kind) (merge (change-escalation record)))))))))
 
 (defn decide!
   "指定独立审核人批准或退回当前提交版本."
@@ -133,11 +155,36 @@
       (let [record (s/latest! q project (s/record! q project kind rid))
             decision (s/enum! (:decision body) #{"approved" "rejected"} "decision")]
         (s/status! record #{"in_review"})
+        (when (and (= "change" kind) (= "approved" decision)
+                   (:escalated record) (= "pending" (:escalation_state record)))
+          (r/fail! 409 "该高影响变更尚未完成变更控制升级独立确认, 请先由独立审批人确认升级处置后再批准"))
         (when (= "charter" kind) (chain/guard-legacy-decision! q "charter" (:id record)))
         (s/decision-actor! actor record)
         (s/change! q project record decision
                    {:decision_reason (s/text! body :reason)
                     :decided_by (:user_id actor)})))))
+
+(defn acknowledge-change-escalation!
+  "由变更控制独立审批人确认高影响变更的升级处置, 批准责成处置或经评估豁免; 确认前高影响变更不得被批准, 驳回不受此门控."
+  [svc actor id rid body]
+  (k/mutate! svc actor id "pms:quality:approve" body "change.escalation-acknowledged" {:write? false}
+    (fn [q project]
+      (s/input! body [:decision :note])
+      (let [record (s/latest! q project (s/record! q project "change" rid))
+            decision (s/enum! (:decision body) #{"approved" "rejected"} "decision")
+            note (s/text! body :note 500)]
+        (s/status! record #{"in_review"})
+        (when-not (:escalated record) (r/fail! 409 "该变更未触发升级, 无需确认"))
+        (when-not (= "pending" (:escalation_state record)) (r/fail! 409 "变更升级已确认, 请勿重复处理"))
+        (when (= (:user_id actor) (:created_by record)) (r/fail! 403 "升级确认不得由变更登记人本人完成"))
+        (when (= (:user_id actor) (:submitted_by record)) (r/fail! 403 "升级确认不得由提交人本人完成"))
+        (s/change! q project record (:status record)
+                   {:escalation_state (if (= "approved" decision) "acknowledged" "waived")
+                    :escalation_decision decision :escalation_note note
+                    :escalation_ack_by (:user_id actor) :escalation_ack_on (str (LocalDate/now))
+                    :workflow_history (conj (vec (:workflow_history record))
+                                            {:action "escalation_acknowledged" :actor_id (:user_id actor)
+                                             :on (str (LocalDate/now)) :decision decision})})))))
 
 (defn approved-change!
   "验证后续基线命令所引用的变更确已通过独立批准."
@@ -149,12 +196,7 @@
 (defn change-read-model
   "为变更读模型补充只读派生高影响判定: 工期影响达到阈值或成本影响金额达到阈值时 change_high_impact 为 true; 仅读取时计算, 不落存储."
   [record]
-  (let [days (:schedule_impact_days record)
-        cost-str (:cost_impact_amount record)
-        cost-minor (when (and (some? cost-str) (not= "" cost-str)) (money/amount! cost-str "成本影响"))
-        high? (or (when (number? days) (>= days high-impact-schedule-days))
-                  (when (some? cost-minor) (>= cost-minor high-impact-cost-minor)))]
-    (assoc record :change_high_impact (boolean high?))))
+  (assoc record :change_high_impact (high-impact? record)))
 
 
 (defn- finalize-charter!

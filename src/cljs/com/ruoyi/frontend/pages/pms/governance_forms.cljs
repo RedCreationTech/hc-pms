@@ -208,6 +208,18 @@
             {:key :note :label "处置意见" :type :textarea :required? true}]})
 
 
+(defn change-escalation-dialog
+  "变更控制独立审批人确认高影响变更的升级处置, 批准责成处置或经评估豁免后方可批准."
+  [base change]
+  {:title "确认变更升级" :path (str base "/changes/" (:id change) "/escalation")
+   :initial {:decision "approved"}
+   :description (str (:escalation_reason change)
+                     " 须由登记人/提交人之外的独立审批人在批准前确认: 确认升级=责成处置后方可批准; 评估豁免=解除升级门控后方可批准.")
+   :fields [{:key :decision :label "升级处置决定" :type :select :required? true
+             :options [{:value "approved" :label "确认升级并责成处置"} {:value "rejected" :label "经评估豁免升级"}]}
+            {:key :note :label "处置意见" :type :textarea :required? true}]})
+
+
 (defn issue-reopen-dialog
   "已关闭问题重开须明确新证据与独立责任人."
   [base options documents issue]
