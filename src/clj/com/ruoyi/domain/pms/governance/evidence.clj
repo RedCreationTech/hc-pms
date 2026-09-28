@@ -407,3 +407,20 @@
      :released-pct (if (pos? total)
                      (int (Math/round ^double (* 100.0 (/ approved total))))
                      0)}))
+
+
+(defn trace-read-model
+  "只读派生追踪链所引用证据文档版本的发布状态: 文档目标按其确定版本状态标注 released/pending/rejected/missing, 任务目标为 n/a. 免迁移读取时计算, 不写存储, 不改变不可变版本, 键名不带尾随问号."
+  [docs-by-id trace]
+  (if-not (= "document" (:target_kind trace))
+    (assoc trace :evidence_release_state "n/a" :evidence_status nil :evidence_released nil)
+    (let [doc (get docs-by-id (:target_id trace))
+          status (:status doc)
+          state (cond
+                  (nil? doc) "missing"
+                  (= "approved" status) "released"
+                  (= "rejected" status) "rejected"
+                  :else "pending")]
+      (assoc trace :evidence_status status
+             :evidence_release_state state
+             :evidence_released (= "approved" status)))))

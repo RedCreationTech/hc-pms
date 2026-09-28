@@ -433,6 +433,12 @@
                                             (let [item (js->clj row :keywordize-keys true)]
                                               (if (= "task" (:target_kind item)) (w/related-label (:tasks planning) :task_id :name (:target_id item))
                                                   (w/related-label (:documents model) :id :title (:target_id item)))))}
+     {:title "证据发布" :key "release" :width 110
+      :render (fn [_ row]
+                (let [st (aget row "evidence_release_state")
+                      color ({"released" "green" "pending" "gold" "rejected" "red" "missing" "volcano" "n/a" "default"} st)
+                      label ({"released" "已发布" "pending" "待发布" "rejected" "已驳回" "missing" "证据缺失" "n/a" "任务关联"} st)]
+                  (r/as-element (if (nil? label) [:span {:style {:color "#98a2b3"}} "—"] [antd/tag {:color color} label]))))}
      {:title "关系" :dataIndex "relation" :render #(if (= % "satisfies") "满足需求" "验证需求")}
      {:title "阶段" :dataIndex "phase" :width 110 :render #(get forms/phase-labels % (or % "—"))}
      {:title "偏差" :dataIndex "deviation_level" :width 200

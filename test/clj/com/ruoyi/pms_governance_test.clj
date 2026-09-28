@@ -474,6 +474,41 @@
     (is (= 1 (:in-review (rel))))))
 
 
+(deftest trace-read-model-derives-evidence-release-state
+  (let [id (project!)
+        doc (document! id "TR-REL")
+        rid (:id doc)
+        req (command! id :requirements :create nil
+                      {:code "URS-TR" :text "需验证项" :category "功能" :priority "required" :owner_id 9301})
+        _ (command! id :traces :create nil
+                    {:requirement_id (:id req) :target_kind "document" :target_id rid :relation "verifies"})
+        trace (fn [] (first (filter #(= rid (:target_id %)) (:traces (workspace id)))))]
+    ;; 已登记未发布的证据文档: 追踪链标注待发布, evidence_released 为 false.
+    (is (= "registered" (:evidence_status (trace))))
+    (is (= "pending" (:evidence_release_state (trace))))
+    (is (false? (:evidence_released (trace))))
+    ;; 提交发布审核(in_review)仍按未发布口径标注 pending.
+    (command! id :documents :submit rid {:reviewer_id 9302})
+    (is (= "in_review" (:evidence_status (trace))))
+    (is (= "pending" (:evidence_release_state (trace))))
+    (is (false? (:evidence_released (trace))))
+    ;; 独立批准后翻为已发布, 只读派生不改追踪记录本身.
+    (command! 9302 id :documents :decision rid {:decision "approved" :reason "独立签发"})
+    (is (= "approved" (:evidence_status (trace))))
+    (is (= "released" (:evidence_release_state (trace))))
+    (is (true? (:evidence_released (trace)))))
+  ;; 纯函数直测: 任务目标不参与证据发布口径, 标注 n/a 且 released 为 nil.
+  (let [t (evidence/trace-read-model {} {:target_kind "task" :target_id "t1"})]
+    (is (= "n/a" (:evidence_release_state t)))
+    (is (nil? (:evidence_status t)))
+    (is (nil? (:evidence_released t))))
+  ;; 纯函数直测: 引用缺失的文档版本标注 missing, 已驳回的版本标注 rejected.
+  (is (= "missing" (:evidence_release_state (evidence/trace-read-model {} {:target_kind "document" :target_id "unknown"}))))
+  (is (= "rejected" (:evidence_release_state
+                      (evidence/trace-read-model {"d1" {:id "d1" :status "rejected"}}
+                                                 {:target_kind "document" :target_id "d1"})))))
+
+
 (deftest risk-becomes-one-issue-and-requires-independent-verification
   (let [id (project!) evidence (:id (document! id "FIX-1"))
         risk (command! id :risks :create nil {:title "关键调试风险" :probability 3 :impact 5

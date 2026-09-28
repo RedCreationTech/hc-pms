@@ -606,6 +606,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 本增量把 B09 关口实例台账的**签核就绪度可见性**推进到 `implemented / local` (免迁移读取时派生必需项满足度与可签核标记, 界面徽标呈现); B09 行既有的模板级 `gate-progress` 汇总与实例独立签核不受影响, 主机交付清单业务口径仍为待办, 故不改变 B09 整体状态.
 
+## C03 需求追踪链证据发布状态只读派生 (本轮增补, 2026-09-28)
+
+设计与关闭口径: 为治理台账"URS与追踪"的**需求追踪矩阵**补齐此前缺失的**证据发布可见性** (追踪行只显"关联对象"标题, 看不出所引用的证据文档版本是否已发布). 免迁移: 纯读模型在读取时派生, **无新增迁移**, **无新增 kind**, **无新命令**, **无新状态值**, 不改动 `trace!`/`submit!`/`decision!` 等任何写路径或门控, 也**不做任何强制拦截** (追踪链指向未发布证据只界面提示, 是否据此阻断 Gate 仍属"待规则"). 在 `governance.evidence` 新增纯函数 `trace-read-model`, 以 `docs-by-id` (文档 `id` -> 记录) 对单条 `trace` 派生 `{:evidence_status 所引用文档版本原始状态 :evidence_release_state 归一状态 :evidence_released 布尔}`: 目标 `target_kind` 为 `document` 时按确定 `target_id` 命中版本映射 `approved`->`released` (released true), `rejected`->`rejected`, `registered`/`in_review`->`pending`, 版本不存在->`missing`; 目标为 `task` 时不参与发布口径, 记 `n/a` 且 status/released 为 `nil`. 键名去尾随 `?` 以免 JSON 污染. 在 `governance/workspace` 的 `let` 里加 `docs-by-id` 绑定, 在结果 `->` 链里加 `(update :traces #(mapv (partial evidence/trace-read-model docs-by-id) %))`, 与既有 meetings/issues/risks/actions 跨类只读标注同构. 前端"需求追踪矩阵"表在"关联对象"列后新增只读"证据发布"列: 绿"已发布"/金"待发布"/红"已驳回"/橙"证据缺失"/灰"任务关联"/无值灰"—", 用 `(aget row "jsKey")` 渲染.
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| 治理测试 (SQLite) | 56 tests / 663 assertions, 0 failures/errors | 新增 `trace-read-model-derives-evidence-release-state`: 建需求 + 已登记证据文档 + `verifies` 追踪 -> workspace `:traces` 该条 `evidence_status` "registered"/`evidence_release_state` "pending"/`evidence_released` false -> `:documents :submit` 后仍 "in_review"/"pending"/false -> 独立审核人 `:documents :decision approved` 后翻 "approved"/"released"/true; 另纯函数直测 task 目标 -> "n/a" 且 status/released 为 nil, 引用缺失文档 -> "missing", 命中 rejected 版本 -> "rejected" |
+| 全量 PMS 回归 (CLI SQLite) | 157 tests / 1578 assertions, 0 failures/errors | `clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'` 全新库通过, 既有追踪矩阵/缺链检查/文档发布审批用例无回归 |
+| 前端编译 | 0 warnings | `npx shadow-cljs compile app` 通过, 追踪矩阵"证据发布"列一并编译 |
+| Chrome 浏览器 (Playwright) | 1 passed | `pms-c03-trace-release.spec.js` (隔离 `:3100` 后端, 独立空库): admin 真实 HTTP 建需求 + 已登记证据文档 + `verifies` 追踪 -> 打开"URS与追踪"页签, 追踪矩阵"证据发布"列显示金色"待发布" (截图 c03-trace-release-1-pending.png), 真实 HTTP 回显 `evidence_release_state="pending"`/`evidence_released=false` -> admin 提交文档发布 (审核人为合成独立质量审批人) 后仍"待发布" -> 该审核人以**自己的真实登录上下文**(第二浏览器上下文)亲自批准发布 -> 重载追踪矩阵同列翻"已发布" (截图 c03-trace-release-2-released.png), 真实 HTTP 回显 `evidence_release_state="released"`/`evidence_released=true`/`evidence_status="approved"`; 无未捕获 JS 错误; 截图存 `reports/c03-trace-release/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归(本地无实例, 本轮完全免迁移不新增 DDL); 证据发布状态仅界面只读呈现, 未据此新增/改动任何追踪登记或 Gate 提交门控 (追踪指向未发布证据不拦截); 未做"缺已发布验证证据即阻断需求关闭/关口签核"的联动 (属"待规则").
+
+边界: 本增量把 C03 追踪矩阵的**证据发布可见性**推进到 `implemented / local` (免迁移读取时按所引用文档版本派生发布状态, 界面标签呈现); 但 C03 行仍含"阻塞偏差与 Gate 联动""覆盖率分母正式规则"等未完成子项, 故 C03 保持 `partial`, 不因这一子能力上行.
+
 ## H08 风险应对策略可选枚举字段 (本轮增补, 2026-09-23)
 
 设计与关闭口径: 兑现矩阵 H08"风险评分口径和复审频率明确"里"识别后登记结构化应对策略"的一环. 复用既有 `risk` kind 与整条登记/复评/独立关闭链, **无新增迁移** (字段随风险记录 payload JSON 存储). 沿用"免迁移给治理 kind 加可选强类型字段"套路的**枚举变体**: 在 `governance.collaboration` 新增集合 `risk-response-strategies` = `#{"avoid" "transfer" "mitigate" "accept"}` (PMI 四类风险应对策略), `insert-risk!` 的 `cond->` 增加一条 `(:response_strategy fields) (assoc :response_strategy (s/enum! ...))` 分支, 只在字段存在时经 `s/enum!` 校验并写入, 非法取值返回 400, 未填则不写键; `create-risk!` 的 `s/input!` 白名单新增 `:response_strategy`. 因未填不写键且分支只在字段存在时触发, 既有登记/复评/库实例化用例 (均不带该字段) 零回归. 该字段与评分/超阈值升级门控相互独立: `from-library` 实例化的风险默认不带 `response_strategy`(仍为 `nil`), 手工登记选策略也不改变 `score`/`escalated` 计算. 前端 `risk-dialog` 在期限字段后新增 `:response_strategy` `:select` 下拉(规避/转移/减轻/接受), 风险台账在"复审重评"列后新增只读"应对策略"列, 以 geekblue 标签回显中文策略名, 未设定显示灰字"未设定". 全程免迁移, 免新命令, 免新 kind, 免新状态值.
