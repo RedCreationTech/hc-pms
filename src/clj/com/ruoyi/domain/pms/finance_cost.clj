@@ -2,6 +2,7 @@
   "四算版本和成本明细, 提交快照及独立审批后保持不可变."
   (:require [cheshire.core :as json]
             [com.ruoyi.domain.pms.approval-chain :as chain]
+            [com.ruoyi.domain.pms.config :as config]
             [com.ruoyi.domain.pms.finance-money :as money]
             [com.ruoyi.domain.pms.kernel :as kernel]
             [com.ruoyi.domain.pms.rules :as rules])
@@ -10,6 +11,13 @@
 (def categories
   "四算成本允许的分类."
   #{"material" "labor" "manufacturing" "travel" "other" "change_loss"})
+
+(defn period-open!
+  "H13a 封期: 复用平台级 period-lock 配置, 费用版本所属会计期间已封账时拒绝新建/增删明细/提交/修订/取消."
+  [q period]
+  (when-let [lock (config/published-by-code q "period-lock" period)]
+    (rules/fail! 409 (str "期间 " (:period lock) " 已封账, 不能再新建或变更该期间的费用版本")))
+  period)
 
 (defn version!
   "读取同项目的费用版本, 缺失返回404."
@@ -68,6 +76,7 @@
     (fn [q project]
       (let [version (input! q actor project body)
             version (assoc version :version_no (:next_no (q :finance/next-version version)))]
+        (period-open! q (:period version))
         (q :finance/insert-version! version)
         (dto q (version! q project-id (:version_id version)))))))
 
@@ -83,6 +92,7 @@
                    :category (:category body) :label (rules/text! (:label body) "费用说明" 200 true)
                    :amount_minor (money/amount! (:amount body) "金额")
                    :source_ref (not-empty (rules/text! (:source_ref body) "来源引用" 200 false))}]
+        (period-open! q (:period version))
         (q :finance/insert-entry! entry)
         (dto q version)))))
 
@@ -94,6 +104,7 @@
     (fn [q _]
       (let [version (draft! (version! q project-id version-id))
             entry (q :finance/entry {:project_id project-id :entry_id entry-id})]
+        (period-open! q (:period version))
         (when-not (= version-id (:version_id entry)) (rules/fail! 404 "费用项不存在"))
         (when (.startsWith (or (:source_ref entry) "") "allocation:")
           (rules/fail! 409 "分摊结果不可单独删除,请创建新的费用版本"))
@@ -108,6 +119,7 @@
     (fn [q project]
       (let [version (draft! (version! q project-id version-id))
             snapshot (dto q version)]
+        (period-open! q (:period version))
         (when (empty? (:entries snapshot)) (rules/fail! 409 "费用明细为空,不能提交"))
         (when (= (:user_id actor) (:reviewer_id version)) (rules/fail! 403 "指定审批人不能代替提交者提交"))
         (kernel/user! q project (:reviewer_id version) "财务审批人")
@@ -144,6 +156,7 @@
     (fn [q project]
       (let [old (version! q project-id version-id)
             _ (when-not (contains? #{"approved" "rejected"} (:status old)) (rules/fail! 409 "只能修订已处理版本"))
+            _ (period-open! q (:period old))
             reviewer (kernel/user! q project (:reviewer_id body) "财务审批人")
             _ (when (= reviewer (:user_id actor)) (rules/fail! 400 "不能指定自己审批"))
             version (assoc old :version_id (kernel/id) :reviewer_id reviewer
@@ -162,6 +175,7 @@
     (fn [q _]
       (let [version (version! q project-id version-id)
             reason (rules/text! (:reason body) "取消原因" 1000 true)]
+        (period-open! q (:period version))
         (when-not (contains? #{"draft" "rejected"} (:status version))
           (rules/fail! 409 "只能取消费用草稿或驳回版本"))
         (rules/changed! (q :finance/cancel-version! (assoc version :review_note reason)))

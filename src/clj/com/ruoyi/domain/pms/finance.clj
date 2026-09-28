@@ -1,6 +1,7 @@
 (ns com.ruoyi.domain.pms.finance
   "四算, 工时和费用分摊读取模型, 财务金额查询拥有独立功能权限."
-  (:require [com.ruoyi.domain.pms.finance-allocation :as allocation]
+  (:require [com.ruoyi.domain.pms.config :as config]
+            [com.ruoyi.domain.pms.finance-allocation :as allocation]
             [com.ruoyi.domain.pms.finance-budget :as budget]
             [com.ruoyi.domain.pms.finance-commitment :as commitment]
             [com.ruoyi.domain.pms.finance-cost :as cost]
@@ -55,7 +56,8 @@
                 :commitments (commitment/list-all q project-id)
                 :budget_rules (budget/list-rules q project-id)
                 :budget_control {:budget (budget/evaluate q project-id "budget" 0)
-                                 :estimate (budget/evaluate q project-id "estimate" 0)}}
+                                 :estimate (budget/evaluate q project-id "estimate" 0)}
+                :locked_periods (mapv :period (config/published q "period-lock"))}
                (summary versions))))))
 
 (defn times

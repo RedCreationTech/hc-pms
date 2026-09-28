@@ -3,6 +3,7 @@
   (:require [cheshire.core :as json]
             [clojure.java.io :as io]
             [clojure.test :refer [deftest is use-fixtures]]
+            [com.ruoyi.domain.pms.config :as config]
             [com.ruoyi.domain.pms.kernel :as kernel]
             [com.ruoyi.domain.pms.service :as pms]
             [com.ruoyi.domain.pms.planning :as plan]
@@ -283,3 +284,36 @@
   (let [id (project!) version (cost! id "settlement")]
     (command! cost/add-entry! id [(:id version)] {:category "other" :label "本项目零费用确认" :amount "0"})
     (is (= "approved" (get-in (approve-cost! id (:id version)) [:result :status])))))
+
+(deftest period-lock-gates-cost-version-writes
+  (let [id (project!)
+        c1 (:id (:result (command! cost/create! id [] {:kind "budget" :period "2026-09" :currency "CNY" :name "预算A" :revenue "100.00" :reviewer_id 9402})))
+        c2 (:id (:result (command! cost/create! id [] {:kind "actual" :period "2026-09" :currency "CNY" :name "核算B" :revenue "0" :reviewer_id 9402})))
+        add (command! cost/add-entry! id [c2] {:category "other" :label "成本" :amount "5"})
+        e2 (get-in add [:result :entries 0 :id])]
+    (command! cost/add-entry! id [c1] {:category "material" :label "原料" :amount "10"})
+    (command! cost/submit! id [c1] {})
+    (command! 9402 cost/review! id [c1] {:decision "approved" :reason "核对完成"})
+    (config/create! *svc* (actor 9401) "period-lock" {:period "2026-09" :reason "月结封账"})
+    (is (= 409 (error-status #(command! cost/create! id [] {:kind "estimate" :period "2026-09" :currency "CNY" :name "概算C" :revenue "0" :reviewer_id 9402}))))
+    (is (= 409 (error-status #(command! cost/add-entry! id [c2] {:category "other" :label "追加" :amount "1"}))))
+    (is (= 409 (error-status #(command! cost/delete-entry! id [c2 e2] {}))))
+    (is (= 409 (error-status #(command! cost/submit! id [c2] {}))))
+    (is (= 409 (error-status #(command! cost/cancel! id [c2] {:reason "想取消"}))))
+    (is (= 409 (error-status #(command! cost/revise! id [c1] {:reviewer_id 9402}))))
+    (is (some? (:id (:result (command! cost/create! id [] {:kind "estimate" :period "2026-10" :currency "CNY" :name "概算D" :revenue "0" :reviewer_id 9402})))))
+    (is (some #{"2026-09"} (:locked_periods (finance/overview *svc* (actor 9401) id))))
+    (let [lock (first (filter #(= "2026-09" (:period %)) (config/published (:query-fn *svc*) "period-lock")))]
+      (config/retire! *svc* (actor 9401) "period-lock" (:id lock) {:reason "重开月结"}))
+    (is (= "submitted" (:status (:result (command! cost/submit! id [c2] {})))))
+    (is (not-any? #{"2026-09"} (:locked_periods (finance/overview *svc* (actor 9401) id))))))
+
+(deftest period-lock-does-not-gate-independent-cost-review
+  (let [id (project!)
+        cid (:id (:result (command! cost/create! id [] {:kind "budget" :period "2026-09" :currency "CNY" :name "预算E" :revenue "100.00" :reviewer_id 9402})))]
+    (command! cost/add-entry! id [cid] {:category "material" :label "原料" :amount "10"})
+    (command! cost/submit! id [cid] {})
+    (config/create! *svc* (actor 9401) "period-lock" {:period "2026-09" :reason "月结封账"})
+    (is (= "approved" (:status (:result (command! 9402 cost/review! id [cid] {:decision "approved" :reason "封期后独立批准"})))))
+    (let [lock (first (filter #(= "2026-09" (:period %)) (config/published (:query-fn *svc*) "period-lock")))]
+      (config/retire! *svc* (actor 9401) "period-lock" (:id lock) {:reason "重开月结"}))))

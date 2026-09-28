@@ -746,6 +746,23 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: H12 交付的是"承诺与实际分列不双计 + 预算基线口径占用率门控(warn/require_approval/block) + 强制放行留痕 + 部分转实付剩余守恒"这一条本地闭环, 覆盖矩阵 H12"已批准预算/已承诺未发生/实际与剩余区分/阈值超支进入批准流程"的 `implemented / local` 子集; 但 H12 行仍含"预测完工成本 EAC 公式""税额/多币种/封期对账(与 H13 交叠)"等未完成子项, 故按整行完整目标看仍属工程验证, 不等于生产财务签收.
 
+## H13a 会计期间封期与费用版本门控 (本轮增补, 2026-09-28)
+
+设计与关闭口径: 兑现矩阵 H13 长期列为"封期"的一环, 拆成免迁移纵切 H13a. 不新增表或迁移, 直接复用平台级 `period-lock` 配置 (config kind, 状态 draft -> locked -> retired, 见平台配置合同与 `pms_config_test` 的封期生命周期用例). 工时侧早已用 `finance_time/period-open!` 按同一 `config/published-by-code q "period-lock" period` 门控; 本轮把同一口径扩展到成本版本: 领域 `finance_cost/period-open!` 在写事务内检查成本版本所属 `period` 是否处于 locked, 命中返回 409. 门控覆盖六条成本写路径 create/add-entry/delete-entry/submit/revise/cancel; 独立审批 `review!` 有意不受门控 (金额提交时已冻结, 与工时封期口径一致, 不让审批链因封期卡死). GET `/finance` 读模型追加 `locked_periods` 供前端渲染. 前端成本版本台账"期间"列对已封账期间显示红色"已封账"徽标并在面板顶部展示警告横幅; 锁定/解锁入口仍统一在平台配置页, 项目费用页只呈现状态不重复设置.
+
+关键前端坑 (复用价值): antd Table 的自定义列 `:render` 回调由 JS 侧调用, 其返回值必须是 React 元素; 返回 Reagent hiccup 向量 (如 `[:span ... [antd/tag ...]]`) 不会被自动转换, 会导致该单元格渲染为空 (非锁定分支返回字符串则正常, 故只在封期后才暴露). 必须用 `r/as-element` 包裹 hiccup 分支, 与本仓库 state-column/budget-rules 等自定义列一致. 另: 编译产物把中文以 `\uXXXX` 转义输出, 用原始中文 grep bundle 会假阴性.
+
+| 验证项 | 结果 | 证据 |
+|---|---|---|
+| H13a 财务封期测试 (CLI SQLite) | 13 tests / 63 assertions, 0 failures/errors | `clojure -M:test -n com.ruoyi.pms-finance-test`: 新增 `period-lock-gates-cost-version-writes` (锁定 2026-09 后 create/add-entry/delete-entry/submit/cancel/revise 均 409, 新期间 2026-10 可建, overview 暴露 locked_periods 含 2026-09, retire 后 submit 成功且不再含) 与 `period-lock-does-not-gate-independent-cost-review` (提交后锁定, 独立 review! 仍 200 approved) |
+| 全量 PMS 回归 (CLI SQLite) | 149 tests / 1500 assertions, 0 failures/errors | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` (本轮改动仅前端 render 包裹, 后端回归保持既有绿) |
+| 前端编译 | 4035 files, 0 warnings | `npx shadow-cljs compile app` (修复后 5 files recompiled) |
+| 浏览器 E2E | 1 passed | `BASE_URL=http://localhost:3100 npx playwright test tests/e2e/pms-h13a.spec.js` (隔离 :3100 + 独立 /tmp/h13a-e2e.db 冷启动): 界面新建 2026-09 成本版本草稿+真实条目 -> 真实 HTTP 锁定 2026-09 -> 刷新后"已封账"徽标与警告横幅真实可见 -> 界面提交命中封期门控真实 409 且弹窗内联告警不关闭 -> 真实 HTTP 回显草稿仍 draft 无副作用 -> 真实 HTTP 解锁 -> 徽标消失且提交成功 status 回显 submitted; 5 张真实截图 reports/h13a/*.png |
+
+本轮未执行 (如实记录): MySQL 迁移与回归本机无实例未实跑 (本增量为免迁移, 无新迁移文件, 但 `period-lock` 配置表本身的双库回归仍按既有 config 验证边界); 封期与结算/税额/汇率的联动未做; 工时/承诺/费用三处封期门控的口径未统一抽象 (工时与费用各自 `period-open!`); 界面未提供在项目费用页直接锁定/解锁的入口 (按设计统一到平台配置页).
+
+边界: H13a 交付的是"已封账会计期间的成本版本六条写路径门控 409 + 独立审批不受门控 + 读模型暴露 locked_periods + 界面封账徽标与横幅可见 + 锁定/解锁留痕"这一条本地闭环, 覆盖矩阵 H13"封期"子项的 `implemented / local`; H13 行的税额/收入确认/汇率/结算对账仍属 planned, 不等于生产财务签收.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

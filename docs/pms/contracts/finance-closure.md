@@ -46,6 +46,16 @@ POST `/budget-rules/:rule_id/disable`: finance:approve,停用规则(enabled=0),�
 
 评估决策decision为ok/warn/require_approval/block四档, 由触发规则中的最高severity决定; warn与require_approval不阻断提交(block以外), 仅在面板提示. 本轮为本地预算占用门控与承诺-实际分离, 不宣称完成税额/收入确认/多币种对账/封期(见H13)或与外部ERP总账同步.
 
+## 会计期间封期与费用版本门控 (H13a)
+
+封期复用平台级 `period-lock` 配置 (config kind, 见平台配置合同), 不新增表或迁移. 锁定即 `POST /config/period-lock` 携带 period(YYYY-MM) 与 reason, 记录状态直接为 locked; 解锁即 `POST /config/period-lock/:config_id/retire` 携带 reason, 保留完整历史不物理删除. 工时提交/更正早已按同一 `period-lock` 门控 (`finance_time/period-open!`), 本轮把同一口径扩展到成本版本.
+
+成本版本携带 `period` 字段. 领域层 `finance_cost/period-open!` 在写事务内以 `config/published-by-code q "period-lock" period` 检查该会计期间是否处于 locked, 命中则返回 409 "期间 X 已封账, 不能再新建或变更该期间的费用版本". 门控覆盖六条成本写路径: create (新建版本), add-entry (增明细), delete-entry (删明细), submit (提交审批), revise (新修订), cancel (放弃版本). 独立审批 `review!` 有意不受封期门控: 成本金额在提交时已冻结, 封期只锁"变更口径"不锁"已提交待审记录的裁决", 与工时封期口径一致, 保证审批链不因封期而卡死.
+
+GET `/finance` 读模型在四算/承诺之外追加 `locked_periods` (当前处于 locked 状态的 period-lock 编码列表), 供前端成本版本台账在"期间"列对已封账期间渲染红色"已封账"徽标并在面板顶部展示警告横幅. 界面只呈现封账状态, 锁定/解锁操作仍统一在平台配置页完成, 不在项目费用页重复设置入口.
+
+本轮为本地会计期间封账对成本版本写路径的门控与界面可见性, 不宣称完成封期与结算/税额/汇率的联动, 也不统一工时/承诺/费用三处封期门控的口径 (见 H13 后续).
+
 ## 收尾和关闭
 
 GET `/closure`: project:query,返回checks/handoffs/lessons/approval/reopen_request/blockers/ready/project_version. 不包含成本金额或批准快照正文. ready只表示业务材料齐备,最终closed仍须独立批准.

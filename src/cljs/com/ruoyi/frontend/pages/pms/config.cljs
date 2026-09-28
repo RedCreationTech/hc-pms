@@ -285,10 +285,10 @@
 
 
 (defn- lock-section
-  "F04 工时封期: 锁定期间后该期间工时不可提交/更正, 解锁保留审计."
+  "F04/H13a 会计期间封期: 锁定期间后该期间工时与费用版本均不可变更, 解锁保留审计."
   [{:keys [data open!]}]
   (let [approver? (shared/use-permission "pms:finance:approve")]
-    [shared/panel "工时封期" "封期后该期间的工时提交与批准后更正均被拒绝; 解锁记录原因与操作人"
+    [shared/panel "会计期间封期" "封期后该期间的工时提交与更正, 以及费用版本的新建/增删明细/提交/修订/取消均被拒绝 (已提交版本的独立审批不受影响); 解锁记录原因与操作人"
      (when approver?
        [antd/button {:type "primary" :on-click #(open! {:title "锁定期间" :path "/config/period-lock"
                                                          :fields [{:key :period :label "期间 (YYYY-MM)" :required? true}

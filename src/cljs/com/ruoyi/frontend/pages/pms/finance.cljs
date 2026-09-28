@@ -1,6 +1,7 @@
 (ns com.ruoyi.frontend.pages.pms.finance
   "项目工时,成本版本与按实际工时分摊工作台."
-  (:require [com.ruoyi.frontend.antd :as antd]
+  (:require [clojure.string :as str]
+            [com.ruoyi.frontend.antd :as antd]
             [com.ruoyi.frontend.pages.pms.approval :as approval]
             [com.ruoyi.frontend.pages.pms.governance-forms :as forms]
             [com.ruoyi.frontend.pages.pms.shared :as shared]
@@ -255,12 +256,18 @@
 (defn- cost-section
   "四阶段成本版本相互独立,批准后形成比较依据."
   [{:keys [base model options editable? open!] :as context}]
-  [shared/panel "成本版本台账" "概算 / 预算 / 核算 / 决算"
-   (when editable? [antd/button {:type "primary" :on-click #(open! (cost-dialog base options))} "新建成本版本"])
-   [w/record-table (:cost_versions model)
-    [(w/text-column :name "版本名称") {:title "阶段" :dataIndex "kind" :render #(or (:label (some (fn [x] (when (= % (:value x)) x)) kinds)) %)}
-     (w/text-column :period "期间") (w/text-column :currency "币种") (w/text-column :total "成本金额")
-     (w/text-column :revenue "收入") (w/state-column)] #(cost-actions context %) ]])
+  (let [locked (set (:locked_periods model))]
+    [shared/panel "成本版本台账" "概算 / 预算 / 核算 / 决算"
+     (when (seq locked)
+       [antd/alert {:type "warning" :show-icon true :style #js {:marginBottom 12}
+                    :message (str "已封账会计期间: " (str/join " " (sort locked)) " - 该期间的费用版本不可新建或变更, 需先在平台配置解锁")
+                    :description "封期后该期间的成本版本提交,增删明细,修订与取消均被拒绝; 已提交版本的独立审批不受影响"}])
+     (when editable? [antd/button {:type "primary" :on-click #(open! (cost-dialog base options))} "新建成本版本"])
+     [w/record-table (:cost_versions model)
+      [(w/text-column :name "版本名称") {:title "阶段" :dataIndex "kind" :render #(or (:label (some (fn [x] (when (= % (:value x)) x)) kinds)) %)}
+       {:title "期间" :dataIndex "period" :render (fn [period] (if (locked period) (r/as-element [:span period " " [antd/tag {:color "red"} "已封账"]]) period))}
+       (w/text-column :currency "币种") (w/text-column :total "成本金额")
+       (w/text-column :revenue "收入") (w/state-column)] #(cost-actions context %) ]]))
 
 (defn- ledger-section
   "按选中的真实成本版本显示条目与来源."
