@@ -91,7 +91,13 @@
                       des (aget row "trace_design_links")
                       ver (aget row "trace_verification_links")]
                   (r/as-element (if (nil? label) [:span {:style {:color "#98a2b3"}} "—"]
-                                    [antd/tag {:color color} (str label " " des "/" ver)]))))}]
+                                    [antd/tag {:color color} (str label " " des "/" ver)]))))}
+     {:title "验证对齐" :dataIndex "verification_alignment" :width 150
+      :render (fn [v]
+                (let [[text color] (get {"aligned" ["已配验证关联" "green"]
+                                         "declared-unverified" ["声明方式·缺验证关联" "volcano"]}
+                                        v ["未声明方式" "default"])]
+                  (r/as-element [antd/tag {:color color} text])))}]
     (when editable? (fn [row] [antd/space {:wrap true}
                               [w/edit-button "新修订" #(open! (forms/requirement-dialog base options row))]
                               [w/edit-button "级联影响" #(preview! {:collection "requirements" :id (:id row) :label (str "URS需求 " (:code row))})]
@@ -206,6 +212,27 @@
           (for [{:keys [method count]} (:by-method cov)]
             ^{:key method} [antd/tag {:color (if (pos? count) "geekblue" "default")}
                             (str (get method-label method method) " · " count)])]]])]))
+
+
+(defn- alignment-section
+  "按每个需求编号的最新有效版本只读交叉核对已声明验证方式与是否已配验证(verifies)证据关联: 声明数, 其中已对齐数, 尚缺验证关联数与对齐率; 未声明方式不进入分母, 修订不重复计数, 已作废不计入."
+  [{:keys [model]}]
+  (let [al (:verification_evidence_alignment model)
+        declared (:declared al 0)
+        aligned (:aligned al 0)
+        gap (:gap al 0)
+        pct (:alignment-pct al 0)]
+    [shared/panel "验证方式与验证关联对齐" "按每个需求编号的最新有效版本交叉核对: 声明了验证方式的需求里有多少已真正挂上验证(verifies)证据关联; 未声明方式不进分母, 修订不重复计数, 已作废不计入"
+     (if (zero? declared)
+       [:span {:style {:color "#8793a3"}} "暂无声明验证方式的URS需求, 登记并声明验证方式后可在此查看对齐情况."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "已声明验证方式 " declared)]
+         [antd/tag {:color (cond (= pct 100) "green" (zero? pct) "red" :else "gold")}
+          (str "已配验证关联 " pct "%")]
+         [antd/tag {:color "green"} (str "对齐 " aligned)]
+         (when (pos? gap)
+           [antd/tag {:color "volcano"} (str "缺验证关联 " gap)])]])]))
 
 
 (defn- release-coverage-section
@@ -927,7 +954,7 @@
                       {:key key :label label :children (r/as-element
                                                          (into [:div {:style {:display "grid" :gap 20}}] (map #(vector % context) components)))})
                     [["charter" "章程" [charter-section]]
-                     ["requirements" "URS与追踪" [requirement-section coverage-section traceability-section trace-section]]
+                     ["requirements" "URS与追踪" [requirement-section coverage-section alignment-section traceability-section trace-section]]
                      ["evidence" "证据版本" [document-section collection-section tree-section release-coverage-section]]
                      ["appointments" "成员任命" [appointment-section]]
                      ["stakeholders" "干系人与沟通" [stakeholder-section raci-section comm-plan-section]]

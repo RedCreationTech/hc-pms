@@ -882,6 +882,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 该命令负责"措施一键落实为可追踪行动并在台账可视来源"这一条最小闭环; 暂不做措施到多条行动的批量拆分, 也不在风险侧统计其派生行动完成情况, 行动全部完成后提示风险可缓解等状态联动, 升级通知投递与 MySQL 回归仍待实现; H08 行仍为 `partial`, C10 行保持 `implemented / local`.
 
+## C01 需求验证方式与验证关联对齐只读派生 (本轮增补, 2026-09-28)
+
+设计与关闭口径: 兑现此前 C01/C02 遗留的"覆盖度只反映是否声明验证方式而非已配齐验证证据"边界, 把需求"已声明的验证方式"与"实际是否已挂上 verifies 验证证据关联"做只读交叉核对. 沿用"给治理台账加只读派生洞察"套路(承 C04 归集/H18c 剔除/C02v2 覆盖度/C03c 追踪状态), **不落库、不投递、不改动任何不可变版本, 免迁移, 免新命令, 免新 kind**. (1) 行内派生: 在既有 `requirement-trace-model` 里对每条需求追加 `verification_alignment`——未声明四类验证方法之一者 `not-applicable`, 已声明且该具体版本命中至少一条 `verifies` 关联者 `aligned`, 已声明却尚无 verifies 关联者 `declared-unverified` (按 `requirement_id` 精确命中版本 id, 修订不继承旧版关联). (2) 聚合派生: `governance.evidence` 新增纯函数 `verification-evidence-alignment`, **同时接收原始 `requirements` 与 `traces`** (因 workspace 的 `assoc` 块读的是未逐条 enrich 的原始 `(:requirements data)`, 不能依赖行内 `trace_verification_links`), 内部自行过滤 verifies 关联; 以每个 `code` 最新有效版本为统计单位 (复用 `store/latest` 去重), 剔除最新版本 `discarded` 者 (沿用 H18c), 分母只取已声明验证方式的最新版需求, 输出 `{declared, aligned, gap, alignment-pct}` (`alignment-pct` 为 `aligned/declared` 四舍五入整数, `declared` 为 0 给 0). 派生键无尾随 `?`; `:alignment-pct` 经 `clj->js` 后是字面 `"alignment-pct"`, 故前端用 keyword 取值而 E2E 原始 JSON 用 `['alignment-pct']` 中括号取值. workspace `governance.clj` 在 `:verification_coverage` 之后 `assoc :verification_evidence_alignment (evidence/verification-evidence-alignment (:requirements data) (:traces data))` 暴露. 前端"URS 需求版本"台账在"追踪状态"列后新增"验证对齐"列 (绿"已配验证关联"/橙"声明方式·缺验证关联"/灰"未声明方式"), "URS与追踪"页签在覆盖度面板之后新增 `alignment-section`"验证方式与验证关联对齐"面板 (蓝"已声明验证方式 N"/绿·金·红"已配验证关联 P%"/绿"对齐 A"/橙"缺验证关联 G", 无声明项显示占位提示).
+
+| 证据 | 实际记录 |
+|---|---|
+| 治理单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 60 tests / 746 assertions, 0 failures/errors (新增 `requirement-verification-evidence-alignment-is-derived-read-only` 1 例约 30 断言: 行内 `verification_alignment` 三态 not-applicable/declared-unverified/aligned 按具体版本 verifies 关联, 聚合 `verification_evidence_alignment` declared=2/aligned=1/gap=1/alignment-pct=50, 补一条 verifies 关联后升 aligned=2/gap=0/pct=100, 修订未声明者丢关联回落 declared-unverified 且按 code 去重仍 declared=2, 作废未被引用的修订版后 pct=100, 只读回显 `code`/`verification_method` 不漂移, 纯函数 `requirement-trace-model` 与 `verification-evidence-alignment` 直测) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 161 tests / 1661 assertions, 0 failures/errors, 新增读派生函数与 workspace `assoc` 未造成既有需求/追踪/覆盖度/归集用例回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 warnings |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-c01va.spec.js` 1 passed, 无未捕获 JS 错误: 界面"新增URS需求"登记一条选"测试"与一条不选验证方式的需求 -> "验证方式与验证关联对齐"面板显示蓝"已声明验证方式 1"、红"已配验证关联 0%"、绿"对齐 0"、橙"缺验证关联 1" (截图 c01va-1-gap-panel.png), 台账"验证对齐"列对声明者显橙"声明方式·缺验证关联"、未声明者显灰"未声明方式" (截图 c01va-2-gap-column.png); 真实 HTTP 给声明者建一份证据文档并挂一条 verifies 追踪关联后重开 -> 面板升到绿"已配验证关联 100% / 对齐 1"且"缺验证关联"标签消失 (截图 c01va-4-aligned-panel.png), 台账列翻绿"已配验证关联" (截图 c01va-3-aligned-column.png); 真实 HTTP GET governance 二次确认 `verification_evidence_alignment['alignment-pct']=100` 与行内 `verification_alignment=aligned` 一致; 截图存 `reports/c01va/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移, 不新增 DDL); 对齐口径只读可见, **不做任何强制门控或拦截** (声明了验证方式却无 verifies 关联的需求照常登记与流转), 亦不做按类别/优先级的更细切分或导出.
+
+边界: 验证方式与验证关联对齐只读派生是 C01"需求可追踪且带验证方法"口径中"声明的验证方式是否已配齐验证证据"一项的 `implemented / local` 落地 (行内交叉核对 + latest 去重 + 剔除已作废 + 免迁移 + workspace 暴露 + 台账列与面板可视), 关闭此前"覆盖度只反映是否声明而非已配齐验证证据"边界; 但"验证方法与验收证据闭环"的强制门控 (据此阻断 Gate/关闭), 双向追踪覆盖率分母正式界定与 MySQL 回归仍未完备, C01 矩阵行保持既有 `implemented / local` 不上行, C03 行仍 `partial / 待规则`, 不因这一子能力上行.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

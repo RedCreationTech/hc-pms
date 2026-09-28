@@ -545,6 +545,65 @@
   (is (= "untracked" (:trace_state (evidence/requirement-trace-model {"old" [{:relation "satisfies"}]} {:id "new"})))))
 
 
+(deftest requirement-verification-evidence-alignment-is-derived-read-only
+  ;; C01 延伸: 按需求编号最新有效版本交叉核对已声明验证方式与是否已配 verifies 验证证据关联的只读一致性(免迁移, 读取时派生, 不门控不写存储; 未声明方式不进分母).
+  (let [id (project!)
+        d1 (document! id "VA-VER")
+        d2 (document! id "VA-VER2")
+        base {:category "功能" :priority "required" :owner_id 9301}
+        req-n (command! id :requirements :create nil (assoc base :code "URS-N" :text "未声明方式需求"))
+        req-gap (command! id :requirements :create nil (assoc base :code "URS-G" :text "声明方式缺验证需求" :verification_method "test"))
+        req-al (command! id :requirements :create nil (assoc base :code "URS-A" :text "声明方式已配验证需求" :verification_method "inspection"))
+        _ (command! id :traces :create nil {:requirement_id (:id req-al) :target_kind "document" :target_id (:id d1) :relation "verifies"})
+        rs (fn [rid] (first (filter #(= rid (:id %)) (:requirements (workspace id)))))
+        al (fn [] (:verification_evidence_alignment (workspace id)))]
+    ;; 逐版本内联: 未声明 -> not-applicable; 声明无 verifies -> declared-unverified; 声明且已挂 verifies -> aligned.
+    (is (= "not-applicable" (:verification_alignment (rs (:id req-n)))))
+    (is (= "declared-unverified" (:verification_alignment (rs (:id req-gap)))))
+    (is (= "aligned" (:verification_alignment (rs (:id req-al)))))
+    ;; 聚合只针对声明了验证方式的最新版本: 未声明方式者不进分母.
+    (is (= 2 (:declared (al))))
+    (is (= 1 (:aligned (al))))
+    (is (= 1 (:gap (al))))
+    (is (= 50 (:alignment-pct (al))))
+    ;; 给缺验证的需求补一条 verifies 关联 -> 对齐率升到 100, 内联标注翻转为 aligned.
+    (command! id :traces :create nil {:requirement_id (:id req-gap) :target_kind "document" :target_id (:id d2) :relation "verifies"})
+    (is (= "aligned" (:verification_alignment (rs (:id req-gap)))))
+    (is (= 2 (:declared (al))))
+    (is (= 2 (:aligned (al))))
+    (is (= 0 (:gap (al))))
+    (is (= 100 (:alignment-pct (al))))
+    ;; 修订产生新版本(新 id)不继承旧版 verifies 链接 -> 新版本回落 declared-unverified; 聚合按编号最新有效版本去重, declared 仍 2.
+    (let [rev-gap (command! id :requirements :revisions (:id req-gap) (assoc base :code "URS-G" :text "声明方式缺验证需求(修订)" :verification_method "analysis"))]
+      (is (= "declared-unverified" (:verification_alignment (rs (:id rev-gap)))))
+      (is (= 2 (:declared (al))))
+      (is (= 1 (:aligned (al))))
+      (is (= 1 (:gap (al))))
+      (is (= 50 (:alignment-pct (al))))
+      ;; 作废未被追踪引用的最新修订版本 -> 该编号退出对齐分母, 只剩已对齐的 URS-A.
+      (command! id :requirements :discard (:id rev-gap) {:reason "并入需求甲"})
+      (is (= 1 (:declared (al))))
+      (is (= 1 (:aligned (al))))
+      (is (= 0 (:gap (al))))
+      (is (= 100 (:alignment-pct (al)))))
+    ;; 只读派生不改既有不可变版本字段.
+    (is (= "URS-A" (:code (rs (:id req-al)))))
+    (is (= "aligned" (:verification_alignment (rs (:id req-al))))))
+  ;; 纯函数直测: 声明且带 verifies -> aligned; 声明无链接 -> declared-unverified; 未声明 -> not-applicable(不进 declared).
+  (is (= "aligned" (:verification_alignment (evidence/requirement-trace-model {"r" [{:relation "verifies"}]} {:id "r" :verification_method "test"}))))
+  (is (= "declared-unverified" (:verification_alignment (evidence/requirement-trace-model {} {:id "r" :verification_method "test"}))))
+  (is (= "not-applicable" (:verification_alignment (evidence/requirement-trace-model {"r" [{:relation "verifies"}]} {:id "r"}))))
+  (let [agg (evidence/verification-evidence-alignment
+             [{:id "a" :code "A" :revision 1 :status "registered" :verification_method "test"}
+              {:id "b" :code "B" :revision 1 :status "registered" :verification_method "analysis"}
+              {:id "c" :code "C" :revision 1 :status "registered"}]
+             [{:requirement_id "a" :relation "verifies"}])]
+    (is (= 2 (:declared agg)))
+    (is (= 1 (:aligned agg)))
+    (is (= 1 (:gap agg)))
+    (is (= 50 (:alignment-pct agg)))))
+
+
 (deftest risk-becomes-one-issue-and-requires-independent-verification
   (let [id (project!) evidence (:id (document! id "FIX-1"))
         risk (command! id :risks :create nil {:title "关键调试风险" :probability 3 :impact 5

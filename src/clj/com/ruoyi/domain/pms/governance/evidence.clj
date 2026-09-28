@@ -389,6 +389,22 @@
      :by-method (mapv (fn [m] {:method m :count (method-count m)}) methods)}))
 
 
+(defn verification-evidence-alignment
+  "按每个业务编码最新有效版本交叉核对需求已声明的验证方式与其是否已配验证(verifies)证据关联的只读一致性: 统计声明验证方式的需求数, 其中已挂至少一条 verifies 关联者(aligned)与尚无验证证据关联者(gap), 以及对齐率. 未声明验证方式的需求不进入分母, 最新版本被受控作废(discarded)的编号不计入. 只读派生, 不落库不投递, 不门控, 不改变不可变版本, 键名不带尾随问号."
+  [requirements traces]
+  (let [verified-req-ids (into #{} (comp (filter #(= "verifies" (:relation %))) (map :requirement_id)) traces)
+        active (filterv #(not= "discarded" (:status %)) (s/latest requirements))
+        declared (filterv #(contains? requirement-verification-methods (:verification_method %)) active)
+        aligned (filterv #(verified-req-ids (:id %)) declared)
+        total-declared (count declared)]
+    {:declared total-declared
+     :aligned (count aligned)
+     :gap (- total-declared (count aligned))
+     :alignment-pct (if (pos? total-declared)
+                      (int (Math/round ^double (* 100.0 (/ (count aligned) total-declared))))
+                      0)}))
+
+
 (defn release-coverage
   "按每个业务编码最新有效版本统计证据文档发布审批链的只读覆盖度: registered/in_review/approved/rejected 各计数与已发布率; 最新版本被受控作废(discarded)的编号不计入. 只读派生, 不落库不投递, 不改变不可变版本."
   [documents]
@@ -427,7 +443,7 @@
 
 
 (defn requirement-trace-model
-  "只读派生每条需求版本已登记的追踪关联: 按 relation 统计设计满足(satisfies)与验证(verifies)关联的条数与齐备状态, 免迁移读取时计算, 不写存储, 不门控, 键名不带尾随问号."
+  "只读派生每条需求版本已登记的追踪关联: 按 relation 统计设计满足(satisfies)与验证(verifies)关联的条数与齐备状态; 另交叉核对该版本已声明的验证方式与实际 verifies 验证关联是否一致(声明了验证方式却尚无验证证据关联即为 gap), 免迁移读取时计算, 不写存储, 不门控, 键名不带尾随问号."
   [traces-by-req req]
   (let [links (get traces-by-req (:id req) [])
         design (filterv #(= "satisfies" (:relation %)) links)
@@ -436,8 +452,14 @@
                 (empty? links) "untracked"
                 (and (seq design) (seq verif)) "complete"
                 (empty? design) "missing-design"
-                :else "missing-verification")]
+                :else "missing-verification")
+        declared? (contains? requirement-verification-methods (:verification_method req))
+        alignment (cond
+                    (not declared?) "not-applicable"
+                    (pos? (count verif)) "aligned"
+                    :else "declared-unverified")]
     (assoc req
       :trace_design_links (count design)
       :trace_verification_links (count verif)
-      :trace_state state)))
+      :trace_state state
+      :verification_alignment alignment)))
