@@ -868,6 +868,20 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 该面板是"是否声明应对策略"的只读覆盖度聚合, 反映登记完整性而非"措施是否已落实/有效", 也不与缓解门控或复审联动拦截; H08 行仍为 `partial`, 升级通知投递与跨项目风险汇总升级仍待实现.
 
+## H08/C10 风险应对措施落实为可追踪预防行动项 (本轮增补, 2026-09-28)
+
+新增一条写命令 `POST /risks/:rid/mitigation-action`, 把风险登记的应对措施 (`mitigation`) 落实为一条有负责人和到期日、可独立追踪的行动项, 让"措施"从静态文本变成可跟进的待办 (推进 C10"预防措施与风险追踪"与 H08"措施"). 复用既有 `action` kind, 不新增治理记录类型, 因此无数据库迁移; `source_risk_id` 随行动 payload 持久化保留来源可追溯. 门控: 仅 `open`/`mitigated` 风险可执行 (其余 409), 要求 `pms:project:edit`, 跨项目或缺失 `rid` 返回 404. 字段继承: `title` 缺省回退"落实预防措施: <风险标题>", `owner_id` 与 `due_date` 缺省沿用风险自身值, 显式传入则覆盖; 命令不改动风险本身状态. 读取层新增 `enrich-action-source-links` 只派生 `action_source_risk_id`/`action_source_risk_title` (会议行动无 `source_risk_id` 故不写这两键), 键名不带尾随问号. 前端风险台账新增"落实预防措施"入口 (仅 open/mitigated 且可编辑可见, 对话框预填措施), "会议行动"台账新增"来源风险"列以 purple 标签回显来源风险标题 (非风险来源显示灰字). 落库的行动复用既有完成/独立验证/转 WBS 任务全生命周期.
+
+| 证据 | 实际记录 |
+|---|---|
+| 治理单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 59 tests / 716 assertions, 0 failures/errors (新增 `risk-mitigation-materializes-tracked-prevention-action` 1 例 20 断言: 缺省继承风险责任人/到期日与 `source_risk_id` 且新行动 `open`/风险不漂移, 缺省标题回退"落实预防措施: ", 显式 `owner_id`/`due_date` 覆盖, 读模型 `action_source_risk_id`/`action_source_risk_title` 标注而会议行动该键缺失, 行动转 WBS 任务后 `converted`, 已 materialize 风险 409, 跨项目风险 404) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 160 tests / 1631 assertions, 0 failures/errors, 新增 `[risks :mitigation-action]` 命令与路由及 `enrich-action-source-links` 未造成既有风险/问题/行动/审批用例回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 warnings |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-h08pa.spec.js` 1 passed, 无未捕获 JS 错误: HTTP 建项目+一条 2x3=6 (不触发升级) 带措施的风险 -> 界面"需求与治理 > 风险与问题"风险行点"落实预防措施"打开对话框并预填措施文本 (截图 h08pa-1-risk-button.png) -> 填写行动标题保存生成 open 行动 -> "会议行动"台账该行动行"来源风险"列以 purple 标签回显来源风险标题 (截图 h08pa-2-action-source.png); 真实 HTTP GET governance 二次确认该行动 `source_risk_id`/`action_source_risk_id`/`action_source_risk_title` 指回风险且继承 `owner_id`/`due_date`, `status=open`, 风险 `status` 不变, 会议行动无来源标注 (`action_source_risk_title` 为 falsy) |
+| 路由授权 | 新增 `/risks/:record_id/mitigation-action` 与其它 `command-route` 结构一致, `authz_test` 遍历路由表要求全部声明 `:perms` 仍通过 (领域层 `k/mutate!` 挂 `pms:project:edit`) |
+
+边界: 该命令负责"措施一键落实为可追踪行动并在台账可视来源"这一条最小闭环; 暂不做措施到多条行动的批量拆分, 也不在风险侧统计其派生行动完成情况, 行动全部完成后提示风险可缓解等状态联动, 升级通知投递与 MySQL 回归仍待实现; H08 行仍为 `partial`, C10 行保持 `implemented / local`.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

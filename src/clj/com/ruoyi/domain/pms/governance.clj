@@ -94,6 +94,7 @@
                    (update :traces #(mapv (partial evidence/trace-read-model docs-by-id) %))
                    (update :requirements #(mapv (partial evidence/requirement-trace-model traces-by-req) %))
                    (collab/enrich-risk-issue-links)
+                   (collab/enrich-action-source-links)
                    (assoc :project_version (:version project) :blockers (blockers q project)
                           :appointments (appointment/list-summaries q project)
                           :raci_conflicts (stakeholders/conflicts q project)
@@ -151,6 +152,7 @@
    [:risks :mitigate] collab/mitigate!
    [:risks :escalate] collab/acknowledge-escalation!
    [:risks :materialize] collab/materialize!
+   [:risks :mitigation-action] collab/mitigation-action!
    [:issues :create] (creating collab/create-issue!)
    [:issues :reopen] reviews/reopen-issue!
    [:issues :reassign] collab/reassign-issue!

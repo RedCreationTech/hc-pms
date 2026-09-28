@@ -511,6 +511,12 @@
      [w/edit-button "风险发生,转问题"
       #(open! {:title "风险转问题" :path (str base "/risks/" (:id risk) "/materialize")
                :initial {:title (:title risk)} :fields [{:key :title :label "问题描述" :required? true}]})])
+   (when (and editable? (contains? #{"open" "mitigated"} (:status risk)))
+     [w/edit-button "落实预防措施"
+      #(open! {:title "落实为预防行动项" :path (str base "/risks/" (:id risk) "/mitigation-action")
+               :description "将风险的应对措施落实为有负责人和到期日的可追踪行动项, 默认沿用风险责任人与到期日."
+               :initial {:title (let [m (:mitigation risk)] (if (seq m) (subs m 0 (min 200 (count m))) ""))}
+               :fields [{:key :title :label "预防行动内容" :required? true}]})])
    [review-actions context "risks" risk]])
 
 
@@ -696,9 +702,13 @@
 (defn- action-section
   "会议行动转为实际WBS任务, 完成须证据与独立核验并提示逾期."
   [{:keys [base model editable? open!] :as context}]
-  [shared/panel "会议行动" "转换后任务进入项目计划,重复转换保持同一任务;完成需证据与独立核验" nil
+  [shared/panel "会议行动" "会议行动与风险预防行动统一追踪;转换后任务进入项目计划,重复转换保持同一任务;完成需证据与独立核验" nil
    [w/record-table (:actions model)
     [(w/text-column :title "行动内容") (w/text-column :due_date "到期日期")
+     {:title "来源风险" :dataIndex "action_source_risk_title" :width 160
+      :render (fn [_ row]
+                (let [t (aget row "action_source_risk_title")]
+                  (r/as-element (if (some? t) [antd/tag {:color "purple"} t] [:span {:style {:color "#98a2b3"}} "非风险来源"]))))}
      {:title "逾期" :dataIndex "action_overdue" :render #(when % (r/as-element [antd/tag {:color "red"} "已逾期"]))}
      (due-countdown-column "action_due_in_days")
      (owner-load-column)

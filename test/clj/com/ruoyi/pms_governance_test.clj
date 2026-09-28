@@ -1390,6 +1390,55 @@
       (is (= "transfer" (:response_strategy row))))))
 
 
+(deftest risk-mitigation-materializes-tracked-prevention-action
+  (let [id (project!)
+        risk (command! id :risks :create nil
+                       {:title "关键物料断供风险" :probability 2 :impact 3 :owner_id 9301
+                        :mitigation "启用备选供应商并加严来料检验" :due_date "2026-10-20"})
+        risks (fn [] (:risks (workspace id)))
+        action (fn [aid] (first (filter #(= aid (:id %)) (:actions (workspace id)))))]
+    ;; 默认沿用风险责任人与到期日, 记录来源风险 id, 新建为开放行动项, 且风险本身不被改变.
+    (let [a (command! id :risks :mitigation-action (:id risk) {:title "锁定备选供应商名单"})]
+      (is (= "open" (:status a)))
+      (is (= "锁定备选供应商名单" (:title a)))
+      (is (= 9301 (:owner_id a)))
+      (is (= "2026-10-20" (:due_date a)))
+      (is (= (:id risk) (:source_risk_id a)))
+      (is (= "open" (:status (first (filter #(= (:id risk) (:id %)) (risks)))))))
+    ;; 省略标题时回退为以风险标题派生的预防措施行动, 仍默认沿用责任人与到期日.
+    (let [fb (command! id :risks :mitigation-action (:id risk) {})]
+      (is (some? (:id fb)))
+      (is (true? (.startsWith (:title fb) "落实预防措施: ")))
+      (is (true? (.contains (:title fb) "关键物料断供风险")))
+      (is (= 9301 (:owner_id fb)))
+      (is (= "2026-10-20" (:due_date fb))))
+    ;; 允许显式改写责任人与到期日覆盖风险默认值.
+    (let [ov (command! id :risks :mitigation-action (:id risk) {:title "专属跟进" :owner_id 9303 :due_date "2026-12-01"})]
+      (is (= 9303 (:owner_id ov)))
+      (is (= "2026-12-01" (:due_date ov))))
+    ;; 只读标注把来源风险标题回显到行动台账, 会议行动无来源风险则为空.
+    (let [r (action (:id (command! id :risks :mitigation-action (:id risk) {:title "带来源标注"})))]
+      (is (= (:id risk) (:action_source_risk_id r)))
+      (is (= "关键物料断供风险" (:action_source_risk_title r))))
+    (let [meeting (command! id :meetings :create nil
+                            {:title "评审会" :held_on "2026-09-22" :minutes "形成会议行动" :attendee_ids [9301 9302]})
+          ma (command! id :meetings :actions (:id meeting) {:title "会议行动" :owner_id 9301 :due_date "2026-09-30"})]
+      (is (nil? (:action_source_risk_title (action (:id ma))))))
+    ;; 复用既有行动生命周期: 预防行动可转真实WBS任务并置为 converted.
+    (let [a (command! id :risks :mitigation-action (:id risk) {:title "转任务预防项"})
+          t (command! id :actions :task (:id a) {:start_date "2026-09-23" :duration_days 2})]
+      (is (some? (:target_task_id t)))
+      (is (= "converted" (:status (action (:id a))))))
+    ;; 门控: 仅对进行中或已缓解风险开放, 已转问题(materialized)后不得再落实; 跨项目风险 404.
+    (command! id :risks :materialize (:id risk) {})
+    (is (= 409 (error-status #(command! id :risks :mitigation-action (:id risk) {:title "越门控"}))))
+    (let [other (project!)
+          other-risk (command! other :risks :create nil
+                                {:title "他项目风险" :probability 2 :impact 3 :owner_id 9301
+                                 :mitigation "其它" :due_date "2026-10-20"})]
+      (is (= 404 (error-status #(command! id :risks :mitigation-action (:id other-risk) {:title "跨项目"})))))))
+
+
 (deftest comm-plan-log-advances-next-date-and-flags-overdue
   (let [id (project!)
         st (command! id :stakeholders :create nil

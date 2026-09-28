@@ -183,6 +183,27 @@
                        issue)))))))
 
 
+(defn mitigation-action!
+  "将风险的预防措施落实为可追踪的行动项: 复用行动类型与既有完成/验证/转任务生命周期, 记录来源风险; 需项目编辑权限, 仅对进行中或已缓解的风险开放."
+  [svc actor id rid body]
+  (k/mutate! svc actor id "pms:project:edit" body "risk.mitigation-action-created"
+             (fn [q project]
+               (s/input! body [:title :owner_id :due_date])
+               (let [risk (s/record! q project "risk" rid)
+                     _ (s/status! risk #{"open" "mitigated"})
+                     prefix "落实预防措施: "
+                     base (:title risk)
+                     fallback (str prefix (if (> (count base) (- 200 (count prefix)))
+                                            (subs base 0 (- 200 (count prefix))) base))
+                     given (s/optional-text! body :title 200)]
+                 (s/insert! q project actor "action"
+                            {:title (if (seq given) given fallback)
+                             :owner_id (k/user! q project (or (:owner_id body) (:owner_id risk)) "负责人")
+                             :due_date (r/date! (or (not-empty (s/optional-text! body :due_date 10)) (:due_date risk)) "到期日")
+                             :source_risk_id rid}
+                            {:status "open"})))))
+
+
 (defn resolve!
   "提交整改内容和确切证据版本,指定独立验证人."
   [svc actor id rid body]
@@ -491,3 +512,17 @@
                                                  :risk_issue_title (:title (get issue-by-id iid)))
                                   risk))
                               %)))))
+
+
+(defn enrich-action-source-links
+  "读取时把预防行动项持久化的来源风险关联标注对方标题, 供行动台账可见; 只读派生不落库.
+   action.source_risk_id -> action_source_risk_id/action_source_risk_title; 来源风险缺失时标题为 nil."
+  [data]
+  (let [risk-by-id (into {} (map (juxt :id identity)) (:risks data))]
+    (update data :actions
+            #(mapv (fn [action]
+                     (if-let [rid (:source_risk_id action)]
+                       (assoc action :action_source_risk_id rid
+                                      :action_source_risk_title (:title (get risk-by-id rid)))
+                       action))
+                   %))))

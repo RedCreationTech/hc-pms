@@ -46,6 +46,7 @@
     (command-route svc "/risks/:record_id/mitigate" :risks :mitigate)
     (command-route svc "/risks/:record_id/escalate" :risks :escalate)
     (command-route svc "/risks/:record_id/materialize" :risks :materialize)
+    (command-route svc "/risks/:record_id/mitigation-action" :risks :mitigation-action)
     (command-route svc "/risks/from-library" :risks :from-library)
     (command-route svc "/issues" :issues :create)
     (command-route svc "/issues/:record_id/resolve" :issues :resolve)
