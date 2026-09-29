@@ -1019,6 +1019,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: C07g 把 H18 既有的通用软删除框架接入 meeting kind, 补齐了"草稿清理此前仅覆盖需求/文档/干系人而未含会议纪要"的缺口; 但 C07 整行 (通知投递, 生产/UAT 签收等) 与 H18 整行 (正式历史按保留策略归档, 已作废证据对 Gate/验收快照显式标注等) 所涉更宽治理仍未尽数实现, 故 C07 与 H18 两行均保持 `partial` 不上行.
 
+## H18/C03 已作废证据对历史追踪快照显式标注 (本轮增补, 2026-09-29)
+
+设计与口径: C03 的追踪链"证据发布状态"列 (`trace-read-model` 派生 `evidence_status`/`evidence_release_state`) 与 C01 的 URS"验证证据"列 (`requirement-trace-model` 派生 `verification_evidence_state`) 都按追踪记录里已存的**确定 `target_id`** 读取那一个文档版本的发布态, 因而同编码更新版本被受控作废后, 追踪/需求行仍忠实回显旧版本口径——这是不可变历史快照应有的行为. 但评审界面此前看不出"这条追踪所依赖的证据, 其业务编码当前是否已被整体作废", 可能误用一条早已作废的证据. 本项在同一 `docs-by-id` 入参上再派生一层只读标注, 完全沿用"给治理台账加只读派生洞察"套路, **不落库、不投递、不改动任何不可变版本, 免迁移、免新命令、免新 kind、免新路由、不构成任何门控**. (1) 集合派生: 私有纯函数 `governance.evidence/voided-document-codes` 对 `docs-by-id` 逐业务编码 `code` 用 `store/latest` 取最高 `revision` 版本, 收集其 `status = "discarded"` 者形成编码集合 (复用 C01/C04/H18c 同一"按 code 取最新有效版本"不变量). (2) 行内派生: `trace-read-model` 据目标 `target_kind = document` 且所引文档 `code` 命中该集合对追踪行追加布尔 `evidence_voided` (`task` 关联与非命中恒 false); `requirement-trace-model` 据该需求任一 verifies 关联指向 `target_kind = document` 且其 `code` 命中集合追加布尔 `verification_evidence_voided`. 因引用守卫使被追踪直接引用的版本不可作废, 标注为 true 的成立路径只能是"追踪指向旧版本 v1、同编码新版本 v2 被作废"这一"捕获时有效、事后证据整体作废"的真实场景, 与不可变快照不冲突. (3) 前端: "需求追踪矩阵"表"证据发布"列与"URS 需求版本"表"验证证据"列在原发布态徽标之后, 于命中时叠加红色"证据已作废"标签 (原徽标保持不变, 二者并存). 键名不带尾随 `?`; `evidence_voided`/`verification_evidence_voided` 经 `clj->js` 后为同名布尔, 前端 `(aget row "...")` 用 `true?` 判定.
+
+| 证据 | 实际记录 |
+|---|---|
+| 治理单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 68 tests / 900 assertions, 0 failures/errors (新增 `discarded-evidence-latest-revision-is-flagged-in-trace-read-model` 1 例: 建项目+文档 v1 (`EV-VOID`) 登记为 `registered` -> 需求 `URS-EV` 声明验证方式 `test` 并挂一条指向 v1 的 verifies 追踪 -> 断言 `evidence_voided` 与 `verification_evidence_voided` 均 false -> `:documents :revisions` 生成同编码 v2 (`revision` 2) -> `:documents :discard` 作废 v2 (未破坏 v1, 追踪仍指 v1) -> 断言 `evidence_voided` true 且 `verification_evidence_voided` true, 而追踪行 `evidence_status` 仍 `registered`、`evidence_release_state` 仍 `pending` 不漂移 -> `:documents :restore` 恢复 v2 后两布尔复归 false; 另对 `docs-by-id` 混合样本 `{a: rev1 registered, b: rev2 discarded}` 直接纯函数测 `trace-read-model`/`requirement-trace-model` 的命中与未命中布尔) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 170 tests / 1828 assertions, 0 failures/errors, `voided-document-codes` 集合与两处行内布尔未造成既有追踪链证据发布/需求追踪状态/验证证据已发布等 read-model 用例回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 warnings |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-h18ev.spec.js` 1 passed (48.2s), 无未捕获 JS 错误: 界面登记一条声明验证方式"测试"的需求 -> 真实 HTTP 建证据文档 v1 并挂一条 verifies 追踪 -> "URS 需求版本"与"需求追踪矩阵"两表原徽标可见且无红"证据已作废" (截图 h18ev-1-urs-clean.png, h18ev-2-trace-clean.png); 真实 HTTP GET governance 回显行内 `evidence_voided`/`verification_evidence_voided` 均 false -> 真实 HTTP `:documents :revisions` 生成 v2 再 `:documents :discard` 作废 v2 -> 重载两表列在原徽标后追加红色"证据已作废" (截图 h18ev-3-urs-voided.png, h18ev-4-trace-voided.png); 真实 HTTP GET governance 二次确认 `evidence_voided`/`verification_evidence_voided` 转 true 而追踪所指向 v1 `evidence_status` 仍 `registered` 不漂移 -> 真实 HTTP `:documents :restore` 恢复 v2 -> 重载红标消失 (截图 h18ev-5-urs-restored.png), GET 两布尔复归 false; 截图存 `reports/h18ev/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL); "对最新版本被作废的证据显式标注"这一布尔事实由后端 SQLite 用例确定性覆盖, 浏览器侧核验界面可见的红色标签叠加/消失与真实 HTTP 回显; 只读标注**不构成任何门控或拦截** (证据作废后既有追踪照常登记/读取/流转, 是否据此阻断 Gate/关闭仍属"待规则"), 不做批量重算或历史留存, 不做作废主动提醒投递.
+
+边界: 本项关闭 H18 待办里"已作废证据对历史追踪快照的显式标注"这一子边界 (追踪矩阵与 URS 两处已显式提示证据整体作废), 是 C03 追踪链与 H18 作废治理口径下 `implemented / local` 的又一项只读洞察; 但 H18 整行仍有"已作废证据对历史 Gate/验收决策快照的显式标注""正式历史按保留策略归档"未完备, MySQL 回归亦待补, 故 H18 与 C03 两行均保持 `partial` 不上行.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

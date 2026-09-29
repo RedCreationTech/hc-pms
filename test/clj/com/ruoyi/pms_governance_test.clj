@@ -679,6 +679,53 @@
     (is (= 33 (:evidence-released-pct agg)))))
 
 
+(deftest discarded-evidence-latest-revision-is-flagged-in-trace-read-model
+  ;; H18/C03 延伸: 追踪链只读标注其所引用证据文档业务编码的"最新版本"是否已被受控作废(discarded), 关闭"已作废证据对历史追踪快照的显式标注"边界; 免迁移读取时派生, 不写存储不门控不改不可变版本.
+  (let [id (project!)
+        doc-v1 (document! id "EV-VOID")
+        req (command! id :requirements :create nil
+                      {:code "URS-EV" :text "需证据验证" :category "功能" :priority "required" :owner_id 9301 :verification_method "test"})
+        _ (command! id :traces :create nil
+                    {:requirement_id (:id req) :target_kind "document" :target_id (:id doc-v1) :relation "verifies"})
+        trace (fn [] (first (filter #(= (:id doc-v1) (:target_id %)) (:traces (workspace id)))))
+        urs (fn [] (first (filter #(= (:id req) (:id %)) (:requirements (workspace id)))))]
+    ;; 单版本且未作废: 追踪链 evidence_voided false, URS verification_evidence_voided false.
+    (is (false? (:evidence_voided (trace))))
+    (is (false? (:verification_evidence_voided (urs))))
+    ;; 新增不可变修订 v2(同编号), 追踪仍指向 v1.
+    (let [v2 (command! id :documents :revisions (:id doc-v1)
+                       {:code "EV-VOID" :title "证据更新" :filename "ev-v2.txt" :content "第二版正文"})]
+      (is (= 2 (:revision v2)))
+      (is (false? (:evidence_voided (trace))) "v2 尚未作废时追踪标注不翻真")
+      ;; 作废最新版本 v2: 追踪指向旧 v1 不构成对 v2 的引用, 引用守卫放行.
+      (command! id :documents :discard (:id v2) {:reason "上传错误版本作废"})
+      (is (true? (:evidence_voided (trace))) "编码最新版本被作废 -> 追踪标注 evidence_voided true")
+      (is (true? (:verification_evidence_voided (urs))) "URS 验证证据编码最新版本作废 -> verification_evidence_voided true")
+      ;; 追踪所指向的 v1 自身发布口径不因新版本作废而漂移.
+      (is (= "registered" (:evidence_status (trace))))
+      (is (= "EV-VOID" (:code (first (filter #(= (:id doc-v1) (:id %)) (:documents (workspace id)))))))
+      ;; 受控恢复 v2 后标注回落 false, 只读派生无残留.
+      (command! id :documents :restore (:id v2) {:reason "误作废恢复"})
+      (is (false? (:evidence_voided (trace))))
+      (is (false? (:verification_evidence_voided (urs))))))
+  ;; 纯函数直测: 同编码最新版本 discarded -> 引用旧版本的追踪 evidence_voided true; 任务目标恒 false; 未作废编码 false.
+  (let [docs {"a" {:id "a" :code "C1" :revision 1 :status "registered"}
+              "b" {:id "b" :code "C1" :revision 2 :status "discarded"}}]
+    (is (true? (:evidence_voided (evidence/trace-read-model docs {:target_kind "document" :target_id "a"}))))
+    (is (false? (:evidence_voided (evidence/trace-read-model docs {:target_kind "task" :target_id "t1"}))))
+    (is (false? (:evidence_voided (evidence/trace-read-model {"x" {:id "x" :code "CX" :revision 1 :status "approved"}}
+                                                              {:target_kind "document" :target_id "x"})))))
+  ;; 纯函数直测: requirement-trace-model verification_evidence_voided 随 verifies 指向编码最新版本作废而翻真; 任务目标恒 false.
+  (let [docs {"a" {:id "a" :code "C1" :revision 1 :status "registered"}
+              "b" {:id "b" :code "C1" :revision 2 :status "discarded"}}]
+    (is (true? (:verification_evidence_voided
+                (evidence/requirement-trace-model
+                 {"r" [{:relation "verifies" :target_kind "document" :target_id "a"}]} docs {:id "r" :verification_method "test"}))))
+    (is (false? (:verification_evidence_voided
+                 (evidence/requirement-trace-model
+                  {"r" [{:relation "verifies" :target_kind "task" :target_id "t"}]} docs {:id "r" :verification_method "test"}))))))
+
+
 (deftest risk-becomes-one-issue-and-requires-independent-verification
   (let [id (project!) evidence (:id (document! id "FIX-1"))
         risk (command! id :risks :create nil {:title "关键调试风险" :probability 3 :impact 5

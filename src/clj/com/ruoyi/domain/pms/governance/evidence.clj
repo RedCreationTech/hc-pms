@@ -437,32 +437,44 @@
                      0)}))
 
 
+(defn- voided-document-codes
+  "从按 id 索引的全部证据文档版本中派生其最新版本已被受控作废(discarded)的业务编码集合, 供追踪链只读标注其引用证据是否现已作废."
+  [docs-by-id]
+  (into #{} (comp (filter #(= "discarded" (:status %))) (map :code)) (s/latest (vals docs-by-id))))
+
+
 (defn trace-read-model
-  "只读派生追踪链所引用证据文档版本的发布状态: 文档目标按其确定版本状态标注 released/pending/rejected/missing, 任务目标为 n/a. 免迁移读取时计算, 不写存储, 不改变不可变版本, 键名不带尾随问号."
+  "只读派生追踪链所引用证据文档版本的发布状态: 文档目标按其确定版本状态标注 released/pending/rejected/missing, 任务目标为 n/a; 若所引用证据文档所属业务编码的最新版本已被受控作废(discarded), 追加 evidence_voided 为 true 以显式标注该追踪所依赖的证据现已作废. 免迁移读取时计算, 不写存储, 不改变不可变版本, 键名不带尾随问号."
   [docs-by-id trace]
-  (if-not (= "document" (:target_kind trace))
-    (assoc trace :evidence_release_state "n/a" :evidence_status nil :evidence_released nil)
-    (let [doc (get docs-by-id (:target_id trace))
-          status (:status doc)
-          state (cond
-                  (nil? doc) "missing"
-                  (= "approved" status) "released"
-                  (= "rejected" status) "rejected"
-                  :else "pending")]
-      (assoc trace :evidence_status status
-             :evidence_release_state state
-             :evidence_released (= "approved" status)))))
+  (let [voided-codes (voided-document-codes docs-by-id)]
+    (if-not (= "document" (:target_kind trace))
+      (assoc trace :evidence_release_state "n/a" :evidence_status nil :evidence_released nil :evidence_voided false)
+      (let [doc (get docs-by-id (:target_id trace))
+            status (:status doc)
+            state (cond
+                    (nil? doc) "missing"
+                    (= "approved" status) "released"
+                    (= "rejected" status) "rejected"
+                    :else "pending")]
+        (assoc trace :evidence_status status
+               :evidence_release_state state
+               :evidence_released (= "approved" status)
+               :evidence_voided (boolean (voided-codes (:code doc))))))))
 
 
 (defn requirement-trace-model
-  "只读派生每条需求版本已登记的追踪关联: 按 relation 统计设计满足(satisfies)与验证(verifies)关联的条数与齐备状态; 交叉核对该版本已声明的验证方式与实际 verifies 验证关联是否一致(声明了验证方式却尚无验证证据关联即为 gap), 并进一步区分该验证关联所指向的证据文档是否已发布(approved): 已声明且至少一条 verifies 关联指向已发布证据文档记 released, 有 verifies 关联但证据文档尚未发布(或验证证据为任务)记 pending, 无 verifies 关联记 no-verification, 未声明验证方式记 not-applicable. 免迁移读取时计算, 不写存储, 不门控, 键名不带尾随问号."
+  "只读派生每条需求版本已登记的追踪关联: 按 relation 统计设计满足(satisfies)与验证(verifies)关联的条数与齐备状态; 交叉核对该版本已声明的验证方式与实际 verifies 验证关联是否一致(声明了验证方式却尚无验证证据关联即为 gap), 并进一步区分该验证关联所指向的证据文档是否已发布(approved): 已声明且至少一条 verifies 关联指向已发布证据文档记 released, 有 verifies 关联但证据文档尚未发布(或验证证据为任务)记 pending, 无 verifies 关联记 no-verification, 未声明验证方式记 not-applicable; 另追加 verification_evidence_voided 为 true 当任一 verifies 关联所指向的证据文档所属业务编码的最新版本已被受控作废(discarded), 以显式标注验证证据现已作废. 免迁移读取时计算, 不写存储, 不门控, 键名不带尾随问号."
   [traces-by-req docs-by-id req]
   (let [links (get traces-by-req (:id req) [])
+        voided-codes (voided-document-codes docs-by-id)
         design (filterv #(= "satisfies" (:relation %)) links)
         verif (filterv #(= "verifies" (:relation %)) links)
         released-verif (filterv #(and (= "document" (:target_kind %))
                                       (= "approved" (:status (get docs-by-id (:target_id %)))))
                                 verif)
+        verif-voided (boolean (some #(and (= "document" (:target_kind %))
+                                          (voided-codes (:code (get docs-by-id (:target_id %)))))
+                                    verif))
         state (cond
                 (empty? links) "untracked"
                 (and (seq design) (seq verif)) "complete"
@@ -483,4 +495,5 @@
       :trace_verification_links (count verif)
       :trace_state state
       :verification_alignment alignment
-      :verification_evidence_state evidence-state)))
+      :verification_evidence_state evidence-state
+      :verification_evidence_voided verif-voided)))

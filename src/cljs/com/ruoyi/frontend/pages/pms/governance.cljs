@@ -98,13 +98,17 @@
                                          "declared-unverified" ["声明方式·缺验证关联" "volcano"]}
                                         v ["未声明方式" "default"])]
                   (r/as-element [antd/tag {:color color} text])))}
-     {:title "验证证据" :dataIndex "verification_evidence_state" :width 150
-      :render (fn [v]
+     {:title "验证证据" :dataIndex "verification_evidence_state" :width 170
+      :render (fn [v row]
                 (let [[text color] (get {"released" ["证据已发布" "green"]
                                          "pending" ["证据待发布" "gold"]
                                          "no-verification" ["缺验证关联" "default"]}
-                                        v ["未声明方式" "default"])]
-                  (r/as-element [antd/tag {:color color} text])))}]
+                                        v ["未声明方式" "default"])
+                      voided (true? (aget row "verification_evidence_voided"))]
+                  (r/as-element
+                    [:div {:style {:display "flex" :flex-wrap "wrap" :gap 4}}
+                     [antd/tag {:color color} text]
+                     (when voided [antd/tag {:color "red"} "证据已作废"])])))}]
     (when editable? (fn [row] [antd/space {:wrap true}
                               [w/edit-button "新修订" #(open! (forms/requirement-dialog base options row))]
                               [w/edit-button "级联影响" #(preview! {:collection "requirements" :id (:id row) :label (str "URS需求 " (:code row))})]
@@ -484,12 +488,15 @@
                                             (let [item (js->clj row :keywordize-keys true)]
                                               (if (= "task" (:target_kind item)) (w/related-label (:tasks planning) :task_id :name (:target_id item))
                                                   (w/related-label (:documents model) :id :title (:target_id item)))))}
-     {:title "证据发布" :key "release" :width 110
+     {:title "证据发布" :key "release" :width 160
       :render (fn [_ row]
                 (let [st (aget row "evidence_release_state")
+                      voided (true? (aget row "evidence_voided"))
                       color ({"released" "green" "pending" "gold" "rejected" "red" "missing" "volcano" "n/a" "default"} st)
                       label ({"released" "已发布" "pending" "待发布" "rejected" "已驳回" "missing" "证据缺失" "n/a" "任务关联"} st)]
-                  (r/as-element (if (nil? label) [:span {:style {:color "#98a2b3"}} "—"] [antd/tag {:color color} label]))))}
+                  (r/as-element [:div {:style {:display "flex" :flex-wrap "wrap" :gap 4}}
+                                 (if (nil? label) [:span {:style {:color "#98a2b3"}} "—"] [antd/tag {:color color} label])
+                                 (when voided [antd/tag {:color "red"} "证据已作废"])])))}
      {:title "关系" :dataIndex "relation" :render #(if (= % "satisfies") "满足需求" "验证需求")}
      {:title "阶段" :dataIndex "phase" :width 110 :render #(get forms/phase-labels % (or % "—"))}
      {:title "偏差" :dataIndex "deviation_level" :width 200
