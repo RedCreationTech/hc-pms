@@ -56,6 +56,8 @@
     (command-route svc "/issues/:record_id/escalate" :issues :escalate)
     (command-route svc "/issues/:record_id/escalate-overdue" :issues :escalate-overdue)
     (command-route svc "/meetings" :meetings :create)
+    (command-route svc "/meetings/:record_id/submit" :meetings :submit)
+    (command-route svc "/meetings/:record_id/decision" :meetings :decision)
     (command-route svc "/meetings/:record_id/actions" :meetings :actions)
     (command-route svc "/actions/:record_id/task" :actions :task)
     (command-route svc "/actions/:record_id/complete" :actions :complete)

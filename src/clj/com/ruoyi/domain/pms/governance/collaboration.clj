@@ -321,6 +321,38 @@
                             {:status "recorded"})))))
 
 
+(defn submit-meeting!
+  "会议纪要受控发布: 已登记的纪要提交给独立质量审批人审核并冻结为审批中. 免迁移, 元数据随 payload 持久化."
+  [svc actor id rid body]
+  (k/mutate! svc actor id "pms:project:edit" body "meeting.submitted"
+             (fn [q project]
+               (s/input! body [:reviewer_id])
+               (let [meeting (s/record! q project "meeting" rid)]
+                 (s/status! meeting #{"recorded"})
+                 (when-not (seq (:minutes meeting))
+                   (r/fail! 409 "纪要内容为空,不能提交发布"))
+                 (s/change! q project meeting "in_review"
+                            {:reviewer_id (s/reviewer! q project actor (:reviewer_id body))
+                             :submitted_by (:user_id actor)})))))
+
+
+(defn decide-meeting!
+  "指定独立审核人核验会议纪要: 批准形成不可变已发布纪要, 驳回退回登记态供补充."
+  [svc actor id rid body]
+  (k/mutate! svc actor id "pms:quality:approve" body "meeting.decided" {:write? false}
+             (fn [q project]
+               (s/input! body [:decision :reason])
+               (let [meeting (s/record! q project "meeting" rid)
+                     decision (s/enum! (:decision body) #{"approved" "rejected"} "decision")]
+                 (s/status! meeting #{"in_review"})
+                 (s/decision-actor! actor meeting)
+                 (s/change! q project meeting (if (= decision "approved") "approved" "recorded")
+                            {:release_decision decision
+                             :release_reason (s/text! body :reason 2000)
+                             :released_by (when (= decision "approved") (:user_id actor))
+                             :decided_by (:user_id actor)})))))
+
+
 (defn create-action!
   "从确定会议派生有责任人和期限的行动项."
   [svc actor id rid body]

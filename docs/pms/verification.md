@@ -989,6 +989,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: C07e 把问题侧既有的"申请—独立审批"受控重开闭环复用到会议行动, 补齐了 C07 会议行动此前"关闭即终态、无法受控重开"的缺口; 但 C07 整行验收所涉更宽的行动治理 (如重开审计报表, 通知投递, 生产/UAT 签收) 仍未尽数实现, 故 C07 行保持 `partial` 不上行.
 
+## C07f 会议纪要受控发布 (本轮增补, 2026-09-29)
+
+设计与口径: 会议 (meeting) 是治理各 kind 中此前唯一只有"登记 (recorded)"终态、而无发布/裁决路径的一类——文档 (C06)、章程、关口都已具备"提交—独立裁决发布"闭环, 会议纪要么停留在登记态、无法在治理侧形成"经独立审批的正式归档纪要". C07f 把同一套两段式受控发布补到会议纪要, 是一条**写路径闭环** (非只读派生), 仍坚持**免迁移、免新 kind、免新裁决路由**: 不新增治理记录类型 (不动 `pms_governance_record` 的 `CHECK(kind IN ...)`), 新字段 (`reviewer_id`, `submitted_by`, `release_decision`, `release_reason`, `released_by`, `decided_by`) 全部随 payload JSON 持久化; 关键取舍——批准态复用 `pms_gov_record.status` 的 CHECK 允许值 `approved` (与文档/章程/关口"发布即 approved"一致), 而非引入 CHECK 未包含的 `released` 字面量 (若误用 `released` 会在 `gov/update!` 写库时触发数据约束冲突). (1) 领域: `collaboration.clj` 新增 `submit-meeting!` (仅 `recorded` 可提交否则 409, 空纪要 409 防御, 独立 `reviewer_id` 经 `s/reviewer!` 校验不得为提交人且具 `pms:quality:approve` + 项目访问否则 409/403, 转 `in_review` 记 `submitted_by`) 与 `decide-meeting!` (`{:write? false}` 只读审批人即可裁决, `s/decision-actor!` 校验只有指定审核人且非提交人, approved->`approved` 记 `released_by`, rejected->`recorded` 退回登记态可补充重提). (2) 命令表 + 路由: `governance.clj` 加 `[:meetings :submit]`/`[:meetings :decision]`, `pms_governance.clj` 加 `POST /meetings/:record_id/submit` 与 `POST /meetings/:record_id/decision`. (3) 前端: `governance.cljs` 的 `meeting-section` 新增"纪要发布"状态列 (recorded 草稿 / in_review 发布审批中 / approved 已发布), 对 `recorded` 纪要加"提交发布"入口 (选独立审批人), 对 `in_review` 且当前用户为指定审核人者显"批准发布"/"驳回"按钮 (复用 `forms/decision-dialog`).
+
+| 证据 | 实际记录 |
+|---|---|
+| 治理单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 66 tests / 855 assertions, 0 failures/errors (新增 `meeting-minutes-release-requires-independent-approval` 1 例: 提交人自任审核人 409, 无项目访问审核人 403; 提交转 in_review 且回显 `reviewer_id`/`submitted_by`; in_review 重复提交 409; 提交人自批 403, 非指定审核人冒名批准 403; 指定审核人批准 -> `approved` 且 `release_decision=approved`/`released_by`=审核人; 已发布不可重提 409; 驳回路径 -> `recorded` -> 重提 -> 批准 -> `approved`) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 168 tests / 1783 assertions, 0 failures/errors, 未造成既有会议登记/行动闭环/闭环率等用例回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 warnings |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-c07f.spec.js` 1 passed (28.6s), 无未捕获 JS 错误: 界面 admin 在"会议与决策"台账对 recorded 纪要点"提交发布"选独立审批人 -> 纪要转 in_review, 新增"纪要发布"列以蓝色标签显"发布审批中" (截图 c07f-1-in-review-badge.png), 真实 HTTP GET governance 回显 `status=in_review`/`reviewer_id`/`submitted_by`; 独立审批人第二真实浏览器上下文亲自点"驳回"填意见 -> 纪要退回 recorded 且 `release_decision=rejected`、"提交发布"按钮重现; admin 补充后重提 -> 审批人点"批准发布"填意见 (截图 c07f-2-approver-release-dialog.png) -> 纪要翻 approved "纪要发布"列显绿色"已发布"且"提交发布"入口消失 (截图 c07f-3-released.png), 真实 HTTP GET governance 二次确认 `status=approved`/`release_decision=approved`/`released_by`=审批人; 截图存 `reports/c07f/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL); 门控事实 (提交人自批 403, 非指定审核人 403, in_review 重复提交 409, 已发布不可重提 409, 无项目访问审核人 403) 在浏览器侧只走界面可见路径, 非法态由后端 SQLite 用例确定性地覆盖; 不做纪要发布的自动通知投递、跨项目纪要归集与生产/UAT 签收.
+
+边界: C07f 把文档/章程/关口既有的"提交—独立裁决发布"闭环补到会议纪要, 补齐了会议此前"只有登记终态、无正式归档发布门控"的缺口; 但 C07 整行验收所涉更宽治理 (通知投递, 生产/UAT 签收等) 仍未尽数实现, 故 C07 行保持 `partial` 不上行.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

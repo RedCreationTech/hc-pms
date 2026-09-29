@@ -842,6 +842,43 @@
     (is (= "open" (:status (command! 9302 id :actions :verify aid {:decision "approved" :reason "缺陷复现确认"}))))
     (is (= "open" (:status (first (filterv (fn [a] (= aid (:id a))) (:actions (workspace id)))))))))
 
+
+(deftest meeting-minutes-release-requires-independent-approval
+  (let [id (project!)
+        meeting (command! id :meetings :create nil
+                          {:title "阶段评审会" :held_on "2026-09-12" :minutes "形成阶段结论" :attendee_ids [9301 9302]})
+        mid (:id meeting)
+        submit-body {:reviewer_id 9302}]
+    ;; 提交校验: 审核人为提交人 409, 无项目访问 403.
+    (is (= 409 (error-status #(command! id :meetings :submit mid {:reviewer_id 9301}))))
+    (is (= 403 (error-status #(command! id :meetings :submit mid {:reviewer_id 9304}))))
+    ;; 提交进入 in_review, 记录独立审核人与提交人.
+    (let [submitted (command! id :meetings :submit mid submit-body)]
+      (is (= "in_review" (:status submitted)))
+      (is (= 9302 (:reviewer_id submitted)))
+      (is (= 9301 (:submitted_by submitted))))
+    ;; 审批中不可重复提交 409.
+    (is (= 409 (error-status #(command! id :meetings :submit mid submit-body))))
+    ;; 提交人自行批准 403, 非指定审核人批准 403.
+    (is (= 403 (error-status #(command! id :meetings :decision mid {:decision "approved" :reason "自批"}))))
+    (is (= 403 (error-status #(command! 9303 id :meetings :decision mid {:decision "approved" :reason "冒名批准"}))))
+    ;; 独立审核人批准 -> released 不可变发布态, 记录发布人与结论.
+    (let [released (command! 9302 id :meetings :decision mid {:decision "approved" :reason "纪要完整可归档"})]
+      (is (= "approved" (:status released)))
+      (is (= "approved" (:release_decision released)))
+      (is (= 9302 (:released_by released))))
+    ;; 已发布不可再次提交发布 409.
+    (is (= 409 (error-status #(command! id :meetings :submit mid submit-body))))
+    ;; 驳回路径: 新会议提交后由独立审核人驳回退回 recorded, 补充后可再次提交并批准.
+    (let [m2 (command! id :meetings :create nil
+                       {:title "整改例会" :held_on "2026-09-13" :minutes "待补充附件" :attendee_ids [9301 9302]})
+          m2id (:id m2)]
+      (command! id :meetings :submit m2id submit-body)
+      (is (= "recorded" (:status (command! 9302 id :meetings :decision m2id {:decision "rejected" :reason "缺少结论"}))))
+      (is (= "in_review" (:status (command! id :meetings :submit m2id submit-body))))
+      (is (= "approved" (:status (command! 9302 id :meetings :decision m2id {:decision "approved" :reason "补充后通过"})))))))
+
+
 (deftest issue-reassign-changes-owner-with-audit-and-guards-membership
   (let [id (project!)
         issue (command! id :issues :create nil

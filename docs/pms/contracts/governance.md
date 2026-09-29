@@ -52,6 +52,8 @@
 | POST `/issues/:rid/reassign` | owner_id, reason | 转派责任人: 状态保持 open/rejected, 新责任人须为当前项目成员否则 400, 缺原因 400, 无编辑权 403, 已关闭 409; payload 记录 reassigned_from(原责任人), reassign_reason, reassigned_by 供审计 |
 | POST `/issues/:rid/decision` | decision: approved/rejected, reason | 整改验证时批准 -> closed, 拒绝 -> rejected; 重开评审时批准 -> open, 拒绝 -> closed; 必须指定人独立决定 |
 | POST `/meetings` | title, held_on, minutes, attendee_ids, 可选 material_ids | 持久化纪要及 1..100 个参与人, 状态 recorded. material_ids 为可选会前资料, 须为 0..50 个不重复的同项目真实文档版本 `id`; 引用不存在或跨项目或非 document 类型 404, 重复或超 50 或非法数组 400; 留空记为 `[]` |
+| POST `/meetings/:rid/submit` | reviewer_id | 会议纪要受控发布: 状态须为 recorded(否则 409), 冻结纪要进入 in_review 并指定具备 `pms:quality:approve` 的独立发布审核人(审核人不得为提交人且须有项目访问, 否则 409/403), 记 `submitted_by` 为当前操作人; 免迁移, 元数据随 payload 持久化 |
+| POST `/meetings/:rid/decision` | decision: approved/rejected, reason | 只有指定审核人可决定当前提交版本(读权限即可, `pms:quality:approve`); approved -> `approved` (正式归档发布, 记 `released_by`), rejected -> `recorded` (退回登记态可补充重提); 提交人不能自批 403, 非指定审核人 403, 纪要非 in_review 态 409 |
 | POST `/meetings/:rid/actions` | title, owner_id, due_date | 创建归属该会议的 open 行动项 |
 | POST `/actions/:rid/task` | 可选 start_date, duration_days, wbs_code | 同事务创建真实 WBS 任务, 状态 converted, 保存 target_task_id; 重试不重复创建 |
 | POST `/actions/:rid/complete` | result, evidence_ids, reviewer_id | 提交行动完成: 状态 open/rejected -> in_review, 记录 review_action action_closure, result, 绑定的不可变证据版本 evidence_ids, 指定独立 reviewer_id(不得为提交人且具质量审批权与项目访问), submitted_by 为当前操作人; 缺证据 409, 审核人为本人 409, 无权限 403, 缺字段 400 |

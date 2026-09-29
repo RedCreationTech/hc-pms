@@ -164,6 +164,8 @@
    [:issues :escalate] collab/acknowledge-issue-escalation!
    [:issues :escalate-overdue] collab/escalate-overdue!
    [:meetings :create] (creating collab/create-meeting!)
+   [:meetings :submit] collab/submit-meeting!
+   [:meetings :decision] collab/decide-meeting!
    [:meetings :actions] collab/create-action! [:actions :task] collab/materialize-action!
    [:actions :complete] collab/complete-action! [:actions :verify] collab/verify-action!
    [:actions :reopen] collab/reopen-action!

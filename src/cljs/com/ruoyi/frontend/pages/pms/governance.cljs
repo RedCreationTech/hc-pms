@@ -714,7 +714,7 @@
 
 (defn- meeting-section
   "从会议纪要产生明确行动,避免只记录不执行.会前资料绑定项目内真实文档版本."
-  [{:keys [base model options planning editable? open!]}]
+  [{:keys [base model options planning editable? approve? open!]}]
   [shared/panel "会议与决策" "参会人员,正式纪要,会议类型,主计划基线引用与会前资料版本保留在项目中"
    (when editable? [antd/button {:on-click #(open! (forms/meeting-dialog base options (:documents model) (:baselines planning)))} "登记项目会议"])
    [w/record-table (:meetings model)
@@ -727,6 +727,9 @@
                                             [antd/space [antd/tag {:color "blue"} (str "计划修订 " rev)] (when stale [antd/tag {:color "red"} "基线已失效"])]
                                             [:span {:style {:color "#98a2b3"}} "未引用"]))))}
      {:title "会前资料" :dataIndex "material_ids" :render #(r/as-element [antd/tag {:color (if (pos? (count %)) "blue" "default")} (count %)])}
+     {:title "纪要发布" :dataIndex "status" :width 110
+      :render #(r/as-element (let [[t c] (get {"recorded" ["草稿" "default"] "in_review" ["发布审批中" "blue"] "approved" ["已发布" "green"]} % [% "default"])]
+                              [antd/tag {:color c} t]))}
      {:title "行动闭环" :dataIndex "meeting_open_actions" :width 180
       :render (fn [_ row]
                 (let [total (aget row "meeting_action_total")
@@ -738,7 +741,19 @@
                           (zero? open) [antd/tag {:color "green"} "行动已全部闭环"]
                           :else [antd/tag {:color "gold"} (str "未完成 " open "/" total)])
                     (when (and (number? overdue) (pos? overdue)) [antd/tag {:color "red"} (str "逾期 " overdue)])])))}]
-    (when editable? (fn [meeting] [w/edit-button "形成行动" #(open! (forms/action-dialog base options meeting))]))]])
+    (fn [meeting]
+      (let [current (:currentUserId options) st (:status meeting)]
+        [antd/space {:wrap true}
+         (when editable? [w/edit-button "形成行动" #(open! (forms/action-dialog base options meeting))])
+         (when (and editable? (= "recorded" st))
+           [w/edit-button "提交发布"
+            #(open! {:title "提交会议纪要发布审批" :path (str base "/meetings/" (:id meeting) "/submit")
+                     :description "选择具备质量审批权限的独立审核人, 冻结纪要进入发布评审, 驳回后可补充重提."
+                     :fields [(forms/reviewer-field options)]})])
+         (when (and approve? (= "in_review" st) (= current (:reviewer_id meeting)) (not= current (:submitted_by meeting)))
+           [:<>
+            [w/edit-button "批准发布" #(open! (forms/decision-dialog (str base "/meetings/" (:id meeting) "/decision") "approved" "正式批准会议纪要"))]
+            [w/edit-button "驳回" #(open! (forms/decision-dialog (str base "/meetings/" (:id meeting) "/decision") "rejected" "驳回纪要发布"))]])]))]])
 
 
 (defn- action-actions
