@@ -742,9 +742,12 @@
 
 
 (defn- action-actions
-  "会议行动的转任务,完成提交与独立核验操作路径."
+  "会议行动的转任务,完成提交,独立核验与已关闭行动受控重开操作路径."
   [{:keys [base model options editable? approve? open!]} action]
-  (let [state (:status action) current (:currentUserId options)]
+  (let [state (:status action)
+        current (:currentUserId options)
+        reopen? (= "action_reopen" (:review_action action))
+        verify-path (str base "/actions/" (:id action) "/verify")]
     [antd/space {:wrap true}
      (when (and editable? (= "open" state))
        [w/edit-button "转为WBS任务"
@@ -755,10 +758,16 @@
                           {:key :duration_days :label "工作日工期" :type :number :min 1 :required? true}]})])
      (when (and editable? (contains? #{"open" "rejected"} state))
        [w/edit-button "提交完成" #(open! (forms/action-complete-dialog base options (:documents model) action))])
+     (when (and editable? (= "closed" state))
+       [w/edit-button "申请重开" #(open! (forms/action-reopen-dialog base options (:documents model) action))])
      (when (and approve? (= "in_review" state) (= current (:reviewer_id action)) (not= current (:submitted_by action)))
        [:<>
-        [w/edit-button "批准关闭" #(open! (forms/decision-dialog (str base "/actions/" (:id action) "/verify") "approved" "核验通过并关闭行动"))]
-        [w/edit-button "驳回" #(open! (forms/decision-dialog (str base "/actions/" (:id action) "/verify") "rejected" "驳回行动完成"))]])]))
+        [w/edit-button (if reopen? "批准重开" "批准关闭")
+         #(open! (forms/decision-dialog verify-path "approved"
+                                        (if reopen? "批准重开并重新打开行动" "核验通过并关闭行动")))]
+        [w/edit-button "驳回"
+         #(open! (forms/decision-dialog verify-path "rejected"
+                                        (if reopen? "驳回重开并维持关闭" "驳回行动完成")))]])]))
 
 
 (defn- action-closure-section
@@ -787,15 +796,23 @@
 
 
 (defn- action-section
-  "会议行动转为实际WBS任务, 完成须证据与独立核验并提示逾期."
+  "会议行动转为实际WBS任务, 完成须证据与独立核验并提示逾期; 已关闭行动可受控重开."
   [{:keys [base model editable? open!] :as context}]
-  [shared/panel "会议行动" "会议行动与风险预防行动统一追踪;转换后任务进入项目计划,重复转换保持同一任务;完成需证据与独立核验" nil
+  [shared/panel "会议行动" "会议行动与风险预防行动统一追踪;转换后任务进入项目计划,重复转换保持同一任务;完成需证据与独立核验;已关闭行动须经独立审批重开" nil
    [w/record-table (:actions model)
     [(w/text-column :title "行动内容") (w/text-column :due_date "到期日期")
      {:title "来源风险" :dataIndex "action_source_risk_title" :width 160
       :render (fn [_ row]
                 (let [t (aget row "action_source_risk_title")]
                   (r/as-element (if (some? t) [antd/tag {:color "purple"} t] [:span {:style {:color "#98a2b3"}} "非风险来源"]))))}
+     {:title "评审事项" :dataIndex "review_action" :width 120
+      :render (fn [v row]
+                (let [st (aget row "status")]
+                  (r/as-element
+                    (cond
+                      (and (= st "in_review") (= v "action_reopen")) [antd/tag {:color "volcano"} "重开审批中"]
+                      (= v "action_closure") [antd/tag {:color "blue"} "完成核验中"]
+                      :else [:span {:style {:color "#98a2b3"}} "—"]))))}
      {:title "逾期" :dataIndex "action_overdue" :render #(when % (r/as-element [antd/tag {:color "red"} "已逾期"]))}
      (due-countdown-column "action_due_in_days")
      (owner-load-column)

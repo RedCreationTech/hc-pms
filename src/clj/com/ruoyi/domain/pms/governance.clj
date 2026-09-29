@@ -166,6 +166,7 @@
    [:meetings :create] (creating collab/create-meeting!)
    [:meetings :actions] collab/create-action! [:actions :task] collab/materialize-action!
    [:actions :complete] collab/complete-action! [:actions :verify] collab/verify-action!
+   [:actions :reopen] collab/reopen-action!
    [:gate-templates :create] (creating gates/create-template!)
    [:gate-templates :from-catalog] (creating gates/from-catalog!)
    [:template-instances :create] (creating templates/instantiate!)

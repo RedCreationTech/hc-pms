@@ -974,6 +974,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: H03 范围覆盖性审查只读派生把需求 satisfies 追踪链提升为 WBS 叶节点可见的覆盖判定 (逐任务列 + 项目级汇总面板), 是把"给台账加只读派生洞察"套路首次落到**计划工作台**的一次复用; 但 H03 整行验收要求"可交付范围/排除项/验收准则映射到 WBS 叶节点, 覆盖性审查后冻结, 范围变更受控"——排除项与验收准则逐条映射及覆盖性审查后强制冻结仍未实现, 故 H03 行保持 `partial` 不上行.
 
+## C07e 会议行动受控重开 (本轮增补, 2026-09-29)
+
+设计与口径: 此前会议行动只有"提交完成 -> 独立核验关闭/驳回"的正向闭环 (C07), 一旦行动被关闭就无法在治理侧留痕地重新打开——问题 (issue) 侧早已具备"申请—独立审批"的受控重开闭环 (`/issues/:rid/reopen` + `/decision`), 会议行动却缺位. C07e 把同一套两段式受控重开搬到会议行动, 是一条**写路径闭环** (非只读派生), 但仍坚持**免迁移、免新 kind、免新裁决路由**: 不新增治理记录类型 (不动 `pms_governance_record` 的 `CHECK(kind IN ...)`), 新字段 (`review_action=action_reopen`, `reopen_reason`, `reopen_evidence_ids`, `submitted_by`, `prior_closure_result`, `prior_verification_reason`, `reopen_decision`, `reopen_decision_reason`, `reopen_decided_by`) 全部随 payload JSON 持久化; 裁决复用既有 `POST /actions/:rid/verify` 端点, 由 `verify-action!` 按 `review_action` 分流, 不为重开单开路由. (1) 领域: `collaboration.clj` 新增 `reopen-action!` (仅 `closed` 可重开否则 409, 要求非空 `reason` 否则 400、真实证据 `evidence_ids` 否则 409、独立 `reviewer_id` 经 `s/reviewer!` 校验不得为申请人且具 `pms:quality:approve` + 项目访问否则 409/403, 转 `in_review` 并快照 `prior_closure_result`/`prior_verification_reason`), 并把 `verify-action!` 改为按 `review_action` 分流 (命中 `action_reopen` 时 approved->`open`/rejected->`closed` 且清空 `review_action`, 否则维持原完成核验 approved->`closed`/rejected->`rejected`). (2) 命令表 + 路由: `governance.clj` 加 `[:actions :reopen]`, `pms_governance.clj` 加 `POST /actions/:record_id/reopen`. (3) 前端: `governance_forms.cljs` 新增 `action-reopen-dialog` (重开依据/证据/独立审批人), `governance.cljs` 的 `action-actions` 对 `closed` 行动加"申请重开"入口、对 `action_reopen` 待审态把裁决按钮与对话框标题切换为"批准重开/驳回"与"批准重开并重新打开行动/驳回重开并维持关闭", `action-section` 新增"评审事项"列对 `action_reopen` 显 volcano 标签"重开审批中".
+
+| 证据 | 实际记录 |
+|---|---|
+| 治理单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 65 tests / 840 assertions, 0 failures/errors (新增 `closed-meeting-action-reopens-only-through-independent-review` 1 例: 完成并独立批准后 closed; 空依据 400, 空证据 409, 审核人为申请人 409, 审核人无质量审批权 403; 申请重开转 in_review 且 `review_action=action_reopen` 并快照 `prior_closure_result`; 申请人自批 403; 审批人驳回 -> closed; 再次申请后批准 -> open 且读取回显一致) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 167 tests / 1768 assertions, 0 failures/errors, `verify-action!` 改为按 `review_action` 分流未造成既有完成核验/关闭/逾期用例回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 warnings |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-c07e.spec.js` 1 passed (1.5m), 无未捕获 JS 错误: 界面登记会议+行动 -> admin"提交完成"由独立审批人第二真实浏览器上下文"批准关闭"置 closed -> admin 对已关闭行动点"申请重开"填重开依据+证据+指定同一独立审批人 -> 行动转 in_review, "评审事项"列以 volcano 标签显"重开审批中" (截图 c07e-1-reviewing-badge.png), 真实 HTTP GET governance 回显 `status=in_review`/`review_action=action_reopen`; 审批人上下文点"驳回"选"驳回重开并维持关闭" -> 回 closed 且 `review_action` 清空; admin 再次"申请重开" -> 审批人点"批准重开"选"批准重开并重新打开行动" (截图 c07e-2-approver-reopen.png) -> 行动翻回 open, 台账状态列显"待处理" (截图 c07e-3-reopened-open.png), 真实 HTTP GET governance 二次确认 `status=open`/`review_action=null`/`reopen_decision=approved`; 截图存 `reports/c07e/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL); 门控事实 (自批 403, 非 closed 不可重开 409, 缺证据 409, 空依据 400) 在浏览器侧只走界面可见路径, 非法态由后端 SQLite 用例确定性地覆盖; 不做重开次数上限、重开历史可视化报表与自动通知投递.
+
+边界: C07e 把问题侧既有的"申请—独立审批"受控重开闭环复用到会议行动, 补齐了 C07 会议行动此前"关闭即终态、无法受控重开"的缺口; 但 C07 整行验收所涉更宽的行动治理 (如重开审计报表, 通知投递, 生产/UAT 签收) 仍未尽数实现, 故 C07 行保持 `partial` 不上行.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

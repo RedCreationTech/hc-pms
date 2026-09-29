@@ -376,8 +376,27 @@
                              :submitted_by (:user_id actor)})))))
 
 
+(defn reopen-action!
+  "已关闭的会议行动仅能通过有理由, 证据和独立指定审核人的重开申请重新处理, 沿用问题受控重开闭环."
+  [svc actor id rid body]
+  (k/mutate! svc actor id "pms:project:edit" body "action.reopen-submitted"
+             (fn [q project]
+               (s/input! body [:reason :reviewer_id :evidence_ids])
+               (let [action (s/record! q project "action" rid)
+                     reason (s/text! body :reason 2000)
+                     evidence (s/evidence! q project (:evidence_ids body) true)]
+                 (s/status! action #{"closed"})
+                 (s/change! q project action "in_review"
+                            {:review_action "action_reopen" :reopen_reason reason
+                             :reopen_evidence_ids evidence
+                             :reviewer_id (s/reviewer! q project actor (:reviewer_id body))
+                             :submitted_by (:user_id actor)
+                             :prior_closure_result (:result action)
+                             :prior_verification_reason (:verification_reason action)})))))
+
+
 (defn verify-action!
-  "由指定独立审核人核验会议行动完成, 批准关闭或驳回退回负责人."
+  "由指定独立审核人核验会议行动: 常规完成批准关闭或驳回退回负责人, 或对已关闭行动的重开申请批准重开或维持关闭."
   [svc actor id rid body]
   (k/mutate! svc actor id "pms:quality:approve" body "action.verified" {:write? false}
              (fn [q project]
@@ -386,10 +405,19 @@
                      decision (s/enum! (:decision body) #{"approved" "rejected"} "decision")]
                  (s/status! action #{"in_review"})
                  (s/decision-actor! actor action)
-                 (s/evidence! q project (:evidence_ids action) true)
-                 (s/change! q project action (if (= decision "approved") "closed" "rejected")
-                            {:verification_reason (s/text! body :reason 2000)
-                             :verified_by (:user_id actor)})))))
+                 (if (= "action_reopen" (:review_action action))
+                   (do
+                     (s/evidence! q project (:reopen_evidence_ids action) true)
+                     (s/change! q project action (if (= decision "approved") "open" "closed")
+                                {:reopen_decision decision
+                                 :reopen_decision_reason (s/text! body :reason 2000)
+                                 :reopen_decided_by (:user_id actor)
+                                 :review_action nil}))
+                   (do
+                     (s/evidence! q project (:evidence_ids action) true)
+                     (s/change! q project action (if (= decision "approved") "closed" "rejected")
+                                {:verification_reason (s/text! body :reason 2000)
+                                 :verified_by (:user_id actor)})))))))
 
 
 (defn action-overdue?

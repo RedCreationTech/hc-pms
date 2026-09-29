@@ -527,3 +527,12 @@
    :description (str "行动: " (:title action))
    :fields [{:key :result :label "完成结果说明" :type :textarea :required? true}
             (evidence-field documents) (reviewer-field options)]})
+
+
+(defn action-reopen-dialog
+  "已关闭会议行动重开须明确新依据, 真实证据与独立审批人, 沿用问题受控重开闭环."
+  [base options documents action]
+  {:title "申请行动重开" :path (str base "/actions/" (:id action) "/reopen")
+   :description (str "行动: " (:title action))
+   :fields [{:key :reason :label "重开依据" :type :textarea :required? true}
+            (evidence-field documents) (reviewer-field options)]})

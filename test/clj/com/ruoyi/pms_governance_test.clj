@@ -811,6 +811,37 @@
       (is (false? (overdue-row))))))
 
 
+(deftest closed-meeting-action-reopens-only-through-independent-review
+  (let [id (project!)
+        meeting (command! id :meetings :create nil
+                          {:title "复盘会" :held_on "2026-09-10" :minutes "确认闭环质量" :attendee_ids [9301 9302]})
+        action (command! id :meetings :actions (:id meeting)
+                         {:title "补充联调报告" :owner_id 9301 :due_date "2026-09-20"})
+        aid (:id action)
+        evidence (:id (document! id "ACT-REOPEN"))
+        reopen-body {:reason "发现报告遗漏关键缺陷" :reviewer_id 9302 :evidence_ids [evidence]}]
+    ;; 先走正常完成并经独立核验关闭, 形成 closed 行动.
+    (command! id :actions :complete aid {:result "已提交联调报告" :evidence_ids [evidence] :reviewer_id 9302})
+    (is (= "closed" (:status (command! 9302 id :actions :verify aid {:decision "approved" :reason "独立核验通过"}))))
+    ;; 重开申请校验: 空理由 400, 空证据 409, 审核人为提交人 409, 无审批权 403.
+    (is (= 400 (error-status #(command! id :actions :reopen aid (assoc reopen-body :reason "")))))
+    (is (= 409 (error-status #(command! id :actions :reopen aid (assoc reopen-body :evidence_ids [])))))
+    (is (= 409 (error-status #(command! id :actions :reopen aid (assoc reopen-body :reviewer_id 9301)))))
+    (is (= 403 (error-status #(command! id :actions :reopen aid (assoc reopen-body :reviewer_id 9304)))))
+    ;; 提交重开: 进入 in_review 标记 action_reopen, 保留前次关闭结果供审计.
+    (let [reopened (command! id :actions :reopen aid reopen-body)]
+      (is (= "in_review" (:status reopened)))
+      (is (= "action_reopen" (:review_action reopened)))
+      (is (= 9302 (:reviewer_id reopened)))
+      (is (= 9301 (:submitted_by reopened)))
+      (is (= "已提交联调报告" (:prior_closure_result reopened))))
+    ;; 决策职责分离: 提交人本人不可决定 403; 驳回维持 closed; 批准回到 open.
+    (is (= 403 (error-status #(command! id :actions :verify aid {:decision "approved" :reason "自行重开"}))))
+    (is (= "closed" (:status (command! 9302 id :actions :verify aid {:decision "rejected" :reason "证据不足"}))))
+    (command! id :actions :reopen aid reopen-body)
+    (is (= "open" (:status (command! 9302 id :actions :verify aid {:decision "approved" :reason "缺陷复现确认"}))))
+    (is (= "open" (:status (first (filterv (fn [a] (= aid (:id a))) (:actions (workspace id)))))))))
+
 (deftest issue-reassign-changes-owner-with-audit-and-guards-membership
   (let [id (project!)
         issue (command! id :issues :create nil

@@ -60,6 +60,7 @@
     (command-route svc "/actions/:record_id/task" :actions :task)
     (command-route svc "/actions/:record_id/complete" :actions :complete)
     (command-route svc "/actions/:record_id/verify" :actions :verify)
+    (command-route svc "/actions/:record_id/reopen" :actions :reopen)
     (command-route svc "/changes" :changes :create)
     (command-route svc "/changes/:record_id/revisions" :changes :revisions)
     (command-route svc "/changes/:record_id/submit" :changes :submit)
