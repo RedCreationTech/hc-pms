@@ -1,6 +1,7 @@
 (ns com.ruoyi.frontend.pages.pms.planning
   "项目计划,资源与独立基线审批工作台."
-  (:require [com.ruoyi.frontend.antd :as antd]
+  (:require [clojure.string :as str]
+            [com.ruoyi.frontend.antd :as antd]
             [com.ruoyi.frontend.pages.pms.approval :as approval]
             [com.ruoyi.frontend.pages.pms.plan-forms :as forms]
             [com.ruoyi.frontend.pages.pms.plan-views :as views]
@@ -22,6 +23,17 @@
    [w/record-table (:tasks model)
     [(w/text-column :wbs_code "WBS编号") (w/text-column :name "任务名称")
      {:title "类型" :dataIndex "task_type" :render #(get w/labels % %)}
+     {:title "范围覆盖" :key "scope" :width 170
+      :render (fn [_ row]
+                (r/as-element
+                 (if-not (aget row "scope_leaf")
+                   [antd/tag {:color "default"} "汇总"]
+                   (if (aget row "scope_covered")
+                     [:span {:style {:display "inline-flex" :gap 4}}
+                      [antd/tag {:color "green"} (str "已覆盖 设计 " (aget row "scope_satisfies_count"))]
+                      (when (< 0 (or (aget row "scope_verifies_count") 0))
+                        [antd/tag {:color "cyan"} (str "验证 " (aget row "scope_verifies_count"))])]
+                     [antd/tag {:color "orange"} "未覆盖"]))))}
      {:title "节点" :dataIndex "node_id" :width 130 :render #(w/related-label (:nodes model) :node_id :node_code %)}
      {:title "阶段" :dataIndex "stage_code" :width 110 :render shared/display-value}
      (w/text-column :owner_name "责任人") (w/text-column :duration_days "工作日")
@@ -35,6 +47,23 @@
        (when editable? [w/edit-button "删除" #(open! (remove-dialog (str base "/tasks/" (:task_id task)) "删除WBS任务"))])
        (when (and can-feedback? (= "execution" (:status project)) (not= "summary" (:task_type task)))
          [w/edit-button "反馈进度" #(open! (forms/feedback-dialog base task))])])]])
+
+(defn- scope-coverage-section
+  "按需求 satisfies 追踪链只读派生的范围覆盖性审查汇总, 仅作提示, 不阻断计划编制."
+  [{:keys [model]}]
+  (let [cov (:scope_coverage model)
+        total (or (:total-leaves cov) 0)
+        covered (or (:covered-leaves cov) 0)
+        uncovered (or (:uncovered-leaves cov) 0)
+        pct (or (:coverage-pct cov) 0)
+        codes (:uncovered-codes cov)]
+    [shared/panel "范围覆盖性审查" "叶节点为非汇总任务, 被需求 satisfies 追踪指向即视为已覆盖; 只读派生, 不阻断保存与提交"
+     [:div {:style {:display "flex" :gap 12 :alignItems "center" :flexWrap "wrap"}}
+      [antd/tag {:color "blue"} (str "叶节点 " total)]
+      [antd/tag {:color (if (and (pos? total) (zero? uncovered)) "green" "red")} (str "已覆盖 " covered " (" pct "%)")]
+      [antd/tag {:color (if (pos? uncovered) "orange" "default")} (str "未覆盖 " uncovered)]
+      (when (seq codes)
+        [:span {:style {:color "#718096"}} (str "未覆盖 WBS: " (str/join ", " codes))])]]))
 
 (defn- dependency-section
   "展示四类任务依赖与工作日间隔."
@@ -163,7 +192,7 @@
       (when-let [spi (get-in model [:earned_value :spi])] [antd/tag {:color (if (< spi 0.9) "red" "blue")} (str "SPI " spi)])]
      [antd/tabs {:items
                   [{:key "wbs" :label "WBS与排程" :children (r/as-element [:div {:style {:display "grid" :gap 20}}
-                                                                          [task-section context] [dependency-section context] [views/gantt model]])}
+                                                                          [scope-coverage-section context] [task-section context] [dependency-section context] [views/gantt model]])}
                    {:key "resources" :label "资源与日历" :children (r/as-element [:div {:style {:display "grid" :gap 20}}
                                                                                 [resource-section context] [allocation-section context]
                                                                                 [calendar-section context] [views/overloads model]])}

@@ -5,10 +5,12 @@
             [clojure.test :refer [deftest is testing use-fixtures]]
             [com.ruoyi.domain.pms.kernel :as kernel]
             [com.ruoyi.domain.pms.finance-time :as finance-time]
+            [com.ruoyi.domain.pms.governance :as gov]
             [com.ruoyi.domain.pms.governance.approval :as approval]
             [com.ruoyi.domain.pms.service :as pms]
             [com.ruoyi.domain.pms.planning :as plan]
             [com.ruoyi.domain.pms.planning.schedule :as schedule]
+            [com.ruoyi.domain.pms.planning.tasks :as tasks]
             [com.ruoyi.infra.security :as security]
             [com.ruoyi.web.middleware.auth :as auth]
             [com.ruoyi.web.routes.api :as api]
@@ -348,3 +350,46 @@
     (jdbc/execute! (:db *svc*) ["UPDATE pms_project SET status='cancelled' WHERE project_id=?" other])
     (is (empty? (:overallocations (plan/read-plan *svc* (actor 9201) id))))
     (is (= "submitted" (:status (:result (command! plan/submit-plan! id [] {})))))))
+
+
+(deftest scope-coverage-is-derived-read-only
+  (testing "纯函数口径: 叶节点为非汇总任务, 被 satisfies 指向即覆盖, 覆盖率四舍五入, 未覆盖清单按 WBS 编号"
+    (let [pure-tasks [{:task_id "s" :task_type "summary" :wbs_code "1"}
+                      {:task_id "a" :task_type "task" :wbs_code "1.1"}
+                      {:task_id "b" :task_type "task" :wbs_code "1.2"}]
+          pure-traces [{:target_kind "task" :target_id "a" :relation "satisfies"}
+                       {:target_kind "document" :target_id "a" :relation "satisfies"}
+                       {:target_kind "task" :target_id "b" :relation "verifies"}]
+          summary (tasks/scope-coverage pure-tasks pure-traces)]
+      (is (= {:total-leaves 2 :covered-leaves 1 :uncovered-leaves 1 :coverage-pct 50}
+             (select-keys summary [:total-leaves :covered-leaves :uncovered-leaves :coverage-pct])))
+      (is (= ["1.2"] (:uncovered-codes summary)))
+      (is (false? (:scope_leaf (tasks/scope-read-model {} {:task_id "s" :task_type "summary"}))))
+      (is (true? (:scope_leaf (tasks/scope-read-model {} {:task_id "m" :task_type "milestone"}))))
+      (is (= {:scope_covered true :scope_satisfies_count 1 :scope_verifies_count 0}
+             (select-keys (tasks/scope-read-model {"a" [{:relation "satisfies"}]} {:task_id "a" :task_type "task"})
+                          [:scope_covered :scope_satisfies_count :scope_verifies_count])))
+      (is (false? (:scope_covered (tasks/scope-read-model {"b" [{:relation "verifies"}]} {:task_id "b" :task_type "task"}))))))
+  (testing "read-plan 集成: 一汇总两叶任务, 需求 satisfies 覆盖其一, 派生只读且无版本漂移"
+    (let [id (project!)
+          _ (:result (command! plan/create-task! id [] {:wbs_code "1" :name "汇总" :task_type "summary" :duration_days 0 :owner_id 9201}))
+          leaf-a (task! id "1.1" 3)
+          leaf-b (task! id "1.2" 3)
+          requirement (:result (gov/command! *svc* (actor 9201) id :requirements :create nil
+                                             {:code "URS-SC-1" :text "覆盖验收" :category "功能" :priority "required"
+                                              :owner_id 9201 :version (version id)}))]
+      (gov/command! *svc* (actor 9201) id :traces :create nil
+                    {:requirement_id (:id requirement) :target_kind "task" :target_id (:task_id leaf-a)
+                     :relation "satisfies" :version (version id)})
+      (let [v-before (version id)
+            model (plan/read-plan *svc* (actor 9201) id)
+            coverage (:scope_coverage model)
+            find-task #(first (filter (fn [t] (= (:wbs_code t) %)) (:tasks model)))]
+        (is (= {:total-leaves 2 :covered-leaves 1 :uncovered-leaves 1 :coverage-pct 50}
+               (select-keys coverage [:total-leaves :covered-leaves :uncovered-leaves :coverage-pct])))
+        (is (= ["1.2"] (:uncovered-codes coverage)))
+        (is (true? (:scope_covered (find-task "1.1"))))
+        (is (false? (:scope_covered (find-task "1.2"))))
+        (is (false? (:scope_leaf (find-task "1"))))
+        (is (= v-before (version id)))
+        (is (= v-before (:project_version model)))))))

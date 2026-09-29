@@ -30,6 +30,8 @@
 
 `schedule.tasks` 含 task_id, name, task_type, start_date, end_date, duration_days, total_float, critical, working_dates. end_date 为最后实际占用工作日, 里程碑为其发生日. critical_path 是所有零总时差叶任务的拓扑序, 可能包含并行的多条关键支路. 项目级还有 start_date, end_date, working_days. 以100年计算窗口和每项目1000项任务限制保护计算边界.
 
+`tasks[].scope_*` 与 `scope_coverage` (H03 范围基线覆盖性审查) 读取时按需求 satisfies 追踪链派生, 不落库, 不构成任何门控: 叶节点定义为非汇总任务 (`task` / `milestone`), 汇总节点标 `scope_leaf=false` 且不进入覆盖分母; 每条指向该任务的 `trace` (target_kind=task) 计入 `scope_trace_count`, 其中 `relation=satisfies` 计入 `scope_satisfies_count`, `relation=verifies` 计入 `scope_verifies_count`; 只要 `scope_satisfies_count>0` 即 `scope_covered=true` (verifies 只标注不计覆盖). 项目级 `scope_coverage` 返回 `total-leaves / covered-leaves / uncovered-leaves / coverage-pct (covered/total 四舍五入整数百分比, 无叶节点时为 0) / uncovered-codes (未覆盖叶的 wbs_code 数组)`. 覆盖性审查仅作只读提示: 存在未覆盖叶时计划仍可正常保存与提交冻结, 冻结后覆盖情况随追踪链读取时重算.
+
 ## 资源
 
 | 操作 | 路径 | 请求字段, 均另外携带 version |

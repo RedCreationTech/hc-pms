@@ -959,6 +959,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 会议行动闭环率只读汇总面板把此前只在单会议行与单风险行可见的闭环计数提升到项目 portfolio 级一处汇总, 是 C07 会议行动追踪口径下 `implemented / local` 的又一项只读洞察 (同一"给治理台账加只读派生洞察"套路复用, 新增"扁平全量 portfolio 聚合"这一形状变体); 但据自动到期提醒投递, 会前资料包与主计划版本关联等 C07 复合规则仍未完备, MySQL 回归亦待补, 故 C07 行保持 `partial` 不上行.
 
+## H03 范围基线覆盖性审查只读派生 (本轮增补, 2026-09-29)
+
+设计与口径: H03 的"覆盖性审查"此前在界面没有一处可见——需求追踪链 (`trace` 记录 target_kind=task, relation=satisfies/verifies) 已存在, 但没人把"哪些 WBS 叶节点被需求满足关系覆盖、哪些还没"这一范围-需求双向映射算出来给人看. 本项把它作为**只读派生洞察**落在计划工作台, 完全沿用"给台账加只读派生洞察"套路, 且首次把它从治理侧搬到**计划侧**: **不落库、不投递、不改动任何不可变版本, 免迁移, 免新命令, 免新 kind, 免新路由, 不构成任何门控**. (1) 纯函数: `planning.tasks` 新增 `leaf-task?` (task_type 非 `summary` 即为叶节点, `task` 与 `milestone` 都算), `scope-read-model` (对单任务按 `traces-by-task` 分组标注 `scope_leaf/scope_satisfies_count/scope_verifies_count/scope_trace_count/scope_covered`, 汇总任务仅标 `scope_leaf=false`), `scope-coverage` (对全量 tasks+traces 聚合 `{total-leaves, covered-leaves, uncovered-leaves, coverage-pct, uncovered-codes}`, `covered` 为 `scope_satisfies_count>0` 者即至少一条 satisfies 指向, verifies 只标注不计覆盖, `coverage-pct` 为 `covered/total` 四舍五入整数百分比且 `total` 为 0 时给 0). 三者定义顺序 `leaf-task? < scope-read-model < scope-coverage` 无前向引用. (2) read-plan 接线: `planning.clj` 读模型 `let` 里以 `traces-by-task` 显式调用 `tasks/scope-read-model` 逐任务 enrich (关键坑: 不能用 `->` 线程, 否则线程值被当末位实参传入 `[traces-by-task task]` 会静默 assoc 到错误的 map 抹掉原任务键, 曾致 2 个既有用例回归), 并在 merge 块 `:paused_node_ids` 之后新增 `:scope_coverage (tasks/scope-coverage raw-tasks traces)`. (3) 前端: "计划与执行 / WBS与排程"页签在 WBS 台账之前新增"范围覆盖性审查"面板 (蓝"叶节点 N", 绿/红"已覆盖 C (P%)", 橙"未覆盖 U", 灰字"未覆盖 WBS: ..."), 并在任务表"类型"列之后新增"范围覆盖"列 (汇总行灰"汇总", 已覆盖叶绿"已覆盖 设计 N" 且 verifies>0 附青"验证 N", 未覆盖叶橙"未覆盖"). 键名不带尾随 `?`; `:coverage-pct` 经 `clj->js` 后是字面 `"coverage-pct"` (保留连字符), 前端 keyword 取值无碍而 E2E 原始 JSON 需 `['coverage-pct']` 中括号取值 (与既有 `closure-pct`/`alignment-pct` 同约定).
+
+| 证据 | 实际记录 |
+|---|---|
+| 计划单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-planning-test'` 通过 12 tests / 97 assertions, 0 failures/errors (新增 `scope-coverage-is-derived-read-only` 1 例含两 testing 块: 纯函数直测 `scope-coverage` 对 汇总"1"+叶"1.1"(satisfies)+叶"1.2"(仅verifies) 得 `{total-leaves 2 covered-leaves 1 uncovered-leaves 1 coverage-pct 50}` 且 `uncovered-codes ["1.2"]`, 汇总 `scope_leaf false`/里程碑 `scope_leaf true`, satisfies 叶 `scope_covered true`, 仅 verifies 叶 `scope_covered false`; 集成测经 `gov/command! :requirements :create` + `:traces :create` 建真实 satisfies 追踪后 `read-plan` 回显 `:scope_coverage` 同计数且逐任务 `scope_covered`/`scope_leaf` 一致, 读取前后 `project_version` 不漂移证明只读不落库) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 166 tests / 1754 assertions, 0 failures/errors, read-plan 新增逐任务 `scope-read-model` enrich 与 `:scope_coverage` assoc 键未造成既有排程/挣值/基线/追踪用例回归 (修复 `->` 线程参数错位后 2 个先前回归用例恢复通过) |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 warnings |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-h03sc.spec.js` 1 passed (45.6s), 无未捕获 JS 错误: 界面建项目转 planning -> WBS 建汇总"1"(交付汇总骨架)+叶"1.1"(受控设计任务)+叶"1.2"(未覆盖验证任务) 且两叶挂到汇总下 -> "需求与治理/URS与追踪"登记一条 URS 需求并对"受控设计任务"建 satisfies + verifies 两条追踪 (1.2 故意不覆盖) -> "计划与执行/WBS与排程"的"范围覆盖性审查"面板显示蓝"叶节点 2"、红"已覆盖 1 (50%)"、橙"未覆盖 1"、灰"未覆盖 WBS: 1.2" (截图 h03sc-1-panel.png), 任务表"范围覆盖"列 汇总行"汇总"/1.1 行绿"已覆盖 设计 1"+青"验证 1"/1.2 行橙"未覆盖" (h03sc-2-columns.png); 真实 HTTP GET planning 二次确认 `scope_coverage` 各计数与 `['coverage-pct']` 为 50 且逐任务 `scope_leaf`/`scope_covered`/`scope_satisfies_count`/`scope_verifies_count` 与界面一致; 只读不门控以存在未覆盖叶仍成功"提交计划审批"冻结 (返回 200 且显"计划已冻结,等待独立审批.") 佐证; 另在无 WBS 的空项目面板显"叶节点 0 / 已覆盖 0 (0%) / 未覆盖 0" (h03sc-3-empty.png); 截图存 `reports/h03sc/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移, 不新增 DDL); 覆盖性审查只读派生, **不构成任何门控或拦截** (未覆盖叶不阻止任务保存/依赖/资源/提交冻结), 不做范围排除项登记, 不做验收准则到叶节点的逐条映射, 不做"覆盖性审查通过后强制冻结基线"这一 H03 目标动作.
+
+边界: H03 范围覆盖性审查只读派生把需求 satisfies 追踪链提升为 WBS 叶节点可见的覆盖判定 (逐任务列 + 项目级汇总面板), 是把"给台账加只读派生洞察"套路首次落到**计划工作台**的一次复用; 但 H03 整行验收要求"可交付范围/排除项/验收准则映射到 WBS 叶节点, 覆盖性审查后冻结, 范围变更受控"——排除项与验收准则逐条映射及覆盖性审查后强制冻结仍未实现, 故 H03 行保持 `partial` 不上行.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

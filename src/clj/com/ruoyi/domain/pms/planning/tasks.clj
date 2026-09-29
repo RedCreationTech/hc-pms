@@ -195,3 +195,44 @@
         (q :planning/create-feedback! record)
         (q :planning/task-progress! record)
         record))))
+
+
+(defn- leaf-task?
+  "非汇总任务视为 WBS 叶节点 (task 与 milestone 均参与范围覆盖统计)."
+  [task]
+  (not= "summary" (:task_type task)))
+
+
+(defn scope-read-model
+  "按需求追踪链只读派生单个任务的覆盖情况: 统计被 satisfies/verifies 关联指向的次数并给出是否被需求覆盖,
+   汇总任务只标注 :scope_leaf false 不参与覆盖口径; 只读派生, 不落库不门控, 键名不带尾随问号."
+  [traces-by-task task]
+  (if-not (leaf-task? task)
+    (assoc task :scope_leaf false)
+    (let [links (get traces-by-task (:task_id task) [])
+          satisfies (count (filterv #(= "satisfies" (:relation %)) links))
+          verifies (count (filterv #(= "verifies" (:relation %)) links))]
+      (assoc task
+             :scope_leaf true
+             :scope_satisfies_count satisfies
+             :scope_verifies_count verifies
+             :scope_trace_count (count links)
+             :scope_covered (pos? satisfies)))))
+
+
+(defn scope-coverage
+  "按需求追踪链 (satisfies 关联到 WBS 任务) 只读派生范围覆盖性审查汇总: 叶节点总数, 被需求覆盖数 (至少一条
+   satisfies 指向), 未覆盖数与覆盖率, 以及未覆盖叶节点 WBS 编号清单; 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
+  [tasks traces]
+  (let [traces-by-task (group-by :target_id (filterv #(= "task" (:target_kind %)) traces))
+        leaves (filterv leaf-task? tasks)
+        enriched (mapv #(scope-read-model traces-by-task %) leaves)
+        total (count leaves)
+        covered (count (filterv :scope_covered enriched))]
+    {:total-leaves total
+     :covered-leaves covered
+     :uncovered-leaves (- total covered)
+     :coverage-pct (if (pos? total)
+                     (int (Math/round ^double (* 100.0 (/ covered total))))
+                     0)
+     :uncovered-codes (mapv :wbs_code (remove :scope_covered enriched))}))
