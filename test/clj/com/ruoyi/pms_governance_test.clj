@@ -1573,6 +1573,57 @@
       (is (= 404 (error-status #(command! id :risks :mitigation-action (:id other-risk) {:title "跨项目"})))))))
 
 
+(deftest risk-mitigation-action-rollup-is-derived-read-only
+  (let [id (project!)
+        risk (command! id :risks :create nil
+                       {:title "关键物料断供风险" :probability 2 :impact 3 :owner_id 9301
+                        :mitigation "启用备选供应商并加严来料检验" :due_date "2026-10-20"})
+        other (command! id :risks :create nil
+                        {:title "进度延误风险" :probability 2 :impact 3 :owner_id 9301
+                         :mitigation "预留进度缓冲" :due_date "2026-10-20"})
+        risk-row (fn [] (first (filter (fn [x] (= (:id risk) (:id x))) (:risks (workspace id)))))
+        other-row (fn [] (first (filter (fn [x] (= (:id other) (:id x))) (:risks (workspace id)))))]
+    ;; 登记后仅有应对措施尚无落实行动: 该风险 unimplemented, 计数 0/0.
+    (is (= "unimplemented" (:mitigation_action_state (risk-row))))
+    (is (= 0 (:mitigation_action_total (risk-row))))
+    (is (= 0 (:mitigation_action_open (risk-row))))
+    ;; 落实一条预防行动: in-progress, total/open 各 1; 另一风险不受影响.
+    (let [a1 (command! id :risks :mitigation-action (:id risk) {:title "锁定备选供应商名单"})]
+      (is (= 1 (:mitigation_action_total (risk-row))))
+      (is (= 1 (:mitigation_action_open (risk-row))))
+      (is (= "in-progress" (:mitigation_action_state (risk-row))))
+      (is (= "unimplemented" (:mitigation_action_state (other-row))))
+      ;; 再落实一条: total 2 open 2.
+      (let [a2 (command! id :risks :mitigation-action (:id risk) {:title "加严来料检验"})
+            ev (:id (document! id "MR-DOC-A"))]
+        (is (= 2 (:mitigation_action_open (risk-row))))
+        ;; 独立核验关闭第一条: closed 计完成, open 减到 1, 仍 in-progress.
+        (command! id :actions :complete (:id a1) {:result "已完成并附记录" :evidence_ids [ev] :reviewer_id 9302})
+        (command! 9302 id :actions :verify (:id a1) {:decision "approved" :reason "独立核验通过"})
+        (is (= 2 (:mitigation_action_total (risk-row))))
+        (is (= 1 (:mitigation_action_open (risk-row))))
+        (is (= "in-progress" (:mitigation_action_state (risk-row))))
+        ;; 第二条转真实任务置为 converted 亦计完成: open 0 -> completed.
+        (command! id :actions :task (:id a2) {:start_date "2026-09-23" :duration_days 2})
+        (is (= 0 (:mitigation_action_open (risk-row))))
+        (is (= "completed" (:mitigation_action_state (risk-row))))))
+    ;; 只读派生不回写风险状态, 重复读取稳定.
+    (is (= "open" (:status (risk-row))))
+    (is (= (:mitigation_action_state (risk-row)) (:mitigation_action_state (risk-row))))
+    ;; 纯函数按 source_risk_id 聚合: closed/converted 视为完成, 无来源风险的行动不计入.
+    (is (= {"r1" {:total 4 :open 2}}
+           (collab/mitigation-rollup-by-risk
+            [{:source_risk_id "r1" :status "open"}
+             {:source_risk_id "r1" :status "closed"}
+             {:source_risk_id "r1" :status "converted"}
+             {:source_risk_id "r1" :status "in_review"}
+             {:status "open"}])))
+    ;; mitigation-read-model 纯映射: 由 rollup 计数直接得出三态.
+    (is (= "in-progress" (:mitigation_action_state (collab/mitigation-read-model {"r1" {:total 2 :open 1}} {:id "r1"}))))
+    (is (= "completed" (:mitigation_action_state (collab/mitigation-read-model {"r1" {:total 2 :open 0}} {:id "r1"}))))
+    (is (= "unimplemented" (:mitigation_action_state (collab/mitigation-read-model {} {:id "r2"}))))))
+
+
 (deftest comm-plan-log-advances-next-date-and-flags-overdue
   (let [id (project!)
         st (command! id :stakeholders :create nil

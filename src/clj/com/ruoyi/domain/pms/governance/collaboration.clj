@@ -526,3 +526,30 @@
                                       :action_source_risk_title (:title (get risk-by-id rid)))
                        action))
                    %))))
+
+
+(defn mitigation-rollup-by-risk
+  "按预防行动项持久化的 source_risk_id 反向聚合每个风险派生的预防措施行动总数与未完成数(排除 closed/converted), 供风险台账只读呈现措施落实情况. 只读派生不落库."
+  [actions]
+  (reduce (fn [acc action]
+            (if-let [rid (:source_risk_id action)]
+              (let [done? (contains? #{"closed" "converted"} (:status action))]
+                (update acc rid (fn [{:keys [total open]}]
+                                  {:total (inc (or total 0))
+                                   :open (if done? (or open 0) (inc (or open 0)))})))
+              acc))
+          {}
+          actions))
+
+
+(defn mitigation-read-model
+  "在风险记录上追加只读派生键: mitigation_action_total/open 为该风险派生的预防行动总数与未完成数(排除 closed/converted), mitigation_action_state 取 unimplemented(尚未落实) / in-progress(落实中) / completed(全部落实). 登记风险必填应对措施, 故不再单列无措施态. 键名不带尾随问号."
+  [rollup risk]
+  (let [{:keys [total open]} (get rollup (:id risk) {:total 0 :open 0})
+        state (cond
+                (zero? total) "unimplemented"
+                (pos? open) "in-progress"
+                :else "completed")]
+    (assoc risk :mitigation_action_total total
+                 :mitigation_action_open open
+                 :mitigation_action_state state)))

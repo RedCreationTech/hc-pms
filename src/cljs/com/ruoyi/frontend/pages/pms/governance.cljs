@@ -627,7 +627,19 @@
                                   (= s "mitigate") "减轻" (= s "accept") "接受" :else nil)]
                   (r/as-element (if label [antd/tag {:color "geekblue"} label]
                                     [:span {:style {:color "#98a2b3"}} "未设定"]))))}
-     (w/text-column :mitigation "应对措施") (w/text-column :review_due_date "下次复评")
+     (w/text-column :mitigation "应对措施")
+     {:title "措施落实" :dataIndex "mitigation_action_state" :width 150
+      :render (fn [_ row]
+                (let [st (aget row "mitigation_action_state")
+                      total (aget row "mitigation_action_total")
+                      open (aget row "mitigation_action_open")]
+                  (r/as-element
+                   (cond
+                     (= st "completed") [antd/tag {:color "green"} (str "已落实 " total " 项")]
+                     (= st "in-progress") [antd/tag {:color "gold"} (str "落实中, " open " 项待办")]
+                     (= st "unimplemented") [antd/tag {:color "orange"} "措施未落实"]
+                     :else [:span {:style {:color "#98a2b3"}} "—"]))))}
+     (w/text-column :review_due_date "下次复评")
      {:title "复评提醒" :dataIndex "review_overdue" :render #(when % (r/as-element [antd/tag {:color "red"} "复评已逾期"]))}
      (due-countdown-column "review_due_in_days")
      {:title "转出问题" :dataIndex "risk_issue_title" :width 160

@@ -80,6 +80,7 @@
                    actions-by-meeting (group-by :meeting_id (:actions data))
                    raci-loads (stakeholders/raci-r-loads (:raci data))
                    owner-loads (collab/owner-workloads (:issues data) (:risks data) (:actions data))
+                   mitigation-rollup (collab/mitigation-rollup-by-risk (:actions data))
                    docs-by-id (into {} (map (juxt :id identity)) (:documents data))
                    traces-by-req (group-by :requirement_id (:traces data))
                    traceability (evidence/traceability-report (:requirements data) (:traces data))]
@@ -90,6 +91,7 @@
                    (update :raci #(mapv (partial stakeholders/raci-read-model raci-loads) %))
                    (update :issues #(mapv (partial collab/owner-workload-read-model owner-loads) %))
                    (update :risks #(mapv (partial collab/owner-workload-read-model owner-loads) %))
+                   (update :risks #(mapv (partial collab/mitigation-read-model mitigation-rollup) %))
                    (update :actions #(mapv (partial collab/owner-workload-read-model owner-loads) %))
                    (update :traces #(mapv (partial evidence/trace-read-model docs-by-id) %))
                    (update :requirements #(mapv (partial evidence/requirement-trace-model traces-by-req docs-by-id) %))

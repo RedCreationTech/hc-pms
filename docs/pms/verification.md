@@ -880,7 +880,7 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 | 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-h08pa.spec.js` 1 passed, 无未捕获 JS 错误: HTTP 建项目+一条 2x3=6 (不触发升级) 带措施的风险 -> 界面"需求与治理 > 风险与问题"风险行点"落实预防措施"打开对话框并预填措施文本 (截图 h08pa-1-risk-button.png) -> 填写行动标题保存生成 open 行动 -> "会议行动"台账该行动行"来源风险"列以 purple 标签回显来源风险标题 (截图 h08pa-2-action-source.png); 真实 HTTP GET governance 二次确认该行动 `source_risk_id`/`action_source_risk_id`/`action_source_risk_title` 指回风险且继承 `owner_id`/`due_date`, `status=open`, 风险 `status` 不变, 会议行动无来源标注 (`action_source_risk_title` 为 falsy) |
 | 路由授权 | 新增 `/risks/:record_id/mitigation-action` 与其它 `command-route` 结构一致, `authz_test` 遍历路由表要求全部声明 `:perms` 仍通过 (领域层 `k/mutate!` 挂 `pms:project:edit`) |
 
-边界: 该命令负责"措施一键落实为可追踪行动并在台账可视来源"这一条最小闭环; 暂不做措施到多条行动的批量拆分, 也不在风险侧统计其派生行动完成情况, 行动全部完成后提示风险可缓解等状态联动, 升级通知投递与 MySQL 回归仍待实现; H08 行仍为 `partial`, C10 行保持 `implemented / local`.
+边界: 该命令负责"措施一键落实为可追踪行动并在台账可视来源"这一条最小闭环; 暂不做措施到多条行动的批量拆分, 也不在风险侧统计其派生行动完成情况 (该边界已于 2026-09-29 后续子增量"风险侧预防措施落实情况只读派生"闭合, 见本节末), 行动全部完成后提示风险可缓解等状态联动, 升级通知投递与 MySQL 回归仍待实现; H08 行仍为 `partial`, C10 行保持 `implemented / local`.
 
 ## C01 需求验证方式与验证关联对齐只读派生 (本轮增补, 2026-09-28)
 
@@ -913,6 +913,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移, 不新增 DDL); 证据发布口径只读可见, **不做任何强制门控或拦截** (验证关联只指向未发布证据的需求照常登记与流转), 亦不做按类别/优先级的更细切分或导出.
 
 边界: 验证关联所指向证据是否已发布只读派生是 C01"需求可追踪且带验证方法"口径中"验证证据本身是否已审批发布"一项的 `implemented / local` 落地 (行内正交派生 + 聚合追加发布计数 + latest 去重 + 剔除已作废 + 免迁移 + workspace 暴露 `docs-by-id` + 台账列与面板可视), 在不回退"已配验证关联"对齐结论的前提下关闭"挂上关联即视为验证就绪"的乐观假设; 但据发布态强制门控 (据此阻断 Gate/关闭), 双向追踪覆盖率分母正式界定与 MySQL 回归仍未完备, C01 矩阵行保持既有 `implemented / local` 不上行, C03 行仍 `partial / 待规则`, 不因这一子能力上行.
+
+## H08/C10 风险侧预防措施落实情况只读派生 (本轮增补, 2026-09-29)
+
+设计与关闭口径: 上一子增量"风险应对措施落实为可追踪预防行动项"把风险的措施正向落实成一条带 `source_risk_id` 的 open 行动并在行动台账标注来源风险, 但如实记录了边界"不在风险侧统计其派生行动完成情况". 本项闭合这一边界——在风险台账反向聚合每条风险派生的预防行动落实情况, 沿用"给治理台账加只读派生洞察"套路, **不落库、不投递、不改动任何不可变版本, 免迁移, 免新命令, 免新 kind, 不构成任何门控**. (1) 反向聚合: `governance.collaboration/mitigation-rollup-by-risk` 以 `(:actions data)` 为输入按行动已持久化的 `source_risk_id` 分组累计 `{total, open}`, `open` 排除 `closed`/`converted` (即 open/in_review/rejected 均算未完成), 无 `source_risk_id` 的行动 (如会议派生) 不计入任何风险. (2) 行内派生: `mitigation-read-model` 用该 rollup 对每条风险 `assoc` `mitigation_action_total`/`mitigation_action_open`/`mitigation_action_state` (`unimplemented` total 为 0 / `in-progress` open 大于 0 / `completed` 有 total 且 open 为 0; 因 `mitigation` 登记必填故不设"无措施"态). workspace `governance.clj` 在 `let` 里算 `mitigation-rollup` 并在 `->` 线程追加 `(update :risks #(mapv (partial collab/mitigation-read-model mitigation-rollup) %))` 挂到已 enrich 过的风险行之后. 键名不带尾随 `?`. (3) 前端: "风险与问题"台账在"应对措施"与"下次复评"列之间新增"措施落实"列, 橙"措施未落实"/金"落实中, N 项待办"/绿"已落实 N 项"/无值灰"—".
+
+| 证据 | 实际记录 |
+|---|---|
+| 治理单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 62 tests / 795 assertions, 0 failures/errors (新增 `risk-mitigation-action-rollup-is-derived-read-only` 1 例: 两条带措施风险初始均 `unimplemented` 0/0 -> `:risks :mitigation-action` 落实一条行动后该风险翻 `in-progress` 1/1 而另一条不受影响 -> 再落实第二条 2/2 -> 经 `:actions :complete` + 独立 `:actions :verify` 批准关闭第一条降到 open=1 仍 `in-progress` -> 第二条 `:actions :task` 转 WBS (converted) 后 open=0 翻 `completed` 1/0, 全程风险 `status` 保持登记态不漂移且重读稳定; 纯函数直测 rollup-by-risk 与三态映射) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 163 tests / 1710 assertions, 0 failures/errors, workspace 新增 `(update :risks ...)` 未造成既有责任人负载/到期倒计时/风险复审等风险行 enrich 用例回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 warnings |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-h08mr.spec.js` 1 passed, 无未捕获 JS 错误: 界面登记一条 2x3=6 (不触发升级) 带措施风险 -> "风险与问题"台账"措施落实"列显橙"措施未落实" (截图 h08mr-1-unimplemented.png); 点该行"落实预防措施"保存生成 open 行动 -> 重开风险台账该列翻金"落实中, 1 项待办" (截图 h08mr-2-in-progress.png); 在"会议行动"台账把该行动"转为WBS任务" -> 重开风险台账该列翻绿"已落实 1 项" (截图 h08mr-3-completed.png); 真实 HTTP GET governance 二次确认行内 `mitigation_action_total/open/state` 由 unimplemented 0/0 -> in-progress 1/1 -> completed 1/0 逐级翻转且风险 `status` 不漂移; 截图存 `reports/h08mr/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移, 不新增 DDL); 该列只读反向汇总, **不构成任何门控或拦截** (预防行动是否全部落实不阻止风险复审/关闭/缓解流转), 亦不做按到期日的措施逾期细分或措施到多条行动的批量拆分.
+
+边界: 风险侧预防措施落实情况只读派生闭合了上一子增量"仅在行动侧标注来源而未回显风险侧措施落实进度"的边界, 是 H08/C10 风险追踪口径下 `implemented / local` 的一项只读洞察; H08 行仍为 `partial` (升级通知投递, 跨项目风险汇总升级仍待实现), C10 行保持 `implemented / local`.
 
 ## 核心通过场景
 
