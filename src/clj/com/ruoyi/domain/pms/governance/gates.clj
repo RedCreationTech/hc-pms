@@ -131,6 +131,19 @@
            :blocking_checks blocking
            :ready_to_sign (empty? blocking))))
 
+(defn gate-evidence-voided-model
+  "只读派生关口验收快照所引用证据是否现已作废: 逐个检查项的 evidence_ids (登记时绑定的不可变文档版本 id) 经 docs-by-id 解析其业务编码, 若该编码最新版本已被受控作废(discarded) 则计入 gate_voided_checks, 任一命中则 gate_evidence_voided 为 true. 检查项自身快照口径不漂移(引用的仍是那一个历史版本), 本标注仅额外提示证据现已整体作废. 免迁移读取时计算, 不写存储, 不改变不可变版本, 不门控, 键名不带尾随问号."
+  [voided-codes docs-by-id gate]
+  (let [checks (or (:checks gate) [])
+        voided-check? (fn [c]
+                        (some #(when-let [doc (get docs-by-id %)]
+                                 (voided-codes (:code doc)))
+                              (:evidence_ids c)))
+        voided-count (count (filter voided-check? checks))]
+    (assoc gate
+           :gate_voided_checks voided-count
+           :gate_evidence_voided (pos? voided-count))))
+
 (defn submit!
   "提交关口审核,允许完整检查或有理由的豁免申请."
   [svc actor id rid body]

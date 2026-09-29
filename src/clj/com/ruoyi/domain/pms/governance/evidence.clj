@@ -437,8 +437,8 @@
                      0)}))
 
 
-(defn- voided-document-codes
-  "从按 id 索引的全部证据文档版本中派生其最新版本已被受控作废(discarded)的业务编码集合, 供追踪链只读标注其引用证据是否现已作废."
+(defn voided-document-codes
+  "从按 id 索引的全部证据文档版本中派生其最新版本已被受控作废(discarded)的业务编码集合, 供追踪链/需求验证/Gate 验收快照只读标注其引用证据是否现已作废."
   [docs-by-id]
   (into #{} (comp (filter #(= "discarded" (:status %))) (map :code)) (s/latest (vals docs-by-id))))
 

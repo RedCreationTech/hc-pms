@@ -6,6 +6,7 @@
     [com.ruoyi.domain.pms.governance :as gov]
     [com.ruoyi.domain.pms.governance.collaboration :as collab]
     [com.ruoyi.domain.pms.governance.evidence :as evidence]
+    [com.ruoyi.domain.pms.governance.gates :as gates]
     [com.ruoyi.domain.pms.planning :as planning]
     [com.ruoyi.domain.pms.queries :as queries]
     [com.ruoyi.domain.pms.service :as pms]
@@ -1108,6 +1109,42 @@
                                                      {:code "O-1" :passed false :evidence_ids []}]})
     (is (= {:gate_total 3 :gate_passed 2 :gate_waived 1 :blocking_checks [] :ready_to_sign true}
            (select-keys (find-gate) keys)))))
+
+
+(deftest discarded-evidence-latest-revision-is-flagged-in-gate-snapshot-read-model
+  (let [id (project!)
+        doc (document! id "GATE-EV")
+        template (command! id :gate-templates :create nil
+                           {:code "G-VE" :title "证据作废关口" :stage "execution" :required true
+                            :checks [{:code "E-1" :title "评审记录" :required true}]})
+        gate (command! id :gates :create nil {:template_id (:id template) :title "验收" :reviewer_id 9302})
+        find-gate (fn [] (first (filter #(= (:id gate) (:id %)) (:gates (workspace id)))))]
+    ;; 检查项绑定 v1 证据 -> 编码最新版本未作废, 标注 false.
+    (command! id :gates :checks (:id gate) {:checks [{:code "E-1" :passed true :evidence_ids [(:id doc)]}]})
+    (is (false? (:gate_evidence_voided (find-gate))))
+    (is (= 0 (:gate_voided_checks (find-gate))))
+    ;; 修订到 v2 并作废 v2 (引用守卫只护 v1, v2 未引用可作废) -> 编码最新版本作废.
+    (let [v2 (command! id :documents :revisions (:id doc)
+                       {:code "GATE-EV" :title "更新记录" :filename "验收2.txt" :content "第二版正文\n"})]
+      (is (= 2 (:revision v2)))
+      (command! id :documents :discard (:id v2) {:reason "证据撤回"})
+      (is (true? (:gate_evidence_voided (find-gate))))
+      (is (= 1 (:gate_voided_checks (find-gate))))
+      ;; 检查项自身快照口径不漂移: 仍引用 v1 且其状态未变.
+      (is (= [(:id doc)] (get-in (find-gate) [:checks 0 :evidence_ids])))
+      ;; 恢复 v2 -> 标注复归 false.
+      (command! id :documents :restore (:id v2) {:reason "误作废回退"})
+      (is (false? (:gate_evidence_voided (find-gate))))
+      (is (= 0 (:gate_voided_checks (find-gate)))))
+    ;; 纯函数直测 voided-document-codes + gate-evidence-voided-model 命中/未命中/缺失.
+    (let [docs {"a" {:id "a" :code "A" :revision 1 :status "registered"}
+                "b" {:id "b" :code "B" :revision 2 :status "discarded"}}
+          vc (evidence/voided-document-codes docs)]
+      (is (= #{"B"} vc))
+      (is (true? (:gate_evidence_voided (gates/gate-evidence-voided-model vc docs {:checks [{:code "X" :evidence_ids ["b"]}]}))))
+      (is (= 1 (:gate_voided_checks (gates/gate-evidence-voided-model vc docs {:checks [{:code "X" :evidence_ids ["a" "b"]}]}))))
+      (is (false? (:gate_evidence_voided (gates/gate-evidence-voided-model vc docs {:checks [{:code "X" :evidence_ids ["a"]}]}))))
+      (is (= 0 (:gate_voided_checks (gates/gate-evidence-voided-model vc docs {:checks [{:code "X" :evidence_ids ["missing"]}]})))))))
 
 
 (deftest change-review-lock-and-audit-rollback

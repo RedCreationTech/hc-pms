@@ -1032,7 +1032,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL); "对最新版本被作废的证据显式标注"这一布尔事实由后端 SQLite 用例确定性覆盖, 浏览器侧核验界面可见的红色标签叠加/消失与真实 HTTP 回显; 只读标注**不构成任何门控或拦截** (证据作废后既有追踪照常登记/读取/流转, 是否据此阻断 Gate/关闭仍属"待规则"), 不做批量重算或历史留存, 不做作废主动提醒投递.
 
-边界: 本项关闭 H18 待办里"已作废证据对历史追踪快照的显式标注"这一子边界 (追踪矩阵与 URS 两处已显式提示证据整体作废), 是 C03 追踪链与 H18 作废治理口径下 `implemented / local` 的又一项只读洞察; 但 H18 整行仍有"已作废证据对历史 Gate/验收决策快照的显式标注""正式历史按保留策略归档"未完备, MySQL 回归亦待补, 故 H18 与 C03 两行均保持 `partial` 不上行.
+边界: 本项关闭 H18 待办里"已作废证据对历史追踪快照的显式标注"这一子边界 (追踪矩阵与 URS 两处已显式提示证据整体作废), 是 C03 追踪链与 H18 作废治理口径下 `implemented / local` 的又一项只读洞察; 但 H18 整行仍有"已作废证据对历史 Gate/验收决策快照的显式标注" (见下一段本轮已落地) 与"正式历史按保留策略归档"未完备, MySQL 回归亦待补, 故 H18 与 C03 两行均保持 `partial` 不上行.
+
+## H18 Gate 已作废证据对验收决策快照显式标注 (本轮增补, 2026-09-29)
+
+设计与口径: 承接上一段追踪链/URS 的证据作废标注, 把同一只读派生扩展到关口 (Gate) 验收快照. Gate 检查在 `checks` 里以不可变 `evidence_ids` 绑定了具体文档版本——评审人签核时看到的是当时有效证据, 若该证据业务编码后来被整体作废, 关口台账应显式提示"这项验收依赖的证据现已作废", 以免误信历史签核仍可靠. 本项复用 H18/C03 已建立的 `governance.evidence/voided-document-codes` 派生 (改为公有供 gates 复用), 在同一 `docs-by-id` 入参上再加一层只读标注, 完全沿用"给治理台账加只读派生洞察"套路, **不落库、不投递、不改动任何不可变版本, 免迁移、免新命令、免新 kind、免新路由、不构成任何门控**. (1) 派生: 新公有纯函数 `governance.gates/gate-evidence-voided-model [voided-codes docs-by-id gate]` 对关口实例逐检查项核验——若某检查项 `evidence_ids` 命中的文档其 `code` 落在 `voided-codes` 集合 (`store/latest` 按 `code` 取最高 `revision` 后筛 `discarded`) 中即计一次, 派生整数 `gate_voided_checks` 与布尔 `gate_evidence_voided` (`gate_voided_checks > 0`). (2) 接线: `governance.clj` workspace 的 `let` 里在既有 `docs-by-id` 后计算一次 `voided-codes (evidence/voided-document-codes docs-by-id)`, 在 `:requirements` 的 `update` 之后对 `:gates` 追加第二遍 `(update :gates #(mapv (partial gates/gate-evidence-voided-model voided-codes docs-by-id) %))` (在既有 `gate-read-model` 就绪度之后, 就绪度徽标不变, 作废标叠加). 因引用守卫使被 Gate 检查直接引用的版本不可作废, 标注为 true 的成立路径同追踪链——"检查快照指向旧 v1、同编码新 v2 事后被作废", 且快照自身 `evidence_ids` 仍为 v1 不漂移. (3) 前端: "Gate检查与评审"台账"检查就绪度"列在原有徽标 (检查 N/M、豁免、待满足、可签核) 之后追加红色"证据已作废 N"标签 (N 为 `gate_voided_checks`), 键名不带尾随 `?`.
+
+| 证据 | 实际记录 |
+|---|---|
+| 治理单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 69 tests / 913 assertions, 0 failures/errors (新增 `discarded-evidence-latest-revision-is-flagged-in-gate-snapshot-read-model` 1 例: 建项目+文档 v1 (`GATE-EV`) -> 建含单必需检查 `E-1` 的关口模板与实例 -> `:gates :checks` 把 `E-1` 标记通过且绑定 v1 (`evidence_ids` `[(:id doc)]`) -> 断言 workspace `gate_evidence_voided` false、`gate_voided_checks` 0 -> `:documents :revisions` 生成同编码 v2 (`revision` 2) -> `:documents :discard` 作废 v2 -> 断言 `gate_evidence_voided` true、`gate_voided_checks` 1, 而检查快照 `[:checks 0 :evidence_ids]` 仍 `[(:id doc)]` 不漂移 -> `:documents :restore` 恢复 v2 后两值复归 false/0; 另以混合样本 `{a: rev1 registered, b: rev2 discarded}` 直接纯函数测 `voided-document-codes` 命中集与 `gate-evidence-voided-model` 的命中/未命中/缺文档 id) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 171 tests / 1841 assertions, 0 failures/errors, `voided-document-codes` 公有化与 `:gates` 第二遍 `update` 未造成既有关口检查就绪度/关口门控/追踪链证据发布/URS 验证证据作废等 read-model 用例回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 warnings |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-h18g.spec.js` 1 passed (17.6s), 无未捕获 JS 错误: 界面 admin 建项目+合成独立审核人 -> 真实 HTTP 建含单必需检查模板与关口实例, 真实 HTTP 建证据文档 v1 并 `:gates/:id/checks` 把 `E-1` 标记通过且绑定 v1 -> 重载 Gate 页签"检查就绪度"列显绿色"检查 1/1""可签核"且无红"证据已作废" (截图 h18g-1-clean.png), 真实 HTTP GET governance 回显 `gate_evidence_voided` false/`gate_voided_checks` 0 -> 真实 HTTP `:documents/:id/revisions` 生成 v2 再 `:documents/:id/discard` 作废 v2 -> 重载"检查就绪度"列在原徽标后追加红色"证据已作废 1"且"可签核"仍在 (截图 h18g-2-voided.png), GET 二次确认 `gate_evidence_voided` true/`gate_voided_checks` 1 而 `checks[0].evidence_ids` 仍 `[v1]` 不漂移 -> 真实 HTTP `:documents/:id/restore` 恢复 v2 -> 重载红标消失 (截图 h18g-3-restored.png), GET 两值复归 false/0; 截图存 `reports/h18g/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL); "对最新版本被作废的证据在关口快照上显式标注"这一布尔事实由后端 SQLite 用例确定性覆盖, 浏览器侧核验界面可见的红色标签叠加/消失与真实 HTTP 回显; 只读标注**不构成任何门控或拦截** (证据作废后既有已签核关口照常读取与流转, 是否据此阻断关闭/重签仍属"待规则"), 不做批量重算、不做作废主动提醒投递、不做已作废证据对历史 Gate 决策"须重新评审"的强制流程.
+
+边界: 本项关闭 H18 待办里"已作废证据对历史 Gate/验收决策快照的显式标注"这一子边界, 至此 H18 三项作废证据显式标注 (追踪链 / URS 验证证据 / Gate 验收快照) 均已落地为 `implemented / local` 只读洞察; 但 H18 整行仍有"正式历史按保留策略归档"未完备, MySQL 回归亦待补, 且作废标注仍不接入任何重评审/阻断强制流程, 故 H18 行保持 `partial` 不上行.
 
 ## 核心通过场景
 

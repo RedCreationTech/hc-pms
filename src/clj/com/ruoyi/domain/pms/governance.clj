@@ -82,6 +82,7 @@
                    owner-loads (collab/owner-workloads (:issues data) (:risks data) (:actions data))
                    mitigation-rollup (collab/mitigation-rollup-by-risk (:actions data))
                    docs-by-id (into {} (map (juxt :id identity)) (:documents data))
+                   voided-codes (evidence/voided-document-codes docs-by-id)
                    traces-by-req (group-by :requirement_id (:traces data))
                    traceability (evidence/traceability-report (:requirements data) (:traces data))]
                (-> data
@@ -95,6 +96,7 @@
                    (update :actions #(mapv (partial collab/owner-workload-read-model owner-loads) %))
                    (update :traces #(mapv (partial evidence/trace-read-model docs-by-id) %))
                    (update :requirements #(mapv (partial evidence/requirement-trace-model traces-by-req docs-by-id) %))
+                   (update :gates #(mapv (partial gates/gate-evidence-voided-model voided-codes docs-by-id) %))
                    (collab/enrich-risk-issue-links)
                    (collab/enrich-action-source-links)
                    (assoc :project_version (:version project) :blockers (blockers q project)
