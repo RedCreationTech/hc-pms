@@ -1004,6 +1004,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: C07f 把文档/章程/关口既有的"提交—独立裁决发布"闭环补到会议纪要, 补齐了会议此前"只有登记终态、无正式归档发布门控"的缺口; 但 C07 整行验收所涉更宽治理 (通知投递, 生产/UAT 签收等) 仍未尽数实现, 故 C07 行保持 `partial` 不上行.
 
+## C07g 会议受控作废与恢复 (本轮增补, 2026-09-29)
+
+设计与口径: H18 早已为需求/文档/干系人三类记录建立了一套 **kind 参数化**的通用软删除框架 (`governance/lifecycle.clj`: `discard!`/`restore!`/`discard-preview`, 三层门控 `latest!` + `status!` (读 `discardable-status`) + 引用守卫 (读 `references-of`), 审计走 `workflow_history` 存 `prior_status`), 会议纪要一直是这套框架里唯一未接入的治理 kind——草稿纪要么只能堆积、无法留痕地清理. C07g 承接 C07f 的纪要发布闭环, 把 meeting 接入既有框架, 是一条**写路径闭环**但仍**免迁移、免新 kind、免新裁决路由**: `discarded` 早已在 `pms_gov_record.status` 的 CHECK 允许值内 (H18 迁移 `202609220011` 已引入), 因此无需任何新 DDL. (1) 领域: `lifecycle.clj` 给 `discardable-status` 增补 `"meeting" #{"recorded"}` (仅草稿可作废, 在途发布审批 `in_review` 与已发布 `approved` 均命中状态守卫 409, 防止误删在途或已归档纪要), 给 `references-of` 增补 meeting 分支 (被派生行动 `action.meeting_id` 或沟通计划 `comm-plan.last_meeting_id` 引用即不可作废并列出来源); `collaboration.clj` 的 `create-action!` 新增前置守卫——先查目标会议状态, 若已 `discarded` 则 409 "会议已作废, 不能派生行动", 堵住向已作废纪要继续挂行动的孤儿引用. (2) 命令表 + 路由: `governance.clj` 加 `[:meetings :discard]`/`[:meetings :restore]` (复用 `approval-command lifecycle/discard! "meeting"`), `pms_governance.clj` 加 `POST /meetings/:record_id/discard`、`POST /meetings/:record_id/restore` 与 `GET /meetings/:record_id/discard-preview`. (3) 前端: `governance.cljs` 的 `meeting-section` "纪要发布"状态列新增 red "已作废" 徽标, 对可编辑且状态为 recorded 的纪要显示"作废"入口, 对 discarded 纪要显示"恢复"与"级联影响"入口 (in_review/approved 不显示作废), 复用既有 `forms/discard-dialog`/`forms/restore-dialog` 与 `discard-preview-modal`.
+
+| 证据 | 实际记录 |
+|---|---|
+| 治理单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 67 tests / 885 assertions, 0 failures/errors (新增 `meeting-discard-is-guarded-and-restorable` 1 例, 四段断言: A recorded 会议——无编辑权 403、携带未知字段 400、级联预览 discardable?、作废转 `discarded` 且记 `discard_reason`/`discarded_by`/`prior_status=recorded`、workspace 回显 discarded、已作废再作废 409、向已作废会议派生行动 409、恢复回 `recorded` 且 `workflow_history` 含 `["discarded","restored"]`、非最新恢复 409; B in_review/approved 会议作废命中状态守卫 409 且预览 `status_discardable?` false; C 有派生行动的会议预览列出"行动"并作废 409; D 由沟通计划生成的会议 (last_meeting_id 回指) 作废 409 且预览列出"沟通计划") |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 169 tests / 1813 assertions, 0 failures/errors, 未造成既有会议登记/发布/行动闭环/H18 需求文档干系人作废等用例回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 warnings |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-c07g.spec.js` 3 passed (46.6s), 无未捕获 JS 错误: 第一例 界面登记 recorded 会议 -> 行内"级联影响"打开只读预览弹窗显"可安全作废"与"未发现引用该记录的其它对象" (截图 c07g-1-preview-safe.png), 点"作废"填原因 -> "纪要发布"列翻红色"已作废"且"作废"入口消失改显"级联影响 恢复" (截图 c07g-2-discarded.png), 真实 HTTP GET governance 回显 `status=discarded`/`discarded_by`; 点"恢复" -> 回 recorded 草稿态且"提交发布"/"形成行动"入口重现 (截图 c07g-3-restored.png). 第二例 给会议派生行动 -> 预览显"不可作废"列出"行动 <标题>" (截图 c07g-4-preview-blocked.png), 真实 HTTP POST discard 命中引用守卫 409 于 `[role="alert"]` 显"记录仍被其它对象引用, 不能作废" (截图 c07g-5-discard-blocked-alert.png). 第三例 双真实上下文 admin 提交发布使纪要 in_review -> 台账不显示"作废"入口、真实 HTTP discard 命中状态守卫 409、预览显"状态不可作废" (截图 c07g-6-inreview-nodiscard.png); 截图存 `reports/c07g/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL, 复用 H18 既有 `discarded` CHECK 取值); 陈旧版本 409、非最新恢复 409、向已作废会议派生行动 409 等门控事实由后端 SQLite 用例确定性地覆盖, 浏览器侧核验界面可见的徽标翻转/入口显隐/告警; 不做已作废纪要对历史沟通与行动快照的显式标注、不做批量作废或按保留策略归档、不做通知投递与生产/UAT 签收.
+
+边界: C07g 把 H18 既有的通用软删除框架接入 meeting kind, 补齐了"草稿清理此前仅覆盖需求/文档/干系人而未含会议纪要"的缺口; 但 C07 整行 (通知投递, 生产/UAT 签收等) 与 H18 整行 (正式历史按保留策略归档, 已作废证据对 Gate/验收快照显式标注等) 所涉更宽治理仍未尽数实现, 故 C07 与 H18 两行均保持 `partial` 不上行.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

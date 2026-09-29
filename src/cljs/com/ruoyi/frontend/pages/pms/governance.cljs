@@ -714,7 +714,7 @@
 
 (defn- meeting-section
   "从会议纪要产生明确行动,避免只记录不执行.会前资料绑定项目内真实文档版本."
-  [{:keys [base model options planning editable? approve? open!]}]
+  [{:keys [base model options planning editable? approve? open! preview!]}]
   [shared/panel "会议与决策" "参会人员,正式纪要,会议类型,主计划基线引用与会前资料版本保留在项目中"
    (when editable? [antd/button {:on-click #(open! (forms/meeting-dialog base options (:documents model) (:baselines planning)))} "登记项目会议"])
    [w/record-table (:meetings model)
@@ -728,7 +728,7 @@
                                             [:span {:style {:color "#98a2b3"}} "未引用"]))))}
      {:title "会前资料" :dataIndex "material_ids" :render #(r/as-element [antd/tag {:color (if (pos? (count %)) "blue" "default")} (count %)])}
      {:title "纪要发布" :dataIndex "status" :width 110
-      :render #(r/as-element (let [[t c] (get {"recorded" ["草稿" "default"] "in_review" ["发布审批中" "blue"] "approved" ["已发布" "green"]} % [% "default"])]
+      :render #(r/as-element (let [[t c] (get {"recorded" ["草稿" "default"] "in_review" ["发布审批中" "blue"] "approved" ["已发布" "green"] "discarded" ["已作废" "red"]} % [% "default"])]
                               [antd/tag {:color c} t]))}
      {:title "行动闭环" :dataIndex "meeting_open_actions" :width 180
       :render (fn [_ row]
@@ -744,12 +744,17 @@
     (fn [meeting]
       (let [current (:currentUserId options) st (:status meeting)]
         [antd/space {:wrap true}
-         (when editable? [w/edit-button "形成行动" #(open! (forms/action-dialog base options meeting))])
+         (when (and editable? (not= "discarded" st)) [w/edit-button "形成行动" #(open! (forms/action-dialog base options meeting))])
          (when (and editable? (= "recorded" st))
            [w/edit-button "提交发布"
             #(open! {:title "提交会议纪要发布审批" :path (str base "/meetings/" (:id meeting) "/submit")
                      :description "选择具备质量审批权限的独立审核人, 冻结纪要进入发布评审, 驳回后可补充重提."
                      :fields [(forms/reviewer-field options)]})])
+         (when editable? [w/edit-button "级联影响" #(preview! {:collection "meetings" :id (:id meeting) :label (str "会议 " (:title meeting))})])
+         (when (and editable? (= "recorded" st))
+           [w/edit-button "作废" #(open! (forms/discard-dialog (str base "/meetings/" (:id meeting) "/discard") "会议纪要"))])
+         (when (and editable? (= "discarded" st))
+           [w/edit-button "恢复" #(open! (forms/restore-dialog (str base "/meetings/" (:id meeting) "/restore") "会议纪要"))])
          (when (and approve? (= "in_review" st) (= current (:reviewer_id meeting)) (not= current (:submitted_by meeting)))
            [:<>
             [w/edit-button "批准发布" #(open! (forms/decision-dialog (str base "/meetings/" (:id meeting) "/decision") "approved" "正式批准会议纪要"))]

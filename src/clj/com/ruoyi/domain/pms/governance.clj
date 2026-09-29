@@ -166,6 +166,8 @@
    [:meetings :create] (creating collab/create-meeting!)
    [:meetings :submit] collab/submit-meeting!
    [:meetings :decision] collab/decide-meeting!
+   [:meetings :discard] (approval-command lifecycle/discard! "meeting" false)
+   [:meetings :restore] (approval-command lifecycle/restore! "meeting" false)
    [:meetings :actions] collab/create-action! [:actions :task] collab/materialize-action!
    [:actions :complete] collab/complete-action! [:actions :verify] collab/verify-action!
    [:actions :reopen] collab/reopen-action!

@@ -2301,6 +2301,68 @@
     (is (= 403 (error-status #(gov/discard-preview *service* (actor 9305) id "requirement" (:id free-req)))))))
 
 
+(deftest meeting-discard-is-guarded-and-restorable
+  ;; 未被引用的登记态会议可受控作废与恢复, 审计回写作废前状态
+  (let [id (project!)
+        meeting (command! id :meetings :create nil
+                          {:title "设计评审" :held_on "2026-09-22" :minutes "补齐验证任务" :attendee_ids [9301 9302]})
+        mid (:id meeting)]
+    (is (= 403 (error-status #(command! 9302 id :meetings :discard mid {:reason "越权作废"}))))
+    (is (= 400 (error-status #(command! id :meetings :discard mid {:reason "字段越界" :extra 1}))))
+    (let [p (gov/discard-preview *service* (actor 9301) id "meeting" mid)]
+      (is (true? (:status_discardable? p)))
+      (is (true? (:discardable? p)))
+      (is (empty? (:references p))))
+    (let [discarded (command! id :meetings :discard mid {:reason "误登记的重复会议"})]
+      (is (= "discarded" (:status discarded)))
+      (is (= "误登记的重复会议" (:discard_reason discarded)))
+      (is (= 9301 (:discarded_by discarded)))
+      (is (some? (:discarded_on discarded)))
+      (is (= "recorded" (:prior_status (last (:workflow_history discarded)))))
+      (is (= "discarded" (:status (first (filter #(= mid (:id %)) (:meetings (workspace id))))))))
+    (is (= 409 (error-status #(command! id :meetings :discard mid {:reason "重复作废"}))))
+    (is (= 409 (error-status #(command! id :meetings :actions mid {:title "越界行动" :owner_id 9301 :due_date "2026-10-01"}))))
+    (let [restored (command! id :meetings :restore mid {:reason "误作废恢复"})]
+      (is (= "recorded" (:status restored)))
+      (is (= "误作废恢复" (:restore_reason restored)))
+      (is (= 9301 (:restored_by restored)))
+      (is (= ["discarded" "restored"] (map :action (:workflow_history restored))))
+      (is (= "recorded" (:restored_to (last (:workflow_history restored))))))
+    (is (= 409 (error-status #(command! id :meetings :restore mid {:reason "非作废不可恢复"})))))
+  ;; 发布审批中与已发布会议不在可作废集合, 直接作废被状态门控 409
+  (let [id (project!)
+        m (command! id :meetings :create nil {:title "待发布纪要" :held_on "2026-09-22" :minutes "正式结论" :attendee_ids [9301 9302]})
+        mid (:id m)]
+    (command! id :meetings :submit mid {:reviewer_id 9302})
+    (is (= 409 (error-status #(command! id :meetings :discard mid {:reason "审批中不可作废"}))))
+    (let [p (gov/discard-preview *service* (actor 9301) id "meeting" mid)]
+      (is (false? (:status_discardable? p)))
+      (is (false? (:discardable? p))))
+    (command! 9302 id :meetings :decision mid {:decision "approved" :reason "纪要完整可归档"})
+    (is (= 409 (error-status #(command! id :meetings :discard mid {:reason "已发布不可作废"})))))
+  ;; 仍派生行动的会议不可作废, 级联预览列出"行动"引用
+  (let [id (project!)
+        m (command! id :meetings :create nil {:title "含行动会议" :held_on "2026-09-22" :minutes "结论" :attendee_ids [9301 9302]})
+        mid (:id m)
+        _ (command! id :meetings :actions mid {:title "补充验证" :owner_id 9301 :due_date "2026-09-25"})
+        p (gov/discard-preview *service* (actor 9301) id "meeting" mid)]
+    (is (true? (:status_discardable? p)))
+    (is (false? (:discardable? p)))
+    (is (some #(.contains ^String % "行动") (:references p)))
+    (is (= 409 (error-status #(command! id :meetings :discard mid {:reason "仍有行动"})))))
+  ;; 由沟通计划生成的会议被 last_meeting_id 引用, 不可作废, 预览列出"沟通计划"
+  (let [id (project!)
+        sh (stakeholder! id "SH-MG" 9301)
+        plan (command! id :comm-plans :create nil
+                       {:code "CP-MG" :objective "月度沟通" :channel "meeting" :frequency "monthly"
+                        :audience [(:id sh)] :next_date "2026-09-25" :owner_id 9301})
+        gen (command! id :comm-plans :meeting (:id plan) {:held_on "2026-09-26"})
+        p (gov/discard-preview *service* (actor 9301) id "meeting" (:id gen))]
+    (is (= 409 (error-status #(command! id :meetings :discard (:id gen) {:reason "被沟通计划引用"}))))
+    (is (false? (:discardable? p)))
+    (is (some #(.contains ^String % "沟通计划") (:references p)))))
+
+
 (deftest issue-escalation-requires-independent-acknowledgment-before-resolution
   (let [id (project!) evidence (:id (document! id "ISS-ESC-1"))
         blocker (command! id :issues :create nil {:title "阻断级装配缺陷" :severity "blocker"

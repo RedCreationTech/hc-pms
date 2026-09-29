@@ -359,7 +359,9 @@
   (k/mutate! svc actor id "pms:project:edit" body "action.created"
              (fn [q project]
                (s/input! body [:title :owner_id :due_date])
-               (s/record! q project "meeting" rid)
+               (let [meeting (s/record! q project "meeting" rid)]
+                 (when (= "discarded" (:status meeting))
+                   (r/fail! 409 "会议已作废, 不能派生行动")))
                (s/insert! q project actor "action"
                           {:title (s/text! body :title 200) :owner_id (k/user! q project (:owner_id body) "负责人")
                            :due_date (s/date! body :due_date) :meeting_id rid}

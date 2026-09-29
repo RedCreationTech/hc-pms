@@ -1,6 +1,6 @@
 # 治理与质量 HTTP 合同
 
-状态: 已实现并通过本地 SQLite 63 tests / 816 assertions (含 A08 项目成员任命书, H02 干系人/RACI/沟通计划, C06 文档独立发布审批, C06 证据发布覆盖度只读派生, C03 追踪链证据发布状态只读派生, C03 URS 需求台账内联追踪状态只读派生, C04 文档归集视图, H01 章程初始预算, H01 章程显式授权项目经理, H09 变更量化影响与高影响只读派生, H09 变更高影响提交即自动升级并强制独立确认后方可批准, H09 变更控制委员会多人表决门槛(设立名单/成员投票/达到门槛方可批准), H08 风险超阈值自动升级, H08 复评重新评分并重算升级门控, H08 风险应对策略可选枚举字段, H08 风险应对策略覆盖度只读派生, H08/C10 风险应对措施落实为可追踪预防行动项, H08/C10 风险侧预防措施落实情况反向只读派生, H08/C10 风险侧预防措施逾期只读细分, C02 需求验证方式可选枚举字段, C02 需求验证方式覆盖度只读派生, C01 需求验证方式与验证关联对齐只读派生, C01 验证关联所指向证据是否已发布只读派生, C10 典型风险库一键实例化, H02 沟通节奏标记已沟通与到期预警, C09 问题逾期预警, C09d 问题阻断级自动升级, H18 受控作废与受控恢复, H18c 归集剔除已作废与级联影响预览, 责任人跨类负载预警等用例), 属于本轮全量 PMS 回归 164 tests / 1731 assertions 的组成部分. 新模块 MySQL 及生产验收采用 [验证记录](../verification.md) 的最终结果. 不包含真实外部系统写入, 二进制文件服务或自动应用变更. 所有路径以 `/api/pms/projects/:id/governance` 为前缀. 路由挂在现有 JWT 认证中间件内. 下述字段为明确白名单; 未列字段返回 400.
+状态: 已实现并通过本地 SQLite 67 tests / 885 assertions (含 A08 项目成员任命书, H02 干系人/RACI/沟通计划, C06 文档独立发布审批, C06 证据发布覆盖度只读派生, C03 追踪链证据发布状态只读派生, C03 URS 需求台账内联追踪状态只读派生, C04 文档归集视图, H01 章程初始预算, H01 章程显式授权项目经理, H09 变更量化影响与高影响只读派生, H09 变更高影响提交即自动升级并强制独立确认后方可批准, H09 变更控制委员会多人表决门槛(设立名单/成员投票/达到门槛方可批准), H08 风险超阈值自动升级, H08 复评重新评分并重算升级门控, H08 风险应对策略可选枚举字段, H08 风险应对策略覆盖度只读派生, H08/C10 风险应对措施落实为可追踪预防行动项, H08/C10 风险侧预防措施落实情况反向只读派生, H08/C10 风险侧预防措施逾期只读细分, C02 需求验证方式可选枚举字段, C02 需求验证方式覆盖度只读派生, C01 需求验证方式与验证关联对齐只读派生, C01 验证关联所指向证据是否已发布只读派生, C10 典型风险库一键实例化, H02 沟通节奏标记已沟通与到期预警, C09 问题逾期预警, C09d 问题阻断级自动升级, H18 受控作废与受控恢复, H18c 归集剔除已作废与级联影响预览, C07f 会议纪要受控发布闭环, C07g 会议受控作废与恢复, 责任人跨类负载预警等用例), 属于本轮全量 PMS 回归 169 tests / 1813 assertions 的组成部分. 新模块 MySQL 及生产验收采用 [验证记录](../verification.md) 的最终结果. 不包含真实外部系统写入, 二进制文件服务或自动应用变更. 所有路径以 `/api/pms/projects/:id/governance` 为前缀. 路由挂在现有 JWT 认证中间件内. 下述字段为明确白名单; 未列字段返回 400.
 
 ## 事务, 权限与读模型
 
@@ -54,7 +54,10 @@
 | POST `/meetings` | title, held_on, minutes, attendee_ids, 可选 material_ids | 持久化纪要及 1..100 个参与人, 状态 recorded. material_ids 为可选会前资料, 须为 0..50 个不重复的同项目真实文档版本 `id`; 引用不存在或跨项目或非 document 类型 404, 重复或超 50 或非法数组 400; 留空记为 `[]` |
 | POST `/meetings/:rid/submit` | reviewer_id | 会议纪要受控发布: 状态须为 recorded(否则 409), 冻结纪要进入 in_review 并指定具备 `pms:quality:approve` 的独立发布审核人(审核人不得为提交人且须有项目访问, 否则 409/403), 记 `submitted_by` 为当前操作人; 免迁移, 元数据随 payload 持久化 |
 | POST `/meetings/:rid/decision` | decision: approved/rejected, reason | 只有指定审核人可决定当前提交版本(读权限即可, `pms:quality:approve`); approved -> `approved` (正式归档发布, 记 `released_by`), rejected -> `recorded` (退回登记态可补充重提); 提交人不能自批 403, 非指定审核人 403, 纪要非 in_review 态 409 |
-| POST `/meetings/:rid/actions` | title, owner_id, due_date | 创建归属该会议的 open 行动项 |
+| POST `/meetings/:rid/discard` | reason, version | 会议纪要受控作废 (C07g, 复用 H18 通用 lifecycle): 走 `pms:project:edit` 写权限与项目作用域, 陈旧版本 409, 状态守卫仅 `recorded` 可作废 (发布审批中 `in_review` 与已发布 `approved` 均 409), 引用守卫拒绝仍被派生行动 (`action.meeting_id`) 或沟通计划 (`comm-plan.last_meeting_id`) 引用的会议 (409 并列出来源); 通过后转 `discarded` 记 `discard_reason`/`discarded_by` + `workflow_history` 审计(含作废前状态 prior_status); 免迁移, discarded 已在 CHECK 内 |
+| POST `/meetings/:rid/restore` | reason, version | 会议纪要受控恢复 (C07g): 走 `pms:project:edit` 权限, 陈旧 409, 状态守卫要求当前恰为 `discarded`; 从 `workflow_history` 取回作废前状态回退 (recorded), 记 `restore_reason`/`restored_by` + `restored` 审计项; 找不到可解析前态则 409; 免迁移 |
+| GET `/meetings/:rid/discard-preview` | — | 会议作废前只读级联影响预览 (C07g): 走 `pms:project:query` 读权限与项目作用域, 返回 `{kind, record_id, revision, status, latest?, status_discardable?, references, discardable?}`, references 复用作废守卫的收集逻辑列出派生行动与沟通计划; 不改变任何状态, 免迁移 |
+| POST `/meetings/:rid/actions` | title, owner_id, due_date | 创建归属该会议的 open 行动项; C07g 门控: 目标会议若已作废 (`discarded`) 返回 409 "会议已作废, 不能派生行动" |
 | POST `/actions/:rid/task` | 可选 start_date, duration_days, wbs_code | 同事务创建真实 WBS 任务, 状态 converted, 保存 target_task_id; 重试不重复创建 |
 | POST `/actions/:rid/complete` | result, evidence_ids, reviewer_id | 提交行动完成: 状态 open/rejected -> in_review, 记录 review_action action_closure, result, 绑定的不可变证据版本 evidence_ids, 指定独立 reviewer_id(不得为提交人且具质量审批权与项目访问), submitted_by 为当前操作人; 缺证据 409, 审核人为本人 409, 无权限 403, 缺字段 400 |
 | POST `/actions/:rid/reopen` | reason, evidence_ids, reviewer_id | 已关闭行动受控重开: 状态须为 closed(否则 409), 以新依据 reason(非空否则 400)、真实证据 evidence_ids(缺 409)和独立 reviewer_id(不得为申请人, 须具质量审批权与项目访问, 否则 409/403)申请重开, 转 in_review, 记 review_action action_reopen, reopen_reason, reopen_evidence_ids, submitted_by, 并快照 prior_closure_result 与 prior_verification_reason 供审批人对照; 复用完成/重开同一 verify 端点, 不新增裁决路由 |
@@ -141,25 +144,29 @@
 
 ## 受控作废 (H18)
 
-对 `requirement` (URS需求), `document` (证据文档) 与 `stakeholder` (干系人) 三类记录提供受控作废命令, 把"这条记录不再有效"表达为一次可审计的状态迁移, 而不是物理删除. 命令走 `pms:project:edit` 写权限与项目作用域, 无编辑权用户 403, 携带未知字段 400:
+对 `requirement` (URS需求), `document` (证据文档), `stakeholder` (干系人) 与 `meeting` (会议纪要, C07g) 四类记录提供受控作废命令, 把"这条记录不再有效"表达为一次可审计的状态迁移, 而不是物理删除. 命令走 `pms:project:edit` 写权限与项目作用域, 无编辑权用户 403, 携带未知字段 400:
 
 - `POST /requirements/:rid/discard`
 - `POST /documents/:rid/discard`
 - `POST /stakeholders/:rid/discard`
+- `POST /meetings/:rid/discard`
 
-请求体仅接受 `reason` (可选, 至多 500 字符) 与 `version`. 三层门控按序执行: `latest!` 只允许最新版本 (陈旧版本 409), `status!` 只允许处于可作废状态集合的记录 (requirement 须 `registered`, document 须 `registered`/`rejected`, stakeholder 须 `active`, 否则 409; 例如提交进入发布评审 `in_review` 的文档不能直接作废), 再做引用守卫. 服务端在事务内收集该记录被其它对象引用的证据 (requirement 被追踪指向, document 被追踪/会议会前资料/问题与风险证据/行动证据引用, stakeholder 被 RACI 指派或列入沟通受众), 命中任一引用即 409 并在消息里列出前若干条引用来源, 拒绝作废. 通过守卫后调用 `change!` 把状态写为 `discarded`, 同时记录 `discard_reason`, `discarded_by`, `discarded_on` 并追加一条 `workflow_history` 审计项 (含作废前状态), 记录内容, 编号与既有版本链全部保留可追溯.
+请求体仅接受 `reason` (可选, 至多 500 字符) 与 `version`. 三层门控按序执行: `latest!` 只允许最新版本 (陈旧版本 409), `status!` 只允许处于可作废状态集合的记录 (requirement 须 `registered`, document 须 `registered`/`rejected`, stakeholder 须 `active`, meeting 须 `recorded`, 否则 409; 例如提交进入发布评审 `in_review` 的文档、以及处于发布审批中或已发布的会议纪要均不能直接作废), 再做引用守卫. 服务端在事务内收集该记录被其它对象引用的证据 (requirement 被追踪指向, document 被追踪/会议会前资料/问题与风险证据/行动证据引用, stakeholder 被 RACI 指派或列入沟通受众, meeting 被其派生行动 `action.meeting_id` 或沟通计划 `comm-plan.last_meeting_id` 引用), 命中任一引用即 409 并在消息里列出前若干条引用来源, 拒绝作废. 通过守卫后调用 `change!` 把状态写为 `discarded`, 同时记录 `discard_reason`, `discarded_by`, `discarded_on` 并追加一条 `workflow_history` 审计项 (含作废前状态), 记录内容, 编号与既有版本链全部保留可追溯.
 
 作废是终态: 已作废记录再次作废命中状态守卫返回 409. 读模型原样回显 `status: "discarded"` 与作废字段, 工作台据此在状态列显示"已作废"并隐藏作废入口; 已作废干系人不再满足"有效干系人"前置, 后续 RACI 指派或沟通受众引用它按既有 `active-stakeholder!` 状态守卫返回 409. `document_collection` 归集视图按业务编码取最新版本聚合, 且只计入未作废 (状态非 `discarded`) 的最新版本: 若某编号的最新版本已被受控作废, 该编号不再计入 `total` 及各分桶 (`by-stage`/`by-structure-node`/`by-classification`), 而是单独以 `discarded-count` 透明呈现, 前端在"文档归集视图"以红色"已作废 N 未计入"标签提示; 恢复后重新计入. 归集仍是只读派生, 不改变不可变版本或作废状态本身.
 
-受控撤销作废 (恢复): 与作废对称, 每类记录另有 `POST /requirements/:rid/restore`, `POST /documents/:rid/restore`, `POST /stakeholders/:rid/restore` 三条命令, 同样走 `pms:project:edit` 权限与项目作用域, 请求体仅接受 `reason` 与 `version`. 门控为 `latest!` (陈旧 409) + `status!` 要求当前恰为 `discarded` (非作废记录恢复返回 409). 服务端从该记录 `workflow_history` 里最近一条 `discarded` 审计项取回作废前状态, 用 `change!` 把状态回退到该前态 (requirement/document 回 `registered`, 被拒文档回 `rejected`, 干系人回 `active`), 并记 `restore_reason`/`restored_by`/`restored_on` + 追加一条 `workflow_history` 的 `restored` 审计项 (含 `restored_to`), 不重放任何业务副作用. 若历史里找不到可解析的作废前状态则返回 409 拒绝恢复. 恢复后记录重新满足各自状态前置 (如已恢复干系人可再被 RACI 指派), 界面"恢复"入口消失, "作废"入口重新出现. 恢复免迁移 (`discarded` 与目标状态均已在 CHECK 内).
+受控撤销作废 (恢复): 与作废对称, 每类记录另有 `POST /requirements/:rid/restore`, `POST /documents/:rid/restore`, `POST /stakeholders/:rid/restore`, `POST /meetings/:rid/restore` 四条命令, 同样走 `pms:project:edit` 权限与项目作用域, 请求体仅接受 `reason` 与 `version`. 门控为 `latest!` (陈旧 409) + `status!` 要求当前恰为 `discarded` (非作废记录恢复返回 409). 服务端从该记录 `workflow_history` 里最近一条 `discarded` 审计项取回作废前状态, 用 `change!` 把状态回退到该前态 (requirement/document 回 `registered`, 被拒文档回 `rejected`, 干系人回 `active`, 会议纪要回 `recorded` 草稿态), 并记 `restore_reason`/`restored_by`/`restored_on` + 追加一条 `workflow_history` 的 `restored` 审计项 (含 `restored_to`), 不重放任何业务副作用. 若历史里找不到可解析的作废前状态则返回 409 拒绝恢复. 恢复后记录重新满足各自状态前置 (如已恢复干系人可再被 RACI 指派), 界面"恢复"入口消失, "作废"入口重新出现. 恢复免迁移 (`discarded` 与目标状态均已在 CHECK 内).
 
-级联影响预览 (作废前只读预检): 为帮助用户在真正作废前看清受影响范围, 三类记录各提供一条只读预览命令, 走 `pms:project:query` 读权限与项目作用域 (无读取权 403, 未知记录 404), 不写入不改变任何状态:
+级联影响预览 (作废前只读预检): 为帮助用户在真正作废前看清受影响范围, 四类记录各提供一条只读预览命令, 走 `pms:project:query` 读权限与项目作用域 (无读取权 403, 未知记录 404), 不写入不改变任何状态:
 
 - `GET /requirements/:rid/discard-preview`
 - `GET /documents/:rid/discard-preview`
 - `GET /stakeholders/:rid/discard-preview`
+- `GET /meetings/:rid/discard-preview`
 
 返回 `{kind, record_id, code, revision, status, latest?, status_discardable?, references, discardable?}`: `latest?` 标记是否最新版本, `status_discardable?` 标记当前状态是否落在可作废集合, `references` 复用与作废守卫同一套引用收集逻辑列出仍指向该记录的对象 (如"需求追踪 <code>", "会议 <标题>", "问题 <标题>", "RACI <活动>", "沟通计划 <code>"), `discardable?` 仅在同时满足最新版本, 状态可作废且无任何引用时为真. 工作台需求/证据文档/干系人行内提供"级联影响"按钮打开只读弹窗, 以标签呈现"可安全作废"或"不可作废"并列出引用清单, 与真正作废命令的守卫口径一致 (预览为可安全作废的记录, 实际作废仍可能在并发下命中守卫). 预览免迁移, 纯读派生.
+
+会议受控作废与恢复 (C07g, H18 通用 lifecycle 复用到 meeting): 承接 C07f 的纪要发布闭环, 把"草稿纪要不再需要"表达为软删除. `governance/lifecycle.clj` 本是 kind 参数化的通用作废/恢复/预览机制, 本轮只给 `discardable-status` 增补 `"meeting" #{"recorded"}` 与 `references-of` 的 meeting 分支 (被派生行动 `action.meeting_id` 或沟通计划 `comm-plan.last_meeting_id` 引用即不可作废), 再在命令表加 `[:meetings :discard]`/`[:meetings :restore]` 与 `/meetings/:rid/discard-preview` 路由, 全程免迁移 (discarded 已在 `pms_gov_record` 状态 CHECK 内). 门控口径与需求/文档/干系人完全一致: 陈旧版本 409, 状态守卫 (仅 recorded 可作废, in_review 发布审批中与 approved 已发布均 409, 防止误删在途或已归档纪要), 引用守卫 (有派生行动或沟通计划回指时 409 并列出来源). 额外写路径守卫: `create-action!` 现先查目标会议状态, 若已 `discarded` 则 409 "会议已作废, 不能派生行动", 堵住"向已作废纪要继续挂行动"的孤儿引用. 恢复从 `workflow_history` 取回 prior_status 回退到 recorded 草稿态, 恢复后"形成行动""提交发布"入口重现. 工作台"会议行动"台账"纪要发布"列新增 red "已作废" 徽标, 对可编辑且非作废的 recorded 纪要显示"作废"入口, 对已作废纪要显示"恢复"与"级联影响"入口 (in_review/approved 不显示作废), 级联影响打开只读预览弹窗呈现"可安全作废/不可作废"及引用清单. 门控事实 (陈旧 409, in_review/approved 状态守卫 409, 有派生行动或沟通计划引用 409, 向已作废会议派生行动 409, 已作废再作废 409, 非最新恢复 409, 无编辑权 403) 由 `pms_governance_test` 的 `meeting-discard-is-guarded-and-restorable` 用例覆盖; 界面徽标翻转, 作废/恢复入口显隐, 级联预览与派生行动 409 告警均经真实浏览器 E2E (`pms-c07g.spec.js`, 隔离 :3100) 双上下文与真实 HTTP 核验. 诚实边界: 本轮只做会议这一 kind 接入既有软删除框架, 不做已作废纪要对历史沟通/行动快照的显式标注, 不做批量作废或按保留策略归档, MySQL 回归待补充.
 
 诚实边界: `discarded` 是 `pms_gov_record` 状态 CHECK 约束新增的取值, 需要一次表重建迁移 (`202609220011-gov-status-discard`, SQLite 与 MySQL 各一份, 因 SQLite 不能 ALTER CHECK 故按 PRAGMA foreign_keys 关闭 -> 建新表 -> 迁移数据 -> 换名 -> 重建索引 -> 恢复外键的整表重建套路). 本轮已交付"作废即软删除+引用守卫+审计留痕", "受控恢复回作废前状态+审计留痕", "级联影响只读预览"与"已作废文档从归集口径剔除并单独计数"这一组本地闭环; 仍待实现的是正式历史按保留策略归档, 以及已作废证据对历史 Gate/验收快照的显式标注, MySQL 迁移回归亦待补充.
 

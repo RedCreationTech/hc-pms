@@ -14,7 +14,8 @@
   "各类型允许被作废的当前状态集合, 已进入审批或终态的记录不得直接作废."
   {"requirement" #{"registered"}
    "document" #{"registered" "rejected"}
-   "stakeholder" #{"active"}})
+   "stakeholder" #{"active"}
+   "meeting" #{"recorded"}})
 
 
 (defn- references-of
@@ -46,6 +47,13 @@
       (for [rc (s/records q project "raci") :when (= rid (:stakeholder_id rc))]
         (str "RACI " (:activity rc)))
       (for [c (s/records q project "comm-plan") :when (some #{rid} (:audience c))]
+        (str "沟通计划 " (:code c))))
+
+    "meeting"
+    (concat
+      (for [a (s/records q project "action") :when (= rid (:meeting_id a))]
+        (str "行动 " (:title a)))
+      (for [c (s/records q project "comm-plan") :when (= rid (:last_meeting_id c))]
         (str "沟通计划 " (:code c))))
 
     []))
