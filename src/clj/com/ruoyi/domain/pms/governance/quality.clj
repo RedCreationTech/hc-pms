@@ -96,6 +96,15 @@
     (assoc dq :dq_stale (boolean (seq stale)) :dq_stale_count (count stale)
            :dq_passed (count (filter :passed (:checklist dq))) :dq_total (count (:checklist dq)))))
 
+(defn dq-deliverable-voided-model
+  "只读派生 DQ 签认快照所绑定交付件是否现已整体作废: 逐个 deliverable_ids (登记时绑定的不可变文档版本 id) 经 docs-by-id 解析其业务编码, 若该编码最新版本已被受控作废(discarded) 则计入 dq_voided_deliverables, 任一命中则 dq_deliverable_voided 为 true. 交付件自身快照口径不漂移(引用的仍是那一个历史版本), 本标注仅额外提示该交付件业务编码现已整体作废. 免迁移读取时计算, 不写存储, 不改变不可变版本, 不门控, 键名不带尾随问号."
+  [voided-codes docs-by-id dq]
+  (let [voided-count (count (filterv #(when-let [doc (get docs-by-id %)]
+                                        (voided-codes (:code doc)))
+                                     (or (:deliverable_ids dq) [])))]
+    (assoc dq :dq_voided_deliverables voided-count
+           :dq_deliverable_voided (pos? voided-count))))
+
 ;; ── 局部暂停 ────────────────────────────────────────────────────
 
 (defn pause-node!

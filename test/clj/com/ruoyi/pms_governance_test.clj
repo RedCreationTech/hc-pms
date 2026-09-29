@@ -7,6 +7,7 @@
     [com.ruoyi.domain.pms.governance.collaboration :as collab]
     [com.ruoyi.domain.pms.governance.evidence :as evidence]
     [com.ruoyi.domain.pms.governance.gates :as gates]
+    [com.ruoyi.domain.pms.governance.quality :as quality]
     [com.ruoyi.domain.pms.planning :as planning]
     [com.ruoyi.domain.pms.queries :as queries]
     [com.ruoyi.domain.pms.service :as pms]
@@ -1145,6 +1146,45 @@
       (is (= 1 (:gate_voided_checks (gates/gate-evidence-voided-model vc docs {:checks [{:code "X" :evidence_ids ["a" "b"]}]}))))
       (is (false? (:gate_evidence_voided (gates/gate-evidence-voided-model vc docs {:checks [{:code "X" :evidence_ids ["a"]}]}))))
       (is (= 0 (:gate_voided_checks (gates/gate-evidence-voided-model vc docs {:checks [{:code "X" :evidence_ids ["missing"]}]})))))))
+
+
+(deftest discarded-deliverable-latest-revision-is-flagged-in-dq-snapshot-read-model
+  (let [id (project!)
+        doc (document! id "DQ-DLV")
+        dq (command! id :dqs :create nil
+                     {:code "DQ-VE" :title "确认交付件" :owner_id 9301
+                      :checklist [{:code "C-1" :title "交付件核对" :required true}]
+                      :deliverable_ids [(:id doc)]})
+        find-dq (fn [] (first (filter #(= (:id dq) (:id %)) (:dqs (workspace id)))))]
+    ;; 交付件编码最新版本未作废 -> 标注 false.
+    (is (false? (:dq_deliverable_voided (find-dq))))
+    (is (= 0 (:dq_voided_deliverables (find-dq))))
+    ;; 修订到 v2 (DQ 交付件引用守卫不护任何版本, 但仍演示引用快照不漂移) -> 有更新版本使 stale=true 而尚未作废 voided=false.
+    (let [v2 (command! id :documents :revisions (:id doc)
+                       {:code "DQ-DLV" :title "更新交付件" :filename "交付2.txt" :content "第二版正文\n"})]
+      (is (= 2 (:revision v2)))
+      (is (true? (:dq_stale (find-dq))))
+      (is (false? (:dq_deliverable_voided (find-dq))))
+      ;; 作废编码最新版本 v2 -> 交付件业务编码现已整体作废, 标注转 true.
+      (command! id :documents :discard (:id v2) {:reason "交付件撤回"})
+      (is (true? (:dq_deliverable_voided (find-dq))))
+      (is (= 1 (:dq_voided_deliverables (find-dq))))
+      ;; DQ 自身快照口径不漂移: 仍引用 v1.
+      (is (= [(:id doc)] (:deliverable_ids (find-dq))))
+      ;; 恢复 v2 -> 标注复归 false (仍 stale, 因存在更新版本).
+      (command! id :documents :restore (:id v2) {:reason "误作废回退"})
+      (is (false? (:dq_deliverable_voided (find-dq))))
+      (is (= 0 (:dq_voided_deliverables (find-dq)))))
+    ;; 纯函数直测 voided-document-codes + dq-deliverable-voided-model 命中/未命中/缺失/空.
+    (let [docs {"a" {:id "a" :code "A" :revision 1 :status "registered"}
+                "b" {:id "b" :code "B" :revision 2 :status "discarded"}}
+          vc (evidence/voided-document-codes docs)]
+      (is (= #{"B"} vc))
+      (is (true? (:dq_deliverable_voided (quality/dq-deliverable-voided-model vc docs {:deliverable_ids ["b"]}))))
+      (is (= 1 (:dq_voided_deliverables (quality/dq-deliverable-voided-model vc docs {:deliverable_ids ["a" "b"]}))))
+      (is (false? (:dq_deliverable_voided (quality/dq-deliverable-voided-model vc docs {:deliverable_ids ["a"]}))))
+      (is (= 0 (:dq_voided_deliverables (quality/dq-deliverable-voided-model vc docs {:deliverable_ids ["missing"]}))))
+      (is (= 0 (:dq_voided_deliverables (quality/dq-deliverable-voided-model vc docs {})))))))
 
 
 (deftest change-review-lock-and-audit-rollback

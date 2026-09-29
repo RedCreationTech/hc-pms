@@ -1049,6 +1049,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 本项关闭 H18 待办里"已作废证据对历史 Gate/验收决策快照的显式标注"这一子边界, 至此 H18 三项作废证据显式标注 (追踪链 / URS 验证证据 / Gate 验收快照) 均已落地为 `implemented / local` 只读洞察; 但 H18 整行仍有"正式历史按保留策略归档"未完备, MySQL 回归亦待补, 且作废标注仍不接入任何重评审/阻断强制流程, 故 H18 行保持 `partial` 不上行.
 
+## H18 DQ 已作废交付件对签认快照显式标注 (本轮增补, 2026-09-30)
+
+设计与口径: 承接上一段 Gate 验收快照的证据作废标注, 把同一只读派生扩展到 DQ (设计确认) 签认快照. DQ 在 `deliverable_ids` 里以不可变文档版本 `id` 绑定了确认所依据的交付件——签认时看到的是当时有效交付件, 若该交付件业务编码后来被整体作废, DQ 台账应显式提示"这次确认依赖的交付件现已作废", 以免误信历史签认仍可靠. 本项复用 H18/C03/Gate 已建立的 `governance.evidence/voided-document-codes` 公有派生, 在同一 `docs-by-id` 入参上再加一层只读标注, 完全沿用"给治理台账加只读派生洞察"套路, **不落库、不投递、不改动任何不可变版本, 免迁移、免新命令、免新 kind、免新路由、不构成任何门控**. (1) 派生: 新公有纯函数 `governance.quality/dq-deliverable-voided-model [voided-codes docs-by-id dq]` 对 DQ 实例逐交付件核验——若某 `deliverable_ids` 命中的文档其 `code` 落在 `voided-codes` 集合 (`store/latest` 按 `code` 取最高 `revision` 后筛 `discarded`) 中即计一次, 派生整数 `dq_voided_deliverables` 与布尔 `dq_deliverable_voided` (`dq_voided_deliverables > 0`). 与既有 `dq_stale` 正交: `dq_stale` 只问"同编码是否已存在更高 `revision` 更新版本" (不论状态), 本项问"所引编码的**最新版本**是否恰为 `discarded`", 故"先修订 v2 再作废 v2"时二者可同时为 true. (2) 接线: `governance.clj` workspace 复用 `let` 里已算好的 `voided-codes`, 在既有 `(update :dqs ... dq-read-model ...)` 之后追加第二遍 `(update :dqs #(mapv (partial quality/dq-deliverable-voided-model voided-codes docs-by-id) %))` (失效徽标不变, 作废标叠加). 因引用守卫使被 DQ `deliverable_ids` 直接引用的版本不可作废, 标注为 true 的成立路径同追踪链/Gate——"签认快照指向旧 v1、同编码新 v2 事后被作废", 且快照自身 `deliverable_ids` 仍为 v1 不漂移. (3) 前端: "DQ 编制与确认"台账在"版本失效"列后新增"交付件作废"列, 命中时红色"已作废 N"标签 (N 为 `dq_voided_deliverables`), 未命中绿色"未作废", 键名不带尾随 `?`.
+
+| 证据 | 实际记录 |
+|---|---|
+| 治理单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 70 tests / 929 assertions, 0 failures/errors (新增 `discarded-deliverable-latest-revision-is-flagged-in-dq-snapshot-read-model` 1 例: 建项目+文档 v1 (`DQ-DLV`) -> 建含单必需检查 `C-1` 且 `deliverable_ids` 绑定 v1 的 DQ -> 断言 workspace `dq_deliverable_voided` false、`dq_voided_deliverables` 0 -> `:documents :revisions` 生成同编码 v2 (`revision` 2) -> 断言 `dq_stale` true 而 `dq_deliverable_voided` 仍 false (有更新版但未作废) -> `:documents :discard` 作废 v2 -> 断言 `dq_deliverable_voided` true、`dq_voided_deliverables` 1, 而 DQ `:deliverable_ids` 仍 `[(:id doc)]` 不漂移 -> `:documents :restore` 恢复 v2 后两值复归 false/0; 另以混合样本 `{a: rev1 registered, b: rev2 discarded}` 直接纯函数测 `dq-deliverable-voided-model` 的命中/未命中/缺文档 id/空交付件) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 172 tests / 1857 assertions, 0 failures/errors, `:dqs` 第二遍 `update` 未造成既有 DQ 失效判定/局部暂停/追踪链证据发布/URS 验证证据作废/Gate 验收快照作废等 read-model 用例回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 warnings |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-h18dq.spec.js` 1 passed (53.5s), 无未捕获 JS 错误: 界面 admin 建项目 -> 真实 HTTP 建证据文档 v1 并建 `deliverable_ids` 绑定 v1 的 DQ -> 重载 DQ 页签"交付件作废"列显绿色"未作废"且"版本失效"列"版本有效" (截图 h18dq-1-clean.png), 真实 HTTP GET governance 回显 `dq_deliverable_voided` false/`dq_voided_deliverables` 0 -> 真实 HTTP `:documents/:id/revisions` 生成 v2 -> 重载"版本失效"列翻红"交付件已更新"而"交付件作废"仍"未作废" (证明两口径正交) -> 真实 HTTP `:documents/:id/discard` 作废 v2 -> 重载"交付件作废"列追加红色"已作废 1"且"交付件已更新"仍在 (截图 h18dq-2-voided.png), GET 二次确认 `dq_deliverable_voided` true/`dq_voided_deliverables` 1 而 `deliverable_ids` 仍 `[v1]` 不漂移 -> 真实 HTTP `:documents/:id/restore` 恢复 v2 -> 重载"已作废 1"消失复归"未作废" (截图 h18dq-3-restored.png), GET 两值复归 false/0; 截图存 `reports/h18dq/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL); "所引编码最新版本被作废"这一布尔事实由后端 SQLite 用例确定性覆盖, 浏览器侧核验界面可见的红色"已作废 N"标签叠加/消失与真实 HTTP 回显及与"交付件已更新"徽标的正交并存; 只读标注**不构成任何门控或拦截** (交付件作废后既有已签认 DQ 照常读取与流转, 是否据此阻断重签仍属"待规则"), 不做批量重算、不做作废主动提醒投递、不做已作废交付件对历史 DQ 签认"须重新确认"的强制流程.
+
+边界: 本项关闭 H18 待办里"已作废交付件对 DQ 签认快照的显式标注"这一子边界, 至此 H18 四项作废证据/交付件显式标注 (追踪链 / URS 验证证据 / Gate 验收快照 / DQ 签认快照) 均已落地为 `implemented / local` 只读洞察; 但 H18 整行仍有"正式历史按保留策略归档"未完备, MySQL 回归亦待补, 且作废标注仍不接入任何重签/阻断强制流程, 故 H18 行保持 `partial` 不上行.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

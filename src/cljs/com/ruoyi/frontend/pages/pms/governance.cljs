@@ -1036,6 +1036,10 @@
       :render (fn [v] (str/join ", " (map #(w/related-label (:documents model) :id :code %) (js->clj v))))}
      {:title "版本失效" :dataIndex "dq_stale" :width 110
       :render (fn [v] (r/as-element (if (true? v) [antd/tag {:color "red"} "交付件已更新"] [antd/tag {:color "green"} "版本有效"])))}
+     {:title "交付件作废" :key "dq_voided" :width 120
+      :render (fn [_ row]
+                (let [voided (true? (aget row "dq_deliverable_voided"))]
+                  (r/as-element (if voided [antd/tag {:color "red"} (str "已作废 " (aget row "dq_voided_deliverables"))] [antd/tag {:color "green"} "未作废"]))))}
      (w/state-column) (w/text-column :decision_reason "签认意见")]
     #(dq-actions context %)]])
 
