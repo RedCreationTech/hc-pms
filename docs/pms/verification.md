@@ -897,6 +897,23 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 验证方式与验证关联对齐只读派生是 C01"需求可追踪且带验证方法"口径中"声明的验证方式是否已配齐验证证据"一项的 `implemented / local` 落地 (行内交叉核对 + latest 去重 + 剔除已作废 + 免迁移 + workspace 暴露 + 台账列与面板可视), 关闭此前"覆盖度只反映是否声明而非已配齐验证证据"边界; 但"验证方法与验收证据闭环"的强制门控 (据此阻断 Gate/关闭), 双向追踪覆盖率分母正式界定与 MySQL 回归仍未完备, C01 矩阵行保持既有 `implemented / local` 不上行, C03 行仍 `partial / 待规则`, 不因这一子能力上行.
 
+## C01 验证关联所指向证据是否已发布只读派生 (本轮增补, 2026-09-29)
+
+设计与关闭口径: 在上一子增量"验证方式与验证关联对齐"之上再细分一层——挂上 `verifies` 关联不等于那条验证证据本身已经过审批发布, 一份仍处 `registered`/`in_review`/`rejected` 的文档即便被 verifies 指向也不构成可交付的验证证据. 本项**不改动 `verification_alignment` 既有口径**, 只在其内追加"关联到的证据是否已发布 (approved)"的正交维度, 与 C03 追踪链"证据发布状态"共用同一 `approved` 判定词汇. 沿用"给治理台账加只读派生洞察"套路, **不落库、不投递、不改动任何不可变版本, 免迁移, 免新命令, 免新 kind**. (1) 行内派生: `requirement-trace-model` 新增入参 `docs-by-id` (document 版本 id -> 含 `:status` 文档), 在 `verification_alignment` 之外派生 `verification_evidence_state`——未声明者 `not-applicable`, 已声明无 verifies 关联者 `no-verification`, verifies 命中至少一条 `target_kind = document` 且版本 `status = "approved"` 者 `released`, 有 verifies 但目标全为非批准文档或任务者 `pending` (`aligned` 与 `released/pending` 正交, `pending` 必然 `aligned` 不回退对齐结论). workspace `governance.clj` 传入既有的 `docs-by-id` 并给聚合函数追加同一入参. (2) 聚合派生: `verification-evidence-alignment` 保留 `{declared, aligned, gap, alignment-pct}` 并追加 `{evidence-released, evidence-pending, evidence-released-pct}` (分母仍取已声明数, `evidence-released/declared` 四舍五入整数, `declared` 为 0 给 0), 同样 latest 去重并剔除 `discarded`. 派生键无尾随 `?`; `:evidence-released-pct` 经 `clj->js` 后是字面 `"evidence-released-pct"`, E2E 原始 JSON 用中括号取值. (3) 前端: "URS 需求版本"台账在"验证对齐"列后新增"验证证据"列 (绿"证据已发布"/金"证据待发布"/灰"缺验证关联"/灰"未声明方式"), `alignment-section` 面板在既有标签行后追加第二行 (青·灰"已发布证据 P%"/geekblue"证据已发布 R"/pending>0 时金"证据待发布 P"). 关键坑: workspace 的 `assoc` 块读的是未经 enrich 的原始 `(:requirements data)` 与 `(:traces data)`, 聚合函数必须自带 `docs-by-id` 才能在结果层判定发布态.
+
+| 证据 | 实际记录 |
+|---|---|
+| 治理单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 61 tests / 776 assertions, 0 failures/errors (新增 `requirement-verification-evidence-release-is-derived-read-only` 1 例: 行内 `verification_evidence_state` 三态 pending/released/no-verification 按 verifies 所指向文档版本审批态, 聚合 `verification_evidence_alignment` declared=3/aligned=2/gap=1 且 evidence-released=0/evidence-pending=2/evidence-released-pct=0, `approve!` 发布 doc-rel 后翻 released=1/pending=1/pct=33 而 `aligned` 仍 2 (正交不回归), 再发布 doc-pend 后 released=2/pending=0/pct=67, `code`/`verification_method` 不漂移, 纯函数直测 released/pending/pending-task/no-verification/not-applicable 与聚合); 既有 5 处 `requirement-trace-model` 与 1 处 `verification-evidence-alignment` 调用同步补 `docs-by-id` 入参零回归 |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 162 tests / 1691 assertions, 0 failures/errors, 新增读派生入参/键与 workspace 接线未造成既有需求/追踪/覆盖度/对齐/归集用例回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 warnings |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-c01vb.spec.js` 1 passed, 无未捕获 JS 错误 (双真实上下文): 界面登记一条选"测试"的需求 -> 真实 HTTP 建证据文档并挂 verifies 关联 -> 台账"验证证据"列显金"证据待发布"、面板显"已发布证据 0% / 证据已发布 0 / 证据待发布 1"而"验证对齐"列仍绿"已配验证关联" (截图 c01vb-1-pending-panel.png, c01vb-2-pending-column.png); admin 提交该文档并指定独立审批人, 审批人第二上下文批准发布后重开 -> "验证证据"列翻绿"证据已发布"、面板升"已发布证据 100% / 证据已发布 1"且"证据待发布"消失 (截图 c01vb-3-released-column.png, c01vb-4-released-panel.png); 真实 HTTP GET governance 二次确认 `verification_evidence_state=released`、`verification_evidence_alignment['evidence-released']=1`/`['evidence-pending']=0`/`['evidence-released-pct']=100` 且 `verification_alignment` 仍 `aligned`; 截图存 `reports/c01vb/` |
+
+本轮测试维护 (如实记录): 独立于本增量, 既有治理用例 `comm-plan-log-advances-next-date-and-flags-overdue` 因把登记日/下次日硬编码为 `2026-09-22`/`2026-09-29` 而在真实日历推进到 2026-09-29 时误报 (沟通节奏读模型 `comm-plan-read-model` 用真实 `LocalDate/now` 计算逾期), 与本次改动无关; 已改为按运行日 `java.time.LocalDate/now` + `.plusDays` 动态计算登记/下次日期, 免疫日历漂移, 非新功能.
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移, 不新增 DDL); 证据发布口径只读可见, **不做任何强制门控或拦截** (验证关联只指向未发布证据的需求照常登记与流转), 亦不做按类别/优先级的更细切分或导出.
+
+边界: 验证关联所指向证据是否已发布只读派生是 C01"需求可追踪且带验证方法"口径中"验证证据本身是否已审批发布"一项的 `implemented / local` 落地 (行内正交派生 + 聚合追加发布计数 + latest 去重 + 剔除已作废 + 免迁移 + workspace 暴露 `docs-by-id` + 台账列与面板可视), 在不回退"已配验证关联"对齐结论的前提下关闭"挂上关联即视为验证就绪"的乐观假设; 但据发布态强制门控 (据此阻断 Gate/关闭), 双向追踪覆盖率分母正式界定与 MySQL 回归仍未完备, C01 矩阵行保持既有 `implemented / local` 不上行, C03 行仍 `partial / 待规则`, 不因这一子能力上行.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

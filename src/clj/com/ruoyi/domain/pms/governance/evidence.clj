@@ -390,19 +390,31 @@
 
 
 (defn verification-evidence-alignment
-  "按每个业务编码最新有效版本交叉核对需求已声明的验证方式与其是否已配验证(verifies)证据关联的只读一致性: 统计声明验证方式的需求数, 其中已挂至少一条 verifies 关联者(aligned)与尚无验证证据关联者(gap), 以及对齐率. 未声明验证方式的需求不进入分母, 最新版本被受控作废(discarded)的编号不计入. 只读派生, 不落库不投递, 不门控, 不改变不可变版本, 键名不带尾随问号."
-  [requirements traces]
-  (let [verified-req-ids (into #{} (comp (filter #(= "verifies" (:relation %))) (map :requirement_id)) traces)
+  "按每个业务编码最新有效版本交叉核对需求已声明的验证方式与其是否已配验证(verifies)证据关联的只读一致性: 统计声明验证方式的需求数, 其中已挂至少一条 verifies 关联者(aligned)与尚无验证证据关联者(gap), 以及对齐率. 进一步区分已挂验证关联者其证据文档是否已发布(approved): 至少一条 verifies 关联指向已发布证据文档者计入 evidence-released, 有关联但证据文档尚未发布(或验证证据为任务)者计入 evidence-pending, 并以声明数为分母给出 evidence-released-pct. 未声明验证方式的需求不进入分母, 最新版本被受控作废(discarded)的编号不计入. 只读派生, 不落库不投递, 不门控, 不改变不可变版本, 键名不带尾随问号."
+  [requirements traces docs-by-id]
+  (let [verif-traces (filterv #(= "verifies" (:relation %)) traces)
+        verified-req-ids (into #{} (map :requirement_id) verif-traces)
+        released-req-ids (into #{} (comp (filter #(and (= "document" (:target_kind %))
+                                                       (= "approved" (:status (get docs-by-id (:target_id %))))))
+                                         (map :requirement_id))
+                               verif-traces)
         active (filterv #(not= "discarded" (:status %)) (s/latest requirements))
         declared (filterv #(contains? requirement-verification-methods (:verification_method %)) active)
         aligned (filterv #(verified-req-ids (:id %)) declared)
-        total-declared (count declared)]
+        released (filterv #(released-req-ids (:id %)) aligned)
+        total-declared (count declared)
+        total-aligned (count aligned)]
     {:declared total-declared
-     :aligned (count aligned)
-     :gap (- total-declared (count aligned))
+     :aligned total-aligned
+     :gap (- total-declared total-aligned)
      :alignment-pct (if (pos? total-declared)
-                      (int (Math/round ^double (* 100.0 (/ (count aligned) total-declared))))
-                      0)}))
+                      (int (Math/round ^double (* 100.0 (/ total-aligned total-declared))))
+                      0)
+     :evidence-released (count released)
+     :evidence-pending (- total-aligned (count released))
+     :evidence-released-pct (if (pos? total-declared)
+                              (int (Math/round ^double (* 100.0 (/ (count released) total-declared))))
+                              0)}))
 
 
 (defn release-coverage
@@ -443,11 +455,14 @@
 
 
 (defn requirement-trace-model
-  "只读派生每条需求版本已登记的追踪关联: 按 relation 统计设计满足(satisfies)与验证(verifies)关联的条数与齐备状态; 另交叉核对该版本已声明的验证方式与实际 verifies 验证关联是否一致(声明了验证方式却尚无验证证据关联即为 gap), 免迁移读取时计算, 不写存储, 不门控, 键名不带尾随问号."
-  [traces-by-req req]
+  "只读派生每条需求版本已登记的追踪关联: 按 relation 统计设计满足(satisfies)与验证(verifies)关联的条数与齐备状态; 交叉核对该版本已声明的验证方式与实际 verifies 验证关联是否一致(声明了验证方式却尚无验证证据关联即为 gap), 并进一步区分该验证关联所指向的证据文档是否已发布(approved): 已声明且至少一条 verifies 关联指向已发布证据文档记 released, 有 verifies 关联但证据文档尚未发布(或验证证据为任务)记 pending, 无 verifies 关联记 no-verification, 未声明验证方式记 not-applicable. 免迁移读取时计算, 不写存储, 不门控, 键名不带尾随问号."
+  [traces-by-req docs-by-id req]
   (let [links (get traces-by-req (:id req) [])
         design (filterv #(= "satisfies" (:relation %)) links)
         verif (filterv #(= "verifies" (:relation %)) links)
+        released-verif (filterv #(and (= "document" (:target_kind %))
+                                      (= "approved" (:status (get docs-by-id (:target_id %)))))
+                                verif)
         state (cond
                 (empty? links) "untracked"
                 (and (seq design) (seq verif)) "complete"
@@ -457,9 +472,15 @@
         alignment (cond
                     (not declared?) "not-applicable"
                     (pos? (count verif)) "aligned"
-                    :else "declared-unverified")]
+                    :else "declared-unverified")
+        evidence-state (cond
+                         (not declared?) "not-applicable"
+                         (empty? verif) "no-verification"
+                         (pos? (count released-verif)) "released"
+                         :else "pending")]
     (assoc req
       :trace_design_links (count design)
       :trace_verification_links (count verif)
       :trace_state state
-      :verification_alignment alignment)))
+      :verification_alignment alignment
+      :verification_evidence_state evidence-state)))

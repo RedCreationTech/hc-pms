@@ -97,6 +97,13 @@
                 (let [[text color] (get {"aligned" ["已配验证关联" "green"]
                                          "declared-unverified" ["声明方式·缺验证关联" "volcano"]}
                                         v ["未声明方式" "default"])]
+                  (r/as-element [antd/tag {:color color} text])))}
+     {:title "验证证据" :dataIndex "verification_evidence_state" :width 150
+      :render (fn [v]
+                (let [[text color] (get {"released" ["证据已发布" "green"]
+                                         "pending" ["证据待发布" "gold"]
+                                         "no-verification" ["缺验证关联" "default"]}
+                                        v ["未声明方式" "default"])]
                   (r/as-element [antd/tag {:color color} text])))}]
     (when editable? (fn [row] [antd/space {:wrap true}
                               [w/edit-button "新修订" #(open! (forms/requirement-dialog base options row))]
@@ -215,14 +222,17 @@
 
 
 (defn- alignment-section
-  "按每个需求编号的最新有效版本只读交叉核对已声明验证方式与是否已配验证(verifies)证据关联: 声明数, 其中已对齐数, 尚缺验证关联数与对齐率; 未声明方式不进入分母, 修订不重复计数, 已作废不计入."
+  "按每个需求编号的最新有效版本只读交叉核对已声明验证方式与是否已配验证(verifies)证据关联: 声明数, 其中已对齐数, 尚缺验证关联数与对齐率; 进一步区分已配关联者其证据文档是否已发布(approved)记已发布证据, 有验证关联但证据未发布记待发布证据; 未声明方式不进入分母, 修订不重复计数, 已作废不计入."
   [{:keys [model]}]
   (let [al (:verification_evidence_alignment model)
         declared (:declared al 0)
         aligned (:aligned al 0)
         gap (:gap al 0)
-        pct (:alignment-pct al 0)]
-    [shared/panel "验证方式与验证关联对齐" "按每个需求编号的最新有效版本交叉核对: 声明了验证方式的需求里有多少已真正挂上验证(verifies)证据关联; 未声明方式不进分母, 修订不重复计数, 已作废不计入"
+        pct (:alignment-pct al 0)
+        released (:evidence-released al 0)
+        pending (:evidence-pending al 0)
+        released-pct (:evidence-released-pct al 0)]
+    [shared/panel "验证方式与验证关联对齐" "按每个需求编号的最新有效版本交叉核对: 声明了验证方式的需求里有多少已真正挂上验证(verifies)证据关联, 并进一步区分该关联所指向的证据文档是否已发布; 未声明方式不进分母, 修订不重复计数, 已作废不计入"
      (if (zero? declared)
        [:span {:style {:color "#8793a3"}} "暂无声明验证方式的URS需求, 登记并声明验证方式后可在此查看对齐情况."]
        [:div {:style {:display "grid" :gap 12}}
@@ -232,7 +242,13 @@
           (str "已配验证关联 " pct "%")]
          [antd/tag {:color "green"} (str "对齐 " aligned)]
          (when (pos? gap)
-           [antd/tag {:color "volcano"} (str "缺验证关联 " gap)])]])]))
+           [antd/tag {:color "volcano"} (str "缺验证关联 " gap)])]
+        [antd/space {:wrap true}
+         [antd/tag {:color (cond (= released-pct 100) "green" (zero? released-pct) "default" :else "cyan")}
+          (str "已发布证据 " released-pct "%")]
+         [antd/tag {:color "geekblue"} (str "证据已发布 " released)]
+         (when (pos? pending)
+           [antd/tag {:color "gold"} (str "证据待发布 " pending)])]])]))
 
 
 (defn- release-coverage-section

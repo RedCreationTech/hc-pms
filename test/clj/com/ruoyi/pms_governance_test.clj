@@ -537,12 +537,12 @@
     ;; 只读派生不漂移既有不可变版本字段: code/revision 原样.
     (is (= "URS-F" (:code (rs (:id req-f))))))
   ;; 纯函数直测: 仅 verifies 无 satisfies -> missing-design.
-  (let [m (evidence/requirement-trace-model {"r1" [{:relation "verifies"}]} {:id "r1"})]
+  (let [m (evidence/requirement-trace-model {"r1" [{:relation "verifies"}]} {} {:id "r1"})]
     (is (= "missing-design" (:trace_state m)))
     (is (= 0 (:trace_design_links m)))
     (is (= 1 (:trace_verification_links m))))
   ;; 修订产生新版本(新 id)不继承旧版追踪链接 -> 新版本未追踪.
-  (is (= "untracked" (:trace_state (evidence/requirement-trace-model {"old" [{:relation "satisfies"}]} {:id "new"})))))
+  (is (= "untracked" (:trace_state (evidence/requirement-trace-model {"old" [{:relation "satisfies"}]} {} {:id "new"})))))
 
 
 (deftest requirement-verification-evidence-alignment-is-derived-read-only
@@ -590,18 +590,93 @@
     (is (= "URS-A" (:code (rs (:id req-al)))))
     (is (= "aligned" (:verification_alignment (rs (:id req-al))))))
   ;; 纯函数直测: 声明且带 verifies -> aligned; 声明无链接 -> declared-unverified; 未声明 -> not-applicable(不进 declared).
-  (is (= "aligned" (:verification_alignment (evidence/requirement-trace-model {"r" [{:relation "verifies"}]} {:id "r" :verification_method "test"}))))
-  (is (= "declared-unverified" (:verification_alignment (evidence/requirement-trace-model {} {:id "r" :verification_method "test"}))))
-  (is (= "not-applicable" (:verification_alignment (evidence/requirement-trace-model {"r" [{:relation "verifies"}]} {:id "r"}))))
+  (is (= "aligned" (:verification_alignment (evidence/requirement-trace-model {"r" [{:relation "verifies"}]} {} {:id "r" :verification_method "test"}))))
+  (is (= "declared-unverified" (:verification_alignment (evidence/requirement-trace-model {} {} {:id "r" :verification_method "test"}))))
+  (is (= "not-applicable" (:verification_alignment (evidence/requirement-trace-model {"r" [{:relation "verifies"}]} {} {:id "r"}))))
   (let [agg (evidence/verification-evidence-alignment
              [{:id "a" :code "A" :revision 1 :status "registered" :verification_method "test"}
               {:id "b" :code "B" :revision 1 :status "registered" :verification_method "analysis"}
               {:id "c" :code "C" :revision 1 :status "registered"}]
-             [{:requirement_id "a" :relation "verifies"}])]
+             [{:requirement_id "a" :relation "verifies"}] {})]
     (is (= 2 (:declared agg)))
     (is (= 1 (:aligned agg)))
     (is (= 1 (:gap agg)))
     (is (= 50 (:alignment-pct agg)))))
+
+
+(deftest requirement-verification-evidence-release-is-derived-read-only
+  ;; C01 延伸: 区分验证(verifies)关联所指向的证据文档是否已发布(approved)的只读派生(免迁移, 读取时计算, 不门控不写存储; 对齐口径 aligned 只看有无关联, 发布与否单列 evidence-released/pending).
+  (let [id (project!)
+        doc-rel (document! id "VER-REL")
+        doc-pend (document! id "VER-PEND")
+        base {:category "功能" :priority "required" :owner_id 9301}
+        req-rel (command! id :requirements :create nil (assoc base :code "URS-RL" :text "验证证据已发布" :verification_method "test"))
+        req-pend (command! id :requirements :create nil (assoc base :code "URS-PD" :text "验证证据待发布" :verification_method "inspection"))
+        req-none (command! id :requirements :create nil (assoc base :code "URS-NN" :text "声明方式缺验证" :verification_method "analysis"))
+        _ (command! id :traces :create nil {:requirement_id (:id req-rel) :target_kind "document" :target_id (:id doc-rel) :relation "verifies"})
+        _ (command! id :traces :create nil {:requirement_id (:id req-pend) :target_kind "document" :target_id (:id doc-pend) :relation "verifies"})
+        rs (fn [rid] (first (filter #(= rid (:id %)) (:requirements (workspace id)))))
+        al (fn [] (:verification_evidence_alignment (workspace id)))]
+    ;; 内联验证证据状态: 关联指向已登记未发布文档 -> pending; 无 verifies 关联 -> no-verification.
+    (is (= "pending" (:verification_evidence_state (rs (:id req-rel)))))
+    (is (= "pending" (:verification_evidence_state (rs (:id req-pend)))))
+    (is (= "no-verification" (:verification_evidence_state (rs (:id req-none)))))
+    ;; 聚合: declared=3, aligned=2(均有 verifies), gap=1, evidence-released=0, pending=2, released-pct=0.
+    (is (= 3 (:declared (al))))
+    (is (= 2 (:aligned (al))))
+    (is (= 1 (:gap (al))))
+    (is (= 0 (:evidence-released (al))))
+    (is (= 2 (:evidence-pending (al))))
+    (is (= 0 (:evidence-released-pct (al))))
+    ;; 独立批准 doc-rel 发布 -> 其验证关联翻 released, 聚合 released=1/pending=1/released-pct=33; 对齐口径不因此改变仍 2.
+    (approve! id :documents (:id doc-rel))
+    (is (= "released" (:verification_evidence_state (rs (:id req-rel)))))
+    (is (= "pending" (:verification_evidence_state (rs (:id req-pend)))))
+    (is (= 2 (:aligned (al))))
+    (is (= 1 (:evidence-released (al))))
+    (is (= 1 (:evidence-pending (al))))
+    (is (= 33 (:evidence-released-pct (al))))
+    ;; 再批准 doc-pend -> released=2/pending=0, released-pct=67(分母仍为声明数 3 含缺验证项).
+    (approve! id :documents (:id doc-pend))
+    (is (= 2 (:evidence-released (al))))
+    (is (= 0 (:evidence-pending (al))))
+    (is (= 67 (:evidence-released-pct (al))))
+    ;; 只读派生不改既有不可变版本字段.
+    (is (= "URS-RL" (:code (rs (:id req-rel))))))
+  ;; 纯函数直测: 声明且 verifies 指向已批准文档 -> released; 指向未批准文档 -> pending; 指向任务 -> pending; 未声明 -> not-applicable.
+  (is (= "released" (:verification_evidence_state
+                     (evidence/requirement-trace-model {"r" [{:relation "verifies" :target_kind "document" :target_id "d1"}]}
+                                                        {"d1" {:id "d1" :status "approved"}}
+                                                        {:id "r" :verification_method "test"}))))
+  (is (= "pending" (:verification_evidence_state
+                    (evidence/requirement-trace-model {"r" [{:relation "verifies" :target_kind "document" :target_id "d1"}]}
+                                                       {"d1" {:id "d1" :status "registered"}}
+                                                       {:id "r" :verification_method "test"}))))
+  (is (= "pending" (:verification_evidence_state
+                    (evidence/requirement-trace-model {"r" [{:relation "verifies" :target_kind "task" :target_id "t1"}]}
+                                                       {}
+                                                       {:id "r" :verification_method "test"}))))
+  (is (= "no-verification" (:verification_evidence_state
+                            (evidence/requirement-trace-model {} {} {:id "r" :verification_method "test"}))))
+  (is (= "not-applicable" (:verification_evidence_state
+                            (evidence/requirement-trace-model {"r" [{:relation "verifies" :target_kind "document" :target_id "d1"}]}
+                                                               {"d1" {:id "d1" :status "approved"}}
+                                                               {:id "r"}))))
+  ;; 纯函数聚合直测: released/pending 口径与分母.
+  (let [docs {"d-rel" {:id "d-rel" :status "approved"} "d-pend" {:id "d-pend" :status "in_review"}}
+        agg (evidence/verification-evidence-alignment
+             [{:id "a" :code "A" :revision 1 :status "registered" :verification_method "test"}
+              {:id "b" :code "B" :revision 1 :status "registered" :verification_method "analysis"}
+              {:id "c" :code "C" :revision 1 :status "registered" :verification_method "demonstration"}]
+             [{:requirement_id "a" :relation "verifies" :target_kind "document" :target_id "d-rel"}
+              {:requirement_id "b" :relation "verifies" :target_kind "document" :target_id "d-pend"}]
+             docs)]
+    (is (= 3 (:declared agg)))
+    (is (= 2 (:aligned agg)))
+    (is (= 1 (:gap agg)))
+    (is (= 1 (:evidence-released agg)))
+    (is (= 1 (:evidence-pending agg)))
+    (is (= 33 (:evidence-released-pct agg)))))
 
 
 (deftest risk-becomes-one-issue-and-requires-independent-verification
@@ -1512,10 +1587,13 @@
       (is (true? (:comm_overdue before)))
       (is (neg? (:comm_days_until before)))
       (is (= "2026-01-05" (:next_date before))))
-    ;; 标记一次实际沟通, 按周频顺延下次日期并留痕.
-    (let [logged (command! id :comm-plans :log pid {:on "2026-09-22" :note "已召开周会同步进展"})]
-      (is (= "2026-09-29" (:next_date logged)))
-      (is (= "2026-09-22" (:last_communicated_on logged)))
+    ;; 标记一次实际沟通(以运行日为沟通日), 按周频顺延下次日期并留痕; 使用相对今天的日期以免受运行日漂移影响.
+    (let [today (java.time.LocalDate/now)
+          on-str (str today)
+          next-str (str (.plusDays today 7))
+          logged (command! id :comm-plans :log pid {:on on-str :note "已召开周会同步进展"})]
+      (is (= next-str (:next_date logged)))
+      (is (= on-str (:last_communicated_on logged)))
       (is (= "已召开周会同步进展" (:last_communication_note logged)))
       (is (= 1 (count (:communication_log logged)))))
     ;; 顺延后不再到期, 剩余天数为正.
