@@ -556,3 +556,20 @@
                  :mitigation_action_open open
                  :mitigation_action_overdue overdue
                  :mitigation_action_state state)))
+
+
+(defn action-closure-summary
+  "按全部会议与预防行动项只读聚合闭环情况: 总数/已闭环(closed 或 converted)/未完成/其中逾期未完成/转任务数与闭环率; 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
+  [actions]
+  (let [total (count actions)
+        closed (count (filterv #(contains? #{"closed" "converted"} (:status %)) actions))
+        converted (count (filterv #(= "converted" (:status %)) actions))
+        overdue (count (filterv action-overdue? actions))]
+    {:total total
+     :closed closed
+     :open (- total closed)
+     :converted converted
+     :overdue overdue
+     :closure-pct (if (pos? total)
+                    (int (Math/round ^double (* 100.0 (/ closed total))))
+                    0)}))

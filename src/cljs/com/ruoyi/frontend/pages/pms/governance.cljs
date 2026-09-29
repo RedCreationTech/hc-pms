@@ -761,6 +761,31 @@
         [w/edit-button "驳回" #(open! (forms/decision-dialog (str base "/actions/" (:id action) "/verify") "rejected" "驳回行动完成"))]])]))
 
 
+(defn- action-closure-section
+  "按全部会议行动与风险预防行动只读聚合闭环情况: closed 或 converted 视为已闭环; 逾期仅统计未闭环且到期日不晚于今日的行动; 只读派生, 不构成门控."
+  [{:keys [model]}]
+  (let [cl (:action_closure model)
+        total (:total cl 0)
+        closed (:closed cl 0)
+        open (:open cl 0)
+        converted (:converted cl 0)
+        overdue (:overdue cl 0)
+        pct (:closure-pct cl 0)]
+    [shared/panel "会议行动闭环率" "统一统计会议行动与风险预防行动的闭环情况(closed 或转任务视为已闭环); 逾期仅计未闭环且到期日已过者; 只读派生, 不改变行动状态"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无行动项, 会议或风险落实行动后可在此查看闭环率."]
+       [antd/space {:wrap true}
+        [antd/tag {:color "blue"} (str "行动总数 " total)]
+        [antd/tag {:color (cond (= pct 100) "green" (zero? pct) "red" :else "gold")}
+         (str "已闭环 " pct "% (" closed "/" total ")")]
+        (when (pos? open)
+          [antd/tag {:color "orange"} (str "未完成 " open)])
+        (when (pos? overdue)
+          [antd/tag {:color "red"} (str "逾期未闭环 " overdue)])
+        (when (pos? converted)
+          [antd/tag {:color "geekblue"} (str "转任务 " converted)])])]))
+
+
 (defn- action-section
   "会议行动转为实际WBS任务, 完成须证据与独立核验并提示逾期."
   [{:keys [base model editable? open!] :as context}]
@@ -995,7 +1020,7 @@
                      ["stakeholders" "干系人与沟通" [stakeholder-section raci-section comm-plan-section]]
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section issue-section]]
-                     ["meetings" "会议行动" [meeting-section action-section]]
+                     ["meetings" "会议行动" [meeting-section action-closure-section action-section]]
                      ["changes" "变更控制" [change-section]]
                      ["quality" "DQ与局部暂停" [dq-section pause-section]]])}])
 

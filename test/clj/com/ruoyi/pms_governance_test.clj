@@ -1674,6 +1674,49 @@
       (is (<= (:mitigation_action_overdue rm) (:mitigation_action_open rm))))))
 
 
+(deftest meeting-action-closure-summary-is-derived-read-only
+  (let [id (project!)
+        meeting (command! id :meetings :create nil
+                          {:title "行动闭环评审" :held_on "2026-09-22" :minutes "统一行动闭环" :attendee_ids [9301 9302]})
+        mid (:id meeting)
+        mk (fn [due] (command! id :meetings :actions mid {:title "行动项" :owner_id 9301 :due_date due}))
+        ev (:id (document! id "AC-DOC"))
+        a-future (mk "2099-01-01")
+        a-past-open (mk "2020-01-01")
+        a-closed (mk "2020-01-01")
+        a-converted (mk "2020-01-01")
+        a-rejected (mk "2020-01-01")
+        closure (fn [] (:action_closure (workspace id)))]
+    ;; 独立核验通过后关闭.
+    (command! id :actions :complete (:id a-closed) {:result "已完成并附记录" :evidence_ids [ev] :reviewer_id 9302})
+    (command! 9302 id :actions :verify (:id a-closed) {:decision "approved" :reason "独立核验通过"})
+    ;; 转为真实WBS任务(converted).
+    (command! id :actions :task (:id a-converted) {:start_date "2026-09-23" :duration_days 2})
+    ;; 核验驳回(rejected): 仍属未完成, 逾期则计入逾期.
+    (command! id :actions :complete (:id a-rejected) {:result "补交证据" :evidence_ids [ev] :reviewer_id 9302})
+    (command! 9302 id :actions :verify (:id a-rejected) {:decision "rejected" :reason "证据不足"})
+    (let [c (closure)]
+      (is (= 5 (:total c)))
+      (is (= 2 (:closed c)))
+      (is (= 3 (:open c)))
+      (is (= 1 (:converted c)))
+      (is (= 2 (:overdue c)))
+      (is (= 40 (:closure-pct c)))
+      (is (<= (:overdue c) (:open c))))
+    ;; 只读派生不回写行动状态.
+    (is (= "open" (:status (first (filter #(= (:id a-past-open) (:id %)) (:actions (workspace id)))))))
+    ;; 纯函数直测: 相同状态与到期日组合得到一致聚合; 空集各计数为0且闭环率为0.
+    (is (= {:total 5 :closed 2 :open 3 :converted 1 :overdue 2 :closure-pct 40}
+           (collab/action-closure-summary
+            [{:status "open" :due_date "2099-01-01"}
+             {:status "open" :due_date "2020-01-01"}
+             {:status "closed" :due_date "2020-01-01"}
+             {:status "converted" :due_date "2020-01-01"}
+             {:status "rejected" :due_date "2020-01-01"}])))
+    (is (= {:total 0 :closed 0 :open 0 :converted 0 :overdue 0 :closure-pct 0}
+           (collab/action-closure-summary [])))))
+
+
 (deftest comm-plan-log-advances-next-date-and-flags-overdue
   (let [id (project!)
         st (command! id :stakeholders :create nil

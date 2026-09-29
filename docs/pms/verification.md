@@ -944,6 +944,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 风险侧预防措施逾期只读细分闭合了上一子增量"不做按到期日的措施逾期细分"的边界, 是 H08/C10 风险追踪口径下 `implemented / local` 的又一项只读洞察 (同一反向聚合套路第 N 次复用, 新增"到期维度子集"这一形状变体); 但据逾期强制门控/自动升级/通知投递仍未完备, MySQL 回归亦待补, 故 H08 行保持 `partial` 不上行, C10 行保持 `implemented / local`, 不因这一子能力上行.
 
+## C07 会议行动闭环率只读汇总面板 (本轮增补, 2026-09-29)
+
+设计与关闭口径: 此前的会议行动洞察都挂在单条会议行 ("行动闭环"列按 `meeting_id` 分组算该会议的 open/total/overdue) 或风险行 ("措施落实"列按 `source_risk_id` 反向聚合), 但整个项目"所有会议行动与风险预防行动合起来到底闭环了多少"这一 portfolio 级视角在界面里没有一处汇总. 本项新增一个只读汇总面板回答它, 完全沿用"给治理台账加只读派生洞察"套路, **不落库、不投递、不改动任何不可变版本, 免迁移, 免新命令, 免新 kind, 免新路由, 不构成任何门控**. (1) portfolio 级聚合: 新纯函数 `governance.collaboration/action-closure-summary` 以扁平 `(:actions data)` 全量为输入 (与既有 `actions-by-meeting`, `mitigation-rollup-by-risk`, `owner-workloads` 采用同一"按原始记录不按 latest 去重"的口径, 因每条行动是一次性事实而非带修订版本的业务编号), 累计 `{total, closed, open, converted, overdue, closure-pct}`——`closed` 为状态属 `closed` 或 `converted` 者, `open` 为 `total - closed`, `converted` 单列转 WBS 任务数, `overdue` 逐条复用同命名空间既有公开谓词 `action-overdue?` (存在到期日、状态非 `closed`/`converted` 且到期日不晚于服务器当天) 判定故恒为 `open` 子集, `closure-pct` 为 `closed/total` 四舍五入整数百分比 (`total` 为 0 时给 0). `action-closure-summary` 定义在 `action-overdue?` (395 行) 之后 (561 行), 无前向引用. (2) workspace 接线: `governance.clj` 在既有 workspace `assoc` 块 (`:risk_response_coverage` 之后) 增加 `:action_closure (collab/action-closure-summary (:actions data))`, 单函数不跨 kind 逐行 enrich, 装配轻量. (3) 前端: "需求与治理 / 会议行动"页签在行动台账之前新增"会议行动闭环率"面板, 以蓝"行动总数 N"、绿/金/红"已闭环 P% (C/T)", 未完成 (open 大于 0 时橙"未完成 N"), 逾期 (overdue 大于 0 时红"逾期未闭环 N"), 转任务 (converted 大于 0 时 geekblue"转任务 N") 标签回显, 无行动时显占位提示. 键名不带尾随 `?`; `:closure-pct` 经 `clj->js` 后是字面 `"closure-pct"` (保留连字符), 前端 keyword 取值无碍而 E2E 原始 JSON 需 `['closure-pct']` 中括号取值 (与既有 `alignment-pct`/`coverage-pct`/`released-pct` 同约定).
+
+| 证据 | 实际记录 |
+|---|---|
+| 治理单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 64 tests / 826 assertions, 0 failures/errors (新增 `meeting-action-closure-summary-is-derived-read-only` 1 例: 一次会议下五档行动——1 条 `:actions :task` 转 WBS (converted), 1 条经 `:actions :complete` + 独立 `:actions :verify` 批准关闭 (closed), 2 条 open 且到期日 `2020-01-01` 已过, 1 条 open 且到期日 `2099-01-01` 远期——GET 读 `:action_closure` 得 total 5 / closed 2 / open 3 / converted 1 / overdue 2 / closure-pct 40 且 overdue 恒为 open 子集; 一条 past-due open 行动读取后 `status` 仍 `open` 不漂移 (只读不门控); 纯函数直测 `action-closure-summary` 对同五档混合样本得 `{total 5 closed 2 open 3 converted 1 overdue 2 closure-pct 40}` 且空向量 `[]` 返回全零 + `closure-pct` 0) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 165 tests / 1741 assertions, 0 failures/errors, workspace 新增 `:action_closure` assoc 键与 `action-closure-summary` 未造成既有会议行动闭环/责任人负载/措施落实等行动侧用例回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 warnings |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-c07ac.spec.js` 1 passed (47.9s), 无未捕获 JS 错误: 界面建项目与独立质量审批人第二浏览器上下文 -> 一次会议登记五档行动 (1 界面"转为WBS任务"转任务, 1 界面"提交完成"+第二上下文"批准关闭"闭环, 2 open 过去到期, 1 open 远期) -> "会议行动闭环率"面板显示蓝"行动总数 5"、金"已闭环 40% (2/5)"、橙"未完成 3"、红"逾期未闭环 2"、geekblue"转任务 1" (截图 c07ac-1-panel.png), 行动台账五档状态列可见 (c07ac-2-actions.png); 另在无行动的空项目打开面板显占位提示 (c07ac-3-empty.png); 真实 HTTP GET governance 二次确认 `action_closure` 各计数与 `['closure-pct']` 为 40 且与界面一致 (读取时按扁平行动聚合, 只读派生不落库不投递不门控); 截图存 `reports/c07ac/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移, 不新增 DDL); 该面板只读 portfolio 级汇总, **不构成任何门控或拦截** (闭环率高低不阻止任何行动登记/完成/核验/转任务流转), 不做按责任人/会议/阶段的闭环率更细切分, 不做闭环趋势时间序列或历史留存, 不做逾期主动提醒投递.
+
+边界: 会议行动闭环率只读汇总面板把此前只在单会议行与单风险行可见的闭环计数提升到项目 portfolio 级一处汇总, 是 C07 会议行动追踪口径下 `implemented / local` 的又一项只读洞察 (同一"给治理台账加只读派生洞察"套路复用, 新增"扁平全量 portfolio 聚合"这一形状变体); 但据自动到期提醒投递, 会前资料包与主计划版本关联等 C07 复合规则仍未完备, MySQL 回归亦待补, 故 C07 行保持 `partial` 不上行.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

@@ -108,6 +108,7 @@
                           :verification_evidence_alignment (evidence/verification-evidence-alignment (:requirements data) (:traces data) docs-by-id)
                           :release_coverage (evidence/release-coverage (:documents data))
                           :risk_response_coverage (collab/risk-response-coverage (:risks data))
+                          :action_closure (collab/action-closure-summary (:actions data))
                           :gate_progress (gates/gate-progress (:gate_templates data) (:gates data))
                           :gate_catalog (mapv #(select-keys % [:gate_type :title :stage :page :blocks]) catalog/gate-types)
                           :risk_library collab/risk-library))))))
