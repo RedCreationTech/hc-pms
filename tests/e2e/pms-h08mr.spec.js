@@ -143,4 +143,73 @@ test.describe('H08/C10 风险侧预防措施落实只读派生浏览器验收', 
 
     expect(errors, `未捕获的浏览器JS错误: ${errors.join('; ')}`).toEqual([]);
   });
+
+  test('风险台账"措施落实"列: 预防措施逾期细分(落实中出现红色逾期徽标, 落实后消失)', async ({ page }) => {
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await login(page);
+    const suffix = serial();
+    const options = await api(page, 'GET', '/api/pms/options');
+    const deptId = options.depts.find(d => d.dept_name === '研发部门').dept_id;
+    const adminId = options.currentUserId;
+    const project = await api(page, 'POST', '/api/pms/projects', { project_no: `H08MR2-${suffix}`, name: `风险措施逾期验收 / ${suffix}`,
+      project_type: 'line', manager_id: adminId, dept_id: deptId, start_date: '2026-09-01', end_date: '2026-12-31' });
+    const id = project.project_id;
+
+    // 登记一条进行中风险(低分 2x3=6), 到期日刻意放在遥远过去, 使落实出的预防行动继承一个已到期(逾期)的到期日.
+    const riskTitle = `设备到货延迟风险-${suffix}`;
+    const risk = await api(page, 'POST', base(id) + '/governance/risks', {
+      title: riskTitle, probability: 2, impact: 3, owner_id: adminId,
+      mitigation: '提前锁定交期并分批到货', due_date: '2020-01-01', version: await version(page, id) }).then(d => d.result);
+
+    await open(page, id, '需求与治理', '风险与问题');
+    await expect(row(page, riskTitle).getByText('措施未落实', { exact: true })).toBeVisible();
+
+    // 界面"落实预防措施" -> 生成一条继承逾期到期日的开放预防行动.
+    await row(page, riskTitle).getByRole('button', { name: '落实预防措施', exact: true }).click();
+    const form = modal(page, '落实为预防行动项');
+    const actionTitle = `催办紧急到货-${suffix}`;
+    await form.locator('#title').fill(actionTitle);
+    await save(page, '落实为预防行动项');
+
+    // 截图: 风险台账"措施落实"列同时显金色"落实中, 1 项待办"与红色"1 项逾期"徽标.
+    await open(page, id, '需求与治理', '风险与问题');
+    const riskRow = row(page, riskTitle);
+    await expect(riskRow.getByText(/落实中.*待办/)).toBeVisible();
+    await expect(riskRow.getByText('1 项逾期', { exact: true })).toBeVisible();
+    await shot(page, 'h08mr-4-overdue.png');
+
+    let gov = await api(page, 'GET', base(id) + '/governance');
+    let readRisk = gov.risks.find(r => r.id === risk.id);
+    expect(readRisk.mitigation_action_state).toBe('in-progress');
+    expect(readRisk.mitigation_action_total).toBe(1);
+    expect(readRisk.mitigation_action_open).toBe(1);
+    expect(readRisk.mitigation_action_overdue, '继承过去到期日的开放预防行动应计逾期').toBe(1);
+    expect(readRisk.mitigation_action_overdue, '逾期必为未完成子集').toBeLessThanOrEqual(readRisk.mitigation_action_open);
+
+    // 把该逾期预防行动"转为WBS任务"(converted 既不计未完成也不计逾期) -> 逾期徽标消失, 绿色"已落实 1 项".
+    await open(page, id, '需求与治理', '会议行动');
+    const actionRow = row(page, actionTitle);
+    await expect(actionRow).toBeVisible();
+    await actionRow.getByRole('button', { name: '转为WBS任务', exact: true }).click();
+    const taskForm = modal(page, '会议行动转WBS任务');
+    await taskForm.locator('#start_date').fill('2026-09-25');
+    await taskForm.locator('#duration_days').fill('2');
+    await save(page, '会议行动转WBS任务');
+
+    await open(page, id, '需求与治理', '风险与问题');
+    const doneRow = row(page, riskTitle);
+    await expect(doneRow.getByText(/已落实/)).toBeVisible();
+    await expect(doneRow.getByText('1 项逾期', { exact: true })).toHaveCount(0);
+    await shot(page, 'h08mr-5-overdue-cleared.png');
+
+    gov = await api(page, 'GET', base(id) + '/governance');
+    readRisk = gov.risks.find(r => r.id === risk.id);
+    expect(readRisk.mitigation_action_state).toBe('completed');
+    expect(readRisk.mitigation_action_open).toBe(0);
+    expect(readRisk.mitigation_action_overdue, '行动转任务后不再计逾期').toBe(0);
+    expect(readRisk.status, '只读派生不回写风险本身状态').toBe('open');
+
+    expect(errors, `未捕获的浏览器JS错误: ${errors.join('; ')}`).toEqual([]);
+  });
 });

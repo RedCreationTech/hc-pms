@@ -632,13 +632,20 @@
       :render (fn [_ row]
                 (let [st (aget row "mitigation_action_state")
                       total (aget row "mitigation_action_total")
-                      open (aget row "mitigation_action_open")]
+                      open (aget row "mitigation_action_open")
+                      overdue (aget row "mitigation_action_overdue")
+                      state-tag (cond
+                                  (= st "completed") [antd/tag {:color "green"} (str "已落实 " total " 项")]
+                                  (= st "in-progress") [antd/tag {:color "gold"} (str "落实中, " open " 项待办")]
+                                  (= st "unimplemented") [antd/tag {:color "orange"} "措施未落实"]
+                                  :else nil)]
                   (r/as-element
-                   (cond
-                     (= st "completed") [antd/tag {:color "green"} (str "已落实 " total " 项")]
-                     (= st "in-progress") [antd/tag {:color "gold"} (str "落实中, " open " 项待办")]
-                     (= st "unimplemented") [antd/tag {:color "orange"} "措施未落实"]
-                     :else [:span {:style {:color "#98a2b3"}} "—"]))))}
+                   (if (nil? state-tag)
+                     [:span {:style {:color "#98a2b3"}} "—"]
+                     [:span
+                      state-tag
+                      (when (and (= st "in-progress") (pos? overdue))
+                        [antd/tag {:color "red"} (str overdue " 项逾期")])]))))}
      (w/text-column :review_due_date "下次复评")
      {:title "复评提醒" :dataIndex "review_overdue" :render #(when % (r/as-element [antd/tag {:color "red"} "复评已逾期"]))}
      (due-countdown-column "review_due_in_days")

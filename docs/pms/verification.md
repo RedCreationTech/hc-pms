@@ -925,9 +925,24 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 | 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 warnings |
 | 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-h08mr.spec.js` 1 passed, 无未捕获 JS 错误: 界面登记一条 2x3=6 (不触发升级) 带措施风险 -> "风险与问题"台账"措施落实"列显橙"措施未落实" (截图 h08mr-1-unimplemented.png); 点该行"落实预防措施"保存生成 open 行动 -> 重开风险台账该列翻金"落实中, 1 项待办" (截图 h08mr-2-in-progress.png); 在"会议行动"台账把该行动"转为WBS任务" -> 重开风险台账该列翻绿"已落实 1 项" (截图 h08mr-3-completed.png); 真实 HTTP GET governance 二次确认行内 `mitigation_action_total/open/state` 由 unimplemented 0/0 -> in-progress 1/1 -> completed 1/0 逐级翻转且风险 `status` 不漂移; 截图存 `reports/h08mr/` |
 
-本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移, 不新增 DDL); 该列只读反向汇总, **不构成任何门控或拦截** (预防行动是否全部落实不阻止风险复审/关闭/缓解流转), 亦不做按到期日的措施逾期细分或措施到多条行动的批量拆分.
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移, 不新增 DDL); 该列只读反向汇总, **不构成任何门控或拦截** (预防行动是否全部落实不阻止风险复审/关闭/缓解流转), 亦不做按到期日的措施逾期细分 (该边界已于同日后续子增量"风险侧预防措施逾期只读细分"闭合, 见下一节) 或措施到多条行动的批量拆分.
 
 边界: 风险侧预防措施落实情况只读派生闭合了上一子增量"仅在行动侧标注来源而未回显风险侧措施落实进度"的边界, 是 H08/C10 风险追踪口径下 `implemented / local` 的一项只读洞察; H08 行仍为 `partial` (升级通知投递, 跨项目风险汇总升级仍待实现), C10 行保持 `implemented / local`.
+
+## H08/C10 风险侧预防措施逾期只读细分 (本轮增补, 2026-09-29)
+
+设计与关闭口径: 上一子增量"风险侧预防措施落实情况只读派生"如实记录了边界"不做按到期日的措施逾期细分"——一条 `in-progress` 的风险看不出其派生的预防行动里到底有几条已经到期未办. 本项在同一反向聚合上再补一层到期维度, 完全沿用"给治理台账加只读派生洞察"套路, **不落库、不投递、不改动任何不可变版本, 免迁移, 免新命令, 免新 kind, 不构成任何门控**. (1) 反向聚合扩展: `governance.collaboration/mitigation-rollup-by-risk` 在既有 `{total, open}` 累加器上追加 `overdue`, 逐条行动复用同一命名空间已有的公开谓词 `action-overdue?` (存在到期日、状态非 `closed`/`converted` 且到期日不晚于服务器当天) 判定, 故 `overdue` 恒为 `open` 的子集, 且与会议行动/问题台账既有的逾期口径完全一致, 不新写日期逻辑; `action-overdue?` 定义在 rollup 之前, 无前向引用. (2) 行内派生扩展: `mitigation-read-model` 由 `assoc` 三键改为四键, 新增 `mitigation_action_overdue` (无 rollup 命中时缺省 0), 三态判定不变 (仍 `unimplemented`/`in-progress`/`completed`). workspace `governance.clj` 接线不变 (复用同一 `mitigation-rollup` 与 `(update :risks ...)`), 因新增维度落在既有纯函数内故无需改动读模型装配. 键名不带尾随 `?`. (3) 前端扩展: "措施落实"列在金色"落实中, N 项待办"标签之后, 当 `mitigation_action_state` 为 `in-progress` 且 `mitigation_action_overdue` 大于 0 时追加一枚红色"N 项逾期"标签; 逾期行动被独立核验关闭 (`closed`) 或转 WBS 任务 (`converted`) 后该红标自动消失 (二者均不再计入 overdue).
+
+| 证据 | 实际记录 |
+|---|---|
+| 治理单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 63 tests / 816 assertions, 0 failures/errors (新增 `risk-mitigation-action-overdue-is-derived-read-only` 1 例: 登记到期日放在遥远过去 `2020-01-01` 的带措施风险初始 overdue=0 -> `:risks :mitigation-action` 落实一条继承该过去到期日的 open 行动后 total/open/overdue 均 1 -> 再落实一条未来到期日 `2099-01-01` 行动使 total 2 open 2 overdue 仍 1 -> 经 `:actions :complete` + 独立 `:actions :verify` 关闭逾期那条后 open 降 1 且 overdue 归 0 (closed 不计逾期) 仍 `in-progress` -> 末条 `:actions :task` 转 WBS (converted) 后 open 0 overdue 0 翻 `completed`; 纯函数直测 rollup-by-risk 对 open/in_review/closed/converted 与过去/未来到期日混合样本得 `{total 5 open 3 overdue 2}` 并验证 overdue 为 open 子集与缺省 0); 既有 `risk-mitigation-action-rollup-is-derived-read-only` 纯函数断言随 rollup 输出新增 `:overdue` 键同步补 `:overdue 0` 零回归) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 164 tests / 1731 assertions, 0 failures/errors, rollup 新增 `overdue` 累加器与 read-model 第四键未造成既有责任人负载/到期倒计时/风险复审/措施落实三态等风险行 enrich 用例回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 warnings |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-h08mr.spec.js` 现 2 passed (新增"预防措施逾期细分"用例), 无未捕获 JS 错误: 界面登记一条 2x3=6 带措施且到期日 `2020-01-01` 的风险 -> "措施落实"列显橙"措施未落实"; 点"落实预防措施"保存生成继承过去到期日的 open 行动 -> 重开风险台账该列同时显金"落实中, 1 项待办"与红"1 项逾期" (截图 h08mr-4-overdue.png); 在"会议行动"台账把该逾期行动"转为WBS任务" -> 重开风险台账该列翻绿"已落实 1 项"且红"逾期"标消失 (截图 h08mr-5-overdue-cleared.png); 真实 HTTP GET governance 二次确认行内 `mitigation_action_overdue` 由 1 (in-progress) -> 0 (completed) 且 overdue 恒不超过 open, 风险 `status` 不漂移; 截图存 `reports/h08mr/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移, 不新增 DDL); 逾期细分只读可见, **不构成任何门控或拦截** (措施逾期未办不阻止风险复审/关闭/缓解流转, 亦不自动改派或升级), 不做按责任人/阶段的逾期更细切分, 不做措施到多条行动的批量拆分, 不做逾期主动提醒投递.
+
+边界: 风险侧预防措施逾期只读细分闭合了上一子增量"不做按到期日的措施逾期细分"的边界, 是 H08/C10 风险追踪口径下 `implemented / local` 的又一项只读洞察 (同一反向聚合套路第 N 次复用, 新增"到期维度子集"这一形状变体); 但据逾期强制门控/自动升级/通知投递仍未完备, MySQL 回归亦待补, 故 H08 行保持 `partial` 不上行, C10 行保持 `implemented / local`, 不因这一子能力上行.
 
 ## 核心通过场景
 

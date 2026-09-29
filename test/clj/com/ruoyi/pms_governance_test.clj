@@ -1611,7 +1611,7 @@
     (is (= "open" (:status (risk-row))))
     (is (= (:mitigation_action_state (risk-row)) (:mitigation_action_state (risk-row))))
     ;; 纯函数按 source_risk_id 聚合: closed/converted 视为完成, 无来源风险的行动不计入.
-    (is (= {"r1" {:total 4 :open 2}}
+    (is (= {"r1" {:total 4 :open 2 :overdue 0}}
            (collab/mitigation-rollup-by-risk
             [{:source_risk_id "r1" :status "open"}
              {:source_risk_id "r1" :status "closed"}
@@ -1622,6 +1622,56 @@
     (is (= "in-progress" (:mitigation_action_state (collab/mitigation-read-model {"r1" {:total 2 :open 1}} {:id "r1"}))))
     (is (= "completed" (:mitigation_action_state (collab/mitigation-read-model {"r1" {:total 2 :open 0}} {:id "r1"}))))
     (is (= "unimplemented" (:mitigation_action_state (collab/mitigation-read-model {} {:id "r2"}))))))
+
+
+(deftest risk-mitigation-action-overdue-is-derived-read-only
+  (let [id (project!)
+        risk (command! id :risks :create nil
+                       {:title "设备到货延迟风险" :probability 2 :impact 3 :owner_id 9301
+                        :mitigation "提前锁定交期并分批到货" :due_date "2099-10-20"})
+        risk-row (fn [] (first (filter (fn [x] (= (:id risk) (:id x))) (:risks (workspace id)))))]
+    ;; 登记后无落实行动: overdue 0.
+    (is (= 0 (:mitigation_action_overdue (risk-row))))
+    ;; 落实一条到期日已过且未完成的预防行动: total 1 open 1 overdue 1.
+    (let [a-over (command! id :risks :mitigation-action (:id risk) {:title "催办紧急到货" :due_date "2020-01-01"})]
+      (is (= 1 (:mitigation_action_total (risk-row))))
+      (is (= 1 (:mitigation_action_open (risk-row))))
+      (is (= 1 (:mitigation_action_overdue (risk-row))))
+      (is (= "in-progress" (:mitigation_action_state (risk-row))))
+      ;; 再落实一条未到期行动: total 2 open 2, overdue 仍 1.
+      (let [a-future (command! id :risks :mitigation-action (:id risk) {:title "分批到货排期" :due_date "2099-01-01"})]
+        (is (= 2 (:mitigation_action_total (risk-row))))
+        (is (= 2 (:mitigation_action_open (risk-row))))
+        (is (= 1 (:mitigation_action_overdue (risk-row))))
+        ;; 关闭那条逾期的(独立核验): closed 既不计 open 也不计 overdue, open 减到 1, overdue 归 0, 仍 in-progress.
+        (let [ev (:id (document! id "MRO-DOC-A"))]
+          (command! id :actions :complete (:id a-over) {:result "已催办并到货" :evidence_ids [ev] :reviewer_id 9302})
+          (command! 9302 id :actions :verify (:id a-over) {:decision "approved" :reason "独立核验通过"})
+          (is (= 2 (:mitigation_action_total (risk-row))))
+          (is (= 1 (:mitigation_action_open (risk-row))))
+          (is (= 0 (:mitigation_action_overdue (risk-row))))
+          (is (= "in-progress" (:mitigation_action_state (risk-row))))
+          ;; 把最后一条转真实任务(converted): open 0 overdue 0 -> completed.
+          (command! id :actions :task (:id a-future) {:start_date "2026-09-23" :duration_days 2})
+          (is (= 0 (:mitigation_action_open (risk-row))))
+          (is (= 0 (:mitigation_action_overdue (risk-row))))
+          (is (= "completed" (:mitigation_action_state (risk-row)))))))
+    ;; 只读派生不回写风险状态.
+    (is (= "open" (:status (risk-row))))
+    ;; 纯函数聚合: overdue 仅计到期日不晚于运行日且未关闭未转任务的行动, 且必为 open 子集.
+    (is (= {"r1" {:total 5 :open 3 :overdue 2}}
+           (collab/mitigation-rollup-by-risk
+            [{:source_risk_id "r1" :status "open" :due_date "2020-01-01"}
+             {:source_risk_id "r1" :status "in_review" :due_date "2020-01-01"}
+             {:source_risk_id "r1" :status "open" :due_date "2099-01-01"}
+             {:source_risk_id "r1" :status "closed" :due_date "2020-01-01"}
+             {:source_risk_id "r1" :status "converted" :due_date "2020-01-01"}])))
+    ;; read-model 无命中时 overdue 缺省 0; overdue 永不超过 open.
+    (is (= 0 (:mitigation_action_overdue (collab/mitigation-read-model {} {:id "r2"}))))
+    (let [rm (collab/mitigation-read-model {"r1" {:total 3 :open 2 :overdue 2}} {:id "r1"})]
+      (is (= 2 (:mitigation_action_overdue rm)))
+      (is (= 2 (:mitigation_action_open rm)))
+      (is (<= (:mitigation_action_overdue rm) (:mitigation_action_open rm))))))
 
 
 (deftest comm-plan-log-advances-next-date-and-flags-overdue
