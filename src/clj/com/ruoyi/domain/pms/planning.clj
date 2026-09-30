@@ -63,7 +63,9 @@
                                         (mapv #(select-keys % [:id :title])))
                 :current_user_id (:user_id actor) :overallocations overloads
                 :overload_summary (capacity/overload-summary overloads)
-                :allocation_coverage (capacity/allocation-coverage raw-tasks (:allocations snapshot))})))))
+                :allocation_coverage (capacity/allocation-coverage raw-tasks (:allocations snapshot))
+                :critical_path_staffing (capacity/critical-path-staffing raw-tasks (:allocations snapshot)
+                                            (get-in snapshot [:schedule :critical_path]))})))))
 
 (defn read-baseline
   "读取不可变的已提交计划快照."

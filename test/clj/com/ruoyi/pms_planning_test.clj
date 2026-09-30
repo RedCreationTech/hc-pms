@@ -517,3 +517,43 @@
         (is (= ["C"] (map :wbs_code (:unallocated-tasks cov))))
         (is (= v-before (version id)))
         (is (= v-before (:project_version model)))))))
+
+(deftest critical-path-staffing-is-derived-read-only
+  (testing "纯函数口径: 仅关键路径上的 task_type=task 参与分母, 里程碑/汇总/非关键任务排除, 同任务多条分配只算已投入, 投入率四舍五入"
+    (let [pure-tasks [{:task_id "s" :task_type "summary" :wbs_code "1" :name "汇总"}
+                      {:task_id "a" :task_type "task" :wbs_code "1.1" :name "甲"}
+                      {:task_id "b" :task_type "task" :wbs_code "1.2" :name "乙"}
+                      {:task_id "c" :task_type "task" :wbs_code "1.3" :name "丙"}
+                      {:task_id "m" :task_type "milestone" :wbs_code "2" :name "里程碑"}]
+          ;; 关键路径含 a(已分配) b(未分配) 与里程碑 m(排除在分母外), c 不在关键路径
+          pure-allocs [{:task_id "a" :resource_id "r1" :hours_per_day 4}
+                       {:task_id "c" :resource_id "r1" :hours_per_day 2}]
+          staff (capacity/critical-path-staffing pure-tasks pure-allocs ["a" "b" "m"])]
+      (is (true? (:available staff)))
+      (is (= 2 (:critical-tasks staff)))
+      (is (= 1 (:staffed staff)))
+      (is (= 1 (:unstaffed staff)))
+      (is (= 50 (:staffing-pct staff)))
+      (is (= ["1.2"] (map :wbs_code (:unstaffed-tasks staff))))))
+  (testing "关键路径无可分配叶任务时 available=false 且投入率 0"
+    (let [staff (capacity/critical-path-staffing [{:task_id "m" :task_type "milestone"}] [] ["m"])]
+      (is (false? (:available staff)))
+      (is (= 0 (:critical-tasks staff)))
+      (is (= 0 (:staffing-pct staff)))
+      (is (empty? (:unstaffed-tasks staff)))))
+  (testing "read-plan 集成: 关键路径长任务未分配而短任务已分配 -> 缺口命中关键任务, 派生只读无版本漂移"
+    (let [id (project!)
+          lt (task! id "LONG" 4) st (task! id "SHORT" 1)
+          equip (:result (command! plan/create-resource! id [] {:name "机床" :resource_type "equipment" :daily_capacity 8}))]
+      (command! plan/create-allocation! id [] {:task_id (:task_id st) :resource_id (:resource_id equip) :hours_per_day 4})
+      (let [v-before (version id)
+            model (plan/read-plan *svc* (actor 9201) id)
+            staff (:critical_path_staffing model)]
+        (is (= ["LONG"] (map :wbs_code (:unstaffed-tasks staff))))
+        (is (true? (:available staff)))
+        (is (= 1 (:critical-tasks staff)))
+        (is (= 0 (:staffed staff)))
+        (is (= 1 (:unstaffed staff)))
+        (is (= 0 (:staffing-pct staff)))
+        (is (= v-before (version id)))
+        (is (= v-before (:project_version model)))))))

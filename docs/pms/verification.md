@@ -1270,6 +1270,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: H05 整行保持 `partial` — 本项只是"是否还没排入工时"这一只读洞察子能力, 与 `overload-summary` 的"是否排太多"互补, 一个只读子能力不改变整行状态; 技能匹配 / 替代人员 / 请假规则 / 超配经协调解决的处置闭环仍未实现, 覆盖度不构成任何门控 (不阻断保存/提交/冻结), 不新增写路径/kind/命令/路由/表结构.
 
+## H05 关键路径投入缺口只读派生 (本轮增补, 2026-09-30)
+
+设计与口径: 上一子项 `allocation-coverage` 给出"全部可分配任务里谁还没排入工时"的全局视角, 但进度控制真正关心的是"关键路径上还没排入工时的任务" — 这些任务一旦无人投入会直接推迟项目完工, 是最高优先级的进度风险. 本项在 `planning.capacity` 新增只读派生纯函数 `critical-path-staffing`: 以关键路径 (`schedule/schedule` 返回的 `:critical_path` 零浮动叶任务集合) 与可分配叶任务 (`task_type="task"`, 汇总与里程碑不接受工时分配故被排除在分母外) 的交集为总体, 逐任务判断是否至少命中一条 `allocations` 记录, 输出 `available / critical-tasks / staffed / unstaffed / staffing-pct (无任务时为 0, 否则 100*staffed/total 四舍五入取整) / unstaffed-tasks (缺口任务的 task_id/wbs_code/name 清单)`. `planning/read-plan` 用已绑定的 `raw-tasks`, `snapshot` 里的 `:allocations` 与 `[:schedule :critical_path]` 派生并暴露顶层 `:critical_path_staffing` (下划线命名, 与既有 `:overload_summary` / `:allocation_coverage` 一致; 内层键用连字符). 键名不带尾随 `?` 以免序列化为 JSON 字面键. 免迁移 / 免新 kind / 免新命令 / 免新路由 / 不构成任何门控 (只读呈现, 既不阻断保存/提交/冻结也不改变任何写路径). 前端 `plan_views.cljs` 新增 `critical-path-staffing` 面板 "关键路径投入缺口" (彩色标签 关键路径任务 / 已投入 / 投入缺口 / 关键路径投入率 + 缺口任务 volcano 标签清单), `planning.cljs` 在"资源与日历"页签将其置于投入覆盖度面板之后, 负荷检查面板之前; 关键路径上无可分配任务时显空态 "关键路径上暂无可分配任务 (里程碑与汇总不计入).".
+
+| 证据 | 实际记录 |
+|---|---|
+| 计划单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-planning-test'` 通过 16 tests / 169 assertions, 0 failures/errors (新增 `critical-path-staffing-is-derived-read-only`: 纯函数用例 tasks s/a/b/c/m + 分配指向 a 与 c + `critical-path` `["a" "b" "m"]` -> `available=true` / `critical-tasks` 2 (a,b; 里程碑 m 被排除; c 不在关键路径) / `staffed` 1 / `unstaffed` 1 / `staffing-pct` 50 / 缺口清单含 wbs "1.2"; 仅里程碑关键路径 `["m"]` -> `available=false` / `critical-tasks` 0 / `staffing-pct` 0 / 缺口清单空; `read-plan` 集成用例 LONG(4 工作日, 关键) + SHORT(1 工作日, 有浮动非关键) + 设备资源, 只给 SHORT 分配 4h -> `critical_path_staffing` 缺口清单 `["LONG"]` / `available=true` / `critical-tasks` 1 / `staffed` 0 / `unstaffed` 1 / `staffing-pct` 0, 且前后 `project_version` 不漂移证明纯读不落库) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 187 tests / 2086 assertions, 0 failures/errors; `read-plan` 暴露 `:critical_path_staffing` 未造成既有排程 / 关键路径 / 挣值 / 范围覆盖 / 基线偏差 / 资源超配汇总 / 投入覆盖度 / 跨项目人员隐私回归 (集成用例用设备资源, 无 `user_id`, 不触发跨项目同人归集) |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 6 compiled / 0 warnings |
+| HTTP 合同 (契约) | `contracts/planning.md` 的 `GET /planning` 读模型更新: 新增只读派生 `critical_path_staffing` 汇总 (available/critical-tasks/staffed/unstaffed/staffing-pct/unstaffed-tasks), 明确由纯函数 `planning.capacity/critical-path-staffing` 对关键路径叶任务与 `:allocations` 明细读取时聚合, 分母排除汇总与里程碑, 是 `allocation_coverage` 的优先级聚焦, 免迁移/免新命令/不构成门控 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-h05cp.spec.js` 1 passed (17.8s), 无未捕获 JS 错误: 建 LONG(4 工作日) + SHORT(1 工作日) 叶任务, 设备资源只给 SHORT 分配 4h -> 真实 HTTP GET `/planning` 回显 `critical_path_staffing` (`available=true` / `critical-tasks` 1 / `staffed` 0 / `unstaffed` 1 / `staffing-pct` 0 / 缺口清单 wbs `["LONG"]`) 且同读模型 `allocation_coverage` (`total-tasks` 2 / `with-allocations` 1 / `coverage-pct` 50) 证明两面板口径不同; "资源与日历"页签"关键路径投入缺口"面板彩色标签回显"关键路径任务 1 / 已投入 0 / 投入缺口 1 / 关键路径投入率 0%" 并列出缺口任务 "LONG 关键装配" (截图 h05cp-1-panel.png); 空态: 新项目仅里程碑 -> `available=false` / `critical-tasks=0` / `staffing-pct=0` 且面板显"关键路径上暂无可分配任务 (里程碑与汇总不计入)." (截图 h05cp-2-empty.png); 截图存 `reports/h05cp/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL, 缺口为读取时对既有 `tasks` / `:allocations` / `:critical_path` 快照的纯函数聚合, 不落任何新表/列); 计数与投入率口径由后端 SQLite 用例确定性覆盖, 浏览器侧核验界面可见标签与服务端回显同源.
+
+边界: H05 整行保持 `partial` — 本项只是把已有投入覆盖度聚焦到"关键路径上还没排入工时"这一最高进度风险的只读洞察子能力, 与 `allocation-coverage` 的全局视角互补, 一个只读子能力不改变整行状态; 技能匹配 / 替代人员 / 请假规则 / 超配经协调解决的处置闭环仍未实现, 缺口不构成任何门控 (不阻断保存/提交/冻结), 不新增写路径/kind/命令/路由/表结构.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

@@ -98,3 +98,26 @@
                      (int (Math/round ^double (* 100.0 (/ with total))))
                      0)
      :unallocated-tasks without}))
+
+(defn critical-path-staffing
+  "把关键路径任务与工时分配明细只读聚合为关键路径投入缺口概览:
+  仅统计关键路径上的可分配叶任务 (task_type=task, 汇总与里程碑不接受工时分配),
+  逐任务判断是否至少有一条工时分配, 输出关键路径可分配总数/已排入/缺口/投入率与缺口任务清单;
+  与 allocation-coverage 互补 (后者看全部任务是否排人, 本项优先聚焦关键路径上还没排人的最高进度风险任务);
+  仅供台账汇总面板呈现, 只读派生, 不落库不投递, 不构成门控, 键名不带尾随问号."
+  [tasks allocations critical-path]
+  (let [cp (set critical-path)
+        allocatable (filterv #(and (cp (:task_id %)) (= "task" (:task_type %))) tasks)
+        allocated (set (map :task_id allocations))
+        total (count allocatable)
+        staffed (count (filterv #(allocated (:task_id %)) allocatable))
+        gaps (mapv #(select-keys % [:task_id :wbs_code :name])
+                   (remove #(allocated (:task_id %)) allocatable))]
+    {:available (pos? total)
+     :critical-tasks total
+     :staffed staffed
+     :unstaffed (- total staffed)
+     :staffing-pct (if (pos? total)
+                     (int (Math/round ^double (* 100.0 (/ staffed total))))
+                     0)
+     :unstaffed-tasks gaps}))

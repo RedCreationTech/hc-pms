@@ -85,6 +85,25 @@
              ^{:key (:task_id t)} [antd/tag {:color "volcano"} (str (:wbs_code t) " " (:name t))])])]
        [shared/empty-state "尚无普通任务 (汇总与里程碑不计入投入覆盖)." nil])]))
 
+(defn critical-path-staffing
+  "把关键路径上尚未排入资源工时的任务以只读汇总面板呈现, 优先暴露最高进度风险的投入缺口."
+  [model]
+  (let [cp (:critical_path_staffing model)]
+    [shared/panel "关键路径投入缺口" "统计关键路径上的可分配任务是否已排入资源工时, 未排入即为最高进度风险; 只读洞察, 不构成门控" nil
+     (if (and cp (:available cp))
+       [:div
+        [antd/space {:wrap true :style {:marginBottom 12}}
+         [antd/tag {:color "blue"} (str "关键路径任务 " (:critical-tasks cp))]
+         [antd/tag {:color "green"} (str "已投入 " (:staffed cp))]
+         [antd/tag {:color (if (pos? (:unstaffed cp)) "red" "green")} (str "投入缺口 " (:unstaffed cp))]
+         [antd/tag {:color (if (>= (:staffing-pct cp) 80) "green" "gold")} (str "关键路径投入率 " (:staffing-pct cp) "%")]]
+        (when (seq (:unstaffed-tasks cp))
+          [:div {:style {:display "flex" :alignItems "center" :gap 8 :flexWrap "wrap"}}
+           [:span {:style {:fontSize 12 :color "#718096"}} "关键路径上未排工时的任务:"]
+           (for [t (:unstaffed-tasks cp)]
+             ^{:key (:task_id t)} [antd/tag {:color "volcano"} (str (:wbs_code t) " " (:name t))])])]
+       [shared/empty-state "关键路径上暂无可分配任务 (里程碑与汇总不计入)." nil])]))
+
 (def readable-fields
   {:name "名称" :start_date "开始日期" :end_date "结束日期" :duration_days "工期"
    :wbs_code "WBS编号" :task_type "类型" :daily_capacity "日容量" :hours_per_day "日负荷"

@@ -51,6 +51,8 @@
 
 `allocation_coverage` (H05 任务工时投入覆盖度) 由纯函数 `planning.capacity/allocation-coverage` 对 `tasks` 与 `allocations` 读取时聚合派生, 不落库, 不构成任何门控 (既不阻断保存/提交/冻结, 也不改变任何写路径): 分母只取可分配叶任务 (`task_type=task`), 汇总任务与里程碑不接受工时分配故不计入; 每个可分配任务只要存在至少一条工时分配即视为"已投入", 同任务多条分配只算一次. 返回 `available (是否存在至少一个可分配任务) / total-tasks (可分配任务总数) / with-allocations (已投入数) / without-allocations (未投入数) / coverage-pct (with/total 四舍五入整数百分比, 无可分配任务时为 0) / unallocated-tasks (未投入任务清单, 每项含 task_id/wbs_code/name)`. 无可分配任务时 `available=false` 且计数为 0, `unallocated-tasks` 为空数组, 面板显"尚无普通任务 (汇总与里程碑不计入投入覆盖)". 键名不带尾随 `?`. 界面在"资源与日历"页签以彩色标签呈现该概览并列出未投入工时的任务, 与超配汇总互补: 超配看"是否排太多", 投入覆盖看"是否还没排".
 
+`critical_path_staffing` (H05 关键路径投入缺口) 由纯函数 `planning.capacity/critical-path-staffing` 对 `tasks`, `allocations` 与排程结果 `schedule.critical_path` 读取时聚合派生, 不落库, 不构成任何门控: 分母只取关键路径上的可分配叶任务 (`task_type=task`), 里程碑与汇总即使落在关键路径也不计入 (与 `allocation_coverage` 及 `resources/allocate!` 口径一致); 每个关键路径任务只要存在至少一条工时分配即视为"已投入". 返回 `available (关键路径上是否存在至少一个可分配任务) / critical-tasks (关键路径可分配任务数) / staffed (已投入数) / unstaffed (缺口数) / staffing-pct (staffed/critical-tasks 四舍五入整数百分比, 无任务时为 0) / unstaffed-tasks (缺口任务清单, 每项含 task_id/wbs_code/name)`. 关键路径无可分配任务时 `available=false` 且计数为 0, 面板显"关键路径上暂无可分配任务 (里程碑与汇总不计入)". 键名不带尾随 `?`. 界面在"资源与日历"页签以彩色标签呈现该概览并列出关键路径上未排工时的任务, 是 `allocation_coverage` 的优先级聚焦: 覆盖度看"全部任务谁还没排", 本项只看"关键路径上还没排的最高进度风险".
+
 ## 基线与变更
 
 `POST /planning/submit {version, comment, change_id?}` 在 planning 或 execution 阶段提交, 要求任务可排程, 负责人有效且无资源超配. 执行阶段必须关联同项目最新已批准的 change_id, 审批时再次校验; 计划阶段允许不带 change_id. 提交瞬间冻结完整设计与计算结果, pending 期间锁定设计变更. 同一 plan_revision 只提交一次.
