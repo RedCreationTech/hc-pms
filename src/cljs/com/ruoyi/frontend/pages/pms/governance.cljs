@@ -358,6 +358,20 @@
     (fn [row] [w/edit-button "查看任命书" #(appointment! row)])]])
 
 
+(defn- engagement-cell
+  "渲染干系人参与态度标签 (PMBOK 投入度评估), 未设定时显示灰字."
+  [row]
+  (let [e (aget row "engagement")
+        label (get {"unaware" "未知晓" "resistant" "抵制" "neutral" "中立"
+                    "supportive" "支持" "leading" "主导"} e)
+        color (get {"unaware" "default" "resistant" "red" "neutral" "blue"
+                    "supportive" "green" "leading" "gold"} e "default")]
+    (r/as-element
+      (if (nil? e)
+        [:span {:style {:color "#98a2b3"}} "未设定"]
+        [antd/tag {:color color} label]))))
+
+
 (defn- quadrant-cell
   "渲染干系人权力-利益象限管理策略标签, 未绑定项目成员责任人时追加提示."
   [row]
@@ -380,6 +394,7 @@
    [w/record-table (:stakeholders model)
     [(w/text-column :code "编号") (w/text-column :name "名称") (w/text-column :role "职责")
      (w/text-column :category "分类") (w/text-column :interest "关注度") (w/text-column :influence "影响力")
+     {:title "参与态度" :dataIndex "engagement" :width 110 :render (fn [_ row] (engagement-cell row))}
      {:title "管理策略" :dataIndex "stakeholder_quadrant" :width 200 :render (fn [_ row] (quadrant-cell row))}
      (w/state-column)]
     (when editable? (fn [row] [antd/space {:wrap true}

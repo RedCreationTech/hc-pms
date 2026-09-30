@@ -34,6 +34,11 @@
   #{"daily" "weekly" "biweekly" "monthly" "quarterly"})
 
 
+(def engagement-levels
+  "干系人参与态度 (PMBOK 投入度评估矩阵: 未知晓/抵制/中立/支持/主导)."
+  #{"unaware" "resistant" "neutral" "supportive" "leading"})
+
+
 (defn- owner!
   "可选责任人字段, 提供时必须是当前项目有效成员."
   [q project body]
@@ -41,16 +46,17 @@
 
 
 (defn- stakeholder-fields!
-  "校验干系人编号, 名称, 职责, 分类, 关注度与影响力."
+  "校验干系人编号, 名称, 职责, 分类, 关注度, 影响力与可选参与态度."
   [q project body]
-  (s/input! body [:code :name :role :category :interest :influence :owner_id])
-  {:code (s/text! body :code 100)
-   :name (s/text! body :name 200)
-   :role (s/text! body :role 200)
-   :category (s/enum! (:category body) categories "category")
-   :interest (s/enum! (:interest body) grades "interest")
-   :influence (s/enum! (:influence body) grades "influence")
-   :owner_id (owner! q project body)})
+  (s/input! body [:code :name :role :category :interest :influence :engagement :owner_id])
+  (cond-> {:code (s/text! body :code 100)
+           :name (s/text! body :name 200)
+           :role (s/text! body :role 200)
+           :category (s/enum! (:category body) categories "category")
+           :interest (s/enum! (:interest body) grades "interest")
+           :influence (s/enum! (:influence body) grades "influence")
+           :owner_id (owner! q project body)}
+    (:engagement body) (assoc :engagement (s/enum! (:engagement body) engagement-levels "参与态度"))))
 
 
 (defn- code-unused!

@@ -1,6 +1,6 @@
 # 治理与质量 HTTP 合同
 
-状态: 已实现并通过本地 SQLite 67 tests / 885 assertions (含 A08 项目成员任命书, H02 干系人/RACI/沟通计划, C06 文档独立发布审批, C06 证据发布覆盖度只读派生, C03 追踪链证据发布状态只读派生, C03 URS 需求台账内联追踪状态只读派生, C04 文档归集视图, H01 章程初始预算, H01 章程显式授权项目经理, H09 变更量化影响与高影响只读派生, H09 变更高影响提交即自动升级并强制独立确认后方可批准, H09 变更控制委员会多人表决门槛(设立名单/成员投票/达到门槛方可批准), H08 风险超阈值自动升级, H08 复评重新评分并重算升级门控, H08 风险应对策略可选枚举字段, H08 风险应对策略覆盖度只读派生, H08/C10 风险应对措施落实为可追踪预防行动项, H08/C10 风险侧预防措施落实情况反向只读派生, H08/C10 风险侧预防措施逾期只读细分, C02 需求验证方式可选枚举字段, C02 需求验证方式覆盖度只读派生, C01 需求验证方式与验证关联对齐只读派生, C01 验证关联所指向证据是否已发布只读派生, C10 典型风险库一键实例化, H02 沟通节奏标记已沟通与到期预警, C09 问题逾期预警, C09d 问题阻断级自动升级, H18 受控作废与受控恢复, H18c 归集剔除已作废与级联影响预览, C07f 会议纪要受控发布闭环, C07g 会议受控作废与恢复, 责任人跨类负载预警等用例), 属于本轮全量 PMS 回归 169 tests / 1813 assertions 的组成部分. 新模块 MySQL 及生产验收采用 [验证记录](../verification.md) 的最终结果. 不包含真实外部系统写入, 二进制文件服务或自动应用变更. 所有路径以 `/api/pms/projects/:id/governance` 为前缀. 路由挂在现有 JWT 认证中间件内. 下述字段为明确白名单; 未列字段返回 400.
+状态: 已实现并通过本地 SQLite 67 tests / 885 assertions (含 A08 项目成员任命书, H02 干系人/RACI/沟通计划, C06 文档独立发布审批, C06 证据发布覆盖度只读派生, C03 追踪链证据发布状态只读派生, C03 URS 需求台账内联追踪状态只读派生, C04 文档归集视图, H01 章程初始预算, H01 章程显式授权项目经理, H09 变更量化影响与高影响只读派生, H09 变更高影响提交即自动升级并强制独立确认后方可批准, H09 变更控制委员会多人表决门槛(设立名单/成员投票/达到门槛方可批准), H08 风险超阈值自动升级, H08 复评重新评分并重算升级门控, H08 风险应对策略可选枚举字段, H08 风险应对策略覆盖度只读派生, H08/C10 风险应对措施落实为可追踪预防行动项, H08/C10 风险侧预防措施落实情况反向只读派生, H08/C10 风险侧预防措施逾期只读细分, C02 需求验证方式可选枚举字段, C02 需求验证方式覆盖度只读派生, C01 需求验证方式与验证关联对齐只读派生, C01 验证关联所指向证据是否已发布只读派生, C10 典型风险库一键实例化, H02 沟通节奏标记已沟通与到期预警, H02 干系人参与态度可选枚举字段, C09 问题逾期预警, C09d 问题阻断级自动升级, H18 受控作废与受控恢复, H18c 归集剔除已作废与级联影响预览, C07f 会议纪要受控发布闭环, C07g 会议受控作废与恢复, 责任人跨类负载预警等用例), 属于本轮全量 PMS 回归 169 tests / 1813 assertions 的组成部分. 新模块 MySQL 及生产验收采用 [验证记录](../verification.md) 的最终结果. 不包含真实外部系统写入, 二进制文件服务或自动应用变更. 所有路径以 `/api/pms/projects/:id/governance` 为前缀. 路由挂在现有 JWT 认证中间件内. 下述字段为明确白名单; 未列字段返回 400.
 
 ## 事务, 权限与读模型
 
@@ -76,7 +76,7 @@
 | POST `/gates/:rid/submit` | 可选 waiver_reason | 通过全部必需检查并附证据, 或以明确理由申请豁免, 进入 in_review |
 | POST `/gates/:rid/decision` | decision: approved/rejected/waived, reason | 独立签核; approved 再次验证证据; waived 必须已有豁免申请理由 |
 | POST `/appointments` | issued_on, note | 服务器读取当前项目成员表生成不可变团队快照任命书, code 固定 APPT, revision 递增, 状态 issued; 客户端不得提交 content 或 snapshot |
-| POST `/stakeholders` | code, name, role, category: internal/external/supplier/customer/regulator, interest: high/medium/low, influence: high/medium/low, 可选 owner_id | 登记 active 干系人首版, code 项目内唯一, 重复返回 409 |
+| POST `/stakeholders` | code, name, role, category: internal/external/supplier/customer/regulator, interest: high/medium/low, influence: high/medium/low, 可选 engagement: unaware/resistant/neutral/supportive/leading, 可选 owner_id | 登记 active 干系人首版, code 项目内唯一, 重复返回 409; engagement 留空则不写该键, 非法取值 400 |
 | POST `/stakeholders/:rid/revisions` | 同上 | 从最新版本派生 active 新内容版本, code 不得改变, 保留 previous_id |
 | POST `/raci` | activity, stakeholder_id, responsibility: R/A/C/I | 为活动指派确定职责; 同活动同干系人不得重复, 同活动至多一个 A; code 固定 RACI:活动:干系人 |
 | POST `/comm-plans` | code, objective, channel: meeting/email/dashboard/report/review, frequency: daily/weekly/biweekly/monthly/quarterly, audience, next_date, 可选 owner_id | 登记 active 沟通计划首版; audience 为 1..50 个不重复同项目有效干系人; code 项目内唯一 |
@@ -141,7 +141,7 @@
 
 干系人, RACI 职责矩阵和沟通计划三类对象复用通用治理存储 `pms_gov_record` (kind 为 `stakeholder`, `raci`, `comm-plan`), 不另建独立表. 三者都是不可变版本记录: 修订以 `previous_id` 回指前一版, `revision` 递增, `code` 项目内唯一且修订不得更改, 陈旧版本上继续修订返回 409.
 
-- 干系人登记分类 (internal/external/supplier/customer/regulator), 角色, 关注度与影响力等级, 可选绑定项目成员责任人 `owner_id`. 状态恒为 `active`.
+- 干系人登记分类 (internal/external/supplier/customer/regulator), 角色, 关注度与影响力等级, 可选当前参与态度 `engagement` (PMBOK 投入度评估矩阵: `unaware`/`resistant`/`neutral`/`supportive`/`leading` 未知晓/抵制/中立/支持/主导), 可选绑定项目成员责任人 `owner_id`. 状态恒为 `active`. `engagement` 为可选枚举: 提供时经 `s/enum!` 校验非法取值 400, 留空则不写该键 (读回为 `nil`), 免迁移随 payload 持久化, 不新增 kind; 修订可改该态度而 `code` 不变. 工作台"干系人识别"台账据此以"参与态度"列彩色中文标签回显, 未设定者显示灰字"未设定".
 - RACI 为具体 `activity` 指派 R/A/C/I 之一. 同一活动同一干系人不得重复指派; 同一活动至多一个负责(A)角色, 违反返回 409. 读模型 `raci_conflicts` 逐活动汇总缺 A 或缺 R 的完整性缺口, 供工作台冲突检查, 不阻止登记本身.
 - 沟通计划维护目标, 渠道, 频率, 1..50 个不重复的同项目有效干系人受众和下次沟通日期, 状态 `active`; 受控修订形成可审计的节奏调整记录. `POST /comm-plans/:rid/meeting` 仅允许最新版本, 从受众干系人已绑定的项目成员去重生成参会人 (无有效成员返回 409), 落库一条 `recorded` 会议并把 `last_meeting_id` 回写到计划, 形成沟通计划到会议的闭环. `held_on` 缺省取计划 `next_date`. `POST /comm-plans/:rid/log` 记录一次实际沟通: `on` 缺省取服务器当天, 服务端按该计划 `frequency` 的既定节奏 (daily/weekly/biweekly/monthly/quarterly 分别顺延 1/7/14/30/90 天) 自动顺延 `next_date`, 写入 `last_communicated_on`, `last_communication_note` 并逐次追加 `communication_log`, 使"沟通节奏可执行并有调整记录"成为本地受控事实; 读模型据此输出 `comm_overdue` 与 `comm_days_until` 供台账到期预警. 该命令另接受可选 `channel` 标注本次实际沟通渠道 (复用 `channels` 枚举 meeting/email/dashboard/report/review), 留空则回退沿用计划自身的默认渠道, 生效值同时写入 `last_communication_channel` 与该条 `communication_log`, 非法渠道 400; 台账"最近沟通方式"列据此以彩色中文标签回显, 免迁移随 payload 持久化, 不新增 kind 也不改变计划默认渠道字段.
 

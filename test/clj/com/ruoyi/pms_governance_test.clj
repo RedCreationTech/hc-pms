@@ -2253,6 +2253,33 @@
     (is (= "monitor" (:stakeholder_quadrant (find-row monitor))))))
 
 
+(deftest stakeholder-engagement-is-optional-enum-persisted
+  (let [id (project!)
+        supporter (command! id :stakeholders :create nil
+                            {:code "SH-EG-1" :name "支持方客户" :role "验收配合" :category "customer"
+                             :interest "high" :influence "high" :engagement "supportive" :owner_id 9301})]
+    ;; 合法参与态度枚举回显并随 payload 持久化, 读模型原样返回.
+    (is (= "supportive" (:engagement supporter)))
+    (is (= "supportive" (:engagement (first (filter #(= (:id supporter) (:id %)) (:stakeholders (workspace id)))))))
+    ;; 未选参与态度则不写入该键, 干系人仍正常创建为 active.
+    (let [plain (command! id :stakeholders :create nil
+                          {:code "SH-EG-2" :name "未标注干系人" :role "观察" :category "internal"
+                           :interest "low" :influence "low" :owner_id 9301})]
+      (is (nil? (:engagement plain)))
+      (is (= "active" (:status plain))))
+    ;; 非法参与态度枚举被白名单校验拒绝.
+    (is (= 400 (error-status #(command! id :stakeholders :create nil
+                                        {:code "SH-EG-3" :name "非法态度" :role "x" :category "external"
+                                         :interest "high" :influence "high" :engagement "champion" :owner_id 9301}))))
+    ;; 修订可改参与态度而旧版本不漂移.
+    (let [revised (command! id :stakeholders :revisions (:id supporter)
+                            {:code "SH-EG-1" :name "支持方客户" :role "验收配合" :category "customer"
+                             :interest "high" :influence "high" :engagement "leading" :owner_id 9301})]
+      (is (= "leading" (:engagement revised)))
+      (is (= 2 (:revision revised)))
+      (is (= "supportive" (:engagement (first (filter #(= (:id supporter) (:id %)) (:stakeholders (workspace id))))))))))
+
+
 (deftest raci-r-load-and-overload-read-model
   (let [id (project!)
         s1 (command! id :stakeholders :create nil

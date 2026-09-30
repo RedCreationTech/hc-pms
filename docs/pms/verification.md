@@ -1206,6 +1206,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 本项是 H02 `implemented / local` 行内的又一个 well-scoped 写路径子能力 (给沟通日志加可选本次实际渠道标注), 不落库到独立列, 不新增 kind/命令/路由/表结构, 不构成任何门控 (渠道为何不阻止任何记录), 也不改变沟通节奏顺延与到期预警语义; 渠道只是给每次沟通留痕打标, 不做按渠道聚合统计/筛选/外部通知投递 (自动提醒投递仍属 H02 待补齐项), 故 H02 整行的外部通知/定时派发边界不变.
 
+## H02 干系人参与态度可选枚举字段 (本轮增补, 2026-09-30)
+
+设计与口径: H02 干系人识别此前只登记分类 / 角色 / 关注度 / 影响力, 缺少 PMBOK 投入度评估矩阵所要求的"当前参与态度"这一维度, 无法表达"这个干系人现在对项目的态度是未知晓 / 抵制 / 中立 / 支持 / 主导". 本项给 `stakeholder-fields!` 这条用户写路径补一个可选参与态度枚举字段, 免迁移 / 免新 kind / 免新命令 / 免新路由 / 不构成门控: 在 `governance.stakeholders` 新增枚举集合 `engagement-levels #{"unaware" "resistant" "neutral" "supportive" "leading"}`; `s/input!` 白名单追加 `:engagement`, 用 `cond->` 仅在 `(:engagement body)` 存在时 `(assoc :engagement (s/enum! ...))` — 提供则校验枚举 (非法取值走真实 HTTP 400), 留空则完全不写该键 (读回 `nil`), 因此既有仅传 code/name/role/category/interest/influence/owner_id 的旧用例行为不变 (零回归); 修订可改态度而 `code` 不变 (沿用不可变版本 `revise-stakeholder!` 的 code 守卫与 revision 递增). 前端"登记干系人"对话框 (`governance_forms.cljs stakeholder-dialog`) 在"影响力"字段后新增 `:type :select` 参与态度下拉 (未知晓/抵制/中立/支持/主导, 提示"留空则不设定当前参与态度") 并在 `:transform` 里把空串/`nil` `dissoc` 掉避免发送 `""`; 干系人台账 (`governance.cljs stakeholder-section`) 在"影响力"列后新增"参与态度"列, 以彩色中文标签回显 `engagement` (抵制=红, 中立=蓝, 支持=绿, 主导=金, 未知晓=默认), 未设定者显灰字"未设定". 字段随 `stakeholder` payload JSON 持久化, 复用既有 `store/change!` 的 merge 语义, 无需任何 DDL.
+
+| 证据 | 实际记录 |
+|---|---|
+| 治理单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 78 tests / 1047 assertions, 0 failures/errors (新增 `stakeholder-engagement-is-optional-enum-persisted`: 建带 `:engagement "supportive"` 的干系人 -> 断言结果 `:engagement` 为 `"supportive"` 且 `workspace` 回显一致; 建不带态度的干系人 -> `:engagement` 为 `nil` 且状态仍 `active`; `:engagement "champion"` 非法取值 -> `error-status` 400; 对 supportive 者发 `:engagement "leading"` 修订 -> 新版 `:engagement` 为 `"leading"` 且 `:revision` 为 2, 而原版仍回显 `"supportive"` 不漂移) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 183 tests / 2014 assertions, 0 failures/errors, `stakeholder-fields!` 白名单与 `cond->` 值存在性判定追加 `:engagement` 未造成既有干系人登记 / 权力-利益象限 / RACI 指派 / 沟通受众 / 作废恢复回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 warnings (增量, 与既有干系人台账共享产物) |
+| HTTP 合同 (契约) | `contracts/governance.md` 的 `POST /stakeholders` 路由行与"干系人, RACI与沟通计划"段更新: 新增可选 `engagement` 入参枚举 unaware/resistant/neutral/supportive/leading, 留空不写该键回退未设定, 非法取值 400, 修订可改态度而 code 不变, 台账"参与态度"列彩色回显, 明确不新增 kind/命令/路由/表结构 / 不构成门控 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-h02eg.spec.js` 1 passed, 无未捕获 JS 错误: 界面"登记干系人"选"支持" (截图 h02eg-1-dialog-engagement.png 显示对话框"参与态度(可选)"下拉选中"支持"且提示"留空则不设定当前参与态度") -> 命令响应回显 `engagement="supportive"`; 再登记一条选"抵制"回显 `resistant`, 一条不选回显 `null`; 台账"参与态度"列分别以彩色标签回显"支持"/"抵制"与灰字"未设定" (截图 h02eg-2-ledger-engagement.png 元素级表格截图); 真实 HTTP 对支持方发 `engagement "leading"` 修订 -> 台账新增一行 rev2 显金色"主导"而旧行仍"支持" (截图 h02eg-3-ledger-leading.png); 真实 HTTP GET governance 二次确认三条 `engagement` 分别为 `supportive`/`resistant`/`null`; 真实 HTTP POST `/governance/stakeholders` 带非法 `engagement "champion"` 返回 400; 每次写命令前重新打开页签刷新 `project_version` 规避乐观锁 409, `choose` 助手在点击前 `expect(option).toBeVisible()` 防 typeahead 竞态; 截图存 `reports/h02eg/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL, 参与态度随 `pms_gov_record` 的 `stakeholder` payload JSON 持久化无需建表或加列); 枚举合法性与留空回退语义由后端 SQLite 用例确定性覆盖, 浏览器侧核验界面可见的下拉选择, 台账"参与态度"列着色与未设定回退, 修订不漂移及非法取值的真实 HTTP 400.
+
+边界: 本项是 H02 `implemented / local` 行内的又一个 well-scoped 写路径子能力 (给干系人加可选参与态度标注), 不落库到独立列, 不新增 kind/命令/路由/表结构, 不构成任何门控 (态度为何不阻止任何记录), 也不改变权力-利益象限, RACI 负载与沟通受众语义; 参与态度只是给干系人打标, 不做按态度聚合的投入度评估矩阵统计/筛选 (该 portfolio 级汇总面板仍属待补齐项), 故 H02 整行的外部通知/定时派发边界不变.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.
