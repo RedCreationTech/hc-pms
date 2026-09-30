@@ -1158,6 +1158,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 本项是 C09 `implemented / local` 行内的又一个 well-scoped 只读子能力 (把逐条问题升级的独立确认处置状态提升为项目级闭环健康度汇总), 不改变不可变版本, 不新增任何写路径或门控, 也不改变既有 `escalate` 门控语义; 汇总只反映升级与确认状态推进到哪一步, 不等于处置本身是否到位或问题是否已解决, 也不做升级通知的外部投递 (投递仍属 C11 待办).
 
+## C07 会议纪要发布覆盖度只读面板 (本轮增补, 2026-09-30)
+
+设计与口径: 承接既有 C07f 纪要受控发布闭环 (recorded 提交 -> in_review -> approved 批准归档, 及 C07g 的 discarded 受控作废), 界面此前只在会议台账逐条以"草稿 / 发布审批中 / 已发布 / 已作废"徽标回显单条纪要发布状态, 但没有一处把跨全部会议的发布推进聚合成一眼可读的项目级汇总 (与刚交付的"会议行动闭环率"面板为同套路的发布侧姊妹项). 本项补齐这一只读派生洞察, 免迁移 / 免新 kind / 免新命令 / 免新路由 / 不构成门控: 新增纯函数 `governance.collaboration/meeting-release-coverage` 复用 `store/latest` 以每个 `code` 的最新有效版本为统计单位对会议聚合, 按 `:status` 计数输出整数键 `total` / `approved` / `in-review` / `recorded` / `discarded` 与 `release-pct`, 键名不带尾随 `?`; 发布率 `release-pct = approved / (total - discarded)` 四舍五入整数 (分母刻意排除已作废会议使误登记的作废纪要不拖低发布率, 分母为 0 时给 0); `governance.clj` workspace 以 `:meeting_release_coverage` 暴露 (紧邻 `:action_closure`); 前端"会议行动"页签在会议台账与"会议行动闭环率"面板之间新增 `governance/meeting-release-coverage-section` "会议纪要发布覆盖度"面板, 以蓝色"会议总数 N" / 绿·金·红"已发布 P% (approved/denom)" / 橙色"发布审批中 N" / 灰色"草稿 N" / 红色"已作废 N"标签回显 (计数为 0 的状态标签不渲染), 无会议时给出占位提示.
+
+| 证据 | 实际记录 |
+|---|---|
+| 治理单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 75 tests / 1023 assertions, 0 failures/errors (新增 `meeting-release-coverage-is-derived-read-only`: 命令登记四条会议覆盖四态 -> 草稿保持 recorded, 提交在办转 in_review, 提交并批准转 approved, recorded 直接作废转 discarded -> 断言汇总 `total 4` / `approved 1` / `in-review 1` / `recorded 1` / `discarded 1` / `release-pct 33` (分母 3 排除已作废); 批准在办后 `in-review 0` / `approved 2` / `release-pct 67`; 再作废草稿后 `recorded 0` / `discarded 2` / `release-pct 100` (分母收缩为 2); 两次读 `meeting_release_coverage` 结果相等 (只读派生不漂移); 已发布会议行 `status` 仍 approved, 作废会议行 `status` 仍 discarded) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 180 tests / 1990 assertions, 0 failures/errors, workspace 新增 `:meeting_release_coverage` 未造成既有纪要发布闭环 / 会议作废恢复 / 行动闭环 / 治理回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 warnings (增量, 与既有会议面板共享产物) |
+| HTTP 合同 (契约) | `contracts/governance.md` 新增"会议纪要发布覆盖度只读汇总面板 `meeting_release_coverage` (C07 延伸)"段: 纯函数按 latest 会议聚合的整数键与"分母排除已作废"的发布率口径, 前端只读面板与着色, 明确不写存储 / 不新增 kind/命令/路由/表结构 / 不构成门控 / 不改变既有发布状态机语义 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-c07mrc.spec.js` 1 passed, 无未捕获 JS 错误: 界面登记四条会议 (周例会草稿 / 设计评审在办 / 需求基线发布 / 重复登记作废) 推进到四种发布态 -> "会议纪要发布覆盖度"面板显示"会议总数 4 / 已发布 33% (1/3) / 发布审批中 1 / 草稿 1 / 已作废 1" (截图 c07mrc-1-four-states.png); 真实 HTTP GET governance 回显 `meeting_release_coverage` 各字段一致 (`total 4`/`approved 1`/`in-review 1`/`recorded 1`/`discarded 1`/`release-pct 33`); 由登记人之外的独立质量审批人第二真实浏览器上下文批准在办纪要 -> 面板升到"已发布 67% (2/3)"且"发布审批中"消失 (截图 c07mrc-2-second-published.png); 登记人再受控作废草稿 -> 分母收缩升到"已发布 100% (2/2) / 已作废 2"且"草稿"消失 (截图 c07mrc-3-full-release.png); 真实 HTTP GET governance 二次确认 `approved 2`/`discarded 2`/`recorded 0`/`in-review 0`/`release-pct 100`, 已发布会议仍 `approved`、已作废会议仍 `discarded`、草稿作废后为 `discarded` 不漂移; 每次写命令前重新打开页签刷新 `project_version` 规避乐观锁 409, 面板断言以 `panel(page, '会议纪要发布覆盖度')` heading 精确过滤作用域定位, 负向断言用 `/发布审批中\s*\d/` 与 `/草稿\s*\d/` 匹配数字标签以避开面板描述文案中的同名单词, 逐条截图用 `scrollIntoViewIfNeeded` + 元素级 `screenshot` 规避抽屉内部滚动折叠; 截图存 `reports/c07mrc/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL, 汇总只读派生复用既有 `pms_gov_record` 会议 payload 的发布状态字段无需建表); 汇总数字的正确性由后端 SQLite 用例确定性覆盖, 浏览器侧核验界面可见的汇总面板标签在独立批准与受控作废过程中的真实翻转 (发布率 33% -> 67% -> 100%).
+
+边界: 本项是 C07 `partial` 行内的又一个 well-scoped 只读子能力 (把逐条纪要发布状态提升为项目级发布健康度汇总), 不改变不可变版本, 不新增任何写路径或门控, 也不改变既有纪要发布/作废状态机语义; 发布覆盖度只反映各会议最新版本处于哪个发布状态, 不等于纪要内容质量或结论是否已落实, 亦不做发布进度漏斗或通知投递 (投递仍属 C11 待办), 故 C07 整行保持 `partial`.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

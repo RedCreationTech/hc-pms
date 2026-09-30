@@ -687,3 +687,24 @@
      :closure-pct (if (pos? total)
                     (int (Math/round ^double (* 100.0 (/ closed total))))
                     0)}))
+
+
+(defn meeting-release-coverage
+  "按每个会议最新有效版本只读聚合纪要发布进度: 会议总数/已发布/审批中/草稿/已作废及发布率(分母排除已作废); 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
+  [meetings]
+  (let [active (s/latest meetings)
+        total (count active)
+        status-count (fn [x] (count (filterv #(= x (:status %)) active)))
+        approved (status-count "approved")
+        in-review (status-count "in_review")
+        recorded (status-count "recorded")
+        discarded (status-count "discarded")
+        denom (- total discarded)]
+    {:total total
+     :approved approved
+     :in-review in-review
+     :recorded recorded
+     :discarded discarded
+     :release-pct (if (pos? denom)
+                    (int (Math/round ^double (* 100.0 (/ approved denom))))
+                    0)}))

@@ -115,6 +115,7 @@
                           :risk_escalation_summary (collab/risk-escalation-disposition-summary (:risks data))
                           :issue_escalation_summary (collab/issue-escalation-disposition-summary (:issues data))
                           :action_closure (collab/action-closure-summary (:actions data))
+                          :meeting_release_coverage (collab/meeting-release-coverage (:meetings data))
                           :gate_progress (gates/gate-progress (:gate_templates data) (:gates data))
                           :gate_catalog (mapv #(select-keys % [:gate_type :title :stage :page :blocks]) catalog/gate-types)
                           :risk_library collab/risk-library))))))

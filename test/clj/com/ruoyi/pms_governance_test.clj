@@ -1896,6 +1896,44 @@
       (is (= "open" (:status row))))))
 
 
+(deftest meeting-release-coverage-is-derived-read-only
+  (let [id (project!)
+        cov (fn [] (:meeting_release_coverage (workspace id)))
+        mk (fn [title] (command! id :meetings :create nil
+                                 {:title title :held_on "2026-09-12" :minutes "形成结论" :attendee_ids [9301 9302]}))
+        draft (mk "阶段评审会")
+        pending (mk "整改例会")
+        published (mk "设计评审会")
+        voided (mk "误登记的重复会议")]
+    ;; draft 留 recorded; pending 提交进 in_review; published 提交并批准进 approved; voided 作废进 discarded.
+    (command! id :meetings :submit (:id pending) {:reviewer_id 9302})
+    (command! id :meetings :submit (:id published) {:reviewer_id 9302})
+    (command! 9302 id :meetings :decision (:id published) {:decision "approved" :reason "纪要完整可归档"})
+    (command! id :meetings :discard (:id voided) {:reason "误登记的重复会议"})
+    ;; 发布率分母排除已作废: approved 1 / (4-1)=33%; 四态各一.
+    (is (= 4 (:total (cov))))
+    (is (= 1 (:recorded (cov))))
+    (is (= 1 (:in-review (cov))))
+    (is (= 1 (:approved (cov))))
+    (is (= 1 (:discarded (cov))))
+    (is (= 33 (:release-pct (cov))))
+    ;; 独立审批人批准 pending -> approved 加一, in_review 归零, 发布率升到 2/3=67%.
+    (command! 9302 id :meetings :decision (:id pending) {:decision "approved" :reason "补充后通过"})
+    (is (= 0 (:in-review (cov))))
+    (is (= 2 (:approved (cov))))
+    (is (= 67 (:release-pct (cov))))
+    ;; 作废 draft -> discarded 加一, recorded 归零, 分母降到 2, 发布率升到 100%.
+    (command! id :meetings :discard (:id draft) {:reason "确认无需保留"})
+    (is (= 0 (:recorded (cov))))
+    (is (= 2 (:discarded (cov))))
+    (is (= 2 (:approved (cov))))
+    (is (= 100 (:release-pct (cov))))
+    ;; 只读派生不改变会议状态: 重复读取汇总稳定, 已发布会议仍为 approved 不漂移.
+    (is (= (cov) (:meeting_release_coverage (workspace id))))
+    (let [row (first (filter #(= (:id published) (:id %)) (:meetings (workspace id))))]
+      (is (= "approved" (:status row))))))
+
+
 (deftest risk-mitigation-materializes-tracked-prevention-action
   (let [id (project!)
         risk (command! id :risks :create nil

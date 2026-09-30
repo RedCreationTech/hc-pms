@@ -884,6 +884,32 @@
           [antd/tag {:color "geekblue"} (str "转任务 " converted)])])]))
 
 
+(defn- meeting-release-coverage-section
+  "按每个会议最新有效版本只读聚合纪要发布进度: 会议总数/已发布/审批中/草稿/已作废及发布率(分母排除已作废); 只读派生, 不改变会议状态, 不构成门控."
+  [{:keys [model]}]
+  (let [cov (:meeting_release_coverage model)
+        total (:total cov 0)
+        approved (:approved cov 0)
+        in-review (:in-review cov 0)
+        recorded (:recorded cov 0)
+        discarded (:discarded cov 0)
+        pct (:release-pct cov 0)
+        denom (- total discarded)]
+    [shared/panel "会议纪要发布覆盖度" "统计每个会议最新有效版本的纪要发布进度(草稿/发布审批中/已发布/已作废); 发布率分母排除已作废会议; 只读派生, 不改变会议发布状态"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无会议, 登记项目会议并提交发布后可在此查看发布覆盖度."]
+       [antd/space {:wrap true}
+        [antd/tag {:color "blue"} (str "会议总数 " total)]
+        [antd/tag {:color (cond (= pct 100) "green" (zero? pct) "red" :else "gold")}
+         (str "已发布 " pct "% (" approved "/" denom ")")]
+        (when (pos? in-review)
+          [antd/tag {:color "orange"} (str "发布审批中 " in-review)])
+        (when (pos? recorded)
+          [antd/tag {:color "default"} (str "草稿 " recorded)])
+        (when (pos? discarded)
+          [antd/tag {:color "red"} (str "已作废 " discarded)])])]))
+
+
 (defn- action-section
   "会议行动转为实际WBS任务, 完成须证据与独立核验并提示逾期; 已关闭行动可受控重开."
   [{:keys [base model editable? open!] :as context}]
@@ -1146,7 +1172,7 @@
                      ["stakeholders" "干系人与沟通" [stakeholder-section raci-section comm-plan-section]]
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-escalation-section issue-section issue-escalation-section]]
-                     ["meetings" "会议行动" [meeting-section action-closure-section action-section]]
+                     ["meetings" "会议行动" [meeting-section meeting-release-coverage-section action-closure-section action-section]]
                      ["changes" "变更控制" [change-section]]
                      ["quality" "DQ与局部暂停" [dq-section pause-section]]])}])
 
