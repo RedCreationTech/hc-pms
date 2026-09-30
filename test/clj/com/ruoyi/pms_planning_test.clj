@@ -393,3 +393,48 @@
         (is (false? (:scope_leaf (find-task "1"))))
         (is (= v-before (version id)))
         (is (= v-before (:project_version model)))))))
+
+
+(deftest baseline-schedule-variance-is-derived-read-only
+  (testing "无已批准基线时 available=false 且不逐任务标注"
+    (let [id (project!) task (task! id "A" 2) model (plan/read-plan *svc* (actor 9201) id)]
+      (is (false? (get-in model [:baseline_variance :available])))
+      (is (nil? (:baseline_state (first (filter #(= (:task_id task) (:task_id %)) (:tasks model))))))))
+  (testing "批准基线且设计未变时逐任务 on_baseline, 汇总计数一致"
+    (let [id (project!) task (task! id "A" 3)
+          submitted (:result (command! plan/submit-plan! id [] {:comment "初版"}))
+          _ (approve-plan! id (:baseline_id submitted))
+          model (plan/read-plan *svc* (actor 9201) id)
+          summary (:baseline_variance model)
+          row (first (filter #(= (:task_id task) (:task_id %)) (:tasks model)))]
+      (is (true? (:available summary)))
+      (is (= (:baseline_id submitted) (:baseline_id summary)))
+      (is (= 1 (:baseline_revision summary)))
+      (is (= "on_baseline" (:baseline_state row)))
+      (is (= 0 (:baseline_finish_variance row)))
+      (is (= 0 (:baseline_start_variance row)))
+      (is (= 1 (:total summary)))
+      (is (= 1 (:on-baseline summary)))
+      (is (= 0 (:behind summary)))
+      (is (= 0 (:worst-finish-slip summary)))))
+  (testing "延长工期使完成日延后为 behind, 新增任务标注 added, 只读不改版本"
+    (let [id (project!) task (task! id "A" 3)
+          submitted (:result (command! plan/submit-plan! id [] {:comment "初版"}))
+          _ (approve-plan! id (:baseline_id submitted))
+          _ (command! plan/update-task! id [(:task_id task)] {:duration_days 5})
+          c (task! id "C" 2)
+          v-before (version id)
+          model (plan/read-plan *svc* (actor 9201) id)
+          summary (:baseline_variance model)
+          row-a (first (filter #(= (:task_id task) (:task_id %)) (:tasks model)))
+          row-c (first (filter #(= (:task_id c) (:task_id %)) (:tasks model)))]
+      (is (= "behind" (:baseline_state row-a)))
+      (is (pos? (:baseline_finish_variance row-a)))
+      (is (= "added" (:baseline_state row-c)))
+      (is (nil? (:baseline_finish_variance row-c)))
+      (is (= 2 (:total summary)))
+      (is (= 1 (:behind summary)))
+      (is (= 1 (:added summary)))
+      (is (= (:baseline_finish_variance row-a) (:worst-finish-slip summary)))
+      (is (= v-before (version id)))
+      (is (= v-before (:project_version model))))))

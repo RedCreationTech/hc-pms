@@ -10,7 +10,9 @@
             [com.ruoyi.domain.pms.planning.store :as store]
             [com.ruoyi.domain.pms.planning.capacity :as capacity])
   (:import [java.security MessageDigest]
-           [java.math BigInteger]))
+           [java.math BigInteger]
+           [java.time LocalDate]
+           [java.time.temporal ChronoUnit]))
 
 (defn- canonical
   "稳定排序快照键并统一数字表示,消除数据库数值类型差异."
@@ -165,3 +167,56 @@
                                  :before (get before field) :after (get after field)})) [:calendar :schedule])))]
     {:baseline_id baseline-id :baseline_revision (:plan_revision record)
      :current_revision (:revision (store/plan q project)) :changed (boolean (seq changes)) :changes changes}))
+
+(defn- latest-approved
+  "从基线列表 (按 plan_revision 降序) 取最新一条已批准基线, 无则返回 nil."
+  [baselines]
+  (first (filter #(= "approved" (:status %)) baselines)))
+
+(defn- date-slip
+  "当前日期相对基线日期的日历天差 (当前在基线之后为正, 表示延后)."
+  [base-date current-date]
+  (int (.between ChronoUnit/DAYS (LocalDate/parse (str base-date)) (LocalDate/parse (str current-date)))))
+
+(defn- schedule-by-task
+  "把一份排程结果按 task_id 索引, 仅保留基线偏差比较所需的日期."
+  [schedule]
+  (into {} (map (juxt :task_id #(select-keys % [:start_date :end_date]))) (:tasks schedule)))
+
+(defn- task-variance
+  "单个当前排程任务相对基线排程的只读偏差: added 表示基线中不存在该任务, 否则按完成日期
+   日历天差给出 behind (延后)/ahead (提前)/on_baseline (持平); 只读派生, 键名不带尾随问号."
+  [base-by-task row]
+  (let [id (:task_id row) base (get base-by-task id)]
+    (if-not base
+      {:task_id id :baseline_state "added" :baseline_start_variance nil :baseline_finish_variance nil}
+      (let [sv (date-slip (:start_date base) (:start_date row))
+            fv (date-slip (:end_date base) (:end_date row))
+            state (cond (pos? fv) "behind" (neg? fv) "ahead" :else "on_baseline")]
+        {:task_id id :baseline_state state :baseline_start_variance sv :baseline_finish_variance fv}))))
+
+(defn variance
+  "只读派生任务级基线进度偏差: 取最新一条已批准基线冻结排程与当前设计排程逐任务比较, 输出
+   按 task_id 索引的 :by-task 偏差 map 与汇总 :summary (available/baseline_id/baseline_revision/
+   total/on-baseline/behind/ahead/added/worst-finish-slip). 无已批准基线时返回 {:available false}.
+   只读派生, 不落库不门控不投递, 键名不带尾随问号."
+  [q project baselines current-snapshot]
+  (if-let [approved (latest-approved baselines)]
+    (let [base-sched (:schedule (:snapshot (record! q project (:baseline_id approved))))
+          base-by-task (schedule-by-task base-sched)
+          rows (mapv #(task-variance base-by-task %) (:tasks (:schedule current-snapshot)))
+          by-task (into {} (map (juxt :task_id #(dissoc % :task_id)) rows))
+          states (frequencies (map :baseline_state rows))
+          slips (remove nil? (map :baseline_finish_variance rows))]
+      {:available true
+       :by-task by-task
+       :summary {:available true
+                 :baseline_id (:baseline_id approved)
+                 :baseline_revision (:plan_revision approved)
+                 :total (count rows)
+                 :on-baseline (get states "on_baseline" 0)
+                 :behind (get states "behind" 0)
+                 :ahead (get states "ahead" 0)
+                 :added (get states "added" 0)
+                 :worst-finish-slip (apply max 0 slips)}})
+    {:available false :by-task {} :summary {:available false}}))

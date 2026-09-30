@@ -34,6 +34,18 @@
                       (when (< 0 (or (aget row "scope_verifies_count") 0))
                         [antd/tag {:color "cyan"} (str "验证 " (aget row "scope_verifies_count"))])]
                      [antd/tag {:color "orange"} "未覆盖"]))))}
+     {:title "基线偏差" :key "bvar" :width 180
+      :render (fn [_ row]
+                (let [st (aget row "baseline_state")
+                      fv (aget row "baseline_finish_variance")]
+                  (r/as-element
+                   (if-not st
+                     [antd/tag {:color "default"} "无基线"]
+                     [:span {:style {:display "inline-flex" :gap 4}}
+                      [antd/tag {:color (case st "behind" "red" "ahead" "green" "added" "orange" "blue")}
+                       (get {"behind" "延后" "ahead" "提前" "added" "新增" "on_baseline" "持平"} st st)]
+                      (when (and (= "behind" st) (number? fv) (pos? fv))
+                        [antd/tag {:color "red"} (str "+" fv " 天")])]))))}
      {:title "节点" :dataIndex "node_id" :width 130 :render #(w/related-label (:nodes model) :node_id :node_code %)}
      {:title "阶段" :dataIndex "stage_code" :width 110 :render shared/display-value}
      (w/text-column :owner_name "责任人") (w/text-column :duration_days "工作日")
@@ -64,6 +76,29 @@
       [antd/tag {:color (if (pos? uncovered) "orange" "default")} (str "未覆盖 " uncovered)]
       (when (seq codes)
         [:span {:style {:color "#718096"}} (str "未覆盖 WBS: " (str/join ", " codes))])]]))
+
+(defn- baseline-variance-section
+  "与最新已批准计划基线冻结排程逐任务只读比较的进度偏差汇总, 仅提示偏移, 不门控保存与提交."
+  [{:keys [model]}]
+  (let [v (:baseline_variance model)
+        total (or (:total v) 0)
+        on (or (:on-baseline v) 0)
+        behind (or (:behind v) 0)
+        ahead (or (:ahead v) 0)
+        added (or (:added v) 0)
+        worst (or (:worst-finish-slip v) 0)]
+    [shared/panel "基线进度偏差" "取最新已批准计划基线冻结排程与当前排程逐任务只读比较; 完成日延后计延后, 基线中不存在的任务计新增; 只读派生, 不阻断保存与提交"
+     (if-not (:available v)
+       [antd/tag {:color "default"} "尚无已批准计划基线"]
+       [:div {:style {:display "flex" :gap 12 :alignItems "center" :flexWrap "wrap"}}
+        [antd/tag {:color "blue"} (str "任务 " total)]
+        [antd/tag {:color "green"} (str "持平 " on)]
+        [antd/tag {:color (if (pos? behind) "red" "default")} (str "延后 " behind)]
+        [antd/tag {:color (if (pos? ahead) "cyan" "default")} (str "提前 " ahead)]
+        [antd/tag {:color (if (pos? added) "orange" "default")} (str "新增 " added)]
+        [antd/tag {:color (if (pos? worst) "red" "default")} (str "最大完成延后 " worst " 天")]
+        (when-let [rev (:baseline_revision v)]
+          [:span {:style {:color "#718096"}} (str "基线修订 " rev)])])]))
 
 (defn- dependency-section
   "展示四类任务依赖与工作日间隔."
@@ -196,7 +231,7 @@
       (when-let [spi (get-in model [:earned_value :spi])] [antd/tag {:color (if (< spi 0.9) "red" "blue")} (str "SPI " spi)])]
      [antd/tabs {:items
                   [{:key "wbs" :label "WBS与排程" :children (r/as-element [:div {:style {:display "grid" :gap 20}}
-                                                                          [scope-coverage-section context] [task-section context] [dependency-section context] [views/gantt model]])}
+                                                                          [baseline-variance-section context] [scope-coverage-section context] [task-section context] [dependency-section context] [views/gantt model]])}
                    {:key "resources" :label "资源与日历" :children (r/as-element [:div {:style {:display "grid" :gap 20}}
                                                                                 [resource-section context] [allocation-section context]
                                                                                 [calendar-section context] [views/overloads model]])}

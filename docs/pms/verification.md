@@ -1222,6 +1222,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 本项是 H02 `implemented / local` 行内的又一个 well-scoped 写路径子能力 (给干系人加可选参与态度标注), 不落库到独立列, 不新增 kind/命令/路由/表结构, 不构成任何门控 (态度为何不阻止任何记录), 也不改变权力-利益象限, RACI 负载与沟通受众语义; 参与态度只是给干系人打标, 不做按态度聚合的投入度评估矩阵统计/筛选 (该 portfolio 级汇总面板仍属待补齐项), 故 H02 整行的外部通知/定时派发边界不变.
 
+## H04 任务级基线进度偏差只读派生 (本轮增补, 2026-09-30)
+
+设计与口径: H04 排程与关键路径此前已具备四类依赖 / 工作日历 / 浮动 / 关键路径 / 不可变基线, 以及节点级按工作日整体重排而不改写原基线, 但矩阵业务闭环明确要求"展示基线偏差", 而计划工作台只呈现当前排程与挣值, 缺少"当前排程相对已批准基线逐任务偏移了多少"这一视角. 本项在 `planning.baseline` 新增只读派生纯函数 `variance`: 取 `store/rows :planning/baselines` 中最新一条 `status="approved"` 的基线, 经 `record!` 解析其 `snapshot_json` 得到冻结排程 `(:schedule (:snapshot rec))`, 与 `store/snapshot` 的当前排程 `(:schedule current-snapshot)` 逐任务比较; 用 `java.time` `(.between ChronoUnit/DAYS ...)` 计算完成日日历天差 (正=延后 behind, 负=提前 ahead, 零=持平 on_baseline), 基线中不存在的当前任务标 `added`; 输出按 `task_id` 索引的 `:by-task` 偏差 map 与项目级 `:summary` (available / baseline_id / baseline_revision / total / on-baseline / behind / ahead / added / worst-finish-slip). `planning/read-plan` 用 `(merge % (get (:by-task bvar) (:task_id %) {}))` 把逐任务键 `baseline_state` / `baseline_start_variance` / `baseline_finish_variance` 富化进 `:tasks`, 并在 merge 结果暴露 `:baseline_variance (:summary bvar)`. 键名不带尾随 `?` 以免序列化为 JSON 字面键. 免迁移 / 免新 kind / 免新命令 / 免新路由 / 不构成任何门控 (偏差只读呈现, 既不阻断编辑也不阻断提交冻结). 前端 `planning.cljs` 在 WBS 台账"范围覆盖"列后新增"基线偏差"列 (延后=红并附 `+N 天`, 提前=绿, 持平=蓝, 新增=橙, 无已批准基线=灰"无基线"), 并在 WBS与排程页签顶部新增"基线进度偏差"汇总面板 (任务/持平/延后/提前/新增/最大完成延后/基线修订, 无基线时显"尚无已批准计划基线").
+
+| 证据 | 实际记录 |
+|---|---|
+| 计划单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-planning-test'` 通过 13 tests / 119 assertions, 0 failures/errors (新增 `baseline-schedule-variance-is-derived-read-only`: 无已批准基线 -> `:available` 为 `false` 且 `:by-task` 为空; 批准基线且排程未漂移 -> 逐任务 `baseline_state` 为 `on_baseline`, `baseline_finish_variance` 为 0, summary `total` 1 / `on-baseline` 1; 批准后再延长任务A工期使其完成日晚于基线并新增基线外任务C -> A 为 `behind` 且 `worst-finish-slip` 等于 A 的正偏差, C 为 `added`, summary `total` 2 / `behind` 1 / `added` 1, 且 `read-plan` 前后 `project_version` 不漂移证明纯读不落库) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 184 tests / 2036 assertions, 0 failures/errors; `read-plan` 逐任务 merge 与 `:baseline_variance` 暴露未造成既有排程 / 关键路径 / 挣值 / 范围覆盖 / 重排保留基线回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 warnings (与既有 WBS 台账与范围覆盖面板共享产物) |
+| HTTP 合同 (契约) | `contracts/planning.md` 的 `GET /planning` 读模型更新: 新增只读派生 `baseline_variance` 汇总 (available/baseline_id/baseline_revision/total/on-baseline/behind/ahead/added/worst-finish-slip) 与逐任务 `baseline_state`/`baseline_start_variance`/`baseline_finish_variance`; 明确取最新已批准基线冻结排程与当前排程逐任务比较, 免迁移/免新命令/不构成门控 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-h04bv.spec.js` 1 passed (49.0s), 无未捕获 JS 错误: 建两条叶任务 A(工期2)/B(工期3) -> admin 界面"提交计划审批"冻结 -> 独立审核人 (`pms:plan:approve` 角色 + 第二真实上下文) 经 `/planning/baselines/{id}/review` 批准基线 -> 延长任务A工期至 9 使完成日晚于基线 -> PUT 任务, 界面新增任务C -> 面板回显"任务 3 / 持平 1 / 延后 1 / 提前 0 / 新增 1 / 最大完成延后 9 天 / 基线修订 2" (截图 h04bv-1-panel.png), WBS"基线偏差"列分别显 A"延后 +9 天"(红), B"持平"(蓝), C"新增"(橙) (截图 h04bv-2-columns.png); 真实 HTTP GET `/planning` 二次确认 `baseline_variance` summary total 3 / behind 1 / added 1 / on-baseline 1 / worst-finish-slip>0 且逐任务 `baseline_state` 为 behind/on_baseline/added, A 的 `baseline_finish_variance`>0, C 为 `null`; 空态: 新项目有任务但无已批准基线 -> 面板"尚无已批准计划基线" 且列"无基线" (截图 h04bv-3-empty.png); 截图存 `reports/h04bv/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL, 偏差为读取时对已批准基线 `snapshot_json` 与当前 `store/snapshot` 排程的纯函数比较, 不落任何新表/列); behind/ahead/on_baseline/added 判定与汇总计数由后端 SQLite 用例确定性覆盖, 浏览器侧核验界面可见的面板徽标与逐任务列着色, 服务端回显一致及空态回退.
+
+边界: H04 整行此前已为 `implemented / local`, 本项是补齐该行既有业务闭环描述中"展示基线偏差"这一子能力的只读派生实现, 不新增写路径/kind/命令/路由/表结构, 不构成任何门控 (偏差不阻止任何编辑或提交冻结), 也不改写不可变基线; 偏差口径 (以完成日日历天差衡量, 不引入成本基线偏差) 与关键路径/浮动/偏差的业务批准口径及全订单真实试点仍属待补齐项, 故不据此提升任何 `partial` 行.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

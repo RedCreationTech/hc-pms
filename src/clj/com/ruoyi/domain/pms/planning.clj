@@ -22,13 +22,15 @@
       (let [plan (store/plan q project) snapshot (store/snapshot q project)
             baselines (store/rows q project :planning/baselines)
             current (first (filter #(= (:revision plan) (:plan_revision %)) baselines))
+            bvar (baseline/variance q project baselines snapshot)
             raw-tasks (store/rows q project :planning/tasks)
             paused (quality/paused-node-ids q project)
             traces (governance/records q project "trace")
             traces-by-task (group-by :target_id (filterv #(= "task" (:target_kind %)) traces))
-            tasks (mapv #(tasks/scope-read-model traces-by-task
-                             (assoc % :node_paused (boolean (some->> (progress/task-node raw-tasks %) (contains? paused)))))
-                        raw-tasks)
+            tasks (mapv #(merge % (get (:by-task bvar) (:task_id %) {}))
+                        (mapv #(tasks/scope-read-model traces-by-task
+                                 (assoc % :node_paused (boolean (some->> (progress/task-node raw-tasks %) (contains? paused)))))
+                            raw-tasks))
             nodes (vec (q :pms/nodes {:project_id (:project_id project)}))
             stages (network/effective-stages q project)
             today (str (java.time.LocalDate/now))
@@ -44,6 +46,7 @@
                 :node_pauses (governance/records q project "node-pause")
                 :paused_node_ids (vec paused)
                 :scope_coverage (tasks/scope-coverage raw-tasks traces)
+                :baseline_variance (:summary bvar)
                 :progress_rollup (assoc (progress/rollup tasks nodes stages) :source (network/stage-weight-source q project))
                 :plan_conflicts (network/conflicts raw-tasks (:schedule snapshot) nodes)
                 :earned_value evm :performance_variances variances

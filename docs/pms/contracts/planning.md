@@ -32,6 +32,8 @@
 
 `tasks[].scope_*` 与 `scope_coverage` (H03 范围基线覆盖性审查) 读取时按需求 satisfies 追踪链派生, 不落库, 不构成任何门控: 叶节点定义为非汇总任务 (`task` / `milestone`), 汇总节点标 `scope_leaf=false` 且不进入覆盖分母; 每条指向该任务的 `trace` (target_kind=task) 计入 `scope_trace_count`, 其中 `relation=satisfies` 计入 `scope_satisfies_count`, `relation=verifies` 计入 `scope_verifies_count`; 只要 `scope_satisfies_count>0` 即 `scope_covered=true` (verifies 只标注不计覆盖). 项目级 `scope_coverage` 返回 `total-leaves / covered-leaves / uncovered-leaves / coverage-pct (covered/total 四舍五入整数百分比, 无叶节点时为 0) / uncovered-codes (未覆盖叶的 wbs_code 数组)`. 覆盖性审查仅作只读提示: 存在未覆盖叶时计划仍可正常保存与提交冻结, 冻结后覆盖情况随追踪链读取时重算.
 
+`tasks[].baseline_*` 与 `baseline_variance` (H04 任务级基线进度偏差) 读取时派生, 不落库, 不构成任何门控: 纯函数 `planning.baseline/variance` 取 `baselines` 中最新一条 `status=approved` 的基线, 解析其冻结 `snapshot_json` 得到基线排程, 与当前 `snapshot.schedule` 逐任务比较. 无已批准基线时 `baseline_variance` 返回 `{available:false}` 且逐任务不带 `baseline_*` 键 (台账显"无基线", 面板显"尚无已批准计划基线"). 有已批准基线时: 当前任务在基线中存在则按完成日日历天差 `date-slip` (正=延后) 给出 `baseline_state` (`behind` 延后 / `ahead` 提前 / `on_baseline` 持平) 与 `baseline_start_variance` / `baseline_finish_variance` (整数日历天, 正表示晚于基线); 基线中不存在的当前任务 `baseline_state=added` 且两个偏差为 `null`. 项目级 `baseline_variance` 汇总返回 `available / baseline_id / baseline_revision / total / on-baseline / behind / ahead / added / worst-finish-slip (所有非空完成日偏差的最大值, 下限 0)`. 键名不带尾随 `?` 以免 JSON 序列化为字面键. 偏差只读呈现: 既不阻断任务编辑, 也不阻断提交冻结; 重排或改工期使当前排程偏离已批准基线时偏差立即可见, 而基线本身不被改写.
+
 ## 资源
 
 | 操作 | 路径 | 请求字段, 均另外携带 version |
