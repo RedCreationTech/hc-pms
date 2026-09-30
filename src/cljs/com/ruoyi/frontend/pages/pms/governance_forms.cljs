@@ -514,14 +514,18 @@
 
 
 (defn comm-plan-log-dialog
-  "记录沟通计划一次实际沟通, 服务端按既定频率顺延下次沟通日期并留痕."
+  "记录沟通计划一次实际沟通, 服务端按既定频率顺延下次沟通日期并留痕; 可选标注本次实际渠道, 缺省沿用计划渠道."
   [base plan]
   {:title "标记已沟通" :path (str base "/comm-plans/" (:id plan) "/log")
    :description (str "记录 " (:code plan) " 的一次实际沟通; 系统按该计划的频率自动顺延下次沟通日期, 并保留可审计的沟通留痕.")
    :transform (fn [data]
                 (reduce (fn [m k] (let [v (get data k)] (if (or (nil? v) (= "" v)) (dissoc m k) m)))
-                        data [:on :note]))
+                        data [:on :note :channel]))
    :fields [{:key :on :label "实际沟通日期(可选)" :type :date :hint "留空则采用今天"}
+            {:key :channel :label "本次沟通渠道(可选)" :type :select
+             :options [{:value "meeting" :label "会议"} {:value "email" :label "邮件"} {:value "dashboard" :label "看板"}
+                       {:value "report" :label "报告"} {:value "review" :label "评审"}]
+             :hint (str "留空则沿用计划渠道 " (:channel plan))}
             {:key :note :label "沟通纪要" :type :textarea :hint "本次沟通结论或要点, 可留空"}]})
 
 

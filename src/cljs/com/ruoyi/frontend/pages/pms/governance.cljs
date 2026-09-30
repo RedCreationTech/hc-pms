@@ -458,6 +458,13 @@
    (when editable? [antd/button {:on-click #(open! (forms/comm-plan-dialog base model options nil))} "登记沟通计划"])
    [w/record-table (:comm_plans model)
     [(w/text-column :code "编号") (w/text-column :objective "沟通目标") (w/text-column :channel "渠道")
+     {:title "最近沟通方式" :dataIndex "last_communication_channel" :width 130
+      :render (fn [_ row]
+                (let [c (aget row "last_communication_channel")
+                      label (cond (= c "meeting") "会议" (= c "email") "邮件" (= c "dashboard") "看板"
+                                  (= c "report") "报告" (= c "review") "评审" :else nil)]
+                  (r/as-element (if label [antd/tag {:color "blue"} label]
+                                    [:span {:style {:color "#98a2b3"}} "未记录"]))))}
      (w/text-column :frequency "频率") (w/text-column :next_date "下次日期")
      {:title "沟通到期" :dataIndex "comm_overdue" :width 120
       :render (fn [_ row]

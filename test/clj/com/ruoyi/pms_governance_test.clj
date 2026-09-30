@@ -2186,6 +2186,34 @@
     (is (= 404 (error-status #(command! id :comm-plans :log "no-such-plan" {:on "2026-09-22"}))))))
 
 
+(deftest comm-plan-log-channel-is-optional-and-falls-back-to-plan
+  (let [id (project!)
+        st (command! id :stakeholders :create nil
+                     {:code "SH-1" :name "客户代表" :role "验收" :category "customer"
+                      :interest "high" :influence "high" :owner_id 9301})
+        plan (command! id :comm-plans :create nil
+                       {:code "CP-1" :objective "周度进展同步" :channel "meeting" :frequency "weekly"
+                        :audience [(:id st)] :next_date "2026-01-05" :owner_id 9301})
+        pid (:id plan)
+        today (java.time.LocalDate/now)
+        on-str (str today)]
+    ;; 标注本次实际渠道 email -> 末条留痕与 last_communication_channel 均回显 email, 顺延逻辑不受影响.
+    (let [logged (command! id :comm-plans :log pid {:on on-str :channel "email"})]
+      (is (= "email" (:last_communication_channel logged)))
+      (is (= "email" (:channel (last (:communication_log logged)))))
+      (is (= (str (.plusDays today 7)) (:next_date logged))))
+    ;; 不标注渠道 -> 缺省沿用计划渠道 meeting 记入本次留痕, 累计两条.
+    (let [logged2 (command! id :comm-plans :log pid {:on (str (.plusDays today 7))})]
+      (is (= "meeting" (:last_communication_channel logged2)))
+      (is (= "meeting" (:channel (last (:communication_log logged2)))))
+      (is (= 2 (count (:communication_log logged2)))))
+    ;; 非法渠道 -> 400, 不污染计划渠道与最近沟通渠道.
+    (is (= 400 (error-status #(command! id :comm-plans :log pid {:on on-str :channel "smoke-signal"}))))
+    (let [after (first (filter #(= pid (:id %)) (:comm_plans (workspace id))))]
+      (is (= "meeting" (:channel after)))
+      (is (= "meeting" (:last_communication_channel after))))))
+
+
 (deftest issue-read-model-flags-overdue-and-blocker
   (let [id (project!)
         open (command! id :issues :create nil

@@ -82,7 +82,7 @@
 | POST `/comm-plans` | code, objective, channel: meeting/email/dashboard/report/review, frequency: daily/weekly/biweekly/monthly/quarterly, audience, next_date, 可选 owner_id | 登记 active 沟通计划首版; audience 为 1..50 个不重复同项目有效干系人; code 项目内唯一 |
 | POST `/comm-plans/:rid/revisions` | 同上 | code 不变的受控新内容版本, 形成可审计的节奏调整记录 |
 | POST `/comm-plans/:rid/meeting` | 可选 held_on | 由最新版本沟通计划生成 recorded 会议, 参会人取自受众干系人已绑定的项目成员, 无有效成员返回 409, 并回写计划 last_meeting_id |
-| POST `/comm-plans/:rid/log` | 可选 on, 可选 note | 记录沟通计划(H02)的一次实际沟通: `on` 缺省取服务器当天, 服务端按该计划 `frequency` 的既定节奏(daily/weekly/biweekly/monthly/quarterly 分别顺延 1/7/14/30/90 天)自动顺延 `next_date`, 写入 `last_communicated_on`, `last_communication_note` 并追加一条 `communication_log`; 仅允许最新版本(陈旧版本 409), 非法日期 400, 计划不存在 404 |
+| POST `/comm-plans/:rid/log` | 可选 on, 可选 note, 可选 channel | 记录沟通计划(H02)的一次实际沟通: `on` 缺省取服务器当天, 服务端按该计划 `frequency` 的既定节奏(daily/weekly/biweekly/monthly/quarterly 分别顺延 1/7/14/30/90 天)自动顺延 `next_date`, 写入 `last_communicated_on`, `last_communication_note` 并追加一条 `communication_log`; `channel` 可选标注本次实际沟通渠道(复用 channels 枚举 meeting/email/dashboard/report/review), 留空则回退沿用该计划自身的默认 `channel`, 生效值同时写入 `last_communication_channel` 与该条 `communication_log`; 仅允许最新版本(陈旧版本 409), 非法日期或非法渠道 400, 计划不存在 404 |
 
 所有日期均为有效 ISO 日期 `YYYY-MM-DD`. Gate 模板检查项是 `{code, title, required}`. Gate 检查结果是 `{code, passed, evidence_ids}`; 不能通过客户端改动模板的必需性. `evidence_ids` 是同项目真实文档版本 `id` 的不重复数组, 至多 50 条; 要求证据时至少 1 条. 不接受任意网址或自由文本作为已受控证据.
 
@@ -143,7 +143,7 @@
 
 - 干系人登记分类 (internal/external/supplier/customer/regulator), 角色, 关注度与影响力等级, 可选绑定项目成员责任人 `owner_id`. 状态恒为 `active`.
 - RACI 为具体 `activity` 指派 R/A/C/I 之一. 同一活动同一干系人不得重复指派; 同一活动至多一个负责(A)角色, 违反返回 409. 读模型 `raci_conflicts` 逐活动汇总缺 A 或缺 R 的完整性缺口, 供工作台冲突检查, 不阻止登记本身.
-- 沟通计划维护目标, 渠道, 频率, 1..50 个不重复的同项目有效干系人受众和下次沟通日期, 状态 `active`; 受控修订形成可审计的节奏调整记录. `POST /comm-plans/:rid/meeting` 仅允许最新版本, 从受众干系人已绑定的项目成员去重生成参会人 (无有效成员返回 409), 落库一条 `recorded` 会议并把 `last_meeting_id` 回写到计划, 形成沟通计划到会议的闭环. `held_on` 缺省取计划 `next_date`. `POST /comm-plans/:rid/log` 记录一次实际沟通: `on` 缺省取服务器当天, 服务端按该计划 `frequency` 的既定节奏 (daily/weekly/biweekly/monthly/quarterly 分别顺延 1/7/14/30/90 天) 自动顺延 `next_date`, 写入 `last_communicated_on`, `last_communication_note` 并逐次追加 `communication_log`, 使"沟通节奏可执行并有调整记录"成为本地受控事实; 读模型据此输出 `comm_overdue` 与 `comm_days_until` 供台账到期预警.
+- 沟通计划维护目标, 渠道, 频率, 1..50 个不重复的同项目有效干系人受众和下次沟通日期, 状态 `active`; 受控修订形成可审计的节奏调整记录. `POST /comm-plans/:rid/meeting` 仅允许最新版本, 从受众干系人已绑定的项目成员去重生成参会人 (无有效成员返回 409), 落库一条 `recorded` 会议并把 `last_meeting_id` 回写到计划, 形成沟通计划到会议的闭环. `held_on` 缺省取计划 `next_date`. `POST /comm-plans/:rid/log` 记录一次实际沟通: `on` 缺省取服务器当天, 服务端按该计划 `frequency` 的既定节奏 (daily/weekly/biweekly/monthly/quarterly 分别顺延 1/7/14/30/90 天) 自动顺延 `next_date`, 写入 `last_communicated_on`, `last_communication_note` 并逐次追加 `communication_log`, 使"沟通节奏可执行并有调整记录"成为本地受控事实; 读模型据此输出 `comm_overdue` 与 `comm_days_until` 供台账到期预警. 该命令另接受可选 `channel` 标注本次实际沟通渠道 (复用 `channels` 枚举 meeting/email/dashboard/report/review), 留空则回退沿用计划自身的默认渠道, 生效值同时写入 `last_communication_channel` 与该条 `communication_log`, 非法渠道 400; 台账"最近沟通方式"列据此以彩色中文标签回显, 免迁移随 payload 持久化, 不新增 kind 也不改变计划默认渠道字段.
 
 工作台"干系人与沟通"页签已提供干系人/RACI/沟通计划的前端视图与浏览器端到端验证; 沟通节奏的执行由"标记已沟通"顺延下次日期, 生成会议与逐次沟通留痕这三类本地受控事实体现. 仍待补齐: 外部通知或消息渠道自动推送, 以及按节奏定时派发提醒 (本轮不声称自动提醒已交付).
 

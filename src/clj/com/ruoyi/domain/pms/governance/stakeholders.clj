@@ -205,19 +205,21 @@
 
 
 (defn log-communication!
-  "记录沟通计划一次实际沟通, 按既定频率顺延下次沟通日期并保留可审计留痕."
+  "记录沟通计划一次实际沟通, 按既定频率顺延下次沟通日期并保留可审计留痕; 可选标注本次实际沟通渠道, 缺省沿用计划渠道."
   [svc actor id rid body]
   (k/mutate! svc actor id "pms:project:edit" body "comm-plan.logged"
              (fn [q project]
-               (s/input! body [:on :note])
+               (s/input! body [:on :note :channel])
                (let [plan (s/latest! q project (s/record! q project "comm-plan" rid))
                      on (if (:on body) (s/date! body :on) (str (LocalDate/now)))
                      note (s/optional-text! body :note 500)
+                     channel (if-let [c (:channel body)] (s/enum! c channels "沟通方式") (:channel plan))
                      next-date (str (.plusDays (LocalDate/parse on) (get cadence-days (:frequency plan))))]
                  (s/change! q project plan (:status plan)
-                            {:last_communicated_on on :last_communication_note note :next_date next-date
+                            {:last_communicated_on on :last_communication_note note
+                             :last_communication_channel channel :next_date next-date
                              :communication_log (conj (vec (:communication_log plan))
-                                                      {:on on :note note :next_date next-date})})))))
+                                                      {:on on :note note :channel channel :next_date next-date})})))))
 
 
 (defn comm-plan-read-model

@@ -1190,6 +1190,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 本项是 C07 `partial` 行内的又一个 well-scoped 写路径子能力 (给会议行动加可选优先级标注), 不落库到独立列, 不新增 kind/命令/路由/表结构, 不构成任何门控 (优先级高低不阻止任何登记或流转), 也不改变行动状态机语义; 优先级只是给行动打标, 不做按优先级排序/筛选/到期提醒投递 (投递仍属 C11 待办), 故 C07 整行保持 `partial`.
 
+## H02 沟通日志可选实际渠道枚举字段 (本轮增补, 2026-09-30)
+
+设计与口径: H02 沟通计划此前"标记已沟通"只记录沟通日期与纪要, 无法表达"这一次实际是用什么渠道沟通的" (计划里维护的 `channel` 是计划默认渠道, 不等于每次实际发生的渠道). 本项给 `log-communication!` 这条用户写命令补一个可选本次实际渠道枚举字段, 免迁移 / 免新 kind / 免新命令 / 免新路由 / 不构成门控: 复用 `governance.stakeholders` 既有枚举集合 `channels #{"meeting" "email" "dashboard" "report" "review"}` (无需新增枚举); `log-communication!` 的 `s/input!` 白名单追加 `:channel`, 用 `(if-let [c (:channel body)] (s/enum! c channels "沟通方式") (:channel plan))` 计算生效渠道 (提供则校验枚举, 留空则回退沿用计划自身默认渠道), 生效值同时写入 `last_communication_channel` 与逐次追加的每条 `communication_log`; 非法取值命中 `s/enum!` 走真实 HTTP 400. 因回退语义使 `channel` 恒有一个生效值, 既有仅传 `on`/`note` 的旧用例行为不变 (回退到计划渠道). 前端"标记已沟通"对话框 (`governance_forms.cljs comm-plan-log-dialog`) 增加 `:type :select` 本次沟通渠道下拉 (会议/邮件/看板/报告/评审, 提示"留空则沿用计划渠道 X") 并在 `:transform` 里把空值 `dissoc` 掉避免发送 `""`; 沟通计划台账 (`governance.cljs comm-plan-section`) 在"渠道"列后新增"最近沟通方式"列, 以蓝色中文标签回显 `last_communication_channel`, 未记录时显灰色"未记录". 字段随 `comm-plan` payload JSON 持久化, 复用既有 `store/change!` 的 merge 语义, 无需任何 DDL.
+
+| 证据 | 实际记录 |
+|---|---|
+| 治理单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 77 tests / 1039 assertions, 0 failures/errors (新增 `comm-plan-log-channel-is-optional-and-falls-back-to-plan`: 建 SH 干系人 + meeting/周频 CP 计划; 带 `:channel "email"` 标记已沟通 -> 断言结果 `:last_communication_channel` 为 `"email"` 且末条 `communication_log` 的 `:channel` 为 `"email"`, `next_date` 按周频 +7 顺延; 不带渠道再标记 -> 回退为计划渠道 `"meeting"` 且 `communication_log` 累加为 2 条; `:channel "smoke-signal"` 非法取值 -> `error-status` 400; 事后 `workspace` 回显计划 `:channel` 仍为 `"meeting"` 未被污染, `:last_communication_channel` 为回退后的 `"meeting"`)) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 182 tests / 2006 assertions, 0 failures/errors, `log-communication!` 白名单与回退语义追加 `:channel` 未造成既有沟通节奏顺延 / 到期预警 / 沟通计划生成会议闭环回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 warnings (增量, 与既有沟通计划台账共享产物) |
+| HTTP 合同 (契约) | `contracts/governance.md` 的 `POST /comm-plans/:rid/log` 路由行与"干系人, RACI与沟通计划"段更新: 新增可选 `channel` 入参复用 `channels` 枚举, 留空回退计划默认渠道, 生效值写 `last_communication_channel` 与每条 `communication_log`, 非法渠道 400, 台账"最近沟通方式"列回显, 明确不新增 kind/命令/路由/表结构 / 不改变计划默认渠道字段 / 不构成门控 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-h02cl.spec.js` 1 passed, 无未捕获 JS 错误: 界面登记干系人与 meeting/周频沟通计划 -> 在"干系人与沟通"页签点计划行"标记已沟通"选"邮件" (截图 h02cl-1-dialog-channel.png 显示对话框"本次沟通渠道"下拉选中"邮件"且提示"留空则沿用计划渠道 meeting") -> 命令响应回显 `last_communication_channel="email"` 且末条留痕 `channel="email"`; 台账"最近沟通方式"列以蓝色标签回显"邮件" (截图 h02cl-2-ledger-email.png); 再次"标记已沟通"不选渠道 -> 回退计划渠道, 台账列翻为"会议" (截图 h02cl-3-ledger-fallback.png 元素级表格截图); 真实 HTTP GET governance 二次确认计划 `channel` 仍为 `meeting`, `last_communication_channel` 为回退后的 `meeting`, `communication_log` 渠道序列为 `["email","meeting"]`; 真实 HTTP POST `/governance/comm-plans/:id/log` 带非法 `channel "smoke-signal"` 返回 400; 每次写命令前重新打开页签刷新 `project_version` 规避乐观锁 409, `choose` 助手在点击前 `expect(option).toBeVisible()` 防 typeahead 竞态; 截图存 `reports/h02cl/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL, 本次实际渠道随 `pms_gov_record` 的 `comm-plan` payload JSON 持久化无需建表或加列); 渠道取值合法性与回退语义由后端 SQLite 用例确定性覆盖, 浏览器侧核验界面可见的下拉选择, 台账"最近沟通方式"列着色与回退及非法取值的真实 HTTP 400.
+
+边界: 本项是 H02 `implemented / local` 行内的又一个 well-scoped 写路径子能力 (给沟通日志加可选本次实际渠道标注), 不落库到独立列, 不新增 kind/命令/路由/表结构, 不构成任何门控 (渠道为何不阻止任何记录), 也不改变沟通节奏顺延与到期预警语义; 渠道只是给每次沟通留痕打标, 不做按渠道聚合统计/筛选/外部通知投递 (自动提醒投递仍属 H02 待补齐项), 故 H02 整行的外部通知/定时派发边界不变.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.
