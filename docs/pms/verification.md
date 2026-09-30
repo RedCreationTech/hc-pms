@@ -1142,6 +1142,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 本项是 H08 `partial` 行内的又一个 well-scoped 只读子能力 (把逐条超阈值升级的独立确认处置状态提升为项目级闭环健康度汇总), 不改变不可变版本, 不新增任何写路径或门控, 也不改变既有 `escalate` 门控语义; H08 仍保持 `partial` 不上行, 因为"升级通知投递"与"跨项目风险汇总升级"仍是真实待办.
 
+## C09d 问题升级处置闭环汇总只读面板 (本轮增补, 2026-09-30)
+
+设计与口径: 承接既有 C09d 阻断级/逾期问题自动升级与独立确认状态机, 界面此前只在问题台账逐条以"待升级确认 / 升级已确认 / 升级已豁免 / 未触发"徽标回显单条升级处置状态, 但没有一处把跨全部问题的自动升级**独立确认处置进度**聚合成一眼可读的项目级汇总 (与刚交付的 H08 风险升级处置汇总面板为同套路的姊妹项). 本项补齐这一只读派生洞察, 免迁移 / 免新 kind / 免新命令 / 免新路由 / 不构成门控: 新增纯函数 `governance.collaboration/issue-escalation-disposition-summary` 复用 `store/latest` 对问题记录聚合, 只筛 `escalated` 为真者按 `escalation_state` (pending/acknowledged/waived) 与 `escalation_level` (steering/management) 计数, 输出整数键 `total` / `escalated` / `not-escalated` / `pending` / `acknowledged` / `waived` / `by-level` (`[{level, count}]`), 键名不带尾随 `?`; 与风险侧的唯一口径差异是问题读模型不对非阻断问题把 `escalated` 归一化为 `false`, 而是保持 `nil` (非阻断登记不写任何 escalation 键), 故 `filterv :escalated` 自然只命中阻断/逾期升级项; `governance.clj` workspace 以 `:issue_escalation_summary` 暴露 (紧邻 `:risk_escalation_summary` 与 `:action_closure`); 前端"风险与问题"页签在问题台账之后新增 `governance/issue-escalation-section` "问题升级处置汇总"面板, 以蓝色"问题总数 N" / 红色"已升级待处置 N" / 橙色"待独立确认 N" / 绿色"已确认责成处置 N" / 青色"评估后豁免 N"标签回显, 并按两级以 geekblue/灰标签回显"管理层 · 计数 / 经理层 · 计数", 无问题时给出提示文案.
+
+| 证据 | 实际记录 |
+|---|---|
+| 治理单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 74 tests / 1008 assertions, 0 failures/errors (新增 `issue-escalation-disposition-summary-is-derived-read-only`: 命令登记 blocker 逾期 (due 2020-01-10 -> steering) / blocker 在办 (due 2099-12-31 -> management) / major (不写 escalation 键) 三条问题 -> 断言汇总 `total 3` / `escalated 2` / `not-escalated 1` / `pending 2` / `acknowledged 0` / `waived 0` / `by-level` steering 1 management 1; 独立审批人 9302 对 steering 决策 approved 后 `pending 1` / `acknowledged 1`, 对 management 决策 rejected 后 `pending 0` / `acknowledged 1` / `waived 1`; 两次读 `issue_escalation_summary` 结果相等 (只读派生不漂移); major 问题行 `escalated` 为 `nil` 且 `status` 仍 open) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 179 tests / 1975 assertions, 0 failures/errors, workspace 新增 `:issue_escalation_summary` 未造成既有问题升级门控/风险升级汇总/覆盖度/行动闭环/治理回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 warnings (增量, 与 H08 面板共享既有产物) |
+| HTTP 合同 (契约) | `contracts/governance.md` 新增"问题升级处置闭环汇总 `issue_escalation_summary` (C09d 延伸)"段: 纯函数按 latest 问题聚合的整数键与分级口径, 前端只读面板与着色, 明确不写存储 / 不新增 kind/命令/路由/表结构 / 不构成门控 / 不改变既有 `escalate` 门控语义 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-c09es.spec.js` 1 passed, 无未捕获 JS 错误: 界面登记 blocker 逾期 (2020-01-10, steering) / blocker 在办 (2099-12-31, management) / major (未来日) 三条问题 -> "问题升级处置汇总"面板显示"问题总数 3 / 已升级待处置 2 / 待独立确认 2 / 管理层·1 经理层·1"且无已确认/已豁免标签 (截图 c09es-1-escalated-pending.png); 真实 HTTP GET governance 回显 `issue_escalation_summary` 各字段一致; 由登记人之外的独立质量审批人第二真实浏览器上下文点"确认升级处置"对 steering 选"确认升级并责成处置" -> 面板"待独立确认"降到 1 且出现"已确认责成处置 1" (截图 c09es-2-one-acknowledged.png); 再对 management 选"评估后可在现层处置" -> "待独立确认"归零且"已确认责成处置 1 / 评估后豁免 1" (截图 c09es-3-closed-disposition.png); 真实 HTTP GET governance 二次确认 `pending 0`/`acknowledged 1`/`waived 1`, major 问题 `escalated` 为假且 `status=open` 不漂移, steering `escalation_ack_by` 为审批人; 面板断言以 `panel(page, '问题升级处置汇总')` 作用域定位 (与姊妹风险面板用 heading 精确过滤避免严格模式串台), 逐条截图用 `scrollIntoViewIfNeeded` + 元素级 `screenshot` 规避抽屉内部滚动折叠; 截图存 `reports/c09es/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL, 汇总只读派生复用既有 `pms_gov_record` 问题 payload 的升级字段无需建表); 汇总数字的正确性由后端 SQLite 用例确定性覆盖, 浏览器侧核验界面可见的汇总面板标签在独立确认过程中的真实翻转 (待确认 2 -> 1 -> 0, 已确认/已豁免逐级出现).
+
+边界: 本项是 C09 `implemented / local` 行内的又一个 well-scoped 只读子能力 (把逐条问题升级的独立确认处置状态提升为项目级闭环健康度汇总), 不改变不可变版本, 不新增任何写路径或门控, 也不改变既有 `escalate` 门控语义; 汇总只反映升级与确认状态推进到哪一步, 不等于处置本身是否到位或问题是否已解决, 也不做升级通知的外部投递 (投递仍属 C11 待办).
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

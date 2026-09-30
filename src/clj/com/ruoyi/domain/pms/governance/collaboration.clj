@@ -564,6 +564,24 @@
            :issue_due_soon (boolean (and (some? days) (<= 1 days due-soon-days))))))
 
 
+(defn issue-escalation-disposition-summary
+  "按每个问题最新有效版本只读聚合阻断级/逾期自动升级的独立确认处置情况: 升级总数与待确认/已确认/已豁免及 steering/management 分级计数; 只读派生, 不落库不投递, 不改变问题状态."
+  [issues]
+  (let [active (s/latest issues)
+        escalated (filterv :escalated active)
+        total (count active)
+        esc-total (count escalated)
+        state-count (fn [x] (count (filterv #(= x (:escalation_state %)) escalated)))
+        level-count (fn [x] (count (filterv #(= x (:escalation_level %)) escalated)))]
+    {:total total
+     :escalated esc-total
+     :not-escalated (- total esc-total)
+     :pending (state-count "pending")
+     :acknowledged (state-count "acknowledged")
+     :waived (state-count "waived")
+     :by-level (mapv (fn [x] {:level x :count (level-count x)}) ["steering" "management"])}))
+
+
 (def owner-workload-threshold
   "同一责任人跨问题/风险/行动承担的未关闭事项数达到该值即视为负载过重."
   4)

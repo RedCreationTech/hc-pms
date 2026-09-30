@@ -1855,6 +1855,47 @@
       (is (= "open" (:status row))))))
 
 
+(deftest issue-escalation-disposition-summary-is-derived-read-only
+  (let [id (project!)
+        sum (fn [] (:issue_escalation_summary (workspace id)))
+        lv (fn [x] (:count (first (filter #(= x (:level %)) (:by-level (sum))))))
+        create (fn [title sev due]
+                 (command! id :issues :create nil
+                           {:title title :severity sev :owner_id 9301 :due_date due}))
+        steering (create "阻断级逾期缺陷" "blocker" "2020-01-10")
+        management (create "阻断级在办缺陷" "blocker" "2099-12-31")
+        mild (create "一般缺陷" "major" "2099-12-31")]
+    ;; 阻断级逾期升 steering, 阻断级未逾期升 management, 非阻断不升级; 只读聚合不改变问题状态.
+    (is (= 3 (:total (sum))))
+    (is (= 2 (:escalated (sum))))
+    (is (= 1 (:not-escalated (sum))))
+    (is (= 2 (:pending (sum))))
+    (is (= 0 (:acknowledged (sum))))
+    (is (= 0 (:waived (sum))))
+    (is (= 1 (lv "steering")))
+    (is (= 1 (lv "management")))
+    ;; 独立审批人批准责成处置 steering 升级: 待确认减一, 已确认加一, 升级总数与分级不变.
+    (command! 9302 id :issues :escalate (:id steering)
+              {:decision "approved" :note "管理层责成停线整改并复测"})
+    (is (= 1 (:pending (sum))))
+    (is (= 1 (:acknowledged (sum))))
+    (is (= 2 (:escalated (sum))))
+    (is (= 1 (lv "steering")))
+    ;; 独立审批人评估后豁免 management 升级: 待确认归零, 已豁免加一.
+    (command! 9302 id :issues :escalate (:id management)
+              {:decision "rejected" :note "影响可控, 评估后豁免专项处置"})
+    (is (= 0 (:pending (sum))))
+    (is (= 1 (:acknowledged (sum))))
+    (is (= 1 (:waived (sum))))
+    ;; 只读派生不改变问题状态: 重复读取汇总稳定, 升级分级不漂移, 未升级问题仍为登记态.
+    (is (= (sum) (:issue_escalation_summary (workspace id))))
+    (is (= 1 (lv "steering")))
+    (is (= 1 (lv "management")))
+    (let [row (first (filter #(= (:id mild) (:id %)) (:issues (workspace id))))]
+      (is (nil? (:escalated row)))
+      (is (= "open" (:status row))))))
+
+
 (deftest risk-mitigation-materializes-tracked-prevention-action
   (let [id (project!)
         risk (command! id :risks :create nil

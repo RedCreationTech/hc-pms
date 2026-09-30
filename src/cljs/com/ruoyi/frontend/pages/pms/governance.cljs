@@ -750,6 +750,37 @@
        [review-actions context "issues" issue]])]])
 
 
+(defn- issue-escalation-section
+  "按每个问题最新有效版本只读聚合阻断级/逾期自动升级处置进度: 升级总数, 待确认/已确认/已豁免及分级计数; 只读派生, 不改变问题状态."
+  [{:keys [model]}]
+  (let [esc (:issue_escalation_summary model)
+        total (:total esc 0)
+        escalated (:escalated esc 0)
+        pending (:pending esc 0)
+        acknowledged (:acknowledged esc 0)
+        waived (:waived esc 0)
+        level-label {"steering" "管理层" "management" "经理层"}]
+    [shared/panel "问题升级处置汇总" "按每个问题的最新有效版本只读聚合阻断级/逾期自动升级处置进度; 只读派生, 不改变问题状态"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无项目问题, 登记后可在此查看阻断级/逾期升级处置情况."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "问题总数 " total)]
+         [antd/tag {:color (if (pos? escalated) "red" "default")} (str "已升级待处置 " escalated)]
+         (when (pos? pending)
+           [antd/tag {:color "orange"} (str "待独立确认 " pending)])
+         (when (pos? acknowledged)
+           [antd/tag {:color "green"} (str "已确认责成处置 " acknowledged)])
+         (when (pos? waived)
+           [antd/tag {:color "cyan"} (str "评估后豁免 " waived)])]
+        [:div
+         [:span {:style {:fontWeight 500}} "按升级层级: "]
+         [antd/space {:wrap true}
+          (for [{:keys [level count]} (:by-level esc)]
+            ^{:key level} [antd/tag {:color (if (pos? count) "geekblue" "default")}
+                            (str (get level-label level level) " · " count)])]]])]))
+
+
 (defn- meeting-section
   "从会议纪要产生明确行动,避免只记录不执行.会前资料绑定项目内真实文档版本."
   [{:keys [base model options planning editable? approve? open! preview!]}]
@@ -1114,7 +1145,7 @@
                      ["appointments" "成员任命" [appointment-section]]
                      ["stakeholders" "干系人与沟通" [stakeholder-section raci-section comm-plan-section]]
                      ["gates" "Gate评审" [gate-section]]
-                     ["risks" "风险与问题" [risk-section risk-coverage-section risk-escalation-section issue-section]]
+                     ["risks" "风险与问题" [risk-section risk-coverage-section risk-escalation-section issue-section issue-escalation-section]]
                      ["meetings" "会议行动" [meeting-section action-closure-section action-section]]
                      ["changes" "变更控制" [change-section]]
                      ["quality" "DQ与局部暂停" [dq-section pause-section]]])}])
