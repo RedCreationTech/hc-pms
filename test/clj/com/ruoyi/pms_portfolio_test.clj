@@ -309,6 +309,67 @@
           (is (= 0 (:review-pct r))))))))
 
 
+(deftest cost-review-summary-is-derived-read-only
+  ;; 纯函数: 逐状态与逐口径计数, 审核完成率; 派生只读不改入参.
+  (let [rows [{:version_id "a" :kind "estimate" :status "approved"}
+              {:version_id "b" :kind "estimate" :status "draft"}
+              {:version_id "c" :kind "budget" :status "submitted"}
+              {:version_id "d" :kind "budget" :status "rejected"}
+              {:version_id "e" :kind "actual" :status "cancelled"}
+              {:version_id "f" :kind "settlement" :status "draft"}]
+        s (finance/cost-review-summary rows)]
+    (is (true? (:available s)))
+    (is (= 6 (:total s)))
+    (is (= 2 (:draft s)))
+    (is (= 1 (:submitted s)))
+    (is (= 1 (:approved s)))
+    (is (= 1 (:rejected s)))
+    (is (= 1 (:cancelled s)))
+    (is (= 2 (:processed s)))
+    (is (= 3 (:pending s)))
+    (is (= 33 (:review-pct s)))
+    (is (= {:kind "estimate" :total 2 :approved 1 :pending 1} (first (filter #(= "estimate" (:kind %)) (:by-kind s)))))
+    (is (= {:kind "budget" :total 2 :approved 0 :pending 1} (first (filter #(= "budget" (:kind %)) (:by-kind s)))))
+    (is (= {:kind "actual" :total 1 :approved 0 :pending 0} (first (filter #(= "actual" (:kind %)) (:by-kind s)))))
+    (is (= {:kind "settlement" :total 1 :approved 0 :pending 1} (first (filter #(= "settlement" (:kind %)) (:by-kind s)))))
+    (let [out (finance/attach-cost-review-summary {:cost_versions rows})]
+      (is (= rows (:cost_versions out)))
+      (is (= 6 (get-in out [:cost_review :total])))
+      (is (= 33 (get-in out [:cost_review :review-pct])))))
+  (let [e (finance/cost-review-summary [])]
+    (is (false? (:available e)))
+    (is (= 0 (:total e)))
+    (is (= 0 (:review-pct e)))
+    (is (every? #(= 0 (:total %)) (:by-kind e))))
+  ;; 端到端读模型: 概览暴露 :cost_review, 随真实提交/批准/驳回/取消翻转, 不改变逐条版本.
+  (let [{:keys [id]} (executing-project! "四算审批汇总项目")
+        overview (fn [] (finance/overview *service* (actor 9701) id))
+        create (fn [kind] (:result (cost/create! *service* (actor 9701) id {:version (version id) :kind kind :period "2026-09" :currency "CNY" :name (str kind "版本") :revenue "1000" :reviewer_id 9702})))
+        submit-with (fn [vid] (cost/add-entry! *service* (actor 9701) id vid {:version (version id) :category "material" :label "料" :amount "100"})
+                      (cost/submit! *service* (actor 9701) id vid {:version (version id)}))]
+    (is (false? (:available (:cost_review (overview)))))
+    (is (= 0 (:total (:cost_review (overview)))))
+    (let [v1 (:id (create "estimate")) v2 (:id (create "budget")) v3 (:id (create "actual")) v4 (:id (create "settlement")) v5 (:id (create "estimate"))]
+      (submit-with v1) (cost/review! *service* (actor 9702) id v1 {:version (version id) :decision "approved" :reason "ok"})
+      (submit-with v2) (cost/review! *service* (actor 9702) id v2 {:version (version id) :decision "rejected" :reason "超支"})
+      (submit-with v3)
+      (cost/cancel! *service* (actor 9701) id v5 {:version (version id) :reason "作废草稿"})
+      (let [r (:cost_review (overview))]
+        (is (true? (:available r)))
+        (is (= 5 (:total r)))
+        (is (= 1 (:approved r)))
+        (is (= 1 (:rejected r)))
+        (is (= 1 (:submitted r)))
+        (is (= 1 (:draft r)))
+        (is (= 1 (:cancelled r)))
+        (is (= 2 (:processed r)))
+        (is (= 2 (:pending r)))
+        (is (= 40 (:review-pct r)))
+        (is (= {:kind "estimate" :total 2 :approved 1 :pending 0} (first (filter #(= "estimate" (:kind %)) (:by-kind r)))))
+        (is (= 5 (count (:cost_versions (overview)))))
+        (is (= "approved" (:status (first (filter #(= v1 (:id %)) (:cost_versions (overview)))))))))))
+
+
 (deftest rd-pool-allocates-across-projects-and-conserves
   (let [p1 (executing-project! "费用池项目一") p2 (executing-project! "费用池项目二")
         period "2026-07"

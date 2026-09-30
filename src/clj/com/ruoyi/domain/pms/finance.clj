@@ -43,6 +43,44 @@
      :variances {:budget_vs_estimate (diff "estimate" "budget") :actual_vs_budget (diff "budget" "actual")
                  :settlement_vs_actual (diff "actual" "settlement") :settlement_vs_budget (diff "budget" "settlement")}}))
 
+(defn cost-review-summary
+  "按项目全部四算版本只读聚合审批闭环健康度: 总数/各状态计数(草稿 draft, 审批中 submitted, 已批准 approved, 已驳回 rejected, 已取消 cancelled)/已作决定数/待处理数/审核完成率, 并按概算-预算-核算-决算四口径给出总数·已批准·待处理分布; 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
+  [versions]
+  (let [total (count versions)
+        status-count (fn [x] (count (filterv #(= x (:status %)) versions)))
+        draft (status-count "draft")
+        submitted (status-count "submitted")
+        approved (status-count "approved")
+        rejected (status-count "rejected")
+        cancelled (status-count "cancelled")
+        processed (+ approved rejected)
+        pending (+ draft submitted)
+        by-kind (mapv (fn [k]
+                        (let [rs (filterv #(= k (:kind %)) versions)]
+                          {:kind k
+                           :total (count rs)
+                           :approved (count (filterv #(= "approved" (:status %)) rs))
+                           :pending (count (filterv #(contains? #{"draft" "submitted"} (:status %)) rs))}))
+                      ["estimate" "budget" "actual" "settlement"])]
+    {:available (pos? total)
+     :total total
+     :draft draft
+     :submitted submitted
+     :approved approved
+     :rejected rejected
+     :cancelled cancelled
+     :processed processed
+     :pending pending
+     :by-kind by-kind
+     :review-pct (if (pos? total)
+                   (int (Math/round ^double (* 100.0 (/ processed total))))
+                   0)}))
+
+(defn attach-cost-review-summary
+  "把 cost-review-summary 挂到财务概览读模型顶层 :cost_review; 读取时派生, 不改变任何逐条费用版本."
+  [data]
+  (assoc data :cost_review (cost-review-summary (:cost_versions data))))
+
 (defn overview
   "在项目权限和财务权限交集内返回可对账四算与工时数据."
   [svc actor project-id]
@@ -58,7 +96,7 @@
                 :budget_control {:budget (budget/evaluate q project-id "budget" 0)
                                  :estimate (budget/evaluate q project-id "estimate" 0)}
                 :locked_periods (mapv :period (config/published q "period-lock"))}
-               (summary versions)) time/attach-timesheet-review-summary)))))
+               (summary versions)) time/attach-timesheet-review-summary attach-cost-review-summary)))))
 
 (defn times
   "普通成员仅看本人工时和待本人审核的工时, 不附带财务金额."

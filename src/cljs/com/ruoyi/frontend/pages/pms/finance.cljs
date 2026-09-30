@@ -254,6 +254,28 @@
         [:div {:style {:fontSize 12 :color "#718096"}}
          (str "工时: 合计 " (:hours-total tr) "h / 已批准 " (:hours-approved tr) "h / 待审核 " (:hours-pending tr) "h")]])]))
 
+(defn- cost-review-section
+  "F06 四算版本审批闭环健康度: 按项目全部费用版本只读派生, 汇总草稿/审批中/已批准/已驳回/已取消与审批完成率及概算-预算-核算-决算各口径分布."
+  [{:keys [model]}]
+  (let [cr (:cost_review model)
+        kind-labels {"estimate" "概算" "budget" "预算" "actual" "核算" "settlement" "决算"}]
+    [shared/panel "四算版本审批闭环汇总" "只读派生 · 反映概算/预算/核算/决算版本独立审批的推进情况, 不构成任何门控" nil
+     (if-not (:available cr)
+       [:span {:style {:color "#98a2b3"}} "尚无四算费用版本, 建立后此处自动汇总审批闭环健康度."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "geekblue"} (str "版本总数 " (:total cr))]
+         [antd/tag {:color "green"} (str "已批准 " (:approved cr))]
+         [antd/tag {:color "blue"} (str "审批中 " (:submitted cr))]
+         [antd/tag {:color "default"} (str "草稿 " (:draft cr))]
+         [antd/tag {:color "red"} (str "已驳回 " (:rejected cr))]
+         (when (pos? (:cancelled cr)) [antd/tag {:color "orange"} (str "已取消 " (:cancelled cr))])]
+        [:div {:style {:fontSize 13 :color "#4b5563"}}
+         (str "共 " (:total cr) " 个四算版本, 已作决定 " (:processed cr) " 个, 待处理 " (:pending cr) " 个, 审批完成率 " (:review-pct cr) "%")]
+        [antd/space {:wrap true}
+         (for [bk (:by-kind cr) :when (pos? (:total bk))] ^{:key (:kind bk)}
+           [antd/tag {} (str (get kind-labels (:kind bk) (:kind bk)) " · 总" (:total bk) " 批准" (:approved bk) " 待" (:pending bk))])]])]))
+
 (defn- cost-actions
   "根据版本状态提供条目维护,提交或独立审批."
   [{:keys [base options editable? approve? open! select!]} cost]
@@ -428,6 +450,7 @@
    [summary-cards (:model context)]
    [antd/tabs {:items [{:key "costs" :label "成本与分摊"
                         :children (r/as-element [:div {:style {:display "grid" :gap 20}}
+                                                [cost-review-section context]
                                                 [four-count-section context]
                                                 [cost-section context] [ledger-section context selected] [allocation-history (:model context)]])}
                        {:key "commitments" :label "承诺与预算控制"

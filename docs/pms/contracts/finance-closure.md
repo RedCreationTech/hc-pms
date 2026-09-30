@@ -24,6 +24,8 @@ POST版本路径的 `/submit` 冻结快照; `/review` 需finance:approve且指�
 
 POST `/cost-versions/:cost_id/allocate`: amount/from_date/to_date/idempotency_key/label. 仅当前费用期间内已批准工时参与,按任务分钟权重用最大余数法精确分摊,差额确定地分给最高余数任务,总额守恒. 没有批准工时409. 输入工时ID/金额/版本/输出结果与SHA256持久化,重复幂等键同内容返回旧结果,不同内容409. 生成的labor条目不可单独删除. 当前是单项目费用池到任务的分配,不声称完成跨项目共享研发池或人工费率有效期核算.
 
+GET `/finance` 读模型新增顶层只读派生键 `cost_review` (F06 四算版本审批闭环汇总, 免迁移/不构成门控): 由领域纯函数 `finance/cost-review-summary` 对整项目 `:cost_versions` 逐条状态只读聚合, 与四算拉通/封期口径正交. 输出 `available` (是否有费用版本), `total`/`draft`/`submitted`/`approved`/`rejected`/`cancelled`/`processed` (=approved+rejected)/`pending` (=draft+submitted), `review-pct` (processed/total 四舍五入百分比, total=0 时为 0), 以及 `by-kind` 向量按 estimate/budget/actual/settlement 四口径各给出 `total`/`approved`/`pending` 分布. 状态互斥故每个版本恰落入一个状态桶; 版本修订另建新 id 因此按全部版本聚合不取 latest. 前端项目费用页"成本与分摊"页签顶部渲染只读汇总面板 (版本总数/已批准/审批中/草稿/已驳回/已取消徽标 + 已作决定/待处理/审批完成率 + 概算-预算-核算-决算各口径总·批准·待标签), 空态显示引导文案. 该面板仅呈现独立审批推进健康度, 不门控任何写操作.
+
 ## 承诺成本与预算控制 (H12)
 
 承诺是"已签合同/已下订单但尚未实际发生"的占用, 与实际费用分列, 转实付时按释放金额从承诺扣除并计入实际, 不双计. 预算控制规则按基线口径(estimate或budget)对占用率设阈值, 提交承诺时评估并门控.

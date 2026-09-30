@@ -1350,6 +1350,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: F04 整行保持既有 `implemented / local` 状态不变 — 本项只是把已有的逐张工时审核与更正链升为一个项目级工时审核闭环健康度与小时分布的只读汇总子能力, 一个只读子能力不上行整行状态; 汇总不构成任何门控 (审核完成率高低与更正待审数不阻止任何工时提交/审核/更正/封期), 不新增写路径/kind/命令/路由/表结构; 工时批准后的追溯更正与封期门控此前已具备, 权威工时口径与外部考勤/ERP 集成仍待合同.
 
+## F06 四算版本审批闭环汇总只读派生 (本轮增补, 2026-09-30)
+
+设计与口径: 四算成本版本 (F06) 此前已有逐版新建 (`create!` 草稿), 明细维护 (`add-entry!`), 提交冻结快照 (`submit!`), 独立批准/驳回 (`review!` 需 `finance:approve` 且非提交者), 修订复制新草稿 (`revise!`), 受控取消 (`cancel!` 仅 `draft`/`rejected`) 与期间封期门控, 以及四算拉通只读对比 (`four-count-comparison`), 但"整个项目到底有多少费用版本还压在草稿/审批中, 多少已批准/驳回/取消, 概算-预算-核算-决算各口径分别推进到什么程度, 独立审批闭环完成率多少"这一四算审批生命周期健康度此前无从一眼可读. 本项在 `domain.pms.finance` 新增只读汇总纯函数 `cost-review-summary`: 输入整项目 `:cost_versions` (版本修订另建新 id 而非原地改, 故统计全部版本行不取 `store/latest`), 按互斥状态 `draft`/`submitted`/`approved`/`rejected`/`cancelled` 计数 (状态互斥故每个版本恰落入一个桶), 另算 `processed` (= `approved + rejected`, 已作出终局决定的版本数), `pending` (= `draft + submitted`, 尚未终局的版本数), `review-pct` (= `processed / total` 四舍五入整数百分比, `total` 为 0 时给 0), 以及 `by-kind` 向量按 `estimate`/`budget`/`actual`/`settlement` 四口径各给出 `total`/`approved`/`pending` 分布 (与整体状态计数正交, 可各自独立解读某一口径审批推进度). `attach-cost-review-summary` 以整map函数把结果 `assoc` 到财务概览读模型顶层 `:cost_review` (下划线命名, 内层键连字符, 不带尾随 `?`), `finance/overview` 在 `->` 线程末尾紧随 `time/attach-timesheet-review-summary` 之后追加该纯读步骤, 不改变任何逐条费用版本. 免迁移 / 免新 kind / 免新命令 / 免新路由 / 不构成任何门控 (只读呈现, 提交/审核/修订/取消的硬校验与封期门控均不受影响). 前端 `finance.cljs` 在项目费用页"成本与分摊"页签顶部 `four-count-section` 之上新增 `cost-review-section` 面板 "四算版本审批闭环汇总" (彩色标签 版本总数 geekblue / 已批准 green / 审批中 blue / 草稿 default / 已驳回 red / 已取消 orange 仅 `pos?` 时渲染, 另以一行显示"共 N 个四算版本, 已作决定 P 个, 待处理 Q 个, 审批完成率 R%"与一行按口径显示"概算·总x 批准y 待z"等标签); 无费用版本时空态提示"尚无四算费用版本...". 该面板与四算拉通, 工时审核闭环汇总 (`:timesheet_review`), 承诺预算控制, 封期读模型 (`:locked_periods`) 正交.
+
+| 证据 | 实际记录 |
+|---|---|
+| 组合/财务命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-portfolio-test'` 通过 9 tests / 162 assertions, 0 failures/errors (新增 `cost-review-summary-is-derived-read-only`: 纯函数直测对六张合成费用版本 (estimate approved / estimate draft / budget submitted / budget rejected / actual cancelled / settlement draft) 断言 available=true, total=6, draft=2, submitted=1, approved=1, rejected=1, cancelled=1, processed=2, pending=3, review-pct=33, by-kind 四口径分别 estimate{2,1,1} budget{2,0,1} actual{1,0,0} settlement{1,0,1}; attach 后 `:cost_versions` 逐条不漂移且 `:cost_review total`=6; 空向量给 available=false/total=0/review-pct=0 且 by-kind 各口径 total 均为 0; 端到端在真实执行态项目上建 5 版 (概算提交->独立批准, 预算提交->独立驳回, 核算提交后停留审批中, 决算仅草稿, 概算草稿后取消), GET `/finance` 回显 `cost_review` total5/approved1/rejected1/submitted1/draft1/cancelled1/processed2/pending2/review-pct40 且概算口径 by-kind{2,1,0}, 逐条版本状态不漂移) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 192 tests / 2228 assertions, 0 failures/errors; `attach-cost-review-summary` 挂到 `finance/overview` 线程末尾未造成既有工时审核闭环汇总 / 工时更正与封期 / 四算拉通 / 跨项目研发费用池 / 承诺预算控制 / 追踪与治理各只读汇总面板回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 5 compiled / 0 warnings |
+| HTTP 合同 (契约) | `contracts/finance-closure.md` 的四算节更新: GET `/finance` 读模型新增顶层只读派生键 `cost_review` (available/total/draft/submitted/approved/rejected/cancelled/processed/pending/review-pct/by-kind), 明确由纯函数 `finance/cost-review-summary` 对全部费用版本读取时聚合 (版本修订另建新 id 故不取 latest), 免迁移/免新命令/不构成门控 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-f06cr.spec.js` 1 passed (45.7s), 无未捕获 JS 错误: 主操作者经真实命令把项目推进到执行态后, 界面"项目费用 -> 成本与分摊"页签先显示空态"尚无四算费用版本" (截图 f06cr-1-empty.png); 建三份不同口径草稿 -> 面板回显"版本总数 3 / 草稿 3 / 共 3 个四算版本, 已作决定 0 个, 待处理 3 个, 审批完成率 0%" (截图 f06cr-2-draft.png); 推进为混合生命周期 (概算提交后独立批准, 预算提交后独立驳回, 核算提交后停留审批中, 决算仅草稿, 概算草稿后取消) -> 面板翻转为"版本总数 5 / 已批准 1 / 审批中 1 / 草稿 1 / 已驳回 1 / 已取消 1 / 共 5 个四算版本, 已作决定 2 个, 待处理 2 个, 审批完成率 40% / 概算·总2 批准1 待0 / 决算·总1 批准0 待1" (截图 f06cr-3-mixed.png); 三态均另用真实 HTTP GET `/finance` 核验 `cost_review` 各键与 `cost_versions` 逐条状态与界面同源; 截图存 `reports/f06cr/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL, 汇总为读取时对既有全量费用版本的纯函数聚合, 不落任何新表/列); 五态计数, 已作决定/待处理口径, 审批完成率与四口径 by-kind 分布由后端 SQLite 用例确定性覆盖, 浏览器侧核验界面可见标签与服务端回显同源.
+
+边界: F06 整行保持既有 `partial / 待规则` 状态不变 — 本项只是把已有的逐版四算独立审批生命周期升为一个项目级四算审批闭环健康度与四口径分布的只读汇总子能力, 一个只读子能力不上行整行状态; 汇总不构成任何门控 (审批完成率高低不阻止任何版本提交/审核/修订/取消), 不新增写路径/kind/命令/路由/表结构; 权威收入/累计回款/开票封账口径与 ERP/财务对账集成仍待合同.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.
