@@ -803,6 +803,45 @@
                             (str (get level-label level level) " · " count)])]]])]))
 
 
+(defn- issue-closure-summary-section
+  "按全部问题最新有效版本只读聚合闭环健康度: 闭环率/未关闭构成/逾期与各严重度分布; 只读派生, 不改变问题状态, 不构成门控."
+  [{:keys [model]}]
+  (let [cl (:issue_closure model)
+        total (:total cl 0)
+        closed (:closed cl 0)
+        pending (:pending cl 0)
+        in-review (:in-review cl 0)
+        rejected (:rejected cl 0)
+        overdue (:overdue cl 0)
+        blocker-open (:blocker-open cl 0)
+        pct (:closure-pct cl 0)
+        sev-label {"blocker" "阻断" "major" "严重" "minor" "一般"}]
+    [shared/panel "问题闭环与严重度分布汇总" "按每个问题的最新有效版本只读聚合闭环健康度(闭环率/待处理/验证中/已驳回/逾期未关闭/未关闭阻断级与各严重度分布); 只读派生, 不改变问题状态"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无项目问题, 登记后可在此查看闭环率与严重度分布."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "问题总数 " total)]
+         [antd/tag {:color (cond (= pct 100) "green" (zero? pct) "red" :else "gold")}
+          (str "已闭环 " pct "% (" closed "/" total ")")]
+         (when (pos? pending)
+           [antd/tag {:color "gold"} (str "待处理 " pending)])
+         (when (pos? in-review)
+           [antd/tag {:color "orange"} (str "验证中 " in-review)])
+         (when (pos? rejected)
+           [antd/tag {:color "red"} (str "已驳回 " rejected)])
+         (when (pos? overdue)
+           [antd/tag {:color "volcano"} (str "逾期未关闭 " overdue)])
+         (when (pos? blocker-open)
+           [antd/tag {:color "magenta"} (str "未关闭阻断级 " blocker-open)])]
+        [:div
+         [:span {:style {:fontWeight 500}} "按严重度分布: "]
+         [antd/space {:wrap true}
+          (for [{:keys [severity count]} (:by-severity cl)]
+            ^{:key severity} [antd/tag {:color (if (pos? count) "geekblue" "default")}
+                            (str (get sev-label severity severity) " · " count)])]]])]))
+
+
 (defn- meeting-section
   "从会议纪要产生明确行动,避免只记录不执行.会前资料绑定项目内真实文档版本."
   [{:keys [base model options planning editable? approve? open! preview!]}]
@@ -1277,7 +1316,7 @@
                      ["appointments" "成员任命" [appointment-section]]
                      ["stakeholders" "干系人与沟通" [stakeholder-section raci-section comm-plan-section]]
                      ["gates" "Gate评审" [gate-section]]
-                     ["risks" "风险与问题" [risk-section risk-coverage-section risk-escalation-section issue-section issue-escalation-section]]
+                     ["risks" "风险与问题" [risk-section risk-coverage-section risk-escalation-section issue-section issue-escalation-section issue-closure-summary-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section action-closure-section action-section]]
                      ["changes" "变更控制" [change-section]]
                      ["quality" "DQ与局部暂停" [dq-summary-section dq-section pause-section]]])}])

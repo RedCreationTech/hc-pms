@@ -2949,3 +2949,48 @@
         (is (= "waived" (:escalation_state waived)))
         (is (= "in_review" (:status (command! id :issues :resolve (:id late)
                                               {:resolution "补做整改并复测" :evidence_ids [evidence] :reviewer_id 9302}))))))))
+
+
+(deftest issue-closure-summary-is-derived-read-only
+  (let [id (project!)
+        evidence (:id (document! id "ISS-CL-1"))
+        i-open (command! id :issues :create nil {:title "待处理一般项" :severity "major" :owner_id 9301 :due_date "2026-12-31"})
+        i-overdue (command! id :issues :create nil {:title "逾期未关闭" :severity "major" :owner_id 9301 :due_date "2026-01-01"})
+        i-inreview (command! id :issues :create nil {:title "验证中" :severity "minor" :owner_id 9301 :due_date "2026-12-31"})
+        i-closed (command! id :issues :create nil {:title "已闭环" :severity "minor" :owner_id 9301 :due_date "2026-12-31"})
+        i-rejected (command! id :issues :create nil {:title "验证驳回" :severity "minor" :owner_id 9301 :due_date "2026-12-31"})
+        i-blocker (command! id :issues :create nil {:title "阻断未闭环" :severity "blocker" :owner_id 9301 :due_date "2026-12-31"})]
+    ;; 三条 minor 分别推进到 in_review / closed / rejected; 阻断级仅登记不解决 (自动升级 pending 不影响闭环计数).
+    (command! id :issues :resolve (:id i-inreview) {:resolution "初步整改" :evidence_ids [evidence] :reviewer_id 9302})
+    (command! id :issues :resolve (:id i-closed) {:resolution "整改完成" :evidence_ids [evidence] :reviewer_id 9302})
+    (is (= "closed" (:status (command! 9302 id :issues :decision (:id i-closed) {:decision "approved" :reason "独立复验通过"}))))
+    (command! id :issues :resolve (:id i-rejected) {:resolution "尝试整改" :evidence_ids [evidence] :reviewer_id 9302})
+    (is (= "rejected" (:status (command! 9302 id :issues :decision (:id i-rejected) {:decision "rejected" :reason "证据不足"}))))
+    (let [ver (version id)
+          s (:issue_closure (workspace id))]
+      (is (true? (:available s)))
+      (is (= 6 (:total s)))
+      (is (= 1 (:closed s)))
+      (is (= 5 (:open s)))
+      (is (= 3 (:pending s)))
+      (is (= 1 (:in-review s)))
+      (is (= 1 (:rejected s)))
+      (is (= 1 (:overdue s)))
+      (is (= 1 (:blocker-open s)))
+      (is (= 17 (:closure-pct s)))
+      (is (= [{:severity "blocker" :count 1} {:severity "major" :count 2} {:severity "minor" :count 3}] (:by-severity s)))
+      ;; 闭环汇总为纯读取, 不得漂移项目聚合版本.
+      (is (= ver (version id))))
+    ;; 纯函数直测: 空集 available=false 且 closure-pct=0; 混合状态按 code 最新有效版本聚合, 修订不重复计数.
+    (let [e (collab/issue-closure-summary [])]
+      (is (false? (:available e)))
+      (is (= 0 (:total e)))
+      (is (= 0 (:closure-pct e))))
+    (let [m (collab/issue-closure-summary
+              [{:code "P1" :revision 1 :status "closed" :severity "blocker"}
+               {:code "P1" :revision 2 :status "closed" :severity "blocker"}
+               {:code "P2" :revision 1 :status "open" :severity "major" :issue_overdue true}])]
+      (is (= 2 (:total m)) "同 code 修订只计最新有效版本")
+      (is (= 1 (:closed m)))
+      (is (= 1 (:overdue m)))
+      (is (= 50 (:closure-pct m))))))

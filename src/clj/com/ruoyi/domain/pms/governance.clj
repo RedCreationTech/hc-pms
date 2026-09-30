@@ -101,6 +101,7 @@
                    (update :gates #(mapv (partial gates/gate-evidence-voided-model voided-codes docs-by-id) %))
                    (update :gates #(mapv (partial gates/gate-evidence-release-model docs-by-id) %))
                    gates/attach-gate-closure-summary
+                   collab/attach-issue-closure-summary
                    (collab/enrich-risk-issue-links)
                    (collab/enrich-action-source-links)
                    (assoc :project_version (:version project) :blockers (blockers q project)

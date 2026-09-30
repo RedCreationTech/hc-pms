@@ -714,3 +714,34 @@
      :release-pct (if (pos? denom)
                     (int (Math/round ^double (* 100.0 (/ approved denom))))
                     0)}))
+
+
+(defn issue-closure-summary
+  "按全部问题最新有效版本只读聚合闭环健康度: 总数/已闭环/未关闭(待处理, 已驳回, 待验证)/逾期未关闭/未关闭阻断级与各严重度分布及闭环率; 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
+  [issues]
+  (let [active (s/latest issues)
+        total (count active)
+        closed (count (filterv #(= "closed" (:status %)) active))
+        status-count (fn [x] (count (filterv #(= x (:status %)) active)))
+        severity-count (fn [x] (count (filterv #(= x (:severity %)) active)))
+        overdue (count (filterv :issue_overdue active))
+        blocker-open (count (filterv #(and (= "blocker" (:severity %)) (not= "closed" (:status %))) active))]
+    {:available (pos? total)
+     :total total
+     :closed closed
+     :open (- total closed)
+     :pending (status-count "open")
+     :rejected (status-count "rejected")
+     :in-review (status-count "in_review")
+     :overdue overdue
+     :blocker-open blocker-open
+     :by-severity (mapv (fn [x] {:severity x :count (severity-count x)}) ["blocker" "major" "minor"])
+     :closure-pct (if (pos? total)
+                    (int (Math/round ^double (* 100.0 (/ closed total))))
+                    0)}))
+
+
+(defn attach-issue-closure-summary
+  "把 issue-closure-summary 挂到治理工作区顶层 :issue_closure; 读取时派生, 不改变任何逐条问题记录."
+  [data]
+  (assoc data :issue_closure (issue-closure-summary (:issues data))))

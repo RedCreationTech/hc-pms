@@ -1318,6 +1318,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: B09 整行保持 `implemented / local` 与"待 主机交付清单业务口径"不变 — 本项只是把已有逐条关口徽标与模板层 `gate-progress` 升为一个关口实例层的项目级签核闭环健康度只读汇总子能力, 与逐条"检查就绪度""证据待发布""证据已作废"内联列互补, 一个只读子能力不改变整行状态; 是否据"证据待发布/被必需检查阻断"进一步阻断关口批准属"待 主机交付清单业务口径", 汇总不构成任何门控 (不阻断关口登记/检查/提交/签核), 不新增写路径/kind/命令/路由/表结构.
 
+## C09 问题闭环率与严重度分布只读派生汇总 (本轮增补, 2026-09-30)
+
+设计与口径: 问题 (issue) 台账此前只有逐条"逾期"只读预警徽标 (`collaboration/issue-read-model` 派生 `issue_overdue`) 与风险侧 H08/H09 升级门控, "风险与问题"页签另有"风险升级处置汇总"面板, 但整个项目"到底多少问题已闭环, 多少还待处理/验证中/已驳回, 其中几条逾期, 几条是未关闭的阻断级, 各严重度如何分布"这一问题处理生命周期健康度此前无从一眼可读. 本项在 `governance.collaboration` 新增只读汇总纯函数 `issue-closure-summary`: 输入是 `(:issues data)` 全量问题, 复用 `store/latest` 以每个业务编码 `code` (缺省取自身 `id`) 的最新有效修订版为统计单位, 按 `:status` 与逐条已富化的 `:issue_overdue`/`:severity` 聚合输出 `available / total / closed / open / pending / in-review / rejected / overdue / blocker-open / by-severity / closure-pct` (`closed` 为状态属 `closed` 者数, `open` 为 `total - closed`, `pending`/`in-review`/`rejected` 按 `open`/`in_review`/`rejected` 计数, `overdue` 复用既有逐条 `issue_overdue` 为真者数, `blocker-open` 为 `severity = "blocker"` 且状态非 `closed` 者数, `by-severity` 为固定顺序阻断/严重/一般三元向量按最新有效版本全量各计一次, `closure-pct` 为 `closed/total` 四舍五入整数百分比, `total` 为 0 时给 0). `attach-issue-closure-summary` 以整map函数在 `->` 读模型线程里风险/问题逐条富化步骤之后 `assoc` 顶层 `:issue_closure` (下划线命名, 内层键用连字符), 不改变任何逐条问题记录. 免迁移 / 免新 kind / 免新命令 / 免新路由 / 不构成任何门控 (只读呈现, 问题 `resolve!`/`verify!`/`decision` 的硬校验与独立验证人门控不受影响). 前端 `governance.cljs` 在"风险与问题"页签"风险升级处置汇总"之下新增 `issue-closure-summary-section` 面板 "问题闭环与严重度分布汇总" (彩色标签 问题总数 / 已闭环 N% (closed/total) / 待处理 / 验证中 / 已驳回 / 逾期未关闭 / 未关闭阻断级, 另以"按严重度分布:"一行 geekblue 阻断·严重·一般 三色标签呈现全量分布; 计数为 0 的状态标签不渲染; 无问题时空态 "暂无项目问题, 登记后可在此查看闭环率与严重度分布."). 键名不带尾随 `?` 以免序列化为 JSON 字面键.
+
+| 证据 | 实际记录 |
+|---|---|
+| 治理单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 81 tests / 1113 assertions, 0 failures/errors (新增 `issue-closure-summary-is-derived-read-only`: 集成用例经真实命令建六条问题覆盖 open / 逾期 open / in_review / closed / rejected / blocker, 其中 closed/in_review/rejected 走真实 resolve + 独立审批人 decision 推进后 GET `/governance` 回显 `issue_closure` total=6/closed=1/open=5/pending=3/in-review=1/rejected=1/overdue=1/blocker-open=1/closure-pct=17/by-severity=[阻断1,严重2,一般3] 与逐条状态一致, 读取前后 `project_version` 不漂移证明纯读不落库; 纯函数直测对空向量给 `available=false` / `total=0` / `closure-pct=0`, 对三条同 `code` 带 `revision` 的映射验证 `store/latest` 去重后 total=2/closed=1/overdue=1/closure-pct=50) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 190 tests / 2152 assertions, 0 failures/errors; `attach-issue-closure-summary` 挂到风险/问题逐条富化之后未造成既有"风险升级处置汇总""会议行动闭环率""DQ 质量检查闭环汇总""关口验收签核闭环汇总"汇总面板 / 问题状态机 / 逾期与阻断级预警 / 责任负载 / 追踪链 回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 5 compiled / 0 warnings |
+| HTTP 合同 (契约) | `contracts/governance.md` 的 GET `/governance` 读模型更新: 新增只读汇总 `issue_closure` (available/total/closed/open/pending/in-review/rejected/overdue/blocker-open/by-severity/closure-pct), 明确由纯函数 `governance.collaboration/issue-closure-summary` 对全量 `:issues` 读取时聚合, 免迁移/免新命令/不构成门控 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-c09ic.spec.js` 1 passed (50.1s), 无未捕获 JS 错误: 界面"风险与问题"页签登记六条问题 (含一条逾期与一条阻断级), 其中 in_review/closed/rejected 经真实 HTTP resolve + 独立验证人第二真实上下文 decision 推进 -> "问题闭环与严重度分布汇总"面板回显"问题总数 6 / 已闭环 17% (1/6) / 待处理 3 / 验证中 1 / 已驳回 1 / 逾期未关闭 1 / 未关闭阻断级 1"及"按严重度分布: 阻断 · 1 严重 · 2 一般 · 3" (截图 c09ic-1-initial-open.png / c09ic-2-mixed-closure.png); 真实 HTTP GET `/governance` 回显 `issue_closure` 各字段一致且逐条问题状态不漂移 (closed 者 decided_by 为独立验证人), `ws.project_version` 与基线同源; 空态: 新项目无问题 -> 面板"暂无项目问题"且 `available=false` / `total=0` / `closure-pct=0` (截图 c09ic-3-empty.png); 截图存 `reports/c09ic/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL, 汇总为读取时对既有全量 `:issues` 的纯函数聚合, 不落任何新表/列); 六态计数, 逾期/阻断级/严重度分布聚合与闭环率口径由后端 SQLite 用例确定性覆盖, 浏览器侧核验界面可见标签与服务端回显同源.
+
+边界: C09 整行保持既有状态不变 — 本项只是把已有逐条问题逾期徽标与"风险升级处置汇总"面板升为一个项目级问题处理闭环健康度与严重度分布的只读汇总子能力, 一个只读子能力不改变整行状态; 汇总不构成任何门控 (闭环率高低与未关闭阻断级数不阻止任何问题登记/提交/验证/驳回), 不新增写路径/kind/命令/路由/表结构; 逾期与阻断级提醒的外部投递仍属 C11.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.
