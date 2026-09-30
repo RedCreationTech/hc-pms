@@ -1284,6 +1284,59 @@
       (is (= 0 (:dq_required_passed row))))))
 
 
+(deftest dq-check-closure-summary-is-derived-read-only
+  (let [id (project!)
+        doc (document! id "DQ-SUM")
+        did (:id doc)
+        mk (fn [code] (command! id :dqs :create nil
+                                {:code code :title (str "闭环 " code) :owner_id 9301
+                                 :checklist [{:code "C" :title "必需检查" :required true}]
+                                 :deliverable_ids [did]}))
+        pass (fn [dq] (command! id :dqs :checks (:id dq) {:results [{:code "C" :passed true :note ""}]}))
+        d1 (mk "DQ-1")
+        d2 (mk "DQ-2")
+        d3 (mk "DQ-3")
+        d4 (mk "DQ-4")
+        d5 (mk "DQ-5")]
+    ;; d1 保持 draft (未检查); d2 ready; d3 in_review; d4 approved; d5 rejected.
+    (pass d2)
+    (pass d3) (command! id :dqs :submit (:id d3) {:reviewer_id 9302})
+    (pass d4) (command! id :dqs :submit (:id d4) {:reviewer_id 9302})
+    (command! 9302 id :dqs :decision (:id d4) {:decision "approved" :reason "独立签认通过"})
+    (pass d5) (command! id :dqs :submit (:id d5) {:reviewer_id 9302})
+    (command! 9302 id :dqs :decision (:id d5) {:decision "rejected" :reason "证据不足退回"})
+    (let [ver (version id)
+          s (:dq_summary (workspace id))]
+      (is (true? (:available s)))
+      (is (= 5 (:total s)))
+      (is (= 1 (:draft s)))
+      (is (= 1 (:ready s)))
+      (is (= 1 (:in-review s)))
+      (is (= 1 (:approved s)))
+      (is (= 1 (:rejected s)))
+      (is (= 4 (:required-met s)))
+      (is (= 20 (:closure-pct s)))
+      (is (= 0 (:stale s)))
+      (is (= 0 (:voided s)))
+      (is (= ver (version id)) "只读汇总不得漂移项目聚合版本"))
+    ;; 纯函数直测: 空集与混合状态计数, 无 DQ 时 closure-pct 为 0.
+    (let [e (quality/dq-summary [])]
+      (is (false? (:available e)))
+      (is (= 0 (:total e)))
+      (is (= 0 (:closure-pct e)))
+      (is (= 0 (:required-met e))))
+    (let [m (quality/dq-summary [{:status "approved" :dq_required_met true}
+                                 {:status "in_review" :dq_required_met true :dq_stale true}
+                                 {:status "draft"}
+                                 {:status "ready" :dq_required_met true}
+                                 {:status "rejected" :dq_deliverable_voided true}])]
+      (is (= 5 (:total m)))
+      (is (= 3 (:required-met m)))
+      (is (= 1 (:stale m)))
+      (is (= 1 (:voided m)))
+      (is (= 20 (:closure-pct m))))))
+
+
 (deftest change-review-lock-and-audit-rollback
   (let [id (project!)
         body {:title "更改设备范围" :reason "合同调整" :scope_impact "增加设备"

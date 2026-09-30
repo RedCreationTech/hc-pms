@@ -1143,6 +1143,42 @@
         [w/edit-button "签认" #(open! (forms/decision-dialog (str base "/dqs/" (:id dq) "/decision") "approved" "签认DQ"))]
         [w/edit-button "退回" #(open! (forms/decision-dialog (str base "/dqs/" (:id dq) "/decision") "rejected" "退回DQ"))]])]))
 
+(defn- dq-summary-section
+  "按全部 DQ 关键任务的最新状态只读聚合项目级质量检查闭环概览: 已签认占全部分母的整数百分比, 交付件失效/作废数; 只读派生, 不改变任何 DQ 状态, 不构成门控."
+  [{:keys [model]}]
+  (let [sm (:dq_summary model)
+        total (:total sm 0)
+        approved (:approved sm 0)
+        in-review (:in-review sm 0)
+        ready (:ready sm 0)
+        draft (:draft sm 0)
+        rejected (:rejected sm 0)
+        required-met (:required-met sm 0)
+        stale (:stale sm 0)
+        voided (:voided sm 0)
+        pct (:closure-pct sm 0)]
+    [shared/panel "DQ 质量检查闭环汇总" "统一统计全部 DQ 关键任务最新状态的签认闭环情况(已签认/审批中/待提交/草稿/已退回)与必需检查项达成数; 另汇总签认依据交付件失效与交付件作废数量; 只读派生, 不改变 DQ 状态"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无 DQ 关键任务, 建立 DQ 并逐项检查签认后可在此查看质量闭环概览."]
+       [antd/space {:wrap true}
+        [antd/tag {:color "blue"} (str "DQ 总数 " total)]
+        [antd/tag {:color (cond (= pct 100) "green" (zero? pct) "red" :else "gold")}
+         (str "已签认 " pct "% (" approved "/" total ")")]
+        (when (pos? required-met)
+          [antd/tag {:color "green"} (str "必需项全通过 " required-met)])
+        (when (pos? in-review)
+          [antd/tag {:color "orange"} (str "签认审批中 " in-review)])
+        (when (pos? ready)
+          [antd/tag {:color "gold"} (str "待提交 " ready)])
+        (when (pos? draft)
+          [antd/tag {:color "default"} (str "草稿 " draft)])
+        (when (pos? rejected)
+          [antd/tag {:color "red"} (str "已退回 " rejected)])
+        (when (pos? stale)
+          [antd/tag {:color "volcano"} (str "交付件失效 " stale)])
+        (when (pos? voided)
+          [antd/tag {:color "red"} (str "交付件作废 " voided)])])]))
+
 (defn- dq-section
   "B08 DQ 编制与确认关键任务: 检查清单 + 确定版本交付件 + 独立签认, 交付件更新即标注失效."
   [{:keys [base model options planning editable? open!] :as context}]
@@ -1203,7 +1239,7 @@
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-escalation-section issue-section issue-escalation-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section action-closure-section action-section]]
                      ["changes" "变更控制" [change-section]]
-                     ["quality" "DQ与局部暂停" [dq-section pause-section]]])}])
+                     ["quality" "DQ与局部暂停" [dq-summary-section dq-section pause-section]]])}])
 
 
 (defn- import-dialog

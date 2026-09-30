@@ -111,6 +111,31 @@
     (assoc dq :dq_voided_deliverables voided-count
            :dq_deliverable_voided (pos? voided-count))))
 
+(defn dq-summary
+  "把全部 DQ 关键任务的最新状态只读聚合为项目级质量检查闭环概览: total/approved/in-review/ready/draft/rejected 各状态计数, required-met (必需检查项全通过数), stale (签认依据交付件出现更新版本数), voided (绑定交付件业务编码现已整体作废数), closure-pct (已签认 approved 占全部分母的整数百分比, 无 DQ 时为 0). 依赖 dq-read-model 与 dq-deliverable-voided-model 已写入的派生键, 故须在二者之后调用. 免迁移读取时计算, 不写存储, 不构成门控, 键名不带尾随问号."
+  [dqs]
+  (let [total (count dqs)
+        by-status (frequencies (map :status dqs))
+        approved (get by-status "approved" 0)]
+    {:available (pos? total)
+     :total total
+     :approved approved
+     :in-review (get by-status "in_review" 0)
+     :ready (get by-status "ready" 0)
+     :draft (get by-status "draft" 0)
+     :rejected (get by-status "rejected" 0)
+     :required-met (count (filter :dq_required_met dqs))
+     :stale (count (filter :dq_stale dqs))
+     :voided (count (filter :dq_deliverable_voided dqs))
+     :closure-pct (if (pos? total)
+                    (int (Math/round ^double (* 100.0 (/ approved total))))
+                    0)}))
+
+(defn attach-dq-summary
+  "在治理读模型上追加 :dq_summary 只读汇总 (基于已富化的 :dqs), 不改变任何逐条 DQ 记录."
+  [data]
+  (assoc data :dq_summary (dq-summary (:dqs data))))
+
 ;; ── 局部暂停 ────────────────────────────────────────────────────
 
 (defn pause-node!

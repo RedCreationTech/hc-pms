@@ -90,6 +90,7 @@
                    (update :meetings collab/flag-meeting-baselines (q :planning/baselines {:project_id (:project_id project)}))
                    (update :dqs #(mapv (partial quality/dq-read-model (:documents data)) %))
                    (update :dqs #(mapv (partial quality/dq-deliverable-voided-model voided-codes docs-by-id) %))
+                   quality/attach-dq-summary
                    (update :raci #(mapv (partial stakeholders/raci-read-model raci-loads) %))
                    (update :issues #(mapv (partial collab/owner-workload-read-model owner-loads) %))
                    (update :risks #(mapv (partial collab/owner-workload-read-model owner-loads) %))

@@ -1286,6 +1286,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: H05 整行保持 `partial` — 本项只是把已有投入覆盖度聚焦到"关键路径上还没排入工时"这一最高进度风险的只读洞察子能力, 与 `allocation-coverage` 的全局视角互补, 一个只读子能力不改变整行状态; 技能匹配 / 替代人员 / 请假规则 / 超配经协调解决的处置闭环仍未实现, 缺口不构成任何门控 (不阻断保存/提交/冻结), 不新增写路径/kind/命令/路由/表结构.
 
+## H10 DQ 质量检查闭环汇总只读派生 (本轮增补, 2026-09-30)
+
+设计与口径: DQ (设计确认) 台账此前只有逐条 DQ 的"检查通过""必需检查就绪度""版本失效""交付件作废"内联徽标, 整个项目"DQ 关键任务总体签认闭环到什么程度, 还有几条在草稿/待提交/审批中, 多少已签认, 多少依据已失效或作废"无处一眼可读. 本项在 `governance.quality` 新增只读汇总纯函数 `dq-summary`: 输入是已被 `dq-read-model` (逐条 `:dq_required_met` / `:dq_stale` 等) 与 `dq-deliverable-voided-model` (逐条 `:dq_deliverable_voided`) 富化过的 `:dqs` 向量, 按 `:status` 频次聚合输出 `available / total / approved / in-review / ready / draft / rejected / required-met / stale / voided / closure-pct` (`closure-pct` 为 `approved/total` 四舍五入整数百分比, 分母为全部 DQ 数, `total` 为 0 时给 0). `attach-dq-summary` 以整图函数在 `->` 读模型线程里 `(update :dqs ...)` 富化步骤之后 `assoc` 顶层 `:dq_summary` (下划线命名, 内层键用连字符), 不改变任何逐条 DQ 记录. 免迁移 / 免新 kind / 免新命令 / 免新路由 / 不构成任何门控 (只读呈现, 不改变任何 DQ 状态机语义). 前端 `governance.cljs` 在"DQ与局部暂停"页签 DQ 台账之上新增 `dq-summary-section` 面板 "DQ 质量检查闭环汇总" (彩色标签 DQ 总数 / 已签认 N% / 必需项全通过 / 签认审批中 / 待提交 / 草稿 / 已退回 / 交付件失效 / 交付件作废; 计数为 0 的状态标签不渲染; 无 DQ 时空态 "暂无 DQ 关键任务, 建立 DQ 并逐项检查签认后可在此查看质量闭环概览."). 键名不带尾随 `?` 以免序列化为 JSON 字面键.
+
+| 证据 | 实际记录 |
+|---|---|
+| 治理单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 79 tests / 1068 assertions, 0 failures/errors (新增 `dq-check-closure-summary-is-derived-read-only`: 纯函数用例对 mixed-status DQ 向量聚合四态计数与 `closure-pct`, 空向量 `available=false` / `total=0` / `closure-pct=0`; 集成用例经真实命令建 draft/ready/in_review/approved 四条 DQ 后 GET `/governance` 回显 `dq_summary` 各字段与逐条状态一致, 且 `dq_summary` 读取前后 `project_version` 不漂移证明纯读不落库) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 188 tests / 2107 assertions, 0 failures/errors; `attach-dq-summary` 挂到 `:dqs` 富化之后未造成既有 DQ 逐条徽标 / DQ 状态机 / Gate / 追踪链 / 会议行动 / 风险升级 回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 5 compiled / 0 warnings |
+| HTTP 合同 (契约) | `contracts/governance.md` 的 GET `/governance` 读模型更新: 新增只读汇总 `dq_summary` (available/total/approved/in-review/ready/draft/rejected/required-met/stale/voided/closure-pct), 明确由纯函数 `governance.quality/dq-summary` 对已富化 `:dqs` 读取时聚合, 免迁移/免新命令/不构成门控 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-h10dq.spec.js` 1 passed (48.4s), 无未捕获 JS 错误: 界面登记四条 DQ (d1 草稿 / d2 待提交 / d3 签认审批中 / d4 已签认) -> "DQ与局部暂停"页签"DQ 质量检查闭环汇总"面板回显"DQ 总数 4 / 已签认 0% / 必需项全通过 3 / 签认审批中 2 / 待提交 1 / 草稿 1" (截图 h10dq-1-initial.png); 真实 HTTP GET `/governance` 回显 `dq_summary` 各字段一致; 独立签认人第二真实上下文对一条 in_review 作出 approved 决定 -> 面板翻转"已签认 25% (1/4)"且"签认审批中"降为 1, 逐条 DQ 状态不漂移 (截图 h10dq-2-approved.png); 空态: 新项目无 DQ -> 面板"暂无 DQ 关键任务"且 `available=false` / `total=0` / `closure-pct=0` (截图 h10dq-3-empty.png); 截图存 `reports/h10dq/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL, 汇总为读取时对既有已富化 `:dqs` 的纯函数聚合, 不落任何新表/列); 四态计数与签认率口径由后端 SQLite 用例确定性覆盖, 浏览器侧核验界面可见标签与服务端回显同源.
+
+边界: H10 整行保持 `partial` — 本项只是把已有逐条 DQ 徽标升为一个项目级签认闭环健康度的只读汇总子能力, 与"检查通过""必需检查就绪度""版本失效""交付件作废"内联列互补, 一个只读子能力不改变整行状态; 全项目质量计划 (一份覆盖全部关键任务的计划实体) 与企业适用模板库仍未实现, 汇总不构成任何门控 (不阻断 DQ 登记/检查/提交/签认), 不新增写路径/kind/命令/路由/表结构.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.
