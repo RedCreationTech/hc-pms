@@ -1337,6 +1337,63 @@
       (is (= 20 (:closure-pct m))))))
 
 
+(deftest gate-closure-summary-is-derived-read-only
+  (let [id (project!)
+        doc-reg (document! id "GATE-CR")
+        doc-rel (document! id "GATE-CL")
+        _ (do (command! id :documents :submit (:id doc-rel) {:reviewer_id 9302})
+              (command! 9302 id :documents :decision (:id doc-rel) {:decision "approved" :reason "独立签发"}))
+        mk (fn [code]
+             (let [template (command! id :gate-templates :create nil
+                                      {:code code :title "闭环关口" :stage "execution" :required true
+                                       :checks [{:code "R" :title "必需检查" :required true}]})]
+               (command! id :gates :create nil {:template_id (:id template) :title "评审" :reviewer_id 9302})))
+        check! (fn [g doc] (command! id :gates :checks (:id g)
+                                     {:checks [{:code "R" :passed true :evidence_ids [(:id doc)]}]}))
+        g1 (mk "G-C1")
+        g2 (mk "G-C2")
+        g3 (mk "G-C3")
+        g4 (mk "G-C4")]
+    ;; g1 保持 draft (未提交检查); g2 ready; g3 in_review (绑定未发布证据); g4 approved (绑定已发布证据).
+    (check! g2 doc-reg)
+    (check! g3 doc-reg) (command! id :gates :submit (:id g3) {})
+    (check! g4 doc-rel) (command! id :gates :submit (:id g4) {})
+    (command! 9302 id :gates :decision (:id g4) {:decision "approved" :reason "独立签核通过"})
+    (let [ver (version id)
+          s (:gate_closure (workspace id))]
+      (is (true? (:available s)))
+      (is (= 4 (:total s)))
+      (is (= 1 (:draft s)))
+      (is (= 1 (:ready s)))
+      (is (= 1 (:in-review s)))
+      (is (= 1 (:approved s)))
+      (is (= 0 (:waived s)))
+      (is (= 0 (:rejected s)))
+      (is (= 1 (:signed s)))
+      (is (= 25 (:closure-pct s)))
+      (is (= 1 (:blocked s)))
+      (is (= 0 (:evidence-voided s)))
+      (is (= 2 (:evidence-pending s)))
+      (is (= ver (version id)) "只读汇总不得漂移项目聚合版本"))
+    ;; 纯函数直测: 空集与混合状态计数, 无关口时 closure-pct 为 0.
+    (let [e (gates/gate-closure-summary [])]
+      (is (false? (:available e)))
+      (is (= 0 (:total e)))
+      (is (= 0 (:closure-pct e)))
+      (is (= 0 (:blocked e))))
+    (let [m (gates/gate-closure-summary [{:status "approved" :ready_to_sign true}
+                                         {:status "waived" :ready_to_sign true}
+                                         {:status "in_review" :ready_to_sign false}
+                                         {:status "draft" :ready_to_sign false :gate_evidence_unreleased true}
+                                         {:status "rejected" :ready_to_sign false :gate_evidence_voided true}])]
+      (is (= 5 (:total m)))
+      (is (= 2 (:signed m)))
+      (is (= 40 (:closure-pct m)))
+      (is (= 3 (:blocked m)))
+      (is (= 1 (:evidence-pending m)))
+      (is (= 1 (:evidence-voided m))))))
+
+
 (deftest change-review-lock-and-audit-rollback
   (let [id (project!)
         body {:title "更改设备范围" :reason "合同调整" :scope_impact "增加设备"

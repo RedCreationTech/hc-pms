@@ -1078,11 +1078,52 @@
             (when (pos? (or (:waived_checks row) 0)) [antd/tag {:color "gold"} (str "例外 " (:waived_checks row))])
             (for [b (:blocks row)] ^{:key b} [antd/tag {:color "orange"} (str "阻断 " (get checkpoint-labels b b))])]])])]))
 
+(defn- gate-closure-summary-section
+  "只读汇总全部关口实例的签核闭环健康度: 按状态计数与已签核占比, 另汇总被必需检查阻断, 证据待发布与证据已作废的实例数; 与 Gate 模板层进展汇总互补, 只读派生, 不改变任何关口状态."
+  [{:keys [model]}]
+  (let [sm (:gate_closure model)
+        total (:total sm 0)
+        approved (:approved sm 0)
+        waived (:waived sm 0)
+        in-review (:in-review sm 0)
+        ready (:ready sm 0)
+        draft (:draft sm 0)
+        rejected (:rejected sm 0)
+        signed (:signed sm 0)
+        blocked (:blocked sm 0)
+        pending (:evidence-pending sm 0)
+        voided (:evidence-voided sm 0)
+        pct (:closure-pct sm 0)]
+    [shared/panel "关口验收签核闭环汇总" "统一统计全部关口实例的签核闭环 (已通过或已豁免视为已签核) 与占比; 另汇总被必需检查阻断, 证据待发布与证据已作废的实例数; 只读派生, 不改变任何关口状态"
+     nil
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "尚无关口实例, 发起 Gate 检查并逐项签核后可在此查看验收闭环概览."]
+       [antd/space {:wrap true}
+        [antd/tag {:color "blue"} (str "关口总数 " total)]
+        [antd/tag {:color (cond (= pct 100) "green" (zero? pct) "red" :else "gold")}
+         (str "已签核 " pct "% (" signed "/" total " · 批准 " approved " 豁免 " waived ")")]
+        (when (pos? in-review)
+          [antd/tag {:color "orange"} (str "签核评审中 " in-review)])
+        (when (pos? ready)
+          [antd/tag {:color "gold"} (str "待提交 " ready)])
+        (when (pos? draft)
+          [antd/tag {:color "default"} (str "草稿 " draft)])
+        (when (pos? rejected)
+          [antd/tag {:color "red"} (str "已驳回 " rejected)])
+        (when (pos? blocked)
+          [antd/tag {:color "volcano"} (str "被必需检查阻断 " blocked)])
+        (when (pos? pending)
+          [antd/tag {:color "purple"} (str "证据待发布 " pending)])
+        (when (pos? voided)
+          [antd/tag {:color "red"} (str "证据已作废 " voided)])])]))
+
+
 (defn- gate-section
   "Gate模板和逐项证据检查控制阶段准入."
   [{:keys [base model options editable? open!] :as context}]
   [:div {:style {:display "grid" :gap 20}}
    [gate-progress-section context]
+   [gate-closure-summary-section context]
    [shared/panel "Gate模板" "每个控制点声明类型, 适用阶段, 阻断检查点与必需检查项 (含须已发布证据的检查)"
     (when editable?
       [antd/space

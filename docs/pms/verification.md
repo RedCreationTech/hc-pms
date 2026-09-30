@@ -1302,6 +1302,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: H10 整行保持 `partial` — 本项只是把已有逐条 DQ 徽标升为一个项目级签认闭环健康度的只读汇总子能力, 与"检查通过""必需检查就绪度""版本失效""交付件作废"内联列互补, 一个只读子能力不改变整行状态; 全项目质量计划 (一份覆盖全部关键任务的计划实体) 与企业适用模板库仍未实现, 汇总不构成任何门控 (不阻断 DQ 登记/检查/提交/签认), 不新增写路径/kind/命令/路由/表结构.
 
+## B09 关口验收签核闭环汇总只读派生 (本轮增补, 2026-09-30)
+
+设计与口径: 关口 (Gate) 台账此前只有逐条关口实例的"检查就绪度"内联徽标 (`gate-read-model` 的 `ready_to_sign` / `blocking_checks` 与 `gate-evidence-voided-model` / `gate-evidence-release-model` 的"证据已作废""证据待发布"两色标), 模板层另有 `gate-progress` 按模板下钻实例进展, 但整个项目"到底多少关口实例已签核闭环, 多少还在评审/待提交/草稿, 多少仍被必需检查阻断, 多少证据待发布或已作废"这一关口实例层的健康度此前无从一眼可读. 本项在 `governance.gates` 新增只读汇总纯函数 `gate-closure-summary`: 输入是已被 `gate-read-model` / `gate-evidence-voided-model` / `gate-evidence-release-model` 逐条富化过的 `:gates` 向量, 按 `:status` 频次聚合输出 `available / total / approved / waived / in-review / ready / draft / rejected / signed / blocked / evidence-voided / evidence-pending / closure-pct` (`signed` = `approved + waived` 与 `gate-progress` 的 `#{"approved" "waived"}` 口径一致, `blocked` 为 `ready_to_sign` 为假者数, `evidence-pending`/`evidence-voided` 分别计 `gate_evidence_unreleased`/`gate_evidence_voided` 为真者数, `closure-pct` 为 `signed/total` 四舍五入整数百分比, `total` 为 0 时给 0). `attach-gate-closure-summary` 以整图函数在 `->` 读模型线程里三条 `(update :gates ...)` 富化步骤之后 `assoc` 顶层 `:gate_closure` (下划线命名, 内层键用连字符), 不改变任何逐条关口记录. 免迁移 / 免新 kind / 免新命令 / 免新路由 / 不构成任何门控 (只读呈现, 不改变任何关口状态机语义, 关口 `submit!`/`decide!`/`evidence-ready!` 的硬校验不受影响). 前端 `governance.cljs` 在"Gate评审"页签模板层"Gate进展汇总"之下新增 `gate-closure-summary-section` 面板 "关口验收签核闭环汇总" (彩色标签 关口总数 / 已签核 N% (signed/total · 批准 A 豁免 W) / 签核评审中 / 待提交 / 草稿 / 已驳回 / 被必需检查阻断 / 证据待发布 / 证据已作废; 计数为 0 的状态标签不渲染; 无关口时空态 "尚无关口实例, 发起 Gate 检查并逐项签核后可在此查看验收闭环概览."). 键名不带尾随 `?` 以免序列化为 JSON 字面键.
+
+| 证据 | 实际记录 |
+|---|---|
+| 治理单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 80 tests / 1092 assertions, 0 failures/errors (新增 `gate-closure-summary-is-derived-read-only`: 纯函数用例对空向量给 `available=false` / `total=0` / `closure-pct=0` / `blocked=0`, 对五条 mixed-status 关口向量聚合 `signed=2` / `closure-pct=40` / `blocked=3` / `evidence-pending=1` / `evidence-voided=1`; 集成用例经真实命令建一个含单个必需检查项的关口模板并派生 draft/ready/in_review(绑未发布证据)/in_review(绑已发布证据) 四条实例后 GET `/governance` 回显 `gate_closure` total=4/approved=1/in-review=1/ready=1/draft=1/signed=1/closure-pct=25/blocked=1/evidence-pending=2/evidence-voided=0 与逐条状态一致, 且读取前后 `project_version` 不漂移证明纯读不落库) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 189 tests / 2131 assertions, 0 failures/errors; `attach-gate-closure-summary` 挂到 `:gates` 三条富化之后未造成既有"检查就绪度"内联列 / Gate 状态机 / 证据作废与待发布标注 / DQ / 追踪链 / 会议行动 / 风险升级 回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 5 compiled / 0 warnings |
+| HTTP 合同 (契约) | `contracts/governance.md` 的 GET `/governance` 读模型更新: 新增只读汇总 `gate_closure` (available/total/approved/waived/in-review/ready/draft/rejected/signed/blocked/evidence-voided/evidence-pending/closure-pct), 明确由纯函数 `governance.gates/gate-closure-summary` 对已富化 `:gates` 读取时聚合, 免迁移/免新命令/不构成门控 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-b09gcs.spec.js` 1 passed (48.3s), 无未捕获 JS 错误: 界面建未发布与已发布两份交付件并由独立签发人真实 HTTP 发布其一 -> 建一个含 1 必需检查项的关口模板派生 4 个实例推进 draft/ready(绑未发布证据)/in_review(绑未发布证据)/in_review(绑已发布证据) -> "Gate评审"页签"关口验收签核闭环汇总"面板回显"关口总数 4 / 已签核 0% / 签核评审中 2 / 待提交 1 / 草稿 1 / 被必需检查阻断 1 / 证据待发布 2 / 证据已作废 0" (截图 b09gcs-1-initial.png); 真实 HTTP GET `/governance` 回显 `gate_closure` 各字段一致; 独立签核人第二真实上下文对绑已发布证据者作出 approved 决定 -> 面板翻转"已签核 25% (1/4 · 批准 1)"且"签核评审中"降为 1 而"证据待发布"仍 2, 逐条关口状态 (g1 draft/g2 ready/g3 in_review/g4 approved 且 decided_by 为独立签核人) 不漂移 (截图 b09gcs-2-approved.png); 空态: 新项目无关口 -> 面板"尚无关口实例"且 `available=false` / `total=0` / `closure-pct=0` (截图 b09gcs-3-empty.png); 截图存 `reports/b09gcs/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL, 汇总为读取时对既有已富化 `:gates` 的纯函数聚合, 不落任何新表/列); 六态计数, 已签核/阻断/待发布/作废聚合与闭环率口径由后端 SQLite 用例确定性覆盖, 浏览器侧核验界面可见标签与服务端回显同源.
+
+边界: B09 整行保持 `implemented / local` 与"待 主机交付清单业务口径"不变 — 本项只是把已有逐条关口徽标与模板层 `gate-progress` 升为一个关口实例层的项目级签核闭环健康度只读汇总子能力, 与逐条"检查就绪度""证据待发布""证据已作废"内联列互补, 一个只读子能力不改变整行状态; 是否据"证据待发布/被必需检查阻断"进一步阻断关口批准属"待 主机交付清单业务口径", 汇总不构成任何门控 (不阻断关口登记/检查/提交/签核), 不新增写路径/kind/命令/路由/表结构.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

@@ -215,3 +215,30 @@
               (s/records q project "issue"))
     (r/fail! 409 "仍有未关闭的阻塞问题"))
   (stage-ready! q project "closure"))
+
+(defn gate-closure-summary
+  "只读聚合全部关口实例的签核闭环健康度: 按状态计数 (批准/豁免/审批中/待提交/草稿/驳回), 已签核 (批准或豁免) 占全部实例的整数百分比, 被未满足必需检查阻断的实例数, 以及证据已作废与证据待发布的实例数; 是关口实例层的签核闭环汇总, 与 gate-progress 的模板层下钻互补. 只读派生, 不改变任何关口状态, 不构成门控, 键名不带尾随问号."
+  [gates]
+  (let [total (count gates)
+        by-status (frequencies (map :status gates))
+        signed (+ (get by-status "approved" 0) (get by-status "waived" 0))]
+    {:available (pos? total)
+     :total total
+     :approved (get by-status "approved" 0)
+     :waived (get by-status "waived" 0)
+     :in-review (get by-status "in_review" 0)
+     :ready (get by-status "ready" 0)
+     :draft (get by-status "draft" 0)
+     :rejected (get by-status "rejected" 0)
+     :signed signed
+     :blocked (count (remove :ready_to_sign gates))
+     :evidence-voided (count (filter :gate_evidence_voided gates))
+     :evidence-pending (count (filter :gate_evidence_unreleased gates))
+     :closure-pct (if (pos? total)
+                    (int (Math/round ^double (* 100.0 (/ signed total))))
+                    0)}))
+
+(defn attach-gate-closure-summary
+  "在治理读模型上追加 :gate_closure 只读汇总 (基于已富化的 :gates), 不改变任何逐条关口记录."
+  [data]
+  (assoc data :gate_closure (gate-closure-summary (:gates data))))
