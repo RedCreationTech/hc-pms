@@ -188,6 +188,12 @@ test.describe('H06 挣值偏差纠正措施登记与闭环', () => {
     await panel.scrollIntoViewIfNeeded();
     await shot(page, 'h06-1-variance-detected.png');
 
+    // 闭环汇总面板 (只读派生): 尚未登记措施时措施总数为 0, 闭环率 0%.
+    const summary = drawer(page).locator('section').filter({ has: page.getByRole('heading', { name: '偏差纠正措施闭环汇总', exact: true }) });
+    await expect(summary).toBeVisible();
+    await expect(summary.getByText('措施总数', { exact: true })).toBeVisible();
+    await expect(summary.getByText('0%', { exact: true })).toBeVisible();
+
     // 2. 界面登记纠正措施 -> 复用会议行动类型 (open) -> 措施落实翻转为 "落实中 (1 项 · 未闭环 1)".
     await panel.getByRole('button', { name: '登记纠正措施', exact: true }).first().click();
     const regModal = modal(page, '登记进度偏差纠正措施');
@@ -203,6 +209,12 @@ test.describe('H06 挣值偏差纠正措施登记与闭环', () => {
     await expect(panel.getByText(/1 项 · 未闭环 1/).first()).toBeVisible();
     await panel.scrollIntoViewIfNeeded();
     await shot(page, 'h06-2-action-registered.png');
+
+    // 闭环汇总面板: 已登记 1 项措施, 全部未闭环, 闭环率仍 0%.
+    await expect(summary.getByText('1 项', { exact: true }).first()).toBeVisible();
+    await expect(summary.getByText('0%', { exact: true })).toBeVisible();
+    await summary.scrollIntoViewIfNeeded();
+    await shot(page, 'h06-4-closure-partial.png');
 
     // 非法偏差种类经真实 HTTP 拒绝 (仅 schedule / cost).
     await mutate(page, id, '/governance/actions/from-variance', { title: '非法种类', owner_id: f.adminId, due_date: '2026-12-01', variance_kind: 'risk' }, 400);
@@ -220,6 +232,13 @@ test.describe('H06 挣值偏差纠正措施登记与闭环', () => {
     await expect(panel.getByText(/1 项 · 未闭环 0/).first()).toBeVisible();
     await panel.scrollIntoViewIfNeeded();
     await shot(page, 'h06-3-action-closed.png');
+
+    // 闭环汇总面板翻转: 唯一措施已独立核验闭环, 闭环率 100%.
+    const summary2 = drawer(page).locator('section').filter({ has: page.getByRole('heading', { name: '偏差纠正措施闭环汇总', exact: true }) });
+    await expect(summary2.getByText('100%', { exact: true })).toBeVisible();
+    await expect(summary2.getByText('全部闭环偏差', { exact: true })).toBeVisible();
+    await summary2.scrollIntoViewIfNeeded();
+    await shot(page, 'h06-5-closure-complete.png');
 
     expect(errors).toEqual([]);
     await f.context.close();

@@ -366,6 +366,48 @@
     (is (vector? (:performance_variances (plan id))) "计划读模型暴露绩效偏差与其措施落实聚合")))
 
 
+(deftest variance-closure-summary-aggregates-across-variances
+  (testing "闭环汇总纯函数: 偏差数/已登记措施偏差数/全闭环偏差数/措施总数/已闭环/未闭环/闭环率, 仅统计带 variance_kind 的行动"
+    (let [covered [{:variance_kind "schedule" :variance_action_state "in-progress" :variance_action_total 1 :variance_action_open 1}
+                   {:variance_kind "cost" :variance_action_state "completed" :variance_action_total 2 :variance_action_open 0}
+                   {:variance_kind "schedule" :variance_action_state "unimplemented" :variance_action_total 0 :variance_action_open 0}]
+          actions [{:variance_kind "schedule" :status "in_review"}
+                   {:variance_kind "cost" :status "closed"}
+                   {:variance_kind "cost" :status "converted"}
+                   {:status "open"}]
+          summary (ev/variance-closure-summary covered actions)]
+      (is (= 3 (:variance_count summary)))
+      (is (= 2 (:variance_with_action summary)) "unimplemented 那类偏差未登记措施不计")
+      (is (= 1 (:variance_closed summary)))
+      (is (= 3 (:action_total summary)) "仅统计带 variance_kind 的行动, 无标记的 open 行动不计")
+      (is (= 2 (:action_closed summary)) "closed 与 converted 计已闭环, in_review 不计")
+      (is (= 1 (:action_open summary)))
+      (is (= 67 (:action_closure_pct summary)) "2/3 四舍五入为 67")
+      (is (= 0 (:action_closure_pct (ev/variance-closure-summary [] []))) "无措施时闭环率为 0")))
+  (testing "读模型接线: 登记 schedule 措施计入 :variance_closure, 独立核验闭环后已闭环数与闭环率翻转"
+    (let [id (project!)
+          _ (derive! id)
+          _ (execution! id)
+          evidence (:id (command! id :documents :create nil
+                                  {:code "EV-DOC2" :title "纠偏证据2" :filename "ev2.txt" :content "实测记录2"}))
+          action (command! id :actions :from-variance nil
+                           {:title "压缩关键路径2" :owner_id 9902 :due_date "2026-12-01"
+                            :variance_kind "schedule" :variance_status_date "2026-09-30"})
+          open-summary (:variance_closure (plan id))]
+      (is (= 1 (:action_total open-summary)) "计划读模型暴露偏差措施闭环汇总")
+      (is (= 0 (:action_closed open-summary)))
+      (is (= 1 (:action_open open-summary)))
+      (is (= 0 (:action_closure_pct open-summary)))
+      (let [aid (:id action)]
+        (command! id :actions :complete aid {:result "已重排" :evidence_ids [evidence] :reviewer_id 9902})
+        (command! 9902 id :actions :verify aid {:decision "approved" :reason "独立核验通过"}))
+      (let [closed-summary (:variance_closure (plan id))]
+        (is (= 1 (:action_total closed-summary)))
+        (is (= 1 (:action_closed closed-summary)))
+        (is (= 0 (:action_open closed-summary)))
+        (is (= 100 (:action_closure_pct closed-summary)))))))
+
+
 (deftest scan-writes-daily-snapshot-and-idempotent-reminders
   (let [id (project!)
         _ (derive! id)

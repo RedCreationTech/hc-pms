@@ -178,6 +178,7 @@
      [views/progress-rollup model actions node-action]
      [views/conflicts-panel model]
      [views/earned-value-panel model]
+     [views/variance-closure-panel model]
      [views/variance-panel model register-variance]
      [views/history-panel model]
      [views/reschedules-panel model]]))

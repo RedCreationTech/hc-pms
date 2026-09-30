@@ -1110,6 +1110,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 本项把 H06 从"仅有挣值数值可看"推进到"绩效偏差可识别 + 纠正措施可登记 + 可经独立核验闭环", 属 `partial` 行内的一个 well-scoped 子能力增量; H06 仍保持 `partial` 状态不上行, 因为"反馈独立审核"与"财务金额口径挣值 (增量7 费率后)"仍是真实待办. 本项**不构成任何自动门控** (偏差不阻断任何登记或流转, 闭环走的是既有行动链), 不新增迁移/kind/命令路由外的表结构, 不改变不可变版本.
 
+## H06 偏差纠正措施闭环汇总只读面板 (本轮增补, 2026-09-30)
+
+设计与口径: 承接上一子增量"绩效偏差登记与纠正措施闭环", 界面此前只在"绩效偏差与纠正措施"面板逐条回显每个偏差的落实状态, 但没有一处把跨全部挣值偏差的纠正措施**整体闭环健康度**聚合成一眼可读的汇总. 本项补齐这一只读派生洞察, 复用已验证的会议行动闭环口径, 免迁移 / 免新 kind / 免新命令 / 免新路由 / 不构成门控: 新增纯函数 `planning.earned-value/variance-closure-summary` 在 `performance_variances` 之上跨全部偏差聚合, 输出整数键 `variance_count` / `variance_with_action` / `variance_closed` / `action_total` (带 `variance_kind` 标注的纠正措施总数) / `action_closed` / `action_open` / `action_closure_pct` (`round(100 x closed/total)`, 分母 0 取 0), 键名不带尾随 `?`; `planning.clj` read-plan 以 `:variance_closure` 暴露; 前端在挣值面板与逐条偏差面板之间新增 `views/variance-closure-panel` "偏差纠正措施闭环汇总"面板, 以指标卡展示上述字段, 闭环率按 100% (蓝) / 部分 (金) / 0% (红) 着色, 无偏差时提示"暂无绩效偏差". 该汇总与逐偏差明细同源, 只是把明细里散落的落实状态提升为项目级健康度.
+
+| 证据 | 实际记录 |
+|---|---|
+| 进度单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-progress-test'` 通过 11 tests / 151 assertions, 0 failures/errors (新增 `variance-closure-summary-aggregates-across-variances`: (a) 纯函数直测三条覆盖态偏差 (in-progress/completed/unimplemented) + 四条措施 (含一条无 `variance_kind` 的普通会议行动) 断言 `variance_count 3` / `variance_with_action 2` / `variance_closed 1` / `action_total 3` / `action_closed 2` / `action_open 1` / `action_closure_pct 67`, 空输入各计数 0; (b) 集成路径 `project!`->`derive!`->`execution!` 后经 `[:actions :from-variance]` 登记一条 schedule 措施, 断言 `read-plan` 的 `:variance_closure` `action_total 1` / `action_closed 0` / `action_open 1` / `action_closure_pct 0`, 再经 complete + 独立 verify 闭环后翻为 `action_closed 1` / `action_open 0` / `action_closure_pct 100`) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 177 tests / 1935 assertions, 0 failures/errors, read-plan 新增 `:variance_closure` 未造成既有挣值/偏差/行动闭环/治理回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 6 compiled / 0 warnings |
+| HTTP 合同 (契约) | `contracts/planning.md` 新增"偏差纠正措施闭环汇总 `variance_closure`"段: 纯函数跨偏差聚合的整数键口径, 前端只读面板与着色, 明确不写存储 / 不新增 kind/命令/路由/表结构 / 不构成门控 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-h06v.spec.js` 1 passed (48.0s), 无未捕获 JS 错误: 在既有偏差登记闭环流程上追加对同页 "偏差纠正措施闭环汇总" 面板的核验 — 登记前断言 "措施总数" 与闭环率 "0%", 界面登记一条纠正措施后断言 "1 项" 与闭环率仍 "0%" (截图 h06-4-closure-partial.png), 经真实 HTTP complete + 独立上下文 verify 闭环后断言 "全部闭环偏差" 与闭环率翻为 "100%" (截图 h06-5-closure-complete.png); 原三张偏差明细截图 (h06-1/2/3) 一并复跑通过; 截图存 `reports/h06-variance/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL, 汇总只读派生复用既有 `performance_variances` 与 `action` payload 无需建表); 汇总数字的正确性由后端 SQLite 用例确定性覆盖, 浏览器侧核验界面可见的汇总面板指标卡在登记 -> 独立核验闭环过程中的真实翻转 (0% -> 0% -> 100%) 与着色.
+
+边界: 本项是 H06 `partial` 行内的又一个 well-scoped 只读子能力 (把逐条偏差落实状态提升为项目级闭环健康度汇总), 不改变不可变版本, 不新增任何写路径或门控; H06 仍保持 `partial` 不上行, 因为"反馈独立审核"与"财务金额口径挣值 (增量7 费率后)"仍是真实待办.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

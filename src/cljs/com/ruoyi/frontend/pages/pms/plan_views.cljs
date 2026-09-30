@@ -167,6 +167,25 @@
         on-register])]))
 
 
+(defn variance-closure-panel
+  "绩效偏差纠正措施闭环汇总 (H06): 跨全部挣值偏差只读聚合纠正措施整体闭环健康度, 与上方偏差明细同源; 闭环率 = 已闭环措施 / 措施总数, 复用会议行动闭环口径, 只读派生不构成门控."
+  [model]
+  (let [summary (:variance_closure model)
+        pct (:action_closure_pct summary)]
+    [shared/panel "偏差纠正措施闭环汇总" "把上方所有绩效偏差的纠正措施整体闭环情况聚合成一眼可读的健康度 (与偏差明细同源); 每个偏差按种类聚合已登记措施, 措施复用会议行动类型走完成与独立核验闭环" nil
+     (if (or (nil? summary) (zero? (:variance_count summary)))
+       [:span {:style {:color "#98a2b3"}} "暂无绩效偏差, 无需汇总纠正措施闭环情况."]
+       [:div {:style {:display "flex" :flexWrap "wrap" :gap 10}}
+        [metric "偏差数" (:variance_count summary) "" nil]
+        [metric "已登记措施偏差" (:variance_with_action summary) " 项" nil]
+        [metric "全部闭环偏差" (:variance_closed summary) " 项" nil]
+        [metric "措施总数" (:action_total summary) " 项" nil]
+        [metric "已闭环措施" (:action_closed summary) " 项" "#1d39c4"]
+        [metric "未闭环措施" (:action_open summary) " 项" (when (pos? (:action_open summary)) "#cf1322")]
+        [metric "措施闭环率" pct "%" (cond (>= pct 100) "#1d39c4" (zero? pct) "#cf1322" :else "#e6a23c")]
+       ])]))
+
+
 (defn conflicts-panel
   "主子约束冲突 (B03): 子项目/单机阶段任务排程完成日晚于主计划同阶段窗口."
   [model]

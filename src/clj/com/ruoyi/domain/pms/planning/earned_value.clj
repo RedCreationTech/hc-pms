@@ -132,6 +132,26 @@
           variances)))
 
 
+(defn variance-closure-summary
+  "跨全部挣值偏差只读聚合纠正措施整体闭环健康度: 偏差数 variance_count, 已登记措施的偏差数 variance_with_action, 全部闭环的偏差数 variance_closed, 措施总数 action_total, 已闭环 action_closed (closed 或 converted), 未闭环 action_open 与措施闭环率 action_closure_pct. 输入是已带 variance_action_* 的 variances 与带 variance_kind 标记的纠正措施行动; 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
+  [variances actions]
+  (let [variance-count (count variances)
+        variance-with-action (count (filterv #(not= "unimplemented" (:variance_action_state %)) variances))
+        variance-closed (count (filterv #(= "completed" (:variance_action_state %)) variances))
+        variance-actions (filterv :variance_kind actions)
+        action-total (count variance-actions)
+        action-closed (count (filterv #(contains? #{"closed" "converted"} (:status %)) variance-actions))]
+    {:variance_count variance-count
+     :variance_with_action variance-with-action
+     :variance_closed variance-closed
+     :action_total action-total
+     :action_closed action-closed
+     :action_open (- action-total action-closed)
+     :action_closure_pct (if (pos? action-total)
+                           (int (Math/round ^double (* 100.0 (/ action-closed action-total))))
+                           0)}))
+
+
 (defn snapshot-payload
   "把挣值与卷积结果压缩成可持久化的日快照 (趋势用)."
   [date ev rollup counts]

@@ -34,8 +34,9 @@
             today (str (java.time.LocalDate/now))
             entries (q :finance/times {:project_id (:project_id project)})
             evm (ev/earned-value raw-tasks (:schedule snapshot) (:calendar snapshot) entries nodes today)
+            gov-actions (governance/records q project "action")
             variances (-> (ev/performance-variances evm)
-                          (ev/variance-coverage (governance/records q project "action")))]
+                          (ev/variance-coverage gov-actions))]
         (merge snapshot
                {:tasks tasks :nodes nodes :stages (or stages [])
                 :stage_weight_source (network/stage-weight-source q project)
@@ -46,6 +47,7 @@
                 :progress_rollup (assoc (progress/rollup tasks nodes stages) :source (network/stage-weight-source q project))
                 :plan_conflicts (network/conflicts raw-tasks (:schedule snapshot) nodes)
                 :earned_value evm :performance_variances variances
+                :variance_closure (ev/variance-closure-summary variances gov-actions)
                 :progress_history (->> (governance/records q project "progress-snapshot") (sort-by :snapshot_date) vec)
                 :reschedules (governance/records q project "reschedule")
                 :reminders (filterv #(= "open" (:status %)) (governance/records q project "reminder"))
