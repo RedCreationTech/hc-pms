@@ -1079,6 +1079,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 本项为 B08 DQ 台账补齐"必需项就绪度"只读可见性 (与 B09 关口"检查就绪度"同口径), 属 `implemented / local` 的只读洞察增量; B08 整行核心闭环 (清单/交付件/独立签认/失效标注) 早已 `implemented / local`, 本增量不上行也不改变其状态; 待补项仍为交付配置业务口径与 MySQL 回归.
 
+## Gate 已通过证据尚未正式发布只读标注 (本轮增补, 2026-09-30)
+
+设计与口径: 承接 Gate "证据已作废"标注, 本项问一个更前置的问题——关口检查项已勾选通过 (`:passed`) 并绑定 `evidence_ids` (登记时锁定的不可变文档版本 `id`), 但所绑文档可能尚未走完发布流程 (文档须经 `submit` + 独立审核人 `decide-release!` 才从 `registered`/`in_review` 变 `approved`). 存在"检查已标记通过、证据却还没正式发布"的窗口, 台账应显式提示, 以免评审人误以为该项证据已具正式效力. 本项复用 H18/C03/Gate/DQ 已确立的"给治理台账加只读派生洞察"套路, **不落库、不投递、不改动任何不可变版本, 免迁移、免新命令、免新 kind、免新路由、不构成任何门控**. (1) 派生: 新公有纯函数 `governance.gates/gate-evidence-release-model [docs-by-id gate]` 逐检查项核验——只统计 `:passed` 为真且 `evidence_ids` 非空的检查项, 若其中任一绑定文档当前 `:status` 不为 `"approved"` (含 `registered`/`in_review`/`rejected`/缺档) 即计一次待发布, 派生整数 `gate_evidence_checks` (通过且绑证据的检查项数), `gate_evidence_pending` (其中证据未全发布者) 与布尔 `gate_evidence_unreleased` (`gate_evidence_pending > 0`). 与既有 `gate_evidence_voided` 是**两个正交口径**: 作废问"所引编码最新版本是否恰为 `discarded`", 本项问"所引版本是否尚未 `approved`"; 因快照 `evidence_ids` 不漂移, "快照指向已发布 v1 (`unreleased` false) 而同编码 v2 事后被作废 (`voided` true)"可同时成立. (2) 接线: `governance.clj` workspace 复用 `let` 里已算好的 `docs-by-id`, 在既有 `(update :gates ... gate-evidence-voided-model ...)` 之后追加第三遍 `(update :gates #(mapv (partial gates/gate-evidence-release-model docs-by-id) %))`. (3) 前端: "Gate检查与评审"台账在"检查就绪度"列红色"证据已作废 N"之后, 命中时追加金色"证据待发布 N"标签 (N 为 `gate_evidence_pending`), 与红色作废标、绿色可签核标叠加呈现, 键名不带尾随 `?`.
+
+| 证据 | 实际记录 |
+|---|---|
+| 治理单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 72 tests / 968 assertions, 0 failures/errors (新增 `passed-evidence-not-yet-released-is-flagged-in-gate-snapshot-read-model` 1 例: 建项目 + 建含 2 必需 E-1/E-2 与 1 可选 E-3 的模板与关口实例 -> 三条检查均 `:passed` 但 E-1/E-2 各绑一份 `registered` 文档、E-3 无证据 -> 断言 `gate_evidence_checks` 2 (可选无证据项不计)、`gate_evidence_pending` 2、`gate_evidence_unreleased` true -> 独立签发 doc-a -> `gate_evidence_pending` 降 1 仍 true -> 独立签发 doc-b -> `gate_evidence_pending` 0、`gate_evidence_unreleased` false 而 `gate_evidence_checks` 恒 2 -> 再对 doc-a 修订 v2 并作废 v2 -> 断言 `gate_evidence_unreleased` 仍 false 而 `gate_evidence_voided` 翻 true (两口径正交); 另纯函数直测 `gate-evidence-release-model` 的全发布/含未发布/含驳回/缺档/未通过项/空证据/多项计数七种口径) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 174 tests / 1896 assertions, 0 failures/errors, `:gates` 第三遍 `update` 未造成既有 Gate 就绪度/Gate 证据作废/DQ 交付件作废/追踪链证据发布等 read-model 用例回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 5 compiled / 0 warnings |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-gaterel.spec.js` 1 passed (22.5s), 无未捕获 JS 错误: 界面 admin 建项目 + 合成独立审核人 -> 真实 HTTP 建含 1 必需检查的模板与关口实例并建 `registered` 证据文档 v1、把检查标记通过且绑定 v1 -> 重载 Gate 页签"检查就绪度"列显绿色"检查 1/1"+蓝色"可签核"+金色"证据待发布 1"且无"证据已作废" (截图 gaterel-1-pending.png), GET 回显 `gate_evidence_checks` 1/`gate_evidence_pending` 1/`gate_evidence_unreleased` true/`gate_evidence_voided` false -> admin 真实 HTTP `:documents/:id/submit` 指定审核人、审核人以第二真实登录上下文 `:documents/:id/decision` 批准发布 -> 重载金色"证据待发布 1"消失而"检查 1/1""可签核"仍在 (截图 gaterel-2-released.png), GET `gate_evidence_unreleased` false/`gate_evidence_pending` 0 -> 真实 HTTP 对 v1 修订 v2 并作废 v2 -> 重载红色"证据已作废 1"出现而金色"证据待发布"仍无 (截图 gaterel-3-orthogonal.png), GET `gate_evidence_voided` true 而 `gate_evidence_unreleased` 仍 false 且 `checks[0].evidence_ids` 仍 `[v1]` 不漂移; 截图存 `reports/gaterel/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL); "已通过证据是否已正式发布"这一布尔事实由后端 SQLite 用例确定性覆盖, 浏览器侧核验界面可见的金色"证据待发布 N"徽标出现/消失、双上下文真实发布流程、以及与红色"证据已作废"徽标的正交叠加; 只读标注**不构成任何门控或拦截** (证据未发布不影响关口既有签核与流转, 仅界面提示; 是否据此阻断关口批准仍属"待规则"), 不做批量重算、不做未发布证据的主动提醒投递、不做"证据须先发布方可签核"的强制流程.
+
+边界: 本项为 Gate 台账补齐"已通过证据尚未正式发布"只读可见性, 是 H18 作废证据家族 (追踪链 / URS 验证证据 / Gate 验收快照 / DQ 签认快照) 之外一个正交的"发布态"洞察维度, 属 `implemented / local` 只读增量; Gate 核心闭环 (检查/证据绑定/独立签核/就绪度/作废标注) 早已 `implemented / local`, 本增量不上行也不改变其状态; 待补项仍为证据未发布是否须阻断关口批准的规则确认与 MySQL 回归.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

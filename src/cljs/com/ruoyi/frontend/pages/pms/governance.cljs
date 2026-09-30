@@ -997,7 +997,8 @@
                                                      waived (aget row "gate_waived")
                                                      blocking (array-seq (or (aget row "blocking_checks") #js []))
                                                      ready (true? (aget row "ready_to_sign"))
-                                                     voided (true? (aget row "gate_evidence_voided"))]
+                                                     voided (true? (aget row "gate_evidence_voided"))
+                                                     unreleased (true? (aget row "gate_evidence_unreleased"))]
                                                  (r/as-element
                                                   (into [antd/space {:wrap true}]
                                                         (cons [antd/tag {:color (if ready "green" "red")} (str "检查 " passed "/" total)]
@@ -1005,7 +1006,8 @@
                                                                 (pos? waived) (conj [antd/tag {:color "blue"} (str "豁免 " waived)])
                                                                 (seq blocking) (conj [antd/tag {:color "orange"} (str "待满足 " (str/join ", " blocking))])
                                                                 ready (conj [antd/tag {:color "green"} "可签核"])
-                                                                voided (conj [antd/tag {:color "red"} (str "证据已作废 " (aget row "gate_voided_checks"))])))))))}
+                                                                voided (conj [antd/tag {:color "red"} (str "证据已作废 " (aget row "gate_voided_checks"))])
+                                                                unreleased (conj [antd/tag {:color "gold"} (str "证据待发布 " (aget row "gate_evidence_pending"))])))))))}
                                     (w/state-column)
                                     (w/text-column :reviewer_id "审批人") (w/text-column :decision_reason "评审意见")]
      #(gate-actions context %)]]])

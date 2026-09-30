@@ -1148,6 +1148,60 @@
       (is (= 0 (:gate_voided_checks (gates/gate-evidence-voided-model vc docs {:checks [{:code "X" :evidence_ids ["missing"]}]})))))))
 
 
+(deftest passed-evidence-not-yet-released-is-flagged-in-gate-snapshot-read-model
+  (let [id (project!)
+        doc-a (document! id "GATE-RA")
+        doc-b (document! id "GATE-RB")
+        template (command! id :gate-templates :create nil
+                           {:code "G-RE" :title "证据发布关口" :stage "execution" :required true
+                            :checks [{:code "E-1" :title "设计记录" :required true}
+                                     {:code "E-2" :title "测试记录" :required true}
+                                     {:code "E-3" :title "无证据自检" :required false}]})
+        gate (command! id :gates :create nil {:template_id (:id template) :title "验收" :reviewer_id 9302})
+        find-gate (fn [] (first (filter #(= (:id gate) (:id %)) (:gates (workspace id)))))]
+    ;; 两项通过且各绑定一份尚未签发 (registered) 的证据, 另加一项通过但无证据.
+    (command! id :gates :checks (:id gate)
+              {:checks [{:code "E-1" :passed true :evidence_ids [(:id doc-a)]}
+                        {:code "E-2" :passed true :evidence_ids [(:id doc-b)]}
+                        {:code "E-3" :passed true :evidence_ids []}]})
+    (is (= 2 (:gate_evidence_checks (find-gate))))
+    (is (= 2 (:gate_evidence_pending (find-gate))))
+    (is (true? (:gate_evidence_unreleased (find-gate))))
+    ;; 独立签发 doc-a -> 该项证据已发布, 待发布数降至 1.
+    (command! id :documents :submit (:id doc-a) {:reviewer_id 9302})
+    (command! 9302 id :documents :decision (:id doc-a) {:decision "approved" :reason "独立签发 A"})
+    (is (= 2 (:gate_evidence_checks (find-gate))))
+    (is (= 1 (:gate_evidence_pending (find-gate))))
+    (is (true? (:gate_evidence_unreleased (find-gate))))
+    ;; 独立签发 doc-b -> 两项证据均已发布, 待发布归零, 布尔翻回 false.
+    (command! id :documents :submit (:id doc-b) {:reviewer_id 9302})
+    (command! 9302 id :documents :decision (:id doc-b) {:decision "approved" :reason "独立签发 B"})
+    (is (= 2 (:gate_evidence_checks (find-gate))))
+    (is (= 0 (:gate_evidence_pending (find-gate))))
+    (is (false? (:gate_evidence_unreleased (find-gate))))
+    ;; 与"证据已作废"正交: 发布后再修订并作废新版本, 快照仍指向已发布的 v1 (unreleased 不变 false), 作废标注才翻转.
+    (let [v2 (command! id :documents :revisions (:id doc-a)
+                       {:code "GATE-RA" :title "更新记录" :filename "a-v2.txt" :content "第二版正文\n"})]
+      (command! id :documents :discard (:id v2) {:reason "撤回新版"})
+      (is (false? (:gate_evidence_unreleased (find-gate))))
+      (is (= 0 (:gate_evidence_pending (find-gate))))
+      (is (true? (:gate_evidence_voided (find-gate))))))
+  ;; 纯函数直测 gate-evidence-release-model 的通过/未通过/空证据/缺档/驳回口径.
+  (let [docs {"a" {:id "a" :code "A" :status "approved"}
+              "b" {:id "b" :code "B" :status "registered"}
+              "r" {:id "r" :code "R" :status "rejected"}}
+        m (fn [checks] (gates/gate-evidence-release-model docs {:checks checks}))]
+    (is (= 0 (:gate_evidence_pending (m [{:code "X" :passed true :evidence_ids ["a"]}]))))
+    (is (false? (:gate_evidence_unreleased (m [{:code "X" :passed true :evidence_ids ["a"]}]))))
+    (is (= 1 (:gate_evidence_pending (m [{:code "X" :passed true :evidence_ids ["a" "b"]}]))))
+    (is (= 1 (:gate_evidence_pending (m [{:code "X" :passed true :evidence_ids ["r"]}]))))
+    (is (= 1 (:gate_evidence_pending (m [{:code "X" :passed true :evidence_ids ["missing"]}]))))
+    (is (= 0 (:gate_evidence_checks (m [{:code "X" :passed false :evidence_ids ["b"]}]))))
+    (is (= 0 (:gate_evidence_checks (m [{:code "X" :passed true :evidence_ids []}]))))
+    (is (= 2 (:gate_evidence_checks (m [{:code "1" :passed true :evidence_ids ["a"]}
+                                        {:code "2" :passed true :evidence_ids ["b"]}]))))))
+
+
 (deftest discarded-deliverable-latest-revision-is-flagged-in-dq-snapshot-read-model
   (let [id (project!)
         doc (document! id "DQ-DLV")

@@ -144,6 +144,21 @@
            :gate_voided_checks voided-count
            :gate_evidence_voided (pos? voided-count))))
 
+(defn gate-evidence-release-model
+  "只读派生关口验收快照所引用的已通过证据是否已正式发布: 逐个已勾选通过 (:passed) 且绑定了 evidence_ids (登记时锁定的不可变文档版本 id) 的检查项, 经 docs-by-id 解析所绑文档的当前状态, 只要存在任一绑定文档尚未签发 (status 不为 approved, 含 still registered/in_review/rejected/缺档) 即计入 gate_evidence_pending. 派生 gate_evidence_checks (通过且绑证据的检查项数), gate_evidence_pending (其中证据未全发布的检查项数) 与布尔 gate_evidence_unreleased (gate_evidence_pending > 0). 本标注只提示证据尚未正式发布, 与 gate_evidence_voided (作废) 正交; 免迁移读取时计算, 不写存储, 不改变不可变版本, 不门控, 键名不带尾随问号."
+  [docs-by-id gate]
+  (let [checks (or (:checks gate) [])
+        passed-with-evidence? (fn [c] (and (:passed c) (seq (:evidence_ids c))))
+        unreleased-check? (fn [c]
+                            (some #(not= "approved" (:status (get docs-by-id %)))
+                                  (:evidence_ids c)))
+        evidence-checks (filter passed-with-evidence? checks)
+        pending-count (count (filter unreleased-check? evidence-checks))]
+    (assoc gate
+           :gate_evidence_checks (count evidence-checks)
+           :gate_evidence_pending pending-count
+           :gate_evidence_unreleased (pos? pending-count))))
+
 (defn submit!
   "提交关口审核,允许完整检查或有理由的豁免申请."
   [svc actor id rid body]

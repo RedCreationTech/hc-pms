@@ -98,6 +98,7 @@
                    (update :traces #(mapv (partial evidence/trace-read-model docs-by-id) %))
                    (update :requirements #(mapv (partial evidence/requirement-trace-model traces-by-req docs-by-id) %))
                    (update :gates #(mapv (partial gates/gate-evidence-voided-model voided-codes docs-by-id) %))
+                   (update :gates #(mapv (partial gates/gate-evidence-release-model docs-by-id) %))
                    (collab/enrich-risk-issue-links)
                    (collab/enrich-action-source-links)
                    (assoc :project_version (:version project) :blockers (blockers q project)
