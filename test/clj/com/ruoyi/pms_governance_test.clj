@@ -1772,6 +1772,33 @@
       (is (= "cost-overrun" (:source_key lib))))))
 
 
+(deftest meeting-action-priority-is-optional-enum-persisted
+  (let [id (project!)
+        meeting (command! id :meetings :create nil
+                          {:title "设计评审" :held_on "2026-09-22" :minutes "补齐验证任务" :attendee_ids [9301 9302]})
+        mid (:id meeting)
+        action (command! id :meetings :actions mid
+                         {:title "补充验证" :owner_id 9301 :due_date "2026-09-25" :priority "high"})]
+    ;; 合法优先级枚举回显并随 payload 持久化, 读模型原样返回.
+    (is (= "high" (:priority action)))
+    (is (= "high" (:priority (first (filter #(= (:id action) (:id %)) (:actions (workspace id)))))))
+    ;; 未选优先级则不写入该键, 行动仍正常创建为 open.
+    (let [plain (command! id :meetings :actions mid
+                          {:title "常规跟进行动" :owner_id 9301 :due_date "2026-09-28"})]
+      (is (nil? (:priority plain)))
+      (is (= "open" (:status plain))))
+    ;; 非法优先级枚举被白名单校验拒绝.
+    (is (= 400 (error-status #(command! id :meetings :actions mid
+                                        {:title "非法优先级" :owner_id 9301 :due_date "2026-09-25" :priority "urgent"}))))
+    ;; 转真实任务后优先级随记录保留不漂移.
+    (let [conv (command! id :meetings :actions mid
+                         {:title "需转任务行动" :owner_id 9301 :due_date "2026-09-30" :priority "medium"})
+          _ (command! id :actions :task (:id conv) {:start_date "2026-09-23" :duration_days 2})
+          row (first (filter #(= (:id conv) (:id %)) (:actions (workspace id))))]
+      (is (= "medium" (:priority row)))
+      (is (= "converted" (:status row))))))
+
+
 (deftest risk-response-strategy-coverage-is-derived-read-only
   (let [id (project!)
         cov (fn [] (:risk_response_coverage (workspace id)))

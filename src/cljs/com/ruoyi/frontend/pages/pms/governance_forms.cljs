@@ -339,8 +339,13 @@
   [base options meeting]
   {:title "新增会议行动" :path (str base "/meetings/" (:id meeting) "/actions")
    :description (:title meeting)
+   :transform (fn [data]
+                (let [v (:priority data)]
+                  (if (or (nil? v) (= "" v)) (dissoc data :priority) data)))
    :fields [{:key :title :label "行动内容" :required? true} (owner-field (:users options))
-            {:key :due_date :label "到期日期" :type :date :required? true}]})
+            {:key :due_date :label "到期日期" :type :date :required? true}
+            {:key :priority :label "优先级" :type :select
+             :options [{:value "high" :label "高"} {:value "medium" :label "中"} {:value "low" :label "低"}]}]})
 
 
 (defn change-dialog

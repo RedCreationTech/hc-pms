@@ -17,6 +17,11 @@
   #{"avoid" "transfer" "mitigate" "accept"})
 
 
+(def action-priorities
+  "会议行动优先级枚举: 高/中/低, 未选择时不写入(视为未设定)."
+  #{"high" "medium" "low"})
+
+
 (defn risk-response-coverage
   "按每个风险最新有效版本统计应对策略声明的只读覆盖度: PMI 四类策略各自计数, 已声明/未设定与覆盖率; 只读派生, 不落库不投递, 不改变风险状态."
   [risks]
@@ -392,13 +397,14 @@
   [svc actor id rid body]
   (k/mutate! svc actor id "pms:project:edit" body "action.created"
              (fn [q project]
-               (s/input! body [:title :owner_id :due_date])
+               (s/input! body [:title :owner_id :due_date :priority])
                (let [meeting (s/record! q project "meeting" rid)]
                  (when (= "discarded" (:status meeting))
                    (r/fail! 409 "会议已作废, 不能派生行动")))
                (s/insert! q project actor "action"
-                          {:title (s/text! body :title 200) :owner_id (k/user! q project (:owner_id body) "负责人")
-                           :due_date (s/date! body :due_date) :meeting_id rid}
+                          (cond-> {:title (s/text! body :title 200) :owner_id (k/user! q project (:owner_id body) "负责人")
+                                   :due_date (s/date! body :due_date) :meeting_id rid}
+                            (:priority body) (assoc :priority (s/enum! (:priority body) action-priorities "优先级")))
                           {:status "open"}))))
 
 

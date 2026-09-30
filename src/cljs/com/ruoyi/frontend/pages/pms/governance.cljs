@@ -916,6 +916,13 @@
   [shared/panel "会议行动" "会议行动与风险预防行动统一追踪;转换后任务进入项目计划,重复转换保持同一任务;完成需证据与独立核验;已关闭行动须经独立审批重开" nil
    [w/record-table (:actions model)
     [(w/text-column :title "行动内容") (w/text-column :due_date "到期日期")
+     {:title "优先级" :dataIndex "priority" :width 90
+      :render (fn [_ row]
+                (let [p (aget row "priority")
+                      spec (cond (= p "high") ["red" "高"] (= p "medium") ["orange" "中"]
+                                 (= p "low") ["green" "低"] :else nil)]
+                  (r/as-element (if spec [antd/tag {:color (first spec)} (second spec)]
+                                    [:span {:style {:color "#98a2b3"}} "未设定"]))))}
      {:title "来源风险" :dataIndex "action_source_risk_title" :width 160
       :render (fn [_ row]
                 (let [t (aget row "action_source_risk_title")]

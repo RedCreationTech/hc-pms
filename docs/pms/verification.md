@@ -1174,6 +1174,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 本项是 C07 `partial` 行内的又一个 well-scoped 只读子能力 (把逐条纪要发布状态提升为项目级发布健康度汇总), 不改变不可变版本, 不新增任何写路径或门控, 也不改变既有纪要发布/作废状态机语义; 发布覆盖度只反映各会议最新版本处于哪个发布状态, 不等于纪要内容质量或结论是否已落实, 亦不做发布进度漏斗或通知投递 (投递仍属 C11 待办), 故 C07 整行保持 `partial`.
 
+## C07 会议行动可选优先级枚举字段 (本轮增补, 2026-09-30)
+
+设计与口径: 会议行动台账此前只有行动内容, 负责人与到期日期, 没有一处能标记"这条行动到底有多急" (与已交付的风险响应策略 `risk-response-strategies` 与验证方式枚举为同一套路的写路径可选强类型字段). 本项给"从会议派生行动"这条用户写命令补一个可选优先级枚举字段, 免迁移 / 免新 kind / 免新命令 / 免新路由 / 不构成门控: `governance.collaboration` 新增枚举集合 `action-priorities #{"high" "medium" "low"}`; `create-action!` 的 `s/input!` 白名单追加 `:priority`, 并在 `cond->` 里对 `(:priority body)` truthy 时才 `(s/enum! ... "优先级")` assoc 进 payload (未选时不写键, 视为未设定, 既有其它两条内部派生路径 `mitigation-action!` / `variance-action!` 不写该键故天然保持"未设定"零回归); 非法取值命中 `s/enum!` 走真实 HTTP 400. 前端"新增会议行动"对话框 (`governance_forms.cljs action-dialog`) 增加 `:type :select` 优先级下拉 (高/中/低) 并在 `:transform` 里把空值 `dissoc` 掉避免发送 `""`; 行动台账 (`governance.cljs action-section`) 在到期日期列后新增"优先级"列, 以 red"高" / orange"中" / green"低" 徽标回显, 无值显灰色"未设定". 优先级随 `action` payload JSON 持久化, 复用既有 `store/change!` 的 merge 语义在转 WBS 任务等状态流转中保留该键, 无需任何 DDL.
+
+| 证据 | 实际记录 |
+|---|---|
+| 治理单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 76 tests / 1030 assertions, 0 failures/errors (新增 `meeting-action-priority-is-optional-enum-persisted`: 命令 `:meetings :actions` 带 `:priority "high"` 登记 -> 断言结果 `(:priority action)` 为 `"high"` 且在 `workspace` 回显; 不带优先级的普通行动 -> `(:priority ...)` 为 `nil` 且状态仍 `open` (未选不写键); `:priority "urgent"` 非法取值 -> `error-status` 400; `:priority "medium"` 行动经 `:actions :task` 转 WBS 后仍回显 `"medium"` 且状态 `converted` (merge 保留优先级跨流转)) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 181 tests / 1997 assertions, 0 failures/errors, `create-action!` 白名单与 `cond->` 追加 `:priority` 未造成既有会议行动闭环 / 派生行动作废守卫 / 挣值偏差 / 风险预防行动回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 warnings (增量, 与既有会议行动台账共享产物) |
+| HTTP 合同 (契约) | `contracts/governance.md` 新增"会议行动可选优先级枚举字段 (C07 延伸)"段: `action-priorities` 枚举集合, `create-action!` 白名单追加 `:priority` 与 `cond->` 仅在取值存在时 `s/enum!` 校验并 assoc 的免迁移口径, 未选不写键 (其它内部派生路径保持未设定), 非法取值 400, 前端下拉与台账着色, 明确不新增 kind/命令/路由/表结构 / 不构成门控 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-c07ap.spec.js` 1 passed, 无未捕获 JS 错误: 界面在一条会议下"形成行动"对话框分别选高/中/低优先级并留一条未选登记 (截图 ap-1-dialog-priority.png 显示对话框优先级下拉选中"高"); 行动台账"优先级"列以红/橙/绿徽标回显高/中/低, 未选的显示灰色"未设定" (截图 ap-2-ledger-column.png / ap-3-priority-cells.png 元素级截图); 真实 HTTP GET governance 回显各行动 `priority` 为 `high`/`low`/`medium` 且未选那条为 `null`; 中优先级行动转 WBS 任务后仍回显 `medium` 且状态 `converted`; 真实 HTTP POST `/governance/meetings/:id/actions` 带非法 `priority "urgent"` 返回 400; 每次写命令前重新打开页签刷新 `project_version` 规避乐观锁 409, `choose` 助手在点击前 `expect(option).toBeVisible()` 防 typeahead 竞态; 截图存 `reports/ap/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL, 优先级随 `pms_gov_record` 的 `action` payload JSON 持久化无需建表或加列); 优先级取值合法性与跨流转保留由后端 SQLite 用例确定性覆盖, 浏览器侧核验界面可见的下拉选择与台账徽标着色及非法取值的真实 HTTP 400.
+
+边界: 本项是 C07 `partial` 行内的又一个 well-scoped 写路径子能力 (给会议行动加可选优先级标注), 不落库到独立列, 不新增 kind/命令/路由/表结构, 不构成任何门控 (优先级高低不阻止任何登记或流转), 也不改变行动状态机语义; 优先级只是给行动打标, 不做按优先级排序/筛选/到期提醒投递 (投递仍属 C11 待办), 故 C07 整行保持 `partial`.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.
