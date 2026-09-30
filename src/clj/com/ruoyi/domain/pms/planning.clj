@@ -38,7 +38,8 @@
             evm (ev/earned-value raw-tasks (:schedule snapshot) (:calendar snapshot) entries nodes today)
             gov-actions (governance/records q project "action")
             variances (-> (ev/performance-variances evm)
-                          (ev/variance-coverage gov-actions))]
+                          (ev/variance-coverage gov-actions))
+            overloads (capacity/overloads q project snapshot)]
         (merge snapshot
                {:tasks tasks :nodes nodes :stages (or stages [])
                 :stage_weight_source (network/stage-weight-source q project)
@@ -60,7 +61,8 @@
                 :approved_changes (->> (governance/records q project "change") governance/latest
                                         (filter #(= "approved" (:status %)))
                                         (mapv #(select-keys % [:id :title])))
-                :current_user_id (:user_id actor) :overallocations (capacity/overloads q project snapshot)})))))
+                :current_user_id (:user_id actor) :overallocations overloads
+                :overload_summary (capacity/overload-summary overloads)})))))
 
 (defn read-baseline
   "读取不可变的已提交计划快照."

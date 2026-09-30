@@ -46,16 +46,25 @@
        [shared/empty-state "添加任务并设置开始日期后生成排程" nil])]))
 
 (defn overloads
-  "逐日展示真实超负荷记录."
+  "逐日展示真实超负荷记录, 并在顶部附项目级只读汇总概览."
   [model]
-  [shared/panel "资源负荷检查" "对照资源日历与任务分配识别超负荷日期" nil
-   (if (seq (:overallocations model))
-     [w/record-table (:overallocations model)
-      [{:title "资源" :dataIndex "resource_id" :render #(w/related-label (:resources model) :resource_id :name %)}
-       (w/text-column :date "日期") (w/text-column :planned_hours "计划工时")
-       (w/text-column :capacity_hours "容量") (w/text-column :excess_hours "超出工时")] nil]
-     [:div {:style {:padding 16 :color "#568775"}}
-      (if (seq (:allocations model)) "当前排程未发现资源超负荷." "尚未分配资源,分配后将执行负荷检查.")])])
+  (let [rows (:overallocations model)
+        s (:overload_summary model)]
+    [shared/panel "资源负荷检查" "对照资源日历与任务分配识别超负荷日期; 顶部汇总为只读洞察 不构成门控" nil
+     (if (seq rows)
+       [:div
+        [antd/space {:wrap true :style {:marginBottom 12}}
+         [antd/tag {:color "volcano"} (str "超配资源 " (:distinct-resources s))]
+         [antd/tag {:color "orange"} (str "人日超配 " (:person-rows s))]
+         [antd/tag {:color "gold"} (str "设备日超配 " (:equipment-rows s))]
+         [antd/tag {:color "red"} (str "最大单日超出 " (:worst-excess-hours s) " 工时")]
+         (when (:peak-date s) [antd/tag {:color "magenta"} (str "峰值负荷日 " (:peak-date s))])]
+        [w/record-table rows
+         [{:title "资源" :dataIndex "resource_id" :render #(w/related-label (:resources model) :resource_id :name %)}
+          (w/text-column :date "日期") (w/text-column :planned_hours "计划工时")
+          (w/text-column :capacity_hours "容量") (w/text-column :excess_hours "超出工时")] nil]]
+       [:div {:style {:padding 16 :color "#568775"}}
+        (if (seq (:allocations model)) "当前排程未发现资源超负荷." "尚未分配资源,分配后将执行负荷检查.")])]))
 
 (def readable-fields
   {:name "名称" :start_date "开始日期" :end_date "结束日期" :duration_days "工期"

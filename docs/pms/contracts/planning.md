@@ -47,6 +47,8 @@
 
 资源类型为 person/equipment. 人员资源必须绑定项目成员, 项目内同一成员仅一份资源档案; 设备不绑定用户. 日容量 0-24 小时, 分配量 0.01-24 小时, 均最多两位小数. 分配作用于任务的每个实际排程工作日. 里程碑和汇总任务不接受资源分配. 单日容量覆盖优先于默认日容量, 0 表示不可用. 设备超配按项目资源与日期汇总. 人员按 user_id 合并所有未结束项目的最新计划分配, 多个项目的日容量设置取保守最小值. 返回 resource_id, resource_name, date, planned_hours, capacity_hours, excess_hours; 共享人员另外返回 scope=shared_person, project_hours, other_project_hours. 仅返回当前项目资源和匿名工时汇总, 不暴露外部项目标识, 名称或任务. 这是计划负荷预测, 不是跨项目资源预留锁; 提交, 批准和进入执行时均重新检查当前共享负荷.
 
+`overload_summary` (H05 资源超配项目级只读汇总) 由纯函数 `planning.capacity/overload-summary` 对上述逐日 `overallocations` 明细读取时聚合派生, 不落库, 不构成任何门控 (既不阻断保存/提交/冻结, 也不改变明细): 返回 `available (是否至少一条超配) / total-rows (逐日超配明细行数) / distinct-resources (涉及的去重资源数) / person-rows (人员日超配行数, 即 scope=shared_person 的行) / equipment-rows (设备日超配行数 = total-rows - person-rows) / worst-excess-hours (所有明细中单日最大超出工时) / peak-date (按日汇总超出工时最大的那一天, 无超配时为 null)`. 无超配时 `available=false` 且计数为 0, `peak-date` 为 `null`, 台账显"当前排程未发现资源超负荷". 键名不带尾随 `?` 以免 JSON 序列化为字面键. 界面在"资源与日历"页签顶部"资源负荷检查"面板以彩色标签呈现该概览, 其下逐日明细表口径不变.
+
 ## 基线与变更
 
 `POST /planning/submit {version, comment, change_id?}` 在 planning 或 execution 阶段提交, 要求任务可排程, 负责人有效且无资源超配. 执行阶段必须关联同项目最新已批准的 change_id, 审批时再次校验; 计划阶段允许不带 change_id. 提交瞬间冻结完整设计与计算结果, pending 期间锁定设计变更. 同一 plan_revision 只提交一次.

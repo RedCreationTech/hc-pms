@@ -57,3 +57,24 @@
                    (mapv #(store/snapshot q %) (q :planning/shared-person-projects {:project_id (:project_id project)})))
         rows (concat equipment (when (seq people) (shared-rows snapshot (into [snapshot] external))))]
     (vec (sort-by (juxt :date :resource_id) rows))))
+
+(defn overload-summary
+  "把逐日超负荷明细聚合为项目级只读概览(超配资源数/人日/设备日/最大单日超出/峰值负荷日),
+  仅供台账汇总面板呈现, 不改变明细, 不构成任何门控."
+  [rows]
+  (let [n (count rows)
+        resources (distinct (map :resource_id rows))
+        person (count (filter #(= "shared_person" (:scope %)) rows))
+        excess (map :excess_hours rows)
+        worst (if (seq excess) (apply max excess) 0M)
+        by-date (reduce (fn [m {:keys [date excess_hours]}]
+                          (update m date (fnil + 0M) excess_hours))
+                        {} rows)
+        peak-date (when (seq by-date) (first (apply max-key val by-date)))]
+    {:available (pos? n)
+     :total-rows n
+     :distinct-resources (count resources)
+     :person-rows person
+     :equipment-rows (- n person)
+     :worst-excess-hours worst
+     :peak-date peak-date}))

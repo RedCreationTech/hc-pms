@@ -1238,6 +1238,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: H04 整行此前已为 `implemented / local`, 本项是补齐该行既有业务闭环描述中"展示基线偏差"这一子能力的只读派生实现, 不新增写路径/kind/命令/路由/表结构, 不构成任何门控 (偏差不阻止任何编辑或提交冻结), 也不改写不可变基线; 偏差口径 (以完成日日历天差衡量, 不引入成本基线偏差) 与关键路径/浮动/偏差的业务批准口径及全订单真实试点仍属待补齐项, 故不据此提升任何 `partial` 行.
 
+## H05 资源超配项目级只读汇总 (本轮增补, 2026-09-30)
+
+设计与口径: H05 资源容量此前已具备日容量 / 单日容量覆盖 / 任务分配, 以及按 `user_id` 跨未结束项目合并人员负荷并对设备按项目与日期汇总的逐日超配明细 `overallocations` (保护外部项目隐私, 只回匿名工时), 但矩阵业务闭环要求"超配冲突提示并经协调解决", 而工作台只呈现逐日明细表, 缺少"本项目整体超配到什么程度"这一项目级视角. 本项在 `planning.capacity` 新增只读派生纯函数 `overload-summary`: 对 `overloads` 返回的逐日明细行读取时聚合, 输出 `available / total-rows / distinct-resources / person-rows (scope="shared_person" 的行) / equipment-rows (total-rows - person-rows) / worst-excess-hours (apply max excess_hours) / peak-date (按日汇总超出工时最大的一天)`. `planning/read-plan` 把 `overloads` 绑定结果同时暴露为逐日 `:overallocations` 与项目级 `:overload_summary`. 键名不带尾随 `?` 以免序列化为 JSON 字面键. 免迁移 / 免新 kind / 免新命令 / 免新路由 / 不构成任何门控 (汇总只读呈现, 既不阻断保存/提交/冻结也不改变明细). 前端 `plan_views.cljs` 在"资源与日历"页签顶部"资源负荷检查"面板的逐日明细表上方新增彩色标签概览条 (超配资源 / 人日超配 / 设备日超配 / 最大单日超出 N 工时 / 峰值负荷日 D; 无超配时保留原"当前排程未发现资源超负荷"提示).
+
+| 证据 | 实际记录 |
+|---|---|
+| 计划单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-planning-test'` 通过 14 tests / 133 assertions, 0 failures/errors (新增 `resource-overload-summary-is-derived-read-only`: 人员容量8对 A/B 各分配 6h 使 09-21/09-22 各 12h 超 4h + 设备容量8对 A 分配 10h 且 09-22 放宽到 12 仅 09-21 超 2h -> `available` 为 `true`, `total-rows` 3, `distinct-resources` 2, `person-rows` 2, `equipment-rows` 1, `worst-excess-hours` 4 (`==` 数值比较, 值为 BigDecimal), `peak-date` "2026-09-21", 且 `read-plan` 前后 `project_version` 不漂移证明纯读不落库; 无超配用例只用设备资源 (无 `user_id`, 不参与跨项目同人归集) 分配 4h<8 -> `available` 为 `false`, 计数 0, `peak-date` 为 `nil`, `overallocations` 为空) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 185 tests / 2050 assertions, 0 failures/errors; `read-plan` 暴露 `:overload_summary` 未造成既有排程 / 关键路径 / 挣值 / 范围覆盖 / 基线偏差 / 跨项目人员隐私回归 (早期一版用例曾以 `user_id 9201` 作人员资源, 因 `:once` 共享库下 `capacity/overloads` 按 `user_id` 跨未结束项目归集而污染 `dependency-dag-and-resource-overload` 与 `shared-person-capacity-preserves-other-project-privacy`, 已改用隔离人员 9203 + 无超配用例改设备资源消除归集) |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 6 compiled / 0 warnings |
+| HTTP 合同 (契约) | `contracts/planning.md` 的 `GET /planning` 读模型更新: 新增只读派生 `overload_summary` 汇总 (available/total-rows/distinct-resources/person-rows/equipment-rows/worst-excess-hours/peak-date), 明确由纯函数 `planning.capacity/overload-summary` 对逐日 `overallocations` 明细读取时聚合, 免迁移/免新命令/不构成门控, 明细口径不变 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-h05ro.spec.js` 1 passed (25.4s), 无未捕获 JS 错误: 建两条叶任务 A/B (09-21 起 2 工作日) -> 真实 HTTP 建人员资源 (容量8, 绑定项目经理) 分配 A 6h + B 6h -> 09-21/09-22 各 12h 超 4h; 建设备资源 (容量8) 分配 A 10h 且 09-22 放宽到 12 -> 仅 09-21 超 2h -> "资源与日历"页签"资源负荷检查"面板顶部彩色标签回显"超配资源 2 / 人日超配 2 / 设备日超配 1 / 最大单日超出 4 工时 / 峰值负荷日 2026-09-21" (截图 h05ro-1-panel.png), 其下逐日明细 3 行 (机床 09-21 计划10/容量8/超出2, 工程师 09-21 与 09-22 各计划12/容量8/超出4); 真实 HTTP GET `/planning` 二次确认 `overload_summary` 各字段与 `overallocations.length` 为 3 一致; 空态: 新项目仅设备资源 4h<8 -> 面板"当前排程未发现资源超负荷" 且 `available=false` / `total-rows=0` / `peak-date=null` (截图 h05ro-2-empty.png); 截图存 `reports/h05ro/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL, 汇总为读取时对既有 `overloads` 逐日明细的纯函数聚合, 不落任何新表/列); 计数与峰值口径由后端 SQLite 用例确定性覆盖, 浏览器侧核验界面可见的标签概览与逐日明细同源, 服务端回显一致及无超配回退.
+
+边界: H05 整行保持 `partial` — 本项只是把已有逐日超配明细提升为项目级只读概览的洞察子能力, 一个只读子能力不改变整行状态; 矩阵业务闭环要求的"技能匹配 / 替代人员 / 请假规则 / 超配经协调解决的处置闭环 (如自动改派或容量再平衡建议)"仍未实现, 且汇总不构成任何门控 (不阻断保存/提交/冻结, 明细口径不变), 不新增写路径/kind/命令/路由/表结构.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

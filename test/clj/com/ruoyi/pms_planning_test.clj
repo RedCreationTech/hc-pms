@@ -438,3 +438,39 @@
       (is (= (:baseline_finish_variance row-a) (:worst-finish-slip summary)))
       (is (= v-before (version id)))
       (is (= v-before (:project_version model))))))
+
+
+(deftest resource-overload-summary-is-derived-read-only
+  (testing "人员与设备同时超配时给出项目级只读汇总"
+    (let [id (project!)
+          _ (pms/set-member! *svc* (actor 1) id {:user_id 9203 :role "viewer"})
+          a (task! id "A" 2) b (task! id "B" 2)
+          person (:result (command! plan/create-resource! id [] {:name "工程师" :resource_type "person" :user_id 9203 :daily_capacity 8}))
+          equip (:result (command! plan/create-resource! id [] {:name "机床" :resource_type "equipment" :daily_capacity 8}))]
+      (command! plan/create-allocation! id [] {:task_id (:task_id a) :resource_id (:resource_id person) :hours_per_day 6})
+      (command! plan/create-allocation! id [] {:task_id (:task_id b) :resource_id (:resource_id person) :hours_per_day 6})
+      (command! plan/create-allocation! id [] {:task_id (:task_id a) :resource_id (:resource_id equip) :hours_per_day 10})
+      ;; 设备在 09-22 放宽到 12, 只在 09-21 超配, 使峰值日唯一
+      (command! plan/set-capacity! id [(:resource_id equip)] {:date "2026-09-22" :capacity_hours 12})
+      (let [v-before (version id)
+            s (:overload_summary (plan/read-plan *svc* (actor 9201) id))]
+        (is (true? (:available s)))
+        (is (= 3 (:total-rows s)))
+        (is (= 2 (:distinct-resources s)))
+        (is (= 2 (:person-rows s)))
+        (is (= 1 (:equipment-rows s)))
+        (is (== 4 (:worst-excess-hours s)))
+        (is (= "2026-09-21" (:peak-date s)))
+        (is (= v-before (version id))))))
+  (testing "无超配时汇总 available=false 且明细与旧行为一致"
+    ;; 无超配用例只用设备资源(无 user_id), 不参与跨项目同人归集, 避免污染同库其它用例
+    (let [id (project!) a (task! id "A" 2)
+          equip (:result (command! plan/create-resource! id [] {:name "轻量机床" :resource_type "equipment" :daily_capacity 8}))]
+      (command! plan/create-allocation! id [] {:task_id (:task_id a) :resource_id (:resource_id equip) :hours_per_day 4})
+      (let [model (plan/read-plan *svc* (actor 9201) id) s (:overload_summary model)]
+        (is (false? (:available s)))
+        (is (= 0 (:total-rows s)))
+        (is (= 0 (:distinct-resources s)))
+        (is (== 0 (:worst-excess-hours s)))
+        (is (nil? (:peak-date s)))
+        (is (empty? (:overallocations model)))))))
