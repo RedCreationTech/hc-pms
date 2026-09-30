@@ -311,6 +311,61 @@
       (is (vector? (:progress_history p))))))
 
 
+(deftest variance-derivation-and-coverage-are-pure-read-only
+  (testing "绩效偏差只读派生: behind 记进度落后, over 记工时超支, 提前/节约/按计划/尚无基线均不产生偏差"
+    (is (= [{:variance_kind "schedule" :metric "spi" :value 0.7 :threshold 0.9 :status_date "2026-09-30"}]
+           (ev/performance-variances {:schedule_status "behind" :cost_status "on_track" :spi 0.7 :cpi 1.0 :status_date "2026-09-30"})))
+    (is (= [{:variance_kind "cost" :metric "cpi" :value 0.8 :threshold 0.9 :status_date "2026-09-30"}]
+           (ev/performance-variances {:schedule_status "ahead" :cost_status "over" :spi 1.1 :cpi 0.8 :status_date "2026-09-30"})))
+    (is (= 2 (count (ev/performance-variances {:schedule_status "behind" :cost_status "over" :spi 0.6 :cpi 0.7 :status_date "2026-09-30"}))))
+    (is (empty? (ev/performance-variances {:schedule_status "on_track" :cost_status "under" :spi 1.0 :cpi 1.0 :status_date "2026-09-30"})))
+    (is (empty? (ev/performance-variances {:schedule_status "no_baseline_yet" :cost_status "no_actuals" :spi nil :cpi nil :status_date "2026-09-30"}))))
+  (testing "措施落实覆盖度按偏差种类聚合: 无匹配 unimplemented, 有未闭环 in-progress, 全闭环 completed; 仅统计带 variance_kind 且种类匹配的行动"
+    (let [variances [{:variance_kind "schedule" :metric "spi" :value 0.7 :threshold 0.9 :status_date "2026-09-30"}
+                     {:variance_kind "cost" :metric "cpi" :value 0.8 :threshold 0.9 :status_date "2026-09-30"}]
+          actions [{:variance_kind "schedule" :status "in_review"}
+                   {:variance_kind "cost" :status "closed"}
+                   {:variance_kind "cost" :status "converted"}
+                   {:status "open"}]
+          covered (ev/variance-coverage variances actions)]
+      (is (= "in-progress" (:variance_action_state (first covered))))
+      (is (= 1 (:variance_action_total (first covered))))
+      (is (= 1 (:variance_action_open (first covered))) "in_review 尚未闭环计入 open")
+      (is (= "completed" (:variance_action_state (second covered))))
+      (is (= 2 (:variance_action_total (second covered))))
+      (is (= 0 (:variance_action_open (second covered))) "closed 与 converted 均不计入 open"))
+    (let [bare (ev/variance-coverage [{:variance_kind "schedule" :metric "spi" :value 0.7 :threshold 0.9 :status_date "2026-09-30"}] [])]
+      (is (= "unimplemented" (:variance_action_state (first bare))))
+      (is (= 0 (:variance_action_total (first bare)))))))
+
+
+(deftest variance-action-registers-open-and-closes-through-independent-review
+  (let [id (project!)
+        _ (derive! id)
+        _ (execution! id)
+        evidence (:id (command! id :documents :create nil
+                                {:code "EV-DOC" :title "纠偏证据" :filename "ev.txt" :content "实测记录"}))
+        action (command! id :actions :from-variance nil
+                         {:title "压缩关键路径" :owner_id 9902 :due_date "2026-12-01"
+                          :variance_kind "schedule" :variance_status_date "2026-09-30"})]
+    (is (= "open" (:status action)) "偏差纠正措施登记为未闭环行动")
+    (is (= "schedule" (:variance_kind action)))
+    (is (= "2026-09-30" (:variance_status_date action)))
+    (is (= 9902 (:owner_id action)))
+    (is (= 400 (first (error #(command! id :actions :from-variance nil
+                                        {:title "非法种类" :owner_id 9902 :due_date "2026-12-01"
+                                         :variance_kind "risk" :variance_status_date "2026-09-30"}))))
+        "偏差种类只接受 schedule 或 cost")
+    (let [aid (:id action)
+          reviewed (command! id :actions :complete aid {:result "已重排并行任务" :evidence_ids [evidence] :reviewer_id 9902})]
+      (is (= "in_review" (:status reviewed)))
+      (is (= 9902 (:reviewer_id reviewed)))
+      (is (= 403 (first (error #(command! 9901 id :actions :verify aid {:decision "approved" :reason "自行核验"}))))
+          "提交人不能独立核验自己登记的措施")
+      (is (= "closed" (:status (command! 9902 id :actions :verify aid {:decision "approved" :reason "独立核验通过"})))))
+    (is (vector? (:performance_variances (plan id))) "计划读模型暴露绩效偏差与其措施落实聚合")))
+
+
 (deftest scan-writes-daily-snapshot-and-idempotent-reminders
   (let [id (project!)
         _ (derive! id)

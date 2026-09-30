@@ -83,6 +83,55 @@
      :nodes (group-metrics items :node #(get node-code % %))}))
 
 
+(def variance-threshold
+  "挣值绩效指数偏差阈值: SPI 或 CPI 低于该值即视为需要纠正措施的项目偏差, 与挣值面板 计划/落后 判定同源."
+  0.9)
+
+
+(defn- variance-entry
+  "构造一条挣值偏差描述: 种类(进度/成本), 触发指标名与当前值, 阈值与状态日期; 键名不带尾随问号."
+  [kind metric value status-date]
+  {:variance_kind kind :metric metric :value value :threshold variance-threshold :status_date status-date})
+
+
+(defn performance-variances
+  "从挣值指标只读派生当前需要纠正措施的项目偏差: schedule_status 为 behind 记进度落后偏差, cost_status 为 over 记工时超支偏差; 提前/节约/按计划/尚无基线或尚无工时均不产生偏差. 只读派生不落库不门控, 键名不带尾随问号."
+  [{:keys [schedule_status cost_status spi cpi status_date]}]
+  (cond-> []
+    (= "behind" schedule_status) (conj (variance-entry "schedule" "spi" spi status_date))
+    (= "over" cost_status) (conj (variance-entry "cost" "cpi" cpi status_date))))
+
+
+(defn- variance-action-open?
+  "带偏差种类标记的纠正措施是否仍未闭环 (排除已关闭与已转真实任务)."
+  [{:keys [status]}]
+  (not (contains? #{"closed" "converted"} status)))
+
+
+(defn variance-coverage
+  "在每类挣值偏差上只读聚合其已登记纠正措施的落实情况: variance_action_total/open 与 variance_action_state (unimplemented 尚未落实 / in-progress 落实中 / completed 全部闭环); 仅统计带 variance_kind 标记且种类匹配的行动. 只读派生不落库不门控, 键名不带尾随问号."
+  [variances actions]
+  (let [by-kind (reduce (fn [acc action]
+                          (if-let [k (:variance_kind action)]
+                            (update acc k (fn [{:keys [total open]}]
+                                            {:total (inc (or total 0))
+                                             :open (if (variance-action-open? action) (inc (or open 0)) (or open 0))}))
+                            acc))
+                        {}
+                        actions)]
+    (mapv (fn [v]
+            (let [rollup (get by-kind (:variance_kind v) {})
+                  total (or (:total rollup) 0)
+                  open (or (:open rollup) 0)
+                  state (cond (zero? total) "unimplemented"
+                              (pos? open) "in-progress"
+                              :else "completed")]
+              (assoc v :variance_action_total total
+                       :variance_action_open open
+                       :variance_action_state state)))
+          variances)))
+
+
 (defn snapshot-payload
   "把挣值与卷积结果压缩成可持久化的日快照 (趋势用)."
   [date ev rollup counts]

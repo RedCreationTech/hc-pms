@@ -141,6 +141,19 @@
    :fields [{:key :date :label "快照日期" :type :date :hint "留空为今天"}]
    :transform (fn [data] (if (or (nil? (:date data)) (= "" (:date data))) (dissoc data :date) data))})
 
+
+(defn variance-action-dialog
+  "为一条挣值绩效偏差登记纠正措施 (H06, 复用会议行动类型): 记录来源偏差种类与状态日期, 负责人与到期日必填, 之后在治理行动台账走完成与独立核验闭环."
+  [base options variance]
+  {:title (str "登记" (get {"schedule" "进度" "cost" "工时"} (:variance_kind variance) "") "偏差纠正措施")
+   :path (str base "/governance/actions/from-variance")
+   :description "把该绩效偏差转为有负责人和到期日的可追踪纠正措施; 登记后复用会议行动闭环 (提交完成结果与证据并经独立核验) 才算落实, 只新增措施不改变挣值指标本身."
+   :transform (fn [data] (assoc data :variance_kind (:variance_kind variance) :variance_status_date (:status_date variance)))
+   :fields [{:key :title :label "措施标题" :required? true}
+            {:key :owner_id :label "责任人" :type :select :required? true :options (w/user-options (:users options))}
+            {:key :due_date :label "到期日期" :type :date :required? true}]})
+
+
 (defn approval-dialog
   "审批冻结的计划版本并保留独立决策意见."
   [base baseline decision]

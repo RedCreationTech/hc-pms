@@ -133,6 +133,40 @@
                                         {:title "任务数" :dataIndex "task_count" :width 80}])}])]]))
 
 
+(def variance-kind-labels
+  {"schedule" ["进度落后" "red"] "cost" ["工时超支" "red"]})
+
+
+(def variance-state-labels
+  {"unimplemented" ["尚未落实" "orange"] "in-progress" ["落实中" "gold"] "completed" ["已闭环" "green"]})
+
+
+(defn variance-panel
+  "绩效偏差与纠正措施闭环 (H06): 展示只读派生的进度/工时偏差与其纠正措施落实聚合, 可选登记入口复用会议行动闭环; 只读派生不门控."
+  [model on-register]
+  (let [rows (:performance_variances model)]
+    [shared/panel "绩效偏差与纠正措施" "SPI 或 CPI 低于 0.9 自动识别为需纠正的项目偏差 (与上方挣值面板同源); 每个偏差按种类聚合已登记纠正措施的落实进度, 措施复用会议行动类型走完成与独立核验闭环" nil
+     (if (empty? rows)
+       [:span {:style {:color "#98a2b3"}} "暂无绩效偏差: 挣值进度与工时均在阈值内, 或尚无已批准基线与工时."]
+       [w/record-table rows
+        [{:title "偏差种类" :dataIndex "variance_kind" :width 120
+          :render (fn [v] (let [[l c] (get variance-kind-labels v [v "default"])] (r/as-element [antd/tag {:color c} l])))}
+         {:title "触发指标" :key "metric" :width 210
+          :render (fn [_ row] (r/as-element [:span (str (aget row "metric") " = " (aget row "value") " (阈值 < " (aget row "threshold") ")")]))}
+         {:title "状态日期" :dataIndex "status_date" :width 110}
+         {:title "措施落实" :key "coverage" :width 220
+          :render (fn [_ row]
+                    (let [state (aget row "variance_action_state")
+                          total (aget row "variance_action_total")
+                          open (aget row "variance_action_open")
+                          [l c] (get variance-state-labels state [state "default"])]
+                      (r/as-element [antd/space {:wrap true}
+                                     [antd/tag {:color c} l]
+                                     (when (pos? total) [:span {:style {:color "#718096" :fontSize 12}}
+                                                        (str total " 项 · 未闭环 " open)])])))}]
+        on-register])]))
+
+
 (defn conflicts-panel
   "主子约束冲突 (B03): 子项目/单机阶段任务排程完成日晚于主计划同阶段窗口."
   [model]

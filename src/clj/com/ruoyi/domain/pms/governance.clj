@@ -193,7 +193,8 @@
    [:comm-plans :revisions] stakeholders/revise-comm-plan!
    [:comm-plans :meeting] stakeholders/materialize-meeting!
    [:comm-plans :log] stakeholders/log-communication!
-   [:risks :from-library] (creating collab/from-library!)})
+   [:risks :from-library] (creating collab/from-library!)
+   [:actions :from-variance] (creating collab/variance-action!)})
 
 
 (defn command!

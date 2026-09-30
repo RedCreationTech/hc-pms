@@ -204,6 +204,22 @@
                             {:status "open"})))))
 
 
+(defn variance-action!
+  "为挣值偏差(进度落后或工时超支)登记有负责人和到期日的可追踪纠正措施, 复用会议行动类型与既有完成/独立验证闭环, 记录来源偏差种类与状态日期; 需项目编辑权限, 只新增行动不改变挣值指标本身."
+  [svc actor id body]
+  (k/mutate! svc actor id "pms:project:edit" body "action.variance-created"
+             (fn [q project]
+               (s/input! body [:title :owner_id :due_date :variance_kind :variance_status_date])
+               (let [kind (s/enum! (:variance_kind body) #{"schedule" "cost"} "偏差种类")]
+                 (s/insert! q project actor "action"
+                            {:title (s/text! body :title 200)
+                             :owner_id (k/user! q project (:owner_id body) "负责人")
+                             :due_date (s/date! body :due_date)
+                             :variance_kind kind
+                             :variance_status_date (not-empty (s/optional-text! body :variance_status_date 10))}
+                            {:status "open"})))))
+
+
 (defn resolve!
   "提交整改内容和确切证据版本,指定独立验证人."
   [svc actor id rid body]

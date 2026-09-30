@@ -160,8 +160,8 @@
      (w/text-column :comment "说明") (w/text-column :created_at "时间")] nil]])
 
 (defn- rollup-tab
-  "进度卷积 + 挣值预测 + 主子冲突 + 趋势快照 + 重排记录 (增量6)."
-  [{:keys [base model editable? can-feedback? project open!]}]
+  "进度卷积 + 挣值预测 + 主子冲突 + 绩效偏差纠正措施 + 趋势快照 + 重排记录 (增量6)."
+  [{:keys [base model editable? can-feedback? project open! options]}]
   (let [actions [antd/space {:wrap true}
                  (when (and editable? (seq (:stages model)))
                    [antd/button {:size "small" :on-click #(open! (forms/derive-dialog base))} "派生主/子/单机计划"])
@@ -171,11 +171,14 @@
                    [antd/button {:size "small" :on-click #(open! (forms/snapshot-dialog base))} "生成进度快照"])]
         node-action (when editable?
                       (fn [node] (when (not= "main" (:node_type node))
-                                   [w/edit-button "重排" #(open! (forms/reschedule-dialog base node))])))]
+                                   [w/edit-button "重排" #(open! (forms/reschedule-dialog base node))])))
+        register-variance (when editable?
+                            (fn [row] [w/edit-button "登记纠正措施" #(open! (forms/variance-action-dialog base options row))]))]
     [:div {:style {:display "grid" :gap 20}}
      [views/progress-rollup model actions node-action]
      [views/conflicts-panel model]
      [views/earned-value-panel model]
+     [views/variance-panel model register-variance]
      [views/history-panel model]
      [views/reschedules-panel model]]))
 

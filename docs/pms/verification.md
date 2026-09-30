@@ -1094,6 +1094,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 本项为 Gate 台账补齐"已通过证据尚未正式发布"只读可见性, 是 H18 作废证据家族 (追踪链 / URS 验证证据 / Gate 验收快照 / DQ 签认快照) 之外一个正交的"发布态"洞察维度, 属 `implemented / local` 只读增量; Gate 核心闭环 (检查/证据绑定/独立签核/就绪度/作废标注) 早已 `implemented / local`, 本增量不上行也不改变其状态; 待补项仍为证据未发布是否须阻断关口批准的规则确认与 MySQL 回归.
 
+## H06 挣值绩效偏差登记与纠正措施闭环 (本轮增补, 2026-09-30)
+
+设计与口径: 承接 H06 "执行进展与预测", 挣值与完工预测面板此前已只读派生 SPI/CPI/EAC 等指标, 但当进度或成本真正落后时, 界面一直没有把"哪一项指标越界"聚合成一条显式偏差记录, 更没有一处供责任人登记纠正措施并跟踪其闭环的入口. 本项补齐"绩效偏差识别 + 纠正措施登记 + 独立核验闭环"这一子能力, 采用两段式: (1) 只读派生偏差 — 免迁移, 免新 kind, 免新命令, 免新路由, 不构成门控: 新增纯函数 `planning.earned-value/performance-variances` 逐口径核验, 派生整数键 `variance_action_total` (为该偏差登记的措施数), `variance_action_open` (其中未闭环数, 复用 `variance-action-open?` 排除 `closed`/`converted`) 与状态键 `variance_action_state` (`unimplemented` 零措施 / `in-progress` 有措施但未全闭环 / `completed` 全部闭环), 阈值 0.9 (SPI 或 CPI 非空且 < 0.9 分别判 `behind`/`over`), `planning.clj` read-plan 里以 `{:earned_value evm :performance_variances variances}` 暴露; (2) 写命令 — 复用 `action` 治理 kind, **免迁移**: 新命令 `[:actions :from-variance]` (路由 `POST /governance/actions/from-variance`) 经 `collaboration/variance-action!` 写入, `s/input!` 白名单 `[:title :owner_id :due_date :variance_kind :variance_status_date]`, `s/enum!` 限 `variance_kind` 为 `schedule`/`cost` (非法 400), `s/insert!` 落一条 `kind="action" status="open"` 记录并把 `variance_kind`/`variance_status_date` 写进 payload (store 的 `insert!` 将非 `:code/:owner_id` 字段序列化进 JSON, `decode` 读回时合并, 故命令结果回显这两个键), 闭环完全复用既有 C07 行动闭环链 `/actions/:rid/complete` (结果+证据+独立复核人 -> `in_review`) 与 `/actions/:rid/verify` (审批人 `pms:quality:approve` 且 `approver != submitted_by` -> `closed`). 前端: "进度卷积"页签挣值面板与历史面板之间新增 `views/variance-panel` "绩效偏差与纠正措施"面板, 逐条偏差回显 `variance-kind-labels` (进度落后/工时超支), 触发指标与阈值, 以及 `variance-state-labels` (尚未落实/落实中 N·未闭环 M/已闭环), 命中未闭环行提供"登记纠正措施"入口打开 `forms/variance-action-dialog` (标题责任人到期日必填, 责任人取 `w/user-options` 下拉). 键名不带尾随 `?`.
+
+| 证据 | 实际记录 |
+|---|---|
+| 进度单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-progress-test'` 通过 10 tests / 135 assertions, 0 failures/errors (新增 `variance-derivation-and-coverage-are-pure-read-only` 与 `variance-action-registers-open-and-closes-through-independent-review` 两例: 前者对有派生+批准基线但零进展反馈的项目断言 `schedule_status behind` 且 `performance_variances` 含 schedule 项、`variance_action_state unimplemented`、`variance_action_total 0`, 纯函数直测阈值口径与状态翻转; 后者对登记后的措施断言初始 `open`, 经 complete (带同项目 document 证据 + 复核人 != 提交人) -> `in_review`, 再 verify (审批人 != 提交人) -> `closed`, 且偏差 `variance_action_state` 随之由 `in-progress` 转 `completed`, 非法 `variance_kind` 经服务层 400) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 176 tests / 1919 assertions, 0 failures/errors, read-plan 新增 `:performance_variances` 与 `[:actions :from-variance]` 命令未造成既有挣值/行动闭环/治理回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 compiled / 0 warnings (自定义列 render 用 `(aget row "jsKey")` 避免 `:infer-warning`) |
+| HTTP 合同 (契约) | `contracts/governance.md` 命令表新增 `POST /actions/from-variance` 行 (title/owner_id/due_date/variance_kind, 可选 variance_status_date; 复用 action kind 免迁移; `s/enum!` 限 schedule/cost 非法 400; 复用 complete/verify 闭环) |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-h06v.spec.js` 1 passed (47.9s), 无未捕获 JS 错误: fixture 用 admin 建项目 + 合成含 `pms:quality:approve` 的独立审核人 (第二真实登录上下文) + 设备模板 -> 派生计划但不填任何进展反馈 -> `toExecution` 进执行 -> 重载页签携带最新版本 -> 断言 `schedule_status behind`、`performance_variances` schedule 项 `variance_action_state unimplemented` -> "绩效偏差与纠正措施"面板显"进度落后"+"尚未落实" (截图 h06-1-variance-detected.png) -> 界面"登记纠正措施"填标题/责任人 (body-level portal 下拉 type+Enter)/到期日保存 -> 面板翻"落实中 (1 项 · 未闭环 1)" (截图 h06-2-action-registered.png) -> 真实 HTTP 对非法 `variance_kind` "risk" 打 `/actions/from-variance` 断言 400 -> 真实 HTTP complete (带同项目文档证据 + 复核人) 再 verify (审核人上下文) -> 面板翻"已闭环 (1 项 · 未闭环 0)" (截图 h06-3-action-closed.png); 截图存 `reports/h06-variance/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL, 偏差登记复用 `action` kind 的 JSON payload 无需建表); 偏差是否越界这一事实由后端 SQLite 用例确定性覆盖, 浏览器侧核验界面可见的"绩效偏差与纠正措施"面板状态徽标 (尚未落实 / 落实中 / 已闭环) 翻转、真实登记对话框与 body-level portal 责任人下拉、非法 `variance_kind` 的真实 HTTP 400、以及复用既有行动链的完成-独立核验闭环.
+
+边界: 本项把 H06 从"仅有挣值数值可看"推进到"绩效偏差可识别 + 纠正措施可登记 + 可经独立核验闭环", 属 `partial` 行内的一个 well-scoped 子能力增量; H06 仍保持 `partial` 状态不上行, 因为"反馈独立审核"与"财务金额口径挣值 (增量7 费率后)"仍是真实待办. 本项**不构成任何自动门控** (偏差不阻断任何登记或流转, 闭环走的是既有行动链), 不新增迁移/kind/命令路由外的表结构, 不改变不可变版本.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.
