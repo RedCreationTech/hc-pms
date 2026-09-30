@@ -34,6 +34,24 @@
      :by-strategy (mapv (fn [x] {:strategy x :count (strategy-count x)}) strategies)}))
 
 
+(defn risk-escalation-disposition-summary
+  "按每个风险最新有效版本只读聚合超阈值升级处置情况: 升级总数与待确认/已确认/已豁免及 steering/management 分级计数; 只读派生, 不落库不投递, 不改变风险状态."
+  [risks]
+  (let [active (s/latest risks)
+        escalated (filterv :escalated active)
+        total (count active)
+        esc-total (count escalated)
+        state-count (fn [x] (count (filterv #(= x (:escalation_state %)) escalated)))
+        level-count (fn [x] (count (filterv #(= x (:escalation_level %)) escalated)))]
+    {:total total
+     :escalated esc-total
+     :not-escalated (- total esc-total)
+     :pending (state-count "pending")
+     :acknowledged (state-count "acknowledged")
+     :waived (state-count "waived")
+     :by-level (mapv (fn [x] {:level x :count (level-count x)}) ["steering" "management"])}))
+
+
 (defn- insert-risk!
   "写入风险记录: 统一按概率 x 影响评分, 达阈值自动标记超阈值升级, 可选携带阶段与风险库来源信息; 评分与升级判定共用 risk-assessment 纯函数."
   [q project actor fields]

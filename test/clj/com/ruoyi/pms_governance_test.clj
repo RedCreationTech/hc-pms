@@ -1813,6 +1813,48 @@
       (is (= "transfer" (:response_strategy row))))))
 
 
+(deftest risk-escalation-disposition-summary-is-derived-read-only
+  (let [id (project!)
+        sum (fn [] (:risk_escalation_summary (workspace id)))
+        lv (fn [x] (:count (first (filter #(= x (:level %)) (:by-level (sum))))))
+        create (fn [title p i]
+                 (command! id :risks :create nil
+                           {:title title :probability p :impact i
+                            :owner_id 9301 :mitigation "常规措施" :due_date "2026-10-20"}))
+        steering (create "关键交付断供风险" 5 5)
+        management (create "成本超支风险" 4 4)
+        mild (create "人员波动风险" 3 5)]
+    ;; 5x5=25 升 steering, 4x4=16 升 management, 3x5=15 未达阈值 16 不升级; 只读聚合不改变风险状态.
+    (is (= 3 (:total (sum))))
+    (is (= 2 (:escalated (sum))))
+    (is (= 1 (:not-escalated (sum))))
+    (is (= 2 (:pending (sum))))
+    (is (= 0 (:acknowledged (sum))))
+    (is (= 0 (:waived (sum))))
+    (is (= 1 (lv "steering")))
+    (is (= 1 (lv "management")))
+    ;; 独立审批人批准责成处置 steering 升级: 待确认减一, 已确认加一, 升级总数与分级不变.
+    (command! 9302 id :risks :escalate (:id steering)
+              {:decision "approved" :note "管理层责成启动备选供应商并加严来料检验"})
+    (is (= 1 (:pending (sum))))
+    (is (= 1 (:acknowledged (sum))))
+    (is (= 2 (:escalated (sum))))
+    (is (= 1 (lv "steering")))
+    ;; 独立审批人评估后豁免 management 升级: 待确认归零, 已豁免加一.
+    (command! 9302 id :risks :escalate (:id management)
+              {:decision "rejected" :note "影响可控, 评估后豁免专项处置"})
+    (is (= 0 (:pending (sum))))
+    (is (= 1 (:acknowledged (sum))))
+    (is (= 1 (:waived (sum))))
+    ;; 只读派生不改变风险状态: 重复读取汇总稳定, 升级分级不漂移, 未升级风险仍为登记态.
+    (is (= (sum) (:risk_escalation_summary (workspace id))))
+    (is (= 1 (lv "steering")))
+    (is (= 1 (lv "management")))
+    (let [row (first (filter #(= (:id mild) (:id %)) (:risks (workspace id))))]
+      (is (false? (:escalated row)))
+      (is (= "open" (:status row))))))
+
+
 (deftest risk-mitigation-materializes-tracked-prevention-action
   (let [id (project!)
         risk (command! id :risks :create nil
