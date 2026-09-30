@@ -235,6 +235,25 @@
                                         {:title (str "核算" (when (:actual v) (str " v" (:version_no (:actual v))))) :dataIndex "actual" :render (fn [x] (or x "—"))}
                                         {:title (str "决算" (when (:settlement v) (str " v" (:version_no (:settlement v))))) :dataIndex "settlement" :render (fn [x] (or x "—"))}])}]])]))
 
+(defn- timesheet-review-section
+  "F04 工时审核闭环健康度: 按项目全部工时单只读派生, 汇总待审核/已批准/已驳回/已更正/更正待审与审核完成率及工时小时分布."
+  [{:keys [model]}]
+  (let [tr (:timesheet_review model)]
+    [shared/panel "工时审核闭环汇总" "只读派生 · 反映工时单独立审批的推进情况, 不构成任何门控" nil
+     (if-not (:available tr)
+       [:span {:style {:color "#98a2b3"}} "尚无人提交工时单, 提交后此处自动汇总审核闭环健康度."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "待审核 " (:submitted tr))]
+         [antd/tag {:color "green"} (str "已批准 " (:approved tr))]
+         [antd/tag {:color "red"} (str "已驳回 " (:rejected tr))]
+         [antd/tag {:color "default"} (str "已更正 " (:corrected tr))]
+         (when (pos? (:correction-pending tr)) [antd/tag {:color "orange"} (str "更正待审 " (:correction-pending tr))])]
+        [:div {:style {:fontSize 13 :color "#4b5563"}}
+         (str "共 " (:total tr) " 张工时单, 已作决定 " (:processed tr) " 张, 审核完成率 " (:review-pct tr) "%")]
+        [:div {:style {:fontSize 12 :color "#718096"}}
+         (str "工时: 合计 " (:hours-total tr) "h / 已批准 " (:hours-approved tr) "h / 待审核 " (:hours-pending tr) "h")]])]))
+
 (defn- cost-actions
   "根据版本状态提供条目维护,提交或独立审批."
   [{:keys [base options editable? approve? open! select!]} cost]
@@ -416,7 +435,7 @@
                                                  [budget-control-panel context]
                                                  [commitment-section context]
                                                  [budget-rules-section context]])}
-                       {:key "time" :label "实际工时" :children (r/as-element [time-section context])}]}]])
+                       {:key "time" :label "实际工时" :children (r/as-element [:div {:style {:display "grid" :gap 20}} [timesheet-review-section context] [time-section context]])}]}]])
 
 (defn- finance-data
   "集中加载费用读模型,审批结果会刷新项目版本."

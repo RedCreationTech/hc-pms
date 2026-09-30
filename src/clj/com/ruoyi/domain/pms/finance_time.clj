@@ -93,3 +93,38 @@
           (when-not (= 1 (q :finance/reserve-day! entry)) (rules/fail! 409 "同一天跨项目累计工时不能超过24小时"))
           (q :finance/insert-correction! entry)
           (dto (q :finance/time entry)))))))
+
+
+(defn timesheet-review-summary
+  "按项目全部工时单只读聚合审核闭环健康度: 总数/待审核/已批准/已驳回/已更正/已作决定数/更正待审数与已批准及待审核工时小时数及审核率; 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
+  [entries]
+  (let [total (count entries)
+        minutes (fn [xs] (reduce + 0 (map :minutes xs)))
+        approved-rows (filterv #(= "approved" (:status %)) entries)
+        submitted-rows (filterv #(= "submitted" (:status %)) entries)
+        status-count (fn [x] (count (filterv #(= x (:status %)) entries)))
+        approved (status-count "approved")
+        rejected (status-count "rejected")
+        corrected (status-count "corrected")
+        submitted (count submitted-rows)
+        processed (+ approved rejected)
+        correction-pending (count (filterv #(and (:corrects_entry_id %) (= "submitted" (:status %))) entries))]
+    {:available (pos? total)
+     :total total
+     :submitted submitted
+     :approved approved
+     :rejected rejected
+     :corrected corrected
+     :processed processed
+     :correction-pending correction-pending
+     :hours-total (money/hours (minutes entries))
+     :hours-approved (money/hours (minutes approved-rows))
+     :hours-pending (money/hours (minutes submitted-rows))
+     :review-pct (if (pos? total)
+                   (int (Math/round ^double (* 100.0 (/ processed total))))
+                   0)}))
+
+(defn attach-timesheet-review-summary
+  "把 timesheet-review-summary 挂到财务概览读模型顶层 :timesheet_review; 读取时派生, 不改变任何逐条工时单."
+  [data]
+  (assoc data :timesheet_review (timesheet-review-summary (:time_entries data))))

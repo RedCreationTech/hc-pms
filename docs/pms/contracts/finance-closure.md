@@ -10,6 +10,8 @@ POST `/time-entries`: project:edit,项目必须execution;字段task_id/work_date
 
 POST `/time-entries/:entry_id/review`: time:approve,独立指定审核人,decision为approved/rejected,拒绝须reason. 已处理决定不能覆盖. 当前不提供批准工时的追溯更正或封期,需作为下一项财务规则扩展,不能以重新报工假装冲销.
 
+GET `/finance` 读模型新增顶层只读派生键 `timesheet_review` (F04 工时审核闭环汇总, 免迁移/不构成门控): 由领域纯函数 `finance_time/timesheet-review-summary` 对整项目 `:time_entries` 逐条状态只读聚合, 与四算/封期口径正交. 输出 `available` (是否有工时单), `total`/`submitted`/`approved`/`rejected`/`corrected`/`processed` (=approved+rejected)/`correction-pending` (带 corrects_entry_id 且 status=submitted 的更正单数), `review-pct` (processed/total 四舍五入百分比, total=0 时为 0), 以及 `hours-total`/`hours-approved`/`hours-pending` 三档小时分布 (与状态分类正交, 各自可独立解读). 工时单无修订链, 故聚合全部工时单不取 latest. 前端项目费用页"实际工时"页签顶部渲染只读汇总面板 (待审核/已批准/已驳回/已更正/更正待审徽标 + 审核完成率 + 工时合计/已批准/待审核小时), 空态显示引导文案. 该面板仅呈现审核推进健康度, 不门控任何写操作.
+
 ## 四算
 
 GET `/finance`: finance:query与项目阅读范围,返回cost_versions/time_entries/allocations/summary/summary_context. 普通项目成员无此权限不能查询金额. summary只比较同一期间及币种的最新已批准口径,缺失口径不填伪零. 当前margin字段为收入减成本的毛利金额,零收入也可计算负毛利;不伪称利润率或税后净利.

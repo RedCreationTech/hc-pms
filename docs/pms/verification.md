@@ -1334,6 +1334,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: C09 整行保持既有状态不变 — 本项只是把已有逐条问题逾期徽标与"风险升级处置汇总"面板升为一个项目级问题处理闭环健康度与严重度分布的只读汇总子能力, 一个只读子能力不改变整行状态; 汇总不构成任何门控 (闭环率高低与未关闭阻断级数不阻止任何问题登记/提交/验证/驳回), 不新增写路径/kind/命令/路由/表结构; 逾期与阻断级提醒的外部投递仍属 C11.
 
+## F04 工时审核闭环汇总只读派生 (本轮增补, 2026-09-30)
+
+设计与口径: 研发工时 (F04) 此前已有逐张提交, 独立审核 (`review!`), 批准后更正链 (`correct!` 使原单转 `corrected` 并生成独立待审更正单, 驳回恢复原单) 与期间封期门控, 但"整个项目到底有多少工时单待审, 多少已批准/驳回/更正, 有几张更正还压着待审, 审核闭环推进到什么程度, 各状态分别占多少小时"这一工时审核生命周期健康度此前无从一眼可读. 本项在 `domain.pms.finance-time` 新增只读汇总纯函数 `timesheet-review-summary`: 输入整项目 `:time_entries` (工时单无修订链, 故统计全部行不取 `store/latest`, 与问题/风险类"取最新修订"不同), 按互斥状态 `submitted`/`approved`/`rejected`/`corrected` 计数, 另算 `processed` (= `approved + rejected`, 已作出终局决定的单数), `correction-pending` (带 `corrects_entry_id` 且 `status = "submitted"` 的更正待审单数), `review-pct` (= `processed / total` 四舍五入整数百分比, `total` 为 0 时给 0), 及三档小时分布 `hours-total`/`hours-approved`/`hours-pending` (分别对全部, 已批准, 待审核行的整数分钟求和后 `money/hours` 归一为两位小数字符串, 与状态计数正交可各自独立解读). `attach-timesheet-review-summary` 以整map函数把结果 `assoc` 到财务概览读模型顶层 `:timesheet_review` (下划线命名, 内层键连字符, 不带尾随 `?`), `finance/overview` 在合成成本/工时/分摊数据后追加该纯读步骤, 不改变任何逐条工时单. 免迁移 / 免新 kind / 免新命令 / 免新路由 / 不构成任何门控 (只读呈现, 提交/审核/更正/封期的硬校验与跨项目 24 小时日容量约束均不受影响). 前端 `finance.cljs` 在项目费用页"实际工时"页签顶部 `time-section` 之上新增 `timesheet-review-section` 面板 "工时审核闭环汇总" (彩色标签 待审核 blue / 已批准 green / 已驳回 red / 已更正 default / 更正待审 orange 仅 `pos?` 时渲染, 另以一行显示"共 N 张工时单, 已作决定 M 张, 审核完成率 P%"与一行显示"工时: 合计 Th / 已批准 Ah / 待审核 Ph"); 无工时单时空态提示"尚无人提交工时单...". 该面板与四算, 承诺预算控制, 封期读模型 (`:locked_periods`) 正交.
+
+| 证据 | 实际记录 |
+|---|---|
+| 组合/财务命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-portfolio-test'` 通过 8 tests / 126 assertions, 0 failures/errors (新增 `timesheet-review-summary-is-derived-read-only`: 纯函数直测对五张合成工时单 (approved 120m / submitted 180m / rejected 60m / corrected 240m / submitted 90m 且带 corrects_entry_id) 断言 available=true, total=5, approved=1, submitted=2, rejected=1, corrected=1, processed=2, correction-pending=1, review-pct=40, hours-total "11.50" / hours-approved "2.00" / hours-pending "4.50"; attach 后 `:time_entries` 逐条不漂移且 `:timesheet_review total`=5; 空向量给 available=false/total=0/review-pct=0/hours-total "0.00"; 端到端在真实执行态项目上经提交 2h+3h -> 独立批准 1 -> 更正已批准单, GET `/finance` 回显 `timesheet_review` 从 total2/review-pct50 演进到 total3/corrected1/correction-pending1/review-pct0) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 191 tests / 2192 assertions, 0 failures/errors; `attach-timesheet-review-summary` 挂到 `finance/overview` 合并之后未造成既有工时更正与封期 / 四算拉通 / 跨项目研发费用池 / 承诺预算控制 / 追踪与治理各只读汇总面板回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 compiled (缓存) / 0 warnings |
+| HTTP 合同 (契约) | `contracts/finance-closure.md` 的工时节更新: GET `/finance` 读模型新增顶层只读派生键 `timesheet_review` (available/total/submitted/approved/rejected/corrected/processed/correction-pending/review-pct/hours-total/hours-approved/hours-pending), 明确由纯函数 `finance_time/timesheet-review-summary` 对全部工时单读取时聚合 (工时无修订链不取 latest), 免迁移/免新命令/不构成门控 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-f04tr.spec.js` 1 passed (28.9s), 无未捕获 JS 错误: 主操作者经真实命令把项目推进到执行态后, 界面"项目费用 -> 实际工时"页签先显示空态"尚无人提交工时单" (截图 f04tr-1-empty.png); 提交两张待审工时单 (2h + 3h) -> 面板回显"待审核 2 / 共 2 张工时单, 已作决定 0 张, 审核完成率 0% / 工时: 合计 5.00h / 已批准 0.00h / 待审核 5.00h" (截图 f04tr-2-pending.png); 独立审核人 (第二真实浏览器上下文) 批准 e1 驳回 e2, 填报人再提交 e3 (4h) 并批准后对其发起更正 (5h) -> 面板翻转为"待审核 1 / 已批准 1 / 已驳回 1 / 已更正 1 / 更正待审 1 / 共 4 张工时单, 已作决定 2 张, 审核完成率 50% / 工时: 合计 14.00h / 已批准 2.00h / 待审核 5.00h" (截图 f04tr-3-mixed.png); 三态均另用真实 HTTP GET `/finance` 核验 `timesheet_review` 各键与界面同源; 截图存 `reports/f04tr/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL, 汇总为读取时对既有全量工时单的纯函数聚合, 不落任何新表/列); 五态计数, 更正待审判定, 三档小时分布与审核完成率口径由后端 SQLite 用例确定性覆盖, 浏览器侧核验界面可见标签与服务端回显同源.
+
+边界: F04 整行保持既有 `implemented / local` 状态不变 — 本项只是把已有的逐张工时审核与更正链升为一个项目级工时审核闭环健康度与小时分布的只读汇总子能力, 一个只读子能力不上行整行状态; 汇总不构成任何门控 (审核完成率高低与更正待审数不阻止任何工时提交/审核/更正/封期), 不新增写路径/kind/命令/路由/表结构; 工时批准后的追溯更正与封期门控此前已具备, 权威工时口径与外部考勤/ERP 集成仍待合同.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

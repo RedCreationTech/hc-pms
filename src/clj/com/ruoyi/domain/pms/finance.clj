@@ -49,7 +49,7 @@
   (kernel/read! svc actor project-id "pms:finance:query"
     (fn [q project]
       (let [versions (mapv #(cost/dto q %) (q :finance/versions {:project_id project-id}))]
-        (merge {:project_version (:version project) :cost_versions versions
+        (-> (merge {:project_version (:version project) :cost_versions versions
                 :time_entries (mapv time/dto (q :finance/times {:project_id project-id}))
                 :allocations (mapv allocation/dto (q :finance/allocations {:project_id project-id}))
                 :four_count (four-count-comparison versions)
@@ -58,7 +58,7 @@
                 :budget_control {:budget (budget/evaluate q project-id "budget" 0)
                                  :estimate (budget/evaluate q project-id "estimate" 0)}
                 :locked_periods (mapv :period (config/published q "period-lock"))}
-               (summary versions))))))
+               (summary versions)) time/attach-timesheet-review-summary)))))
 
 (defn times
   "普通成员仅看本人工时和待本人审核的工时, 不附带财务金额."

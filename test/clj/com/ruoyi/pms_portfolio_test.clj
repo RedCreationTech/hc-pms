@@ -247,6 +247,68 @@
       (is (= "submitted" (:status (:result (submit))))))))
 
 
+(deftest timesheet-review-summary-is-derived-read-only
+  ;; 纯函数: 逐状态计数, 审核率, 工时小时聚合, 更正待审与空态; 派生只读, 不改入参.
+  (let [rows [{:entry_id "a" :status "approved" :minutes 120}
+              {:entry_id "b" :status "submitted" :minutes 180}
+              {:entry_id "c" :status "rejected" :minutes 60}
+              {:entry_id "d" :status "corrected" :minutes 240}
+              {:entry_id "e" :status "submitted" :minutes 90 :corrects_entry_id "d"}]
+        s (time/timesheet-review-summary rows)]
+    (is (true? (:available s)))
+    (is (= 5 (:total s)))
+    (is (= 1 (:approved s)))
+    (is (= 2 (:submitted s)))
+    (is (= 1 (:rejected s)))
+    (is (= 1 (:corrected s)))
+    (is (= 2 (:processed s)))
+    (is (= 1 (:correction-pending s)))
+    (is (= 40 (:review-pct s)))
+    (is (= "11.50" (:hours-total s)))
+    (is (= "2.00" (:hours-approved s)))
+    (is (= "4.50" (:hours-pending s)))
+    (let [out (time/attach-timesheet-review-summary {:time_entries rows})]
+      (is (= rows (:time_entries out)))
+      (is (= 5 (get-in out [:timesheet_review :total])))
+      (is (= 40 (get-in out [:timesheet_review :review-pct])))))
+  (let [e (time/timesheet-review-summary [])]
+    (is (false? (:available e)))
+    (is (= 0 (:total e)))
+    (is (= 0 (:review-pct e)))
+    (is (= "0.00" (:hours-total e))))
+  ;; 端到端读模型: 概览暴露 :timesheet_review, 随提交/批准/更正真实翻转, 且不改变逐条工时单.
+  (let [{:keys [id task_id]} (executing-project! "工时审核汇总项目")
+        overview (fn [] (finance/overview *service* (actor 9701) id))]
+    (let [empty (:timesheet_review (overview))]
+      (is (false? (:available empty)))
+      (is (= 0 (:total empty))))
+    (let [e1 (:result (time/submit! *service* (actor 9701) id {:version (version id) :task_id task_id :work_date (today-minus 2) :hours 2 :note "调研" :reviewer_id 9702}))
+          e2 (:result (time/submit! *service* (actor 9701) id {:version (version id) :task_id task_id :work_date (today-minus 1) :hours 3 :note "开发" :reviewer_id 9702}))]
+      (time/review! *service* (actor 9702) id (:id e1) {:version (version id) :decision "approved" :reason "ok"})
+      (let [r (:timesheet_review (overview))]
+        (is (true? (:available r)))
+        (is (= 2 (:total r)))
+        (is (= 1 (:approved r)))
+        (is (= 1 (:submitted r)))
+        (is (= 1 (:processed r)))
+        (is (= 50 (:review-pct r)))
+        (is (= "5.00" (:hours-total r)))
+        (is (= "2.00" (:hours-approved r)))
+        (is (= "3.00" (:hours-pending r)))
+        (is (= 0 (:correction-pending r)))
+        (is (= 2 (count (:time_entries (overview))))))
+      (let [corr (:result (time/correct! *service* (actor 9701) id (:id e1) {:version (version id) :hours 2 :note "调研(更正)" :reason "记错" :reviewer_id 9702}))]
+        (is (= "submitted" (:status corr)))
+        (let [r (:timesheet_review (overview))]
+          (is (= 3 (:total r)))
+          (is (= 0 (:approved r)))
+          (is (= 1 (:corrected r)))
+          (is (= 2 (:submitted r)))
+          (is (= 1 (:correction-pending r)))
+          (is (= 0 (:processed r)))
+          (is (= 0 (:review-pct r))))))))
+
+
 (deftest rd-pool-allocates-across-projects-and-conserves
   (let [p1 (executing-project! "费用池项目一") p2 (executing-project! "费用池项目二")
         period "2026-07"
