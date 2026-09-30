@@ -49,6 +49,8 @@
 
 `overload_summary` (H05 资源超配项目级只读汇总) 由纯函数 `planning.capacity/overload-summary` 对上述逐日 `overallocations` 明细读取时聚合派生, 不落库, 不构成任何门控 (既不阻断保存/提交/冻结, 也不改变明细): 返回 `available (是否至少一条超配) / total-rows (逐日超配明细行数) / distinct-resources (涉及的去重资源数) / person-rows (人员日超配行数, 即 scope=shared_person 的行) / equipment-rows (设备日超配行数 = total-rows - person-rows) / worst-excess-hours (所有明细中单日最大超出工时) / peak-date (按日汇总超出工时最大的那一天, 无超配时为 null)`. 无超配时 `available=false` 且计数为 0, `peak-date` 为 `null`, 台账显"当前排程未发现资源超负荷". 键名不带尾随 `?` 以免 JSON 序列化为字面键. 界面在"资源与日历"页签顶部"资源负荷检查"面板以彩色标签呈现该概览, 其下逐日明细表口径不变.
 
+`allocation_coverage` (H05 任务工时投入覆盖度) 由纯函数 `planning.capacity/allocation-coverage` 对 `tasks` 与 `allocations` 读取时聚合派生, 不落库, 不构成任何门控 (既不阻断保存/提交/冻结, 也不改变任何写路径): 分母只取可分配叶任务 (`task_type=task`), 汇总任务与里程碑不接受工时分配故不计入; 每个可分配任务只要存在至少一条工时分配即视为"已投入", 同任务多条分配只算一次. 返回 `available (是否存在至少一个可分配任务) / total-tasks (可分配任务总数) / with-allocations (已投入数) / without-allocations (未投入数) / coverage-pct (with/total 四舍五入整数百分比, 无可分配任务时为 0) / unallocated-tasks (未投入任务清单, 每项含 task_id/wbs_code/name)`. 无可分配任务时 `available=false` 且计数为 0, `unallocated-tasks` 为空数组, 面板显"尚无普通任务 (汇总与里程碑不计入投入覆盖)". 键名不带尾随 `?`. 界面在"资源与日历"页签以彩色标签呈现该概览并列出未投入工时的任务, 与超配汇总互补: 超配看"是否排太多", 投入覆盖看"是否还没排".
+
 ## 基线与变更
 
 `POST /planning/submit {version, comment, change_id?}` 在 planning 或 execution 阶段提交, 要求任务可排程, 负责人有效且无资源超配. 执行阶段必须关联同项目最新已批准的 change_id, 审批时再次校验; 计划阶段允许不带 change_id. 提交瞬间冻结完整设计与计算结果, pending 期间锁定设计变更. 同一 plan_revision 只提交一次.

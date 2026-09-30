@@ -78,3 +78,23 @@
      :equipment-rows (- n person)
      :worst-excess-hours worst
      :peak-date peak-date}))
+
+(defn allocation-coverage
+  "把可分配叶任务 (task_type=task, 汇总与里程碑不接受工时分配) 与工时分配明细只读聚合为投入覆盖概览:
+  逐任务判断是否至少有一条工时分配, 输出可分配总数/已投入/未投入/覆盖率与未投入任务清单;
+  仅供台账汇总面板呈现, 只读派生, 不落库不投递, 不构成门控, 键名不带尾随问号."
+  [tasks allocations]
+  (let [allocatable (filterv #(= "task" (:task_type %)) tasks)
+        allocated (set (map :task_id allocations))
+        total (count allocatable)
+        with (count (filterv #(allocated (:task_id %)) allocatable))
+        without (mapv #(select-keys % [:task_id :wbs_code :name])
+                      (remove #(allocated (:task_id %)) allocatable))]
+    {:available (pos? total)
+     :total-tasks total
+     :with-allocations with
+     :without-allocations (- total with)
+     :coverage-pct (if (pos? total)
+                     (int (Math/round ^double (* 100.0 (/ with total))))
+                     0)
+     :unallocated-tasks without}))

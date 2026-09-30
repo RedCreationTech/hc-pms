@@ -66,6 +66,25 @@
        [:div {:style {:padding 16 :color "#568775"}}
         (if (seq (:allocations model)) "当前排程未发现资源超负荷." "尚未分配资源,分配后将执行负荷检查.")])]))
 
+(defn allocation-coverage
+  "把可分配任务的实际工时投入覆盖情况以只读汇总面板呈现, 并列出尚未投入任何工时的任务."
+  [model]
+  (let [cov (:allocation_coverage model)]
+    [shared/panel "任务投入覆盖度" "统计可分配任务 (不含汇总与里程碑) 是否已排入资源工时; 只读洞察, 不构成门控" nil
+     (if (and cov (:available cov))
+       [:div
+        [antd/space {:wrap true :style {:marginBottom 12}}
+         [antd/tag {:color "blue"} (str "可分配任务 " (:total-tasks cov))]
+         [antd/tag {:color "green"} (str "已有投入 " (:with-allocations cov))]
+         [antd/tag {:color (if (pos? (:without-allocations cov)) "orange" "green")} (str "未投入 " (:without-allocations cov))]
+         [antd/tag {:color (if (>= (:coverage-pct cov) 80) "green" "gold")} (str "投入覆盖率 " (:coverage-pct cov) "%")]]
+        (when (seq (:unallocated-tasks cov))
+          [:div {:style {:display "flex" :alignItems "center" :gap 8 :flexWrap "wrap"}}
+           [:span {:style {:fontSize 12 :color "#718096"}} "未投入工时的任务:"]
+           (for [t (:unallocated-tasks cov)]
+             ^{:key (:task_id t)} [antd/tag {:color "volcano"} (str (:wbs_code t) " " (:name t))])])]
+       [shared/empty-state "尚无普通任务 (汇总与里程碑不计入投入覆盖)." nil])]))
+
 (def readable-fields
   {:name "名称" :start_date "开始日期" :end_date "结束日期" :duration_days "工期"
    :wbs_code "WBS编号" :task_type "类型" :daily_capacity "日容量" :hours_per_day "日负荷"

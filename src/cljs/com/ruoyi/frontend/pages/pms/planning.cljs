@@ -234,7 +234,7 @@
                                                                           [baseline-variance-section context] [scope-coverage-section context] [task-section context] [dependency-section context] [views/gantt model]])}
                    {:key "resources" :label "资源与日历" :children (r/as-element [:div {:style {:display "grid" :gap 20}}
                                                                                 [resource-section context] [allocation-section context]
-                                                                                [calendar-section context] [views/overloads model]])}
+                                                                                [calendar-section context] [views/allocation-coverage model] [views/overloads model]])}
                    {:key "rollup" :label "进度卷积" :children (r/as-element [rollup-tab context])}
                    {:key "baselines" :label "审批与基线" :children (r/as-element [baseline-section context])}
                    {:key "feedback" :label "执行反馈" :children (r/as-element [feedback-section context])}]}]]))

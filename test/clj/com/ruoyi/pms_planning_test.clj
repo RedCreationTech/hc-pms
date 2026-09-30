@@ -9,6 +9,7 @@
             [com.ruoyi.domain.pms.governance.approval :as approval]
             [com.ruoyi.domain.pms.service :as pms]
             [com.ruoyi.domain.pms.planning :as plan]
+            [com.ruoyi.domain.pms.planning.capacity :as capacity]
             [com.ruoyi.domain.pms.planning.schedule :as schedule]
             [com.ruoyi.domain.pms.planning.tasks :as tasks]
             [com.ruoyi.infra.security :as security]
@@ -474,3 +475,45 @@
         (is (== 0 (:worst-excess-hours s)))
         (is (nil? (:peak-date s)))
         (is (empty? (:overallocations model)))))))
+
+
+(deftest task-allocation-coverage-is-derived-read-only
+  (testing "纯函数口径: 仅 task_type=task 参与分母, 里程碑与汇总排除, 同任务多条分配只算已投入, 覆盖率四舍五入"
+    (let [pure-tasks [{:task_id "s" :task_type "summary" :wbs_code "1" :name "汇总"}
+                      {:task_id "a" :task_type "task" :wbs_code "1.1" :name "甲"}
+                      {:task_id "b" :task_type "task" :wbs_code "1.2" :name "乙"}
+                      {:task_id "m" :task_type "milestone" :wbs_code "2" :name "里程碑"}]
+          pure-allocs [{:task_id "a" :resource_id "r1" :hours_per_day 4}
+                       {:task_id "a" :resource_id "r2" :hours_per_day 2}]
+          cov (capacity/allocation-coverage pure-tasks pure-allocs)]
+      (is (true? (:available cov)))
+      (is (= 2 (:total-tasks cov)))
+      (is (= 1 (:with-allocations cov)))
+      (is (= 1 (:without-allocations cov)))
+      (is (= 50 (:coverage-pct cov)))
+      (is (= ["1.2"] (map :wbs_code (:unallocated-tasks cov))))))
+  (testing "无 task_type=task 时 available=false 且覆盖率为 0"
+    (let [cov (capacity/allocation-coverage [{:task_id "m" :task_type "milestone"}] [])]
+      (is (false? (:available cov)))
+      (is (= 0 (:total-tasks cov)))
+      (is (= 0 (:coverage-pct cov)))
+      (is (empty? (:unallocated-tasks cov)))))
+  (testing "read-plan 集成: 一汇总一里程碑三叶任务两叶已分配使覆盖率 67%, 派生只读且无版本漂移"
+    (let [id (project!)
+          _ (:result (command! plan/create-task! id [] {:wbs_code "1" :name "汇总" :task_type "summary" :duration_days 0 :owner_id 9201}))
+          a (task! id "A" 2) b (task! id "B" 2) c (task! id "C" 2)
+          _ (:result (command! plan/create-task! id [] {:wbs_code "M" :name "里程碑" :task_type "milestone" :duration_days 0 :owner_id 9201}))
+          equip (:result (command! plan/create-resource! id [] {:name "机床" :resource_type "equipment" :daily_capacity 8}))]
+      (command! plan/create-allocation! id [] {:task_id (:task_id a) :resource_id (:resource_id equip) :hours_per_day 4})
+      (command! plan/create-allocation! id [] {:task_id (:task_id b) :resource_id (:resource_id equip) :hours_per_day 4})
+      (let [v-before (version id)
+            model (plan/read-plan *svc* (actor 9201) id)
+            cov (:allocation_coverage model)]
+        (is (true? (:available cov)))
+        (is (= 3 (:total-tasks cov)))
+        (is (= 2 (:with-allocations cov)))
+        (is (= 1 (:without-allocations cov)))
+        (is (= 67 (:coverage-pct cov)))
+        (is (= ["C"] (map :wbs_code (:unallocated-tasks cov))))
+        (is (= v-before (version id)))
+        (is (= v-before (:project_version model)))))))

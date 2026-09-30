@@ -62,7 +62,8 @@
                                         (filter #(= "approved" (:status %)))
                                         (mapv #(select-keys % [:id :title])))
                 :current_user_id (:user_id actor) :overallocations overloads
-                :overload_summary (capacity/overload-summary overloads)})))))
+                :overload_summary (capacity/overload-summary overloads)
+                :allocation_coverage (capacity/allocation-coverage raw-tasks (:allocations snapshot))})))))
 
 (defn read-baseline
   "读取不可变的已提交计划快照."

@@ -1254,6 +1254,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: H05 整行保持 `partial` — 本项只是把已有逐日超配明细提升为项目级只读概览的洞察子能力, 一个只读子能力不改变整行状态; 矩阵业务闭环要求的"技能匹配 / 替代人员 / 请假规则 / 超配经协调解决的处置闭环 (如自动改派或容量再平衡建议)"仍未实现, 且汇总不构成任何门控 (不阻断保存/提交/冻结, 明细口径不变), 不新增写路径/kind/命令/路由/表结构.
 
+## H05 任务工时投入覆盖度只读派生 (本轮增补, 2026-09-30)
+
+设计与口径: H05 已具备日容量, 任务分配与面向"是否排太多"的超配保护 (上一子项 `overload-summary` 又给出项目级"超配到什么程度"的只读概览), 但工作台仍缺一个互补视角 — "哪些可分配任务根本还没排入任何工时". 本项在 `planning.capacity` 新增只读派生纯函数 `allocation-coverage`: 以可分配叶任务 (`task_type="task"`, 汇总与里程碑不接受工时分配, 故被排除在分母外, 与 `resources/allocate!` 规则一致) 为总体, 逐任务判断是否至少命中一条 `allocations` 记录, 输出 `available / total-tasks / with-allocations / without-allocations / coverage-pct (无任务时为 0, 否则 100*with/total 四舍五入取整) / unallocated-tasks (未投入任务的 task_id/wbs_code/name 清单)`. `planning/read-plan` 用已绑定的 `raw-tasks` (`store/rows q project :planning/tasks`) 与 `snapshot` 里的 `:allocations` 派生并暴露顶层 `:allocation_coverage` (下划线命名, 与既有 `:overload_summary` 一致; 内层键用连字符). 键名不带尾随 `?` 以免序列化为 JSON 字面键. 免迁移 / 免新 kind / 免新命令 / 免新路由 / 不构成任何门控 (只读呈现, 既不阻断保存/提交/冻结也不改变任何写路径). 前端 `plan_views.cljs` 新增 `allocation-coverage` 面板 "任务投入覆盖度" (彩色标签 可分配任务 / 已有投入 / 未投入 / 投入覆盖率 + 未投入任务 volcano 标签清单), `planning.cljs` 在"资源与日历"页签将其置于负荷检查面板之前; 无普通任务时显空态 "尚无普通任务 (汇总与里程碑不计入投入覆盖).".
+
+| 证据 | 实际记录 |
+|---|---|
+| 计划单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-planning-test'` 通过 15 tests / 151 assertions, 0 failures/errors (新增 `task-allocation-coverage-is-derived-read-only`: 纯函数用例 汇总+2 叶任务+里程碑, 2 条分配都指向同一任务 -> `total-tasks` 2 / `with-allocations` 1 / `without-allocations` 1 / `coverage-pct` 50 / 未投入清单含 "1.2"; 仅里程碑用例 -> `available=false` / `total-tasks` 0 / `coverage-pct` 0 / 未投入清单空; `read-plan` 集成用例 3 叶任务 A/B/C + 里程碑 + 设备资源, 分配 A 4h + B 4h (C 不分配) -> `total-tasks` 3 / `with-allocations` 2 / `without-allocations` 1 / `coverage-pct` 67 / 未投入清单 `["C"]`, 且前后 `project_version` 不漂移证明纯读不落库) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 186 tests / 2068 assertions, 0 failures/errors; `read-plan` 暴露 `:allocation_coverage` 未造成既有排程 / 关键路径 / 挣值 / 范围覆盖 / 基线偏差 / 资源超配汇总 / 跨项目人员隐私回归 (集成用例用设备资源, 无 `user_id`, 不触发跨项目同人归集) |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 warnings |
+| HTTP 合同 (契约) | `contracts/planning.md` 的 `GET /planning` 读模型更新: 新增只读派生 `allocation_coverage` 汇总 (available/total-tasks/with-allocations/without-allocations/coverage-pct/unallocated-tasks), 明确由纯函数 `planning.capacity/allocation-coverage` 对可分配叶任务与 `:allocations` 明细读取时聚合, 分母排除汇总与里程碑, 免迁移/免新命令/不构成门控 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-h05ac.spec.js` 1 passed, 无未捕获 JS 错误: 建三条叶任务 A/B/C + 里程碑 M, 设备资源分配 A 4h + B 4h (C 不分配) -> 真实 HTTP GET `/planning` 回显 `allocation_coverage` (`available=true` / `total-tasks` 3 / `with-allocations` 2 / `without-allocations` 1 / `coverage-pct` 67 / 未投入清单 wbs `["C"]`); "资源与日历"页签"任务投入覆盖度"面板彩色标签回显"可分配任务 3 / 已有投入 2 / 未投入 1 / 投入覆盖率 67%" 并列出未投入任务 "C 未分配C" (截图 h05ac-1-panel.png); 空态: 新项目仅里程碑 -> `available=false` / `total-tasks=0` / `coverage-pct=0` 且面板显"尚无普通任务 (汇总与里程碑不计入投入覆盖)." (截图 h05ac-2-empty.png); 截图存 `reports/h05ac/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL, 覆盖度为读取时对既有 `tasks` 与 `:allocations` 快照的纯函数聚合, 不落任何新表/列); 计数与覆盖率口径由后端 SQLite 用例确定性覆盖, 浏览器侧核验界面可见标签与服务端回显同源.
+
+边界: H05 整行保持 `partial` — 本项只是"是否还没排入工时"这一只读洞察子能力, 与 `overload-summary` 的"是否排太多"互补, 一个只读子能力不改变整行状态; 技能匹配 / 替代人员 / 请假规则 / 超配经协调解决的处置闭环仍未实现, 覆盖度不构成任何门控 (不阻断保存/提交/冻结), 不新增写路径/kind/命令/路由/表结构.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.
