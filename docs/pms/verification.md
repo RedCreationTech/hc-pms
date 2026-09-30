@@ -1064,6 +1064,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 本项关闭 H18 待办里"已作废交付件对 DQ 签认快照的显式标注"这一子边界, 至此 H18 四项作废证据/交付件显式标注 (追踪链 / URS 验证证据 / Gate 验收快照 / DQ 签认快照) 均已落地为 `implemented / local` 只读洞察; 但 H18 整行仍有"正式历史按保留策略归档"未完备, MySQL 回归亦待补, 且作废标注仍不接入任何重签/阻断强制流程, 故 H18 行保持 `partial` 不上行.
 
+## B08 DQ 必需检查就绪度只读列 (本轮增补, 2026-09-30)
+
+设计与口径: DQ 检查清单每项带 `required` 布尔 (缺省 true), `check-dq!` 早已按"全部必需项通过"把状态推到 `ready`, 但台账原有"检查通过"列只回显 `dq_passed/dq_total` (对**全部**清单项计数), 看不出签认真正依赖的"必需项还差几条"——这与关口台账此前存在的"检查就绪度"盲区同类. 本项把 Gate "检查就绪度"的口径延伸到 DQ, 完全沿用"给治理台账加只读派生洞察"套路, **不落库、不投递、不改动任何不可变版本, 免迁移、免新命令、免新 kind、免新路由、不构成任何门控**. (1) 派生: 在既有公有纯函数 `governance.quality/dq-read-model` 内追加四个只读键——`dq_required_total` (`filter :required` 项数), `dq_required_passed` (其中 `:passed` 为真者), `dq_required_missing` (`total - passed`), `dq_required_met` (`(= total passed)` 即全部必需项已通过, 与可选检查项是否通过无关; 无必需项时恒为 true, 与 `check-dq!` 的 `every?` 口径一致). 与 `dq_passed/dq_total` 正交: 可选未过而必需全过时"检查通过"显 `2/3` 而"必需检查就绪度"显绿"必需就绪 2/2", 恰说明签认已就绪. (2) 接线: 无新增——`dq-read-model` 已在 workspace 的 `(update :dqs ...)` 里逐条 enrich, 新键随既有派生一并产出. (3) 前端: "DQ 编制与确认"台账在"检查通过"列后新增"必需检查就绪度"列, 无必需项灰"无必需项", 就绪绿"必需就绪 rp/rt", 未就绪红"必需 rp/rt 缺 X", 键名不带尾随 `?`.
+
+| 证据 | 实际记录 |
+|---|---|
+| 治理单命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 71 tests / 948 assertions, 0 failures/errors (新增 `dq-required-check-readiness-is-flagged-in-read-model` 1 例: 建项目 + 建含两条必需 R-1/R-2 与一条可选 O-1 的 DQ -> 初始 workspace 断言 `dq_required_total` 2、`dq_required_passed` 0、`dq_required_missing` 2、`dq_required_met` false 且 `dq_passed` 0/`dq_total` 3 -> `:dqs :checks` 通过 R-1 + 可选 O-1 而 R-2 未过 -> 断言 `dq_required_passed` 1、`dq_required_missing` 1、`dq_required_met` 仍 false 而 `dq_passed` 已 2 (可选计入总通过) -> `:dqs :checks` R-1/R-2 全过而可选 O-1 退回未过 -> 断言 `dq_required_met` true、`dq_required_missing` 0、`dq_passed` 仍 2/`dq_total` 3 且 `status` "ready" (必需全过即就绪, 与可选无关); 另纯函数直测 `dq-read-model` 对无必需项清单给 `dq_required_total` 0 且 `dq_required_met` true) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 173 tests / 1876 assertions, 0 failures/errors, `dq-read-model` 新增四键未造成既有 DQ 失效判定/DQ 交付件作废/局部暂停/追踪链证据发布等 read-model 用例回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 5 compiled / 0 warnings |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-dqreq.spec.js` 1 passed (16.2s), 无未捕获 JS 错误: 界面 admin 建项目 -> 真实 HTTP 登记 2 必需 1 可选清单的 DQ -> 重载 DQ 页签"必需检查就绪度"列显红色"必需 0/2 缺 2"且"检查通过"列"0/3" (截图 dqreq-1-initial.png), GET 回显 `dq_required_total` 2/`dq_required_passed` 0/`dq_required_missing` 2/`dq_required_met` false -> 真实 HTTP `/dqs/:id/checks` 通过 R-1 + 可选 O-1 而 R-2 未过 -> 重载显红"必需 1/2 缺 1"而"检查通过"已"2/3" (证明可选已过不消减必需缺口, 截图 dqreq-2-partial.png), GET `dq_required_met` false/`dq_passed` 2 -> 真实 HTTP `/dqs/:id/checks` R-1/R-2 全过而可选退回未过 -> 重载翻绿"必需就绪 2/2"且红"缺 1"消失而"检查通过"仍"2/3" (截图 dqreq-3-ready.png), GET `dq_required_met` true/`dq_required_missing` 0/`status` "ready"; 截图存 `reports/dqreq/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL); "必需全过即就绪"这一布尔事实由后端 SQLite 用例确定性覆盖, 浏览器侧核验界面可见的红/绿徽标翻转与真实 HTTP 回显及与"检查通过"全量计数列的正交并存; 只读派生**不构成任何门控或拦截** (就绪与否仅界面提示, 提交签认仍由既有 `submit-dq!` 的必需项校验把关), 不新增迁移/kind/命令/状态值/路由, 不改动任何不可变版本.
+
+边界: 本项为 B08 DQ 台账补齐"必需项就绪度"只读可见性 (与 B09 关口"检查就绪度"同口径), 属 `implemented / local` 的只读洞察增量; B08 整行核心闭环 (清单/交付件/独立签认/失效标注) 早已 `implemented / local`, 本增量不上行也不改变其状态; 待补项仍为交付配置业务口径与 MySQL 回归.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

@@ -1187,6 +1187,49 @@
       (is (= 0 (:dq_voided_deliverables (quality/dq-deliverable-voided-model vc docs {})))))))
 
 
+(deftest dq-required-check-readiness-is-flagged-in-read-model
+  (let [id (project!)
+        dq (command! id :dqs :create nil
+                     {:code "DQ-RR" :title "必需检查就绪度" :owner_id 9301
+                      :checklist [{:code "R-1" :title "必需一" :required true}
+                                  {:code "R-2" :title "必需二" :required true}
+                                  {:code "O-1" :title "可选一" :required false}]
+                      :deliverable_ids []})
+        find-dq (fn [] (first (filter #(= (:id dq) (:id %)) (:dqs (workspace id)))))]
+    ;; 初始: 全部未通过 -> 必需 2 项缺 2 未就绪, 总通过 0/3.
+    (is (= 2 (:dq_required_total (find-dq))))
+    (is (= 0 (:dq_required_passed (find-dq))))
+    (is (= 2 (:dq_required_missing (find-dq))))
+    (is (false? (:dq_required_met (find-dq))))
+    (is (= 0 (:dq_passed (find-dq))))
+    (is (= 3 (:dq_total (find-dq))))
+    ;; 通过 R-1 + 可选 O-1, R-2 仍未通过 -> 必需缺 1 未就绪, 但总通过 2/3.
+    (command! id :dqs :checks (:id dq)
+              {:results [{:code "R-1" :passed true :note ""}
+                         {:code "R-2" :passed false :note ""}
+                         {:code "O-1" :passed true :note ""}]})
+    (is (= 1 (:dq_required_passed (find-dq))))
+    (is (= 1 (:dq_required_missing (find-dq))))
+    (is (false? (:dq_required_met (find-dq))))
+    (is (= 2 (:dq_passed (find-dq))))
+    ;; 补齐最后必需 R-2, 可选 O-1 退回未通过 -> 必需全通过 met=true 就绪 (与可选无关), 总通过 2/3.
+    (command! id :dqs :checks (:id dq)
+              {:results [{:code "R-1" :passed true :note ""}
+                         {:code "R-2" :passed true :note ""}
+                         {:code "O-1" :passed false :note ""}]})
+    (is (= 2 (:dq_required_passed (find-dq))))
+    (is (= 0 (:dq_required_missing (find-dq))))
+    (is (true? (:dq_required_met (find-dq))))
+    (is (= 2 (:dq_passed (find-dq))))
+    (is (= "ready" (:status (find-dq))))
+    ;; 纯函数直测: 无必需项视为已就绪 (与 check-dq! every? 口径一致), 各计数为 0.
+    (let [row (quality/dq-read-model [] {:checklist [{:code "X" :required false :passed false}]})]
+      (is (= 0 (:dq_required_total row)))
+      (is (true? (:dq_required_met row)))
+      (is (= 0 (:dq_required_missing row)))
+      (is (= 0 (:dq_required_passed row))))))
+
+
 (deftest change-review-lock-and-audit-rollback
   (let [id (project!)
         body {:title "更改设备范围" :reason "合同调整" :scope_impact "增加设备"

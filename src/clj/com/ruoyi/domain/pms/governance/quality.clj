@@ -86,15 +86,21 @@
         (s/change! q project dq decision {:decision_reason (s/text! body :reason) :decided_by (:user_id actor)})))))
 
 (defn dq-read-model
-  "只读标注: 交付件是否出现更新版本 (签认依据失效), 检查项通过数."
+  "只读标注: 交付件是否出现更新版本 (签认依据失效), 检查项通过数, 必需检查项就绪度."
   [documents dq]
   (let [latest-by-code (into {} (map (fn [[code rows]] [code (apply max (map :revision rows))]) (group-by :code documents)))
-        by-id (into {} (map (juxt :id identity) documents))
+        by-id (into {} (map (juxt :id identity)) documents)
         stale (filterv (fn [id] (let [doc (get by-id id)]
                                   (and doc (> (get latest-by-code (:code doc) 0) (:revision doc)))))
-                       (:deliverable_ids dq))]
+                       (:deliverable_ids dq))
+        checklist (:checklist dq)
+        required (filter :required checklist)
+        required-passed (count (filter :passed required))]
     (assoc dq :dq_stale (boolean (seq stale)) :dq_stale_count (count stale)
-           :dq_passed (count (filter :passed (:checklist dq))) :dq_total (count (:checklist dq)))))
+           :dq_passed (count (filter :passed checklist)) :dq_total (count checklist)
+           :dq_required_total (count required) :dq_required_passed required-passed
+           :dq_required_missing (- (count required) required-passed)
+           :dq_required_met (= (count required) required-passed))))
 
 (defn dq-deliverable-voided-model
   "只读派生 DQ 签认快照所绑定交付件是否现已整体作废: 逐个 deliverable_ids (登记时绑定的不可变文档版本 id) 经 docs-by-id 解析其业务编码, 若该编码最新版本已被受控作废(discarded) 则计入 dq_voided_deliverables, 任一命中则 dq_deliverable_voided 为 true. 交付件自身快照口径不漂移(引用的仍是那一个历史版本), 本标注仅额外提示该交付件业务编码现已整体作废. 免迁移读取时计算, 不写存储, 不改变不可变版本, 不门控, 键名不带尾随问号."

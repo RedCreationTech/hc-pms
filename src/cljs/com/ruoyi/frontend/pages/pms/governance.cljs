@@ -1032,6 +1032,18 @@
    [w/record-table (:dqs model)
     [(w/text-column :code "编号") (w/text-column :title "DQ任务")
      {:title "检查通过" :key "checks" :width 100 :render (fn [_ row] (str (aget row "dq_passed") "/" (aget row "dq_total")))}
+     {:title "必需检查就绪度" :key "dq_required" :width 150
+      :render (fn [_ row]
+                (let [rt (aget row "dq_required_total")
+                      rp (aget row "dq_required_passed")
+                      missing (aget row "dq_required_missing")
+                      met (true? (aget row "dq_required_met"))]
+                  (r/as-element
+                   (if (zero? rt)
+                     [antd/tag {:color "default"} "无必需项"]
+                     (if met
+                       [antd/tag {:color "green"} (str "必需就绪 " rp "/" rt)]
+                       [antd/tag {:color "red"} (str "必需 " rp "/" rt " 缺 " missing)])))))}
      {:title "交付件" :dataIndex "deliverable_ids" :width 220
       :render (fn [v] (str/join ", " (map #(w/related-label (:documents model) :id :code %) (js->clj v))))}
      {:title "版本失效" :dataIndex "dq_stale" :width 110
