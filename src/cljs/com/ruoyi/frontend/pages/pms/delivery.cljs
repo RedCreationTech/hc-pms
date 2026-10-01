@@ -262,6 +262,32 @@
                                          :render (fn [_ row] (let [a (aget row "applicable") s (aget row "satisfied")]
                                                                 (r/as-element [antd/progress {:percent (if (pos? a) (int (* 100 (/ s a))) 0) :size "small" :style {:width 180}}])))}])}]])]))
 
+(defn- shipment-closure-section
+  "E05 发运放行与签收闭环只读汇总: 按发运生命周期状态聚合项目全部发货单的放行进度与签收闭环健康度, 读取时派生, 不门控任何写操作 (放行/发运/签收仍由服务端状态机强制)."
+  [{:keys [model]}]
+  (let [pr (:shipment_closure model)
+        status-rows (:by-status pr)]
+    [shared/panel "发运签收闭环汇总" "按发运生命周期 (草稿/放行审批/放行/发运/签收/条件接收/拒收退回) 聚合项目全部发货单的放行进度与签收闭环健康度; 只读派生, 不门控任何写操作" nil
+     (if-not (:available pr)
+       [shared/empty-state "尚无发货单, 质量试验合格后建立发运计划" nil]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "发货单 " (:total pr))]
+         [antd/tag {:color "processing"} (str "放行及以后 " (:released-or-beyond pr))]
+         [antd/tag {:color "gold"} (str "在途 " (:in-transit pr))]
+         [antd/tag {:color "green"} (str "已签收 " (:received pr))]
+         [antd/tag {:color (if (pos? (or (:exception pr) 0)) "red" "default")} (str "签收异常 " (:exception pr))]
+         [antd/tag {:color (if (>= (:closure-pct pr) 100) "green" "default")} (str "签收闭环率 " (:closure-pct pr) "%")]
+         [antd/tag {:color (if (>= (:receipt-pct pr) 100) "green" "gold")} (str "放行后签收率 " (:receipt-pct pr) "%")]]
+        [antd/progress {:percent (:receipt-pct pr) :size "small" :style {:width "100%"}}]
+        [antd/table {:rowKey "key" :size "small" :pagination false :dataSource (clj->js status-rows)
+                     :columns (clj->js [{:title "发运状态" :dataIndex "label" :width 200}
+                                        {:title "发货单数" :dataIndex "count" :width 110}
+                                        {:title "占比" :key "bar" :width 220
+                                         :render (fn [_ row] (let [c (aget row "count")]
+                                                                (r/as-element [antd/progress {:percent (if (pos? (:total pr)) (int (* 100 (/ c (:total pr)))) 0) :size "small" :style {:width 180}}])))}])}]])]))
+
+
 (defn- fieldwork-section
   "B07 工勘,
  E07 交底时限与 E08/E09 现场任务 (本地事实, 外部回传未配置)."
@@ -322,7 +348,8 @@
                                                                               (map (fn [c] [antd/tag {:color (if (:satisfied c) "green" "red")} (:label c)])
                                                                                    (js->clj v :keywordize-keys true)))))}
                                          (w/text-column :tracking_no "运单编号") (w/text-column :received_on "签收日期")]]
-   [preship-readiness-section context]])
+   [preship-readiness-section context]
+   [shipment-closure-section context]])
 
 (defn- services-section
   "发运异常和售后处理需要解决证据与独立关闭."

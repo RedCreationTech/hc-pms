@@ -554,3 +554,72 @@
       (is (= 100 (:readiness-pct post)))
       (is (= [1 1 1 1] (mapv :applicable (:by-condition post))))
       (is (= [1 1 1 1] (mapv :satisfied (:by-condition post)))))))
+
+
+(deftest shipment-closure-summary-is-derived-read-only
+  (let [empty (fieldwork/shipment-closure-summary [])]
+    (is (false? (:available empty)))
+    (is (= 0 (:total empty)))
+    (is (= 0 (:draft empty)))
+    (is (= 0 (:received empty)))
+    (is (= 0 (:released-or-beyond empty)))
+    (is (= 0 (:closure-pct empty)))
+    (is (= 0 (:receipt-pct empty)))
+    (is (= ["draft" "in_review" "rejected" "released" "shipped" "received" "conditional" "returned"]
+           (mapv :key (:by-status empty))))
+    (is (= [0 0 0 0 0 0 0 0] (mapv :count (:by-status empty)))))
+  (let [shipments (mapv #(hash-map :status %)
+                        ["draft" "in_review" "released" "shipped" "received" "received" "conditional" "returned" "rejected"])
+        rollup (fieldwork/shipment-closure-summary shipments)]
+    (is (true? (:available rollup)))
+    (is (= 9 (:total rollup)))
+    (is (= 1 (:draft rollup)))
+    (is (= 1 (:in-review rollup)))
+    (is (= 1 (:rejected rollup)))
+    (is (= 1 (:released rollup)))
+    (is (= 1 (:shipped rollup)))
+    (is (= 2 (:received rollup)))
+    (is (= 1 (:conditional rollup)))
+    (is (= 1 (:returned rollup)))
+    (is (= 6 (:released-or-beyond rollup)))
+    (is (= 5 (:dispatched rollup)))
+    (is (= 2 (:in-transit rollup)))
+    (is (= 2 (:exception rollup)))
+    (is (= 22 (:closure-pct rollup)))
+    (is (= 50 (:receipt-pct rollup)))
+    (is (= [1 1 1 1 1 2 1 1] (mapv :count (:by-status rollup))))))
+
+
+(deftest shipment-closure-attached-to-delivery-workspace
+  (let [ctx (context! nil) id (:id ctx) shipment (shipped-shipment! ctx)]
+    (let [pre (:shipment_closure (workspace id))
+          row (first (filter #(= (:id shipment) (:id %)) (:shipments (workspace id))))]
+      (is (true? (:available pre)))
+      (is (= 1 (:total pre)))
+      (is (= 1 (:draft pre)))
+      (is (= 0 (:released-or-beyond pre)))
+      (is (= 0 (:closure-pct pre)))
+      (is (= 0 (:receipt-pct pre)))
+      (is (= "draft" (:status row))))
+    (review! ctx :shipments (:id shipment) :submit)
+    (command! id :shipments :dispatch (:id shipment) {:shipped_on (today-minus 2) :tracking_no "SC-TRACK" :evidence_ids [(:evidence ctx)]})
+    (let [mid (:shipment_closure (workspace id))]
+      (is (= 1 (:shipped mid)))
+      (is (= 1 (:released-or-beyond mid)))
+      (is (= 1 (:dispatched mid)))
+      (is (= 1 (:in-transit mid)))
+      (is (= 0 (:received mid)))
+      (is (= 0 (:closure-pct mid)))
+      (is (= 0 (:receipt-pct mid))))
+    (command! 9642 id :shipments :receipt (:id shipment) {:received_on (today-minus 1) :receiver_name "现场接收人" :acceptance "accepted" :evidence_ids [(:evidence ctx)]})
+    (let [post (:shipment_closure (workspace id))
+          row (first (filter #(= (:id shipment) (:id %)) (:shipments (workspace id))))]
+      (is (= 1 (:total post)))
+      (is (= 1 (:received post)))
+      (is (= 1 (:released-or-beyond post)))
+      (is (= 1 (:dispatched post)))
+      (is (= 0 (:in-transit post)))
+      (is (= 0 (:exception post)))
+      (is (= 100 (:closure-pct post)))
+      (is (= 100 (:receipt-pct post)))
+      (is (= "received" (:status row))))))

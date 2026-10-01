@@ -209,6 +209,66 @@
   [data]
   (assoc data :preship_readiness (preship-readiness-summary (:shipments data))))
 
+(def ^:private shipment-status-catalog
+  "发运签收生命周期固定状态目录 (与 shipping.clj 状态机一致), 供只读闭环汇总按状态维度聚合."
+  [["draft" "草稿"]
+   ["in_review" "放行审批中"]
+   ["rejected" "放行被驳回"]
+   ["released" "已放行待发运"]
+   ["shipped" "已发运待签收"]
+   ["received" "已签收"]
+   ["conditional" "条件接收"]
+   ["returned" "拒收退回"]])
+
+(defn shipment-closure-summary
+  "E05 发运放行与签收闭环只读汇总: 对整项目 :shipments 按发运生命周期状态读取时聚合,
+   给出放行进度与签收闭环健康度; 只读派生, 不落库不投递, 不构成任何门控
+   (放行/发运/签收仍由 shipping-ready!/decide-shipment!/dispatch!/receipt! 在写入时强制). 键名不带尾随问号."
+  [shipments]
+  (let [total (count shipments)
+        freq (frequencies (map :status shipments))
+        cnt (fn [k] (get freq k 0))
+        draft (cnt "draft")
+        in-review (cnt "in_review")
+        rejected (cnt "rejected")
+        released (cnt "released")
+        shipped (cnt "shipped")
+        received (cnt "received")
+        conditional (cnt "conditional")
+        returned (cnt "returned")
+        released-or-beyond (+ released shipped received conditional returned)
+        dispatched (+ shipped received conditional returned)
+        in-transit (+ released shipped)
+        exception (+ conditional returned)
+        receipted (+ received conditional)
+        closure-pct (if (pos? total) (int (Math/round ^double (* 100.0 (/ received total)))) 0)
+        receipt-pct (if (pos? released-or-beyond)
+                      (int (Math/round ^double (* 100.0 (/ receipted released-or-beyond))))
+                      0)
+        by-status (mapv (fn [[k label]] {:key k :label label :count (cnt k)}) shipment-status-catalog)]
+    {:available (boolean (seq shipments))
+     :total total
+     :draft draft
+     :in-review in-review
+     :rejected rejected
+     :released released
+     :shipped shipped
+     :received received
+     :conditional conditional
+     :returned returned
+     :released-or-beyond released-or-beyond
+     :dispatched dispatched
+     :in-transit in-transit
+     :exception exception
+     :closure-pct closure-pct
+     :receipt-pct receipt-pct
+     :by-status by-status}))
+
+(defn attach-shipment-closure
+  "把 shipment-closure-summary 挂到交付工作区读模型顶层 :shipment_closure; 读取时派生, 不改变任何逐条发货."
+  [data]
+  (assoc data :shipment_closure (shipment-closure-summary (:shipments data))))
+
 ;; ── E07 交底 ───────────────────────────────────────────────────
 
 (defn create-handover!
