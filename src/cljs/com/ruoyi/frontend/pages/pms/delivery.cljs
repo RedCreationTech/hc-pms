@@ -314,6 +314,32 @@
                                          :render (fn [_ row] (let [c (aget row "count")]
                                                                 (r/as-element [antd/progress {:percent (if (pos? (:total ht)) (int (* 100 (/ c (:total ht)))) 0) :size "small" :style {:width 180}}])))}])}]])]))
 
+(defn- survey-closure-section
+  "B07 工勘闭环只读汇总: 按工勘生命周期 (待提交/确认中/已确认/已驳回) 聚合项目全部工勘的确认进度/逾期与最近计划日期, 读取时派生, 不门控任何写操作 (收尾阻塞仍由 required_survey_visits 判定)."
+  [{:keys [model]}]
+  (let [sc (:survey_closure model)
+        status-rows (:by-status sc)]
+    [shared/panel "工勘闭环汇总" "按工勘生命周期 (待提交/确认中/已确认/已驳回) 聚合项目全部工勘的确认进度/逾期与最近计划日期; 只读派生, 不门控任何写操作" nil
+     (if-not (:available sc)
+       [shared/empty-state "尚无工勘任务, 按项目适用性登记各次工勘" nil]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "工勘 " (:total sc))]
+         [antd/tag {:color "default"} (str "待提交 " (:draft sc))]
+         [antd/tag {:color "processing"} (str "确认中 " (:in-review sc))]
+         [antd/tag {:color "green"} (str "已确认 " (:approved sc))]
+         [antd/tag {:color (if (pos? (or (:rejected sc) 0)) "red" "default")} (str "已驳回 " (:rejected sc))]
+         [antd/tag {:color (if (pos? (or (:overdue-open sc) 0)) "red" "default")} (str "逾期未确认 " (:overdue-open sc))]
+         [antd/tag {:color (if (>= (:closure-pct sc) 100) "green" "gold")} (str "确认闭环率 " (:closure-pct sc) "%")]
+         (when-let [np (:nearest-planned sc)] [antd/tag (str "最近计划 " np)])]
+        [antd/progress {:percent (:closure-pct sc) :size "small" :style {:width "100%"}}]
+        [antd/table {:rowKey "key" :size "small" :pagination false :dataSource (clj->js status-rows)
+                     :columns (clj->js [{:title "工勘状态" :dataIndex "label" :width 200}
+                                        {:title "工勘数" :dataIndex "count" :width 110}
+                                        {:title "占比" :key "bar" :width 220
+                                         :render (fn [_ row] (let [c (aget row "count")]
+                                                                (r/as-element [antd/progress {:percent (if (pos? (:total sc)) (int (* 100 (/ c (:total sc)))) 0) :size "small" :style {:width 180}}])))}])}]])]))
+
 (defn- fieldwork-section
   "B07 工勘,
  E07 交底时限与 E08/E09 现场任务 (本地事实, 外部回传未配置)."
@@ -321,7 +347,17 @@
   [:div {:style {:display "grid" :gap 20}}
    [record-section context :surveys "surveys" "工勘任务" "按项目适用性登记各次工勘, 责任/日期/交付物明确, 完成须证据并独立确认"
     "登记工勘任务" forms/survey-dialog [(w/text-column :visit_no "次序") (w/text-column :planned_date "计划日期")
-                                       (w/text-column :actual_date "实际日期") (w/text-column :deliverable "交付物")]]
+                                       (w/text-column :actual_date "实际日期") (w/text-column :deliverable "交付物")
+                                       {:title "时限" :key "days" :width 150
+                                        :render (fn [_ row] (let [left (aget row "survey_days_left")
+                                                                   overdue (true? (aget row "survey_overdue"))
+                                                                   st (aget row "status")]
+                                                               (r/as-element (cond overdue [antd/tag {:color "red"} (str "计划已过 " (- left) " 天")]
+                                                                                   (some? left) [antd/tag {:color "gold"} (str "距计划 " left " 天")]
+                                                                                   (= "approved" st) [antd/tag {:color "green"} "已确认"]
+                                                                                   (= "rejected" st) [antd/tag {:color "red"} "已驳回"]
+                                                                                   :else [:span "—"]))))}]]
+   [survey-closure-section context]
    [shared/panel "发货后交底" "发运登记后自动生成, 截止期 = 发运日 + 配置天数 (自然日); 文件清单推CRM未配置, 仅本地签交" nil
     [w/record-table (:handovers (:model context))
      [(w/text-column :code "编号") (w/text-column :shipped_on "发运日期") (w/text-column :deadline "截止日期")

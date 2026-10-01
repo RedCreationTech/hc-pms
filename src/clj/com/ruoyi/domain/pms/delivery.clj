@@ -92,6 +92,7 @@
             types (remove #{"SAT"} (:required_test_types config))
             fat-ok? (fn [shipment] (every? (fn [rid] (every? #(production/type-approved? q project rid %) types)) (:assembly_ids shipment)))]
         (-> data
+            (update :surveys #(mapv (partial fieldwork/survey-read-model today) %))
             (update :assemblies #(mapv fieldwork/assembly-read-model %))
             (update :shipments #(mapv (fn [s] (fieldwork/shipment-read-model config (fat-ok? s) blocker-free? s)) %))
             (update :handovers #(mapv (partial fieldwork/handover-read-model today) %))
@@ -101,6 +102,7 @@
             fieldwork/attach-preship-readiness
             fieldwork/attach-shipment-closure
             fieldwork/attach-handover-timeliness
+            fieldwork/attach-survey-closure
             (assoc :configuration config :project_version (:version project)
                    :blockers (closure-blockers q project) :external_sync_status "not_configured"
                    :kitting_rollup (materials/kitting-rollup (:boms data) tasks nodes)

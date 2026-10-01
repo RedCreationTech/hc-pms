@@ -61,6 +61,50 @@
         approved (count (filter #(= "approved" (:status %)) (d/records q project "survey")))]
     (when (< approved required) [(str "已确认工勘 " approved " 次, 少于配置要求 " required " 次")])))
 
+(defn survey-read-model
+  "只读派生工勘计划日期剩余天数/逾期标记 (仅对未决定的 draft/in_review 计算, 已确认或已驳回不再计逾期)."
+  [today survey]
+  (let [open? (contains? #{"draft" "in_review"} (:status survey))
+        days (when (and open? (:planned_date survey))
+               (.between java.time.temporal.ChronoUnit/DAYS today (LocalDate/parse (:planned_date survey))))]
+    (assoc survey :survey_days_left days
+           :survey_overdue (boolean (and open? (some? days) (neg? days))))))
+
+(defn survey-closure-summary
+  "B07 工勘闭环只读汇总: 对整项目 :surveys (已 survey-read-model enrich) 读取时聚合,
+   给出各次工勘的整体确认进度/逾期与最近计划日; 只读派生, 不落库不投递, 不构成任何门控
+   (收尾是否阻塞仍由 survey-blockers 按 required_survey_visits 判定, 键名不带尾随问号)."
+  [surveys]
+  (let [total (count surveys)
+        draft (filterv #(= "draft" (:status %)) surveys)
+        in-review (filterv #(= "in_review" (:status %)) surveys)
+        approved (filterv #(= "approved" (:status %)) surveys)
+        rejected (filterv #(= "rejected" (:status %)) surveys)
+        open (filterv #(contains? #{"draft" "in_review"} (:status %)) surveys)
+        overdue-open (filterv :survey_overdue open)
+        closure-pct (if (pos? total) (int (Math/round ^double (* 100.0 (/ (count approved) total)))) 0)
+        nearest-planned (when-let [ds (seq (remove nil? (map :planned_date open)))] (first (sort ds)))
+        by-status [{:key "draft" :label "待提交" :count (count draft)}
+                   {:key "in_review" :label "确认中" :count (count in-review)}
+                   {:key "approved" :label "已确认" :count (count approved)}
+                   {:key "rejected" :label "已驳回" :count (count rejected)}]]
+    {:available (boolean (seq surveys))
+     :total total
+     :draft (count draft)
+     :in-review (count in-review)
+     :approved (count approved)
+     :rejected (count rejected)
+     :open (count open)
+     :overdue-open (count overdue-open)
+     :closure-pct closure-pct
+     :nearest-planned nearest-planned
+     :by-status by-status}))
+
+(defn attach-survey-closure
+  "把 survey-closure-summary 挂到交付工作区读模型顶层 :survey_closure; 读取时派生, 不改变任何逐条工勘."
+  [data]
+  (assoc data :survey_closure (survey-closure-summary (:surveys data))))
+
 ;; ── E01 装配步骤 ───────────────────────────────────────────────
 
 (def assembly-steps

@@ -684,3 +684,76 @@
         (is (= 0 (:completed-late post)))
         (is (= 100 (:on-time-pct post)))
         (is (nil? (:nearest-deadline post)))))))
+
+
+(deftest survey-closure-summary-is-derived-read-only
+  (let [empty (fieldwork/survey-closure-summary [])]
+    (is (false? (:available empty)))
+    (is (= 0 (:total empty)))
+    (is (= 0 (:draft empty)))
+    (is (= 0 (:in-review empty)))
+    (is (= 0 (:approved empty)))
+    (is (= 0 (:rejected empty)))
+    (is (= 0 (:open empty)))
+    (is (= 0 (:overdue-open empty)))
+    (is (= 0 (:closure-pct empty)))
+    (is (nil? (:nearest-planned empty)))
+    (is (= ["draft" "in_review" "approved" "rejected"]
+           (mapv :key (:by-status empty))))
+    (is (= [0 0 0 0] (mapv :count (:by-status empty)))))
+  (let [surveys [{:status "draft" :planned_date "2026-10-10" :survey_overdue false}
+                 {:status "in_review" :planned_date "2026-09-01" :survey_overdue true}
+                 {:status "approved" :planned_date "2026-09-15"}
+                 {:status "approved" :planned_date "2026-09-20"}
+                 {:status "rejected" :planned_date "2026-08-01"}]
+        rollup (fieldwork/survey-closure-summary surveys)]
+    (is (true? (:available rollup)))
+    (is (= 5 (:total rollup)))
+    (is (= 1 (:draft rollup)))
+    (is (= 1 (:in-review rollup)))
+    (is (= 2 (:approved rollup)))
+    (is (= 1 (:rejected rollup)))
+    (is (= 2 (:open rollup)))
+    (is (= 1 (:overdue-open rollup)))
+    (is (= 40 (:closure-pct rollup)))
+    (is (= "2026-09-01" (:nearest-planned rollup)))
+    (is (= [1 1 2 1] (mapv :count (:by-status rollup))))))
+
+
+(deftest survey-closure-attached-to-delivery-workspace
+  (let [ctx (context! {:required_survey_visits 1}) id (:id ctx)]
+    (let [sv1 (command! id :surveys :create nil {:code "SV-1" :title "首勘" :visit_no 1 :owner_id 9641
+                                                  :planned_date (today-minus 20) :deliverable "地基记录"})
+          sv2 (command! id :surveys :create nil {:code "SV-2" :title "复勘" :visit_no 2 :owner_id 9641
+                                                  :planned_date "2099-01-01" :deliverable "二次记录"})
+          pre (:survey_closure (workspace id))]
+      (is (= "draft" (:status sv1)))
+      (is (= "draft" (:status sv2)))
+      (is (true? (:available pre)))
+      (is (= 2 (:total pre)))
+      (is (= 2 (:draft pre)))
+      (is (= 2 (:open pre)))
+      (is (= 0 (:approved pre)))
+      (is (= 1 (:overdue-open pre)))
+      (is (= 0 (:closure-pct pre)))
+      (is (= (today-minus 20) (:nearest-planned pre)))
+      (command! id :surveys :submit (:id sv2) {:reviewer_id 9642 :evidence_ids [(:evidence ctx)] :actual_date (today-minus 1)})
+      (command! 9642 id :surveys :decision (:id sv2) {:decision "approved" :reason "独立确认复勘"})
+      (command! id :surveys :submit (:id sv1) {:reviewer_id 9642 :evidence_ids [(:evidence ctx)] :actual_date (today-minus 1)})
+      (let [mid (:survey_closure (workspace id))
+            row1 (first (filter #(= (:id sv1) (:id %)) (:surveys (workspace id))))]
+        (is (= "in_review" (:status row1)))
+        (is (= 2 (:total mid)))
+        (is (= 1 (:approved mid)))
+        (is (= 1 (:in-review mid)))
+        (is (= 0 (:draft mid)))
+        (is (= 1 (:overdue-open mid)))
+        (is (= 50 (:closure-pct mid)))
+        (is (= (today-minus 20) (:nearest-planned mid)))
+        (command! 9642 id :surveys :decision (:id sv1) {:decision "approved" :reason "独立确认首勘"})
+        (let [post (:survey_closure (workspace id))]
+          (is (= 2 (:approved post)))
+          (is (= 0 (:open post)))
+          (is (= 0 (:overdue-open post)))
+          (is (= 100 (:closure-pct post)))
+          (is (nil? (:nearest-planned post))))))))
