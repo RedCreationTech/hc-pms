@@ -757,3 +757,87 @@
           (is (= 0 (:overdue-open post)))
           (is (= 100 (:closure-pct post)))
           (is (nil? (:nearest-planned post))))))))
+
+
+(deftest test-execution-summary-is-derived-read-only
+  (let [empty (fieldwork/test-execution-summary [])]
+    (is (false? (:available empty)))
+    (is (= 0 (:total empty)))
+    (is (= 0 (:closure-pct empty)))
+    (is (= 0 (:results-recorded empty)))
+    (is (= 0 (:required-ready empty)))
+    (is (= ["SIT" "FAT" "SAT"] (mapv :key (:by-type empty))))
+    (is (= [0 0 0] (mapv :total (:by-type empty))))
+    (is (= [0 0 0] (mapv :approved (:by-type empty))))
+    (is (= [0 0 0] (mapv :approved-pct (:by-type empty)))))
+  (let [tests [{:status "draft" :test_type "SIT" :test_results_recorded false :test_required_all_passed false}
+               {:status "ready" :test_type "SIT" :test_results_recorded true :test_required_all_passed true}
+               {:status "in_review" :test_type "FAT" :test_results_recorded true :test_required_all_passed true}
+               {:status "approved" :test_type "FAT" :test_results_recorded true :test_required_all_passed true}]
+        rollup (fieldwork/test-execution-summary tests)]
+    (is (true? (:available rollup)))
+    (is (= 4 (:total rollup)))
+    (is (= 1 (:draft rollup)))
+    (is (= 1 (:ready rollup)))
+    (is (= 1 (:in-review rollup)))
+    (is (= 1 (:approved rollup)))
+    (is (= 0 (:rejected rollup)))
+    (is (= 3 (:open rollup)))
+    (is (= 3 (:results-recorded rollup)))
+    (is (= 3 (:required-ready rollup)))
+    (is (= 25 (:closure-pct rollup)))
+    (is (= ["SIT" "FAT" "SAT"] (mapv :key (:by-type rollup))))
+    (is (= [2 2 0] (mapv :total (:by-type rollup))))
+    (is (= [0 1 0] (mapv :approved (:by-type rollup))))
+    (is (= [0 50 0] (mapv :approved-pct (:by-type rollup))))))
+
+
+(deftest test-execution-read-model-derives-required-criteria
+  (let [draft (fieldwork/test-execution-read-model
+               {:status "draft" :criteria [{:code "Q-1" :required true} {:code "Q-2" :required false}]})
+        partial (fieldwork/test-execution-read-model
+                 {:status "ready" :criteria [{:code "Q-1" :required true} {:code "Q-2" :required false}]
+                  :checks [{:code "Q-1" :required true :passed false} {:code "Q-2" :required false :passed true}]})
+        passed (fieldwork/test-execution-read-model
+                {:status "ready" :criteria [{:code "Q-1" :required true} {:code "Q-2" :required false}]
+                 :checks [{:code "Q-1" :required true :passed true} {:code "Q-2" :required false :passed true}]})]
+    (is (= 1 (:test_criteria_required draft)))
+    (is (false? (:test_results_recorded draft)))
+    (is (= 0 (:test_required_passed draft)))
+    (is (false? (:test_required_all_passed draft)))
+    (is (true? (:test_results_recorded partial)))
+    (is (= 1 (:test_criteria_required partial)))
+    (is (= 0 (:test_required_passed partial)))
+    (is (false? (:test_required_all_passed partial)))
+    (is (= 1 (:test_required_passed passed)))
+    (is (true? (:test_required_all_passed passed)))))
+
+
+(deftest test-execution-attached-to-delivery-workspace
+  (let [ctx (context! nil)
+        id (:id ctx)
+        _ (shipped-shipment! ctx)
+        approved (first (filter #(= "approved" (:status %)) (:tests (workspace id))))
+        _ (command! id :tests :create nil
+                    (merge (refs ctx)
+                           {:code "SIT-2" :title "补充SIT准则"
+                            :assembly_id (:assembly_id approved)
+                            :test_type "SIT" :owner_id 9641
+                            :criteria [{:code "Q-9" :title "附加必检" :required true}]}))]
+    (let [pre (:test_execution (workspace id))
+          draft-row (first (filter #(= "SIT-2" (:code %)) (:tests (workspace id))))]
+      (is (true? (:available pre)))
+      (is (= 3 (:total pre)))
+      (is (= 1 (:draft pre)))
+      (is (= 2 (:approved pre)))
+      (is (= 1 (:open pre)))
+      (is (= 2 (:results-recorded pre)))
+      (is (= 2 (:required-ready pre)))
+      (is (= 67 (:closure-pct pre)))
+      (is (= [2 1 0] (mapv :total (:by-type pre))))
+      (is (= [1 1 0] (mapv :approved (:by-type pre))))
+      (is (= [50 100 0] (mapv :approved-pct (:by-type pre))))
+      (is (false? (:test_results_recorded draft-row)))
+      (is (= 1 (:test_criteria_required draft-row)))
+      (is (= 0 (:test_required_passed draft-row)))
+      (is (false? (:test_required_all_passed draft-row))))))

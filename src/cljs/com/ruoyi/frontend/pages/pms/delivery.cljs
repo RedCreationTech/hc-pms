@@ -392,13 +392,44 @@
      {:title "执行步骤" :dataIndex "steps" :width 420 :render (fn [_ row] (r/as-element [step-timeline (js->clj row :keywordize-keys true)]))}]]
    [assembly-execution-progress-section context]])
 
+(defn- test-execution-section
+  "E02/E03 试验执行闭环只读汇总: 按试验生命周期 (草稿/待提交/检验中/已批准/已驳回) 与 SIT/FAT/SAT 类型聚合项目全部试验的执行健康度与必检达标情况, 读取时派生, 不门控任何写操作."
+  [{:keys [model]}]
+  (let [te (:test_execution model)
+        type-rows (:by-type te)]
+    [shared/panel "试验执行闭环汇总" "按试验生命周期与 SIT/FAT/SAT 类型聚合项目全部试验的执行健康度与必检达标情况; 只读派生, 不门控任何写操作" nil
+     (if-not (:available te)
+       [shared/empty-state "尚无试验记录, 装配通过后建立 SIT/FAT/SAT 质量试验" nil]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "试验 " (:total te))]
+         [antd/tag {:color "default"} (str "草稿 " (:draft te))]
+         [antd/tag {:color "default"} (str "待提交 " (:ready te))]
+         [antd/tag {:color "processing"} (str "检验中 " (:in-review te))]
+         [antd/tag {:color "green"} (str "已批准 " (:approved te))]
+         [antd/tag {:color (if (pos? (or (:rejected te) 0)) "red" "default")} (str "已驳回 " (:rejected te))]
+         [antd/tag (str "已登记结果 " (:results-recorded te))]
+         [antd/tag {:color (if (and (pos? (:total te)) (= (:required-ready te) (:total te))) "green" "gold")} (str "必检达标 " (:required-ready te) "/" (:total te))]
+         [antd/tag {:color (if (>= (:closure-pct te) 100) "green" "gold")} (str "批准闭环率 " (:closure-pct te) "%")]]
+        [antd/progress {:percent (:closure-pct te) :size "small" :style {:width "100%"}}]
+        [antd/table {:rowKey "key" :size "small" :pagination false :dataSource (clj->js type-rows)
+                     :columns (clj->js [{:title "试验类别" :dataIndex "label" :width 160}
+                                        {:title "试验数" :dataIndex "total" :width 90}
+                                        {:title "已批准" :dataIndex "approved" :width 90}
+                                        {:title "批准率" :key "bar" :width 220
+                                         :render (fn [_ row] (let [p (aget row "approved-pct")]
+                                                                (r/as-element [antd/progress {:percent p :size "small" :style {:width 180}}])))}])}]])]))
+
+
 (defn- tests-section
-  "质量试验明确类别,逐项记录证据和失败整改."
+  "质量试验明确类别,逐项记录证据和失败整改. 台账下追加试验执行闭环只读汇总."
   [context]
-  [record-section context :tests "tests" "SIT / FAT / SAT试验" "必需检查项失败自动形成阻断问题,整改关闭后才能独立批准"
-   "建立质量试验" forms/test-dialog [(w/text-column :test_type "试验类别")
-                                     {:title "装配来源" :dataIndex "assembly_id"
-                                      :render #(w/related-label (get-in context [:model :assemblies]) :id :title %)}]])
+  [:div {:style {:display "grid" :gap 20}}
+   [record-section context :tests "tests" "SIT / FAT / SAT试验" "必需检查项失败自动形成阻断问题,整改关闭后才能独立批准"
+    "建立质量试验" forms/test-dialog [(w/text-column :test_type "试验类别")
+                                      {:title "装配来源" :dataIndex "assembly_id"
+                                       :render #(w/related-label (get-in context [:model :assemblies]) :id :title %)}]]
+   [test-execution-section context]])
 
 (defn- shipments-section
   "记录放行,真实物流和客户签收验证; 台账下追加发货前条件满足度只读汇总."

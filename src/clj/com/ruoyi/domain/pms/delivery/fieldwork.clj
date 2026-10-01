@@ -472,3 +472,65 @@
   [data]
   (assoc data :site_task_progress (site-task-progress-summary (:site_tasks data))))
 
+
+;; ── E02/E03 试验执行闭环 (SIT/FAT/SAT) ────────────────────────
+
+(def test-execution-types
+  "试验类型固定目录 (SIT/FAT/SAT), 供只读汇总按类型聚合, 与 production/create-test! 的枚举一致."
+  [["SIT" "系统集成试验"] ["FAT" "工厂验收试验"] ["SAT" "现场验收试验"]])
+
+(defn test-execution-read-model
+  "只读派生单个试验的必检准则通过情况. checks 镜像 criteria 且随结果登记带上 :required/:passed;
+   未登记结果 (draft) 时无 checks, 按尚未通过计. 键名不带尾随问号, 读取时派生不落库."
+  [test]
+  (let [checks (:checks test)
+        required-total (count (filterv :required (:criteria test)))
+        required-passed (count (filterv #(and (:required %) (:passed %)) checks))
+        recorded (boolean (seq checks))]
+    (assoc test :test_criteria_required required-total
+           :test_required_passed required-passed
+           :test_results_recorded recorded
+           :test_required_all_passed (boolean (and recorded (pos? required-total)
+                                                   (>= required-passed required-total))))))
+
+(defn test-execution-summary
+  "E02/E03 试验执行闭环只读汇总: 对已按 test-execution-read-model 富化的整项目 :tests 读取时聚合,
+   给出 SIT/FAT/SAT 试验从登记 -> 记录结果 -> 提交 -> 独立签核的整体闭环进度, 必检准则就绪度与分类型批准分布;
+   只读派生, 不落库不投递, 不构成任何门控 (真正的门控仍由 prerequisites!/ready-test! 在写入时执行). 键名不带尾随问号."
+  [tests]
+  (let [total (count tests)
+        status-count (fn [s] (count (filterv #(= s (:status %)) tests)))
+        draft (status-count "draft")
+        ready (status-count "ready")
+        in-review (status-count "in_review")
+        approved (status-count "approved")
+        rejected (status-count "rejected")
+        open (count (filterv #(contains? #{"draft" "ready" "in_review"} (:status %)) tests))
+        results-recorded (count (filterv :test_results_recorded tests))
+        required-ready (count (filterv :test_required_all_passed tests))
+        closure-pct (if (pos? total) (int (Math/round ^double (* 100.0 (/ approved total)))) 0)
+        by-type (mapv (fn [[key label]]
+                        (let [ts (filterv #(= key (:test_type %)) tests)
+                              tp (count ts)
+                              ta (count (filterv #(= "approved" (:status %)) ts))]
+                          {:key key :label label :total tp :approved ta
+                           :approved-pct (if (pos? tp) (int (Math/round ^double (* 100.0 (/ ta tp)))) 0)}))
+                      test-execution-types)]
+    {:available (boolean (seq tests))
+     :total total
+     :draft draft
+     :ready ready
+     :in-review in-review
+     :approved approved
+     :rejected rejected
+     :open open
+     :results-recorded results-recorded
+     :required-ready required-ready
+     :closure-pct closure-pct
+     :by-type by-type}))
+
+(defn attach-test-execution
+  "把 test-execution-summary 挂到交付工作区读模型顶层 :test_execution; 读取时派生, 不改变任何逐条试验."
+  [data]
+  (assoc data :test_execution (test-execution-summary (:tests data))))
+
