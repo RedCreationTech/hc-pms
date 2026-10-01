@@ -3,6 +3,7 @@
   (:require [cheshire.core :as json]
             [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing use-fixtures]]
+            [com.ruoyi.domain.pms.closure :as closure]
             [com.ruoyi.domain.pms.service :as pms]
             [com.ruoyi.infra.security :as security]
             [com.ruoyi.web.routes.api :as api]
@@ -258,3 +259,69 @@
     (is (= [200 409] (sort results)))
     (is (= 2 (:version (pms/project *service* user id))))
     (is (= [2 1] (mapv :aggregate_version (:rows (pms/events *service* user id)))))))
+
+
+(deftest closure-progress-summary-is-derived-read-only
+  (let [today (java.time.LocalDate/parse "2026-06-01")
+        empty (closure/progress-summary [] nil [] today)]
+    (is (false? (:available empty)))
+    (is (= 0 (:total empty)))
+    (is (= 0 (:closure-pct empty)))
+    (is (= "none" (:approval-state empty)))
+    (is (= 0 (:required-open empty)))
+    (is (= 0 (:overdue-open empty)))
+    (is (= ["check" "handoff"] (mapv :key (:by-kind empty))))
+    (is (= [0 0] (mapv :total (:by-kind empty))))
+    (is (= [0 0] (mapv :completed (:by-kind empty))))
+    (is (= [0 0] (mapv :completed-pct (:by-kind empty)))))
+  (let [items [{:kind "check" :status "completed" :required true}
+               {:kind "check" :status "open" :required true :due_date "2026-05-01"}
+               {:kind "handoff" :status "completed" :required true :due_date "2026-07-01"}
+               {:kind "handoff" :status "open" :required false :due_date "2026-05-15"}]
+        rollup (closure/progress-summary items {:status "submitted"} [{:id "L1"}] (java.time.LocalDate/parse "2026-06-01"))]
+    (is (true? (:available rollup)))
+    (is (= 4 (:total rollup)))
+    (is (= 2 (:checks rollup)))
+    (is (= 2 (:handoffs rollup)))
+    (is (= 2 (:completed rollup)))
+    (is (= 2 (:open rollup)))
+    (is (= 3 (:required rollup)))
+    (is (= 1 (:required-open rollup)))
+    (is (= 2 (:overdue-open rollup)))
+    (is (= 1 (:lessons rollup)))
+    (is (= "submitted" (:approval-state rollup)))
+    (is (= 50 (:closure-pct rollup)))
+    (is (= [2 2] (mapv :total (:by-kind rollup))))
+    (is (= [1 1] (mapv :completed (:by-kind rollup))))
+    (is (= [50 50] (mapv :completed-pct (:by-kind rollup))))))
+
+
+(deftest closure-overview-exposes-read-only-progress
+  (let [project (create!) id (:project_id project)
+        _ (pms/set-member! *service* (actor 1) id {:user_id 9104 :role "editor"})
+        path (str "/api/pms/projects/" id)
+        overview (fn [] (:data (:body (request :get (str path "/closure") 1 nil))))
+        base (overview)
+        _ (request :post (str path "/closure/checks") 1
+                   {:version (:project_version base) :title "核对随机附件" :required true})
+        _ (request :post (str path "/closure/handoffs") 1
+                   {:version (:project_version (overview)) :required false
+                    :title "现场备件移交" :owner_id 9104 :due_date "2000-01-01"})
+        full (overview)
+        progress (:progress full)]
+    (is (= 200 (:status (request :get (str path "/closure") 1 nil))))
+    (is (true? (:available progress)))
+    (is (= 2 (:total progress)))
+    (is (= 1 (:checks progress)))
+    (is (= 1 (:handoffs progress)))
+    (is (= 0 (:completed progress)))
+    (is (= 2 (:open progress)))
+    (is (= 1 (:required-open progress)))
+    (is (= 1 (:overdue-open progress)))
+    (is (= "none" (:approval-state progress)))
+    (is (= 0 (:closure-pct progress)))
+    (is (false? (:ready full)))
+    (is (seq (:blockers full)))
+    ;; 只读汇总不旁路真实门控: 项目仍在初始阶段, 提交关闭须 409
+    (is (= 409 (:status (request :post (str path "/closure/submit") 1
+                                 {:version (:project_version (overview)) :reviewer_id 9104}))))))

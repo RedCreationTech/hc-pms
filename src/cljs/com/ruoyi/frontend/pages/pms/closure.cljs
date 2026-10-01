@@ -5,7 +5,8 @@
             [com.ruoyi.frontend.pages.pms.approval :as chain]
             [com.ruoyi.frontend.pages.pms.shared :as shared]
             [com.ruoyi.frontend.pages.pms.widgets :as w]
-            [reagent.hooks :as hooks]))
+            [reagent.core :as r]
+            [reagent.hooks :as hooks]))>
 
 (defn- evidence-field
   "结项证据必须选择一个已保存的不可变文档版本."
@@ -103,11 +104,41 @@
           [antd/button {:danger true :on-click #(open! (forms/decision-dialog
             (str root "/reopen-requests/" (:request_id record) "/review") "rejected" "驳回项目重开"))} "驳回重开"]])])) )
 
+(defn- progress-panel
+  "E10 收尾清单闭环进度只读汇总: 聚合检查项/移交项完成进度, 必需未完成, 逾期未完成与关闭审批状态; 只读派生, 不门控任何写操作."
+  [{:keys [model]}]
+  (let [p (:progress model)
+        kind-rows (:by-kind p)
+        state (:approval-state p)
+        state-label ({"none" "未提交" "submitted" "审批中" "approved" "已批准" "rejected" "已驳回"} state state)]
+    [shared/panel "收尾闭环进度" "聚合检查项与移交项完成进度/必需未完成/逾期未完成与关闭审批状态; 只读派生, 不门控任何写操作 (结项准入仍由上方检查与独立审批决定)" nil
+     (if-not (:available p)
+       [shared/empty-state "尚无收尾事项, 添加检查项或移交事项后跟踪结项进度" nil]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "收尾项 " (:total p))]
+         [antd/tag {:color "default"} (str "待完成 " (:open p))]
+         [antd/tag {:color "green"} (str "已完成 " (:completed p))]
+         [antd/tag {:color (if (pos? (or (:required-open p) 0)) "red" "default")} (str "必需未完成 " (:required-open p))]
+         [antd/tag {:color (if (pos? (or (:overdue-open p) 0)) "red" "default")} (str "逾期未完成 " (:overdue-open p))]
+         [antd/tag (str "经验 " (:lessons p))]
+         [antd/tag {:color (case state "approved" "green" "submitted" "processing" "rejected" "red" "default")} (str "关闭审批 " state-label)]
+         [antd/tag {:color (if (>= (:closure-pct p) 100) "green" "gold")} (str "收尾闭环率 " (:closure-pct p) "%")]]
+        [antd/progress {:percent (:closure-pct p) :size "small" :style {:width "100%"}}]
+        [antd/table {:rowKey "key" :size "small" :pagination false :dataSource (clj->js kind-rows)
+                     :columns (clj->js [{:title "收尾类别" :dataIndex "label" :width 160}
+                                        {:title "完成数" :dataIndex "completed" :width 90}
+                                        {:title "总数" :dataIndex "total" :width 90}
+                                        {:title "完成率" :key "bar" :width 220
+                                         :render (fn [_ row] (let [c (aget row "completed-pct")]
+                                                                (r/as-element [antd/progress {:percent c :size "small" :style {:width 180}}])))}])}]])]))
+
+
 (defn- closure-content
   "按检查,移交,复盘与正式审批组织结项."
   [context]
   [:div {:style {:display "grid" :gap 20}}
-   [blocker-panel (:model context)] [checklist context] [handoffs context]
+   [blocker-panel (:model context)] [progress-panel context] [checklist context] [handoffs context]
    [lessons context] [approval context] [reopen-panel context]])
 
 (defn closure-workspace

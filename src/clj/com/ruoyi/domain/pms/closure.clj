@@ -64,6 +64,33 @@
       (rules/fail! 409 "关闭依据在审批后发生变化,请重新提交关闭审批")))
   true)
 
+(defn progress-summary
+  "E10 收尾清单闭环只读汇总: 对 checks+handoffs 与关闭审批/经验在读取时派生项目级收尾进度, 免迁移, 不构成门控 (真正门控仍由 blockers/ready!/submit!/review! 与独立审批状态机强制). 键名不带尾随 ?."
+  [items approval lessons today]
+  (let [closed? #(= "completed" (:status %))
+        today-str (.toString ^java.time.LocalDate today)
+        checks (filterv #(= "check" (:kind %)) items)
+        handoffs (filterv #(= "handoff" (:kind %)) items)
+        total (count items)
+        completed (count (filterv closed? items))
+        open (- total completed)
+        required (filterv :required items)
+        required-open (count (remove closed? required))
+        overdue-open (count (filterv #(and (not (closed? %)) (:due_date %)
+                                        (neg? (compare (:due_date %) today-str))) items))
+        kind-row (fn [key label rows]
+                   (let [t (count rows) c (count (filterv closed? rows))]
+                     {:key key :label label :total t :completed c
+                      :completed-pct (if (pos? t) (int (Math/round ^double (* 100.0 (/ c t)))) 0)}))]
+    {:available (boolean (or (pos? total) (some? approval)))
+     :total total :checks (count checks) :handoffs (count handoffs)
+     :completed completed :open open :required (count required)
+     :required-open required-open :overdue-open overdue-open :lessons (count lessons)
+     :approval-state (or (:status approval) "none")
+     :closure-pct (if (pos? total) (int (Math/round ^double (* 100.0 (/ completed total)))) 0)
+     :by-kind (vector (kind-row "check" "收尾检查" checks) (kind-row "handoff" "遗留移交" handoffs))}))
+
+
 (defn overview
   "返回收尾工作台和明确缺口, 不向普通成员暴露财务金额."
   [svc actor project-id]
@@ -72,13 +99,15 @@
       (let [items (mapv #(assoc % :id (:item_id %) :required (= 1 (:required %)))
                         (q :closure/items {:project_id project-id}))
             missing (blockers q project)
-            approval (q :closure/approval {:project_id project-id})]
+            approval (q :closure/approval {:project_id project-id})
+            lessons (mapv #(assoc % :id (:lesson_id %)) (q :closure/lessons {:project_id project-id}))]
         {:project_version (:version project) :checks (filterv #(= "check" (:kind %)) items)
          :handoffs (filterv #(= "handoff" (:kind %)) items)
-         :lessons (mapv #(assoc % :id (:lesson_id %)) (q :closure/lessons {:project_id project-id}))
+         :lessons lessons
          :reopen_request (q :reopen/latest {:project_id project-id})
          :approval (some-> approval (dissoc :snapshot_json))
-         :ready (empty? missing) :blockers missing}))))
+         :ready (empty? missing) :blockers missing
+         :progress (progress-summary items approval lessons (java.time.LocalDate/now))}))))
 
 (defn create-item!
   "建立受控收尾检查或遗留移交事项."

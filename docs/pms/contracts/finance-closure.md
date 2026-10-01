@@ -76,7 +76,9 @@ GET `/finance` 读模型的 `locked_periods` 同时供承诺台账复用: 前端
 
 ## 收尾和关闭
 
-GET `/closure`: project:query,返回checks/handoffs/lessons/approval/reopen_request/blockers/ready/project_version. 不包含成本金额或批准快照正文. ready只表示业务材料齐备,最终closed仍须独立批准.
+GET `/closure`: project:query,返回checks/handoffs/lessons/approval/reopen_request/blockers/ready/progress/project_version. 不包含成本金额或批准快照正文. ready只表示业务材料齐备,最终closed仍须独立批准.
+
+`progress` (E10 收尾清单闭环进度只读汇总, 免迁移): 由纯函数 `com.ruoyi.domain.pms.closure/progress-summary` 在读取 `overview` 时对已富化的 `items` (检查项与移交事项合并清单, 逐条带 `:kind` check/handoff, `:status` open/completed, `:required`, 可选 `:due_date`) 与 `approval`, `lessons` 聚合派生, 以顶层键 `progress` 挂到收尾读模型. 内层键连字符不带尾随 `?`, 不落库, 不新增 kind/命令/路由/表结构, 不构成任何门控 (进度高低不阻止任何检查项/移交的登记与完成, 也不影响 `submit!`/`review!` 的状态/阻塞/独立审批硬校验; 完成仍由 `complete-item!` 强制同项目真实文档版本证据 (`governance/evidence-version!`), 移交仍须指定接收人亲自确认, 关闭仍由 `submit!` 强制 closing 态 + 全部必需清单/移交完成 + 交付链齐套 + required Gate 通过 + 无 blocker + 已批准决算且无费用草稿/待审工时, 独立审批仍由 `review!` 经 `project:close` 强制). 收尾此前只有逐条 `checks`/`handoffs` 与 `blockers`/`ready` 布尔门控视图, 项目经理能逐条看到"某项是否完成/是否必需", 却无从一眼读出整个项目结项清单到底有几项, 几项待完成, 几项已完成, 其中几项必需未完成, 几项逾期未完成, 经验登记数, 关闭审批处于哪一状态, 以及结项闭环的整体进度. 本汇总返回 `available (是否存在任一件事项或已有审批记录) / total (检查项 + 移交总数) / checks (检查项数) / handoffs (移交数) / completed (已完成数 status=completed) / open (待完成数) / required (必需项数) / required-open (必需且未完成数) / overdue-open (待完成且 `due_date` 早于今天数) / lessons (经验登记数) / approval-state (关闭审批状态 none/submitted/approved/rejected) / closure-pct (= round(100 × completed / total), 无事项时 0) / by-kind[check(收尾检查)/handoff(遗留移交) 各 {kind, label, total, completed, completed-pct}]`. 无事项时 `available=false` 且计数为 0, 面板显"尚无收尾事项, 添加检查项或移交事项后跟踪结项进度". 前端在"结项与移交"页签新增只读"收尾闭环进度"面板 (彩色标签呈现收尾项/待完成/已完成/必需未完成/逾期未完成/经验/关闭审批状态/闭环率, 其下按类别完成度分布表), 与逐条 `checks`/`handoffs` 台账及 `blockers`/`ready` 门控视图同源互补, 正交.
 
 POST `/closure/checks`: title,required(boolean). POST `/closure/handoffs`: title,owner_id,due_date,required. 至少一个必需清单,所有移交必须完成. POST对应集合的 `/:item_id/complete`: evidence_ref(同项目真实文档版本ID),comment. 移交必须由指定接收人亲自确认. POST `/closure/lessons`: title/category/content.
 
