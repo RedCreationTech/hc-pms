@@ -103,6 +103,36 @@
            :current_step (or (:step (last steps)) "not_started")
            :next_step (get assembly-steps (count steps)))))
 
+(defn assembly-execution-summary
+  "E01 装配执行闭环只读汇总: 对已按 assembly-read-model 富化的整项目 :assemblies 读取时聚合,
+   给出装配上岛/装配/单机交检/连线交检/下岛/交接序列的整体执行健康度; 只读派生, 不落库不投递,
+   不构成任何门控. 键名不带尾随问号."
+  [assemblies]
+  (let [total (count assemblies)
+        step-total (count assembly-steps)
+        step-count (fn [a] (or (:step_count a) 0))
+        approved (count (filterv #(= "approved" (:status %)) assemblies))
+        fully-stepped (count (filterv #(>= (step-count %) step-total) assemblies))
+        done-steps (reduce + (map (fn [a] (min step-total (step-count a))) assemblies))
+        step-denom (* total step-total)
+        by-step (mapv (fn [k] {:key k :total (count (filterv #(= k (:current_step %)) assemblies))})
+                      (into ["not_started"] assembly-steps))]
+    {:available (boolean (seq assemblies))
+     :total total
+     :draft (count (filterv #(= "draft" (:status %)) assemblies))
+     :in-progress (count (filterv #(= "in_progress" (:status %)) assemblies))
+     :in-review (count (filterv #(= "in_review" (:status %)) assemblies))
+     :approved approved
+     :closure-pct (if (pos? total) (int (Math/round ^double (* 100.0 (/ approved total)))) 0)
+     :fully-stepped fully-stepped
+     :step-pct (if (pos? step-denom) (int (Math/round ^double (* 100.0 (/ done-steps step-denom)))) 0)
+     :by-step by-step}))
+
+(defn attach-assembly-execution-progress
+  "把 assembly-execution-summary 挂到交付工作区读模型顶层 :assembly_execution_progress; 读取时派生, 不改变任何逐条装配."
+  [data]
+  (assoc data :assembly_execution_progress (assembly-execution-summary (:assemblies data))))
+
 ;; ── E04 发货前本地条件 ─────────────────────────────────────────
 
 (defn confirm-conditions!

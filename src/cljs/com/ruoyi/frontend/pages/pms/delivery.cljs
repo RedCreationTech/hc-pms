@@ -210,6 +210,34 @@
                                          :render (fn [_ row] (let [t (aget row "total") c (aget row "closed")]
                                                                 (r/as-element [antd/progress {:percent (if (pos? t) (int (* 100 (/ c t))) 0) :size "small" :style {:width 180}}])))}])}]])]))
 
+(defn- assembly-execution-progress-section
+  "E01 装配执行闭环只读汇总: 上岛/装配/单机交检/连线交检/下岛/交接序列的整体执行健康度, 读取时派生, 不门控任何写操作."
+  [{:keys [model]}]
+  (let [ap (:assembly_execution_progress model)
+        step-labels {"not_started" "未开始" "on_island" "上岛" "assembling" "装配"
+                     "unit_inspection" "单机交检" "wiring_inspection" "连线交检" "off_island" "下岛" "handover" "交接"}]
+    [shared/panel "装配执行进度汇总" "装配上岛/装配/单机交检/连线交检/下岛/交接逐步执行与独立交检的整体闭环健康度; 只读派生, 不门控任何写操作" nil
+     (if-not (:available ap)
+       [shared/empty-state "尚无装配记录, 齐套BOM冻结并放行后建立装配任务" nil]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "装配 " (:total ap))]
+         [antd/tag (str "草稿 " (:draft ap))]
+         [antd/tag {:color "processing"} (str "装配中 " (:in-progress ap))]
+         (when (pos? (or (:in-review ap) 0)) [antd/tag {:color "gold"} (str "交检审批中 " (:in-review ap))])
+         [antd/tag {:color "green"} (str "已交检通过 " (:approved ap))]
+         [antd/tag {:color (if (>= (:closure-pct ap) 100) "green" "gold")} (str "交检闭环率 " (:closure-pct ap) "%")]
+         [antd/tag {:color (if (>= (:step-pct ap) 100) "green" "default")} (str "步骤完成度 " (:step-pct ap) "%")]
+         [antd/tag {:color (if (and (pos? (:total ap)) (= (:fully-stepped ap) (:total ap))) "green" "default")} (str "全步骤完成 " (:fully-stepped ap) "/" (:total ap))]]
+        [antd/progress {:percent (:step-pct ap) :size "small" :style {:width "100%"}}]
+        [antd/table {:rowKey "key" :size "small" :pagination false :dataSource (clj->js (:by-step ap))
+                     :columns (clj->js [{:title "当前环节" :dataIndex "key" :width 140 :render (fn [v] (get step-labels v v))}
+                                        {:title "装配数" :dataIndex "total" :width 90}
+                                        {:title "分布" :key "bar" :width 220
+                                         :render (fn [_ row] (let [t (aget row "total")]
+                                                                (r/as-element [antd/progress {:percent (if (pos? (:total ap)) (int (* 100 (/ t (:total ap)))) 0) :size "small" :style {:width 180}}])))}])}]])]))
+
+
 (defn- fieldwork-section
   "B07 工勘, E07 交底时限与 E08/E09 现场任务 (本地事实, 外部回传未配置)."
   [context]
@@ -243,10 +271,12 @@
 (defn- assemblies-section
   "装配台账展示实际开工, 执行步骤明细与独立交检."
   [context]
-  [record-section context :assemblies "assemblies" "装配与交检" "齐套后实际开工 (齐套Gate阻断时拒绝), 上岛/装配/交检/连线/下岛/交接逐步登记, 完工后提交独立交检"
-   "建立装配任务" forms/assembly-dialog
-   [{:title "BOM来源" :dataIndex "bom_id" :render #(w/related-label (get-in context [:model :boms]) :id :title %)}
-    {:title "执行步骤" :dataIndex "steps" :width 420 :render (fn [_ row] (r/as-element [step-timeline (js->clj row :keywordize-keys true)]))}]])
+  [:div {:style {:display "grid" :gap 20}}
+   [record-section context :assemblies "assemblies" "装配与交检" "齐套后实际开工 (齐套Gate阻断时拒绝), 上岛/装配/交检/连线/下岛/交接逐步登记, 完工后提交独立交检"
+    "建立装配任务" forms/assembly-dialog
+    [{:title "BOM来源" :dataIndex "bom_id" :render #(w/related-label (get-in context [:model :boms]) :id :title %)}
+     {:title "执行步骤" :dataIndex "steps" :width 420 :render (fn [_ row] (r/as-element [step-timeline (js->clj row :keywordize-keys true)]))}]]
+   [assembly-execution-progress-section context]])
 
 (defn- tests-section
   "质量试验明确类别,逐项记录证据和失败整改."

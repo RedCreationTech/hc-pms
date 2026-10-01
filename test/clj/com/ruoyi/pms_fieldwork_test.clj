@@ -436,3 +436,68 @@
           (is (= [{:key "positioning" :total 1 :closed 1} {:key "installation" :total 1 :closed 0}
                   {:key "commissioning" :total 1 :closed 0} {:key "sat" :total 1 :closed 0}]
                  (:by-key after))))))))
+
+
+(deftest assembly-execution-summary-is-derived-read-only
+  (let [empty (fieldwork/assembly-execution-summary [])]
+    (is (false? (:available empty)))
+    (is (= 0 (:total empty)))
+    (is (= 0 (:step-pct empty)))
+    (is (= ["not_started" "on_island" "assembling" "unit_inspection" "wiring_inspection" "off_island" "handover"]
+           (mapv :key (:by-step empty))))
+    (is (= [0 0 0 0 0 0 0] (mapv :total (:by-step empty)))))
+  (let [assemblies [{:status "draft" :step_count 0 :current_step "not_started"}
+                    {:status "in_progress" :step_count 2 :current_step "assembling"}
+                    {:status "in_review" :step_count 5 :current_step "off_island"}
+                    {:status "approved" :step_count 6 :current_step "handover"}]
+        rollup (fieldwork/assembly-execution-summary assemblies)]
+    (is (true? (:available rollup)))
+    (is (= 4 (:total rollup)))
+    (is (= 1 (:draft rollup)))
+    (is (= 1 (:in-progress rollup)))
+    (is (= 1 (:in-review rollup)))
+    (is (= 1 (:approved rollup)))
+    (is (= 25 (:closure-pct rollup)))
+    (is (= 1 (:fully-stepped rollup)))
+    (is (= 54 (:step-pct rollup)))
+    (is (= [1 0 1 0 0 1 1] (mapv :total (:by-step rollup))))))
+
+
+(deftest assembly-execution-progress-attached-to-delivery-workspace
+  (let [ctx (context! nil) id (:id ctx) bom (frozen-bom! ctx)]
+    (command! id :boms :kit (:id bom) {:items [{:code "M-1" :available_quantity 2} {:code "M-2" :available_quantity 4}] :evidence_ids [(:evidence ctx)]})
+    (let [kitting (gov! id :gate-templates :from-catalog nil {:gate_type "kitting"})
+          gate (gov! id :gates :create nil {:template_id (:id kitting) :title "齐套放行" :reviewer_id 9642})
+          a (command! id :assemblies :create nil (merge (refs ctx) {:code "ASS-A" :title "装配甲" :bom_id (:id bom) :owner_id 9641}))
+          b (command! id :assemblies :create nil (merge (refs ctx) {:code "ASS-B" :title "装配乙" :bom_id (:id bom) :owner_id 9641}))
+          c (command! id :assemblies :create nil (merge (refs ctx) {:code "ASS-C" :title "装配丙" :bom_id (:id bom) :owner_id 9641}))]
+      (gov! id :gates :checks (:id gate) {:checks [{:code "KIT-1" :passed true :evidence_ids [(:evidence ctx)]}
+                                                   {:code "KIT-2" :passed true :evidence_ids [(:evidence ctx)]}]})
+      (gov! id :gates :submit (:id gate) {})
+      (gov! 9642 id :gates :decision (:id gate) {:decision "approved" :reason "齐套确认"})
+      (command! id :assemblies :start (:id a) {:evidence_ids [(:evidence ctx)]})
+      (doseq [step fieldwork/assembly-steps]
+        (command! id :assemblies :steps (:id a) {:step step :actual_date (today-minus 1)}))
+      (command! id :assemblies :start (:id b) {:evidence_ids [(:evidence ctx)]})
+      (doseq [step ["on_island" "assembling"]]
+        (command! id :assemblies :steps (:id b) {:step step :actual_date (today-minus 1)}))
+      (let [pre (:assembly_execution_progress (workspace id))]
+        (is (true? (:available pre)))
+        (is (= 3 (:total pre)))
+        (is (= 1 (:draft pre)))
+        (is (= 2 (:in-progress pre)))
+        (is (= 0 (:in-review pre)))
+        (is (= 0 (:approved pre)))
+        (is (= 0 (:closure-pct pre)))
+        (is (= 1 (:fully-stepped pre)))
+        (is (= 44 (:step-pct pre)))
+        (is (= [1 0 1 0 0 0 1] (mapv :total (:by-step pre))))
+        (review! ctx :assemblies (:id a) :submit)
+        (let [post (:assembly_execution_progress (workspace id))]
+          (is (= 1 (:approved post)))
+          (is (= 1 (:in-progress post)))
+          (is (= 1 (:draft post)))
+          (is (= 0 (:in-review post)))
+          (is (= 33 (:closure-pct post)))
+          (is (= 1 (:fully-stepped post)))
+          (is (= 44 (:step-pct post))))))))
