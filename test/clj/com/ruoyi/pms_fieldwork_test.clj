@@ -623,3 +623,64 @@
       (is (= 100 (:closure-pct post)))
       (is (= 100 (:receipt-pct post)))
       (is (= "received" (:status row))))))
+
+
+(deftest handover-timeliness-summary-is-derived-read-only
+  (let [empty (fieldwork/handover-timeliness-summary [])]
+    (is (false? (:available empty)))
+    (is (= 0 (:total empty)))
+    (is (= 0 (:open empty)))
+    (is (= 0 (:closed empty)))
+    (is (= 0 (:overdue-open empty)))
+    (is (= 0 (:completed-on-time empty)))
+    (is (= 0 (:completed-late empty)))
+    (is (= 0 (:on-time-pct empty)))
+    (is (nil? (:nearest-deadline empty)))
+    (is (= ["open-pending" "open-overdue" "closed-on-time" "closed-late"]
+           (mapv :key (:by-state empty))))
+    (is (= [0 0 0 0] (mapv :count (:by-state empty)))))
+  (let [handovers [{:status "open" :deadline "2026-10-10" :handover_overdue false}
+                  {:status "open" :deadline "2026-09-01" :handover_overdue true}
+                  {:status "closed" :deadline "2026-09-15" :completed_late false}
+                  {:status "closed" :deadline "2026-09-20" :completed_late false}
+                  {:status "closed" :deadline "2026-09-25" :completed_late true}]
+        rollup (fieldwork/handover-timeliness-summary handovers)]
+    (is (true? (:available rollup)))
+    (is (= 5 (:total rollup)))
+    (is (= 2 (:open rollup)))
+    (is (= 3 (:closed rollup)))
+    (is (= 1 (:overdue-open rollup)))
+    (is (= 2 (:completed-on-time rollup)))
+    (is (= 1 (:completed-late rollup)))
+    (is (= 67 (:on-time-pct rollup)))
+    (is (= "2026-09-01" (:nearest-deadline rollup)))
+    (is (= [1 1 2 1] (mapv :count (:by-state rollup))))))
+
+
+(deftest handover-timeliness-attached-to-delivery-workspace
+  (let [ctx (context! {:handover_deadline_days 2 :handover_required true})
+        id (:id ctx) shipment (shipped-shipment! ctx)]
+    (review! ctx :shipments (:id shipment) :submit)
+    (command! id :shipments :dispatch (:id shipment) {:shipped_on (today-minus 1) :tracking_no "HT-TRACK" :evidence_ids [(:evidence ctx)]})
+    (let [handover (first (:handovers (workspace id)))
+          pre (:handover_timeliness (workspace id))]
+      (is (= "open" (:status handover)))
+      (is (true? (:available pre)))
+      (is (= 1 (:total pre)))
+      (is (= 1 (:open pre)))
+      (is (= 0 (:closed pre)))
+      (is (= 0 (:overdue-open pre)))
+      (is (= 0 (:on-time-pct pre)))
+      (is (= (:deadline handover) (:nearest-deadline pre)))
+      (command! id :handovers :complete (:id handover) {:document_ids [(:evidence ctx)] :checklist_note "交底清单 HT" :completed_on (today-minus 0)})
+      (let [post (:handover_timeliness (workspace id))
+            row (first (:handovers (workspace id)))]
+        (is (= "closed" (:status row)))
+        (is (false? (:completed_late row)))
+        (is (= 1 (:total post)))
+        (is (= 0 (:open post)))
+        (is (= 1 (:closed post)))
+        (is (= 1 (:completed-on-time post)))
+        (is (= 0 (:completed-late post)))
+        (is (= 100 (:on-time-pct post)))
+        (is (nil? (:nearest-deadline post)))))))

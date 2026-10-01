@@ -269,6 +269,42 @@
   [data]
   (assoc data :shipment_closure (shipment-closure-summary (:shipments data))))
 
+(defn handover-timeliness-summary
+  "E07 交底及时率只读汇总: 对整项目 :handovers (已 handover-read-model enrich) 读取时聚合,
+   给出交底完成进度与按期率; 只读派生, 不落库不投递, 不构成任何门控
+   (交底完成与逾期完成标记仍由 complete-handover! 在写入时按实际日期如实判定). 键名不带尾随问号."
+  [handovers]
+  (let [total (count handovers)
+        open (filterv #(= "open" (:status %)) handovers)
+        closed (filterv #(= "closed" (:status %)) handovers)
+        overdue-open (filterv :handover_overdue open)
+        open-pending (- (count open) (count overdue-open))
+        completed-late (filterv :completed_late closed)
+        completed-on-time (- (count closed) (count completed-late))
+        on-time-pct (if (pos? (count closed))
+                      (int (Math/round ^double (* 100.0 (/ completed-on-time (count closed)))))
+                      0)
+        nearest-deadline (when (seq open) (first (sort (map :deadline open))))
+        by-state [{:key "open-pending" :label "待交底 (未逾期)" :count open-pending}
+                  {:key "open-overdue" :label "待交底 (已逾期)" :count (count overdue-open)}
+                  {:key "closed-on-time" :label "按期完成" :count completed-on-time}
+                  {:key "closed-late" :label "逾期完成" :count (count completed-late)}]]
+    {:available (boolean (seq handovers))
+     :total total
+     :open (count open)
+     :closed (count closed)
+     :overdue-open (count overdue-open)
+     :completed-on-time completed-on-time
+     :completed-late (count completed-late)
+     :on-time-pct on-time-pct
+     :nearest-deadline nearest-deadline
+     :by-state by-state}))
+
+(defn attach-handover-timeliness
+  "把 handover-timeliness-summary 挂到交付工作区读模型顶层 :handover_timeliness; 读取时派生, 不改变任何逐条交底."
+  [data]
+  (assoc data :handover_timeliness (handover-timeliness-summary (:handovers data))))
+
 ;; ── E07 交底 ───────────────────────────────────────────────────
 
 (defn create-handover!

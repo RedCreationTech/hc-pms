@@ -288,6 +288,32 @@
                                                                 (r/as-element [antd/progress {:percent (if (pos? (:total pr)) (int (* 100 (/ c (:total pr)))) 0) :size "small" :style {:width 180}}])))}])}]])]))
 
 
+(defn- handover-timeliness-section
+  "E07 交底及时率只读汇总: 按交底生命周期 (待交底/已逾期/按期完成/逾期完成) 聚合项目全部交底的时限达成健康度, 读取时派生, 不门控任何写操作 (完成交底仍由服务端状态机与日期校验强制)."
+  [{:keys [model]}]
+  (let [ht (:handover_timeliness model)
+        state-rows (:by-state ht)]
+    [shared/panel "交底及时率汇总" "按交底生命周期 (待交底/已逾期/按期完成/逾期完成) 聚合项目全部交底的时限达成健康度与最近截止日期; 只读派生, 不门控任何写操作" nil
+     (if-not (:available ht)
+       [shared/empty-state "尚无交底任务, 发运登记后自动生成 (截止期 = 发运日 + 配置天数)" nil]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "交底单 " (:total ht))]
+         [antd/tag {:color "processing"} (str "待交底 " (:open ht))]
+         [antd/tag {:color (if (pos? (or (:overdue-open ht) 0)) "red" "default")} (str "已逾期 " (:overdue-open ht))]
+         [antd/tag {:color "green"} (str "已闭环 " (:closed ht))]
+         [antd/tag (str "按期完成 " (:completed-on-time ht))]
+         [antd/tag {:color (if (pos? (or (:completed-late ht) 0)) "orange" "default")} (str "逾期完成 " (:completed-late ht))]
+         [antd/tag {:color (if (>= (:on-time-pct ht) 100) "green" "gold")} (str "按期率 " (:on-time-pct ht) "%")]
+         (when-let [nd (:nearest-deadline ht)] [antd/tag (str "最近截止 " nd)])]
+        [antd/progress {:percent (:on-time-pct ht) :size "small" :style {:width "100%"}}]
+        [antd/table {:rowKey "key" :size "small" :pagination false :dataSource (clj->js state-rows)
+                     :columns (clj->js [{:title "交底状态" :dataIndex "label" :width 200}
+                                        {:title "交底单数" :dataIndex "count" :width 110}
+                                        {:title "占比" :key "bar" :width 220
+                                         :render (fn [_ row] (let [c (aget row "count")]
+                                                                (r/as-element [antd/progress {:percent (if (pos? (:total ht)) (int (* 100 (/ c (:total ht)))) 0) :size "small" :style {:width 180}}])))}])}]])]))
+
 (defn- fieldwork-section
   "B07 工勘,
  E07 交底时限与 E08/E09 现场任务 (本地事实, 外部回传未配置)."
@@ -317,7 +343,8 @@
                                              (if-let [d (aget row "site_days_to_start")] [antd/tag (str "距开始 " d " 天")] [:span "—"]))))}
       (w/text-column :actual_start "实际开始") (w/text-column :actual_end "实际完成") (w/text-column :result "结果") (state-column)]
      #(record-actions context "site-tasks" %)]]
-   [site-task-progress-section context]])
+   [site-task-progress-section context]
+   [handover-timeliness-section context]])
 
 (defn- assemblies-section
   "装配台账展示实际开工, 执行步骤明细与独立交检."
