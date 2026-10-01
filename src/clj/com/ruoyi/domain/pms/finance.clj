@@ -105,6 +105,39 @@
   [data]
   (assoc data :allocation_review (allocation-review-summary (:allocations data))))
 
+(defn margin-summary
+  "F08 成本毛利看板只读派生: 概算-预算-核算-决算各口径取最新已批准版本, 给出收入/成本/毛利金额与毛利率(百分比), 零或负收入标注不可算(computable=false); 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
+  [versions]
+  (let [approved (filterv #(= "approved" (:status %)) versions)
+        latest (into {} (for [kind ["estimate" "budget" "actual" "settlement"]]
+                          [kind (->> approved (filter #(= kind (:kind %))) (sort-by :version_no >) first)]))
+        one (fn [kind]
+              (if-let [v (get latest kind)]
+                (let [rev (long (:revenue_minor v))
+                      cost (long (:total_minor v))
+                      margin (- rev cost)
+                      computable (pos? rev)]
+                  {:kind kind
+                   :present true
+                   :version_no (:version_no v)
+                   :period (:period v)
+                   :currency (:currency v)
+                   :name (:name v)
+                   :revenue (:revenue v)
+                   :cost (:total v)
+                   :margin (:margin v)
+                   :computable computable
+                   :margin-pct (when computable (int (Math/round ^double (* 100.0 (/ margin rev)))))})
+                {:kind kind :present false}))]
+    {:available (boolean (seq approved))
+     :comparable (<= (count (distinct (remove nil? (map :currency (vals latest))))) 1)
+     :by-kind (mapv one ["estimate" "budget" "actual" "settlement"])}))
+
+(defn attach-margin-summary
+  "把 margin-summary 挂到财务概览读模型顶层 :cost_margin; 读取时派生, 不改变任何逐条费用版本."
+  [data]
+  (assoc data :cost_margin (margin-summary (:cost_versions data))))
+
 (defn overview
   "在项目权限和财务权限交集内返回可对账四算与工时数据."
   [svc actor project-id]
@@ -120,7 +153,7 @@
                 :budget_control {:budget (budget/evaluate q project-id "budget" 0)
                                  :estimate (budget/evaluate q project-id "estimate" 0)}
                 :locked_periods (mapv :period (config/published q "period-lock"))}
-               (summary versions)) time/attach-timesheet-review-summary attach-cost-review-summary attach-allocation-review-summary)))))
+               (summary versions)) time/attach-timesheet-review-summary attach-cost-review-summary attach-allocation-review-summary attach-margin-summary)))))
 
 (defn times
   "普通成员仅看本人工时和待本人审核的工时, 不附带财务金额."

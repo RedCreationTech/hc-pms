@@ -294,6 +294,30 @@
          (str "冻结费用池合计 " (:pool-amount ar) " 元, 实际摊出 " (:allocated-amount ar) " 元, 生成 " (:entry-count ar) " 条人工成本, 覆盖 " (:task-count ar) " 个任务"
               (when (pos? (:zero-task-count ar)) (str ", 其中 " (:zero-task-count ar) " 个任务因工时占比过小舍入为 0 未生成条目")))] ])]))
 
+(defn- cost-margin-section
+  "F08 成本毛利看板: 概算-预算-核算-决算各口径取最新已批准版本, 只读派生收入, 成本, 毛利与毛利率, 零或负收入标注不可算, 不构成门控."
+  [{:keys [model]}]
+  (let [cm (:cost_margin model)
+        kind-labels {"estimate" "概算" "budget" "预算" "actual" "核算" "settlement" "决算"}
+        row (fn [bk]
+              (let [label (get kind-labels (:kind bk) (:kind bk))]
+                (if-not (:present bk)
+                  ^{:key (:kind bk)}
+                  [:div {:style {:fontSize 13 :color "#98a2b3"}} (str label " · 尚无已批准版本")]
+                  ^{:key (:kind bk)}
+                  [:div {:style {:fontSize 13 :color "#4b5563"}}
+                   (str label " (v" (:version_no bk) ") 收入 " (:revenue bk) " 成本 " (:cost bk) " 毛利 " (:margin bk) " ")
+                   (if (:computable bk)
+                     [antd/tag {:color (if (neg? (or (:margin-pct bk) 0)) "red" "green")}
+                      (str "毛利率 " (:margin-pct bk) "%")]
+                     [antd/tag {:color "orange"} "不可算 (零或负收入)"])])))]
+    [shared/panel "成本毛利看板" "只读派生 · 各口径最新已批准版本的收入, 成本, 毛利与毛利率, 不构成任何门控" nil
+     (if-not (:available cm)
+       [:span {:style {:color "#98a2b3"}} "尚无已批准的四算版本, 独立批准后此处自动汇总各口径毛利."]
+       (into [:div {:style {:display "grid" :gap 12}}]
+             (cons (when-not (:comparable cm)
+                     [antd/tag {:color "red"} "各口径币种不一致, 毛利率不可横向比较"])
+                   (map row (:by-kind cm)))))]))
 (defn- cost-actions
   "根据版本状态提供条目维护,提交或独立审批."
   [{:keys [base options editable? approve? open! select!]} cost]
@@ -469,6 +493,7 @@
    [antd/tabs {:items [{:key "costs" :label "成本与分摊"
                         :children (r/as-element [:div {:style {:display "grid" :gap 20}}
                                                 [cost-review-section context]
+                                                [cost-margin-section context]
                                                 [four-count-section context]
                                                 [cost-section context] [ledger-section context selected] [allocation-review-section context] [allocation-history (:model context)]])}
                        {:key "commitments" :label "承诺与预算控制"

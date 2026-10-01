@@ -448,6 +448,66 @@
           (is (= (str "rd-pool:" (:id pool)) (:source_ref (first (:entries version))))))))))
 
 
+(deftest margin-summary-is-derived-read-only
+  ;; 纯函数: 概算-预算-核算-决算各口径取最新已批准版本的收入/成本/毛利与毛利率; 零收入标注不可算; 只读派生不改入参.
+  (let [rows [{:version_no 1 :kind "estimate" :status "approved" :revenue_minor 100000 :total_minor 50000 :revenue "1000.00" :total "500.00" :margin "500.00" :period "2026-09" :currency "CNY" :name "概算v1"}
+              {:version_no 2 :kind "estimate" :status "approved" :revenue_minor 200000 :total_minor 160000 :revenue "2000.00" :total "1600.00" :margin "400.00" :period "2026-09" :currency "CNY" :name "概算v2"}
+              {:version_no 1 :kind "budget" :status "approved" :revenue_minor 200000 :total_minor 150000 :revenue "2000.00" :total "1500.00" :margin "500.00" :period "2026-09" :currency "CNY" :name "预算v1"}
+              {:version_no 1 :kind "actual" :status "approved" :revenue_minor 0 :total_minor 30000 :revenue "0.00" :total "300.00" :margin "-300.00" :period "2026-09" :currency "CNY" :name "核算零收入"}
+              {:version_no 1 :kind "settlement" :status "submitted" :revenue_minor 500000 :total_minor 400000 :revenue "5000.00" :total "4000.00" :margin "1000.00" :period "2026-09" :currency "CNY" :name "决算未批"}]
+        s (finance/margin-summary rows)]
+    (is (true? (:available s)))
+    (is (true? (:comparable s)))
+    (let [by (fn [k] (first (filter #(= k (:kind %)) (:by-kind s))))]
+      (is (true? (:present (by "estimate"))))
+      (is (= 2 (:version_no (by "estimate"))))
+      (is (= 20 (:margin-pct (by "estimate"))))
+      (is (true? (:computable (by "estimate"))))
+      (is (= "2000.00" (:revenue (by "estimate"))))
+      (is (= "1600.00" (:cost (by "estimate"))))
+      (is (= "400.00" (:margin (by "estimate"))))
+      (is (= 25 (:margin-pct (by "budget"))))
+      (is (true? (:present (by "actual"))))
+      (is (false? (:computable (by "actual"))))
+      (is (nil? (:margin-pct (by "actual"))))
+      (is (false? (:present (by "settlement")))))
+    (let [out (finance/attach-margin-summary {:cost_versions rows})]
+      (is (= rows (:cost_versions out)))
+      (is (= 2 (get-in out [:cost_margin :by-kind 0 :version_no])))
+      (is (= 20 (get-in out [:cost_margin :by-kind 0 :margin-pct])))))
+  (let [e (finance/margin-summary [])]
+    (is (false? (:available e)))
+    (is (true? (:comparable e)))
+    (is (= 4 (count (:by-kind e))))
+    (is (every? #(false? (:present %)) (:by-kind e))))
+  ;; 多币种不可比: 存在不同币种的已批准口径时 comparable=false.
+  (let [mixed (finance/margin-summary [{:version_no 1 :kind "estimate" :status "approved" :revenue_minor 100000 :total_minor 50000 :revenue "1000.00" :total "500.00" :margin "500.00" :currency "CNY" :name "a"}
+                                       {:version_no 1 :kind "budget" :status "approved" :revenue_minor 100000 :total_minor 50000 :revenue "1000.00" :total "500.00" :margin "500.00" :currency "USD" :name "b"}])]
+    (is (false? (:comparable mixed))))
+  ;; 端到端: 真实项目建一种正常概算与一条零收入决算 (均独立批准) -> GET /finance 暴露 :cost_margin.
+  (let [{:keys [id]} (executing-project! "毛利看板项目")
+        create (fn [kind revenue] (:result (cost/create! *service* (actor 9701) id {:version (version id) :kind kind :period "2026-09" :currency "CNY" :name (str kind "版本") :revenue revenue :reviewer_id 9702})))
+        entry (fn [vid category amount] (cost/add-entry! *service* (actor 9701) id vid {:version (version id) :category category :label category :amount amount}))
+        approve (fn [vid] (cost/submit! *service* (actor 9701) id vid {:version (version id)})
+                  (cost/review! *service* (actor 9702) id vid {:version (version id) :decision "approved" :reason "ok"}))
+        estimate (create "estimate" "1000")
+        settlement (create "settlement" "0")]
+    (entry (:id estimate) "material" "600")
+    (approve (:id estimate))
+    (entry (:id settlement) "labor" "200")
+    (approve (:id settlement))
+    (let [cm (:cost_margin (finance/overview *service* (actor 9701) id))
+          by (fn [k] (first (filter #(= k (:kind %)) (:by-kind cm))))]
+      (is (true? (:available cm)))
+      (is (true? (:present (by "estimate"))))
+      (is (= 40 (:margin-pct (by "estimate"))))
+      (is (= "400.00" (:margin (by "estimate"))))
+      (is (true? (:present (by "settlement"))))
+      (is (false? (:computable (by "settlement"))))
+      (is (nil? (:margin-pct (by "settlement"))))
+      (is (false? (:present (by "budget"))))
+      (is (false? (:present (by "actual")))))))
+
 (deftest four-count-comparison-and-quarterly-targets
   (let [{:keys [id]} (executing-project! "四算项目")
         create (fn [kind revenue] (:result (cost/create! *service* (actor 9701) id {:version (version id) :kind kind :period "2026-09" :currency "CNY" :name (str kind "版本") :revenue revenue :reviewer_id 9702})))
