@@ -22,6 +22,11 @@
   #{"high" "medium" "low"})
 
 
+(def issue-resolution-types
+  "问题解决方式枚举: 已修复/已规避/设计如此/重复/无法复现/不予修复, 提交解决时未选择则不写入(视为未设定)."
+  #{"fixed" "workaround" "by-design" "duplicate" "cannot-reproduce" "wont-fix"})
+
+
 (defn risk-response-coverage
   "按每个风险最新有效版本统计应对策略声明的只读覆盖度: PMI 四类策略各自计数, 已声明/未设定与覆盖率; 只读派生, 不落库不投递, 不改变风险状态."
   [risks]
@@ -248,16 +253,19 @@
   [svc actor id rid body]
   (k/mutate! svc actor id "pms:project:edit" body "issue.resolution-submitted"
              (fn [q project]
-               (s/input! body [:resolution :evidence_ids :reviewer_id])
+               (s/input! body [:resolution :resolution_type :evidence_ids :reviewer_id])
                (let [issue (s/record! q project "issue" rid)]
                  (s/status! issue #{"open" "rejected"})
                  (when (and (:escalated issue) (= "pending" (:escalation_state issue)))
                    (r/fail! 409 "该问题已超阈值升级, 请先由独立质量审批人确认处置措施再提交解决"))
                  (s/change! q project issue "in_review"
-                            {:review_action "closure" :resolution (s/text! body :resolution)
-                             :evidence_ids (s/evidence! q project (:evidence_ids body) true)
-                             :reviewer_id (s/reviewer! q project actor (:reviewer_id body))
-                             :submitted_by (:user_id actor)})))))
+                            (cond-> {:review_action "closure" :resolution (s/text! body :resolution)
+                                     :evidence_ids (s/evidence! q project (:evidence_ids body) true)
+                                     :reviewer_id (s/reviewer! q project actor (:reviewer_id body))
+                                     :submitted_by (:user_id actor)}
+                              (some? (:resolution_type body))
+                              (assoc :resolution_type
+                                     (s/enum! (:resolution_type body) issue-resolution-types "解决方式"))))))))
 
 
 (defn verify!

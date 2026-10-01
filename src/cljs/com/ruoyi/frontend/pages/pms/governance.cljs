@@ -717,6 +717,20 @@
      (w/state-column)] #(risk-actions context %)]])
 
 
+(defn- resolution-type-cell
+  "渲染问题解决方式标签 (可选枚举, 提交解决时未选择则视为未设定)."
+  [row]
+  (let [t (aget row "resolution_type")
+        label (get {"fixed" "已修复" "workaround" "已规避" "by-design" "设计如此"
+                    "duplicate" "重复" "cannot-reproduce" "无法复现" "wont-fix" "不予修复"} t)
+        color (get {"fixed" "green" "workaround" "blue" "by-design" "geekblue"
+                    "duplicate" "purple" "cannot-reproduce" "orange" "wont-fix" "red"} t "default")]
+    (r/as-element
+      (if (nil? t)
+        [:span {:style {:color "#98a2b3"}} "未设定"]
+        [antd/tag {:color color} label]))))
+
+
 (defn- issue-section
   "问题解决必须附证据并交独立人员验证; 阻断级问题登记即自动升级, 未经独立确认不得提交解决."
   [{:keys [base model options editable? approve? open!] :as context}]
@@ -750,6 +764,8 @@
                      :else [antd/tag state]))))}
      (owner-load-column)
      (w/text-column :resolution "解决说明")
+     {:title "解决方式" :dataIndex "resolution_type" :width 110
+      :render (fn [_ row] (resolution-type-cell row))}
      {:title "评审事项" :dataIndex "review_action" :render #(if (= % "reopen") "申请重开" "解决验证")} (w/state-column)]
     (fn [issue]
       [antd/space
@@ -766,6 +782,10 @@
          [w/edit-button "提交解决证据"
           #(open! {:title "提交问题解决验证" :path (str base "/issues/" (:id issue) "/resolve")
                    :fields [{:key :resolution :label "解决方案与验证结果" :type :textarea :required? true}
+                            {:key :resolution_type :label "解决方式 (可选)" :type :select
+                             :options [{:value "fixed" :label "已修复"} {:value "workaround" :label "已规避"}
+                                       {:value "by-design" :label "设计如此"} {:value "duplicate" :label "重复"}
+                                       {:value "cannot-reproduce" :label "无法复现"} {:value "wont-fix" :label "不予修复"}]}
                             (forms/evidence-field (:documents model)) (forms/reviewer-field options)]})])
        (when (and editable? (contains? #{"open" "rejected"} (:status issue)))
          [w/edit-button "转派" #(open! (forms/issue-reassign-dialog base options issue))])

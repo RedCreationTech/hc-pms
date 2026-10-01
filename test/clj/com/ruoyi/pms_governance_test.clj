@@ -2994,3 +2994,27 @@
       (is (= 1 (:closed m)))
       (is (= 1 (:overdue m)))
       (is (= 50 (:closure-pct m))))))
+
+
+(deftest issue-resolution-type-is-optional-enum-persisted
+  (let [id (project!)
+        evidence (:id (document! id "ISS-RT-1"))
+        with-type (command! id :issues :create nil {:title "带解决方式" :severity "major" :owner_id 9301 :due_date "2026-12-31"})
+        without-type (command! id :issues :create nil {:title "未选解决方式" :severity "minor" :owner_id 9301 :due_date "2026-12-31"})]
+    ;; 合法解决方式随提交解决持久化并在命令结果回显.
+    (let [res (command! id :issues :resolve (:id with-type)
+                        {:resolution "更换密封件并复测" :resolution_type "fixed" :evidence_ids [evidence] :reviewer_id 9302})]
+      (is (= "in_review" (:status res)))
+      (is (= "fixed" (:resolution_type res))))
+    ;; workspace 读模型逐条回显 resolution_type (payload 字段自动透传).
+    (let [row (first (filter #(= (:id with-type) (:id %)) (:issues (workspace id))))]
+      (is (= "fixed" (:resolution_type row))))
+    ;; 非法解决方式 400, 且不改变问题状态 (仍 open).
+    (is (= 400 (error-status #(command! id :issues :resolve (:id without-type)
+                                        {:resolution "尝试" :resolution_type "invalid-type" :evidence_ids [evidence] :reviewer_id 9302}))))
+    (is (= "open" (:status (first (filter #(= (:id without-type) (:id %)) (:issues (workspace id)))))))
+    ;; 未选择解决方式则不写入该键 (零回归, 视为未设定).
+    (let [res (command! id :issues :resolve (:id without-type)
+                        {:resolution "仅文字说明" :evidence_ids [evidence] :reviewer_id 9302})]
+      (is (= "in_review" (:status res)))
+      (is (nil? (:resolution_type res))))))

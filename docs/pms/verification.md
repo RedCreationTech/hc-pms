@@ -1525,6 +1525,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: E10 整行保持既有 `partial / 待规则` 状态不变 — 本项只是把已有的逐条收尾检查/移交明细升为一个跨两类项目级待完成数/已完成数/必需未完成数/逾期未完成数/经验数/关闭审批状态/整体闭环率/分类完成度的只读汇总看板子能力, 一个只读子能力不上行整行状态; 汇总不构成任何门控 (闭环率高低不阻止任何收尾项登记/完成/提交/审批, `complete-item!` 证据门控与 `submit!` 状态/阻塞/独立审批门控仍为唯一真门控), 不新增写路径/kind/命令/路由/表结构; 口径 `closure-pct = completed / total` (已完成占全部收尾项比例, 逾期/必需未完成另以红标突出, 不因闭环率高而放宽关闭门控); 完整收尾业务模板 (SAT 等前提自动触发建收尾活动, 交付物/遗留事项/责任的外部核验) 仍待 UAT, 本看板仅对本地既成事实的收尾清单状态做只读汇总.
 
+## C09 问题可选解决方式枚举字段 (本轮增补, 2026-10-02)
+
+设计与口径: 问题闭环 (C09) 此前提交解决只强制一段自由文本 `resolution` 加不可变证据版本与独立验证人, 无法结构化区分"到底怎么解决的" — 修复, 规避, 设计如此, 重复, 无法复现, 不予修复在 PMI/缺陷管理里是六种不同结论, 混在自由文本里既不可统计也不可复核. 本项在 `com.ruoyi.domain.pms.governance.collaboration` 定义 `issue-resolution-types` 枚举集合 (`fixed/workaround/by-design/duplicate/cannot-reproduce/wont-fix`), 给 `resolve!` 写路径新增一个**可选强类型枚举字段** `resolution_type`: `s/input!` 白名单加入 `:resolution_type`; 命令内用 `(cond-> {...base...} (some? (:resolution_type body)) (assoc :resolution_type (s/enum! (:resolution_type body) issue-resolution-types "解决方式")))` — 提交时未选择则该键不写入 (视为未设定, 零回归: 既有不填解决方式的用例与既有"提交解决"路径完全不变), 选中则经 `s/enum!` 白名单校验, 非法取值返回 400 且事务回滚不改变问题状态 (仍 open). 该字段随 payload JSON 持久化, **免迁移 / 免新 kind / 免新命令 / 免新路由 / 不构成任何门控** (解决方式填与不填都不影响 `resolve` 的既有证据/独立审核人/升级门控判定), 记录 `resolution_type` 由 `record!` 解码后自动透传进命令结果与 workspace 问题读模型逐条回显, 无需额外接线. 这是"给某 kind 写路径加可选强类型枚举字段"家族 (H08 风险应对策略 / C02 需求验证方式 / H02 干系人参与态度 / C07 行动优先级 / H02 沟通渠道) 落到问题闭环侧的又一子能力. 前端 `governance.cljs` 在"提交问题解决验证"对话框 `resolution` 文本域与证据/审核人字段之间新增一个可选 `:select` 字段 `resolution_type` (六类中文标签: 已修复/已规避/设计如此/重复/无法复现/不予修复), `mutation-dialog` 对未选择的可选下拉传回空值 → 后端 `(some? ...)` 为假不写该键; 并在问题台账"解决说明"列之后新增"解决方式"只读列, `resolution-type-cell` 按取值渲染彩色 antd tag (fixed green / workaround blue / by-design geekblue / duplicate purple / cannot-reproduce orange / wont-fix red), 无值显灰字"未设定".
+
+| 证据类型 | 结果 |
+|---|---|
+| 后端命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 82 tests / 1120 assertions, 0 failures/errors (新增 deftest `issue-resolution-type-is-optional-enum-persisted` 七断言: 合法 `fixed` 随提交解决持久化并在命令结果回显 `resolution_type="fixed"` 且 `status=in_review`; workspace 读模型逐条回显该记录 `resolution_type="fixed"`; 非法 `invalid-type` 经命令返回 **400** 且该问题状态仍 `open` (事务回滚不漂移); 不选解决方式则命令结果 `resolution_type` 为 `nil` 且状态正常转 `in_review` (零回归)) |
+| 全量 PMS 回归 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 全绿 212 tests / 2605 assertions, 0 failures/errors (较上一记录基线 211/2598 增本 `issue-resolution-type` 一 deftest / +7 assertions) |
+| 前端编译 | `npx shadow-cljs compile app` 通过 4035 files / 0 compiled (增量无变更) / 0 warnings (新增 `resolution-type-cell` 私有辅助置于 `issue-section` 之前避免前向引用; 台账列 `:render` 返回 `(r/as-element ...)`) |
+| HTTP 合同 (契约) | `contracts/governance.md` 的 `POST /issues/:rid/resolve` 请求体新增可选 `resolution_type` (六类枚举 `fixed/workaround/by-design/duplicate/cannot-reproduce/wont-fix`), 说明未选择不写该键 (未设定), 非法取值 400 且不改变问题状态, 免迁移随 payload 持久化并在命令结果与问题读模型逐条回显 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | 断言用例 `pms-c09rt.spec.js` 1 passed (~38s, 全新独立 `/tmp/c09rt.db` 冷启动迁移, 无未捕获 JS 错误): 问题 A (major) 界面"提交解决证据"下拉选"设计如此" → 命令结果 `status=in_review` 且 `resolution_type=by-design`, 真实 HTTP GET governance 回显同值, "问题闭环"台账"解决方式"列显 geekblue"设计如此"标签 (截图 c09rt-1-resolved-with-type.png); 问题 B (minor) 界面提交解决不选解决方式 → `status=in_review` 且 `resolution_type` 为空, 台账列显灰字"未设定" (截图 c09rt-2-resolved-unset.png); 问题 C (major) 经真实 HTTP 以非法 `resolution_type="not-a-real-type"` 提交解决被 **400** 拒绝且状态仍 `open` (截图 c09rt-3-illegal-400-then-duplicate.png), 随后真实 HTTP 合法 `duplicate` 提交 → 200 且 `result.resolution_type=duplicate` |
+| 演示录像 (真实浏览器) | 同一 `pms-c09rt.spec.js` 以文件顶层 `test.use({ video: 'on' })` 录真实 Playwright 浏览器全程 (建项目 → 界面提交解决选"设计如此" → 不选留未设定 → 非法取值真实 HTTP 被拒后改选"重复"), webm 经项目本地 `tools/bin/ffmpeg` 转 `reports/c09rt/c09rt-demo.mp4` (h264, 1600x1000) |
+| MySQL | 本轮未执行 (本地无 MySQL 实例); 本项为免迁移的 payload 字段增量, 不涉及任何表结构或迁移变更, 与 SQLite/MySQL 无关 |
+
+边界: C09 整行保持既有 `local`/`implemented` 状态不变 — 本项只是给"提交解决"写路径补一个可选强类型枚举子字段, 一个写路径子字段不上行整行状态; 该字段不构成任何门控 (填与不填都不影响既有 `resolve` 的证据/独立审核人/升级门控判定), 不新增迁移/kind/命令/路由/表结构; 六类解决方式为本地枚举口径, 未与外部缺陷管理系统 (如 JIRA resolution 工作流) 的取值字典对齐, 该外部字段合同仍待实现; MySQL 回归待补充.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.
