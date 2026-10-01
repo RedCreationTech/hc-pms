@@ -81,6 +81,30 @@
   [data]
   (assoc data :cost_review (cost-review-summary (:cost_versions data))))
 
+(defn allocation-review-summary
+  "按项目全部费用分摊批次只读聚合研发费用分摊闭环健康度: 批次数/冻结费用池金额合计/实际摊出金额合计/生成成本条目数/覆盖任务数/因舍入未摊到金额的任务数/总额是否守恒; 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
+  [allocations]
+  (let [total (count allocations)
+        rows (mapcat :rows allocations)
+        pool-minor (reduce + 0 (map :amount_minor allocations))
+        allocated-minor (reduce + 0 (map :amount_minor rows))
+        entry-count (count (filterv #(pos? (:amount_minor %)) rows))
+        zero-task-count (count (filterv #(zero? (:amount_minor %)) rows))
+        task-count (count (distinct (map :task_id rows)))]
+    {:available (pos? total)
+     :total total
+     :pool-amount (money/money pool-minor)
+     :allocated-amount (money/money allocated-minor)
+     :entry-count entry-count
+     :zero-task-count zero-task-count
+     :task-count task-count
+     :conserved (= pool-minor allocated-minor)}))
+
+(defn attach-allocation-review-summary
+  "把 allocation-review-summary 挂到财务概览读模型顶层 :allocation_review; 读取时派生, 不改变任何逐条分摊批次."
+  [data]
+  (assoc data :allocation_review (allocation-review-summary (:allocations data))))
+
 (defn overview
   "在项目权限和财务权限交集内返回可对账四算与工时数据."
   [svc actor project-id]
@@ -96,7 +120,7 @@
                 :budget_control {:budget (budget/evaluate q project-id "budget" 0)
                                  :estimate (budget/evaluate q project-id "estimate" 0)}
                 :locked_periods (mapv :period (config/published q "period-lock"))}
-               (summary versions)) time/attach-timesheet-review-summary attach-cost-review-summary)))))
+               (summary versions)) time/attach-timesheet-review-summary attach-cost-review-summary attach-allocation-review-summary)))))
 
 (defn times
   "普通成员仅看本人工时和待本人审核的工时, 不附带财务金额."

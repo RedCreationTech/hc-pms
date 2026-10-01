@@ -4,6 +4,7 @@
   (:require [clojure.test :refer [deftest is use-fixtures]]
             [com.ruoyi.domain.pms.config :as config]
             [com.ruoyi.domain.pms.finance :as finance]
+            [com.ruoyi.domain.pms.finance-allocation :as allocation]
             [com.ruoyi.domain.pms.finance-cost :as cost]
             [com.ruoyi.domain.pms.finance-pool :as pool]
             [com.ruoyi.domain.pms.finance-time :as time]
@@ -368,6 +369,53 @@
         (is (= {:kind "estimate" :total 2 :approved 1 :pending 0} (first (filter #(= "estimate" (:kind %)) (:by-kind r)))))
         (is (= 5 (count (:cost_versions (overview)))))
         (is (= "approved" (:status (first (filter #(= v1 (:id %)) (:cost_versions (overview)))))))))))
+
+
+(deftest allocation-review-summary-is-derived-read-only
+  ;; 纯函数: 逐批次聚合冻结池/摊出/条目/覆盖任务/舍入零头/守恒; 只读不改入参.
+  (let [rows [{:amount_minor 10000 :rows [{:task_id "t1" :amount_minor 6000}
+                                          {:task_id "t2" :amount_minor 4000}]}
+              {:amount_minor 5000 :rows [{:task_id "t3" :amount_minor 5000}
+                                         {:task_id "t4" :amount_minor 0}]}]
+        s (finance/allocation-review-summary rows)]
+    (is (true? (:available s)))
+    (is (= 2 (:total s)))
+    (is (= "150.00" (:pool-amount s)))
+    (is (= "150.00" (:allocated-amount s)))
+    (is (= 3 (:entry-count s)))
+    (is (= 1 (:zero-task-count s)))
+    (is (= 4 (:task-count s)))
+    (is (true? (:conserved s)))
+    (let [out (finance/attach-allocation-review-summary {:allocations rows})]
+      (is (= rows (:allocations out)))
+      (is (= 2 (get-in out [:allocation_review :total])))
+      (is (= "150.00" (get-in out [:allocation_review :pool-amount])))))
+  (let [e (finance/allocation-review-summary [])]
+    (is (false? (:available e)))
+    (is (= 0 (:total e)))
+    (is (= "0.00" (:pool-amount e)))
+    (is (= "0.00" (:allocated-amount e)))
+    (is (= 0 (:entry-count e)))
+    (is (= 0 (:task-count e)))
+    (is (true? (:conserved e))))
+  ;; 端到端: 真实项目提交并独立批准工时后对核算草稿版本执行分摊, 概览暴露 :allocation_review.
+  (let [{:keys [id task_id]} (executing-project! "分摊闭环项目")
+        overview (fn [] (finance/overview *service* (actor 9701) id))]
+    (is (false? (:available (:allocation_review (overview)))))
+    (is (= 0 (:total (:allocation_review (overview)))))
+    (let [entry (:result (time/submit! *service* (actor 9701) id {:version (version id) :task_id task_id :work_date "2026-09-15" :hours 6 :note "研发" :reviewer_id 9702}))]
+      (time/review! *service* (actor 9702) id (:id entry) {:version (version id) :decision "approved" :reason "ok"})
+      (let [v (:id (:result (cost/create! *service* (actor 9701) id {:version (version id) :kind "actual" :period "2026-09" :currency "CNY" :name "核算版本" :revenue "1000" :reviewer_id 9702})))
+            _ (allocation/allocate! *service* (actor 9701) id v {:version (version id) :amount "1000.00" :from_date "2026-09-01" :to_date "2026-09-30" :idempotency_key "alloc-closure-1" :label "研发池"})
+            r (:allocation_review (overview))]
+        (is (true? (:available r)))
+        (is (= 1 (:total r)))
+        (is (= "1000.00" (:pool-amount r)))
+        (is (= "1000.00" (:allocated-amount r)))
+        (is (true? (:conserved r)))
+        (is (= 1 (:entry-count r)))
+        (is (= 1 (:task-count r)))
+        (is (= 0 (:zero-task-count r)))))))
 
 
 (deftest rd-pool-allocates-across-projects-and-conserves

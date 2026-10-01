@@ -26,6 +26,8 @@ POST `/cost-versions/:cost_id/allocate`: amount/from_date/to_date/idempotency_ke
 
 GET `/finance` 读模型新增顶层只读派生键 `cost_review` (F06 四算版本审批闭环汇总, 免迁移/不构成门控): 由领域纯函数 `finance/cost-review-summary` 对整项目 `:cost_versions` 逐条状态只读聚合, 与四算拉通/封期口径正交. 输出 `available` (是否有费用版本), `total`/`draft`/`submitted`/`approved`/`rejected`/`cancelled`/`processed` (=approved+rejected)/`pending` (=draft+submitted), `review-pct` (processed/total 四舍五入百分比, total=0 时为 0), 以及 `by-kind` 向量按 estimate/budget/actual/settlement 四口径各给出 `total`/`approved`/`pending` 分布. 状态互斥故每个版本恰落入一个状态桶; 版本修订另建新 id 因此按全部版本聚合不取 latest. 前端项目费用页"成本与分摊"页签顶部渲染只读汇总面板 (版本总数/已批准/审批中/草稿/已驳回/已取消徽标 + 已作决定/待处理/审批完成率 + 概算-预算-核算-决算各口径总·批准·待标签), 空态显示引导文案. 该面板仅呈现独立审批推进健康度, 不门控任何写操作.
 
+GET `/finance` 读模型新增顶层只读派生键 `allocation_review` (F05 研发费用分摊闭环汇总, 免迁移/不构成门控): 由领域纯函数 `finance/allocation-review-summary` 对整项目 `:allocations` (全部已固化费用分摊批次) 只读聚合, 与逐批 `allocate` 写路径, 四算审批闭环 (`cost_review`), 工时审核闭环 (`timesheet_review`) 及封期口径正交. 输出 `available` (是否有分摊批次), `total` (批次数), `pool-amount` (冻结费用池金额合计, 规范化两位小数字符串), `allocated-amount` (实际摊出金额合计), `entry-count` (生成的正额人工成本条目数), `zero-task-count` (因工时占比过小舍入为 0 未生成成本条目的任务数), `task-count` (覆盖的去重任务数), `conserved` (布尔, 冻结池总额是否恰等于摊出总额, 最大余数法保证恒真). 空批次时 `available=false`/`total=0`/`pool-amount`=`allocated-amount`="0.00"/`conserved=true`. 前端项目费用页"成本与分摊"页签在成本明细与费用分摊记录之间渲染只读汇总面板 "研发费用分摊闭环汇总" (分摊批次 geekblue / 覆盖任务 purple / 生成成本条目 green / 舍入未摊任务 orange 仅 `pos?` 时渲染 / 总额守恒 green 或 总额异常 red 徽标 + 一行"冻结费用池合计 X 元, 实际摊出 Y 元, 生成 N 条人工成本, 覆盖 M 个任务"及舍入零头提示), 无批次时空态提示"尚无费用分摊批次...". 该面板仅呈现分摊固化与总额守恒健康度, 不门控任何写操作.
+
 ## 承诺成本与预算控制 (H12)
 
 承诺是"已签合同/已下订单但尚未实际发生"的占用, 与实际费用分列, 转实付时按释放金额从承诺扣除并计入实际, 不双计. 预算控制规则按基线口径(estimate或budget)对占用率设阈值, 提交承诺时评估并门控.

@@ -276,6 +276,24 @@
          (for [bk (:by-kind cr) :when (pos? (:total bk))] ^{:key (:kind bk)}
            [antd/tag {} (str (get kind-labels (:kind bk) (:kind bk)) " · 总" (:total bk) " 批准" (:approved bk) " 待" (:pending bk))])]])]))
 
+(defn- allocation-review-section
+  "F05 研发费用分摊闭环健康度: 按项目全部分摊批次只读派生, 汇总冻结费用池金额, 实际摊出金额, 生成成本条目数, 覆盖任务数与舍入零头, 不构成门控."
+  [{:keys [model]}]
+  (let [ar (:allocation_review model)]
+    [shared/panel "研发费用分摊闭环汇总" "只读派生 · 反映费用池按批准工时分摊的固化情况与总额守恒, 不构成任何门控" nil
+     (if-not (:available ar)
+       [:span {:style {:color "#98a2b3"}} "尚无费用分摊批次, 执行分摊后此处自动汇总闭环健康度."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "geekblue"} (str "分摊批次 " (:total ar))]
+         [antd/tag {:color "purple"} (str "覆盖任务 " (:task-count ar))]
+         [antd/tag {:color "green"} (str "生成成本条目 " (:entry-count ar))]
+         (when (pos? (:zero-task-count ar)) [antd/tag {:color "orange"} (str "舍入未摊任务 " (:zero-task-count ar))])
+         [antd/tag {:color (if (:conserved ar) "green" "red")} (if (:conserved ar) "总额守恒" "总额异常")]]
+        [:div {:style {:fontSize 13 :color "#4b5563"}}
+         (str "冻结费用池合计 " (:pool-amount ar) " 元, 实际摊出 " (:allocated-amount ar) " 元, 生成 " (:entry-count ar) " 条人工成本, 覆盖 " (:task-count ar) " 个任务"
+              (when (pos? (:zero-task-count ar)) (str ", 其中 " (:zero-task-count ar) " 个任务因工时占比过小舍入为 0 未生成条目")))] ])]))
+
 (defn- cost-actions
   "根据版本状态提供条目维护,提交或独立审批."
   [{:keys [base options editable? approve? open! select!]} cost]
@@ -452,7 +470,7 @@
                         :children (r/as-element [:div {:style {:display "grid" :gap 20}}
                                                 [cost-review-section context]
                                                 [four-count-section context]
-                                                [cost-section context] [ledger-section context selected] [allocation-history (:model context)]])}
+                                                [cost-section context] [ledger-section context selected] [allocation-review-section context] [allocation-history (:model context)]])}
                        {:key "commitments" :label "承诺与预算控制"
                         :children (r/as-element [:div {:style {:display "grid" :gap 20}}
                                                  [budget-control-panel context]

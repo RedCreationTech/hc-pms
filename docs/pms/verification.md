@@ -1366,6 +1366,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: F06 整行保持既有 `partial / 待规则` 状态不变 — 本项只是把已有的逐版四算独立审批生命周期升为一个项目级四算审批闭环健康度与四口径分布的只读汇总子能力, 一个只读子能力不上行整行状态; 汇总不构成任何门控 (审批完成率高低不阻止任何版本提交/审核/修订/取消), 不新增写路径/kind/命令/路由/表结构; 权威收入/累计回款/开票封账口径与 ERP/财务对账集成仍待合同.
 
+## F05 研发费用分摊闭环汇总只读派生 (本轮增补, 2026-10-01)
+
+设计与口径: 研发费用分摊 (F05) 此前已有逐批次新建 (`allocate!` 对已批准成本版本在指定期间内按任务分钟权重用最大余数法精确分摊), 输入工时/金额/版本/输出结果与 SHA256 持久化, 幂等键同内容返回旧结果不同内容 409, 无批准工时 409, 且分摊恒总额守恒 (`distribute` 最大余数法把差额确定地分给最高余数任务), 但"整个项目到底跑了多少笔费用分摊, 冻结的费用池总额与实际摊出的总额是否一致, 一共生成了多少条人工成本条目, 覆盖了多少个任务, 有几个任务因舍入只摊到 0 金额 (未生成成本条目)"这一分摊闭环健康度此前无从一眼可读. 本项在 `domain.pms.finance` 新增只读汇总纯函数 `allocation-review-summary`: 输入整项目 `:allocations` (每条为 `allocation/dto` 后的批次, 含批次级 `:amount_minor` 冻结池金额与 `:rows` 逐任务分摊行), 逐批次累加得 `pool-minor` (冻结费用池合计) 与 `allocated-minor` (各行摊出合计), 派生 `available` (是否有分摊批次), `total` (批次数), `pool-amount`/`allocated-amount` (`money/money` 两位小数规范化字符串), `entry-count` (`amount_minor` 为正的行数, 即真正生成了人工成本条目的任务数), `zero-task-count` (`amount_minor` 为 0 被舍入到无成本条目的任务数), `task-count` (`:task_id` 去重覆盖任务数), `conserved` (= `pool-minor == allocated-minor`, 因 `distribute` 恒守恒故不变为 true). `attach-allocation-review-summary` 以整map函数把结果 `assoc` 到财务概览读模型顶层 `:allocation_review` (下划线命名, 内层键连字符, 不带尾随 `?`), `finance/overview` 在 `->` 线程末尾紧随 `attach-cost-review-summary` 之后追加该纯读步骤, 不改变任何逐条分摊批次. 免迁移 / 免新 kind / 免新命令 / 免新路由 / 不构成任何门控 (只读呈现, 分摊的幂等/冻结版本/批准工时/封期硬校验均不受影响). 前端 `finance.cljs` 在项目费用页"成本与分摊"页签把 `[allocation-review-section context]` 挂在 `cost-section`/`ledger-section` 之后, 新增面板 "研发费用分摊闭环汇总" (彩色标签 分摊批次 geekblue / 覆盖任务 blue / 生成成本条目 green / 总额守恒 green·不守恒 red 仅 `pos?` 时渲染, 另以一行显示"冻结费用池合计 X 元, 实际摊出 Y 元"与"生成 N 条人工成本, 覆盖 M 个任务, 舍入未摊到 Z 个"等); 无分摊批次时空态提示"尚无费用分摊批次...". 该面板与成本台账, 分摊历史, 四算拉通, 四算审批闭环汇总 (`:cost_review`), 工时审核闭环汇总 (`:timesheet_review`) 正交.
+
+| 证据 | 实际记录 |
+|---|---|
+| 组合/财务命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-portfolio-test'` 通过 10 tests / 190 assertions, 0 failures/errors (新增 `allocation-review-summary-is-derived-read-only`: 纯函数直测对两张合成批次 (批次一冻结池 10000 分摊 t1 6000/t2 4000, 批次二冻结池 5000 分摊 t3 5000/t4 0) 断言 available=true, total=2, pool-amount="150.00", allocated-amount="150.00", entry-count=3, zero-task-count=1, task-count=4, conserved=true; attach 后 `:allocations` 逐条不漂移且 `:allocation_review total`=2/pool-amount="150.00"; 空批次给 available=false/total=0/pool-amount="0.00"/allocated-amount="0.00"/entry-count=0/task-count=0 且 conserved=true; 端到端在真实执行态项目提交并独立批准 6h 工时后对核算草稿版本分摊 1000.00 元, GET `/finance` 概览 `allocation_review` available=true/total=1/pool-amount=allocated-amount="1000.00"/conserved=true/entry-count=1/task-count=1/zero-task-count=0, 未分摊前 available=false) |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 通过 193 tests / 2256 assertions, 0 failures/errors; `attach-allocation-review-summary` 挂到 `finance/overview` 线程末尾未造成既有四算审批闭环汇总 / 工时审核闭环汇总 / 跨项目研发费用池分摊与守恒 / 承诺预算控制 / 封期读模型 / 追踪与治理各只读汇总面板回归 |
+| 前端编译 | `npx shadow-cljs compile app` 4035 files / 0 warnings (无未编译改动残留) |
+| HTTP 合同 (契约) | `contracts/finance-closure.md` 的费用分摊节更新: GET `/finance` 读模型新增顶层只读派生键 `allocation_review` (available/total/pool-amount/allocated-amount/entry-count/zero-task-count/task-count/conserved), 明确由纯函数 `finance/allocation-review-summary` 对全部分摊批次读取时聚合, 免迁移/免新命令/不构成门控 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | `pms-f05ac.spec.js` 1 passed (47.9s), 无未捕获 JS 错误: 主操作者经真实命令把项目推进到执行态并建第二任务, 界面"项目费用 -> 成本与分摊"页签先显示空态"尚无费用分摊批次" (截图 f05ac-1-empty.png); 任务一批准 6h 后建核算版本并分摊 1000 元 -> 面板回显"分摊批次 1 / 覆盖任务 1 / 生成成本条目 1 / 总额守恒 / 冻结费用池合计 1000.00 元, 实际摊出 1000.00 元" (截图 f05ac-2-one-panel.png); 任务二批准 4h 后建第二版本并分摊 800 元 (跨两任务) -> 面板翻转为"分摊批次 2 / 覆盖任务 2 / 生成成本条目 3 / 冻结费用池合计 1800.00 元, 实际摊出 1800.00 元" (截图 f05ac-3-two-panel.png); 三态均另用真实 HTTP GET `/finance` 核验 `allocation_review` 各键与逐条批次不漂移且与界面同源; 截图存 `reports/f05ac/` |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本轮完全免迁移不新增 DDL, 汇总为读取时对既有的全部分摊批次 (含逐任务分摊行) 的纯函数聚合, 不落任何新表/列); 批次数, 冻结池/摊出金额, 生成条目数, 覆盖任务数, 舍入零头与守恒口径由后端 SQLite 用例确定性覆盖, 浏览器侧核验界面可见标签与服务端回显同源.
+
+边界: F05 整行保持既有 `partial / 待规则` 状态不变 — 本项只是把已有的逐批次费用池按批准工时最大余数法分摊升为一个项目级分摊闭环健康度与守恒/覆盖/零头可见性的只读汇总子能力, 一个只读子能力不上行整行状态; 汇总不构成任何门控 (守恒/覆盖情况不阻止任何分摊/幂等/版本操作), 不新增写路径/kind/命令/路由/表结构; 跨项目共享研发池的人工费率有效期核算与外部 ERP/成本系统对账口径仍待合同.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.
