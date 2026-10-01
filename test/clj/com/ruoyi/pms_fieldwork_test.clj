@@ -501,3 +501,56 @@
           (is (= 33 (:closure-pct post)))
           (is (= 1 (:fully-stepped post)))
           (is (= 44 (:step-pct post))))))))
+
+
+(deftest preship-readiness-summary-is-derived-read-only
+  (let [empty (fieldwork/preship-readiness-summary [])]
+    (is (false? (:available empty)))
+    (is (= 0 (:total empty)))
+    (is (= 0 (:ready empty)))
+    (is (= 0 (:blocked empty)))
+    (is (= 0 (:released empty)))
+    (is (= 0 (:readiness-pct empty)))
+    (is (= ["fat" "remediation" "warehouse_in" "payment"] (mapv :code (:by-condition empty))))
+    (is (= [0 0 0 0] (mapv :applicable (:by-condition empty))))
+    (is (= [0 0 0 0] (mapv :satisfied (:by-condition empty)))))
+  (let [shipments [{:status "released" :preship_checklist [{:code "fat" :satisfied true} {:code "remediation" :satisfied true}
+                                                           {:code "warehouse_in" :satisfied true} {:code "payment" :satisfied true}]}
+                   {:status "draft" :preship_checklist [{:code "fat" :satisfied true} {:code "remediation" :satisfied true}
+                                                        {:code "warehouse_in" :satisfied false} {:code "payment" :satisfied false}]}
+                   {:status "in_review" :preship_checklist [{:code "fat" :satisfied true} {:code "remediation" :satisfied false}]}]
+        rollup (fieldwork/preship-readiness-summary shipments)]
+    (is (true? (:available rollup)))
+    (is (= 3 (:total rollup)))
+    (is (= 1 (:ready rollup)))
+    (is (= 2 (:blocked rollup)))
+    (is (= 1 (:released rollup)))
+    (is (= 33 (:readiness-pct rollup)))
+    (is (= [3 3 2 2] (mapv :applicable (:by-condition rollup))))
+    (is (= [3 2 1 1] (mapv :satisfied (:by-condition rollup))))
+    (is (= ["fat" "remediation" "warehouse_in" "payment"] (mapv :code (:by-condition rollup))))))
+
+
+(deftest preship-readiness-attached-to-delivery-workspace
+  (let [ctx (context! {:pre_ship_conditions ["warehouse_in" "payment"] :handover_deadline_days 2})
+        id (:id ctx) shipment (shipped-shipment! ctx)]
+    (let [pre (:preship_readiness (workspace id))]
+      (is (true? (:available pre)))
+      (is (= 1 (:total pre)))
+      (is (= 0 (:ready pre)))
+      (is (= 1 (:blocked pre)))
+      (is (= 0 (:released pre)))
+      (is (= 0 (:readiness-pct pre)))
+      (is (= [1 1 1 1] (mapv :applicable (:by-condition pre))))
+      (is (= [1 1 0 0] (mapv :satisfied (:by-condition pre)))))
+    (command! id :shipments :conditions (:id shipment) {:warehouse_in_confirmed true :warehouse_note "WMS入库单 IN-001"
+                                                        :payment_confirmed true :payment_note "财务确认提货款到账" :evidence_ids [(:evidence ctx)]})
+    (review! ctx :shipments (:id shipment) :submit)
+    (let [post (:preship_readiness (workspace id))]
+      (is (= 1 (:total post)))
+      (is (= 1 (:ready post)))
+      (is (= 0 (:blocked post)))
+      (is (= 1 (:released post)))
+      (is (= 100 (:readiness-pct post)))
+      (is (= [1 1 1 1] (mapv :applicable (:by-condition post))))
+      (is (= [1 1 1 1] (mapv :satisfied (:by-condition post)))))))

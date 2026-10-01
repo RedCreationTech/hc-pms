@@ -174,6 +174,41 @@
              (required "payment") (conj {:code "payment" :label "提货款条件已确认" :required true
                                          :satisfied (boolean (:payment_confirmed pre)) :source "local_fact"})))))
 
+(def ^:private preship-condition-catalog
+  "发货前条件固定目录 (与 shipment-read-model 一致), 供只读汇总按条件维度聚合."
+  [["fat" "适用FAT/SIT试验已批准"]
+   ["remediation" "阻塞整改已关闭"]
+   ["warehouse_in" "入库/装箱已确认"]
+   ["payment" "提货款条件已确认"]])
+
+(defn preship-readiness-summary
+  "E04 发货前条件满足度只读汇总: 对已按 shipment-read-model 富化 :preship_checklist 的整项目 :shipments 读取时聚合,
+   给出各发货前条件 (FAT/整改/入库/提货款) 的适用数与满足数分布及可放行比例; 只读派生, 不落库不投递,
+   不构成任何门控 (真正的放行门控仍由 conditions-ready! 在写入时执行). 键名不带尾随问号."
+  [shipments]
+  (let [total (count shipments)
+        has-cond (fn [s code] (some #(= code (:code %)) (:preship_checklist s)))
+        cond-sat (fn [s code] (some #(and (= code (:code %)) (:satisfied %)) (:preship_checklist s)))
+        ready (count (filterv #(every? :satisfied (:preship_checklist %)) shipments))
+        released (count (filterv #(= "released" (:status %)) shipments))
+        by-condition (mapv (fn [[code label]]
+                             {:code code :label label
+                              :applicable (count (filterv #(has-cond % code) shipments))
+                              :satisfied (count (filterv #(cond-sat % code) shipments))})
+                           preship-condition-catalog)]
+    {:available (boolean (seq shipments))
+     :total total
+     :ready ready
+     :blocked (- total ready)
+     :released released
+     :readiness-pct (if (pos? total) (int (Math/round ^double (* 100.0 (/ ready total)))) 0)
+     :by-condition by-condition}))
+
+(defn attach-preship-readiness
+  "把 preship-readiness-summary 挂到交付工作区读模型顶层 :preship_readiness; 读取时派生, 不改变任何逐条发货."
+  [data]
+  (assoc data :preship_readiness (preship-readiness-summary (:shipments data))))
+
 ;; ── E07 交底 ───────────────────────────────────────────────────
 
 (defn create-handover!

@@ -238,8 +238,33 @@
                                                                 (r/as-element [antd/progress {:percent (if (pos? (:total ap)) (int (* 100 (/ t (:total ap)))) 0) :size "small" :style {:width 180}}])))}])}]])]))
 
 
+(defn- preship-readiness-section
+  "E04 发货前条件满足度只读汇总: FAT/整改/入库/提货款各条件在项目全部发货单上的适用与满足分布及可放行比例, 读取时派生, 不门控任何写操作 (提交放行时仍由服务端条件门控强制)."
+  [{:keys [model]}]
+  (let [pr (:preship_readiness model)
+        applicable-rows (filterv #(pos? (:applicable %)) (:by-condition pr))]
+    [shared/panel "发货前条件满足度汇总" "FAT/整改/入库/提货款各条件在项目全部发货单上的适用与满足分布及可放行比例; 只读派生, 不门控任何写操作 (提交放行时仍由服务端条件门控强制)" nil
+     (if-not (:available pr)
+       [shared/empty-state "尚无发货单, 质量试验合格后建立发运计划" nil]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "发货单 " (:total pr))]
+         [antd/tag {:color "green"} (str "条件齐备 " (:ready pr))]
+         [antd/tag {:color (if (pos? (or (:blocked pr) 0)) "red" "default")} (str "条件未齐 " (:blocked pr))]
+         [antd/tag {:color "processing"} (str "已放行 " (:released pr))]
+         [antd/tag {:color (if (>= (:readiness-pct pr) 100) "green" "gold")} (str "可放行率 " (:readiness-pct pr) "%")]]
+        [antd/progress {:percent (:readiness-pct pr) :size "small" :style {:width "100%"}}]
+        [antd/table {:rowKey "code" :size "small" :pagination false :dataSource (clj->js applicable-rows)
+                     :columns (clj->js [{:title "发货前条件" :dataIndex "label" :width 200}
+                                        {:title "适用发货单" :dataIndex "applicable" :width 110}
+                                        {:title "已满足" :dataIndex "satisfied" :width 90}
+                                        {:title "满足度" :key "bar" :width 220
+                                         :render (fn [_ row] (let [a (aget row "applicable") s (aget row "satisfied")]
+                                                                (r/as-element [antd/progress {:percent (if (pos? a) (int (* 100 (/ s a))) 0) :size "small" :style {:width 180}}])))}])}]])]))
+
 (defn- fieldwork-section
-  "B07 工勘, E07 交底时限与 E08/E09 现场任务 (本地事实, 外部回传未配置)."
+  "B07 工勘,
+ E07 交底时限与 E08/E09 现场任务 (本地事实, 外部回传未配置)."
   [context]
   [:div {:style {:display "grid" :gap 20}}
    [record-section context :surveys "surveys" "工勘任务" "按项目适用性登记各次工勘, 责任/日期/交付物明确, 完成须证据并独立确认"
@@ -287,15 +312,17 @@
                                       :render #(w/related-label (get-in context [:model :assemblies]) :id :title %)}]])
 
 (defn- shipments-section
-  "记录放行,真实物流和客户签收验证."
+  "记录放行,真实物流和客户签收验证; 台账下追加发货前条件满足度只读汇总."
   [context]
-  [record-section context :shipments "shipments" "发运与签收" "质量合格后放行,独立审核人依据实际证据验证客户签收"
-   "建立发运计划" forms/shipment-dialog [(w/text-column :consignee "收货方") (w/text-column :planned_date "计划日期")
-                                        {:title "发货前条件" :dataIndex "preship_checklist" :width 260
-                                         :render (fn [v] (r/as-element (into [antd/space {:wrap true}]
-                                                                             (map (fn [c] [antd/tag {:color (if (:satisfied c) "green" "red")} (:label c)])
-                                                                                  (js->clj v :keywordize-keys true)))))}
-                                        (w/text-column :tracking_no "运单编号") (w/text-column :received_on "签收日期")]])
+  [:div {:style {:display "grid" :gap 20}}
+   [record-section context :shipments "shipments" "发运与签收" "质量合格后放行,独立审核人依据实际证据验证客户签收"
+    "建立发运计划" forms/shipment-dialog [(w/text-column :consignee "收货方") (w/text-column :planned_date "计划日期")
+                                         {:title "发货前条件" :dataIndex "preship_checklist" :width 260
+                                          :render (fn [v] (r/as-element (into [antd/space {:wrap true}]
+                                                                              (map (fn [c] [antd/tag {:color (if (:satisfied c) "green" "red")} (:label c)])
+                                                                                   (js->clj v :keywordize-keys true)))))}
+                                         (w/text-column :tracking_no "运单编号") (w/text-column :received_on "签收日期")]]
+   [preship-readiness-section context]])
 
 (defn- services-section
   "发运异常和售后处理需要解决证据与独立关闭."
