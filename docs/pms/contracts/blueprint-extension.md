@@ -67,7 +67,9 @@
 | POST `/site-tasks/:rid/start` | actual_start, note | draft -> in_progress; 前序未 closed 409 |
 | POST `/site-tasks/:rid/complete` | actual_end, evidence_ids, result | in_progress -> closed; 早于开始 400 |
 
-读模型 `GET ""` 新增: `surveys, handovers (handover_days_left, handover_overdue), site_tasks (site_delayed, site_days_to_start), assemblies[*].steps/step_count/step_total/current_step/next_step, shipments[*].preship_checklist[{code, label, required, satisfied, source}], kitting_rollup{bom_count, required_lines, complete_lines, kit_percent, nodes[...], shortages[...], unassigned_bom_count}, task_links{task_id: [...]}, assembly_steps`; 收尾 `blockers` 新增工勘次数不足与 (配置 `handover_required` 时) 交底未完成.
+读模型 `GET ""` 新增: `surveys, handovers (handover_days_left, handover_overdue), site_tasks (site_delayed, site_days_to_start), site_task_progress{...}, assemblies[*].steps/step_count/step_total/current_step/next_step, shipments[*].preship_checklist[{code, label, required, satisfied, source}], kitting_rollup{bom_count, required_lines, complete_lines, kit_percent, nodes[...], shortages[...], unassigned_bom_count}, task_links{task_id: [...]}, assembly_steps`; 收尾 `blockers` 新增工勘次数不足与 (配置 `handover_required` 时) 交底未完成.
+
+`site_task_progress` (E09 现场任务进度只读汇总, 免迁移): 由纯函数 `delivery.fieldwork/site-task-progress-summary` 对 `site_tasks` 读取时聚合派生, 经 `attach-site-task-progress` 以顶层键 `site_task_progress` (下划线) 挂到交付工作台读模型, 内层键连字符不带尾随 `?`, 不落库, 不新增 kind/命令/路由/表结构, 不构成任何门控 (进度高低不阻止任何现场任务开始/完成/复评, 也不改动逐条 `site_tasks` 与其 `site_delayed`/`site_days_to_start` 标记). 交底完成后自动生成的四个 `site-task` (positioning/installation/commissioning/sat) 此前只有逐条只读延误标记, 无从一眼读出项目现场到底完成到哪一步. 本汇总返回 `available (是否存在任一现场任务) / total (任务总数) / closed (已闭环数 status=closed) / in-progress (进行中数) / draft (待开工数) / delayed (计划开始已过且仍 draft 的只读延误数) / closure-pct (closed/total 四舍五入整数百分比, 无任务时 0) / earliest-open (未闭环任务中最小的 planned_start, 全闭环或无未完工时 null) / by-key[定位/安装/调试/SAT 四环节各 {key, total, closed}]`. 无现场任务时 `available=false` 且计数为 0, 面板显"尚无现场任务, 交底完成后自动生成定位/安装/调试/SAT序列". 前端在"工程交付 -> 工勘与现场"页签的现场任务区新增只读"现场任务进度汇总"面板 (彩色标签呈现总数/已闭环/进行中/待开工/已延误/闭环率与最早未完工计划日, 其下四环节完成度进度条), 与逐条现场任务台账同源互补.
 
 ## 财务新增 (前缀 `/api/pms/projects/:id`)
 

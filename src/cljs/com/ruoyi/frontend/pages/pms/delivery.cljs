@@ -185,6 +185,31 @@
        [antd/tag {:color (if (get done step) "green" "default")}
         (str (get forms/step-labels step step) (when-let [d (get done step)] (str " " (:actual_date d))))])]))
 
+(defn- site-task-progress-section
+  "E09 现场任务进度只读汇总: 交底后自动生成的定位/安装/调试/SAT现场任务序列整体闭环健康度, 读取时派生, 不门控任何写操作."
+  [{:keys [model]}]
+  (let [sp (:site_task_progress model)
+        key-labels {"positioning" "定位" "installation" "安装" "commissioning" "调试" "sat" "SAT"}]
+    [shared/panel "现场任务进度汇总" "交底后自动生成的定位/安装/调试/SAT现场任务整体闭环健康度; 只读派生, 不门控任何写操作" nil
+     (if-not (:available sp)
+       [shared/empty-state "尚无现场任务, 交底完成后自动生成定位/安装/调试/SAT序列" nil]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "现场任务 " (:total sp))]
+         [antd/tag {:color "green"} (str "已闭环 " (:closed sp))]
+         [antd/tag {:color "processing"} (str "进行中 " (:in-progress sp))]
+         [antd/tag (str "待开工 " (:draft sp))]
+         (when (pos? (or (:delayed sp) 0)) [antd/tag {:color "red"} (str "已延误 " (:delayed sp))])
+         [antd/tag {:color (if (>= (:closure-pct sp) 100) "green" "gold")} (str "闭环率 " (:closure-pct sp) "%")]
+         (when-let [eo (:earliest-open sp)] [antd/tag (str "最早未完工计划 " eo)])]
+        [antd/table {:rowKey "key" :size "small" :pagination false :dataSource (clj->js (:by-key sp))
+                     :columns (clj->js [{:title "环节" :dataIndex "key" :width 120 :render (fn [v] (get key-labels v v))}
+                                        {:title "任务数" :dataIndex "total" :width 90}
+                                        {:title "已闭环" :dataIndex "closed" :width 90}
+                                        {:title "完成度" :key "pct" :width 220
+                                         :render (fn [_ row] (let [t (aget row "total") c (aget row "closed")]
+                                                                (r/as-element [antd/progress {:percent (if (pos? t) (int (* 100 (/ c t))) 0) :size "small" :style {:width 180}}])))}])}]])]))
+
 (defn- fieldwork-section
   "B07 工勘, E07 交底时限与 E08/E09 现场任务 (本地事实, 外部回传未配置)."
   [context]
@@ -212,7 +237,8 @@
        :render (fn [_ row] (r/as-element (if (true? (aget row "site_delayed")) [antd/tag {:color "red"} "计划开始已过"]
                                              (if-let [d (aget row "site_days_to_start")] [antd/tag (str "距开始 " d " 天")] [:span "—"]))))}
       (w/text-column :actual_start "实际开始") (w/text-column :actual_end "实际完成") (w/text-column :result "结果") (state-column)]
-     #(record-actions context "site-tasks" %)]]])
+     #(record-actions context "site-tasks" %)]]
+   [site-task-progress-section context]])
 
 (defn- assemblies-section
   "装配台账展示实际开工, 执行步骤明细与独立交检."

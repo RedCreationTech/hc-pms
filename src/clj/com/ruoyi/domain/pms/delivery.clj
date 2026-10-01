@@ -96,6 +96,7 @@
             (update :shipments #(mapv (fn [s] (fieldwork/shipment-read-model config (fat-ok? s) blocker-free? s)) %))
             (update :handovers #(mapv (partial fieldwork/handover-read-model today) %))
             (update :site_tasks #(mapv (partial fieldwork/site-task-read-model today) %))
+            fieldwork/attach-site-task-progress
             (assoc :configuration config :project_version (:version project)
                    :blockers (closure-blockers q project) :external_sync_status "not_configured"
                    :kitting_rollup (materials/kitting-rollup (:boms data) tasks nodes)

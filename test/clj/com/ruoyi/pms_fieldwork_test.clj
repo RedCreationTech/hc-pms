@@ -3,6 +3,7 @@
    齐套多层卷积 (D06), 包材申请 (D03), 阻断关口 (B11/B13), DQ (B08) 与单机局部暂停 (B16) 的真实数据库测试."
   (:require [clojure.test :refer [deftest is use-fixtures]]
             [com.ruoyi.domain.pms.delivery :as delivery]
+            [com.ruoyi.domain.pms.delivery.fieldwork :as fieldwork]
             [com.ruoyi.domain.pms.governance :as gov]
             [com.ruoyi.domain.pms.planning :as planning]
             [com.ruoyi.domain.pms.queries :as queries]
@@ -372,3 +373,66 @@
         (is (false? (:baseline_stale model)))
         (is (= "approved" (:baseline_current_status model)))))
     (is (= "regular" (:meeting_type (gov! id :meetings :create nil {:title "例会" :held_on "2026-09-24" :minutes "纪要" :attendee_ids [9641]}))))))
+
+
+(deftest site-task-progress-summary-is-derived-read-only
+  (let [empty (fieldwork/site-task-progress-summary [])]
+    (is (false? (:available empty)))
+    (is (= 0 (:total empty) (:closed empty) (:in-progress empty) (:draft empty) (:delayed empty) (:closure-pct empty)))
+    (is (nil? (:earliest-open empty)))
+    (is (= [{:key "positioning" :total 0 :closed 0}
+            {:key "installation" :total 0 :closed 0}
+            {:key "commissioning" :total 0 :closed 0}
+            {:key "sat" :total 0 :closed 0}]
+           (:by-key empty))))
+  (let [tasks [{:task_key "positioning" :status "closed" :planned_start "2026-09-01" :site_delayed false}
+               {:task_key "installation" :status "in_progress" :planned_start "2026-09-10" :site_delayed false}
+               {:task_key "commissioning" :status "draft" :planned_start "2026-09-05" :site_delayed true}
+               {:task_key "sat" :status "draft" :planned_start "2026-12-20" :site_delayed false}]
+        sum (fieldwork/site-task-progress-summary tasks)]
+    (is (true? (:available sum)))
+    (is (= 4 (:total sum)))
+    (is (= 1 (:closed sum)))
+    (is (= 1 (:in-progress sum)))
+    (is (= 2 (:draft sum)))
+    (is (= 1 (:delayed sum)))
+    (is (= 25 (:closure-pct sum)))
+    (is (= "2026-09-05" (:earliest-open sum)))
+    (is (= [{:key "positioning" :total 1 :closed 1}
+            {:key "installation" :total 1 :closed 0}
+            {:key "commissioning" :total 1 :closed 0}
+            {:key "sat" :total 1 :closed 0}]
+           (:by-key sum)))))
+
+
+(deftest site-task-progress-rollup-attached-to-delivery-workspace
+  (let [ctx (context! {:pre_ship_conditions ["warehouse_in" "payment"] :handover_deadline_days 2 :site_lag_days 1 :handover_required true})
+        id (:id ctx) shipment (shipped-shipment! ctx)]
+    (command! id :shipments :conditions (:id shipment) {:warehouse_in_confirmed true :warehouse_note "WMS入库单 WP-001"
+                                                       :payment_confirmed true :payment_note "财务确认提货款到账" :evidence_ids [(:evidence ctx)]})
+    (review! ctx :shipments (:id shipment) :submit)
+    (let [shipped-on (today-minus 3)
+          _ (command! id :shipments :dispatch (:id shipment) {:shipped_on shipped-on :tracking_no "WP-TRACK" :evidence_ids [(:evidence ctx)]})
+          handover (first (:handovers (workspace id)))
+          _ (command! id :handovers :complete (:id handover) {:document_ids [(:evidence ctx)] :checklist_note "交底清单 WP" :completed_on (today-minus 1)})
+          rollup (:site_task_progress (workspace id))]
+      (is (true? (:available rollup)))
+      (is (= 4 (:total rollup)))
+      (is (= 0 (:closed rollup)))
+      (is (= 4 (:draft rollup)))
+      (is (= 0 (:delayed rollup)))
+      (is (= 0 (:closure-pct rollup)))
+      (is (= (str (LocalDate/now)) (:earliest-open rollup)))
+      (is (= [{:key "positioning" :total 1 :closed 0} {:key "installation" :total 1 :closed 0}
+              {:key "commissioning" :total 1 :closed 0} {:key "sat" :total 1 :closed 0}]
+             (:by-key rollup)))
+      (let [tasks (sort-by :sequence (:site_tasks (workspace id)))]
+        (command! id :site-tasks :start (:id (first tasks)) {:actual_start (today-minus 0)})
+        (command! id :site-tasks :complete (:id (first tasks)) {:actual_end (today-minus 0) :evidence_ids [(:evidence ctx)] :result "定位完成"})
+        (let [after (:site_task_progress (workspace id))]
+          (is (= 1 (:closed after)))
+          (is (= 3 (:draft after)))
+          (is (= 25 (:closure-pct after)))
+          (is (= [{:key "positioning" :total 1 :closed 1} {:key "installation" :total 1 :closed 0}
+                  {:key "commissioning" :total 1 :closed 0} {:key "sat" :total 1 :closed 0}]
+                 (:by-key after))))))))

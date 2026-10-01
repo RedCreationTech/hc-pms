@@ -235,3 +235,35 @@
   (let [planned (LocalDate/parse (:planned_start task))]
     (assoc task :site_delayed (boolean (and (= "draft" (:status task)) (.isAfter today planned)))
            :site_days_to_start (when (= "draft" (:status task)) (.between java.time.temporal.ChronoUnit/DAYS today planned)))))
+
+(defn site-task-progress-summary
+  "E09 现场任务进度只读汇总: 对已按 site-task-read-model 富化的整项目 :site_tasks 读取时聚合,
+   给出定位/安装/调试/SAT 现场任务序列的整体闭环健康度; 只读派生, 不落库不投递, 不构成任何门控. 键名不带尾随问号."
+  [tasks]
+  (let [closed (filterv #(= "closed" (:status %)) tasks)
+        in-progress (filterv #(= "in_progress" (:status %)) tasks)
+        draft (filterv #(= "draft" (:status %)) tasks)
+        delayed (filterv :site_delayed tasks)
+        open (remove #(= "closed" (:status %)) tasks)
+        total (count tasks)
+        by-key (mapv (fn [k]
+                       (let [grp (filterv #(= k (:task_key %)) tasks)]
+                         {:key k
+                          :total (count grp)
+                          :closed (count (filterv #(= "closed" (:status %)) grp))}))
+                     ["positioning" "installation" "commissioning" "sat"])]
+    {:available (boolean (seq tasks))
+     :total total
+     :closed (count closed)
+     :in-progress (count in-progress)
+     :draft (count draft)
+     :delayed (count delayed)
+     :closure-pct (if (pos? total) (int (Math/round ^double (* 100.0 (/ (count closed) total)))) 0)
+     :earliest-open (when-let [ds (seq (remove nil? (map :planned_start open)))] (first (sort ds)))
+     :by-key by-key}))
+
+(defn attach-site-task-progress
+  "把 site-task-progress-summary 挂到交付工作区读模型顶层 :site_task_progress; 读取时派生, 不改变任何逐条现场任务."
+  [data]
+  (assoc data :site_task_progress (site-task-progress-summary (:site_tasks data))))
+
