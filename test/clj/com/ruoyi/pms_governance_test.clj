@@ -4,6 +4,7 @@
     [cheshire.core :as json]
     [clojure.test :refer [deftest is use-fixtures]]
     [com.ruoyi.domain.pms.governance :as gov]
+    [com.ruoyi.domain.pms.governance.approval :as approval]
     [com.ruoyi.domain.pms.governance.collaboration :as collab]
     [com.ruoyi.domain.pms.governance.evidence :as evidence]
     [com.ruoyi.domain.pms.governance.gates :as gates]
@@ -1602,6 +1603,98 @@
       (let [orow (first (filter #(= oid (:id %)) (:changes (workspace id))))]
         (is (= "approved" (:status orow)))
         (is (= "none" (get-in orow [:ccb_summary :state])))))))
+
+
+(deftest change-closure-summary-is-derived-read-only
+  (let [id (project!)
+        sum (fn [] (:change_closure_summary (workspace id)))
+        base-body {:title "更改设备范围" :reason "合同调整" :scope_impact "增加设备"
+                   :schedule_impact "增加五日" :cost_impact "重新估价" :quality_impact "增加测试"
+                   :resource_impact "追加工程师"}
+        high-body (assoc base-body :schedule_impact_days 15 :cost_impact_amount "200000")
+        c1 (command! id :changes :create nil base-body)             ; 停在 draft
+        c2 (command! id :changes :create nil base-body)             ; 提交 -> in_review
+        c3 (command! id :changes :create nil base-body)             ; approve! -> approved
+        c4 (command! id :changes :create nil base-body)             ; 提交后驳回 -> rejected
+        c5 (command! id :changes :create nil high-body)             ; 高影响: 提交升级->确认->批准 -> approved+acknowledged
+        c6 (command! id :changes :create nil base-body)             ; 提交+委员会+一票赞成 -> voting
+        c7 (command! id :changes :create nil base-body)             ; 提交+委员会门槛1+一票赞成 -> passed+quorum
+        c8 (command! id :changes :create nil high-body)]            ; 高影响: 提交升级->确认豁免 -> in_review+waived
+    ;; 只读聚合不改变工作流: 先建后逐步推进.
+    (command! id :changes :submit (:id c2) {:reviewer_id 9302})
+    (approve! id :changes (:id c3))
+    (command! id :changes :submit (:id c4) {:reviewer_id 9302})
+    (command! 9302 id :changes :decision (:id c4) {:decision "rejected" :reason "证据不足"})
+    ;; c5: 高影响提交自动升级 pending, 独立确认(9303)责成处置后独立批准.
+    (command! id :changes :submit (:id c5) {:reviewer_id 9302})
+    (command! 9303 id :changes :escalation (:id c5) {:decision "approved" :note "变更控制确认责成处置"})
+    (command! 9302 id :changes :decision (:id c5) {:decision "approved" :reason "确认后独立通过"})
+    ;; c6: 提交后设门槛2委员会, 仅一票赞成 -> voting.
+    (command! id :changes :submit (:id c6) {:reviewer_id 9302})
+    (command! id :changes :ccb (:id c6) {:members [9302 9303] :required 2})
+    (command! 9302 id :changes :ballot (:id c6) {:vote "approve" :note "初投赞成"})
+    ;; c7: 提交后设门槛1委员会, 一票赞成 -> passed 且达门槛.
+    (command! id :changes :submit (:id c7) {:reviewer_id 9302})
+    (command! id :changes :ccb (:id c7) {:members [9302 9303] :required 1})
+    (command! 9302 id :changes :ballot (:id c7) {:vote "approve" :note "同意"})
+    ;; c8: 高影响提交自动升级 pending, 独立确认驳回 -> waived (状态仍 in_review).
+    (command! id :changes :submit (:id c8) {:reviewer_id 9302})
+    (command! 9303 id :changes :escalation (:id c8) {:decision "rejected" :note "评估后豁免"})
+    (is (true? (:available (sum))))
+    (is (= 8 (:total (sum))))
+    (is (= 1 (:draft (sum))))          ; c1
+    (is (= 4 (:in-review (sum))))      ; c2 c6 c7 c8
+    (is (= 2 (:approved (sum))))       ; c3 c5
+    (is (= 1 (:rejected (sum))))       ; c4
+    ;; approval-pct = round(100*2/8) = 25.
+    (is (= 25 (:approval-pct (sum))))
+    ;; 高影响两条(c5 c8), 均触发升级: 一条确认责成(acknowledged) 一条豁免(waived), 无 pending.
+    (is (= 2 (:high-impact (sum))))
+    (is (= 2 (:escalated (sum))))
+    (is (= 0 (:pending (sum))))
+    (is (= 1 (:acknowledged (sum))))
+    (is (= 1 (:waived (sum))))
+    ;; CCB 表决态: 仅 c6 voting 与 c7 passed, 其余六条 none, 达门槛一条.
+    (is (= 6 (:ccb-none (sum))))
+    (is (= 1 (:ccb-voting (sum))))
+    (is (= 1 (:ccb-passed (sum))))
+    (is (= 0 (:ccb-failed (sum))))
+    (is (= 1 (:ccb-quorum (sum))))
+    ;; 只读派生不改变变更状态: 重复读取分布稳定, 既有变更状态与升级不漂移.
+    (is (= (sum) (:change_closure_summary (workspace id))))
+    (let [row (first (filter #(= (:id c5) (:id %)) (:changes (workspace id))))]
+      (is (= "approved" (:status row)))
+      (is (= true (:escalated row)))
+      (is (= "acknowledged" (:escalation_state row))))
+    ;; 修订去重: 给草稿 c1 出一版新修订, 同一 code 只计最新有效版本, 总数与 draft 计数不变.
+    (command! id :changes :revisions (:id c1) (assoc base-body :title "更改设备范围(修订)"))
+    (is (= 8 (:total (sum))))
+    (is (= 1 (:draft (sum))))
+    ;; 纯函数直测: 空输入 available false 且各计数 0.
+    (let [empty (approval/change-closure-summary [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:total empty)))
+      (is (= 0 (:approval-pct empty)))
+      (is (= 0 (:draft empty)))
+      (is (= 0 (:ccb-none empty))))
+    ;; 纯函数直测: 同 code 修订只计最新有效版本(此例最新版为 approved, 旧版 draft 不计).
+    (let [one (approval/change-closure-summary
+                [{:code "R" :revision 1 :status "draft"} {:code "R" :revision 2 :status "approved"}])]
+      (is (= 1 (:total one)))
+      (is (= 0 (:draft one)))
+      (is (= 1 (:approved one)))
+      (is (= 100 (:approval-pct one))))
+    ;; 纯函数直测: 表决未通过(反对票使门槛不可达) 归 failed, 与达门槛(quorum)互斥.
+    (let [failed (approval/change-closure-summary
+                   [{:status "in_review" :ccb_members [{:user_id 1} {:user_id 2}]
+                     :ccb_required 2 :ccb_ballots [{:member_id 1 :vote "reject"}]}])]
+      (is (= 1 (:ccb-failed failed)))
+      (is (= 0 (:ccb-quorum failed))))
+    ;; 非破坏性: 直测纯函数不写回输入记录.
+    (let [rows [{:code "K" :revision 1 :status "draft"}]
+          snapshot (approval/change-closure-summary rows)]
+      (is (= {:code "K" :revision 1 :status "draft"} (first rows)))
+      (is (= 1 (:total snapshot))))))
 
 
 (defn- request

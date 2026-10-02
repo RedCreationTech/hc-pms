@@ -1213,6 +1213,48 @@
     #(change-actions context %)]])
 
 
+(defn- change-closure-section
+  "按每个变更最新有效版本只读聚合变更控制闭环: 变更总数与各状态(草稿/审批中/已批准/已驳回)及批准率, 高影响升级面与独立确认处置推进(待确认/已确认/已豁免), 以及变更控制委员会表决状态分布(未设立/表决中/通过/未通过/达门槛); 只读派生, 不改变变更状态或门控."
+  [{:keys [model]}]
+  (let [sum (:change_closure_summary model)
+        total (:total sum 0)
+        draft (:draft sum 0)
+        in-review (:in-review sum 0)
+        approved (:approved sum 0)
+        rejected (:rejected sum 0)
+        pct (:approval-pct sum 0)
+        high (:high-impact sum 0)
+        escalated (:escalated sum 0)
+        pending (:pending sum 0)
+        acknowledged (:acknowledged sum 0)
+        waived (:waived sum 0)
+        ccb-voting (:ccb-voting sum 0)
+        ccb-passed (:ccb-passed sum 0)
+        ccb-failed (:ccb-failed sum 0)
+        ccb-quorum (:ccb-quorum sum 0)]
+    [shared/panel "变更控制闭环汇总" "统计每个变更最新有效版本的工作流状态分布, 高影响升级与独立确认处置推进, 及变更控制委员会表决进度; 只读派生, 不改变变更状态或门控"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无项目变更, 提出并推进变更审批后可在此查看闭环进展."]
+       [antd/space {:wrap true}
+        [antd/tag {:color "blue"} (str "变更总数 " total)]
+        [antd/tag {:color (cond (= pct 100) "green" (zero? pct) "red" :else "gold")}
+         (str "已批准 " pct "% (" approved "/" total ")")]
+        (when (pos? draft) [antd/tag {:color "default"} (str "草稿 " draft)])
+        (when (pos? in-review) [antd/tag {:color "orange"} (str "审批中 " in-review)])
+        (when (pos? approved) [antd/tag {:color "green"} (str "已批准 " approved)])
+        (when (pos? rejected) [antd/tag {:color "red"} (str "已驳回 " rejected)])
+        (when (pos? high) [antd/tag {:color "volcano"} (str "高影响 " high)])
+        (when (pos? escalated)
+          [antd/tag {:color "red"} (str "已升级 " escalated)])
+        (when (pos? pending) [antd/tag {:color "orange"} (str "待独立确认 " pending)])
+        (when (pos? acknowledged) [antd/tag {:color "green"} (str "升级已确认 " acknowledged)])
+        (when (pos? waived) [antd/tag {:color "blue"} (str "升级已豁免 " waived)])
+        (when (pos? ccb-voting) [antd/tag {:color "gold"} (str "委员会表决中 " ccb-voting)])
+        (when (pos? ccb-passed) [antd/tag {:color "green"} (str "委员会表决通过 " ccb-passed)])
+        (when (pos? ccb-failed) [antd/tag {:color "red"} (str "委员会表决未通过 " ccb-failed)])
+        (when (pos? ccb-quorum) [antd/tag {:color "geekblue"} (str "已达表决门槛 " ccb-quorum)])])]))
+
+
 (defn- gate-actions
   "先逐项验证证据,再提交独立Gate决策."
   [{:keys [base model options editable? approve? open!]} gate]
@@ -1460,7 +1502,7 @@
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section action-closure-section action-section]]
-                     ["changes" "变更控制" [change-section]]
+                     ["changes" "变更控制" [change-section change-closure-section]]
                      ["quality" "DQ与局部暂停" [dq-summary-section dq-section pause-section]]])}])
 
 

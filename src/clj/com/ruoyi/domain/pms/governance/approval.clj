@@ -282,6 +282,37 @@
       (assoc :ccb_summary (ccb-tally record))))
 
 
+(defn change-closure-summary
+  "项目级变更控制闭环只读汇总: 按变更最新有效版本(s/latest, 修订链只计最新版)统计总数与各工作流状态(草稿/审批中/已批准/已驳回)计数与已批准率, 高影响升级面(复用 high-impact? 阈值单一口径)与独立确认处置推进(pending/acknowledged/waived), 以及变更控制委员会表决状态分布(复用 ccb-tally: none/voting/passed/failed 与已达门槛数); 只读派生, 不落库不投递, 不改变任何变更状态或门控. 键名不带尾随问号."
+  [changes]
+  (let [active (s/latest changes)
+        total (count active)
+        status-count (fn [st] (count (filterv #(= st (:status %)) active)))
+        approved (status-count "approved")
+        esc-count (fn [st] (count (filterv #(and (:escalated %) (= st (:escalation_state %))) active)))
+        ccb-count (fn [st] (count (filterv #(= st (:state (ccb-tally %))) active)))
+        quorum (count (filterv #(true? (:quorum_met (ccb-tally %))) active))]
+    {:available (pos? total)
+     :total total
+     :draft (status-count "draft")
+     :in-review (status-count "in_review")
+     :approved approved
+     :rejected (status-count "rejected")
+     :approval-pct (if (pos? total)
+                    (int (Math/round ^double (/ (* 100.0 approved) total)))
+                    0)
+     :high-impact (count (filterv high-impact? active))
+     :escalated (count (filterv :escalated active))
+     :pending (esc-count "pending")
+     :acknowledged (esc-count "acknowledged")
+     :waived (esc-count "waived")
+     :ccb-none (ccb-count "none")
+     :ccb-voting (ccb-count "voting")
+     :ccb-passed (ccb-count "passed")
+     :ccb-failed (ccb-count "failed")
+     :ccb-quorum quorum}))
+
+
 (defn- finalize-charter!
   "审批链落定章程: 末级通过即批准, 任一级驳回即退回."
   [q actor project rid decision reason]
