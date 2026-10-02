@@ -687,6 +687,16 @@
                                   (= s "mitigate") "减轻" (= s "accept") "接受" :else nil)]
                   (r/as-element (if label [antd/tag {:color "geekblue"} label]
                                     [:span {:style {:color "#98a2b3"}} "未设定"]))))}
+     {:title "风险类别" :dataIndex "risk_category" :width 100
+      :render (fn [_ row]
+                (let [c (aget row "risk_category")
+                      label (get {"technical" "技术" "external" "外部" "organizational" "组织"
+                                  "schedule" "进度" "cost" "成本" "quality" "质量"} c)
+                      color (get {"technical" "blue" "external" "purple" "organizational" "geekblue"
+                                  "schedule" "gold" "cost" "cyan" "quality" "green"} c "default")]
+                  (r/as-element (if (nil? c)
+                                  [:span {:style {:color "#98a2b3"}} "未设定"]
+                                  [antd/tag {:color color} label]))))}
      (w/text-column :mitigation "应对措施")
      {:title "措施落实" :dataIndex "mitigation_action_state" :width 150
       :render (fn [_ row]

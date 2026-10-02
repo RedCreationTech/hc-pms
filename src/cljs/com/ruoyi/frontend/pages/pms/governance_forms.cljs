@@ -146,7 +146,11 @@
             {:key :due_date :label "计划应对日期" :type :date :required? true}
             {:key :response_strategy :label "应对策略" :type :select
              :options [{:value "avoid" :label "规避"} {:value "transfer" :label "转移"}
-                       {:value "mitigate" :label "减轻"} {:value "accept" :label "接受"}]}]})
+                       {:value "mitigate" :label "减轻"} {:value "accept" :label "接受"}]}
+            {:key :risk_category :label "风险类别 (可选)" :type :select
+             :options [{:value "technical" :label "技术"} {:value "external" :label "外部"}
+                       {:value "organizational" :label "组织"} {:value "schedule" :label "进度"}
+                       {:value "cost" :label "成本"} {:value "quality" :label "质量"}]}]})
 
 
 (defn risk-library-options

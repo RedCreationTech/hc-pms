@@ -1541,6 +1541,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: C09 整行保持既有 `local`/`implemented` 状态不变 — 本项只是给"提交解决"写路径补一个可选强类型枚举子字段, 一个写路径子字段不上行整行状态; 该字段不构成任何门控 (填与不填都不影响既有 `resolve` 的证据/独立审核人/升级门控判定), 不新增迁移/kind/命令/路由/表结构; 六类解决方式为本地枚举口径, 未与外部缺陷管理系统 (如 JIRA resolution 工作流) 的取值字典对齐, 该外部字段合同仍待实现; MySQL 回归待补充.
 
+## H08 风险类别 RBS 可选枚举字段 (本轮增补, 2026-10-02)
+
+设计与口径: 风险登记 (H08) 此前只有自由文本 `mitigation` 与可选 `response_strategy` 枚举, 无法结构化标注"这是哪一类风险" — PMI 风险分解结构 (RBS) 把风险按来源分为技术/外部/组织/进度/成本/质量等类别, 是风险分类统计与模板复用的基础维度, 但登记界面没有该字段. 本项在 `com.ruoyi.domain.pms.governance.collaboration` 定义 `risk-categories` 枚举集合 (`technical/external/organizational/schedule/cost/quality`), 给 `insert-risk!` 写路径新增一个**可选强类型枚举字段** `risk_category`: `create-risk!` 的 `s/input!` 白名单加入 `:risk_category`; `insert-risk!` 内用 `(cond-> {...base...} (:risk_category fields) (assoc :risk_category (s/enum! (:risk_category fields) risk-categories "风险类别")))` — 登记时未选择则该键不写入 (视为未设定, 零回归: 既有不填类别的用例与从典型风险库实例化的路径完全不变), 选中则经 `s/enum!` 白名单校验, 非法取值返回 400. 该字段随 payload JSON 持久化, **免迁移 / 免新 kind / 免新命令 / 免新路由 / 不构成任何门控** (类别填与不填都不影响评分与超阈值自动升级门控), 记录 `risk_category` 由 `record!` 解码后自动透传进命令结果与 workspace 风险读模型逐条回显, 无需额外接线. 命名上刻意用 `risk_category` 而非 `category`: 内置典型风险库 `risk-library` 条目自带一个仅用于展示的 `category` 键 (值域含 supply/other 等, 与 RBS 六类不同) 且 `from-library!` 会把它连同条目 map 一起传入 `insert-risk!` 并经 `source_category` 回写 — 若新字段也叫 `category` 会与库条目键冲突并把库分类值误当 RBS 校验 (实测会让 `cost-overrun` 之外的库条目命中 400 或泄漏 `category` 值), 故改名避开. 这是"给某 kind 写路径加可选强类型枚举字段"家族 (H08 风险应对策略 / C02 需求验证方式 / H02 干系人参与态度 / C07 行动优先级 / H02 沟通渠道 / C09 问题解决方式) 落到风险类别侧的又一子能力. 前端 `governance_forms.cljs` 在"登记项目风险"对话框 `response_strategy` 之后新增一个可选 `:select` 字段 `risk_category` (六类中文标签: 技术/外部/组织/进度/成本/质量); `governance.cljs` 风险台账在"应对策略"列之后新增"风险类别"只读列, 按取值渲染彩色 antd tag (technical 蓝 / external 紫 / organizational geekblue / schedule 金 / cost 青 / quality 绿), 无值显灰字"未设定".
+
+| 证据类型 | 结果 |
+|---|---|
+| 后端命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 83 tests / 1127 assertions, 0 failures/errors (新增 deftest `risk-category-is-optional-enum-persisted` 七断言: 合法 `technical` 随登记持久化并在命令结果回显 `risk_category="technical"`; workspace 读模型逐条回显该记录 `risk_category="technical"`; 不选类别则命令结果 `risk_category` 为 `nil` 且状态正常 `open` (零回归); 非法 `not-a-real-category` 经命令返回 **400**; 从典型风险库 `cost-overrun` 实例化的风险 `risk_category` 为 `nil` 且 `source_key="cost-overrun"` (证明库展示键 `category`/`source_category` 与新字段互不冲突)) |
+| 全量 PMS 回归 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 全绿 213 tests / 2612 assertions, 0 failures/errors (较上一记录基线 212/2605 增本 `risk-category` 一 deftest / +7 assertions) |
+| 前端编译 | `npx shadow-cljs compile app` 通过 4035 files / 0 compiled (增量无变更) / 0 warnings (新增 `:select` 表单字段与台账 `:render` 返回 `(r/as-element ...)`) |
+| HTTP 合同 (契约) | `contracts/governance.md` 的 `POST /risks` 请求体新增可选 `risk_category` (六类 RBS 枚举 `technical/external/organizational/schedule/cost/quality`), 并新增"风险类别 RBS (H08 延伸)"段说明未选择不写该键 (未设定), 非法取值 400, 与库展示键 `category`/`source_category` 命名区分, 免迁移随 payload 持久化并在命令结果与风险读模型逐条回显 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | 断言用例 `pms-h08rcat.spec.js` 1 passed (~17s, 全新独立 `/tmp/h08rcat.db` 冷启动迁移, 无未捕获 JS 错误): 风险 A (标题"第三方接口依赖风险", 2x3=6 不触发升级) 界面"登记项目风险"下拉选"外部" → 命令结果 `result.risk_category=external` 且 `escalated=false`, "项目风险"台账"风险类别"列显紫色"外部"标签 (截图 h08rcat-1-dialog-category.png, h08rcat-2-ledger-column.png); 风险 B (标题"常规观察风险") 界面登记不选类别 → `result.risk_category` 为空, 台账列显灰字"未设定"; 真实 HTTP GET governance 回显两条一致; 经真实 HTTP 以非法 `risk_category="not-a-real-category"` 登记被 **400** 拒绝 |
+| 演示录像 (真实浏览器) | 同一 `pms-h08rcat.spec.js` 以文件顶层 `test.use({ video: 'on' })` 录真实 Playwright 浏览器全程 (建项目 → 界面登记选"外部"类别的风险 → 登记不选类别留未设定 → 非法取值真实 HTTP 被拒), webm 经项目本地 `tools/bin/ffmpeg` 转 `reports/h08rcat/h08rcat-demo.mp4` (h264, 1600x1000) |
+| MySQL | 本轮未执行 (本地无 MySQL 实例); 本项为免迁移的 payload 字段增量, 不涉及任何表结构或迁移变更, 与 SQLite/MySQL 无关 |
+
+边界: H08 整行保持既有 `partial` 状态不变 — 本项只是给风险登记写路径补一个可选强类型枚举子字段, 一个写路径子字段不上行整行状态; 该字段不构成任何门控 (填与不填都不影响评分与超阈值自动升级判定), 不新增迁移/kind/命令/路由/表结构; 六类 RBS 类别为本地枚举口径, 尚未做按类别聚合的只读覆盖度统计, 也未与外部风险模板库字典对齐, MySQL 回归待补充.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

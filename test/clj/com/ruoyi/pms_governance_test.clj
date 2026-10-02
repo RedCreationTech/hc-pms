@@ -1882,6 +1882,30 @@
       (is (= "cost-overrun" (:source_key lib))))))
 
 
+(deftest risk-category-is-optional-enum-persisted
+  (let [id (project!)
+        ;; 合法风险类别(RBS)随登记持久化并在命令结果回显.
+        typed (command! id :risks :create nil {:title "关键技术选型风险" :probability 2 :impact 3
+                                               :owner_id 9301 :mitigation "提前原型验证" :due_date "2026-11-30"
+                                               :risk_category "technical"})]
+    (is (= "technical" (:risk_category typed)))
+    ;; workspace 风险读模型逐条回显 risk_category (payload 字段自动透传).
+    (is (= "technical" (:risk_category (first (filter #(= (:id typed) (:id %)) (:risks (workspace id)))))))
+    ;; 未选风险类别则不写入该键 (零回归, 视为未设定), 风险仍正常创建.
+    (let [plain (command! id :risks :create nil {:title "常规观察风险" :probability 2 :impact 3
+                                                 :owner_id 9301 :mitigation "持续观察" :due_date "2026-11-30"})]
+      (is (nil? (:risk_category plain)))
+      (is (= "open" (:status plain))))
+    ;; 非法风险类别 400.
+    (is (= 400 (error-status #(command! id :risks :create nil {:title "非法类别风险" :probability 2 :impact 3
+                                                               :owner_id 9301 :mitigation "x" :due_date "2026-11-30"
+                                                               :risk_category "not-a-real-category"}))))
+    ;; 从风险库实例化不含该可选键仍正常 (库来源记 source_category, 不写 risk_category).
+    (let [lib (command! id :risks :from-library nil {:template_key "cost-overrun" :owner_id 9301 :due_date "2026-11-30"})]
+      (is (nil? (:risk_category lib)))
+      (is (= "cost-overrun" (:source_key lib))))))
+
+
 (deftest meeting-action-priority-is-optional-enum-persisted
   (let [id (project!)
         meeting (command! id :meetings :create nil

@@ -17,6 +17,11 @@
   #{"avoid" "transfer" "mitigate" "accept"})
 
 
+(def risk-categories
+  "风险类别(RBS)枚举: 技术/外部/组织/进度/成本/质量, 登记时未选择则不写入(视为未设定)."
+  #{"technical" "external" "organizational" "schedule" "cost" "quality"})
+
+
 (def action-priorities
   "会议行动优先级枚举: 高/中/低, 未选择时不写入(视为未设定)."
   #{"high" "medium" "low"})
@@ -77,7 +82,9 @@
                        (:source_key fields) (assoc :source_key (:source_key fields))
                        (:source_category fields) (assoc :source_category (:source_category fields))
                        (:response_strategy fields) (assoc :response_strategy
-                                                          (s/enum! (:response_strategy fields) risk-response-strategies "应对策略"))))
+                                                          (s/enum! (:response_strategy fields) risk-response-strategies "应对策略"))
+                       (:risk_category fields) (assoc :risk_category
+                                                        (s/enum! (:risk_category fields) risk-categories "风险类别"))))
                {:status "open"})))
 
 
@@ -86,7 +93,7 @@
   [svc actor id body]
   (k/mutate! svc actor id "pms:project:edit" body "risk.created"
              (fn [q project]
-               (s/input! body [:title :probability :impact :owner_id :mitigation :due_date :response_strategy])
+               (s/input! body [:title :probability :impact :owner_id :mitigation :due_date :response_strategy :risk_category])
                (insert-risk! q project actor body))))
 
 
