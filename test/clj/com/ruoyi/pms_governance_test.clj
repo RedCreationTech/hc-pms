@@ -2457,6 +2457,57 @@
       (is (= "supportive" (:engagement (first (filter #(= (:id supporter) (:id %)) (:stakeholders (workspace id))))))))))
 
 
+(deftest stakeholder-engagement-coverage-is-derived-read-only
+  (let [id (project!)
+        cov (fn [] (:stakeholder_engagement_coverage (workspace id)))
+        sh (fn [code engagement]
+             (command! id :stakeholders :create nil
+                       (cond-> {:code code :name (str "干系人-" code) :role "评审" :category "internal"
+                                :interest "medium" :influence "medium" :owner_id 9301}
+                         engagement (assoc :engagement engagement))))
+        by-code (fn [code] (first (filter #(= code (:code %)) (:stakeholders (workspace id)))))
+        e (fn [k] (:count (first (filter #(= k (:engagement %)) (:by-engagement (cov))))))]
+    ;; PMBOK五类参与态度按每个干系人业务编码最新有效版本统计覆盖度: 已声明计入分子, 未设定只计入分母.
+    (sh "EC-A" "supportive")
+    (sh "EC-B" "leading")
+    (sh "EC-C" "resistant")
+    (sh "EC-D" nil)
+    (is (= 4 (:total (cov))))
+    (is (= 3 (:declared (cov))))
+    (is (= 1 (:undeclared (cov))))
+    (is (= 75 (:coverage-pct (cov))))
+    (is (= 1 (e "supportive")))
+    (is (= 1 (e "leading")))
+    (is (= 1 (e "resistant")))
+    (is (= 0 (e "unaware")))
+    (is (= 0 (e "neutral")))
+    ;; 修订同一编码: 最新有效版本取代旧版参与分母, 覆盖度按最新态度重算而非累加.
+    (command! id :stakeholders :revisions (:id (by-code "EC-A"))
+              {:code "EC-A" :name "干系人-EC-A" :role "评审" :category "internal"
+               :interest "medium" :influence "medium" :engagement "unaware" :owner_id 9301})
+    (is (= 4 (:total (cov))))
+    (is (= 3 (:declared (cov))))
+    (is (= 0 (e "supportive")))
+    (is (= 1 (e "unaware")))
+    ;; 新增声明 neutral 的干系人: 分母与分子同步上升.
+    (sh "EC-E" "neutral")
+    (is (= 5 (:total (cov))))
+    (is (= 4 (:declared (cov))))
+    (is (= 80 (:coverage-pct (cov))))
+    (is (= 1 (e "neutral")))
+    ;; 受控作废最新版本: 该编码从分母与分子中剔除, 覆盖度回到修订后的口径.
+    (command! id :stakeholders :discard (:id (by-code "EC-E")) {:reason "人员退出项目"})
+    (is (= 4 (:total (cov))))
+    (is (= 3 (:declared (cov))))
+    (is (= 75 (:coverage-pct (cov))))
+    (is (= 0 (e "neutral")))
+    ;; 只读派生不改变干系人状态: 重复读取覆盖度稳定, 既有未作废干系人仍 active 且态度不漂移.
+    (is (= (cov) (:stakeholder_engagement_coverage (workspace id))))
+    (let [row (by-code "EC-B")]
+      (is (= "active" (:status row)))
+      (is (= "leading" (:engagement row))))))
+
+
 (deftest raci-r-load-and-overload-read-model
   (let [id (project!)
         s1 (command! id :stakeholders :create nil

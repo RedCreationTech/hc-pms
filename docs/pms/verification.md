@@ -1573,6 +1573,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: H08 整行保持既有 `partial` 状态不变 — 本项只是在读取层对已声明的 `risk_category` 做只读聚合可视, 一个只读子能力不上行整行状态; 覆盖度只反映"是否为风险声明了 RBS 类别", 不等于类别划分本身是否恰当, 也不改变任何风险状态机或超阈值升级门控, 不做按类别 × 应对策略的交叉矩阵统计, MySQL 回归待补充.
 
+## H02 干系人参与态度覆盖度只读派生汇总 (本轮增补, 2026-10-02)
+
+设计与口径: 上一条"干系人参与态度可选枚举字段"关闭了"单条干系人能否声明当前参与态度并逐条回显", 其诚实边界正是"未做按态度聚合的投入度评估矩阵统计" — 整个项目"到底多少干系人标了 PMBOK 五类态度, 各态度分布几人, 还有几人没标注当前态度, 干系人识别的投入度评估做得够不够全"此前无处一眼可读. 本项把"给治理台账加只读派生洞察"套路应用到干系人参与态度维度, 复用同族"风险应对策略覆盖度"/"风险类别覆盖度"面板的形状, 是其按 PMBOK 投入度维度的姊妹聚合, **不落库、不投递、不改动任何干系人状态或修订链, 免迁移, 免新命令, 免新 kind, 免新路由, 不构成任何门控**. 后端 `governance.stakeholders/engagement-coverage` 纯函数以 PMBOK 五类态度 `unaware/resistant/neutral/supportive/leading` (未知晓/抵制/中立/支持/主导) 为固定顺序各自计数, 输出 `{total, declared, undeclared, coverage-pct, by-engagement:[{engagement, count}]}`. 与风险侧"每条以自身 id 作 code 无修订链"不同, 干系人有不可变修订链与受控作废, 故聚合口径采用与验证覆盖度/发布覆盖度同源的**按 code 取最新有效版再去作废**方式: `(filterv #(not= "discarded" (:status %)) (s/latest stakeholders))` — 同一干系人多次修订只计最新版一次, 最新版被受控作废者整体剔除; `declared` 为该最新版 `engagement` 命中五类之一者, `coverage-pct` 为 `declared/total` 四舍五入整数百分比 (`total` 为 0 时给 0, 未声明者只进分母不进任何态度). `governance.clj` workspace 以 `:stakeholder_engagement_coverage (stakeholders/engagement-coverage (:stakeholders data))` 挂在 `:risk_category_coverage` 之后. 前端 `governance.cljs` 在"干系人与沟通"页签"干系人识别"台账之后注册"参与态度覆盖度"面板, 以蓝"干系人总数 N"、绿/金/红"已声明参与态度 P%"、橙"未设定 N"、并按五类彩色标签回显"未知晓/抵制/中立/支持/主导 · 计数" (与干系人台账"参与态度"列同一配色: 抵制红/中立蓝/支持绿/主导金/未知晓默认), 无干系人时给提示文案. 关键界面坑: 覆盖度面板与上方"干系人识别"台账同页共存且都渲染"未设定"字样 (台账逐行 engagement-cell 对未标注者也显灰字"未设定"), 而 `shared/panel` 渲染为含 `<h3>` 标题的 `<section>`, 故 E2E 断言须用 `locator('section').filter({ has: getByRole('heading', { name: '参与态度覆盖度', exact: true }) })` 按面板作用域定位, 否则命中多个元素触发 strict-mode 串台.
+
+| 证据类型 | 结果 |
+|---|---|
+| 后端命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 85 tests / 1172 assertions, 0 failures/errors (新增 deftest `stakeholder-engagement-coverage-is-derived-read-only`: 登记 supportive/leading/resistant/未选四条干系人 → total 4/declared 3/undeclared 1/pct 75/supportive 1/leading 1/resistant 1/unaware 0/neutral 0; 对 supportive 者发 leading→unaware 修订 → total 仍 4/declared 仍 3 (证明修订链按 code 去重不重复计数) 且 supportive 0/unaware 1; 再登记一条 neutral → total 5/declared 4/pct 80/neutral 1; 对最新一条 EC-E 受控作废 → total 回 4/declared 3/pct 75/neutral 0 (证明被作废的最新版整体从分母剔除); 反复读取聚合稳定不漂移, 逐条干系人状态仍 `active` 且 `engagement` 不因聚合而改变) |
+| 全量 PMS 回归 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 全绿 215 tests / 2657 assertions, 0 failures/errors (较上一记录基线 214/2633 增本 `engagement-coverage` 一 deftest / +24 assertions, workspace 新增 `:stakeholder_engagement_coverage` 未造成既有干系人登记/权力-利益象限/RACI/沟通/作废恢复回归) |
+| 前端编译 | `npx shadow-cljs compile app` 通过 4035 files / 0 warnings (新增"参与态度覆盖度"面板与五类彩色标签渲染) |
+| HTTP 合同 (契约) | `contracts/governance.md` 新增"干系人参与态度覆盖度 (H02 延伸)"段, 记录 GET `/governance` 读模型新字段 `stakeholder_engagement_coverage` 的输出结构 `{total, declared, undeclared, coverage-pct, by-engagement}`, 口径与"风险类别覆盖度"同源同形状 (免迁移/命令/kind, 不构成门控), 并写明干系人有修订链与受控作废故取"按 code 最新有效版再去作废"口径, 与面板同页共存须按 `<section>` 标题作用域断言 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | 断言用例 `pms-h02ec.spec.js` 1 passed (全新独立 `/tmp/h02ec.db` 冷启动迁移, 无未捕获 JS 错误): 界面"登记干系人"下拉选态度登记"支持"/"主导"/"抵制"/不选四条 → 作用域到"参与态度覆盖度"`<section>` 断言"干系人总数 4 / 已声明参与态度 75% / 未设定 1 / 支持·1 / 主导·1 / 抵制·1 / 未知晓·0 / 中立·0" (截图 h02ec-1-coverage-panel.png); 真实 HTTP GET governance 回显 `stakeholder_engagement_coverage` total 4/declared 3/undeclared 1/coverage-pct 75 且 `by-engagement` supportive 1/leading 1/resistant 1/unaware 0/neutral 0; 再界面登记一条"中立" → 面板翻到"干系人总数 5 / 已声明参与态度 80% / 中立·1 / 未设定 1" (截图 h02ec-2-after-declare.png); 只读派生不改状态: 既有"支持"干系人仍 `status=active` 且 `engagement=supportive` 不漂移 |
+| 演示录像 (真实浏览器) | 同一 `pms-h02ec.spec.js` 以文件顶层 `test.use({ video: 'on' })` 录真实 Playwright 浏览器全程 (建项目 → 界面登记支持/主导/抵制/未选四干系人 → 覆盖度面板 75% → 再登记中立干系人 → 覆盖率升到 80%), webm 经项目本地 `tools/bin/ffmpeg` 转 `reports/h02ec/h02ec-demo.mp4` (h264, 1600x1000) |
+| MySQL | 本轮未执行 (本地无 MySQL 实例); 本项为免迁移的只读派生聚合, 不落库, 不涉及任何表结构或迁移变更, 与 SQLite/MySQL 无关 |
+
+边界: H02 整行状态保持不变 — 本项只是在读取层对已声明的 `engagement` 做只读聚合可视, 一个只读子能力不上抬整行状态; 覆盖度只反映"是否为干系人标注了 PMBOK 参与态度", 不等于态度判断本身是否准确, 也不改变权力-利益象限/RACI 负载/沟通受众/受控作废语义, 不做按态度 × 象限的交叉矩阵统计, MySQL 回归待补充.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

@@ -406,6 +406,35 @@
                            [w/edit-button "恢复" #(open! (forms/restore-dialog (str base "/stakeholders/" (:id row) "/restore") "干系人"))])]))]])
 
 
+(defn- engagement-coverage-section
+  "按每个干系人最新有效版本只读聚合参与态度(PMBOK投入度)声明覆盖度: 五类态度各自计数与覆盖率; 只读派生, 不改变干系人状态."
+  [{:keys [model]}]
+  (let [cov (:stakeholder_engagement_coverage model)
+        total (:total cov 0)
+        undeclared (:undeclared cov 0)
+        pct (:coverage-pct cov 0)
+        engagement-label {"unaware" "未知晓" "resistant" "抵制" "neutral" "中立"
+                          "supportive" "支持" "leading" "主导"}
+        engagement-color {"unaware" "default" "resistant" "red" "neutral" "blue"
+                          "supportive" "green" "leading" "gold"}]
+    [shared/panel "参与态度覆盖度" "按每个干系人的最新有效版本统计 PMBOK 投入度评估五类参与态度声明情况; 只读派生, 不改变干系人状态"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无项目干系人, 登记后可在此查看参与态度覆盖度."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "干系人总数 " total)]
+         [antd/tag {:color (cond (= pct 100) "green" (zero? pct) "red" :else "gold")}
+          (str "已声明参与态度 " pct "%")]
+         (when (pos? undeclared)
+           [antd/tag {:color "orange"} (str "未设定 " undeclared)])]
+        [:div
+         [:span {:style {:fontWeight 500}} "按参与态度: "]
+         [antd/space {:wrap true}
+          (for [{:keys [engagement count]} (:by-engagement cov)]
+            ^{:key engagement} [antd/tag {:color (if (pos? count) (get engagement-color engagement "geekblue") "default")}
+                              (str (get engagement-label engagement engagement) " · " count)])]]])]))
+
+
 (defn- raci-conflict-text
   "把逐活动RACI缺口拼成一行行可读文本."
   [conflicts]
@@ -1370,7 +1399,7 @@
                      ["requirements" "URS与追踪" [requirement-section coverage-section alignment-section traceability-section trace-section]]
                      ["evidence" "证据版本" [document-section collection-section tree-section release-coverage-section]]
                      ["appointments" "成员任命" [appointment-section]]
-                     ["stakeholders" "干系人与沟通" [stakeholder-section raci-section comm-plan-section]]
+                     ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section raci-section comm-plan-section]]
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section issue-section issue-escalation-section issue-closure-summary-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section action-closure-section action-section]]
