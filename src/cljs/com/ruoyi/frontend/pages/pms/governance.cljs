@@ -704,6 +704,34 @@
                             (str (get level-label level level) " · " count)])]]])]))
 
 
+(defn- risk-score-distribution-section
+  "按每个风险最新有效版本只读聚合概率x影响评分(1-25)热力分布: 低/中/高/极高四档各自计数, 高档及以上与达超阈值升级门控的极高计数及平均评分; 只读派生, 不改变风险状态."
+  [{:keys [model]}]
+  (let [dist (:risk_score_distribution model)
+        total (:total dist 0)
+        high-above (:high-or-above dist 0)
+        critical (:critical dist 0)
+        avg (:avg-score dist 0)
+        band-color {"low" "green" "medium" "blue" "high" "gold" "critical" "red"}]
+    [shared/panel "风险评分热力分布" "按每个风险的最新有效版本只读统计概率 x 影响评分(1-25)热力分布; 极高档与超阈值升级门控对齐, 只读派生, 不改变风险状态"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无项目风险, 登记后可在此查看评分热力分布."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "风险总数 " total)]
+         [antd/tag {:color "default"} (str "平均评分 " avg)]
+         (when (pos? high-above)
+           [antd/tag {:color "gold"} (str "高档及以上 " high-above)])
+         (when (pos? critical)
+           [antd/tag {:color "red"} (str "极高(达升级阈值) " critical)])]
+        [:div
+         [:span {:style {:fontWeight 500}} "评分分布: "]
+         [antd/space {:wrap true}
+          (for [{:keys [band label count]} (:by-band dist)]
+            ^{:key band} [antd/tag {:color (get band-color band "default")}
+                          (str label " · " count)])]]])]))
+
+
 (defn- risk-section
   "风险台账保留应对,复评期限与独立关闭状态."
   [{:keys [base model options editable? open!] :as context}]
@@ -1430,7 +1458,7 @@
                      ["appointments" "成员任命" [appointment-section]]
                      ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section raci-section comm-plan-section]]
                      ["gates" "Gate评审" [gate-section]]
-                     ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
+                     ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section action-closure-section action-section]]
                      ["changes" "变更控制" [change-section]]
                      ["quality" "DQ与局部暂停" [dq-summary-section dq-section pause-section]]])}])

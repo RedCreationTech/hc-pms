@@ -1621,6 +1621,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: F09 整行状态保持不变 (`partial / 待规则`) — 目标级达成复算与版本化下达/修订/退役此前已在, 本项只新增一个组合级只读聚合视图, 一个只读子能力不上抬整行状态; `attainment` 的达标/接近/落后分档仅反映"已下达目标当前达成率的分布", 不改动任何目标状态或达成口径, 不做跨季度趋势/加权平均/预测, 事实数据权威来源与权限验收仍待合同, MySQL 回归待补充.
 
+## H08 风险评分热力分布只读汇总 (本轮增补, 2026-10-02)
+
+设计与口径: 风险此前已有三块只读面板 (按应对策略覆盖度, 按 RBS 类别覆盖度, 超阈值升级处置汇总), 但整个项目"到底多少风险落在低/中/高/极高哪个评分区间, 平均评分多少, 高档及以上与达超阈值升级门控的极高风险各有几条"这一概率×影响评分本身的热力分布此前无处一眼可读. 本项把"给治理台账加只读派生洞察"套路应用到风险评分维度, 与同族风险覆盖度面板形状一致, **不落库、不投递、不改动任何风险状态或升级门控, 免迁移, 免新命令, 免新 kind, 免新路由, 不构成任何门控**. 后端 `governance.collaboration/risk-score-distribution` 纯函数复用 `store/latest` 统计风险记录 (每条风险以自身 `id` 作 `code` 且无修订链与受控作废, 故 `latest` 即全部风险), 按每条风险恒定写入的数值评分 `score` (= 概率 × 影响, 1-25) 做四档热力分箱; 分档常量 `risk-score-bands` 定义为低 1-5 / 中 6-9 / 高 10 到升级阈值前 (`dec ra/escalation-threshold`=15) / 极高 达阈值及以上 (>=16), 四档边界连续覆盖 1-25, 高档上界与极高档下界均取 `risk-assessment/escalation-threshold` 这一公开 `def` 作单一口径, 与 H08 超阈值自动升级门控对齐不漂移. 输出 `{available, total, high-or-above, critical, avg-score, by-band:[{band, label, count}]}`, `critical` 即 >=16 极高档条数 (与 H08 门控同口径), `avg-score` 为算术平均四舍五入整数 (`total` 为 0 时给 0), 键名一律不带尾随问号. `governance.clj` workspace 以 `:risk_score_distribution (collab/risk-score-distribution (:risks data))` 挂在 `:risk_escalation_summary` 之后. 前端 `governance.cljs` 在"风险与问题"页签"风险升级处置汇总"面板之后注册 `risk-score-distribution-section` "风险评分热力分布"面板, 以蓝"风险总数 N"、默认色"平均评分 N"、金色"高档及以上 N"、红色"极高(达升级阈值) N"及四档绿/蓝/金/红标签回显"低/中/高/极高 · 计数", 无风险时给提示文案. 关键界面坑: 同页多块面板都渲染"风险总数"文案且 `shared/panel` 渲染为含 `<h3>` 的 `<section>`, 故 E2E 断言用 `locator('section').filter({ has: getByRole('heading', { name: '风险评分热力分布', exact: true }) })` 按面板标题作用域定位, 且"高 · 0"须用 `{ exact: true }` 防与"极高 · 0"子串串台.
+
+| 验证层 | 结果 |
+|--------|------|
+| 后端命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 87 tests / 1224 assertions, 0 failures/errors (新增 deftest `risk-score-distribution-is-derived-read-only`: 登记 8 条边界覆盖四档 (1×3=3、2×2=4 低; 2×3=6、3×3=9 中; 2×5=10、3×5=15 高; 4×4=16、5×5=25 极高) → total 8/各档 2·2·2·2/high-or-above 4/critical 2/avg 11; 再登记 1 条中档 → total 9/medium 3/avg 10 (round 94/9); 只读不改既有风险 status=open; 空输入纯函数 available=false/total 0/avg 0/by-band [0 0 0 0]; 合成按 code 去重取最高 revision 用例) |
+| 全量 PMS 回归 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 全绿 218 tests / 2731 assertions, 0 failures/errors (较上一记录基线 217/2705 增本 `risk-score-distribution` 一 deftest / +26 assertions, workspace 新增 `:risk_score_distribution` 未造成既有风险应对/类别覆盖度·升级处置·问题闭环·会议行动·追踪·四算等回归) |
+| 前端编译 | `npx shadow-cljs compile app` 通过 4035 files / 0 warnings (新增"风险评分热力分布"面板与四档绿/蓝/金/红标签渲染) |
+| HTTP 合同 (契约) | `contracts/governance.md` 新增"风险评分热力分布 (H08 延伸)"段, 记录 GET `/governance` 读模型新字段 `risk_score_distribution` 的输出结构 `{available, total, high-or-above, critical, avg-score, by-band}`、四档边界与 `ra/escalation-threshold` 单一口径对齐、"免迁移/不落库/不构成门控/键名无尾随问号"约束, 并写明与另三块风险面板同源不同维度 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | 断言用例 `pms-h08sd.spec.js` 1 passed (46.8s, 全新独立 `/tmp/h08sd.db` 冷启动迁移, 无未捕获 JS 错误): 界面登记 1×2=2(低)/2×4=8(中)/4×4=16(极高) 三条风险 → "风险评分热力分布"面板显示"风险总数 3 / 平均评分 9 / 高档及以上 1 / 极高(达升级阈值) 1 / 低·1 中·1 高·0 极高·1" 真实可见 (元素截图 h08sd-1-distribution.png); 真实 HTTP GET governance 二次确认 `risk_score_distribution` 的 total=3/available=true/high-or-above=1/critical=1/avg-score=9 与四档计数一致; 再登记 2×2=4(低)/3×4=12(高) → 面板"总数 5 / 平均 8 / 低·2 高·1 极高·1" (元素截图 h08sd-2-after-more-risks.png), HTTP total=5/avg=8/low 2/high 1 同源核验; 只读稳定性: 既有 4×4 风险 status=open 且 score=16 不漂移. 诚实说明: 首轮曾把 phase-1 `high-or-above` 期望误写为 2, 实为 1 (评分 2/8/16 中仅 16>=10), 修正 spec 期望值后通过, 后端逻辑无改动 |
+| 演示录像 (真实浏览器) | 同一 `pms-h08sd.spec.js` 以文件顶层 `test.use({ video: 'on' })` 录真实 Playwright 浏览器全程 (登记三条风险 → 热力分布面板 → 再登记两条 → 面板翻转), webm 经项目本地 `tools/bin/ffmpeg` 转 `reports/h08sd/h08sd-demo.mp4` (h264, 1600x1000) |
+| MySQL | 本轮未执行 (本地无 MySQL 实例); 本项为免迁移的只读派生聚合, 不落库, 不涉及任何表结构或迁移变更, 与 SQLite/MySQL 无关 |
+
+边界: H08 整行状态保持不变 — 风险评分, 超阈值自动升级与独立确认门控此前已在, 本项只新增一个项目级评分热力分布只读聚合视图, 一个只读子能力不上抬整行状态; 热力分布只反映评分区间归属, 极高档计数与 `escalated` 集合理论上应一致, 但本面板仅作只读展示不构成任何门控, 不改动既有 `escalate`/`mitigate`/`review` 语义, 不做评分趋势/加权/预测, MySQL 回归待补充.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

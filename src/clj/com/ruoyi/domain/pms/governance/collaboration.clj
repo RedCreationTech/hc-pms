@@ -84,6 +84,41 @@
      :by-level (mapv (fn [x] {:level x :count (level-count x)}) ["steering" "management"])}))
 
 
+(def risk-score-bands
+  "风险评分(概率 x 影响, 1 到 25)热力分布分档: 低 1-5, 中 6-9, 高 10 到升级阈值前, 极高 达升级阈值及以上; 高档上界与极高档下界均取 ra/escalation-threshold, 与超阈值升级门控单一口径对齐, 四档边界连续覆盖 1-25 无缝隙."
+  [{:key "low" :label "低" :min 1 :max 5}
+   {:key "medium" :label "中" :min 6 :max 9}
+   {:key "high" :label "高" :min 10 :max (dec ra/escalation-threshold)}
+   {:key "critical" :label "极高" :min ra/escalation-threshold :max nil}])
+
+
+(defn- band-member?
+  "评分落入某档(下界含, 上界含或 nil 表示无上限); 评分缺失(nil)不属于任何档."
+  [score {:keys [min max]}]
+  (and (some? score) (>= score min) (or (nil? max) (<= score max))))
+
+
+(defn risk-score-distribution
+  "按每个风险最新有效版本只读统计概率 x 影响评分(1 到 25)的热力分布: 低/中/高/极高四档各自计数, 高档及以上(>=10), 达超阈值升级门控的极高(>=阈值)计数与平均评分; 只读派生, 不落库不投递, 不改变风险状态, 不构成门控. 键名不带尾随问号."
+  [risks]
+  (let [active (s/latest risks)
+        total (count active)
+        band-count (fn [band] (count (filterv #(band-member? (:score %) band) active)))
+        high-or-above (count (filterv #(and (some? (:score %)) (<= 10 (:score %))) active))
+        critical (count (filterv #(and (some? (:score %)) (<= ra/escalation-threshold (:score %))) active))
+        sum (reduce + 0 (keep :score active))]
+    {:available (pos? total)
+     :total total
+     :high-or-above high-or-above
+     :critical critical
+     :avg-score (if (pos? total)
+                  (int (Math/round ^double (/ (double sum) total)))
+                  0)
+     :by-band (mapv (fn [{:keys [key label] :as band}]
+                      {:band key :label label :count (band-count band)})
+                    risk-score-bands)}))
+
+
 (defn- insert-risk!
   "写入风险记录: 统一按概率 x 影响评分, 达阈值自动标记超阈值升级, 可选携带阶段与风险库来源信息; 评分与升级判定共用 risk-assessment 纯函数."
   [q project actor fields]

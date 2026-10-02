@@ -2059,6 +2059,61 @@
       (is (= "open" (:status row))))))
 
 
+(deftest risk-score-distribution-is-derived-read-only
+  (let [id (project!)
+        dist (fn [] (:risk_score_distribution (workspace id)))
+        b (fn [k] (:count (first (filter #(= k (:band %)) (:by-band (dist))))))
+        create (fn [title p i]
+                 (command! id :risks :create nil
+                           {:title title :probability p :impact i
+                            :owner_id 9301 :mitigation "常规措施" :due_date "2026-10-20"}))]
+    ;; 四档边界: 低 1-5, 中 6-9, 高 10-15, 极高 >=16(达升级阈值). 每档各布两条并含边界值.
+    (create "观察项A" 1 3)   ; 3 低
+    (create "观察项B" 2 2)   ; 4 低
+    (create "一般风险A" 2 3) ; 6 中
+    (create "一般风险B" 3 3) ; 9 中(上界)
+    (create "较大风险A" 2 5) ; 10 高(下界)
+    (create "较大风险B" 3 5) ; 15 高(上界)
+    (create "重大风险A" 4 4) ; 16 极高(=阈值, 下界)
+    (create "重大风险B" 5 5) ; 25 极高
+    (is (true? (:available (dist))))
+    (is (= 8 (:total (dist))))
+    (is (= 2 (b "low")))
+    (is (= 2 (b "medium")))
+    (is (= 2 (b "high")))
+    (is (= 2 (b "critical")))
+    (is (= 4 (:high-or-above (dist))))
+    (is (= 2 (:critical (dist))))
+    ;; 平均评分 = round((3+4+6+9+10+15+16+25)/8) = round(11.0) = 11.
+    (is (= 11 (:avg-score (dist))))
+    ;; 再登记一条中档风险: 分档计数随登记实时翻转, 平均评分被拉低.
+    (create "一般风险C" 3 2) ; 6 中
+    (is (= 9 (:total (dist))))
+    (is (= 3 (b "medium")))
+    (is (= 2 (b "low")))
+    (is (= 4 (:high-or-above (dist))))
+    (is (= 10 (:avg-score (dist)))) ; round(94/9)=10
+    ;; 只读派生不改变风险状态: 重复读取分布稳定, 既有风险仍登记态且评分不漂移.
+    (is (= (dist) (:risk_score_distribution (workspace id))))
+    (let [row (first (filter #(= "重大风险B" (:title %)) (:risks (workspace id))))]
+      (is (= 25 (:score row)))
+      (is (= "open" (:status row))))
+    ;; 纯函数直测: 空输入 available false/total 0/avg 0/四档全 0; 同 code 修订只计最新有效版本不重复计数.
+    (let [empty (collab/risk-score-distribution [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:total empty)))
+      (is (= 0 (:avg-score empty)))
+      (is (= [0 0 0 0] (map :count (:by-band empty)))))
+    (let [one (collab/risk-score-distribution
+                [{:code "R" :revision 1 :score 4} {:code "R" :revision 2 :score 20}])
+        bc (fn [k] (:count (first (filter #(= k (:band %)) (:by-band one)))))]
+      (is (= 1 (:total one)))
+      (is (= 0 (bc "low")))
+      (is (= 1 (bc "critical")))
+      (is (= 1 (:high-or-above one)))
+      (is (= 20 (:avg-score one))))))
+
+
 (deftest issue-escalation-disposition-summary-is-derived-read-only
   (let [id (project!)
         sum (fn [] (:issue_escalation_summary (workspace id)))
