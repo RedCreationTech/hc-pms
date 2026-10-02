@@ -2519,6 +2519,69 @@
       (is (= ["Q"] (mapv :code (:not-executed-plans disc)))))))
 
 
+(deftest raci-assignment-coverage-is-derived-read-only
+  (let [id (project!)
+        cov (fn [] (:raci_assignment_coverage (workspace id)))
+        sh (fn [code name] (:id (command! id :stakeholders :create nil
+                                          {:code code :name name :role "评审" :category "internal"
+                                           :interest "high" :influence "medium" :owner_id 9301})))
+        raci (fn [act sid resp] (command! id :raci :create nil
+                                          {:activity act :stakeholder_id sid :responsibility resp}))
+        s1 (sh "RA-1" "甲") s2 (sh "RA-2" "乙") s3 (sh "RA-3" "丙")]
+    ;; 完整甲: 同时有 R 和 A -> 完整.
+    (raci "完整甲" s1 "R")
+    (raci "完整甲" s2 "A")
+    ;; 缺执行: 只有 A 无 R -> 缺执行.
+    (raci "缺执行" s2 "A")
+    ;; 缺负责: 只有 R 无 A -> 缺负责.
+    (raci "缺负责" s1 "R")
+    ;; 双缺: 只有 C -> 缺负责且缺执行.
+    (raci "双缺" s3 "C")
+    (is (true? (:available (cov))))
+    (is (= 4 (:total (cov))))
+    (is (= 1 (:complete (cov))))
+    (is (= 2 (:missing-accountable (cov))))
+    (is (= 2 (:missing-responsible (cov))))
+    (is (= 25 (:coverage-pct (cov))))
+    (let [inc (zipmap (mapv :activity (:incomplete-activities (cov)))
+                      (mapv #(vector (:missing-accountable %) (:missing-responsible %))
+                            (:incomplete-activities (cov))))]
+      (is (= 3 (count (:incomplete-activities (cov)))))
+      (is (false? (contains? inc "完整甲")))
+      (is (= [false true] (get inc "缺执行")))
+      (is (= [true false] (get inc "缺负责")))
+      (is (= [true true] (get inc "双缺"))))
+    ;; 补上"缺负责"的 A 后该活动转完整: complete 2/覆盖率 50/缺负责降到 1.
+    (raci "缺负责" s3 "A")
+    (is (= 4 (:total (cov))))
+    (is (= 2 (:complete (cov))))
+    (is (= 1 (:missing-accountable (cov))))
+    (is (= 50 (:coverage-pct (cov))))
+    ;; 只读派生不改变记录: 重复读取稳定, RACI 行仍 assigned.
+    (is (= (cov) (:raci_assignment_coverage (workspace id))))
+    (is (every? #(= "assigned" (:status %)) (:raci (workspace id))))
+    ;; 纯函数直测: 空输入 available false/全 0/覆盖率 0/缺件清单空.
+    (let [empty (stakeholders/raci-assignment-completeness [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:total empty)))
+      (is (= 0 (:complete empty)))
+      (is (= 0 (:missing-accountable empty)))
+      (is (= 0 (:missing-responsible empty)))
+      (is (= 0 (:coverage-pct empty)))
+      (is (empty? (:incomplete-activities empty))))
+    ;; 合成: 同活动多条 R/A/C 只按是否含 A 与含 R 判定, 三活动两完整 -> 覆盖率 67.
+    (let [mix (stakeholders/raci-assignment-completeness
+                [{:activity "X" :responsibility "R"} {:activity "X" :responsibility "A"} {:activity "X" :responsibility "C"}
+                 {:activity "Y" :responsibility "R"} {:activity "Y" :responsibility "A"}
+                 {:activity "Z" :responsibility "I"}])]
+      (is (= 3 (:total mix)))
+      (is (= 2 (:complete mix)))
+      (is (= 1 (:missing-accountable mix)))
+      (is (= 1 (:missing-responsible mix)))
+      (is (= 67 (:coverage-pct mix)))
+      (is (= ["Z"] (mapv :activity (:incomplete-activities mix)))))))
+
+
 (deftest issue-escalation-disposition-summary-is-derived-read-only
   (let [id (project!)
         sum (fn [] (:issue_escalation_summary (workspace id)))

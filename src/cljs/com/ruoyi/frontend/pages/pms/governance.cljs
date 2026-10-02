@@ -610,6 +610,38 @@
              ^{:key (:code pl)} [antd/tag {:color "default"} (str (:code pl) " · " (:objective pl))])])])]))
 
 
+(defn- raci-assignment-section
+  "按活动只读聚合RACI职责分配完整度(每项活动是否同时指派了负责A与执行R): 完整/缺负责A/缺执行R与覆盖率并列出未完整活动; 与逐活动缺口冲突提示互补(冲突只列缺口子集而本项给出项目级正向覆盖率), 只读派生, 不改变任何记录."
+  [{:keys [model]}]
+  (let [cov (:raci_assignment_coverage model)
+        total (:total cov 0)
+        complete (:complete cov 0)
+        missing-a (:missing-accountable cov 0)
+        missing-r (:missing-responsible cov 0)
+        pct (:coverage-pct cov 0)
+        incomplete (:incomplete-activities cov [])]
+    [shared/panel "RACI职责分配完整度" "按活动只读聚合每项活动是否同时指派了负责(A)与执行(R), 给出完整活动数/缺负责/缺执行与覆盖率并列出未完整活动; 与逐活动缺口提示互补, 只读派生, 不改变任何记录"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无RACI职责指派, 指派后可在此查看职责分配完整度."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "活动总数 " total)]
+         [antd/tag {:color "green"} (str "职责齐备 " complete)]
+         (when (pos? missing-a)
+           [antd/tag {:color "red"} (str "缺负责A " missing-a)])
+         (when (pos? missing-r)
+           [antd/tag {:color "red"} (str "缺执行R " missing-r)])
+         [antd/tag {:color (if (zero? pct) "red" "cyan")} (str "完整覆盖率 " pct "%")]]
+        (when (pos? (count incomplete))
+          [antd/space {:wrap true}
+           (for [ac incomplete]
+             ^{:key (:activity ac)} [antd/tag {:color "default"}
+                                     (str (:activity ac) " · "
+                                          (if (and (:missing-accountable ac) (:missing-responsible ac))
+                                            "缺负责A、缺执行R"
+                                            (if (:missing-accountable ac) "缺负责A" "缺执行R")))])])])]))
+
+
 (defn- trace-section
   "显式呈现需求到任务和证据的覆盖关系."
   [{:keys [base model planning editable? open!]}]
@@ -1608,7 +1640,7 @@
                      ["requirements" "URS与追踪" [requirement-section coverage-section alignment-section traceability-section trace-section]]
                      ["evidence" "证据版本" [document-section collection-section tree-section release-coverage-section]]
                      ["appointments" "成员任命" [appointment-section]]
-                     ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section raci-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section]]
+                     ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section raci-section raci-assignment-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section]]
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-review-cadence-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section action-closure-section action-section]]

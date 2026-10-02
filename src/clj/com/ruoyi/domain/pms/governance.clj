@@ -124,6 +124,7 @@
                           :comm_cadence_summary (collab/comm-cadence-summary (:comm_plans data))
                           :comm_audience_coverage (stakeholders/comm-audience-coverage (:stakeholders data) (:comm_plans data))
                           :comm_execution_coverage (stakeholders/comm-execution-coverage (:comm_plans data))
+                          :raci_assignment_coverage (stakeholders/raci-assignment-completeness (:raci data))
                           :issue_escalation_summary (collab/issue-escalation-disposition-summary (:issues data))
                           :action_closure (collab/action-closure-summary (:actions data))
                           :meeting_release_coverage (collab/meeting-release-coverage (:meetings data))

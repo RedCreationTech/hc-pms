@@ -325,6 +325,36 @@
      :not-executed-plans not-executed}))
 
 
+(defn raci-assignment-completeness
+  "按活动汇总RACI职责分配完整度的只读覆盖度: 逐活动判断是否至少指派一个负责(A)与一个执行(R), 两者齐备视为完整, 给出活动总数/完整/缺负责A/缺执行R与覆盖率, 并列出未完整活动及其缺项. RACI指派行不按修订链折叠(与逐条冲突检查conflicts一致直接消费原始行). 只读派生, 不落库不投递, 不改变不可变版本, 不构成任何门控; 与逐条冲突检查互补(conflicts只返回冲突子集而本项给出项目级正向覆盖率与完整分布)."
+  [raci-rows]
+  (let [by-activity (group-by :activity raci-rows)
+        has-a? (fn [rows] (some #(= "A" (:responsibility %)) rows))
+        has-r? (fn [rows] (some #(= "R" (:responsibility %)) rows))
+        activity-flags (mapv (fn [[activity rows]]
+                               {:activity activity
+                                :missing-accountable (not (has-a? rows))
+                                :missing-responsible (not (has-r? rows))})
+                             by-activity)
+        incomplete? (fn [flags] (or (:missing-accountable flags) (:missing-responsible flags)))
+        total (count activity-flags)
+        complete (count (remove incomplete? activity-flags))
+        missing-accountable (count (filterv :missing-accountable activity-flags))
+        missing-responsible (count (filterv :missing-responsible activity-flags))
+        incomplete (->> (filterv incomplete? activity-flags)
+                        (sort-by :activity)
+                        (vec))]
+    {:available (pos? total)
+     :total total
+     :complete complete
+     :missing-accountable missing-accountable
+     :missing-responsible missing-responsible
+     :coverage-pct (if (pos? total)
+                     (int (Math/round ^double (* 100.0 (/ complete total))))
+                     0)
+     :incomplete-activities incomplete}))
+
+
 (def raci-overload-threshold
   "同一干系人承担执行(R)职责的活动数达到该值即视为负载过重."
   3)
