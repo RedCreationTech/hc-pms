@@ -553,6 +553,33 @@
            ^{:key (:frequency f)} [antd/tag {:color "default"} (str (:label f) " · " (:count f))])]])]))
 
 
+(defn- comm-audience-section
+  "按每个干系人与沟通计划最新有效版本只读聚合有多少有效干系人被至少一条活动沟通计划受众覆盖: 已覆盖/未覆盖与覆盖率并列出未覆盖干系人; 复用沟通计划受众口径, 只读派生, 不改变任何记录."
+  [{:keys [model]}]
+  (let [cov (:comm_audience_coverage model)
+        total (:total cov 0)
+        plans (:plans cov 0)
+        covered (:covered cov 0)
+        uncovered (:uncovered cov 0)
+        pct (:coverage-pct cov 0)
+        missing (:uncovered-stakeholders cov [])]
+    [shared/panel "沟通受众覆盖度" "按每个干系人与沟通计划最新有效版本只读聚合有多少有效干系人被至少一条活动沟通计划的受众覆盖, 并列出尚未被任何沟通计划覆盖的干系人; 只读派生, 不改变任何记录"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无干系人, 登记后可在此查看沟通受众覆盖度."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "干系人总数 " total)]
+         [antd/tag {:color "default"} (str "沟通计划 " plans)]
+         [antd/tag {:color "green"} (str "已覆盖 " covered)]
+         (when (pos? uncovered)
+           [antd/tag {:color "red"} (str "未覆盖 " uncovered)])
+         [antd/tag {:color (if (zero? pct) "red" "cyan")} (str "覆盖率 " pct "%")]]
+        (when (pos? uncovered)
+          [antd/space {:wrap true}
+           (for [st missing]
+             ^{:key (:code st)} [antd/tag {:color "default"} (str (:code st) " · " (:name st))])])])]))
+
+
 (defn- trace-section
   "显式呈现需求到任务和证据的覆盖关系."
   [{:keys [base model planning editable? open!]}]
@@ -1551,7 +1578,7 @@
                      ["requirements" "URS与追踪" [requirement-section coverage-section alignment-section traceability-section trace-section]]
                      ["evidence" "证据版本" [document-section collection-section tree-section release-coverage-section]]
                      ["appointments" "成员任命" [appointment-section]]
-                     ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section raci-section comm-plan-section comm-cadence-section]]
+                     ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section raci-section comm-plan-section comm-cadence-section comm-audience-section]]
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-review-cadence-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section action-closure-section action-section]]

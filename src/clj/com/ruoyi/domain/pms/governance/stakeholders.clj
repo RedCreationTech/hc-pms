@@ -278,6 +278,28 @@
      :by-engagement (mapv (fn [l] {:engagement l :count (level-count l)}) levels)}))
 
 
+(defn comm-audience-coverage
+  "按每个干系人与沟通计划业务编码最新有效版本(store/latest 折叠修订链)统计有多少有效干系人被至少一条活动沟通计划的受众覆盖的只读覆盖度: 干系人总数/沟通计划数/已覆盖/未覆盖与百分比, 并列出未覆盖干系人(编号+名称). 最新版本被受控作废(discarded)的干系人或沟通计划均不计入. 只读派生, 不落库不投递, 不改变不可变版本, 不构成任何门控."
+  [stakeholders comm-plans]
+  (let [active-stakeholders (filterv #(not= "discarded" (:status %)) (s/latest stakeholders))
+        active-plans (filterv #(not= "discarded" (:status %)) (s/latest comm-plans))
+        covered-ids (into #{} (mapcat :audience) active-plans)
+        covered? (fn [stakeholder] (contains? covered-ids (:id stakeholder)))
+        total (count active-stakeholders)
+        covered (count (filterv covered? active-stakeholders))
+        uncovered (mapv (fn [stakeholder] {:code (:code stakeholder) :name (:name stakeholder)})
+                        (remove covered? active-stakeholders))]
+    {:available (pos? total)
+     :total total
+     :plans (count active-plans)
+     :covered covered
+     :uncovered (- total covered)
+     :coverage-pct (if (pos? total)
+                     (int (Math/round ^double (* 100.0 (/ covered total))))
+                     0)
+     :uncovered-stakeholders uncovered}))
+
+
 (def raci-overload-threshold
   "同一干系人承担执行(R)职责的活动数达到该值即视为负载过重."
   3)

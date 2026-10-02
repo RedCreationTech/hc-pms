@@ -9,6 +9,7 @@
     [com.ruoyi.domain.pms.governance.evidence :as evidence]
     [com.ruoyi.domain.pms.governance.gates :as gates]
     [com.ruoyi.domain.pms.governance.quality :as quality]
+    [com.ruoyi.domain.pms.governance.stakeholders :as stakeholders]
     [com.ruoyi.domain.pms.planning :as planning]
     [com.ruoyi.domain.pms.queries :as queries]
     [com.ruoyi.domain.pms.service :as pms]
@@ -2330,6 +2331,101 @@
       (is (= 1 (:upcoming rev)))
       (is (= 1 (:count (first (filter #(= "monthly" (:frequency %)) (:by-frequency rev))))))
       (is (= 0 (:count (first (filter #(= "weekly" (:frequency %)) (:by-frequency rev)))))))))
+
+
+(deftest comm-audience-coverage-is-derived-read-only
+  (let [id (project!)
+        cov (fn [] (:comm_audience_coverage (workspace id)))
+        sh (fn [code] (:id (command! id :stakeholders :create nil
+                                     {:code code :name (str "干系人-" code) :role "评审" :category "internal"
+                                      :interest "medium" :influence "medium" :owner_id 9301})))
+        plan (fn [code audience]
+               (command! id :comm-plans :create nil
+                         {:code code :objective "进度同步" :channel "meeting" :frequency "weekly"
+                          :audience audience :next_date "2026-10-15" :owner_id 9301}))
+        unc-code? (fn [code] (some? (first (filter #(= code (:code %)) (:uncovered-stakeholders (cov))))))
+        s1 (sh "AC-1") s2 (sh "AC-2") s3 (sh "AC-3") s4 (sh "AC-4") s5 (sh "AC-5")]
+    ;; 真实工作台路径: 初始无沟通计划, 五个干系人均未被覆盖, 覆盖率 0.
+    (is (true? (:available (cov))))
+    (is (= 5 (:total (cov))))
+    (is (= 0 (:plans (cov))))
+    (is (= 0 (:covered (cov))))
+    (is (= 5 (:uncovered (cov))))
+    (is (= 0 (:coverage-pct (cov))))
+    ;; 计划一覆盖 AC-1 + AC-2: 覆盖 2 / 未覆盖 3 / 40%, AC-1 已从缺件清单消失.
+    (plan "AC-P1" [s1 s2])
+    (is (= 1 (:plans (cov))))
+    (is (= 2 (:covered (cov))))
+    (is (= 3 (:uncovered (cov))))
+    (is (= 40 (:coverage-pct (cov))))
+    (is (false? (unc-code? "AC-1")))
+    (is (true? (unc-code? "AC-3")))
+    ;; 计划二覆盖 AC-3: 覆盖升到 3 / 未覆盖 AC-4 与 AC-5 / 60%.
+    (let [p2 (plan "AC-P2" [s3])]
+      (is (= 2 (:plans (cov))))
+      (is (= 3 (:covered (cov))))
+      (is (= 2 (:uncovered (cov))))
+      (is (= 60 (:coverage-pct (cov))))
+      (is (false? (unc-code? "AC-3")))
+      (is (true? (unc-code? "AC-4")))
+      ;; 修订计划二只覆盖 AC-4(去掉 AC-3): s/latest 只计最新有效版本受众, AC-3 重回缺件而 AC-4 转覆盖.
+      (command! id :comm-plans :revisions (:id p2)
+                {:code "AC-P2" :objective "进度同步" :channel "meeting" :frequency "weekly"
+                 :audience [s4] :next_date "2026-10-15" :owner_id 9301})
+      (is (= 2 (:plans (cov))))
+      (is (= 3 (:covered (cov))))
+      (is (= 2 (:uncovered (cov))))
+      (is (true? (unc-code? "AC-3")))
+      (is (false? (unc-code? "AC-4"))))
+    ;; 受控作废未被任何计划覆盖的 AC-5: 该干系人从分母收缩, 覆盖率上升而覆盖数不变.
+    (command! id :stakeholders :discard s5 {:reason "人员退出项目"})
+    (is (= 4 (:total (cov))))
+    (is (= 3 (:covered (cov))))
+    (is (= 1 (:uncovered (cov))))
+    (is (= 75 (:coverage-pct (cov))))
+    ;; 只读派生不改变记录: 重复读取覆盖度稳定, 既有已覆盖干系人仍 active.
+    (is (= (cov) (:comm_audience_coverage (workspace id))))
+    (let [row (first (filter #(= "AC-1" (:code %)) (:stakeholders (workspace id))))]
+      (is (= "active" (:status row))))
+    ;; 纯函数直测: 空输入 available false/全 0, 缺件清单为空.
+    (let [empty (stakeholders/comm-audience-coverage [] [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:total empty)))
+      (is (= 0 (:plans empty)))
+      (is (= 0 (:covered empty)))
+      (is (= 0 (:uncovered empty)))
+      (is (= 0 (:coverage-pct empty)))
+      (is (empty? (:uncovered-stakeholders empty))))
+    ;; 合成: 修订链只计最新版受众, 旧版覆盖的 b 随最新版去掉而重回缺件.
+    (let [rev (stakeholders/comm-audience-coverage
+                [{:id "a" :code "S-a" :revision 1 :status "active" :name "甲"}
+                 {:id "b" :code "S-b" :revision 1 :status "active" :name "乙"}]
+                [{:code "P" :revision 1 :status "active" :audience ["a" "b"]}
+                 {:code "P" :revision 2 :status "active" :audience ["a"]}])]
+      (is (= 2 (:total rev)))
+      (is (= 1 (:plans rev)))
+      (is (= 1 (:covered rev)))
+      (is (= 1 (:uncovered rev)))
+      (is (= 50 (:coverage-pct rev)))
+      (is (= ["S-b"] (mapv :code (:uncovered-stakeholders rev)))))
+    ;; 合成: 最新版被作废的干系人从分母剔除, 其受众引用不影响覆盖计数.
+    (let [disc (stakeholders/comm-audience-coverage
+                 [{:id "a" :code "S-a" :revision 1 :status "active" :name "甲"}
+                  {:id "b" :code "S-b" :revision 1 :status "discarded" :name "乙"}]
+                 [{:code "P" :revision 1 :status "active" :audience ["a" "b"]}])]
+      (is (= 1 (:total disc)))
+      (is (= 1 (:covered disc)))
+      (is (= 0 (:uncovered disc)))
+      (is (= 100 (:coverage-pct disc))))
+    ;; 合成: 最新版被作废的沟通计划不计入, 其受众不再覆盖任何干系人.
+    (let [discp (stakeholders/comm-audience-coverage
+                  [{:id "a" :code "S-a" :revision 1 :status "active" :name "甲"}]
+                  [{:code "P" :revision 1 :status "discarded" :audience ["a"]}])]
+      (is (= 1 (:total discp)))
+      (is (= 0 (:plans discp)))
+      (is (= 0 (:covered discp)))
+      (is (= 1 (:uncovered discp)))
+      (is (= 0 (:coverage-pct discp))))))
 
 
 (deftest issue-escalation-disposition-summary-is-derived-read-only

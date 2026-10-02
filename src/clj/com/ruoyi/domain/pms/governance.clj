@@ -122,6 +122,7 @@
                           :risk_score_distribution (collab/risk-score-distribution (:risks data))
                           :risk_review_cadence (collab/risk-review-cadence-summary (:risks data))
                           :comm_cadence_summary (collab/comm-cadence-summary (:comm_plans data))
+                          :comm_audience_coverage (stakeholders/comm-audience-coverage (:stakeholders data) (:comm_plans data))
                           :issue_escalation_summary (collab/issue-escalation-disposition-summary (:issues data))
                           :action_closure (collab/action-closure-summary (:actions data))
                           :meeting_release_coverage (collab/meeting-release-coverage (:meetings data))
