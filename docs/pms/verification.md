@@ -1605,6 +1605,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: C09 整行状态保持不变 — 本项只是在读取层对已声明的 `resolution_type` 做只读聚合可视, 一个只读子能力不上抬整行状态; 覆盖度只反映"是否在提交解决时声明了解决方式", 不等于处置方式本身是否恰当, 也不改变问题闭环率/严重度分布/升级处置/独立验证语义, 不做按解决方式 × 严重度的交叉统计, MySQL 回归待补充.
 
+## F09 季度经营目标达成组合级只读汇总 (本轮增补, 2026-10-02)
+
+设计与口径: F09 原有能力已能"逐条下达/修订/退役季度经营目标并按季度内关闭项目决算复算每条达成率", 但整个组合"到底有多少在跟踪目标, 达标/接近/落后各几条, 达标率多少, 收入/毛利/结项数/准时率四指标各自分布如何"此前只能在目标台账逐行看百分比, 无组合级一眼可读的汇总. 本项把"给治理/组合台账加只读派生洞察"套路应用到季度经营目标达成维度, 与同族"四算版本审批闭环汇总"/"研发费用分摊闭环汇总"/"成本毛利看板"面板形状一致, **不落库、不投递、不改动任何目标状态或达成口径, 免迁移, 免新命令, 免新 kind, 免新路由, 不构成任何门控**. 后端 `pms.portfolio/goal-attainment-summary` 纯函数消费 `targets` 已复算出的 `rows` (每行带 `achievement_pct`), 先按目标 `code` 取 `revision` 最大的当前版本并剔除 `status=retired` (故修订链只计最新版, 退役目标退出聚合), 再依达成率分档统计达标 (>=100%)/接近 (60-99%)/落后 (<60%) 目标数, 输出 `{available, total, met, near, behind, met-pct, by-metric:[{metric, total, met, avg-pct}]}`, `met-pct` 与 `avg-pct` 均为 `Math/round` 整数百分比, `by-metric` 固定收入/毛利/结项数/准时率四序, `available` 在无在跟踪目标时为 false. `portfolio/targets` 返回 map 在 `:finance_visible` 与 `:metrics` 之间挂 `:attainment (goal-attainment-summary rows)`. 前端 `targets.cljs` `defn- attainment-summary` 作为"季度目标与达成" `shared/panel` 的额外子元素渲染: 无在跟踪目标时显引导语, 有则以蓝"在跟踪目标 N"、绿/金/红分档"达标 N 个 · 达标率 N%"/"接近目标 N 个"/"落后 N 个"彩色标签与逐指标"指标 · 目标 N 个, 达标 N 个, 平均达成 N%"标签回显; 关键界面坑: `shared/panel` 渲染为含 `<h3>` 的 `<section>`, 而汇总副标题"季度经营目标达成组合级汇总"仅在 `:available` 分支出现, 故 E2E 面板定位须过滤恒在的外层 `<h3>` 标题"季度目标与达成"而非副标题, 否则空态命中不到.
+
+| 验证层 | 结果 |
+|--------|------|
+| 后端命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-portfolio-test'` 通过 12 tests / 243 assertions, 0 failures/errors (新增 deftest `goal-attainment-summary-is-derived-read-only`: 以合成 rows 直测纯函数分档 met 1/near 2/behind 1 与 by-metric 四序计数·达标·平均达成率; 空集 `available=false`/total 0/pct 0; 输入 rows 不被改写 (非破坏性); 端到端经 config create+publish 下达跨四指标目标后经 `portfolio/targets` 暴露 `:attainment`, 用 `>=` 守卫容忍共享库跨用例遗留) |
+| 全量 PMS 回归 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 全绿 217 tests / 2705 assertions, 0 failures/errors (较上一记录基线 216/2683 增本 `goal-attainment-summary` 一 deftest / +22 assertions, `targets` 返回 map 新增 `:attainment` 未造成既有四算/季度目标/费用池/封期/追踪/组合看板回归) |
+| 前端编译 | `npx shadow-cljs compile app` 通过 4035 files / 0 warnings (新增"季度经营目标达成组合级汇总"面板与逐指标彩色标签渲染) |
+| HTTP 合同 (契约) | `contracts/blueprint-extension.md` 的 GET `/targets/board` 条目补记顶层派生键 `attainment` 输出结构 `{available, total, met, near, behind, met-pct, by-metric[]}`、按 code 取最新版+剔除退役的去重口径、达成率分档阈值与"免迁移/不落库/不构成门控/键名无尾随问号"约束 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | 断言用例 `pms-f09gas.spec.js` 1 passed (全新独立 `/tmp/f09gas2.db` 冷启动迁移, 无未捕获 JS 错误): 空态面板显引导语 (截图 f09-0-empty.png); 下达跨四指标 6 个目标 (5 个真实 HTTP create+publish + 1 个界面"下达季度目标"对话框) → 面板"在跟踪目标 6 / 达标 0 个 · 达标率 0% / 接近目标 0 / 落后 6"与四指标分布标签 (收入 2/毛利 2/结项数 1/准时结项率% 1, 均达标 0) 真实可见 (截图 f09-1-summary-six-tracked.png); 对 2026Q1-revenue 真实 HTTP 修订+发布使旧版转 retired → 面板仍"在跟踪目标 6" (修订去重), 真实 HTTP 断言 total 恒 6 且 revenue by-metric 仍 2 (截图 f09-2-revision-dedup.png); 真实 HTTP 退役 on_time_rate 目标 → 面板"在跟踪目标 5 / 落后 5"且"准时结项率% · 目标"标签消失, HTTP `:attainment` total 5/on_time_rate.total 0 同源核验 (截图 f09-3-after-retire.png). 诚实说明: 隔离空库无关闭项目故所有达成率为 0、全部落"落后"档, 浏览器不伪造"达标"绿标签; 三档色阈值 (达标/接近/落后) 由纯函数 SQLite deftest 用合成 rows 充分覆盖 |
+| 演示录像 (真实浏览器) | 同一 `pms-f09gas.spec.js` 以文件顶层 `test.use({ video: 'on' })` 录真实 Playwright 浏览器全程 (空态 → 下达 6 项目标 → 组合汇总面板 → 修订去重 → 退役剔除对应指标), webm 经项目本地 `tools/bin/ffmpeg` 转 `reports/f09gas/f09gas-demo.mp4` (h264, 1600x1000) |
+| MySQL | 本轮未执行 (本地无 MySQL 实例); 本项为免迁移的只读派生聚合, 不落库, 不涉及任何表结构或迁移变更, 与 SQLite/MySQL 无关 |
+
+边界: F09 整行状态保持不变 (`partial / 待规则`) — 目标级达成复算与版本化下达/修订/退役此前已在, 本项只新增一个组合级只读聚合视图, 一个只读子能力不上抬整行状态; `attainment` 的达标/接近/落后分档仅反映"已下达目标当前达成率的分布", 不改动任何目标状态或达成口径, 不做跨季度趋势/加权平均/预测, 事实数据权威来源与权限验收仍待合同, MySQL 回归待补充.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

@@ -540,3 +540,43 @@
         (is (= 0 (:achievement_pct row)))
         (is (= "approved_settlements" (:source row))))
       (is (false? (:finance_visible (portfolio/targets *service* (actor 9703))))))))
+
+
+(deftest goal-attainment-summary-is-derived-read-only
+  ;; 纯函数: 按目标编码取最新版本(剔除已退役), 达成率分档 (达标/接近/落后) 与四指标分布; 只读派生不改入参.
+  (let [rows [{:code "2026Q3-revenue" :revision 1 :status "published" :metric "revenue" :achievement_pct 120}
+              {:code "2026Q3-revenue" :revision 2 :status "published" :metric "revenue" :achievement_pct 80}
+              {:code "2026Q3-margin" :revision 1 :status "published" :metric "gross_margin" :achievement_pct 50}
+              {:code "2026Q3-closed" :revision 1 :status "retired" :metric "closed_projects" :achievement_pct 200}
+              {:code "2026Q4-closed" :revision 1 :status "draft" :metric "closed_projects" :achievement_pct 100}
+              {:code "2026Q4-ontime" :revision 1 :status "published" :metric "on_time_rate" :achievement_pct 99}]
+        s (portfolio/goal-attainment-summary rows)]
+    (is (true? (:available s)))
+    (is (= 4 (:total s)))
+    (is (= 1 (:met s)))
+    (is (= 2 (:near s)))
+    (is (= 1 (:behind s)))
+    (is (= 25 (:met-pct s)))
+    (is (= {:metric "revenue" :total 1 :met 0 :avg-pct 80} (nth (:by-metric s) 0)))
+    (is (= {:metric "gross_margin" :total 1 :met 0 :avg-pct 50} (nth (:by-metric s) 1)))
+    (is (= {:metric "closed_projects" :total 1 :met 1 :avg-pct 100} (nth (:by-metric s) 2)))
+    (is (= {:metric "on_time_rate" :total 1 :met 0 :avg-pct 99} (nth (:by-metric s) 3)))
+    (is (= 6 (count rows)))
+    (is (= 120 (:achievement_pct (first rows)))))
+  (let [e (portfolio/goal-attainment-summary [])]
+    (is (false? (:available e)))
+    (is (= 0 (:total e)))
+    (is (= 0 (:met-pct e)))
+    (is (= 4 (count (:by-metric e))))
+    (is (every? #(= 0 (:total %)) (:by-metric e))))
+  ;; 端到端读模型: portfolio/targets 暴露 :attainment, 随已下达目标出现, 且不改变逐条 rows.
+  (let [target (config/create! *service* (actor 9701) "quarterly-target" {:year 2025 :quarter 1 :metric "revenue" :target_value "9000" :basis "组合达成汇总"})]
+    (config/publish! *service* (actor 9701) "quarterly-target" (:id target) {:reason "下达"})
+    (let [board (portfolio/targets *service* (actor 9701))
+          att (:attainment board)
+          row (first (filter #(= (:id target) (:id %)) (:rows board)))]
+      (is (true? (:available att)))
+      (is (>= (:total att) 1))
+      (is (= 0 (:achievement_pct row)))
+      (is (>= (:behind att) 1))
+      (is (some #(and (= "revenue" (:metric %)) (>= (:total %) 1)) (:by-metric att))))))

@@ -37,6 +37,24 @@
                                 :strokeColor (cond (>= (or pct 0) 100) "#389e0d" (>= (or pct 0) 60) "#faad14" :else "#cf1322")}]))
 
 
+(defn- attainment-summary
+  "季度目标达成组合级只读汇总 (置于看板面板内): 按目标编码取当前最新版本并剔除已退役, 依达成率分档给出达标/接近/落后目标数与达标率, 并按收入/毛利/结项数/准时率四指标给出目标数·达标数·平均达成率; 只读派生, 不构成门控."
+  [att]
+  (let [pct-color (fn [p] (cond (>= p 100) "green" (>= p 60) "gold" :else "red"))]
+    (if-not (:available att)
+      [:div {:style {:marginBottom 16}}
+       [:span {:style {:color "#98a2b3"}} "尚无在跟踪的经营目标, 下达目标后此处自动汇总组合达成情况."]]
+      [:div {:style {:display "grid" :gap 10 :marginBottom 18}}
+       [:div {:style {:fontSize 13 :fontWeight 600 :color "#4b5563"}} "季度经营目标达成组合级汇总 (只读派生, 不构成门控)"]
+       [antd/space {:wrap true}
+        [antd/tag {:color "geekblue"} (str "在跟踪目标 " (:total att))]
+        [antd/tag {:color (pct-color (:met-pct att))} (str "达标 " (:met att) " 个 · 达标率 " (:met-pct att) "%")]
+        [antd/tag {:color "gold"} (str "接近目标 " (:near att) " 个")]
+        [antd/tag {:color "red"} (str "落后 " (:behind att) " 个")]]
+       [antd/space {:wrap true}
+        (for [bm (:by-metric att) :when (pos? (:total bm))] ^{:key (:metric bm)}
+          [antd/tag {} (str (get metric-labels (:metric bm) (:metric bm)) " · 目标 " (:total bm) " 个, 达标 " (:met bm) " 个, 平均达成 " (:avg-pct bm) "%")])]])))
+
 (defn targets-page
   "经营目标看板."
   []
@@ -52,6 +70,7 @@
      [w/resource-view resource
       (fn [data]
         [shared/panel "季度目标与达成" (if (:finance_visible data) "实际值口径: 季度内关闭项目的已批准决算 (收入/毛利) 与关闭项目数" "当前账号无财务权限, 仅显示结项数口径") nil
+         [attainment-summary (:attainment data)]
          [w/record-table (:rows data)
           [{:title "季度" :key "quarter" :width 100 :render (fn [_ row] (str (aget row "year") " Q" (aget row "quarter")))}
            {:title "指标" :dataIndex "metric" :width 110 :render #(get metric-labels % %)}

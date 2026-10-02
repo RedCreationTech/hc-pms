@@ -276,6 +276,37 @@
   [date]
   (let [d (LocalDate/parse (subs date 0 10))] [(.getYear d) (inc (quot (dec (.getMonthValue d)) 3))]))
 
+(defn goal-attainment-summary
+  "F09 季度经营目标达成组合级只读汇总: 按目标编码取当前最新版本 (剔除已退役) 后依达成率分档统计达标 (>=100%)/接近 (60-99%)/落后 (<60%) 目标数与达标率, 并按收入/毛利/结项数/准时率四指标给出目标数·达标数·平均达成率; 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
+  [rows]
+  (let [current (vals (reduce (fn [acc {:keys [code revision] :as row}]
+                                (let [prior (get acc code)]
+                                  (if (or (nil? prior) (< (:revision prior) revision))
+                                    (assoc acc code row)
+                                    acc)))
+                              {} rows))
+        active (filterv #(not= "retired" (:status %)) current)
+        total (count active)
+        met (count (filterv #(>= (:achievement_pct %) 100) active))
+        near (count (filterv #(and (>= (:achievement_pct %) 60) (< (:achievement_pct %) 100)) active))
+        behind (count (filterv #(< (:achievement_pct %) 60) active))
+        by-metric (mapv (fn [m]
+                          (let [rs (filterv #(= m (:metric %)) active)]
+                            {:metric m
+                             :total (count rs)
+                             :met (count (filterv #(>= (:achievement_pct %) 100) rs))
+                             :avg-pct (if (seq rs)
+                                        (int (Math/round ^double (/ (double (reduce + 0 (map :achievement_pct rs))) (count rs))))
+                                        0)}))
+                        ["revenue" "gross_margin" "closed_projects" "on_time_rate"])]
+    {:available (pos? total)
+     :total total
+     :met met
+     :near near
+     :behind behind
+     :met-pct (if (pos? total) (int (Math/round ^double (* 100.0 (/ met total)))) 0)
+     :by-metric by-metric}))
+
 (defn targets
   "季度经营目标与实际达成 (F09): 收入/毛利取该季度关闭项目已批准决算, 结项数取该季度关闭项目数; 目标修订不改写历史."
   [svc actor]
@@ -311,4 +342,5 @@
                       :closed_projects (mapv #(select-keys % [:project_id :project_no :name :on_time :currency]) in-quarter)
                       :source (if finance? "approved_settlements" "counts_only")))]
     {:rows (vec (sort-by (juxt :year :quarter :metric :revision) rows)) :finance_visible finance?
+     :attainment (goal-attainment-summary rows)
      :metrics [{:value "revenue" :label "收入"} {:value "gross_margin" :label "毛利"} {:value "closed_projects" :label "结项数"} {:value "on_time_rate" :label "准时结项率%"}]}))
