@@ -618,6 +618,32 @@
                             (str (get strategy-label strategy strategy) " · " count)])]]])]))
 
 
+(defn- risk-category-coverage-section
+  "按每个风险最新有效版本只读聚合风险类别(RBS)声明覆盖度: 六类风险分解结构类别各自计数与覆盖率; 只读派生, 不改变风险状态."
+  [{:keys [model]}]
+  (let [cov (:risk_category_coverage model)
+        total (:total cov 0)
+        undeclared (:undeclared cov 0)
+        pct (:coverage-pct cov 0)
+        category-label {"technical" "技术" "external" "外部" "organizational" "组织" "schedule" "进度" "cost" "成本" "quality" "质量"}]
+    [shared/panel "风险类别覆盖度" "按每个风险的最新有效版本统计 PMI 风险分解结构(RBS)六类类别声明情况; 只读派生, 不改变风险状态"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无项目风险, 登记后可在此查看风险类别覆盖度."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "风险总数 " total)]
+         [antd/tag {:color (cond (= pct 100) "green" (zero? pct) "red" :else "gold")}
+          (str "已声明风险类别 " pct "%")]
+         (when (pos? undeclared)
+           [antd/tag {:color "orange"} (str "未设定 " undeclared)])]
+        [:div
+         [:span {:style {:fontWeight 500}} "按风险类别: "]
+         [antd/space {:wrap true}
+          (for [{:keys [category count]} (:by-category cov)]
+            ^{:key category} [antd/tag {:color (if (pos? count) "geekblue" "default")}
+                            (str (get category-label category category) " · " count)])]]])]))
+
+
 (defn- risk-escalation-section
   "按每个风险最新有效版本只读聚合超阈值升级处置进度: 升级总数, 待确认/已确认/已豁免及分级计数; 只读派生, 不改变风险状态."
   [{:keys [model]}]
@@ -1346,7 +1372,7 @@
                      ["appointments" "成员任命" [appointment-section]]
                      ["stakeholders" "干系人与沟通" [stakeholder-section raci-section comm-plan-section]]
                      ["gates" "Gate评审" [gate-section]]
-                     ["risks" "风险与问题" [risk-section risk-coverage-section risk-escalation-section issue-section issue-escalation-section issue-closure-summary-section]]
+                     ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section issue-section issue-escalation-section issue-closure-summary-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section action-closure-section action-section]]
                      ["changes" "变更控制" [change-section]]
                      ["quality" "DQ与局部暂停" [dq-summary-section dq-section pause-section]]])}])

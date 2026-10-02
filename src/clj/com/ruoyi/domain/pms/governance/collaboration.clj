@@ -49,6 +49,23 @@
      :by-strategy (mapv (fn [x] {:strategy x :count (strategy-count x)}) strategies)}))
 
 
+(defn risk-category-coverage
+  "按每个风险最新有效版本统计风险类别(RBS)声明的只读覆盖度: PMI 六类风险分解结构类别各自计数, 已声明/未设定与覆盖率; 只读派生, 不落库不投递, 不改变风险状态."
+  [risks]
+  (let [categories ["technical" "external" "organizational" "schedule" "cost" "quality"]
+        active (s/latest risks)
+        total (count active)
+        declared (count (filterv #(some #{(:risk_category %)} categories) active))
+        category-count (fn [x] (count (filterv #(= x (:risk_category %)) active)))]
+    {:total total
+     :declared declared
+     :undeclared (- total declared)
+     :coverage-pct (if (pos? total)
+                     (int (Math/round ^double (* 100.0 (/ declared total))))
+                     0)
+     :by-category (mapv (fn [x] {:category x :count (category-count x)}) categories)}))
+
+
 (defn risk-escalation-disposition-summary
   "按每个风险最新有效版本只读聚合超阈值升级处置情况: 升级总数与待确认/已确认/已豁免及 steering/management 分级计数; 只读派生, 不落库不投递, 不改变风险状态."
   [risks]

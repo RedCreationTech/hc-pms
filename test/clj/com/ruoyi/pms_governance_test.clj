@@ -1974,6 +1974,49 @@
       (is (= "transfer" (:response_strategy row))))))
 
 
+(deftest risk-category-coverage-is-derived-read-only
+  (let [id (project!)
+        cov (fn [] (:risk_category_coverage (workspace id)))
+        risk (fn [title category]
+               (command! id :risks :create nil
+                         (cond-> {:title title :probability 2 :impact 3
+                                  :owner_id 9301 :mitigation "常规措施" :due_date "2026-10-20"}
+                           category (assoc :risk_category category))))
+        c (fn [k] (:count (first (filter #(= k (:category %)) (:by-category (cov))))))]
+    ;; 六类 RBS 类别按每个风险最新有效版本统计声明覆盖度: 已声明计入分子, 未设定只计入分母.
+    (risk "接口依赖风险" "external")
+    (risk "技术选型风险" "technical")
+    (risk "进度压缩风险" "schedule")
+    (risk "常规观察风险" nil)
+    (is (= 4 (:total (cov))))
+    (is (= 3 (:declared (cov))))
+    (is (= 1 (:undeclared (cov))))
+    (is (= 75 (:coverage-pct (cov))))
+    (is (= 1 (c "external")))
+    (is (= 1 (c "technical")))
+    (is (= 1 (c "schedule")))
+    (is (= 0 (c "organizational")))
+    (is (= 0 (c "cost")))
+    (is (= 0 (c "quality")))
+    ;; 再登记一条声明 cost 的风险: 覆盖度随已声明数上升, 六类顺序固定.
+    (risk "成本超支风险" "cost")
+    (is (= 5 (:total (cov))))
+    (is (= 4 (:declared (cov))))
+    (is (= 80 (:coverage-pct (cov))))
+    (is (= 1 (c "cost")))
+    ;; 从典型风险库实例化的风险同样计入分母 (库实例化默认不含 risk_category, 记为未设定).
+    (command! id :risks :from-library nil {:template_key "cost-overrun" :owner_id 9301 :due_date "2026-10-20"})
+    (is (= 6 (:total (cov))))
+    (is (= 4 (:declared (cov))))
+    (is (= 2 (:undeclared (cov))))
+    (is (= 67 (:coverage-pct (cov))))
+    ;; 只读派生不改变风险状态: 重复读取覆盖度稳定, 既有风险仍为登记态且类别不漂移.
+    (is (= (cov) (:risk_category_coverage (workspace id))))
+    (let [row (first (filter #(= "接口依赖风险" (:title %)) (:risks (workspace id))))]
+      (is (= "open" (:status row)))
+      (is (= "external" (:risk_category row))))))
+
+
 (deftest risk-escalation-disposition-summary-is-derived-read-only
   (let [id (project!)
         sum (fn [] (:risk_escalation_summary (workspace id)))

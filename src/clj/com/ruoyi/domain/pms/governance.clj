@@ -115,6 +115,7 @@
                           :verification_evidence_alignment (evidence/verification-evidence-alignment (:requirements data) (:traces data) docs-by-id)
                           :release_coverage (evidence/release-coverage (:documents data))
                           :risk_response_coverage (collab/risk-response-coverage (:risks data))
+                          :risk_category_coverage (collab/risk-category-coverage (:risks data))
                           :risk_escalation_summary (collab/risk-escalation-disposition-summary (:risks data))
                           :issue_escalation_summary (collab/issue-escalation-disposition-summary (:issues data))
                           :action_closure (collab/action-closure-summary (:actions data))

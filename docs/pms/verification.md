@@ -1557,6 +1557,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: H08 整行保持既有 `partial` 状态不变 — 本项只是给风险登记写路径补一个可选强类型枚举子字段, 一个写路径子字段不上行整行状态; 该字段不构成任何门控 (填与不填都不影响评分与超阈值自动升级判定), 不新增迁移/kind/命令/路由/表结构; 六类 RBS 类别为本地枚举口径, 尚未做按类别聚合的只读覆盖度统计, 也未与外部风险模板库字典对齐, MySQL 回归待补充.
 
+## H08/C10 风险类别 RBS 覆盖度只读派生汇总 (本轮增补, 2026-10-02)
+
+设计与口径: 上一条"风险类别 RBS 可选枚举字段"关闭了"单条风险能否声明类别并回显", 但整个项目"到底多少风险标了 RBS 类别, 六类各分布几条, 还有几条没归类"此前无处一眼可读 — 该枚举字段自身的诚实边界正是"未做按类别聚合的只读统计". 本项把"给治理台账加只读派生洞察"套路应用到风险类别维度, 完全复用同族的"风险应对策略覆盖度"面板 (`risk_response_coverage`) 的形状, 是其按 RBS 类别维度的姊妹聚合, **不落库、不投递、不改动任何风险状态或升级门控, 免迁移, 免新命令, 免新 kind, 免新路由, 不构成任何门控**. 后端 `governance.collaboration/risk-category-coverage` 纯函数复用 `store/latest` 统计风险记录 (每条风险以自身 `id` 作为 `code` 且无修订链与受控作废, 故 `latest` 即全部风险), 以 PMI 六类 RBS 类别 `technical/external/organizational/schedule/cost/quality` 为固定顺序各自计数, 输出 `{total, declared, undeclared, coverage-pct, by-category:[{category, count}]}`: `declared` 为 `risk_category` 命中六类之一者, `coverage-pct` 为 `declared/total` 四舍五入整数百分比 (`total` 为 0 时给 0, 未声明者不计入任何类别). `governance.clj` workspace 以 `:risk_category_coverage (collab/risk-category-coverage (:risks data))` 挂在 `:risk_response_coverage` 之后. 前端 `governance.cljs` 在"风险与问题"页签"风险应对覆盖度"面板之后注册"风险类别覆盖度"面板, 以蓝"风险总数 N"、绿/金/红"已声明风险类别 P%"、橙"未设定 N"、并按六类彩色标签回显"技术/外部/组织/进度/成本/质量 · 计数" (与风险台账"风险类别"列同一配色), 无风险时给提示文案. 关键界面坑: 两个姊妹覆盖度面板同页共存且都渲染"风险总数"/"未设定"标签, 而 `shared/panel` 渲染为含 `<h3>` 标题的 `<section>`, 故 E2E 断言须用 `locator('section').filter({ has: getByRole('heading', { name: '风险类别覆盖度', exact: true }) })` 按面板作用域定位, 否则命中多个元素触发 strict-mode 串台.
+
+| 证据类型 | 结果 |
+|---|---|
+| 后端命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 84 tests / 1148 assertions, 0 failures/errors (新增 deftest `risk-category-coverage-is-derived-read-only`: 登记 external/technical/schedule/未选四类风险 → total 4/declared 3/pct 75/各类计数; 再登记一条 cost → total 5/declared 4/pct 80; 从典型风险库实例化一条不带 risk_category 的风险 → total 6/declared 4/undeclared 2/pct 67 (证明 `latest` 与库实例化路径均计入分母且未声明不计入任何类别); 反复读取聚合稳定不漂移; 逐条风险状态仍 `open` 且 `risk_category` 不因聚合而改变) |
+| 全量 PMS 回归 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 全绿 214 tests / 2633 assertions, 0 failures/errors (较上一记录基线 213/2612 增本 `risk-category-coverage` 一 deftest / +21 assertions, workspace 新增 `:risk_category_coverage` 未造成既有风险/问题/审批用例回归) |
+| 前端编译 | `npx shadow-cljs compile app` 通过 4035 files / 0 compiled (增量无变更) / 0 warnings (新增覆盖度面板与六类彩色标签渲染) |
+| HTTP 合同 (契约) | `contracts/governance.md` 新增"风险类别 RBS 覆盖度 (H08/C10 延伸)"段, 记录 GET `/governance` 读模型新字段 `risk_category_coverage` 的输出结构 `{total, declared, undeclared, coverage-pct, by-category}`, 口径与"风险应对策略覆盖度"同源同形状 (复用 `store/latest`, 免迁移/命令/kind, 不构成门控), 并写明两面板同页共存须按 `<section>` 标题作用域断言 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | 断言用例 `pms-h08rccat.spec.js` 1 passed (全新独立 `/tmp/h08rccat.db` 冷启动迁移, 无未捕获 JS 错误): 界面"登记项目风险"下拉选类别登记"关键交付断供风险"(外部)/"接口依赖风险"(技术)/"常规观察风险"(不选) 三条 → 作用域到"风险类别覆盖度"`<section>` 断言"风险总数 3 / 已声明风险类别 67% / 未设定 1 / 外部·1 / 技术·1 / 成本·0 / 质量·0" (截图 h08rccat-1-coverage-panel.png); 真实 HTTP GET governance 回显 `risk_category_coverage` total 3/declared 2/undeclared 1/coverage-pct 67 且 `by-category` external 1/technical 1/cost 0; 再界面登记"成本超支风险"(成本) → 面板翻到"风险总数 4 / 已声明风险类别 75% / 成本·1 / 未设定 1" (截图 h08rccat-2-after-declare.png); 只读派生不改状态: 既有"关键交付断供风险"仍 `status=open` 且 `risk_category=external` 不漂移 |
+| 演示录像 (真实浏览器) | 同一 `pms-h08rccat.spec.js` 以文件顶层 `test.use({ video: 'on' })` 录真实 Playwright 浏览器全程 (建项目 → 界面登记外部/技术/未选三风险 → 覆盖度面板 67% → 再登记成本类风险 → 覆盖率升到 75%), webm 经项目本地 `tools/bin/ffmpeg` 转 `reports/h08rccat/h08rccat-demo.mp4` (h264, 1600x1000) |
+| MySQL | 本轮未执行 (本地无 MySQL 实例); 本项为免迁移的只读派生聚合, 不落库, 不涉及任何表结构或迁移变更, 与 SQLite/MySQL 无关 |
+
+边界: H08 整行保持既有 `partial` 状态不变 — 本项只是在读取层对已声明的 `risk_category` 做只读聚合可视, 一个只读子能力不上行整行状态; 覆盖度只反映"是否为风险声明了 RBS 类别", 不等于类别划分本身是否恰当, 也不改变任何风险状态机或超阈值升级门控, 不做按类别 × 应对策略的交叉矩阵统计, MySQL 回归待补充.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.
