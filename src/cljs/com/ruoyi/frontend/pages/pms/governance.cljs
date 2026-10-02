@@ -1514,6 +1514,34 @@
         (when (pos? voided)
           [antd/tag {:color "red"} (str "证据已作废 " voided)])])]))
 
+(defn- gate-exception-summary-section
+  "只读汇总全部关口实例的检查项级例外放行治理健康度: 统计必需检查项总数, 其中靠豁免而非真实通过的数量与占比, 含豁免的关口数, 以及仅靠豁免才达到就绪的关口数; 与关口验收签核闭环汇总互补 (后者按实例状态计数, 本项按逐检查项豁免计数), 只读派生, 不改变任何关口状态或检查项."
+  [{:keys [model]}]
+  (let [sm (:gate_exception_summary model)
+        total (:total sm 0)
+        required (:required-checks sm 0)
+        passed (:passed-checks sm 0)
+        exception (:exception-checks sm 0)
+        gates-with (:gates-with-exception sm 0)
+        gates-dep (:gates-exception-dependent sm 0)
+        reason-missing (:reason-missing sm 0)
+        pct (:waiver-pct sm 0)]
+    [shared/panel "关口检查项例外放行治理" "统一统计全部关口的必需检查项中被逐条豁免放行 (而非真实通过) 的数量与占比, 含豁免的关口数, 仅靠豁免才就绪的关口数与缺失豁免理由数; 回答\"关口通过有多少是靠例外撑起来的\"; 只读派生, 不改变任何关口状态或检查项"
+     nil
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "尚无关口实例, 发起 Gate 检查并登记检查项豁免后可在此查看例外放行治理概览."]
+       [antd/space {:wrap true}
+        [antd/tag {:color "blue"} (str "关口总数 " total)]
+        [antd/tag {:color "geekblue"} (str "必需检查项 " required)]
+        [antd/tag {:color (cond (zero? exception) "green" (zero? required) "default" (= pct 100) "red" :else "gold")}
+         (str "例外放行 " pct "% (" exception "/" required " · 真实通过 " passed ")")]
+        (when (pos? gates-with)
+          [antd/tag {:color "orange"} (str "含豁免关口 " gates-with)])
+        (when (pos? gates-dep)
+          [antd/tag {:color "volcano"} (str "仅靠豁免才就绪 " gates-dep)])
+        (when (pos? reason-missing)
+          [antd/tag {:color "red"} (str "缺失豁免理由 " reason-missing)])])]))
+
 
 (defn- gate-section
   "Gate模板和逐项证据检查控制阶段准入."
@@ -1521,6 +1549,7 @@
   [:div {:style {:display "grid" :gap 20}}
    [gate-progress-section context]
    [gate-closure-summary-section context]
+   [gate-exception-summary-section context]
    [shared/panel "Gate模板" "每个控制点声明类型, 适用阶段, 阻断检查点与必需检查项 (含须已发布证据的检查)"
     (when editable?
       [antd/space

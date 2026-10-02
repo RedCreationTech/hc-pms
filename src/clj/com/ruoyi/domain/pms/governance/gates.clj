@@ -242,3 +242,34 @@
   "在治理读模型上追加 :gate_closure 只读汇总 (基于已富化的 :gates), 不改变任何逐条关口记录."
   [data]
   (assoc data :gate_closure (gate-closure-summary (:gates data))))
+
+(defn gate-exception-summary
+  "只读聚合全部关口实例的检查项级例外放行治理健康度: 必需检查项总数 required-checks, 其中经真实通过数 passed-checks 与经检查项例外放行 (:waived + :waiver_reason) 清除数 exception-checks, 含至少一项必需检查项被例外放行的关口数 gates-with-exception, 以及“靠例外放行才就绪”的关口数 gates-exception-dependent (该关口全部必需检查项当前均满足, 但其中至少一项仅因例外放行而满足—即去掉例外放行即无法满足必需项), 例外放行占必需检查项的整数百分比 waiver-pct (required-checks 为 0 时给 0), 与例外放行却缺失说明的必需检查项数 reason-missing (写路径 evidence-ready! 已强制例外检查须带说明, 故通常恒为 0, 本项作控制断言以显式暴露违规例外). 与 gate-closure-summary 互补且口径正交—后者按关口整体实例状态 (approved/waived 裁决/in_review/…) 计数签核闭环, 本项聚焦检查项粒度的例外放行依赖度, 回答“关口的通过有多少是靠逐检查项豁免撑起来的”这一控制问题. 免迁移读取时派生, 不写存储, 不改变任何关口状态或检查项, 不构成门控, 键名不带尾随问号."
+  [gates]
+  (let [total (count gates)
+        required-of (fn [g] (filter :required (:checks g)))
+        waived-required-of (fn [g] (filter #(and (:required %) (:waived %)) (:checks g)))
+        passed-required-of (fn [g] (filter #(and (:required %) (:passed %)) (:checks g)))
+        ready-now? (fn [g] (every? #(or (:passed %) (:waived %)) (required-of g)))
+        required-checks (reduce + (map #(count (required-of %)) gates))
+        exception-checks (reduce + (map #(count (waived-required-of %)) gates))
+        passed-checks (reduce + (map #(count (passed-required-of %)) gates))
+        gates-with-exception (count (filter #(pos? (count (waived-required-of %))) gates))
+        gates-exception-dependent (count (filter #(and (ready-now? %) (pos? (count (waived-required-of %)))) gates))
+        reason-missing (reduce + (map #(count (remove (comp seq :waiver_reason) (waived-required-of %))) gates))]
+    {:available (pos? total)
+     :total total
+     :required-checks required-checks
+     :passed-checks passed-checks
+     :exception-checks exception-checks
+     :gates-with-exception gates-with-exception
+     :gates-exception-dependent gates-exception-dependent
+     :reason-missing reason-missing
+     :waiver-pct (if (pos? required-checks)
+                   (int (Math/round ^double (* 100.0 (/ exception-checks required-checks))))
+                   0)}))
+
+(defn attach-gate-exception-summary
+  "在治理读模型上追加 :gate_exception_summary 只读汇总 (基于已富化的 :gates), 不改变任何逐条关口记录."
+  [data]
+  (assoc data :gate_exception_summary (gate-exception-summary (:gates data))))

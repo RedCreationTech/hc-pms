@@ -1396,6 +1396,66 @@
       (is (= 1 (:evidence-voided m))))))
 
 
+(deftest gate-exception-check-waiver-is-derived-read-only
+  (let [id (project!)
+        mk (fn [code]
+             (let [template (command! id :gate-templates :create nil
+                                      {:code code :title "例外关口" :stage "execution" :required true
+                                       :checks [{:code "R1" :title "检查一" :required true}
+                                                {:code "R2" :title "检查二" :required true}]})]
+               (command! id :gates :create nil {:template_id (:id template) :title "评审" :reviewer_id 9302})))
+        check! (fn [g results] (command! id :gates :checks (:id g) {:checks results}))
+        pass (fn [code] {:code code :passed true :evidence_ids []})
+        waiv (fn [code] {:code code :passed false :waived true :waiver_reason "剩余风险已接受" :evidence_ids []})
+        none (fn [code] {:code code :passed false :evidence_ids []})
+        g1 (mk "G-E1")   ; R1 通过 + R2 例外放行 -> 就绪且靠例外才就绪
+        g2 (mk "G-E2")   ; R1 + R2 均真实通过 -> 就绪且无例外
+        g3 (mk "G-E3")   ; R1 例外放行但 R2 未满足 -> 含例外但尚未就绪(去例外不影响就绪判定)
+        g4 (mk "G-E4")]  ; 草稿未检查
+    (check! g1 [(pass "R1") (waiv "R2")])
+    (check! g2 [(pass "R1") (pass "R2")])
+    (check! g3 [(waiv "R1") (none "R2")])
+    (let [ver (version id)
+          s (:gate_exception_summary (workspace id))]
+      (is (true? (:available s)))
+      (is (= 4 (:total s)))
+      (is (= 8 (:required-checks s)))          ; 4 关口 x 2 必需项
+      (is (= 3 (:passed-checks s)))            ; g1 R1 + g2 R1 R2
+      (is (= 2 (:exception-checks s)))         ; g1 R2 + g3 R1
+      (is (= 2 (:gates-with-exception s)))     ; g1, g3
+      (is (= 1 (:gates-exception-dependent s))) ; 仅 g1 (就绪且含例外); g3 未就绪故不计
+      (is (= 0 (:reason-missing s)))           ; 写路径强制例外须带说明
+      (is (= 25 (:waiver-pct s)))              ; round(100*2/8)
+      (is (= ver (version id)) "只读例外汇总不得漂移项目聚合版本"))
+    ;; 纯函数直测: 空集 available=false 且各计数为 0.
+    (let [e (gates/gate-exception-summary [])]
+      (is (false? (:available e)))
+      (is (= 0 (:total e)))
+      (is (= 0 (:required-checks e)))
+      (is (= 0 (:waiver-pct e))))
+    ;; 纯函数直测: 就绪且含例外=exception-dependent; 未就绪即便含例外也不计入; 例外缺说明计入 reason-missing.
+    (let [m (gates/gate-exception-summary
+             [{:checks [{:required true :passed true}
+                        {:required true :passed false :waived true :waiver_reason "已接受"}]}   ; gA 靠例外才就绪
+              {:checks [{:required true :passed false :waived true :waiver_reason "已接受"}
+                        {:required true :passed false}]}                                        ; gB 含例外但未就绪 -> 不算依赖
+              {:checks [{:required true :passed true}
+                        {:required true :passed true}]}                                          ; gC 全通过 -> 无例外
+              {:checks [{:required false :passed false}]
+               :status "draft"}                                                                  ; gD 非必需项不计入分母
+              {:checks [{:required true :passed false :waived true}]}]                           ; gE 例外缺说明且就绪 -> reason-missing + 依赖
+             )]
+      (is (= 5 (:total m)))
+      (is (= 7 (:required-checks m)))            ; 2+2+2+0+1
+      (is (= 3 (:passed-checks m)))              ; gA R1 + gC R1 R2 = 3
+      (is (= 3 (:exception-checks m)))           ; gA R2 + gB R1 + gE R1 = 3
+      (is (= 3 (:gates-with-exception m)))       ; gA, gB(未就绪仍含例外), gE
+      (is (= 2 (:gates-exception-dependent m)))  ; gA 与 gE 均就绪且含例外; gB 未就绪不计
+      (is (= 1 (:reason-missing m)))             ; 仅 gE 例外无说明
+      (is (= 43 (:waiver-pct m))))))             ; round(100*3/7)=43
+
+
+
 (deftest change-review-lock-and-audit-rollback
   (let [id (project!)
         body {:title "更改设备范围" :reason "合同调整" :scope_impact "增加设备"
