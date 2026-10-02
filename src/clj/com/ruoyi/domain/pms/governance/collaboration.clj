@@ -138,6 +138,36 @@
      :upcoming (- open overdue due-soon)}))
 
 
+(def cadence-due-soon-days
+  "沟通节奏临期窗口(天): 下次沟通距今天数在 1 到该值内视为临期."
+  7)
+
+
+(def comm-cadence-frequencies
+  "沟通节奏频率只读统计顺序与中文标签 (与 stakeholders/cadences 词汇一致)."
+  [["daily" "每日"] ["weekly" "每周"] ["biweekly" "双周"] ["monthly" "每月"] ["quarterly" "每季度"]])
+
+
+(defn comm-cadence-summary
+  "按每个沟通计划最新有效版本只读聚合下次沟通到期节奏: 未逾期计划按到期日三分已逾期(下次沟通<=今天)/临期(1 到临期窗口天数内)/未来到期(距今超过临期窗口), 并按五种沟通频率回显计划条数分布; 复用 stakeholders/comm-plan-read-model 已派生的 :comm_overdue(等价于剩余天数<=0) 与 :comm_days_until 作单一口径, 与逐条台账到期预警对齐不漂移(登记沟通计划必填下次沟通日期, 故每条计划恒落在三档之一, 不设未设定桶); 沟通计划以 code 形成修订链, 经 store/latest 折叠只计最新版; 只读派生, 不落库不投递, 不改变计划状态, 不构成门控. 键名不带尾随问号."
+  [plans]
+  (let [active (s/latest plans)
+        total (count active)
+        overdue (count (filterv :comm_overdue active))
+        due-soon (count (filterv #(and (some? (:comm_days_until %))
+                                       (pos? (:comm_days_until %))
+                                       (<= (:comm_days_until %) cadence-due-soon-days))
+                                 active))
+        freq-count (fn [k] (count (filterv #(= k (:frequency %)) active)))]
+    {:available (pos? total)
+     :total total
+     :overdue overdue
+     :due-soon due-soon
+     :upcoming (- total overdue due-soon)
+     :by-frequency (mapv (fn [[k label]] {:frequency k :label label :count (freq-count k)})
+                         comm-cadence-frequencies)}))
+
+
 (defn- insert-risk!
   "写入风险记录: 统一按概率 x 影响评分, 达阈值自动标记超阈值升级, 可选携带阶段与风险库来源信息; 评分与升级判定共用 risk-assessment 纯函数."
   [q project actor fields]

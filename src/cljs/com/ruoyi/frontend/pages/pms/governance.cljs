@@ -527,6 +527,32 @@
          [w/edit-button "生成会议" #(open! (forms/comm-plan-meeting-dialog base plan))]]))]])
 
 
+(defn- comm-cadence-section
+  "按每个沟通计划最新有效版本只读聚合下次沟通到期节奏: 已逾期/临期/未来到期三分, 并回显五种沟通频率的计划条数分布; 复用逐条台账沟通到期口径, 只读派生, 不改变计划状态."
+  [{:keys [model]}]
+  (let [cad (:comm_cadence_summary model)
+        total (:total cad 0)
+        overdue (:overdue cad 0)
+        due-soon (:due-soon cad 0)
+        upcoming (:upcoming cad 0)
+        by-freq (:by-frequency cad [])]
+    [shared/panel "沟通节奏到期汇总" "按每个沟通计划最新有效版本只读聚合下次沟通到期节奏(已逾期/临期/未来到期), 并按五种沟通频率回显计划条数分布; 与逐条台账沟通到期同源, 只读派生, 不改变计划状态"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无沟通计划, 登记后可在此查看节奏到期汇总."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "沟通计划总数 " total)]
+         (when (pos? overdue)
+           [antd/tag {:color "red"} (str "已逾期 " overdue)])
+         (when (pos? due-soon)
+           [antd/tag {:color "gold"} (str "临期 " due-soon)])
+         (when (pos? upcoming)
+           [antd/tag {:color "green"} (str "未来到期 " upcoming)])]
+        [antd/space {:wrap true}
+         (for [f by-freq :when (pos? (:count f 0))]
+           ^{:key (:frequency f)} [antd/tag {:color "default"} (str (:label f) " · " (:count f))])]])]))
+
+
 (defn- trace-section
   "显式呈现需求到任务和证据的覆盖关系."
   [{:keys [base model planning editable? open!]}]
@@ -1525,7 +1551,7 @@
                      ["requirements" "URS与追踪" [requirement-section coverage-section alignment-section traceability-section trace-section]]
                      ["evidence" "证据版本" [document-section collection-section tree-section release-coverage-section]]
                      ["appointments" "成员任命" [appointment-section]]
-                     ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section raci-section comm-plan-section]]
+                     ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section raci-section comm-plan-section comm-cadence-section]]
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-review-cadence-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section action-closure-section action-section]]

@@ -2265,6 +2265,73 @@
       (is (= 0 (:upcoming rev))))))
 
 
+(deftest comm-cadence-summary-is-derived-read-only
+  (let [id (project!)
+        cad (fn [] (:comm_cadence_summary (workspace id)))
+        fq (fn [k] (:count (first (filter #(= k (:frequency %)) (:by-frequency (cad))))))
+        today (java.time.LocalDate/now)
+        st (command! id :stakeholders :create nil
+                     {:code "SH-CC" :name "客户代表" :role "验收" :category "customer"
+                      :interest "high" :influence "high" :owner_id 9301})
+        sid (:id st)
+        create (fn [code freq next]
+                 (command! id :comm-plans :create nil
+                           {:code code :objective "进度同步" :channel "meeting" :frequency freq
+                            :audience [sid] :next_date next :owner_id 9301}))]
+    ;; 真实工作台路径: 三条沟通计划分别覆盖已逾期/临期(<=7天)/未来到期, 三种频率各一条.
+    (create "CP-OV" "weekly" (str (.minusDays today 5)))
+    (create "CP-SOON" "monthly" (str (.plusDays today 2)))
+    (create "CP-FUT" "daily" (str (.plusDays today 30)))
+    (is (true? (:available (cad))))
+    (is (= 3 (:total (cad))))
+    (is (= 1 (:overdue (cad))))
+    (is (= 1 (:due-soon (cad))))
+    (is (= 1 (:upcoming (cad))))
+    (is (= 1 (fq "weekly")))
+    (is (= 1 (fq "monthly")))
+    (is (= 1 (fq "daily")))
+    (is (= 0 (fq "quarterly")))
+    ;; 只读派生不改变计划状态: 重复读取汇总稳定.
+    (is (= (cad) (:comm_cadence_summary (workspace id))))
+    ;; 纯函数直测: 空输入 available false/全 0, 五档频率计数均为 0.
+    (let [empty (collab/comm-cadence-summary [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:total empty)))
+      (is (= 0 (:overdue empty)))
+      (is (= 0 (:due-soon empty)))
+      (is (= 0 (:upcoming empty)))
+      (is (= [0 0 0 0 0] (mapv :count (:by-frequency empty)))))
+    ;; 固定合成(已带派生键): 逾期1 + 临期2 + 未来1; 频率分布 weekly2/daily1/monthly1.
+    (let [fixed (collab/comm-cadence-summary
+                  [{:code "S1" :revision 1 :frequency "weekly" :comm_overdue true :comm_days_until -3}
+                   {:code "S2" :revision 1 :frequency "daily" :comm_overdue false :comm_days_until 1}
+                   {:code "S3" :revision 1 :frequency "weekly" :comm_overdue false :comm_days_until 7}
+                   {:code "S4" :revision 1 :frequency "monthly" :comm_overdue false :comm_days_until 20}])]
+      (is (= 4 (:total fixed)))
+      (is (= 1 (:overdue fixed)))
+      (is (= 2 (:due-soon fixed)))
+      (is (= 1 (:upcoming fixed)))
+      (is (= 2 (:count (first (filter #(= "weekly" (:frequency %)) (:by-frequency fixed))))))
+      (is (= 1 (:count (first (filter #(= "daily" (:frequency %)) (:by-frequency fixed))))))
+      (is (= 1 (:count (first (filter #(= "monthly" (:frequency %)) (:by-frequency fixed)))))))
+    ;; 边界: 剩余天数恰为窗口 7 计入临期, 8 计入未来到期.
+    (let [edge (collab/comm-cadence-summary
+                 [{:code "E7" :revision 1 :frequency "weekly" :comm_overdue false :comm_days_until 7}
+                  {:code "E8" :revision 1 :frequency "weekly" :comm_overdue false :comm_days_until 8}])]
+      (is (= 1 (:due-soon edge)))
+      (is (= 1 (:upcoming edge))))
+    ;; 同一 code 修订链只计最新有效版本: 旧版逾期 + 新版未来 -> latest 折叠 total 1/overdue 0/upcoming 1, 频率按最新.
+    (let [rev (collab/comm-cadence-summary
+                [{:code "R" :revision 1 :frequency "weekly" :comm_overdue true :comm_days_until -10}
+                 {:code "R" :revision 2 :frequency "monthly" :comm_overdue false :comm_days_until 40}])]
+      (is (= 1 (:total rev)))
+      (is (= 0 (:overdue rev)))
+      (is (= 0 (:due-soon rev)))
+      (is (= 1 (:upcoming rev)))
+      (is (= 1 (:count (first (filter #(= "monthly" (:frequency %)) (:by-frequency rev))))))
+      (is (= 0 (:count (first (filter #(= "weekly" (:frequency %)) (:by-frequency rev)))))))))
+
+
 (deftest issue-escalation-disposition-summary-is-derived-read-only
   (let [id (project!)
         sum (fn [] (:issue_escalation_summary (workspace id)))
