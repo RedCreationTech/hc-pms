@@ -2428,6 +2428,97 @@
       (is (= 0 (:coverage-pct discp))))))
 
 
+(deftest comm-execution-coverage-is-derived-read-only
+  (let [id (project!)
+        exec (fn [] (:comm_execution_coverage (workspace id)))
+        sh (fn [code] (:id (command! id :stakeholders :create nil
+                                     {:code code :name (str "干系人-" code) :role "评审" :category "internal"
+                                      :interest "medium" :influence "medium" :owner_id 9301})))
+        plan (fn [code audience]
+               (command! id :comm-plans :create nil
+                         {:code code :objective (str "沟通-" code) :channel "meeting" :frequency "weekly"
+                          :audience audience :next_date "2026-10-15" :owner_id 9301}))
+        ne-code? (fn [code] (some? (first (filter #(= code (:code %)) (:not-executed-plans (exec))))))
+        s1 (sh "CX-1") s2 (sh "CX-2") s3 (sh "CX-3")
+        p1 (plan "CX-P1" [s1]) p2 (plan "CX-P2" [s2]) p3 (plan "CX-P3" [s3])]
+    ;; 初始三条计划均未执行: total 3/executed 0/not-executed 3/logged 0/met 0/pct 0, 三条都在缺件清单.
+    (is (true? (:available (exec))))
+    (is (= 3 (:total (exec))))
+    (is (= 0 (:executed (exec))))
+    (is (= 3 (:not-executed (exec))))
+    (is (= 0 (:logged (exec))))
+    (is (= 0 (:met (exec))))
+    (is (= 0 (:execution-pct (exec))))
+    (is (true? (ne-code? "CX-P1")))
+    (is (true? (ne-code? "CX-P3")))
+    ;; 标记 CX-P2 一次实际沟通: executed 1/logged 1/met 0/pct 33, P2 从缺件清单消失.
+    (command! id :comm-plans :log (:id p2) {:on (str (java.time.LocalDate/now)) :note "已开周会"})
+    (is (= 1 (:executed (exec))))
+    (is (= 1 (:logged (exec))))
+    (is (= 0 (:met (exec))))
+    (is (= 33 (:execution-pct (exec))))
+    (is (false? (ne-code? "CX-P2")))
+    ;; 由 CX-P3 生成会议: executed 2/logged 1/met 1/pct 67, 缺件清单仅剩 CX-P1.
+    (command! id :comm-plans :meeting (:id p3) {:held_on "2026-09-20"})
+    (is (= 2 (:executed (exec))))
+    (is (= 1 (:logged (exec))))
+    (is (= 1 (:met (exec))))
+    (is (= 67 (:execution-pct (exec))))
+    (is (true? (ne-code? "CX-P1")))
+    (is (false? (ne-code? "CX-P3")))
+    ;; 对已生成会议的 CX-P3 再标记一次沟通: 同时 logged+met 仍只算一条 executed (不重复计).
+    (command! id :comm-plans :log (:id p3) {:on (str (java.time.LocalDate/now)) :note "补发纪要"})
+    (is (= 2 (:executed (exec))))
+    (is (= 2 (:logged (exec))))
+    (is (= 1 (:met (exec))))
+    (is (= 67 (:execution-pct (exec))))
+    ;; 只读派生不改变记录: 重复读取稳定, 未执行的 CX-P1 仍 active.
+    (is (= (exec) (:comm_execution_coverage (workspace id))))
+    (let [row (first (filter #(= "CX-P1" (:code %)) (:comm_plans (workspace id))))]
+      (is (= "active" (:status row))))
+    ;; 纯函数直测: 空输入 available false/全 0/缺件清单空.
+    (let [empty (stakeholders/comm-execution-coverage [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:total empty)))
+      (is (= 0 (:executed empty)))
+      (is (= 0 (:not-executed empty)))
+      (is (= 0 (:logged empty)))
+      (is (= 0 (:met empty)))
+      (is (= 0 (:execution-pct empty)))
+      (is (empty? (:not-executed-plans empty))))
+    ;; 合成: logged 或 met 任一即 executed, 两者都有仍计一条.
+    (let [mix (stakeholders/comm-execution-coverage
+                [{:code "A" :revision 1 :status "active" :communication_log [{:on "2026-09-01"}] :last_meeting_id "m1"}
+                 {:code "B" :revision 1 :status "active" :communication_log [{:on "2026-09-02"}]}
+                 {:code "C" :revision 1 :status "active" :last_meeting_id "m2"}
+                 {:code "D" :revision 1 :status "active" :objective "未执行"}])]
+      (is (= 4 (:total mix)))
+      (is (= 3 (:executed mix)))
+      (is (= 1 (:not-executed mix)))
+      (is (= 2 (:logged mix)))
+      (is (= 2 (:met mix)))
+      (is (= 75 (:execution-pct mix)))
+      (is (= ["D"] (mapv :code (:not-executed-plans mix)))))
+    ;; 合成: s/latest 只计最新修订版执行状态, 旧版有 log 而最新版无 -> 视为未执行.
+    (let [rev (stakeholders/comm-execution-coverage
+                [{:code "P" :revision 1 :status "active" :communication_log [{:on "2026-09-01"}]}
+                 {:code "P" :revision 2 :status "active" :objective "新目标"}])]
+      (is (= 1 (:total rev)))
+      (is (= 0 (:executed rev)))
+      (is (= 1 (:not-executed rev)))
+      (is (= 0 (:logged rev)))
+      (is (= ["P"] (mapv :code (:not-executed-plans rev)))))
+    ;; 合成: 最新版被作废的沟通计划不计入.
+    (let [disc (stakeholders/comm-execution-coverage
+                 [{:code "P" :revision 1 :status "discarded" :communication_log [{:on "2026-09-01"}]}
+                  {:code "Q" :revision 1 :status "active"}])]
+      (is (= 1 (:total disc)))
+      (is (= 0 (:executed disc)))
+      (is (= 1 (:not-executed disc)))
+      (is (= 0 (:logged disc)))
+      (is (= ["Q"] (mapv :code (:not-executed-plans disc)))))))
+
+
 (deftest issue-escalation-disposition-summary-is-derived-read-only
   (let [id (project!)
         sum (fn [] (:issue_escalation_summary (workspace id)))

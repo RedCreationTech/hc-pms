@@ -580,6 +580,36 @@
              ^{:key (:code st)} [antd/tag {:color "default"} (str (:code st) " · " (:name st))])])])]))
 
 
+(defn- comm-execution-section
+  "按每个沟通计划最新有效版本只读聚合有多少活动沟通计划已实际执行落地(标记过至少一次沟通或生成过至少一次会议): 已执行/尚未执行与执行率并列出尚未执行计划; 与沟通节奏到期面板互补(到期看时间分布而本项看是否已执行到位), 只读派生, 不改变任何记录."
+  [{:keys [model]}]
+  (let [cov (:comm_execution_coverage model)
+        total (:total cov 0)
+        executed (:executed cov 0)
+        not-executed (:not-executed cov 0)
+        logged (:logged cov 0)
+        met (:met cov 0)
+        pct (:execution-pct cov 0)
+        pending (:not-executed-plans cov [])]
+    [shared/panel "沟通计划执行落地覆盖度" "按每个沟通计划最新有效版本只读聚合有多少活动沟通计划已实际执行落地(标记过至少一次沟通或生成过至少一次会议), 并列出尚未执行的计划; 与沟通节奏到期面板互补, 只读派生, 不改变任何记录"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无沟通计划, 登记后可在此查看执行落地覆盖度."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "沟通计划总数 " total)]
+         [antd/tag {:color "green"} (str "已执行落地 " executed)]
+         (when (pos? not-executed)
+           [antd/tag {:color "red"} (str "尚未执行 " not-executed)])
+         [antd/tag {:color (if (zero? pct) "red" "cyan")} (str "执行率 " pct "%")]]
+        [antd/space {:wrap true}
+         [antd/tag {:color "default"} (str "已标记沟通 " logged)]
+         [antd/tag {:color "default"} (str "已生成会议 " met)]]
+        (when (pos? not-executed)
+          [antd/space {:wrap true}
+           (for [pl pending]
+             ^{:key (:code pl)} [antd/tag {:color "default"} (str (:code pl) " · " (:objective pl))])])])]))
+
+
 (defn- trace-section
   "显式呈现需求到任务和证据的覆盖关系."
   [{:keys [base model planning editable? open!]}]
@@ -1578,7 +1608,7 @@
                      ["requirements" "URS与追踪" [requirement-section coverage-section alignment-section traceability-section trace-section]]
                      ["evidence" "证据版本" [document-section collection-section tree-section release-coverage-section]]
                      ["appointments" "成员任命" [appointment-section]]
-                     ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section raci-section comm-plan-section comm-cadence-section comm-audience-section]]
+                     ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section raci-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section]]
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-review-cadence-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section action-closure-section action-section]]

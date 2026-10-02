@@ -300,6 +300,31 @@
      :uncovered-stakeholders uncovered}))
 
 
+(defn comm-execution-coverage
+  "按每个沟通计划业务编码最新有效版本(store/latest 折叠修订链)统计有多少活动沟通计划已实际执行落地的只读覆盖度: 已标记至少一次沟通(communication_log 非空)或已生成至少一次会议(last_meeting_id 存在)者视为已执行, 两者皆无者为尚未执行, 给出总数/已执行/尚未执行/已标记沟通/已生成会议与执行率, 并列出尚未执行计划(编号+目标). 最新版本被受控作废(discarded)的沟通计划不计入. 只读派生, 不落库不投递, 不改变不可变版本, 不构成任何门控; 与沟通节奏到期面板互补(到期看距下次沟通的时间分布而本项看是否已实际执行到位)."
+  [comm-plans]
+  (let [active-plans (filterv #(not= "discarded" (:status %)) (s/latest comm-plans))
+        logged? (fn [plan] (pos? (count (:communication_log plan))))
+        met? (fn [plan] (some? (:last_meeting_id plan)))
+        executed? (fn [plan] (or (logged? plan) (met? plan)))
+        total (count active-plans)
+        executed (count (filterv executed? active-plans))
+        logged (count (filterv logged? active-plans))
+        met (count (filterv met? active-plans))
+        not-executed (mapv (fn [plan] {:code (:code plan) :objective (:objective plan)})
+                           (remove executed? active-plans))]
+    {:available (pos? total)
+     :total total
+     :executed executed
+     :not-executed (- total executed)
+     :logged logged
+     :met met
+     :execution-pct (if (pos? total)
+                      (int (Math/round ^double (* 100.0 (/ executed total))))
+                      0)
+     :not-executed-plans not-executed}))
+
+
 (def raci-overload-threshold
   "同一干系人承担执行(R)职责的活动数达到该值即视为负载过重."
   3)
