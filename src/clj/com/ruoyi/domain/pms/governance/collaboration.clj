@@ -773,6 +773,23 @@
                     0)}))
 
 
+(defn issue-resolution-coverage
+  "按全部问题最新有效版本只读统计解决方式(Issue 处置类型)声明覆盖度: 六类解决方式各自计数, 已声明/未设定与覆盖率; 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
+  [issues]
+  (let [types ["fixed" "workaround" "by-design" "duplicate" "cannot-reproduce" "wont-fix"]
+        active (s/latest issues)
+        total (count active)
+        declared (count (filterv #(some #{(:resolution_type %)} types) active))
+        type-count (fn [x] (count (filterv #(= x (:resolution_type %)) active)))]
+    {:total total
+     :declared declared
+     :undeclared (- total declared)
+     :coverage-pct (if (pos? total)
+                     (int (Math/round ^double (* 100.0 (/ declared total))))
+                     0)
+     :by-resolution (mapv (fn [x] {:resolution x :count (type-count x)}) types)}))
+
+
 (defn attach-issue-closure-summary
   "把 issue-closure-summary 挂到治理工作区顶层 :issue_closure; 读取时派生, 不改变任何逐条问题记录."
   [data]

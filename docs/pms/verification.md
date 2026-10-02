@@ -1589,6 +1589,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: H02 整行状态保持不变 — 本项只是在读取层对已声明的 `engagement` 做只读聚合可视, 一个只读子能力不上抬整行状态; 覆盖度只反映"是否为干系人标注了 PMBOK 参与态度", 不等于态度判断本身是否准确, 也不改变权力-利益象限/RACI 负载/沟通受众/受控作废语义, 不做按态度 × 象限的交叉矩阵统计, MySQL 回归待补充.
 
+## C09 问题解决方式覆盖度只读派生汇总 (本轮增补, 2026-10-02)
+
+设计与口径: 上一条"问题可选解决方式枚举字段"关闭了"单条问题能否在提交解决时声明六类处置方式并逐条回显", 其诚实边界正是"未做按解决方式聚合的只读统计" — 整个项目"到底多少问题标了解决方式, 六类各分布几条, 还有几条没声明, 问题处置的归档做得够不够规范"此前无处一眼可读. 本项把"给治理台账加只读派生洞察"套路应用到问题解决方式维度, 复用同族"风险应对策略覆盖度"/"风险类别覆盖度"/"干系人参与态度覆盖度"面板的形状, 是其按 Issue 处置类型维度的姊妹聚合, **不落库、不投递、不改动任何问题状态或升级/闭环门控, 免迁移, 免新命令, 免新 kind, 免新路由, 不构成任何门控**. 后端 `governance.collaboration/issue-resolution-coverage` 纯函数以六类解决方式 `fixed/workaround/by-design/duplicate/cannot-reproduce/wont-fix` (已修复/已规避/设计如此/重复/无法复现/不予修复) 为固定顺序各自计数, 输出 `{total, declared, undeclared, coverage-pct, by-resolution:[{resolution, count}]}`. 与风险侧同族一致, 问题记录以自身 `id` 作为 `code` 且无修订链与受控作废, 故复用 `store/latest` 即等于全部问题 (既有 `issue-closure-summary` 亦按 `s/latest` 聚合, 二者口径同源); `declared` 为 `resolution_type` 命中六类之一者 (仅提交解决时选择方式才写入该键, 未解决或解决未选方式者只进分母), `coverage-pct` 为 `declared/total` 四舍五入整数百分比 (`total` 为 0 时给 0). `governance.clj` workspace 以 `:issue_resolution_coverage (collab/issue-resolution-coverage (:issues data))` 挂在 `:stakeholder_engagement_coverage` 之后. 前端 `governance.cljs` 在"风险与问题"页签"问题闭环与严重度分布汇总"面板之后注册"问题解决方式覆盖度"面板, 以蓝"问题总数 N"、绿/金/红"已声明解决方式 P%"、橙"未设定 N"、并按六类彩色标签回显"已修复/已规避/设计如此/重复/无法复现/不予修复 · 计数", 无问题时给提示文案. 关键界面坑: 覆盖度面板与同页"问题闭环"面板及问题台账"解决方式"列共存且都渲染"未设定"字样 (台账逐行对未声明者显灰字"未设定"), 而 `shared/panel` 渲染为含 `<h3>` 标题的 `<section>`, 故 E2E 断言须用 `locator('section').filter({ has: getByRole('heading', { name: '问题解决方式覆盖度', exact: true }) })` 按面板作用域定位, 否则命中多个元素触发 strict-mode 串台.
+
+| 验证层 | 结果 |
+|--------|------|
+| 后端命名空间 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 86 tests / 1198 assertions, 0 failures/errors (新增 deftest `issue-resolution-coverage-is-derived-read-only`: 登记五条问题其中三条提交解决分别选"设计如此"/"已修复"/"重复"、一条解决不选方式、一条未解决 → total 5/declared 3/undeclared 2/pct 60 且 by-resolution 各命中 1 其余 0; 对已声明项独立验证批准闭环后 declared 不随闭环下降; 反复读取聚合稳定不漂移且未解决项仍 `open` 无 `resolution_type`; 纯函数直测空集 total 0/pct 0, 同 code 修订只计最新有效版本不重复计数) |
+| 全量 PMS 回归 (冷 JVM) | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 全绿 216 tests / 2683 assertions, 0 failures/errors (较上一记录基线 215/2657 增本 `issue-resolution-coverage` 一 deftest / +26 assertions, workspace 新增 `:issue_resolution_coverage` 未造成既有问题登记/提交解决/独立验证闭环/升级处置/闭环汇总/责任负载/到期倒计时回归) |
+| 前端编译 | `npx shadow-cljs compile app` 通过 4035 files / 0 warnings (新增"问题解决方式覆盖度"面板与六类彩色标签渲染) |
+| HTTP 合同 (契约) | `contracts/governance.md` 新增"问题解决方式覆盖度 (C09 延伸)"段, 记录 GET `/governance` 读模型新字段 `issue_resolution_coverage` 的输出结构 `{total, declared, undeclared, coverage-pct, by-resolution}`, 口径与"风险类别覆盖度"/"干系人参与态度覆盖度"同源同形状 (复用 `store/latest`, 免迁移/命令/kind, 不构成门控), 并写明与"问题闭环"面板及台账"解决方式"列同页共存须按 `<section>` 标题作用域断言 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | 断言用例 `pms-c09irc.spec.js` 1 passed (全新独立 `/tmp/c09irc.db` 冷启动迁移, 无未捕获 JS 错误): 界面"登记项目问题"登记四条, 对前三条分别点"提交解决证据"选"设计如此"/"已修复"、第三条不选方式, 第四条保持未解决 → 作用域到"问题解决方式覆盖度"`<section>` 断言"问题总数 4 / 已声明解决方式 50% / 未设定 2 / 设计如此·1 / 已修复·1 / 重复·0" (截图 c09irc-1-coverage-50.png); 再登记第五条并提交解决选"重复" → 面板翻到"问题总数 5 / 已声明解决方式 60% / 重复·1 / 未设定 2" (截图 c09irc-2-coverage-60.png); 真实 HTTP GET governance 回显 `issue_resolution_coverage` total 5/declared 3/undeclared 2/coverage-pct 60 且 `by-resolution` by-design 1/fixed 1/duplicate 1/workaround 0; 只读派生不改状态: 未解决项仍 `status=open` 且无 `resolution_type`, 已声明项 `resolution_type=by-design` 不漂移 |
+| 演示录像 (真实浏览器) | 同一 `pms-c09irc.spec.js` 以文件顶层 `test.use({ video: 'on' })` 录真实 Playwright 浏览器全程 (建项目 → 界面登记并部分提交解决选/不选解决方式 → 覆盖度面板 50% → 再声明一项 → 覆盖率升到 60%), webm 经项目本地 `tools/bin/ffmpeg` 转 `reports/c09irc/c09irc-demo.mp4` (h264, 1600x1000) |
+| MySQL | 本轮未执行 (本地无 MySQL 实例); 本项为免迁移的只读派生聚合, 不落库, 不涉及任何表结构或迁移变更, 与 SQLite/MySQL 无关 |
+
+边界: C09 整行状态保持不变 — 本项只是在读取层对已声明的 `resolution_type` 做只读聚合可视, 一个只读子能力不上抬整行状态; 覆盖度只反映"是否在提交解决时声明了解决方式", 不等于处置方式本身是否恰当, 也不改变问题闭环率/严重度分布/升级处置/独立验证语义, 不做按解决方式 × 严重度的交叉统计, MySQL 回归待补充.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

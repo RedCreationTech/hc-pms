@@ -3136,3 +3136,57 @@
                         {:resolution "仅文字说明" :evidence_ids [evidence] :reviewer_id 9302})]
       (is (= "in_review" (:status res)))
       (is (nil? (:resolution_type res))))))
+
+
+(deftest issue-resolution-coverage-is-derived-read-only
+  (let [id (project!)
+        evidence (:id (document! id "ISS-RC-1"))
+        cov (fn [] (:issue_resolution_coverage (workspace id)))
+        row (fn [rid] (first (filter #(= rid (:id %)) (:issues (workspace id)))))
+        r (fn [k] (:count (first (filter #(= k (:resolution %)) (:by-resolution (cov))))))]
+    ;; 五条问题: 三条提交解决时声明解决方式, 一条解决但未选方式, 一条尚未解决 -> 覆盖度按声明数/总数.
+    (doseq [[t ty] [["修复项" "fixed"] ["规避项" "workaround"] ["重复项" "duplicate"]]]
+      (let [i (command! id :issues :create nil {:title t :severity "major" :owner_id 9301 :due_date "2026-12-31"})]
+        (command! id :issues :resolve (:id i)
+                  {:resolution "整改说明" :resolution_type ty :evidence_ids [evidence] :reviewer_id 9302})))
+    (let [i (command! id :issues :create nil {:title "解决未选方式" :severity "minor" :owner_id 9301 :due_date "2026-12-31"})]
+      (command! id :issues :resolve (:id i) {:resolution "仅文字" :evidence_ids [evidence] :reviewer_id 9302}))
+    (command! id :issues :create nil {:title "尚未解决" :severity "minor" :owner_id 9301 :due_date "2026-12-31"})
+    (is (= 5 (:total (cov))))
+    (is (= 3 (:declared (cov))))
+    (is (= 2 (:undeclared (cov))))
+    (is (= 60 (:coverage-pct (cov))))
+    (is (= 1 (r "fixed")))
+    (is (= 1 (r "workaround")))
+    (is (= 1 (r "duplicate")))
+    (is (= 0 (r "by-design")))
+    (is (= 0 (r "cannot-reproduce")))
+    (is (= 0 (r "wont-fix")))
+    ;; 独立验证通过后问题闭环, 但解决方式仍在 -> declared 不随闭环下降.
+    (let [i (command! id :issues :create nil {:title "闭环仍计" :severity "minor" :owner_id 9301 :due_date "2026-12-31"})
+          iid (:id i)]
+      (command! id :issues :resolve iid {:resolution "整改" :resolution_type "by-design" :evidence_ids [evidence] :reviewer_id 9302})
+      (is (= "closed" (:status (command! 9302 id :issues :decision iid {:decision "approved" :reason "复验通过"}))))
+      (is (= 6 (:total (cov))))
+      (is (= 4 (:declared (cov))))
+      (is (= 1 (r "by-design"))))
+    ;; 只读派生稳定且不漂移项目版本/问题状态.
+    (let [ver (version id)]
+      (is (= (cov) (:issue_resolution_coverage (workspace id))))
+      (is (= "open" (:status (first (filterv #(and (= "尚未解决" (:title %)) (nil? (:resolution_type %))) (:issues (workspace id)))))))
+      (is (= ver (version id))))
+    ;; 纯函数直测: 空集 total=0 覆盖率=0; 同 code 修订只计最新有效版本不重复计数.
+    (let [e (collab/issue-resolution-coverage [])]
+      (is (= 0 (:total e)))
+      (is (= 0 (:declared e)))
+      (is (= 0 (:coverage-pct e))))
+    (let [m (collab/issue-resolution-coverage
+              [{:code "R1" :revision 1 :resolution_type "fixed"}
+               {:code "R1" :revision 2 :resolution_type "duplicate"}
+               {:code "R2" :revision 1}])]
+      (is (= 2 (:total m)) "同 code 修订只计最新有效版本")
+      (is (= 1 (:declared m)))
+      (is (= 1 (:undeclared m)))
+      (is (= 50 (:coverage-pct m)))
+      (is (= 0 (:count (first (filter #(= "fixed" (:resolution %)) (:by-resolution m))))) "旧版本的 fixed 被最新 duplicate 取代")
+      (is (= 1 (:count (first (filter #(= "duplicate" (:resolution %)) (:by-resolution m)))))))))
