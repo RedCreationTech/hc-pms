@@ -2207,6 +2207,64 @@
       (is (= 20 (:avg-score one))))))
 
 
+(deftest risk-review-cadence-summary-is-derived-read-only
+  (let [id (project!)
+        cad (fn [] (:risk_review_cadence (workspace id)))
+        today (java.time.LocalDate/now)
+        create (fn [title due]
+                 (command! id :risks :create nil
+                           {:title title :probability 2 :impact 3
+                            :owner_id 9301 :mitigation "常规措施" :due_date due}))]
+    ;; 真实工作台路径: 三条未关闭风险分别覆盖已逾期/临期(<=3天)/未来到期(登记风险必填到期日, 无未设定桶).
+    (create "已逾期复审风险" (str (.minusDays today 5)))
+    (create "临期复审风险" (str (.plusDays today 2)))
+    (create "未来复审风险" (str (.plusDays today 30)))
+    (is (true? (:available (cad))))
+    (is (= 3 (:total (cad))))
+    (is (= 3 (:open (cad))))
+    (is (= 0 (:closed (cad))))
+    (is (= 1 (:overdue (cad))))
+    (is (= 1 (:due-soon (cad))))
+    (is (= 1 (:upcoming (cad))))
+    ;; 只读派生不改变风险状态: 重复读取汇总稳定, 逾期风险仍为登记态.
+    (is (= (cad) (:risk_review_cadence (workspace id))))
+    (let [row (first (filter #(= "已逾期复审风险" (:title %)) (:risks (workspace id))))]
+      (is (true? (:review_overdue row)))
+      (is (= "open" (:status row))))
+    ;; 纯函数直测: 空输入 available false/全 0.
+    (let [empty (collab/risk-review-cadence-summary [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:total empty)))
+      (is (= 0 (:open empty)))
+      (is (= 0 (:closed empty)))
+      (is (= 0 (:overdue empty)))
+      (is (= 0 (:due-soon empty)))
+      (is (= 0 (:upcoming empty))))
+    ;; 固定合成(已带派生键): 一条已关闭不计入 open, 四类 open 拆为逾期1/临期1/未来2.
+    (let [fixed (collab/risk-review-cadence-summary
+                  [{:code "F1" :revision 1 :status "open" :review_overdue true :review_due_soon false}
+                   {:code "F2" :revision 1 :status "open" :review_overdue false :review_due_soon true}
+                   {:code "F3" :revision 1 :status "open" :review_overdue false :review_due_soon false}
+                   {:code "F4" :revision 1 :status "open" :review_overdue false :review_due_soon false}
+                   {:code "F5" :revision 1 :status "closed" :review_overdue false :review_due_soon false}])]
+      (is (= 5 (:total fixed)))
+      (is (= 4 (:open fixed)))
+      (is (= 1 (:closed fixed)))
+      (is (= 1 (:overdue fixed)))
+      (is (= 1 (:due-soon fixed)))
+      (is (= 2 (:upcoming fixed))))
+    ;; 同一 code 修订链只计最新有效版本: 旧版本已逾期但最新已关闭, 归为 closed 不计入 overdue.
+    (let [rev (collab/risk-review-cadence-summary
+                [{:code "R" :revision 1 :status "open" :review_overdue true :review_due_soon false}
+                 {:code "R" :revision 2 :status "closed" :review_overdue false :review_due_soon false}])]
+      (is (= 1 (:total rev)))
+      (is (= 0 (:open rev)))
+      (is (= 1 (:closed rev)))
+      (is (= 0 (:overdue rev)))
+      (is (= 0 (:due-soon rev)))
+      (is (= 0 (:upcoming rev))))))
+
+
 (deftest issue-escalation-disposition-summary-is-derived-read-only
   (let [id (project!)
         sum (fn [] (:issue_escalation_summary (workspace id)))

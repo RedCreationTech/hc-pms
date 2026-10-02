@@ -119,6 +119,25 @@
                     risk-score-bands)}))
 
 
+(defn risk-review-cadence-summary
+  "按每个风险最新有效版本只读聚合复审到期节奏: 未关闭风险按到期日三分已逾期(到期日<=今天)/临期(1 到 3 天内)/未来到期(距今超过临期窗口), 并给出未关闭与已关闭计数; 复用 reviews/risk-read-model 已派生的 :review_overdue/:review_due_soon 与 :status, 与逐条台账到期倒计时口径单一不漂移(登记风险必填到期日, 故未关闭风险恒落在三档之一); 只读派生, 不落库不投递, 不改变风险状态, 不构成门控. 键名不带尾随问号."
+  [risks]
+  (let [active (s/latest risks)
+        total (count active)
+        closed (count (filterv #(= "closed" (:status %)) active))
+        open (count (remove #(= "closed" (:status %)) active))
+        open-risks (remove #(= "closed" (:status %)) active)
+        overdue (count (filterv :review_overdue open-risks))
+        due-soon (count (filterv :review_due_soon open-risks))]
+    {:available (pos? total)
+     :total total
+     :open open
+     :closed closed
+     :overdue overdue
+     :due-soon due-soon
+     :upcoming (- open overdue due-soon)}))
+
+
 (defn- insert-risk!
   "写入风险记录: 统一按概率 x 影响评分, 达阈值自动标记超阈值升级, 可选携带阶段与风险库来源信息; 评分与升级判定共用 risk-assessment 纯函数."
   [q project actor fields]

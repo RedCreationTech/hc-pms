@@ -120,6 +120,7 @@
                           :issue_resolution_coverage (collab/issue-resolution-coverage (:issues data))
                           :risk_escalation_summary (collab/risk-escalation-disposition-summary (:risks data))
                           :risk_score_distribution (collab/risk-score-distribution (:risks data))
+                          :risk_review_cadence (collab/risk-review-cadence-summary (:risks data))
                           :issue_escalation_summary (collab/issue-escalation-disposition-summary (:issues data))
                           :action_closure (collab/action-closure-summary (:actions data))
                           :meeting_release_coverage (collab/meeting-release-coverage (:meetings data))
