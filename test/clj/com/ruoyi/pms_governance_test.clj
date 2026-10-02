@@ -2582,6 +2582,72 @@
       (is (= ["Z"] (mapv :activity (:incomplete-activities mix)))))))
 
 
+(deftest raci-engagement-coverage-is-derived-read-only
+  (let [id (project!)
+        cov (fn [] (:raci_engagement_coverage (workspace id)))
+        sh (fn [code name] (:id (command! id :stakeholders :create nil
+                                          {:code code :name name :role "评审" :category "internal"
+                                           :interest "high" :influence "medium" :owner_id 9301})))
+        raci (fn [act sid resp] (command! id :raci :create nil
+                                          {:activity act :stakeholder_id sid :responsibility resp}))
+        s1 (sh "RE-1" "甲") s2 (sh "RE-2" "乙") s3 (sh "RE-3" "丙") s4 (sh "RE-4" "丁")]
+    ;; 充分活动: 有 R 与 A 之外还配了 C 与 I -> 咨询与知会齐备.
+    (raci "充分活动" s1 "R")
+    (raci "充分活动" s2 "A")
+    (raci "充分活动" s3 "C")
+    (raci "充分活动" s4 "I")
+    ;; 只缺知会: 配了 C 无 I -> with-consult 但缺知会.
+    (raci "只缺知会" s1 "C")
+    ;; 只缺咨询: 配了 I 无 C -> with-inform 但缺咨询.
+    (raci "只缺咨询" s2 "I")
+    ;; 双缺: 只有 R 与 A -> 既无咨询也无知会.
+    (raci "双缺" s1 "R")
+    (raci "双缺" s2 "A")
+    (is (true? (:available (cov))))
+    (is (= 4 (:total (cov))))
+    (is (= 2 (:with-consult (cov))) "充分活动 + 只缺知会含 C")
+    (is (= 2 (:with-inform (cov))) "充分活动 + 只缺咨询含 I")
+    (is (= 1 (:fully-engaged (cov))))
+    (is (= 25 (:engagement-pct (cov))))
+    (let [thin (zipmap (mapv :activity (:thin-activities (cov)))
+                       (mapv #(vector (:missing-consult %) (:missing-inform %))
+                             (:thin-activities (cov))))]
+      (is (= 3 (count (:thin-activities (cov)))))
+      (is (false? (contains? thin "充分活动")) "齐备活动不进单薄清单")
+      (is (= [false true] (get thin "只缺知会")))
+      (is (= [true false] (get thin "只缺咨询")))
+      (is (= [true true] (get thin "双缺"))))
+    ;; 给"只缺知会"补一条 I -> 充分升到 2, 覆盖率 50, 单薄清单去掉该活动.
+    (raci "只缺知会" s4 "I")
+    (is (= 4 (:total (cov))))
+    (is (= 2 (:fully-engaged (cov))))
+    (is (= 3 (:with-inform (cov))))
+    (is (= 50 (:engagement-pct (cov))))
+    (is (= ["双缺" "只缺咨询"] (mapv :activity (:thin-activities (cov)))))
+    ;; 只读派生不改记录: 重复读取稳定, RACI 行仍 assigned.
+    (is (= (cov) (:raci_engagement_coverage (workspace id))))
+    (is (every? #(= "assigned" (:status %)) (:raci (workspace id))))
+    ;; 纯函数直测: 空输入 available false/全 0/覆盖 0/单薄清单空.
+    (let [empty (stakeholders/raci-engagement-coverage [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:total empty)))
+      (is (= 0 (:with-consult empty)))
+      (is (= 0 (:with-inform empty)))
+      (is (= 0 (:fully-engaged empty)))
+      (is (= 0 (:engagement-pct empty)))
+      (is (empty? (:thin-activities empty))))
+    ;; 合成: 两活动一齐备(C+I)一只有C -> 覆盖 50, 单薄只剩后者缺知会.
+    (let [mix (stakeholders/raci-engagement-coverage
+                [{:activity "X" :responsibility "C"} {:activity "X" :responsibility "I"}
+                 {:activity "Y" :responsibility "C"} {:activity "Y" :responsibility "R"}])]
+      (is (= 2 (:total mix)))
+      (is (= 2 (:with-consult mix)))
+      (is (= 1 (:with-inform mix)))
+      (is (= 1 (:fully-engaged mix)))
+      (is (= 50 (:engagement-pct mix)))
+      (is (= ["Y"] (mapv :activity (:thin-activities mix)))))))
+
+
 (deftest issue-escalation-disposition-summary-is-derived-read-only
   (let [id (project!)
         sum (fn [] (:issue_escalation_summary (workspace id)))

@@ -372,3 +372,37 @@
   (let [load (get r-loads (:stakeholder_id row) 0)]
     (assoc row :raci_r_load load
                :raci_overloaded (>= load raci-overload-threshold))))
+
+
+(defn raci-engagement-coverage
+  "按活动汇总RACI咨询(C)与知会(I)角色配置覆盖度的只读派生: 逐活动判断是否至少指派一个咨询(C)与一个知会(I), 两者齐备视为充分咨询知会, 给出活动总数/含咨询/含知会/两者齐备与覆盖度, 并列出配置单薄活动及其缺项. RACI指派行不按修订链折叠(与raci-assignment-completeness及逐条冲突检查conflicts一致直接消费原始行). 只读派生, 不落库不投递, 不改变不可变版本, 不构成任何门控; 与只查负责A与执行R的完整度互补(完整度回答谁做谁负责而本项回答决策有没有被充分咨询、相关方有没有被知会)."
+  [raci-rows]
+  (let [by-activity (group-by :activity raci-rows)
+        has-c? (fn [rows] (some #(= "C" (:responsibility %)) rows))
+        has-i? (fn [rows] (some #(= "I" (:responsibility %)) rows))
+        activity-flags (mapv (fn [[activity rows]]
+                               {:activity activity
+                                :with-consult (has-c? rows)
+                                :with-inform (has-i? rows)})
+                             by-activity)
+        fully? (fn [flags] (and (:with-consult flags) (:with-inform flags)))
+        total (count activity-flags)
+        with-consult (count (filterv :with-consult activity-flags))
+        with-inform (count (filterv :with-inform activity-flags))
+        fully-engaged (count (filterv fully? activity-flags))
+        thin (->> (remove fully? activity-flags)
+                  (mapv (fn [flags]
+                          {:activity (:activity flags)
+                           :missing-consult (not (:with-consult flags))
+                           :missing-inform (not (:with-inform flags))}))
+                  (sort-by :activity)
+                  (vec))]
+    {:available (pos? total)
+     :total total
+     :with-consult with-consult
+     :with-inform with-inform
+     :fully-engaged fully-engaged
+     :engagement-pct (if (pos? total)
+                       (int (Math/round ^double (* 100.0 (/ fully-engaged total))))
+                       0)
+     :thin-activities thin}))
