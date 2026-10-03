@@ -1630,6 +1630,8 @@
         rejected (:rejected sm 0)
         required-met (:required-met sm 0)
         exception-met (:exception-met sm 0)
+        methods-declared (:methods-declared sm 0)
+        roles-declared (:roles-declared sm 0)
         stale (:stale sm 0)
         voided (:voided sm 0)
         pct (:closure-pct sm 0)]
@@ -1644,6 +1646,10 @@
           [antd/tag {:color "green"} (str "必需项全满足 " required-met)])
         (when (pos? exception-met)
           [antd/tag {:color "gold"} (str "靠例外满足 " exception-met)])
+        (when (pos? methods-declared)
+          [antd/tag {:color "blue"} (str "检验方法已声明 " methods-declared)])
+        (when (pos? roles-declared)
+          [antd/tag {:color "cyan"} (str "执行角色已指定 " roles-declared)])
         (when (pos? in-review)
           [antd/tag {:color "orange"} (str "签认审批中 " in-review)])
         (when (pos? ready)
@@ -1664,6 +1670,22 @@
    (when editable? [antd/button {:type "primary" :on-click #(open! (forms/dq-dialog base options (:documents model) planning))} "建立DQ关键任务"])
    [w/record-table (:dqs model)
     [(w/text-column :code "编号") (w/text-column :title "DQ任务")
+     {:title "检验方法" :dataIndex "check_method" :width 100
+      :render (fn [_ row]
+                (let [m (aget row "check_method")
+                      label (get {"inspection" "检验" "measurement" "测量"
+                                  "test" "试验" "documentation-review" "文件评审"} m)
+                      color (get {"inspection" "blue" "measurement" "cyan"
+                                  "test" "purple" "documentation-review" "geekblue"} m "default")]
+                  (r/as-element (if (nil? m)
+                                  [:span {:style {:color "#98a2b3"}} "未设定"]
+                                  [antd/tag {:color color} label]))))}
+     {:title "执行角色" :dataIndex "responsible_role" :width 120
+      :render (fn [_ row]
+                (let [role (aget row "responsible_role")]
+                  (if (str/blank? role)
+                    (r/as-element [:span {:style {:color "#98a2b3"}} "未设定"])
+                    (or role ""))))}
      {:title "检查通过" :key "checks" :width 100 :render (fn [_ row] (str (aget row "dq_passed") "/" (aget row "dq_total")))}
      {:title "必需检查就绪度" :key "dq_required" :width 180
       :render (fn [_ row]

@@ -312,13 +312,19 @@
                 (-> data (dissoc :check_titles)
                     (assoc :checklist (mapv (fn [i title] {:code (str "D" (inc i)) :title title :required true})
                                             (range) (remove str/blank? (str/split-lines (:check_titles data)))))
-                    (cond-> (str/blank? (:task_id data)) (dissoc :task_id))))
+                    (cond-> (str/blank? (:task_id data)) (dissoc :task_id)
+                            (str/blank? (:check_method data)) (dissoc :check_method)
+                            (str/blank? (:responsible_role data)) (dissoc :responsible_role))))
    :fields [{:key :code :label "DQ编号" :required? true} {:key :title :label "DQ任务" :required? true}
             (owner-field (:users options))
             {:key :check_titles :label "检查清单" :type :textarea :required? true :hint "每行一项检查, 均为必需项."}
             {:key :deliverable_ids :label "确定版本交付件" :type :multi :required? true
              :options (mapv #(hash-map :value (:id %) :label (str (:code %) " / " (:title %) " / V" (:revision %))) documents)}
-            {:key :task_id :label "关联WBS任务" :type :select :options (w/options (:tasks planning) :task_id :name)}]})
+            {:key :task_id :label "关联WBS任务" :type :select :options (w/options (:tasks planning) :task_id :name)}
+            {:key :check_method :label "检验方法 (可选)" :type :select :hint "预先声明本 DQ 采用的质量检验手段, 留空视为未设定."
+             :options [{:value "inspection" :label "检验"} {:value "measurement" :label "测量"}
+                       {:value "test" :label "试验"} {:value "documentation-review" :label "文件评审"}]}
+            {:key :responsible_role :label "执行角色 (可选)" :hint "预先声明承担质量检查的角色, 例如: 质检员 / 计量工程师."}]})
 
 (defn dq-check-dialog
   "逐项登记 DQ 检查结果, 允许有理由的检查项例外放行."

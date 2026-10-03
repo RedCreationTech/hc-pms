@@ -1369,6 +1369,51 @@
       (is (= 1 (:exception-met m))))))
 
 
+(deftest dq-check-method-and-responsible-role-are-optional-declarations
+  (let [id (project!)
+        declared (command! id :dqs :create nil
+                           {:code "DQ-MR" :title "方法与角色声明" :owner_id 9301
+                            :checklist [{:code "R" :title "必需" :required true}]
+                            :deliverable_ids []
+                            :check_method "inspection" :responsible_role "质检工程师"})
+        find-dq (fn [rid] (first (filter #(= rid (:id %)) (:dqs (workspace id)))))]
+    ;; 声明的检验方法与执行角色随 payload 持久化, 命令结果与读模型逐条回显.
+    (is (= "inspection" (:check_method declared)))
+    (is (= "质检工程师" (:responsible_role declared)))
+    (let [row (find-dq (:id declared))]
+      (is (= "inspection" (:check_method row)))
+      (is (= "质检工程师" (:responsible_role row))))
+    ;; 未声明时不写键 (零回归), 读模型该记录不含 check_method / responsible_role.
+    (let [bare (command! id :dqs :create nil
+                         {:code "DQ-MB" :title "未声明" :owner_id 9301
+                          :checklist [{:code "R" :title "必需" :required true}]
+                          :deliverable_ids []})]
+      (is (false? (contains? bare :check_method)))
+      (is (false? (contains? bare :responsible_role)))
+      (let [brow (find-dq (:id bare))]
+        (is (false? (contains? brow :check_method)))
+        (is (false? (contains? brow :responsible_role)))))
+    ;; 非法检验方法 -> 400; 空白执行角色仍视为未声明不写键.
+    (is (= 400 (error-status #(command! id :dqs :create nil
+                                        {:code "DQ-ME" :title "非法方法" :owner_id 9301
+                                         :checklist [{:code "R" :title "必需" :required true}]
+                                         :deliverable_ids [] :check_method "audit"}))))
+    (let [blank (command! id :dqs :create nil
+                          {:code "DQ-MW" :title "空白角色" :owner_id 9301
+                           :checklist [{:code "R" :title "必需" :required true}]
+                           :deliverable_ids [] :check_method "test" :responsible_role "   "})]
+      (is (= "test" (:check_method blank)))
+      (is (false? (contains? blank :responsible_role))))
+    ;; 项目级闭环汇总: methods-declared / roles-declared 仅计入真正声明者 (此处 2 条有方法, 1 条有角色).
+    (let [s (:dq_summary (workspace id))]
+      (is (= 2 (:methods-declared s)))
+      (is (= 1 (:roles-declared s))))
+    ;; 纯函数直测: 缺键记录不计入声明覆盖度.
+    (let [m (quality/dq-summary [{:check_method "inspection"} {:check_method nil} {} {:responsible_role "质检员"}])]
+      (is (= 1 (:methods-declared m)))
+      (is (= 1 (:roles-declared m))))))
+
+
 (deftest dq-check-closure-summary-is-derived-read-only
   (let [id (project!)
         doc (document! id "DQ-SUM")

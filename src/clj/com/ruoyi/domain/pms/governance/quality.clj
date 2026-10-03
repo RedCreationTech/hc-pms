@@ -8,6 +8,10 @@
 
 ;; ── DQ ──────────────────────────────────────────────────────────
 
+(def check-methods
+  "DQ 编制时可预先声明的检验方法 (H10 质量准则/方法/角色口径, 复用四类常见质量检验手段). 值以英文枚举持久化, 前端映射中文标签展示."
+  #{"inspection" "measurement" "test" "documentation-review"})
+
 (defn- checklist!
   [items]
   (when-not (and (vector? items) (<= 1 (count items) 50)) (r/fail! 400 "DQ检查清单需要1到50项"))
@@ -19,11 +23,11 @@
     rows))
 
 (defn create-dq!
-  "建立 DQ 关键任务: 标题, 责任人, 检查清单与确定版本交付件."
+  "建立 DQ 关键任务: 标题, 责任人, 检查清单与确定版本交付件; 可选预先声明检验方法与执行角色 (H10 质量准则/方法/角色)."
   [svc actor id body]
   (k/mutate! svc actor id "pms:project:edit" body "dq.created"
     (fn [q project]
-      (s/input! body [:code :title :owner_id :checklist :deliverable_ids :task_id])
+      (s/input! body [:code :title :owner_id :checklist :deliverable_ids :task_id :check_method :responsible_role])
       (when (seq (:task_id body))
         (when-not (q :planning/task {:project_id (:project_id project) :task_id (:task_id body)})
           (r/fail! 404 "关联任务不存在或不属于本项目")))
@@ -33,7 +37,9 @@
                           :owner_id (k/user! q project (:owner_id body) "DQ责任人")
                           :checklist (checklist! (:checklist body))
                           :deliverable_ids (s/evidence! q project (or (:deliverable_ids body) []) false)}
-                   (seq (:task_id body)) (assoc :task_id (:task_id body)))
+                   (seq (:task_id body)) (assoc :task_id (:task_id body))
+                   (seq (:check_method body)) (assoc :check_method (s/enum! (:check_method body) check-methods "check_method"))
+                   (seq (s/optional-text! body :responsible_role 100)) (assoc :responsible_role (s/optional-text! body :responsible_role 100)))
                  {:status "draft"}))))
 
 (defn check-dq!
@@ -127,7 +133,7 @@
            :dq_deliverable_voided (pos? voided-count))))
 
 (defn dq-summary
-  "把全部 DQ 关键任务的最新状态只读聚合为项目级质量检查闭环概览: total/approved/in-review/ready/draft/rejected 各状态计数, required-met (必需检查项全满足数, 含例外放行), exception-met (必需项已满足但其中至少一项靠例外放行才满足的 DQ 数), stale (签认依据交付件出现更新版本数), voided (绑定交付件业务编码现已整体作废数), closure-pct (已签认 approved 占全部分母的整数百分比, 无 DQ 时为 0). 依赖 dq-read-model 与 dq-deliverable-voided-model 已写入的派生键, 故须在二者之后调用. 免迁移读取时计算, 不写存储, 不构成门控, 键名不带尾随问号."
+  "把全部 DQ 关键任务的最新状态只读聚合为项目级质量检查闭环概览: total/approved/in-review/ready/draft/rejected 各状态计数, required-met (必需检查项全满足数, 含例外放行), exception-met (必需项已满足但其中至少一项靠例外放行才满足的 DQ 数), stale (签认依据交付件出现更新版本数), voided (绑定交付件业务编码现已整体作废数), methods-declared (已预先声明检验方法的 DQ 数), roles-declared (已指定执行角色的 DQ 数), closure-pct (已签认 approved 占全部分母的整数百分比, 无 DQ 时为 0). 依赖 dq-read-model 与 dq-deliverable-voided-model 已写入的派生键, 故须在二者之后调用. 免迁移读取时计算, 不写存储, 不构成门控, 键名不带尾随问号."
   [dqs]
   (let [total (count dqs)
         by-status (frequencies (map :status dqs))
@@ -143,6 +149,8 @@
      :exception-met (count (filter #(and (:dq_required_met %) (pos? (:dq_required_waived % 0))) dqs))
      :stale (count (filter :dq_stale dqs))
      :voided (count (filter :dq_deliverable_voided dqs))
+     :methods-declared (count (filter (comp seq :check_method) dqs))
+     :roles-declared (count (filter (comp seq :responsible_role) dqs))
      :closure-pct (if (pos? total)
                     (int (Math/round ^double (* 100.0 (/ approved total))))
                     0)}))
