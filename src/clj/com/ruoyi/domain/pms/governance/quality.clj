@@ -13,7 +13,8 @@
   (when-not (and (vector? items) (<= 1 (count items) 50)) (r/fail! 400 "DQ检查清单需要1到50项"))
   (let [rows (mapv (fn [item] (r/object! item [:code :title :required])
                      {:code (s/text! item :code 50) :title (s/text! item :title 200)
-                      :required (if (false? (:required item)) false true) :passed false :note ""}) items)]
+                      :required (if (false? (:required item)) false true)
+                      :passed false :note "" :waived false :waiver_reason ""}) items)]
     (when-not (= (count rows) (count (set (map :code rows)))) (r/fail! 400 "DQ检查项编码重复"))
     rows))
 
@@ -48,26 +49,35 @@
           (r/fail! 400 "必须提交清单全部检查项"))
         (let [by-code (into {} (map (juxt :code identity) results))
               checklist (mapv (fn [item]
-                                (let [res (get by-code (:code item))]
-                                  (r/object! res [:code :passed :note])
-                                  (assoc item :passed (s/boolean! (:passed res) "passed")
-                                         :note (r/text! (:note res) "检查说明" 500 false))))
+                                (let [res (get by-code (:code item))
+                                      waived (boolean (:waived res))]
+                                  (r/object! res [:code :passed :note :waived :waiver_reason])
+                                  (when (and (contains? res :waived) (not (boolean? (:waived res)))) (r/fail! 400 "waived必须为布尔值"))
+                                  (when (and waived (s/boolean! (:passed res) "passed")) (r/fail! 400 (str "检查项 " (:code item) " 已通过, 无需例外")))
+                                  (cond-> (assoc item :passed (s/boolean! (:passed res) "passed")
+                                                 :note (r/text! (:note res) "检查说明" 500 false)
+                                                 :waived waived)
+                                    waived (assoc :waiver_reason (r/text! (:waiver_reason res) "例外说明" 500 true))
+                                    (not waived) (assoc :waiver_reason ""))))
                               (:checklist dq))
               deliverables (if (contains? body :deliverable_ids)
                              (s/evidence! q project (:deliverable_ids body) false)
                              (:deliverable_ids dq))]
-          (s/change! q project dq (if (every? :passed (filter :required checklist)) "ready" "draft")
+          (s/change! q project dq (if (every? #(or (:passed %) (:waived %)) (filter :required checklist)) "ready" "draft")
                      {:checklist checklist :deliverable_ids deliverables :checked_by (:user_id actor)}))))))
 
 (defn submit-dq!
-  "全部必需项通过且交付件齐备后提交独立签认."
+  "全部必需项通过或经例外放行且交付件齐备后提交独立签认."
   [svc actor id rid body]
   (k/mutate! svc actor id "pms:project:edit" body "dq.submitted"
     (fn [q project]
       (s/input! body [:reviewer_id])
       (let [dq (s/record! q project "dq" rid)]
         (s/status! dq #{"ready" "rejected"})
-        (when-not (every? :passed (filter :required (:checklist dq))) (r/fail! 409 "仍有必需检查项未通过"))
+        (when-not (every? #(or (:passed %) (:waived %)) (filter :required (:checklist dq)))
+          (r/fail! 409 "仍有必需检查项未通过"))
+        (when (some #(and (:required %) (:waived %) (empty? (:waiver_reason %))) (:checklist dq))
+          (r/fail! 409 "例外放行的必需检查项缺少说明"))
         (when (empty? (:deliverable_ids dq)) (r/fail! 409 "DQ必须绑定确定版本交付件"))
         (s/change! q project dq "in_review"
                    {:reviewer_id (s/reviewer! q project actor (:reviewer_id body)) :submitted_by (:user_id actor)
@@ -86,7 +96,7 @@
         (s/change! q project dq decision {:decision_reason (s/text! body :reason) :decided_by (:user_id actor)})))))
 
 (defn dq-read-model
-  "只读标注: 交付件是否出现更新版本 (签认依据失效), 检查项通过数, 必需检查项就绪度."
+  "只读标注: 交付件是否出现更新版本 (签认依据失效), 检查项通过数, 必需检查项就绪度 (通过或例外放行均视为满足), 以及例外放行计数."
   [documents dq]
   (let [latest-by-code (into {} (map (fn [[code rows]] [code (apply max (map :revision rows))]) (group-by :code documents)))
         by-id (into {} (map (juxt :id identity)) documents)
@@ -95,12 +105,17 @@
                        (:deliverable_ids dq))
         checklist (:checklist dq)
         required (filter :required checklist)
-        required-passed (count (filter :passed required))]
+        satisfied? (fn [c] (or (:passed c) (:waived c)))
+        required-passed (count (filter :passed required))
+        required-waived (count (filter :waived required))
+        required-satisfied (count (filter satisfied? required))]
     (assoc dq :dq_stale (boolean (seq stale)) :dq_stale_count (count stale)
            :dq_passed (count (filter :passed checklist)) :dq_total (count checklist)
+           :dq_waived (count (filter :waived checklist))
            :dq_required_total (count required) :dq_required_passed required-passed
-           :dq_required_missing (- (count required) required-passed)
-           :dq_required_met (= (count required) required-passed))))
+           :dq_required_waived required-waived :dq_required_satisfied required-satisfied
+           :dq_required_missing (- (count required) required-satisfied)
+           :dq_required_met (= (count required) required-satisfied))))
 
 (defn dq-deliverable-voided-model
   "只读派生 DQ 签认快照所绑定交付件是否现已整体作废: 逐个 deliverable_ids (登记时绑定的不可变文档版本 id) 经 docs-by-id 解析其业务编码, 若该编码最新版本已被受控作废(discarded) 则计入 dq_voided_deliverables, 任一命中则 dq_deliverable_voided 为 true. 交付件自身快照口径不漂移(引用的仍是那一个历史版本), 本标注仅额外提示该交付件业务编码现已整体作废. 免迁移读取时计算, 不写存储, 不改变不可变版本, 不门控, 键名不带尾随问号."
@@ -112,7 +127,7 @@
            :dq_deliverable_voided (pos? voided-count))))
 
 (defn dq-summary
-  "把全部 DQ 关键任务的最新状态只读聚合为项目级质量检查闭环概览: total/approved/in-review/ready/draft/rejected 各状态计数, required-met (必需检查项全通过数), stale (签认依据交付件出现更新版本数), voided (绑定交付件业务编码现已整体作废数), closure-pct (已签认 approved 占全部分母的整数百分比, 无 DQ 时为 0). 依赖 dq-read-model 与 dq-deliverable-voided-model 已写入的派生键, 故须在二者之后调用. 免迁移读取时计算, 不写存储, 不构成门控, 键名不带尾随问号."
+  "把全部 DQ 关键任务的最新状态只读聚合为项目级质量检查闭环概览: total/approved/in-review/ready/draft/rejected 各状态计数, required-met (必需检查项全满足数, 含例外放行), exception-met (必需项已满足但其中至少一项靠例外放行才满足的 DQ 数), stale (签认依据交付件出现更新版本数), voided (绑定交付件业务编码现已整体作废数), closure-pct (已签认 approved 占全部分母的整数百分比, 无 DQ 时为 0). 依赖 dq-read-model 与 dq-deliverable-voided-model 已写入的派生键, 故须在二者之后调用. 免迁移读取时计算, 不写存储, 不构成门控, 键名不带尾随问号."
   [dqs]
   (let [total (count dqs)
         by-status (frequencies (map :status dqs))
@@ -125,6 +140,7 @@
      :draft (get by-status "draft" 0)
      :rejected (get by-status "rejected" 0)
      :required-met (count (filter :dq_required_met dqs))
+     :exception-met (count (filter #(and (:dq_required_met %) (pos? (:dq_required_waived % 0))) dqs))
      :stale (count (filter :dq_stale dqs))
      :voided (count (filter :dq_deliverable_voided dqs))
      :closure-pct (if (pos? total)

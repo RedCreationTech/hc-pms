@@ -1781,6 +1781,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: H08 整行状态保持 `partial` 不变 — 本项只是把"复审频率声明"与实际复审排期闭合的一个带行为效果的字段子能力, 不改动风险概率×影响评分与超阈值升级门控, 不上抬整行; 频率顺延只在复评留空时生效, 显式日期与关闭结论不受影响; 不投递复审提醒, 不做频率历史留存或到期主动催办, 是否据复审到期进一步收紧风险处置策略仍属未完范围, MySQL 回归待补充.
 
+## B08 DQ 检查项例外放行写路径 (本轮增补, 2026-10-02)
+
+设计与口径: 关口 (Gate) 检查项早已支持"例外放行 (需说明)"——某必需项虽未真正通过, 但经责任人书面确认可先行放行并计入满足 (见 B09 关口检查项就绪度与 `pms-gate-readiness`/`pms-gex` 系列). DQ 质量检查此前只能逐项二元"通过/未通过", 缺同一弹性, 遇到"计量器具下周才送检但需先行签认"这类现场场景只能整体卡住. 本轮把 Gate 的豁免语义引入 DQ 检查登记, **免迁移** (随 payload JSON 持久化, 不新增列/表/kind/命令/路由), **无例外时零回归**. 后端 `governance.quality` `check-dq!` 每条检查结果可选携带 `waived` (布尔) 与 `waiver_reason` (文本): `waived` 为真时 `passed` 必须为假 (已通过又叠加例外 400 "已通过, 无需例外"), `waiver_reason` 必填 (缺说明在检查登记时即 `r/text!` required=true 返回 400), `waived` 非布尔返回 400; 必需项"满足"口径由"仅 `:passed`"放宽为"`:passed` 或 `:waived`", 故 `check-dq!` 推 `ready` 与 `submit-dq!` 放行提交均按满足数判定, `submit-dq!` 另加纵深防御控制断言 (被豁免的必需项缺说明 409, 因写路径已强制故实际恒不触发). 读路径 `dq-read-model` 追加 `dq_required_satisfied`/`dq_required_waived`/`dq_waived` 并把 `dq_required_met` 改按满足数判定, `dq_passed` 仍只计真实通过不与满足数混同; `dq-summary` 追加 `exception-met` (必需全满足但含豁免的 DQ 数) 且 `required-met` 口径更新为含豁免. 前端 `dq-check-dialog` 每项下拉新增第三项"例外放行 (需说明)" + `waiver_<code>` 说明框, "必需检查就绪度"列改用满足数并追加金色"例外 N", 闭环汇总面板标签改"必需项全满足"并新增金色"靠例外满足 N". 键名一律不带尾随问号.
+
+| 验证层 | 结果 |
+|--------|------|
+| 后端命名空间 (冷 JVM) | `PMS_TEST_JDBC_URL=jdbc:sqlite:/tmp/b08dqx.db clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 97 tests / 1556 assertions, 0 failures/errors (新增 deftest `dq-required-check-exception-waiver-counts-as-satisfied`: 必需项 waived+说明→满足计入 `dq_required_satisfied`/`dq_required_waived`/`dq_waived` 且 `dq_required_met=true` 而 `dq_passed` 不增; 已 passed 又叠加 waived 400; waived 缺说明 400; `waived` 非布尔 400; 无豁免的既有 DQ 用例零回归) |
+| 全量 PMS 回归 (冷 JVM) | `env -u PMS_TEST_JDBC_URL clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 全绿 228 tests / 3063 assertions, 0 failures/errors (较上一记录基线 227/3024 增本 DQ 例外放行一 deftest / +39 assertions, 未用豁免的既有 DQ 就绪/提交/签认/作废用例零回归) |
+| 前端编译 | `npx shadow-cljs compile app` 通过 4035 files / 0 warnings (新增检查对话框"例外放行 (需说明)"下拉与说明框, "必需检查就绪度"列满足数 + 金色"例外 N", 闭环汇总"必需项全满足"/"靠例外满足 N"标签) |
+| HTTP 合同 (契约) | `contracts/governance.md` 新增"DQ 检查项例外放行"段, 记录 `check-dq!` 写路径 `waived`/`waiver_reason` 语义与门控 (passed+waived 400 / 缺说明 400 / 非布尔 400)、必需项满足口径放宽为 `:passed` 或 `:waived`、`dq-read-model` 派生键追加、`dq-summary` `exception-met` 与 `required-met` 口径更新、前端三处呈现及诚实边界; 并 amend "DQ 质量检查闭环汇总"段输出集含 `exception-met`、标签名改"必需项全满足" + 新增"靠例外满足" |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | 断言用例 `pms-b08dqx.spec.js` 1 passed (25.7秒, 全新独立 `/tmp/b08dqx.db` 冷启动迁移, `FLOWABLE_JDBC_URL` 指向独立 `/tmp/b08dqx-flowable` 避免与 `:3000` 抢锁, 无未捕获 JS 错误): 建含 R-1/R-2 两必需项的 DQ, 界面"填写DQ检查结果" R-1 通过 / R-2 未过→台账红"必需 1/2 缺 1" (截图 b08dqx-2-ledger-pending.png) 且真实 HTTP 提交签认 409; 重开对话框 R-2 改"例外放行 (需说明)"填 `#waiver_R-2` 保存 (截图 b08dqx-1-check-dialog.png / b08dqx-3-waive-dialog.png)→台账翻绿"必需就绪 2/2" + 金"例外 1", 面板"必需项全满足 1 / 靠例外满足 1" (截图 b08dqx-4-summary-exception.png); 独立质量审批人第二真实上下文签认通过 approved ("已签认 100%", 自审被 403 门控), `dq_required_waived` 仍为 1; 真实 HTTP GET governance 回显 `dq_required_satisfied=2`/`dq_required_waived=1`/`dq_required_met=true`/`dq_waived=1`/`dq_passed=1`/`status=approved` 与 `dq_summary` `required-met=1`/`exception-met=1`; 另真实 HTTP 验证防御门控 passed 又 waived 400 / 例外缺说明 400 (命令写操作记录在 `data.result` 下, 门控断言用 `body.code`) |
+| 演示录像 (真实浏览器) | 同一 `pms-b08dqx.spec.js` 以文件顶层 `test.use({ video: 'on' })` 录真实 Playwright 浏览器全程 (填检查→未过卡住 409→改例外放行填说明→翻绿+金标→面板靠例外满足→独立审批人签认), webm 经项目本地 `tools/bin/ffmpeg` 转 `reports/b08dqx/b08dqx-demo.mp4` (h264, 1600x1000, 377788 字节) |
+| MySQL | 本轮未执行 (本地无 MySQL 实例); 本项为免迁移的写路径布尔+文本字段, 随 payload JSON 持久化, 不涉及任何表结构或迁移变更, 与 SQLite/MySQL 无关 |
+
+边界: B08 整行状态保持 `implemented / local` 不变 — 本项只在既有 DQ 检查登记上追加"检查项级例外放行"弹性子能力 (复用 Gate 豁免语义), 不改动 DQ 与确定版本交付件绑定/签认依据失效等既有口径, 不上抬整行; 例外放行是"经责任人确认的先行放行"而非"检查已实际通过", 台账与面板均以金色单独标注豁免数以显式区分真实通过 (绿) 与靠豁免满足 (金), 不冒充质量已达标; 是否据此豁免阻断签认批准仍属"待规则"; MySQL 回归待补充.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

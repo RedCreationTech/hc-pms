@@ -3,7 +3,7 @@ const path = require('node:path');
 
 // H10 延伸: DQ 质量检查闭环汇总只读派生洞察 (免迁移, 无新命令/新kind/新路由/不构成门控).
 // 真实HTTP建一个交付件文档 -> 登记 4 条 DQ 关键任务覆盖 draft/ready/in_review/approved 四态 ->
-//   "DQ与局部暂停"页签只读"质量检查闭环汇总"面板按最新状态聚合: DQ 总数 4 / 已签认 25% (1/4) / 必需项全通过 3 /
+//   "DQ与局部暂停"页签只读"质量检查闭环汇总"面板按最新状态聚合: DQ 总数 4 / 已签认 25% (1/4) / 必需项全满足 3 /
 //   签认审批中 1 / 待提交 1 / 草稿 1; 独立质量审批人在第二真实上下文对其中一条签认通过 (approved 由 in_review 翻入);
 //   真实HTTP GET /governance 回显 dq_summary 各字段与面板一致; 只读派生不改变任何逐条 DQ 状态.
 //   新项目无 DQ -> 面板空态"暂无 DQ 关键任务"且 GET 回显 available=false/total=0/closure-pct=0.
@@ -126,7 +126,7 @@ test.describe('H10 延伸 DQ 质量检查闭环汇总只读洞察浏览器验收
     await expect(sum).toBeVisible();
     await expect(sum.getByText(/DQ 总数\s*4/)).toBeVisible();
     await expect(sum.getByText(/已签认\s*0%/)).toBeVisible();
-    await expect(sum.getByText(/必需项全通过\s*3/)).toBeVisible();
+    await expect(sum.getByText(/必需项全满足\s*3/)).toBeVisible();
     await expect(sum.getByText(/签认审批中\s*2/)).toBeVisible();
     await expect(sum.getByText(/待提交\s*1/)).toBeVisible();
     await expect(sum.getByText(/草稿\s*1/)).toBeVisible();
@@ -160,7 +160,7 @@ test.describe('H10 延伸 DQ 质量检查闭环汇总只读洞察浏览器验收
     await expect(sum.getByText(/已签认\s*25%\s*\(1\/4\)/)).toBeVisible();
     await expect(sum.getByText(/签认审批中\s*1/)).toBeVisible();
     await expect(sum.getByText(/DQ 总数\s*4/)).toBeVisible();
-    await expect(sum.getByText(/必需项全通过\s*3/)).toBeVisible();
+    await expect(sum.getByText(/必需项全满足\s*3/)).toBeVisible();
     await shotCard(page, sum, 'h10dq-2-approved.png');
 
     // 真实HTTP读模型终态 + 只读派生不改变逐条 DQ 状态: d4 已签认, d1 仍草稿, d2 仍 ready, d3 仍审批中.

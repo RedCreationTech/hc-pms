@@ -1286,6 +1286,89 @@
       (is (= 0 (:dq_required_passed row))))))
 
 
+(deftest dq-required-check-exception-waiver-counts-as-satisfied
+  (let [id (project!)
+        doc (document! id "DQ-XW")
+        dq (command! id :dqs :create nil
+                     {:code "DQ-XW" :title "必需检查例外放行" :owner_id 9301
+                      :checklist [{:code "R-1" :title "必需一" :required true}
+                                  {:code "R-2" :title "必需二" :required true}
+                                  {:code "O-1" :title "可选一" :required false}]
+                      :deliverable_ids [(:id doc)]})
+        find-dq (fn [] (first (filter #(= (:id dq) (:id %)) (:dqs (workspace id)))))]
+    ;; 仅通过 R-1, R-2 既未通过也未例外 -> 必需未满足, 仍草稿, 无法提交签认 (409).
+    (command! id :dqs :checks (:id dq)
+              {:results [{:code "R-1" :passed true :note ""}
+                         {:code "R-2" :passed false :note ""}
+                         {:code "O-1" :passed false :note ""}]})
+    (is (= 1 (:dq_required_passed (find-dq))))
+    (is (= 1 (:dq_required_satisfied (find-dq))))
+    (is (= 0 (:dq_required_waived (find-dq))))
+    (is (= 1 (:dq_required_missing (find-dq))))
+    (is (false? (:dq_required_met (find-dq))))
+    (is (= "draft" (:status (find-dq))))
+    (is (= 409 (error-status #(command! id :dqs :submit (:id dq) {:reviewer_id 9302}))))
+    ;; R-2 经有理由例外放行 -> 必需按 通过 OR 例外 计为全满足 -> ready, 提交签认并独立批准放行.
+    (command! id :dqs :checks (:id dq)
+              {:results [{:code "R-1" :passed true :note ""}
+                         {:code "R-2" :passed false :note "" :waived true :waiver_reason "计量器具送检中, 责任人同意先行签认"}
+                         {:code "O-1" :passed false :note ""}]})
+    (is (= 1 (:dq_required_passed (find-dq))))
+    (is (= 1 (:dq_required_waived (find-dq))))
+    (is (= 2 (:dq_required_satisfied (find-dq))))
+    (is (= 0 (:dq_required_missing (find-dq))))
+    (is (true? (:dq_required_met (find-dq))))
+    (is (= 1 (:dq_waived (find-dq))))
+    (is (= 1 (:dq_passed (find-dq))))
+    (is (= "ready" (:status (find-dq))))
+    (is (= "in_review" (:status (command! id :dqs :submit (:id dq) {:reviewer_id 9302}))))
+    (is (= "approved" (:status (command! 9302 id :dqs :decision (:id dq) {:decision "approved" :reason "独立确认例外合理"}))))
+    ;; 项目级闭环汇总: 必需达成 1, 靠例外满足 1.
+    (let [s (:dq_summary (workspace id))]
+      (is (= 1 (:required-met s)))
+      (is (= 1 (:exception-met s))))
+    ;; 例外守卫: 通过且例外 / 例外缺说明 / waived 非布尔 均 400; 合法例外带说明 -> ready.
+    (let [dq2 (command! id :dqs :create nil
+                        {:code "DQ-XG" :title "例外守卫" :owner_id 9301
+                         :checklist [{:code "R" :title "必需" :required true}]
+                         :deliverable_ids []})
+          find-dq2 (fn [] (first (filter #(= (:id dq2) (:id %)) (:dqs (workspace id)))))]
+      (is (= 400 (error-status #(command! id :dqs :checks (:id dq2)
+                                          {:results [{:code "R" :passed true :note "" :waived true :waiver_reason "矛盾"}]}))))
+      (is (= 400 (error-status #(command! id :dqs :checks (:id dq2)
+                                          {:results [{:code "R" :passed false :note "" :waived true}]}))))
+      (is (= 400 (error-status #(command! id :dqs :checks (:id dq2)
+                                          {:results [{:code "R" :passed false :note "" :waived "yes"}]}))))
+      (is (false? (:dq_required_met (find-dq2))))
+      (command! id :dqs :checks (:id dq2)
+                {:results [{:code "R" :passed false :note "" :waived true :waiver_reason "责任人同意先行"}]})
+      (is (= "ready" (:status (find-dq2))))
+      (is (= 1 (:dq_required_waived (find-dq2)))))
+    ;; 纯函数直测: 必需例外满足 met=true, 通过数不含例外.
+    (let [row (quality/dq-read-model [] {:checklist [{:code "R" :required true :passed false :waived true}]})]
+      (is (= 1 (:dq_required_waived row)))
+      (is (= 1 (:dq_required_satisfied row)))
+      (is (= 0 (:dq_required_missing row)))
+      (is (true? (:dq_required_met row)))
+      (is (= 0 (:dq_required_passed row)))
+      (is (= 1 (:dq_waived row))))
+    ;; 零回归: 无例外时 satisfied 与 passed 完全一致.
+    (let [row (quality/dq-read-model [] {:checklist [{:code "R" :required true :passed true :waived false}
+                                                     {:code "S" :required true :passed false :waived false}]})]
+      (is (= 1 (:dq_required_satisfied row)))
+      (is (= 1 (:dq_required_passed row)))
+      (is (= 0 (:dq_required_waived row)))
+      (is (= 1 (:dq_required_missing row)))
+      (is (false? (:dq_required_met row)))
+      (is (= 0 (:dq_waived row))))
+    ;; dq-summary exception-met 直测: 仅 met 且 waived>0 才计入, 未 met 者即便有例外也不计.
+    (let [m (quality/dq-summary [{:status "approved" :dq_required_met true :dq_required_waived 1}
+                                 {:status "ready" :dq_required_met true :dq_required_waived 0}
+                                 {:status "in_review" :dq_required_met false :dq_required_waived 2}])]
+      (is (= 2 (:required-met m)))
+      (is (= 1 (:exception-met m))))))
+
+
 (deftest dq-check-closure-summary-is-derived-read-only
   (let [id (project!)
         doc (document! id "DQ-SUM")

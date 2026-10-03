@@ -321,16 +321,24 @@
             {:key :task_id :label "关联WBS任务" :type :select :options (w/options (:tasks planning) :task_id :name)}]})
 
 (defn dq-check-dialog
-  "逐项登记 DQ 检查结果."
+  "逐项登记 DQ 检查结果, 允许有理由的检查项例外放行."
   [base dq]
   {:title "填写DQ检查结果" :path (str base "/dqs/" (:id dq) "/checks")
+   :description "每项可选 通过 / 未通过 / 例外 (经责任人确认先行放行, 须填写例外说明); 例外项计入必需检查满足数并在台账单独标注."
    :transform (fn [data]
-                {:results (mapv (fn [item] {:code (:code item) :passed (= "passed" (get data (keyword (str "passed_" (:code item)))))
-                                            :note (or (get data (keyword (str "note_" (:code item)))) "")}) (:checklist dq))})
+                {:results (mapv (fn [item]
+                                  (let [result (get data (keyword (str "passed_" (:code item))))
+                                        reason (get data (keyword (str "waiver_" (:code item))))]
+                                    (cond-> {:code (:code item)
+                                             :passed (= "passed" result)
+                                             :note (or (get data (keyword (str "note_" (:code item)))) "")}
+                                      (= "waived" result) (assoc :waived true :waiver_reason (or reason "")))))
+                                (:checklist dq))})
    :fields (vec (mapcat (fn [item]
                           [{:key (keyword (str "passed_" (:code item))) :label (str (:code item) " / " (:title item)) :type :select :required? true
-                            :options [{:value "passed" :label "检查通过"} {:value "failed" :label "检查未通过"}]}
-                           {:key (keyword (str "note_" (:code item))) :label "检查说明"}]) (:checklist dq)))})
+                            :options [{:value "passed" :label "检查通过"} {:value "failed" :label "检查未通过"} {:value "waived" :label "例外放行 (需说明)"}]}
+                           {:key (keyword (str "note_" (:code item))) :label "检查说明"}
+                           {:key (keyword (str "waiver_" (:code item))) :label "例外说明" :hint "选择例外放行时必填, 例如: 计量器具下周送检, 责任人同意先行签认"}]) (:checklist dq)))})
 
 (defn node-pause-dialog
   "对子项目/单机发起局部暂停."
