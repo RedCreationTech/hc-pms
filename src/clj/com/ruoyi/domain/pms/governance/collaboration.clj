@@ -826,6 +826,36 @@
                 :dq_remediation_state state)))
 
 
+(defn remediation-rollup-by-gate
+  "按整改行动项持久化的 source_gate_id 反向聚合每个关口实例派生的整改行动总数/未完成数(排除 closed/converted)/其中逾期未完成数, 供关口台账只读呈现整改落实情况. 只读派生不落库."
+  [actions]
+  (reduce (fn [acc action]
+            (if-let [gid (:source_gate_id action)]
+              (let [done? (contains? #{"closed" "converted"} (:status action))
+                    overdue? (action-overdue? action)]
+                (update acc gid (fn [{:keys [total open overdue]}]
+                                  {:total (inc (or total 0))
+                                   :open (if done? (or open 0) (inc (or open 0)))
+                                   :overdue (if overdue? (inc (or overdue 0)) (or overdue 0))})))
+              acc))
+          {}
+          actions))
+
+
+(defn gate-remediation-read-model
+  "在关口实例记录上追加只读派生键: gate_remediation_total/open/overdue 为该关口未通过必需检查项派生的整改行动总数/未完成数(排除 closed/converted)/其中逾期未完成数, gate_remediation_state 取 unremediated(尚未落实整改) / in-progress(整改中) / completed(全部整改完成). 只读派生不落库, 键名不带尾随问号."
+  [rollup gate]
+  (let [{:keys [total open overdue]} (get rollup (:id gate) {:total 0 :open 0 :overdue 0})
+        state (cond
+                (zero? total) "unremediated"
+                (pos? open) "in-progress"
+                :else "completed")]
+    (assoc gate :gate_remediation_total total
+                  :gate_remediation_open open
+                  :gate_remediation_overdue overdue
+                  :gate_remediation_state state)))
+
+
 (defn action-closure-summary
   "按全部会议与预防行动项只读聚合闭环情况: 总数/已闭环(closed 或 converted)/未完成/其中逾期未完成/转任务数与闭环率; 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
   [actions]

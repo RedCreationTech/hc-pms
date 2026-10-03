@@ -82,6 +82,7 @@
                    owner-loads (collab/owner-workloads (:issues data) (:risks data) (:actions data))
                    mitigation-rollup (collab/mitigation-rollup-by-risk (:actions data))
                    remediation-rollup (collab/remediation-rollup-by-dq (:actions data))
+                   gate-remediation-rollup (collab/remediation-rollup-by-gate (:actions data))
                    docs-by-id (into {} (map (juxt :id identity)) (:documents data))
                    voided-codes (evidence/voided-document-codes docs-by-id)
                    traces-by-req (group-by :requirement_id (:traces data))
@@ -102,6 +103,7 @@
                    (update :requirements #(mapv (partial evidence/requirement-trace-model traces-by-req docs-by-id) %))
                    (update :gates #(mapv (partial gates/gate-evidence-voided-model voided-codes docs-by-id) %))
                    (update :gates #(mapv (partial gates/gate-evidence-release-model docs-by-id) %))
+                   (update :gates #(mapv (partial collab/gate-remediation-read-model gate-remediation-rollup) %))
                    gates/attach-gate-closure-summary
                    gates/attach-gate-exception-summary
                    collab/attach-issue-closure-summary
@@ -204,6 +206,7 @@
    [:node-pauses :create] (creating quality/pause-node!) [:node-pauses :resume] quality/resume-node!
    [:gates :create] (creating gates/create!) [:gates :checks] gates/checks!
    [:gates :submit] gates/submit! [:gates :decision] gates/decide!
+   [:gates :remediation-action] gates/remediation-action!
    [:appointments :create] (creating appointment/issue!)
    [:stakeholders :create] (creating stakeholders/create-stakeholder!)
    [:stakeholders :revisions] stakeholders/revise-stakeholder!

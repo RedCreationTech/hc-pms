@@ -88,6 +88,7 @@
     (command-route svc "/gates/:record_id/checks" :gates :checks)
     (command-route svc "/gates/:record_id/submit" :gates :submit)
     (command-route svc "/gates/:record_id/decision" :gates :decision)
+    (command-route svc "/gates/:record_id/remediation-action" :gates :remediation-action)
     (command-route svc "/stakeholders" :stakeholders :create)
     (command-route svc "/stakeholders/:record_id/revisions" :stakeholders :revisions)
     (command-route svc "/stakeholders/:record_id/discard" :stakeholders :discard)

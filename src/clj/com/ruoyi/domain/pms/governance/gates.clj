@@ -119,7 +119,7 @@
         templates))
 
 (defn gate-read-model
-  "只读派生单个关口实例的签核就绪度: 检查项总数/已满足数/豁免数, 必需未满足项编码及是否可签核, 不写存储."
+  "只读派生单个关口实例的签核就绪度: 检查项总数/已满足数/豁免数, 必需未满足项编码及其数量(gate_required_missing)及是否可签核, 不写存储."
   [gate]
   (let [checks (or (:checks gate) [])
         satisfied? (fn [c] (or (:passed c) (:waived c)))
@@ -129,6 +129,7 @@
            :gate_passed (count (filter satisfied? checks))
            :gate_waived (count (filter :waived checks))
            :blocking_checks blocking
+           :gate_required_missing (count blocking)
            :ready_to_sign (empty? blocking))))
 
 (defn gate-evidence-voided-model
@@ -189,6 +190,34 @@
           (r/fail! 409 "未提出豁免申请,不能直接豁免"))
         (s/change! q project gate decision {:decision_reason reason :decided_by (:user_id actor)})))))
 
+(defn remediation-action!
+  "把关口未通过的必需检查项落实为可追踪的整改行动项: 复用行动类型与既有完成/独立验证/转任务生命周期, 记录来源关口与所选未通过必需检查项编码, 缺省沿用关口审核人为负责人; 需项目编辑权限, 仅对尚未签核(draft/ready/rejected)且确有未通过必需检查项的关口实例开放."
+  [svc actor id rid body]
+  (k/mutate! svc actor id "pms:project:edit" body "gate.remediation-action-created"
+    (fn [q project]
+      (s/input! body [:title :owner_id :due_date :check_code])
+      (let [gate (s/record! q project "gate" rid)
+            _ (s/status! gate #{"draft" "ready" "rejected"})
+            failing (filterv #(and (:required %) (not (:passed %)) (not (:waived %))) (:checks gate))]
+        (when (empty? failing) (r/fail! 409 "该关口没有未通过的必需检查项, 无需整改"))
+        (let [cc (not-empty (s/optional-text! body :check_code 50))
+              target (if cc
+                       (or (first (filter #(= cc (:code %)) failing))
+                           (r/fail! 400 "指定的检查项不存在或并非未通过的必需项"))
+                       (first failing))
+              prefix "整改: "
+              base (str (:title gate) " / " (:title target))
+              fallback (str prefix (if (> (count base) (- 200 (count prefix)))
+                                     (subs base 0 (- 200 (count prefix))) base))
+              given (s/optional-text! body :title 200)]
+          (s/insert! q project actor "action"
+                     {:title (if (seq given) given fallback)
+                      :owner_id (k/user! q project (or (:owner_id body) (:reviewer_id gate)) "负责人")
+                      :due_date (s/date! body :due_date)
+                      :source_gate_id rid
+                      :source_check_code (:code target)}
+                     {:status "open"}))))))
+
 (defn- stage-ready!
   "要求必需关口模板存在且全部实例已通过或被正式豁免."
   [q project stage]
@@ -217,7 +246,7 @@
   (stage-ready! q project "closure"))
 
 (defn gate-closure-summary
-  "只读聚合全部关口实例的签核闭环健康度: 按状态计数 (批准/豁免/审批中/待提交/草稿/驳回), 已签核 (批准或豁免) 占全部实例的整数百分比, 被未满足必需检查阻断的实例数, 以及证据已作废与证据待发布的实例数; 是关口实例层的签核闭环汇总, 与 gate-progress 的模板层下钻互补. 只读派生, 不改变任何关口状态, 不构成门控, 键名不带尾随问号."
+  "只读聚合全部关口实例的签核闭环健康度: 按状态计数 (批准/豁免/审批中/待提交/草稿/驳回), 已签核 (批准或豁免) 占全部实例的整数百分比, 被未满足必需检查阻断的实例数, 证据已作废与证据待发布的实例数, 以及已落实整改 (至少派生一条整改行动, 依 gate_remediation_total) 与仍有未完成整改 (依 gate_remediation_open) 的关口数; 是关口实例层的签核闭环汇总, 与 gate-progress 的模板层下钻互补. 依赖 gate-remediation-read-model 已写入的派生键, 故须在其之后调用. 只读派生, 不改变任何关口状态, 不构成门控, 键名不带尾随问号."
   [gates]
   (let [total (count gates)
         by-status (frequencies (map :status gates))
@@ -234,6 +263,8 @@
      :blocked (count (remove :ready_to_sign gates))
      :evidence-voided (count (filter :gate_evidence_voided gates))
      :evidence-pending (count (filter :gate_evidence_unreleased gates))
+     :remediated (count (filter #(pos? (:gate_remediation_total % 0)) gates))
+     :remediation-open (count (filter #(pos? (:gate_remediation_open % 0)) gates))
      :closure-pct (if (pos? total)
                     (int (Math/round ^double (* 100.0 (/ signed total))))
                     0)}))

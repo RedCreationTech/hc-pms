@@ -1448,6 +1448,8 @@
         [w/edit-button "提交评审" #(open! {:title "提交Gate评审" :path (str path "/submit") :fields []})]
         [w/edit-button "申请豁免" #(open! {:title "申请Gate豁免" :path (str path "/submit")
                                        :fields [{:key :waiver_reason :label "豁免理由" :type :textarea :required? true}]})]])
+     (when (and editable? (contains? #{"draft" "ready" "rejected"} (:status gate)) (pos? (or (:gate_required_missing gate) 0)))
+       [w/edit-button "落实整改" #(open! (forms/gate-remediation-dialog base options gate))])
      (when (and approve? (= "in_review" (:status gate)) (= current (:reviewer_id gate)) (not= current (:submitted_by gate)))
        [:<>
         [w/edit-button "通过" #(open! (forms/decision-dialog (str path "/decision") "approved" "批准Gate"))]
@@ -1498,8 +1500,10 @@
         blocked (:blocked sm 0)
         pending (:evidence-pending sm 0)
         voided (:evidence-voided sm 0)
+        remediated (:remediated sm 0)
+        remediation-open (:remediation-open sm 0)
         pct (:closure-pct sm 0)]
-    [shared/panel "关口验收签核闭环汇总" "统一统计全部关口实例的签核闭环 (已通过或已豁免视为已签核) 与占比; 另汇总被必需检查阻断, 证据待发布与证据已作废的实例数; 只读派生, 不改变任何关口状态"
+    [shared/panel "关口验收签核闭环汇总" "统一统计全部关口实例的签核闭环 (已通过或已豁免视为已签核) 与占比; 另汇总被必需检查阻断, 证据待发布, 证据已作废的实例数, 以及未通过必需检查落实整改的已落实与未完成数; 只读派生, 不改变任何关口状态"
      nil
      (if (zero? total)
        [:span {:style {:color "#8793a3"}} "尚无关口实例, 发起 Gate 检查并逐项签核后可在此查看验收闭环概览."]
@@ -1520,7 +1524,11 @@
         (when (pos? pending)
           [antd/tag {:color "purple"} (str "证据待发布 " pending)])
         (when (pos? voided)
-          [antd/tag {:color "red"} (str "证据已作废 " voided)])])]))
+          [antd/tag {:color "red"} (str "证据已作废 " voided)])
+        (when (pos? remediated)
+          [antd/tag {:color "gold"} (str "已落实整改 " remediated)])
+        (when (pos? remediation-open)
+          [antd/tag {:color "orange"} (str "整改未完成 " remediation-open)])])]))
 
 (defn- gate-exception-summary-section
   "只读汇总全部关口实例的检查项级例外放行治理健康度: 统计必需检查项总数, 其中靠豁免而非真实通过的数量与占比, 含豁免的关口数, 以及仅靠豁免才达到就绪的关口数; 与关口验收签核闭环汇总互补 (后者按实例状态计数, 本项按逐检查项豁免计数), 只读派生, 不改变任何关口状态或检查项."
@@ -1600,6 +1608,23 @@
                                                                 ready (conj [antd/tag {:color "green"} "可签核"])
                                                                 voided (conj [antd/tag {:color "red"} (str "证据已作废 " (aget row "gate_voided_checks"))])
                                                                 unreleased (conj [antd/tag {:color "gold"} (str "证据待发布 " (aget row "gate_evidence_pending"))])))))))}
+                                    {:title "整改情况" :key "gate_remediation" :width 160
+                                     :render (fn [_ row]
+                                               (let [state (aget row "gate_remediation_state")
+                                                     total (aget row "gate_remediation_total")
+                                                     open (aget row "gate_remediation_open")
+                                                     overdue (aget row "gate_remediation_overdue")
+                                                     missing (aget row "gate_required_missing")]
+                                                 (r/as-element
+                                                  [:span
+                                                   (cond
+                                                     (= state "completed") [antd/tag {:color "green"} (str "整改完成 " total "/" total)]
+                                                     (= state "in-progress") [antd/tag {:color "gold"} (str "整改中 " (- total open) "/" total)]
+                                                     :else (if (pos? (or missing 0))
+                                                             [antd/tag {:color "red"} "待落实整改"]
+                                                             [antd/tag {:color "default"} "无需整改"]))
+                                                   (when (and (pos? (or overdue 0)) (not= state "completed"))
+                                                     [antd/tag {:color "red"} (str "逾期 " overdue)])])))}
                                     (w/state-column)
                                     (w/text-column :reviewer_id "审批人") (w/text-column :decision_reason "评审意见")]
      #(gate-actions context %)]]])

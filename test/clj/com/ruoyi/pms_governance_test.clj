@@ -1509,6 +1509,146 @@
       (is (= 1 (:remediation-open m))))))
 
 
+(deftest gate-failed-required-check-materializes-tracked-remediation-action
+  (let [id (project!)
+        template (command! id :gate-templates :create nil
+                           {:code "G-RA" :title "整改落实关口" :stage "design" :required true
+                            :checks [{:code "R-1" :title "必需一" :required true}
+                                     {:code "R-2" :title "必需二" :required true}
+                                     {:code "O-1" :title "可选一" :required false}]})
+        gate (command! id :gates :create nil {:template_id (:id template) :title "阶段评审" :reviewer_id 9302})
+        find-gate (fn [] (first (filter #(= (:id gate) (:id %)) (:gates (workspace id)))))]
+    ;; 默认: 省略标题/责任人/检查项 -> 取首个未通过必需项 R-1, 标题回退"整改: ...", 责任人沿用关口审批人 9302, 记录来源关口, 新建为开放行动项.
+    (let [a (command! id :gates :remediation-action (:id gate) {:due_date "2026-10-20"})]
+      (is (= "open" (:status a)))
+      (is (= 9302 (:owner_id a)))
+      (is (= "2026-10-20" (:due_date a)))
+      (is (= (:id gate) (:source_gate_id a)))
+      (is (= "R-1" (:source_check_code a)))
+      (is (true? (.startsWith (:title a) "整改: ")))
+      (is (true? (.contains (:title a) "阶段评审")))
+      (is (true? (.contains (:title a) "必需一"))))
+    ;; 显式改写标题/责任人, 指定具体未通过必需项 R-2 -> source_check_code R-2.
+    (let [ov (command! id :gates :remediation-action (:id gate)
+                       {:title "补齐设计评审记录" :check_code "R-2" :owner_id 9303 :due_date "2026-12-01"})]
+      (is (= "补齐设计评审记录" (:title ov)))
+      (is (= 9303 (:owner_id ov)))
+      (is (= "R-2" (:source_check_code ov)))
+      (is (= (:id gate) (:source_gate_id ov))))
+    ;; 非法 check_code: 可选未通过项 / 不存在编码 均 400.
+    (is (= 400 (error-status #(command! id :gates :remediation-action (:id gate) {:check_code "O-1" :due_date "2026-12-01"}))))
+    (is (= 400 (error-status #(command! id :gates :remediation-action (:id gate) {:check_code "R-9" :due_date "2026-12-01"}))))
+    ;; 缺必填到期日 -> 400.
+    (is (= 400 (error-status #(command! id :gates :remediation-action (:id gate) {:title "缺期"}))))
+    ;; 门控: 没有未通过必需项的关口 (仅可选项, 仍草稿) -> 409.
+    (let [na-tpl (command! id :gate-templates :create nil
+                           {:code "G-NA" :title "无必需关口" :stage "delivery" :required false
+                            :checks [{:code "O" :title "仅可选" :required false}]})
+          na (command! id :gates :create nil {:template_id (:id na-tpl) :title "无必需" :reviewer_id 9302})]
+      (is (= "draft" (:status (first (filter #(= (:id na) (:id %)) (:gates (workspace id)))))))
+      (is (= 409 (error-status #(command! id :gates :remediation-action (:id na) {:due_date "2026-12-01"})))))
+    ;; 状态门控: 已提交评审 (in_review, 仍有未通过必需项) 的关口不可再落实整改 -> 409.
+    (let [sg-tpl (command! id :gate-templates :create nil
+                           {:code "G-SG" :title "已评审关口" :stage "manufacturing" :required true
+                            :checks [{:code "R" :title "必需" :required true}]})
+          sg (command! id :gates :create nil {:template_id (:id sg-tpl) :title "已评审" :reviewer_id 9302})]
+      (command! id :gates :submit (:id sg) {:waiver_reason "整体风险已接受"})
+      (is (= "in_review" (:status (first (filter #(= (:id sg) (:id %)) (:gates (workspace id)))))))
+      (is (= 409 (error-status #(command! id :gates :remediation-action (:id sg) {:due_date "2026-12-01"})))))
+    ;; 跨项目关口 -> 404 (关口归属 other 项目, 对 id 项目发整改命令时关口记录查找失败).
+    (let [other (project!)
+          other-tpl (command! other :gate-templates :create nil
+                              {:code "G-RA-OTHER" :title "他项目整改落实关口" :stage "design" :required true
+                               :checks [{:code "R-1" :title "必需一" :required true}]})
+          other-gate (command! other :gates :create nil {:template_id (:id other-tpl) :title "他项目关口" :reviewer_id 9302})]
+      (is (= 404 (error-status #(command! id :gates :remediation-action (:id other-gate) {:due_date "2026-12-01"})))))
+    ;; 落实整改不改变来源关口状态 (仍 draft).
+    (is (= "draft" (:status (find-gate))))))
+
+
+(deftest gate-remediation-action-rollup-is-derived-read-only
+  (let [id (project!)
+        template (command! id :gate-templates :create nil
+                           {:code "G-RM" :title "整改落实汇总关口" :stage "design" :required true
+                            :checks [{:code "R-1" :title "必需一" :required true}
+                                     {:code "R-2" :title "必需二" :required true}]})
+        gate (command! id :gates :create nil {:template_id (:id template) :title "汇总评审" :reviewer_id 9302})
+        or-tpl (command! id :gate-templates :create nil
+                         {:code "G-OR" :title "无整改关口" :stage "delivery" :required false
+                          :checks [{:code "O" :title "仅可选" :required false}]})
+        other (command! id :gates :create nil {:template_id (:id or-tpl) :title "无整改" :reviewer_id 9302})
+        find-gate (fn [x] (first (filter #(= (:id x) (:id %)) (:gates (workspace id)))))]
+    ;; 登记后尚未落实整改: unremediated, total 0; 另一关口同样 unremediated.
+    (is (= "unremediated" (:gate_remediation_state (find-gate gate))))
+    (is (= 0 (:gate_remediation_total (find-gate gate))))
+    (is (= "unremediated" (:gate_remediation_state (find-gate other))))
+    ;; 落实一条整改: in-progress, total/open 各 1; 汇总 remediated 1 remediation-open 1; 另一关口不受影响.
+    (let [a1 (command! id :gates :remediation-action (:id gate) {:check_code "R-1" :due_date "2026-10-20"})]
+      (is (= 1 (:gate_remediation_total (find-gate gate))))
+      (is (= 1 (:gate_remediation_open (find-gate gate))))
+      (is (= "in-progress" (:gate_remediation_state (find-gate gate))))
+      (is (= "unremediated" (:gate_remediation_state (find-gate other))))
+      (let [s (:gate_closure (workspace id))]
+        (is (= 1 (:remediated s)))
+        (is (= 1 (:remediation-open s)))
+        ;; 再落实一条: total 2 open 2; 关闭第一条(独立核验): open 减到 1, 仍 in-progress.
+        (let [a2 (command! id :gates :remediation-action (:id gate) {:check_code "R-2" :due_date "2026-12-01"})
+              ev (:id (document! id "GRM-DOC-A"))]
+          (is (= 2 (:gate_remediation_open (find-gate gate))))
+          (command! id :actions :complete (:id a1) {:result "整改完成并附记录" :evidence_ids [ev] :reviewer_id 9302})
+          (command! 9302 id :actions :verify (:id a1) {:decision "approved" :reason "独立核验通过"})
+          (is (= 2 (:gate_remediation_total (find-gate gate))))
+          (is (= 1 (:gate_remediation_open (find-gate gate))))
+          (is (= "in-progress" (:gate_remediation_state (find-gate gate))))
+          ;; 第二条转真实任务(converted): open 0 -> completed; 汇总 remediated 1, remediation-open 0.
+          (command! id :actions :task (:id a2) {:start_date "2026-09-23" :duration_days 2})
+          (is (= 0 (:gate_remediation_open (find-gate gate))))
+          (is (= "completed" (:gate_remediation_state (find-gate gate))))
+          (let [s2 (:gate_closure (workspace id))]
+            (is (= 1 (:remediated s2)))
+            (is (= 0 (:remediation-open s2)))))))
+    ;; 只读派生不回写关口状态, 重复读取稳定.
+    (is (= "draft" (:status (find-gate gate))))
+    (is (= (:gate_remediation_state (find-gate gate)) (:gate_remediation_state (find-gate gate))))
+    ;; 逾期: 到期日已过且未完成 -> overdue 计, 且永不超过 open.
+    (let [od-tpl (command! id :gate-templates :create nil
+                           {:code "G-OD" :title "逾期整改关口" :stage "site" :required true
+                            :checks [{:code "R" :title "必需" :required true}]})
+          od (command! id :gates :create nil {:template_id (:id od-tpl) :title "逾期" :reviewer_id 9302})]
+      (command! id :gates :remediation-action (:id od) {:due_date "2020-01-01"})
+      (is (= 1 (:gate_remediation_overdue (find-gate od))))
+      (is (= 1 (:gate_remediation_open (find-gate od))))
+      (is (<= (:gate_remediation_overdue (find-gate od)) (:gate_remediation_open (find-gate od)))))
+    ;; 纯函数聚合: closed/converted 视为完成不计 open, 无 source_gate_id 不计入.
+    (is (= {"g1" {:total 4 :open 2 :overdue 0}}
+           (collab/remediation-rollup-by-gate
+            [{:source_gate_id "g1" :status "open"}
+             {:source_gate_id "g1" :status "closed"}
+             {:source_gate_id "g1" :status "converted"}
+             {:source_gate_id "g1" :status "in_review"}
+             {:status "open"}])))
+    ;; 纯函数聚合含逾期: overdue 仅计到期不晚于运行日且未关闭未转任务者.
+    (is (= {"g1" {:total 5 :open 3 :overdue 2}}
+           (collab/remediation-rollup-by-gate
+            [{:source_gate_id "g1" :status "open" :due_date "2020-01-01"}
+             {:source_gate_id "g1" :status "in_review" :due_date "2020-01-01"}
+             {:source_gate_id "g1" :status "open" :due_date "2099-01-01"}
+             {:source_gate_id "g1" :status "closed" :due_date "2020-01-01"}
+             {:source_gate_id "g1" :status "converted" :due_date "2020-01-01"}])))
+    ;; gate-remediation-read-model 纯映射三态 + overdue 缺省 0.
+    (is (= "in-progress" (:gate_remediation_state (collab/gate-remediation-read-model {"g1" {:total 2 :open 1 :overdue 1}} {:id "g1"}))))
+    (is (= "completed" (:gate_remediation_state (collab/gate-remediation-read-model {"g1" {:total 2 :open 0 :overdue 0}} {:id "g1"}))))
+    (let [rm (collab/gate-remediation-read-model {} {:id "g2"})]
+      (is (= "unremediated" (:gate_remediation_state rm)))
+      (is (= 0 (:gate_remediation_overdue rm))))
+    ;; gate-closure-summary 直测: remediated 计 total>0, remediation-open 计 open>0.
+    (let [m (gates/gate-closure-summary [{:status "draft" :gate_remediation_total 1 :gate_remediation_open 1}
+                                         {:status "ready" :gate_remediation_total 2 :gate_remediation_open 0}
+                                         {:status "approved" :gate_remediation_total 0 :gate_remediation_open 0}])]
+      (is (= 2 (:remediated m)))
+      (is (= 1 (:remediation-open m))))))
+
+
 (deftest dq-check-method-and-responsible-role-are-optional-declarations
   (let [id (project!)
         declared (command! id :dqs :create nil

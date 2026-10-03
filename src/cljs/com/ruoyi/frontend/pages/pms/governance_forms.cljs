@@ -470,6 +470,21 @@
                              {:key (keyword (str "waiver_" (:code check))) :label "例外说明" :hint "选择例外放行时必填, 例如: 测试工装下周到位, 接收人同意先交接"}]) checks))}))
 
 
+(defn gate-remediation-dialog
+  "把关口未通过的必需检查项落实为可追踪的整改行动项."
+  [base options gate]
+  (let [failing (filterv #(and (:required %) (not (:passed %)) (not (:waived %))) (:checks gate))]
+    {:title "落实整改行动" :path (str base "/gates/" (:id gate) "/remediation-action")
+     :description "将未通过的必需检查项落实为有负责人和到期日的可追踪整改行动; 可指定具体检查项, 留空默认取首个未通过必需项, 责任人默认沿用关口审批人."
+     :initial {:owner_id (:reviewer_id gate) :title (str (:title gate))}
+     :transform (fn [data] (cond-> data (str/blank? (:check_code data)) (dissoc :check_code)))
+     :fields [{:key :check_code :label "整改检查项 (可选)" :type :select :hint "留空默认取首个未通过的必需检查项"
+               :options (mapv #(hash-map :value (:code %) :label (str (:code %) " / " (:title %))) failing)}
+              {:key :title :label "整改内容" :required? true}
+              (owner-field (:users options))
+              {:key :due_date :label "整改到期日" :type :date :required? true}]}))
+
+
 (defn decision-dialog
   "记录独立审批结果与不可省略的决策依据."
   [path decision title]
