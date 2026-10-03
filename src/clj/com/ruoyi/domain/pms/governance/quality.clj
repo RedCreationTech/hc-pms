@@ -101,6 +101,34 @@
         (s/decision-actor! actor dq)
         (s/change! q project dq decision {:decision_reason (s/text! body :reason) :decided_by (:user_id actor)})))))
 
+(defn remediation-action!
+  "把 DQ 未通过的必需检查项落实为可追踪的整改行动项: 复用行动类型与既有完成/独立验证/转任务生命周期, 记录来源 DQ 与所选未通过必需检查项编码, 缺省沿用 DQ 责任人; 需项目编辑权限, 仅对草稿或已退回且确有未通过必需检查项的 DQ 开放."
+  [svc actor id rid body]
+  (k/mutate! svc actor id "pms:project:edit" body "dq.remediation-action-created"
+    (fn [q project]
+      (s/input! body [:title :owner_id :due_date :check_code])
+      (let [dq (s/record! q project "dq" rid)
+            _ (s/status! dq #{"draft" "rejected"})
+            failing (filterv #(and (:required %) (not (:passed %)) (not (:waived %))) (:checklist dq))]
+        (when (empty? failing) (r/fail! 409 "该 DQ 没有未通过的必需检查项, 无需整改"))
+        (let [cc (not-empty (s/optional-text! body :check_code 50))
+              target (if cc
+                       (or (first (filter #(= cc (:code %)) failing))
+                           (r/fail! 400 "指定的检查项不存在或并非未通过的必需项"))
+                       (first failing))
+              prefix "整改: "
+              base (str (:title dq) " / " (:title target))
+              fallback (str prefix (if (> (count base) (- 200 (count prefix)))
+                                     (subs base 0 (- 200 (count prefix))) base))
+              given (s/optional-text! body :title 200)]
+          (s/insert! q project actor "action"
+                     {:title (if (seq given) given fallback)
+                      :owner_id (k/user! q project (or (:owner_id body) (:owner_id dq)) "负责人")
+                      :due_date (s/date! body :due_date)
+                      :source_dq_id rid
+                      :source_check_code (:code target)}
+                     {:status "open"}))))))
+
 (defn dq-read-model
   "只读标注: 交付件是否出现更新版本 (签认依据失效), 检查项通过数, 必需检查项就绪度 (通过或例外放行均视为满足), 以及例外放行计数."
   [documents dq]
@@ -133,7 +161,7 @@
            :dq_deliverable_voided (pos? voided-count))))
 
 (defn dq-summary
-  "把全部 DQ 关键任务的最新状态只读聚合为项目级质量检查闭环概览: total/approved/in-review/ready/draft/rejected 各状态计数, required-met (必需检查项全满足数, 含例外放行), exception-met (必需项已满足但其中至少一项靠例外放行才满足的 DQ 数), stale (签认依据交付件出现更新版本数), voided (绑定交付件业务编码现已整体作废数), methods-declared (已预先声明检验方法的 DQ 数), roles-declared (已指定执行角色的 DQ 数), closure-pct (已签认 approved 占全部分母的整数百分比, 无 DQ 时为 0). 依赖 dq-read-model 与 dq-deliverable-voided-model 已写入的派生键, 故须在二者之后调用. 免迁移读取时计算, 不写存储, 不构成门控, 键名不带尾随问号."
+  "把全部 DQ 关键任务的最新状态只读聚合为项目级质量检查闭环概览: total/approved/in-review/ready/draft/rejected 各状态计数, required-met (必需检查项全满足数, 含例外放行), exception-met (必需项已满足但其中至少一项靠例外放行才满足的 DQ 数), stale (签认依据交付件出现更新版本数), voided (绑定交付件业务编码现已整体作废数), methods-declared (已预先声明检验方法的 DQ 数), roles-declared (已指定执行角色的 DQ 数), remediated (已落实至少一条整改行动的 DQ 数, 依 dq_remediation_total 派生), remediation-open (仍有未完成整改行动的 DQ 数, 依 dq_remediation_open 派生), closure-pct (已签认 approved 占全部分母的整数百分比, 无 DQ 时为 0). 依赖 dq-read-model, dq-deliverable-voided-model 与 dq-remediation-read-model 已写入的派生键, 故须在三者之后调用. 免迁移读取时计算, 不写存储, 不构成门控, 键名不带尾随问号."
   [dqs]
   (let [total (count dqs)
         by-status (frequencies (map :status dqs))
@@ -151,6 +179,8 @@
      :voided (count (filter :dq_deliverable_voided dqs))
      :methods-declared (count (filter (comp seq :check_method) dqs))
      :roles-declared (count (filter (comp seq :responsible_role) dqs))
+     :remediated (count (filter #(pos? (:dq_remediation_total % 0)) dqs))
+     :remediation-open (count (filter #(pos? (:dq_remediation_open % 0)) dqs))
      :closure-pct (if (pos? total)
                     (int (Math/round ^double (* 100.0 (/ approved total))))
                     0)}))

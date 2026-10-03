@@ -1611,6 +1611,8 @@
     [antd/space {:wrap true}
      (when (and editable? (contains? #{"draft" "ready" "rejected"} (:status dq)))
        [w/edit-button "填写检查" #(open! (forms/dq-check-dialog base dq))])
+     (when (and editable? (contains? #{"draft" "rejected"} (:status dq)) (pos? (or (:dq_required_missing dq) 0)))
+       [w/edit-button "落实整改" #(open! (forms/dq-remediation-dialog base options dq))])
      (when (and editable? (contains? #{"ready" "rejected"} (:status dq)))
        [w/edit-button "提交签认" #(open! {:title "提交DQ签认" :path (str base "/dqs/" (:id dq) "/submit") :fields [(forms/reviewer-field options)]})])
      (when (and approve? (= "in_review" (:status dq)) (= current (:reviewer_id dq)) (not= current (:submitted_by dq)))
@@ -1632,10 +1634,12 @@
         exception-met (:exception-met sm 0)
         methods-declared (:methods-declared sm 0)
         roles-declared (:roles-declared sm 0)
+        remediated (:remediated sm 0)
+        remediation-open (:remediation-open sm 0)
         stale (:stale sm 0)
         voided (:voided sm 0)
         pct (:closure-pct sm 0)]
-    [shared/panel "DQ 质量检查闭环汇总" "统一统计全部 DQ 关键任务最新状态的签认闭环情况(已签认/审批中/待提交/草稿/已退回)与必需检查项达成数; 另汇总签认依据交付件失效与交付件作废数量; 只读派生, 不改变 DQ 状态"
+    [shared/panel "DQ 质量检查闭环汇总" "统一统计全部 DQ 关键任务最新状态的签认闭环情况(已签认/审批中/待提交/草稿/已退回)与必需检查项达成数; 另汇总签认依据交付件失效与交付件作废数量, 以及未通过必需检查项落实整改的已落实与未完成数; 只读派生, 不改变 DQ 状态"
      (if (zero? total)
        [:span {:style {:color "#8793a3"}} "暂无 DQ 关键任务, 建立 DQ 并逐项检查签认后可在此查看质量闭环概览."]
        [antd/space {:wrap true}
@@ -1650,6 +1654,10 @@
           [antd/tag {:color "blue"} (str "检验方法已声明 " methods-declared)])
         (when (pos? roles-declared)
           [antd/tag {:color "cyan"} (str "执行角色已指定 " roles-declared)])
+        (when (pos? remediated)
+          [antd/tag {:color "gold"} (str "已落实整改 " remediated)])
+        (when (pos? remediation-open)
+          [antd/tag {:color "orange"} (str "整改未完成 " remediation-open)])
         (when (pos? in-review)
           [antd/tag {:color "orange"} (str "签认审批中 " in-review)])
         (when (pos? ready)
@@ -1702,6 +1710,23 @@
                         [antd/tag {:color "green"} (str "必需就绪 " rs "/" rt)]
                         [antd/tag {:color "red"} (str "必需 " rs "/" rt " 缺 " missing)]))
                     (when (pos? (or rw 0)) [antd/tag {:color "gold"} (str "例外 " rw)])])))}
+     {:title "整改情况" :key "dq_remediation" :width 160
+      :render (fn [_ row]
+                (let [state (aget row "dq_remediation_state")
+                      total (aget row "dq_remediation_total")
+                      open (aget row "dq_remediation_open")
+                      overdue (aget row "dq_remediation_overdue")
+                      missing (aget row "dq_required_missing")]
+                  (r/as-element
+                   [:span
+                    (cond
+                      (= state "completed") [antd/tag {:color "green"} (str "整改完成 " total "/" total)]
+                      (= state "in-progress") [antd/tag {:color "gold"} (str "整改中 " (- total open) "/" total)]
+                      :else (if (pos? (or missing 0))
+                              [antd/tag {:color "red"} "待落实整改"]
+                              [antd/tag {:color "default"} "无需整改"]))
+                    (when (and (pos? (or overdue 0)) (not= state "completed"))
+                      [antd/tag {:color "red"} (str "逾期 " overdue)])])))}
      {:title "交付件" :dataIndex "deliverable_ids" :width 220
       :render (fn [v] (str/join ", " (map #(w/related-label (:documents model) :id :code %) (js->clj v))))}
      {:title "版本失效" :dataIndex "dq_stale" :width 110

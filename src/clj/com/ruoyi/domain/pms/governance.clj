@@ -81,6 +81,7 @@
                    raci-loads (stakeholders/raci-r-loads (:raci data))
                    owner-loads (collab/owner-workloads (:issues data) (:risks data) (:actions data))
                    mitigation-rollup (collab/mitigation-rollup-by-risk (:actions data))
+                   remediation-rollup (collab/remediation-rollup-by-dq (:actions data))
                    docs-by-id (into {} (map (juxt :id identity)) (:documents data))
                    voided-codes (evidence/voided-document-codes docs-by-id)
                    traces-by-req (group-by :requirement_id (:traces data))
@@ -90,6 +91,7 @@
                    (update :meetings collab/flag-meeting-baselines (q :planning/baselines {:project_id (:project_id project)}))
                    (update :dqs #(mapv (partial quality/dq-read-model (:documents data)) %))
                    (update :dqs #(mapv (partial quality/dq-deliverable-voided-model voided-codes docs-by-id) %))
+                   (update :dqs #(mapv (partial collab/dq-remediation-read-model remediation-rollup) %))
                    quality/attach-dq-summary
                    (update :raci #(mapv (partial stakeholders/raci-read-model raci-loads) %))
                    (update :issues #(mapv (partial collab/owner-workload-read-model owner-loads) %))
@@ -198,6 +200,7 @@
    [:template-instances :create] (creating templates/instantiate!)
    [:dqs :create] (creating quality/create-dq!) [:dqs :checks] quality/check-dq!
    [:dqs :submit] quality/submit-dq! [:dqs :decision] quality/decide-dq!
+   [:dqs :remediation-action] quality/remediation-action!
    [:node-pauses :create] (creating quality/pause-node!) [:node-pauses :resume] quality/resume-node!
    [:gates :create] (creating gates/create!) [:gates :checks] gates/checks!
    [:gates :submit] gates/submit! [:gates :decision] gates/decide!

@@ -346,6 +346,20 @@
                            {:key (keyword (str "note_" (:code item))) :label "检查说明"}
                            {:key (keyword (str "waiver_" (:code item))) :label "例外说明" :hint "选择例外放行时必填, 例如: 计量器具下周送检, 责任人同意先行签认"}]) (:checklist dq)))})
 
+(defn dq-remediation-dialog
+  "把 DQ 未通过的必需检查项落实为可追踪的整改行动项."
+  [base options dq]
+  (let [failing (filterv #(and (:required %) (not (:passed %)) (not (:waived %))) (:checklist dq))]
+    {:title "落实整改行动" :path (str base "/dqs/" (:id dq) "/remediation-action")
+     :description "将未通过的必需检查项落实为有负责人和到期日的可追踪整改行动; 可指定具体检查项, 留空默认取首个未通过必需项, 责任人默认沿用 DQ 责任人."
+     :initial {:owner_id (:owner_id dq) :title (:title dq)}
+     :transform (fn [data] (cond-> data (str/blank? (:check_code data)) (dissoc :check_code)))
+     :fields [{:key :check_code :label "整改检查项 (可选)" :type :select :hint "留空默认取首个未通过的必需检查项"
+               :options (mapv #(hash-map :value (:code %) :label (str (:code %) " / " (:title %))) failing)}
+              {:key :title :label "整改内容" :required? true}
+              (owner-field (:users options))
+              {:key :due_date :label "整改到期日" :type :date :required? true}]}))
+
 (defn node-pause-dialog
   "对子项目/单机发起局部暂停."
   [base nodes]

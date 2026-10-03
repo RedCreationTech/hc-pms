@@ -81,6 +81,7 @@
     (command-route svc "/dqs/:record_id/checks" :dqs :checks)
     (command-route svc "/dqs/:record_id/submit" :dqs :submit)
     (command-route svc "/dqs/:record_id/decision" :dqs :decision)
+    (command-route svc "/dqs/:record_id/remediation-action" :dqs :remediation-action)
     (command-route svc "/node-pauses" :node-pauses :create)
     (command-route svc "/node-pauses/:record_id/resume" :node-pauses :resume)
     (command-route svc "/gates" :gates :create)

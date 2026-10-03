@@ -1369,6 +1369,146 @@
       (is (= 1 (:exception-met m))))))
 
 
+(deftest dq-failed-required-check-materializes-tracked-remediation-action
+  (let [id (project!)
+        dq (command! id :dqs :create nil
+                     {:code "DQ-RA" :title "整改落实验证" :owner_id 9301
+                      :checklist [{:code "R-1" :title "必需一" :required true}
+                                  {:code "R-2" :title "必需二" :required true}
+                                  {:code "O-1" :title "可选一" :required false}]
+                      :deliverable_ids []})
+        find-dq (fn [] (first (filter #(= (:id dq) (:id %)) (:dqs (workspace id)))))]
+    ;; 默认: 省略标题/责任人/检查项 -> 取首个未通过必需项 R-1, 标题回退"整改: ...", 责任人沿用 DQ 责任人 9301, 记录来源 DQ, 新建为开放行动项.
+    (let [a (command! id :dqs :remediation-action (:id dq) {:due_date "2026-10-20"})]
+      (is (= "open" (:status a)))
+      (is (= 9301 (:owner_id a)))
+      (is (= "2026-10-20" (:due_date a)))
+      (is (= (:id dq) (:source_dq_id a)))
+      (is (= "R-1" (:source_check_code a)))
+      (is (true? (.startsWith (:title a) "整改: ")))
+      (is (true? (.contains (:title a) "整改落实验证")))
+      (is (true? (.contains (:title a) "必需一"))))
+    ;; 显式改写标题/责任人, 指定具体未通过必需项 R-2 -> source_check_code R-2.
+    (let [ov (command! id :dqs :remediation-action (:id dq)
+                       {:title "补做计量校准" :check_code "R-2" :owner_id 9303 :due_date "2026-12-01"})]
+      (is (= "补做计量校准" (:title ov)))
+      (is (= 9303 (:owner_id ov)))
+      (is (= "R-2" (:source_check_code ov)))
+      (is (= (:id dq) (:source_dq_id ov))))
+    ;; 非法 check_code: 可选未通过项 / 不存在编码 均 400.
+    (is (= 400 (error-status #(command! id :dqs :remediation-action (:id dq) {:check_code "O-1" :due_date "2026-12-01"}))))
+    (is (= 400 (error-status #(command! id :dqs :remediation-action (:id dq) {:check_code "R-9" :due_date "2026-12-01"}))))
+    ;; 缺必填到期日 -> 400.
+    (is (= 400 (error-status #(command! id :dqs :remediation-action (:id dq) {:title "缺期"}))))
+    ;; 门控: 没有未通过必需项的 DQ (仅可选项, 仍草稿) -> 409.
+    (let [na (command! id :dqs :create nil
+                       {:code "DQ-NA" :title "无必需项" :owner_id 9301
+                        :checklist [{:code "O" :title "仅可选" :required false}]
+                        :deliverable_ids []})]
+      (is (= "draft" (:status (first (filter #(= (:id na) (:id %)) (:dqs (workspace id)))))))
+      (is (= 409 (error-status #(command! id :dqs :remediation-action (:id na) {:due_date "2026-12-01"})))))
+    ;; 状态门控: 已就绪(必需全通过)的 DQ 不在 draft/rejected -> 409.
+    (let [rd (command! id :dqs :create nil
+                       {:code "DQ-RD" :title "已就绪" :owner_id 9301
+                        :checklist [{:code "R" :title "必需" :required true}]
+                        :deliverable_ids []})]
+      (command! id :dqs :checks (:id rd) {:results [{:code "R" :passed true :note ""}]})
+      (is (= "ready" (:status (first (filter #(= (:id rd) (:id %)) (:dqs (workspace id)))))))
+      (is (= 409 (error-status #(command! id :dqs :remediation-action (:id rd) {:due_date "2026-12-01"})))))
+    ;; 跨项目 DQ -> 404.
+    (let [other (project!)
+          other-dq (command! other :dqs :create nil
+                             {:code "DQ-OT" :title "他项目DQ" :owner_id 9301
+                              :checklist [{:code "R" :title "必需" :required true}]
+                              :deliverable_ids []})]
+      (is (= 404 (error-status #(command! id :dqs :remediation-action (:id other-dq) {:due_date "2026-12-01"})))))
+    ;; 落实整改不改变来源 DQ 状态 (仍 draft).
+    (is (= "draft" (:status (find-dq))))))
+
+
+(deftest dq-remediation-action-rollup-is-derived-read-only
+  (let [id (project!)
+        dq (command! id :dqs :create nil
+                     {:code "DQ-RM" :title "整改落实汇总" :owner_id 9301
+                      :checklist [{:code "R-1" :title "必需一" :required true}
+                                  {:code "R-2" :title "必需二" :required true}]
+                      :deliverable_ids []})
+        other (command! id :dqs :create nil
+                        {:code "DQ-OR" :title "无整改DQ" :owner_id 9301
+                         :checklist [{:code "O" :title "仅可选" :required false}]
+                         :deliverable_ids []})
+        find-dq (fn [x] (first (filter #(= (:id x) (:id %)) (:dqs (workspace id)))))]
+    ;; 登记后尚未落实整改: unremediated, total 0; 另一 DQ 同样 unremediated.
+    (is (= "unremediated" (:dq_remediation_state (find-dq dq))))
+    (is (= 0 (:dq_remediation_total (find-dq dq))))
+    (is (= "unremediated" (:dq_remediation_state (find-dq other))))
+    ;; 落实一条整改: in-progress, total/open 各 1; 汇总 remediated 1 remediation-open 1; 另一 DQ 不受影响.
+    (let [a1 (command! id :dqs :remediation-action (:id dq) {:check_code "R-1" :due_date "2026-10-20"})]
+      (is (= 1 (:dq_remediation_total (find-dq dq))))
+      (is (= 1 (:dq_remediation_open (find-dq dq))))
+      (is (= "in-progress" (:dq_remediation_state (find-dq dq))))
+      (is (= "unremediated" (:dq_remediation_state (find-dq other))))
+      (let [s (:dq_summary (workspace id))]
+        (is (= 1 (:remediated s)))
+        (is (= 1 (:remediation-open s)))
+        ;; 再落实一条: total 2 open 2; 关闭第一条(独立核验): open 减到 1, 仍 in-progress.
+        (let [a2 (command! id :dqs :remediation-action (:id dq) {:check_code "R-2" :due_date "2026-12-01"})
+              ev (:id (document! id "RM-DOC-A"))]
+          (is (= 2 (:dq_remediation_open (find-dq dq))))
+          (command! id :actions :complete (:id a1) {:result "整改完成并附记录" :evidence_ids [ev] :reviewer_id 9302})
+          (command! 9302 id :actions :verify (:id a1) {:decision "approved" :reason "独立核验通过"})
+          (is (= 2 (:dq_remediation_total (find-dq dq))))
+          (is (= 1 (:dq_remediation_open (find-dq dq))))
+          (is (= "in-progress" (:dq_remediation_state (find-dq dq))))
+          ;; 第二条转真实任务(converted): open 0 -> completed; 汇总 remediated 1, remediation-open 0.
+          (command! id :actions :task (:id a2) {:start_date "2026-09-23" :duration_days 2})
+          (is (= 0 (:dq_remediation_open (find-dq dq))))
+          (is (= "completed" (:dq_remediation_state (find-dq dq))))
+          (let [s2 (:dq_summary (workspace id))]
+            (is (= 1 (:remediated s2)))
+            (is (= 0 (:remediation-open s2)))))))
+    ;; 只读派生不回写 DQ 状态, 重复读取稳定.
+    (is (= "draft" (:status (find-dq dq))))
+    (is (= (:dq_remediation_state (find-dq dq)) (:dq_remediation_state (find-dq dq))))
+    ;; 逾期: 到期日已过且未完成 -> overdue 计, 且永不超过 open.
+    (let [od (command! id :dqs :create nil
+                       {:code "DQ-OD" :title "逾期整改DQ" :owner_id 9301
+                        :checklist [{:code "R" :title "必需" :required true}]
+                        :deliverable_ids []})]
+      (command! id :dqs :remediation-action (:id od) {:due_date "2020-01-01"})
+      (is (= 1 (:dq_remediation_overdue (find-dq od))))
+      (is (= 1 (:dq_remediation_open (find-dq od))))
+      (is (<= (:dq_remediation_overdue (find-dq od)) (:dq_remediation_open (find-dq od)))))
+    ;; 纯函数聚合: closed/converted 视为完成不计 open, 无 source_dq_id 不计入.
+    (is (= {"d1" {:total 4 :open 2 :overdue 0}}
+           (collab/remediation-rollup-by-dq
+            [{:source_dq_id "d1" :status "open"}
+             {:source_dq_id "d1" :status "closed"}
+             {:source_dq_id "d1" :status "converted"}
+             {:source_dq_id "d1" :status "in_review"}
+             {:status "open"}])))
+    ;; 纯函数聚合含逾期: overdue 仅计到期不晚于运行日且未关闭未转任务者.
+    (is (= {"d1" {:total 5 :open 3 :overdue 2}}
+           (collab/remediation-rollup-by-dq
+            [{:source_dq_id "d1" :status "open" :due_date "2020-01-01"}
+             {:source_dq_id "d1" :status "in_review" :due_date "2020-01-01"}
+             {:source_dq_id "d1" :status "open" :due_date "2099-01-01"}
+             {:source_dq_id "d1" :status "closed" :due_date "2020-01-01"}
+             {:source_dq_id "d1" :status "converted" :due_date "2020-01-01"}])))
+    ;; dq-remediation-read-model 纯映射三态 + overdue 缺省 0.
+    (is (= "in-progress" (:dq_remediation_state (collab/dq-remediation-read-model {"d1" {:total 2 :open 1 :overdue 1}} {:id "d1"}))))
+    (is (= "completed" (:dq_remediation_state (collab/dq-remediation-read-model {"d1" {:total 2 :open 0 :overdue 0}} {:id "d1"}))))
+    (let [rm (collab/dq-remediation-read-model {} {:id "d2"})]
+      (is (= "unremediated" (:dq_remediation_state rm)))
+      (is (= 0 (:dq_remediation_overdue rm))))
+    ;; dq-summary 直测: remediated 计 total>0, remediation-open 计 open>0.
+    (let [m (quality/dq-summary [{:status "draft" :dq_remediation_total 1 :dq_remediation_open 1}
+                                 {:status "draft" :dq_remediation_total 2 :dq_remediation_open 0}
+                                 {:status "ready" :dq_remediation_total 0 :dq_remediation_open 0}])]
+      (is (= 2 (:remediated m)))
+      (is (= 1 (:remediation-open m))))))
+
+
 (deftest dq-check-method-and-responsible-role-are-optional-declarations
   (let [id (project!)
         declared (command! id :dqs :create nil
