@@ -129,6 +129,31 @@
                       :source_check_code (:code target)}
                      {:status "open"}))))))
 
+(defn remediation-actions!
+  "把 DQ 全部未通过的必需检查项一次性落实为多条可追踪整改行动项: 单条 remediation-action! 的批量版, 复用同一行动类型与既有完成/独立验证/转任务生命周期, 每个未通过必需项各生成一条独立 open 行动并记录来源 DQ 与该项检查编码, 缺省沿用 DQ 责任人与统一到期日; 需项目编辑权限, 仅对草稿或已退回且确有未通过必需检查项的 DQ 开放, 不改动 DQ 状态."
+  [svc actor id rid body]
+  (k/mutate! svc actor id "pms:project:edit" body "dq.remediation-actions-created"
+    (fn [q project]
+      (s/input! body [:owner_id :due_date])
+      (let [dq (s/record! q project "dq" rid)
+            _ (s/status! dq #{"draft" "rejected"})
+            failing (filterv #(and (:required %) (not (:passed %)) (not (:waived %))) (:checklist dq))]
+        (when (empty? failing) (r/fail! 409 "该 DQ 没有未通过的必需检查项, 无需整改"))
+        (let [owner (k/user! q project (or (:owner_id body) (:owner_id dq)) "负责人")
+              due (s/date! body :due_date)]
+          (mapv #(let [prefix "整改: "
+                       base (str (:title dq) " / " (:title %))
+                       title (str prefix (if (> (count base) (- 200 (count prefix)))
+                                           (subs base 0 (- 200 (count prefix))) base))]
+                   (s/insert! q project actor "action"
+                              {:title title
+                               :owner_id owner
+                               :due_date due
+                               :source_dq_id rid
+                               :source_check_code (:code %)}
+                              {:status "open"}))
+                failing))))))
+
 (defn dq-read-model
   "只读标注: 交付件是否出现更新版本 (签认依据失效), 检查项通过数, 必需检查项就绪度 (通过或例外放行均视为满足), 以及例外放行计数."
   [documents dq]

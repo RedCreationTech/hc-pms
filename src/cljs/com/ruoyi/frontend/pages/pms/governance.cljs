@@ -1450,6 +1450,8 @@
                                        :fields [{:key :waiver_reason :label "豁免理由" :type :textarea :required? true}]})]])
      (when (and editable? (contains? #{"draft" "ready" "rejected"} (:status gate)) (pos? (or (:gate_required_missing gate) 0)))
        [w/edit-button "落实整改" #(open! (forms/gate-remediation-dialog base options gate))])
+     (when (and editable? (contains? #{"draft" "ready" "rejected"} (:status gate)) (< 1 (or (:gate_required_missing gate) 0)))
+       [w/edit-button "全部落实" #(open! (forms/gate-remediation-actions-dialog base options gate))])
      (when (and approve? (= "in_review" (:status gate)) (= current (:reviewer_id gate)) (not= current (:submitted_by gate)))
        [:<>
         [w/edit-button "通过" #(open! (forms/decision-dialog (str path "/decision") "approved" "批准Gate"))]
@@ -1638,6 +1640,8 @@
        [w/edit-button "填写检查" #(open! (forms/dq-check-dialog base dq))])
      (when (and editable? (contains? #{"draft" "rejected"} (:status dq)) (pos? (or (:dq_required_missing dq) 0)))
        [w/edit-button "落实整改" #(open! (forms/dq-remediation-dialog base options dq))])
+     (when (and editable? (contains? #{"draft" "rejected"} (:status dq)) (< 1 (or (:dq_required_missing dq) 0)))
+       [w/edit-button "全部落实" #(open! (forms/dq-remediation-actions-dialog base options dq))])
      (when (and editable? (contains? #{"ready" "rejected"} (:status dq)))
        [w/edit-button "提交签认" #(open! {:title "提交DQ签认" :path (str base "/dqs/" (:id dq) "/submit") :fields [(forms/reviewer-field options)]})])
      (when (and approve? (= "in_review" (:status dq)) (= current (:reviewer_id dq)) (not= current (:submitted_by dq)))

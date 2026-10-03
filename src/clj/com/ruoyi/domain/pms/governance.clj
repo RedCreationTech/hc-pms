@@ -203,10 +203,12 @@
    [:dqs :create] (creating quality/create-dq!) [:dqs :checks] quality/check-dq!
    [:dqs :submit] quality/submit-dq! [:dqs :decision] quality/decide-dq!
    [:dqs :remediation-action] quality/remediation-action!
+   [:dqs :remediation-actions] quality/remediation-actions!
    [:node-pauses :create] (creating quality/pause-node!) [:node-pauses :resume] quality/resume-node!
    [:gates :create] (creating gates/create!) [:gates :checks] gates/checks!
    [:gates :submit] gates/submit! [:gates :decision] gates/decide!
    [:gates :remediation-action] gates/remediation-action!
+   [:gates :remediation-actions] gates/remediation-actions!
    [:appointments :create] (creating appointment/issue!)
    [:stakeholders :create] (creating stakeholders/create-stakeholder!)
    [:stakeholders :revisions] stakeholders/revise-stakeholder!

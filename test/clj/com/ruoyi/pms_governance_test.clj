@@ -1649,6 +1649,168 @@
       (is (= 1 (:remediation-open m))))))
 
 
+(deftest dq-failed-required-checks-materialize-all-tracked-remediation-actions-in-one-call
+  (let [id (project!)
+        dq (command! id :dqs :create nil
+                     {:code "DQ-RAB" :title "批量整改落实" :owner_id 9301
+                      :checklist [{:code "R-1" :title "必需一" :required true}
+                                  {:code "R-2" :title "必需二" :required true}
+                                  {:code "R-3" :title "必需三" :required true}
+                                  {:code "O-1" :title "可选一" :required false}]
+                      :deliverable_ids []})
+        find-dq (fn [] (first (filter #(= (:id dq) (:id %)) (:dqs (workspace id)))))]
+    ;; 默认负责人沿用 DQ 责任人 9301, 一次性为三条未通过必需项各生成一条独立 open 行动, 共用到期日, 各不相同 source_check_code, 可选项不落实.
+    (let [acts (command! id :dqs :remediation-actions (:id dq) {:due_date "2026-11-15"})]
+      (is (= 3 (count acts)))
+      (is (every? #(= "open" (:status %)) acts))
+      (is (every? #(= 9301 (:owner_id %)) acts))
+      (is (every? #(= "2026-11-15" (:due_date %)) acts))
+      (is (every? #(= (:id dq) (:source_dq_id %)) acts))
+      (is (= #{"R-1" "R-2" "R-3"} (set (map :source_check_code acts))))
+      (is (every? #(true? (.startsWith (:title %) "整改: ")) acts))
+      (is (every? #(true? (.contains (:title %) "批量整改落实")) acts))
+      (is (= (distinct (map :id acts)) (map :id acts)))
+      ;; 批量后读模型聚合: total 3 open 3 in-progress; 汇总 remediated 1 remediation-open 1.
+      (is (= 3 (:dq_remediation_total (find-dq))))
+      (is (= 3 (:dq_remediation_open (find-dq))))
+      (is (= "in-progress" (:dq_remediation_state (find-dq))))
+      (let [s (:dq_summary (workspace id))]
+        (is (= 1 (:remediated s)))
+        (is (= 1 (:remediation-open s))))
+      ;; 转任务一条 (converted): total 不变 3, open 减到 2, 仍 in-progress.
+      (command! id :actions :task (:id (first acts)) {:start_date "2026-09-23" :duration_days 2})
+      (is (= 3 (:dq_remediation_total (find-dq))))
+      (is (= 2 (:dq_remediation_open (find-dq))))
+      (is (= "in-progress" (:dq_remediation_state (find-dq)))))
+    ;; 显式统一负责人覆盖 (editor 成员 9303) -> 全部行动同负责人.
+    (let [id2 (project!)
+          dq2 (command! id2 :dqs :create nil
+                        {:code "DQ-RAB2" :title "批量改负责人" :owner_id 9301
+                         :checklist [{:code "R-1" :title "必需一" :required true}
+                                     {:code "R-2" :title "必需二" :required true}]
+                         :deliverable_ids []})
+          acts (command! id2 :dqs :remediation-actions (:id dq2) {:owner_id 9303 :due_date "2026-12-01"})]
+      (is (= 2 (count acts)))
+      (is (every? #(= 9303 (:owner_id %)) acts)))
+    ;; 仅未通过的必需项被落实: 先把 R-1 标记通过 (仍 draft) -> 批量只生成 R-2 一条.
+    (let [id3 (project!)
+          dq3 (command! id3 :dqs :create nil
+                        {:code "DQ-RAB3" :title "部分通过" :owner_id 9301
+                         :checklist [{:code "R-1" :title "必需一" :required true}
+                                     {:code "R-2" :title "必需二" :required true}]
+                         :deliverable_ids []})]
+      (command! id3 :dqs :checks (:id dq3) {:results [{:code "R-1" :passed true :note ""}
+                                                       {:code "R-2" :passed false :note ""}]})
+      (is (= "draft" (:status (first (filter #(= (:id dq3) (:id %)) (:dqs (workspace id3)))))))
+      (let [acts (command! id3 :dqs :remediation-actions (:id dq3) {:due_date "2026-12-01"})]
+        (is (= 1 (count acts)))
+        (is (= "R-2" (:source_check_code (first acts))))))
+    ;; 白名单外字段 (title/check_code) -> input! 拒绝 400.
+    (is (= 400 (error-status #(command! id :dqs :remediation-actions (:id dq) {:title "多余" :due_date "2026-12-01"}))))
+    (is (= 400 (error-status #(command! id :dqs :remediation-actions (:id dq) {:check_code "R-1" :due_date "2026-12-01"}))))
+    ;; 缺必填到期日 -> 400.
+    (is (= 400 (error-status #(command! id :dqs :remediation-actions (:id dq) {:owner_id 9303}))))
+    ;; 非法负责人 (有效但未加入本项目的用户 9304) -> k/user! 校验 400.
+    (is (= 400 (error-status #(command! id :dqs :remediation-actions (:id dq) {:owner_id 9304 :due_date "2026-12-01"}))))
+    ;; 门控: 没有未通过必需项的 DQ (仅可选项, 仍草稿) -> 409.
+    (let [na (command! id :dqs :create nil
+                       {:code "DQ-NAB" :title "无必需项批量" :owner_id 9301
+                        :checklist [{:code "O" :title "仅可选" :required false}]
+                        :deliverable_ids []})]
+      (is (= 409 (error-status #(command! id :dqs :remediation-actions (:id na) {:due_date "2026-12-01"})))))
+    ;; 状态门控: 已就绪 (必需全通过, status ready) 的 DQ 不在 draft/rejected -> 409.
+    (let [rd (command! id :dqs :create nil
+                       {:code "DQ-RDB" :title "已就绪批量" :owner_id 9301
+                        :checklist [{:code "R" :title "必需" :required true}]
+                        :deliverable_ids []})]
+      (command! id :dqs :checks (:id rd) {:results [{:code "R" :passed true :note ""}]})
+      (is (= "ready" (:status (first (filter #(= (:id rd) (:id %)) (:dqs (workspace id)))))))
+      (is (= 409 (error-status #(command! id :dqs :remediation-actions (:id rd) {:due_date "2026-12-01"})))))
+    ;; 跨项目 DQ -> 404.
+    (let [other (project!)
+          other-dq (command! other :dqs :create nil
+                            {:code "DQ-OTB" :title "他项目批量" :owner_id 9301
+                             :checklist [{:code "R" :title "必需" :required true}]
+                             :deliverable_ids []})]
+      (is (= 404 (error-status #(command! id :dqs :remediation-actions (:id other-dq) {:due_date "2026-12-01"})))))
+    ;; 批量落实不改变来源 DQ 状态 (仍 draft).
+    (is (= "draft" (:status (find-dq))))))
+
+
+(deftest gate-failed-required-checks-materialize-all-tracked-remediation-actions-in-one-call
+  (let [id (project!)
+        template (command! id :gate-templates :create nil
+                           {:code "G-RAB" :title "批量整改关口" :stage "design" :required true
+                            :checks [{:code "R-1" :title "必需一" :required true}
+                                     {:code "R-2" :title "必需二" :required true}
+                                     {:code "R-3" :title "必需三" :required true}
+                                     {:code "O-1" :title "可选一" :required false}]})
+        gate (command! id :gates :create nil {:template_id (:id template) :title "阶段评审批量" :reviewer_id 9302})
+        find-gate (fn [] (first (filter #(= (:id gate) (:id %)) (:gates (workspace id)))))]
+    ;; 缺省负责人沿用关口审批人 9302, 一次性为三条未通过必需项各生成一条独立 open 行动, 共用到期日, 各不相同检查编码, 可选项不落实.
+    (let [acts (command! id :gates :remediation-actions (:id gate) {:due_date "2026-11-15"})]
+      (is (= 3 (count acts)))
+      (is (every? #(= "open" (:status %)) acts))
+      (is (every? #(= 9302 (:owner_id %)) acts))
+      (is (every? #(= "2026-11-15" (:due_date %)) acts))
+      (is (every? #(= (:id gate) (:source_gate_id %)) acts))
+      (is (= #{"R-1" "R-2" "R-3"} (set (map :source_check_code acts))))
+      (is (every? #(true? (.startsWith (:title %) "整改: ")) acts))
+      (is (every? #(true? (.contains (:title %) "阶段评审批量")) acts))
+      (is (= (distinct (map :id acts)) (map :id acts)))
+      ;; 批量后读模型聚合: total 3 open 3 in-progress; 汇总 remediated 1 remediation-open 1.
+      (is (= 3 (:gate_remediation_total (find-gate))))
+      (is (= 3 (:gate_remediation_open (find-gate))))
+      (is (= "in-progress" (:gate_remediation_state (find-gate))))
+      (let [s (:gate_closure (workspace id))]
+        (is (= 1 (:remediated s)))
+        (is (= 1 (:remediation-open s))))
+      ;; 转任务一条 (converted): total 不变 3, open 减到 2, 仍 in-progress.
+      (command! id :actions :task (:id (first acts)) {:start_date "2026-09-23" :duration_days 2})
+      (is (= 3 (:gate_remediation_total (find-gate))))
+      (is (= 2 (:gate_remediation_open (find-gate))))
+      (is (= "in-progress" (:gate_remediation_state (find-gate)))))
+    ;; 白名单外字段 (title/check_code) -> input! 拒绝 400.
+    (is (= 400 (error-status #(command! id :gates :remediation-actions (:id gate) {:title "多余" :due_date "2026-12-01"}))))
+    (is (= 400 (error-status #(command! id :gates :remediation-actions (:id gate) {:check_code "R-1" :due_date "2026-12-01"}))))
+    ;; 缺必填到期日 -> 400.
+    (is (= 400 (error-status #(command! id :gates :remediation-actions (:id gate) {:owner_id 9303}))))
+    ;; 非法负责人 (有效但未加入本项目的用户 9304) -> k/user! 校验 400.
+    (is (= 400 (error-status #(command! id :gates :remediation-actions (:id gate) {:owner_id 9304 :due_date "2026-12-01"}))))
+    ;; 显式统一负责人覆盖 (editor 成员 9303) -> 全部同负责人.
+    (let [g2-tpl (command! id :gate-templates :create nil
+                           {:code "G-RAB2" :title "批量改负责人关口" :stage "delivery" :required false
+                            :checks [{:code "R-1" :title "必需一" :required true}
+                                     {:code "R-2" :title "必需二" :required true}]})
+          g2 (command! id :gates :create nil {:template_id (:id g2-tpl) :title "改负责人" :reviewer_id 9302})
+          acts (command! id :gates :remediation-actions (:id g2) {:owner_id 9303 :due_date "2026-12-01"})]
+      (is (= 2 (count acts)))
+      (is (every? #(= 9303 (:owner_id %)) acts)))
+    ;; 门控: 没有未通过必需项 (仅可选项, 仍草稿) -> 409.
+    (let [na-tpl (command! id :gate-templates :create nil
+                           {:code "G-NAB" :title "无必需批量" :stage "manufacturing" :required false
+                            :checks [{:code "O" :title "仅可选" :required false}]})
+          na (command! id :gates :create nil {:template_id (:id na-tpl) :title "无必需批量" :reviewer_id 9302})]
+      (is (= 409 (error-status #(command! id :gates :remediation-actions (:id na) {:due_date "2026-12-01"})))))
+    ;; 状态门控: 已提交评审 (in_review) 的关口不可批量落实 -> 409.
+    (let [sg-tpl (command! id :gate-templates :create nil
+                           {:code "G-SGB" :title "已评审批量关口" :stage "site" :required true
+                            :checks [{:code "R" :title "必需" :required true}]})
+          sg (command! id :gates :create nil {:template_id (:id sg-tpl) :title "已评审批量" :reviewer_id 9302})]
+      (command! id :gates :submit (:id sg) {:waiver_reason "整体风险已接受"})
+      (is (= "in_review" (:status (first (filter #(= (:id sg) (:id %)) (:gates (workspace id)))))))
+      (is (= 409 (error-status #(command! id :gates :remediation-actions (:id sg) {:due_date "2026-12-01"})))))
+    ;; 跨项目关口 -> 404.
+    (let [other (project!)
+          other-tpl (command! other :gate-templates :create nil
+                              {:code "G-RAB-OT" :title "他项目批量关口" :stage "design" :required true
+                               :checks [{:code "R-1" :title "必需一" :required true}]})
+          other-gate (command! other :gates :create nil {:template_id (:id other-tpl) :title "他项目批量" :reviewer_id 9302})]
+      (is (= 404 (error-status #(command! id :gates :remediation-actions (:id other-gate) {:due_date "2026-12-01"})))))
+    ;; 批量落实不改变来源关口状态 (仍 draft).
+    (is (= "draft" (:status (find-gate))))))
+
+
 (deftest dq-check-method-and-responsible-role-are-optional-declarations
   (let [id (project!)
         declared (command! id :dqs :create nil

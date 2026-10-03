@@ -360,6 +360,16 @@
               (owner-field (:users options))
               {:key :due_date :label "整改到期日" :type :date :required? true}]}))
 
+(defn dq-remediation-actions-dialog
+  "把 DQ 全部未通过的必需检查项一次性落实为多条可追踪整改行动项 (批量版)."
+  [base options dq]
+  (let [failing (count (filterv #(and (:required %) (not (:passed %)) (not (:waived %))) (:checklist dq)))]
+    {:title "全部落实整改行动" :path (str base "/dqs/" (:id dq) "/remediation-actions")
+     :description (str "为全部 " failing " 条未通过的必需检查项各生成一条独立可追踪整改行动, 每条有统一负责人和到期日, 标题按检查项自动生成; 责任人默认沿用 DQ 责任人.")
+     :initial {:owner_id (:owner_id dq)}
+     :fields [(owner-field (:users options))
+              {:key :due_date :label "整改到期日" :type :date :required? true}]}))
+
 (defn node-pause-dialog
   "对子项目/单机发起局部暂停."
   [base nodes]
@@ -482,6 +492,17 @@
                :options (mapv #(hash-map :value (:code %) :label (str (:code %) " / " (:title %))) failing)}
               {:key :title :label "整改内容" :required? true}
               (owner-field (:users options))
+              {:key :due_date :label "整改到期日" :type :date :required? true}]}))
+
+
+(defn gate-remediation-actions-dialog
+  "把关口全部未通过的必需检查项一次性落实为多条可追踪整改行动项 (批量版)."
+  [base options gate]
+  (let [failing (count (filterv #(and (:required %) (not (:passed %)) (not (:waived %))) (:checks gate)))]
+    {:title "全部落实整改行动" :path (str base "/gates/" (:id gate) "/remediation-actions")
+     :description (str "为全部 " failing " 条未通过的必需检查项各生成一条独立可追踪整改行动, 每条有统一负责人和到期日, 标题按检查项自动生成; 责任人默认沿用关口审批人.")
+     :initial {:owner_id (:reviewer_id gate)}
+     :fields [(owner-field (:users options))
               {:key :due_date :label "整改到期日" :type :date :required? true}]}))
 
 
