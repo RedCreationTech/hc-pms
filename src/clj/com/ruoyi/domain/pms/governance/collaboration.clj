@@ -185,7 +185,9 @@
                        (:response_strategy fields) (assoc :response_strategy
                                                           (s/enum! (:response_strategy fields) risk-response-strategies "应对策略"))
                        (:risk_category fields) (assoc :risk_category
-                                                        (s/enum! (:risk_category fields) risk-categories "风险类别"))))
+                                                        (s/enum! (:risk_category fields) risk-categories "风险类别"))
+                       (:review_frequency fields) (assoc :review_frequency
+                                                           (s/enum! (:review_frequency fields) ra/review-frequencies "复审频率"))))
                {:status "open"})))
 
 
@@ -194,7 +196,7 @@
   [svc actor id body]
   (k/mutate! svc actor id "pms:project:edit" body "risk.created"
              (fn [q project]
-               (s/input! body [:title :probability :impact :owner_id :mitigation :due_date :response_strategy :risk_category])
+               (s/input! body [:title :probability :impact :owner_id :mitigation :due_date :response_strategy :risk_category :review_frequency])
                (insert-risk! q project actor body))))
 
 

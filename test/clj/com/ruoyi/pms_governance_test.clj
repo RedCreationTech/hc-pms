@@ -1873,6 +1873,58 @@
       (is (false? (:review_due_soon r))))))
 
 
+(deftest risk-review-frequency-auto-advances-next-review-date
+  (let [id (project!) evidence (:id (document! id "RF-DOC"))
+        today (java.time.LocalDate/now)
+        monthly (str (.plusDays today 30))
+        weekly (str (.plusDays today 7))
+        row (fn [rid] (first (filterv #(= rid (:id %)) (:risks (workspace id)))))]
+    ;; 登记时声明"每月"复审频率, 复评不手填下次复审日期时按 30 天从今天自动顺延, 批准后复审到期日与之对齐.
+    (let [risk (command! id :risks :create nil {:title "供应稳定性风险" :probability 2 :impact 3
+                                                :owner_id 9301 :mitigation "定期复评" :due_date (str (.plusDays today 5))
+                                                :review_frequency "monthly"})]
+      (is (= "monthly" (:review_frequency risk)))
+      (is (= "monthly" (:review_frequency (row (:id risk)))))
+      (command! id :risks :review (:id risk) {:outcome "active" :review_note "按声明节奏自动排期"
+                                              :reviewer_id 9302 :evidence_ids [evidence]})
+      (is (= "in_review" (:status (row (:id risk)))))
+      (command! 9302 id :risks :decision (:id risk) {:decision "approved" :reason "节奏合理"})
+      (let [r (row (:id risk))]
+        (is (= monthly (:review_due_date r)))
+        (is (= 30 (:review_due_in_days r)))))
+    ;; 手填下次复审日期优先于声明节奏 (显式日期覆盖自动顺延).
+    (let [risk (command! id :risks :create nil {:title "手动排期风险" :probability 2 :impact 3
+                                                :owner_id 9301 :mitigation "手工指定" :due_date (str (.plusDays today 5))
+                                                :review_frequency "monthly"})]
+      (command! id :risks :review (:id risk) {:outcome "active" :review_note "手动指定下周"
+                                              :reviewer_id 9302 :evidence_ids [evidence] :next_review_date weekly})
+      (command! 9302 id :risks :decision (:id risk) {:decision "approved" :reason "已按手填日期"})
+      (is (= weekly (:review_due_date (row (:id risk))))))
+    ;; 关闭结论即便声明了频率也不写下次复审日期.
+    (let [risk (command! id :risks :create nil {:title "即将关闭风险" :probability 2 :impact 3
+                                                :owner_id 9301 :mitigation "关闭" :due_date (str (.plusDays today 5))
+                                                :review_frequency "monthly"})]
+      (command! id :risks :review (:id risk) {:outcome "closed" :review_note "风险已解除"
+                                              :reviewer_id 9302 :evidence_ids [evidence]})
+      (command! 9302 id :risks :decision (:id risk) {:decision "approved" :reason "确认解除"})
+      (is (nil? (:review_due_date (row (:id risk))))))
+    ;; 未声明频率且未填日期: 复评仍要求下次复审日期 (零回归 400).
+    (let [plain (command! id :risks :create nil {:title "无节奏风险" :probability 2 :impact 3
+                                                 :owner_id 9301 :mitigation "未设频率" :due_date (str (.plusDays today 5))})]
+      (is (nil? (:review_frequency plain)))
+      (is (= 400 (error-status #(command! id :risks :review (:id plain) {:outcome "active" :review_note "缺下次复审日期"
+                                                                        :reviewer_id 9302 :evidence_ids [evidence]})))))
+    ;; 非法复审频率登记被白名单校验拒绝.
+    (is (= 400 (error-status #(command! id :risks :create nil {:title "非法频率风险" :probability 2 :impact 3
+                                                               :owner_id 9301 :mitigation "x" :due_date (str (.plusDays today 5))
+                                                               :review_frequency "yearly"}))))
+    ;; 从风险库实例化不含复审频率仍正常 (库来源不写该键).
+    (let [lib (command! id :risks :from-library nil {:template_key "cost-overrun" :owner_id 9301
+                                                     :due_date (str (.plusDays today 5))})]
+      (is (nil? (:review_frequency lib)))
+      (is (= "cost-overrun" (:source_key lib))))))
+
+
 (deftest risk-escalation-requires-independent-acknowledgment-before-mitigation
   (let [id (project!) evidence (:id (document! id "ESC-1"))
         high (command! id :risks :create nil {:title "关键交付风险" :probability 5 :impact 5

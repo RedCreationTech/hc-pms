@@ -64,6 +64,25 @@
 
 
 
+(defn- explicit-next-review-date
+  "复评请求里显式填写(非空)的下一次复审日期; 未填或为空串返回 nil."
+  [body]
+  (let [v (:next_review_date body)]
+    (when (and (string? v) (pos? (count v))) v)))
+
+
+(defn- resolve-next-review!
+  "复评下一次复审日期的统一口径: 关闭结论返回 nil; 显式填写则沿用 next-review! 的未来日期校验; 未填但风险登记时声明了复审频率则按该节奏从今天顺延(ra/review-cadence-days), 闭合 H08 复审频率声明与实际复审节奏; 既未填日期又无声明频率时回退 next-review! 保持原必填 400 (零回归)."
+  [risk body outcome]
+  (cond
+    (= "closed" outcome) nil
+    (explicit-next-review-date body) (next-review! body outcome)
+    :else (if-let [days (ra/review-cadence-days (:review_frequency risk))]
+            (str (.plusDays (LocalDate/now) days))
+            (next-review! body outcome))))
+
+
+
 (defn- linked-issues-closed!
   "已发生风险的历史问题在关闭或恢复监控前必须全部验证关闭."
   [q project risk]
@@ -99,7 +118,7 @@
             rescore (proposed-rescore body)
             patch (merge {:review_action "risk_review" :review_previous_status (:status risk)
                           :requested_outcome outcome :review_note note
-                          :next_review_date (next-review! body outcome)
+                          :next_review_date (resolve-next-review! risk body outcome)
                           :review_evidence_ids (s/evidence! q project (:evidence_ids body) true)
                           :reviewer_id (s/reviewer! q project actor (:reviewer_id body)) :submitted_by (:user_id actor)
                           :workflow_history (history risk actor "review_requested" {:outcome outcome :note note})}

@@ -1765,6 +1765,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: B09 整行状态保持不变 — 关口检查项逐条豁免写入与提交门控 (`completed-checks!`/`evidence-ready!`) 此前已在, 本项只新增一个项目级检查项例外放行依赖度只读聚合视图, 一个只读子能力不上抬整行状态; 汇总只反映各关口必需检查项被逐条豁免放行的依赖程度, 不等于豁免决定本身是否恰当或关口结论质量, 不评估具体豁免人选, 不投递提醒, 不改动任何关口状态机或检查项语义, 不做豁免趋势留存或按关口类型/阶段切分, 是否据"仅靠豁免才就绪"进一步收紧关口批准策略仍属"待 主机交付清单业务口径", MySQL 回归待补充.
 
+## H08 风险复审频率声明与实际复审节奏自动顺延 (本轮增补, 2026-10-02)
+
+设计与口径: 此前"给某 kind 加可选强类型枚举字段"的样板多用于纯声明字段 (应对策略/风险类别/验证方式等) 与只读汇总面板, 而 H08 验收口径里的"复审频率明确"一直只靠复评时手工填下次复审日期来体现, 声明的复审节奏与实际排期之间没有闭环. 本轮刻意用一个**带行为效果的写路径字段**推进矩阵: 登记风险时可选声明 `review_frequency` 四类 (weekly/biweekly/monthly/quarterly), 复评提交 `next_review_date` 时若留空而该风险已声明频率, 服务端按该节奏从今天自动顺延 (+7/+14/+30/+90 天) 写入 `next_review_date`, 独立审批通过后复审到期日与之对齐, 从而把"声明的复审频率"与"实际复审排期"闭合. 后端新增 `governance.risk-assessment/review-frequencies` 枚举集合、`review-frequency-days` 天数映射与纯函数 `review-cadence-days` (词汇与沟通节奏 cadence-days 一致); `collaboration.clj` `insert-risk!` 的 `cond->` 加 `(:review_frequency fields)` 分支用 `s/enum!` 校验白名单, `create-risk!` 的 `s/input!` 白名单追加 `:review_frequency`; `reviews.clj` 新增私有辅助 `explicit-next-review-date` 与 `resolve-next-review!` 统一下次复审日期口径 (关闭结论返回 nil; 显式填写沿用晚于今天校验; 留空但有声明频率按节奏从今天 `(.plusDays (LocalDate/now) days)` 顺延; 既未填又无声明频率回退 `next-review!` 保持原必填 400), `submit-risk-review!` 的 patch 由 `:next_review_date (next-review! ...)` 改为 `(resolve-next-review! risk body outcome)`. 关键零回归: 既有复评测试要么显式填日期要么选关闭结论, 未声明频率的风险仍走原必填 400 路径, 门控判定在 patch merge 内早于证据与审核人校验. 前端 `governance_forms.cljs` 风险登记表单加"复审频率 (可选)"下拉并附提示; 复评对话框按风险的 `review_frequency` 动态生成下次复审日期提示文案 ("留空将按该风险声明的<频率>复审频率从今天自动顺延"); `governance.cljs` 风险台账加"复审频率"列以 volcano/orange/gold/lime 标签回显中文, 未声明显灰字"未设定". **免迁移** (随 payload JSON 持久化, 不新增列/表/kind/命令/路由), 前端 `review_frequency` 键名无尾随问号.
+
+| 验证层 | 结果 |
+|--------|------|
+| 后端命名空间 (冷 JVM) | `PMS_TEST_JDBC_URL=jdbc:sqlite:/tmp/rf.db clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 96 tests / 1517 assertions, 0 failures/errors (新增 deftest `risk-review-frequency-auto-advances-next-review-date` 12 断言: 声明 monthly 复评留空→批准后 `review_due_date`=今天+30 且 `review_due_in_days`=30; 显式填 weekly 日期优先于声明节奏; 关闭结论不写日期 (`review_due_date` nil); 未声明频率且留空仍 400 (零回归); 非法 `yearly` 登记 400; 风险库实例化不含 `review_frequency`) |
+| 全量 PMS 回归 (冷 JVM) | `env -u PMS_TEST_JDBC_URL clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 全绿 227 tests / 3024 assertions, 0 failures/errors (较上一记录基线 226/3012 增本 `review_frequency` 一 deftest / +12 assertions, 未声明频率风险与各既有复审/重评/升级门控用例零回归) |
+| 前端编译 | `npx shadow-cljs compile app` 通过 4035 files / 0 warnings (新增风险登记"复审频率"下拉、复评对话框动态提示、风险台账"复审频率"标签列) |
+| HTTP 合同 (契约) | `contracts/governance.md` 更新 POST `/risks` 行加入 `可选 review_frequency (weekly/biweekly/monthly/quarterly, 缺省不写键视为未设定, 非法取值 400, 免迁移随 payload 持久化并在命令结果与风险读模型逐条回显)`; 更新 POST `/risks/:rid/review` 行的 `next_review_date` 口径 (关闭→nil, 显式→沿用晚于今天校验, 留空但有声明频率→按 +7/+14/+30/+90 自动顺延, 留空且无频率→400 零回归), 记录其闭合 H08 复审频率声明与实际复审节奏 |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | 断言用例 `pms-h08rf.spec.js` 1 passed (19.5秒, 全新独立 `/tmp/rf.db` 冷启动迁移, `FLOWABLE_JDBC_URL` 指向独立 `/tmp/rf-flowable` 避免与 `:3000` 抢锁, 无未捕获 JS 错误): 界面"登记项目风险"选"每月"复审频率→服务端回显 `result.review_frequency=monthly` 且 `escalated=false` (2x3=6 不触发升级, 截图 h08rf-1-dialog-frequency.png); 另登一条不选频率→回显 `null`; 风险台账"复审频率"列对声明者显金色"每月"标签、未声明者显"未设定" (截图 h08rf-2-ledger-column.png); 打开"提交复评"对话框→按声明频率显示"留空将按该风险声明的每月复审频率从今天自动顺延"提示 (截图 h08rf-3-review-hint.png); 真实 HTTP 对该 monthly 风险复评留空下次复审日期→200 且 `result.next_review_date`=今天+30; 对无频率风险留空→400 (零回归门控); 非法 `yearly` 经真实 HTTP→400 (命令写操作记录在 `data.result` 下, 门控断言用 `body.code`) |
+| 演示录像 (真实浏览器) | 同一 `pms-h08rf.spec.js` 以文件顶层 `test.use({ video: 'on' })` 录真实 Playwright 浏览器全程 (登记声明每月频率→台账列回显→复评动态提示→留空按节奏顺延), webm 经项目本地 `tools/bin/ffmpeg` 转 `reports/h08rf/h08rf-demo.mp4` (h264, 1600x1000, 1270470 字节) |
+| MySQL | 本轮未执行 (本地无 MySQL 实例); 本项为免迁移的可选枚举字段 + 复评排期行为, 随 payload JSON 持久化, 不涉及任何表结构或迁移变更, 与 SQLite/MySQL 无关 |
+
+边界: H08 整行状态保持 `partial` 不变 — 本项只是把"复审频率声明"与实际复审排期闭合的一个带行为效果的字段子能力, 不改动风险概率×影响评分与超阈值升级门控, 不上抬整行; 频率顺延只在复评留空时生效, 显式日期与关闭结论不受影响; 不投递复审提醒, 不做频率历史留存或到期主动催办, 是否据复审到期进一步收紧风险处置策略仍属未完范围, MySQL 回归待补充.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

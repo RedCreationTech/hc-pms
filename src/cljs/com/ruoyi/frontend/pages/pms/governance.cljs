@@ -954,6 +954,14 @@
                   (r/as-element (if (nil? c)
                                   [:span {:style {:color "#98a2b3"}} "未设定"]
                                   [antd/tag {:color color} label]))))}
+     {:title "复审频率" :dataIndex "review_frequency" :width 100
+      :render (fn [_ row]
+                (let [f (aget row "review_frequency")
+                      label (get {"weekly" "每周" "biweekly" "双周" "monthly" "每月" "quarterly" "每季度"} f)
+                      color (get {"weekly" "volcano" "biweekly" "orange" "monthly" "gold" "quarterly" "lime"} f "default")]
+                  (r/as-element (if (nil? f)
+                                  [:span {:style {:color "#98a2b3"}} "未设定"]
+                                  [antd/tag {:color color} label]))))}
      (w/text-column :mitigation "应对措施")
      {:title "措施落实" :dataIndex "mitigation_action_state" :width 150
       :render (fn [_ row]

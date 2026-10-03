@@ -8,6 +8,22 @@
   16)
 
 
+(def review-frequencies
+  "风险复审频率枚举 (可选声明): 每周/双周/每月/每季度. 登记时未选择则不写入该键(视为未设定)."
+  #{"weekly" "biweekly" "monthly" "quarterly"})
+
+
+(def review-frequency-days
+  "风险复审频率到日历天数映射, 供复评未手填下次复审日期时按声明节奏从今天顺延. 词汇与沟通节奏 cadence-days 一致."
+  {"weekly" 7 "biweekly" 14 "monthly" 30 "quarterly" 90})
+
+
+(defn review-cadence-days
+  "按声明的复审频率返回顺延天数, 频率为空或非法返回 nil."
+  [frequency]
+  (when (some? frequency) (get review-frequency-days frequency)))
+
+
 (defn score!
   "校验风险概率或影响等级为1到5."
   [value]
