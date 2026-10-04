@@ -1269,6 +1269,42 @@
           [antd/tag {:color "geekblue"} (str "转任务 " converted)])])]))
 
 
+(defn- project-remediation-overview-section
+  "跨对象项目级未闭环整改总览: 汇总试验/关口/质量/风险/绩效五类整改来源的总数与未闭环情况; 试验与各类整改来源台账逐项视图互补, 只读派生, 不构成门控."
+  [{:keys [model]}]
+  (let [ov (:project_remediation_overview model)
+        total (:total ov 0)
+        closed (:closed ov 0)
+        open (:open ov 0)
+        overdue (:overdue ov 0)
+        pct (:closure-pct ov 0)
+        sources (:sources-with-remediation ov 0)
+        sources-open (:sources-with-open ov 0)]
+    [shared/panel "未闭环整改总览" "把试验不合格/关口检查/质量检查/风险预防/绩效偏差五类整改来源的未闭环情况汇总到一处, 回答项目全局还欠多少整改没做完; 与各来源台账逐项整改视图互补; 只读派生, 不改变任何记录, 不构成门控"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无整改项, 在试验/关口/质量/风险/绩效登记整改行动或问题后可在此查看全局闭环情况."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "整改来源 " sources " 类")]
+         [antd/tag {:color "purple"} (str "整改总数 " total)]
+         [antd/tag {:color (cond (= pct 100) "green" (zero? pct) "red" :else "gold")}
+          (str "已闭环 " pct "% (" closed "/" total ")")]
+         (when (pos? open)
+           [antd/tag {:color "orange"} (str "未完成 " open)])
+         (when (pos? overdue)
+           [antd/tag {:color "volcano"} (str "逾期未闭环 " overdue)])
+         (when (pos? sources-open)
+           [antd/tag {:color "magenta"} (str "仍有未闭环来源 " sources-open)])]
+        [:div
+         [:span {:style {:fontWeight 500}} "按整改来源: "]
+         [antd/space {:wrap true}
+          (for [{:keys [key label total open closed overdue closure-pct]} (:by-source ov)]
+            ^{:key key} [antd/tag {:color (cond (= closure-pct 100) "green" (pos? overdue) "red" (zero? open) "green" :else "gold")}
+                         (str label " · 闭环 " closure-pct "% (" closed "/" total ")"
+                              (when (pos? open) (str " · 未闭环 " open))
+                              (when (pos? overdue) (str " · 逾期 " overdue)))])]]])]))
+
+
 (defn- meeting-release-coverage-section
   "按每个会议最新有效版本只读聚合纪要发布进度: 会议总数/已发布/审批中/草稿/已作废及发布率(分母排除已作废); 只读派生, 不改变会议状态, 不构成门控."
   [{:keys [model]}]
@@ -1794,7 +1830,7 @@
                      ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section raci-section raci-assignment-section raci-engagement-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section]]
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-review-cadence-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
-                     ["meetings" "会议行动" [meeting-section meeting-release-coverage-section action-closure-section action-section]]
+                     ["meetings" "会议行动" [meeting-section meeting-release-coverage-section action-closure-section project-remediation-overview-section action-section]]
                      ["changes" "变更控制" [change-section change-closure-section]]
                      ["quality" "DQ与局部暂停" [dq-summary-section dq-section pause-section]]])}])
 

@@ -1878,6 +1878,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: B08 整行状态保持 `implemented / local` 不变 — 本项只在既有 DQ 检查登记上追加"检查项级例外放行"弹性子能力 (复用 Gate 豁免语义), 不改动 DQ 与确定版本交付件绑定/签认依据失效等既有口径, 不上抬整行; 例外放行是"经责任人确认的先行放行"而非"检查已实际通过", 台账与面板均以金色单独标注豁免数以显式区分真实通过 (绿) 与靠豁免满足 (金), 不冒充质量已达标; 是否据此豁免阻断签认批准仍属"待规则"; MySQL 回归待补充.
 
+## 跨对象未闭环整改总览只读汇总 (本轮增补, 2026-10-04)
+
+设计与口径: 此前"整改"这一治理动作散落在五个不同来源, 各自只在其所属台账有一处逐项视图——试验不合格自动生成整改问题 (E02 `test_remediation_*`), 关口未通过必需检查项落实整改行动 (B09 `gate_remediation_*`), DQ 未通过必需检查项落实整改行动 (H10 `dq_remediation_*`), 风险预防措施落实行动 (H08 `mitigation_action_*`), 挣值偏差登记纠正措施 (H06 `variance_action_*`). 五处面板都只回答"某一个对象是否已落实整改/还剩几条未办", 整个项目"五类整改加起来到底欠多少条未闭环、分布在哪些来源、总体闭环率多少"此前无处一眼可读. 本项把"给治理台账加只读派生洞察"套路从单来源升为跨五类来源的 portfolio 级只读汇总, 是免迁移/免新命令/免新 kind/免新路由的纯读模型派生, 不构成任何门控 (真正的整改门控仍由各写路径在提交/签核/放行时执行). `governance.collaboration/project-remediation-overview` 纯函数以原始 `(:actions data)` 与 `(:issues data)` 两路记录为入参, 试验来源取 `issues` 带 `:source_test_id` 者且先经 `store/latest` 按 `code` 折叠最新有效修订版 (与 `remediation-rollup-by-test` 同去重口径) 完成判据 `status=closed`; 关口/质量/风险/绩效四类取 `actions` 分别带 `:source_gate_id`/`:source_dq_id`/`:source_risk_id`/`:variance_kind` 者 (单条活记录直接计, 与各行动 rollup 一致) 完成判据 `status ∈ {closed, converted}` (转 WBS 任务视同闭环); 逾期试验问题用私有 `issue-remediation-overdue?` 行动复用 `action-overdue?` 故 `overdue` 恒为 `open` 子集, 二者免疫 today 漂移. 逐来源 tally + 全局合计 `{available, total, open, closed, overdue, sources-with-remediation, sources-with-open, closure-pct, by-source}` (by-source 仅列 total>0 者), 键名去尾随 `?`. workspace 以 `:project_remediation_overview (collab/project-remediation-overview (:actions data) (:issues data))` 挂到 `cond->` 收尾 assoc 块; 前端"会议行动"页签在"会议行动闭环率"面板之后、台账之前新增"未闭环整改总览"面板.
+
+| 证据类型 | 结果 |
+|---|---|
+| 治理命名空间 (冷 JVM) | `PMS_TEST_JDBC_URL=jdbc:sqlite:<mktemp> clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 106 tests / 1760 assertions, 0 failures / 0 errors (含本轮两 deftest `project-remediation-overview-aggregates-all-sources-read-only` 与 `project-remediation-overview-in-workspace-spans-sources-and-does-not-write-back`) |
+| 全量 PMS 回归 (冷 JVM) | `env -u PMS_TEST_JDBC_URL clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 全绿 240 tests / 3320 assertions, 0 failures / 0 errors (较 E02/E03 整改基线 238/3292 增本两项 deftest / +2 tests +28 assertions, 既有试验/关口/DQ/风险/挣值各来源整改 rollup 及写路径用例零回归; 尾帧 stack trace 为 `pms_test.clj` 既有故意错误掩码用例, 已 `0 errors` 确认为预期非回归) |
+| 前端编译 | `npx shadow-cljs compile app` 通过 4035 files / 0 compiled / 0 warnings (新增 `project-remediation-overview-section` 定义置于 `action-closure-section` 之后, 由 `meeting-section` 页签在"会议行动闭环率"之后追加本面板; 按来源行 `for` 逐项 `^{:key key}` 渲染彩色标签, 汇总 map 以 keyword 取值含连字符键 `(:closure-pct ov)`/`(:sources-with-open ov)`) |
+| HTTP 合同 (契约) | `contracts/governance.md` GET `/governance` 读模型新增顶层只读派生键 `project_remediation_overview{available, total, open, closed, overdue, sources-with-remediation, sources-with-open, closure-pct, by-source:[{key, label, total, open, closed, overdue, closure-pct}]}`, 明确由纯函数 `governance.collaboration/project-remediation-overview` 对 `(:actions data)`+`(:issues data)` 两路记录跨五类来源聚合派生, 免迁移/免新命令/免新 kind/免新路由/不构成门控 (闭环率高低不阻止任何登记或流转) |
+| 浏览器 E2E (隔离 `:3100` 独立空库) | 断言用例 `pms-pro.spec.js` 1 passed, 无未捕获 JS 错误: 主操作者经真实 HTTP 建含必需未通过项的关口/DQ + 一条风险, 各落实一条整改行动 (关口整改故意设足够过去到期日使其逾期未闭环, DQ/风险整改设足够未来日使未闭环不逾期) -> 真实 GET `/governance` 回显 `project_remediation_overview` available=true/total=3/open=3/closed=0/sources-with-remediation=3/sources-with-open=3/overdue≥1/closure-pct=0 且 `by-source` keys=[dq,gate,risk] -> 界面"未闭环整改总览"面板显示蓝"整改来源 3 类"/紫"整改总数 3"/红"已闭环 0% (0/3)"/橙"未完成 3"/volcano"逾期未闭环 1"及三枚来源标签 -> 把 DQ 整改转 WBS 任务 (converted 即完成) -> 面板翻"已闭环 33% (1/3)"/"未完成 2"/"仍有未闭环来源 2"/"质量检查整改 · 闭环 100%"而关口"逾期未闭环 1"仍在 -> 回写不变量校验 (来源关口与 DQ 仍 `draft`、来源风险仍 `open`, 三条整改行动仍在行动台账); 空项目面板显示"暂无整改项"占位提示. 4 张真实浏览器截图落 `reports/pro/` (pro-1-empty/pro-2-overview-3sources/pro-3-after-close-one/pro-4-final-page) |
+| 演示录像 (真实浏览器) | `pms-pro.spec.js` 以文件顶层 `test.use({ video: 'on' })` 录真实 Playwright 浏览器全程 (空态→建三类来源整改→面板 3 类 3 项逾期未闭环→转任务闭环率升 33% 质量类 100%→回写不变量), webm 经项目本地 `tools/bin/ffmpeg` 转 `reports/pro/pro-demo.mp4` (h264, 1600x1000, 348358 字节) |
+| MySQL | 本轮未执行 (本地无 MySQL 实例); 本项为纯读模型派生, 不涉及任何迁移或表结构变更, 与 SQLite/MySQL 无关 |
+
+边界: 本项是跨来源只读可视, 不改变任何 E02/E03/B09/H10/H08/H06 相关矩阵行的既有 `partial` 状态 (加一列/一面只读洞察不升行); 试验来源与其他四类分属问题/行动两种记录形态故完成判据不同 (`closed` 与 `closed|converted`) 已在口径内分别处理; 不做整改趋势留存与逾期/未闭环通知外部投递 (提醒投递仍属 C11).
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

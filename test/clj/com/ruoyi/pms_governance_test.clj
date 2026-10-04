@@ -1649,6 +1649,87 @@
       (is (= 1 (:remediation-open m))))))
 
 
+(deftest project-remediation-overview-aggregates-all-sources-read-only
+  (let [actions [{:source_gate_id "g1" :status "open" :due_date "2020-01-01"}
+                 {:source_gate_id "g1" :status "closed" :due_date "2099-01-01"}
+                 {:source_dq_id "d1" :status "in_review" :due_date "2099-01-01"}
+                 {:source_risk_id "r1" :status "converted" :due_date "2020-01-01"}
+                 {:variance_kind "schedule" :status "open" :due_date "2020-01-01"}
+                 {:variance_kind "cost" :status "closed" :due_date "2099-01-01"}
+                 {:status "open" :due_date "2020-01-01"}]  ;; 无来源标记的会议行动不计入任何整改来源
+        issues [{:id "i1" :code "ISS-1" :revision 1 :status "open" :source_test_id "t1" :due_date "2020-01-01"}
+                {:id "i1" :code "ISS-1" :revision 2 :status "closed" :source_test_id "t1" :due_date "2020-01-01"}
+                {:id "i2" :code "ISS-2" :revision 1 :status "open" :source_test_id "t2" :due_date "2020-01-01"}
+                {:id "i3" :code "ISS-3" :revision 1 :status "open" :due_date "2020-01-01"}]  ;; 试验来源之外的问题不计入
+        ov (collab/project-remediation-overview actions issues)
+        by (zipmap (map :key (:by-source ov)) (:by-source ov))]
+    (is (true? (:available ov)))
+    (is (= 5 (:sources-with-remediation ov)))
+    ;; 试验来源: 堆叠修订去重后 t1 closed, t2 open 逾期; i3 无 source_test_id 不计入.
+    (is (= {:key "test" :label "试验不合格整改" :total 2 :open 1 :closed 1 :overdue 1 :closure-pct 50} (get by "test")))
+    (is (= {:key "gate" :label "关口检查整改" :total 2 :open 1 :closed 1 :overdue 1 :closure-pct 50} (get by "gate")))
+    (is (= {:key "dq" :label "质量检查整改" :total 1 :open 1 :closed 0 :overdue 0 :closure-pct 0} (get by "dq")))
+    (is (= {:key "risk" :label "风险预防整改" :total 1 :open 0 :closed 1 :overdue 0 :closure-pct 100} (get by "risk")))
+    (is (= {:key "variance" :label "绩效偏差纠正" :total 2 :open 1 :closed 1 :overdue 1 :closure-pct 50} (get by "variance")))
+    ;; 全局: total 8, closed 4 (去重后 test1+gate1+risk1+variance1), open 4, overdue 3 (risk converted 已闭环且 dq 未到期故不计), 闭环率 50.
+    (is (= 8 (:total ov)))
+    (is (= 4 (:closed ov)))
+    (is (= 4 (:open ov)))
+    (is (= 3 (:overdue ov)))
+    (is (= 4 (:sources-with-open ov)))
+    (is (= 50 (:closure-pct ov)))
+    (is (<= (:overdue ov) (:open ov)))
+    ;; 空项目各计数 0 且 available false, by-source 空.
+    (let [empty (collab/project-remediation-overview [] [])]
+      (is (false? (:available empty)))
+      (is (= {:total 0 :open 0 :closed 0 :overdue 0 :closure-pct 0}
+             (select-keys empty [:total :open :closed :overdue :closure-pct])))
+      (is (empty? (:by-source empty))))))
+
+
+(deftest project-remediation-overview-in-workspace-spans-sources-and-does-not-write-back
+  (let [id (project!)
+        tpl (command! id :gate-templates :create nil
+                      {:code "G-PO" :title "总览关口" :stage "design" :required true
+                       :checks [{:code "R-1" :title "必需一" :required true}]})
+        gate (command! id :gates :create nil {:template_id (:id tpl) :title "总览评审" :reviewer_id 9302})
+        dq (command! id :dqs :create nil
+                     {:code "DQ-PO" :title "总览DQ" :owner_id 9301
+                      :checklist [{:code "D-1" :title "必需" :required true}] :deliverable_ids []})
+        risk (command! id :risks :create nil
+                       {:title "总览风险" :probability 2 :impact 2 :owner_id 9301
+                        :mitigation "提前排期" :due_date "2026-12-01"})
+        overview #(select-keys (:project_remediation_overview (workspace id))
+                               [:available :total :open :closed :sources-with-remediation :sources-with-open])]
+    ;; 空态: 尚无整改项.
+    (is (= {:available false :total 0 :open 0 :closed 0 :sources-with-remediation 0 :sources-with-open 0}
+           (overview)))
+    ;; 三类各落实一条整改: 三个来源, 全部未完成.
+    (let [ga (command! id :gates :remediation-action (:id gate) {:due_date "2020-01-01"})
+          da (command! id :dqs :remediation-action (:id dq) {:check_code "D-1" :due_date "2099-01-01"})
+          ra (command! id :risks :mitigation-action (:id risk) {:title "落实预防措施" :due_date "2099-01-01"})]
+      (is (= {:available true :total 3 :open 3 :closed 0 :sources-with-remediation 3 :sources-with-open 3}
+             (overview)))
+      ;; 关口那条逾期未闭环 (全局 overdue >= 1).
+      (is (<= 1 (:overdue (:project_remediation_overview (workspace id)))))
+      ;; 独立核验关闭 DQ 那条: closed 1, open 2, 仍有未完成来源 2.
+      (let [ev (:id (document! id "PO-DOC"))]
+        (command! id :actions :complete (:id da) {:result "整改完成" :evidence_ids [ev] :reviewer_id 9302})
+        (command! 9302 id :actions :verify (:id da) {:decision "approved" :reason "独立核验通过"})
+        (let [ov (:project_remediation_overview (workspace id))
+              dq-group (first (filter #(= "dq" (:key %)) (:by-source ov)))]
+          (is (= 1 (:closed ov)))
+          (is (= 2 (:open ov)))
+          (is (= 2 (:sources-with-open ov)))
+          (is (= {:total 1 :open 0 :closed 1 :overdue 0 :closure-pct 100}
+                 (select-keys dq-group [:total :open :closed :overdue :closure-pct])))
+          ;; 只读派生不回写来源对象状态: 关口仍 draft, DQ 仍 draft, 风险仍 open.
+          (is (= "draft" (:status (first (filter #(= (:id gate) (:id %)) (:gates (workspace id)))))))
+          (is (= "draft" (:status (first (filter #(= (:id dq) (:id %)) (:dqs (workspace id)))))))
+          (is (= "open" (:status (first (filter #(= (:id risk) (:id %)) (:risks (workspace id)))))))
+          (is (some #(= (:id ga) (:id %)) (:actions (workspace id)))))))))
+
+
 (deftest dq-failed-required-checks-materialize-all-tracked-remediation-actions-in-one-call
   (let [id (project!)
         dq (command! id :dqs :create nil

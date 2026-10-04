@@ -856,6 +856,66 @@
                   :gate_remediation_state state)))
 
 
+(defn- issue-remediation-overdue?
+  "试验不合格自动生成的整改问题: 存在到期日, 未 closed 且到期日不晚于服务器当天即视为逾期未闭环. 与 fieldwork 试验整改 rollup 的到期口径一致, 免疫 today 漂移."
+  [issue]
+  (boolean (and (:due_date issue)
+                (not= "closed" (:status issue))
+                (not (.isAfter (LocalDate/parse (:due_date issue)) (LocalDate/now))))))
+
+
+(defn project-remediation-overview
+  "跨对象项目级未闭环整改总览 (只读派生, 免迁移): 把项目内五类整改来源的未完成闭环情况汇总到一处——
+   试验 (试验必检不合格自动生成的阻断问题, issue 带 source_test_id, 未 closed 即未完成),
+   关口 (关口未通过必需检查项落实的整改行动, action 带 source_gate_id),
+   质量 (DQ 未通过必需检查项落实的整改行动, action 带 source_dq_id),
+   风险 (风险预防措施落实的行动, action 带 source_risk_id),
+   绩效 (挣值偏差登记的纠正措施, action 带 variance_kind);
+   逐来源给出 总数 total / 未完成 open / 已完成 closed / 其中逾期未完成 overdue 与闭环率 closure-pct, 另给全局合计,
+   含整改项的来源类别数 sources-with-remediation 与仍有未完成整改的来源类别数 sources-with-open, by-source 仅列有整改项的来源.
+   试验来源问题状态会堆叠版本故先按编码取最新有效版本再计 (与 remediation-rollup-by-test 口径一致), 行动为单条活记录直接计 (与各行动台账既有 rollup 一致);
+   closed/converted 视为行动完成, closed 视为问题完成; 逾期仅对未完成条目成立故 overdue 永不大于 open.
+   与各来源台账的逐项整改视图互补 (前者看单一对象是否落实整改, 本项看项目全局还欠多少整改未闭环), 是整改这一治理对象的跨对象只读投影.
+   读取时派生, 不落库不投递, 不构成任何门控 (真正的门控仍由各写路径在提交/签核时执行), 键名不带尾随问号."
+  [actions issues]
+  (let [test-issues  (filter :source_test_id (s/latest issues))
+        groups       [{:key "test" :label "试验不合格整改" :records test-issues :issue? true}
+                      {:key "gate" :label "关口检查整改" :records (filter :source_gate_id actions)}
+                      {:key "dq" :label "质量检查整改" :records (filter :source_dq_id actions)}
+                      {:key "risk" :label "风险预防整改" :records (filter :source_risk_id actions)}
+                      {:key "variance" :label "绩效偏差纠正" :records (filter :variance_kind actions)}]
+        action-done? #(contains? #{"closed" "converted"} (:status %))
+        issue-done?  #(= "closed" (:status %))
+        tally        (fn [{:keys [key label records issue?]}]
+                       (let [done?   (if issue? issue-done? action-done?)
+                             over?   (if issue? issue-remediation-overdue? action-overdue?)
+                             total   (count records)
+                             closed  (count (filter done? records))
+                             open    (- total closed)
+                             overdue (count (filter over? records))]
+                         {:key key :label label :total total :open open :closed closed :overdue overdue
+                          :closure-pct (if (pos? total)
+                                         (int (Math/round ^double (* 100.0 (/ closed total))))
+                                         0)}))
+        tallies      (mapv tally groups)
+        present      (filterv #(pos? (:total %)) tallies)
+        o-total      (reduce + 0 (map :total tallies))
+        o-closed     (reduce + 0 (map :closed tallies))
+        o-overdue    (reduce + 0 (map :overdue tallies))
+        o-open       (- o-total o-closed)]
+    {:available                (pos? o-total)
+     :total                    o-total
+     :open                     o-open
+     :closed                   o-closed
+     :overdue                  o-overdue
+     :sources-with-remediation (count present)
+     :sources-with-open         (count (filterv #(pos? (:open %)) present))
+     :closure-pct              (if (pos? o-total)
+                                 (int (Math/round ^double (* 100.0 (/ o-closed o-total))))
+                                 0)
+     :by-source                present}))
+
+
 (defn action-closure-summary
   "按全部会议与预防行动项只读聚合闭环情况: 总数/已闭环(closed 或 converted)/未完成/其中逾期未完成/转任务数与闭环率; 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
   [actions]

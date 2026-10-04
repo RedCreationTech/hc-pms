@@ -133,6 +133,7 @@
                           :raci_engagement_coverage (stakeholders/raci-engagement-coverage (:raci data))
                           :issue_escalation_summary (collab/issue-escalation-disposition-summary (:issues data))
                           :action_closure (collab/action-closure-summary (:actions data))
+                          :project_remediation_overview (collab/project-remediation-overview (:actions data) (:issues data))
                           :meeting_release_coverage (collab/meeting-release-coverage (:meetings data))
                           :change_closure_summary (approval/change-closure-summary (:changes data))
                           :gate_progress (gates/gate-progress (:gate_templates data) (:gates data))
