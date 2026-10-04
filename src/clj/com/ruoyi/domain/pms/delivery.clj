@@ -88,7 +88,9 @@
             data (into {} (for [[section kind] sections] [section (d/records q project kind)]))
             tasks (vec (q :planning/tasks {:project_id (:project_id project)}))
             nodes (vec (q :pms/nodes {:project_id (:project_id project)}))
-            blocker-free? (not-any? #(and (= "blocker" (:severity %)) (not= "closed" (:status %))) (g/records q project "issue"))
+            issues (g/records q project "issue")
+            blocker-free? (not-any? #(and (= "blocker" (:severity %)) (not= "closed" (:status %))) issues)
+            test-remediation-rollup (fieldwork/remediation-rollup-by-test issues)
             types (remove #{"SAT"} (:required_test_types config))
             fat-ok? (fn [shipment] (every? (fn [rid] (every? #(production/type-approved? q project rid %) types)) (:assembly_ids shipment)))]
         (-> data
@@ -98,6 +100,7 @@
             (update :handovers #(mapv (partial fieldwork/handover-read-model today) %))
             (update :site_tasks #(mapv (partial fieldwork/site-task-read-model today) %))
             (update :tests #(mapv fieldwork/test-execution-read-model %))
+            (update :tests #(mapv (partial fieldwork/test-remediation-read-model test-remediation-rollup) %))
             fieldwork/attach-site-task-progress
             fieldwork/attach-assembly-execution-progress
             fieldwork/attach-preship-readiness
@@ -105,6 +108,7 @@
             fieldwork/attach-handover-timeliness
             fieldwork/attach-survey-closure
             fieldwork/attach-test-execution
+            fieldwork/attach-test-remediation-closure
             (assoc :configuration config :project_version (:version project)
                    :blockers (closure-blockers q project) :external_sync_status "not_configured"
                    :kitting_rollup (materials/kitting-rollup (:boms data) tasks nodes)

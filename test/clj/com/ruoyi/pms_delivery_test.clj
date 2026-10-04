@@ -328,6 +328,55 @@
       (is (= 3 (count (:result_history record)))))))
 
 
+(deftest failing-required-result-surfaces-test-remediation-closure-rollup
+  "E02/E03: 必检不合格自动生成的整改问题在交付工作区以只读闭环汇总可见, 关闭问题后由 pending 翻转为 resolved; 只读派生不放宽真实签核门控."
+  (let [ctx (context!) id (:id ctx) assembly (approved-assembly! ctx) test (test-record! ctx assembly "SIT")
+        ws-read (fn [] (delivery/workspace *service* (actor 9501) id))
+        test-row (fn [] (first (filterv (fn [t] (= (:id test) (:id t))) (:tests (ws-read)))))
+        closure (fn [] (:test_remediation_closure (ws-read)))]
+    ;; 登记前: 尚无整改问题, 逐条试验与顶层汇总均为 none / 不可用.
+    (is (= "none" (:test_remediation_state (test-row))))
+    (is (false? (:available (closure))))
+    ;; 提交不合格必检结果 -> 自动生成一条 blocker 整改问题, 只读派生为 pending, 到期日不晚于今日故计入逾期.
+    (let [failure (results! ctx test false) issue-id (get-in failure [:checks 0 :issue_id])]
+      (is (string? issue-id))
+      (let [row (test-row)]
+        (is (= "pending" (:test_remediation_state row)))
+        (is (= 1 (:test_remediation_total row)))
+        (is (= 1 (:test_remediation_open row)))
+        (is (= 0 (:test_remediation_closed row)))
+        (is (= 1 (:test_remediation_overdue row))))
+      (let [sum (closure)]
+        (is (true? (:available sum)))
+        (is (= 1 (:tests-with-remediation sum)))
+        (is (= 1 (:pending-tests sum)))
+        (is (= 0 (:resolved-tests sum)))
+        (is (= 1 (:overdue-tests sum)))
+        (is (= 1 (:issue-total sum)))
+        (is (= 0 (:issue-closed sum)))
+        (is (= 1 (:issue-open sum)))
+        (is (= 0 (:closure-pct sum))))
+      ;; 读模型不放宽门控: 问题未关闭时提交仍被真实 ready-test! 拦截, 与既有失败用例一致.
+      (is (= 409 (error-status #(review! ctx :tests (:id test) :submit))))
+      ;; 复验通过并独立关闭整改问题: 同一问题状态版本堆叠被 latest 去重(仍计一条), 逐条翻转 resolved, 闭环率 100.
+      (results! ctx test true)
+      (gov! id :issues :resolve issue-id {:resolution "已处理并复验" :evidence_ids [(:evidence ctx)] :reviewer_id 9502})
+      (gov! 9502 id :issues :decision issue-id {:decision "approved" :reason "独立复验满足"})
+      (let [row (test-row)]
+        (is (= "resolved" (:test_remediation_state row)))
+        (is (= 1 (:test_remediation_total row)))
+        (is (= 0 (:test_remediation_open row)))
+        (is (= 1 (:test_remediation_closed row)))
+        (is (= 0 (:test_remediation_overdue row))))
+      (let [sum (closure)]
+        (is (= 1 (:resolved-tests sum)))
+        (is (= 0 (:pending-tests sum)))
+        (is (= 0 (:overdue-tests sum)))
+        (is (= 1 (:issue-closed sum)))
+        (is (= 0 (:issue-open sum)))
+        (is (= 100 (:closure-pct sum)))))))
+
+
 (deftest conditional-receipt-forces-service-resolution-before-acceptance
   (let [ctx (context!) id (:id ctx) assembly (approved-assembly! ctx)]
     (approved-test! ctx assembly "SIT")

@@ -841,3 +841,54 @@
       (is (= 1 (:test_criteria_required draft-row)))
       (is (= 0 (:test_required_passed draft-row)))
       (is (false? (:test_required_all_passed draft-row))))))
+
+
+(deftest test-remediation-rollup-groups-latest-issue-status-by-source-test
+  (let [issues [{:id "i1" :code "ISS-1" :revision 1 :status "open" :source_test_id "t1" :due_date "2099-01-01"}
+                {:id "i1" :code "ISS-1" :revision 2 :status "closed" :source_test_id "t1" :due_date "2099-01-01"}
+                {:id "i2" :code "ISS-2" :revision 1 :status "open" :source_test_id "t1" :due_date "2000-01-01"}
+                {:id "i3" :code "ISS-3" :revision 1 :status "open" :source_test_id "t2" :due_date "2099-01-01"}
+                {:id "i4" :code "ISS-4" :revision 1 :status "closed" :source_test_id "t3" :due_date "2099-01-01"}
+                {:id "i5" :code "ISS-5" :revision 1 :status "open" :source_test_id nil :due_date "2099-01-01"}]
+        rollup (fieldwork/remediation-rollup-by-test issues)]
+    (is (false? (contains? rollup nil)))
+    (is (= {:total 2 :open 1 :closed 1 :overdue 1}
+           (select-keys (get rollup "t1") [:total :open :closed :overdue])))
+    (is (= {:total 1 :open 1 :closed 0 :overdue 0}
+           (select-keys (get rollup "t2") [:total :open :closed :overdue])))
+    (is (= {:total 1 :open 0 :closed 1 :overdue 0}
+           (select-keys (get rollup "t3") [:total :open :closed :overdue])))))
+
+
+(deftest test-remediation-read-model-and-closure-summary-are-derived-read-only
+  (let [issues [{:id "i1" :code "ISS-1" :revision 1 :status "closed" :source_test_id "t1" :due_date "2099-01-01"}
+                {:id "i2" :code "ISS-2" :revision 1 :status "open" :source_test_id "t1" :due_date "2000-01-01"}
+                {:id "i3" :code "ISS-3" :revision 1 :status "open" :source_test_id "t2" :due_date "2099-01-01"}
+                {:id "i4" :code "ISS-4" :revision 1 :status "closed" :source_test_id "t3" :due_date "2099-01-01"}]
+        rollup (fieldwork/remediation-rollup-by-test issues)
+        row1 (fieldwork/test-remediation-read-model rollup {:id "t1"})
+        row3 (fieldwork/test-remediation-read-model rollup {:id "t3"})
+        row9 (fieldwork/test-remediation-read-model rollup {:id "t9"})]
+    (is (= "pending" (:test_remediation_state row1)))
+    (is (= 2 (:test_remediation_total row1)))
+    (is (= 1 (:test_remediation_closed row1)))
+    (is (= 1 (:test_remediation_overdue row1)))
+    (is (= "resolved" (:test_remediation_state row3)))
+    (is (= 0 (:test_remediation_open row3)))
+    (is (= "none" (:test_remediation_state row9)))
+    (is (= 0 (:test_remediation_total row9)))
+    (let [tests (mapv #(fieldwork/test-remediation-read-model rollup %) [{:id "t1"} {:id "t2"} {:id "t3"}])
+          summary (fieldwork/test-remediation-closure-summary tests)]
+      (is (true? (:available summary)))
+      (is (= 3 (:tests-with-remediation summary)))
+      (is (= 1 (:resolved-tests summary)))
+      (is (= 2 (:pending-tests summary)))
+      (is (= 1 (:overdue-tests summary)))
+      (is (= 4 (:issue-total summary)))
+      (is (= 2 (:issue-closed summary)))
+      (is (= 2 (:issue-open summary)))
+      (is (= 50 (:closure-pct summary))))
+    (let [empty (fieldwork/test-remediation-closure-summary [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:tests-with-remediation empty)))
+      (is (= 0 (:closure-pct empty))))))

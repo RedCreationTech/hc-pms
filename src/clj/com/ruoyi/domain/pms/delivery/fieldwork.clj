@@ -534,3 +534,70 @@
   [data]
   (assoc data :test_execution (test-execution-summary (:tests data))))
 
+;; ── E02/E03 试验不合格整改闭环只读派生 ──────────────────────────
+
+(defn remediation-rollup-by-test
+  "按问题记录持久化的 source_test_id 反向聚合每个试验因必检不合格自动生成的整改问题: 总数/未关闭数/已关闭数/其中逾期未关闭数.
+   问题状态变更会堆叠版本, 故先取每个问题编码的最新有效版本再分组, 避免重复计数; 未关闭即非 closed, 逾期复用与 issue-read-model 一致的到期日口径.
+   只读派生不落库, 与风险/DQ/关口侧整改落实汇总对称, 键名不带尾随问号."
+  [issues]
+  (reduce (fn [acc issue]
+            (if-let [tid (:source_test_id issue)]
+              (let [closed? (= "closed" (:status issue))
+                    overdue? (boolean (and (:due_date issue) (not closed?)
+                                           (not (.isAfter (LocalDate/parse (:due_date issue)) (LocalDate/now)))))]
+                (update acc tid (fn [{:keys [total open closed overdue]}]
+                                  {:total (inc (or total 0))
+                                   :open (if closed? (or open 0) (inc (or open 0)))
+                                   :closed (if closed? (inc (or closed 0)) (or closed 0))
+                                   :overdue (if overdue? (inc (or overdue 0)) (or overdue 0))})))
+              acc))
+          {}
+          (g/latest issues)))
+
+(defn test-remediation-read-model
+  "在试验记录上追加只读派生键: test_remediation_total/open/closed/overdue 为该试验因必检不合格自动生成的整改问题总数/未关闭数/已关闭数/其中逾期未关闭数,
+   test_remediation_state 取 none(尚无整改问题) / pending(整改未全部关闭) / resolved(整改已全部关闭). 登记必检不合格才会生成问题, 故未通过前一般为 none;
+   只读派生不落库, 不构成门控 (真正的门控仍由 ready-test! 在提交/签核时执行), 键名不带尾随问号."
+  [rollup test]
+  (let [{:keys [total open closed overdue]} (get rollup (:id test) {:total 0 :open 0 :closed 0 :overdue 0})
+        state (cond
+                (zero? total) "none"
+                (pos? open) "pending"
+                :else "resolved")]
+    (assoc test :test_remediation_total total
+                 :test_remediation_open open
+                 :test_remediation_closed closed
+                 :test_remediation_overdue overdue
+                 :test_remediation_state state)))
+
+(defn test-remediation-closure-summary
+  "E02/E03 试验不合格整改闭环只读汇总: 对已按 test-remediation-read-model 富化的整项目 :tests 读取时聚合,
+   给出存在整改问题的试验数, 其整改已全部关闭/仍有未关闭的试验数, 含逾期未关闭整改的试验数, 以及问题层面的总数/已关闭/未关闭与闭环率;
+   只读派生, 不落库不投递, 不构成任何门控. 键名不带尾随问号."
+  [tests]
+  (let [with-rem (filterv #(pos? (:test_remediation_total % 0)) tests)
+        tests-with (count with-rem)
+        resolved-tests (count (filterv #(= "resolved" (:test_remediation_state %)) with-rem))
+        pending-tests (count (filterv #(= "pending" (:test_remediation_state %)) with-rem))
+        overdue-tests (count (filterv #(pos? (:test_remediation_overdue % 0)) with-rem))
+        issue-total (reduce + 0 (map :test_remediation_total with-rem))
+        issue-closed (reduce + 0 (map :test_remediation_closed with-rem))
+        issue-open (- issue-total issue-closed)]
+    {:available (pos? tests-with)
+     :tests-with-remediation tests-with
+     :resolved-tests resolved-tests
+     :pending-tests pending-tests
+     :overdue-tests overdue-tests
+     :issue-total issue-total
+     :issue-closed issue-closed
+     :issue-open issue-open
+     :closure-pct (if (pos? issue-total)
+                    (int (Math/round ^double (* 100.0 (/ issue-closed issue-total))))
+                    0)}))
+
+(defn attach-test-remediation-closure
+  "把 test-remediation-closure-summary 挂到交付工作区读模型顶层 :test_remediation_closure; 须在 test-remediation-read-model 之后调用, 读取时派生, 不改变任何逐条试验."
+  [data]
+  (assoc data :test_remediation_closure (test-remediation-closure-summary (:tests data))))
+

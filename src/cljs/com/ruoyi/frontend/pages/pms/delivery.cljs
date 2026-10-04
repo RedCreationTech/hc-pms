@@ -421,15 +421,47 @@
                                                                 (r/as-element [antd/progress {:percent p :size "small" :style {:width 180}}])))}])}]])]))
 
 
+(defn- test-remediation-closure-section
+  "E02/E03 试验不合格整改闭环只读汇总: 按试验维度聚合必检不合格自动生成的整改问题是否已全部关闭, 含逾期未关闭预警与闭环率; 只读派生, 不门控任何写操作."
+  [{:keys [model]}]
+  (let [tr (:test_remediation_closure model)]
+    [shared/panel "试验整改闭环汇总" "必检不合格自动生成阻断整改问题, 此处按试验聚合整改是否已全部关闭并给出闭环率; 只读派生, 不门控任何写操作" nil
+     (if-not (:available tr)
+       [shared/empty-state "尚无试验不合格整改问题, 提交不合格必检结果会自动形成待关闭的整改" nil]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "待整改试验 " (:tests-with-remediation tr))]
+         [antd/tag {:color "green"} (str "整改已闭环 " (:resolved-tests tr))]
+         [antd/tag {:color (if (pos? (or (:pending-tests tr) 0)) "gold" "default")} (str "整改中 " (:pending-tests tr))]
+         [antd/tag {:color (if (pos? (or (:overdue-tests tr) 0)) "red" "default")} (str "逾期未闭环 " (:overdue-tests tr))]
+         [antd/tag (str "整改问题 " (:issue-closed tr) "/" (:issue-total tr) " 已关闭")]
+         [antd/tag {:color (if (pos? (or (:issue-open tr) 0)) "gold" "green")} (str "未关闭 " (:issue-open tr))]
+         [antd/tag {:color (if (>= (:closure-pct tr) 100) "green" "gold")} (str "整改闭环率 " (:closure-pct tr) "%")]]
+        [antd/progress {:percent (:closure-pct tr) :size "small" :style {:width "100%"}}]])]))
+
+
 (defn- tests-section
-  "质量试验明确类别,逐项记录证据和失败整改. 台账下追加试验执行闭环只读汇总."
+  "质量试验明确类别,逐项记录证据和失败整改. 台账下追加试验执行闭环与整改闭环只读汇总."
   [context]
   [:div {:style {:display "grid" :gap 20}}
    [record-section context :tests "tests" "SIT / FAT / SAT试验" "必需检查项失败自动形成阻断问题,整改关闭后才能独立批准"
     "建立质量试验" forms/test-dialog [(w/text-column :test_type "试验类别")
                                       {:title "装配来源" :dataIndex "assembly_id"
-                                       :render #(w/related-label (get-in context [:model :assemblies]) :id :title %)}]]
-   [test-execution-section context]])
+                                       :render #(w/related-label (get-in context [:model :assemblies]) :id :title %)}
+                                      {:title "整改闭环" :dataIndex "test_remediation_state" :width 200
+                                       :render (fn [_ row] (let [state (aget row "test_remediation_state")
+                                                                  open (aget row "test_remediation_open")
+                                                                  total (aget row "test_remediation_total")
+                                                                  overdue (aget row "test_remediation_overdue")]
+                                                              (r/as-element
+                                                                (case state
+                                                                  "resolved" [antd/tag {:color "green"} (str "整改已闭环 " total "/" total)]
+                                                                  "pending" (into [antd/space {:wrap true}]
+                                                                                    (concat [[antd/tag {:color "gold"} (str "整改中 " (- total open) "/" total)]]
+                                                                                            (when (pos? overdue) [[antd/tag {:color "red"} (str "逾期 " overdue)]])))
+                                                                  [antd/tag {:color "default"} "无整改"]))))}]]
+   [test-execution-section context]
+   [test-remediation-closure-section context]])
 
 (defn- shipments-section
   "记录放行,真实物流和客户签收验证; 台账下追加发货前条件满足度只读汇总."
