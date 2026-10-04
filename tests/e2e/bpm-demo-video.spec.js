@@ -16,7 +16,9 @@ test.skip(!process.env.BPM_DEMO_VIDEO, '演示视频录屏较慢, 仅在 BPM_DEM
 
 const OUT = path.resolve(__dirname, '../../reports/bpm-video');
 const RAW = path.join(OUT, 'raw');
-const { VIEWPORT, wait, installCursor, installClock, glide, tap, typeInto, settle, login, api } = kit;
+const { VIEWPORT, wait, installCursor, installClock, glide: _glide, tap, typeInto, settle, login, api } = kit;
+// 受限页 (如员工菜单里没有的请假/报销/HRM/CRM) 会让 glide 目标 selector 不出现; 用 safeGlide 吞掉 30 秒超时并保留 800ms 停顿, 让录屏继续.
+async function glide(page, locator) { try { await _glide(page, locator); } catch (_) { await page.waitForTimeout(800); } }
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const PASSWORD = 'Demo-2026';
 const BIZ = '/api/business';
@@ -27,10 +29,15 @@ const drawer = page => page.getByRole('dialog').filter({ has: page.getByRole('ta
 const tbody = page => page.locator('.ant-table-tbody');
 
 // 打开某模块页并等待表格或空态稳定, 供镜头展示真实内容.
+// 员工(common 角色)菜单受限或页面渲染慢时不阻断录屏: 4 秒兜底 + 1.5 秒 settle, 画面本身即"受限可见"的真实素材.
 async function openList(page, route) {
   await page.goto(route);
   await page.waitForLoadState('networkidle');
-  await page.locator('.ant-table-tbody, .ant-empty').first().waitFor();
+  try {
+    await page.locator('.ant-table-tbody, .ant-empty').first().waitFor({ timeout: 4000 });
+  } catch (_) {
+    await page.waitForTimeout(1500);
+  }
   await settle(page);
 }
 
