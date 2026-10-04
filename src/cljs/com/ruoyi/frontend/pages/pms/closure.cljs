@@ -134,12 +134,41 @@
                                                                 (r/as-element [antd/progress {:percent c :size "small" :style {:width 180}}])))}])}]])]))
 
 
+(defn- lesson-summary-panel
+  "H15 经验教训类别分布与作者覆盖度只读汇总: 聚合经验分类覆盖, 分类分布与集中度, 参与人数; 只读派生, 不门控经验登记."
+  [{:keys [model]}]
+  (let [ls (:lesson_summary model)
+        rows (:by-category ls)
+        total (:total ls)]
+    [shared/panel "经验复盘分布" "聚合经验分类覆盖/分布与集中度/参与人数; 只读派生, 不门控经验登记" nil
+     (if-not (:available ls)
+       [shared/empty-state "尚无项目经验, 登记后跟踪复盘分类分布与贡献覆盖" nil]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "经验总数 " total)]
+         [antd/tag {:color "geekblue"} (str "分类覆盖 " (:distinct-categories ls) " 类")]
+         [antd/tag {:color "green"} (str "参与人数 " (:author-count ls))]
+         [antd/tag (str "最活跃作者 " (:top-author-count ls) " 条")]
+         (when (:dominant-category ls)
+           [antd/tag {:color (if (>= (:concentration-pct ls) 60) "gold" "cyan")}
+            (str "主导类别 " (:dominant-category ls) " " (:dominant-count ls) " 条")])
+         [antd/tag {:color (if (>= (:concentration-pct ls) 60) "gold" "default")}
+          (str "分类集中度 " (:concentration-pct ls) "%")]]
+        [antd/table {:rowKey "category" :size "small" :pagination false :dataSource (clj->js rows)
+                     :columns (clj->js [{:title "经验类别" :dataIndex "category" :width 200}
+                                        {:title "条数" :dataIndex "count" :width 90}
+                                        {:title "占比" :key "pct" :width 240
+                                         :render (fn [_ row] (let [cnt (aget row "count")
+                                                                    pct (if (pos? total) (int (Math/round ^double (* 100.0 (/ cnt total)))) 0)]
+                                                                (r/as-element [antd/progress {:percent pct :size "small" :style {:width 180}}])))}])}]])]))
+
+
 (defn- closure-content
   "按检查,移交,复盘与正式审批组织结项."
   [context]
   [:div {:style {:display "grid" :gap 20}}
    [blocker-panel (:model context)] [progress-panel context] [checklist context] [handoffs context]
-   [lessons context] [approval context] [reopen-panel context]])
+   [lessons context] [lesson-summary-panel context] [approval context] [reopen-panel context]])
 
 (defn closure-workspace
   "基于真实读模型维护结项证据与关闭决策."

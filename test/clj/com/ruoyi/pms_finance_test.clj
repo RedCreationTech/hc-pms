@@ -317,3 +317,49 @@
     (is (= "approved" (:status (:result (command! 9402 cost/review! id [cid] {:decision "approved" :reason "封期后独立批准"})))))
     (let [lock (first (filter #(= "2026-09" (:period %)) (config/published (:query-fn *svc*) "period-lock")))]
       (config/retire! *svc* (actor 9401) "period-lock" (:id lock) {:reason "重开月结"}))))
+
+(deftest lesson-summary-aggregates-categories-and-authors-read-only
+  (let [empty (closure/lesson-summary [])]
+    (is (false? (:available empty)))
+    (is (= 0 (:total empty)))
+    (is (= 0 (:concentration-pct empty)))
+    (is (nil? (:dominant-category empty)))
+    (is (= [] (:by-category empty))))
+  (let [lessons [{:category "交付" :created_by 1}
+                 {:category "交付" :created_by 1}
+                 {:category "质量" :created_by 2}
+                 {:category "成本" :created_by 3}
+                 {:category nil :created_by 2}]
+        s (closure/lesson-summary lessons)]
+    (is (:available s))
+    (is (= 5 (:total s)))
+    (is (= 3 (:distinct-categories s)))
+    (is (= 4 (:categorized s)))
+    (is (= 1 (:uncategorized s)))
+    (is (= "交付" (:dominant-category s)))
+    (is (= 2 (:dominant-count s)))
+    (is (= 40 (:concentration-pct s)))
+    (is (= 3 (:author-count s)))
+    (is (= 2 (:top-author-count s)))
+    (is (= [{:category "交付" :count 2} {:category "成本" :count 1} {:category "质量" :count 1}]
+           (:by-category s)))))
+
+(deftest lesson-summary-in-closure-overview-is-read-only
+  (let [id (project!)]
+    (is (false? (:available (:lesson_summary (closure/overview *svc* (actor 9401) id)))))
+    (command! closure/create-lesson! id [] {:title "经验一" :category "交付" :content "首次交付经验"})
+    (command! closure/create-lesson! id [] {:title "经验二" :category "交付" :content "复盘交付"})
+    (command! closure/create-lesson! id [] {:title "经验三" :category "质量" :content "质量改进"})
+    (let [ov (closure/overview *svc* (actor 9401) id)
+          ls (:lesson_summary ov)]
+      (is (:available ls))
+      (is (= 3 (:total ls)))
+      (is (= 2 (:distinct-categories ls)))
+      (is (= "交付" (:dominant-category ls)))
+      (is (= 2 (:dominant-count ls)))
+      (is (= 67 (:concentration-pct ls)))
+      (is (= 1 (:author-count ls)))
+      (is (= 3 (:top-author-count ls)))
+      ;; 只读派生: 不改变 progress 的经验计数, 也不改动任何写路径
+      (is (= 3 (:lessons (:progress ov))))
+      (is (= 3 (count (:lessons ov)))))))

@@ -91,6 +91,35 @@
      :by-kind (vector (kind-row "check" "收尾检查" checks) (kind-row "handoff" "遗留移交" handoffs))}))
 
 
+(defn lesson-summary
+  "H15 经验教训类别分布与作者覆盖度只读汇总 (免迁移, 不构成门控): 收尾复盘此前只有 经验 N 总数, 看不出经验集中在哪些分类, 覆盖了几类, 由多少人贡献. 本项在读取时对已登记经验派生项目级复盘分布可见性——按 分类 category 累计每类条数 (by-category 按条数降序, 同数按名称升序), 给出分类覆盖数 distinct-categories, 最大类 dominant-category 与其条数 dominant-count 及分类集中度 concentration-pct (最大类占总数的四舍五入整数百分比), 另按 贡献人 created_by 给出参与人数 author-count 与最活跃作者条数 top-author-count, 已标注分类数 categorized 与未标注分类数 uncategorized. 经验总数为 0 时 available 为 false 且各计数为 0, dominant-category 为 nil. 这是复盘这一治理对象的只读投影, 与各经验行的逐条视图互补, 不写入存储, 不新增迁移/kind/命令/路由, 也不构成任何门控 (登记的真正约束仍由 create-lesson! 强制), 键名不带尾随问号."
+  [lessons]
+  (let [total        (count lessons)
+        cats         (keep #(when-let [c (:category %)] (when (seq c) c)) lessons)
+        cat-counts   (frequencies cats)
+        by-category  (->> (mapv (fn [[cat cnt]] {:category cat :count cnt}) cat-counts)
+                          (sort-by (fn [{:keys [category count]}] [(- count) category]))
+                          vec)
+        top          (first by-category)
+        top-count    (:count top 0)
+        by-author    (frequencies (keep :created_by lessons))
+        author-count (count by-author)
+        categorized  (count cats)]
+    {:available          (pos? total)
+     :total              total
+     :distinct-categories (count cat-counts)
+     :categorized        categorized
+     :uncategorized      (- total categorized)
+     :dominant-category  (:category top)
+     :dominant-count     top-count
+     :concentration-pct  (if (pos? total)
+                           (int (Math/round ^double (* 100.0 (/ top-count total))))
+                           0)
+     :author-count       author-count
+     :top-author-count   (if (seq by-author) (apply max (vals by-author)) 0)
+     :by-category        by-category}))
+
+
 (defn overview
   "返回收尾工作台和明确缺口, 不向普通成员暴露财务金额."
   [svc actor project-id]
@@ -107,7 +136,8 @@
          :reopen_request (q :reopen/latest {:project_id project-id})
          :approval (some-> approval (dissoc :snapshot_json))
          :ready (empty? missing) :blockers missing
-         :progress (progress-summary items approval lessons (java.time.LocalDate/now))}))))
+         :progress (progress-summary items approval lessons (java.time.LocalDate/now))
+         :lesson_summary (lesson-summary lessons)}))))
 
 (defn create-item!
   "建立受控收尾检查或遗留移交事项."
