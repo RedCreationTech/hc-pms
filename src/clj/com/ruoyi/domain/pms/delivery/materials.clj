@@ -176,3 +176,37 @@
     {:bom_count (count with-node) :required_lines required :complete_lines complete
      :kit_percent (percent complete required) :nodes node-rows :shortages shortages
      :unassigned_bom_count (count (remove :node_id with-node))}))
+
+
+(defn- approval-tally
+  "按一组交付记录的 :status 统计其独立审批闭环分布; landed-statuses 给出计为已批准落地的状态集合. 只读取时派生."
+  [key label rows landed-statuses]
+  (let [total (count rows)
+        status-count (fn [s] (count (filterv #(= s (:status %)) rows)))
+        approved (count (filterv #(contains? landed-statuses (:status %)) rows))
+        in-review (status-count "in_review")
+        rejected (status-count "rejected")
+        draft (status-count "draft")
+        pct (if (zero? total) 0 (int (Math/round ^double (* 100.0 (/ approved total)))))]
+    {:key key :label label :total total :approved approved :in-review in-review
+     :rejected rejected :draft draft :closure-pct pct}))
+
+
+(defn material-approval-summary
+  "B11/B08 交付物料审批闭环只读汇总: 按项目逐条物料申请与 BOM 清单统计其独立审批链健康度 (批准落地/审批中/已驳回/草稿 + 闭环率 + 申请与清单两源分解). 物料申请批准记 approved; BOM 批准冻结 (frozen) 及其后 partial/ready 齐套登记均计为已批准落地. 只读读取时派生, 免迁移, 不落库, 不投递, 不新增 kind/命令/路由, 不构成任何门控 (提交/批准/冻结/齐套的真实门控仍由各写命令的 status!/decision-actor!/execution! 强制), 键名不带尾随问号."
+  [requests boms]
+  (let [rt (approval-tally "request" "物料申请" requests #{"approved"})
+        bt (approval-tally "bom" "物料清单" boms #{"frozen" "partial" "ready"})
+        total (+ (:total rt) (:total bt))
+        approved (+ (:approved rt) (:approved bt))
+        combine (fn [k] (+ (k rt) (k bt)))]
+    {:available (pos? total)
+     :total total
+     :approved approved
+     :in-review (combine :in-review)
+     :rejected (combine :rejected)
+     :draft (combine :draft)
+     :closure-pct (if (zero? total) 0 (int (Math/round ^double (* 100.0 (/ approved total)))))
+     :request-total (:total rt)
+     :bom-total (:total bt)
+     :by-source [rt bt]}))

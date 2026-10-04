@@ -112,6 +112,7 @@
             (assoc :configuration config :project_version (:version project)
                    :blockers (closure-blockers q project) :external_sync_status "not_configured"
                    :kitting_rollup (materials/kitting-rollup (:boms data) tasks nodes)
+                   :material_approval_summary (materials/material-approval-summary (:material_requests data) (:boms data))
                    :task_links (task-links data)
                    :assembly_steps fieldwork/assembly-steps))))))
 

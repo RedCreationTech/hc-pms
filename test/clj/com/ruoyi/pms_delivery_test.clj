@@ -4,6 +4,7 @@
             [clojure.test :refer [deftest is use-fixtures]]
             [com.ruoyi.domain.pms.governance :as gov]
             [com.ruoyi.domain.pms.delivery :as delivery]
+            [com.ruoyi.domain.pms.delivery.materials :as materials]
             [com.ruoyi.pms-delivery-scenario :as scenario]
             [com.ruoyi.domain.pms.planning :as planning]
             [com.ruoyi.domain.pms.queries :as queries]
@@ -448,4 +449,109 @@
       (is (= 400 (error-status #(command! 9502 id :shipments :receipt (:id shipment) receipt))))
       (is (= 400 (error-status #(command! 9502 id :shipments :receipt (:id shipment)
                                         (assoc receipt :received_on (str (.minusDays today 3)))))))
-      (is (= "received" (:status (accept! ctx shipment)))))))
+      (is (= "received" (:status (accept! ctx shipment))))))
+
+
+(defn- submit-material!
+  "把物料申请提交给独立审批人,停在 in_review."
+  [ctx rid]
+  (command! (:id ctx) :material-requests :submit rid {:reviewer_id 9502 :evidence_ids [(:evidence ctx)]}))
+
+
+(defn- decide-material!
+  "由独立审批人批准或驳回物料申请."
+  [ctx rid decision]
+  (command! 9502 (:id ctx) :material-requests :decision rid {:decision decision :reason "独立核验物料申请"}))
+
+
+(defn- submit-bom!
+  "把 BOM 提交独立冻结审批,停在 in_review."
+  [ctx rid]
+  (command! (:id ctx) :boms :freeze rid {:reviewer_id 9502 :evidence_ids [(:evidence ctx)]}))
+
+
+(defn- decide-bom!
+  "由独立审批人冻结或驳回 BOM."
+  [ctx rid decision]
+  (command! 9502 (:id ctx) :boms :decision rid {:decision decision :reason "独立核验物料清单"}))
+
+
+(defn- new-request!
+  "创建一条物料申请并返回记录."
+  [ctx code]
+  (command! (:id ctx) :material-requests :create nil
+            (merge (refs ctx) {:code code :title "审批闭环物料" :request_type "standard"
+                               :owner_id 9501 :needed_on "2026-10-10"
+                               :items [{:code (str code "-P") :name "部件" :quantity 1 :unit "个"}]})))
+
+
+(deftest material-approval-summary-is-pure-derived-read-model
+  (is (false? (:available (materials/material-approval-summary [] []))))
+  (let [empty (materials/material-approval-summary [] [])]
+    (is (zero? (:total empty)))
+    (is (zero? (:closure-pct empty)))
+    (is (= [{:key "request" :total 0 :approved 0 :in-review 0 :rejected 0 :draft 0 :closure-pct 0}
+            {:key "bom" :total 0 :approved 0 :in-review 0 :rejected 0 :draft 0 :closure-pct 0}]
+           (mapv #(select-keys % [:key :total :approved :in-review :rejected :draft :closure-pct]) (:by-source empty)))))
+  (let [rows (materials/material-approval-summary
+              [{:status "approved"} {:status "draft"} {:status "in_review"} {:status "rejected"}]
+              [{:status "frozen"} {:status "partial"} {:status "ready"} {:status "draft"}])
+        by (into {} (map (juxt :key identity) (:by-source rows)))]
+    (is (true? (:available rows)))
+    (is (= 8 (:total rows)))
+    (is (= 4 (:approved rows)))
+    (is (= 50 (:closure-pct rows)))
+    (is (= 4 (:request-total rows)))
+    (is (= 4 (:bom-total rows)))
+    (is (= ["request" "bom"] (mapv :key (:by-source rows))))
+    (is (= {:total 4 :approved 1 :in-review 1 :rejected 1 :draft 1 :closure-pct 25}
+           (select-keys (get by "request") [:total :approved :in-review :rejected :draft :closure-pct])))
+    (is (= {:total 4 :approved 3 :in-review 0 :rejected 0 :draft 1 :closure-pct 75}
+           (select-keys (get by "bom") [:total :approved :in-review :rejected :draft :closure-pct])))))
+
+
+(deftest material-approval-summary-survives-real-workspace-lifecycle
+  (let [ctx (context!) id (:id ctx)
+        draft-req (new-request! ctx "MR-D")
+        review-req (new-request! ctx "MR-R")
+        approved-req (new-request! ctx "MR-A")
+        rejected-req (new-request! ctx "MR-X")
+        _ (submit-material! ctx (:id review-req))
+        _ (submit-material! ctx (:id approved-req))
+        _ (decide-material! ctx (:id approved-req) "approved")
+        _ (submit-material! ctx (:id rejected-req))
+        _ (decide-material! ctx (:id rejected-req) "rejected")
+        bom-draft (command! id :boms :create nil {:code "BOM-D" :title "受控草稿" :material_request_id (:id approved-req)})
+        bom-frozen (command! id :boms :create nil {:code "BOM-F" :title "受控冻结" :material_request_id (:id approved-req)})
+        bom-kitted (command! id :boms :create nil {:code "BOM-K" :title "受控齐套" :material_request_id (:id approved-req)})
+        bom-rejected (command! id :boms :create nil {:code "BOM-X" :title "受控驳回" :material_request_id (:id approved-req)})
+        _ (submit-bom! ctx (:id bom-frozen))
+        _ (decide-bom! ctx (:id bom-frozen) "approved")
+        _ (submit-bom! ctx (:id bom-kitted))
+        _ (decide-bom! ctx (:id bom-kitted) "approved")
+        _ (command! id :boms :kit (:id bom-kitted) {:items [{:code "MR-A-P" :available_quantity 1}] :evidence_ids [(:evidence ctx)]})
+        _ (submit-bom! ctx (:id bom-rejected))
+        _ (decide-bom! ctx (:id bom-rejected) "rejected")
+        ws (delivery/workspace *service* (actor 9501) id)
+        summary (:material_approval_summary ws)
+        status-of (fn [rows code] (:status (first (filterv #(= code (:code %)) rows))))]
+    (is (= "draft" (status-of (:material_requests ws) "MR-D")))
+    (is (= "in_review" (status-of (:material_requests ws) "MR-R")))
+    (is (= "approved" (status-of (:material_requests ws) "MR-A")))
+    (is (= "rejected" (status-of (:material_requests ws) "MR-X")))
+    (is (= "draft" (status-of (:boms ws) "BOM-D")))
+    (is (= "frozen" (status-of (:boms ws) "BOM-F")))
+    (is (= "ready" (status-of (:boms ws) "BOM-K")))
+    (is (= "rejected" (status-of (:boms ws) "BOM-X")))
+    (is (true? (:available summary)))
+    (is (= 8 (:total summary)))
+    (is (= 3 (:approved summary)))
+    (is (= 1 (:in-review summary)))
+    (is (= 2 (:rejected summary)))
+    (is (= 2 (:draft summary)))
+    (is (= 4 (:request-total summary)))
+    (is (= 4 (:bom-total summary)))
+    (is (= 38 (:closure-pct summary)))
+    (is (= ["request" "bom"] (mapv :key (:by-source summary))))
+    (is (= "not_configured" (:external_sync_status ws)))
+    (is (some? (:kitting_rollup ws))))))

@@ -163,6 +163,32 @@
          {:title "责任人" :dataIndex "owner_id" :render #(w/related-label (:users options) :user_id :nick_name %)}
          {:title "齐套登记" :dataIndex "kit_recorded" :render #(if % "已登记" "未登记")}] nil]]]]))
 
+(defn- material-approval-summary-section
+  "B11/B08 交付物料审批闭环只读汇总: 独立审批链健康度 (批准落地/审批中/已驳回/草稿 + 闭环率) 与申请/清单两源分解 (读取时派生, 不门控)."
+  [{:keys [model]}]
+  (let [summary (:material_approval_summary model)
+        pct (:closure-pct summary 0)
+        columns (clj->js [{:title "来源" :dataIndex "label" :width 100}
+                          {:title "总数" :dataIndex "total" :width 70}
+                          {:title "已批准落地" :dataIndex "approved" :width 100}
+                          {:title "审批中" :dataIndex "in-review" :width 80}
+                          {:title "已驳回" :dataIndex "rejected" :width 80}
+                          {:title "草稿" :dataIndex "draft" :width 70}
+                          {:title "闭环率" :dataIndex "closure-pct" :width 200
+                           :render (fn [v] (r/as-element [antd/progress {:percent (or v 0) :size "small" :style {:width 160}}]))}])]
+    [shared/panel "物料审批闭环" "统计备料申请与BOM清单的独立审批链: 批准落地 (申请approved / BOM冻结及齐套) 计为闭环, 免迁移读取时派生, 不构成任何门控" nil
+     (if-not (:available summary)
+       [shared/empty-state "暂无物料申请与BOM记录" nil]
+       [:div {:style {:display "grid" :gap 16}}
+        [antd/space {:wrap true}
+         [antd/tag {:color (cond (>= pct 80) "green" (>= pct 50) "gold" :else "orange")} (str "闭环率 " pct "%")]
+         [antd/tag {:color "blue"} (str "已批准落地 " (:approved summary) "/" (:total summary))]
+         [antd/tag (str "审批中 " (:in-review summary))]
+         [antd/tag {:color "orange"} (str "已驳回 " (:rejected summary))]
+         [antd/tag {:color "default"} (str "草稿 " (:draft summary))]]
+        [antd/table {:rowKey "key" :size "small" :pagination false
+                     :dataSource (clj->js (:by-source summary)) :columns columns}]])]))
+
 (defn- materials-section
   "备料审批与冻结BOM保留清晰来源关系."
   [context]
@@ -174,7 +200,8 @@
    [record-section context :boms "boms" "BOM与齐套" "冻结清单保持不变,齐套率按满足数量的物料行计算"
     "建立BOM" forms/bom-dialog [(w/text-column :complete_line_count "齐套行数")
                              (w/text-column :required_line_count "总行数") (w/text-column :kit_percent "齐套率%")]]
-   [kitting-rollup-section context]])
+   [kitting-rollup-section context]
+   [material-approval-summary-section context]])
 
 (defn- step-timeline
   "装配执行明细: 上岛/装配/单机交检/连线交检/下岛/交接."
