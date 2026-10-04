@@ -90,6 +90,24 @@ async function open(page, id, section, subsection) {
   await settle(page);
 }
 
+// 治理洞察全景: 抽屉内容在 .ant-drawer-body 自身滚动容器里, fraction 0..1 按比例平滑下滚, 把页签内的只读汇总面板依次扫过镜头.
+async function scrollDrawer(page, fraction) {
+  await page.evaluate(f => {
+    const body = document.querySelector('.ant-drawer-body');
+    if (body) { const max = body.scrollHeight - body.clientHeight; if (max > 0) body.scrollTo({ top: max * f, behavior: 'smooth' }); }
+  }, fraction);
+  await page.waitForTimeout(500);
+}
+
+// 打开某页签后自上而下逐段滚动, 每段一条字幕; 用于只读洞察面板的巡览 (不依赖面板标题精确匹配, 保证整页面板都被扫到).
+async function panTab(page, id, rec, shotId, section, sub) {
+  await open(page, id, section, sub);
+  await rec.shot(shotId);
+  const cap = S.byId[shotId].captions.length;
+  for (let i = 1; i < cap; i++) { await scrollDrawer(page, i / cap); await rec.next(); }
+  await rec.end();
+}
+
 // 生命周期按钮在项目概况卡片右上角, 确认弹窗的确定按钮与标题同名.
 async function transition(page, id, button, title) {
   await tap(page, drawer(page).getByRole('button', { name: new RegExp(`${button}$`) }));
@@ -852,7 +870,34 @@ const CHAPTERS = {
     await glide(page, drawer(page).getByText('未配置', { exact: true }).first());
     await rec.end();
   },
-  '11': async ({ page, reviewer, rec, st, h }) => {
+  '11': async ({ page, rec, st }) => {
+    // 治理洞察全景: 集中巡览 30+ 项目级只读汇总面板 (免迁移/读取时派生/不门控).
+    // 财务之后, 收尾之前: 此时全生命周期数据齐备且项目未只读, 各面板均有内容. 每镜打开对应页签后自上而下滚动扫过面板.
+    await panTab(page, id, rec, '11-1', '需求与治理', 'URS与追踪');
+    await panTab(page, id, rec, '11-2', '需求与治理', '证据版本');
+    await panTab(page, id, rec, '11-3', '需求与治理', '干系人与沟通');
+    // 11-4 跨 DQ与局部暂停 (DQ 闭环汇总) 与 Gate评审 (关口签核/例外放行) 两页签
+    await open(page, id, '需求与治理', 'DQ与局部暂停');
+    await rec.shot('11-4');
+    await scrollDrawer(page, 0.5);
+    await rec.next();
+    await tabUi(page, 'Gate评审');
+    await scrollDrawer(page, 0.5);
+    await rec.end();
+    await panTab(page, id, rec, '11-5', '需求与治理', '风险与问题');   // 风险应对/类别/升级/评分热力/复审节奏
+    await panTab(page, id, rec, '11-6', '需求与治理', '风险与问题');   // 问题升级/闭环严重度/解决方式覆盖
+    await panTab(page, id, rec, '11-7', '需求与治理', '会议行动');     // 行动闭环率/纪要发布覆盖度
+    await panTab(page, id, rec, '11-8', '需求与治理', '变更控制');     // 变更闭环汇总/委员会表决
+    await panTab(page, id, rec, '11-9', '需求与治理', '会议行动');     // 未闭环整改总览 (跨来源)
+    await panTab(page, id, rec, '11-10', '计划与执行', 'WBS与排程');   // 基线偏差/范围覆盖性审查
+    await panTab(page, id, rec, '11-11', '计划与执行', '资源与日历');  // 资源负荷/投入覆盖/关键路径缺口
+    await panTab(page, id, rec, '11-12', '计划与执行', '进度卷积');    // 绩效偏差/纠正措施闭环
+    await panTab(page, id, rec, '11-13', '工程交付', '备料与BOM');     // 齐套多层/物料审批闭环/装配执行进度
+    await panTab(page, id, rec, '11-14', '工程交付', '质量试验');      // 试验执行闭环/试验整改闭环
+    await panTab(page, id, rec, '11-15', '工程交付', '工勘与现场');    // 现场任务进度/交底及时率/工勘闭环
+    await panTab(page, id, rec, '11-16', '项目费用');                  // 工时/四算/分摊闭环/毛利/预算占用
+  },
+  '12': async ({ page, reviewer, rec, st, h }) => {
     const { id, who, evidence } = st;
     const { command, passGate } = h;
     const planNow = await api(page, 'GET', base(id) + '/planning');
@@ -861,7 +906,7 @@ const CHAPTERS = {
     }
     await passGate('sat-confirm', 'SAT 确认 Gate 检查');
     await open(page, id, '需求与治理', 'Gate评审');
-    await rec.shot('11-1');
+    await rec.shot('12-1');
     await glide(page, drawer(page).getByText('SAT条件与SAT确认Gate (G8)').first());
     await rec.next();
     await tabUi(page, '项目概况');
@@ -870,7 +915,7 @@ const CHAPTERS = {
     await rec.end();
 
     await tabUi(page, '结项与移交');
-    await rec.shot('11-2');
+    await rec.shot('12-2');
     const items = (await api(page, 'GET', base(id) + '/closure')).checks;
     const firstCheck = '交付物清单归档';
     await tap(page, row(page, firstCheck).getByRole('button', { name: '确认完成', exact: true }));
@@ -903,7 +948,7 @@ const CHAPTERS = {
     await glide(page, drawer(page).getByText('当前结项前置检查已通过.', { exact: true }));
     await rec.end();
 
-    await rec.shot('11-3');
+    await rec.shot('12-3');
     await tap(page, drawer(page).getByRole('button', { name: '提交关闭审批', exact: true }));
     await choose(page, modal(page, '提交项目关闭审批'), 'reviewer_id', who.username);
     await save(page, '提交项目关闭审批');
@@ -911,7 +956,7 @@ const CHAPTERS = {
     await rec.end();
 
     await open(reviewer, id, '结项与移交');
-    await rec.shot('11-4');
+    await rec.shot('12-4');
     await tap(reviewer, drawer(reviewer).getByRole('button', { name: '批准关闭', exact: true }));
     await typeInto(reviewer, modal(reviewer, '批准项目关闭').locator('[id="reason"]'), '交付, 质量, 工时, 决算与清单已独立核对', 35);
     await save(reviewer, '批准项目关闭');
@@ -919,7 +964,7 @@ const CHAPTERS = {
     await rec.end();
 
     await open(page, id);
-    await rec.shot('11-5');
+    await rec.shot('12-5');
     await transition(page, id, '正式关闭', '正式关闭项目');
     await rec.next();
     await glide(page, drawer(page).getByText('项目已结束,当前为只读视图', { exact: true }));
