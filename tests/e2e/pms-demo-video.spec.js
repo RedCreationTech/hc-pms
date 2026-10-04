@@ -396,7 +396,7 @@ const CHAPTERS = {
       await mutate(reviewer, id, `/governance/dqs/${dq.id}/decision`, { decision: 'approved', reason: '独立签认' });
       await open(page, id, '需求与治理', 'DQ与局部暂停');
     });
-    await glide(page, row(page, 'DQ-01').getByText('3/3'));
+    await glide(page, row(page, 'DQ-01').getByText('3/3', { exact: true }));
     await rec.end();
   },
   '04': async ({ page, reviewer, rec, st, h }) => {
@@ -871,6 +871,7 @@ const CHAPTERS = {
     await rec.end();
   },
   '11': async ({ page, rec, st }) => {
+    const { id } = st;
     // 治理洞察全景: 集中巡览 30+ 项目级只读汇总面板 (免迁移/读取时派生/不门控).
     // 财务之后, 收尾之前: 此时全生命周期数据齐备且项目未只读, 各面板均有内容. 每镜打开对应页签后自上而下滚动扫过面板.
     await panTab(page, id, rec, '11-1', '需求与治理', 'URS与追踪');
