@@ -318,6 +318,30 @@
              (cons (when-not (:comparable cm)
                      [antd/tag {:color "red"} "各口径币种不一致, 毛利率不可横向比较"])
                    (map row (:by-kind cm)))))]))
+
+(defn- commitment-closure-section
+  "H12 承诺成本闭环健康度: 按项目全部承诺台账行只读派生, 汇总草稿/审批中/已批准/已驳回/已释放/已取消与审批完成率, 并对已批准与已释放承诺给出本位承诺总额, 已转实付额, 剩余未释放额与释放闭环率, 不构成任何门控."
+  [{:keys [model]}]
+  (let [cc (:commitment_closure model)]
+    [shared/panel "承诺成本闭环汇总" "只读派生 · 反映承诺独立审批与转实付释放的推进情况, 不构成任何门控" nil
+     (if-not (:available cc)
+       [:span {:style {:color "#98a2b3"}} "尚无承诺登记, 登记后此处自动汇总承诺闭环健康度."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "geekblue"} (str "承诺总数 " (:total cc))]
+         [antd/tag {:color "default"} (str "草稿 " (:draft cc))]
+         [antd/tag {:color "blue"} (str "审批中 " (:submitted cc))]
+         [antd/tag {:color "cyan"} (str "已批准 " (:approved cc))]
+         [antd/tag {:color "green"} (str "已释放 " (:released cc))]
+         (when (pos? (:rejected cc)) [antd/tag {:color "red"} (str "已驳回 " (:rejected cc))])
+         (when (pos? (:cancelled cc)) [antd/tag {:color "orange"} (str "已取消 " (:cancelled cc))])]
+        [:div {:style {:fontSize 13 :color "#4b5563"}}
+         (str "共 " (:total cc) " 条承诺, 已作决定 " (:processed cc) " 条, 待处理 " (:pending cc) " 条, 审批完成率 " (:review-pct cc) "%")]
+        [:div {:style {:fontSize 12 :color "#718096"}}
+         (str "本位承诺总额 " (:base-amount cc) " 元 / 已转实付 " (:released-amount cc) " 元 / 剩余未释放 " (:remaining-amount cc) " 元 ")]
+        [antd/space {:wrap true}
+         [antd/tag {:color (if (>= (:release-pct cc) 100) "green" "purple")} (str "释放闭环率 " (:release-pct cc) "%")]]])]))
+
 (defn- cost-actions
   "根据版本状态提供条目维护,提交或独立审批."
   [{:keys [base options editable? approve? open! select!]} cost]
@@ -498,6 +522,7 @@
                                                 [cost-section context] [ledger-section context selected] [allocation-review-section context] [allocation-history (:model context)]])}
                        {:key "commitments" :label "承诺与预算控制"
                         :children (r/as-element [:div {:style {:display "grid" :gap 20}}
+                                                 [commitment-closure-section context]
                                                  [budget-control-panel context]
                                                  [commitment-section context]
                                                  [budget-rules-section context]])}

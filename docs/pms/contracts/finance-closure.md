@@ -74,6 +74,10 @@ GET `/finance` 读模型的 `locked_periods` 同时供承诺台账复用: 前端
 
 本轮为本地承诺成本纳入会计期间封账的门控与界面可见性, 不宣称完成封期与结算/税额/汇率的联动, 也不承诺 MySQL 迁移回归与生产验收.
 
+## 承诺成本闭环汇总 (H12cc)
+
+GET `/finance` 读模型新增顶层只读派生键 `commitment_closure` (承诺成本闭环汇总, 免迁移/不构成门控): 由领域纯函数 `finance/commitment-closure-summary` 对整项目 `:commitments` 逐条状态只读聚合, 与逐条承诺写路径, 预算占用门控 (`budget_control`), 四算审批闭环 (`cost_review`), 工时审核闭环 (`timesheet_review`), 分摊闭环 (`allocation_review`) 及封期口径 (`locked_periods`) 正交. 输出 `available` (是否有承诺登记), `total`/`draft`/`submitted`/`approved`/`rejected`/`released`/`cancelled` 各状态计数, `pending` (=draft+submitted)/`processed` (=approved+released+rejected+cancelled), `review-pct` (processed/total 四舍五入百分比, total=0 时为 0); 并对 `approved`+`released` 两态承诺按本位最小货币单位聚合给出 `base-amount` (承诺总额)/`released-amount` (已转实付)/`remaining-amount` (剩余未释放, 均规范化两位小数字符串) 与 `release-pct` (= round(100 × released-minor / base-minor), 无可释放承诺时 0). 状态互斥故每条承诺恰落入一个状态桶; 释放只累加 `released` 不改 `base`, 剩余守恒. 前端项目费用页"承诺与预算控制"页签顶部 (预算占用评估面板之前) 渲染只读汇总面板 "承诺成本闭环汇总" (承诺总数/草稿/审批中/已批准/已释放/已驳回·已取消仅 `pos?` 时渲染 彩色徽标 + 一行"共 X 条承诺, 已作决定 Y 条, 待处理 Z 条, 审批完成率 P%" + "本位承诺总额 / 已转实付 / 剩余未释放"金额行 + 释放闭环率 purple/green 徽标), 空态显示引导文案"尚无承诺登记, 登记后此处自动汇总承诺闭环健康度.". 该面板仅呈现承诺独立审批与转实付释放的推进健康度, 不落库不投递不门控任何写操作.
+
 ## 收尾和关闭
 
 GET `/closure`: project:query,返回checks/handoffs/lessons/approval/reopen_request/blockers/ready/progress/lesson_summary/project_version. 不包含成本金额或批准快照正文. ready只表示业务材料齐备,最终closed仍须独立批准.

@@ -815,6 +815,23 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: H12 交付的是"承诺与实际分列不双计 + 预算基线口径占用率门控(warn/require_approval/block) + 强制放行留痕 + 部分转实付剩余守恒"这一条本地闭环, 覆盖矩阵 H12"已批准预算/已承诺未发生/实际与剩余区分/阈值超支进入批准流程"的 `implemented / local` 子集; 但 H12 行仍含"预测完工成本 EAC 公式""税额/多币种/封期对账(与 H13 交叠)"等未完成子项, 故按整行完整目标看仍属工程验证, 不等于生产财务签收.
 
+## H12cc 承诺成本闭环汇总只读派生 (本轮增补, 2026-10-05)
+
+设计与关闭口径: 承接 H12 承诺台账, 把此前只有逐条 `commitments` 台账与 `budget_control` 占用快照的承诺域提升为一个项目级闭环健康度汇总, 是财务域"给读模型加只读派生洞察列/面板"套路的又一免迁移增量 (与 `cost_review`/`timesheet_review`/`allocation_review`/`cost_margin` 姊妹面板同构). 领域纯函数 `finance/commitment-closure-summary` 在 `overview` 读取时对整项目 `:commitments` 逐条状态只读聚合, 经 `attach-commitment-closure-summary` 挂到顶层 `commitment_closure` 键 (内层键连字符不带尾随 `?`): `available`/`total`/`draft`/`submitted`/`approved`/`rejected`/`released`/`cancelled`/`pending`(=draft+submitted)/`processed`(=approved+released+rejected+cancelled)/`review-pct`(=round(100×processed/total), total=0 时 0); 并对 `approved`+`released` 两态承诺按 `:base_minor`/`:released_minor` (list-all 保留的原始整数最小货币单位) 聚合给出 `base-amount`/`released-amount`/`remaining-amount` (均 `money/money` 规范化两位小数字符串) 与 `release-pct`(=round(100×released/base), 无可释放承诺时 0). 不新增表/迁移/kind/命令/路由, 不落库不投递不构成任何门控 (占用率门控仍只在 `submit!` 的 `evaluate-and-gate!` 处, 本汇总与 `budget_control` 口径正交). 前端"承诺与预算控制"页签在"预算占用评估"面板之前新增只读"承诺成本闭环汇总"面板 (承诺总数/草稿/审批中/已批准/已释放彩色徽标, 已驳回·已取消仅 `pos?` 时渲染, 加"共 X 条 / 已作决定 Y / 待处理 Z / 审批完成率 P%"行 + "本位承诺总额 / 已转实付 / 剩余未释放"金额行 + 释放闭环率 purple/green 徽标), 空态显示引导文案.
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| H12 财务承诺测试 (CLI SQLite) | 9 tests / 65 assertions, 0 failures/errors | `clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-finance-commitment-test'` 冷 JVM 通过, 新增 `h12-commitment-closure-summary-empty-and-unprocessed` (空台账 available=false; 混合 draft+submitted+cancelled 给 total=3/pending=2/processed=1/review-pct=33 且无已批准已释放时 base/released/remaining=0.00, release-pct=0) 与 `h12-commitment-closure-summary-amounts-follow-release` (两条 approved+released 聚合 base=300.00/released=150.00/remaining=150.00/release-pct=50, 部分转实付保持 approved 仍计入 base) |
+| 全量 PMS 回归 (CLI SQLite) | 258 tests / 3586 assertions, 0 failures/errors | `clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'` 全新库通过, 只读派生不改任何既有承诺/预算用例 |
+| 前端编译 | 0 warnings | `npx shadow-cljs compile app` 通过, 新面板编译无警告 |
+| Chrome 浏览器 (Playwright) | 1 passed | `pms-h12cc.spec.js` (隔离 `:3100` 后端, 独立空库): 空态面板引导文案可见 -> 界面登记一条草稿承诺 200.00 -> 面板"承诺总数 1/草稿 1/审批完成率 0%/本位承诺总额 0.00 元"实时刷新 (截图 h12cc-2) -> 真实 HTTP 追加一条 submitted 与一条 cancelled -> 面板"承诺总数 3/草稿 1/审批中 1/已取消 1/已作决定 1/待处理 2/审批完成率 33%/base 0.00/释放 0%" (截图 h12cc-3) -> 真实 GET `/finance` 回显 `commitment_closure` 各计数与 `['review-pct']=33`/`['base-amount']='0.00'` 与界面同源一致且逐条承诺 `status` 不因只读聚合漂移; 全程单上下文无 pageerrors; 截图存 `reports/h12cc/` |
+
+按 2026-10-05 B 列口径: 单上下文界面即可见的承诺闭环事实 (空态引导, 草稿登记后总数/草稿数/审批率 0%/base 0.00, 追加 submitted+cancelled 后的多态计数与审批完成率 33%, 真实 GET 同源回显) 计入浏览器验证; 面板出现非零 `base-amount`/`released-amount`/`release-pct` 与"已批准/已释放"徽标翻转依赖独立审批人第二浏览器上下文批准 + admin 转实付才能闭环, 该翻转步骤不计入单上下文 B 列通过, 仅作额外证据截图 (h12cc-4) 保留, 待专门多浏览器上下文/多用户真实登录 spec 复核.
+
+本轮未执行 (如实记录): MySQL 无本机实例未实跑 (本增量免迁移无 DDL, 无迁移回归需求); 汇总只做承诺域自身闭环健康度, 不与 `budget_control` 占用率合并解读, 不做 EAC/税额/多币种对账 (归 H13).
+
+边界: H12cc 交付的是"承诺台账项目级闭环健康度只读汇总 (各状态计数 + 审批完成率 + 已批准/已释放本位金额聚合 + 释放闭环率)"这一条免迁移只读洞察, 与 H12 承诺写路径/预算门控正交, 不上调 H12 行整行状态 (仍 `implemented / local`, 待 EAC 公式与税额/多币种/封期对账).
+
 ## H13a 会计期间封期与费用版本门控 (本轮增补, 2026-09-28)
 
 设计与关闭口径: 兑现矩阵 H13 长期列为"封期"的一环, 拆成免迁移纵切 H13a. 不新增表或迁移, 直接复用平台级 `period-lock` 配置 (config kind, 状态 draft -> locked -> retired, 见平台配置合同与 `pms_config_test` 的封期生命周期用例). 工时侧早已用 `finance_time/period-open!` 按同一 `config/published-by-code q "period-lock" period` 门控; 本轮把同一口径扩展到成本版本: 领域 `finance_cost/period-open!` 在写事务内检查成本版本所属 `period` 是否处于 locked, 命中返回 409. 门控覆盖六条成本写路径 create/add-entry/delete-entry/submit/revise/cancel; 独立审批 `review!` 有意不受门控 (金额提交时已冻结, 与工时封期口径一致, 不让审批链因封期卡死). GET `/finance` 读模型追加 `locked_periods` 供前端渲染. 前端成本版本台账"期间"列对已封账期间显示红色"已封账"徽标并在面板顶部展示警告横幅; 锁定/解锁入口仍统一在平台配置页, 项目费用页只呈现状态不重复设置.

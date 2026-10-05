@@ -267,4 +267,59 @@
       (config/create! *svc* (actor 9501) "period-lock" {:period "2026-08" :reason "月结封账"})
       (is (= "approved" (:status (:result (command! 9502 commitment/review! id [cid] {:decision "approved" :reason "封期后独立批准"})))))
       (let [lock (first (filter #(= "2026-08" (:period %)) (config/published (:query-fn *svc*) "period-lock")))]
-        (config/retire! *svc* (actor 9501) "period-lock" (:id lock) {:reason "重开月结"})))))))
+        (config/retire! *svc* (actor 9501) "period-lock" (:id lock) {:reason "重开月结"}))))))
+
+(deftest h12-commitment-closure-summary-derivation
+  (testing "承诺闭环汇总按状态计数, 给出待处理/已决定/审批完成率, 并对已批准与已释放汇总本位金额与释放闭环率, 只读不门控."
+    (let [id (project!)
+          draft (create-commitment! id {:kind "purchase" :code "CC-D" :supplier "甲" :currency "CNY" :gross "30.00" :reviewer_id 9502})
+          sub (create-commitment! id {:kind "purchase" :code "CC-S" :supplier "乙" :currency "CNY" :gross "70.00" :reviewer_id 9502})
+          can (create-commitment! id {:kind "purchase" :code "CC-X" :supplier "丙" :currency "CNY" :gross "10.00" :reviewer_id 9502})
+          app (create-commitment! id {:kind "purchase" :code "CC-A" :supplier "丁" :currency "CNY" :gross "100.00" :reviewer_id 9502})
+          rel (create-commitment! id {:kind "purchase" :code "CC-R" :supplier "戊" :currency "CNY" :gross "50.00" :reviewer_id 9502})]
+      (command! commitment/submit! id [(:id sub)] {:baseline "budget"})
+      (command! commitment/cancel! id [(:id can)] {:reason "登记错误"})
+      (command! commitment/submit! id [(:id app)] {:baseline "budget"})
+      (command! 9502 commitment/review! id [(:id app)] {:decision "approved" :reason "批准"})
+      (command! commitment/release! id [(:id app)] {:amount "40.00"})
+      (command! commitment/submit! id [(:id rel)] {:baseline "budget"})
+      (command! 9502 commitment/review! id [(:id rel)] {:decision "approved" :reason "批准"})
+      (command! commitment/release! id [(:id rel)] {:amount "50.00"})
+      (let [rows (:commitments (finance/overview *svc* (actor 9501) id))
+            s (finance/commitment-closure-summary rows)]
+        (is (true? (:available s)))
+        (is (= 5 (:total s)))
+        (is (= 1 (:draft s)))
+        (is (= 1 (:submitted s)))
+        (is (= 1 (:approved s)))
+        (is (= 0 (:rejected s)))
+        (is (= 1 (:released s)))
+        (is (= 1 (:cancelled s)))
+        (is (= 2 (:pending s)))
+        (is (= 3 (:processed s)))
+        (is (= 60 (:review-pct s)))
+        (is (= "150.00" (:base-amount s)))
+        (is (= "90.00" (:released-amount s)))
+        (is (= "60.00" (:remaining-amount s)))
+        (is (= 60 (:release-pct s)))
+        (is (= "submitted" (:status (first (filter #(= "CC-S" (:code %)) rows)))))
+        (is (= "approved" (:status (first (filter #(= "CC-A" (:code %)) rows)))))))))
+
+(deftest h12-commitment-closure-empty-and-overview
+  (testing "无承诺时闭环汇总 available=false 且金额为零, 概览顶层 :commitment_closure 与直接派生一致, 不改变逐条承诺."
+    (let [id (project!)
+          empty (finance/commitment-closure-summary [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:total empty)))
+      (is (= 0 (:review-pct empty)))
+      (is (= 0 (:release-pct empty)))
+      (is (= "0.00" (:base-amount empty)))
+      (is (= "0.00" (:released-amount empty)))
+      (is (= "0.00" (:remaining-amount empty)))
+      (let [c (create-commitment! id)
+            _ (command! commitment/submit! id [(:id c)] {:baseline "budget"})
+            state (finance/overview *svc* (actor 9501) id)]
+        (is (= (finance/commitment-closure-summary (:commitments state)) (:commitment_closure state)))
+        (is (= 1 (get-in state [:commitment_closure :total])))
+        (is (= 1 (get-in state [:commitment_closure :submitted])))
+        (is (= 0 (get-in state [:commitment_closure :review-pct]))))))))

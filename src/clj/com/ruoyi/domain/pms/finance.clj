@@ -138,6 +138,48 @@
   [data]
   (assoc data :cost_margin (margin-summary (:cost_versions data))))
 
+(defn commitment-closure-summary
+  "H12 按项目全部承诺台账行只读聚合承诺闭环健康度: 总数/各状态计数(草稿 draft, 审批中 submitted, 已批准 approved, 已驳回 rejected, 已释放 released, 已取消 cancelled)/待处理数(draft+submitted)/已作决定数(approved+released+rejected+cancelled)/审批完成率; 并对已批准及已释放承诺按本位金额汇总承诺总额/已转实付额/剩余未释放额与释放闭环率; 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
+  [commitments]
+  (let [total (count commitments)
+        status-count (fn [x] (count (filterv #(= x (:status %)) commitments)))
+        draft (status-count "draft")
+        submitted (status-count "submitted")
+        approved (status-count "approved")
+        rejected (status-count "rejected")
+        released (status-count "released")
+        cancelled (status-count "cancelled")
+        pending (+ draft submitted)
+        processed (+ approved released rejected cancelled)
+        releasing (filterv #(contains? #{"approved" "released"} (:status %)) commitments)
+        base-minor (reduce + 0 (map :base_minor releasing))
+        released-minor (reduce + 0 (map :released_minor releasing))
+        remaining-minor (- base-minor released-minor)]
+    {:available (pos? total)
+     :total total
+     :draft draft
+     :submitted submitted
+     :approved approved
+     :rejected rejected
+     :released released
+     :cancelled cancelled
+     :pending pending
+     :processed processed
+     :review-pct (if (pos? total)
+                   (int (Math/round ^double (* 100.0 (/ processed total))))
+                   0)
+     :base-amount (money/money base-minor)
+     :released-amount (money/money released-minor)
+     :remaining-amount (money/money remaining-minor)
+     :release-pct (if (pos? base-minor)
+                    (int (Math/round ^double (* 100.0 (/ released-minor base-minor))))
+                    0)}))
+
+(defn attach-commitment-closure-summary
+  "把 commitment-closure-summary 挂到财务概览读模型顶层 :commitment_closure; 读取时派生, 不改变任何逐条承诺."
+  [data]
+  (assoc data :commitment_closure (commitment-closure-summary (:commitments data))))
+
 (defn overview
   "在项目权限和财务权限交集内返回可对账四算与工时数据."
   [svc actor project-id]
@@ -153,7 +195,7 @@
                 :budget_control {:budget (budget/evaluate q project-id "budget" 0)
                                  :estimate (budget/evaluate q project-id "estimate" 0)}
                 :locked_periods (mapv :period (config/published q "period-lock"))}
-               (summary versions)) time/attach-timesheet-review-summary attach-cost-review-summary attach-allocation-review-summary attach-margin-summary)))))
+               (summary versions)) time/attach-timesheet-review-summary attach-cost-review-summary attach-allocation-review-summary attach-margin-summary attach-commitment-closure-summary)))))
 
 (defn times
   "普通成员仅看本人工时和待本人审核的工时, 不附带财务金额."
