@@ -50,15 +50,31 @@
                        [w/edit-button "确认移交" #(open! {:title "确认交付移交" :path (str base "/handoffs/" (:id row) "/complete")
                                                         :fields [(evidence-field documents) {:key :comment :label "签收说明" :type :textarea :required? true}]})]))) ]])
 
+(defn- lesson-stage-options
+  "H15a 经验适用场景受控枚举选项 (与后端 closure/lesson-stages 白名单一致)."
+  []
+  (mapv #(hash-map :value % :label %)
+        ["启动" "规划" "执行" "监控" "收尾" "质量" "交付" "成本" "风险" "采购" "干系人" "沟通"]))
+
 (defn- lessons
-  "保留有内容的经验复盘,服务下一次交付."
-  [{:keys [base model editable? open!]}]
+  "保留有内容的经验复盘,服务下一次交付. H15a 可选标注适用场景 (受控枚举) 与跟进责任人 (须为有效项目成员)."
+  [{:keys [base model options editable? open!]}]
   [shared/panel "经验复盘" "记录实际经验,原因和改进办法"
    (when editable? [antd/button {:on-click #(open! {:title "登记项目经验" :path (str base "/lessons")
+                                                   :transform (fn [data]
+                                                                (reduce (fn [m k] (let [v (get data k)]
+                                                                                    (if (or (nil? v) (= "" v)) (dissoc m k) m)))
+                                                                        data [:applicable_stage :owner_id]))
                                                    :fields [{:key :title :label "经验主题" :required? true}
                                                             {:key :category :label "经验类别" :required? true}
-                                                            {:key :content :label "经验与改进建议" :type :textarea :required? true}]})} "登记项目经验"])
-   [w/record-table (:lessons model) [(w/text-column :title "主题") (w/text-column :category "类别") (w/text-column :content "经验内容")] nil]])
+                                                            {:key :content :label "经验与改进建议" :type :textarea :required? true}
+                                                            {:key :applicable_stage :label "适用场景 (可选)" :type :select
+                                                             :options (lesson-stage-options)}
+                                                            {:key :owner_id :label "跟进责任人 (可选)" :type :select
+                                                             :options (w/user-options (:users options))}]})} "登记项目经验"])
+   [w/record-table (:lessons model) [(w/text-column :title "主题") (w/text-column :category "类别")
+                                     (w/text-column :applicable_stage "适用场景") (w/text-column :owner_name "责任人")
+                                     (w/text-column :content "经验内容")] nil]])
 
 (defn- approval
   "所有前置项通过后提交独立结项审批 (已发布 \"项目结项\" 审批策略时按策略逐级审批)."
@@ -135,12 +151,13 @@
 
 
 (defn- lesson-summary-panel
-  "H15 经验教训类别分布与作者覆盖度只读汇总: 聚合经验分类覆盖, 分类分布与集中度, 参与人数; 只读派生, 不门控经验登记."
+  "H15 经验教训类别分布与作者覆盖度只读汇总: 聚合经验分类覆盖, 分类分布与集中度, 参与人数; H15a 追加适用场景覆盖与跟进责任人落地度; 只读派生, 不门控经验登记."
   [{:keys [model]}]
   (let [ls (:lesson_summary model)
         rows (:by-category ls)
+        stage-rows (:by-stage ls)
         total (:total ls)]
-    [shared/panel "经验复盘分布" "聚合经验分类覆盖/分布与集中度/参与人数; 只读派生, 不门控经验登记" nil
+    [shared/panel "经验复盘分布" "聚合经验分类覆盖/分布与集中度/参与人数, 及适用场景覆盖与跟进责任人落地度; 只读派生, 不门控经验登记" nil
      (if-not (:available ls)
        [shared/empty-state "尚无项目经验, 登记后跟踪复盘分类分布与贡献覆盖" nil]
        [:div {:style {:display "grid" :gap 12}}
@@ -149,6 +166,10 @@
          [antd/tag {:color "geekblue"} (str "分类覆盖 " (:distinct-categories ls) " 类")]
          [antd/tag {:color "green"} (str "参与人数 " (:author-count ls))]
          [antd/tag (str "最活跃作者 " (:top-author-count ls) " 条")]
+         [antd/tag {:color (if (pos? (:distinct-stages ls 0)) "purple" "default")}
+          (str "适用场景覆盖 " (:stages-declared ls 0) " 条 / " (:distinct-stages ls 0) " 类")]
+         [antd/tag {:color (if (>= (:owner-coverage-pct ls 0) 60) "green" "gold")}
+          (str "责任人落地 " (:owner-assigned ls 0) "/" total " (" (:owner-coverage-pct ls 0) "%)")]
          (when (:dominant-category ls)
            [antd/tag {:color (if (>= (:concentration-pct ls) 60) "gold" "cyan")}
             (str "主导类别 " (:dominant-category ls) " " (:dominant-count ls) " 条")])
@@ -160,7 +181,15 @@
                                         {:title "占比" :key "pct" :width 240
                                          :render (fn [_ row] (let [cnt (aget row "count")
                                                                     pct (if (pos? total) (int (Math/round ^double (* 100.0 (/ cnt total)))) 0)]
-                                                                (r/as-element [antd/progress {:percent pct :size "small" :style {:width 180}}])))}])}]])]))
+                                                                (r/as-element [antd/progress {:percent pct :size "small" :style {:width 180}}])))}])}]
+        (when (seq stage-rows)
+          [antd/table {:rowKey "stage" :size "small" :pagination false :dataSource (clj->js stage-rows)
+                       :columns (clj->js [{:title "适用场景" :dataIndex "stage" :width 200}
+                                          {:title "条数" :dataIndex "count" :width 90}
+                                          {:title "占比" :key "pct" :width 240
+                                           :render (fn [_ row] (let [cnt (aget row "count")
+                                                                      pct (if (pos? total) (int (Math/round ^double (* 100.0 (/ cnt total)))) 0)]
+                                                                  (r/as-element [antd/progress {:percent pct :size "small" :style {:width 180}}])))}])}])])]))
 
 
 (defn- closure-content

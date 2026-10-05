@@ -14,11 +14,12 @@ UPDATE pms_closure_item SET status='completed',evidence_ref=:evidence_ref,commen
 WHERE project_id=:project_id AND item_id=:item_id AND status='open'
 --;;
 -- :name closure/lessons :? :*
-SELECT * FROM pms_lesson WHERE project_id=:project_id ORDER BY created_at,lesson_id
+SELECT l.*,u.nick_name AS owner_name FROM pms_lesson l LEFT JOIN sys_user u ON u.user_id=l.owner_id
+WHERE l.project_id=:project_id ORDER BY l.created_at,l.lesson_id
 --;;
 -- :name closure/insert-lesson! :! :n
-INSERT INTO pms_lesson(lesson_id,project_id,title,category,content,created_by)
-VALUES (:lesson_id,:project_id,:title,:category,:content,:created_by)
+INSERT INTO pms_lesson(lesson_id,project_id,title,category,content,applicable_stage,owner_id,created_by)
+VALUES (:lesson_id,:project_id,:title,:category,:content,:applicable_stage,:owner_id,:created_by)
 --;;
 -- :name closure/approval :? :1
 SELECT * FROM pms_closure_approval WHERE project_id=:project_id ORDER BY project_version DESC LIMIT 1

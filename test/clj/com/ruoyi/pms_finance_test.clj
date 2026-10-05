@@ -363,3 +363,60 @@
       ;; 只读派生: 不改变 progress 的经验计数, 也不改动任何写路径
       (is (= 3 (:lessons (:progress ov))))
       (is (= 3 (count (:lessons ov)))))))
+
+(deftest lesson-context-owner-persists-and-echoes-in-read-model
+  (let [id (project!)]
+    ;; 可选标注: 适用场景 + 有效项目成员 (9402) 作为跟进责任人
+    (command! closure/create-lesson! id [] {:title "交付现场经验" :category "交付" :content "设备到货延迟"
+                                            :applicable_stage "执行" :owner_id 9402})
+    (command! closure/create-lesson! id [] {:title "风险登记经验" :category "风险" :content "概率低估"
+                                            :applicable_stage "执行" :owner_id 9403})
+    (command! closure/create-lesson! id [] {:title "复盘会议经验" :category "质量" :content "评审不足"
+                                            :applicable_stage "收尾"})
+    (command! closure/create-lesson! id [] {:title "未标注经验" :category "成本" :content "留空兼容"})
+    ;; 写路径回显服务端规范化字段 (命令经 kernel/mutate! 返回 {:result <记录> :project_version})
+    (let [created (:result (command! closure/create-lesson! id [] {:title "带责任人" :category "交付" :content "验收"
+                                                                   :applicable_stage "监控" :owner_id 9402}))]
+      (is (= "监控" (:applicable_stage created)))
+      (is (= 9402 (:owner_id created))))
+    ;; 读模型逐行回显 applicable_stage / owner_id / owner_name (LEFT JOIN sys_user)
+    (let [ov (closure/overview *svc* (actor 9401) id)
+          lessons (:lessons ov)
+          by-title (reduce (fn [m l] (assoc m (:title l) l)) {} lessons)]
+      (is (= "执行" (:applicable_stage (by-title "交付现场经验"))))
+      (is (= 9402 (:owner_id (by-title "交付现场经验"))))
+      (is (= "财务测试9402" (:owner_name (by-title "交付现场经验"))))
+      (is (nil? (:owner_id (by-title "未标注经验"))))
+      (is (nil? (:owner_name (by-title "未标注经验")))))
+    ;; lesson-summary 追加只读派生: 场景分布与责任人落地度
+    (let [ls (:lesson_summary (closure/overview *svc* (actor 9401) id))]
+      (is (:available ls))
+      (is (= 5 (:total ls)))
+      (is (= 4 (:stages-declared ls)))
+      (is (= 3 (:distinct-stages ls)))
+      (is (= [{:stage "执行" :count 2} {:stage "收尾" :count 1} {:stage "监控" :count 1}] (:by-stage ls)))
+      (is (= 3 (:owner-assigned ls)))
+      (is (= 60 (:owner-coverage-pct ls))))))
+
+(deftest lesson-invalid-stage-rejected
+  (let [id (project!)]
+    (is (= 400 (error-status #(command! closure/create-lesson! id [] {:title "坏场景" :category "交付" :content "x"
+                                                                      :applicable_stage "未知场景"}))))
+    ;; 合法场景仍然通过, 与枚举白名单一致
+    (is (= "采购" (:applicable_stage (:result (command! closure/create-lesson! id [] {:title "好场景" :category "交付" :content "y"
+                                                                                     :applicable_stage "采购"})))))))
+
+(deftest lesson-owner-must-be-valid-member
+  (let [id (project!)]
+    ;; 不存在的用户作为跟进责任人 -> 400
+    (is (= 400 (error-status #(command! closure/create-lesson! id [] {:title "坏责任人" :category "交付" :content "x"
+                                                                      :owner_id 9999}))))
+    ;; 留空 (缺省) 仍然零回归: 不写 owner, 汇总 owner-assigned 0
+    (let [created (:result (command! closure/create-lesson! id [] {:title "无责任人" :category "交付" :content "y"}))]
+      (is (nil? (:owner_id created)))
+      (let [ls (:lesson_summary (closure/overview *svc* (actor 9401) id))]
+        (is (= 1 (:total ls)))
+        (is (= 0 (:owner-assigned ls)))
+        (is (= 0 (:stages-declared ls)))
+        (is (= [] (:by-stage ls)))
+        (is (= 0 (:owner-coverage-pct ls)))))))
