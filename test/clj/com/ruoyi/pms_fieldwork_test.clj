@@ -759,6 +759,98 @@
           (is (nil? (:nearest-planned post))))))))
 
 
+(deftest service-read-model-flags-only-unresolved-overdue
+  ;; 只读派生: 仅对未关闭 (open/in_review) 且有到期日的遗留项计剩余天数与逾期; 已关闭/已驳回不置逾期.
+  (let [today (LocalDate/now)]
+    (let [overdue (fieldwork/service-read-model today {:status "open" :due_date (str (.minusDays today 3))})]
+      (is (= -3 (:service_days_left overdue)))
+      (is (true? (:service_overdue overdue))))
+    (let [pending (fieldwork/service-read-model today {:status "in_review" :due_date (str (.plusDays today 5))})]
+      (is (= 5 (:service_days_left pending)))
+      (is (false? (:service_overdue pending))))
+    (let [closed (fieldwork/service-read-model today {:status "closed" :due_date (str (.minusDays today 10))})]
+      (is (nil? (:service_days_left closed)))
+      (is (false? (:service_overdue closed))))))
+
+
+(deftest service-closure-summary-is-derived-read-only
+  (let [empty (fieldwork/service-closure-summary [])]
+    (is (false? (:available empty)))
+    (is (= 0 (:total empty)))
+    (is (= 0 (:open empty)))
+    (is (= 0 (:in-review empty)))
+    (is (= 0 (:closed empty)))
+    (is (= 0 (:rejected empty)))
+    (is (= 0 (:unresolved empty)))
+    (is (= 0 (:overdue-unresolved empty)))
+    (is (= 0 (:from-receipt empty)))
+    (is (= 0 (:from-manual empty)))
+    (is (= 0 (:closure-pct empty)))
+    (is (nil? (:nearest-due empty)))
+    (is (= ["open" "in_review" "closed" "rejected"] (mapv :key (:by-status empty))))
+    (is (= [0 0 0 0] (mapv :count (:by-status empty)))))
+  (let [services [{:status "open" :due_date "2026-09-01" :source "receipt" :service_overdue true}
+                  {:status "open" :due_date "2026-12-01" :source "manual_record" :service_overdue false}
+                  {:status "in_review" :due_date "2026-08-15" :source "receipt" :service_overdue true}
+                  {:status "closed" :due_date "2026-09-20" :source "manual_record"}
+                  {:status "rejected" :due_date "2026-07-01" :source "manual_record"}]
+        rollup (fieldwork/service-closure-summary services)]
+    (is (true? (:available rollup)))
+    (is (= 5 (:total rollup)))
+    (is (= 2 (:open rollup)))
+    (is (= 1 (:in-review rollup)))
+    (is (= 1 (:closed rollup)))
+    (is (= 1 (:rejected rollup)))
+    (is (= 3 (:unresolved rollup)))
+    (is (= 2 (:overdue-unresolved rollup)))
+    (is (= 2 (:from-receipt rollup)))
+    (is (= 3 (:from-manual rollup)))
+    (is (= 20 (:closure-pct rollup)))
+    (is (= "2026-08-15" (:nearest-due rollup)))
+    (is (= [2 1 1 1] (mapv :count (:by-status rollup))))))
+
+
+(deftest service-closure-attached-to-delivery-workspace
+  (let [ctx (context! nil) id (:id ctx) shipment (shipped-shipment! ctx)]
+    (review! ctx :shipments (:id shipment) :submit)
+    (command! id :shipments :dispatch (:id shipment) {:shipped_on (today-minus 2) :tracking_no "SV-TRACK" :evidence_ids [(:evidence ctx)]})
+    (let [svc1 (command! id :service-cases :create nil (merge (refs ctx) {:code "SE-1" :title "运输附件需更换" :shipment_id (:id shipment) :owner_id 9641 :due_date (today-minus 3)}))
+          svc2 (command! id :service-cases :create nil (merge (refs ctx) {:code "SE-2" :title "控制软件补丁" :shipment_id (:id shipment) :owner_id 9641 :due_date "2099-01-01"}))
+          pre (:service_closure (workspace id))
+          row1 (first (filter #(= (:id svc1) (:id %)) (:service_cases (workspace id))))]
+      (is (= "open" (:status svc1)))
+      (is (= "manual_record" (:source row1)))
+      (is (true? (:service_overdue row1)))
+      (is (neg? (:service_days_left row1)))
+      (is (true? (:available pre)))
+      (is (= 2 (:total pre)))
+      (is (= 2 (:open pre)))
+      (is (= 2 (:unresolved pre)))
+      (is (= 1 (:overdue-unresolved pre)))
+      (is (= 2 (:from-manual pre)))
+      (is (= 0 (:from-receipt pre)))
+      (is (= 0 (:closure-pct pre)))
+      (is (= (today-minus 3) (:nearest-due pre)))
+      ;; 提交解决方案并指定独立验证人 -> in_review; 独立验证关闭 -> closed.
+      (command! id :service-cases :resolve (:id svc1) {:resolution "更换附件并现场确认" :reviewer_id 9642 :evidence_ids [(:evidence ctx)]})
+      (let [mid (:service_closure (workspace id))]
+        (is (= 1 (:in-review mid)))
+        (is (= 1 (:open mid)))
+        (is (= 2 (:unresolved mid)))
+        (is (= 0 (:closure-pct mid))))
+      (command! 9642 id :service-cases :decision (:id svc1) {:decision "approved" :reason "现场独立验证"})
+      (let [post (:service_closure (workspace id))
+            row1b (first (filter #(= (:id svc1) (:id %)) (:service_cases (workspace id))))]
+        (is (= "closed" (:status row1b)))
+        (is (nil? (:service_days_left row1b)))
+        (is (= 1 (:closed post)))
+        (is (= 1 (:open post)))
+        (is (= 1 (:unresolved post)))
+        (is (= 0 (:overdue-unresolved post)))
+        (is (= 50 (:closure-pct post)))
+        (is (= "2099-01-01" (:nearest-due post)))))))
+
+
 (deftest test-execution-summary-is-derived-read-only
   (let [empty (fieldwork/test-execution-summary [])]
     (is (false? (:available empty)))

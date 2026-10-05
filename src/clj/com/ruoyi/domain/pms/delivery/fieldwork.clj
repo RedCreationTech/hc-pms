@@ -313,6 +313,63 @@
   [data]
   (assoc data :shipment_closure (shipment-closure-summary (:shipments data))))
 
+;; ── H11 售后交付遗留项 ─────────────────────────────────────────
+
+(def service-status-catalog
+  "售后遗留项生命周期状态与人读标签."
+  [["open" "待处理"]
+   ["in_review" "解决审核中"]
+   ["closed" "已关闭"]
+   ["rejected" "已驳回"]])
+
+(defn service-read-model
+  "只读派生售后遗留项剩余天数/逾期标记 (仅对未关闭的 open/in_review 计算, 已关闭或已驳回不再计逾期)."
+  [today service]
+  (let [open? (contains? #{"open" "in_review"} (:status service))
+        days (when (and open? (:due_date service))
+               (.between java.time.temporal.ChronoUnit/DAYS today (LocalDate/parse (:due_date service))))]
+    (assoc service :service_days_left days
+           :service_overdue (boolean (and open? (some? days) (neg? days))))))
+
+(defn service-closure-summary
+  "H11 售后交付遗留项闭环只读汇总: 对整项目 :service_cases (已 service-read-model enrich) 读取时聚合,
+   给出遗留项整体关闭进度, 未决构成与逾期及按来源分布; 只读派生, 不落库不投递, 不构成任何门控
+   (关闭仍由 resolve-service!/decide-service! 在写入时强制独立审核, 收尾是否阻塞仍由 closure-blockers 判定). 键名不带尾随问号."
+  [services]
+  (let [total (count services)
+        freq (frequencies (map :status services))
+        cnt (fn [k] (get freq k 0))
+        open (cnt "open")
+        in-review (cnt "in_review")
+        closed (cnt "closed")
+        rejected (cnt "rejected")
+        unresolved-rows (filterv #(contains? #{"open" "in_review"} (:status %)) services)
+        unresolved (count unresolved-rows)
+        overdue-unresolved (count (filterv :service_overdue unresolved-rows))
+        from-receipt (count (filterv #(= "receipt" (:source %)) services))
+        from-manual (count (filterv #(= "manual_record" (:source %)) services))
+        closure-pct (if (pos? total) (int (Math/round ^double (* 100.0 (/ closed total)))) 0)
+        nearest-due (when-let [ds (seq (remove nil? (map :due_date unresolved-rows)))] (first (sort ds)))
+        by-status (mapv (fn [[k label]] {:key k :label label :count (cnt k)}) service-status-catalog)]
+    {:available (boolean (seq services))
+     :total total
+     :open open
+     :in-review in-review
+     :closed closed
+     :rejected rejected
+     :unresolved unresolved
+     :overdue-unresolved overdue-unresolved
+     :from-receipt from-receipt
+     :from-manual from-manual
+     :closure-pct closure-pct
+     :nearest-due nearest-due
+     :by-status by-status}))
+
+(defn attach-service-closure
+  "把 service-closure-summary 挂到交付工作区读模型顶层 :service_closure; 读取时派生, 不改变任何逐条售后遗留项."
+  [data]
+  (assoc data :service_closure (service-closure-summary (:service_cases data))))
+
 (defn handover-timeliness-summary
   "E07 交底及时率只读汇总: 对整项目 :handovers (已 handover-read-model enrich) 读取时聚合,
    给出交底完成进度与按期率; 只读派生, 不落库不投递, 不构成任何门控

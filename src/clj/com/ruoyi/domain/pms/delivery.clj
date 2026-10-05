@@ -98,6 +98,7 @@
             (update :assemblies #(mapv fieldwork/assembly-read-model %))
             (update :shipments #(mapv (fn [s] (fieldwork/shipment-read-model config (fat-ok? s) blocker-free? s)) %))
             (update :handovers #(mapv (partial fieldwork/handover-read-model today) %))
+            (update :service_cases #(mapv (partial fieldwork/service-read-model today) %))
             (update :site_tasks #(mapv (partial fieldwork/site-task-read-model today) %))
             (update :tests #(mapv fieldwork/test-execution-read-model %))
             (update :tests #(mapv (partial fieldwork/test-remediation-read-model test-remediation-rollup) %))
@@ -107,6 +108,7 @@
             fieldwork/attach-shipment-closure
             fieldwork/attach-handover-timeliness
             fieldwork/attach-survey-closure
+            fieldwork/attach-service-closure
             fieldwork/attach-test-execution
             fieldwork/attach-test-remediation-closure
             (assoc :configuration config :project_version (:version project)

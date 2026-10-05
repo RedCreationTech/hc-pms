@@ -43,6 +43,8 @@ GET `""` 返回:
 
 所有试验实际结果必须有证据, 必需失败自动登记治理问题并通过原有独立整改关闭流程处理. 复验不删除前次问题关联. 质量审批再核验冻结检查结果和问题关闭状态. 正式客户签收是本地责任人的证据验证, 不冒称电子签章或客户外部账户直接审批. 条件接收及拒收须关闭关联售后异常后再次确认完整接受才能作为最终收尾证据.
 
+`delivery.fieldwork/service-closure-summary` 在读取时把项目全部售后异常 (`service` 记录, 来源 `manual_record` 手工登记或 `receipt` 条件接收/拒收自动生成) 按生命周期聚合为只读汇总 `:service_closure`, 免迁移/免新 kind/免新命令/免新路由, 不构成任何门控: `available` (是否有售后项), `total`, `open`/`in-review`/`closed`/`rejected` 四态计数, `unresolved` (open+in_review+rejected), `overdue-unresolved` (未闭环且 `due_date` 早于当天), `from-receipt`/`from-manual` 来源分解, `closure-pct` (closed/total 四舍五入整数, total 为 0 时给 0), `nearest-due` (未闭环项最近处理期限), `by-status` 四态明细. 逐条 `service` 记录同时派生 `service_days_left` (以当天到 `due_date` 的剩余天数, 负值即逾期) 与 `service_overdue` 布尔, 供"售后闭环"页签台账"处理时限"列呈现红"已逾期 N 天"/金"剩 N 天". 售后写路径门控仍由服务端 `resolve-service!` (open/rejected -> in_review, 指定独立验证人) 与 `decide-service!` (in_review 状态守卫命中 409, 非指定验证人 403, 独立验证 -> closed/rejected) 在写入时强制, 只读汇总不改变任何逐条记录状态.
+
 试验录入实际结果, 提交和批准均校验前置关系: 装配交检已批准, FAT之前适用SIT已批准, SAT之前适用SIT/FAT已批准且该装配已有received/conditional发运签收事实. 检查结果固定当时的 `prerequisite_test_ids`; 上游出现新试验版本后, 旧下游资格失效, 必须基于新前序版本复验. 发运放行与实际发运均重验适用SIT/FAT和阻塞问题. `received_on` 不可晚于当天且不得早于 `shipped_on`; 计划日期可在未来. `result_history` 保留实际结果, 证据版本, 操作者和对应项目版本.
 
 `delivery/closure-blockers [q project]` 返回未完成事项字符串数组, `delivery/closure-ready! [q project]` 在存在阻塞时409. 必需materials环节要求至少一份ready BOM; 未采用的申请草稿不冒称采购已完成. 必需assembly或quality环节要求实际装配记录且所有装配均approved, quality逐个检查适用类型的最新有效试验. 必需shipment环节要求每个装配被received发运单覆盖, 所有已建发运单均received; 所有售后异常须closed. 空装配集合不能满足必需质量环节. 项目正式收尾仍由根生命周期调用计划/Gate/财务/清单共同验证.

@@ -504,11 +504,47 @@
    [preship-readiness-section context]
    [shipment-closure-section context]])
 
+(defn- service-closure-section
+  "H11 售后遗留项闭环只读汇总: 按售后生命周期 (待处理/解决审核中/已关闭/已驳回) 聚合项目全部售后异常的期限达成与闭环率, 含逾期未闭环预警, 来源分解 (条件接收自动生成 vs 手工登记) 与最近处理期限; 只读派生, 不门控任何写操作 (解决须证据并独立关闭仍由服务端状态机强制)."
+  [{:keys [model]}]
+  (let [sv (:service_closure model)
+        status-rows (:by-status sv)]
+    [shared/panel "售后遗留项闭环汇总" "按售后生命周期 (待处理/解决审核中/已关闭/已驳回) 聚合项目全部售后异常的期限达成与闭环率, 含逾期未闭环与来源分解; 只读派生, 不门控任何写操作" nil
+     (if-not (:available sv)
+       [shared/empty-state "尚无售后异常, 条件接收或拒收时自动生成, 也可在发运后手工登记" nil]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "售后项 " (:total sv))]
+         [antd/tag {:color "default"} (str "待处理 " (:open sv))]
+         [antd/tag {:color "processing"} (str "解决审核中 " (:in-review sv))]
+         [antd/tag {:color "green"} (str "已关闭 " (:closed sv))]
+         [antd/tag {:color (if (pos? (or (:rejected sv) 0)) "red" "default")} (str "已驳回 " (:rejected sv))]
+         [antd/tag {:color (if (pos? (or (:overdue-unresolved sv) 0)) "red" "default")} (str "逾期未闭环 " (:overdue-unresolved sv))]
+         [antd/tag {:color (if (>= (:closure-pct sv) 100) "green" "gold")} (str "闭环率 " (:closure-pct sv) "%")]
+         [antd/tag {:color "purple"} (str "条件接收转售后 " (:from-receipt sv))]
+         [antd/tag {:color "default"} (str "手工登记 " (:from-manual sv))]
+         (when-let [nd (:nearest-due sv)] [antd/tag (str "最近期限 " nd)])]
+        [antd/progress {:percent (:closure-pct sv) :size "small" :style {:width "100%"}}]
+        [antd/table {:rowKey "key" :size "small" :pagination false :dataSource (clj->js status-rows)
+                     :columns (clj->js [{:title "售后状态" :dataIndex "label" :width 200}
+                                        {:title "数量" :dataIndex "count" :width 110}
+                                        {:title "占比" :key "bar" :width 220
+                                         :render (fn [_ row] (let [c (aget row "count")]
+                                                                (r/as-element [antd/progress {:percent (if (pos? (:total sv)) (int (* 100 (/ c (:total sv)))) 0) :size "small" :style {:width 180}}])))}])}]])]))
+
 (defn- services-section
-  "发运异常和售后处理需要解决证据与独立关闭."
+  "发运异常和售后处理需要解决证据与独立关闭; 台账下追加售后遗留项闭环只读汇总."
   [context]
-  [record-section context :service_cases "service-cases" "售后异常闭环" "条件接收或拒收保留异常链,解决后再次确认完整接受"
-   "登记售后异常" forms/service-dialog [(w/text-column :due_date "处理期限") (w/text-column :resolution "解决说明")]])
+  [:div {:style {:display "grid" :gap 20}}
+   [record-section context :service_cases "service-cases" "售后异常闭环" "条件接收或拒收保留异常链,解决后再次确认完整接受"
+    "登记售后异常" forms/service-dialog [(w/text-column :due_date "处理期限")
+                                        {:title "处理时限" :key "svc-days" :width 150
+                                         :render (fn [_ row] (let [left (aget row "service_days_left") overdue (true? (aget row "service_overdue"))]
+                                                                (r/as-element (cond overdue [antd/tag {:color "red"} (str "已逾期 " (- left) " 天")]
+                                                                                    (some? left) [antd/tag {:color "gold"} (str "剩 " left " 天")]
+                                                                                    :else [:span "—"]))))}
+                                        (w/text-column :resolution "解决说明")]]
+   [service-closure-section context]])
 
 (defn- overview
   "展示项目要求,尚未完成事项与外部系统状态."
