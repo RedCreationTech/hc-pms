@@ -135,10 +135,15 @@ def frame_clock(rel):
 
 
 def clock_mapper(rel, t0):
-    """Map timeline seconds (relative to epoch-ms t0) to the first frame that shows that moment."""
+    """Map timeline seconds (relative to epoch-ms t0) to the first frame that shows that moment.
+
+    If the recording carries no decodable time code (e.g. the injected clock strip was occluded by
+    the app for most of the take), fall back to an identity mapping so composition still proceeds
+    using the recorder's own per-chapter timestamps; the caller reports which recordings fell back.
+    """
     frames = frame_clock(rel)
     if not frames:
-        raise SystemExit(f'{rel}: no readable time code')
+        return (lambda seconds: seconds), 0
     base = t0 - t0 % CLOCK_MOD
     stamps, times, top = [], [], None
     for vt, value in frames:
@@ -304,9 +309,15 @@ def main():
     ACCOUNTS.update(board.get('accounts') or {})
     decoded = align(timeline)
     if decoded:
+        fallback = [rel for rel, n in decoded.items() if n == 0]
         lags = [c['lag'] for c in timeline['clips'] if 'lag' in c]
-        print(f'time code: {len(decoded)} recordings, {sum(decoded.values())} frames decoded; '
-              f'clip start lag {min(lags):+.2f}..{max(lags):+.2f}s')
+        if lags:
+            print(f'time code: {len(decoded)} recordings, {sum(decoded.values())} frames decoded; '
+                  f'clip start lag {min(lags):+.2f}..{max(lags):+.2f}s')
+        if fallback:
+            print(f'WARNING: {len(fallback)}/{len(decoded)} recording(s) had no decodable time code; '
+                  f'used recorder timestamps (approximate caption sync) for: '
+                  + ', '.join(sorted(os.path.basename(r) for r in fallback)))
     for rel in sorted({clip_video(timeline, c) for c in timeline['clips']}):
         length = probe_duration(os.path.join(OUT, rel))
         last = max(c['end'] for c in timeline['clips'] if clip_video(timeline, c) == rel)
