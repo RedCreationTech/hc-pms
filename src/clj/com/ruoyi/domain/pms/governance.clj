@@ -138,7 +138,8 @@
                           :change_closure_summary (approval/change-closure-summary (:changes data))
                           :gate_progress (gates/gate-progress (:gate_templates data) (:gates data))
                           :gate_catalog (mapv #(select-keys % [:gate_type :title :stage :page :blocks]) catalog/gate-types)
-                          :risk_library collab/risk-library))))))
+                          :risk_library collab/risk-library
+                          :risk_templates (collab/risk-templates q project)))))))
 
 
 (defn- creating
@@ -221,6 +222,10 @@
    [:comm-plans :meeting] stakeholders/materialize-meeting!
    [:comm-plans :log] stakeholders/log-communication!
    [:risks :from-library] (creating collab/from-library!)
+   [:risk-templates :create] (creating collab/create-risk-template!)
+   [:risk-templates :update] collab/update-risk-template!
+   [:risk-templates :discard] collab/discard-risk-template!
+   [:risks :from-custom-template] (creating collab/from-custom-template!)
    [:actions :from-variance] (creating collab/variance-action!)})
 
 

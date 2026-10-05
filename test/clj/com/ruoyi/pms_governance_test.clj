@@ -4542,3 +4542,112 @@
       (is (= 50 (:coverage-pct m)))
       (is (= 0 (:count (first (filter #(= "fixed" (:resolution %)) (:by-resolution m))))) "旧版本的 fixed 被最新 duplicate 取代")
       (is (= 1 (:count (first (filter #(= "duplicate" (:resolution %)) (:by-resolution m)))))))))
+
+
+(deftest custom-risk-template-crud-instantiation-and-discard
+  (let [id (project!)
+        tpl (command! id :risk-templates :create nil
+                      {:title "供应商交付延误" :category "schedule" :probability 3 :impact 4
+                       :mitigation "提前锁定备选供应商并设置里程碑预警" :stage "执行"})]
+    ;; 新建模板真实落库并回显按概率x影响派生的评分.
+    (is (:id tpl))
+    (is (= "供应商交付延误" (:title tpl)))
+    (is (= 12 (:score tpl)))
+    (is (= "active" (:status tpl)))
+    (is (= "schedule" (:category tpl)))
+    (is (= "执行" (:stage tpl)))
+    ;; 工作台只读暴露有效模板供前端选择实例化.
+    (is (some #(= (:id tpl) (:id %)) (:risk_templates (workspace id))))
+    ;; 更新评分与措施后派生评分随之变化, 仍为同一模板id.
+    (let [upd (command! id :risk-templates :update (:id tpl)
+                        {:title "供应商交付延误" :category "schedule" :probability 4 :impact 5
+                         :mitigation "已升级为双源供应并加入合同违约条款" :stage "执行"})]
+      (is (= (:id tpl) (:id upd)))
+      (is (= 20 (:score upd))))
+    ;; 从模板实例化为真实风险: 继承评分/措施/阶段/类别并标注自定义来源.
+    (let [risk (command! id :risks :from-custom-template nil
+                         {:template_id (:id tpl) :owner_id 9301 :due_date "2026-11-30"})]
+      (is (= "risk" (:kind risk)))
+      (is (= "供应商交付延误" (:title risk)))
+      (is (= 20 (:score risk)))
+      (is (= "执行" (:stage risk)))
+      (is (= (str "custom:" (:id tpl)) (:source_key risk)))
+      (is (= "schedule" (:source_category risk)))
+      ;; 4x5=20 达阈值自动升级并挂起自行缓解.
+      (is (true? (:escalated risk)))
+      (is (= "pending" (:escalation_state risk)))
+      (is (= "steering" (:escalation_level risk)))
+      (is (= 409 (error-status #(command! id :risks :mitigate (:id risk)
+                                          {:mitigation "已联系备选" :evidence_ids [(:id (document! id "CT-ESC"))]})))))
+    ;; 受控作废模板: 软置已作废并从可实例化列表移除, 已登记的历史风险不受影响.
+    (command! id :risk-templates :discard (:id tpl) {})
+    (is (not-any? #(= (:id tpl) (:id %)) (:risk_templates (workspace id))))
+    (is (some #(= "供应商交付延误" (:title %)) (:risks (workspace id))))
+    (is (= 404 (error-status #(command! id :risks :from-custom-template nil
+                                        {:template_id (:id tpl) :owner_id 9301 :due_date "2026-11-30"}))))))
+
+
+(deftest custom-risk-template-instantiation-escalation-thresholds
+  (let [id (project!)
+        low (command! id :risk-templates :create nil
+                      {:title "低风险观察项" :probability 2 :impact 3 :mitigation "持续观察"})
+        high (command! id :risk-templates :create nil
+                       {:title "高风险阻断项" :probability 5 :impact 5 :mitigation "成立专项攻关组"})]
+    ;; 低分模板实例化不触发升级, 登记人可直接缓解.
+    (let [r1 (command! id :risks :from-custom-template nil
+                       {:template_id (:id low) :owner_id 9301 :due_date "2026-11-30"})]
+      (is (= 6 (:score r1)))
+      (is (false? (:escalated r1)))
+      (is (nil? (:escalation_state r1)))
+      (is (= "mitigated" (:status (command! id :risks :mitigate (:id r1)
+                                            {:mitigation "已消除" :evidence_ids [(:id (document! id "CT-LOW"))]})))))
+    ;; 高分模板实例化进入指导层升级, 缓解须先由独立审批人确认.
+    (let [r2 (command! id :risks :from-custom-template nil
+                       {:template_id (:id high) :owner_id 9301 :due_date "2026-11-30"})]
+      (is (= 25 (:score r2)))
+      (is (= "steering" (:escalation_level r2)))
+      (is (= "pending" (:escalation_state r2)))
+      (is (= 409 (error-status #(command! id :risks :mitigate (:id r2)
+                                          {:mitigation "临时绕行" :evidence_ids [(:id (document! id "CT-HI"))]}))))
+      (is (= 403 (error-status #(command! id :risks :escalate (:id r2)
+                                          {:decision "approved" :note "登记人自确认"}))))
+      (let [acked (command! 9302 id :risks :escalate (:id r2)
+                            {:decision "approved" :note "管理层责成启动攻关组"})]
+        (is (= "acknowledged" (:escalation_state acked))))
+      (is (= "mitigated" (:status (command! id :risks :mitigate (:id r2)
+                                            {:mitigation "按升级方案处置" :evidence_ids [(:id (document! id "CT-HI2"))]})))))))
+
+
+(deftest custom-risk-template-validation-scoping-and-guards
+  (let [id (project!)
+        other (project!)]
+    ;; 概率与影响必须为1到5整数, 越界或非整数被拒.
+    (is (= 400 (error-status #(command! id :risk-templates :create nil
+                                        {:title "越界概率" :probability 6 :impact 3 :mitigation "无"}))))
+    (is (= 400 (error-status #(command! id :risk-templates :create nil
+                                        {:title "非整数影响" :probability 3 :impact "高" :mitigation "无"}))))
+    ;; 标题与应对措施为必填.
+    (is (= 400 (error-status #(command! id :risk-templates :create nil
+                                        {:probability 3 :impact 3 :mitigation "无"}))))
+    (is (= 400 (error-status #(command! id :risk-templates :create nil
+                                        {:title "缺措施" :probability 3 :impact 3}))))
+    ;; 白名单外的字段被拒.
+    (is (= 400 (error-status #(command! id :risk-templates :create nil
+                                        {:title "多余字段" :probability 3 :impact 3 :mitigation "无" :bogus 1}))))
+    (let [tpl (command! id :risk-templates :create nil
+                        {:title "跨项目隔离模板" :probability 2 :impact 3 :mitigation "只在本项目可用"})]
+      ;; 实例化缺责任人或期限分别被拒.
+      (is (= 400 (error-status #(command! id :risks :from-custom-template nil
+                                          {:template_id (:id tpl) :due_date "2026-11-30"}))))
+      ;; 跨项目引用他项目模板返回404 (按 project_id 隔离).
+      (is (= 404 (error-status #(command! other :risks :from-custom-template nil
+                                          {:template_id (:id tpl) :owner_id 9301 :due_date "2026-11-30"}))))
+      ;; 他项目读取本模板与更新/作废未知或非本项目模板分别404.
+      (is (= 404 (error-status #(command! other :risk-templates :update (:id tpl)
+                                          {:title "篡改" :probability 2 :impact 3 :mitigation "x"}))))
+      ;; 更新/作废不存在的模板id返回404.
+      (is (= 404 (error-status #(command! id :risk-templates :discard (str "no-" (:id tpl)) {}))))
+      ;; 已作废模板不可再更新.
+      (command! id :risk-templates :discard (:id tpl) {})
+      (is (= 404 (error-status #(command! id :risk-templates :update (:id tpl)
+                                          {:title "复活" :probability 2 :impact 3 :mitigation "x"})))))))

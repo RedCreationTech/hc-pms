@@ -209,6 +209,62 @@
             {:key :note :label "处置意见" :type :textarea :required? true}]})
 
 
+(def risk-template-category-options
+  "自定义风险模板可选的 PMI 风险分解结构(RBS)类别."
+  [{:value "technical" :label "技术"} {:value "external" :label "外部"}
+   {:value "organizational" :label "组织"} {:value "schedule" :label "进度"}
+   {:value "cost" :label "成本"} {:value "quality" :label "质量"}])
+
+
+(defn- risk-template-fields
+  "新建与编辑自定义风险模板共用的表单字段: 标题,概率x影响评分,应对措施必填, 类别与适用阶段可选."
+  []
+  [{:key :title :label "模板标题" :required? true :max 200}
+   {:key :probability :label "发生概率(1-5)" :type :number :min 1 :max 5 :required? true}
+   {:key :impact :label "影响程度(1-5)" :type :number :min 1 :max 5 :required? true}
+   {:key :mitigation :label "标准应对措施" :type :textarea :required? true}
+   {:key :category :label "风险类别 (可选)" :type :select :options risk-template-category-options}
+   {:key :stage :label "适用阶段 (可选)" :hint "例如 执行/采购/设计/监控, 可留空"}])
+
+
+(defn- risk-template-transform
+  "编辑模板时把留空的可选类别与阶段 dissoc 掉, 避免发送空串触发服务端校验."
+  [data]
+  (reduce (fn [m k] (let [v (get data k)] (if (or (nil? v) (= "" v)) (dissoc m k) m)))
+          data [:category :stage]))
+
+
+(defn risk-template-create-dialog
+  "在项目内新建一份可复用的自定义风险模板, 固化评分与应对措施供后续一键实例化."
+  [base]
+  {:title "新建自定义风险模板" :path (str base "/risk-templates") :initial {:probability 3 :impact 3}
+   :description "自定义风险模板沉淀本项目常见的风险评分与标准应对措施, 供后续一键实例化为真实风险; 达到升级阈值的条目实例化时将自动进入超阈值升级待独立确认门控."
+   :transform risk-template-transform
+   :fields (risk-template-fields)})
+
+
+(defn risk-template-update-dialog
+  "编辑有效自定义风险模板的评分与应对措施等内容."
+  [base template]
+  {:title "编辑自定义风险模板" :path (str base "/risk-templates/" (:id template) "/update")
+   :initial (select-keys template [:title :probability :impact :mitigation :category :stage])
+   :description "更新模板的标题,概率×影响评分与应对措施; 修改只影响此后实例化的风险, 不追溯已登记的历史风险."
+   :transform risk-template-transform
+   :fields (risk-template-fields)})
+
+
+(defn risk-custom-template-dialog
+  "从项目内某份自定义风险模板实例化为真实风险, 继承评分与应对措施, 仅需指定责任人与期限."
+  [base templates options]
+  {:title "从自定义模板实例化" :path (str base "/risks/from-custom-template")
+   :description "选择一份自定义风险模板, 服务端按模板中固化的概率×影响自动评分并套用应对措施与适用阶段; 达到升级阈值的条目将自动进入超阈值升级待独立确认门控."
+   :fields [{:key :template_id :label "自定义模板" :type :select :required? true
+             :options (mapv #(hash-map :value (:id %)
+                                       :label (str (:title %) " — " (:probability %) "×" (:impact %) "=" (:score %))) templates)}
+            (owner-field (:users options))
+            {:key :due_date :label "计划应对日期" :type :date :required? true}]})
+
+
 (defn issue-escalation-dialog
   "独立质量审批人确认阻断级问题的升级处置, 批准责成处置或经评估豁免."
   [base issue]

@@ -270,6 +270,94 @@
                                       :source_category (:category entry)))))))
 
 
+(defn- template-view
+  "把 pms_risk_template 数据库行转为平铺只读对象, template_id 归一为 id 并按概率x影响派生评分."
+  [row]
+  (when row
+    (assoc (select-keys row [:project_id :title :category :probability :impact :mitigation :stage
+                             :status :created_by :created_at :updated_at])
+           :id (:template_id row)
+           :score (* (:probability row) (:impact row)))))
+
+
+(defn risk-templates
+  "读取项目内全部有效自定义风险模板, 按评分口径只读派生供工作台展示与实例化选择."
+  [q project]
+  (mapv template-view (q :rt/list {:project_id (:project_id project)})))
+
+
+(defn- template-fields!
+  "校验自定义风险模板的标题,评分,应对措施与可选类别/阶段; 类别与阶段留空存 nil."
+  [body]
+  {:title (s/text! body :title 200)
+   :probability (ra/score! (:probability body))
+   :impact (ra/score! (:impact body))
+   :mitigation (s/text! body :mitigation 2000)
+   :category (some-> (s/optional-text! body :category 40) not-empty)
+   :stage (some-> (s/optional-text! body :stage 40) not-empty)})
+
+
+(defn- active-template!
+  "读取同项目有效自定义风险模板, 缺失或已作废返回404, 供更新,作废与实例化复用."
+  [q project template-id]
+  (let [row (q :rt/record {:project_id (:project_id project) :template_id template-id})]
+    (when-not (and row (= "active" (:status row)))
+      (r/fail! 404 "自定义风险模板不存在或已作废"))
+    row))
+
+
+(defn create-risk-template!
+  "在项目内新建一份可复用的自定义风险模板: 固化标题,概率x影响评分,应对措施与可选类别/阶段, 供后续一键实例化为真实风险."
+  [svc actor id body]
+  (k/mutate! svc actor id "pms:project:edit" body "risk-template.created"
+             (fn [q project]
+               (s/input! body [:title :category :probability :impact :mitigation :stage])
+               (let [template-id (k/id)
+                     fields (template-fields! body)]
+                 (q :rt/insert! (assoc fields :template_id template-id :project_id (:project_id project)
+                                                 :created_by (:user_id actor)))
+                 (template-view (q :rt/record {:project_id (:project_id project) :template_id template-id}))))))
+
+
+(defn update-risk-template!
+  "更新有效自定义风险模板的评分与应对措施等内容; 已作废或不存在返回404."
+  [svc actor id rid body]
+  (k/mutate! svc actor id "pms:project:edit" body "risk-template.updated"
+             (fn [q project]
+               (s/input! body [:title :category :probability :impact :mitigation :stage])
+               (active-template! q project rid)
+               (let [fields (template-fields! body)]
+                 (r/changed! (q :rt/update! (assoc fields :project_id (:project_id project) :template_id rid)))
+                 (template-view (q :rt/record {:project_id (:project_id project) :template_id rid}))))))
+
+
+(defn discard-risk-template!
+  "受控作废自定义风险模板: 软置为已作废并从可实例化列表移除, 不影响已登记的历史风险."
+  [svc actor id rid body]
+  (k/mutate! svc actor id "pms:project:edit" body "risk-template.discarded"
+             (fn [q project]
+               (s/input! body [:reason])
+               (active-template! q project rid)
+               (r/changed! (q :rt/discard! {:project_id (:project_id project) :template_id rid}))
+               (template-view (q :rt/record {:project_id (:project_id project) :template_id rid})))))
+
+
+(defn from-custom-template!
+  "从项目内某份有效自定义风险模板实例化为真实风险, 继承模板评分与应对措施并复用超阈值自动升级门控, 仅需指定责任人与期限."
+  [svc actor id body]
+  (k/mutate! svc actor id "pms:project:edit" body "risk.created"
+             (fn [q project]
+               (s/input! body [:template_id :owner_id :due_date])
+               (let [row (active-template! q project (:template_id body))]
+                 (insert-risk! q project actor
+                               {:title (:title row) :probability (:probability row) :impact (:impact row)
+                                :mitigation (:mitigation row)
+                                :owner_id (:owner_id body) :due_date (:due_date body)
+                                :stage (:stage row)
+                                :source_key (str "custom:" (:template_id row))
+                                :source_category (:category row)})))))
+
+
 (defn- issue-fields!
   "校验问题内容,严重度,责任人与解决期限."
   [q project body]

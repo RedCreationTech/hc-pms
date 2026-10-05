@@ -26,3 +26,25 @@ SELECT MAX(revision) AS revision FROM pms_appointment WHERE project_id=:project_
 INSERT INTO pms_appointment(appointment_id,project_id,code,revision,status,issued_by,issued_on,note,snapshot,snapshot_sha256,content,headcount)
 VALUES(:appointment_id,:project_id,:code,:revision,'issued',:issued_by,:issued_on,:note,:snapshot,:snapshot_sha256,:content,:headcount);
 --;;
+
+-- :name rt/list :? :*
+SELECT * FROM pms_risk_template WHERE project_id=:project_id AND status='active' ORDER BY created_at DESC,template_id;
+--;;
+-- :name rt/list-all :? :*
+SELECT * FROM pms_risk_template WHERE project_id=:project_id ORDER BY created_at DESC,template_id;
+--;;
+-- :name rt/record :? :1
+SELECT * FROM pms_risk_template WHERE project_id=:project_id AND template_id=:template_id;
+--;;
+-- :name rt/insert! :! :n
+INSERT INTO pms_risk_template(template_id,project_id,title,category,probability,impact,mitigation,stage,status,created_by)
+VALUES(:template_id,:project_id,:title,:category,:probability,:impact,:mitigation,:stage,'active',:created_by);
+--;;
+-- :name rt/update! :! :n
+UPDATE pms_risk_template SET title=:title,category=:category,probability=:probability,impact=:impact,mitigation=:mitigation,stage=:stage,updated_at=CURRENT_TIMESTAMP
+WHERE project_id=:project_id AND template_id=:template_id AND status='active';
+--;;
+-- :name rt/discard! :! :n
+UPDATE pms_risk_template SET status='discarded',updated_at=CURRENT_TIMESTAMP
+WHERE project_id=:project_id AND template_id=:template_id AND status='active';
+--;;

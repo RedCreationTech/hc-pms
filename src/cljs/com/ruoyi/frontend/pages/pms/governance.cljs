@@ -906,6 +906,39 @@
            [antd/tag {:color "green"} (str "未来到期 " upcoming)])]])]))
 
 
+(defn- risk-template-section
+  "自定义风险模板台账: 项目内可复用的风险评分与应对措施模板, 支持新建,编辑,实例化为真实风险与受控作废."
+  [{:keys [base model options editable? open!]}]
+  [shared/panel "自定义风险模板" "沉淀本项目常见的风险评分与标准应对措施, 供一键实例化为真实风险; 实例化时达到升级阈值的条目自动进入超阈值升级待独立确认门控. 编辑只影响此后实例化, 不追溯历史风险."
+   (when editable?
+     [antd/space
+      [antd/button {:type "primary" :ghost true :on-click #(open! (forms/risk-template-create-dialog base))} "新建自定义风险模板"]])
+   [w/record-table (:risk_templates model)
+    [(w/text-column :title "模板标题") (w/text-column :probability "概率") (w/text-column :impact "影响")
+     (w/text-column :score "评分")
+     {:title "风险类别" :dataIndex "category" :width 100
+      :render (fn [_ row]
+                (let [c (aget row "category")
+                      label (get {"technical" "技术" "external" "外部" "organizational" "组织"
+                                  "schedule" "进度" "cost" "成本" "quality" "质量"} c)]
+                  (r/as-element (if (nil? c)
+                                  [:span {:style {:color "#98a2b3"}} "未设定"]
+                                  [antd/tag {:color "geekblue"} label]))))}
+     (w/text-column :stage "适用阶段")
+     (w/text-column :mitigation "标准应对措施")
+     {:title "升级预判" :dataIndex "score" :width 130
+      :render (fn [_ row]
+                (let [sc (aget row "score")]
+                  (r/as-element
+                   (cond (>= sc 20) [antd/tag {:color "red"} "实例化将升级至决策层"]
+                         (>= sc 16) [antd/tag {:color "gold"} "实例化将超阈值升级"]
+                         :else [:span {:style {:color "#98a2b3"}} "低于升级阈值"]))))}]
+    (when editable? (fn [row] [antd/space {:wrap true}
+                              [w/edit-button "实例化为风险" #(open! (forms/risk-custom-template-dialog base (:risk_templates model) options))]
+                              [w/edit-button "编辑" #(open! (forms/risk-template-update-dialog base row))]
+                              [w/edit-button "作废" #(open! (forms/discard-dialog (str base "/risk-templates/" (:id row) "/discard") "风险模板"))]]))]])
+
+
 (defn- risk-section
   "风险台账保留应对,复评期限与独立关闭状态."
   [{:keys [base model options editable? open!] :as context}]
@@ -1829,7 +1862,7 @@
                      ["appointments" "成员任命" [appointment-section]]
                      ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section raci-section raci-assignment-section raci-engagement-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section]]
                      ["gates" "Gate评审" [gate-section]]
-                     ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-review-cadence-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
+                     ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section action-closure-section project-remediation-overview-section action-section]]
                      ["changes" "变更控制" [change-section change-closure-section]]
                      ["quality" "DQ与局部暂停" [dq-summary-section dq-section pause-section]]])}])
