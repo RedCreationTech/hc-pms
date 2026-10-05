@@ -324,4 +324,67 @@
     (is (seq (:blockers full)))
     ;; 只读汇总不旁路真实门控: 项目仍在初始阶段, 提交关闭须 409
     (is (= 409 (:status (request :post (str path "/closure/submit") 1
-                                 {:version (:project_version (overview)) :reviewer_id 9104}))))))
+                                 {:version (:project_version (overview)) :reviewer_id 9104})))))
+
+
+(deftest closure-readiness-summary-is-derived-read-only
+  ;; 全部就绪: 五类均空 -> ready true, 100%, next-focus nil
+  (let [clear (closure/readiness-summary {:tasks [] :governance [] :finance [] :delivery [] :items []} nil)]
+    (is (true? (:available clear)))
+    (is (= ["tasks" "governance" "finance" "delivery" "items"] (mapv :key (:categories clear))))
+    (is (= 0 (:total-blockers clear)))
+    (is (= 5 (:clear-count clear)))
+    (is (= 0 (:blocked-count clear)))
+    (is (= 100 (:readiness-pct clear)))
+    (is (true? (:ready clear)))
+    (is (nil? (:next-focus clear)))
+    (is (= "none" (:approval-state clear)))
+    (is (every? :clear (:categories clear))))
+  ;; 多域受阻: tasks2/gov0/fin1/del3/items1 -> 总7, 就绪类别1, 受阻4, 20%, next-focus 首个受阻类别 计划任务
+  (let [rollup (closure/readiness-summary {:tasks ["T1" "T2"] :governance []
+                                           :finance ["F1"] :delivery ["D1" "D2" "D3"] :items ["I1"]}
+                                          {:status "submitted"})]
+    (is (= 7 (:total-blockers rollup)))
+    (is (= 1 (:clear-count rollup)))
+    (is (= 4 (:blocked-count rollup)))
+    (is (= 20 (:readiness-pct rollup)))
+    (is (false? (:ready rollup)))
+    (is (= "计划任务" (:next-focus rollup)))
+    (is (= "submitted" (:approval-state rollup)))
+    (is (= [2 0 1 3 1] (mapv :blocker-count (:categories rollup))))
+    (is (= [false true false false false] (mapv :clear (:categories rollup))))
+    (is (= [2 0 1 3 1] (mapv count (map :messages (:categories rollup))))))
+  ;; 单域多条缺口: 交付链7条 -> messages 截前5, more 2, 仅它受阻 -> 就绪4/5=80%, next-focus 交付链
+  (let [big (closure/readiness-summary {:tasks [] :governance [] :finance []
+                                       :delivery (vec (map str (range 7))) :items []} nil)
+        del (first (filter #(= "delivery" (:key %)) (:categories big)))]
+    (is (= 7 (:blocker-count del)))
+    (is (= 5 (count (:messages del))))
+    (is (= 2 (:more del)))
+    (is (= 7 (:total-blockers big)))
+    (is (= 4 (:clear-count big)))
+    (is (= 80 (:readiness-pct big)))
+    (is (= "交付链" (:next-focus big)))))
+
+
+(deftest closure-readiness-attached-in-overview-is-faithful
+  (let [project (create!) id (:project_id project)
+        path (str "/api/pms/projects/" id)
+        body (:body (request :get (str path "/closure") 1 nil))
+        overview (:data body)
+        r (:readiness overview)]
+    (is (= 200 (:status body)))
+    (is (some? r))
+    (is (true? (:available r)))
+    (is (= ["tasks" "governance" "finance" "delivery" "items"] (mapv :key (:categories r))))
+    ;; 只读投影与权威扁平 blockers 同源: 总缺口数 = :blockers 条数, 各类别之和 = 总缺口
+    (is (= (:total-blockers r) (count (:blockers overview))))
+    (is (= (:total-blockers r) (reduce + (map :blocker-count (:categories r)))))
+    ;; 就绪百分比 = 已就绪类别 / 全部类别 (四舍五入整数)
+    (is (= (:readiness-pct r)
+           (int (Math/round ^double (* 100.0 (/ (double (:clear-count r)) 5.0))))))
+    ;; 新建项目无任务/无决算/无齐套 -> 必然有缺口, 未就绪, next-focus 与 ready 互斥
+    (is (false? (:ready r)))
+    (is (= (:ready r) (empty? (:blockers overview))))
+    (is (true? (pos? (:total-blockers r))))
+    (is (string? (:next-focus r))))))

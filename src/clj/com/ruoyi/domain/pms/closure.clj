@@ -20,17 +20,24 @@
       (empty? tasks) (conj "项目没有可验收的计划任务")
       (seq pending) (conj (str "仍有" (count pending) "个未完成的叶级任务")))))
 
-(defn blockers
-  "汇总任务, 质量, 财务和必需收尾项的真实缺口."
+(defn- blocker-groups
+  "把结项缺口按来源域分组, 作为 blockers 与只读就绪度汇总的单一事实来源. 返回每域一个消息向量: tasks 计划任务, governance 治理与质量, finance 财务决算, delivery 交付链, items 收尾清单. 分组顺序与 blockers 完全一致, 不改变任何门控判定."
   [q project]
   (let [items (q :closure/items {:project_id (:project_id project)})
-        required (filter #(or (= "handoff" (:kind %)) (= 1 (:required %))) items)]
-    (into (vec (concat (task-blockers q project)
-                       (:closure (governance/blockers q project))
-                       (finance/closure-blockers q project)
-                       (delivery/closure-blockers q project)))
-          (concat (when-not (some #(= "check" (:kind %)) required) ["缺少必需收尾清单"])
-                  (map #(str "尚未完成: " (:title %)) (remove #(= "completed" (:status %)) required))))))
+        required (filter #(or (= "handoff" (:kind %)) (= 1 (:required %))) items)
+        item-msgs (into [] (concat (when-not (some #(= "check" (:kind %)) required) ["缺少必需收尾清单"])
+                                   (map #(str "尚未完成: " (:title %)) (remove #(= "completed" (:status %)) required))))]
+    {:tasks (vec (task-blockers q project))
+     :governance (vec (:closure (governance/blockers q project)))
+     :finance (vec (finance/closure-blockers q project))
+     :delivery (vec (delivery/closure-blockers q project))
+     :items item-msgs}))
+
+(defn blockers
+  "汇总任务, 质量, 财务和必需收尾项的真实缺口. 由 blocker-groups 按域展平, 与历史顺序一致, 门控判定不变."
+  [q project]
+  (let [g (blocker-groups q project)]
+    (vec (concat (:tasks g) (:governance g) (:finance g) (:delivery g) (:items g)))))
 
 (defn- snapshot
   "收集会影响关闭决定的对象版本, 不包含可变化的通用审计计数."
@@ -92,6 +99,34 @@
      :by-kind (vector (kind-row "check" "收尾检查" checks) (kind-row "handoff" "遗留移交" handoffs))}))
 
 
+(defn readiness-summary
+  "H14 收尾归档就绪度分类只读汇总 (免迁移, 不构成门控): 结项此前只有扁平 blocker 文案列表, 看不出缺口卡在哪个来源域, 每类差几项, 总体就绪到什么程度. 本函数在读取时把 blocker-groups 的五类缺口 (tasks 计划任务, governance 治理与质量, finance 财务决算, delivery 交付链, items 收尾清单) 各自计数并标注是否已就绪 clear, 汇总总缺口数 total-blockers, 已就绪类别数 clear-count 与受阻类别数 blocked-count, 就绪百分比 readiness-pct (已就绪类别占全部类别的四舍五入整数百分比), 是否完全就绪 ready (总缺口为 0), 关闭审批状态 approval-state, 以及下一步最该先解决的类别提示 next-focus (第一个仍受阻的类别 label, 全部就绪时为 nil). 每类附带 messages (至多前 5 条真实缺口文案) 与 more (被省略的条数), 便于界面既看类别计数又下钻具体缺口. 这是 blockers/ready!/submit!/review! 所依据同一份 blocker-groups 的只读投影, 不写入存储, 不新增 kind/命令/路由, 不改变任何门控判定, 键名不带尾随问号."
+  [{:keys [tasks governance finance delivery items]} approval]
+  (let [spec [["tasks" "计划任务" tasks]
+              ["governance" "治理与质量" governance]
+              ["finance" "财务决算" finance]
+              ["delivery" "交付链" delivery]
+              ["items" "收尾清单" items]]
+        cats (mapv (fn [[key label msgs]]
+                     (let [n (count msgs)]
+                       {:key key :label label :blocker-count n :clear (zero? n)
+                        :messages (mapv str (take 5 msgs)) :more (max 0 (- n 5))}))
+                   spec)
+        total-blockers (reduce + (map :blocker-count cats))
+        clear-count (count (filter :clear cats))
+        cat-count (count cats)
+        pct (fn [n d] (if (pos? d) (int (Math/round ^double (* 100.0 (/ n d)))) 0))]
+    {:available true
+     :categories cats
+     :total-blockers total-blockers
+     :clear-count clear-count
+     :blocked-count (- cat-count clear-count)
+     :readiness-pct (pct clear-count cat-count)
+     :ready (zero? total-blockers)
+     :approval-state (or (:status approval) "none")
+     :next-focus (when (pos? total-blockers) (:label (first (remove :clear cats))))}))
+
+
 (def lesson-stages
   "H15a 经验教训适用场景/阶段受控枚举: 让复盘经验能标注其适用的项目过程阶段, 便于后续按场景检索复用. 历史经验留空表示未标注."
   ["启动" "规划" "执行" "监控" "收尾" "质量" "交付" "成本" "风险" "采购" "干系人" "沟通"])
@@ -142,7 +177,9 @@
     (fn [q project]
       (let [items (mapv #(assoc % :id (:item_id %) :required (= 1 (:required %)))
                         (q :closure/items {:project_id project-id}))
-            missing (blockers q project)
+            groups (blocker-groups q project)
+            missing (vec (concat (:tasks groups) (:governance groups) (:finance groups)
+                                 (:delivery groups) (:items groups)))
             approval (q :closure/approval {:project_id project-id})
             lessons (mapv #(assoc % :id (:lesson_id %)) (q :closure/lessons {:project_id project-id}))]
         {:project_version (:version project) :checks (filterv #(= "check" (:kind %)) items)
@@ -151,6 +188,7 @@
          :reopen_request (q :reopen/latest {:project_id project-id})
          :approval (some-> approval (dissoc :snapshot_json))
          :ready (empty? missing) :blockers missing
+         :readiness (readiness-summary groups approval)
          :progress (progress-summary items approval lessons (java.time.LocalDate/now))
          :lesson_summary (lesson-summary lessons)}))))
 

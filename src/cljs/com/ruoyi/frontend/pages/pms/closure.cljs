@@ -150,6 +150,41 @@
                                                                 (r/as-element [antd/progress {:percent c :size "small" :style {:width 180}}])))}])}]])]))
 
 
+(defn- readiness-panel
+  "H14 收尾归档就绪度分类只读汇总: 把结项缺口按 计划任务/治理与质量/财务决算/交付链/收尾清单 五类分别计数并标注是否已就绪, 给出归档就绪度百分比与下一步提示; 只读派生, 不门控任何写操作 (结项准入与独立关闭审批仍由上方检查与审批决定)."
+  [{:keys [model]}]
+  (let [rd (:readiness model)
+        cats (:categories rd)
+        state (:approval-state rd)
+        state-label ({"none" "未提交" "submitted" "审批中" "approved" "已批准" "rejected" "已驳回"} state state)]
+    (when rd
+      [shared/panel "收尾归档就绪度" "按计划任务/治理与质量/财务决算/交付链/收尾清单五类派生缺口计数, 给出归档就绪度与下一步提示; 只读派生, 不门控任何写操作" nil
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color (if (:ready rd) "green" "volcano")}
+          (if (:ready rd) "已具备结项条件" (str "尚有 " (:total-blockers rd) " 项缺口"))]
+         [antd/tag {:color "blue"} (str "就绪类别 " (:clear-count rd) " / " (count cats))]
+         [antd/tag {:color (if (pos? (:blocked-count rd)) "red" "green")} (str "受阻类别 " (:blocked-count rd))]
+         [antd/tag {:color (case state "approved" "green" "submitted" "processing" "rejected" "red" "default")} (str "关闭审批 " state-label)]
+         [antd/tag {:color (if (>= (:readiness-pct rd) 100) "green" "gold")} (str "归档就绪度 " (:readiness-pct rd) "%")]
+         (when-let [focus (:next-focus rd)]
+           [antd/tag {:color "orange"} (str "下一步优先: " focus)])]
+        [antd/progress {:percent (:readiness-pct rd) :size "small" :style {:width "100%"}}]
+        [antd/table {:rowKey "key" :size "small" :pagination false :dataSource (clj->js cats)
+                     :columns (clj->js [{:title "缺口来源" :dataIndex "label" :width 140}
+                                        {:title "状态" :key "st" :width 90
+                                         :render (fn [_ row] (let [clear (aget row "clear")]
+                                                                (r/as-element [antd/tag {:color (if clear "green" "red")} (if clear "就绪" "有阻塞")])))}
+                                        {:title "缺口数" :key "cnt" :width 140
+                                         :render (fn [_ row] (let [n (aget row "blocker-count") m (aget row "more")]
+                                                                (r/as-element [:span (str n " 项")
+                                                                             (when (pos? m) [:span {:style {:color "#8c8c8c"}} (str " (另有" m "条)")])])))}
+                                        {:title "具体缺口" :key "msg"
+                                         :render (fn [_ row] (let [n (aget row "blocker-count") msgs (aget row "messages")]
+                                                                (r/as-element [:span {:style {:color (if (zero? n) "#45846c" "#b76537")}}
+                                                                             (if (zero? n) "无缺口" (.join msgs " / "))])))}])}]]])))
+
+
 (defn- lesson-summary-panel
   "H15 经验教训类别分布与作者覆盖度只读汇总: 聚合经验分类覆盖, 分类分布与集中度, 参与人数; H15a 追加适用场景覆盖与跟进责任人落地度; 只读派生, 不门控经验登记."
   [{:keys [model]}]
@@ -196,7 +231,7 @@
   "按检查,移交,复盘与正式审批组织结项."
   [context]
   [:div {:style {:display "grid" :gap 20}}
-   [blocker-panel (:model context)] [progress-panel context] [checklist context] [handoffs context]
+   [blocker-panel (:model context)] [readiness-panel context] [progress-panel context] [checklist context] [handoffs context]
    [lessons context] [lesson-summary-panel context] [approval context] [reopen-panel context]])
 
 (defn closure-workspace
