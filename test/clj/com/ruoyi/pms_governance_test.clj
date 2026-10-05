@@ -2170,6 +2170,35 @@
     (is (= 400 (error-status #(command! id :charters :create nil (assoc (charter-body) :schedule_impact_days 12)))))))
 
 
+(deftest change-type-is-optional-enum-persisted
+  (let [id (project!)
+        base-body {:title "变更请求类型测试" :reason "合同调整" :scope_impact "增加设备"
+                   :schedule_impact "增加十日" :cost_impact "重新估价" :quality_impact "增加测试"
+                   :resource_impact "追加工程师"}
+        ;; 合法变更请求类型(PMBOK四类)随登记持久化并在命令结果回显.
+        typed (command! id :changes :create nil (assoc base-body :change_type "corrective"))]
+    (is (= "corrective" (:change_type typed)))
+    ;; workspace 变更读模型逐条回显 change_type (payload 字段自动透传).
+    (is (= "corrective" (:change_type (first (filter #(= (:id typed) (:id %)) (:changes (workspace id)))))))
+    ;; 未选类型则不写入该键 (零回归, 视为未设定), 变更仍正常创建为 draft.
+    (let [plain (command! id :changes :create nil base-body)]
+      (is (nil? (:change_type plain)))
+      (is (= "draft" (:status plain))))
+    ;; 前端未选中下拉提交空串同样视为未设定, 不写入该键 (零回归).
+    (let [blank (command! id :changes :create nil (assoc base-body :change_type ""))]
+      (is (nil? (:change_type blank))))
+    ;; 修订形成新不可变版本, 旧版本类型不漂移.
+    (let [revision (command! id :changes :revisions (:id typed) (assoc base-body :change_type "preventive"))
+          old (first (filter #(= (:id typed) (:id %)) (:changes (workspace id))))]
+      (is (= 2 (:revision revision)))
+      (is (= "preventive" (:change_type revision)))
+      (is (= "corrective" (:change_type old))))
+    ;; 非法变更类型被枚举校验拒绝.
+    (is (= 400 (error-status #(command! id :changes :create nil (assoc base-body :change_type "not-a-type")))))
+    ;; 变更类型是变更专属字段, 追加到章程体被白名单拒绝.
+    (is (= 400 (error-status #(command! id :charters :create nil (assoc (charter-body) :change_type "corrective")))))))
+
+
 (deftest high-impact-change-auto-escalates-and-gates-approval
   (let [id (project!)
         base-body {:title "更改设备范围" :reason "合同调整" :scope_impact "增加设备"

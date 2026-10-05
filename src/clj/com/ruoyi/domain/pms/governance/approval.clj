@@ -29,6 +29,14 @@
   "变更可选量化影响字段,随内容版本不可变持久化."
   [:schedule_impact_days :cost_impact_amount])
 
+(def change-type-fields
+  "变更可选请求类型字段,随内容版本不可变持久化."
+  [:change_type])
+
+(def change-types
+  "变更请求类型枚举(PMBOK四类变更请求): 纠错性/预防性/缺陷修复/更新; 登记时未选择则不写入(视为未设定)."
+  #{"corrective" "preventive" "defect-repair" "updates"})
+
 (def high-impact-schedule-days
   "工期影响达到该天数即判定为高影响变更."
   10)
@@ -71,6 +79,12 @@
              (when (neg? amount) (r/fail! 400 "成本影响金额不得为负数"))
              (money/money amount)))))
 
+(defn- change-type!
+  "校验变更可选请求类型(PMBOK四类): 缺键或空串视为未设定不写入该键; 非法取值400. 免迁移随 payload 持久化."
+  [body]
+  (when (seq (:change_type body))
+    {:change_type (s/enum! (:change_type body) change-types "变更类型")}))
+
 (defn- high-impact?
   "判定变更内容是否达到高影响阈值: 工期影响达到阈值天数或成本影响金额达到阈值最小单位."
   [record]
@@ -95,14 +109,15 @@
   (let [fields (if (= kind "charter") charter-fields change-fields)
         allowed (if (= kind "charter")
                   (into (into charter-fields charter-budget-fields) charter-pm-fields)
-                  (into change-fields change-impact-fields))]
+                  (into (into change-fields change-impact-fields) change-type-fields))]
     (s/input! body allowed)
     (cond-> (into {} (for [field (remove #{:sponsor_id} fields)]
                        [field (s/text! body field (if (= field :title) 200 4000))]))
       (= kind "charter") (assoc :sponsor_id (s/user! q (:sponsor_id body)))
       (= kind "charter") (merge (charter-budget! body))
       (= kind "charter") (merge (charter-pm! q body))
-      (= kind "change") (merge (change-impact! body)))))
+      (= kind "change") (merge (change-impact! body))
+      (= kind "change") (merge (change-type! body)))))
 
 (defn create!
   "创建章程的新版本或独立变更申请."

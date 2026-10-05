@@ -1491,7 +1491,18 @@
   [shared/panel "项目变更控制" "批准变更保留依据,计划调整仍进入计划修订与基线审批"
    (when editable? [antd/button {:on-click #(open! (forms/change-dialog base))} "提出项目变更"])
    [w/record-table (:changes model)
-    [(w/text-column :title "变更") (w/text-column :reason "原因") (w/text-column :scope_impact "范围影响")
+    [(w/text-column :title "变更") (w/text-column :reason "原因")
+     {:title "变更类型" :dataIndex "change_type" :width 110
+      :render (fn [_ row]
+                (let [t (aget row "change_type")
+                      label (get {"corrective" "纠错性" "preventive" "预防性"
+                                  "defect-repair" "缺陷修复" "updates" "更新"} t)
+                      color (get {"corrective" "geekblue" "preventive" "green"
+                                  "defect-repair" "orange" "updates" "purple"} t "default")]
+                  (r/as-element (if (nil? t)
+                                  [:span {:style {:color "#98a2b3"}} "未设定"]
+                                  [antd/tag {:color color} label]))))}
+     (w/text-column :scope_impact "范围影响")
      (w/text-column :schedule_impact "进度影响") (w/text-column :cost_impact "成本影响")
      {:title "量化影响" :dataIndex "schedule_impact_days" :width 220
       :render (fn [_ row]

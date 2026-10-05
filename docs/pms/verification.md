@@ -1947,6 +1947,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: H02 整行状态保持不变 (`implemented / local`) — 期望参与态度是 `stakeholder` payload 上的一个可选枚举字段, 投入度评估矩阵只是读取层对"当前态度 vs 期望态度"的只读聚合可视, 一个只读子能力不上抬整行; 矩阵只反映"是否为干系人成对声明了当前与期望态度并据此算差距", 不等于态度判断本身是否准确, 也不改变权力-利益象限/RACI 负载/参与态度覆盖度/沟通受众/受控作废语义; 本项全程单上下文即可闭环 (无第二独立审批人门控), 故矩阵 B 列据实计入通过; 未做按期望态度 × 象限的交叉统计, 亦无自动提醒把"需提升"清单推送给责任人, 期望态度的目标设定与达成后的跟踪仍待补齐, MySQL 回归待补充.
 
+## H09 变更请求类型可选枚举字段 (本轮增补, 2026-10-05)
+
+设计与口径: H09 变更控制此前已具备量化影响与高影响只读派生, 但一条变更"到底是哪一类变更请求"无处登记 — PMBOK 把变更请求分为纠错性 (corrective) / 预防性 (preventive) / 缺陷修复 (defect-repair) / 更新 (updates) 四类, 此前只能混在自由文本 `reason` 里, 无法在台账上按类型结构化区分与回显. 本项给 `POST /changes` 增加可选枚举字段 `change_type` (复用同一"可选强类型字段"套路, 与 H08 `response_strategy`/`risk_category`、C09 `resolution_type`、C02 `verification_method`、H02 `engagement` 同族), **免迁移, 随 `pms_gov_record` 的 `change` payload JSON 持久化, 不新增 kind/命令/路由/表结构, 不构成任何门控**. 写路径在 `governance.approval` 定义 `change-type-fields` 白名单向量 `[:change_type]` 与枚举集合 `change-types` (`#{"corrective" "preventive" "defect-repair" "updates"}`), 私有纯函数 `change-type!` 以值存在性 `(seq (:change_type body))` 门控 — 留空/缺省不写该键 (对既有变更零回归), 有值则经 `s/enum!` 校验非法取值 400. `content!` 的 change 分支白名单改为 `(into (into change-fields change-impact-fields) change-type-fields)`, `cond->` 追加 `(= kind "change") (merge (change-type! body))`; 因 `change_type` 只挂 change 分支, 追加到章程体被白名单拒绝 (400), 证明该字段为变更专属. 读路径无需改动: `store/records` 返回合并后的 payload, 前端 `w/record-table` 走 `clj->js` 故自定义列 `:render` 以 `(aget row "change_type")` 直接读原始 JS 对象 (与风险/验证方式枚举字段自动回显同构). 前端 `governance.cljs` 变更台账"原因"列后新增"变更类型"列 (corrective geekblue "纠错性" / preventive green "预防性" / defect-repair orange "缺陷修复" / updates purple "更新", 未选显示灰字"未设定"); `governance_forms.cljs` change-dialog 在 `resource_impact` 后新增 `:change_type` `:select` 四项下拉, `:transform` 把空值 `dissoc` 避免发出 `""` 触发白名单外/校验 400. `change_type` 与量化影响/高影响派生/超阈值升级/委员会表决彼此正交, 修订链每次不可变持久化 (旧版留旧值, 不漂移).
+
+| 证据类型 | 结果 |
+|---|---|
+| 后端命名空间 (冷 JVM) | `PMS_TEST_JDBC_URL=jdbc:sqlite:/tmp/... MIGRATION_DIR=migrations-sqlite clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 112 tests / 1857 assertions, 0 failures/errors (新增 `change-type-is-optional-enum-persisted`: 登记选 `corrective` 落库并经 workspace 读模型回显, 留空不写该键读回 `nil`, 对最新版 id 修订为 `preventive` 生成 `revision=2` 而旧版仍为 `corrective` 不漂移, 非法取值 `not-a-type` 返回 400, 把 `change_type` 追加到章程体被白名单拒绝 400) |
+| 全量 PMS 回归 (冷 JVM) | `env -u PMS_TEST_JDBC_URL clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 全绿 256 tests / 3558 assertions, 0 failures/errors, `change-type-fields` 白名单并入 `content!` change 分支、`cond->` 追加 `(change-type! body)` 未造成既有变更登记/量化影响/高影响派生/超阈值升级/委员会表决/受控作废回归 |
+| 前端编译 | `npx shadow-cljs compile app` 通过 4035 files / 0 warnings (新增"变更类型"台账列与 change-dialog 的 `:change_type` 下拉及 `:transform` 空值 `dissoc`) |
+| HTTP 合同 (契约) | `contracts/governance.md` 的 `POST /changes` 路由行新增可选 `change_type` 入参枚举 (`corrective`/`preventive`/`defect-repair`/`updates`, 缺省或空值不写键, 非法取值 400), "变更控制"段新增"变更请求类型 (H09 延伸)"段, 记录 `change-type-fields` 白名单并入方式、`(seq (:change_type body))` 值存在性门控、变更专属字段追加章程体 400、逐版不可变不漂移、payload 免迁移持久化与 `store/records` 自动回显, 并写明与高影响/升级/委员会表决正交、不构成门控 |
+| 浏览器 E2E (隔离 `:3100` 独立空库, 单上下文) | 断言用例 `pms-h09ct.spec.js` 1 passed (全新独立 `/tmp/hcpms-h09ct.db` 冷启动迁移, 无未捕获 JS 错误): 界面"提出项目变更"下拉分别选"预防性"(preventive)/"更新"(updates)/不选登记三条 → 命令响应回显英文枚举值 (`data.result.change_type`, 未选者该键为空) → workspace GET `/governance` 读模型原样回显 → 重开台账"变更类型"列回显中文标签徽标"预防性""更新"与未选行"未设定" (h09ct-1-dialog-type / h09ct-2-ledger-column 截图, 字节与 sha 各异为真实浏览器渲染); 非法 `change_type` 取值经真实 HTTP POST 返回 400; `change_type` 追加到章程体经真实 HTTP 返回 400 (变更专属字段验证) |
+| MySQL | 本轮未执行 (本地无 MySQL 实例); 本项为免迁移的可选枚举字段, `change_type` 随 `change` payload JSON 持久化, 不涉及任何表结构或迁移变更, 与 SQLite/MySQL 无关 |
+
+边界: H09 整行状态保持不变 (`implemented / local`) — `change_type` 是 `change` payload 上的一个可选枚举字段, 只登记"这条变更属于 PMBOK 哪一类请求", 不改变量化影响/高影响派生/超阈值升级/委员会表决的任何门控语义; 本项全程单上下文即可闭环 (无第二独立审批人门控), 故矩阵 B 列据实计入通过; 未做按变更类型的只读聚合面板 (变更类型分布/各类型批准率), 亦未按类型自动路由审批或施加差异化门槛, MySQL 回归待补充.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

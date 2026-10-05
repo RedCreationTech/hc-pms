@@ -461,7 +461,7 @@
   {:title "提出项目变更" :path (str base "/changes")
    :transform (fn [data]
                 (reduce (fn [m k] (let [v (get data k)] (if (or (nil? v) (= "" v)) (dissoc m k) m)))
-                        data [:schedule_impact_days :cost_impact_amount]))
+                        data [:schedule_impact_days :cost_impact_amount :change_type]))
    :fields [{:key :title :label "变更标题" :required? true}
             {:key :reason :label "变更原因" :type :textarea :required? true}
             {:key :scope_impact :label "范围影响" :type :textarea :required? true}
@@ -469,6 +469,10 @@
             {:key :cost_impact :label "成本影响" :type :textarea :required? true}
             {:key :quality_impact :label "质量影响" :type :textarea :required? true}
             {:key :resource_impact :label "资源影响" :type :textarea :required? true}
+            {:key :change_type :label "变更类型" :type :select
+             :options [{:value "corrective" :label "纠错性"} {:value "preventive" :label "预防性"}
+                       {:value "defect-repair" :label "缺陷修复"} {:value "updates" :label "更新"}]
+             :hint "可选, PMBOK变更请求类型(纠错性/预防性/缺陷修复/更新); 留空视为未设定"}
             {:key :schedule_impact_days :label "工期影响(天)" :type :number :min 0 :max 3650
              :hint "可选, 0-3650整数天; 用于量化影响分析与高影响判定"}
             {:key :cost_impact_amount :label "成本影响金额"
