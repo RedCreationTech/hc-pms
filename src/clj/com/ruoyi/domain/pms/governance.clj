@@ -122,6 +122,7 @@
                           :risk_response_coverage (collab/risk-response-coverage (:risks data))
                           :risk_category_coverage (collab/risk-category-coverage (:risks data))
                           :stakeholder_engagement_coverage (stakeholders/engagement-coverage (:stakeholders data))
+                          :stakeholder_engagement_matrix (stakeholders/engagement-assessment-matrix (:stakeholders data))
                           :issue_resolution_coverage (collab/issue-resolution-coverage (:issues data))
                           :risk_escalation_summary (collab/risk-escalation-disposition-summary (:risks data))
                           :risk_score_distribution (collab/risk-score-distribution (:risks data))

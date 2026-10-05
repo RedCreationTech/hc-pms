@@ -596,9 +596,11 @@
   [base options stakeholder]
   {:title (if stakeholder "修订干系人" "登记干系人")
    :path (str base "/stakeholders" (when stakeholder (str "/" (:id stakeholder) "/revisions")))
-   :initial (if stakeholder (select-keys stakeholder [:code :name :role :category :interest :influence :engagement :owner_id])
+   :initial (if stakeholder (select-keys stakeholder [:code :name :role :category :interest :influence :engagement :desired_engagement :owner_id])
                 {:category "internal" :interest "medium" :influence "medium"})
-   :transform (fn [data] (let [v (:engagement data)] (if (or (nil? v) (= "" v)) (dissoc data :engagement) data)))
+   :transform (fn [data]
+                (reduce #(let [v (%2 data)] (if (or (nil? v) (= "" v)) (dissoc %1 %2) %1))
+                        data [:engagement :desired_engagement]))
    :fields [{:key :code :label "干系人编号" :required? true}
             {:key :name :label "名称" :required? true}
             {:key :role :label "职责角色" :required? true}
@@ -608,6 +610,9 @@
             {:key :interest :label "关注度" :type :select :required? true :options (w/choices ["high" "medium" "low"])}
             {:key :influence :label "影响力" :type :select :required? true :options (w/choices ["high" "medium" "low"])}
             {:key :engagement :label "参与态度(可选)" :type :select :hint "留空则不设定当前参与态度"
+             :options [{:value "unaware" :label "未知晓"} {:value "resistant" :label "抵制"} {:value "neutral" :label "中立"}
+                       {:value "supportive" :label "支持"} {:value "leading" :label "主导"}]}
+            {:key :desired_engagement :label "期望参与态度(可选)" :type :select :hint "留空则不参与投入度评估矩阵差距计算"
              :options [{:value "unaware" :label "未知晓"} {:value "resistant" :label "抵制"} {:value "neutral" :label "中立"}
                        {:value "supportive" :label "支持"} {:value "leading" :label "主导"}]}
             {:key :owner_id :label "关联项目成员(可选)" :type :select :options (w/user-options (:users options))}]})

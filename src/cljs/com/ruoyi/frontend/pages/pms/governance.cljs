@@ -372,6 +372,34 @@
         [antd/tag {:color color} label]))))
 
 
+(defn- desired-engagement-cell
+  "渲染干系人期望参与态度标签 (PMBOK 投入度评估目标), 未设定时显示灰字."
+  [row]
+  (let [e (aget row "desired_engagement")
+        label (get {"unaware" "未知晓" "resistant" "抵制" "neutral" "中立"
+                    "supportive" "支持" "leading" "主导"} e)
+        color (get {"unaware" "default" "resistant" "orange" "neutral" "blue"
+                    "supportive" "cyan" "leading" "gold"} e "default")]
+    (r/as-element
+      (if (nil? e)
+        [:span {:style {:color "#98a2b3"}} "未设定"]
+        [antd/tag {:color color} label]))))
+
+
+(defn- engagement-gap-cell
+  "渲染当前与期望参与态度之间的投入度差距标签 (只读派生): 达标/需提升/需降低/未标注."
+  [row]
+  (let [state (aget row "stakeholder_engagement_state")
+        gap (aget row "stakeholder_engagement_gap")
+        text (case state
+               "on" "达标"
+               "up" (str "需提升 +" gap " 档")
+               "down" (str "需降低 " (js/Math.abs gap) " 档")
+               "未标注")]
+    (r/as-element
+      [antd/tag {:color (get {"on" "green" "up" "volcano" "down" "blue"} state "default")} text])))
+
+
 (defn- quadrant-cell
   "渲染干系人权力-利益象限管理策略标签, 未绑定项目成员责任人时追加提示."
   [row]
@@ -395,6 +423,8 @@
     [(w/text-column :code "编号") (w/text-column :name "名称") (w/text-column :role "职责")
      (w/text-column :category "分类") (w/text-column :interest "关注度") (w/text-column :influence "影响力")
      {:title "参与态度" :dataIndex "engagement" :width 110 :render (fn [_ row] (engagement-cell row))}
+     {:title "期望态度" :dataIndex "desired_engagement" :width 110 :render (fn [_ row] (desired-engagement-cell row))}
+     {:title "投入差距" :dataIndex "stakeholder_engagement_state" :width 140 :render (fn [_ row] (engagement-gap-cell row))}
      {:title "管理策略" :dataIndex "stakeholder_quadrant" :width 200 :render (fn [_ row] (quadrant-cell row))}
      (w/state-column)]
     (when editable? (fn [row] [antd/space {:wrap true}
@@ -433,6 +463,46 @@
           (for [{:keys [engagement count]} (:by-engagement cov)]
             ^{:key engagement} [antd/tag {:color (if (pos? count) (get engagement-color engagement "geekblue") "default")}
                               (str (get engagement-label engagement engagement) " · " count)])]]])]))
+
+
+(defn- engagement-matrix-section
+  "按每个干系人最新有效版本只读比对当前与期望参与态度 (PMBOK 投入度评估矩阵): 达标/需提升/需降低/未标注统计与优先级清单; 只读派生, 不改变干系人状态."
+  [{:keys [model]}]
+  (let [mx (:stakeholder_engagement_matrix model)
+        total (:total mx 0)
+        marked (:marked mx 0)
+        pct (:on-target-pct mx 0)
+        label {"unaware" "未知晓" "resistant" "抵制" "neutral" "中立"
+               "supportive" "支持" "leading" "主导"}
+        enum-col (fn [k title]
+                   {:title title :dataIndex (name k) :width 90
+                    :render (fn [_ row] (r/as-element [antd/tag (get label (aget row (name k)) "-")]))})
+        gap-col {:title "差距" :dataIndex "gap" :width 90
+                 :render (fn [_ row]
+                           (let [g (aget row "gap")]
+                             (r/as-element [:span (if (nil? g) "-" (str (when (pos? g) "+") g))])))}]
+    [shared/panel "参与态度评估矩阵" "按每个干系人的最新有效版本比对当前与期望参与态度 (PMBOK 投入度评估), 给出达标/需提升/需降低/未标注统计与优先级清单; 只读派生, 不改变干系人状态"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无项目干系人, 登记并设定当前与期望参与态度后可在此查看投入度评估矩阵."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "干系人总数 " total)]
+         [antd/tag {:color "geekblue"} (str "已标注 " marked)]
+         [antd/tag {:color (cond (= pct 100) "green" (zero? pct) "red" :else "gold")} (str "达标率 " pct "%")]
+         [antd/tag {:color (if (pos? (:need-up mx 0)) "volcano" "default")} (str "需提升 " (:need-up mx 0) " (合计 " (:up-steps mx 0) " 档)")]
+         [antd/tag {:color (if (pos? (:need-down mx 0)) "blue" "default")} (str "需降低 " (:need-down mx 0))]
+         [antd/tag {:color (if (pos? (:unmarked mx 0)) "orange" "default")} (str "未标注 " (:unmarked mx 0))]]
+        [:div
+         [:div {:style {:fontWeight 500 :marginBottom 4}} "需提升优先级"]
+         [w/record-table (:need-up-stakeholders mx [])
+          [(w/text-column :code "编号") (w/text-column :name "名称")
+           (enum-col :current "当前") (enum-col :desired "期望") gap-col] nil]]
+        (when (seq (:need-down-stakeholders mx))
+          [:div
+           [:div {:style {:fontWeight 500 :marginBottom 4}} "需降低"]
+           [w/record-table (:need-down-stakeholders mx)
+            [(w/text-column :code "编号") (w/text-column :name "名称")
+             (enum-col :current "当前") (enum-col :desired "期望") gap-col] nil]])])]))
 
 
 (defn- raci-conflict-text
@@ -1860,7 +1930,7 @@
                      ["requirements" "URS与追踪" [requirement-section coverage-section alignment-section traceability-section trace-section]]
                      ["evidence" "证据版本" [document-section collection-section tree-section release-coverage-section]]
                      ["appointments" "成员任命" [appointment-section]]
-                     ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section raci-section raci-assignment-section raci-engagement-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section]]
+                     ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section]]
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section action-closure-section project-remediation-overview-section action-section]]

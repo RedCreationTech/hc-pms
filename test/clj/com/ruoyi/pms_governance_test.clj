@@ -3860,6 +3860,112 @@
       (is (= "leading" (:engagement row))))))
 
 
+(deftest stakeholder-desired-engagement-is-optional-enum-persisted
+  (let [id (project!)
+        target (command! id :stakeholders :create nil
+                         {:code "SH-DE-1" :name "待争取监管方" :role "合规审查" :category "regulator"
+                          :interest "high" :influence "high" :engagement "resistant"
+                          :desired_engagement "supportive" :owner_id 9301})]
+    ;; 合法期望参与态度枚举回显并随 payload 持久化, 读模型原样返回.
+    (is (= "resistant" (:engagement target)))
+    (is (= "supportive" (:desired_engagement target)))
+    (let [echo (first (filter #(= (:id target) (:id %)) (:stakeholders (workspace id))))]
+      (is (= "supportive" (:desired_engagement echo)))
+      ;; 当前抵制 -> 期望支持, 评估差距为需提升 2 档.
+      (is (= "up" (:stakeholder_engagement_state echo)))
+      (is (= 2 (:stakeholder_engagement_gap echo))))
+    ;; 未选期望态度则不写入该键, 干系人仍正常创建为 active.
+    (let [plain (command! id :stakeholders :create nil
+                          {:code "SH-DE-2" :name "未标注期望干系人" :role "观察" :category "internal"
+                           :interest "low" :influence "low" :owner_id 9301})]
+      (is (nil? (:desired_engagement plain)))
+      (is (= "active" (:status plain)))
+      (is (= "unmarked" (:stakeholder_engagement_state
+                         (first (filter #(= (:id plain) (:id %)) (:stakeholders (workspace id))))))))
+    ;; 非法期望参与态度枚举被白名单校验拒绝.
+    (is (= 400 (error-status #(command! id :stakeholders :create nil
+                                        {:code "SH-DE-3" :name "非法期望态度" :role "x" :category "external"
+                                         :interest "high" :influence "high" :desired_engagement "champion"
+                                         :owner_id 9301}))))
+    ;; 修订可改期望态度而旧版本不漂移.
+    (let [revised (command! id :stakeholders :revisions (:id target)
+                            {:code "SH-DE-1" :name "待争取监管方" :role "合规审查" :category "regulator"
+                             :interest "high" :influence "high" :engagement "resistant"
+                             :desired_engagement "leading" :owner_id 9301})]
+      (is (= "leading" (:desired_engagement revised)))
+      (is (= 2 (:revision revised)))
+      (is (= "supportive" (:desired_engagement
+                           (first (filter #(= (:id target) (:id %)) (:stakeholders (workspace id))))))))))
+
+
+(deftest stakeholder-engagement-assessment-matrix-is-derived-read-only
+  (let [id (project!)
+        matrix (fn [] (:stakeholder_engagement_matrix (workspace id)))
+        sh (fn [code engagement desired]
+             (command! id :stakeholders :create nil
+                       (cond-> {:code code :name (str "干系人-" code) :role "评审" :category "internal"
+                                :interest "medium" :influence "medium" :owner_id 9301}
+                         engagement (assoc :engagement engagement)
+                         desired (assoc :desired_engagement desired))))
+        by-code (fn [code] (first (filter #(= code (:code %)) (:stakeholders (workspace id)))))]
+    ;; PMBOK 投入度评估矩阵: 当前 vs 期望按每个业务编码最新有效版本计算差距档数并分类.
+    (sh "EM-UP2" "resistant" "leading")    ;; gap +3 -> up
+    (sh "EM-UP1" "unaware" "neutral")      ;; gap +2 -> up
+    (sh "EM-ON" "supportive" "supportive") ;; gap 0  -> on
+    (sh "EM-DOWN" "leading" "neutral")     ;; gap -2 -> down
+    (sh "EM-MARK" "supportive" nil)        ;; 缺期望 -> unmarked
+    (is (true? (:available (matrix))))
+    (is (= 5 (:total (matrix))))
+    (is (= 4 (:marked (matrix))))
+    (is (= 1 (:on-target (matrix))))
+    (is (= 2 (:need-up (matrix))))
+    (is (= 1 (:need-down (matrix))))
+    (is (= 1 (:unmarked (matrix))))
+    (is (= 5 (:up-steps (matrix))) "需提升合计档数 3+2")
+    (is (= 25 (:on-target-pct (matrix))) "达标/已标注 1/4")
+    ;; 需提升清单按差距降序 (EM-UP2 3档 -> EM-UP1 2档).
+    (is (= ["EM-UP2" "EM-UP1"] (mapv :code (:need-up-stakeholders (matrix)))))
+    ;; 修订把 EM-UP1 从需提升改为达标: 最新有效版本取代旧版, 计数重算而非累加.
+    (command! id :stakeholders :revisions (:id (by-code "EM-UP1"))
+              {:code "EM-UP1" :name "干系人-EM-UP1" :role "评审" :category "internal"
+               :interest "medium" :influence "medium" :engagement "neutral"
+               :desired_engagement "neutral" :owner_id 9301})
+    (is (= 5 (:total (matrix))))
+    (is (= 2 (:on-target (matrix))))
+    (is (= 1 (:need-up (matrix))))
+    (is (= 3 (:up-steps (matrix))))
+    (is (= ["EM-UP2"] (mapv :code (:need-up-stakeholders (matrix)))))
+    ;; 受控作废最新版本: 该编码从总数与分类中剔除, 只读派生不改变不可变版本.
+    (command! id :stakeholders :discard (:id (by-code "EM-DOWN")) {:reason "人员退出项目"})
+    (is (= 4 (:total (matrix))))
+    (is (= 0 (:need-down (matrix))))
+    ;; 只读派生稳定且不改记录: 重复读取一致, 既有未作废干系人仍 active 且态度不漂移.
+    (is (= (matrix) (:stakeholder_engagement_matrix (workspace id))))
+    (let [row (by-code "EM-UP2")]
+      (is (= "active" (:status row)))
+      (is (= "up" (:stakeholder_engagement_state row)))
+      (is (= 3 (:stakeholder_engagement_gap row))))
+    ;; 纯函数直测: 空输入 available false/全 0; 合成覆盖 up/down/on/unmarked 与 discarded 剔除.
+    (let [empty (stakeholders/engagement-assessment-matrix [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:total empty)))
+      (is (= 0 (:on-target-pct empty)))
+      (is (empty? (:need-up-stakeholders empty))))
+    (let [syn (stakeholders/engagement-assessment-matrix
+                [{:code "A" :name "a" :revision 1 :status "active" :engagement "resistant" :desired_engagement "leading"}
+                 {:code "B" :name "b" :revision 1 :status "active" :engagement "leading" :desired_engagement "unaware"}
+                 {:code "C" :name "c" :revision 1 :status "active" :engagement "neutral" :desired_engagement "neutral"}
+                 {:code "D" :name "d" :revision 1 :status "active" :engagement "supportive"}
+                 {:code "E" :name "e" :revision 2 :status "discarded" :engagement "unaware" :desired_engagement "leading"}])]
+      (is (= 4 (:total syn)))
+      (is (= 1 (:need-up syn)))
+      (is (= 1 (:need-down syn)))
+      (is (= 1 (:on-target syn)))
+      (is (= 1 (:unmarked syn)))
+      (is (= 3 (:up-steps syn)))
+      (is (= 33 (:on-target-pct syn))))))
+
+
 (deftest raci-r-load-and-overload-read-model
   (let [id (project!)
         s1 (command! id :stakeholders :create nil

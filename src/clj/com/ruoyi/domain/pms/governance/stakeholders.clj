@@ -39,6 +39,59 @@
   #{"unaware" "resistant" "neutral" "supportive" "leading"})
 
 
+(def engagement-order
+  "PMBOK 投入度评估由低到高的参与态度序列, 用于计算当前态度与期望态度之间的差距档数."
+  ["unaware" "resistant" "neutral" "supportive" "leading"])
+
+
+(defn- engagement-assessment
+  "按 engagement-order 计算当前态度到期望态度的差距: 返回 {:state gap} 二元组, state 取 up (需提升), down (需降低), on (达标) 或 unmarked (当前或期望任一未落在受控枚举)."
+  [current desired]
+  (let [ci (.indexOf ^java.util.List engagement-order current)
+        di (.indexOf ^java.util.List engagement-order desired)]
+    (if (or (neg? ci) (neg? di))
+      ["unmarked" nil]
+      (let [gap (- di ci)]
+        [(cond (pos? gap) "up" (neg? gap) "down" :else "on") gap]))))
+
+
+(defn engagement-assessment-matrix
+  "按每个干系人业务编码最新有效版本统计 PMBOK 参与态度评估矩阵 (当前态度 vs 期望态度) 的只读派生: 逐档差距 gap = 期望序 - 当前序, 分类为达标 (gap=0), 需提升 (gap>0), 需降低 (gap<0) 与未标注 (缺当前或期望态度); 给出干系人总数/已标注/达标/需提升/需降低/未标注/需提升合计档数/达标率与需提升与需降低干系人清单 (编号+名称+当前+期望+差距档数, 需提升按差距降序). 最新版本被受控作废 (discarded) 的编号不计入. 只读派生, 不落库不投递, 不改变不可变版本, 不构成任何门控."
+  [stakeholders]
+  (let [active (filterv #(not= "discarded" (:status %)) (s/latest stakeholders))
+        assessed (mapv (fn [row]
+                         (let [[state gap] (engagement-assessment (:engagement row) (:desired_engagement row))]
+                           {:state state :gap gap :code (:code row) :name (:name row)
+                            :current (:engagement row) :desired (:desired_engagement row)}))
+                       active)
+        state-count (fn [st] (count (filterv #(= st (:state %)) assessed)))
+        total (count assessed)
+        on (state-count "on")
+        up (state-count "up")
+        down (state-count "down")
+        unmarked (state-count "unmarked")
+        marked (- total unmarked)
+        up-steps (reduce + 0 (keep #(when (= "up" (:state %)) (:gap %)) assessed))
+        pick (fn [st]
+               (let [rows (filterv #(= st (:state %)) assessed)]
+                 (->> (if (= st "up") (sort-by :gap > rows) (sort-by :gap rows))
+                      (mapv #(select-keys % [:code :name :current :desired :gap]))
+                      (vec))))]
+    {:available (pos? total)
+     :total total
+     :marked marked
+     :on-target on
+     :need-up up
+     :need-down down
+     :unmarked unmarked
+     :up-steps up-steps
+     :on-target-pct (if (pos? marked)
+                      (int (Math/round ^double (* 100.0 (/ on marked))))
+                      0)
+     :need-up-stakeholders (pick "up")
+     :need-down-stakeholders (pick "down")}))
+
+
 (defn- owner!
   "可选责任人字段, 提供时必须是当前项目有效成员."
   [q project body]
@@ -46,9 +99,9 @@
 
 
 (defn- stakeholder-fields!
-  "校验干系人编号, 名称, 职责, 分类, 关注度, 影响力与可选参与态度."
+  "校验干系人编号, 名称, 职责, 分类, 关注度, 影响力与可选当前/期望参与态度."
   [q project body]
-  (s/input! body [:code :name :role :category :interest :influence :engagement :owner_id])
+  (s/input! body [:code :name :role :category :interest :influence :engagement :desired_engagement :owner_id])
   (cond-> {:code (s/text! body :code 100)
            :name (s/text! body :name 200)
            :role (s/text! body :role 200)
@@ -56,7 +109,9 @@
            :interest (s/enum! (:interest body) grades "interest")
            :influence (s/enum! (:influence body) grades "influence")
            :owner_id (owner! q project body)}
-    (:engagement body) (assoc :engagement (s/enum! (:engagement body) engagement-levels "参与态度"))))
+    (:engagement body) (assoc :engagement (s/enum! (:engagement body) engagement-levels "参与态度"))
+    (:desired_engagement body) (assoc :desired_engagement
+                                      (s/enum! (:desired_engagement body) engagement-levels "期望参与态度"))))
 
 
 (defn- code-unused!
@@ -255,10 +310,13 @@
 
 
 (defn stakeholder-read-model
-  "以影响力与关注度派生权力-利益管理象限, 并标记是否尚未绑定项目成员责任人; 只读计算不改状态."
+  "以影响力与关注度派生权力-利益管理象限, 标记是否尚未绑定项目成员责任人, 并按当前与期望参与态度派生投入度评估差距 (gap 为整数档数, state 取 up/down/on/unmarked); 只读计算不改状态."
   [stakeholder]
-  (assoc stakeholder :stakeholder_quadrant (quadrant-of stakeholder)
-                     :stakeholder_unbound (not (:owner_id stakeholder))))
+  (let [[state gap] (engagement-assessment (:engagement stakeholder) (:desired_engagement stakeholder))]
+    (assoc stakeholder :stakeholder_quadrant (quadrant-of stakeholder)
+                       :stakeholder_unbound (not (:owner_id stakeholder))
+                       :stakeholder_engagement_state state
+                       :stakeholder_engagement_gap gap)))
 
 
 (defn engagement-coverage
