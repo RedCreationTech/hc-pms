@@ -663,3 +663,89 @@
       (is (contains? #{"very-tight" "tight" "moderate" "loose"} (:tightness-level t)))
       (is (= v-before (version id)))
       (is (= v-before (:project_version model))))))
+
+(deftest network-connectivity-is-derived-read-only
+  (testing "纯函数口径: 单一连通链 A->B->C -> linked3 占100% 未链接0 段数1 档connected"
+    (let [tasks [{:task_id "A" :wbs_code "1.1" :name "甲" :task_type "task"}
+                 {:task_id "B" :wbs_code "1.2" :name "乙" :task_type "task"}
+                 {:task_id "C" :wbs_code "1.3" :name "丙" :task_type "task"}]
+          deps [{:predecessor_id "A" :successor_id "B"}
+                {:predecessor_id "B" :successor_id "C"}]
+          n (schedule/network-connectivity tasks deps)]
+      (is (true? (:available n)))
+      (is (= 3 (:leaf-count n)))
+      (is (= 2 (:dependency-count n)))
+      (is (= 3 (:linked-count n)))
+      (is (= 100 (:linked-pct n)))
+      (is (= 0 (:unlinked-count n)))
+      (is (empty? (:unlinked-tasks n)))
+      (is (= 1 (:component-count n)))
+      (is (= "connected" (:connectivity-level n)))))
+  (testing "纯函数口径: 存在孤立任务 -> A->B 链接, C 完全未链接; linked2 占67% 未链接清单含 C 档unlinked 段数仍1"
+    (let [tasks [{:task_id "A" :wbs_code "1.1" :name "甲" :task_type "task"}
+                 {:task_id "B" :wbs_code "1.2" :name "乙" :task_type "task"}
+                 {:task_id "C" :wbs_code "1.3" :name "孤丙" :task_type "task"}]
+          deps [{:predecessor_id "A" :successor_id "B"}]
+          n (schedule/network-connectivity tasks deps)]
+      (is (= 3 (:leaf-count n)))
+      (is (= 1 (:dependency-count n)))
+      (is (= 2 (:linked-count n)))
+      (is (= 67 (:linked-pct n)))
+      (is (= 1 (:unlinked-count n)))
+      (is (= [{:task_id "C" :wbs_code "1.3" :name "孤丙"}] (:unlinked-tasks n)))
+      (is (= 1 (:component-count n)))
+      (is (= "unlinked" (:connectivity-level n)))))
+  (testing "纯函数口径: 两段平行链 A->B 与 C->D 无孤立 -> linked100% 未链接0 段数2 档fragmented"
+    (let [tasks [{:task_id "A" :wbs_code "1.1" :task_type "task"}
+                 {:task_id "B" :wbs_code "1.2" :task_type "task"}
+                 {:task_id "C" :wbs_code "1.3" :task_type "task"}
+                 {:task_id "D" :wbs_code "1.4" :task_type "task"}]
+          deps [{:predecessor_id "A" :successor_id "B"}
+                {:predecessor_id "C" :successor_id "D"}]
+          n (schedule/network-connectivity tasks deps)]
+      (is (= 4 (:leaf-count n)))
+      (is (= 4 (:linked-count n)))
+      (is (= 100 (:linked-pct n)))
+      (is (= 0 (:unlinked-count n)))
+      (is (= 2 (:component-count n)))
+      (is (= "fragmented" (:connectivity-level n)))))
+  (testing "汇总任务不计入分母, 叶子经汇总节点相连仍算 linked"
+    (let [tasks [{:task_id "A" :wbs_code "1.1" :task_type "task"}
+                 {:task_id "S" :wbs_code "1" :task_type "summary"}
+                 {:task_id "B" :wbs_code "1.2" :task_type "task"}]
+          deps [{:predecessor_id "A" :successor_id "S"}
+                {:predecessor_id "S" :successor_id "B"}]
+          n (schedule/network-connectivity tasks deps)]
+      (is (= 2 (:leaf-count n)))
+      (is (= 2 (:linked-count n)))
+      (is (= 0 (:unlinked-count n)))
+      (is (= 1 (:component-count n)))
+      (is (= "connected" (:connectivity-level n)))))
+  (testing "空计划 available=false, 计数0, 未链接空, 段数0, 档位nil"
+    (let [n (schedule/network-connectivity [] [])]
+      (is (false? (:available n)))
+      (is (= 0 (:leaf-count n)))
+      (is (= 0 (:dependency-count n)))
+      (is (= 0 (:linked-count n)))
+      (is (= 0 (:linked-pct n)))
+      (is (= 0 (:unlinked-count n)))
+      (is (empty? (:unlinked-tasks n)))
+      (is (= 0 (:component-count n)))
+      (is (nil? (:connectivity-level n)))))
+  (testing "read-plan 集成: 暴露 :schedule_connectivity, 孤立任务被标出, 无版本漂移"
+    (let [id (project!)
+          a (task! id "NCA" 2) b (task! id "NCB" 2) orphan (task! id "NCC" 2)
+          _ (command! plan/create-dependency! id [] {:predecessor_id (:task_id a) :successor_id (:task_id b) :dependency_type "FS" :lag_days 0})
+          v-before (version id)
+          model (plan/read-plan *svc* (actor 9201) id)
+          n (:schedule_connectivity model)]
+      (is (some? n))
+      (is (true? (:available n)))
+      (is (= (:leaf-count n) (+ (:linked-count n) (:unlinked-count n))))
+      (is (= (:linked-pct n)
+             (int (Math/round (* 100.0 (/ (double (:linked-count n)) (double (:leaf-count n))))))))
+      (is (pos? (:unlinked-count n)))
+      (is (some #(= (:task_id orphan) (:task_id %)) (:unlinked-tasks n)))
+      (is (= "unlinked" (:connectivity-level n)))
+      (is (= v-before (version id)))
+      (is (= v-before (:project_version model))))))

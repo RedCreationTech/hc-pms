@@ -68,7 +68,8 @@
                 :critical_path_staffing (capacity/critical-path-staffing raw-tasks (:allocations snapshot)
                                             (get-in snapshot [:schedule :critical_path]))
                 :schedule_sensitivity (schedule/float-sensitivity (:schedule snapshot) raw-tasks)
-                :schedule_tightness (schedule/float-tightness (:schedule snapshot))})))))
+                :schedule_tightness (schedule/float-tightness (:schedule snapshot))
+                :schedule_connectivity (schedule/network-connectivity raw-tasks (:dependencies snapshot))})))))
 
 (defn read-baseline
   "读取不可变的已提交计划快照."

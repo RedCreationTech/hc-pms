@@ -1,6 +1,7 @@
 (ns com.ruoyi.domain.pms.planning.schedule
   "工作日历,四类前置依赖与关键路径的纯函数排程."
-  (:require [com.ruoyi.domain.pms.rules :as rules])
+  (:require [clojure.set :as set]
+            [com.ruoyi.domain.pms.rules :as rules])
   (:import [java.time LocalDate]))
 
 (def default-calendar
@@ -242,3 +243,70 @@
      :max-float (when (pos? leaf-count) (apply max floats))
      :span (:working_days schedule)
      :tightness-level (when (pos? leaf-count) (tightness-level critical-pct))}))
+
+(defn- find-root
+  "在并查集父表 parents 中沿父指针找 x 的根 (路径压缩前). 未登录的节点自成根."
+  [parents x]
+  (loop [node x]
+    (let [p (get parents node node)]
+      (if (= p node) node (recur p)))))
+
+(defn- uf-union
+  "把并查集父表里 a,b 两节点所在集合合并 (按根对接)."
+  [parents a b]
+  (let [ra (find-root parents a)
+        rb (find-root parents b)]
+    (if (= ra rb) parents (assoc parents rb ra))))
+
+(defn- uf-build
+  "对无向边集 edges (每项 [a b]) 初始化并查集 (nodes 为其端点全集) 并逐边合并, 返回父表."
+  [nodes edges]
+  (let [seed (reduce (fn [acc n] (assoc acc n n)) {} nodes)]
+    (reduce (fn [p [a b]] (uf-union p a b)) seed edges)))
+
+(defn network-connectivity
+  "把 WBS 依赖网络只读派生为计划网络连通性概览 (H04), 与 float-sensitivity / float-tightness 正交互补:
+   那两者假设依赖网络完整再看浮动分布, 本项反过来核验网络本身是否完整 —— 只看非汇总叶子任务
+   (与 float-sensitivity / float-tightness / critical_path_staffing 分母口径一致), 从 dependencies 边集计算
+   接入依赖网络的叶任务数与占比 (linked-count / linked-pct), 完全未链接 (既无任何前置又无任何后继) 的孤立叶任务清单
+   unlinked-tasks (按 wbs_code 升序, 每项含 task_id/wbs_code/name), 以及把所有依赖边按无向连通分量折叠后
+   真正涉及叶任务的独立依赖链段数 component-count (> 1 说明计划被切成多段未汇合的平行链, CPM 会把每段起点都当成同日开工,
+   误导关键路径与整体工期). dependency-count 为有效的两端齐全依赖条数.
+   connectivity-level 定性口径: 存在孤立未链接叶任务 -> unlinked (最高优先的排程缺陷); 否则链段数 >= 2 -> fragmented (多段平行链);
+   否则 (所有叶任务已链接且恰一条连通链) -> connected; 无任何叶任务 -> nil (available=false).
+   仅供台账汇总面板呈现, 只读派生, 不落库不投递, 不构成门控, 键名不带尾随问号.
+   raw-tasks 为含 :task_id/:wbs_code/:name/:task_type 的任务行, dependencies 为含 :predecessor_id/:successor_id 的依赖行."
+  [raw-tasks dependencies]
+  (let [leaves (filterv #(not= "summary" (:task_type %)) raw-tasks)
+        leaf-count (count leaves)
+        leaf-ids (into #{} (map :task_id) leaves)
+        endpoints (into #{} (mapcat #(vector (:predecessor_id %) (:successor_id %))) dependencies)
+        linked-leaf-ids (set/intersection leaf-ids endpoints)
+        linked-count (count linked-leaf-ids)
+        linked-pct (if (pos? leaf-count)
+                     (int (Math/round ^double (* 100.0 (/ (double linked-count) (double leaf-count)))))
+                     0)
+        unlinked (->> leaves
+                      (remove #(linked-leaf-ids (:task_id %)))
+                      (sort-by :wbs_code)
+                      (mapv #(select-keys % [:task_id :wbs_code :name])))
+        complete-edges (keep (fn [d] (let [p (:predecessor_id d)
+                                           s (:successor_id d)]
+                                       (when (and p s) [p s]))) dependencies)
+        parents (uf-build endpoints complete-edges)
+        component-count (count (into #{}
+                                     (comp (filter leaf-ids) (map #(find-root parents %)))
+                                     endpoints))]
+    {:available (pos? leaf-count)
+     :leaf-count leaf-count
+     :dependency-count (count complete-edges)
+     :linked-count linked-count
+     :linked-pct linked-pct
+     :unlinked-count (count unlinked)
+     :unlinked-tasks unlinked
+     :component-count component-count
+     :connectivity-level (cond
+                           (zero? leaf-count) nil
+                           (pos? (count unlinked)) "unlinked"
+                           (>= component-count 2) "fragmented"
+                           :else "connected")}))

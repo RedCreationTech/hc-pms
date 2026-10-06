@@ -148,6 +148,33 @@
          [antd/tag {:color "default"} (str "关键任务 " (:critical-count t) " / 叶任务 " (:leaf-count t))]]]
        [shared/empty-state "尚未排程 (需任务设置工期与依赖后计算总时差)." nil])]))
 
+(def ^:private connectivity-view
+  "依赖网络连通性档位 -> [中文标签 颜色]: 存在未链接任务最优先 (排程缺陷), 其次多段平行链, 全链连贯最好."
+  {"unlinked"   ["存在未链接任务" "red"]
+   "fragmented" ["多段平行链" "volcano"]
+   "connected"  ["网络连贯" "green"]})
+
+(defn schedule-connectivity
+  "把 WBS 依赖网络只读派生为计划网络连通性概览: 已链接占比、独立依赖链段数、孤立 (未链接) 任务清单与定性档位; 与敏感度/紧凑度面板正交, 只读洞察, 不构成门控."
+  [model]
+  (let [c (:schedule_connectivity model)
+        lv (when (:available c) (get connectivity-view (:connectivity-level c) ["其他" "default"]))]
+    [shared/panel "计划网络连通性" (str "依赖网络是否完整决定 CPM 关键路径是否可信: 未链接任务会被当成同日开工, 平行未汇合的链段会割裂工期; 只读洞察, 不构成门控") nil
+     (if (and c (:available c))
+       [:div
+        [antd/space {:wrap true}
+         [antd/tag {:color (second lv)} (str "连通性 " (first lv))]
+         [antd/tag {:color (if (>= (:linked-pct c) 100) "green" "blue")} (str "已链接占比 " (:linked-pct c) "%")]
+         [antd/tag {:color (if (>= (:component-count c) 2) "volcano" "geekblue")} (str "依赖链段数 " (:component-count c) " 段")]
+         [antd/tag {:color (if (pos? (:unlinked-count c)) "red" "green")} (str "未链接任务 " (:unlinked-count c))]
+         [antd/tag {:color "default"} (str "依赖 " (:dependency-count c) " 条 / 叶任务 " (:leaf-count c))]]
+        (when (seq (:unlinked-tasks c))
+          [:div {:style {:display "flex" :alignItems "center" :gap 8 :flexWrap "wrap" :marginTop 8}}
+           [:span {:style {:fontSize 12 :color "#718096"}} "既无前置又无后继的孤立任务 (按 WBS 升序):"]
+           (for [t (:unlinked-tasks c)]
+             ^{:key (:task_id t)} [antd/tag {:color "red"} (str (:wbs_code t) " " (:name t))])])]
+       [shared/empty-state "尚未建任务 (创建任务后方可检查依赖网络是否连贯)." nil])]))
+
 (def readable-fields
   {:name "名称" :start_date "开始日期" :end_date "结束日期" :duration_days "工期"
    :wbs_code "WBS编号" :task_type "类型" :daily_capacity "日容量" :hours_per_day "日负荷"
