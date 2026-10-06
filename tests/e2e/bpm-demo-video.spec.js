@@ -477,84 +477,89 @@ const CHAPTERS = {
   },
 
   // ── 10 复杂审批: 驳回 / 转办 / 加签 (真实点击待办行操作列). ──
+  // 注意: 我的待办表按"任务/流程名称"展示, 摘要来自表单配置, 不显示请假 reason,
+  // 因此定位待办靶须按任务名 "部门经理审批" 过滤 (旧代码按 reason 过滤恒为 0 行 -> 三个动作全被跳过 -> 空白画面).
   '10': async ({ pages, rec, st }) => {
     const admin = pages.admin;
 
-    // 起两条运行中实例 (真实 HTTP) 以提供待办靶
-    for (const i of [1, 2]) {
+    // 起三条运行中实例 (真实 HTTP) 提供三张待办靶: 驳回消耗一张, 转办消耗一张, 加签保留一张.
+    for (const i of [1, 2, 3]) {
       await api(admin, 'POST', '/api/business/oa/leave', {
         leave_type: 'annual', start_date: `2026-12-0${i}`, end_date: `2026-12-0${i + 1}`,
         reason: `复杂审批靶_${st.suffix}_${i}`, days: 1,
-      }).catch(() => {});
+      });
     }
 
-    // 10-1 驳回: 部门经理待办点"驳回" -> 员工待办回归
+    const mgrRow = () => tbody(admin).filter({ hasText: /部门经理审批/ }).first();
+    const toast = text => admin.locator('.ant-message-notice-content').filter({ hasText: text });
+    // 待办/子任务清单走真实 HTTP 复核 (非画面操作): 与前端同一条 Flowable 查询, 首个部门经理审批即界面第一行.
+    const mgrIds = async () => (((await api(admin, 'GET', '/api/business/bpm/todo?page=1&size=100')).rows) || [])
+      .filter(t => /部门经理审批/.test(t.name || '')).map(t => String(t['task-id']));
+    const signCount = async id => (((await api(admin, 'GET', `/api/business/bpm/task/sign-list?taskId=${id}`)).rows) || []).length;
+
+    // 10-1 驳回: 部门经理待办点"驳回" -> 填意见 -> 提交, 该任务被办结并从待办消失 (HTTP 复核)
     await openList(admin, '/office/bpm/todo');
     await rec.shot('10-1');
-    const rejectRow = tbody(admin).filter({ hasText: /复杂审批靶/ }).first();
-    if (await rejectRow.count()) {
-      await tap(admin, rejectRow.getByRole('button', { name: /驳\s*回/ }).first()).catch(() => {});
-      const modal = admin.getByRole('dialog').last();
-      if (await modal.isVisible({ timeout: 5000 }).catch(() => false)) {
-        const box = modal.getByPlaceholder(/意见/);
-        if (await box.count()) await box.pressSequentially('材料不齐, 请补充', { delay: 30 });
-        await tap(admin, modal.getByRole('button', { name: OK_RE })).catch(() => {});
-      }
-      await admin.waitForTimeout(900);
-    }
+    await expect(mgrRow(), '待办须至少有一条部门经理审批靶').toBeVisible({ timeout: 15000 });
+    const target1 = (await mgrIds())[0];
+    expect(target1, '应能取到一张部门经理审批待办').toBeTruthy();
+    await tap(admin, mgrRow().getByRole('button', { name: /驳\s*回/ }));
+    const rejModal = admin.getByRole('dialog').filter({ hasText: /审批驳回/ }).last();
+    await expect(rejModal, '应弹出审批驳回对话框').toBeVisible({ timeout: 10000 });
+    const rejBox = rejModal.getByPlaceholder(/意见/);
+    if (await rejBox.count()) await rejBox.pressSequentially('材料不齐, 请补充后重报', { delay: 40 });
+    await tap(admin, rejModal.getByRole('button', { name: OK_RE }));
+    await expect(rejModal, '驳回提交后对话框应关闭').toBeHidden({ timeout: 15000 });
+    await toast('已驳回').first().waitFor({ timeout: 6000 }).catch(() => {});
+    await expect.poll(async () => (await mgrIds()).includes(target1),
+      { timeout: 15000, message: `驳回后任务 ${target1} 应移出待办` }).toBeFalsy();
     await glide(admin, contentArea(admin));
     await rec.next();
     await settle(admin);
     await rec.end();
 
-    // 10-2 转办: 选中一条待办 -> "转办"给 hr 用户
-    await admin.reload();
-    await admin.waitForLoadState('networkidle');
-    await settle(admin);
+    // 10-2 转办: 选中一条待办 -> "转办"给 HR 用户, 任务归属转移 -> 从 admin 待办消失 (HTTP 复核)
+    await openList(admin, '/office/bpm/todo');
     await rec.shot('10-2');
-    const transferRow = tbody(admin).filter({ hasText: /复杂审批靶/ }).first();
-    if (await transferRow.count()) {
-      await tap(admin, transferRow.getByRole('button', { name: /转\s*办/ }).first()).catch(() => {});
-      const modal = admin.getByRole('dialog').last();
-      if (await modal.isVisible({ timeout: 5000 }).catch(() => false)) {
-        // 选人下拉: 输入 hr
-        const sel = modal.locator('.ant-select-selection-search-input').first();
-        if (await sel.count()) {
-          await sel.pressSequentially('hr', { delay: 30 });
-          await admin.waitForTimeout(900);
-          const opt = admin.locator('.ant-select-item-option').filter({ hasText: /hr|HR/ }).first();
-          if (await opt.count()) await tap(admin, opt).catch(() => {});
-        }
-        await tap(admin, modal.getByRole('button', { name: OK_RE })).catch(() => {});
-      }
-      await admin.waitForTimeout(900);
-    }
+    await expect(mgrRow(), '待办须仍有部门经理审批靶').toBeVisible({ timeout: 15000 });
+    const target2 = (await mgrIds())[0];
+    expect(target2, '应能取到一张部门经理审批待办').toBeTruthy();
+    await tap(admin, mgrRow().getByRole('button', { name: /转\s*办/ }));
+    const traModal = admin.getByRole('dialog').filter({ hasText: /转办任务/ }).last();
+    await expect(traModal, '应弹出转办对话框').toBeVisible({ timeout: 10000 });
+    await tap(admin, traModal.locator('.ant-select').first());
+    const traOpt = admin.locator('.ant-select-item-option').filter({ hasText: /HR专员|hr/ }).first();
+    await expect(traOpt, '转办下拉应出现 HR 用户').toBeVisible({ timeout: 5000 });
+    await tap(admin, traOpt);
+    await tap(admin, traModal.getByRole('button', { name: OK_RE }));
+    await toast('转办成功').first().waitFor({ timeout: 6000 }).catch(() => {});
+    await expect.poll(async () => (await mgrIds()).includes(target2),
+      { timeout: 15000, message: `转办后任务 ${target2} 应移出 admin 待办` }).toBeFalsy();
     await glide(admin, contentArea(admin));
     await rec.next();
     await settle(admin);
     await rec.end();
 
-    // 10-3 加签: 选中一条待办 -> "加签" -> 引入额外审批人
-    await admin.reload();
-    await admin.waitForLoadState('networkidle');
-    await settle(admin);
+    // 10-3 加签: 选中一条待办 -> "加签"引入额外审批人 -> 该任务派生加签子任务 (HTTP 复核, 父任务仍在)
+    await openList(admin, '/office/bpm/todo');
     await rec.shot('10-3');
-    const signRow = tbody(admin).filter({ hasText: /复杂审批靶/ }).first();
-    if (await signRow.count()) {
-      await tap(admin, signRow.getByRole('button', { name: /加\s*签/ }).first()).catch(() => {});
-      const modal = admin.getByRole('dialog').last();
-      if (await modal.isVisible({ timeout: 5000 }).catch(() => false)) {
-        const sel = modal.locator('.ant-select-selection-search-input').first();
-        if (await sel.count()) {
-          await sel.pressSequentially('admin', { delay: 30 });
-          await admin.waitForTimeout(900);
-          const opt = admin.locator('.ant-select-item-option').first();
-          if (await opt.count()) await tap(admin, opt).catch(() => {});
-        }
-        await tap(admin, modal.getByRole('button', { name: OK_RE })).catch(() => {});
-      }
-      await admin.waitForTimeout(900);
-    }
+    await expect(mgrRow(), '待办须仍有部门经理审批靶用于加签').toBeVisible({ timeout: 15000 });
+    const target3 = (await mgrIds())[0];
+    expect(target3, '应能取到一张部门经理审批待办').toBeTruthy();
+    await tap(admin, mgrRow().getByRole('button', { name: /加\s*签/ }));
+    const signModal = admin.getByRole('dialog').filter({ hasText: /加签/ }).last();
+    await expect(signModal, '应弹出加签对话框').toBeVisible({ timeout: 10000 });
+    await tap(admin, signModal.locator('.ant-select').first());
+    const signOpt = admin.locator('.ant-select-item-option').filter({ hasText: /HR专员|hr/ }).first();
+    await expect(signOpt, '加签人下拉应出现 HR 用户').toBeVisible({ timeout: 5000 });
+    await tap(admin, signOpt);
+    await admin.keyboard.press('Escape');
+    const signReason = signModal.getByPlaceholder(/意见/);
+    if (await signReason.count()) await signReason.pressSequentially('请 HR 会签备案', { delay: 40 });
+    await tap(admin, signModal.getByRole('button', { name: OK_RE }));
+    await toast('加签成功').first().waitFor({ timeout: 6000 }).catch(() => {});
+    await expect.poll(async () => signCount(target3),
+      { timeout: 15000, message: `加签后任务 ${target3} 应派生加签子任务` }).toBeGreaterThan(0);
     await glide(admin, contentArea(admin));
     await rec.next();
     await settle(admin);
@@ -566,8 +571,17 @@ test.describe('BPM 与办公一体化演示视频录屏 (真实逐步操作)', (
   test.setTimeout(3600000);
 
   test('流程建模发布 / 请假逐级审批 / 报销审批 / OA / HRM / CRM / 报表 (录屏 + 时间轴)', async ({ browser }) => {
-    fs.rmSync(RAW, { recursive: true, force: true });
+    // DEMO_CHAPTERS="10" 只重录指定章: 不清空整个 raw (其它章 webm 合成仍需), 仅删被重录章的 webm.
+    const only = process.env.DEMO_CHAPTERS ? process.env.DEMO_CHAPTERS.split(',').map(s => s.trim()).filter(Boolean) : null;
     fs.mkdirSync(RAW, { recursive: true });
+    if (only) {
+      for (const f of fs.readdirSync(RAW)) {
+        if (only.some(c => f.startsWith(`ch-${c}-`) || f.startsWith(`ch-${c.slice(1)}-`))) fs.rmSync(path.join(RAW, f), { force: true });
+      }
+    } else {
+      fs.rmSync(RAW, { recursive: true, force: true });
+      fs.mkdirSync(RAW, { recursive: true });
+    }
     const recorded = async () => {
       const context = await browser.newContext({ baseURL: BASE_URL, viewport: VIEWPORT, recordVideo: { dir: RAW, size: VIEWPORT } });
       await context.addInitScript(installCursor);
@@ -586,6 +600,7 @@ test.describe('BPM 与办公一体化演示视频录屏 (真实逐步操作)', (
     const creds = { admin: ['admin', 'admin123'], employee: [st.empName, PASSWORD], hr: [st.hrName, PASSWORD] };
     const clips = [];
     for (const chapter of S.chapters) {
+      if (only && !only.includes(chapter.no)) continue;
       const whos = [...new Set(S.shots.filter(s => s.chapter === chapter.no).map(s => s.who))];
       const ctx = {};
       const errors = [];
@@ -613,8 +628,10 @@ test.describe('BPM 与办公一体化演示视频录屏 (真实逐步操作)', (
         .toEqual(S.shots.filter(s => s.chapter === chapter.no).map(s => s.id));
       clips.push(...rec.timeline.clips.map(c => ({ ...c, video: ctx[c.who].rel, t0: ctx[c.who].t0 })));
     }
-    expect([...new Set(clips.map(c => c.shot))]).toEqual(S.shots.map(s => s.id));
-    fs.writeFileSync(path.join(OUT, 'timeline.json'),
+    const expectedShots = only ? S.shots.filter(s => only.includes(s.chapter)).map(s => s.id) : S.shots.map(s => s.id);
+    expect([...new Set(clips.map(c => c.shot))]).toEqual(expectedShots);
+    const outName = only ? 'timeline.partial.json' : 'timeline.json';
+    fs.writeFileSync(path.join(OUT, outName),
       JSON.stringify({ viewport: VIEWPORT, recorded_at: new Date().toISOString(), clips }, null, 2));
     fs.writeFileSync(path.join(OUT, 'state.json'), JSON.stringify(st, null, 2));
   });
