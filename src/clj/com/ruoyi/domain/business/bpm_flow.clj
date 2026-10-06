@@ -103,7 +103,7 @@
   "BPMN 图 → 树.条件分支的默认出线目标若已被条件覆盖则不重复展开."
   [nodes flows node-id seen]
   (when (and node-id (not (contains? seen node-id)))
-    (let [{:keys [type name config]} (get nodes node-id)
+    (let [{:keys [type name config assignee candidate-users candidate-groups]} (get nodes node-id)
           outs (filter #(= node-id (:src %)) flows)
           conds (filter :cond? outs)
           dflt (first (remove :cond? outs))
@@ -117,7 +117,11 @@
                        "ROUTER_BRANCH_NODE"
                        (type-map type))))
           base (cond-> {:id node-id :type m-type :name (if (str/blank? name) node-id name)}
-                 config (assoc :config config))
+                 config (assoc :config config)
+                 ;; 直接以 BPMN 建模(无 nodeConfig)的模型仍携带 flowable 审批人原始标识, 供前端解析显示
+                 (seq candidate-users) (assoc :candidate-users candidate-users)
+                 (seq assignee) (assoc :assignee assignee)
+                 (seq candidate-groups) (assoc :candidate-groups candidate-groups))
           recurse (fn [id] (build-tree nodes flows id (conj seen node-id)))]
       (cond
         (and (str/includes? m-type "BRANCH") (seq conds))

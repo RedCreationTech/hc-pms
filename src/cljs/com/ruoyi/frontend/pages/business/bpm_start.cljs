@@ -6,6 +6,7 @@
     [clojure.walk :as walk]
     [com.ruoyi.frontend.antd :as antd]
     [com.ruoyi.frontend.api :as api]
+    [com.ruoyi.frontend.components.bpm-flow-designer :as bpmfd]
     [com.ruoyi.frontend.components.form-render :as form-render]
     [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
     [reagent.core :as r]))
@@ -221,35 +222,45 @@
                              :dataSource (clj->js @models) :loading @loading?
                              :pagination {:total @total :pageSize 10 :showSizeChanger true
                                           :showTotal (fn [t] (str "共 " t " 条"))}}]]
-               ;; 发起弹窗
+               ;; 发起弹窗: 左填表, 右常驻只读审批流程图 (含完整审批链与审批人)
                [antd/modal {:title (str "发起流程 · " (:model_name @start-model))
                             :open (boolean @start-model)
                             :confirmLoading @submitting?
-                            :width 600
+                            :width 1000
                             :onOk submit
                             :onCancel #(reset! start-model nil)}
                 (when-let [model @start-model]
-                  (if (= "2" (:form_type model))
-                    [:div {:style {:padding 24 :textAlign "center" :color "#909399"}}
-                     "该模型使用自定义表单，请前往对应业务页面发起"]
-                    (if @form-loading?
-                      [:div {:style {:padding 48 :textAlign "center"}} "表单加载中..."]
-                      (if-let [schema @form-schema]
-                        [:div {:style {:padding 8}}
-                         (when (seq @start-select-nodes)
-                           [render-start-select {:users @users :sel-value @start-select-value
-                                                 :set-value! #(reset! start-select-value (vec %))}])
-                         [form-render/form-render {:schema schema
-                                                   :values @values
-                                                   :field-permissions @fields-perm
-                                                   :layout (or (get-in schema [:conf :form :layout]) "vertical")
-                                                   :on-change (fn [v] (reset! values v))}]
-                         [:div {:style {:marginTop 8}}
-                          [:div.bpm-f-label "业务备注"]
-                          [antd/input {:placeholder "业务备注(可选)" :value @business-key
-                                       :onChange (fn [e] (reset! business-key (-> e .-target .-value)))}]]]
-                        [:div {:style {:padding 48 :textAlign "center" :color "#909399"}}
-                         (when (seq @start-select-nodes)
-                           [render-start-select {:users @users :sel-value @start-select-value
-                                                 :set-value! #(reset! start-select-value (vec %))}])
-                         "该模型未配置动态表单，将直接发起"]))))]]))
+                  [:div {:style {:display "flex" :gap 16 :alignItems "flex-start"}}
+                   [:div {:style {:flex "0 0 420px" :maxWidth 420}}
+                    (if (= "2" (:form_type model))
+                      [:div {:style {:padding 24 :textAlign "center" :color "#909399"}}
+                       "该模型使用自定义表单，请前往对应业务页面发起"]
+                      (if @form-loading?
+                        [:div {:style {:padding 48 :textAlign "center"}} "表单加载中..."]
+                        (if-let [schema @form-schema]
+                          [:div {:style {:padding 8}}
+                           (when (seq @start-select-nodes)
+                             [render-start-select {:users @users :sel-value @start-select-value
+                                                   :set-value! #(reset! start-select-value (vec %))}])
+                           [form-render/form-render {:schema schema
+                                                     :values @values
+                                                     :field-permissions @fields-perm
+                                                     :layout (or (get-in schema [:conf :form :layout]) "vertical")
+                                                     :on-change (fn [v] (reset! values v))}]
+                           [:div {:style {:marginTop 8}}
+                            [:div.bpm-f-label "业务备注"]
+                            [antd/input {:placeholder "业务备注(可选)" :value @business-key
+                                         :onChange (fn [e] (reset! business-key (-> e .-target .-value)))}]]]
+                          [:div {:style {:padding 48 :textAlign "center" :color "#909399"}}
+                           (when (seq @start-select-nodes)
+                             [render-start-select {:users @users :sel-value @start-select-value
+                                                   :set-value! #(reset! start-select-value (vec %))}])
+                           "该模型未配置动态表单，将直接发起"])))]
+                   ;; 右侧: 只读审批流程图 -- 发起前即可看到完整审批链与审批人
+                   [:div {:style {:flex "1 1 auto" :minWidth 0 :border "1px solid #ebeef5"
+                                  :borderRadius 8 :padding 8 :maxHeight 560 :overflow "auto"}}
+                    [:div {:style {:fontSize 13 :fontWeight 600 :color "#303133" :marginBottom 4}}
+                     "审批流程预览 · 完整审批链与审批人"]
+                    ^{:key (str "preview-" (:model_id model))}
+                    [bpmfd/bpm-flow-designer {:model-id (:model_id model)
+                                              :read-only? true}]]])]]))

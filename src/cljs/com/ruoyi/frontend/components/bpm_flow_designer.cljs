@@ -799,6 +799,14 @@
                                                 :name (str "条件" (inc (count conds)))
                                                 :type "condition"
                                                 :child-node nil}))))
+               bpmn-approver-text (fn [node]
+                                    (let [nick (fn [nm] (let [u (first (filter #(= nm (:user_name %)) @users))]
+                                                           (or (:nick_name u) nm)))
+                                          cands (remove str/blank?
+                                                    (concat (:candidate-users node)
+                                                            (when-let [a (:assignee node)] [a])))]
+                                      (when (seq cands)
+                                        (str "审批人：" (str/join "、" (take 5 (map nick cands)))))))
                show-text-of (fn [node]
                               (or (:show-text node)
                                   (let [t (:type node) cfg (:config node)]
@@ -816,7 +824,7 @@
                                       ("USER_TASK_NODE" "TRANSACTOR_NODE")
                                       (let [at (:approve-type cfg)]
                                         (cond
-                                          (nil? at) "请配置审批人"
+                                          (nil? at) (or (bpmn-approver-text node) "请配置审批人")
                                           (= at "USER")
                                           (case (:candidate-strategy cfg)
                                             "USER" (let [ids (set (get-in cfg [:candidate-param :user-ids]))]
