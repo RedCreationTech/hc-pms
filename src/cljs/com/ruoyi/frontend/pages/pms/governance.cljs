@@ -1434,6 +1434,45 @@
           [antd/tag {:color "red"} (str "已作废 " discarded)])])]))
 
 
+(defn- meeting-material-readiness-section
+  "按每个会议最新有效版本只读聚合会前预读材料准备就绪度: 预读覆盖率与资料是否全部指向已发布证据文档; 只读派生, 不改变会议或文档状态, 不构成门控."
+  [{:keys [model]}]
+  (let [cov (:meeting_material_readiness model)
+        total (:total cov 0)
+        with-mat (:with-materials cov 0)
+        without-mat (:without-materials cov 0)
+        published (:materials-published cov 0)
+        pending (:materials-pending cov 0)
+        readiness (:readiness-pct cov 0)
+        full (:full-readiness-pct cov 0)
+        unprepared (:unprepared-meetings cov [])
+        pending-meetings (:pending-material-meetings cov [])]
+    [shared/panel "会议预读材料准备就绪度" "统计每个会议最新有效版本是否已挂会前预读资料, 以及所挂资料是否全部指向已发布证据文档; 只读派生, 不构成门控(启动会会前包强制关联仍由登记环节把关), 不改变会议或文档状态"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无会议, 登记项目会议并关联会前资料后可在此查看预读就绪度."]
+       [:div
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "会议总数 " total)]
+         [antd/tag {:color (cond (= readiness 100) "green" (zero? readiness) "red" :else "gold")}
+          (str "已备预读 " readiness "% (" with-mat "/" total ")")]
+         [antd/tag {:color (cond (= full 100) "green" (zero? full) "red" :else "gold")}
+          (str "资料全部已发布 " full "% (" published "/" total ")")]
+         (when (pos? without-mat)
+           [antd/tag {:color "red"} (str "未备资料 " without-mat)])
+         (when (pos? pending)
+           [antd/tag {:color "orange"} (str "含待发布资料 " pending)])]
+        (when (seq unprepared)
+          [:div {:style {:margin-top 8}}
+           [:span {:style {:color "#8793a3"}} "未准备会前资料: "]
+           (into [antd/space {:wrap true}]
+                 (map (fn [m] ^{:key (:code m)} [antd/tag {:color "default"} (:title m)]) unprepared))])
+        (when (seq pending-meetings)
+          [:div {:style {:margin-top 8}}
+           [:span {:style {:color "#8793a3"}} "预读资料待发布: "]
+           (into [antd/space {:wrap true}]
+                 (map (fn [m] ^{:key (:code m)} [antd/tag {:color "orange"} (str (:title m) " · 未发布 " (:pending-count m))]) pending-meetings))])])]))
+
+
 (defn- action-section
   "会议行动转为实际WBS任务, 完成须证据与独立核验并提示逾期; 已关闭行动可受控重开."
   [{:keys [base model editable? open!] :as context}]
@@ -1944,7 +1983,7 @@
                      ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section]]
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
-                     ["meetings" "会议行动" [meeting-section meeting-release-coverage-section action-closure-section project-remediation-overview-section action-section]]
+                     ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section action-closure-section project-remediation-overview-section action-section]]
                      ["changes" "变更控制" [change-section change-closure-section]]
                      ["quality" "DQ与局部暂停" [dq-summary-section dq-section pause-section]]])}])
 

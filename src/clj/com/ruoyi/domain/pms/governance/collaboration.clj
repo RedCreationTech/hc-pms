@@ -1042,6 +1042,38 @@
                     0)}))
 
 
+(defn meeting-material-readiness
+  "按每个会议最新有效版本只读聚合会前预读材料准备就绪度: 以未作废会议数为分母, 统计已挂至少一份会前资料(material_ids 非空)者(with-materials)与尚未准备任何会前资料者(without-materials); 进一步就\"已挂资料是否全部指向已发布(approved)证据文档\"分档——所挂资料全部已发布者为 materials-published, 含未发布(草稿/审批中/已驳回)或引用已失效旧版本者为 materials-pending; 给出预读覆盖率 readiness-pct(=已挂资料/分母)与完全就绪率 full-readiness-pct(=资料齐备且全部已发布/分母), 并列出未准备会议与含待发布资料会议(附未发布份数)清单; 只读派生, 不落库不投递, 不构成门控(启动会会前包强制关联仍由 create-meeting! 门控), 不改变任何不可变版本. 键名不带尾随问号."
+  [meetings docs-by-id]
+  (let [active (s/latest meetings)
+        discarded (count (filterv #(= "discarded" (:status %)) active))
+        in-scope (remove #(= "discarded" (:status %)) active)
+        denom (count in-scope)
+        with-mat (filterv #(seq (:material_ids %)) in-scope)
+        without-mat (count (remove #(seq (:material_ids %)) in-scope))
+        approved-doc? (fn [id] (= "approved" (:status (get docs-by-id id))))
+        pending-ids (fn [m] (filterv (complement approved-doc?) (:material_ids m)))
+        published (count (filterv #(empty? (pending-ids %)) with-mat))
+        pending (count (filterv #(seq (pending-ids %)) with-mat))
+        pct (fn [n] (if (pos? denom)
+                      (int (Math/round ^double (* 100.0 (/ n denom))))
+                      0))]
+    {:available (pos? denom)
+     :total denom
+     :discarded discarded
+     :with-materials (count with-mat)
+     :without-materials without-mat
+     :readiness-pct (pct (count with-mat))
+     :materials-published published
+     :materials-pending pending
+     :full-readiness-pct (pct published)
+     :unprepared-meetings (mapv #(select-keys % [:code :title])
+                                (sort-by :code (remove #(seq (:material_ids %)) in-scope)))
+     :pending-material-meetings (mapv (fn [m] {:code (:code m) :title (:title m)
+                                               :pending-count (count (pending-ids m))})
+                                      (sort-by :code (filterv #(seq (pending-ids %)) with-mat)))}))
+
+
 (defn issue-closure-summary
   "按全部问题最新有效版本只读聚合闭环健康度: 总数/已闭环/未关闭(待处理, 已驳回, 待验证)/逾期未关闭/未关闭阻断级与各严重度分布及闭环率; 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
   [issues]

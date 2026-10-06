@@ -831,6 +831,46 @@
                                          :materials [(:id doc-a)]}))))))
 
 
+(deftest meeting-material-readiness-is-derived-read-only
+  (let [id (project!)
+        doc-pending (document! id "PRE-P")
+        doc-published (command! id :documents :create nil
+                                {:code "PRE-R" :title "已发布背景" :filename "r.txt" :content "背景正文\n"})
+        _ (approve! id :documents (:id doc-published))
+        m-none (command! id :meetings :create nil
+                         {:title "未备资料会" :held_on "2026-10-01" :minutes "仅口头讨论" :attendee_ids [9301]})
+        m-pending (command! id :meetings :create nil
+                            {:title "资料待发布" :held_on "2026-10-02" :minutes "有草稿预读" :attendee_ids [9301]
+                             :material_ids [(:id doc-pending)]})
+        m-pub (command! id :meetings :create nil
+                        {:title "资料齐备" :held_on "2026-10-03" :minutes "预读已发布" :attendee_ids [9301]
+                         :material_ids [(:id doc-published)]})
+        read (:meeting_material_readiness (workspace id))]
+    (is (:available read))
+    (is (= 3 (:total read)))
+    (is (= 0 (:discarded read)))
+    (is (= 2 (:with-materials read)))
+    (is (= 1 (:without-materials read)))
+    (is (= 67 (:readiness-pct read)))
+    (is (= 1 (:materials-published read)))
+    (is (= 1 (:materials-pending read)))
+    (is (= 33 (:full-readiness-pct read)))
+    (is (= ["未备资料会"] (map :title (:unprepared-meetings read))))
+    (is (= [{:title "资料待发布" :pending-count 1}]
+           (map #(select-keys % [:title :pending-count]) (:pending-material-meetings read))))
+    ;; 只读派生: 台账读取本身不改变任何记录状态或聚合版本.
+    (is (= (:id m-none) (:id (first (filter #(= (:id m-none) (:id %)) (:meetings (workspace id)))))))
+    ;; 批准尚未发布的会前资料后, 该会议从"含待发布资料"翻转为"资料齐备", 无需重新登记会议.
+    (approve! id :documents (:id doc-pending))
+    (let [after (:meeting_material_readiness (workspace id))]
+      (is (= 3 (:total after)))
+      (is (= 2 (:with-materials after)))
+      (is (= 2 (:materials-published after)))
+      (is (= 0 (:materials-pending after)))
+      (is (= 67 (:full-readiness-pct after)))
+      (is (= [] (:pending-material-meetings after))))))
+
+
 (deftest meeting-action-completion-verifies-independently-and-flags-overdue
   (let [id (project!)
         meeting (command! id :meetings :create nil
