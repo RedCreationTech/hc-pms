@@ -67,6 +67,8 @@
                 :allocation_coverage (capacity/allocation-coverage raw-tasks (:allocations snapshot))
                 :critical_path_staffing (capacity/critical-path-staffing raw-tasks (:allocations snapshot)
                                             (get-in snapshot [:schedule :critical_path]))
+                :resource_load_leveling (capacity/resource-load-leveling (get-in snapshot [:schedule :tasks])
+                                          (:allocations snapshot))
                 :schedule_sensitivity (schedule/float-sensitivity (:schedule snapshot) raw-tasks)
                 :schedule_tightness (schedule/float-tightness (:schedule snapshot))
                 :schedule_connectivity (schedule/network-connectivity raw-tasks (:dependencies snapshot))

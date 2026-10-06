@@ -264,6 +264,31 @@
              ^{:key (:task_id o)} [antd/tag {:color "red"} (str (:wbs_code o) " " (:name o))])])]
        [shared/empty-state "尚未建任务 (创建 WBS 任务后方可分析层级结构)." nil])]))
 
+(def ^:private leveling-view
+  "资源投入均衡度档位 -> [中文标签 颜色]: 负荷忽高忽低 (峰值远超均值) 最需平滑, 有一定忙闲不均次之, 排了日历却无人投入, 负荷平稳最好."
+  {"spiky"      ["负荷尖峰 (忙闲不均)" "volcano"]
+   "moderate"   ["存在忙闲波动" "gold"]
+   "unassigned" ["排定工作日尚无投入" "blue"]
+   "level"      ["负荷均衡" "green"]})
+
+(defn resource-load-leveling
+  "把各任务工作日上摊派的工时只读派生为资源投入均衡度 (负荷平滑) 概览: 排定工作日/有负荷工作日/空转工作日、逐日总负荷曲线的峰值 (及其最早出现日)、平均、峰值-均值比与波动系数, 并给定性档位; 与超负荷/投入覆盖/关键路径缺口三项正交 (那三项看够不够与缺不缺, 本项看忙闲均不均), 只读洞察, 不构成门控."
+  [model]
+  (let [r (:resource_load_leveling model)
+        lv (when (:available r) (get leveling-view (:leveling-level r) ["其他" "default"]))]
+    [shared/panel "资源投入均衡度" (str "只看负荷在时间轴上的\"形状\": 即便没有任何一天超容量, 若某些工作日堆满、某些排定工作日却空转, 仍是需要资源平滑 (resource leveling) 的信号; 峰值-均值比越接近 1 越平稳, 波动系数越大越颠簸; 只读洞察, 不构成门控") nil
+     (if (and r (:available r))
+       [:div
+        [antd/space {:wrap true}
+         [antd/tag {:color (second lv)} (str "投入均衡 " (first lv))]
+         [antd/tag {:color (if (>= (:peak-to-avg r) 1.6) "volcano" (if (>= (:peak-to-avg r) 1.3) "gold" "green"))} (str "峰值/均值 " (:peak-to-avg r))]
+         [antd/tag {:color (if (>= (:cv-pct r) 60) "volcano" (if (>= (:cv-pct r) 30) "gold" "green"))} (str "波动系数 CV " (:cv-pct r) "%")]
+         [antd/tag {:color (if (pos? (:idle-days r)) "orange" "green")} (str "空转工作日 " (:idle-days r) " 天")]
+         (when (:peak-date r) [antd/tag {:color "magenta"} (str "峰值负荷 " (:peak-hours r) " 工时 @ " (:peak-date r))])
+         [antd/tag {:color "geekblue"} (str "平均 " (:avg-hours r) " · 合计 " (:total-hours r) " 工时")]
+         [antd/tag {:color "default"} (str "排定 " (:scheduled-days r) " 天 · 有负荷 " (:active-days r) " 天")]]]
+       [shared/empty-state "尚无排程任务 (创建任务、排程并分配工时后方可评估投入均衡度)." nil])]))
+
 (def readable-fields
   {:name "名称" :start_date "开始日期" :end_date "结束日期" :duration_days "工期"
    :wbs_code "WBS编号" :task_type "类型" :daily_capacity "日容量" :hours_per_day "日负荷"

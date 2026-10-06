@@ -1026,3 +1026,81 @@
       (is (= 0 (:orphan-count h)))
       (is (= v-before (version id)))
       (is (= v-before (:project_version model))))))
+
+(deftest resource-load-leveling-is-derived-read-only
+  (testing "纯函数口径: 各排定工作日负荷相同 -> level, peak-to-avg=1.0 cv=0 无空转日"
+    (let [sched [{:task_id "a" :working_dates ["2026-09-21"]}
+                 {:task_id "b" :working_dates ["2026-09-22"]}]
+          allocs [{:task_id "a" :resource_id "r" :hours_per_day 8}
+                  {:task_id "b" :resource_id "r" :hours_per_day 8}]
+          rll (capacity/resource-load-leveling sched allocs)]
+      (is (true? (:available rll)))
+      (is (= 2 (:scheduled-days rll)))
+      (is (= 2 (:active-days rll)))
+      (is (= 0 (:idle-days rll)))
+      (is (zero? (compare 16M (:total-hours rll))))
+      (is (= "2026-09-21" (:peak-date rll)))
+      (is (= 8.0 (:avg-hours rll)))
+      (is (= 1.0 (:peak-to-avg rll)))
+      (is (= 0 (:cv-pct rll)))
+      (is (= "level" (:leveling-level rll)))))
+  (testing "纯函数口径: 同日堆满异日轻载 -> spiky, peak-to-avg=1.8 cv=78"
+    (let [sched [{:task_id "a" :working_dates ["2026-09-21"]}
+                 {:task_id "b" :working_dates ["2026-09-21"]}
+                 {:task_id "c" :working_dates ["2026-09-22"]}]
+          allocs [{:task_id "a" :resource_id "r" :hours_per_day 8}
+                  {:task_id "b" :resource_id "r" :hours_per_day 8}
+                  {:task_id "c" :resource_id "r" :hours_per_day 2}]
+          rll (capacity/resource-load-leveling sched allocs)]
+      (is (= 2 (:scheduled-days rll)))
+      (is (= 2 (:active-days rll)))
+      (is (= 0 (:idle-days rll)))
+      (is (= 16M (:peak-hours rll)))
+      (is (= "2026-09-21" (:peak-date rll)))
+      (is (= 9.0 (:avg-hours rll)))
+      (is (= 1.8 (:peak-to-avg rll)))
+      (is (= 78 (:cv-pct rll)))
+      (is (= "spiky" (:leveling-level rll)))))
+  (testing "纯函数口径: 排定三日却只投入一日 -> 空转日 idle-days=2, 仍 spiky"
+    (let [sched [{:task_id "a" :working_dates ["2026-09-21" "2026-09-22" "2026-09-23"]}
+                 {:task_id "b" :working_dates ["2026-09-21"]}]
+          allocs [{:task_id "b" :resource_id "r" :hours_per_day 8}]
+          rll (capacity/resource-load-leveling sched allocs)]
+      (is (= 3 (:scheduled-days rll)))
+      (is (= 1 (:active-days rll)))
+      (is (= 2 (:idle-days rll)))
+      (is (= 3.0 (:peak-to-avg rll)))
+      (is (pos? (:cv-pct rll)))
+      (is (= "spiky" (:leveling-level rll)))))
+  (testing "纯函数口径: 排了日历却无任何投入 -> unassigned, 总负荷 0 全部空转"
+    (let [sched [{:task_id "a" :working_dates ["2026-09-21" "2026-09-22"]}]
+          rll (capacity/resource-load-leveling sched [])]
+      (is (true? (:available rll)))
+      (is (= 2 (:scheduled-days rll)))
+      (is (= 0 (:active-days rll)))
+      (is (= 2 (:idle-days rll)))
+      (is (zero? (:total-hours rll)))
+      (is (= 0 (:peak-to-avg rll)))
+      (is (= "unassigned" (:leveling-level rll)))))
+  (testing "纯函数口径: 无任何排定工作日 -> available=false 且档位 nil"
+    (let [rll (capacity/resource-load-leveling [] [])]
+      (is (false? (:available rll)))
+      (is (= 0 (:scheduled-days rll)))
+      (is (nil? (:leveling-level rll)))
+      (is (nil? (:peak-date rll)))))
+  (testing "read-plan 集成: 排定日+工时分配 -> 派生只读存在, active+idle=scheduled, 档位落在枚举内, 无版本漂移"
+    (let [id (project!)
+          t1 (task! id "RLA" 2) t2 (task! id "RLB" 2)
+          equip (:result (command! plan/create-resource! id [] {:name "机床" :resource_type "equipment" :daily_capacity 8}))]
+      (command! plan/create-allocation! id [] {:task_id (:task_id t1) :resource_id (:resource_id equip) :hours_per_day 4})
+      (command! plan/create-allocation! id [] {:task_id (:task_id t2) :resource_id (:resource_id equip) :hours_per_day 4})
+      (let [v-before (version id)
+            model (plan/read-plan *svc* (actor 9201) id)
+            rll (:resource_load_leveling model)]
+        (is (some? rll))
+        (is (true? (:available rll)))
+        (is (pos? (:scheduled-days rll)))
+        (is (= (:scheduled-days rll) (+ (:active-days rll) (:idle-days rll))))
+        (is (contains? #{"level" "moderate" "spiky" "unassigned"} (:leveling-level rll)))
+        (is (= v-before (version id)))
+        (is (= v-before (:project_version model)))))))

@@ -121,3 +121,69 @@
                      (int (Math/round ^double (* 100.0 (/ staffed total))))
                      0)
      :unstaffed-tasks gaps}))
+
+(def ^:private level-ratio
+  "峰值-平均负荷比 (peak-to-avg) 低于该值即视为负荷均衡 (资源平滑良好, 无需再调配)."
+  1.3)
+
+(def ^:private moderate-ratio
+  "峰值-平均负荷比达到该值即视为负荷尖峰 (存在明显忙闲不均, 需要资源平滑)."
+  1.6)
+
+(defn- rounded-dec
+  "把一个数值保留一位小数 (走 double 避免 BigDecimal 非终止除法), 供负荷均值与峰值-平均比呈现."
+  [x]
+  (/ (Math/round ^double (* 10.0 (double x))) 10.0))
+
+(defn resource-load-leveling
+  "把本项目各任务工作日上的工时分配只读派生为资源投入均衡度 (负荷平滑) 概览: 与 overload-summary (谁超容量) /
+   allocation-coverage (谁还没排) / critical-path-staffing (关键路径缺不缺人) 三项正交 —— 那三项看\"够不够 / 缺不缺\",
+   本项看\"忙闲均不均\": 即便没有任何一天超容量, 若负荷在时间轴上忽高忽低 (有的工作日堆满、有的排定工作日却空转),
+   仍是需要资源平滑的信号 (经典 resource leveling). 按日期升序把每条 allocation 的 hours_per_day 摊到其任务的每个
+   working_date 上, 得到逐工作日总负荷曲线; 派生 scheduled-days (排定工作日全集) / active-days (有负荷的工作日) /
+   idle-days (排定却零负荷的空转日) / total-hours / peak-hours / peak-date (峰值负荷最早出现日) / avg-hours (一位小数) /
+   peak-to-avg (峰值/均值比, 一位小数, 负荷越平越接近 1) / cv-pct (变异系数 std/mean 百分比, 越大越颠簸) /
+   leveling-level 定性档: 无任何排定工作日 -> nil (available=false); 总负荷为 0 -> unassigned (排了日历却没人投入);
+   否则 peak-to-avg < level-ratio -> level, < moderate-ratio -> moderate, 否则 -> spiky.
+   仅供台账汇总面板呈现, 只读派生, 不落库不投递, 不构成门控, 键名不带尾随问号.
+   sched-tasks 为含 :task_id 与 :working_dates 的排程任务行 (来自 (:schedule snapshot)), allocations 为含
+   :task_id/:resource_id/:hours_per_day 的工时分配行."
+  [sched-tasks allocations]
+  (let [wd (into {} (map (juxt :task_id :working_dates)) sched-tasks)
+        all-dates (into #{} (mapcat :working_dates) sched-tasks)
+        sorted-dates (sort all-dates)
+        n (count sorted-dates)
+        load-by-date (reduce (fn [m {:keys [task_id hours_per_day]}]
+                               (if (number? hours_per_day)
+                                 (reduce #(update %1 %2 (fnil + 0M) (bigdec hours_per_day))
+                                         m (get wd task_id []))
+                                 m))
+                             {} allocations)
+        loads (mapv #(get load-by-date % 0M) sorted-dates)
+        total-hours (reduce + 0M loads)
+        active (count (filterv pos? loads))
+        idle (- n active)
+        peak (if (pos? n) (apply max loads) 0M)
+        peak-date (when (pos? n) (first (filter #(= peak (get load-by-date % 0M)) sorted-dates)))
+        mean-d (if (pos? n) (double (/ (double total-hours) (double n))) 0.0)
+        peak-to-avg (if (and (pos? n) (pos? mean-d)) (rounded-dec (/ (double peak) mean-d)) 0)
+        cv-pct (if (and (pos? n) (pos? mean-d))
+                 (let [var (/ (reduce + 0.0 (map #(Math/pow (- (double %) mean-d) 2) loads)) (double n))]
+                   (int (Math/round ^double (* 100.0 (/ (Math/sqrt var) mean-d)))))
+                 0)]
+    {:available (pos? n)
+     :scheduled-days n
+     :active-days active
+     :idle-days idle
+     :total-hours total-hours
+     :peak-hours peak
+     :peak-date peak-date
+     :avg-hours (rounded-dec mean-d)
+     :peak-to-avg peak-to-avg
+     :cv-pct cv-pct
+     :leveling-level (cond
+                       (zero? n) nil
+                       (zero? (compare total-hours 0M)) "unassigned"
+                       (< peak-to-avg level-ratio) "level"
+                       (< peak-to-avg moderate-ratio) "moderate"
+                       :else "spiky")}))
