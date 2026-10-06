@@ -25,8 +25,8 @@ UUID标识作为字符串处理. 写命令白名单提取字段. 项目编辑与
 | POST /projects/:id/transition | status,version,reason | 更新后项目 | pms:project:transition |
 | GET /projects/:id/nodes | UUID | rows,tree | pms:project:query |
 | POST /projects/:id/nodes | parent_id,node_type,node_code,name | 新节点 | pms:node:add |
-| GET /projects/:id/members | UUID | rows | pms:project:query |
-| POST /projects/:id/members | user_id,role | 成员结果 | pms:member:edit |
+| GET /projects/:id/members | UUID | rows, lifecycle | pms:project:query |
+| POST /projects/:id/members | user_id,role,可选 ends_on | 成员结果 | pms:member:edit |
 | GET /projects/:id/events | UUID | rows | pms:project:query |
 
 以上权限之外还必须通过项目范围检查. 具有功能权限但不属于该项目的用户不能查看其详情,树,成员,事件或统计. 项目经理或manager/editor成员可写, 同时必须拥有对应功能权限; 创建者默认获editor成员资格, 仅创建者身份本身不自动授予写权限. 前端隐藏按钮只是交互便利, 不能替代后端检查.
@@ -73,6 +73,18 @@ manager_id/dept_id 必须来自真实有效的 options 结果, 示例数字不�
 - draft: 当前可见草稿数量.
 
 无计划结束日的项目不判定为逾期. 当前未计算挣值, 健康指数或预测延期天数, 页面不得填造这些指标.
+
+### 项目成员与委派生命周期
+
+`pms_member` 新增可空列 `ends_on` (委派到期日, `VARCHAR(10)` 存 `YYYY-MM-DD`, SQLite 与 MySQL 同步). 成员任命书与项目团队台账据此展示每个成员的项目访问有效期.
+
+`POST /projects/:id/members` 白名单为 `user_id, role, ends_on`. `ends_on` 可选: 填写时须为合法日历日期 (斜杠格式, 非法月日等返回 400), 缺省或省略即视为长期有效 (持久化为 `NULL`). 不传 `ends_on` 的旧客户端仍可正常维护成员.
+
+`GET /projects/:id/members` 在 `rows` 之外返回只读派生对象 `lifecycle`, 全部在读取时按服务器当天计算, 不落库, 不新增命令或门控. `rows` 每条附 `lifecycle-state` (字符串) 与 `days-left` (整数或 null). `lifecycle` 含 `today`, `window-days` (即将到期预警窗口, 常量 14), `total`, `counts` (`{active, expiring-soon, expired, open-ended}` 四态计数, 缺省补 0), `by-role` (按 manager/editor/viewer 各自的状态计数), 以及 `expiring-soon` 与 `expired` 两个 `{user_id, user_name, nick_name, role, ends_on, days-left}` 明细向量.
+
+状态口径 (相对服务器当天): 无 `ends_on` 为 `open-ended` (长期有效); `days-left < 0` 为 `expired` (已过期); `0 <= days-left <= 14` 为 `expiring-soon` (即将到期); `days-left > 14` 为 `active` (有效). `days-left = ends_on 的 epoch-day 减今天的 epoch-day`.
+
+边界 (诚实声明): 本增量只做委派到期的**可视化**与到期预警, 不据此自动撤销成员的项目写/读资格. 到期后越权写访问的强制失权门控, 以及外部 HR 离职/转岗的自动同步, 仍待与权限生命周期联动补齐, 不在本轮实现范围内.
 
 ## 后续接口族与命令边界
 

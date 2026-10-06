@@ -14,6 +14,7 @@
             [reitit.ring :as ring]
             [ring.mock.request :as mock])
   (:import [java.nio.file Files]
+           [java.time LocalDate]
            [java.util UUID]))
 
 (def ^:dynamic *service* nil)
@@ -166,6 +167,62 @@
     (is (= 409 (error-status #(pms/set-member! *service* (actor 1) id {:user_id 9101 :role "viewer"}))))
     (pms/set-member! *service* (actor 1) id {:user_id 9104 :role "editor"})
     (is (= 1 (count (filter #(= 9104 (:user_id %)) (:rows (pms/members *service* (actor 1) id))))))))
+
+(deftest member-lifecycle-is-derived-read-only
+  (let [rows [{:user_id 1 :user_name "a" :nick_name "甲" :role "editor" :ends_on "2026-09-01"}
+              {:user_id 2 :user_name "b" :nick_name "乙" :role "editor" :ends_on "2026-10-10"}
+              {:user_id 3 :user_name "c" :nick_name "丙" :role "viewer" :ends_on "2026-10-06"}
+              {:user_id 4 :user_name "d" :nick_name "丁" :role "viewer" :ends_on "2026-10-20"}
+              {:user_id 5 :user_name "e" :nick_name "戊" :role "manager" :ends_on "2026-10-21"}
+              {:user_id 6 :user_name "f" :nick_name "己" :role "editor" :ends_on nil}]
+        {:keys [summary]} (pms/member-lifecycle rows "2026-10-06")
+        by-id (zipmap (map :user_id (:rows (pms/member-lifecycle rows "2026-10-06")))
+                      (map :lifecycle-state (:rows (pms/member-lifecycle rows "2026-10-06"))))]
+    (testing "逐成员状态按窗口边界归类"
+      (is (= "expired" (by-id 1)))
+      (is (= "expiring-soon" (by-id 2)))
+      (is (= "expiring-soon" (by-id 3)))           ;; 到期日=今天, 边界内
+      (is (= "expiring-soon" (by-id 4)))           ;; 还剩14天, 窗口上界
+      (is (= "active" (by-id 5)))                  ;; 还剩15天, 出窗口
+      (is (= "open-ended" (by-id 6)))
+      (is (= -35 (:days-left (first (:rows (pms/member-lifecycle rows "2026-10-06")))))))
+    (testing "汇总计数与两个清单"
+      (is (= 6 (:total summary)))
+      (is (= 14 (:window-days summary)))
+      (is (= "2026-10-06" (:today summary)))
+      (is (= {:active 1 :expiring-soon 3 :expired 1 :open-ended 1} (:counts summary)))
+      (is (= #{2 3 4} (set (map :user_id (:expiring-soon summary)))))
+      (is (= [1] (mapv :user_id (:expired summary))))
+      (is (= {:expiring-soon 2} (get-in summary [:by-role "viewer"])))
+      (is (= {:active 1} (get-in summary [:by-role "manager"])))
+      (is (= {:expired 1 :expiring-soon 1 :open-ended 1} (get-in summary [:by-role "editor"]))))))
+
+(deftest member-ends-on-persists-and-lifecycle-visible
+  (let [project (create!) id (:project_id project)
+        soon (.toString (.plusDays (LocalDate/now) 5))
+        far (.toString (.plusDays (LocalDate/now) 90))
+        past "2000-01-01"]
+    (pms/set-member! *service* (actor 1) id {:user_id 9104 :role "editor" :ends_on past})
+    (pms/set-member! *service* (actor 1) id {:user_id 9105 :role "editor" :ends_on soon})
+    (is (= 400 (error-status #(pms/set-member! *service* (actor 1) id {:user_id 9102 :role "editor" :ends_on "2026/1/1"}))))
+    (is (= 400 (error-status #(pms/set-member! *service* (actor 1) id {:user_id 9102 :role "editor" :ends_on "2026-13-40"}))))
+    (pms/set-member! *service* (actor 1) id {:user_id 9102 :role "editor" :ends_on far})
+    (let [res (request :get (str "/api/pms/projects/" id "/members") 1 nil)
+        body (:body res)
+        rows (get-in body [:data :rows])
+        lifecycle (get-in body [:data :lifecycle])
+        ends-by (zipmap (map :user_id rows) (map :ends_on rows))
+        state-by (zipmap (map :user_id rows) (map :lifecycle-state rows))]
+      (is (= 200 (:status res)))
+      (is (= past (ends-by 9104)))
+      (is (= far (ends-by 9102)))
+      (is (= "expired" (state-by 9104)))
+      (is (= "expiring-soon" (state-by 9105)))
+      (is (= "active" (state-by 9102)))
+      (is (= 1 (get-in lifecycle [:counts :expired])))
+      (is (= 1 (get-in lifecycle [:counts :expiring-soon])))
+      (is (= 1 (get-in lifecycle [:counts :active])))
+      (is (= [9104] (mapv :user_id (:expired lifecycle)))))))
 
 (deftest lifecycle-and-audit
   (let [project (create!) id (:project_id project)

@@ -89,7 +89,60 @@
                      :options (project-form/user-options (:users options))}]]
       [antd/form-item {:name "role" :label "项目角色" :rules [{:required true}]}
        [antd/select {:options [{:value "editor" :label "协作成员"}
-                               {:value "viewer" :label "只读成员"}]}]]]]))
+                               {:value "viewer" :label "只读成员"}]}]]
+      [antd/form-item {:name "ends_on" :label "委派到期日" :extra "留空表示长期有效,填写后到期成员在台账中标记为已过期"}
+       [antd/input {:type "date"}]]]]))
+
+(defn- lifecycle-tag
+  "按后端派生的生命周期状态为成员打上徽标."
+  [member]
+  (let [state (:lifecycle-state member)
+        ends (:ends_on member)
+        days (:days-left member)]
+    (case state
+      "expired" [antd/tag {:color "red"} (str "已过期 " (or ends ""))]
+      "expiring-soon" [antd/tag {:color "gold"}
+                       (str "即将到期" (when (some? days) (str " 剩" days "天")))]
+      "active" [antd/tag {:color "green"} (str "有效至 " (or ends ""))]
+      "open-ended" [antd/tag {:color "default"} "长期有效"]
+      nil)))
+
+(defn- lifecycle-list
+  "把到期/过期成员渲染为可读徽标清单."
+  [rows color]
+  (let [colors (shared/use-colors)]
+    (into [:div {:style {:display "flex" :flexWrap "wrap" :gap 6}}]
+      (map (fn [m]
+             ^{:key (:user_id m)}
+             [antd/tag {:color color}
+              (str (or (:nick_name m) (:user_name m) (:user_id m))
+                   " · " (:ends_on m)
+                   (when-let [d (:days-left m)]
+                     (if (neg? d) (str " 已逾期" (- d) "天") (str " 剩" d "天"))))])
+           rows))))
+
+(defn- lifecycle-overview
+  "只读呈现成员权限生命周期汇总,数据源与台账同源 (GET /members lifecycle)."
+  [lc]
+  (let [colors (shared/use-colors)
+        counts (:counts lc)]
+    [:div {:style {:marginTop 16 :paddingTop 16 :borderTop (str "1px solid " (:border colors))}}
+     [:div {:style {:fontSize 13 :fontWeight 600 :marginBottom 10}} "成员权限生命周期"]
+     [:div {:style {:display "flex" :flexWrap "wrap" :gap 8 :alignItems "center"}}
+      [antd/tag {:color "default"} (str "成员 " (:total lc))]
+      [antd/tag {:color "green"} (str "有效 " (:active counts))]
+      [antd/tag {:color "gold"} (str "即将到期 " (:expiring-soon counts))]
+      [antd/tag {:color "red"} (str "已过期 " (:expired counts))]
+      [antd/tag {:color "default"} (str "长期 " (:open-ended counts))]]
+     (when (seq (:expiring-soon lc))
+       [:div {:style {:marginTop 12}}
+        [:div {:style {:fontSize 12 :color (:muted colors) :marginBottom 6}}
+         (str "即将到期 (未来 " (:window-days lc) " 天内)")]
+        [lifecycle-list (:expiring-soon lc) "gold"]])
+     (when (seq (:expired lc))
+       [:div {:style {:marginTop 12}}
+        [:div {:style {:fontSize 12 :color (:muted colors) :marginBottom 6}} "已过期, 建议复核访问权限"]
+        [lifecycle-list (:expired lc) "red"]])]))
 
 (defn- member-row
   "显示成员身份与项目角色."
@@ -104,6 +157,7 @@
        (subs name 0 (min 1 (count name)))]
       [:span name]]
      [antd/space
+      (when-let [tag (lifecycle-tag member)] tag)
       [antd/tag {:color (if (= "manager" (:role member)) "blue" "default")}
        (get role-labels (:role member) (:role member))]
       (when (and remove! (not= "manager" (:role member)))
@@ -123,6 +177,7 @@
        loading? [antd/spin]
        (empty? (:rows data)) [shared/empty-state "暂无项目成员" nil]
        :else (into [:div] (map #(with-meta [member-row % (when can-edit? set-removing!)] {:key (:user_id %)}) (:rows data))))
+     (when-let [lc (:lifecycle data)] [lifecycle-overview lc])
      (when adding? [member-form id options #(set-adding! false)
                     (fn [_] (set-adding! false) (refresh!) (on-change))])
      (when removing [w/mutation-dialog

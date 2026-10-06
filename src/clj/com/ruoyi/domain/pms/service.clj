@@ -81,9 +81,10 @@
       (rules/fail! 409 "项目编号已存在"))))
 
 (defn- save-member!
-  "新增或调整项目成员的访问角色."
+  "新增或调整项目成员的访问角色, 缺省委派到期日为空(长期有效)."
   [q member]
-  (q (if (q :pms/member member) :pms/update-member! :pms/insert-member!) member))
+  (let [m (if (contains? member :ends_on) member (assoc member :ends_on nil))]
+    (q (if (q :pms/member m) :pms/update-member! :pms/insert-member!) m)))
 
 (defn- sync-manager!
   "维护项目经理成员记录,旧经理保留编辑资格."
@@ -217,25 +218,73 @@
         (event! q actor project "node.created" (str "新增结构节点: " (:name node)) node)
         (q :pms/node node)))))
 
+(def ^:private expiring-window-days 14)
+
+(defn- member-state
+  "相对今天判定单个成员委派到期状态: 无到期日长期, 过期, 即将到期, 有效期内."
+  [ends-on today window]
+  (if (nil? ends-on)
+    "open-ended"
+    (let [days-left (- (.toEpochDay ^LocalDate (LocalDate/parse ends-on))
+                       (.toEpochDay ^LocalDate today))]
+      (cond (neg? days-left) "expired"
+            (<= days-left window) "expiring-soon"
+            :else "active"))))
+
+(defn member-lifecycle
+  "按今天派生成员委派到期状态与生命周期汇总, 纯只读不写存储.
+  rows 为 pms/members 查询结果, today 可为 LocalDate/字符串或 nil(取当前日期)."
+  [rows today]
+  (let [today (cond (instance? LocalDate today) today
+                    (string? today) (LocalDate/parse today)
+                    :else (LocalDate/now))
+        window expiring-window-days
+        enrich (fn [m]
+                 (let [ends-on (:ends_on m)
+                       days-left (when ends-on
+                                   (- (.toEpochDay ^LocalDate (LocalDate/parse ends-on))
+                                      (.toEpochDay ^LocalDate today)))
+                       state (member-state ends-on today window)]
+                   (assoc m :lifecycle-state state :days-left days-left)))
+        enriched (mapv enrich rows)
+        pick #(select-keys % [:user_id :user_name :nick_name :role :ends_on :days-left])
+        state-counts (fn [rs]
+                       (reduce (fn [acc s] (update acc (keyword s) (fnil inc 0))) {}
+                               (map :lifecycle-state rs)))
+        by-role (->> (group-by :role enriched)
+                     (map (fn [[role rs]] [role (state-counts rs)]))
+                     (into {}))]
+    {:rows enriched
+     :summary {:today (str today)
+               :window-days window
+               :total (count enriched)
+               :counts (merge {:active 0 :expiring-soon 0 :expired 0 :open-ended 0}
+                               (state-counts enriched))
+               :by-role by-role
+               :expiring-soon (mapv pick (filter #(= "expiring-soon" (:lifecycle-state %)) enriched))
+               :expired (mapv pick (filter #(= "expired" (:lifecycle-state %)) enriched))}}))
+
 (defn members
-  "读取项目现有成员."
+  "读取项目现有成员, 附带委派到期生命周期只读派生."
   [{:keys [query-fn]} actor id]
   (rules/permit! actor "pms:project:query")
   (load-project! query-fn actor id false)
-  {:rows (vec (query-fn :pms/members {:project_id id}))})
+  (let [{:keys [rows summary]} (member-lifecycle (query-fn :pms/members {:project_id id}) nil)]
+    {:rows (vec rows) :lifecycle summary}))
 
 (defn- member-input!
-  "校验现有用户和项目角色,保护主项目经理的角色."
+  "校验现有用户和项目角色,保护主项目经理的角色,委派到期日可选."
   [q project body]
-  (rules/object! body [:user_id :role])
+  (rules/object! body [:user_id :role :ends_on])
   (let [uid (rules/positive-id! (:user_id body) "成员")
-        role (:role body)]
+        role (:role body)
+        ends-on (rules/date! (:ends_on body) "委派到期日")]
     (when-not (contains? #{"manager" "editor" "viewer"} role)
       (rules/fail! 400 "成员角色必须为 manager,editor 或 viewer"))
     (when-not (q :pms/user {:user_id uid}) (rules/fail! 400 "成员不存在或已停用"))
     (when (and (= uid (:manager_id project)) (not= "manager" role))
       (rules/fail! 409 "项目经理的角色必须为 manager,请先变更项目经理"))
-    {:project_id (:project_id project) :user_id uid :role role}))
+    {:project_id (:project_id project) :user_id uid :role role :ends_on ends-on}))
 
 (defn set-member!
   "新增或调整成员并记录变更前后的角色."
@@ -250,7 +299,8 @@
         (rules/changed! (q :pms/touch-project! project))
         (save-member! q member)
         (event! q actor project "member.updated" "维护项目成员"
-                {:user_id (:user_id member) :before (:role old) :after (:role member)})
+                {:user_id (:user_id member) :before (:role old) :after (:role member)
+                 :ends_on_before (:ends_on old) :ends_on_after (:ends_on member)})
         (some #(when (= (:user_id member) (:user_id %)) %)
               (q :pms/members {:project_id id}))))))
 

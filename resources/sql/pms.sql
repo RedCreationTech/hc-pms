@@ -75,11 +75,11 @@ SELECT * FROM pms_member WHERE project_id=:project_id AND user_id=:user_id
 --;;
 
 -- :name pms/insert-member! :! :n
-INSERT INTO pms_member (project_id,user_id,role) VALUES (:project_id,:user_id,:role)
+INSERT INTO pms_member (project_id,user_id,role,ends_on) VALUES (:project_id,:user_id,:role,:ends_on)
 --;;
 
 -- :name pms/update-member! :! :n
-UPDATE pms_member SET role=:role WHERE project_id=:project_id AND user_id=:user_id
+UPDATE pms_member SET role=:role,ends_on=:ends_on WHERE project_id=:project_id AND user_id=:user_id
 --;;
 
 -- :name pms/insert-event! :! :n
