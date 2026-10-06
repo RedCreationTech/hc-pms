@@ -310,3 +310,46 @@
                            (pos? (count unlinked)) "unlinked"
                            (>= component-count 2) "fragmented"
                            :else "connected")}))
+
+(def ^:private dependency-type-labels
+  "四类逻辑依赖关系 (PMBOK) 的中文标签, 供 by-type 明细稳定回显."
+  {"FS" "完成-开始" "SS" "开始-开始" "FF" "完成-完成" "SF" "开始-完成"})
+
+(defn dependency-type-mix
+  "把 WBS 依赖网络只读派生为依赖类型结构概览 (H04), 与 network-connectivity / float-tightness / float-sensitivity 正交:
+   那三者看拓扑完整性与浮动分布, 本项看计划的并行度 —— 四类逻辑依赖 FS(完成-开始)/SS(开始-开始)/FF(完成-完成)/SF(开始-完成) 的占比.
+   FS 是最串行的编排 (前序完成才能开始), SS/FF/SF 代表重叠或并行编排; 若依赖几乎全是 FS, 说明计划是纯串行链, 缺少并行优化,
+   工期偏长且关键路径刚性. parallel-count 为 SS+FF+SF 之和, parallel-pct = round(100*parallel/total);
+   lagged-count 为带非零 lag_days (缓冲或提前量) 的依赖条数, lagged-pct 同理. by-type 为四类各自 {:type :label :count :pct}
+   (含零计数, 供界面稳定回显四类结构). serialization-level 定性口径: 无任何有效类型依赖 -> nil (available=false);
+   parallel-count=0 -> fully-serial (纯串行 FS 链); parallel-pct<25 -> mostly-serial; <50 -> mixed; 否则 parallel-heavy.
+   仅供台账汇总面板呈现, 只读派生, 不落库不投递, 不构成门控, 键名不带尾随问号.
+   dependencies 为含 :dependency_type/:lag_days 的依赖行."
+  [dependencies]
+  (let [typed (filter #(contains? #{"FS" "SS" "FF" "SF"} (:dependency_type %)) dependencies)
+        total (count typed)
+        pct (fn [n] (if (pos? total)
+                      (int (Math/round ^double (* 100.0 (/ (double n) (double total)))))
+                      0))
+        count-of (fn [t] (count (filter #(= t (:dependency_type %)) typed)))
+        fs-count (count-of "FS")
+        parallel-count (+ (count-of "SS") (count-of "FF") (count-of "SF"))
+        lagged-count (count (filter #(let [l (:lag_days %)]
+                                       (and (some? l) (not= 0 l))) typed))
+        by-type (mapv (fn [t] (let [c (count-of t)]
+                                {:type t :label (get dependency-type-labels t) :count c :pct (pct c)}))
+                      ["FS" "SS" "FF" "SF"])]
+    {:available (pos? total)
+     :dependency-count total
+     :fs-count fs-count
+     :parallel-count parallel-count
+     :parallel-pct (pct parallel-count)
+     :lagged-count lagged-count
+     :lagged-pct (pct lagged-count)
+     :by-type by-type
+     :serialization-level (cond
+                            (zero? total) nil
+                            (zero? parallel-count) "fully-serial"
+                            (< (pct parallel-count) 25) "mostly-serial"
+                            (< (pct parallel-count) 50) "mixed"
+                            :else "parallel-heavy")}))

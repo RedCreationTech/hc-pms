@@ -749,3 +749,83 @@
       (is (= "unlinked" (:connectivity-level n)))
       (is (= v-before (version id)))
       (is (= v-before (:project_version model))))))
+
+(deftest dependency-type-mix-is-derived-read-only
+  (testing "纯函数口径: 全 FS -> parallel0 pct0 档fully-serial, by-type 含四类零计数"
+    (let [deps [{:dependency_type "FS" :lag_days 0}
+                {:dependency_type "FS" :lag_days 0}
+                {:dependency_type "FS" :lag_days 0}]
+          m (schedule/dependency-type-mix deps)]
+      (is (true? (:available m)))
+      (is (= 3 (:dependency-count m)))
+      (is (= 3 (:fs-count m)))
+      (is (= 0 (:parallel-count m)))
+      (is (= 0 (:parallel-pct m)))
+      (is (= 0 (:lagged-count m)))
+      (is (= "fully-serial" (:serialization-level m)))
+      (is (= ["FS" "SS" "FF" "SF"] (map :type (:by-type m))))
+      (is (= 3 (:count (first (:by-type m)))))
+      (is (= 0 (:count (last (:by-type m)))))))
+  (testing "纯函数口径: FS+FS(lag)+SS+FF(lag) -> parallel=SS+FF=2 pct50 档parallel-heavy, lagged=2"
+    (let [deps [{:dependency_type "FS" :lag_days 0}
+                {:dependency_type "FS" :lag_days 2}
+                {:dependency_type "SS" :lag_days 0}
+                {:dependency_type "FF" :lag_days -1}]
+          m (schedule/dependency-type-mix deps)]
+      (is (= 4 (:dependency-count m)))
+      (is (= 2 (:fs-count m)))
+      (is (= 2 (:parallel-count m)))
+      (is (= 50 (:parallel-pct m)))
+      (is (= 2 (:lagged-count m)))
+      (is (= 50 (:lagged-pct m)))
+      (is (= "parallel-heavy" (:serialization-level m)))
+      (is (= {:type "SS" :label "开始-开始" :count 1 :pct 25}
+             (second (:by-type m))))))
+  (testing "纯函数口径: mostly-serial 边界 parallel-pct<25 (4FS+1SS=20%)"
+    (let [deps (concat (repeat 4 {:dependency_type "FS" :lag_days 0})
+                       [{:dependency_type "SS" :lag_days 0}])
+          m (schedule/dependency-type-mix deps)]
+      (is (= 5 (:dependency-count m)))
+      (is (= 1 (:parallel-count m)))
+      (is (= 20 (:parallel-pct m)))
+      (is (= "mostly-serial" (:serialization-level m)))))
+  (testing "纯函数口径: mixed 边界 25<=parallel-pct<50 (3FS+1SF=25%)"
+    (let [deps (concat (repeat 3 {:dependency_type "FS" :lag_days 0})
+                       [{:dependency_type "SF" :lag_days 0}])
+          m (schedule/dependency-type-mix deps)]
+      (is (= 4 (:dependency-count m)))
+      (is (= 1 (:parallel-count m)))
+      (is (= 25 (:parallel-pct m)))
+      (is (= "mixed" (:serialization-level m)))))
+  (testing "无效或缺失类型不计入分母"
+    (let [deps [{:dependency_type "FS" :lag_days 0}
+                {:dependency_type "XX" :lag_days 0}
+                {:lag_days 0}]
+          m (schedule/dependency-type-mix deps)]
+      (is (= 1 (:dependency-count m)))
+      (is (= 1 (:fs-count m)))))
+  (testing "空依赖 available=false, 计数0, by-type 四类皆零, 档位nil"
+    (let [m (schedule/dependency-type-mix [])]
+      (is (false? (:available m)))
+      (is (= 0 (:dependency-count m)))
+      (is (= 0 (:fs-count m)))
+      (is (= 0 (:parallel-count m)))
+      (is (= 0 (:parallel-pct m)))
+      (is (= 0 (:lagged-count m)))
+      (is (nil? (:serialization-level m)))
+      (is (= [0 0 0 0] (map :count (:by-type m))))))
+  (testing "read-plan 集成: 暴露 :dependency_type_mix, parallel-pct 与计数一致, 无版本漂移"
+    (let [id (project!)
+          a (task! id "DTA" 3) b (task! id "DTB" 3) c (task! id "DTC" 2)
+          _ (command! plan/create-dependency! id [] {:predecessor_id (:task_id a) :successor_id (:task_id b) :dependency_type "FS" :lag_days 0})
+          _ (command! plan/create-dependency! id [] {:predecessor_id (:task_id b) :successor_id (:task_id c) :dependency_type "SS" :lag_days 1})
+          v-before (version id)
+          model (plan/read-plan *svc* (actor 9201) id)
+          m (:dependency_type_mix model)]
+      (is (some? m))
+      (is (true? (:available m)))
+      (is (= (:parallel-pct m)
+             (int (Math/round (* 100.0 (/ (double (:parallel-count m)) (double (:dependency-count m))))))))
+      (is (contains? #{"fully-serial" "mostly-serial" "mixed" "parallel-heavy"} (:serialization-level m)))
+      (is (= v-before (version id)))
+      (is (= v-before (:project_version model))))))

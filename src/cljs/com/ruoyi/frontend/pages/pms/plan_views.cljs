@@ -175,6 +175,35 @@
              ^{:key (:task_id t)} [antd/tag {:color "red"} (str (:wbs_code t) " " (:name t))])])]
        [shared/empty-state "尚未建任务 (创建任务后方可检查依赖网络是否连贯)." nil])]))
 
+(def ^:private serialization-view
+  "依赖类型结构的并行度档位 -> [中文标签 颜色]: 纯串行链最刚性 (缺并行优化), 并行越充分越好."
+  {"fully-serial"   ["纯串行链" "red"]
+   "mostly-serial"  ["以串行为主" "volcano"]
+   "mixed"          ["串并混合" "gold"]
+   "parallel-heavy" ["并行充分" "green"]})
+
+(defn dependency-type-mix
+  "把 WBS 依赖网络只读派生为依赖类型结构概览: 四类逻辑依赖 FS/SS/FF/SF 的占比、并行度档位、缓冲 (非零间隔) 依赖占比与逐类明细; 与连通性/紧凑度/敏感度面板正交 (那三者看拓扑与浮动, 本项看并行编排结构), 只读洞察, 不构成门控."
+  [model]
+  (let [m (:dependency_type_mix model)
+        lv (when (:available m) (get serialization-view (:serialization-level m) ["其他" "default"]))
+        fs-pct (some-> (:by-type m) (->> (filter #(= "FS" (:type %))) first) :pct)]
+    [shared/panel "依赖类型结构" (str "四类逻辑依赖的编排结构决定计划是串还是并: FS (完成-开始) 是最串行的编排, SS/FF/SF 代表重叠或并行; FS 占比越高说明越是纯串行链, 工期偏长且关键路径刚性; 只读洞察, 不构成门控") nil
+     (if (and m (:available m))
+       [:div
+        [antd/space {:wrap true}
+         [antd/tag {:color (second lv)} (str "并行度 " (first lv))]
+         [antd/tag {:color (if (>= (:parallel-pct m) 50) "green" "blue")} (str "并行依赖占比 " (:parallel-pct m) "%")]
+         [antd/tag {:color (if (and fs-pct (>= fs-pct 75)) "red" "geekblue")} (str "完成-开始(FS) 占比 " fs-pct "%")]
+         [antd/tag {:color (if (pos? (:lagged-count m)) "purple" "default")} (str "带缓冲间隔 " (:lagged-count m) " 条 · " (:lagged-pct m) "%")]
+         [antd/tag {:color "default"} (str "类型依赖 " (:dependency-count m) " 条")]]
+        [:div {:style {:display "flex" :alignItems "center" :gap 8 :flexWrap "wrap" :marginTop 8}}
+         [:span {:style {:fontSize 12 :color "#718096"}} "逐类明细:"]
+         (for [b (:by-type m)]
+           ^{:key (:type b)} [antd/tag {:color (if (pos? (:count b)) "blue" "default")}
+                              (str (:label b) " " (:count b) " (" (:pct b) "%)")])]]
+       [shared/empty-state "尚无依赖 (建立任务间 FS/SS/FF/SF 依赖后方可分析并行度)." nil])]))
+
 (def readable-fields
   {:name "名称" :start_date "开始日期" :end_date "结束日期" :duration_days "工期"
    :wbs_code "WBS编号" :task_type "类型" :daily_capacity "日容量" :hours_per_day "日负荷"
