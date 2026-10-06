@@ -124,6 +124,30 @@
              ^{:key (:task_id t)} [antd/tag {:color "volcano"} (str (:wbs_code t) " " (:name t) " · 时差 " (:total_float t) " 天")])])]
        [shared/empty-state "尚未排程 (需任务设置工期与依赖后计算总时差)." nil])]))
 
+(def ^:private tightness-view
+  "排程紧凑度档位 -> [中文标签 颜色]: 关键任务占比越高越紧 (几乎无松弛余量), 越低越宽松."
+  {"very-tight" ["极紧 (关键任务过半)" "red"]
+   "tight"      ["偏紧" "volcano"]
+   "moderate"   ["中等" "gold"]
+   "loose"      ["宽松" "green"]})
+
+(defn schedule-tightness
+  "把 CPM 总时差只读派生为排程整体紧凑度概览: 关键任务占比、平均/最小/最大总时差与定性档位; 与敏感度面板正交, 只读洞察, 不构成门控."
+  [model]
+  (let [t (:schedule_tightness model)
+        lv (when (:available t) (get tightness-view (:tightness-level t) ["其他" "default"]))]
+    [shared/panel "排程紧凑度" (str "关键任务占比与总时差分布反映整个计划的松弛余量: 占比越高越紧, 一处延误越易波及全局; 只读洞察, 不构成门控") nil
+     (if (and t (:available t))
+       [:div
+        [antd/space {:wrap true}
+         [antd/tag {:color (second lv)} (str "紧凑度 " (first lv))]
+         [antd/tag {:color (if (>= (:critical-pct t) 50) "red" "blue")} (str "关键任务占比 " (:critical-pct t) "%")]
+         [antd/tag {:color "geekblue"} (str "平均总时差 " (:avg-float t) " 天")]
+         [antd/tag {:color "cyan"} (str "最小总时差 " (:min-float t) " 天")]
+         [antd/tag {:color "purple"} (str "最大总时差 " (:max-float t) " 天")]
+         [antd/tag {:color "default"} (str "关键任务 " (:critical-count t) " / 叶任务 " (:leaf-count t))]]]
+       [shared/empty-state "尚未排程 (需任务设置工期与依赖后计算总时差)." nil])]))
+
 (def readable-fields
   {:name "名称" :start_date "开始日期" :end_date "结束日期" :duration_days "工期"
    :wbs_code "WBS编号" :task_type "类型" :daily_capacity "日容量" :hours_per_day "日负荷"

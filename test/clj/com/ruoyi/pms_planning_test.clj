@@ -609,3 +609,57 @@
       (is (every? #(and (pos? (:total_float %)) (<= (:total_float %) (:band sens))) (:near-critical-tasks sens)))
       (is (= v-before (version id)))
       (is (= v-before (:project_version model))))))
+
+(deftest schedule-tightness-is-derived-read-only
+  (testing "纯函数口径: 非汇总叶任务的关键占比/平均/最小/最大总时差与定性档位 (5 叶 [0,0,2,1,8] -> 关键2 占40% 均2.2 档tight)"
+    (let [sched {:working_days 20
+                 :tasks [{:task_id "c1" :name "关键甲" :task_type "task" :total_float 0}
+                         {:task_id "c2" :name "关键乙" :task_type "task" :total_float 0}
+                         {:task_id "n1" :name "近关键甲" :task_type "task" :total_float 2}
+                         {:task_id "n2" :name "近关键乙" :task_type "task" :total_float 1}
+                         {:task_id "k1" :name "宽松" :task_type "task" :total_float 8}
+                         {:task_id "s" :name "汇总" :task_type "summary" :total_float 0}]}
+          t (schedule/float-tightness sched)]
+      (is (true? (:available t)))
+      (is (= 5 (:leaf-count t)))
+      (is (= 2 (:critical-count t)))
+      (is (= 40 (:critical-pct t)))
+      (is (= 2.2 (:avg-float t)))
+      (is (= 0 (:min-float t)))
+      (is (= 8 (:max-float t)))
+      (is (= 20 (:span t)))
+      (is (= "tight" (:tightness-level t)))))
+  (testing "档位阈值: 全关键 -> 100% very-tight; 10 叶 1 关键 -> 10% moderate"
+    (let [vt (schedule/float-tightness {:working_days 10 :tasks [{:task_id "a" :task_type "task" :total_float 0}
+                                                                 {:task_id "b" :task_type "task" :total_float 0}]})
+          leaves (into [{:task_id "c" :task_type "task" :total_float 0}]
+                       (for [i (range 9)] {:task_id (str "x" i) :task_type "task" :total_float 5}))
+          md (schedule/float-tightness {:working_days 30 :tasks leaves})]
+      (is (= 100 (:critical-pct vt)))
+      (is (= "very-tight" (:tightness-level vt)))
+      (is (= 10 (:critical-pct md)))
+      (is (= "moderate" (:tightness-level md)))))
+  (testing "空排程 available=false, 占比0 均0 最小最大nil 档位nil"
+    (let [t (schedule/float-tightness {:working_days nil :tasks []})]
+      (is (false? (:available t)))
+      (is (= 0 (:leaf-count t)))
+      (is (= 0 (:critical-pct t)))
+      (is (= 0 (:avg-float t)))
+      (is (nil? (:min-float t)))
+      (is (nil? (:max-float t)))
+      (is (nil? (:tightness-level t)))))
+  (testing "read-plan 集成: 暴露 :schedule_tightness 且关键占比与关键数一致, 无版本漂移"
+    (let [id (project!)
+          a (task! id "T1A" 3) b (task! id "T1B" 3)
+          _ (command! plan/create-dependency! id [] {:predecessor_id (:task_id a) :successor_id (:task_id b) :dependency_type "FS" :lag_days 0})
+          c (task! id "T2" 2)
+          v-before (version id)
+          model (plan/read-plan *svc* (actor 9201) id)
+          t (:schedule_tightness model)]
+      (is (some? t))
+      (is (true? (:available t)))
+      (is (= (:critical-pct t)
+             (int (Math/round (* 100.0 (/ (double (:critical-count t)) (double (:leaf-count t))))))))
+      (is (contains? #{"very-tight" "tight" "moderate" "loose"} (:tightness-level t)))
+      (is (= v-before (version id)))
+      (is (= v-before (:project_version model))))))

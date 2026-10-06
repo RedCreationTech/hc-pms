@@ -206,3 +206,39 @@
      :comfortable-count (count comfortable)
      :near-critical-tasks (mapv detail near)
      :min-near-float (:total_float (first near))}))
+
+(def ^:private tightness-thresholds
+  "关键任务占比 (%) 的紧凑度分档上界: 达到即判为对应档位, 用于把排程整体松紧给一个定性健康度."
+  [["very-tight" 50] ["tight" 25] ["moderate" 10]])
+
+(defn- tightness-level
+  "按关键任务占比给出定性紧凑度档位 (无叶任务时 nil)."
+  [critical-pct]
+  (some (fn [[level upper]] (when (>= critical-pct upper) level)) tightness-thresholds))
+
+(defn float-tightness
+  "把 CPM 排程结果的总时差只读派生为排程整体紧凑度概览 (H04), 与 float-sensitivity 正交互补:
+   sensitivity 看关键链之外谁快变关键 (逐任务分档), 本项看整个计划有多紧 —— 关键任务占比, 平均/最小/最大总时差,
+   以及按关键任务占比给的定性紧凑度档位 (very-tight>=50% / tight>=25% / moderate>=10% / 否则 loose).
+   只统计非汇总叶子任务 (与 float-sensitivity / critical_path_staffing 分母口径一致), 总时差为整数工作日.
+   仅供台账汇总面板呈现, 只读派生, 不落库不投递, 不构成门控, 键名不带尾随问号.
+   schedule 为 schedule/schedule 的输出."
+  [schedule]
+  (let [floats (mapv :total_float (filterv #(not= "summary" (:task_type %)) (:tasks schedule)))
+        leaf-count (count floats)
+        critical-count (count (filter zero? floats))
+        critical-pct (if (pos? leaf-count)
+                       (int (Math/round ^double (* 100.0 (/ (double critical-count) (double leaf-count)))))
+                       0)
+        avg-float (if (pos? leaf-count)
+                    (/ (Math/round ^double (* 10.0 (double (/ (apply + floats) leaf-count)))) 10.0)
+                    0)]
+    {:available (pos? leaf-count)
+     :leaf-count leaf-count
+     :critical-count critical-count
+     :critical-pct critical-pct
+     :avg-float avg-float
+     :min-float (when (pos? leaf-count) (apply min floats))
+     :max-float (when (pos? leaf-count) (apply max floats))
+     :span (:working_days schedule)
+     :tightness-level (when (pos? leaf-count) (tightness-level critical-pct))}))
