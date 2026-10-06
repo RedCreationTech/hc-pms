@@ -232,6 +232,38 @@
              ^{:key (:task_id t)} [antd/tag {:color "red"} (str (:wbs_code t) " " (:name t) " · " (:duration_days t) " 天")])])]
        [shared/empty-state "尚未建任务 (创建任务并设定工期后方可评估分解粒度)." nil])]))
 
+(def ^:private hierarchy-view
+  "WBS 层级结构档位 -> [中文标签 颜色]: 层级过深逐层上卷困难, 叶任务挂在悬殊深度分解不均, 全部平铺无汇总, 层次均衡最好."
+  {"deep"       ["层级过深" "volcano"]
+   "unbalanced" ["叶任务深度不均" "gold"]
+   "flat"       ["无汇总层级 (全部平铺)" "blue"]
+   "balanced"   ["层次均衡" "green"]})
+
+(defn wbs-hierarchy
+  "把 WBS 任务树按 parent_id 的父子结构只读派生为层级结构概览: 最深层级、汇总/叶/顶层计数、叶任务深度跨度、逐层分布与父级缺失孤儿数; 与前五项排程洞察正交 (那些看工期/浮动/拓扑/编排与叶任务粒度, 本项看分解树的\"形状\"), 只读洞察, 不构成门控."
+  [model]
+  (let [h (:wbs_hierarchy model)
+        lv (when (:available h) (get hierarchy-view (:structure-level h) ["其他" "default"]))]
+    [shared/panel "WBS 层级结构" (str "只看任务按父子挂接形成的树形: 层级过浅 (全部平铺无汇总上卷) 或过深 (逐层汇总与责任追踪困难) 都会削弱 WBS 的可管理性, 叶任务挂在悬殊深度则说明分解口径不一致; 只读洞察, 不构成门控") nil
+     (if (and h (:available h))
+       [:div
+        [antd/space {:wrap true}
+         [antd/tag {:color (second lv)} (str "层级结构 " (first lv))]
+         [antd/tag {:color (if (>= (:max-depth h) 4) "volcano" "blue")} (str "最深层级 " (:max-depth h) " 层")]
+         [antd/tag {:color "default"} (str "汇总 " (:summary-count h) " · 叶 " (:leaf-count h) " · 顶层 " (:root-count h) " 个")]
+         [antd/tag {:color (if (and (:depth-spread h) (>= (:depth-spread h) 2)) "gold" "default")} (str "叶任务深度跨度 " (or (:depth-spread h) 0) " 层")]
+         [antd/tag {:color (if (pos? (:orphan-count h)) "red" "green")} (str "父级缺失 " (:orphan-count h) " 个")]]
+        [:div {:style {:display "flex" :alignItems "center" :gap 8 :flexWrap "wrap" :marginTop 8}}
+         [:span {:style {:fontSize 12 :color "#718096"}} "逐层任务数:"]
+         (for [lc (:level-counts h)]
+           ^{:key (:level lc)} [antd/tag {:color "geekblue"} (str "第 " (:level lc) " 层 " (:count lc) " 个")])]
+        (when (seq (:orphans h))
+          [:div {:style {:display "flex" :alignItems "center" :gap 8 :flexWrap "wrap" :marginTop 8}}
+           [:span {:style {:fontSize 12 :color "#718096"}} "父级缺失的孤儿任务:"]
+           (for [o (:orphans h)]
+             ^{:key (:task_id o)} [antd/tag {:color "red"} (str (:wbs_code o) " " (:name o))])])]
+       [shared/empty-state "尚未建任务 (创建 WBS 任务后方可分析层级结构)." nil])]))
+
 (def readable-fields
   {:name "名称" :start_date "开始日期" :end_date "结束日期" :duration_days "工期"
    :wbs_code "WBS编号" :task_type "类型" :daily_capacity "日容量" :hours_per_day "日负荷"

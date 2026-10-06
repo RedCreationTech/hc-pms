@@ -424,3 +424,74 @@
                           (>= dominant-pct dominant-share-pct) "hard-to-track"
                           (pos? (count coarse)) "coarse"
                           :else "fine")}))
+
+(def ^:private deep-hierarchy-depth
+  "WBS 树最大嵌套层数 (根记为 1) 达到该值即判定层级过深: 汇总层太多, 逐层上卷与责任追踪会变复杂."
+  4)
+
+(def ^:private leaf-depth-spread
+  "叶任务最深层与最浅层的层差达到该值即判定层级失衡: 同粒度工作被挂在差异悬殊的深度, 分解口径不一致."
+  2)
+
+(defn- task-depth
+  "沿 parent_id 链回溯某任务的层级 (根记为 1), 带 visited 环守卫; 父级缺失或成环时按已到深度返回."
+  [by-id task-id]
+  (loop [id task-id seen #{} depth 1]
+    (let [parent-id (when-let [t (get by-id id)] (not-empty (:parent_id t)))]
+      (if (or (nil? parent-id) (seen parent-id) (not (contains? by-id parent-id)))
+        depth
+        (recur parent-id (conj seen id) (inc depth))))))
+
+(defn wbs-hierarchy
+  "把 WBS 任务树按 parent_id 的父子结构只读派生为层级结构概览 (H04), 与 float-sensitivity / float-tightness /
+   network-connectivity / dependency-type-mix / duration-granularity 五项正交: 前四项看浮动分布、依赖拓扑与编排,
+   duration-granularity 反过来核验叶任务工期是否拆得够细 (仍默认\"挂在同一父级下\"); 本项看分解结构的\"形状\"本身 ——
+   树有几层、有没有汇总上卷、叶任务是否被均衡地挂在相近深度、有无父级缺失的孤儿. 层级过浅 (全部平铺无汇总) 或过深
+   (逐层上卷困难) 都会削弱 WBS 的可管理性, 而这与单个叶任务的工期长短无关.
+   只统计 raw-tasks 现有行 (写路径已保证父级是同项目汇总任务且不成环, 故 orphan 通常为 0, 此处作防御性只读体检).
+   输出: available (是否存在至少一个任务) / task-count (任务总数) / root-count (无父级的顶层任务数) /
+   summary-count (汇总任务数) / leaf-count (非汇总任务数, 与其余各面板分母口径一致) / max-depth (最深层级, 根记 1) /
+   leaf-min-depth / leaf-max-depth / depth-spread (叶任务最深减最浅的层差) / level-counts (按层升序 [{:level :count}]) /
+   orphan-count (父级缺失的任务数) / orphans (孤儿清单, 每项含 task_id/wbs_code/name/parent_id) /
+   structure-level 定性口径: 无任务 -> nil (available=false); 否则 max-depth <= 1 -> flat (全部平铺, 无汇总上卷层级);
+   否则 max-depth >= deep-hierarchy-depth -> deep (层级过深); 否则 depth-spread >= leaf-depth-spread -> unbalanced
+   (叶任务挂在悬殊深度, 分解不均衡); 否则 -> balanced.
+   仅供台账汇总面板呈现, 只读派生, 不落库不投递, 不构成门控, 键名不带尾随问号.
+   raw-tasks 为含 :task_id/:parent_id/:wbs_code/:name/:task_type 的任务行."
+  [raw-tasks]
+  (let [by-id (into {} (map (juxt :task_id identity)) raw-tasks)
+        total (count raw-tasks)
+        roots (filterv #(not (some? (not-empty (:parent_id %)))) raw-tasks)
+        summaries (filterv #(= "summary" (:task_type %)) raw-tasks)
+        leaves (filterv #(not= "summary" (:task_type %)) raw-tasks)
+        orphans (->> raw-tasks
+                     (filterv #(let [p (not-empty (:parent_id %))]
+                                 (and (some? p) (not (contains? by-id p)))))
+                     (mapv #(select-keys % [:task_id :wbs_code :name :parent_id])))
+        depths (mapv #(task-depth by-id (:task_id %)) raw-tasks)
+        max-depth (if (pos? total) (apply max depths) 0)
+        leaf-depths (mapv #(task-depth by-id (:task_id %)) leaves)
+        leaf-min (when (seq leaf-depths) (apply min leaf-depths))
+        leaf-max (when (seq leaf-depths) (apply max leaf-depths))
+        spread (when (and (some? leaf-min) (some? leaf-max)) (- leaf-max leaf-min))
+        level-counts (->> (frequencies depths)
+                          (sort-by key)
+                          (mapv (fn [[lvl n]] {:level lvl :count n})))]
+    {:available (pos? total)
+     :task-count total
+     :root-count (count roots)
+     :summary-count (count summaries)
+     :leaf-count (count leaves)
+     :max-depth max-depth
+     :leaf-min-depth leaf-min
+     :leaf-max-depth leaf-max
+     :depth-spread spread
+     :level-counts level-counts
+     :orphan-count (count orphans)
+     :orphans orphans
+     :structure-level (cond
+                        (zero? total) nil
+                        (<= max-depth 1) "flat"
+                        (>= max-depth deep-hierarchy-depth) "deep"
+                        (and (some? spread) (>= spread leaf-depth-spread)) "unbalanced"
+                        :else "balanced")}))

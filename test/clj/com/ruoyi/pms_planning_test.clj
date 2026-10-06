@@ -918,3 +918,111 @@
       (is (= "DGA" (:wbs_code (first (:coarse-tasks m)))))
       (is (= v-before (version id)))
       (is (= v-before (:project_version model))))))
+
+(defn- summary!
+  "创建汇总任务 (可挂在某父级汇总任务下), 返回其 :task_id."
+  ([id code]
+   (:task_id (:result (command! plan/create-task! id [] {:wbs_code code :name code :task_type "summary" :duration_days 0}))))
+  ([id code parent]
+   (:task_id (:result (command! plan/create-task! id [] {:wbs_code code :name code :task_type "summary" :duration_days 0 :parent_id parent})))))
+
+(defn- child!
+  "在指定父级汇总任务下创建叶任务."
+  [id code parent]
+  (:result (command! plan/create-task! id [] {:wbs_code code :name code :duration_days 1 :owner_id 9201 :parent_id parent})))
+
+(deftest wbs-hierarchy-is-derived-read-only
+  (testing "纯函数口径: 全部无父级 -> flat, max-depth1, root=task, 无汇总"
+    (let [tasks [{:task_id "a" :parent_id nil :wbs_code "A" :name "甲" :task_type "task"}
+                 {:task_id "b" :parent_id nil :wbs_code "B" :name "乙" :task_type "task"}
+                 {:task_id "c" :parent_id nil :wbs_code "C" :name "丙" :task_type "task"}]
+          m (schedule/wbs-hierarchy tasks)]
+      (is (true? (:available m)))
+      (is (= 3 (:task-count m)))
+      (is (= 3 (:root-count m)))
+      (is (= 0 (:summary-count m)))
+      (is (= 3 (:leaf-count m)))
+      (is (= 1 (:max-depth m)))
+      (is (= 1 (:leaf-min-depth m)))
+      (is (= 1 (:leaf-max-depth m)))
+      (is (= 0 (:depth-spread m)))
+      (is (= 0 (:orphan-count m)))
+      (is (= [{:level 1 :count 3}] (:level-counts m)))
+      (is (= "flat" (:structure-level m)))))
+  (testing "纯函数口径: 一汇总两叶 (叶在第二层) -> balanced, summary1 leaf2 root1 max-depth2 spread0"
+    (let [tasks [{:task_id "s" :parent_id nil :wbs_code "1" :name "汇总" :task_type "summary"}
+                 {:task_id "a" :parent_id "s" :wbs_code "1.1" :name "甲" :task_type "task"}
+                 {:task_id "b" :parent_id "s" :wbs_code "1.2" :name "乙" :task_type "task"}]
+          m (schedule/wbs-hierarchy tasks)]
+      (is (= 3 (:task-count m)))
+      (is (= 1 (:root-count m))) ;; 仅汇总节点无父
+      (is (= 1 (:summary-count m)))
+      (is (= 2 (:leaf-count m)))
+      (is (= 2 (:max-depth m)))
+      (is (= 2 (:leaf-min-depth m)))
+      (is (= 2 (:leaf-max-depth m)))
+      (is (= 0 (:depth-spread m)))
+      (is (= 0 (:orphan-count m)))
+      (is (= [{:level 1 :count 1} {:level 2 :count 2}] (:level-counts m)))
+      (is (= "balanced" (:structure-level m)))))
+  (testing "纯函数口径: 汇总链 S1>S2>S3>叶 -> max-depth4 deep"
+    (let [tasks [{:task_id "s1" :parent_id nil :wbs_code "1" :name "一层" :task_type "summary"}
+                 {:task_id "s2" :parent_id "s1" :wbs_code "1.1" :name "二层" :task_type "summary"}
+                 {:task_id "s3" :parent_id "s2" :wbs_code "1.1.1" :name "三层" :task_type "summary"}
+                 {:task_id "t" :parent_id "s3" :wbs_code "1.1.1.1" :name "叶" :task_type "task"}]
+          m (schedule/wbs-hierarchy tasks)]
+      (is (= 3 (:summary-count m)))
+      (is (= 1 (:leaf-count m)))
+      (is (= 4 (:max-depth m)))
+      (is (= 4 (:leaf-max-depth m)))
+      (is (= "deep" (:structure-level m)))))
+  (testing "纯函数口径: 一个顶层叶(d1) + 一条链到d3 -> spread2 且 max-depth3<4 -> unbalanced"
+    (let [tasks [{:task_id "x" :parent_id nil :wbs_code "A" :name "平铺叶" :task_type "task"}
+                 {:task_id "s1" :parent_id nil :wbs_code "B" :name "汇总" :task_type "summary"}
+                 {:task_id "s2" :parent_id "s1" :wbs_code "B.1" :name "子汇总" :task_type "summary"}
+                 {:task_id "y" :parent_id "s2" :wbs_code "B.1.1" :name "深叶" :task_type "task"}]
+          m (schedule/wbs-hierarchy tasks)]
+      (is (= 3 (:max-depth m)))
+      (is (= 1 (:leaf-min-depth m))) ;; x 在深度 1
+      (is (= 3 (:leaf-max-depth m))) ;; y 在深度 3
+      (is (= 2 (:depth-spread m)))
+      (is (= "unbalanced" (:structure-level m)))))
+  (testing "纯函数口径: 父级缺失 -> orphan-count1 且列入 orphans, 不计入 root"
+    (let [tasks [{:task_id "s" :parent_id nil :wbs_code "1" :name "汇总" :task_type "summary"}
+                 {:task_id "o" :parent_id "ghost" :wbs_code "1.1" :name "孤儿" :task_type "task"}]
+          m (schedule/wbs-hierarchy tasks)]
+      (is (= 1 (:orphan-count m)))
+      (is (= [{:task_id "o" :wbs_code "1.1" :name "孤儿" :parent_id "ghost"}] (:orphans m)))
+      (is (= 1 (:root-count m))) ;; 孤儿有父级引用, 不算顶层
+      ))
+  (testing "空任务 available=false, 各计数0, level-counts[], 档位nil"
+    (let [m (schedule/wbs-hierarchy [])]
+      (is (false? (:available m)))
+      (is (= 0 (:task-count m)))
+      (is (= 0 (:max-depth m)))
+      (is (= [] (:level-counts m)))
+      (is (= [] (:orphans m)))
+      (is (nil? (:leaf-min-depth m)))
+      (is (nil? (:leaf-max-depth m)))
+      (is (nil? (:depth-spread m)))
+      (is (nil? (:structure-level m)))))
+  (testing "read-plan 集成: 汇总树暴露 :wbs_hierarchy, max-depth/summary/leaf/root 一致, 无版本漂移"
+    (let [id (project!)
+          s (summary! id "WBS")
+          m (summary! id "WBS.1" s)
+          _ (child! id "WBS.1.1" m)   ;; 深度 3
+          _ (child! id "WBS.2" s)      ;; 深度 2
+          v-before (version id)
+          model (plan/read-plan *svc* (actor 9201) id)
+          h (:wbs_hierarchy model)]
+      (is (some? h))
+      (is (true? (:available h)))
+      (is (= 2 (:summary-count h)))
+      (is (= 2 (:leaf-count h)))
+      (is (= 1 (:root-count h)))
+      (is (= 3 (:max-depth h)))
+      (is (= 2 (:leaf-min-depth h))) ;; WBS.2 直接挂 s
+      (is (= 3 (:leaf-max-depth h))) ;; WBS.1.1 挂 m 挂 s
+      (is (= 0 (:orphan-count h)))
+      (is (= v-before (version id)))
+      (is (= v-before (:project_version model))))))
