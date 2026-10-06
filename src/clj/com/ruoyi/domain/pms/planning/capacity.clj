@@ -187,3 +187,95 @@
                        (< peak-to-avg level-ratio) "level"
                        (< peak-to-avg moderate-ratio) "moderate"
                        :else "spiky")}))
+
+(def ^:private low-utilization-pct
+  "整体容量利用率低于该百分比即视为资源投入不足 (日历容量明显富余, 排入的资源大多只用了不到一半)."
+  50)
+
+(def ^:private high-utilization-pct
+  "整体容量利用率达到该百分比即视为资源接近满负荷 (日历容量与投入基本贴平, 再插任务即超配)."
+  90)
+
+(defn- utilization-pct
+  "committed/capacity 的百分比 (四舍五入整数), 容量为 0 或缺失时给 0, 走 double 避免 BigDecimal 非终止除法."
+  [committed capacity]
+  (if (pos? (compare capacity 0M))
+    (int (Math/round ^double (* 100.0 (/ (double committed) (double capacity)))))
+    0))
+
+(defn capacity-utilization
+  "把本项目每个资源在其被排入的工作日上的投入工时与其日历可用容量只读派生为容量利用率 (投入与容量匹配度) 概览:
+   与 overload-summary (谁超容量) / allocation-coverage (谁还没排) / critical-path-staffing (关键路径缺不缺人) /
+   resource-load-leveling (忙闲均不均) 四项正交 —— 那四项要么看单日上限要么看有没有排要么看时间分布,
+   本项把视角翻到\"每个被排入的资源平均用了它日历容量多少\": 只统计至少有一条工时分配的资源,
+   逐资源把每条 allocation 的 hours_per_day 摊到其任务的每个 working_date 上得到投入工时 (committed),
+   再对该资源被排入的去重工作日集合逐日累加其有效日容量 (capacities 覆盖优先, 否则 daily_capacity) 得容量工时 (capacity),
+   利用率 = committed/capacity. 派生 available (是否至少一个被排入的资源) / resource-count (被排入资源数) /
+   total-committed-hours / total-capacity-hours (BigDecimal) / overall-pct (加权整体利用率, 四舍五入整数) /
+   avg-pct (各资源利用率的算术均值, 供对比整体加权) / min-pct / max-pct (被排入资源利用率的最小/最大值) /
+   underused (利用率 < low-utilization-pct 的轻载资源清单按利用率升序, 每项含 resource_id/name/active-days/
+   committed-hours/capacity-hours/utilization-pct) / near-saturated (利用率 >= high-utilization-pct 的接近满负荷清单按利用率降序) /
+   utilization-level 定性档 (按整体加权利用率给).
+   与 resource-load-leveling 互补: 均衡度看同一批工时在时间轴上分得均不均, 利用率看相对日历容量整体填了多少,
+   一个忽高忽低但总量偏低的计划在均衡度是 spiky 而在利用率是 underused (既颠簸又没用满).
+   仅供台账汇总面板呈现, 只读派生, 不落库不投递, 不构成门控 (利用率高低都不阻断任何保存/提交/冻结), 键名不带尾随问号.
+   sched-tasks 为含 :task_id 与 :working_dates 的排程任务行 (来自 (:schedule snapshot)), resources 为含 :resource_id/:name/
+   :daily_capacity 的资源行, capacities 为含 :resource_id/:date/:capacity_hours 的日容量覆盖行, allocations 为含
+   :task_id/:resource_id/:hours_per_day 的工时分配行."
+  [sched-tasks resources capacities allocations]
+  (let [wd (into {} (map (juxt :task_id :working_dates)) sched-tasks)
+        res (into {} (map (juxt :resource_id identity)) resources)
+        overrides (into {} (map #(vector [(:resource_id %) (:date %)] (:capacity_hours %))) capacities)
+        engaged (distinct (keep :resource_id allocations))
+        rows (remove nil?
+                     (map (fn [rid]
+                            (when-let [r (res rid)]
+                              (let [allocs (filterv #(= rid (:resource_id %)) allocations)
+                                    days (into #{} (mapcat #(get wd (:task_id %) [])) allocs)
+                                    committed (reduce (fn [s {:keys [task_id hours_per_day]}]
+                                                        (if (number? hours_per_day)
+                                                          (+ s (* (bigdec hours_per_day) (count (get wd task_id []))))
+                                                          s))
+                                                      0M allocs)
+                                    capacity (reduce (fn [s d]
+                                                       (let [cap (get overrides [rid d] (:daily_capacity r))]
+                                                         (+ s (if (number? cap) (bigdec cap) 0M))))
+                                                     0M (sort days))
+                                    pct (utilization-pct committed capacity)]
+                                {:resource_id rid
+                                 :name (:name r)
+                                 :active-days (count days)
+                                 :committed-hours committed
+                                 :capacity-hours capacity
+                                 :utilization-pct pct})))
+                          engaged))
+        n (count rows)
+        total-committed (reduce + 0M (map :committed-hours rows))
+        total-capacity (reduce + 0M (map :capacity-hours rows))
+        overall-pct (utilization-pct total-committed total-capacity)
+        avg-pct (if (pos? n)
+                  (int (Math/round ^double (/ (double (reduce + 0.0 (map :utilization-pct rows))) (double n))))
+                  0)
+        min-pct (when (pos? n) (apply min (map :utilization-pct rows)))
+        max-pct (when (pos? n) (apply max (map :utilization-pct rows)))
+        underused (->> (filterv #(< (:utilization-pct %) low-utilization-pct) rows)
+                       (sort-by :utilization-pct)
+                       vec)
+        near-saturated (->> (filterv #(>= (:utilization-pct %) high-utilization-pct) rows)
+                            (sort-by :utilization-pct >)
+                            vec)]
+    {:available (pos? n)
+     :resource-count n
+     :total-committed-hours total-committed
+     :total-capacity-hours total-capacity
+     :overall-pct overall-pct
+     :avg-pct avg-pct
+     :min-pct min-pct
+     :max-pct max-pct
+     :underused underused
+     :near-saturated near-saturated
+     :utilization-level (cond
+                          (zero? n) nil
+                          (< overall-pct low-utilization-pct) "underused"
+                          (< overall-pct high-utilization-pct) "balanced"
+                          :else "saturated")}))

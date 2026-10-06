@@ -69,6 +69,8 @@
                                             (get-in snapshot [:schedule :critical_path]))
                 :resource_load_leveling (capacity/resource-load-leveling (get-in snapshot [:schedule :tasks])
                                           (:allocations snapshot))
+                :capacity_utilization (capacity/capacity-utilization (get-in snapshot [:schedule :tasks])
+                                        (:resources snapshot) (:capacities snapshot) (:allocations snapshot))
                 :schedule_sensitivity (schedule/float-sensitivity (:schedule snapshot) raw-tasks)
                 :schedule_tightness (schedule/float-tightness (:schedule snapshot))
                 :schedule_connectivity (schedule/network-connectivity raw-tasks (:dependencies snapshot))

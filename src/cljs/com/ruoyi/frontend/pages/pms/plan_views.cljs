@@ -289,6 +289,36 @@
          [antd/tag {:color "default"} (str "排定 " (:scheduled-days r) " 天 · 有负荷 " (:active-days r) " 天")]]]
        [shared/empty-state "尚无排程任务 (创建任务、排程并分配工时后方可评估投入均衡度)." nil])]))
 
+(def ^:private utilization-view
+  {"underused" ["投入不足" "gold"] "balanced" ["利用适中" "green"] "saturated" ["接近满负荷" "volcano"]})
+
+(defn capacity-utilization
+  "把每个被排入资源相对其日历可用容量的投入占比只读派生为资源容量利用率 (投入与容量匹配度) 概览: 整体/平均/最低/最高利用率、被排入资源数、投入与容量工时合计, 并列出轻载 (投入不足) 与接近满负荷资源; 与超负荷/投入覆盖/关键路径缺口/投入均衡度四项正交 (那四项看够不够、缺不缺、均不均, 本项看相对日历容量整体填了多少, 尤其暴露\"没用满\"的轻载资源), 只读洞察, 不构成门控."
+  [model]
+  (let [r (:capacity_utilization model)
+        lv (when (:available r) (get utilization-view (:utilization-level r) ["其他" "default"]))
+        overall-color (if (>= (:overall-pct r) 90) "volcano" (if (>= (:overall-pct r) 50) "green" "gold"))]
+    [shared/panel "资源容量利用率" "只看每个被排入的资源平均用了它日历容量多少: 投入工时 / 该资源被排入工作日的有效日容量 (日容量覆盖优先), 利用率明显偏低即为\"排了人却没用满\"的轻载资源, 接近 100% 即贴平容量; 只读洞察, 不构成门控" nil
+     (if (and r (:available r))
+       [:div
+        [antd/space {:wrap true :style {:marginBottom 12}}
+         [antd/tag {:color (second lv)} (str "容量利用 " (first lv))]
+         [antd/tag {:color overall-color} (str "整体利用率 " (:overall-pct r) "%")]
+         [antd/tag {:color "geekblue"} (str "平均 " (:avg-pct r) "% · 最低 " (:min-pct r) "% · 最高 " (:max-pct r) "%")]
+         [antd/tag {:color "blue"} (str "被排入资源 " (:resource-count r) " 个")]
+         [antd/tag {:color "default"} (str "投入 " (str (:total-committed-hours r)) " / 容量 " (str (:total-capacity-hours r)) " 工时")]]
+        (when (seq (:underused r))
+          [:div {:style {:display "flex" :alignItems "center" :gap 8 :flexWrap "wrap" :marginBottom 8}}
+           [:span {:style {:fontSize 12 :color "#718096"}} "投入不足的轻载资源:"]
+           (for [x (:underused r)]
+             ^{:key (:resource_id x)} [antd/tag {:color "gold"} (str (:name x) " " (:utilization-pct x) "%")])])
+        (when (seq (:near-saturated r))
+          [:div {:style {:display "flex" :alignItems "center" :gap 8 :flexWrap "wrap"}}
+           [:span {:style {:fontSize 12 :color "#718096"}} "接近满负荷的资源:"]
+           (for [x (:near-saturated r)]
+             ^{:key (:resource_id x)} [antd/tag {:color "volcano"} (str (:name x) " " (:utilization-pct x) "%")])])]
+       [shared/empty-state "尚无资源工时分配 (创建资源、排程并分配工时后方可评估容量利用率)." nil])]))
+
 (def readable-fields
   {:name "名称" :start_date "开始日期" :end_date "结束日期" :duration_days "工期"
    :wbs_code "WBS编号" :task_type "类型" :daily_capacity "日容量" :hours_per_day "日负荷"

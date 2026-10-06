@@ -1104,3 +1104,86 @@
         (is (contains? #{"level" "moderate" "spiky" "unassigned"} (:leveling-level rll)))
         (is (= v-before (version id)))
         (is (= v-before (:project_version model)))))))
+
+(deftest capacity-utilization-is-derived-read-only
+  (testing "纯函数口径: 单资源轻载 (4/16=25%) -> underused, 计入轻载清单"
+    (let [sched [{:task_id "a" :working_dates ["2026-09-21" "2026-09-22"]}]
+          res [{:resource_id "r" :name "机床" :daily_capacity 8}]
+          allocs [{:task_id "a" :resource_id "r" :hours_per_day 2}]
+          cu (capacity/capacity-utilization sched res [] allocs)]
+      (is (true? (:available cu)))
+      (is (= 1 (:resource-count cu)))
+      (is (= 4M (:total-committed-hours cu)))
+      (is (= 16M (:total-capacity-hours cu)))
+      (is (= 25 (:overall-pct cu)))
+      (is (= 25 (:min-pct cu)))
+      (is (= 25 (:max-pct cu)))
+      (is (= "underused" (:utilization-level cu)))
+      (is (= 1 (count (:underused cu))))
+      (is (= "r" (:resource_id (first (:underused cu)))))
+      (is (= 2 (:active-days (first (:underused cu)))))
+      (is (= 0 (count (:near-saturated cu))))))
+  (testing "纯函数口径: 单资源贴满日历容量 (16/16=100%) -> saturated, 计入接近满负荷清单"
+    (let [sched [{:task_id "a" :working_dates ["2026-09-21" "2026-09-22"]}]
+          res [{:resource_id "r" :name "机床" :daily_capacity 8}]
+          allocs [{:task_id "a" :resource_id "r" :hours_per_day 8}]
+          cu (capacity/capacity-utilization sched res [] allocs)]
+      (is (= 16M (:total-committed-hours cu)))
+      (is (= 100 (:overall-pct cu)))
+      (is (= "saturated" (:utilization-level cu)))
+      (is (= 0 (count (:underused cu))))
+      (is (= 1 (count (:near-saturated cu))))
+      (is (= "r" (:resource_id (first (:near-saturated cu)))))))
+  (testing "纯函数口径: 单资源中等利用 (12/16=75%) -> balanced, 既非轻载也非满负荷"
+    (let [sched [{:task_id "a" :working_dates ["2026-09-21" "2026-09-22"]}]
+          res [{:resource_id "r" :name "机床" :daily_capacity 8}]
+          allocs [{:task_id "a" :resource_id "r" :hours_per_day 6}]
+          cu (capacity/capacity-utilization sched res [] allocs)]
+      (is (= 75 (:overall-pct cu)))
+      (is (= "balanced" (:utilization-level cu)))
+      (is (= 0 (count (:underused cu))))
+      (is (= 0 (count (:near-saturated cu))))))
+  (testing "纯函数口径: 日容量覆盖生效, 覆盖日按覆盖值计入分母 (8+4=12, 6/12=50%)"
+    (let [sched [{:task_id "a" :working_dates ["2026-09-21" "2026-09-22"]}]
+          res [{:resource_id "r" :name "机床" :daily_capacity 8}]
+          caps [{:resource_id "r" :date "2026-09-22" :capacity_hours 4}]
+          allocs [{:task_id "a" :resource_id "r" :hours_per_day 3}]
+          cu (capacity/capacity-utilization sched res caps allocs)]
+      (is (= 6M (:total-committed-hours cu)))
+      (is (= 12M (:total-capacity-hours cu)))
+      (is (= 50 (:overall-pct cu)))
+      (is (= "balanced" (:utilization-level cu)))))
+  (testing "纯函数口径: 未被任何工时分配排入的资源不计入 (resource-count 只数已排入资源)"
+    (let [sched [{:task_id "a" :working_dates ["2026-09-21"]}]
+          res [{:resource_id "r" :name "机床" :daily_capacity 8}
+               {:resource_id "r2" :name "闲置台" :daily_capacity 8}]
+          allocs [{:task_id "a" :resource_id "r" :hours_per_day 8}]
+          cu (capacity/capacity-utilization sched res [] allocs)]
+      (is (= 1 (:resource-count cu)))
+      (is (= 8M (:total-capacity-hours cu)))
+      (is (not-any? #(= "r2" (:resource_id %)) (concat (:underused cu) (:near-saturated cu))))))
+  (testing "纯函数口径: 无任何工时分配 -> available=false, 资源数 0, 档位 nil"
+    (let [sched [{:task_id "a" :working_dates ["2026-09-21"]}]
+          res [{:resource_id "r" :name "机床" :daily_capacity 8}]
+          cu (capacity/capacity-utilization sched res [] [])]
+      (is (false? (:available cu)))
+      (is (= 0 (:resource-count cu)))
+      (is (nil? (:utilization-level cu)))
+      (is (nil? (:min-pct cu)))
+      (is (nil? (:max-pct cu)))
+      (is (= [] (:underused cu)))
+      (is (= [] (:near-saturated cu)))))
+  (testing "read-plan 集成: 排定日+工时分配 -> 派生只读存在, 档位落在枚举内, 无版本漂移"
+    (let [id (project!)
+          t1 (task! id "CUA" 2)
+          equip (:result (command! plan/create-resource! id [] {:name "机床" :resource_type "equipment" :daily_capacity 8}))]
+      (command! plan/create-allocation! id [] {:task_id (:task_id t1) :resource_id (:resource_id equip) :hours_per_day 4})
+      (let [v-before (version id)
+            model (plan/read-plan *svc* (actor 9201) id)
+            cu (:capacity_utilization model)]
+        (is (some? cu))
+        (is (true? (:available cu)))
+        (is (pos? (:resource-count cu)))
+        (is (contains? #{"underused" "balanced" "saturated"} (:utilization-level cu)))
+        (is (= v-before (version id)))
+        (is (= v-before (:project_version model)))))))
