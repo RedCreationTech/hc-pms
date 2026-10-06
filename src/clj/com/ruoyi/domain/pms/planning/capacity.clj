@@ -279,3 +279,77 @@
                           (< overall-pct low-utilization-pct) "underused"
                           (< overall-pct high-utilization-pct) "balanced"
                           :else "saturated")}))
+
+(def ^:private concentrated-share-pct
+  "单一资源类型投入占比达到该百分比即视为投入结构高度集中 (严重偏科, 项目工时几乎只压在某一类资源上)."
+  80)
+
+(def ^:private skewed-share-pct
+  "单一资源类型投入占比达到该百分比即视为投入结构明显偏斜 (一类资源主导, 其余类型贡献偏低)."
+  60)
+
+(defn- share-pct
+  "part/total 的百分比 (四舍五入整数), total 为 0 或缺失时给 0, 走 double 避免 BigDecimal 非终止除法."
+  [part total]
+  (if (pos? (compare total 0M))
+    (int (Math/round ^double (* 100.0 (/ (double part) (double total)))))
+    0))
+
+(defn resource-type-mix
+  "把本项目各资源按其 resource_type (person 人力 / equipment 设备) 分组的工时投入只读派生为投入结构
+   (资源类别构成) 概览: 与 overload-summary (谁超容量) / allocation-coverage (谁还没排) / critical-path-staffing
+   (关键路径缺不缺人) / resource-load-leveling (忙闲均不均) / capacity-utilization (相对日历容量填了多少) 五项正交 ——
+   那五项要么逐日要么逐任务要么逐\"被排入\"资源, 本项把视角拉到资源类别层面: 项目的工时在人力与设备两类资源之间是怎么分布的,
+   是否存在\"严重偏科\" (几乎只依赖一类) 与\"整类闲置\" (某类资源建了却一条工时都没排). 逐资源把每条 allocation 的
+   hours_per_day 摊到其任务的每个 working_date 得该资源投入工时 (与 capacity-utilization 同口径), 再按 resource_type 汇总:
+   resource-total (该类资源数) / engaged (该类有投入的资源数) / idle (=resource-total-engaged, 该类闲置资源数) /
+   committed-hours (该类投入合计, BigDecimal) / share-pct (该类占全部投入的百分比). 派生 available (是否存在至少一个资源) /
+   type-count (出现的资源类型数) / types (按投入工时降序的类型清单) / total-committed-hours / dominant-type (投入占比最高的
+   类型名, 无资源时 nil) / dominant-share-pct (其占比) / structure-level 定性档 (无任何资源 -> nil; 排了资源却零投入 ->
+   unassigned; 主导类型占比 >= concentrated-share-pct -> concentrated; >= skewed-share-pct -> skewed; 否则 -> balanced).
+   仅供台账汇总面板呈现, 只读派生, 不落库不投递, 不构成门控 (投入结构如何都不阻断任何保存/提交/冻结), 键名不带尾随问号.
+   sched-tasks 为含 :task_id 与 :working_dates 的排程任务行 (来自 (:schedule snapshot)), resources 为含 :resource_id/:name/
+   :resource_type 的资源行, allocations 为含 :task_id/:resource_id/:hours_per_day 的工时分配行."
+  [sched-tasks resources allocations]
+  (let [wd (into {} (map (juxt :task_id :working_dates)) sched-tasks)
+        committed-by-resource (reduce (fn [m {:keys [resource_id task_id hours_per_day]}]
+                                        (if (number? hours_per_day)
+                                          (update m resource_id (fnil + 0M)
+                                                  (* (bigdec hours_per_day) (count (get wd task_id []))))
+                                          m))
+                                      {} allocations)
+        total-committed (reduce + 0M (vals committed-by-resource))
+        grouped (reduce (fn [m r]
+                          (let [rt (or (:resource_type r) "unknown")
+                                e (get m rt {:resource-total 0 :engaged 0 :committed-hours 0M})
+                                committed (get committed-by-resource (:resource_id r) 0M)]
+                            (assoc m rt
+                                   (-> e
+                                       (update :resource-total inc)
+                                       (update :engaged (fn [x] (if (pos? (compare committed 0M)) (inc x) x)))
+                                       (update :committed-hours + committed)))))
+                        {} resources)
+        types (->> (map (fn [[rt e]]
+                          {:resource_type rt
+                           :resource-total (:resource-total e)
+                           :engaged (:engaged e)
+                           :idle (- (:resource-total e) (:engaged e))
+                           :committed-hours (:committed-hours e)
+                           :share-pct (share-pct (:committed-hours e) total-committed)})
+                        grouped)
+                   (sort-by :committed-hours >)
+                   vec)
+        dominant (first types)
+        structure-level (cond
+                          (empty? resources) nil
+                          (zero? (compare total-committed 0M)) "unassigned"
+                          (>= (:share-pct dominant) concentrated-share-pct) "concentrated"
+                          (>= (:share-pct dominant) skewed-share-pct) "skewed"
+                          :else "balanced")]
+    {:available (boolean (seq resources))
+     :type-count (count types)
+     :total-committed-hours total-committed
+     :types types
+     :dominant-type (:resource_type dominant)
+     :dominant-share-pct (:share-pct dominant)
+     :structure-level structure-level}))

@@ -71,6 +71,8 @@
                                           (:allocations snapshot))
                 :capacity_utilization (capacity/capacity-utilization (get-in snapshot [:schedule :tasks])
                                         (:resources snapshot) (:capacities snapshot) (:allocations snapshot))
+                :resource_type_mix (capacity/resource-type-mix (get-in snapshot [:schedule :tasks])
+                                       (:resources snapshot) (:allocations snapshot))
                 :schedule_sensitivity (schedule/float-sensitivity (:schedule snapshot) raw-tasks)
                 :schedule_tightness (schedule/float-tightness (:schedule snapshot))
                 :schedule_connectivity (schedule/network-connectivity raw-tasks (:dependencies snapshot))

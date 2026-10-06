@@ -47,7 +47,7 @@
                          :migration-dir (if (.contains url "mysql") "migrations" "migrations-sqlite")})
       (jdbc/execute! db ["INSERT INTO sys_role(role_id,role_name,role_key,role_sort,status,del_flag) VALUES(9200,'Planning test','planning-test',20,'0','0')"])
       (jdbc/execute! db ["INSERT INTO sys_role_menu(role_id,menu_id) SELECT 9200,menu_id FROM sys_menu WHERE perms LIKE 'pms:%'"])
-      (doseq [id [9201 9202 9203 9204]]
+      (doseq [id [9201 9202 9203 9204 9210]]
         (jdbc/execute! db ["INSERT INTO sys_user(user_id,dept_id,user_name,nick_name,status,del_flag) VALUES(?,1,?,?,'0','0')"
                            id (str "plan-user-" id) (str "计划测试" id)])
         (jdbc/execute! db ["INSERT INTO sys_user_role(user_id,role_id) VALUES(?,9200)" id]))
@@ -1185,5 +1185,98 @@
         (is (true? (:available cu)))
         (is (pos? (:resource-count cu)))
         (is (contains? #{"underused" "balanced" "saturated"} (:utilization-level cu)))
+        (is (= v-before (version id)))
+        (is (= v-before (:project_version model)))))))
+
+(deftest resource-type-mix-is-derived-read-only
+  (testing "纯函数口径: 人力主导 (16/20=80%) -> concentrated, 两类均排入"
+    (let [sched [{:task_id "a" :working_dates ["2026-09-21" "2026-09-22"]}]
+          res [{:resource_id "p" :name "工程师" :resource_type "person"}
+               {:resource_id "e" :name "机床" :resource_type "equipment"}]
+          allocs [{:task_id "a" :resource_id "p" :hours_per_day 8}
+                  {:task_id "a" :resource_id "e" :hours_per_day 2}]
+          rt (capacity/resource-type-mix sched res allocs)]
+      (is (true? (:available rt)))
+      (is (= 2 (:type-count rt)))
+      (is (= 20M (:total-committed-hours rt)))
+      (is (= "person" (:dominant-type rt)))
+      (is (= 80 (:dominant-share-pct rt)))
+      (is (= "concentrated" (:structure-level rt)))
+      (is (= "person" (:resource_type (first (:types rt)))))
+      (is (= 16M (:committed-hours (first (:types rt)))))
+      (is (= 1 (:engaged (first (:types rt)))))
+      (is (= 0 (:idle (first (:types rt)))))))
+  (testing "纯函数口径: 一类主导但未极端 (12/16=75%) -> skewed"
+    (let [sched [{:task_id "a" :working_dates ["2026-09-21" "2026-09-22"]}]
+          res [{:resource_id "p" :name "工程师" :resource_type "person"}
+               {:resource_id "e" :name "机床" :resource_type "equipment"}]
+          allocs [{:task_id "a" :resource_id "p" :hours_per_day 6}
+                  {:task_id "a" :resource_id "e" :hours_per_day 2}]
+          rt (capacity/resource-type-mix sched res allocs)]
+      (is (= 75 (:dominant-share-pct rt)))
+      (is (= "skewed" (:structure-level rt)))))
+  (testing "纯函数口径: 人力与设备投入持平 (各 50%) -> balanced"
+    (let [sched [{:task_id "a" :working_dates ["2026-09-21" "2026-09-22"]}]
+          res [{:resource_id "p" :name "工程师" :resource_type "person"}
+               {:resource_id "e" :name "机床" :resource_type "equipment"}]
+          allocs [{:task_id "a" :resource_id "p" :hours_per_day 4}
+                  {:task_id "a" :resource_id "e" :hours_per_day 4}]
+          rt (capacity/resource-type-mix sched res allocs)]
+      (is (= 16M (:total-committed-hours rt)))
+      (is (= 50 (:dominant-share-pct rt)))
+      (is (= "balanced" (:structure-level rt)))))
+  (testing "纯函数口径: 设备整类闲置 (建成却零工时) -> idle=1/share=0, 人力主导 concentrated"
+    (let [sched [{:task_id "a" :working_dates ["2026-09-21"]}]
+          res [{:resource_id "p" :name "工程师" :resource_type "person"}
+               {:resource_id "e" :name "闲置机床" :resource_type "equipment"}]
+          allocs [{:task_id "a" :resource_id "p" :hours_per_day 8}]
+          rt (capacity/resource-type-mix sched res allocs)
+          eq (first (filter #(= "equipment" (:resource_type %)) (:types rt)))]
+      (is (= 2 (:type-count rt)))
+      (is (= "person" (:dominant-type rt)))
+      (is (= "concentrated" (:structure-level rt)))
+      (is (some? eq))
+      (is (= 1 (:resource-total eq)))
+      (is (= 0 (:engaged eq)))
+      (is (= 1 (:idle eq)))
+      (is (= 0M (:committed-hours eq)))
+      (is (= 0 (:share-pct eq)))))
+  (testing "纯函数口径: 排了资源却无任何工时分配 -> unassigned, available=true"
+    (let [sched [{:task_id "a" :working_dates ["2026-09-21"]}]
+          res [{:resource_id "p" :name "工程师" :resource_type "person"}]
+          rt (capacity/resource-type-mix sched res [])]
+      (is (true? (:available rt)))
+      (is (= 0M (:total-committed-hours rt)))
+      (is (= "unassigned" (:structure-level rt)))))
+  (testing "纯函数口径: 无任何资源 -> available=false, type-count 0, 档位 nil"
+    (let [rt (capacity/resource-type-mix [] [] [])]
+      (is (false? (:available rt)))
+      (is (= 0 (:type-count rt)))
+      (is (= [] (:types rt)))
+      (is (nil? (:dominant-type rt)))
+      (is (nil? (:structure-level rt)))))
+  (testing "read-plan 集成: 人力重载 + 设备整类闲置 -> 派生只读结构确定, 无版本漂移"
+    (let [id (project!)
+          _ (pms/set-member! *svc* (actor 1) id {:user_id 9210 :role "viewer"})
+          t1 (task! id "RTMA" 2)
+          person (:result (command! plan/create-resource! id [] {:name "工程师" :resource_type "person" :user_id 9210 :daily_capacity 8}))
+          equip (:result (command! plan/create-resource! id [] {:name "机床" :resource_type "equipment" :daily_capacity 8}))]
+      (command! plan/create-allocation! id [] {:task_id (:task_id t1) :resource_id (:resource_id person) :hours_per_day 6})
+      ;; 设备建了却一条工时都没排 -> 整类闲置
+      (let [v-before (version id)
+            model (plan/read-plan *svc* (actor 9201) id)
+            rt (:resource_type_mix model)
+            person-row (first (filter #(= "person" (:resource_type %)) (:types rt)))
+            equip-row (first (filter #(= "equipment" (:resource_type %)) (:types rt)))]
+        (is (some? rt))
+        (is (true? (:available rt)))
+        (is (= 2 (:type-count rt)))
+        (is (= "person" (:dominant-type rt)))
+        (is (= 100 (:dominant-share-pct rt)))
+        (is (= "concentrated" (:structure-level rt)))
+        (is (= 1 (:engaged person-row)))
+        (is (= 0 (:engaged equip-row)))
+        (is (= 1 (:idle equip-row)))
+        (is (= 0M (:committed-hours equip-row)))
         (is (= v-before (version id)))
         (is (= v-before (:project_version model)))))))

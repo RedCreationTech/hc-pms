@@ -319,6 +319,43 @@
              ^{:key (:resource_id x)} [antd/tag {:color "volcano"} (str (:name x) " " (:utilization-pct x) "%")])])]
        [shared/empty-state "尚无资源工时分配 (创建资源、排程并分配工时后方可评估容量利用率)." nil])]))
 
+(def ^:private resource-type-label
+  "资源类别 -> 中文标签: 本项目仅支持人力与设备两类."
+  {"person" "人力" "equipment" "设备"})
+
+(def ^:private structure-view
+  "投入结构档位 -> [中文标签 颜色]: 几乎只依赖一类 (严重偏科) 最需关注, 有一定偏向次之, 排了资源却零投入, 各类均有投入结构均衡最好."
+  {"concentrated" ["严重偏科 (几乎只靠一类)" "volcano"]
+   "skewed"       ["投入偏向某类" "gold"]
+   "unassigned"   ["已建资源尚无投入" "blue"]
+   "balanced"     ["投入结构均衡" "green"]})
+
+(defn resource-type-mix
+  "把各资源按其类别 (人力/设备) 汇总的工时投入只读派生为投入结构 (资源类别构成) 概览: 主导类别及占比、各类别占比、投入合计工时、类别数, 并逐类给出投入工时/已排入/闲置; 与超负荷/投入覆盖/关键路径缺口/投入均衡度/容量利用率五项正交 (那五项逐日逐任务逐被排入资源, 本项把视角拉到类别层面, 暴露\"严重偏科\"与\"整类闲置\"), 只读洞察, 不构成门控."
+  [model]
+  (let [r (:resource_type_mix model)
+        lv (when (:available r) (get structure-view (:structure-level r) ["其他" "default"]))
+        dominant-color (if (>= (:dominant-share-pct r) 80) "volcano" (if (>= (:dominant-share-pct r) 60) "gold" "green"))]
+    [shared/panel "资源投入结构" "只看工时在人力与设备两类资源之间怎么分布: 是否几乎只依赖一类 (严重偏科), 或某类资源建了却一条工时都没排 (整类闲置); 占比为该类别投入工时 / 全部投入工时; 只读洞察, 不构成门控" nil
+     (if (and r (:available r))
+       [:div
+        [antd/space {:wrap true :style {:marginBottom 12}}
+         [antd/tag {:color (second lv)} (str "投入结构 " (first lv))]
+         (when (:dominant-type r) [antd/tag {:color dominant-color} (str "主导类别 " (get resource-type-label (:dominant-type r) (:dominant-type r)) " " (:dominant-share-pct r) "%")])
+         [antd/tag {:color "blue"} (str "资源类别 " (:type-count r) " 类")]
+         [antd/tag {:color "default"} (str "投入合计 " (str (:total-committed-hours r)) " 工时")]]
+        (when (seq (:types r))
+          [:div {:style {:display "flex" :alignItems "center" :gap 8 :flexWrap "wrap"}}
+           (for [x (:types r)]
+             ^{:key (:resource_type x)}
+             [antd/tag {:color (if (pos? (:committed-hours x)) "geekblue" "default")}
+              (str (get resource-type-label (:resource_type x) (:resource_type x))
+                   " " (:share-pct x) "%"
+                   " · 投入 " (str (:committed-hours x)) " 工时"
+                   " · 已排入 " (:engaged x) "/" (:resource-total x)
+                   (when (pos? (:idle x)) (str " · 闲置 " (:idle x))))])])]
+       [shared/empty-state "尚无资源 (创建人力或设备资源后方可评估投入结构)." nil])]))
+
 (def readable-fields
   {:name "名称" :start_date "开始日期" :end_date "结束日期" :duration_days "工期"
    :wbs_code "WBS编号" :task_type "类型" :daily_capacity "日容量" :hours_per_day "日负荷"
