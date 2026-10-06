@@ -70,7 +70,8 @@
                 :schedule_sensitivity (schedule/float-sensitivity (:schedule snapshot) raw-tasks)
                 :schedule_tightness (schedule/float-tightness (:schedule snapshot))
                 :schedule_connectivity (schedule/network-connectivity raw-tasks (:dependencies snapshot))
-                :dependency_type_mix (schedule/dependency-type-mix (:dependencies snapshot))})))))
+                :dependency_type_mix (schedule/dependency-type-mix (:dependencies snapshot))
+                :duration_granularity (schedule/duration-granularity raw-tasks)})))))
 
 (defn read-baseline
   "读取不可变的已提交计划快照."

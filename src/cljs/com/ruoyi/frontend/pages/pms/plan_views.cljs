@@ -204,6 +204,34 @@
                               (str (:label b) " " (:count b) " (" (:pct b) "%)")])]]
        [shared/empty-state "尚无依赖 (建立任务间 FS/SS/FF/SF 依赖后方可分析并行度)." nil])]))
 
+(def ^:private granularity-view
+  "任务分解粒度档位 -> [中文标签 颜色]: 单任务吞掉大半工期最严重 (几乎未拆分), 存在过粗任务次之, 分解粒度合理最好."
+  {"hard-to-track" ["单任务吞掉大半工期" "red"]
+   "coarse"        ["存在过粗任务" "volcano"]
+   "fine"          ["分解粒度合理" "green"]})
+
+(defn duration-granularity
+  "把 WBS 叶任务工期只读派生为任务分解粒度概览: 叶任务数、总/平均/中位工期、最长单任务占比、过粗任务 (工期达阈值) 数与清单及定性档位; 与前四项排程洞察正交 (那四项默认任务已拆到合适粒度, 本项反过来核验分解粒度本身), 只读洞察, 不构成门控."
+  [model]
+  (let [g (:duration_granularity model)
+        lv (when (:available g) (get granularity-view (:granularity-level g) ["其他" "default"]))]
+    [shared/panel "任务分解粒度" (str "只看非汇总叶任务的工期分布: 既无拆分又占掉整段工期大头的巨任务会把内部延误藏在同一个叶子下, 使敏感度/紧凑度看到的\"余量\"其实是假象 (过粗阈值 " (when g (:coarse-threshold-days g)) " 个工作日); 只读洞察, 不构成门控") nil
+     (if (and g (:available g))
+       [:div
+        [antd/space {:wrap true}
+         [antd/tag {:color (second lv)} (str "分解粒度 " (first lv))]
+         [antd/tag {:color (if (>= (:dominant-pct g) 40) "red" "blue")} (str "最长单任务占比 " (:dominant-pct g) "%")]
+         [antd/tag {:color (if (pos? (:coarse-count g)) "volcano" "green")} (str "过粗任务 " (:coarse-count g) " 个")]
+         [antd/tag {:color "geekblue"} (str "中位工期 " (:median-days g) " · 平均 " (:avg-days g) " 天")]
+         [antd/tag {:color "default"} (str "叶任务 " (:leaf-count g) " 个 · 合计 " (:sum-days g) " 天")]
+         [antd/tag {:color "purple"} (str "最长 " (:max-duration g) " / 最短 " (:min-duration g) " 天")]]
+        (when (seq (:coarse-tasks g))
+          [:div {:style {:display "flex" :alignItems "center" :gap 8 :flexWrap "wrap" :marginTop 8}}
+           [:span {:style {:fontSize 12 :color "#718096"}} "难以逐日跟踪的过粗任务 (按工期降序):"]
+           (for [t (:coarse-tasks g)]
+             ^{:key (:task_id t)} [antd/tag {:color "red"} (str (:wbs_code t) " " (:name t) " · " (:duration_days t) " 天")])])]
+       [shared/empty-state "尚未建任务 (创建任务并设定工期后方可评估分解粒度)." nil])]))
+
 (def readable-fields
   {:name "名称" :start_date "开始日期" :end_date "结束日期" :duration_days "工期"
    :wbs_code "WBS编号" :task_type "类型" :daily_capacity "日容量" :hours_per_day "日负荷"

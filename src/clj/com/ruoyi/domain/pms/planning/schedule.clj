@@ -353,3 +353,74 @@
                             (< (pct parallel-count) 25) "mostly-serial"
                             (< (pct parallel-count) 50) "mixed"
                             :else "parallel-heavy")}))
+
+(def ^:private coarse-task-days
+  "单个非汇总叶任务工期达到该工作日数即视为过粗 (难以按日跟踪, 违背 WBS 分解粒度经验; 默认 10 个工作日约两周)."
+  10)
+
+(def ^:private dominant-share-pct
+  "最长单任务占全部叶任务工期总和的比例 (%) 达到该值即判定单任务吞掉大半工期, 分解严重不足."
+  40)
+
+(defn- rounded-mean
+  "把 sum/n 保留一位小数 (n<=0 时返回 0), 与 float-tightness 的 avg-float 同口径."
+  [sum n]
+  (if (pos? n)
+    (/ (Math/round ^double (* 10.0 (double (/ (double sum) (double n))))) 10.0)
+    0))
+
+(defn- median-days
+  "对升序工作日向量取中位数: 奇数取中间项 (整数), 偶数取中间两项均值保留一位小数; 空向量返回 nil."
+  [sorted]
+  (let [n (count sorted)]
+    (cond
+      (zero? n) nil
+      (odd? n) (nth sorted (/ n 2))
+      :else (rounded-mean (+ (nth sorted (dec (/ n 2))) (nth sorted (/ n 2))) 2))))
+
+(defn duration-granularity
+  "把 WBS 叶任务工期只读派生为任务分解粒度概览 (H04), 与 float-sensitivity / float-tightness / network-connectivity /
+   dependency-type-mix 四项正交: 那四项看浮动的分布、网络的完整性与依赖的编排, 都默认任务已拆到合适粒度; 本项反过来核验
+   分解粒度本身 —— 只看非汇总叶任务 (与前述分母口径一致) 的 duration_days, 判断计划是否被拆成难以逐日跟踪的巨任务.
+   一个既无拆分又占掉整段工期大头的任务会把其内部延误藏在同一个叶子下, 使敏感度/紧凑度看到的\"余量\"其实是假象.
+   输出: available / leaf-count / sum-days (全部叶任务工作日之和) / avg-days (一位小数) / median-days (偶数取中间两项均值) /
+   max-duration / min-duration / coarse-threshold-days (口径常量, 供界面与用例读取) / coarse-count (工期 >= coarse-threshold-days
+   的叶任务数) / coarse-tasks (按工期降序的过粗任务清单, 每项含 task_id/wbs_code/name/duration_days) /
+   dominant-pct (=round(100*max-duration/sum-days), 最长单任务占比) /
+   granularity-level 定性口径: 无叶任务 -> nil (available=false); 否则最长单任务占比 >= dominant-share-pct -> hard-to-track
+   (一个任务吞掉大半工期, 分解严重不足); 否则存在过粗任务 -> coarse; 否则 -> fine.
+   仅供台账汇总面板呈现, 只读派生, 不落库不投递, 不构成门控, 键名不带尾随问号.
+   raw-tasks 为含 :task_id/:wbs_code/:name/:task_type/:duration_days 的任务行."
+  [raw-tasks]
+  (let [with-dur (->> raw-tasks
+                      (filterv #(not= "summary" (:task_type %)))
+                      (filterv #(number? (:duration_days %))))
+        durs (mapv #(int (:duration_days %)) with-dur)
+        sorted (sort durs)
+        total (count durs)
+        sum (apply + durs)
+        mx (when (pos? total) (apply max durs))
+        mn (when (pos? total) (apply min durs))
+        dominant-pct (if (and (pos? total) (pos? sum))
+                       (int (Math/round ^double (* 100.0 (/ (double mx) (double sum)))))
+                       0)
+        coarse (->> with-dur
+                    (filterv #(>= (int (:duration_days %)) coarse-task-days))
+                    (sort-by #(int (:duration_days %)) >)
+                    (mapv #(select-keys % [:task_id :wbs_code :name :duration_days])))]
+    {:available (pos? total)
+     :leaf-count total
+     :sum-days sum
+     :avg-days (rounded-mean sum total)
+     :median-days (median-days sorted)
+     :max-duration mx
+     :min-duration mn
+     :coarse-threshold-days coarse-task-days
+     :coarse-count (count coarse)
+     :coarse-tasks coarse
+     :dominant-pct dominant-pct
+     :granularity-level (cond
+                          (zero? total) nil
+                          (>= dominant-pct dominant-share-pct) "hard-to-track"
+                          (pos? (count coarse)) "coarse"
+                          :else "fine")}))

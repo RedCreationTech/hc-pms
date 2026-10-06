@@ -829,3 +829,92 @@
       (is (contains? #{"fully-serial" "mostly-serial" "mixed" "parallel-heavy"} (:serialization-level m)))
       (is (= v-before (version id)))
       (is (= v-before (:project_version model))))))
+
+(deftest duration-granularity-is-derived-read-only
+  (testing "纯函数口径: 均衡细粒度 [4,4,4] -> dominant33 fine, 无过粗, 中位/平均 4.0"
+    (let [tasks [{:task_id "a" :wbs_code "A" :name "甲" :task_type "task" :duration_days 4}
+                 {:task_id "b" :wbs_code "B" :name "乙" :task_type "task" :duration_days 4}
+                 {:task_id "c" :wbs_code "C" :name "丙" :task_type "task" :duration_days 4}]
+          m (schedule/duration-granularity tasks)]
+      (is (true? (:available m)))
+      (is (= 3 (:leaf-count m)))
+      (is (= 12 (:sum-days m)))
+      (is (= 4 (:max-duration m)))
+      (is (= 4 (:min-duration m)))
+      (is (= 4.0 (:avg-days m)))
+      (is (= 4 (:median-days m)))
+      (is (= 0 (:coarse-count m)))
+      (is (= 33 (:dominant-pct m))) ;; round(100*4/12)
+      (is (= "fine" (:granularity-level m)))))
+  (testing "纯函数口径: 单巨任务 [12,2,2] -> dominant75 hard-to-track, coarse1 含该任务, 中位2"
+    (let [tasks [{:task_id "a" :wbs_code "A" :name "吞链巨任务" :task_type "task" :duration_days 12}
+                 {:task_id "b" :wbs_code "B" :name "乙" :task_type "task" :duration_days 2}
+                 {:task_id "c" :wbs_code "C" :name "丙" :task_type "task" :duration_days 2}]
+          m (schedule/duration-granularity tasks)]
+      (is (= 3 (:leaf-count m)))
+      (is (= 16 (:sum-days m)))
+      (is (= 12 (:max-duration m)))
+      (is (= 2 (:min-duration m)))
+      (is (= 5.3 (:avg-days m))) ;; round(10*16/3)/10 = 5.3
+      (is (= 2 (:median-days m))) ;; 奇数取中间项 (sorted [2,2,12])
+      (is (= 1 (:coarse-count m)))
+      (is (= 75 (:dominant-pct m))) ;; round(100*12/16)
+      (is (= "hard-to-track" (:granularity-level m)))
+      (is (= [{:task_id "a" :wbs_code "A" :name "吞链巨任务" :duration_days 12}] (:coarse-tasks m)))))
+  (testing "纯函数口径: 多过粗但无单任务独大 [10,10,10,10] -> coarse-count4 dominant25 档 coarse"
+    (let [tasks (mapv (fn [i] {:task_id (str i) :wbs_code (str i) :name (str i)
+                               :task_type "task" :duration_days 10}) (range 4))
+          m (schedule/duration-granularity tasks)]
+      (is (= 40 (:sum-days m)))
+      (is (= 4 (:coarse-count m)))
+      (is (= 25 (:dominant-pct m))) ;; 一个任务只占 25%, 未达 40
+      (is (= "coarse" (:granularity-level m))) ;; 有过粗但非单任务吞链
+      (is (= 10.0 (:avg-days m)))))
+  (testing "纯函数口径: 偶数中位取中间两项均值 [2,2,3,3] -> median2.5, 全<10 fine"
+    (let [tasks (mapv (fn [d] {:task_id (str "t" d (rand)) :wbs_code "W" :name "任"
+                               :task_type "task" :duration_days d}) [2 2 3 3])
+          m (schedule/duration-granularity tasks)]
+      (is (= 10 (:sum-days m)))
+      (is (= 2.5 (:median-days m))) ;; (2+3)/2
+      (is (= 2.5 (:avg-days m))) ;; round(10*10/4)/10
+      (is (= 30 (:dominant-pct m))) ;; round(100*3/10)
+      (is (= "fine" (:granularity-level m)))))
+  (testing "汇总节点不计入叶分母: summary(100) 被排除, 两只 3 天叶 -> leaf-count2 dominant50"
+    (let [tasks [{:task_id "s" :wbs_code "1" :name "汇总" :task_type "summary" :duration_days 100}
+                 {:task_id "a" :wbs_code "1.1" :name "甲" :task_type "task" :duration_days 3}
+                 {:task_id "b" :wbs_code "1.2" :name "乙" :task_type "task" :duration_days 3}]
+          m (schedule/duration-granularity tasks)]
+      (is (= 2 (:leaf-count m))) ;; summary 不进入分母
+      (is (= 6 (:sum-days m))) ;; 只算两只 3 天叶任务, summary(100) 被排除
+      (is (= 3 (:max-duration m))) ;; max 只统计叶任务, 不被 summary 的 100 污染
+      (is (= 50 (:dominant-pct m)))
+      (is (= 0 (:coarse-count m)))))
+  (testing "空任务 available=false, 各计数0, 中位/max/min nil, 档位nil"
+    (let [m (schedule/duration-granularity [])]
+      (is (false? (:available m)))
+      (is (= 0 (:leaf-count m)))
+      (is (= 0 (:sum-days m)))
+      (is (= 0 (:dominant-pct m)))
+      (is (= 0 (:coarse-count m)))
+      (is (nil? (:median-days m)))
+      (is (nil? (:max-duration m)))
+      (is (nil? (:min-duration m)))
+      (is (nil? (:granularity-level m)))
+      (is (= [] (:coarse-tasks m)))))
+  (testing "read-plan 集成: 暴露 :duration_granularity, dominant-pct 与 max/sum 一致, 无版本漂移"
+    (let [id (project!)
+          a (task! id "DGA" 12) b (task! id "DGB" 2) c (task! id "DGC" 2)
+          v-before (version id)
+          model (plan/read-plan *svc* (actor 9201) id)
+          m (:duration_granularity model)]
+      (is (some? m))
+      (is (true? (:available m)))
+      (is (= 3 (:leaf-count m)))
+      (is (= 12 (:max-duration m)))
+      (is (= 1 (:coarse-count m)))
+      (is (= (:dominant-pct m)
+             (int (Math/round (* 100.0 (/ (double (:max-duration m)) (double (:sum-days m))))))))
+      (is (= "hard-to-track" (:granularity-level m)))
+      (is (= "DGA" (:wbs_code (first (:coarse-tasks m)))))
+      (is (= v-before (version id)))
+      (is (= v-before (:project_version model))))))
