@@ -40,6 +40,12 @@ OPEN_DUR, CARD_DUR, END_DUR = 4.0, 3.2, 7.0
 CLIP_FADE = 0.22
 HOLD, FF_RATE, FF_BADGE = 8.0, 3.0, 1.25
 FONT = 'Noto Sans CJK SC'
+# 旁白解说 (macOS say TTS): 逐镜解说词合成成音轨, 与背景音乐混音时给人声让路.
+NARR_VOICE = os.environ.get('DEMO_NARR_VOICE') or 'Tingting'
+NARR_RATE = int(os.environ.get('DEMO_NARR_RATE') or '195')
+NARR_LEAD, NARR_TAIL = 0.25, 0.5   # 每个镜头内旁白前置/后置留白 (秒)
+NARR_MUSIC_GAIN = float(os.environ.get('DEMO_NARR_MUSIC_GAIN') or '0.28')  # 有旁白时背景音乐音量系数
+NARR_DIR = os.path.join(OUT, 'narration')
 
 sys.path.insert(0, HERE)
 import music  # noqa: E402
@@ -56,6 +62,36 @@ def run(cmd):
 def probe_duration(path):
     res = run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', path])
     return float(res.stdout.strip())
+
+
+def synth_narration(text, dest):
+    """Synthesize one narration line via macOS `say` into a 48 kHz stereo wav; return its duration."""
+    aiff = dest + '.aiff'
+    run(['say', '-v', NARR_VOICE, '-r', str(NARR_RATE), text, '-o', aiff])
+    run(['ffmpeg', '-y', '-v', 'error', '-i', aiff, '-ac', '2', '-ar', '48000', dest])
+    if os.path.exists(aiff):
+        os.remove(aiff)
+    return probe_duration(dest)
+
+
+def build_narration(edl, narr_wav, path):
+    """Lay every clip's narration wav at its absolute start (clip.at + NARR_LEAD) into one full-length track."""
+    items = [it for it in edl['items'] if it['type'] == 'clip' and it.get('narr')]
+    if not items:
+        return False
+    args = ['ffmpeg', '-y', '-v', 'error']
+    fc, labels = [], []
+    for i, it in enumerate(items):
+        args += ['-i', narr_wav[it['shot']]]
+        ms = int(round((it['at'] + NARR_LEAD) * 1000))
+        fc.append(f'[{i}:a]adelay={ms}|{ms}[a{i}]')
+        labels.append(f'[a{i}]')
+    total = edl['duration']
+    fc.append(''.join(labels) + f'amix=inputs={len(items)}:normalize=0:duration=longest,apad[live]')
+    fc.append('[live]loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000[n]')
+    args += ['-filter_complex', ';'.join(fc), '-map', '[n]', '-t', f'{total:.3f}', '-ac', '2', '-ar', '48000', path]
+    run(args)
+    return True
 
 
 def ts_ass(t):
@@ -180,7 +216,8 @@ def align(timeline):
     return report
 
 
-def build_edl(timeline, board):
+def build_edl(timeline, board, narr_durs=None):
+    narr_durs = narr_durs or {}
     chapters = {c['no']: c for c in board['chapters']}
     items = [{'type': 'card', 'card': 'open', 'image': 'cards/open.png', 'duration': OPEN_DUR}]
     current = None
@@ -195,10 +232,18 @@ def build_edl(timeline, board):
             pc['at'] = round(at, 3)
             cues.append({'offset': round(at + pc['lead'] / pc['speed'], 3), 'text': pc['text']})
             at += pc['src_dur'] / pc['speed']
-        items.append({'type': 'clip', 'shot': clip['shot'], 'chapter': clip['chapter'], 'who': clip['who'],
-                      'video': clip_video(timeline, clip), 'start': clip['start'], 'duration': round(at, 3),
-                      'source_duration': round(clip['end'] - clip['start'], 3), 'pieces': pieces,
-                      'background': f'cards/bg-{clip["chapter"]}.png', 'cues': cues})
+        item = {'type': 'clip', 'shot': clip['shot'], 'chapter': clip['chapter'], 'who': clip['who'],
+                'video': clip_video(timeline, clip), 'start': clip['start'], 'duration': round(at, 3),
+                'source_duration': round(clip['end'] - clip['start'], 3), 'pieces': pieces,
+                'background': f'cards/bg-{clip["chapter"]}.png', 'cues': cues}
+        nd = narr_durs.get(clip['shot'])
+        if nd:
+            needed = nd + NARR_LEAD + NARR_TAIL
+            if needed > item['duration']:
+                item['freeze'] = round(needed - item['duration'], 3)
+                item['duration'] = round(needed, 3)
+            item['narr'] = {'dur': round(nd, 3)}
+        items.append(item)
     items.append({'type': 'card', 'card': 'end', 'image': 'cards/end.png', 'duration': END_DUR})
     # Durations are quantised to whole frames so that concatenated segments keep exact timing.
     at = 0.0
@@ -283,7 +328,10 @@ def render_clip(it, screen, dest):
     for i, pc in enumerate(pieces):
         graph.append(f"[i{i}]trim=start={pc['src']:.3f}:duration={pc['src_dur']:.3f},setpts=(PTS-STARTPTS)/{pc['speed']}[p{i}]")
     joined = ''.join(f'[p{i}]' for i in range(len(pieces)))
-    graph.append((f'{joined}concat=n={len(pieces)}:v=1:a=0,' if len(pieces) > 1 else f'{joined}null,')
+    tail = f'{joined}concat=n={len(pieces)}:v=1:a=0,' if len(pieces) > 1 else f'{joined}null,'
+    if it.get('freeze'):
+        tail += f"tpad=stop_mode=clone:stop_duration={it['freeze']:.3f},"
+    graph.append(tail
                  + f"fps={FPS},format=yuva420p,fade=t=in:st=0:d={CLIP_FADE}:alpha=1,"
                  + f"fade=t=out:st={dur - CLIP_FADE:.3f}:d={CLIP_FADE}:alpha=1[fg]")
     graph.append(f"[0:v][fg]overlay={screen['x']}:{screen['y']}:eof_action=repeat,format=yuv420p[v]")
@@ -323,7 +371,18 @@ def main():
         last = max(c['end'] for c in timeline['clips'] if clip_video(timeline, c) == rel)
         if last > length + 0.5:
             raise SystemExit(f'{rel} is {length:.1f}s but the timeline needs {last:.1f}s')
-    edl = build_edl(timeline, board)
+    narr_text = {s['id']: s['narration'] for s in board.get('shots', []) if s.get('narration')}
+    narr_wav, narr_durs = {}, {}
+    if narr_text:
+        os.makedirs(NARR_DIR, exist_ok=True)
+        for clip in timeline['clips']:
+            sid = clip['shot']
+            if sid in narr_text and sid not in narr_wav:
+                wp = os.path.join(NARR_DIR, f'{sid}.wav')
+                narr_durs[sid] = synth_narration(narr_text[sid], wp)
+                narr_wav[sid] = wp
+        print(f'narration: {len(narr_wav)} line(s) synthesized (voice={NARR_VOICE}, rate={NARR_RATE})')
+    edl = build_edl(timeline, board, narr_durs)
     json.dump(edl, open(os.path.join(OUT, 'edl.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
     print(f"edl: {len(edl['items'])} items, {edl['duration']:.1f}s")
 
@@ -356,15 +415,25 @@ def main():
 
     total = edl['duration']
     ass = os.path.join(OUT, 'subtitles.ass').replace('\\', '/').replace(':', '\\:')
-    vf = (f"[0:v]ass='{ass}'[s];color=c=0xE53935:s=1920x6:r={FPS}[bar];"
-          f"[s][bar]overlay=x='-W+W*t/{total:.3f}':y=1074:shortest=1[v];"
-          f"[1:a]loudnorm=I=-20:TP=-1.5:LRA=11,aresample=48000[a]")
+    video_chain = (f"[0:v]ass='{ass}'[s];color=c=0xE53935:s=1920x6:r={FPS}[bar];"
+                   f"[s][bar]overlay=x='-W+W*t/{total:.3f}':y=1074:shortest=1[v]")
+    narr_track = os.path.join(OUT, 'narration.wav')
+    has_narr = bool(narr_wav) and build_narration(edl, narr_wav, narr_track)
+    if has_narr:
+        audio = (f"[1:a]volume={NARR_MUSIC_GAIN}[m];[m][2:a]amix=inputs=2:normalize=0:duration=first,"
+                 f"alimiter=limit=0.95,aresample=48000[a]")
+        inputs = ['-i', body, '-i', os.path.join(OUT, 'music.wav'), '-i', narr_track]
+    else:
+        audio = "[1:a]loudnorm=I=-20:TP=-1.5:LRA=11,aresample=48000[a]"
+        inputs = ['-i', body, '-i', os.path.join(OUT, 'music.wav')]
+    vf = f'{video_chain};{audio}'
     final = os.path.join(OUT, NAME + '.mp4')
-    run(['ffmpeg', '-y', '-v', 'error', '-i', body, '-i', os.path.join(OUT, 'music.wav'), '-filter_complex', vf,
+    run(['ffmpeg', '-y', '-v', 'error', *inputs, '-filter_complex', vf,
          '-map', '[v]', '-map', '[a]', '-t', f'{total:.3f}', '-c:v', 'libx264', '-preset', 'slow', '-crf', '25',
          '-tune', 'stillimage', '-x264-params', 'keyint=250:min-keyint=25', '-pix_fmt', 'yuv420p',
-         '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', final])
+         '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', final])
     size = os.path.getsize(final) / 1024 / 1024
+    print(f"audio: {'narration + ducked music' if has_narr else 'music only'}")
     print(f'final: {final} {probe_duration(final):.1f}s {size:.1f} MiB')
     if not keep:
         shutil.rmtree(WORK, ignore_errors=True)
