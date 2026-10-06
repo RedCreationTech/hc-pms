@@ -165,3 +165,44 @@
                      {:resource_id resource-id :resource_name (:name resource) :date date
                       :planned_hours hours :capacity_hours capacity :excess_hours (- hours capacity)}))))
          (sort-by (juxt :date :resource_id)) vec)))
+
+(def ^:private near-critical-ratio
+  "近关键带宽占项目工作日跨度的比例: 总时差落在 0 与该带宽之间即视为近关键, 轻微滑移就会变成关键任务."
+  0.1)
+
+(def ^:private near-critical-floor
+  "近关键带宽的最小工作日下限, 防止短项目带宽退化为 0."
+  2)
+
+(defn- float-band
+  "按项目工作日跨度推导近关键带宽 (至少 near-critical-floor 个工作日), 跨度缺失时取下限."
+  [span]
+  (if (and (number? span) (pos? span))
+    (int (max (long near-critical-floor) (Math/round ^double (* near-critical-ratio (double span)))))
+    near-critical-floor))
+
+(defn float-sensitivity
+  "把 CPM 排程结果的总时差只读派生为关键路径敏感度概览 (H04):
+   按非汇总叶子任务把总时差分档 —— 零浮动关键任务数, 近关键 (0 < 总时差 <= band) 任务数与按时差升序的清单 (携带 WBS 编号),
+   以及宽松 (> band) 任务数; band 随项目工作日跨度按比例推导 (至少 2 个自然工作日).
+   仅供台账汇总面板呈现, 只读派生, 不落库不投递, 不构成门控, 键名不带尾随问号.
+   schedule 为 schedule/schedule 的输出, raw-tasks 为含 :wbs_code 的原始任务行."
+  [schedule raw-tasks]
+  (let [wbs (into {} (for [t raw-tasks] [(:task_id t) (:wbs_code t)]))
+        leaves (filterv #(not= "summary" (:task_type %)) (:tasks schedule))
+        band (float-band (:working_days schedule))
+        detail (fn [{:keys [task_id name total_float duration_days]}]
+                 {:task_id task_id :wbs_code (wbs task_id) :name name
+                  :total_float total_float :duration_days duration_days})
+        critical (filterv #(zero? (:total_float %)) leaves)
+        near (sort-by :total_float (filterv #(and (pos? (:total_float %)) (<= (:total_float %) band)) leaves))
+        comfortable (filterv #(< band (:total_float %)) leaves)]
+    {:available (boolean (seq leaves))
+     :band band
+     :span (:working_days schedule)
+     :leaf-count (count leaves)
+     :critical-count (count critical)
+     :near-critical-count (count near)
+     :comfortable-count (count comfortable)
+     :near-critical-tasks (mapv detail near)
+     :min-near-float (:total_float (first near))}))

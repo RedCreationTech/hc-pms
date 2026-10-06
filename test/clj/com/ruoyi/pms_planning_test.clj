@@ -557,3 +557,55 @@
         (is (= 0 (:staffing-pct staff)))
         (is (= v-before (version id)))
         (is (= v-before (:project_version model)))))))
+
+(deftest critical-path-sensitivity-is-derived-read-only
+  (testing "纯函数口径: 非汇总叶任务按总时差分档 (关键=0/近关键 0<f<=band/宽松>band), band 随跨度按比例 (20 天 -> 2), 近关键清单按时差升序并带 WBS"
+    (let [sched {:working_days 20
+                 :tasks [{:task_id "c1" :name "关键甲" :task_type "task" :duration_days 3 :total_float 0}
+                         {:task_id "c2" :name "关键乙" :task_type "task" :duration_days 2 :total_float 0}
+                         {:task_id "n1" :name "近关键甲" :task_type "task" :duration_days 4 :total_float 2}
+                         {:task_id "n2" :name "近关键乙" :task_type "task" :duration_days 1 :total_float 1}
+                         {:task_id "k1" :name "宽松" :task_type "task" :duration_days 5 :total_float 8}
+                         {:task_id "s" :name "汇总" :task_type "summary" :duration_days 0 :total_float 0}]}
+          raws [{:task_id "c1" :wbs_code "1.1"} {:task_id "n1" :wbs_code "1.2"} {:task_id "n2" :wbs_code "1.3"}]
+          sens (schedule/float-sensitivity sched raws)]
+      (is (true? (:available sens)))
+      (is (= 2 (:band sens)))
+      (is (= 5 (:leaf-count sens)))
+      (is (= 2 (:critical-count sens)))
+      (is (= 2 (:near-critical-count sens)))
+      (is (= 1 (:comfortable-count sens)))
+      (is (= [1 2] (map :total_float (:near-critical-tasks sens))))
+      (is (= "1.3" (:wbs_code (first (:near-critical-tasks sens)))))
+      (is (= 1 (:min-near-float sens)))))
+  (testing "band 随项目工作日跨度按比例放大: 50 天 -> 5, 使总时差 4 的任务落入近关键 (20 天时它算宽松)"
+    (let [sched {:working_days 50 :tasks [{:task_id "x" :name "时差4" :task_type "task" :duration_days 2 :total_float 4}]}
+          sens (schedule/float-sensitivity sched [])]
+      (is (= 5 (:band sens)))
+      (is (= 1 (:near-critical-count sens)))
+      (is (= 0 (:comfortable-count sens)))))
+  (testing "空排程 available=false, 计数全 0, 清单空, 最小近关键为 nil, band 取下限 2"
+    (let [sens (schedule/float-sensitivity {:working_days nil :tasks []} [])]
+      (is (false? (:available sens)))
+      (is (= 2 (:band sens)))
+      (is (= 0 (:leaf-count sens)))
+      (is (zero? (+ (:critical-count sens) (:near-critical-count sens) (:comfortable-count sens))))
+      (is (empty? (:near-critical-tasks sens)))
+      (is (nil? (:min-near-float sens)))))
+  (testing "read-plan 集成: 关键链与松弛链共存, 三档划分穷尽所有叶任务且无版本漂移"
+    (let [id (project!)
+          a (task! id "S1A" 3) b (task! id "S1B" 3)
+          _ (command! plan/create-dependency! id [] {:predecessor_id (:task_id a) :successor_id (:task_id b) :dependency_type "FS" :lag_days 0})
+          c (task! id "S2" 2)
+          v-before (version id)
+          model (plan/read-plan *svc* (actor 9201) id)
+          sens (:schedule_sensitivity model)]
+      (is (some? sens))
+      (is (true? (:available sens)))
+      (is (= (:leaf-count sens)
+             (+ (:critical-count sens) (:near-critical-count sens) (:comfortable-count sens))))
+      (is (pos? (:critical-count sens)))
+      (is (pos? (:band sens)))
+      (is (every? #(and (pos? (:total_float %)) (<= (:total_float %) (:band sens))) (:near-critical-tasks sens)))
+      (is (= v-before (version id)))
+      (is (= v-before (:project_version model))))))

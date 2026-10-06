@@ -7,6 +7,7 @@
             [com.ruoyi.domain.pms.planning.earned-value :as ev]
             [com.ruoyi.domain.pms.planning.network :as network]
             [com.ruoyi.domain.pms.planning.progress :as progress]
+            [com.ruoyi.domain.pms.planning.schedule :as schedule]
             [com.ruoyi.domain.pms.rules :as rules]
             [com.ruoyi.domain.pms.scan :as scan]
             [com.ruoyi.domain.pms.planning.store :as store]
@@ -65,7 +66,8 @@
                 :overload_summary (capacity/overload-summary overloads)
                 :allocation_coverage (capacity/allocation-coverage raw-tasks (:allocations snapshot))
                 :critical_path_staffing (capacity/critical-path-staffing raw-tasks (:allocations snapshot)
-                                            (get-in snapshot [:schedule :critical_path]))})))))
+                                            (get-in snapshot [:schedule :critical_path]))
+                :schedule_sensitivity (schedule/float-sensitivity (:schedule snapshot) raw-tasks)})))))
 
 (defn read-baseline
   "读取不可变的已提交计划快照."

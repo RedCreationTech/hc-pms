@@ -104,6 +104,26 @@
              ^{:key (:task_id t)} [antd/tag {:color "volcano"} (str (:wbs_code t) " " (:name t))])])]
        [shared/empty-state "关键路径上暂无可分配任务 (里程碑与汇总不计入)." nil])]))
 
+(defn schedule-sensitivity
+  "把 CPM 总时差只读派生为关键路径敏感度概览, 暴露零浮动关键任务之外轻微滑移即会上关键链的近关键任务; 只读洞察, 不构成门控."
+  [model]
+  (let [s (:schedule_sensitivity model)]
+    [shared/panel "关键路径敏感度" (str "按总时差分档: 关键=0, 近关键 0<" (:band s) " 天(随跨度 " (:span s) " 自适应), 宽松>" (:band s) " 天; 只读洞察, 不构成门控") nil
+     (if (and s (:available s))
+       [:div
+        [antd/space {:wrap true :style {:marginBottom 12}}
+         [antd/tag {:color "red"} (str "关键任务 " (:critical-count s))]
+         [antd/tag {:color (if (pos? (:near-critical-count s)) "orange" "green")} (str "近关键任务 " (:near-critical-count s))]
+         [antd/tag {:color "green"} (str "宽松任务 " (:comfortable-count s))]
+         [antd/tag {:color "blue"} (str "近关键带宽 " (:band s) " 天")]
+         (when (:min-near-float s) [antd/tag {:color "gold"} (str "最小近关键时差 " (:min-near-float s) " 天")])]
+        (when (seq (:near-critical-tasks s))
+          [:div {:style {:display "flex" :alignItems "center" :gap 8 :flexWrap "wrap"}}
+           [:span {:style {:fontSize 12 :color "#718096"}} "滑移即上关键链的近关键任务 (按时差升序):"]
+           (for [t (:near-critical-tasks s)]
+             ^{:key (:task_id t)} [antd/tag {:color "volcano"} (str (:wbs_code t) " " (:name t) " · 时差 " (:total_float t) " 天")])])]
+       [shared/empty-state "尚未排程 (需任务设置工期与依赖后计算总时差)." nil])]))
+
 (def readable-fields
   {:name "名称" :start_date "开始日期" :end_date "结束日期" :duration_days "工期"
    :wbs_code "WBS编号" :task_type "类型" :daily_capacity "日容量" :hours_per_day "日负荷"
