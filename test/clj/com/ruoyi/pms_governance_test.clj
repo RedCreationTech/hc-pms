@@ -2769,6 +2769,63 @@
       (is (= 1 (:count (nth (:by-type one) 3)))))))
 
 
+(deftest change-impact-coverage-is-derived-read-only
+  (let [id (project!)
+        cov (fn [] (:change_impact_coverage (workspace id)))
+        base-body {:title "更改设备范围" :reason "合同调整" :scope_impact "增加设备"
+                   :schedule_impact "增加五日" :cost_impact "重新估价" :quality_impact "增加测试"
+                   :resource_impact "追加工程师"}
+        h1 (command! id :changes :create nil
+                     (assoc base-body :title "双量化重大变更" :schedule_impact_days 12 :cost_impact_amount "150000.5"))
+        _h2 (command! id :changes :create nil (assoc base-body :title "仅工期量化" :schedule_impact_days 3))
+        _h3 (command! id :changes :create nil (assoc base-body :title "仅成本量化" :cost_impact_amount "99999.99"))
+        _h4 (command! id :changes :create nil (assoc base-body :title "工期量化为零" :schedule_impact_days 0))
+        _h5 (command! id :changes :create nil (assoc base-body :title "仅文字描述"))]
+    ;; 基线: 5 条变更; schedule-declared h1/h2/h4=3, cost-declared h1/h3=2, quantified(至少一项) h1/h2/h3/h4=4,
+    ;; narrative-only 1, quantified-pct round(100*4/5)=80, high-impact 仅 h1 (工期 12>=10 且成本 150000.50>=100000)=1.
+    (is (true? (:available (cov))))
+    (is (= 5 (:total (cov))))
+    (is (= 3 (:schedule-declared (cov))))
+    (is (= 2 (:cost-declared (cov))))
+    (is (= 4 (:quantified (cov))))
+    (is (= 1 (:narrative-only (cov))))
+    (is (= 80 (:quantified-pct (cov))))
+    (is (= 1 (:high-impact (cov))))
+    ;; 只读派生不改变变更状态: 重复读取分布稳定.
+    (is (= (cov) (:change_impact_coverage (workspace id))))
+    ;; 修订去重: 给 h1 出一版不含量化影响的新修订 -> 最新版仅文字, total 仍 5, schedule-declared 3->2, cost-declared 2->1,
+    ;; quantified 4->3, narrative-only 1->2, quantified-pct 80->60, high-impact 1->0.
+    (command! id :changes :revisions (:id h1) (assoc base-body :title "双量化重大变更(撤销量化)"))
+    (is (= 5 (:total (cov))))
+    (is (= 2 (:schedule-declared (cov))))
+    (is (= 1 (:cost-declared (cov))))
+    (is (= 3 (:quantified (cov))))
+    (is (= 2 (:narrative-only (cov))))
+    (is (= 60 (:quantified-pct (cov))))
+    (is (= 0 (:high-impact (cov))))
+    ;; 空态: 无变更 available false 各计数 0.
+    (let [empty (approval/change-impact-coverage [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:total empty)))
+      (is (= 0 (:schedule-declared empty)))
+      (is (= 0 (:cost-declared empty)))
+      (is (= 0 (:quantified empty)))
+      (is (= 0 (:narrative-only empty)))
+      (is (= 0 (:quantified-pct empty)))
+      (is (= 0 (:high-impact empty))))
+    ;; 纯函数直测: 同 code 修订只计最新版(此例最新为不含量化的文字版, 旧含量化版不计).
+    (let [one (approval/change-impact-coverage
+                [{:code "R" :revision 1 :schedule_impact_days 15 :cost_impact_amount "200000.00"}
+                 {:code "R" :revision 2}])]
+      (is (= 1 (:total one)))
+      (is (= 0 (:schedule-declared one)))
+      (is (= 0 (:cost-declared one)))
+      (is (= 0 (:quantified one)))
+      (is (= 1 (:narrative-only one)))
+      (is (= 0 (:quantified-pct one)))
+      (is (= 0 (:high-impact one))))))
+
+
 (deftest ccb-participation-summary-is-derived-read-only
   (let [id (project!)
         part (fn [] (:ccb_participation (workspace id)))

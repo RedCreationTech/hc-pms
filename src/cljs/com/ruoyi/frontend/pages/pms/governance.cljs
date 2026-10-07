@@ -1885,6 +1885,31 @@
                             (str (get type-label type type) " · " count)])]]])]))
 
 
+(defn- change-impact-coverage-section
+  "按每个变更最新有效版本只读聚合变更量化影响覆盖度: 工期/成本两维量化申报数, 至少量化一项与量化率, 仅文字描述数与达高影响阈值数; 只读派生, 不改变变更状态或门控."
+  [{:keys [model]}]
+  (let [cov (:change_impact_coverage model)
+        total (:total cov 0)
+        sched (:schedule-declared cov 0)
+        cost (:cost-declared cov 0)
+        pct (:quantified-pct cov 0)
+        narrative-only (:narrative-only cov 0)
+        high-impact (:high-impact cov 0)]
+    [shared/panel "变更量化影响覆盖度" "按每个变更的最新有效版本统计工期/成本两维量化影响申报覆盖与达高影响阈值数; 只读派生, 不改变变更状态或门控"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无项目变更, 登记变更后可在此查看量化影响覆盖度."]
+       [antd/space {:wrap true}
+        [antd/tag {:color "blue"} (str "变更总数 " total)]
+        [antd/tag {:color (cond (= pct 100) "green" (zero? pct) "red" :else "gold")}
+         (str "量化影响 " pct "%")]
+        [antd/tag {:color "geekblue"} (str "工期影响已量化 " sched)]
+        [antd/tag {:color "cyan"} (str "成本影响已量化 " cost)]
+        (when (pos? narrative-only)
+          [antd/tag {:color "orange"} (str "仅文字描述 " narrative-only)])
+        (when (pos? high-impact)
+          [antd/tag {:color "volcano"} (str "达高影响阈值 " high-impact)])])]))
+
+
 (defn- ccb-participation-section
   "只读汇总跨变更的变更控制委员会表决参与情况: 委员会覆盖的变更数, 席位与已投票数与参与率, 在途与停滞变更, 以及每位委员被邀请/已投/欠票负荷; 复用 ccb-tally 口径, 不改变任何表决进度或门控."
   [{:keys [model options]}]
@@ -2391,7 +2416,7 @@
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section meeting-attendance-section meeting-cadence-section action-closure-section project-remediation-overview-section due-workload-overview-section owner-due-pressure-section action-section]]
-                     ["changes" "变更控制" [change-section change-closure-section change-type-coverage-section ccb-participation-section]]
+                     ["changes" "变更控制" [change-section change-closure-section change-type-coverage-section change-impact-coverage-section ccb-participation-section]]
                      ["quality" "DQ与局部暂停" [dq-summary-section dq-section node-pause-summary-section pause-section]]])}])
 
 

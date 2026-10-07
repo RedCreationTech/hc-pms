@@ -382,6 +382,28 @@
      :by-type (mapv (fn [x] {:type x :count (type-count x)}) types)}))
 
 
+(defn change-impact-coverage
+  "项目级变更量化影响覆盖度只读汇总: 按每个变更最新有效版本(s/latest, 修订链只计最新版)统计两个可选量化影响字段的申报情况——schedule-declared 已量化工期影响(有 :schedule_impact_days, 含 0), cost-declared 已量化成本影响(有非空 :cost_impact_amount), quantified 至少量化一项, narrative-only 仅文字描述五维影响未量化任何金额/天数(= total - quantified), quantified-pct 为 quantified/total 四舍五入整数百分比(total 为 0 给 0), high-impact 复用写路径私有 high-impact? 口径给出达高影响阈值的变更数(工期达阈值天数或成本达阈值最小单位). 供判断变更是否被量化到可评估高影响的合规口径速览; 只读派生, 不落库不投递, 不改变任何变更状态或门控. 键名 kebab-case 无尾随问号."
+  [changes]
+  (let [active (s/latest changes)
+        total (count active)
+        cost? (fn [x] (let [c (:cost_impact_amount x)] (and (some? c) (not= "" c))))
+        sched-declared (count (filterv #(some? (:schedule_impact_days %)) active))
+        cost-declared (count (filterv cost? active))
+        quantified (count (filterv #(or (some? (:schedule_impact_days %)) (cost? %)) active))
+        high-impact (count (filterv high-impact? active))]
+    {:available (pos? total)
+     :total total
+     :schedule-declared sched-declared
+     :cost-declared cost-declared
+     :quantified quantified
+     :narrative-only (- total quantified)
+     :quantified-pct (if (pos? total)
+                       (int (Math/round ^double (* 100.0 (/ quantified total))))
+                       0)
+     :high-impact high-impact}))
+
+
 (defn- finalize-charter!
   "审批链落定章程: 末级通过即批准, 任一级驳回即退回."
   [q actor project rid decision reason]
