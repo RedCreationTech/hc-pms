@@ -819,6 +819,85 @@
            :owner_overloaded (boolean (and (:owner_id row) (>= load owner-workload-threshold))))))
 
 
+(def due-overview-soon-days
+  "跨类到期总览把未闭环事项到期日距今 1 到该天数视为临期(与逾期分档), 供组合级提前关注, 与逐条台账 due-soon-days 独立."
+  7)
+
+(def due-overview-horizon-days
+  "跨类到期总览把未闭环事项到期日距今不超过该天数视为未来到期, 超过则归入更远期, 供近窗口聚焦."
+  30)
+
+(def due-overview-soonest-limit
+  "跨类到期总览最近到期清单最多展示的条目数, 按剩余天数升序截断, 逾期(负值)自然排在最前."
+  15)
+
+
+(defn- due-overview-open?
+  "跨类到期总览口径下判断某治理事项是否仍未闭环: 行动排除 closed/converted, 风险与问题排除 closed. 与 owner-workloads 逐类排除口径一致."
+  [kind row]
+  (if (= kind "action")
+    (not (contains? #{"closed" "converted"} (:status row)))
+    (not= "closed" (:status row))))
+
+
+(defn- due-overview-date
+  "跨类到期总览取某未闭环事项的到期日: 风险优先复审到期日否则登记到期日(与 reviews/risk-read-model 一致), 问题与行动取到期日."
+  [kind row]
+  (if (= kind "risk")
+    (or (:review_due_date row) (:due_date row))
+    (:due_date row)))
+
+
+(defn- due-overview-bucket
+  "按剩余天数把未闭环事项归入 overdue/due-soon/upcoming/further/undated 之一; 无到期日落 undated, 到期日不晚于今天落 overdue."
+  [days]
+  (cond
+    (nil? days) :undated
+    (<= days 0) :overdue
+    (<= days due-overview-soon-days) :due-soon
+    (<= days due-overview-horizon-days) :upcoming
+    :else :further))
+
+
+(defn due-workload-overview
+  "跨风险/问题/行动只读聚合未闭环事项的到期压力总览: 全局分档已逾期/临期(<=due-overview-soon-days 天)/未来到期(<=due-overview-horizon-days 天)/更远期/无到期日与未闭环总数, 逐来源给出 open/overdue/due-soon/upcoming 计数, 另给按剩余天数升序(逾期在前)截断 due-overview-soonest-limit 的最近到期清单. 复用 days-until 与各来源自身到期/未闭环口径, 只读派生不落库不投递, 不构成门控. 键名不带尾随问号."
+  [risks issues actions]
+  (let [itemized (for [[kind rows] [["risk" risks] ["issue" issues] ["action" actions]]
+                       row rows
+                       :when (due-overview-open? kind row)
+                       :let [due (due-overview-date kind row)
+                             days (when (some? due) (days-until due))]]
+                   {:source kind
+                    :id (:id row)
+                    :title (:title row)
+                    :due-date due
+                    :due-days days
+                    :bucket (due-overview-bucket days)})
+        grouped (group-by :source itemized)
+        bucket-count (fn [b] (count (filterv #(= b (:bucket %)) itemized)))
+        src-stats (fn [kind]
+                    (let [items (get grouped kind [])]
+                      {:open (count items)
+                       :overdue (count (filterv #(= :overdue (:bucket %)) items))
+                       :due-soon (count (filterv #(= :due-soon (:bucket %)) items))
+                       :upcoming (count (filterv #(= :upcoming (:bucket %)) items))}))]
+    {:available (pos? (count itemized))
+     :open-total (count itemized)
+     :overdue (bucket-count :overdue)
+     :due-soon (bucket-count :due-soon)
+     :upcoming (bucket-count :upcoming)
+     :further (bucket-count :further)
+     :undated (bucket-count :undated)
+     :by-risk (src-stats "risk")
+     :by-issue (src-stats "issue")
+     :by-action (src-stats "action")
+     :soonest (->> itemized
+                   (remove #(nil? (:due-days %)))
+                   (sort-by :due-days)
+                   (take due-overview-soonest-limit)
+                   (mapv #(select-keys % [:source :id :title :due-date :due-days])))}))
+
+
 (defn enrich-risk-issue-links
   "读取时把已持久化的风险<->问题双向来源关联互相标注对方标题, 供台账可见; 只读派生不落库.
    issue.source_risk_id -> issue_source_risk_id/issue_source_risk_title; risk.issue_id -> risk_issue_id/risk_issue_title; 对端记录缺失时标题为 nil."

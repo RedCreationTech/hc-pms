@@ -1770,6 +1770,89 @@
           (is (some #(= (:id ga) (:id %)) (:actions (workspace id)))))))))
 
 
+(deftest due-workload-overview-buckets-open-items-across-sources-read-only
+  (let [today (java.time.LocalDate/now)
+        iso #(.toString %)
+        risks [{:id "r-over" :status "open" :due_date (iso (.minusDays today 5))}
+               {:id "r-rev" :status "open" :review_due_date (iso (.plusDays today 3)) :due_date (iso (.minusDays today 50))}  ;; 风险优先复审到期日
+               {:id "r-closed" :status "closed" :due_date (iso (.minusDays today 5))}  ;; 已关闭不计入
+               {:id "r-none" :status "mitigating" :due_date nil}]                      ;; 无到期日落 undated
+        issues [{:id "i-soon" :status "open" :due_date (iso (.plusDays today 3))}
+                {:id "i-up" :status "in_progress" :due_date (iso (.plusDays today 15))}
+                {:id "i-closed" :status "closed" :due_date (iso (.plusDays today 1))}] ;; 已关闭不计入
+        actions [{:id "a-far" :status "open" :due_date (iso (.plusDays today 100))}    ;; 更远期(>30天)
+                 {:id "a-conv" :status "converted" :due_date (iso (.minusDays today 10))} ;; 已转任务不计入
+                 {:id "a-over" :status "pending" :due_date (iso (.minusDays today 2))}
+                 {:id "a-closed" :status "closed" :due_date (iso (.minusDays today 30))}] ;; 已关闭不计入
+        ov (collab/due-workload-overview risks issues actions)
+        first-soonest (first (:soonest ov))
+        last-soonest (last (:soonest ov))]
+    ;; 全局分档: 未闭环 7, 逾期 2, 临期 2, 未来 1, 更远 1, 无到期日 1.
+    (is (true? (:available ov)))
+    (is (= 7 (:open-total ov)))
+    (is (= 2 (:overdue ov)))
+    (is (= 2 (:due-soon ov)))
+    (is (= 1 (:upcoming ov)))
+    (is (= 1 (:further ov)))
+    (is (= 1 (:undated ov)))
+    (is (= 7 (+ (:overdue ov) (:due-soon ov) (:upcoming ov) (:further ov) (:undated ov))))
+    ;; 逐来源计数.
+    (is (= {:open 3 :overdue 1 :due-soon 1 :upcoming 0} (:by-risk ov)))
+    (is (= {:open 2 :overdue 0 :due-soon 1 :upcoming 1} (:by-issue ov)))
+    (is (= {:open 2 :overdue 1 :due-soon 0 :upcoming 0} (:by-action ov)))
+    ;; 最近到期清单: 去无到期日按剩余天数升序(逾期在前), 首条逾期风险(-5), 次条逾期行动(-2), 末条更远期(+100).
+    (is (= 6 (count (:soonest ov))))
+    (is (= ["risk" "r-over" -5] (map first-soonest [:source :id :due-days])))
+    (is (= "a-over" (:id (second (:soonest ov)))))
+    (is (= -2 (:due-days (second (:soonest ov)))))
+    (is (= ["action" "a-far" 100] (map last-soonest [:source :id :due-days])))
+    (is (= (map :due-days (sort-by :due-days (:soonest ov))) (map :due-days (:soonest ov))))
+    ;; 只读派生不回写来源状态.
+    (is (= "open" (:status (first (filter #(= "r-over" (:id %)) risks)))))
+    ;; 空输入: available false, 全 0, soonest 空.
+    (let [empty (collab/due-workload-overview [] [] [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:open-total empty)))
+      (is (= {:overdue 0 :due-soon 0 :upcoming 0 :further 0 :undated 0}
+             (select-keys empty [:overdue :due-soon :upcoming :further :undated])))
+      (is (= {:open 0 :overdue 0 :due-soon 0 :upcoming 0} (:by-risk empty)))
+      (is (empty? (:soonest empty))))))
+
+
+(deftest due-workload-overview-in-workspace-spans-risks-issues-actions-and-does-not-write-back
+  (let [id (project!)
+        today (java.time.LocalDate/now)
+        ov #(select-keys (:due_workload_overview (workspace id))
+                         [:available :open-total :overdue :due-soon :upcoming :further :undated])]
+    ;; 空态: 尚无未闭环治理事项.
+    (is (= {:available false :open-total 0 :overdue 0 :due-soon 0 :upcoming 0 :further 0 :undated 0}
+           (ov)))
+    (let [risk (command! id :risks :create nil
+                         {:title "到期总览风险" :probability 2 :impact 3 :owner_id 9301
+                          :mitigation "提前排期" :due_date (str (.minusDays today 5))})
+          issue (command! id :issues :create nil
+                          {:title "到期总览问题" :severity "minor" :owner_id 9301
+                           :due_date (str (.plusDays today 3))})
+          meeting (command! id :meetings :create nil
+                            {:title "到期总览会议" :held_on (str (.minusDays today 1))
+                             :minutes "产生待办" :attendee_ids [9301 9302]})
+          _act (command! id :meetings :actions (:id meeting)
+                         {:title "到期总览行动" :owner_id 9301
+                          :due_date (str (.plusDays today 15))})]
+      ;; 三类各一条未闭环: 逾期 1(风险) + 临期 1(问题) + 未来 1(行动), 未闭环总数 3.
+      (is (= {:available true :open-total 3 :overdue 1 :due-soon 1 :upcoming 1 :further 0 :undated 0}
+             (ov)))
+      ;; 逐来源计数各 1.
+      (let [full (:due_workload_overview (workspace id))]
+        (is (= {:open 1 :overdue 1 :due-soon 0 :upcoming 0} (:by-risk full)))
+        (is (= {:open 1 :overdue 0 :due-soon 1 :upcoming 0} (:by-issue full)))
+        (is (= {:open 1 :overdue 0 :due-soon 0 :upcoming 1} (:by-action full)))
+        ;; 最近到期清单首条为逾期风险.
+        (is (= "risk" (:source (first (:soonest full))))))
+      ;; 只读派生不回写来源对象状态: 风险仍 open.
+      (is (= "open" (:status (first (filter #(= (:id risk) (:id %)) (:risks (workspace id))))))))))
+
+
 (deftest dq-failed-required-checks-materialize-all-tracked-remediation-actions-in-one-call
   (let [id (project!)
         dq (command! id :dqs :create nil

@@ -136,6 +136,7 @@
                           :issue_escalation_summary (collab/issue-escalation-disposition-summary (:issues data))
                           :action_closure (collab/action-closure-summary (:actions data))
                           :project_remediation_overview (collab/project-remediation-overview (:actions data) (:issues data))
+                          :due_workload_overview (collab/due-workload-overview (:risks data) (:issues data) (:actions data))
                           :meeting_release_coverage (collab/meeting-release-coverage (:meetings data))
                           :meeting_material_readiness (collab/meeting-material-readiness (:meetings data) docs-by-id)
                           :node_pause_summary (quality/node-pause-summary (:node_pauses data) nil)

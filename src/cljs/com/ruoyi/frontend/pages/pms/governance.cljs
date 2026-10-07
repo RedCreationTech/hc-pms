@@ -1408,6 +1408,70 @@
                               (when (pos? overdue) (str " · 逾期 " overdue)))])]]])]))
 
 
+(defn- due-workload-overview-section
+  "跨风险/问题/行动只读聚合未闭环治理事项的到期压力总览: 全局逾期/临期/未来到期/更远期/无到期日分档与逐来源计数, 另列按剩余天数升序(逾期在前)的最近到期清单; 只读派生, 不改变任何记录, 不构成门控."
+  [{:keys [model]}]
+  (let [ov (:due_workload_overview model)
+        open-total (:open-total ov 0)
+        overdue (:overdue ov 0)
+        due-soon (:due-soon ov 0)
+        upcoming (:upcoming ov 0)
+        further (:further ov 0)
+        undated (:undated ov 0)
+        source-label {"risk" "风险" "issue" "问题" "action" "行动"}
+        days-text (fn [d]
+                    (cond
+                      (nil? d) "无到期日"
+                      (neg? d) (str "已逾期 " (- d) " 天")
+                      (zero? d) "今天到期"
+                      :else (str "剩 " d " 天")))
+        src-line (fn [k label]
+                   (let [s (k ov)
+                         open (:open s 0)
+                         od (:overdue s 0)
+                         so (:due-soon s 0)
+                         up (:upcoming s 0)]
+                     ^{:key (name k)}
+                     [antd/tag {:color (cond (pos? od) "red" (pos? so) "gold" (pos? up) "blue" (zero? open) "default" :else "geekblue")}
+                      (str label " · 未闭环 " open
+                           (when (pos? od) (str " · 逾期 " od))
+                           (when (pos? so) (str " · 临期 " so))
+                           (when (pos? up) (str " · 未来 " up)))]))]
+    [shared/panel "到期治理事项总览" "把风险/问题/会议行动中所有未闭环事项的到期压力汇总到一处, 按已逾期/临期(7天内)/未来到期(30天内)/更远期/无到期日分档并给出最近到期清单(逾期在前); 与各来源台账逐项到期视图互补; 只读派生, 不改变任何记录, 不构成门控"
+     (if (zero? open-total)
+       [:span {:style {:color "#8793a3"}} "暂无未闭环的到期事项, 登记风险/问题/行动并设定到期日后可在此查看到期压力总览."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "purple"} (str "未闭环事项 " open-total)]
+         (when (pos? overdue)
+           [antd/tag {:color "red"} (str "已逾期 " overdue)])
+         (when (pos? due-soon)
+           [antd/tag {:color "volcano"} (str "临期(7天内) " due-soon)])
+         (when (pos? upcoming)
+           [antd/tag {:color "gold"} (str "未来到期(30天内) " upcoming)])
+         (when (pos? further)
+           [antd/tag {:color "blue"} (str "更远期 " further)])
+         (when (pos? undated)
+           [antd/tag {:color "default"} (str "无到期日 " undated)])]
+        [:div
+         [:span {:style {:fontWeight 500}} "按来源: "]
+         (into [antd/space {:wrap true}]
+               (map (fn [[k label]] (src-line k label))
+                    [[:by-risk "风险"] [:by-issue "问题"] [:by-action "行动"]]))]
+        (when (seq (:soonest ov))
+          [:div
+           [:span {:style {:fontWeight 500}} "最近到期: "]
+           (into [antd/space {:wrap true}]
+                 (map (fn [it]
+                        (let [d (:due-days it)]
+                          ^{:key (str (:source it) "-" (:id it))}
+                          [antd/tag {:color (cond (nil? d) "default" (<= d 0) "red" (<= d 7) "volcano" :else "gold")}
+                           (str "[" (source-label (:source it)) "] " (:title it)
+                                " · " (days-text d)
+                                (when (:due-date it) (str " (" (:due-date it) ")")))]))
+                      (:soonest ov)))])])]))
+
+
 (defn- meeting-release-coverage-section
   "按每个会议最新有效版本只读聚合纪要发布进度: 会议总数/已发布/审批中/草稿/已作废及发布率(分母排除已作废); 只读派生, 不改变会议状态, 不构成门控."
   [{:keys [model]}]
@@ -2131,7 +2195,7 @@
                      ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section]]
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
-                     ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section action-closure-section project-remediation-overview-section action-section]]
+                     ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section action-closure-section project-remediation-overview-section due-workload-overview-section action-section]]
                      ["changes" "变更控制" [change-section change-closure-section ccb-participation-section]]
                      ["quality" "DQ与局部暂停" [dq-summary-section dq-section node-pause-summary-section pause-section]]])}])
 
