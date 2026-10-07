@@ -1749,6 +1749,60 @@
         (when (pos? reason-missing)
           [antd/tag {:color "red"} (str "缺失豁免理由 " reason-missing)])])]))
 
+(defn- gate-velocity-summary-section
+  "只读按签核流转阶段为全部关口实例分桶, 回答\"尚未签核的关口此刻卡在哪一步, 哪些可以立刻推进\": 已签核, 待独立裁决, 就绪待提交, 待满足检查, 需返工五桶互斥且并集为全部实例, 另给可推进积压数, 已签核占比, 各阶段推进度与可立即提交评审的关口点名; 只读派生, 不改变任何关口状态, 不构成门控."
+  [{:keys [model]}]
+  (let [sm (:gate_velocity model)
+        total (:total sm 0)
+        signed (:signed sm 0)
+        awaiting (:awaiting-decision sm 0)
+        ready (:ready-to-submit sm 0)
+        needs (:needs-checks sm 0)
+        rework (:rework sm 0)
+        backlog (:actionable-backlog sm 0)
+        pct (:closure-pct sm 0)
+        by-stage (:by-stage sm {})
+        ready-list (:ready-to-submit-list sm [])]
+    [shared/panel "关口签核流转待办" "把每个关口实例按签核流转阶段唯一分桶 (已签核/待裁决/就绪待提交/待满足检查/需返工), 五桶互斥且并集恰为全部实例, 回答\"尚未签核的关口此刻卡在哪一步, 哪些可以立刻推进\"; 另给可推进积压数, 已签核占比, 各阶段推进度与可立即提交评审的关口点名; 只读派生, 不改变任何关口状态, 不构成门控"
+     nil
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "尚无关口实例, 发起 Gate 检查并绑定独立评审人后可在此查看签核流转待办概览."]
+       [:div
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "关口总数 " total)]
+         [antd/tag {:color (cond (= pct 100) "green" (zero? pct) "red" :else "gold")}
+          (str "已签核 " pct "% (" signed "/" total ")")]
+         (when (pos? awaiting)
+           [antd/tag {:color "orange"} (str "待独立裁决 " awaiting)])
+         (when (pos? ready)
+           [antd/tag {:color "cyan"} (str "就绪待提交 " ready)])
+         (when (pos? needs)
+           [antd/tag {:color "default"} (str "待满足检查 " needs)])
+         (when (pos? rework)
+           [antd/tag {:color "red"} (str "需返工 " rework)])
+         (when (pos? backlog)
+           [antd/tag {:color "volcano"} (str "可推进积压 " backlog)])]
+        (when (seq by-stage)
+          [:div {:style {:margin-top 8}}
+           [:span {:style {:color "#8793a3"}} "各阶段签核推进度: "]
+           (into [antd/space {:wrap true}]
+                 (map (fn [[k v]] (let [ks (if (keyword? k) (name k) (str k))]
+                        ^{:key (str "st-" ks)}
+                        [antd/tag {:color (if (zero? (:pending v 0)) "green" "geekblue")}
+                         (str (get gate-stage-labels ks ks) " 已签 " (:signed v 0) "/" (:total v 0))]))
+                      (seq by-stage)))])
+        (if (seq ready-list)
+          [:div {:style {:margin-top 8}}
+           [:span {:style {:color "#8793a3"}} "可立即提交评审: "]
+           (into [antd/space {:wrap true}]
+                 (map (fn [g] ^{:key (:gate-id g)}
+                        [antd/tag {:color "cyan"}
+                         (str (:title g) (when-let [s (:stage g)] (str " · " (get gate-stage-labels s s)))
+                              " · 检查 " (:checks-passed g 0) "/" (:checks-total g 0))])
+                      ready-list))]
+          [:div {:style {:margin-top 8}}
+           [:span {:style {:color "#8793a3"}} "暂无可立即提交评审的关口 (需先满足全部必需检查项)."]])])]))
+
 
 (defn- gate-section
   "Gate模板和逐项证据检查控制阶段准入."
@@ -1757,6 +1811,7 @@
    [gate-progress-section context]
    [gate-closure-summary-section context]
    [gate-exception-summary-section context]
+   [gate-velocity-summary-section context]
    [shared/panel "Gate模板" "每个控制点声明类型, 适用阶段, 阻断检查点与必需检查项 (含须已发布证据的检查)"
     (when editable?
       [antd/space

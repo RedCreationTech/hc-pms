@@ -2146,6 +2146,96 @@
       (is (= 43 (:waiver-pct m))))))             ; round(100*3/7)=43
 
 
+(deftest gate-velocity-summary-is-derived-read-only
+  (let [id (project!)
+        doc-rel (document! id "GATE-VL")
+        _ (do (command! id :documents :submit (:id doc-rel) {:reviewer_id 9302})
+              (command! 9302 id :documents :decision (:id doc-rel) {:decision "approved" :reason "独立签发"}))
+        mk (fn [code stage]
+             (let [template (command! id :gate-templates :create nil
+                                      {:code code :title "流转关口" :stage stage :required true
+                                       :checks [{:code "R" :title "必需检查" :required true}]})]
+               (command! id :gates :create nil {:template_id (:id template) :title "评审" :reviewer_id 9302})))
+        pass! (fn [g] (command! id :gates :checks (:id g)
+                                {:checks [{:code "R" :passed true :evidence_ids [(:id doc-rel)]}]}))]
+    ;; 覆盖五个互斥流转桶: needs-checks 草稿(必需检查未满足), ready-to-submit 检查通过未提交,
+    ;; awaiting-decision 提交待独立裁决, rework 提交后被驳回, signed 提交并独立批准.
+    (let [g-needs (mk "G-V1" "closure")
+          g-ready (mk "G-V2" "closure")
+          g-review (mk "G-V3" "execution")
+          g-rework (mk "G-V4" "execution")
+          g-signed (mk "G-V5" "execution")]
+      (pass! g-ready)
+      (pass! g-review) (command! id :gates :submit (:id g-review) {})
+      (pass! g-rework) (command! id :gates :submit (:id g-rework) {})
+      (command! 9302 id :gates :decision (:id g-rework) {:decision "rejected" :reason "条件不足返工"})
+      (pass! g-signed) (command! id :gates :submit (:id g-signed) {})
+      (command! 9302 id :gates :decision (:id g-signed) {:decision "approved" :reason "独立签核通过"})
+      (let [ver (version id)
+            s (:gate_velocity (workspace id))]
+        (is (true? (:available s)))
+        (is (= 5 (:total s)))
+        (is (= 1 (:signed s)))
+        (is (= 1 (:awaiting-decision s)))
+        (is (= 1 (:ready-to-submit s)))
+        (is (= 1 (:needs-checks s)))
+        (is (= 1 (:rework s)))
+        ;; 五桶互斥且并集恰为全部关口实例.
+        (is (= 5 (+ (:signed s) (:awaiting-decision s) (:ready-to-submit s) (:needs-checks s) (:rework s))))
+        ;; 可推进积压 = 就绪待提交 + 待裁决 + 需返工 (已签核不计).
+        (is (= 3 (:actionable-backlog s)))
+        (is (= 20 (:closure-pct s)))               ; round(100*1/5)
+        ;; 阶段分布: closure {total 2, signed 0, pending 2}, execution {total 3, signed 1, pending 2}.
+        (is (= 2 (count (:by-stage s))))
+        (is (= {:total 2 :signed 0 :pending 2} (get-in s [:by-stage "closure"])))
+        (is (= {:total 3 :signed 1 :pending 2} (get-in s [:by-stage "execution"])))
+        ;; 点名可立即提交评审的关口: 仅 g-ready, 检查 1/1 满足, 标题与阶段来自实例.
+        (is (= 1 (count (:ready-to-submit-list s))))
+        (let [entry (first (:ready-to-submit-list s))]
+          (is (= (:id g-ready) (:gate-id entry)))
+          (is (= "评审" (:title entry)))
+          (is (= "closure" (:stage entry)))
+          (is (= 1 (:checks-passed entry)))
+          (is (= 1 (:checks-total entry))))
+        (is (= ver (version id)) "只读流转汇总不得漂移项目聚合版本"))))
+    ;; 纯函数直测: 空集 available=false 且各计数与点名为空, closure-pct 为 0.
+    (let [e (gates/gate-velocity-summary [])]
+      (is (false? (:available e)))
+      (is (= 0 (:total e)))
+      (is (= 0 (:closure-pct e)))
+      (is (= 0 (:actionable-backlog e)))
+      (is (= [] (:ready-to-submit-list e))))
+    ;; 纯函数直测: 六条混合关口覆盖五桶与三阶段; 状态优先于就绪度分桶 (in_review/rejected 即便 ready_to_sign 为真也不改桶); 已签核不计入可推进积压.
+    (let [m (gates/gate-velocity-summary
+             [{:status "draft" :ready_to_sign false :stage "execution" :title "X"}       ; needs-checks
+              {:status "ready" :ready_to_sign true :stage "planning" :title "B"           ; ready-to-submit
+               :id "b-id" :gate_passed 3 :gate_total 4}
+              {:status "in_review" :ready_to_sign true :stage "execution" :title "C"}     ; awaiting-decision
+              {:status "rejected" :ready_to_sign true :stage "closure" :title "D"}         ; rework
+              {:status "approved" :ready_to_sign true :stage "execution" :title "E"}      ; signed
+              {:status "waived" :ready_to_sign false :stage "planning" :title "F"}])]    ; signed (waived)
+      (is (= 6 (:total m)))
+      (is (= 2 (:signed m)))
+      (is (= 1 (:awaiting-decision m)))
+      (is (= 1 (:ready-to-submit m)))
+      (is (= 1 (:needs-checks m)))
+      (is (= 1 (:rework m)))
+      (is (= 3 (:actionable-backlog m)))
+      (is (= 6 (+ (:signed m) (:awaiting-decision m) (:ready-to-submit m) (:needs-checks m) (:rework m))))
+      (is (= 33 (:closure-pct m)))               ; round(100*2/6)
+      (is (= 3 (count (:by-stage m))))
+      (is (= {:total 1 :signed 0 :pending 1} (get-in m [:by-stage "closure"])))
+      (is (= {:total 3 :signed 1 :pending 2} (get-in m [:by-stage "execution"])))
+      (is (= {:total 2 :signed 1 :pending 1} (get-in m [:by-stage "planning"])))
+      (is (= 1 (count (:ready-to-submit-list m))))
+      (let [entry (first (:ready-to-submit-list m))]
+        (is (= "b-id" (:gate-id entry)))
+        (is (= "B" (:title entry)))
+        (is (= "planning" (:stage entry)))
+        (is (= 3 (:checks-passed entry)))
+        (is (= 4 (:checks-total entry))))))
+
+
 
 (deftest change-review-lock-and-audit-rollback
   (let [id (project!)

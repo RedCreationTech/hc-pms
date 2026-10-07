@@ -106,6 +106,7 @@
                    (update :gates #(mapv (partial collab/gate-remediation-read-model gate-remediation-rollup) %))
                    gates/attach-gate-closure-summary
                    gates/attach-gate-exception-summary
+                   gates/attach-gate-velocity-summary
                    collab/attach-issue-closure-summary
                    (collab/enrich-risk-issue-links)
                    (collab/enrich-action-source-links)

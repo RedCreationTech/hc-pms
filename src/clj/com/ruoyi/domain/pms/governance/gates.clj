@@ -329,3 +329,48 @@
   "在治理读模型上追加 :gate_exception_summary 只读汇总 (基于已富化的 :gates), 不改变任何逐条关口记录."
   [data]
   (assoc data :gate_exception_summary (gate-exception-summary (:gates data))))
+
+(defn gate-velocity-summary
+  "只读按签核流转阶段为每个关口实例分桶, 回答\"尚未签核的关口此刻卡在哪一步, 哪些可以立刻推进\": signed (approved 或 waived, 已签核), awaiting-decision (in_review, 已提交待独立审核人裁决), ready-to-submit (仍处 draft 或 ready 但全部必需检查项已满足—即 gate-read-model 派生的 ready_to_sign 为真—可立即提交评审), needs-checks (仍处 draft 或 ready 且尚有未满足的必需检查项, 被检查内容阻断), rework (rejected, 已驳回需返工). 五桶互斥且并集恰为全部关口实例, 因为关口签核流转的全部合法状态 draft/ready/in_review/rejected/approved/waived 被完整覆盖. actionable-backlog 为尚未签核却存在明确可推进动作的关口数 (ready-to-submit + awaiting-decision + rework), closure-pct 为已签核占全部实例的整数百分比 (total 为 0 时给 0). by-stage 按关口适用阶段 (payload :stage, 缺省归入 unspecified) 用 sorted-map 统计各阶段 total/signed/pending, 呈现阶段准入流水线 (执行/收尾等) 的推进度. ready-to-submit-list 点名当前可立即提交评审的关口 (gate-id/title/stage/checks-passed/checks-total), 依 stage 再 title 稳定排序, 供工作台据此推进. 与 gate-closure-summary (纯状态直方图加闭环占比) 及 gate-exception-summary (逐检查项豁免依赖度) 口径正交: 本项把逐条关口派生的 ready_to_sign 与其当前 status 交叉, 唯一揭示\"就绪待提交\"这一既非草稿亦非评审中, 却可即刻提交评审的可执行积压. 免迁移读取时派生, 不写存储, 不改变任何关口状态或检查项, 不构成门控, 键名不带尾随问号."
+  [gates]
+  (let [signed-status #{"approved" "waived"}
+        bucket (fn [g] (let [st (:status g)]
+                         (cond (signed-status st) :signed
+                               (= st "in_review") :awaiting-decision
+                               (= st "rejected") :rework
+                               (true? (:ready_to_sign g)) :ready-to-submit
+                               :else :needs-checks)))
+        rows (mapv #(assoc % ::bucket (bucket %)) gates)
+        counts (frequencies (map ::bucket rows))
+        total (count rows)
+        signed (get counts :signed 0)
+        awaiting (get counts :awaiting-decision 0)
+        ready (get counts :ready-to-submit 0)
+        needs (get counts :needs-checks 0)
+        rework (get counts :rework 0)
+        by-stage (into (sorted-map)
+                       (map (fn [[stage gs]]
+                              [stage {:total (count gs)
+                                      :signed (count (filter #(= :signed (::bucket %)) gs))
+                                      :pending (count (remove #(= :signed (::bucket %)) gs))}])
+                            (group-by #(or (:stage %) "unspecified") rows)))
+        ready-list (mapv (fn [g] {:gate-id (:id g) :title (:title g) :stage (:stage g)
+                                  :checks-passed (:gate_passed g) :checks-total (:gate_total g)})
+                         (sort-by (juxt #(or (:stage %) "") #(or (:title %) ""))
+                                  (filterv #(= :ready-to-submit (::bucket %)) rows)))]
+    {:available (pos? total)
+     :total total
+     :signed signed
+     :awaiting-decision awaiting
+     :ready-to-submit ready
+     :needs-checks needs
+     :rework rework
+     :actionable-backlog (+ ready awaiting rework)
+     :closure-pct (if (pos? total) (int (Math/round ^double (* 100.0 (/ signed total)))) 0)
+     :by-stage by-stage
+     :ready-to-submit-list ready-list}))
+
+(defn attach-gate-velocity-summary
+  "在治理读模型上追加 :gate_velocity 只读汇总 (基于已富化的 :gates), 不改变任何逐条关口记录. 须在 gate-read-model 富化之后调用, 因分桶依赖每条关口的 ready_to_sign 派生键."
+  [data]
+  (assoc data :gate_velocity (gate-velocity-summary (:gates data))))
