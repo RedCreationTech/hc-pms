@@ -4826,3 +4826,69 @@
       (command! id :risk-templates :discard (:id tpl) {})
       (is (= 404 (error-status #(command! id :risk-templates :update (:id tpl)
                                           {:title "复活" :probability 2 :impact 3 :mitigation "x"})))))))
+
+
+(deftest node-pause-summary-is-derived-read-only
+  ;; 纯函数直测: 固定 today 用整天粒度差值, 覆盖暂停中/已复工/节点类型/中断时项目状态/最长与平均时长.
+  (let [today "2026-10-10"
+        pauses [{:status "active" :node_id "aa" :node_code "N1" :node_name "子系统甲" :node_type "sub"
+                 :reason "等待关键物料" :project_status_at_pause "executing"
+                 :paused_at "2026-10-01T00:00:00Z"}
+                {:status "active" :node_id "bb" :node_code "N2" :node_name "单机设备乙" :node_type "machine"
+                 :reason "现场停电" :project_status_at_pause "planning"
+                 :paused_at "2026-09-25T00:00:00Z"}
+                ;; 同一 node_id 再次暂停, active-nodes 去重应只计一个.
+                {:status "active" :node_id "aa" :node_code "N3" :node_name "子系统甲复停" :node_type "sub"
+                 :reason "等待复检" :project_status_at_pause "executing"
+                 :paused_at "2026-10-08T00:00:00Z"}
+                {:status "closed" :node_id "cc" :node_code "N4" :node_name "已复工段" :node_type "sub"
+                 :reason "短期调试" :project_status_at_pause "executing"
+                 :paused_at "2026-10-01T00:00:00Z" :resumed_at "2026-10-04T00:00:00Z"}
+                {:status "closed" :node_id "dd" :node_code "N5" :node_name "已复工段二" :node_type "machine"
+                 :reason "供货延迟" :project_status_at_pause "planning"
+                 :paused_at "2026-10-02T00:00:00Z" :resumed_at "2026-10-09T00:00:00Z"}]
+        s (quality/node-pause-summary pauses today)]
+    (is (true? (:available s)))
+    (is (= 5 (:total s)))
+    (is (= 3 (:active s)))
+    (is (= 2 (:resumed s)))
+    ;; 去重: N1 与 N3 同 node_id "aa", N2 为 "bb" -> 2 个仍暂停的独立节点.
+    (is (= 2 (:active-nodes s)))
+    (is (= {"machine" 1 "sub" 2} (:by-node-type s)))
+    (is (= {"executing" 2 "planning" 1} (:by-project-status s)))
+    ;; 最长暂停: N2 从 09-25 到 today 10-10 = 15 天.
+    (is (= 15 (:longest-active-days s)))
+    ;; 平均复工: (3 + 7) / 2 = 5.
+    (is (= 5 (:avg-resume-days s)))
+    ;; 暂停中点名清单按 paused-days 降序, 同分按 node_code 升序 -> N2(15) N1(9) N3(2).
+    (is (= ["N2" "N1" "N3"] (map :node-code (:active-pauses s))))
+    (is (= [15 9 2] (map :paused-days (:active-pauses s))))
+    ;; 纯只读: 结果键集合稳定, 不写存储也不改入参记录.
+    (is (= 3 (count (filter #(= "active" (:status %)) pauses))))
+    ;; today 也可传 java.time.LocalDate, 结果与字符串等价.
+    (is (= s (quality/node-pause-summary pauses (java.time.LocalDate/parse "2026-10-10")))))
+  ;; 空输入: available false, 全为 0, 点名清单为空.
+  (let [empty (quality/node-pause-summary [] "2026-10-10")]
+    (is (false? (:available empty)))
+    (is (= 0 (:total empty)))
+    (is (= 0 (:active empty)))
+    (is (= 0 (:resumed empty)))
+    (is (= 0 (:active-nodes empty)))
+    (is (= 0 (:longest-active-days empty)))
+    (is (= 0 (:avg-resume-days empty)))
+    (is (empty? (:active-pauses empty))))
+  ;; 天差钳制: 复工早于暂停或未来暂停都不产生负数, 计 0.
+  (let [clamp (quality/node-pause-summary
+                [{:status "closed" :node_id "x" :node_code "C1" :node_type "sub"
+                  :paused_at "2026-10-05T00:00:00Z" :resumed_at "2026-10-01T00:00:00Z"}
+                 {:status "active" :node_id "y" :node_code "C2" :node_type "machine"
+                  :project_status_at_pause "executing" :paused_at "2026-10-20T00:00:00Z"}]
+                "2026-10-10")]
+    (is (= 2 (:total clamp)))
+    ;; 未来暂停日 -> 钳制为 0 天, 点名清单只含仍在暂停中的 C2.
+    (is (= 0 (:longest-active-days clamp)))
+    ;; 复工早于暂停 -> 钳制为 0 天, 平均复工随之为 0.
+    (is (= 0 (:avg-resume-days clamp)))
+    (is (= 1 (:active clamp)))
+    (is (= ["C2"] (map :node-code (:active-pauses clamp))))
+    (is (= [0] (map :paused-days (:active-pauses clamp))))))

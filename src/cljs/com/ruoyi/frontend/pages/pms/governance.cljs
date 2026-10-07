@@ -1956,6 +1956,58 @@
      (w/state-column) (w/text-column :decision_reason "签认意见")]
     #(dq-actions context %)]])
 
+(defn- node-pause-label
+  [k fallback]
+  (get {"sub" "子项目" "machine" "单机" "main" "主项目"
+       "draft" "起草" "approved" "已批准" "planning" "计划中" "executing" "执行中"
+       "closing" "收尾" "closed" "已关闭" "paused" "已暂停" "cancelled" "已取消"}
+    (if (string? k) k (name k)) fallback))
+
+(defn- node-pause-summary-section
+  "B02/B16/B12 结构节点暂停与复工概览: 只读聚合 node-pause 台账的暂停中/已复工节点数, 中断时项目状态分布, 最长暂停与平均复工时长, 并点名仍暂停的节点; 只读派生, 不改变暂停或复工状态, 不构成门控."
+  [{:keys [model]}]
+  (let [cov (:node_pause_summary model)
+        total (:total cov 0)
+        active (:active cov 0)
+        resumed (:resumed cov 0)
+        active-nodes (:active-nodes cov 0)
+        longest (:longest-active-days cov 0)
+        avg-resume (:avg-resume-days cov 0)
+        by-type (:by-node-type cov {})
+        by-status (:by-project-status cov {})
+        active-list (:active-pauses cov [])]
+    [shared/panel "结构节点暂停与复工概览" "按 node-pause 台账最新记录统计仍暂停与已复工的节点数, 中断时项目状态分布, 最长暂停与平均复工时长(整天粒度), 并点名当前仍暂停的节点; 只读派生, 不改变暂停或复工状态, 不构成门控"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无暂停记录, 在下方对单机或子项目发起局部暂停后可在此查看复工概览."]
+       [:div
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "暂停记录总数 " total)]
+         [antd/tag {:color (if (zero? active) "green" "red")} (str "暂停中 " active " 条 / " active-nodes " 节点")]
+         [antd/tag {:color "default"} (str "已复工 " resumed)]
+         [antd/tag {:color (if (>= longest 14) "volcano" "gold")} (str "最长暂停 " longest " 天")]
+         (when (pos? avg-resume)
+           [antd/tag {:color "cyan"} (str "平均复工 " avg-resume " 天")])]
+        (when (seq by-type)
+          [:div {:style {:margin-top 8}}
+           [:span {:style {:color "#8793a3"}} "暂停中按节点类型: "]
+           (into [antd/space {:wrap true}]
+                 (map (fn [[k n]] ^{:key (str "t-" k)} [antd/tag {:color "blue"} (str (node-pause-label k k) " " n)]) (seq by-type)))])
+        (when (seq by-status)
+          [:div {:style {:margin-top 8}}
+           [:span {:style {:color "#8793a3"}} "暂停中按中断时项目状态: "]
+           (into [antd/space {:wrap true}]
+                 (map (fn [[k n]] ^{:key (str "s-" k)} [antd/tag {:color "purple"} (str (node-pause-label k k) " " n)]) (seq by-status)))])
+        (when (seq active-list)
+          [:div {:style {:margin-top 8}}
+           [:span {:style {:color "#8793a3"}} "仍暂停节点: "]
+           (into [antd/space {:wrap true}]
+                 (map (fn [p] ^{:key (:node-code p)}
+                        [antd/tag {:color "red"}
+                         (str (:node-code p) " " (:node-name p)
+                              (when-let [t (:node-type p)] (str " · " (node-pause-label t t)))
+                              " · 已停 " (:paused-days p 0) " 天")])
+                      active-list))])])]))
+
 (defn- pause-section
   "B16 项目/单机局部暂停与恢复."
   [{:keys [base model planning editable? open!]}]
@@ -1985,7 +2037,7 @@
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section action-closure-section project-remediation-overview-section action-section]]
                      ["changes" "变更控制" [change-section change-closure-section]]
-                     ["quality" "DQ与局部暂停" [dq-summary-section dq-section pause-section]]])}])
+                     ["quality" "DQ与局部暂停" [dq-summary-section dq-section node-pause-summary-section pause-section]]])}])
 
 
 (defn- import-dialog

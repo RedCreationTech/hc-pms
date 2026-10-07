@@ -137,6 +137,7 @@
                           :project_remediation_overview (collab/project-remediation-overview (:actions data) (:issues data))
                           :meeting_release_coverage (collab/meeting-release-coverage (:meetings data))
                           :meeting_material_readiness (collab/meeting-material-readiness (:meetings data) docs-by-id)
+                          :node_pause_summary (quality/node-pause-summary (:node_pauses data) nil)
                           :change_closure_summary (approval/change-closure-summary (:changes data))
                           :gate_progress (gates/gate-progress (:gate_templates data) (:gates data))
                           :gate_catalog (mapv #(select-keys % [:gate_type :title :stage :page :blocks]) catalog/gate-types)

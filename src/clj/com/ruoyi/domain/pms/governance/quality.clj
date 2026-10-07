@@ -255,3 +255,51 @@
     (loop [result (set active) frontier (vec active)]
       (let [children (map :node_id (filter #(contains? (set frontier) (:parent_id %)) nodes))]
         (if (empty? children) result (recur (into result children) (vec children)))))))
+
+(defn- pause-epoch-day
+  "把暂停/复工记录里的 ISO Instant 字符串折算成 UTC 纪元日, 用于整天粒度差值."
+  [instant-str]
+  (when (some? instant-str)
+    (.toEpochDay ^java.time.LocalDate
+                 (.toLocalDate (.atZone (java.time.Instant/parse (str instant-str))
+                                         java.time.ZoneOffset/UTC)))))
+
+(defn node-pause-summary
+  "结构节点暂停与复工概览 (B02/B16/B12 项目级只读派生): 折叠 node-pause 台账, 按整天粒度
+   统计暂停中 / 已复工节点, 中断时项目状态分布, 最长暂停与平均复工时长, 并点名当前仍暂停的节点.
+   pauses 为 (:node_pauses data) 原始记录 (payload 键 + :status), today 可为 LocalDate / ISO 字符串或 nil(取当前日期).
+   纯只读, 不落库, 不门控, 不改任何暂停记录. 时长用 UTC 纪元日差免疫日内漂移; 派生键名一律去尾随问号."
+  [pauses today]
+  (let [today (cond (instance? java.time.LocalDate today) today
+                    (string? today) (java.time.LocalDate/parse today)
+                    ;; 与 paused_at/resumed_at 的 UTC Instant 基准保持一致: 用 UTC 今天, 避免系统区(如 CST)凌晨时把刚发生的暂停算成 1 天.
+                    :else (java.time.LocalDate/now java.time.ZoneOffset/UTC))
+        today-day (.toEpochDay ^java.time.LocalDate today)
+        enrich (fn [p]
+                 (let [active? (= "active" (:status p))
+                       start (pause-epoch-day (:paused_at p))
+                       end (if active? today-day (pause-epoch-day (:resumed_at p)))
+                       days (if (and (some? start) (some? end)) (max 0 (- end start)) 0)]
+                   (assoc p ::days days ::active? active?)))
+        rows (mapv enrich pauses)
+        active-rows (filterv ::active? rows)
+        resumed-rows (remove ::active? rows)
+        resumed-days (map ::days resumed-rows)
+        active-days (map ::days active-rows)]
+    {:available (pos? (count rows))
+     :total (count rows)
+     :active (count active-rows)
+     :resumed (count resumed-rows)
+     :active-nodes (count (set (map :node_id active-rows)))
+     :by-node-type (into (sorted-map) (frequencies (map :node_type active-rows)))
+     :by-project-status (into (sorted-map) (frequencies (map :project_status_at_pause active-rows)))
+     :longest-active-days (if (empty? active-days) 0 (apply max active-days))
+     :avg-resume-days (if (empty? resumed-days)
+                        0
+                        (int (Math/round ^double (/ (apply + resumed-days) (double (count resumed-days))))))
+     :active-pauses (mapv (fn [p] {:node-code (:node_code p)
+                                   :node-name (:node_name p)
+                                   :node-type (:node_type p)
+                                   :reason (:reason p)
+                                   :paused-days (::days p)})
+                          (sort-by (juxt (comp - ::days) :node_code) active-rows))}))
