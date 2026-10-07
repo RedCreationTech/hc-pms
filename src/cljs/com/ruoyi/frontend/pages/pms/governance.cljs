@@ -949,6 +949,35 @@
                           (str label " · " count)])]]])]))
 
 
+(defn- risk-stage-distribution-section
+  "按每个风险最新有效版本只读聚合项目阶段(:stage)分布: 各阶段风险计数与平均评分, 高档及以上与达超阈值升级门控的严重计数, 以及未标注阶段计数; 阶段取自典型风险库实例化, 只读派生, 不改变风险状态."
+  [{:keys [model]}]
+  (let [dist (:risk_stage_distribution model)
+        total (:total dist 0)
+        labeled (:labeled-stages dist 0)
+        unclassified (:unclassified dist 0)
+        stage-color (fn [s] (cond (pos? (:critical s 0)) "red"
+                                  (pos? (:high-or-above s 0)) "gold"
+                                  :else "geekblue"))]
+    [shared/panel "风险项目阶段分布" "按每个风险的最新有效版本只读统计风险在项目阶段(如设计/采购/执行)的分布, 并计高危及以上与达超阈值升级门控的严重风险数; 只读派生, 不改变风险状态"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无项目风险, 登记后可在此查看阶段分布."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "风险总数 " total)]
+         [antd/tag {:color "default"} (str "涉及阶段 " labeled)]
+         (when (pos? unclassified)
+           [antd/tag {:color "orange"} (str "未标注阶段 " unclassified)])]
+        [:div
+         [:span {:style {:fontWeight 500}} "按项目阶段: "]
+         [antd/space {:wrap true}
+          (for [{:keys [stage count avg-score high-or-above critical]} (:stages dist)]
+            ^{:key stage} [antd/tag {:color (stage-color {:high-or-above high-or-above :critical critical})}
+                            (str stage " · " count " · 均分" avg-score
+                                 (when (pos? high-or-above) (str " · 高危" high-or-above))
+                                 (when (pos? critical) (str " · 严重" critical)))])]]])]))
+
+
 (defn- risk-review-cadence-section
   "按每个风险最新有效版本只读聚合复审到期节奏: 未关闭风险按到期日三分已逾期/临期/未来到期, 并给出待复审与已关闭计数; 复用逐条台账到期倒计时口径, 只读派生, 不改变风险状态."
   [{:keys [model]}]
@@ -2483,7 +2512,7 @@
                      ["appointments" "成员任命" [appointment-section]]
                      ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section]]
                      ["gates" "Gate评审" [gate-section]]
-                     ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
+                     ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-stage-distribution-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section meeting-attendance-section meeting-cadence-section action-closure-section project-remediation-overview-section due-workload-overview-section owner-due-pressure-section action-section]]
                      ["changes" "变更控制" [change-section change-closure-section change-type-coverage-section change-impact-coverage-section change-impact-pattern-section change-impact-magnitude-section ccb-participation-section]]
                      ["quality" "DQ与局部暂停" [dq-summary-section dq-section node-pause-summary-section pause-section]]])}])

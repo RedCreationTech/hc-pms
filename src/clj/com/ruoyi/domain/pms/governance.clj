@@ -129,6 +129,7 @@
                           :issue_resolution_coverage (collab/issue-resolution-coverage (:issues data))
                           :risk_escalation_summary (collab/risk-escalation-disposition-summary (:risks data))
                           :risk_score_distribution (collab/risk-score-distribution (:risks data))
+                          :risk_stage_distribution (collab/risk-stage-distribution (:risks data))
                           :risk_review_cadence (collab/risk-review-cadence-summary (:risks data))
                           :comm_cadence_summary (collab/comm-cadence-summary (:comm_plans data))
                           :comm_audience_coverage (stakeholders/comm-audience-coverage (:stakeholders data) (:comm_plans data))

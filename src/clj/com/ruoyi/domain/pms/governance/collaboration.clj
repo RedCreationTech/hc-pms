@@ -119,6 +119,30 @@
                     risk-score-bands)}))
 
 
+(defn risk-stage-distribution
+  "按每个风险最新有效版本只读统计风险在项目阶段(:stage 可选文本, 如 设计/采购/执行/全周期)上的分布: 各阶段条数、平均评分(概率 x 影响, 1 到 25)、高档及以上(>=10)与达超阈值升级门控(>=ra/escalation-threshold)计数, 未标注阶段单列, 用于观察风险在项目生命周期上的集中位置; 高档与极高阈值复用 risk-score-distribution 同款评分带口径单一不漂移(登记风险概率与影响必填, 故每条风险恒有评分), 阶段为自由文本按实际取值动态分组, 只读派生, 不落库不投递, 不改变风险状态, 不构成门控. 键名 kebab-case 不带尾随问号."
+  [risks]
+  (let [active (s/latest risks)
+        total (count active)
+        labeled (filterv #(some? (:stage %)) active)
+        unclassified (- total (count labeled))
+        groups (vals (group-by :stage labeled))
+        high-or-above (fn [rs] (count (filterv #(<= 10 (:score %)) rs)))
+        critical (fn [rs] (count (filterv #(<= ra/escalation-threshold (:score %)) rs)))
+        avg-score (fn [rs] (int (Math/round ^double (/ (double (reduce + 0 (map :score rs))) (count rs)))))
+        entry (fn [rs] {:stage (:stage (first rs))
+                        :count (count rs)
+                        :avg-score (avg-score rs)
+                        :high-or-above (high-or-above rs)
+                        :critical (critical rs)})]
+    {:available (pos? total)
+     :total total
+     :labeled-stages (count groups)
+     :unclassified unclassified
+     :stages (sort-by (juxt (comp - :critical) (comp - :high-or-above) (comp - :count) :stage)
+                      (mapv entry groups))}))
+
+
 (defn risk-review-cadence-summary
   "按每个风险最新有效版本只读聚合复审到期节奏: 未关闭风险按到期日三分已逾期(到期日<=今天)/临期(1 到 3 天内)/未来到期(距今超过临期窗口), 并给出未关闭与已关闭计数; 复用 reviews/risk-read-model 已派生的 :review_overdue/:review_due_soon 与 :status, 与逐条台账到期倒计时口径单一不漂移(登记风险必填到期日, 故未关闭风险恒落在三档之一); 只读派生, 不落库不投递, 不改变风险状态, 不构成门控. 键名不带尾随问号."
   [risks]

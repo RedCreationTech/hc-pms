@@ -3624,6 +3624,79 @@
       (is (= 20 (:avg-score one))))))
 
 
+(deftest risk-stage-distribution-is-derived-read-only
+  (let [id (project!)
+        dist (fn [] (:risk_stage_distribution (workspace id)))
+        st (fn [k] (first (filter #(= k (:stage %)) (:stages (dist)))))
+        lib (fn [k] (command! id :risks :from-library nil
+                              {:template_key k :owner_id 9301 :due_date "2026-10-20"}))
+        create (fn [title p i]
+                 (command! id :risks :create nil
+                           {:title title :probability p :impact i
+                            :owner_id 9301 :mitigation "常规措施" :due_date "2026-10-20"}))]
+    ;; 按项目阶段只读分布: 阶段取自内置典型风险库(设计9/采购25/执行16+20, 达升级阈值仍计入), 另有一条手工登记未标注阶段.
+    (lib "tech-uncertainty")    ; 设计 3x3=9
+    (lib "supply-outage")       ; 采购 5x5=25
+    (lib "schedule-delay")      ; 执行 4x4=16
+    (lib "cost-overrun")        ; 执行 4x5=20
+    (create "常规观察风险" 1 2) ; 未标注阶段 1x2=2
+    (is (true? (:available (dist))))
+    (is (= 5 (:total (dist))))
+    (is (= 3 (:labeled-stages (dist))))
+    (is (= 1 (:unclassified (dist))))
+    ;; 穷尽分区不变式: 各阶段计数之和 + 未标注 = 总数.
+    (is (= 5 (+ (:unclassified (dist)) (reduce + 0 (map :count (:stages (dist)))))))
+    ;; 排序: critical 降序 -> high 降序 -> count 降序 -> 阶段名升序. 执行两条严重故居首, 采购次之, 设计无高危居末.
+    (is (= ["执行" "采购" "设计"] (map :stage (:stages (dist)))))
+    (let [design (st "设计")]
+      (is (= 1 (:count design)))
+      (is (= 9 (:avg-score design)))
+      (is (= 0 (:high-or-above design)))
+      (is (= 0 (:critical design))))
+    (let [proc (st "采购")]
+      (is (= 1 (:count proc)))
+      (is (= 25 (:avg-score proc)))
+      (is (= 1 (:high-or-above proc)))
+      (is (= 1 (:critical proc))))
+    (let [exec (st "执行")]
+      (is (= 2 (:count exec)))
+      (is (= 18 (:avg-score exec)))
+      (is (= 2 (:high-or-above exec)))
+      (is (= 2 (:critical exec))))
+    ;; 单 actor 补登记一条全周期阶段低风险(6): 新增一个项目阶段种类, 分布实时翻转, 阶段名升序使全周期排在同为0严重的"设计"之前.
+    (lib "staff-turnover")      ; 全周期 2x3=6
+    (is (= 6 (:total (dist))))
+    (is (= 4 (:labeled-stages (dist))))
+    (is (= 1 (:unclassified (dist))))
+    (is (= 6 (+ (:unclassified (dist)) (reduce + 0 (map :count (:stages (dist)))))))
+    (is (= ["执行" "采购" "全周期" "设计"] (map :stage (:stages (dist)))))
+    (let [all (st "全周期")]
+      (is (= 1 (:count all)))
+      (is (= 6 (:avg-score all)))
+      (is (= 0 (:high-or-above all)))
+      (is (= 0 (:critical all))))
+    ;; 只读派生不改变风险状态: 重复读取分布稳定, 未标注风险仍登记态且评分不漂移.
+    (is (= (dist) (:risk_stage_distribution (workspace id))))
+    (let [row (first (filter #(= "常规观察风险" (:title %)) (:risks (workspace id))))]
+      (is (= 2 (:score row)))
+      (is (= "open" (:status row))))
+    ;; 纯函数直测: 空输入全 0 且 stages 空; 同 code 修订只计最新有效版本(修订链去重).
+    (let [empty (collab/risk-stage-distribution [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:total empty)))
+      (is (= 0 (:labeled-stages empty)))
+      (is (= 0 (:unclassified empty)))
+      (is (= [] (:stages empty))))
+    (let [one (collab/risk-stage-distribution
+                [{:code "R" :revision 1 :stage "设计" :score 12}
+                 {:code "R" :revision 2 :stage "执行" :score 4}])]
+      (is (= 1 (:total one)))
+      (is (= 1 (:labeled-stages one)))
+      (is (= 0 (:unclassified one)))
+      (is (= ["执行"] (map :stage (:stages one))))
+      (is (= 4 (:avg-score (first (:stages one))))))))
+
+
 (deftest risk-review-cadence-summary-is-derived-read-only
   (let [id (project!)
         cad (fn [] (:risk_review_cadence (workspace id)))
