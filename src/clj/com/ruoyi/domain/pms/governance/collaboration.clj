@@ -1281,6 +1281,31 @@
                     0)}))
 
 
+(defn action-priority-distribution
+  "按全部会议行动项只读聚合优先级申报分布: 以 action-priorities(高/中/低)为固定档位, 逐档统计 总数/未完成(排除 closed 与 converted)/其中逾期未完成, 另给已声明优先级数(落在三档内)与申报覆盖率, 未设定优先级数, 以及高优先级未完成数; 各档计数之和等于已声明数, 已声明与未设定之和等于总数, 逾期数不超过未完成数; 只读派生, 不落库不投递, 不构成门控, 键名不带尾随问号."
+  [actions]
+  (let [total (count actions)
+        done? #(contains? #{"closed" "converted"} (:status %))
+        of-priority (fn [p] (filterv #(= p (:priority %)) actions))
+        declared (count (filterv #(some #{(:priority %)} action-priorities) actions))
+        unassigned (- total declared)
+        entry (fn [p] (let [rs (of-priority p)]
+                        {:priority p
+                         :count (count rs)
+                         :open (count (remove done? rs))
+                         :overdue (count (filterv action-overdue? rs))}))
+        open-high (count (remove done? (of-priority "high")))]
+    {:available (pos? total)
+     :total total
+     :declared declared
+     :unassigned unassigned
+     :declared-pct (if (pos? total)
+                     (int (Math/round ^double (* 100.0 (/ declared total))))
+                     0)
+     :open-high open-high
+     :by-priority (mapv entry ["high" "medium" "low"])}))
+
+
 (defn meeting-release-coverage
   "按每个会议最新有效版本只读聚合纪要发布进度: 会议总数/已发布/审批中/草稿/已作废及发布率(分母排除已作废); 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
   [meetings]

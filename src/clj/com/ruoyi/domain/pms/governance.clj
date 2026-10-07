@@ -138,6 +138,7 @@
                           :raci_engagement_coverage (stakeholders/raci-engagement-coverage (:raci data))
                           :issue_escalation_summary (collab/issue-escalation-disposition-summary (:issues data))
                           :action_closure (collab/action-closure-summary (:actions data))
+                          :action_priority_distribution (collab/action-priority-distribution (:actions data))
                           :project_remediation_overview (collab/project-remediation-overview (:actions data) (:issues data))
                           :due_workload_overview (collab/due-workload-overview (:risks data) (:issues data) (:actions data))
                           :owner_due_pressure (collab/owner-due-pressure (:risks data) (:issues data) (:actions data) owner-name)

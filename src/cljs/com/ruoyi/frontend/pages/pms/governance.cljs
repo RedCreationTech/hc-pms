@@ -1401,6 +1401,42 @@
           [antd/tag {:color "geekblue"} (str "转任务 " converted)])])]))
 
 
+(defn- action-priority-distribution-section
+  "按全部会议行动项只读聚合优先级申报分布: 高/中/低三档计数与未完成/逾期, 已声明覆盖率与未设定数, 以及高优先级未完成数; 优先级取自登记时可选枚举, 只读派生, 不改变行动状态."
+  [{:keys [model]}]
+  (let [dist (:action_priority_distribution model)
+        total (:total dist 0)
+        declared (:declared dist 0)
+        unassigned (:unassigned dist 0)
+        pct (:declared-pct dist 0)
+        open-high (:open-high dist 0)
+        pri-label {"high" "高" "medium" "中" "low" "低"}
+        pri-color (fn [b] (cond (pos? (:overdue b 0)) "red"
+                                (pos? (:open b 0)) "gold"
+                                (pos? (:count b 0)) "green"
+                                :else "default"))]
+    [shared/panel "会议行动优先级分布" "按全部会议与预防行动只读统计优先级(高/中/低)申报分布: 逐档计数与未完成/逾期, 并给已申报覆盖率与高优先级未完成数; 优先级来自登记时可选枚举, 只读派生, 不改变行动状态"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无行动项, 登记行动并申报优先级后可在此查看分布."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "行动总数 " total)]
+         [antd/tag {:color (cond (= pct 100) "green" (zero? pct) "red" :else "gold")}
+          (str "已申报优先级 " pct "% (" declared "/" total ")")]
+         (when (pos? unassigned)
+           [antd/tag {:color "default"} (str "未设定优先级 " unassigned)])
+         (when (pos? open-high)
+           [antd/tag {:color "volcano"} (str "高优先级未完成 " open-high)])]
+        [:div
+         [:span {:style {:fontWeight 500}} "按优先级: "]
+         [antd/space {:wrap true}
+          (for [{:keys [priority count open overdue]} (:by-priority dist)]
+            ^{:key priority} [antd/tag {:color (pri-color {:open open :overdue overdue :count count})}
+                              (str (pri-label priority priority) " · " count " 项"
+                                   (when (pos? open) (str " · 未完成 " open))
+                                   (when (pos? overdue) (str " · 逾期 " overdue)))])]]])]))
+
+
 (defn- project-remediation-overview-section
   "跨对象项目级未闭环整改总览: 汇总试验/关口/质量/风险/绩效五类整改来源的总数与未闭环情况; 试验与各类整改来源台账逐项视图互补, 只读派生, 不构成门控."
   [{:keys [model]}]
@@ -2513,7 +2549,7 @@
                      ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section]]
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-stage-distribution-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
-                     ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section meeting-attendance-section meeting-cadence-section action-closure-section project-remediation-overview-section due-workload-overview-section owner-due-pressure-section action-section]]
+                     ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section meeting-attendance-section meeting-cadence-section action-closure-section action-priority-distribution-section project-remediation-overview-section due-workload-overview-section owner-due-pressure-section action-section]]
                      ["changes" "变更控制" [change-section change-closure-section change-type-coverage-section change-impact-coverage-section change-impact-pattern-section change-impact-magnitude-section ccb-participation-section]]
                      ["quality" "DQ与局部暂停" [dq-summary-section dq-section node-pause-summary-section pause-section]]])}])
 

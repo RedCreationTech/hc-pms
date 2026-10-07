@@ -4409,6 +4409,88 @@
            (collab/action-closure-summary [])))))
 
 
+(deftest action-priority-distribution-is-derived-read-only
+  (let [id (project!)
+        meeting (command! id :meetings :create nil
+                          {:title "优先级分布评审" :held_on "2026-09-22" :minutes "统一优先级申报" :attendee_ids [9301 9302]})
+        mid (:id meeting)
+        mk (fn [prio due]
+             (command! id :meetings :actions mid
+                       (cond-> {:title "行动项" :owner_id 9301 :due_date due}
+                         prio (assoc :priority prio))))
+        dist (fn [] (:action_priority_distribution (workspace id)))
+        bp (fn [k] (first (filter #(= k (:priority %)) (:by-priority (dist)))))
+        ;; 高/中/低各档申报分布: 两条高(一逾期一未来), 一条中, 一条低, 一条未选优先级(计入分母不计入档).
+        _hi-future (mk "high" "2099-01-01")
+        _hi-past (mk "high" "2020-01-01")
+        a-med (mk "medium" "2099-01-01")
+        _low (mk "low" "2099-01-01")
+        _none (mk nil "2099-01-01")]
+    (is (true? (:available (dist))))
+    (is (= 5 (:total (dist))))
+    (is (= 4 (:declared (dist))))
+    (is (= 1 (:unassigned (dist))))
+    (is (= 80 (:declared-pct (dist))))
+    ;; 各档计数之和 = 已声明数, 已声明 + 未设定 = 总数.
+    (is (= 4 (reduce + 0 (map :count (:by-priority (dist))))))
+    (is (= 5 (+ (:unassigned (dist)) (:declared (dist)))))
+    (is (= ["high" "medium" "low"] (map :priority (:by-priority (dist)))))
+    (let [h (bp "high")]
+      (is (= 2 (:count h)))
+      (is (= 2 (:open h)))
+      (is (= 1 (:overdue h)))
+      (is (<= (:overdue h) (:open h))))
+    (let [m (bp "medium")]
+      (is (= 1 (:count m)))
+      (is (= 1 (:open m)))
+      (is (= 0 (:overdue m))))
+    (let [l (bp "low")]
+      (is (= 1 (:count l)))
+      (is (= 1 (:open l))))
+    (is (= 2 (:open-high (dist))))
+    ;; 转为真实任务(converted 视为完成)的中型行动: 该档计数不变但完成数上升使未完成归零, 只读派生不改状态.
+    (command! id :actions :task (:id a-med) {:start_date "2026-09-23" :duration_days 2})
+    (let [m2 (bp "medium")]
+      (is (= 1 (:count m2)))
+      (is (= 0 (:open m2)))
+      (is (= 4 (:declared (dist)))))
+    ;; 单 actor 追加一条高优先级未完成行动: 高档计数与高优先级未完成数实时上翻, 覆盖率随之变化.
+    (mk "high" "2099-03-01")
+    (is (= 6 (:total (dist))))
+    (is (= 5 (:declared (dist))))
+    (is (= 1 (:unassigned (dist))))
+    (is (= 83 (:declared-pct (dist))))
+    (is (= 3 (:open-high (dist))))
+    (is (= 3 (:count (bp "high"))))
+    (is (= 1 (:overdue (bp "high"))))
+    (is (= 5 (reduce + 0 (map :count (:by-priority (dist))))))
+    ;; 只读派生不回写行动状态.
+    (is (= "converted" (:status (first (filter #(= (:id a-med) (:id %)) (:actions (workspace id)))))))
+    (is (= (dist) (:action_priority_distribution (workspace id))))
+    ;; 纯函数直测: 空输入各计数为0且三档齐列出.
+    (let [empty (collab/action-priority-distribution [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:total empty)))
+      (is (= 0 (:declared empty)))
+      (is (= 0 (:unassigned empty)))
+      (is (= 0 (:declared-pct empty)))
+      (is (= 0 (:open-high empty)))
+      (is (= ["high" "medium" "low"] (map :priority (:by-priority empty)))))
+    ;; 纯函数直测: closed 与 converted 均计入完成(排除出 open), 非法/未设定优先级计入未设定.
+    (let [one (collab/action-priority-distribution
+                [{:priority "high" :status "open" :due_date "2020-01-01"}
+                 {:priority "high" :status "closed" :due_date "2020-01-01"}
+                 {:priority "medium" :status "converted" :due_date "2099-01-01"}
+                 {:priority "urgent" :status "open" :due_date "2099-01-01"}])]
+      (is (= 4 (:total one)))
+      (is (= 3 (:declared one)))
+      (is (= 1 (:unassigned one)))
+      (is (= 2 (:count (first (:by-priority one)))))
+      (is (= 1 (:open (first (:by-priority one)))))
+      (is (= 1 (:overdue (first (:by-priority one)))))
+      (is (= 1 (:open-high one))))))
+
+
 (deftest comm-plan-log-advances-next-date-and-flags-overdue
   (let [id (project!)
         st (command! id :stakeholders :create nil
