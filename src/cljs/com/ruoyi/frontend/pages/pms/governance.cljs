@@ -1910,6 +1910,34 @@
           [antd/tag {:color "volcano"} (str "达高影响阈值 " high-impact)])])]))
 
 
+(defn- change-impact-pattern-section
+  "按每个变更最新有效版本只读聚合变更量化影响申报模式分布: 工期与成本两维量化影响的联合申报模式(两维皆量化/仅工期/仅成本/两维皆未量化), 两维齐全率与模式档; 只读派生, 不改变变更状态或门控."
+  [{:keys [model]}]
+  (let [pat (:change_impact_pattern model)
+        total (:total pat 0)
+        both (:both pat 0)
+        schedule-only (:schedule-only pat 0)
+        cost-only (:cost-only pat 0)
+        neither (:neither pat 0)
+        full-pct (:full-pct pat 0)
+        pattern-level (:pattern-level pat)]
+    [shared/panel "变更量化影响申报模式分布" "按每个变更的最新有效版本统计工期与成本两维量化影响的联合申报模式分布(是否两维齐全); 只读派生, 不改变变更状态或门控"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无项目变更, 登记变更后可在此查看量化影响申报模式分布."]
+       [antd/space {:wrap true}
+        [antd/tag {:color "blue"} (str "变更总数 " total)]
+        [antd/tag {:color (cond (= full-pct 100) "green" (zero? full-pct) "red" :else "gold")}
+         (str "两维齐全 " full-pct "%")]
+        (when (some? pattern-level)
+          [antd/tag {:color (case pattern-level "thorough" "green" "partial" "gold" "sparse" "red")}
+           (str "量化模式 " (case pattern-level "thorough" "两维齐全为主" "partial" "部分量化" "sparse" "量化稀疏"))])
+        [antd/tag {:color "green"} (str "两维皆量化 " both)]
+        [antd/tag {:color "geekblue"} (str "仅工期 " schedule-only)]
+        [antd/tag {:color "cyan"} (str "仅成本 " cost-only)]
+        (when (pos? neither)
+          [antd/tag {:color "orange"} (str "两维皆未量化 " neither)])])]))
+
+
 (defn- ccb-participation-section
   "只读汇总跨变更的变更控制委员会表决参与情况: 委员会覆盖的变更数, 席位与已投票数与参与率, 在途与停滞变更, 以及每位委员被邀请/已投/欠票负荷; 复用 ccb-tally 口径, 不改变任何表决进度或门控."
   [{:keys [model options]}]
@@ -2416,7 +2444,7 @@
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section meeting-attendance-section meeting-cadence-section action-closure-section project-remediation-overview-section due-workload-overview-section owner-due-pressure-section action-section]]
-                     ["changes" "变更控制" [change-section change-closure-section change-type-coverage-section change-impact-coverage-section ccb-participation-section]]
+                     ["changes" "变更控制" [change-section change-closure-section change-type-coverage-section change-impact-coverage-section change-impact-pattern-section ccb-participation-section]]
                      ["quality" "DQ与局部暂停" [dq-summary-section dq-section node-pause-summary-section pause-section]]])}])
 
 

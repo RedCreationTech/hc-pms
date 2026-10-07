@@ -2826,6 +2826,82 @@
       (is (= 0 (:high-impact one))))))
 
 
+(deftest change-impact-pattern-is-derived-read-only
+  (let [id (project!)
+        pat (fn [] (:change_impact_pattern (workspace id)))
+        base-body {:title "更改设备范围" :reason "合同调整" :scope_impact "增加设备"
+                   :schedule_impact "增加五日" :cost_impact "重新估价" :quality_impact "增加测试"
+                   :resource_impact "追加工程师"}
+        h1 (command! id :changes :create nil
+                     (assoc base-body :title "双量化重大变更" :schedule_impact_days 12 :cost_impact_amount "150000.5"))
+        _h2 (command! id :changes :create nil (assoc base-body :title "仅工期量化" :schedule_impact_days 3))
+        _h3 (command! id :changes :create nil (assoc base-body :title "仅成本量化" :cost_impact_amount "99999.99"))
+        _h4 (command! id :changes :create nil (assoc base-body :title "工期量化为零" :schedule_impact_days 0))
+        _h5 (command! id :changes :create nil (assoc base-body :title "仅文字描述"))]
+    ;; 基线: 5 条变更; both(h1 工期+成本)=1, schedule-only(h2 工期3, h4 工期0)=2, cost-only(h3)=1, neither(h5)=1.
+    ;; 不变量 both+schedule-only+cost-only+neither=5; full-pct=round(100*1/5)=20; quantified=both+sched-only+cost-only=4, (* 2 both)=2<5 但 (* 2 quantified)=8>=5 -> partial.
+    (is (true? (:available (pat))))
+    (is (= 5 (:total (pat))))
+    (is (= 1 (:both (pat))))
+    (is (= 2 (:schedule-only (pat))))
+    (is (= 1 (:cost-only (pat))))
+    (is (= 1 (:neither (pat))))
+    (is (= 5 (+ (:both (pat)) (:schedule-only (pat)) (:cost-only (pat)) (:neither (pat)))))
+    (is (= 20 (:full-pct (pat))))
+    (is (= "partial" (:pattern-level (pat))))
+    ;; 只读派生不改变变更状态: 重复读取分布稳定.
+    (is (= (pat) (:change_impact_pattern (workspace id))))
+    ;; 修订去重: 给 h1 出一版不含量化影响的新修订 -> 最新版仅文字, 从 both 移到 neither.
+    ;; both 1->0, neither 1->2, total 仍 5, full-pct 20->0, quantified 3 (* 2)=6>=5 -> 仍 partial.
+    (command! id :changes :revisions (:id h1) (assoc base-body :title "双量化重大变更(撤销量化)"))
+    (is (= 5 (:total (pat))))
+    (is (= 0 (:both (pat))))
+    (is (= 2 (:schedule-only (pat))))
+    (is (= 1 (:cost-only (pat))))
+    (is (= 2 (:neither (pat))))
+    (is (= 0 (:full-pct (pat))))
+    (is (= "partial" (:pattern-level (pat))))
+    ;; 空态: 无变更 available false 各计数 0, pattern-level nil.
+    (let [empty (approval/change-impact-pattern [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:total empty)))
+      (is (= 0 (:both empty)))
+      (is (= 0 (:schedule-only empty)))
+      (is (= 0 (:cost-only empty)))
+      (is (= 0 (:neither empty)))
+      (is (= 0 (:full-pct empty)))
+      (is (nil? (:pattern-level empty))))
+    ;; 纯函数直测 thorough 档: 两变更两维皆量化 -> both=2 total=2 (* 2 both)=4>=2 -> thorough, full-pct 100.
+    (let [thorough (approval/change-impact-pattern
+                     [{:code "A" :revision 1 :schedule_impact_days 5 :cost_impact_amount "10.00"}
+                      {:code "B" :revision 1 :schedule_impact_days 6 :cost_impact_amount "20.00"}])]
+      (is (= 2 (:total thorough)))
+      (is (= 2 (:both thorough)))
+      (is (= 0 (:neither thorough)))
+      (is (= 100 (:full-pct thorough)))
+      (is (= "thorough" (:pattern-level thorough))))
+    ;; 纯函数直测 sparse 档: 4 变更仅 1 条量化(且非两维) -> quantified=1 (* 2)=2<4, both=0 -> sparse.
+    (let [sparse (approval/change-impact-pattern
+                   [{:code "A" :revision 1 :schedule_impact_days 5}
+                    {:code "B" :revision 1}
+                    {:code "C" :revision 1}
+                    {:code "D" :revision 1}])]
+      (is (= 4 (:total sparse)))
+      (is (= 1 (:schedule-only sparse)))
+      (is (= 3 (:neither sparse)))
+      (is (= 0 (:full-pct sparse)))
+      (is (= "sparse" (:pattern-level sparse))))
+    ;; 纯函数直测: 同 code 修订只计最新版(最新 rev2 为两维皆量化, 旧 rev1 不计).
+    (let [one (approval/change-impact-pattern
+                [{:code "R" :revision 1}
+                 {:code "R" :revision 2 :schedule_impact_days 15 :cost_impact_amount "200000.00"}])]
+      (is (= 1 (:total one)))
+      (is (= 1 (:both one)))
+      (is (= 0 (:neither one)))
+      (is (= 100 (:full-pct one)))
+      (is (= "thorough" (:pattern-level one))))))
+
+
 (deftest ccb-participation-summary-is-derived-read-only
   (let [id (project!)
         part (fn [] (:ccb_participation (workspace id)))

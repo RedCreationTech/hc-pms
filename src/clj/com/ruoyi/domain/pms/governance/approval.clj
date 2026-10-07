@@ -404,6 +404,34 @@
      :high-impact high-impact}))
 
 
+(defn change-impact-pattern
+  "项目级变更量化影响申报模式分布只读汇总: 按每个变更最新有效版本(s/latest, 修订链只计最新版)统计工期与成本两维量化影响的联合申报模式 —— 两维皆量化/仅工期/仅成本/两维皆未量化, 以及两维齐全率与模式档; 只读派生, 不落库不投递, 不改变任何变更状态或门控. 与 change-impact-coverage 互补: 覆盖度看两维各自计数, 本项看联合模式(是否两维齐全). 键名 kebab-case 无尾随问号."
+  [changes]
+  (let [active (s/latest changes)
+        total (count active)
+        sched? (fn [x] (some? (:schedule_impact_days x)))
+        cost? (fn [x] (let [c (:cost_impact_amount x)] (and (some? c) (not= "" c))))
+        both (count (filterv #(and (sched? %) (cost? %)) active))
+        schedule-only (count (filterv #(and (sched? %) (not (cost? %))) active))
+        cost-only (count (filterv #(and (cost? %) (not (sched? %))) active))
+        neither (count (filterv #(and (not (sched? %)) (not (cost? %))) active))
+        quantified (+ both schedule-only cost-only)]
+    {:available (pos? total)
+     :total total
+     :both both
+     :schedule-only schedule-only
+     :cost-only cost-only
+     :neither neither
+     :full-pct (if (pos? total)
+                 (int (Math/round ^double (* 100.0 (/ both total))))
+                 0)
+     :pattern-level (cond
+                      (zero? total) nil
+                      (>= (* 2 both) total) "thorough"
+                      (>= (* 2 quantified) total) "partial"
+                      :else "sparse")}))
+
+
 (defn- finalize-charter!
   "审批链落定章程: 末级通过即批准, 任一级驳回即退回."
   [q actor project rid decision reason]
