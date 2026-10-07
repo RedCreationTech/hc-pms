@@ -432,6 +432,55 @@
                       :else "sparse")}))
 
 
+(defn change-impact-magnitude
+  "项目级变更量化影响数值分档分布只读汇总: 按每个变更最新有效版本(s/latest, 修订链只计最新版), 对工期与成本两个可选量化影响维度的取值各自做穷举数值分档. 工期维分五档 sched-unquantified 未量化(无 :schedule_impact_days), sched-zero 零影响(=0), sched-minor 轻微(1 至中间门槛-1), sched-moderate 中等, sched-high 高影响(>= high-impact-schedule-days). 成本维分五档 cost-unquantified 未量化, cost-minor 轻微, cost-moderate 中等, cost-major 重大, cost-high 高影响(>= high-impact-cost-minor, 即 100000.00). 中间门槛由高影响阈值派生(工期取阈值整除2, 成本 major 取阈值一半, moderate 取阈值十分之一), 令两维顶档与写路径私有 high-impact? 单一口径对齐; 复用与 change-impact-coverage/change-impact-pattern 一致的 sched?/cost? 判定与 money/amount! 成本解析. sched-quantified 与 cost-quantified 给出两维各自已量化数(与覆盖度 schedule-declared/cost-declared 同口径可交叉核对); 每维五档计数之和恒等于 total. 与覆盖度(是否申报)和模式(两维是否齐全)正交, 本项看已量化数值的大小分布. 只读派生, 不落库不投递, 不改变任何变更状态或门控. 键名 kebab-case 无尾随问号."
+  [changes]
+  (let [active (s/latest changes)
+        total (count active)
+        days-of :schedule_impact_days
+        cost-minor-of (fn [x]
+                        (let [c (:cost_impact_amount x)]
+                          (when (and (some? c) (not= "" c))
+                            (money/amount! c "成本影响"))))
+        sched-moderate-floor (quot high-impact-schedule-days 2)
+        cost-major-floor (quot high-impact-cost-minor 2)
+        cost-moderate-floor (quot high-impact-cost-minor 10)
+        sched-bucket (fn [x]
+                       (let [d (days-of x)]
+                         (cond
+                           (nil? d) :unquantified
+                           (zero? d) :zero
+                           (>= d high-impact-schedule-days) :high
+                           (>= d sched-moderate-floor) :moderate
+                           :else :minor)))
+        cost-bucket (fn [x]
+                      (let [m (cost-minor-of x)]
+                        (cond
+                          (nil? m) :unquantified
+                          (>= m high-impact-cost-minor) :high
+                          (>= m cost-major-floor) :major
+                          (>= m cost-moderate-floor) :moderate
+                          :else :minor)))
+        sc (frequencies (map sched-bucket active))
+        cc (frequencies (map cost-bucket active))
+        sget (fn [k] (get sc k 0))
+        cget (fn [k] (get cc k 0))]
+    {:available (pos? total)
+     :total total
+     :sched-unquantified (sget :unquantified)
+     :sched-zero (sget :zero)
+     :sched-minor (sget :minor)
+     :sched-moderate (sget :moderate)
+     :sched-high (sget :high)
+     :cost-unquantified (cget :unquantified)
+     :cost-minor (cget :minor)
+     :cost-moderate (cget :moderate)
+     :cost-major (cget :major)
+     :cost-high (cget :high)
+     :sched-quantified (- total (sget :unquantified))
+     :cost-quantified (- total (cget :unquantified))}))
+
+
 (defn- finalize-charter!
   "审批链落定章程: 末级通过即批准, 任一级驳回即退回."
   [q actor project rid decision reason]

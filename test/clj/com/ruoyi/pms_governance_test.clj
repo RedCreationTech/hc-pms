@@ -2902,6 +2902,86 @@
       (is (= "thorough" (:pattern-level one))))))
 
 
+(deftest change-impact-magnitude-is-derived-read-only
+  (let [id (project!)
+        mag (fn [] (:change_impact_magnitude (workspace id)))
+        base-body {:title "更改设备范围" :reason "合同调整" :scope_impact "增加设备"
+                   :schedule_impact "增加五日" :cost_impact "重新估价" :quality_impact "增加测试"
+                   :resource_impact "追加工程师"}
+        c1 (command! id :changes :create nil (assoc base-body :title "工期12成本10万" :schedule_impact_days 12 :cost_impact_amount "100000"))
+        _c2 (command! id :changes :create nil (assoc base-body :title "工期5成本3万" :schedule_impact_days 5 :cost_impact_amount "30000"))
+        _c3 (command! id :changes :create nil (assoc base-body :title "工期2成本5千" :schedule_impact_days 2 :cost_impact_amount "5000"))
+        _c4 (command! id :changes :create nil (assoc base-body :title "工期0成本5万" :schedule_impact_days 0 :cost_impact_amount "50000"))
+        _c5 (command! id :changes :create nil (assoc base-body :title "工期9成本99999.99" :schedule_impact_days 9 :cost_impact_amount "99999.99"))
+        _c6 (command! id :changes :create nil (assoc base-body :title "工期10成本1万" :schedule_impact_days 10 :cost_impact_amount "10000"))
+        _c7 (command! id :changes :create nil (assoc base-body :title "仅文字描述"))
+        _c8 (command! id :changes :create nil (assoc base-body :title "工期4成本9999.99" :schedule_impact_days 4 :cost_impact_amount "9999.99"))]
+    ;; 基线 8 条: 工期档 unquantified{c7}=1, zero{c4}=1, minor{c3,c8}=2, moderate{c2,c5}=2, high{c1,c6}=2 (和=8).
+    ;; 成本档 unquantified{c7}=1, minor(<1万){c3,c8}=2, moderate(1万~5万){c2,c6}=2, major(5万~10万){c4,c5}=2, high(>=10万){c1}=1 (和=8).
+    (is (true? (:available (mag))))
+    (is (= 8 (:total (mag))))
+    (is (= 1 (:sched-unquantified (mag))))
+    (is (= 1 (:sched-zero (mag))))
+    (is (= 2 (:sched-minor (mag))))
+    (is (= 2 (:sched-moderate (mag))))
+    (is (= 2 (:sched-high (mag))))
+    (is (= 8 (+ (:sched-unquantified (mag)) (:sched-zero (mag)) (:sched-minor (mag)) (:sched-moderate (mag)) (:sched-high (mag)))))
+    (is (= 7 (:sched-quantified (mag))))
+    (is (= 1 (:cost-unquantified (mag))))
+    (is (= 2 (:cost-minor (mag))))
+    (is (= 2 (:cost-moderate (mag))))
+    (is (= 2 (:cost-major (mag))))
+    (is (= 1 (:cost-high (mag))))
+    (is (= 8 (+ (:cost-unquantified (mag)) (:cost-minor (mag)) (:cost-moderate (mag)) (:cost-major (mag)) (:cost-high (mag)))))
+    (is (= 7 (:cost-quantified (mag))))
+    ;; 只读派生不改变变更: 重复读取分布稳定.
+    (is (= (mag) (:change_impact_magnitude (workspace id))))
+    ;; 修订去重: 给 c1 出一版不含量化影响的修订 -> 最新版两维皆未量化, 工期 high 2->1 & unquantified 1->2; 成本 high 1->0 & unquantified 1->2.
+    (command! id :changes :revisions (:id c1) (assoc base-body :title "工期12成本10万(撤销量化)"))
+    (is (= 8 (:total (mag))))
+    (is (= 2 (:sched-unquantified (mag))))
+    (is (= 1 (:sched-high (mag))))
+    (is (= 6 (:sched-quantified (mag))))
+    (is (= 2 (:cost-unquantified (mag))))
+    (is (= 0 (:cost-high (mag))))
+    (is (= 6 (:cost-quantified (mag))))
+    ;; 空态: 无变更 available false, 各档 0, 已量化 0.
+    (let [empty (approval/change-impact-magnitude [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:total empty)))
+      (is (= 0 (:sched-unquantified empty)))
+      (is (= 0 (:sched-zero empty)))
+      (is (= 0 (:sched-minor empty)))
+      (is (= 0 (:sched-moderate empty)))
+      (is (= 0 (:sched-high empty)))
+      (is (= 0 (:cost-unquantified empty)))
+      (is (= 0 (:cost-minor empty)))
+      (is (= 0 (:cost-moderate empty)))
+      (is (= 0 (:cost-major empty)))
+      (is (= 0 (:cost-high empty)))
+      (is (= 0 (:sched-quantified empty)))
+      (is (= 0 (:cost-quantified empty))))
+    ;; 纯函数直测边界(免迁移直读原始 map): 工期 9=moderate/10=high/0=zero, 成本 9999.99=minor/10000=moderate/50000=major/100000=high.
+    (let [edge (approval/change-impact-magnitude
+                 [{:code "A" :revision 1 :schedule_impact_days 9 :cost_impact_amount "9999.99"}
+                  {:code "B" :revision 1 :schedule_impact_days 10 :cost_impact_amount "10000.00"}
+                  {:code "C" :revision 1 :schedule_impact_days 0 :cost_impact_amount "50000.00"}
+                  {:code "D" :revision 1 :cost_impact_amount "100000.00"}])]
+      (is (= 4 (:total edge)))
+      (is (= 1 (:sched-unquantified edge)))
+      (is (= 1 (:sched-zero edge)))
+      (is (= 0 (:sched-minor edge)))
+      (is (= 1 (:sched-moderate edge)))
+      (is (= 1 (:sched-high edge)))
+      (is (= 3 (:sched-quantified edge)))
+      (is (= 0 (:cost-unquantified edge)))
+      (is (= 1 (:cost-minor edge)))
+      (is (= 1 (:cost-moderate edge)))
+      (is (= 1 (:cost-major edge)))
+      (is (= 1 (:cost-high edge)))
+      (is (= 4 (:cost-quantified edge))))))
+
+
 (deftest ccb-participation-summary-is-derived-read-only
   (let [id (project!)
         part (fn [] (:ccb_participation (workspace id)))
