@@ -186,6 +186,11 @@ const shots = [
 
 const byId = Object.fromEntries(shots.map(s => [s.id, s]));
 
+// 逐镜解说词: 数据单独放在 storyboard-narration.js (按 shot id 索引), 避免在分镜定义里散落 64 段文案.
+// compose.py 读取 storyboard.json 的 shot.narration 驱动 TTS 配音; 缺省则该镜头无旁白.
+const narration = require('./storyboard-narration.js');
+for (const s of shots) { if (narration[s.id]) s.narration = narration[s.id]; }
+
 // 字幕最短停留: 2.8 秒或按 6.5 字每秒.
 const minDuration = text => Math.max(2.8, [...text].length / 6.5);
 

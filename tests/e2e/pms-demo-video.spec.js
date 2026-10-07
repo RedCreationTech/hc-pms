@@ -915,11 +915,15 @@ const CHAPTERS = {
     await glide(page, drawer(page).getByText('收尾中', { exact: true }).first());
     await rec.end();
 
-    await tabUi(page, '结项与移交');
+    await open(page, id, '结项与移交');
     await rec.shot('12-2');
     const items = (await api(page, 'GET', base(id) + '/closure')).checks;
     const firstCheck = '交付物清单归档';
-    await tap(page, row(page, firstCheck).getByRole('button', { name: '确认完成', exact: true }));
+    await expect(drawer(page).getByText('收尾检查清单', { exact: true }).first()).toBeVisible();
+    await settle(page);
+    const completeBtn = page.getByRole('button', { name: '确认完成', exact: true });
+    const checkRow = drawer(page).locator('tbody tr:visible').filter({ has: completeBtn }).filter({ hasText: firstCheck }).first();
+    await tap(page, checkRow.getByRole('button', { name: '确认完成', exact: true }));
     await choose(page, modal(page, '完成收尾检查'), 'evidence_ref', 'DEMO-EV');
     await typeInto(page, modal(page, '完成收尾检查').locator('[id="comment"]'), '交付物清单已归档', 50);
     await save(page, '完成收尾检查');
@@ -935,7 +939,10 @@ const CHAPTERS = {
     await choose(page, hf, 'owner_id', /\/ admin$/);
     await setDate(page, hf.locator('[id="due_date"]'), today());
     await save(page, '新增交付移交');
-    await tap(page, row(page, '备件清单与操作手册移交客户').getByRole('button', { name: '确认移交', exact: true }));
+    await settle(page);
+    const handoverBtn = page.getByRole('button', { name: '确认移交', exact: true });
+    const handoverRow = drawer(page).locator('tbody tr:visible').filter({ has: handoverBtn }).filter({ hasText: '备件清单与操作手册移交客户' }).first();
+    await tap(page, handoverRow.getByRole('button', { name: '确认移交', exact: true }));
     const hd = modal(page, '确认交付移交');
     await choose(page, hd, 'evidence_ref', 'DEMO-EV');
     await typeInto(page, hd.locator('[id="comment"]'), '客户设备部签收', 55);
