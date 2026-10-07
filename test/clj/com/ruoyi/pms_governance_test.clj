@@ -5241,6 +5241,95 @@
     (is (= [{:type "review" :count 1}] (:by-type (att))))))
 
 
+(deftest meeting-cadence-summary-is-derived-read-only
+  ;; 纯函数直测: 固定历史日期免疫 today 漂移, 覆盖首末跨度/间隔最小平均最大/逐月分布/最热月份/星期分布/作废退出/同 code 只取最新/不足两场的零口径.
+  (let [base [{:code "C1" :revision 1 :status "recorded" :held_on "2026-01-01"}
+              {:code "C2" :revision 1 :status "recorded" :held_on "2026-01-08"}
+              {:code "C3" :revision 1 :status "recorded" :held_on "2026-01-15"}
+              {:code "C4" :revision 1 :status "approved" :held_on "2026-02-03"}
+              {:code "C5" :revision 1 :status "discarded" :held_on "2026-09-01"}]
+        s (collab/meeting-cadence-summary base)]
+    ;; 四场未作废带日期(作废的 C5 不计): 首 2026-01-01, 末 2026-02-03, 跨 33 天.
+    (is (true? (:available s)))
+    (is (= 4 (:total s)))
+    (is (= 1 (:discarded s)))
+    (is (= "2026-01-01" (:first-held s)))
+    (is (= "2026-02-03" (:last-held s)))
+    (is (= 33 (:span-days s)))
+    ;; 相邻间隔 7,7,19 -> 最小 7, 最大 19, 平均 round(33/3)=11.
+    (is (= 7 (:shortest-gap-days s)))
+    (is (= 19 (:longest-gap-days s)))
+    (is (= 11 (:avg-gap-days s)))
+    ;; 跨两自然月: 2026-01 三场, 2026-02 一场, 最热月 2026-01.
+    (is (= 2 (:distinct-months s)))
+    (is (= [{:month "2026-01" :count 3} {:month "2026-02" :count 1}] (:by-month s)))
+    (is (= {:month "2026-01" :count 3} (:busiest-month s)))
+    ;; 星期分布(周一到周日固定序, 仅列出现的): 2026-01-01/08/15 均周四, 2026-02-03 周二.
+    (is (= [{:weekday "tuesday" :count 1} {:weekday "thursday" :count 3}] (:by-weekday s))))
+  ;; 无会议: 全部零口径, available 假.
+  (let [empty (collab/meeting-cadence-summary [])]
+    (is (false? (:available empty)))
+    (is (= 0 (:total empty)))
+    (is (nil? (:first-held empty)))
+    (is (= 0 (:span-days empty)))
+    (is (nil? (:busiest-month empty)))
+    (is (empty? (:by-month empty)))
+    (is (empty? (:by-weekday empty))))
+  ;; 单场: total 1, 跨度与间隔均 0(不足两场无间隔), 最热月即该月.
+  (let [single (collab/meeting-cadence-summary [{:code "S" :revision 1 :status "recorded" :held_on "2026-03-05"}])]
+    (is (= 1 (:total single)))
+    (is (= 0 (:span-days single)))
+    (is (= 0 (:shortest-gap-days single)))
+    (is (= 0 (:avg-gap-days single)))
+    (is (= {:month "2026-03" :count 1} (:busiest-month single))))
+  ;; 同日两场(不同 code): 间隔计 0.
+  (let [same (collab/meeting-cadence-summary [{:code "D1" :revision 1 :status "recorded" :held_on "2026-04-01"}
+                                              {:code "D2" :revision 1 :status "recorded" :held_on "2026-04-01"}])]
+    (is (= 2 (:total same)))
+    (is (= 0 (:span-days same)))
+    (is (= 0 (:shortest-gap-days same)))
+    (is (= 0 (:longest-gap-days same)))
+    (is (= 0 (:avg-gap-days same))))
+  ;; 同 code 多 revision 只取最新: 旧 revision 的举办日不重复计入时间口径.
+  (let [dedup (collab/meeting-cadence-summary [{:code "R" :revision 1 :status "recorded" :held_on "2026-01-01"}
+                                               {:code "R" :revision 2 :status "approved" :held_on "2026-02-01"}])]
+    (is (= 1 (:total dedup)))
+    (is (= "2026-02-01" (:first-held dedup)))
+    (is (= [{:month "2026-02" :count 1}] (:by-month dedup)))))
+
+
+(deftest meeting-cadence-summary-workspace-exposes-derived-key
+  ;; 经真实命令登记三场会议(跨两月), 校验 workspace 暴露 :meeting_cadence 且随作废会议缩小时间口径而翻转.
+  (let [id (project!)
+        cad (fn [] (:meeting_cadence (workspace id)))
+        m1 (command! id :meetings :create nil
+                     {:title "一月协调会" :held_on "2026-01-06" :minutes "结论甲"
+                      :attendee_ids [9301] :meeting_type "regular"})
+        m2 (command! id :meetings :create nil
+                     {:title "二月评审会" :held_on "2026-02-10" :minutes "结论乙"
+                      :attendee_ids [9301] :meeting_type "review"})
+        m3 (command! id :meetings :create nil
+                     {:title "二月复盘会" :held_on "2026-02-24" :minutes "结论丙"
+                      :attendee_ids [9301] :meeting_type "regular"})]
+    ;; 三场未作废: 跨两月, 2026-02 两场为最热月.
+    (is (true? (:available (cad))))
+    (is (= 3 (:total (cad))))
+    (is (= 2 (:distinct-months (cad))))
+    (is (= [{:month "2026-01" :count 1} {:month "2026-02" :count 2}] (:by-month (cad))))
+    (is (= {:month "2026-02" :count 2} (:busiest-month (cad))))
+    ;; 作废 2026-02 评审会 -> 2026-02 只剩一场, 与 2026-01 各一场, 平票取更早月 2026-01.
+    (command! id :meetings :discard (:id m2) {:reason "评审并入复盘"})
+    (is (= 2 (:total (cad))))
+    (is (= 1 (:discarded (cad))))
+    (is (= [{:month "2026-01" :count 1} {:month "2026-02" :count 1}] (:by-month (cad))))
+    (is (= {:month "2026-01" :count 1} (:busiest-month (cad))))
+    ;; 再作废 2026-01 启动会 -> 只剩一场 2026-02, 跨月数与跨度归零.
+    (command! id :meetings :discard (:id m1) {:reason "启动会记录合并"})
+    (is (= 1 (:total (cad))))
+    (is (= 1 (:distinct-months (cad))))
+    (is (= 0 (:span-days (cad))))))
+
+
 (deftest node-pause-summary-is-derived-read-only
   ;; 纯函数直测: 固定 today 用整天粒度差值, 覆盖暂停中/已复工/节点类型/中断时项目状态/最长与平均时长.
   (let [today "2026-10-10"

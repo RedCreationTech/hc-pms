@@ -1649,6 +1649,63 @@
                       unattended))])])]))
 
 
+(defn- meeting-cadence-section
+  "按每个会议最新有效版本只读聚合会议节奏与间隔分布: 首末跨度, 相邻间隔最小/平均/最大, 逐月分布与最热月份, 星期分布; 只读派生, 不改变会议状态, 不构成门控."
+  [{:keys [model]}]
+  (let [cad (:meeting_cadence model)
+        available (:available cad false)
+        total (:total cad 0)
+        discarded (:discarded cad 0)
+        first-held (:first-held cad)
+        last-held (:last-held cad)
+        span (:span-days cad 0)
+        months (:distinct-months cad 0)
+        shortest (:shortest-gap-days cad 0)
+        avg-gap (:avg-gap-days cad 0)
+        longest (:longest-gap-days cad 0)
+        busiest (:busiest-month cad)
+        by-month (:by-month cad [])
+        by-weekday (:by-weekday cad [])
+        weekday-label {"monday" "周一" "tuesday" "周二" "wednesday" "周三" "thursday" "周四"
+                       "friday" "周五" "saturday" "周六" "sunday" "周日"}]
+    [shared/panel "会议节奏与间隔分布" "统计每个会议最新有效版本的举办时间节奏: 首末会议日期与跨天数, 相邻会议的最近/平均/最长间隔, 按月分布与最热月份, 按星期分布; 作废最新版会议即退出全部时间口径; 只读派生, 不改变会议状态, 不构成门控"
+     (if (not available)
+       [:span {:style {:color "#8793a3"}} "暂无带举办日期的有效会议, 登记会议并填写举办日期后可在此查看节奏与间隔分布."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "有效会议 " total)]
+         [antd/tag {:color "geekblue"} (str "首末跨度 " span " 天")]
+         [antd/tag {:color "gold"} (str "平均间隔 " avg-gap " 天")]
+         [antd/tag {:color "volcano"} (str "最近间隔 " shortest " 天 · 最长间隔 " longest " 天")]
+         [antd/tag {:color "cyan"} (str "跨 " months " 个月")]
+         (when (some? busiest)
+           [antd/tag {:color "purple"} (str "最热月份 " (:month busiest) " · " (:count busiest) " 场")])
+         (when (pos? discarded)
+           [antd/tag {:color "red"} (str "已作废会议 " discarded)])]
+        (when (and (some? first-held) (some? last-held))
+          [:div
+           [:span {:style {:fontWeight 500}} "举办区间: "]
+           [antd/tag (str first-held " ~ " last-held)]])
+        (when (seq by-month)
+          [:div
+           [:span {:style {:fontWeight 500}} "按月分布: "]
+           (into [antd/space {:wrap true}]
+                 (map (fn [m]
+                        ^{:key (:month m)}
+                        [antd/tag {:color "blue"} (str (:month m) " · " (:count m) " 场")])
+                      by-month))])
+        (when (seq by-weekday)
+          [:div
+           [:span {:style {:fontWeight 500}} "按星期分布: "]
+           (into [antd/space {:wrap true}]
+                 (map (fn [w]
+                        ^{:key (:weekday w)}
+                        [antd/tag {:color "cyan"} (str (get weekday-label (:weekday w) (:weekday w)) " · " (:count w) " 场")])
+                      by-weekday))])])]))
+
+
+
+
 (defn- action-section
   "会议行动转为实际WBS任务, 完成须证据与独立核验并提示逾期; 已关闭行动可受控重开."
   [{:keys [base model editable? open!] :as context}]
@@ -2307,7 +2364,7 @@
                      ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section]]
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
-                     ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section meeting-attendance-section action-closure-section project-remediation-overview-section due-workload-overview-section owner-due-pressure-section action-section]]
+                     ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section meeting-attendance-section meeting-cadence-section action-closure-section project-remediation-overview-section due-workload-overview-section owner-due-pressure-section action-section]]
                      ["changes" "变更控制" [change-section change-closure-section ccb-participation-section]]
                      ["quality" "DQ与局部暂停" [dq-summary-section dq-section node-pause-summary-section pause-section]]])}])
 

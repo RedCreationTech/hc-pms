@@ -1013,6 +1013,48 @@
      :unattended-members unattended}))
 
 
+(def meeting-cadence-weekday-order
+  "会议节奏按星期固定呈现顺序 (周一到周日), 与 java.time.DayOfWeek getValue 1..7 对齐, 保证分布一行回显顺序确定不随 frequencies 漂移 (仅计实际出现的星期)."
+  ["monday" "tuesday" "wednesday" "thursday" "friday" "saturday" "sunday"])
+
+
+(defn meeting-cadence-summary
+  "按每个会议最新有效版本只读聚合会议节奏与间隔分布: 以未作废且带举办日期 held_on 的会议为口径, 按 held_on 升序给出首末会议日期(first-held/last-held)与跨天数(span-days, 不足两场计 0), 相邻两次会议间隔的最小/平均/最大天数(shortest/avg/longest-gap-days, 同日举办计 0, 不足两场无间隔故均计 0), 按自然月 YYYY-MM 回显逐月会议数(by-month 月份升序)与最热月份(busiest-month, 会议数相同取更早月)及跨月数(distinct-months), 并按星期(周一到周日固定序)回显分布(by-weekday, 仅列实际出现的星期); 会议以 code 形成修订链经 store/latest 折叠只计最新版, 作废最新版即退出全部时间口径; 只读派生, 不落库不投递, 不改变会议状态, 不构成门控(会议节奏本身无门控). 键名一律不带尾随问号."
+  [meetings]
+  (let [active (s/latest meetings)
+        discarded (count (filterv #(= "discarded" (:status %)) active))
+        dated (filterv (fn [m] (and (not= "discarded" (:status m))
+                                    (some? (:held_on m)))) active)
+        held-strs (sort (map :held_on dated))
+        total (count held-strs)
+        days (mapv #(.toEpochDay (LocalDate/parse %)) held-strs)
+        gaps (map - (drop 1 days) (butlast days))
+        month-of (fn [h] (subs h 0 7))
+        month-freq (frequencies (map month-of held-strs))
+        by-month (mapv (fn [mo] {:month mo :count (get month-freq mo 0)})
+                       (sort (keys month-freq)))
+        busiest (when (seq month-freq)
+                  (ffirst (sort-by (fn [[mo c]] [(- c) mo]) month-freq)))
+        weekday-of (fn [h] (nth meeting-cadence-weekday-order
+                                (dec (.getValue (.getDayOfWeek (LocalDate/parse h))))))
+        weekday-freq (frequencies (map weekday-of held-strs))
+        by-weekday (mapv (fn [w] {:weekday w :count (get weekday-freq w 0)})
+                         (filter #(contains? weekday-freq %) meeting-cadence-weekday-order))]
+    {:available (pos? total)
+     :total total
+     :discarded discarded
+     :first-held (first held-strs)
+     :last-held (last held-strs)
+     :span-days (if (< 1 total) (- (peek days) (first days)) 0)
+     :distinct-months (count month-freq)
+     :shortest-gap-days (if (seq gaps) (apply min gaps) 0)
+     :longest-gap-days (if (seq gaps) (apply max gaps) 0)
+     :avg-gap-days (if (seq gaps) (int (Math/round ^double (/ (double (apply + gaps)) (count gaps)))) 0)
+     :busiest-month (when busiest {:month busiest :count (get month-freq busiest 0)})
+     :by-month by-month
+     :by-weekday by-weekday}))
+
+
 (defn enrich-risk-issue-links
   "读取时把已持久化的风险<->问题双向来源关联互相标注对方标题, 供台账可见; 只读派生不落库.
    issue.source_risk_id -> issue_source_risk_id/issue_source_risk_title; risk.issue_id -> risk_issue_id/risk_issue_title; 对端记录缺失时标题为 nil."
