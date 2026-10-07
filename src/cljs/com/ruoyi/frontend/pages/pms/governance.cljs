@@ -1626,6 +1626,47 @@
         (when (pos? ccb-quorum) [antd/tag {:color "geekblue"} (str "已达表决门槛 " ccb-quorum)])])]))
 
 
+(defn- ccb-participation-section
+  "只读汇总跨变更的变更控制委员会表决参与情况: 委员会覆盖的变更数, 席位与已投票数与参与率, 在途与停滞变更, 以及每位委员被邀请/已投/欠票负荷; 复用 ccb-tally 口径, 不改变任何表决进度或门控."
+  [{:keys [model options]}]
+  (let [sum (:ccb_participation model)
+        user-label (fn [uid]
+                     (let [u (first (filter #(= (str (:user_id %)) (str uid)) (:users options)))]
+                       (or (:nick_name u) (:user_name u) (str uid))))
+        committee-changes (:committee-changes sum 0)
+        members (:members sum 0)
+        seats (:seats sum 0)
+        ballots (:ballots sum 0)
+        pct (:participation-pct sum 0)
+        open (:open-changes sum 0)
+        stalled (:stalled-changes sum 0)
+        by-member (:by-member sum [])]
+    [shared/panel "委员会表决参与概览" "汇总已设立变更控制委员会的变更的表决参与度与每位委员的欠票负荷; 只读派生, 不改变任何表决进度或门控" nil
+     (if (zero? committee-changes)
+       [:span {:style {:color "#8793a3"}} "暂无已设立委员会的变更, 为审批中的变更登记委员会并表决后可在此查看参与度."]
+       [:<>
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "委员会变更 " committee-changes)]
+         [antd/tag {:color "geekblue"} (str "委员 " members " 人 / " seats " 席")]
+         [antd/tag {:color (cond (= pct 100) "green" (zero? pct) "red" :else "gold")}
+          (str "参与率 " pct "% (" ballots "/" seats " 票)")]
+         [antd/tag {:color "orange"} (str "在途 " open)]
+         (when (pos? stalled) [antd/tag {:color "red"} (str "停滞未决 " stalled)])]
+        (when (seq by-member)
+          [:div {:style {:marginTop 12}}
+           [:div {:style {:color "#8793a3" :fontSize 12 :marginBottom 6}} "委员欠票负荷 (按欠票数排序)"]
+           [antd/space {:wrap true}
+            (for [m by-member]
+              (let [mid (:member-id m)
+                    inv (or (:invited m) 0)
+                    cast (or (:cast m) 0)
+                    pend (or (:pending m) 0)]
+                ^{:key (str mid)}
+                [antd/tag {:color (cond (pos? pend) "red" (= cast inv) "green" :else "default")}
+                 (str (user-label mid) " · 已投 " cast "/" inv
+                      (when (pos? pend) (str " · 欠 " pend)))]))]])])]))
+
+
 (defn- gate-actions
   "先逐项验证证据,再提交独立Gate决策."
   [{:keys [base model options editable? approve? open!]} gate]
@@ -2091,7 +2132,7 @@
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section action-closure-section project-remediation-overview-section action-section]]
-                     ["changes" "变更控制" [change-section change-closure-section]]
+                     ["changes" "变更控制" [change-section change-closure-section ccb-participation-section]]
                      ["quality" "DQ与局部暂停" [dq-summary-section dq-section node-pause-summary-section pause-section]]])}])
 
 

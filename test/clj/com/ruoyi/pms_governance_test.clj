@@ -2568,6 +2568,86 @@
       (is (= 1 (:total snapshot))))))
 
 
+(deftest ccb-participation-summary-is-derived-read-only
+  (let [id (project!)
+        part (fn [] (:ccb_participation (workspace id)))
+        base-body {:title "更改设备范围" :reason "合同调整" :scope_impact "增加设备"
+                   :schedule_impact "增加五日" :cost_impact "重新估价" :quality_impact "增加测试"
+                   :resource_impact "追加工程师"}
+        c1 (command! id :changes :create nil base-body)   ; 委员会 voting: 门槛2 一票赞成, 停滞
+        c2 (command! id :changes :create nil base-body)   ; 委员会 门槛1 两票赞成 -> 通过并批准
+        c3 (command! id :changes :create nil base-body)   ; 无委员会草稿 -> 不计入
+        c4 (command! id :changes :create nil base-body)]  ; 委员会 零票 -> 停滞
+    ;; c1: 提交后设门槛2委员会, 仅 9302 一票赞成 -> in_review voting.
+    (command! id :changes :submit (:id c1) {:reviewer_id 9302})
+    (command! id :changes :ccb (:id c1) {:members [9302 9303] :required 2})
+    (command! 9302 id :changes :ballot (:id c1) {:vote "approve" :note "初投赞成"})
+    ;; c2: 提交后设门槛1委员会, 两票赞成达门槛 -> 独立批准后 approved.
+    (command! id :changes :submit (:id c2) {:reviewer_id 9302})
+    (command! id :changes :ccb (:id c2) {:members [9302 9303] :required 1})
+    (command! 9302 id :changes :ballot (:id c2) {:vote "approve" :note "同意"})
+    (command! 9303 id :changes :ballot (:id c2) {:vote "approve" :note "同意"})
+    (command! 9302 id :changes :decision (:id c2) {:decision "approved" :reason "达门槛后独立通过"})
+    ;; c4: 提交后设门槛2委员会, 无人投票 -> in_review voting 停滞.
+    (command! id :changes :submit (:id c4) {:reviewer_id 9302})
+    (command! id :changes :ccb (:id c4) {:members [9302 9303] :required 2})
+    ;; 席位=3个委员会变更各2席=6; 投票=1(c1)+2(c2)+0(c4)=3; 参与率=round(100*3/6)=50.
+    (is (true? (:available (part))))
+    (is (= 3 (:committee-changes (part))))
+    (is (= 2 (:members (part))))
+    (is (= 6 (:seats (part))))
+    (is (= 3 (:ballots (part))))
+    (is (= 50 (:participation-pct (part))))
+    ;; 在途委员会变更=c1+c4(c2已批准不计)=2; 停滞(voting未决)=c1+c4=2.
+    (is (= 2 (:open-changes (part))))
+    (is (= 2 (:stalled-changes (part))))
+    ;; 每位委员负荷: 9303 被邀请3(c1,c2,c4)已投1(c2)欠2; 9302 被邀请3已投2(c1,c2)欠1; 按欠票降序.
+    (is (= [{:member-id 9303 :invited 3 :cast 1 :pending 2}
+            {:member-id 9302 :invited 3 :cast 2 :pending 1}]
+           (:by-member (part))))
+    ;; 只读派生不改变任何变更状态或表决: 重复读取分布稳定.
+    (is (= (part) (:ccb_participation (workspace id))))
+    ;; 纯函数直测: 空输入 available false 且各计数与比率归零.
+    (let [empty (approval/ccb-participation-summary [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:committee-changes empty)))
+      (is (= 0 (:seats empty)))
+      (is (= 0 (:ballots empty)))
+      (is (= 0 (:participation-pct empty)))
+      (is (= [] (:by-member empty))))
+    ;; 纯函数直测: 与真实场景同构的手作数据, 无委员会变更不计入.
+    (let [hand (approval/ccb-participation-summary
+                 [{:code "A" :status "in_review" :ccb_members [1 2] :ccb_required 2 :ccb_ballots [{:member_id 1 :vote "approve"}]}
+                  {:code "B" :status "approved" :ccb_members [1 2] :ccb_required 1 :ccb_ballots [{:member_id 1 :vote "approve"} {:member_id 2 :vote "approve"}]}
+                  {:code "C" :status "draft"}
+                  {:code "D" :status "in_review" :ccb_members [1 2] :ccb_required 2}])]
+      (is (= 3 (:committee-changes hand)))
+      (is (= 6 (:seats hand)))
+      (is (= 3 (:ballots hand)))
+      (is (= 50 (:participation-pct hand)))
+      (is (= 2 (:open-changes hand)))
+      (is (= 2 (:stalled-changes hand)))
+      (is (= [{:member-id 2 :invited 3 :cast 1 :pending 2}
+              {:member-id 1 :invited 3 :cast 2 :pending 1}]
+             (:by-member hand))))
+    ;; 纯函数直测: 同 code 修订只计最新有效版本(旧版含一票, 新版无票 -> ballots 取 0).
+    (let [dedup (approval/ccb-participation-summary
+                  [{:code "R" :revision 1 :status "approved" :ccb_members [1] :ccb_required 1 :ccb_ballots [{:member_id 1 :vote "approve"}]}
+                   {:code "R" :revision 2 :status "in_review" :ccb_members [1 2] :ccb_required 2 :ccb_ballots []}])]
+      (is (= 1 (:committee-changes dedup)))
+      (is (= 2 (:seats dedup)))
+      (is (= 0 (:ballots dedup)))
+      (is (= 1 (:stalled-changes dedup)))
+      (is (= [{:member-id 1 :invited 1 :cast 0 :pending 1}
+              {:member-id 2 :invited 1 :cast 0 :pending 1}]
+             (:by-member dedup))))
+    ;; 非破坏性: 直测纯函数不写回输入记录.
+    (let [rows [{:code "K" :status "in_review" :ccb_members [1] :ccb_required 1 :ccb_ballots []}]
+          snapshot (approval/ccb-participation-summary rows)]
+      (is (= {:code "K" :status "in_review" :ccb_members [1] :ccb_required 1 :ccb_ballots []} (first rows)))
+      (is (= 1 (:committee-changes snapshot))))))
+
+
 (defn- request
   "经真实JWT及JSON中间件验证治理路由."
   [method path uid payload]

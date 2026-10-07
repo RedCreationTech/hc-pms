@@ -328,6 +328,42 @@
      :ccb-quorum quorum}))
 
 
+(defn ccb-participation-summary
+  "跨变更只读汇总变更控制委员会表决参与情况: 仅统计已设立委员会(设置了通过门槛且成员非空)的变更最新有效版本(s/latest, 修订链只计最新版), 计算委员会覆盖的变更数, 成员席位总数, 已投票数与参与率, 尚在进行中(in_review)的委员会变更数与停滞(voting 未决)数, 以及每位委员被邀请(所在委员会变更数)/已投票/欠投票分布; 复用 ccb-tally 口径, 只读派生不落库不投递, 不改变任何变更状态或门控. 键名 kebab-case 无尾随问号."
+  [changes]
+  (let [active (s/latest changes)
+        with-ccb (filterv #(and (some? (:ccb_required %)) (seq (:ccb_members %))) active)
+        ballots-of #(vec (:ccb_ballots %))
+        seats (reduce + (map #(count (:ccb_members %)) with-ccb))
+        votes (reduce + (map #(count (ballots-of %)) with-ccb))
+        in-review (filterv #(= "in_review" (:status %)) with-ccb)
+        stalled (count (filterv #(= "voting" (:state (ccb-tally %))) in-review))
+        member-ids (distinct (mapcat :ccb_members with-ccb))
+        invited (frequencies (mapcat :ccb_members with-ccb))
+        cast (frequencies (mapcat #(keep :member_id (ballots-of %)) with-ccb))
+        by-member (->> member-ids
+                       (map (fn [mid]
+                              (let [inv (get invited mid 0)
+                                    cas (get cast mid 0)]
+                                {:member-id mid
+                                 :invited inv
+                                 :cast cas
+                                 :pending (- inv cas)})))
+                       (sort-by (juxt (comp - :pending) (comp - :invited) :member-id))
+                       vec)]
+    {:available (pos? (count with-ccb))
+     :committee-changes (count with-ccb)
+     :members (count member-ids)
+     :seats seats
+     :ballots votes
+     :participation-pct (if (pos? seats)
+                          (int (Math/round ^double (/ (* 100.0 votes) seats)))
+                          0)
+     :open-changes (count in-review)
+     :stalled-changes stalled
+     :by-member by-member}))
+
+
 (defn- finalize-charter!
   "审批链落定章程: 末级通过即批准, 任一级驳回即退回."
   [q actor project rid decision reason]
