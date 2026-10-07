@@ -5147,6 +5147,100 @@
                                           {:title "复活" :probability 2 :impact 3 :mitigation "x"})))))))
 
 
+(deftest meeting-attendance-summary-is-derived-read-only
+  ;; 纯函数直测: 手写会议记录 + 成员向量, 固定分母口径(排除 discarded), 验证出勤排行/覆盖率/未参会点名/类型分布/平均参会的确定性与只读不变.
+  (let [today-members [{:user_id 1 :nick_name "张三" :user_name "zhangsan"}
+                       {:user_id 2 :nick_name "" :user_name "lisi"}
+                       {:user_id 3 :nick_name "王五" :user_name "wangwu"}
+                       {:user_id 4 :nick_name "赵六" :user_name "zhaoliu"}]
+        meetings [{:code "M1" :revision 1 :status "recorded" :title "第一次例会" :meeting_type "regular" :attendee_ids [1 2 3]}
+                  {:code "M2" :revision 1 :status "approved" :title "设计评审" :meeting_type "review" :attendee_ids [1 2]}
+                  ;; M3 含非成员 99: 出现在出勤排行(显示名回退 用户99)但不计入成员覆盖率.
+                  {:code "M3" :revision 1 :status "recorded" :title "第二次例会" :meeting_type "regular" :attendee_ids [1 99]}
+                  ;; M4 已作废: 从分母与类型分布中排除.
+                  {:code "M4" :revision 1 :status "discarded" :title "误登记的站会" :meeting_type "kickoff" :attendee_ids [1 2 3]}]
+        s (collab/meeting-attendance-summary meetings today-members)]
+    (is (true? (:available s)))
+    (is (= 3 (:total s)))
+    (is (= 1 (:discarded s)))
+    ;; 出勤次数: 1->3 (M1/M2/M3), 2->2 (M1/M2), 3->1 (M1), 99->1 (M3).
+    (is (= [1 2 3 99] (map :user-id (:top-attendees s))))
+    (is (= [3 2 1 1] (map :attended (:top-attendees s))))
+    ;; 出席率以未作废会议数 total=3 为分母: 3/3=100, 2/3=67, 1/3=33, 1/3=33.
+    (is (= [100 67 33 33] (map :attendance-pct (:top-attendees s))))
+    ;; 显示名: 1 nick 张三, 2 nick 空回落 user_name lisi, 3 王五, 99 非成员回落 用户99.
+    (is (= ["张三" "lisi" "王五" "用户99"] (map :name (:top-attendees s))))
+    ;; 成员覆盖: member-count 4, 出席过的成员 {1 2 3}=3, 99 非成员不计, 4 号赵六从未参会.
+    (is (= 4 (:member-count s)))
+    (is (= 3 (:attended-members s)))
+    (is (= 75 (:coverage-pct s)))
+    ;; 平均参会: 出席总人次 (3+2+2)=7 / 3 场 -> round 2.33 = 2.
+    (is (= 2 (:avg-attendance s)))
+    (is (= [{:user-id 4 :name "赵六"}] (:unattended-members s)))
+    ;; 类型分布按固定顺序只列实际出现的类型: regular 2 + review 1, 作废的 kickoff 不计.
+    (is (= [{:type "regular" :count 2} {:type "review" :count 1}] (:by-type s)))
+    ;; 纯只读: 两次调用结果相等, 且不改入参记录.
+    (is (= s (collab/meeting-attendance-summary meetings today-members)))
+    (is (= 4 (count meetings)))
+    (is (= [1 2 3] (:attendee_ids (first meetings)))))
+  ;; 空输入: available false, 分母 0, 排行与未参会清单为空.
+  (let [empty (collab/meeting-attendance-summary [] [{:user_id 1 :nick_name "甲" :user_name "u1"}])]
+    (is (false? (:available empty)))
+    (is (= 0 (:total empty)))
+    (is (= 0 (:coverage-pct empty)))
+    (is (= 0 (:avg-attendance empty)))
+    (is (empty? (:top-attendees empty)))
+    (is (empty? (:by-type empty)))
+    ;; 无会议时全部成员都算未参会.
+    (is (= [{:user-id 1 :name "甲"}] (:unattended-members empty))))
+  ;; 全部作废: in-scope 为空, available false, 但 discarded 计数保留, 覆盖率 0.
+  (let [all-void (collab/meeting-attendance-summary
+                   [{:code "K1" :revision 1 :status "discarded" :meeting_type "kickoff" :attendee_ids [1]}]
+                   [{:user_id 1 :nick_name "甲" :user_name "u1"}])]
+    (is (false? (:available all-void)))
+    (is (= 0 (:total all-void)))
+    (is (= 1 (:discarded all-void)))
+    (is (= 0 (:coverage-pct all-void)))
+    (is (empty? (:top-attendees all-void))))
+  ;; 同一 code 多 revision 只取最新: 旧 revision 的 attendee_ids 不重复计入.
+  (let [dedup (collab/meeting-attendance-summary
+                [{:code "M1" :revision 1 :status "recorded" :meeting_type "regular" :attendee_ids [1 2]}
+                 {:code "M1" :revision 2 :status "approved" :meeting_type "review" :attendee_ids [1 2 3]}]
+                [{:user_id 1 :nick_name "甲" :user_name "u1"}
+                 {:user_id 2 :nick_name "乙" :user_name "u2"}
+                 {:user_id 3 :nick_name "丙" :user_name "u3"}])]
+    (is (= 1 (:total dedup)))
+    ;; 只计最新 revision 的 [1 2 3]: 人均 1 次, 覆盖 3/3=100%, 类型只 review 一场.
+    (is (= [1 1 1] (map :attended (:top-attendees dedup))))
+    (is (= 100 (:coverage-pct dedup)))
+    (is (= 3 (:avg-attendance dedup)))
+    (is (= [{:type "review" :count 1}] (:by-type dedup)))))
+
+
+(deftest meeting-attendance-summary-workspace-exposes-derived-key
+  ;; 经真实命令登记两场会议(一常规一评审, 出席者含两名项目成员), 校验 workspace 暴露派生键且随作废会议缩小分母而翻转.
+  (let [id (project!)
+        att (fn [] (:meeting_attendance_summary (workspace id)))
+        m1 (command! id :meetings :create nil
+                     {:title "第一次例会" :held_on "2026-09-10" :minutes "结论甲"
+                      :attendee_ids [9301 9302] :meeting_type "regular"})
+        m2 (command! id :meetings :create nil
+                     {:title "设计评审" :held_on "2026-09-12" :minutes "结论乙"
+                      :attendee_ids [9301] :meeting_type "review"})]
+    ;; 两场未作废: total 2, 9301 出席 2 次(100%), 9302 出席 1 次(50%).
+    (is (true? (:available (att))))
+    (is (= 2 (:total (att))))
+    (is (= [9301 9302] (map :user-id (:top-attendees (att)))))
+    (is (= [2 1] (map :attended (:top-attendees (att)))))
+    (is (= [{:type "regular" :count 1} {:type "review" :count 1}] (:by-type (att))))
+    ;; 作废 m1 -> 分母缩到 1, 9302 不再是出席者(其唯一参与场次被作废), 类型分布只剩 review 一档.
+    (command! id :meetings :discard (:id m1) {:reason "例会合并到评审"})
+    (is (= 1 (:total (att))))
+    (is (= 1 (:discarded (att))))
+    (is (= [9301] (map :user-id (:top-attendees (att)))))
+    (is (= [{:type "review" :count 1}] (:by-type (att))))))
+
+
 (deftest node-pause-summary-is-derived-read-only
   ;; 纯函数直测: 固定 today 用整天粒度差值, 覆盖暂停中/已复工/节点类型/中断时项目状态/最长与平均时长.
   (let [today "2026-10-10"

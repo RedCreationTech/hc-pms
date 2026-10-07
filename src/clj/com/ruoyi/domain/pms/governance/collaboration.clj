@@ -961,6 +961,58 @@
      :hottest (first ranked)}))
 
 
+(def meeting-attendance-type-order
+  "会议参会概览按会议类型固定呈现顺序 (与 meeting-types 枚举一致), 仅列出实际出现的类型, 保证分布一行回显顺序确定不随 frequencies 漂移."
+  ["regular" "kickoff" "review" "fat-kickoff" "fat-summary"])
+
+
+(def meeting-attendance-top-limit
+  "会议参会概览出勤排行最多点名的参会人数上限, 参会次数相同依次比较显示名再用户ID升序保证确定性 (仅用于只读排名不构成门控)."
+  10)
+
+
+(defn meeting-attendance-summary
+  "按每个会议最新有效版本只读聚合参会覆盖与出勤分布: 以未作废会议为分母, 统计平均每场参会人数(avg-attendance), 按 attendee_ids 汇总各人参会次数给出出勤排行(top-attendees, 次数降序截断上限), 按 meeting_type 回显会议类型分布(by-type, 仅实际出现类型); 另以项目成员为口径计算参会覆盖率(至少出席过一次会议的成员占比 attended-members/member-count -> coverage-pct)并点名从未参会的成员(unattended-members). attendee_ids 是经 s/user! 校验的用户ID(可能含非项目成员), 故出勤排行覆盖全部出席者(非成员显示名回退 用户<id>), 而覆盖与未参会仅统计项目成员集合; 只读派生, 不落库不投递, 不改变会议或成员状态, 不构成门控(会议出席本身无门控). 键名一律不带尾随问号."
+  [meetings members]
+  (let [active (s/latest meetings)
+        discarded (count (filterv #(= "discarded" (:status %)) active))
+        in-scope (filterv #(not= "discarded" (:status %)) active)
+        total (count in-scope)
+        member-name (into {} (map (fn [m] [(:user_id m)
+                                           (or (not-empty (:nick_name m))
+                                               (not-empty (:user_name m))
+                                               (str "用户" (:user_id m)))]))
+                         members)
+        member-ids (into #{} (map :user_id) members)
+        name-of (fn [uid] (or (get member-name uid) (str "用户" uid)))
+        attendees (mapcat (fn [m] (distinct (:attendee_ids m))) in-scope)
+        pct (fn pct [n d] (if (pos? d) (int (Math/round ^double (* 100.0 (/ n d)))) 0))
+        freq (frequencies attendees)
+        top (->> (for [[uid c] freq]
+                   {:user-id uid :name (name-of uid) :attended c :attendance-pct (pct c total)})
+                 (sort-by (fn [m] [(- (:attended m)) (:name m) (:user-id m)]))
+                 (take meeting-attendance-top-limit)
+                 vec)
+        attended-member-ids (into #{} (filter member-ids) attendees)
+        unattended (->> (remove #(attended-member-ids (:user_id %)) members)
+                        (map (fn [m] {:user-id (:user_id m) :name (get member-name (:user_id m))}))
+                        (sort-by (fn [m] [(:name m) (:user-id m)]))
+                        vec)
+        type-freq (frequencies (map :meeting_type in-scope))
+        by-type (mapv (fn [t] {:type t :count (get type-freq t 0)})
+                      (filter #(contains? type-freq %) meeting-attendance-type-order))]
+    {:available (pos? total)
+     :total total
+     :discarded discarded
+     :member-count (count member-ids)
+     :attended-members (count attended-member-ids)
+     :coverage-pct (pct (count attended-member-ids) (count member-ids))
+     :avg-attendance (if (pos? total) (int (Math/round ^double (/ (count attendees) total))) 0)
+     :by-type by-type
+     :top-attendees top
+     :unattended-members unattended}))
+
+
 (defn enrich-risk-issue-links
   "读取时把已持久化的风险<->问题双向来源关联互相标注对方标题, 供台账可见; 只读派生不落库.
    issue.source_risk_id -> issue_source_risk_id/issue_source_risk_title; risk.issue_id -> risk_issue_id/risk_issue_title; 对端记录缺失时标题为 nil."

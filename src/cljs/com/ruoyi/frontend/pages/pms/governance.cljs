@@ -1595,6 +1595,60 @@
                  (map (fn [m] ^{:key (:code m)} [antd/tag {:color "orange"} (str (:title m) " · 未发布 " (:pending-count m))]) pending-meetings))])])]))
 
 
+(defn- meeting-attendance-section
+  "按每个会议最新有效版本只读聚合参会覆盖与出勤分布: 平均每场参会人数, 出勤排行(参会次数降序), 会议类型分布, 项目成员参会覆盖率与从未参会成员点名; 只读派生, 不改变会议或成员状态, 不构成门控."
+  [{:keys [model]}]
+  (let [cov (:meeting_attendance_summary model)
+        available (:available cov false)
+        total (:total cov 0)
+        discarded (:discarded cov 0)
+        member-count (:member-count cov 0)
+        attended-members (:attended-members cov 0)
+        coverage (:coverage-pct cov 0)
+        avg (:avg-attendance cov 0)
+        by-type (:by-type cov [])
+        top (:top-attendees cov [])
+        unattended (:unattended-members cov [])
+        type-label {"regular" "例会" "kickoff" "启动会" "review" "评审会" "fat-kickoff" "FAT启动" "fat-summary" "FAT总结"}
+        attend-color (fn [p] (cond (>= p 80) "green" (>= p 50) "gold" :else "volcano"))]
+    [shared/panel "会议参会覆盖与出勤分布" "统计每个会议最新有效版本的参会情况: 平均每场参会人数, 按人汇总的出勤排行, 会议类型分布, 以及以项目成员为口径的参会覆盖率与从未参会成员点名; 出勤排行含全部出席者(非成员按用户ID回退显示), 覆盖率仅统计项目成员; 只读派生, 不改变会议或成员状态, 不构成门控"
+     (if (not available)
+       [:span {:style {:color "#8793a3"}} "暂无有效会议, 登记项目会议并填写参会人后可在此查看参会覆盖与出勤分布."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "有效会议 " total)]
+         [antd/tag {:color (cond (= coverage 100) "green" (zero? coverage) "red" :else "gold")}
+          (str "成员参会覆盖 " coverage "% (" attended-members "/" member-count ")")]
+         [antd/tag {:color "geekblue"} (str "平均每场参会 " avg " 人")]
+         (when (pos? discarded)
+           [antd/tag {:color "red"} (str "已作废会议 " discarded)])]
+        (when (seq by-type)
+          [:div
+           [:span {:style {:fontWeight 500}} "会议类型分布: "]
+           (into [antd/space {:wrap true}]
+                 (map (fn [t]
+                        ^{:key (:type t)}
+                        [antd/tag {:color "cyan"} (str (get type-label (:type t) (:type t)) " · " (:count t) " 场")])
+                      by-type))])
+        (when (seq top)
+          [:div
+           [:span {:style {:fontWeight 500}} "出勤排行: "]
+           (into [antd/space {:wrap true}]
+                 (map (fn [o]
+                        ^{:key (:user-id o)}
+                        [antd/tag {:color (attend-color (:attendance-pct o 0))}
+                         (str (:name o) " · 参会 " (:attended o 0) " 次 · " (:attendance-pct o 0) "%")])
+                      top))])
+        (when (seq unattended)
+          [:div
+           [:span {:style {:fontWeight 500}} "从未参会成员: "]
+           (into [antd/space {:wrap true}]
+                 (map (fn [m]
+                        ^{:key (:user-id m)}
+                        [antd/tag {:color "default"} (:name m)])
+                      unattended))])])]))
+
+
 (defn- action-section
   "会议行动转为实际WBS任务, 完成须证据与独立核验并提示逾期; 已关闭行动可受控重开."
   [{:keys [base model editable? open!] :as context}]
@@ -2253,7 +2307,7 @@
                      ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section]]
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
-                     ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section action-closure-section project-remediation-overview-section due-workload-overview-section owner-due-pressure-section action-section]]
+                     ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section meeting-attendance-section action-closure-section project-remediation-overview-section due-workload-overview-section owner-due-pressure-section action-section]]
                      ["changes" "变更控制" [change-section change-closure-section ccb-participation-section]]
                      ["quality" "DQ与局部暂停" [dq-summary-section dq-section node-pause-summary-section pause-section]]])}])
 
