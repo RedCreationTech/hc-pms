@@ -898,6 +898,69 @@
                    (mapv #(select-keys % [:source :id :title :due-date :due-days])))}))
 
 
+(def owner-pressure-overdue-weight
+  "责任人到期压力热点把每条已逾期事项按该权重计入责任人压力指数, 逾期最痛故权重最高 (工程默认启发式, 仅用于只读排名不构成门控)."
+  4)
+
+(def owner-pressure-due-soon-weight
+  "责任人到期压力热点把每条临期(7天内)事项按该权重计入责任人压力指数 (工程默认启发式, 仅用于只读排名)."
+  2)
+
+(def owner-pressure-upcoming-weight
+  "责任人到期压力热点把每条未来到期(30天内)事项按该权重计入责任人压力指数 (工程默认启发式, 仅用于只读排名)."
+  1)
+
+(def owner-hotspot-limit
+  "责任人到期压力热点按压力指数降序最多点名的责任人条数, 压力相同依次比较逾期数/临期数/未闭环总数/责任人ID升序保证确定性."
+  10)
+
+
+(defn owner-due-pressure
+  "跨风险/问题/行动按责任人只读聚合其未闭环事项的到期压力热点: 复用 due-overview-open?/due-overview-date/days-until/due-overview-bucket 逐条分档, 按 owner_id 聚合 open/overdue/due-soon/upcoming/further/undated 与加权压力指数(逾期x4+临期x2+未来x1), 压力降序截断 owner-hotspot-limit 点名最热责任人, 无 owner_id 者单独计入 unassigned-total 不混入热点; owner-name 为 user_id->显示名映射缺失回退 用户<id>. 只读派生不落库不投递不构成门控. 键名不带尾随问号."
+  [risks issues actions owner-name]
+  (let [itemized (for [[kind rows] [["risk" risks] ["issue" issues] ["action" actions]]
+                       row rows
+                       :when (due-overview-open? kind row)
+                       :let [due (due-overview-date kind row)
+                             days (when (some? due) (days-until due))]]
+                   {:owner (:owner_id row)
+                    :bucket (due-overview-bucket days)})
+        assigned (remove (comp nil? :owner) itemized)
+        unassigned (count (filter (comp nil? :owner) itemized))
+        tally (fn tally [items]
+                (let [c (frequencies (map :bucket items))
+                      t {:open (count items)
+                         :overdue (get c :overdue 0)
+                         :due-soon (get c :due-soon 0)
+                         :upcoming (get c :upcoming 0)
+                         :further (get c :further 0)
+                         :undated (get c :undated 0)}]
+                  (assoc t :pressure (+ (* owner-pressure-overdue-weight (:overdue t))
+                                        (* owner-pressure-due-soon-weight (:due-soon t))
+                                        (* owner-pressure-upcoming-weight (:upcoming t))))))
+        by-owner-raw (for [[owner items] (group-by :owner assigned)]
+                       (assoc (tally items)
+                              :owner-id owner
+                              :name (or (get owner-name owner) (str "用户" owner))))
+        bucket-total (fn bucket-total [b] (count (filterv #(= b (:bucket %)) assigned)))
+        ranked (->> by-owner-raw
+                    (sort-by (fn ranked-key [m] [(- (:pressure m)) (- (:overdue m)) (- (:due-soon m)) (- (:open m)) (:owner-id m)]))
+                    (take owner-hotspot-limit)
+                    vec)]
+    {:available (pos? (count assigned))
+     :assigned-total (count assigned)
+     :unassigned-total unassigned
+     :owner-count (count (distinct (map :owner assigned)))
+     :overdue (bucket-total :overdue)
+     :due-soon (bucket-total :due-soon)
+     :upcoming (bucket-total :upcoming)
+     :further (bucket-total :further)
+     :undated (bucket-total :undated)
+     :owners-with-overdue (count (filterv #(pos? (:overdue %)) by-owner-raw))
+     :by-owner ranked
+     :hottest (first ranked)}))
+
+
 (defn enrich-risk-issue-links
   "读取时把已持久化的风险<->问题双向来源关联互相标注对方标题, 供台账可见; 只读派生不落库.
    issue.source_risk_id -> issue_source_risk_id/issue_source_risk_title; risk.issue_id -> risk_issue_id/risk_issue_title; 对端记录缺失时标题为 nil."

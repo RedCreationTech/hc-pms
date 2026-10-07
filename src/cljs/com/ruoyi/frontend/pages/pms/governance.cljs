@@ -1472,6 +1472,64 @@
                       (:soonest ov)))])])]))
 
 
+(defn- owner-due-pressure-section
+  "跨风险/问题/会议行动按责任人只读聚合其未闭环事项的到期压力热点: 以责任人维度加权排名(逾期x4+临期x2+未来x1)点名最热责任人, 无到期日不计压力, 无责任人事项单独计数不混入热点; 与按事项维度的到期治理事项总览互补; 只读派生, 不改变任何记录, 不构成门控."
+  [{:keys [model]}]
+  (let [op (:owner_due_pressure model)
+        available (:available op false)
+        assigned (:assigned-total op 0)
+        unassigned (:unassigned-total op 0)
+        owner-count (:owner-count op 0)
+        owners-od (:owners-with-overdue op 0)
+        overdue (:overdue op 0)
+        due-soon (:due-soon op 0)
+        upcoming (:upcoming op 0)
+        undated (:undated op 0)
+        by-owner (:by-owner op [])
+        hottest (:hottest op)
+        pressure-color (fn [p] (cond (>= p 8) "red" (>= p 4) "volcano" (>= p 2) "gold" :else "blue"))
+        owner-text (fn [o]
+                     (str (:name o) " · 压力 " (:pressure o 0)
+                          " · 未闭环 " (:open o 0)
+                          (when (pos? (:overdue o 0)) (str " · 逾期 " (:overdue o 0)))
+                          (when (pos? (:due-soon o 0)) (str " · 临期 " (:due-soon o 0)))
+                          (when (pos? (:upcoming o 0)) (str " · 未来 " (:upcoming o 0)))
+                          (when (pos? (:further o 0)) (str " · 更远 " (:further o 0)))
+                          (when (pos? (:undated o 0)) (str " · 无日期 " (:undated o 0)))))]
+    [shared/panel "责任人到期压力热点" "把风险/问题/会议行动按责任人聚合其未闭环事项的到期压力并加权排名(已逾期x4 + 临期7天内x2 + 未来30天内x1), 压力降序点名最需要关注或再分配的责任人; 无到期日不计压力, 无责任人事项单独计数不混入热点; 与按事项维度的到期治理事项总览互补; 只读派生, 不改变任何记录, 不构成门控"
+     (if (not available)
+       [:span {:style {:color "#8793a3"}} "暂无分配了责任人的未闭环到期事项, 给风险/问题/行动指定责任人并设定到期日后可在此查看压力热点."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "purple"} (str "有责任人未闭环 " assigned)]
+         (when (pos? unassigned)
+           [antd/tag {:color "default"} (str "无责任人 " unassigned)])]
+        [antd/space {:wrap true}
+         [antd/tag {:color "geekblue"} (str "涉及责任人 " owner-count)]
+         (when (pos? owners-od)
+           [antd/tag {:color "red"} (str "有逾期责任人 " owners-od)])
+         (when (pos? overdue)
+           [antd/tag {:color "red"} (str "逾期事项 " overdue)])
+         (when (pos? due-soon)
+           [antd/tag {:color "volcano"} (str "临期事项 " due-soon)])
+         (when (pos? upcoming)
+           [antd/tag {:color "gold"} (str "未来事项 " upcoming)])
+         (when (pos? undated)
+           [antd/tag {:color "default"} (str "无到期日 " undated)])]
+        (when hottest
+          [:div
+           [:span {:style {:fontWeight 500}} "最热责任人: "]
+           [antd/tag {:color (pressure-color (:pressure hottest 0))} (owner-text hottest)]])
+        (when (seq by-owner)
+          [:div
+           [:span {:style {:fontWeight 500}} "压力排名: "]
+           (into [antd/space {:wrap true}]
+                 (map (fn [o]
+                        ^{:key (:owner-id o)}
+                        [antd/tag {:color (pressure-color (:pressure o 0))} (owner-text o)])
+                      by-owner))])])]))
+
+
 (defn- meeting-release-coverage-section
   "按每个会议最新有效版本只读聚合纪要发布进度: 会议总数/已发布/审批中/草稿/已作废及发布率(分母排除已作废); 只读派生, 不改变会议状态, 不构成门控."
   [{:keys [model]}]
@@ -2195,7 +2253,7 @@
                      ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section]]
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
-                     ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section action-closure-section project-remediation-overview-section due-workload-overview-section action-section]]
+                     ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section action-closure-section project-remediation-overview-section due-workload-overview-section owner-due-pressure-section action-section]]
                      ["changes" "变更控制" [change-section change-closure-section ccb-participation-section]]
                      ["quality" "DQ与局部暂停" [dq-summary-section dq-section node-pause-summary-section pause-section]]])}])
 

@@ -86,6 +86,7 @@
                    docs-by-id (into {} (map (juxt :id identity)) (:documents data))
                    voided-codes (evidence/voided-document-codes docs-by-id)
                    traces-by-req (group-by :requirement_id (:traces data))
+                   owner-name (into {} (map (fn [m] [(:user_id m) (or (not-empty (:nick_name m)) (not-empty (:user_name m)) (str "用户" (:user_id m)))]) (q :pms/members {:project_id (:project_id project)})))
                    traceability (evidence/traceability-report (:requirements data) (:traces data))]
                (-> data
                    (update :meetings collab/enrich-meetings actions-by-meeting)
@@ -137,6 +138,7 @@
                           :action_closure (collab/action-closure-summary (:actions data))
                           :project_remediation_overview (collab/project-remediation-overview (:actions data) (:issues data))
                           :due_workload_overview (collab/due-workload-overview (:risks data) (:issues data) (:actions data))
+                          :owner_due_pressure (collab/owner-due-pressure (:risks data) (:issues data) (:actions data) owner-name)
                           :meeting_release_coverage (collab/meeting-release-coverage (:meetings data))
                           :meeting_material_readiness (collab/meeting-material-readiness (:meetings data) docs-by-id)
                           :node_pause_summary (quality/node-pause-summary (:node_pauses data) nil)

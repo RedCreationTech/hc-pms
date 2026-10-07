@@ -1853,6 +1853,72 @@
       (is (= "open" (:status (first (filter #(= (:id risk) (:id %)) (:risks (workspace id))))))))))
 
 
+(deftest owner-due-pressure-ranks-hotspots-and-excludes-unassigned-read-only
+  (let [today (java.time.LocalDate/now)
+        iso #(.toString %)
+        owner-name {1 "甲" 2 "乙"}
+        risks [{:id "r1" :status "open" :owner_id 1 :due_date (iso (.minusDays today 5))}     ;; 逾期(4)
+               {:id "r2" :status "open" :owner_id 1 :due_date (iso (.plusDays today 3))}       ;; 临期(2)
+               {:id "r3" :status "closed" :owner_id 1 :due_date (iso (.minusDays today 40))}   ;; 已关闭不计
+               {:id "r4" :status "mitigating" :owner_id 2 :due_date (iso (.minusDays today 20))}] ;; 逾期(4)
+        issues [{:id "i1" :status "open" :owner_id 1 :due_date (iso (.plusDays today 15))}     ;; 未来(1)
+                {:id "i2" :status "open" :owner_id nil :due_date (iso (.minusDays today 3))}]   ;; 无责任人只计未分配
+        actions [{:id "a1" :status "open" :owner_id 2 :due_date nil}]                          ;; 无到期日不计压力
+        op (collab/owner-due-pressure risks issues actions owner-name)
+        o1 (first (:by-owner op))
+        o2 (second (:by-owner op))]
+    ;; 压力降序: 责任人1 (4+2+1=7) 最热, 责任人2 (4+0+0=4) 次之.
+    (is (true? (:available op)))
+    (is (= 5 (:assigned-total op)))
+    (is (= 1 (:unassigned-total op)))
+    (is (= 2 (:owner-count op)))
+    (is (= 2 (:overdue op)))   ;; 仅计有责任人: r1+r4, 排除无责任人 i2
+    (is (= 1 (:due-soon op)))
+    (is (= 1 (:upcoming op)))
+    (is (= 0 (:further op)))
+    (is (= 1 (:undated op)))
+    (is (= 2 (:owners-with-overdue op)))
+    (is (= 1 (:owner-id (:hottest op))))
+    (is (= [1 2] (map :owner-id (:by-owner op))))
+    (is (= {:owner-id 1 :name "甲" :open 3 :overdue 1 :due-soon 1 :upcoming 1 :further 0 :undated 0 :pressure 7} o1))
+    (is (= {:owner-id 2 :name "乙" :open 2 :overdue 1 :due-soon 0 :upcoming 0 :further 0 :undated 1 :pressure 4} o2))
+    ;; 只读派生不回写来源状态: 风险/问题状态原样.
+    (is (= "open" (:status (first (filter #(= "r1" (:id %)) risks)))))
+    ;; 空输入: available false, 全 0, 热点空.
+    (let [empty (collab/owner-due-pressure [] [] [] {})]
+      (is (false? (:available empty)))
+      (is (= 0 (:assigned-total empty)))
+      (is (= 0 (:owner-count empty)))
+      (is (empty? (:by-owner empty)))
+      (is (nil? (:hottest empty))))))
+
+
+(deftest owner-due-pressure-in-workspace-aggregates-owner-pressure-and-does-not-write-back
+  (let [id (project!)
+        today (java.time.LocalDate/now)
+        _risk (command! id :risks :create nil
+                        {:title "压力热点风险" :probability 2 :impact 3 :owner_id 9301
+                         :mitigation "提前处置" :due_date (str (.minusDays today 5))})
+        _issue (command! id :issues :create nil
+                         {:title "压力热点问题" :severity "minor" :owner_id 9301
+                          :due_date (str (.plusDays today 3))})
+        op (:owner_due_pressure (workspace id))
+        hottest (:hottest op)]
+    ;; 责任人 9301: 逾期 1(风险 x4) + 临期 1(问题 x2) = 压力 6, 昵称解析为治理测试9301.
+    (is (true? (:available op)))
+    (is (= 2 (:assigned-total op)))
+    (is (= 1 (:owner-count op)))
+    (is (= 1 (:overdue op)))
+    (is (= 1 (:due-soon op)))
+    (is (= 9301 (:owner-id hottest)))
+    (is (= "治理测试9301" (:name hottest)))
+    (is (= 6 (:pressure hottest)))
+    (is (= [{:owner-id 9301 :name "治理测试9301" :open 2 :overdue 1 :due-soon 1 :upcoming 0 :further 0 :undated 0 :pressure 6}]
+           (:by-owner op)))
+    ;; 只读派生不回写来源状态: 风险仍 open.
+    (is (= "open" (:status (first (filter #(= (:id _risk) (:id %)) (:risks (workspace id)))))))))
+
+
 (deftest dq-failed-required-checks-materialize-all-tracked-remediation-actions-in-one-call
   (let [id (project!)
         dq (command! id :dqs :create nil
