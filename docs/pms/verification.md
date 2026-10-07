@@ -2310,6 +2310,23 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 本项是 C07 `partial` 行之下的一个 well-scoped 只读子能力 (把散落在逐条会议台账的 `held_on` 汇成项目级时间节奏与间隔分布), 不改变任何不可变版本, 不新增写路径或门控, 也不改变既有会议预读就绪度/参会出勤/纪要发布覆盖度/行动闭环语义; 节奏统计只反映会议是否登记了 `held_on` 及最新版本是否作废, 不等于会议是否真正召开或数据是否完整 (未填日期的会议不进时间分母), 不做按周/按季趋势留存、跨项目节奏对比或到期提醒投递 (投递属 C11 待办), MySQL 回归待补充.
 
+## H09ct 变更请求类型分布只读汇总 (本轮增补, 2026-10-07)
+
+设计与口径: 变更侧此前已有"变更控制闭环汇总"(按工作流状态/高影响/升级处置/委员会表决切分) 与"委员会表决参与概览"(按委员欠票负荷切分), 但 PMBOK 四类变更请求 (纠错性/预防性/缺陷修复/更新) 的**类型构成与标注完整度**这一合规口径此前无项目级聚合视角——只能逐条看台账"变更类型"列. 本项把"给治理台账加只读派生洞察"套路应用到变更请求类型维度, 免迁移 / 免新 kind / 免新命令 / 免新路由 / 不构成门控: 新增纯函数 `governance.approval/change-type-coverage`, 入参为 workspace 已取好的 `(:changes data)` 全量变更; 复用 `store/latest` 以每个变更 `code` 的最新有效版本为统计单位 (与闭环汇总/委员会参与同一修订链去重口径), 类型词汇直接复用写路径公开 `def` `change-types` 集合 (`corrective`/`preventive`/`defect-repair`/`updates`) 避免口径漂移, 未填或空串在写入侧即不写该键 (读回 `nil`) 故计入"未设定"; 输出 `{available total declared undeclared coverage-pct by-type}`——`total` 为最新有效变更数, `declared` 为 `:change_type` 命中四类之一者, `undeclared = total - declared`, `coverage-pct = round(100*declared/total)` (`total` 为 0 给 0), `by-type` 为固定四类顺序的 `{:type :count}` 向量 (四类计数之和等于 `declared`), `available = (pos? total)`. 键名一律 kebab-case 不带尾随 `?`. `governance.clj` workspace 在 `:ccb_participation` 之后 `assoc :change_type_coverage (approval/change-type-coverage (:changes data))`. 前端 `governance.cljs` 在"需求与治理 > 变更控制"页签闭环汇总与委员会参与面板之间注册 `change-type-coverage-section` "变更请求类型分布": `total` 为 0 时给占位提示, 有数据时以蓝"变更总数 N"、参与率随百分比着色 (100 绿 / 0 红 / 其余 gold)"已标注类型 P%"、橙"未设定 N" (仅 `undeclared > 0`) 标签回显, 下接"按请求类型:"逐类彩色标签"中文名 · 计数" (有计数 geekblue、无计数 default).
+
+| 项 | 结果 |
+| --- | --- |
+| 后端命名空间 (冷 JVM) | `env -u PMS_TEST_JDBC_URL clojure -M:test -d test/clj -r 'com\.ruoyi\.pms-governance-test'` 通过 125 tests / 2145 assertions, 0 failures/errors (新增 deftest `change-type-coverage-is-derived-read-only`: 真实命令登记四类各一条 + 一条未选 + 一条空串共六条变更 → `total` 6 / `declared` 4 / `undeclared` 2 / `coverage-pct` 67 / `by-type` 四类各 1 且和为 4; 对某条 corrective 变更 `revise` 为 preventive → corrective 归 0、preventive 变 2 而 `declared` 不变 (修订链只计最新版); 纯函数直测空输入 (available 假/全 0/四类各 0)、同 code 修订只计最新版、直接测函数不写回输入记录) |
+| 全量 PMS 回归 (冷 JVM) | `env -u PMS_TEST_JDBC_URL clojure -M:test -d test/clj -r 'com\.ruoyi\.pms.*-test'` 逐命名空间各自独立临时库运行全绿 282 tests / 4282 assertions, 0 failures / 0 errors (含本增量新增一条 deftest, workspace 新增 `:change_type_coverage` 未造成既有变更闭环汇总/委员会参与/会议节奏/参会出勤/到期总览/责任人热点/节点暂停等各只读派生回归; 保持逐命名空间独立临时库口径, 若共享单一 `PMS_TEST_JDBC_URL` 会命中一处与本增量无关的既有 fixture 主键冲突 `pms_delivery_test` 与 `pms_finance_commitment_test` 各自硬编码同一 `sys_role.role_id` 9500) |
+| 前端编译 | `npx shadow-cljs compile app` 通过 4035 files / 0 warnings (新增"变更请求类型分布"面板: 汇总彩色标签 + "按请求类型:"逐类 `for`+`^{:key}` 标签; 空态占位提示) |
+| HTTP 合同 (契约) | `docs/pms/contracts/governance.md` 新增"变更请求类型分布 (H09ct 延伸)"段: GET `/governance` 读模型新字段 `change_type_coverage` 的输出结构 (`store/latest` 修订链去重下的四类计数/已声明/未设定/覆盖率), 类型词汇复用 `change-types` 单一来源, 键名无尾随问号, 前端只读面板, 明确不落库 / 免新 kind·命令·路由 / 不构成门控 |
+| 浏览器 E2E (隔离 `:3100` 独立空库, 单上下文) | 断言用例 `pms-chtc.spec.js` 2 passed (46.7s, 无未捕获 JS 错误): 真实 UI 建项目 → "提出项目变更"分别选纠错性/预防性/缺陷修复/更新四类各一条 + 一条不选类型 → 命令回显英文枚举 (corrective/preventive/defect-repair/updates, 未选为 null) → GET governance 回显 `change_type_coverage` available true / total 5 / declared 4 / undeclared 1 / coverage-pct 80 / by-type 四类各 1; 面板真实可见"变更总数 5 · 已标注类型 80% · 未设定 1 · 按请求类型 纠错性·1 预防性·1 缺陷修复·1 更新·1" (截图 chtc-1-before.png) → 补登一条"更新"变更 (单 actor 纯新增分类) → total 6 / declared 5 / coverage-pct 83 / updates 计数 2, 面板翻"变更总数 6 · 已标注类型 83% · 更新 · 2" 且"更新 · 1"不再渲染 (截图 chtc-2-after-extra.png, 证分布翻转经单上下文新增即可达成而非依赖第二审批人) → 空项目 (无变更) 面板 available 假/total 0 显示"暂无项目变更"占位 (截图 chtc-3-empty.png); 只读稳定性: 重复读取分布不漂移, 变更状态不因只读聚合改变 |
+| MySQL | 本轮未执行 (本地无 MySQL 实例); 完全免迁移不新增 DDL, 类型分布只读派生复用既有 `pms_gov_record` 的 `change` payload 的 `change_type`/`code`/`revision` 字段无需建表; MySQL 侧回归待后续统一执行 |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本轮完全免迁移). 依据用户 2026-10-05 明确的 B 列口径: 本面板全部为单上下文可见事实——四类计数/已声明覆盖率/未设定数, 以及"补登一条变更使某类计数上翻、总数与覆盖率随之变化"这一翻转经单 actor 纯新增分类即可达成 (类型分布不涉及独立审批门控), 故整块计入 B 列单上下文浏览器验证通过, 不受 Rule B 搁置约束. 依用户约定, 录屏/演示视频不写入本验收文档.
+
+边界: 本项是 H09 变更控制线之下的一个 well-scoped 只读子能力 (把散落在逐条变更台账的 `change_type` 汇成项目级类型构成与标注完整度), 不改变任何不可变版本, 不新增写路径或门控, 也不改变既有变更闭环汇总/委员会参与/量化影响/高影响/升级门控语义; 分布只反映各变更最新版声明了哪一类及是否标注, 不等于类型是否填写恰当或变更是否已被恰当评估, 不做按类型的进度漏斗或对未标注的强制门控, MySQL 回归待补充.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.

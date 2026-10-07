@@ -364,6 +364,24 @@
      :by-member by-member}))
 
 
+(defn change-type-coverage
+  "项目级变更请求类型分布只读覆盖度: 按每个变更最新有效版本(s/latest, 修订链只计最新版)统计 PMBOK 四类变更请求(纠错性/预防性/缺陷修复/更新)各自计数, 已声明/未设定与覆盖率, 供合规口径速览; 只读派生, 不落库不投递, 不改变任何变更状态或门控. 键名 kebab-case 无尾随问号."
+  [changes]
+  (let [types ["corrective" "preventive" "defect-repair" "updates"]
+        active (s/latest changes)
+        total (count active)
+        declared (count (filterv #(some #{(:change_type %)} types) active))
+        type-count (fn [x] (count (filterv #(= x (:change_type %)) active)))]
+    {:available (pos? total)
+     :total total
+     :declared declared
+     :undeclared (- total declared)
+     :coverage-pct (if (pos? total)
+                     (int (Math/round ^double (* 100.0 (/ declared total))))
+                     0)
+     :by-type (mapv (fn [x] {:type x :count (type-count x)}) types)}))
+
+
 (defn- finalize-charter!
   "审批链落定章程: 末级通过即批准, 任一级驳回即退回."
   [q actor project rid decision reason]

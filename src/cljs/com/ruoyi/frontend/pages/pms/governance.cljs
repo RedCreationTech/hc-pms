@@ -1859,6 +1859,32 @@
         (when (pos? ccb-quorum) [antd/tag {:color "geekblue"} (str "已达表决门槛 " ccb-quorum)])])]))
 
 
+(defn- change-type-coverage-section
+  "按每个变更最新有效版本只读聚合变更请求类型分布: PMBOK 四类变更请求(纠错性/预防性/缺陷修复/更新)各自计数与已声明覆盖率; 只读派生, 不改变变更状态或门控."
+  [{:keys [model]}]
+  (let [cov (:change_type_coverage model)
+        total (:total cov 0)
+        undeclared (:undeclared cov 0)
+        pct (:coverage-pct cov 0)
+        type-label {"corrective" "纠错性" "preventive" "预防性" "defect-repair" "缺陷修复" "updates" "更新"}]
+    [shared/panel "变更请求类型分布" "按每个变更的最新有效版本统计 PMBOK 四类变更请求(纠错性/预防性/缺陷修复/更新)声明情况; 只读派生, 不改变变更状态或门控"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无项目变更, 登记变更后可在此查看请求类型分布."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "变更总数 " total)]
+         [antd/tag {:color (cond (= pct 100) "green" (zero? pct) "red" :else "gold")}
+          (str "已标注类型 " pct "%")]
+         (when (pos? undeclared)
+           [antd/tag {:color "orange"} (str "未设定 " undeclared)])]
+        [:div
+         [:span {:style {:fontWeight 500}} "按请求类型: "]
+         [antd/space {:wrap true}
+          (for [{:keys [type count]} (:by-type cov)]
+            ^{:key type} [antd/tag {:color (if (pos? count) "geekblue" "default")}
+                            (str (get type-label type type) " · " count)])]]])]))
+
+
 (defn- ccb-participation-section
   "只读汇总跨变更的变更控制委员会表决参与情况: 委员会覆盖的变更数, 席位与已投票数与参与率, 在途与停滞变更, 以及每位委员被邀请/已投/欠票负荷; 复用 ccb-tally 口径, 不改变任何表决进度或门控."
   [{:keys [model options]}]
@@ -2365,7 +2391,7 @@
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section meeting-attendance-section meeting-cadence-section action-closure-section project-remediation-overview-section due-workload-overview-section owner-due-pressure-section action-section]]
-                     ["changes" "变更控制" [change-section change-closure-section ccb-participation-section]]
+                     ["changes" "变更控制" [change-section change-closure-section change-type-coverage-section ccb-participation-section]]
                      ["quality" "DQ与局部暂停" [dq-summary-section dq-section node-pause-summary-section pause-section]]])}])
 
 

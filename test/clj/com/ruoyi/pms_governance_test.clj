@@ -2717,6 +2717,58 @@
       (is (= 1 (:total snapshot))))))
 
 
+(deftest change-type-coverage-is-derived-read-only
+  (let [id (project!)
+        cov (fn [] (:change_type_coverage (workspace id)))
+        base-body {:title "更改设备范围" :reason "合同调整" :scope_impact "增加设备"
+                   :schedule_impact "增加五日" :cost_impact "重新估价" :quality_impact "增加测试"
+                   :resource_impact "追加工程师"}
+        c1 (command! id :changes :create nil (assoc base-body :title "纠错性变更" :change_type "corrective"))
+        _c2 (command! id :changes :create nil (assoc base-body :title "预防性变更" :change_type "preventive"))
+        _c3 (command! id :changes :create nil (assoc base-body :title "缺陷修复变更" :change_type "defect-repair"))
+        _c4 (command! id :changes :create nil (assoc base-body :title "更新变更" :change_type "updates"))
+        _c5 (command! id :changes :create nil (assoc base-body :title "未标类型变更一"))
+        _c6 (command! id :changes :create nil (assoc base-body :title "未标类型变更二" :change_type ""))]
+    (is (true? (:available (cov))))
+    (is (= 6 (:total (cov))))
+    (is (= 4 (:declared (cov))))
+    (is (= 2 (:undeclared (cov))))
+    ;; coverage-pct = round(100*4/6) = 67.
+    (is (= 67 (:coverage-pct (cov))))
+    (is (= [{:type "corrective" :count 1}
+            {:type "preventive" :count 1}
+            {:type "defect-repair" :count 1}
+            {:type "updates" :count 1}]
+           (:by-type (cov))))
+    ;; 只读派生不改变变更状态: 重复读取分布稳定.
+    (is (= (cov) (:change_type_coverage (workspace id))))
+    ;; 修订去重: 给 c1 出一版改为 preventive 的新修订, 同 code 只计最新版 -> corrective 归 0, preventive 归 2, declared 仍 4.
+    (command! id :changes :revisions (:id c1) (assoc base-body :title "纠错性变更(改判)" :change_type "preventive"))
+    (is (= 6 (:total (cov))))
+    (is (= 4 (:declared (cov))))
+    (is (= 0 (:count (first (:by-type (cov))))))
+    (is (= 2 (:count (second (:by-type (cov))))))
+    ;; 空态: 无变更 available false 各计数 0.
+    (let [empty (approval/change-type-coverage [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:total empty)))
+      (is (= 0 (:declared empty)))
+      (is (= 0 (:undeclared empty)))
+      (is (= 0 (:coverage-pct empty)))
+      (is (= [{:type "corrective" :count 0} {:type "preventive" :count 0}
+              {:type "defect-repair" :count 0} {:type "updates" :count 0}]
+             (:by-type empty))))
+    ;; 纯函数直测: 同 code 修订只计最新版(此例最新为 updates, 旧版 corrective 不计).
+    (let [one (approval/change-type-coverage
+                [{:code "R" :revision 1 :change_type "corrective"}
+                 {:code "R" :revision 2 :change_type "updates"}])]
+      (is (= 1 (:total one)))
+      (is (= 1 (:declared one)))
+      (is (= 100 (:coverage-pct one)))
+      (is (= 0 (:count (nth (:by-type one) 0))))
+      (is (= 1 (:count (nth (:by-type one) 3)))))))
+
+
 (deftest ccb-participation-summary-is-derived-read-only
   (let [id (project!)
         part (fn [] (:ccb_participation (workspace id)))
