@@ -435,7 +435,8 @@
                          :label (:menu_name m)}
                    icon-name (or (and (seq (:icon m)) (not= (:icon m) "#") (:icon m))
                                  "ContainerOutlined")
-                   icon-el (icon-picker/icon-element icon-name {:style {:fontSize 14}})]
+                   icon-el (or (icon-picker/icon-element icon-name {:style {:fontSize 14}})
+                               (icon-picker/icon-element "ContainerOutlined" {:style {:fontSize 14}}))]
                (cond-> item
                  icon-el
                  (assoc :icon icon-el)
@@ -513,6 +514,51 @@
                       []))))
         (remove empty?)
         vec)))
+
+
+(defn- menu-ancestor-keys
+  "给定菜单树和目标 item-key, 返回其所有祖先 submenu 的 key 向量 (顶->底).
+   若目标 key 不在树中或无祖先, 返回 nil."
+  ([menus target-key] (menu-ancestor-keys menus target-key "" []))
+  ([menus target-key parent-path ancestors]
+   (some (fn [m]
+           (let [path (:path m)
+                 full-path (cond
+                             (not (seq path)) parent-path
+                             (seq parent-path) (str parent-path "/" path)
+                             :else path)
+                 item-key (if (seq full-path)
+                            full-path
+                            (str "menu-" (:menu_id m)))
+                 kids (seq (:children m))]
+             (cond
+               (= item-key target-key) (not-empty ancestors)
+               kids (menu-ancestor-keys kids target-key full-path (conj ancestors item-key))
+               :else nil)))
+         menus)))
+
+
+(defn- menu-key-for-page
+  "在菜单树中查找与目标路由关键词对应的菜单 item-key (即 full-path).
+   与 menu->antd-items 的 key 生成逻辑保持一致: 遍历每个节点计算 full-path,
+   用 router/match-route 反查该路径的路由关键词, 命中 page 则返回其 item-key.
+   这样 selectedKeys 高亮与自动展开对所有有菜单项的页面 (含 BPM/办公) 都统一生效,
+   而不必再依赖手写的 page->menu-key 映射. 未命中返回 nil."
+  ([menus page] (menu-key-for-page menus page ""))
+  ([menus page parent-path]
+   (some (fn [m]
+           (let [path (:path m)
+                 full-path (cond
+                             (not (seq path)) parent-path
+                             (seq parent-path) (str parent-path "/" path)
+                             :else path)
+                 item-key (if (seq full-path) full-path (str "menu-" (:menu_id m)))
+                 route-key (when (seq full-path) (:handler (router/match-route (str "/" full-path))))]
+             (cond
+               (= route-key page) item-key
+               (seq (:children m)) (menu-key-for-page (:children m) page full-path)
+               :else nil)))
+         menus)))
 
 
 ;; ─── 主布局 ────────────────────────────────────────────────────────
@@ -622,6 +668,7 @@
 (defn main-layout
   []
   (let [[collapsed set-collapsed!] (hooks/use-state false)
+        [open-keys set-open-keys!] (hooks/use-state [])
         [settings-open? set-settings-open!] (hooks/use-state false)
         user @(rf/subscribe [:auth/user])
         display-name (let [info (:user user)
@@ -634,9 +681,8 @@
         auth-menus (vec (or (:menus user) []))
         filtered-menus (filter-visible-menus auth-menus)
         menu-items (menu->antd-items filtered-menus)
-        open-menu-keys (menu-open-keys filtered-menus)
         menu-instance-key (str "permission-menu-" (hash filtered-menus))
-        selected-menu-key (or (page->menu-key page) (name page))
+        selected-menu-key (or (menu-key-for-page filtered-menus page) (page->menu-key page) (name page))
         labels (merge route-labels (page-labels filtered-menus))
         icons (merge route-icons (page-icons filtered-menus))
         breadcrumbs (get page-breadcrumbs page ["首页"])
@@ -667,6 +713,13 @@
                 "红创PMS"))
         js/undefined)
       [page (get layout-settings :dynamic-title? true)])
+    (hooks/use-effect
+      (fn []
+        (let [anc (menu-ancestor-keys filtered-menus selected-menu-key)]
+          (when (seq anc)
+            (set-open-keys! (distinct (concat open-keys anc)))))
+        js/undefined)
+      [menu-instance-key selected-menu-key])
     [:> Layout {:style {:minHeight "100vh"
                         :background bg-layout
                         :fontFamily "\"Helvetica Neue\", Helvetica, \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", Arial, sans-serif"
@@ -698,7 +751,8 @@
                           :fontSize 14
                           :borderInlineEnd "none"}
                   :selectedKeys (clj->js [selected-menu-key])
-                  :defaultOpenKeys (clj->js open-menu-keys)
+                  :openKeys (clj->js open-keys)
+                  :onOpenChange (fn [ks] (set-open-keys! (vec (js->clj ks))))
                   :items menu-items
                   :onClick handle-menu-click}]])
      ;; Main area

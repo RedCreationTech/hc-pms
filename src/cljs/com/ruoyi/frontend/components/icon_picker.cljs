@@ -16,7 +16,8 @@
                                  PictureOutlined DeploymentUnitOutlined ClusterOutlined
                                  AuditOutlined HistoryOutlined RocketOutlined
                                  CalendarOutlined CustomerServiceOutlined
-                                 MoneyCollectOutlined]]
+                                 MoneyCollectOutlined
+                             PlayCircleOutlined FundOutlined ApiOutlined]]
     [clojure.string :as str]
     [reagent.core :as r]
     [reagent.hooks :as hooks]))
@@ -78,7 +79,10 @@
    "RocketOutlined" RocketOutlined
    "CalendarOutlined" CalendarOutlined
    "CustomerServiceOutlined" CustomerServiceOutlined
-   "MoneyCollectOutlined" MoneyCollectOutlined})
+   "MoneyCollectOutlined" MoneyCollectOutlined
+   "PlayCircleOutlined" PlayCircleOutlined
+   "FundOutlined" FundOutlined
+   "ApiOutlined" ApiOutlined})
 
 
 (def ruoyi-icon-names
@@ -128,7 +132,20 @@
    "list" "TableOutlined"
    "chart" "PieChartOutlined"
    "form" "FormOutlined"
-   "code" "CodeOutlined"})
+   "code" "CodeOutlined"
+   ;; PMS 扩展别名 (免迁移, 覆盖 seed 中新增的短名)
+   "project" "ProjectOutlined"
+   "plan" "ScheduleOutlined"
+   "governance" "AuditOutlined"
+   "delivery" "DeploymentUnitOutlined"
+   "finance" "MoneyCollectOutlined"
+   "closure" "HistoryOutlined"
+   "mail" "MailOutlined"
+   "play" "PlayCircleOutlined"
+   "setting" "SettingOutlined"
+   "appstore" "AppstoreOutlined"
+   "fund" "FundOutlined"
+   "api" "ApiOutlined"})
 
 
 (defn normalize-icon-name
