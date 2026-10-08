@@ -298,6 +298,11 @@
   {"manage-close" "重点管理" "keep-satisfied" "保持满意" "keep-informed" "保持知会" "monitor" "持续监控"})
 
 
+(def quadrant-order
+  "权力-利益象限统计的固定档位顺序(与 quadrant-labels 键一致). 影响力(权力)与关注度均为 high 归入重点管理, 仅影响力 high 归入保持满意, 仅关注度 high 归入保持知会, 其余归入持续监控."
+  ["manage-close" "keep-satisfied" "keep-informed" "monitor"])
+
+
 (defn- quadrant-of
   "按干系人影响力(权力)与关注度定位权力-利益象限."
   [stakeholder]
@@ -497,6 +502,32 @@
      :dominant-category dominant
      :dominant-count dominant-count
      :by-category by-category}))
+
+
+(defn stakeholder-quadrant-distribution
+  "按每个干系人业务编码最新有效版本(store/latest 折叠修订链)统计其权力-利益象限(由既有私有纯函数 quadrant-of 依据 influence 与 interest 是否 high 定位, 与逐条台账 :stakeholder_quadrant 列同一口径)的项目级只读分布: 按固定四档(manage-close/keep-satisfied/keep-informed/monitor)给出各象限干系人数与该象限占干系人总数百分比, 并给出干系人总数/已覆盖象限数/未覆盖象限数/象限覆盖率与主导象限(人数最多者). 最新版本被受控作废(discarded)的干系人不计入. influence 与 interest 由 create/revise 经 s/enum! grades 校验恒取自受控档位, quadrant-of 对任意组合恒落四象限之一, 故每档计数之和恒等于干系人总数. 只读派生, 不落库不投递, 不改变不可变版本, 不构成任何门控; 与刚交付的干系人类别分布同族(各对一条固定枚举做频次分布与主导项, 只是本项枚举是权力-利益象限而非业务分类), 与逐条权力-利益象限列互补(台账列只回显单个干系人落在哪一格, 本项给出整个项目干系人在四象限的构成/覆盖与主导)."
+  [stakeholders]
+  (let [active (filterv #(not= "discarded" (:status %)) (s/latest stakeholders))
+        total (count active)
+        tally (frequencies (map quadrant-of active))
+        pct (fn [n] (if (pos? total) (int (Math/round ^double (* 100.0 (/ n total)))) 0))
+        by-quadrant (mapv (fn [q] {:quadrant q
+                                   :label (get quadrant-labels q q)
+                                   :count (get tally q 0)
+                                   :pct (pct (get tally q 0))})
+                         quadrant-order)
+        covered (count (filterv pos? (map :count by-quadrant)))
+        dominant (when (pos? total)
+                   (apply max-key (fn [q] (get tally q 0)) quadrant-order))
+        dominant-count (if dominant (get tally dominant 0) 0)]
+    {:available (pos? total)
+     :total total
+     :covered covered
+     :uncovered (- (count quadrant-order) covered)
+     :coverage-pct (int (Math/round ^double (* 100.0 (/ covered (count quadrant-order)))))
+     :dominant-quadrant dominant
+     :dominant-count dominant-count
+     :by-quadrant by-quadrant}))
 
 
 (defn raci-assignment-completeness

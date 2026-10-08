@@ -772,6 +772,37 @@
                                    (str (:label c) " · " (:count c))])]])]))
 
 
+(defn- stakeholder-quadrant-distribution-section
+  "按每个干系人最新有效版本只读聚合其权力-利益象限(重点管理/保持满意/保持知会/持续监控四档)的项目级分布: 各象限干系人数与占总数百分比, 已覆盖象限数与未覆盖象限数, 象限覆盖率与主导象限; 与逐条台账权力-利益象限列互补(列只回显单个干系人落在哪一格而本项给出整个项目干系人在四象限的构成), 与干系人类别分布同族(各对一条固定枚举做频次分布与主导项), 只读派生, 不改变任何记录."
+  [{:keys [model]}]
+  (let [dist (:stakeholder_quadrant_distribution model)
+        total (:total dist 0)
+        covered (:covered dist 0)
+        uncovered (:uncovered dist 0)
+        pct (:coverage-pct dist 0)
+        dominant (:dominant-quadrant dist)
+        dominant-count (:dominant-count dist 0)
+        by-quad (:by-quadrant dist [])
+        dominant-label (when dominant (:label (first (filter #(= dominant (:quadrant %)) by-quad))))
+        quadrant-colors {"manage-close" "red" "keep-satisfied" "orange" "keep-informed" "blue" "monitor" "green"}]
+    [shared/panel "干系人权力-利益象限分布" "按每个干系人最新有效版本只读聚合其权力-利益象限(重点管理/保持满意/保持知会/持续监控四档)的项目级分布, 给出干系人总数, 已用象限数, 缺档象限数, 象限覆盖率与主导象限(人数最多者), 并逐象限附其占比; 与逐条台账象限列互补, 只读派生, 不改变任何记录"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无干系人, 登记后可在此查看权力-利益象限分布."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "干系人总数 " total)]
+         [antd/tag {:color (if (zero? pct) "red" "geekblue")} (str "象限覆盖率 " pct "%")]
+         [antd/tag {:color "green"} (str "已用象限 " covered)]
+         (when (pos? uncovered)
+           [antd/tag {:color "orange"} (str "缺档象限 " uncovered)])
+         (when dominant
+           [antd/tag {:color "purple"} (str "主导象限 " dominant-label " · " dominant-count)])]
+        [antd/space {:wrap true}
+         (for [q by-quad]
+           ^{:key (:quadrant q)} [antd/tag {:color (get quadrant-colors (:quadrant q) "default")}
+                                  (str (:label q) " · " (:count q) " (" (:pct q 0) "%)")])]])]))
+
+
 (defn- raci-assignment-section
   "按活动只读聚合RACI职责分配完整度(每项活动是否同时指派了负责A与执行R): 完整/缺负责A/缺执行R与覆盖率并列出未完整活动; 与逐活动缺口冲突提示互补(冲突只列缺口子集而本项给出项目级正向覆盖率), 只读派生, 不改变任何记录."
   [{:keys [model]}]
@@ -2702,7 +2733,7 @@
                      ["requirements" "URS与追踪" [requirement-section coverage-section alignment-section traceability-section trace-section]]
                      ["evidence" "证据版本" [document-section collection-section tree-section release-coverage-section]]
                      ["appointments" "成员任命" [appointment-section]]
-                     ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section raci-role-distribution-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section comm-channel-usage-section comm-plan-audience-breadth-section stakeholder-category-distribution-section]]
+                     ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section raci-role-distribution-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section comm-channel-usage-section comm-plan-audience-breadth-section stakeholder-category-distribution-section stakeholder-quadrant-distribution-section]]
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-stage-distribution-section risk-review-frequency-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section meeting-attendance-section meeting-cadence-section action-closure-section action-priority-distribution-section project-remediation-overview-section due-workload-overview-section owner-due-pressure-section action-section]]

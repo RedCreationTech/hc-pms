@@ -4357,6 +4357,88 @@
       (is (= 100 (:coverage-pct full))))))
 
 
+(deftest stakeholder-quadrant-distribution-is-derived-read-only
+  (let [id (project!)
+        dist (fn [] (:stakeholder_quadrant_distribution (workspace id)))
+        qc (fn [k] (:count (first (filter #(= k (:quadrant %)) (:by-quadrant (dist))))))
+        qp (fn [k] (:pct (first (filter #(= k (:quadrant %)) (:by-quadrant (dist))))))
+        sh (fn [code inf itr] (:id (command! id :stakeholders :create nil
+                                             {:code code :name (str "干系人-" code) :role "评审" :category "internal"
+                                              :interest itr :influence inf :owner_id 9301})))
+        ;; SH-1/SH-2 双高 -> manage-close; SH-3 仅影响力高 -> keep-satisfied; SH-4 仅关注度高 -> keep-informed.
+        _ (sh "SQ-1" "high" "high") _ (sh "SQ-2" "high" "high")
+        _ (sh "SQ-3" "high" "low") _ (sh "SQ-4" "low" "high")]
+    (is (true? (:available (dist))))
+    (is (= 4 (:total (dist))))
+    (is (= 3 (:covered (dist))))
+    (is (= 1 (:uncovered (dist))))
+    (is (= 75 (:coverage-pct (dist))))
+    (is (= "manage-close" (:dominant-quadrant (dist))))
+    (is (= 2 (:dominant-count (dist))))
+    (is (= ["manage-close" "keep-satisfied" "keep-informed" "monitor"]
+           (mapv :quadrant (:by-quadrant (dist)))))
+    (is (= 2 (qc "manage-close"))) (is (= 1 (qc "keep-satisfied")))
+    (is (= 1 (qc "keep-informed"))) (is (= 0 (qc "monitor")))
+    (is (= 50 (qp "manage-close"))) (is (= 25 (qp "keep-satisfied")))
+    (is (= 25 (qp "keep-informed"))) (is (= 0 (qp "monitor")))
+    ;; 只读派生不改变记录: 重复读取稳定.
+    (is (= (dist) (:stakeholder_quadrant_distribution (workspace id))))
+    ;; 界面受控登记: 新增一名双低干系人 -> monitor 补上, 覆盖 4, 未覆盖 0, 覆盖率 100, 主导仍 manage-close.
+    (sh "SQ-5" "low" "low")
+    (is (= 5 (:total (dist))))
+    (is (= 4 (:covered (dist))))
+    (is (= 0 (:uncovered (dist))))
+    (is (= 100 (:coverage-pct (dist))))
+    (is (= "manage-close" (:dominant-quadrant (dist))))
+    (is (= 1 (qc "monitor"))) (is (= 20 (qp "monitor"))))
+  ;; 纯函数直测: 空输入 available false/总数 0/覆盖 0/未覆盖 4/覆盖率 0/无主导/四档全 0.
+  (let [empty (stakeholders/stakeholder-quadrant-distribution [])]
+    (is (false? (:available empty)))
+    (is (= 0 (:total empty)))
+    (is (= 0 (:covered empty)))
+    (is (= 4 (:uncovered empty)))
+    (is (= 0 (:coverage-pct empty)))
+    (is (nil? (:dominant-quadrant empty)))
+    (is (= 0 (:dominant-count empty)))
+    (is (= ["manage-close" "keep-satisfied" "keep-informed" "monitor"]
+           (mapv :quadrant (:by-quadrant empty))))
+    (is (every? zero? (mapv :count (:by-quadrant empty))))
+    (is (every? zero? (mapv :pct (:by-quadrant empty)))))
+  ;; 合成: 最新版被作废的干系人不计入.
+  (let [disc (stakeholders/stakeholder-quadrant-distribution
+               [{:code "A" :revision 1 :status "discarded" :influence "high" :interest "high"}
+                {:code "B" :revision 1 :status "active" :influence "high" :interest "low"}
+                {:code "C" :revision 1 :status "active" :influence "high" :interest "low"}])]
+    (is (= 2 (:total disc)))
+    (is (= 1 (:covered disc)))
+    (is (= 3 (:uncovered disc)))
+    (is (= 25 (:coverage-pct disc)))
+    (is (= "keep-satisfied" (:dominant-quadrant disc)))
+    (is (= 2 (:dominant-count disc))))
+  ;; 合成: store/latest 只计最新修订版象限, 旧版象限不重复计入(修订改影响力/关注度后按新版归类).
+  (let [rev (stakeholders/stakeholder-quadrant-distribution
+              [{:code "P" :revision 1 :status "active" :influence "high" :interest "high"}
+               {:code "P" :revision 2 :status "active" :influence "low" :interest "low"}])]
+    (is (= 1 (:total rev)))
+    (is (= 1 (:covered rev)))
+    (is (= "monitor" (:dominant-quadrant rev)))
+    (is (= 1 (:count (first (filter #(= "monitor" (:quadrant %)) (:by-quadrant rev))))))
+    (is (= 0 (:count (first (filter #(= "manage-close" (:quadrant %)) (:by-quadrant rev)))))))
+  ;; 合成: keep-informed 严格唯一最大 -> 主导翻转为 keep-informed.
+  (let [flip (stakeholders/stakeholder-quadrant-distribution
+               [{:code "K-1" :revision 1 :status "active" :influence "low" :interest "high"}
+                {:code "K-2" :revision 1 :status "active" :influence "low" :interest "high"}
+                {:code "K-3" :revision 1 :status "active" :influence "low" :interest "high"}
+                {:code "M-1" :revision 1 :status "active" :influence "high" :interest "high"}
+                {:code "M-2" :revision 1 :status "active" :influence "high" :interest "high"}
+                {:code "N-1" :revision 1 :status "active" :influence "low" :interest "low"}])]
+    (is (= 6 (:total flip)))
+    (is (= 3 (:covered flip)))
+    (is (= "keep-informed" (:dominant-quadrant flip)))
+    (is (= 3 (:dominant-count flip)))
+    (is (= 50 (:pct (first (filter #(= "keep-informed" (:quadrant %)) (:by-quadrant flip))))))))
+
+
 (deftest raci-assignment-coverage-is-derived-read-only
   (let [id (project!)
         cov (fn [] (:raci_assignment_coverage (workspace id)))
