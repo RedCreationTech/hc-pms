@@ -530,6 +530,42 @@
      :by-quadrant by-quadrant}))
 
 
+(def engagement-labels
+  "PMBOK 参与态度到中文标签的映射, 供只读汇总面板展示."
+  {"unaware" "未知晓" "resistant" "抵制" "neutral" "中立" "supportive" "支持" "leading" "主导"})
+
+
+(defn stakeholder-engagement-distribution
+  "按每个干系人业务编码最新有效版本(store/latest 折叠修订链)统计其当前参与态度(:engagement)的项目级只读分布: 按固定五档(unaware/resistant/neutral/supportive/leading)给出各态度干系人数与该态度占干系人总数百分比, 并给出干系人总数/已声明态度数/未设定态度数/已覆盖态度档数/未覆盖态度档数/态度覆盖率与主导态度(人数最多者). 最新版本被受控作废(discarded)的干系人不计入. :engagement 为可选字段(create/revise 仅在提供时经 s/enum! 校验恒取自 engagement-levels 五档, 留空则该干系人不落入任何档), 故 declared(有态度者)可小于 total, unassigned=total-declared 为未设定态度的干系人数(与沟通渠道使用分布对未标注渠道的处理同族). 已覆盖态度档数等于登记中实际出现的不同态度档数, 未覆盖档数=5-已覆盖(五档固定故不变量 covered+uncovered=5), 覆盖率=round(100*已覆盖/5)恒取整为0/20/40/60/80/100; 逐档占比之和等于 declared 而非 total(差额即 unassigned). dominant 用 max-key 扫固定 engagement-order(并列取扫描靠后者不承诺唯一), covered=0(无人设定态度)时为 nil. 只读派生, 不落库不投递, 不改变不可变版本, 不构成任何门控; 与刚交付的干系人类别分布/权力-利益象限分布同族(各对一条固定枚举做频次分布与主导项, 只是本项枚举是投入度态度档), 与参与态度覆盖度(看有多少干系人声明了态度)和评估矩阵(看当前与期望差距)互补(本项看已声明态度在五档上的构成/覆盖与主导, 回答项目干系人整体偏向哪一投入度)."
+  [stakeholders]
+  (let [active (filterv #(not= "discarded" (:status %)) (s/latest stakeholders))
+        total (count active)
+        engaged (remove nil? (map :engagement active))
+        declared (count engaged)
+        unassigned (- total declared)
+        tally (frequencies engaged)
+        pct (fn [n] (if (pos? total) (int (Math/round ^double (* 100.0 (/ n total)))) 0))
+        by-engagement (mapv (fn [e] {:engagement e
+                                     :label (get engagement-labels e e)
+                                     :count (get tally e 0)
+                                     :pct (pct (get tally e 0))})
+                           engagement-order)
+        covered (count (filterv pos? (map :count by-engagement)))
+        dominant (when (pos? covered)
+                   (apply max-key (fn [e] (get tally e 0)) engagement-order))
+        dominant-count (if dominant (get tally dominant 0) 0)]
+    {:available (pos? total)
+     :total total
+     :declared declared
+     :unassigned unassigned
+     :covered covered
+     :uncovered (- (count engagement-order) covered)
+     :coverage-pct (int (Math/round ^double (* 100.0 (/ covered (count engagement-order)))))
+     :dominant-engagement dominant
+     :dominant-count dominant-count
+     :by-engagement by-engagement}))
+
+
 (defn raci-assignment-completeness
   "按活动汇总RACI职责分配完整度的只读覆盖度: 逐活动判断是否至少指派一个负责(A)与一个执行(R), 两者齐备视为完整, 给出活动总数/完整/缺负责A/缺执行R与覆盖率, 并列出未完整活动及其缺项. RACI指派行不按修订链折叠(与逐条冲突检查conflicts一致直接消费原始行). 只读派生, 不落库不投递, 不改变不可变版本, 不构成任何门控; 与逐条冲突检查互补(conflicts只返回冲突子集而本项给出项目级正向覆盖率与完整分布)."
   [raci-rows]

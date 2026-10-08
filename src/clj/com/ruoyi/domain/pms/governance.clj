@@ -139,6 +139,7 @@
                           :comm_audience_breadth (stakeholders/comm-plan-audience-breadth (:comm_plans data))
                           :stakeholder_category_distribution (stakeholders/stakeholder-category-distribution (:stakeholders data))
                           :stakeholder_quadrant_distribution (stakeholders/stakeholder-quadrant-distribution (:stakeholders data))
+                          :stakeholder_engagement_distribution (stakeholders/stakeholder-engagement-distribution (:stakeholders data))
                           :raci_assignment_coverage (stakeholders/raci-assignment-completeness (:raci data))
                           :raci_engagement_coverage (stakeholders/raci-engagement-coverage (:raci data))
                           :raci_role_distribution (stakeholders/raci-role-distribution (:raci data))

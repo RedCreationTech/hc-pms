@@ -4439,6 +4439,117 @@
     (is (= 50 (:pct (first (filter #(= "keep-informed" (:quadrant %)) (:by-quadrant flip))))))))
 
 
+(deftest stakeholder-engagement-distribution-is-derived-read-only
+  (let [id (project!)
+        dist (fn [] (:stakeholder_engagement_distribution (workspace id)))
+        ec (fn [k] (:count (first (filter #(= k (:engagement %)) (:by-engagement (dist))))))
+        ep (fn [k] (:pct (first (filter #(= k (:engagement %)) (:by-engagement (dist))))))
+        sh (fn [code eng] (:id (command! id :stakeholders :create nil
+                                         {:code code :name (str "干系人-" code) :role "评审" :category "internal"
+                                          :interest "medium" :influence "medium" :owner_id 9301
+                                          :engagement eng})))
+        sh-none (fn [code] (:id (command! id :stakeholders :create nil
+                                          {:code code :name (str "干系人-" code) :role "评审" :category "internal"
+                                           :interest "medium" :influence "medium" :owner_id 9301})))
+        ;; SE-1 未知晓, SE-2 抵制, SE-3 支持, SE-4 未设定态度(可选字段留空).
+        _ (sh "SE-1" "unaware") _ (sh "SE-2" "resistant") _ (sh "SE-3" "supportive") _ (sh-none "SE-4")]
+    (is (true? (:available (dist))))
+    (is (= 4 (:total (dist))))
+    (is (= 3 (:declared (dist))))
+    (is (= 1 (:unassigned (dist))))
+    (is (= 3 (:covered (dist))))
+    (is (= 2 (:uncovered (dist))))
+    (is (= 60 (:coverage-pct (dist))))
+    ;; 三档各1并列, max-key 取 engagement-order 靠后者 -> supportive.
+    (is (= "supportive" (:dominant-engagement (dist))))
+    (is (= 1 (:dominant-count (dist))))
+    (is (= ["unaware" "resistant" "neutral" "supportive" "leading"]
+           (mapv :engagement (:by-engagement (dist)))))
+    (is (= 1 (ec "unaware"))) (is (= 1 (ec "resistant")))
+    (is (= 0 (ec "neutral"))) (is (= 1 (ec "supportive"))) (is (= 0 (ec "leading")))
+    (is (= 25 (ep "unaware"))) (is (= 25 (ep "resistant")))
+    (is (= 0 (ep "neutral"))) (is (= 25 (ep "supportive"))) (is (= 0 (ep "leading")))
+    ;; 只读派生不改变记录: 重复读取稳定.
+    (is (= (dist) (:stakeholder_engagement_distribution (workspace id))))
+    ;; 界面受控登记新增一名"主导"干系人 -> leading 补上, 覆盖 4, 未覆盖 1, 覆盖率 80, 主导翻转为 leading.
+    (sh "SE-5" "leading")
+    (is (= 5 (:total (dist))))
+    (is (= 4 (:declared (dist))))
+    (is (= 1 (:unassigned (dist))))
+    (is (= 4 (:covered (dist))))
+    (is (= 1 (:uncovered (dist))))
+    (is (= 80 (:coverage-pct (dist))))
+    (is (= "leading" (:dominant-engagement (dist))))
+    (is (= 1 (ec "leading")))
+    ;; 再补一名"中立"干系人 -> 五档全覆盖, 覆盖率 100.
+    (sh "SE-6" "neutral")
+    (is (= 6 (:total (dist))))
+    (is (= 5 (:covered (dist))))
+    (is (= 0 (:uncovered (dist))))
+    (is (= 100 (:coverage-pct (dist)))))
+  ;; 纯函数直测: 空输入 available false/总数 0/设定 0/未设定 0/覆盖 0/未覆盖 5/覆盖率 0/无主导/五档全 0.
+  (let [empty (stakeholders/stakeholder-engagement-distribution [])]
+    (is (false? (:available empty)))
+    (is (= 0 (:total empty)))
+    (is (= 0 (:declared empty)))
+    (is (= 0 (:unassigned empty)))
+    (is (= 0 (:covered empty)))
+    (is (= 5 (:uncovered empty)))
+    (is (= 0 (:coverage-pct empty)))
+    (is (nil? (:dominant-engagement empty)))
+    (is (= 0 (:dominant-count empty)))
+    (is (= ["unaware" "resistant" "neutral" "supportive" "leading"]
+           (mapv :engagement (:by-engagement empty))))
+    (is (every? zero? (mapv :count (:by-engagement empty))))
+    (is (every? zero? (mapv :pct (:by-engagement empty)))))
+  ;; 合成: 最新版被作废的干系人不计入(即便其设定过态度).
+  (let [disc (stakeholders/stakeholder-engagement-distribution
+               [{:code "A" :revision 1 :status "discarded" :engagement "leading"}
+                {:code "B" :revision 1 :status "active" :engagement "supportive"}
+                {:code "C" :revision 1 :status "active" :engagement "supportive"}])]
+    (is (= 2 (:total disc)))
+    (is (= 2 (:declared disc)))
+    (is (= 0 (:unassigned disc)))
+    (is (= 1 (:covered disc)))
+    (is (= 4 (:uncovered disc)))
+    (is (= 20 (:coverage-pct disc)))
+    (is (= "supportive" (:dominant-engagement disc)))
+    (is (= 2 (:dominant-count disc))))
+  ;; 合成: store/latest 只计最新修订版态度, 旧版态度不重复计入(修订改态度后按新版归类).
+  (let [rev (stakeholders/stakeholder-engagement-distribution
+              [{:code "P" :revision 1 :status "active" :engagement "resistant"}
+               {:code "P" :revision 2 :status "active" :engagement "leading"}])]
+    (is (= 1 (:total rev)))
+    (is (= 1 (:declared rev)))
+    (is (= 1 (:covered rev)))
+    (is (= "leading" (:dominant-engagement rev)))
+    (is (= 1 (:count (first (filter #(= "leading" (:engagement %)) (:by-engagement rev))))))
+    (is (= 0 (:count (first (filter #(= "resistant" (:engagement %)) (:by-engagement rev)))))))
+  ;; 合成: 可选态度未设定的干系人计入 total 但不计入 declared, 归入 unassigned; 占比按 total 折算.
+  (let [miss (stakeholders/stakeholder-engagement-distribution
+               [{:code "M-1" :revision 1 :status "active" :engagement "unaware"}
+                {:code "M-2" :revision 1 :status "active"}
+                {:code "M-3" :revision 1 :status "active"}])]
+    (is (= 3 (:total miss)))
+    (is (= 1 (:declared miss)))
+    (is (= 2 (:unassigned miss)))
+    (is (= 1 (:covered miss)))
+    (is (= "unaware" (:dominant-engagement miss)))
+    (is (= 33 (:pct (first (filter #(= "unaware" (:engagement %)) (:by-engagement miss)))))))
+  ;; 合成: neutral 严格唯一最大 -> 主导为 neutral, 覆盖三档(neutral/supportive/leading).
+  (let [flip (stakeholders/stakeholder-engagement-distribution
+               [{:code "N-1" :revision 1 :status "active" :engagement "neutral"}
+                {:code "N-2" :revision 1 :status "active" :engagement "neutral"}
+                {:code "N-3" :revision 1 :status "active" :engagement "neutral"}
+                {:code "S-1" :revision 1 :status "active" :engagement "supportive"}
+                {:code "L-1" :revision 1 :status "active" :engagement "leading"}])]
+    (is (= 5 (:total flip)))
+    (is (= 3 (:covered flip)))
+    (is (= "neutral" (:dominant-engagement flip)))
+    (is (= 3 (:dominant-count flip)))
+    (is (= 60 (:pct (first (filter #(= "neutral" (:engagement %)) (:by-engagement flip))))))))
+
+
 (deftest raci-assignment-coverage-is-derived-read-only
   (let [id (project!)
         cov (fn [] (:raci_assignment_coverage (workspace id)))

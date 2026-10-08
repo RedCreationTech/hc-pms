@@ -803,6 +803,42 @@
                                   (str (:label q) " · " (:count q) " (" (:pct q 0) "%)")])]])]))
 
 
+(defn- stakeholder-engagement-distribution-section
+  "按每个干系人最新有效版本只读聚合其当前参与态度(未知晓/抵制/中立/支持/主导五档固定枚举)的项目级分布: 各态度干系人数与占总数百分比, 已声明/未设定人数, 已覆盖态度档数与未覆盖档数, 态度覆盖率与主导态度; 与参与态度覆盖度(看多少干系人声明了态度)和评估矩阵(看当前与期望差距)互补(本项看已声明态度在五档上的构成/覆盖与主导), 只读派生, 不改变任何记录."
+  [{:keys [model]}]
+  (let [dist (:stakeholder_engagement_distribution model)
+        total (:total dist 0)
+        declared (:declared dist 0)
+        unassigned (:unassigned dist 0)
+        covered (:covered dist 0)
+        uncovered (:uncovered dist 0)
+        pct (:coverage-pct dist 0)
+        dominant (:dominant-engagement dist)
+        dominant-count (:dominant-count dist 0)
+        by-eng (:by-engagement dist [])
+        dominant-label (when dominant (:label (first (filter #(= dominant (:engagement %)) by-eng))))
+        engagement-colors {"unaware" "default" "resistant" "red" "neutral" "gold"
+                           "supportive" "green" "leading" "blue"}]
+    [shared/panel "干系人参与态度分布" "按每个干系人最新有效版本只读聚合其当前参与态度(未知晓/抵制/中立/支持/主导五档固定枚举)的项目级分布, 给出干系人总数, 已声明/未设定人数, 已用态度档数, 缺档态度档数, 态度覆盖率与主导态度(人数最多者), 并逐档附其占比; 与参与态度覆盖度/评估矩阵互补, 只读派生, 不改变任何记录"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无干系人, 登记并设定参与态度后可在此查看五档分布."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "干系人总数 " total)]
+         [antd/tag {:color (if (zero? pct) "red" "geekblue")} (str "态度覆盖率 " pct "%")]
+         [antd/tag {:color "green"} (str "已用态度 " covered)]
+         (when (pos? uncovered)
+           [antd/tag {:color "orange"} (str "缺档态度 " uncovered)])
+         (when (pos? unassigned)
+           [antd/tag {:color "default"} (str "未设定态度 " unassigned)])
+         (when dominant
+           [antd/tag {:color "purple"} (str "主导态度 " dominant-label " · " dominant-count)])]
+        [antd/space {:wrap true}
+         (for [e by-eng]
+           ^{:key (:engagement e)} [antd/tag {:color (get engagement-colors (:engagement e) "default")}
+                                    (str (:label e) " · " (:count e) " (" (:pct e 0) "%)")])]])]))
+
+
 (defn- raci-assignment-section
   "按活动只读聚合RACI职责分配完整度(每项活动是否同时指派了负责A与执行R): 完整/缺负责A/缺执行R与覆盖率并列出未完整活动; 与逐活动缺口冲突提示互补(冲突只列缺口子集而本项给出项目级正向覆盖率), 只读派生, 不改变任何记录."
   [{:keys [model]}]
@@ -2733,7 +2769,7 @@
                      ["requirements" "URS与追踪" [requirement-section coverage-section alignment-section traceability-section trace-section]]
                      ["evidence" "证据版本" [document-section collection-section tree-section release-coverage-section]]
                      ["appointments" "成员任命" [appointment-section]]
-                     ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section raci-role-distribution-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section comm-channel-usage-section comm-plan-audience-breadth-section stakeholder-category-distribution-section stakeholder-quadrant-distribution-section]]
+                     ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section raci-role-distribution-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section comm-channel-usage-section comm-plan-audience-breadth-section stakeholder-category-distribution-section stakeholder-quadrant-distribution-section stakeholder-engagement-distribution-section]]
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-stage-distribution-section risk-review-frequency-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section meeting-attendance-section meeting-cadence-section action-closure-section action-priority-distribution-section project-remediation-overview-section due-workload-overview-section owner-due-pressure-section action-section]]
