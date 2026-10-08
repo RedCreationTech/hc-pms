@@ -741,6 +741,37 @@
                                 (str (:label b) " · " (:count b))])]])]))
 
 
+(defn- stakeholder-category-distribution-section
+  "按每个干系人最新有效版本只读聚合其业务分类(内部/外部/供应商/客户/监管方五档固定枚举)的项目级分布: 各类别干系人数, 已覆盖类别数与未覆盖类别数, 类别覆盖率与主导类别; 与参与态度覆盖度/权力-利益象限互补(态度看投入意愿, 象限看影响力定位, 本项看干系人由哪些业务类型构成), 只读派生, 不改变任何记录."
+  [{:keys [model]}]
+  (let [dist (:stakeholder_category_distribution model)
+        total (:total dist 0)
+        covered (:covered dist 0)
+        uncovered (:uncovered dist 0)
+        pct (:coverage-pct dist 0)
+        dominant (:dominant-category dist)
+        dominant-count (:dominant-count dist 0)
+        by-cat (:by-category dist [])
+        dominant-label (when dominant (:label (first (filter #(= dominant (:category %)) by-cat))))
+        category-colors {"internal" "blue" "external" "geekblue" "supplier" "purple" "customer" "cyan" "regulator" "gold"}]
+    [shared/panel "干系人类别分布" "按每个干系人最新有效版本只读聚合其业务分类(内部/外部/供应商/客户/监管方五档固定枚举)的项目级分布, 给出干系人总数, 覆盖类别数, 未覆盖类别数, 类别覆盖率与主导类别; 与参与态度覆盖度/权力-利益象限互补, 只读派生, 不改变任何记录"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无干系人, 登记后可在此查看业务类别分布."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "干系人总数 " total)]
+         [antd/tag {:color (if (zero? pct) "red" "geekblue")} (str "类别覆盖率 " pct "%")]
+         [antd/tag {:color "green"} (str "覆盖类别 " covered)]
+         (when (pos? uncovered)
+           [antd/tag {:color "orange"} (str "未覆盖类别 " uncovered)])
+         (when dominant
+           [antd/tag {:color "purple"} (str "主导类别 " dominant-label " · " dominant-count)])]
+        [antd/space {:wrap true}
+         (for [c by-cat :when (pos? (:count c 0))]
+           ^{:key (:category c)} [antd/tag {:color (get category-colors (:category c) "default")}
+                                   (str (:label c) " · " (:count c))])]])]))
+
+
 (defn- raci-assignment-section
   "按活动只读聚合RACI职责分配完整度(每项活动是否同时指派了负责A与执行R): 完整/缺负责A/缺执行R与覆盖率并列出未完整活动; 与逐活动缺口冲突提示互补(冲突只列缺口子集而本项给出项目级正向覆盖率), 只读派生, 不改变任何记录."
   [{:keys [model]}]
@@ -2640,7 +2671,7 @@
                      ["requirements" "URS与追踪" [requirement-section coverage-section alignment-section traceability-section trace-section]]
                      ["evidence" "证据版本" [document-section collection-section tree-section release-coverage-section]]
                      ["appointments" "成员任命" [appointment-section]]
-                     ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section comm-channel-usage-section comm-plan-audience-breadth-section]]
+                     ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section comm-channel-usage-section comm-plan-audience-breadth-section stakeholder-category-distribution-section]]
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-stage-distribution-section risk-review-frequency-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section meeting-attendance-section meeting-cadence-section action-closure-section action-priority-distribution-section project-remediation-overview-section due-workload-overview-section owner-due-pressure-section action-section]]

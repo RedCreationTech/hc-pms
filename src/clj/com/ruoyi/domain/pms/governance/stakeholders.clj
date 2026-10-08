@@ -465,6 +465,40 @@
      :by-breadth by-breadth}))
 
 
+(def category-order
+  "干系人业务分类固定展示顺序, 与 categories 枚举取值一一对应."
+  ["internal" "external" "supplier" "customer" "regulator"])
+
+
+(def category-labels
+  "干系人业务分类到中文标签的映射, 供只读汇总面板展示."
+  {"internal" "内部" "external" "外部" "supplier" "供应商" "customer" "客户" "regulator" "监管方"})
+
+
+(defn stakeholder-category-distribution
+  "按每个干系人业务编码最新有效版本(store/latest 折叠修订链)统计其业务分类(:category)的项目级只读分布: 按固定五档(internal/external/supplier/customer/regulator)给出各类别干系人数, 并给出干系人总数/已覆盖类别数/未覆盖类别数/类别覆盖率与主导类别(人数最多者). 最新版本被受控作废(discarded)的干系人不计入. category 由 create/revise 经 s/enum! 校验恒取自 categories 枚举, 故已覆盖类别数等于登记中出现的不同业务分类数. 只读派生, 不落库不投递, 不改变不可变版本, 不构成任何门控; 与沟通渠道使用分布同族(各对一条固定枚举做频次分布与主导项), 是干系人登记在业务分类维度的可见性强化, 与参与态度覆盖度/权力-利益象限互补(态度看投入意愿, 象限看影响力定位, 本项看干系人由哪些业务类型构成)."
+  [stakeholders]
+  (let [active (filterv #(not= "discarded" (:status %)) (s/latest stakeholders))
+        total (count active)
+        tally (frequencies (remove nil? (map :category active)))
+        by-category (mapv (fn [c] {:category c
+                                   :label (get category-labels c c)
+                                   :count (get tally c 0)})
+                         category-order)
+        covered (count (filterv pos? (map :count by-category)))
+        dominant (when (pos? total)
+                   (apply max-key (fn [c] (get tally c 0)) category-order))
+        dominant-count (if dominant (get tally dominant 0) 0)]
+    {:available (pos? total)
+     :total total
+     :covered covered
+     :uncovered (- (count category-order) covered)
+     :coverage-pct (int (Math/round ^double (* 100.0 (/ covered (count category-order)))))
+     :dominant-category dominant
+     :dominant-count dominant-count
+     :by-category by-category}))
+
+
 (defn raci-assignment-completeness
   "按活动汇总RACI职责分配完整度的只读覆盖度: 逐活动判断是否至少指派一个负责(A)与一个执行(R), 两者齐备视为完整, 给出活动总数/完整/缺负责A/缺执行R与覆盖率, 并列出未完整活动及其缺项. RACI指派行不按修订链折叠(与逐条冲突检查conflicts一致直接消费原始行). 只读派生, 不落库不投递, 不改变不可变版本, 不构成任何门控; 与逐条冲突检查互补(conflicts只返回冲突子集而本项给出项目级正向覆盖率与完整分布)."
   [raci-rows]

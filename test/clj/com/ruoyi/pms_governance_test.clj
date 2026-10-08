@@ -4281,6 +4281,82 @@
       (is (= 0 (:count (first (filter #(= "many" (:bucket %)) (:by-breadth disc)))))))))))
 
 
+(deftest stakeholder-category-distribution-is-derived-read-only
+  (let [id (project!)
+        dist (fn [] (:stakeholder_category_distribution (workspace id)))
+        cc (fn [k] (:count (first (filter #(= k (:category %)) (:by-category (dist))))))
+        sh (fn [code cat] (:id (command! id :stakeholders :create nil
+                                         {:code code :name (str "干系人-" code) :role "评审" :category cat
+                                          :interest "medium" :influence "medium" :owner_id 9301})))
+        _ (sh "SC-1" "internal") _ (sh "SC-2" "internal")
+        _ (sh "SC-3" "external") _ (sh "SC-4" "supplier")]
+    ;; 四名干系人分属 internal(2)/external(1)/supplier(1): 覆盖 3 类, 未覆盖 2, 覆盖率 60, 主导 internal.
+    (is (true? (:available (dist))))
+    (is (= 4 (:total (dist))))
+    (is (= 3 (:covered (dist))))
+    (is (= 2 (:uncovered (dist))))
+    (is (= 60 (:coverage-pct (dist))))
+    (is (= "internal" (:dominant-category (dist))))
+    (is (= 2 (:dominant-count (dist))))
+    (is (= ["internal" "external" "supplier" "customer" "regulator"]
+           (mapv :category (:by-category (dist)))))
+    (is (= 2 (cc "internal")))
+    (is (= 1 (cc "external")))
+    (is (= 1 (cc "supplier")))
+    (is (= 0 (cc "customer")))
+    (is (= 0 (cc "regulator")))
+    ;; 只读派生不改变记录: 重复读取稳定.
+    (is (= (dist) (:stakeholder_category_distribution (workspace id))))
+    ;; 界面受控登记: 新增一名 customer 干系人 -> 覆盖 +1, 未覆盖 -1, 覆盖率 80, 主导仍 internal.
+    (sh "SC-5" "customer")
+    (is (= 5 (:total (dist))))
+    (is (= 4 (:covered (dist))))
+    (is (= 1 (:uncovered (dist))))
+    (is (= 80 (:coverage-pct (dist))))
+    (is (= "internal" (:dominant-category (dist))))
+    (is (= 1 (cc "customer")))
+    ;; 纯函数直测: 空输入 available false/总数 0/覆盖 0/未覆盖 5/覆盖率 0/无主导/五档全 0.
+    (let [empty (stakeholders/stakeholder-category-distribution [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:total empty)))
+      (is (= 0 (:covered empty)))
+      (is (= 5 (:uncovered empty)))
+      (is (= 0 (:coverage-pct empty)))
+      (is (nil? (:dominant-category empty)))
+      (is (= 0 (:dominant-count empty)))
+      (is (= ["internal" "external" "supplier" "customer" "regulator"]
+             (mapv :category (:by-category empty))))
+      (is (every? zero? (mapv :count (:by-category empty)))))
+    ;; 合成: 最新版被作废的干系人不计入, 仅活动干系人参与类别统计.
+    (let [disc (stakeholders/stakeholder-category-distribution
+                 [{:code "A" :revision 1 :status "discarded" :category "internal"}
+                  {:code "B" :revision 1 :status "active" :category "external"}
+                  {:code "C" :revision 1 :status "active" :category "external"}])]
+      (is (= 2 (:total disc)))
+      (is (= 1 (:covered disc)))
+      (is (= 4 (:uncovered disc)))
+      (is (= 20 (:coverage-pct disc)))
+      (is (= "external" (:dominant-category disc)))
+      (is (= 2 (:dominant-count disc))))
+    ;; 合成: store/latest 只计最新修订版类别, 旧版类别不重复计入(修订改类别后按新版归类).
+    (let [rev (stakeholders/stakeholder-category-distribution
+                [{:code "P" :revision 1 :status "active" :category "internal"}
+                 {:code "P" :revision 2 :status "active" :category "regulator"}])]
+      (is (= 1 (:total rev)))
+      (is (= 1 (:covered rev)))
+      (is (= "regulator" (:dominant-category rev)))
+      (is (= 1 (:count (first (filter #(= "regulator" (:category %)) (:by-category rev))))))
+      (is (= 0 (:count (first (filter #(= "internal" (:category %)) (:by-category rev)))))))
+    ;; 合成: 五类全覆盖 -> 覆盖率 100, 未覆盖 0.
+    (let [full (stakeholders/stakeholder-category-distribution
+                 (mapv (fn [c] {:code (str "F-" c) :revision 1 :status "active" :category c})
+                       ["internal" "external" "supplier" "customer" "regulator"]))]
+      (is (= 5 (:total full)))
+      (is (= 5 (:covered full)))
+      (is (= 0 (:uncovered full)))
+      (is (= 100 (:coverage-pct full))))))
+
+
 (deftest raci-assignment-coverage-is-derived-read-only
   (let [id (project!)
         cov (fn [] (:raci_assignment_coverage (workspace id)))
