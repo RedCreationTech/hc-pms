@@ -19,7 +19,7 @@
 
 | 证据 | 实际记录及范围 |
 |---|---|
-| V | [当前验证记录](verification.md): 提交cfe4b15的SQLite 62 tests / 423 assertions,MySQL 62 tests / 392 assertions通过, 本地浏览器8 passed, 生产前端/uberjar构建和独立启动检查通过; 生产业务/外部系统未验收 |
+| V | [当前验证记录](verification.md): 截至本轮外部接口配置只读目录增量, 冷 JVM 全量 PMS 回归 `com.ruoyi.pms.*-test` SQLite 302 tests / 5082 assertions 通过 (0 failures/errors); 本轮新增治理/配置命名空间用例未含独立审批人双上下文翻转, MySQL 本轮未执行 (本地无实例, 迁移双库文件已同步), 生产前端/uberjar 构建与独立启动检查通过; 生产业务/外部系统未验收. 历史 CI 基线见正文 `cfe4b15` 段 |
 | V1 | [Batch 1 历史验证](verification-batch1.md): 原项目中心后端各10 tests / 75 assertions, 浏览器2 passed及当时CI结果; 历史记录不替代本轮验证 |
 | T | [后端测试](../../test/clj/com/ruoyi/pms_test.clj): 各行注明具体 deftest 名称, 测试源码须结合 V 的通过记录使用 |
 | U | [项目中心浏览器测试](../../tests/e2e/pms.spec.js)和[工作台浏览器测试](../../tests/e2e/pms-workbench.spec.js): 本地合计8 passed, 双用户独立操作项目/计划/治理/交付/工时财务/关闭与重开; 明细见V |
@@ -29,7 +29,7 @@
 | F | [工时财务及生命周期测试](../../test/clj/com/ruoyi/pms_finance_test.clj)及[合同](contracts/finance-closure.md): 本轮 SQLite/MySQL 各11 tests / 52 assertions 通过; 原子审批/分摊/收尾/重开 |
 | O | [集成运行时测试](../../test/clj/com/ruoyi/pms_ops_test.clj): 本轮 SQLite/MySQL 各6 tests / 33 assertions 通过; inbox/outbox和受控真实HTTP协议测试, 不等于任何实际企业系统适配器已接通 |
 | C | [并发回归](../../test/clj/com/ruoyi/pms_concurrency_test.clj): SQLite 6 tests / 42 assertions,MySQL 6 tests / 11 assertions; 写锁等待,池连接恢复,同版本单一提交及审计故障回滚 |
-| CT | [平台配置测试](../../test/clj/com/ruoyi/pms_config_test.clj): 本轮 SQLite 6 tests / 93 assertions 通过; 项目模板目录导入/发布/修订/退役, 编码规则渲染与强制校验, 模板实例化项目网络 (节点/Gate模板/计划容器/交付要求/收尾清单, 一次性, 版本快照), 关口目录与阻断检查点, require_released 检查项, 季度目标/费用池/封期生命周期, 配置 HTTP 合同 (401/403/409) |
+| CT | [平台配置测试](../../test/clj/com/ruoyi/pms_config_test.clj): 本轮 SQLite 8 tests / 197 assertions 通过; 项目模板目录导入/发布/修订/退役, 编码规则渲染与强制校验, 模板实例化项目网络 (节点/Gate模板/计划容器/交付要求/收尾清单, 一次性, 版本快照), 关口目录与阻断检查点, require_released 检查项, 季度目标/费用池/封期生命周期, 配置 HTTP 合同 (401/403/409), 外部接口配置只读目录 (22 条能力静态清单结构不变量: total=adapter+business=contract+rule, 受控状态 待合同/待规则, 每行十字段与 required-fields/matrix-rows 校验; GET /api/pms/external-interfaces 仅需登录 HTTP 合同 401/200) |
 | FW | [现场闭环测试](../../test/clj/com/ruoyi/pms_fieldwork_test.clj): 本轮 SQLite 25 tests / 398 assertions 通过; 工勘次序/实际日期/独立确认与收尾阻塞, 包材申请与来源任务回写, 齐套 Gate 阻断装配开工, 装配步骤单调与日期约束, 齐套多层卷积与缺件, 发货前本地条件/交底截止/现场任务顺序, DQ 检查清单与交付件失效, 局部暂停冻结反馈, 启动会会前包与基线, 现场任务进度只读汇总 (闭环率/待开工/延误/最早未完工计划), 交底及时率只读汇总 (待交底/逾期/按期完成/逾期完成/按期率), 工勘闭环只读汇总 (待提交/确认中/已确认/已驳回/逾期未确认/确认闭环率/最近计划), 试验执行闭环只读汇总 (草稿/待提交/检验中/已批准/已驳回/批准闭环率/已登记结果/必检达标 + SIT/FAT/SAT 分类型批准分布), 试验不合格整改闭环只读汇总 (按 source_test_id 归集最新修订的治理 issue: 逐条整改状态/总数/未决/已闭环/逾期 + 项目级整改闭环率, 免迁移/免新命令/不构成门控) |
 | PF | [组合/财务测试](../../test/clj/com/ruoyi/pms_portfolio_test.clj): 本轮 SQLite 7 tests / 86 assertions 通过; 追踪阶段/偏差/覆盖率, 文档多层下钻与机密文档 403, 逾期追溯升级门控, 我的待办跨项目汇总, 组合看板, 工时更正链与封期, 跨项目研发费用池守恒分摊, 四算拉通差异, 季度经营目标达成 |
 | DC | [文档附件测试](../../test/clj/com/ruoyi/pms_documents_test.clj): 增量5 SQLite 5 tests / 68 assertions, MySQL 8.0.46 同套通过; 真实文件上传的内容寻址存储与 SHA256, 类型白名单 / 空文件 / 超限 / 路径穿越 / 伪造字段 400, 只读用户 403, 机密文件密级 403, 篡改与缺失文件拒绝下发 500, 修订链只对最新版本, 签发固化 release_sha256, multipart HTTP 合同 (401/403/400/200), 下载 / 预览 (inline, 415) / 批量 ZIP 含二进制原件 |

@@ -2,8 +2,10 @@
   "平台模板/编码规则/经营目标/封期配置及项目网络实例化 (A07/A09/A10/A11, B03/B06-B15 关口目录) 的真实数据库测试."
   (:require
     [cheshire.core :as json]
+    [clojure.string :as str]
     [clojure.test :refer [deftest is use-fixtures]]
     [com.ruoyi.domain.pms.config :as config]
+    [com.ruoyi.domain.pms.external-catalog :as external]
     [com.ruoyi.domain.pms.governance :as gov]
     [com.ruoyi.domain.pms.governance.gates :as gates]
     [com.ruoyi.domain.pms.planning :as planning]
@@ -330,3 +332,41 @@
     (let [next (request :get "/api/pms/coding-rules/next?object_type=project" 9441 nil)]
       (is (= 200 (:status next)))
       (is (nil? (get-in next [:body :data :code]))))))
+
+
+(deftest external-catalog-structure-invariants
+  "静态外部接口目录只读视图的结构不变量: 计数一致, 状态受控, 每行字段完整."
+  (let [cat (external/catalog nil nil)
+        rows (:rows cat)]
+    (is (true? (:available cat)))
+    (is (= (count rows) (:total cat)))
+    (is (= 22 (:total cat)))
+    (is (= (:total cat) (+ (:adapter-count cat) (:business-count cat))))
+    (is (= (:total cat) (+ (:contract-count cat) (:rule-count cat))))
+    (is (= (:total cat) (reduce + (map :count (:by-status cat)))))
+    (is (= (:total cat) (reduce + (map :count (:by-system cat)))))
+    ;; 状态取值受控.
+    (is (= #{"待合同" "待规则"} (set (map :status rows))))
+    ;; 归类取值受控.
+    (is (= #{"adapter" "business"} (set (map :group rows))))
+    ;; key 唯一.
+    (is (= (count rows) (count (distinct (map :key rows)))))
+    ;; 每行字段完整且所需接口字段非空.
+    (doseq [r rows]
+      (is (every? #(and (contains? r %) (some? (% r)))
+                  [:key :capability :system :group :matrix-rows :direction :required-fields :owner :status :notes]))
+      (is (seq (:required-fields r)))
+      (is (every? (complement str/blank?) (:required-fields r)))
+      (is (re-matches #"[0-9A-Z]{2,4}(, ?[0-9A-Z]{2,4})*" (:matrix-rows r))))))
+
+
+(deftest external-catalog-http-contract
+  "外部接口目录只读 HTTP 合同: 未登录 401, 登录只读用户 200, 信封 data.total 与结构一致."
+  (is (= 401 (:status (request :get "/api/pms/external-interfaces" nil nil))))
+  (let [resp (request :get "/api/pms/external-interfaces" 9442 nil)
+        data (:data (:body resp))]
+    (is (= 200 (:status resp)))
+    (is (= 22 (:total data)))
+    (is (= 22 (count (:rows data))))
+    (is (= (:total data) (+ (:adapter-count data) (:business-count data))))
+    (is (= (:total data) (+ (:contract-count data) (:rule-count data))))))

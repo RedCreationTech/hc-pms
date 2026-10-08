@@ -63,6 +63,7 @@
     [com.ruoyi.frontend.pages.pms.dashboard :as pms-dashboard]
     [com.ruoyi.frontend.pages.pms.config :as pms-config]
     [com.ruoyi.frontend.pages.pms.portfolio :as pms-portfolio]
+    [com.ruoyi.frontend.pages.pms.external-interfaces :as pms-external-interfaces]
     [com.ruoyi.frontend.pages.pms.todo :as pms-todo]
     [com.ruoyi.frontend.pages.pms.search :as pms-search]
     [com.ruoyi.frontend.pages.pms.targets :as pms-targets]
@@ -342,6 +343,7 @@
    :pms-dashboard "pms/dashboard"
    :pms-config "pms/config"
    :pms-portfolio "pms/portfolio"
+   :pms-external-interfaces "pms/external-interfaces"
    :pms-todo "pms/todo"
    :pms-search "pms/search"
    :pms-targets "pms/targets"})
@@ -353,6 +355,7 @@
    :pms-dashboard ["首页" "项目管理" "项目驾驶舱"]
    :pms-config ["首页" "项目管理" "模板与规则"]
    :pms-portfolio ["首页" "项目管理" "项目组合看板"]
+   :pms-external-interfaces ["首页" "项目管理" "外部接口配置"]
    :pms-todo ["首页" "项目管理" "我的待办"]
    :pms-search ["首页" "项目管理" "全局检索"]
    :pms-targets ["首页" "项目管理" "经营目标看板"]
@@ -808,6 +811,7 @@
           :pms-dashboard [pms-dashboard/dashboard-page]
           :pms-config [pms-config/config-page]
           :pms-portfolio [pms-portfolio/portfolio-page]
+          :pms-external-interfaces [pms-external-interfaces/external-interfaces-page]
           :pms-todo [pms-todo/todo-page]
           :pms-search [pms-search/search-page]
           :pms-targets [pms-targets/targets-page]

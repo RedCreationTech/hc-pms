@@ -30,3 +30,15 @@ GET `/closure` 额外返回 `reopen_request` (最近一次申请,包含request_i
 POST `/reopen-requests`: `reason,scope,reviewer_id`,仅closed项目,需project:reopen和项目编辑范围. reviewer为有效项目成员且不同于申请人.
 
 POST `/reopen-requests/:request_id/review`: `decision:approved/rejected,reason`,需project:reopen,项目阅读范围和指定独立审批人. 批准后项目回到closing,保留历史关闭快照,清除当前归档标记. 必须对重开后依据重新提交关闭审批,旧关闭决定不能直接复用. cancelled不支持自动重开.
+
+## 外部接口配置目录 (平台级只读, 免持久化)
+
+面向集成配置人员的平台级只读目录页, 与项目无关, 路径前缀 `/api/pms` (非 `/api/pms/projects/:id`).
+
+GET `/external-interfaces` 仅需登录 (`auth-middleware {:required? true}`, 未声明 `:perms`, 未登录 401), 返回信封 `data` 为 `{available, total, adapter-count, business-count, contract-count, rule-count, by-status, by-system, rows, note}`.
+
+- 目录为随代码发布的静态清单 (`domain/pms/external-catalog/capabilities`), 读取时不查库, 不落库, 不做连通性测试, 不代表任何真实集成已通过. 免迁移新增数据表, 仅新增一条 C 型菜单种子 (外部接口配置, path `external-interfaces`, component `pms/external-interfaces/index`).
+- `total` 恒等于 `rows` 数 (当前 22); `adapter-count` (系统适配器, 当前 9) + `business-count` (业务对接点, 当前 13) = `total`; `contract-count` (`待合同`, 当前 20) + `rule-count` (`待规则`, 当前 2) = `total`; `by-status` 与 `by-system` 的 `count` 之和各自等于 `total`. 计数字段命名一律 kebab 直穿 JSON.
+- 每条 `rows` 含 `{key, capability, system, group, matrix-rows, direction, required-fields, owner, status, notes}` 十字段: `key` 稳定唯一标识, `matrix-rows` 来源验收矩阵行 (逗号分隔, 匹配 `[0-9A-Z]{2,4}(, ?[0-9A-Z]{2,4})*`), `required-fields` 为需外部提供的接口字段占位清单 (非空, 逐项非空白), `status` 受控取值 `#{待合同 待规则}` 与验收矩阵依赖状态一致, `owner` 为待确认责任方. `required-fields` 只是"对接前需准备什么"的清单, 不承诺字段合同已签订.
+- 前端 `pages/pms/external_interfaces.cljs` 独立只读页 (路由 `pms/external-interfaces`, page key `:pms-external-interfaces`, 面包屑"首页/项目管理/外部接口配置"), 顶部五项指标卡 + "依赖外部系统的能力清单"表格; 页面标注只读性质, 不投递提醒, 不做任何写操作.
+- 本目录只登记依赖状态, 不实现真实适配器; 八套企业系统适配器与业务对接点仍属 `planned / 待合同` 或 `planned / 待规则`, 不允许用本清单或界面冒充真实集成通过. 键名无尾随问号.
