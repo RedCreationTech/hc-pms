@@ -4486,6 +4486,73 @@
       (is (= ["Y"] (mapv :activity (:thin-activities mix)))))))
 
 
+(deftest raci-role-distribution-is-derived-read-only
+  (let [id (project!)
+        dist (fn [] (:raci_role_distribution (workspace id)))
+        role (fn [k] (first (filter #(= k (:role %)) (:by-role (dist)))))
+        sh (fn [code name] (:id (command! id :stakeholders :create nil
+                                          {:code code :name name :role "评审" :category "internal"
+                                           :interest "high" :influence "medium" :owner_id 9301})))
+        raci (fn [act sid resp] (command! id :raci :create nil
+                                          {:activity act :stakeholder_id sid :responsibility resp}))
+        s1 (sh "RR-1" "甲") s2 (sh "RR-2" "乙") s3 (sh "RR-3" "丙") s4 (sh "RR-4" "丁")]
+    ;; 纯函数空输入: available false, total 0, covered 0, uncovered 4, 覆盖 0, dominant nil, 四档各计数与占比 0.
+    (let [empty (stakeholders/raci-role-distribution [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:total empty)))
+      (is (= 0 (:covered empty)))
+      (is (= 4 (:uncovered empty)))
+      (is (= 0 (:role-coverage-pct empty)))
+      (is (nil? (:dominant-role empty)))
+      (is (= ["R" "A" "C" "I"] (mapv :role (:by-role empty))))
+      (is (every? zero? (mapv :count (:by-role empty))))
+      (is (every? zero? (mapv :pct (:by-role empty)))))
+    ;; 只登记 R 与 A: 两个 R 一个 A. total3 covered2(缺C,I) 覆盖50 主导R(严格多数2).
+    (raci "需求评审" s1 "R")
+    (raci "需求评审" s2 "R")
+    (raci "需求评审" s3 "A")
+    (is (true? (:available (dist))))
+    (is (= 3 (:total (dist))))
+    (is (= 2 (:covered (dist))))
+    (is (= 2 (:uncovered (dist))))
+    (is (= 50 (:role-coverage-pct (dist))))
+    (is (= "R" (:dominant-role (dist))))
+    (is (= 2 (:dominant-count (dist))))
+    (is (= 2 (:count (role "R"))))
+    (is (= 1 (:count (role "A"))))
+    (is (= 0 (:count (role "C"))))
+    (is (= 0 (:count (role "I"))))
+    (is (= "执行" (:label (role "R"))))
+    ;; 补一条 C: total4 covered3 覆盖75 缺I, 主导仍R.
+    (raci "方案设计" s1 "C")
+    (is (= 4 (:total (dist))))
+    (is (= 3 (:covered (dist))))
+    (is (= 1 (:uncovered (dist))))
+    (is (= 75 (:role-coverage-pct (dist))))
+    (is (= "R" (:dominant-role (dist))))
+    ;; 补一条 I: 四档齐备 total5 covered4 覆盖100, 各档占比 R40 其余20.
+    (raci "联调测试" s2 "I")
+    (is (= 5 (:total (dist))))
+    (is (= 4 (:covered (dist))))
+    (is (= 0 (:uncovered (dist))))
+    (is (= 100 (:role-coverage-pct (dist))))
+    (is (= 40 (:pct (role "R"))))
+    (is (= 20 (:pct (role "A"))))
+    (is (= 20 (:pct (role "C"))))
+    (is (= 20 (:pct (role "I"))))
+    (is (= "R" (:dominant-role (dist))))
+    ;; 追加两条 C 使 C 反超为严格唯一多数: total7 covered4 主导翻转为C(3).
+    (raci "编码实现" s1 "C")
+    (raci "编码实现" s2 "C")
+    (is (= 7 (:total (dist))))
+    (is (= 3 (:count (role "C"))))
+    (is (= "C" (:dominant-role (dist))))
+    (is (= 3 (:dominant-count (dist))))
+    ;; 只读派生不改记录: 重复读取稳定, RACI 行仍 assigned.
+    (is (= (dist) (:raci_role_distribution (workspace id))))
+    (is (every? #(= "assigned" (:status %)) (:raci (workspace id))))))
+
+
 (deftest issue-escalation-disposition-summary-is-derived-read-only
   (let [id (project!)
         sum (fn [] (:issue_escalation_summary (workspace id)))

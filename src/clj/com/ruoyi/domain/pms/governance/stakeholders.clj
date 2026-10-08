@@ -580,3 +580,40 @@
                        (int (Math/round ^double (* 100.0 (/ fully-engaged total))))
                        0)
      :thin-activities thin}))
+
+
+(def role-order
+  "RACI职责角色固定展示顺序, 与 responsibilities 枚举取值一一对应."
+  ["R" "A" "C" "I"])
+
+
+(def role-labels
+  "RACI职责角色到中文标签的映射, 供只读汇总面板展示."
+  {"R" "执行" "A" "负责" "C" "咨询" "I" "知会"})
+
+
+(defn raci-role-distribution
+  "按RACI职责角色(R/A/C/I)只读聚合整个项目的职责指派结构分布: 逐角色统计被指派的次数, 给出指派总数/已用角色数/缺档角色数/角色覆盖率与主导角色(被指派次数最多者), 并逐角色附其占总数百分比. RACI指派行不按修订链折叠(与raci-assignment-completeness, raci-engagement-coverage及逐条冲突检查conflicts一致直接消费原始行). responsibility 由 create-raci! 经 s/enum! 校验恒取自 responsibilities 枚举(R/A/C/I), 故已用角色数等于指派中实际出现的不同职责数, 缺档角色数=4-已用角色数. 只读派生, 不落库不投递, 不改变不可变版本, 不构成任何门控; 与前两者互补(前两者按活动看每项是否配齐相应职责而本项按角色看整个项目的职责结构由哪些角色构成、哪个角色主导, 回答治理是偏向执行还是偏向咨询知会)."
+  [raci-rows]
+  (let [total (count raci-rows)
+        tally (frequencies (remove nil? (map :responsibility raci-rows)))
+        role-pct (fn [n] (if (pos? total)
+                           (int (Math/round ^double (* 100.0 (/ n total))))
+                           0))
+        by-role (mapv (fn [r] {:role r
+                               :label (get role-labels r r)
+                               :count (get tally r 0)
+                               :pct (role-pct (get tally r 0))})
+                      role-order)
+        covered (count (filterv pos? (map :count by-role)))
+        dominant (when (pos? total)
+                   (apply max-key (fn [r] (get tally r 0)) role-order))
+        dominant-count (if dominant (get tally dominant 0) 0)]
+    {:available (pos? total)
+     :total total
+     :covered covered
+     :uncovered (- (count role-order) covered)
+     :role-coverage-pct (int (Math/round ^double (* 100.0 (/ covered (count role-order)))))
+     :dominant-role dominant
+     :dominant-count dominant-count
+     :by-role by-role}))

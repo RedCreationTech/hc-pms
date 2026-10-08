@@ -140,6 +140,7 @@
                           :stakeholder_category_distribution (stakeholders/stakeholder-category-distribution (:stakeholders data))
                           :raci_assignment_coverage (stakeholders/raci-assignment-completeness (:raci data))
                           :raci_engagement_coverage (stakeholders/raci-engagement-coverage (:raci data))
+                          :raci_role_distribution (stakeholders/raci-role-distribution (:raci data))
                           :issue_escalation_summary (collab/issue-escalation-disposition-summary (:issues data))
                           :action_closure (collab/action-closure-summary (:actions data))
                           :action_priority_distribution (collab/action-priority-distribution (:actions data))

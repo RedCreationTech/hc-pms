@@ -836,6 +836,37 @@
                                              (if (:missing-consult ac) "缺咨询C" "缺知会I")))])])])]))
 
 
+(defn- raci-role-distribution-section
+  "按RACI职责角色(R/A/C/I)只读聚合整个项目的职责指派结构分布: 逐角色统计被指派次数与占总数百分比, 给出指派总数/已用角色数/缺档角色数/角色覆盖率与主导角色; 与逐活动职责分配完整度和咨询知会覆盖度互补(前两者按活动看每项是否配齐相应职责, 本项按角色看整个项目职责结构由哪些角色构成、哪个角色主导), 只读派生, 不改变任何记录."
+  [{:keys [model]}]
+  (let [dist (:raci_role_distribution model)
+        total (:total dist 0)
+        covered (:covered dist 0)
+        uncovered (:uncovered dist 0)
+        pct (:role-coverage-pct dist 0)
+        dominant (:dominant-role dist)
+        dominant-count (:dominant-count dist 0)
+        by-role (:by-role dist [])
+        dominant-label (when dominant (:label (first (filter #(= dominant (:role %)) by-role))))
+        role-colors {"R" "red" "A" "orange" "C" "blue" "I" "green"}]
+    [shared/panel "RACI角色结构分布" "按职责角色只读聚合整个项目RACI指派的结构分布, 给出职责指派总数, 已用角色数, 缺档角色数, 角色覆盖率与主导角色(被指派次数最多者), 并逐角色附其占比; 与逐活动完整度/咨询知会覆盖度互补, 只读派生, 不改变任何记录"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无RACI职责指派, 指派后可在此查看角色结构分布."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "职责指派总数 " total)]
+         [antd/tag {:color (if (zero? pct) "red" "geekblue")} (str "角色覆盖率 " pct "%")]
+         [antd/tag {:color "green"} (str "已用角色 " covered)]
+         (when (pos? uncovered)
+           [antd/tag {:color "orange"} (str "缺档角色 " uncovered)])
+         (when dominant
+           [antd/tag {:color "purple"} (str "主导角色 " dominant-label " · " dominant-count)])]
+        [antd/space {:wrap true}
+         (for [ro by-role]
+           ^{:key (:role ro)} [antd/tag {:color (get role-colors (:role ro) "default")}
+                               (str (:label ro) " · " (:count ro) " (" (:pct ro) "%)")])]])]))
+
+
 (defn- trace-section
   "显式呈现需求到任务和证据的覆盖关系."
   [{:keys [base model planning editable? open!]}]
@@ -2671,7 +2702,7 @@
                      ["requirements" "URS与追踪" [requirement-section coverage-section alignment-section traceability-section trace-section]]
                      ["evidence" "证据版本" [document-section collection-section tree-section release-coverage-section]]
                      ["appointments" "成员任命" [appointment-section]]
-                     ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section comm-channel-usage-section comm-plan-audience-breadth-section stakeholder-category-distribution-section]]
+                     ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section raci-role-distribution-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section comm-channel-usage-section comm-plan-audience-breadth-section stakeholder-category-distribution-section]]
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-stage-distribution-section risk-review-frequency-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section meeting-attendance-section meeting-cadence-section action-closure-section action-priority-distribution-section project-remediation-overview-section due-workload-overview-section owner-due-pressure-section action-section]]
