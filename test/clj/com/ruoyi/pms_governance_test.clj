@@ -4108,6 +4108,93 @@
       (is (= ["Q"] (mapv :code (:not-executed-plans disc)))))))
 
 
+(deftest comm-channel-usage-is-derived-read-only
+  (let [id (project!)
+        usage (fn [] (:comm_channel_usage (workspace id)))
+        by (fn [ch] (first (filter #(= ch (:channel %)) (:by-channel (usage)))))
+        sh (fn [code] (:id (command! id :stakeholders :create nil
+                                     {:code code :name (str "干系人-" code) :role "评审" :category "internal"
+                                      :interest "medium" :influence "medium" :owner_id 9301})))
+        plan (fn [code channel]
+               (command! id :comm-plans :create nil
+                         {:code code :objective (str "沟通-" code) :channel channel :frequency "weekly"
+                          :audience [(sh code)] :next_date "2026-10-15" :owner_id 9301}))
+        today (str (java.time.LocalDate/now))
+        p1 (plan "CU-P1" "meeting") p2 (plan "CU-P2" "email") _ (plan "CU-P3" "review")]
+    ;; 初始无沟通留痕: available false/total-logs 0/declared 0/unassigned 0/coverage 0/无主导渠道/五档全 0.
+    (is (false? (:available (usage))))
+    (is (= 0 (:total-logs (usage))))
+    ;; P1 未指定渠道 -> 回退沿用计划渠道 meeting; 再显式 meeting; P2 显式 email -> 共 3 条留痕全已标注.
+    (command! id :comm-plans :log (:id p1) {:on today :note "周会"})
+    (command! id :comm-plans :log (:id p1) {:on today :note "再开周会" :channel "meeting"})
+    (command! id :comm-plans :log (:id p2) {:on today :note "邮件同步" :channel "email"})
+    (is (true? (:available (usage))))
+    (is (= 3 (:total-logs (usage))))
+    (is (= 3 (:declared (usage))))
+    (is (= 0 (:unassigned (usage))))
+    (is (= 100 (:coverage-pct (usage))))
+    (is (= "meeting" (:dominant-channel (usage))))
+    (is (= 2 (:dominant-count (usage))))
+    (is (= 2 (:count (by "meeting"))))
+    (is (= 1 (:count (by "email"))))
+    (is (= 0 (:count (by "dashboard"))))
+    (is (= 0 (:count (by "review"))))
+    (is (= 5 (count (:by-channel (usage)))))
+    ;; 只读派生不改变记录: 重复读取稳定, 计划仍 active.
+    (is (= (usage) (:comm_channel_usage (workspace id))))
+    (let [row (first (filter #(= "CU-P1" (:code %)) (:comm_plans (workspace id))))]
+      (is (= "active" (:status row))))
+    ;; 界面受控新增: P2 再两条 email 反超 -> email 升为主导 3 条, meeting 保持 2, 总数 5.
+    (command! id :comm-plans :log (:id p2) {:on today :note "邮件2" :channel "email"})
+    (command! id :comm-plans :log (:id p2) {:on today :note "邮件3" :channel "email"})
+    (is (= 5 (:total-logs (usage))))
+    (is (= "email" (:dominant-channel (usage))))
+    (is (= 3 (:dominant-count (usage))))
+    (is (= 2 (:count (by "meeting"))))
+    (is (= 3 (:count (by "email"))))
+    ;; 纯函数直测: 空输入 available false/全 0/五档全 0/无主导渠道.
+    (let [empty (stakeholders/comm-channel-usage [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:total-logs empty)))
+      (is (= 0 (:declared empty)))
+      (is (= 0 (:unassigned empty)))
+      (is (= 0 (:coverage-pct empty)))
+      (is (nil? (:dominant-channel empty)))
+      (is (= 0 (:dominant-count empty)))
+      (is (= ["meeting" "email" "dashboard" "report" "review"] (mapv :channel (:by-channel empty))))
+      (is (every? zero? (mapv :count (:by-channel empty)))))
+    ;; 合成: 孤立留痕无渠道计入未标注, 覆盖率按已标注/总数四舍五入, meeting 两条反超 email.
+    (let [mix (stakeholders/comm-channel-usage
+                [{:code "A" :revision 1 :status "active"
+                  :communication_log [{:on "2026-09-01" :channel "meeting"}
+                                      {:on "2026-09-02" :channel "meeting"}
+                                      {:on "2026-09-04"}]}
+                 {:code "B" :revision 1 :status "active"
+                  :communication_log [{:on "2026-09-03" :channel "email"}]}])]
+      (is (= 4 (:total-logs mix)))
+      (is (= 3 (:declared mix)))
+      (is (= 1 (:unassigned mix)))
+      (is (= 75 (:coverage-pct mix)))
+      (is (= "meeting" (:dominant-channel mix)))
+      (is (= 2 (:dominant-count mix)))
+      (is (= 1 (:count (first (filter #(= "email" (:channel %)) (:by-channel mix)))))))
+    ;; 合成: s/latest 只计最新修订版的沟通留痕, 旧版渠道不重复计入.
+    (let [rev (stakeholders/comm-channel-usage
+                [{:code "P" :revision 1 :status "active" :communication_log [{:on "2026-09-01" :channel "meeting"}]}
+                 {:code "P" :revision 2 :status "active" :communication_log [{:on "2026-09-05" :channel "email"}]}])]
+      (is (= 1 (:total-logs rev)))
+      (is (= "email" (:dominant-channel rev)))
+      (is (= 0 (:count (first (filter #(= "meeting" (:channel %)) (:by-channel rev)))))))
+    ;; 合成: 最新版被作废的沟通计划其留痕不计入.
+    (let [disc (stakeholders/comm-channel-usage
+                 [{:code "A" :revision 1 :status "discarded" :communication_log [{:on "2026-09-01" :channel "meeting"}]}
+                  {:code "B" :revision 1 :status "active" :communication_log [{:on "2026-09-02" :channel "email"}]}])]
+      (is (= 1 (:total-logs disc)))
+      (is (= 1 (:declared disc)))
+      (is (= "email" (:dominant-channel disc)))
+      (is (= 0 (:count (first (filter #(= "meeting" (:channel %)) (:by-channel disc)))))))))
+
+
 (deftest raci-assignment-coverage-is-derived-read-only
   (let [id (project!)
         cov (fn [] (:raci_assignment_coverage (workspace id)))

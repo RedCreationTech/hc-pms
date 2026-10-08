@@ -680,6 +680,35 @@
              ^{:key (:code pl)} [antd/tag {:color "default"} (str (:code pl) " · " (:objective pl))])])])]))
 
 
+(defn- comm-channel-usage-section
+  "按每个沟通计划最新有效版本只读聚合全部沟通留痕实际使用渠道的分布: 会议/邮件/看板/报告/评审五档固定渠道各自使用次数, 渠道覆盖率与主导渠道; 与沟通计划执行落地覆盖度互补(执行看计划是否已落地而本项看执行时渠道的使用结构), 只读派生, 不改变任何记录."
+  [{:keys [model]}]
+  (let [use (:comm_channel_usage model)
+        total-logs (:total-logs use 0)
+        unassigned (:unassigned use 0)
+        pct (:coverage-pct use 0)
+        dominant (:dominant-channel use)
+        dominant-count (:dominant-count use 0)
+        by-chan (:by-channel use [])
+        dominant-label (when dominant (:label (first (filter #(= dominant (:channel %)) by-chan))))
+        channel-colors {"meeting" "blue" "email" "geekblue" "dashboard" "purple" "report" "cyan" "review" "gold"}]
+    [shared/panel "沟通渠道使用分布" "按每个沟通计划最新有效版本只读聚合全部沟通留痕实际使用的沟通渠道分布(会议/邮件/看板/报告/评审五档各自次数), 给出留痕总数, 渠道覆盖率与主导渠道; 与沟通计划执行落地覆盖度互补, 只读派生, 不改变任何记录"
+     (if (zero? total-logs)
+       [:span {:style {:color "#8793a3"}} "暂无沟通留痕, 标记已沟通后可在此查看渠道使用分布."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "沟通留痕总数 " total-logs)]
+         [antd/tag {:color (if (zero? pct) "red" "geekblue")} (str "渠道覆盖率 " pct "%")]
+         (when (pos? unassigned)
+           [antd/tag {:color "orange"} (str "未标注渠道 " unassigned)])
+         (when dominant
+           [antd/tag {:color "green"} (str "主导渠道 " dominant-label " · " dominant-count)])]
+        [antd/space {:wrap true}
+         (for [c by-chan :when (pos? (:count c 0))]
+           ^{:key (:channel c)} [antd/tag {:color (get channel-colors (:channel c) "default")}
+                                 (str (:label c) " · " (:count c))])]])]))
+
+
 (defn- raci-assignment-section
   "按活动只读聚合RACI职责分配完整度(每项活动是否同时指派了负责A与执行R): 完整/缺负责A/缺执行R与覆盖率并列出未完整活动; 与逐活动缺口冲突提示互补(冲突只列缺口子集而本项给出项目级正向覆盖率), 只读派生, 不改变任何记录."
   [{:keys [model]}]
@@ -2579,7 +2608,7 @@
                      ["requirements" "URS与追踪" [requirement-section coverage-section alignment-section traceability-section trace-section]]
                      ["evidence" "证据版本" [document-section collection-section tree-section release-coverage-section]]
                      ["appointments" "成员任命" [appointment-section]]
-                     ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section]]
+                     ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section comm-channel-usage-section]]
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-stage-distribution-section risk-review-frequency-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section meeting-attendance-section meeting-cadence-section action-closure-section action-priority-distribution-section project-remediation-overview-section due-workload-overview-section owner-due-pressure-section action-section]]

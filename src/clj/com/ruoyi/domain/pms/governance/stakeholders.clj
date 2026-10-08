@@ -383,6 +383,44 @@
      :not-executed-plans not-executed}))
 
 
+(def channel-order
+  "沟通渠道固定展示顺序, 与 channels 枚举取值一一对应."
+  ["meeting" "email" "dashboard" "report" "review"])
+
+
+(def channel-labels
+  "沟通渠道到中文标签的映射, 供只读汇总面板展示."
+  {"meeting" "会议" "email" "邮件" "dashboard" "看板" "report" "报告" "review" "评审"})
+
+
+(defn comm-channel-usage
+  "按每个沟通计划业务编码最新有效版本(store/latest 折叠修订链)汇总其全部沟通留痕实际使用渠道的只读分布: 逐条沟通日志取 :channel, 按固定渠道顺序给出各渠道使用次数, 并给出留痕总数/已标注渠道数/未标注数/渠道覆盖率与主导渠道(使用次数最多者). 最新版本被受控作废(discarded)的沟通计划不计入. log-communication! 未显式指定渠道时回退沿用计划渠道, 故已标注留痕的渠道恒取自 channels 枚举, 无渠道的孤立留痕计入未标注. 只读派生, 不落库不投递, 不改变不可变版本, 不构成任何门控; 与沟通计划执行落地覆盖度互补(execution-coverage 看计划是否已执行而本项看执行时渠道的使用结构分布)."
+  [comm-plans]
+  (let [active-plans (filterv #(not= "discarded" (:status %)) (s/latest comm-plans))
+        log-entries (mapcat :communication_log active-plans)
+        channel-vals (map :channel log-entries)
+        total-logs (count log-entries)
+        declared (count (filterv some? channel-vals))
+        tally (frequencies (remove nil? channel-vals))
+        by-channel (mapv (fn [ch] {:channel ch
+                                   :label (get channel-labels ch ch)
+                                   :count (get tally ch 0)})
+                         channel-order)
+        dominant (when (pos? declared)
+                   (apply max-key (fn [ch] (get tally ch 0)) channel-order))
+        dominant-count (if dominant (get tally dominant 0) 0)]
+    {:available (pos? total-logs)
+     :total-logs total-logs
+     :declared declared
+     :unassigned (- total-logs declared)
+     :coverage-pct (if (pos? total-logs)
+                     (int (Math/round ^double (* 100.0 (/ declared total-logs))))
+                     0)
+     :dominant-channel dominant
+     :dominant-count dominant-count
+     :by-channel by-channel}))
+
+
 (defn raci-assignment-completeness
   "按活动汇总RACI职责分配完整度的只读覆盖度: 逐活动判断是否至少指派一个负责(A)与一个执行(R), 两者齐备视为完整, 给出活动总数/完整/缺负责A/缺执行R与覆盖率, 并列出未完整活动及其缺项. RACI指派行不按修订链折叠(与逐条冲突检查conflicts一致直接消费原始行). 只读派生, 不落库不投递, 不改变不可变版本, 不构成任何门控; 与逐条冲突检查互补(conflicts只返回冲突子集而本项给出项目级正向覆盖率与完整分布)."
   [raci-rows]
