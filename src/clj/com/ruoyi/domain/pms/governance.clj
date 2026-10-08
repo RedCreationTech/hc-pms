@@ -120,6 +120,7 @@
                           :document_collection (evidence/document-collection (:documents data))
                           :document_tree (evidence/document-tree (:documents data))
                           :verification_coverage (evidence/verification-coverage (:requirements data))
+                          :requirement_priority_distribution (evidence/requirement-priority-distribution (:requirements data))
                           :verification_evidence_alignment (evidence/verification-evidence-alignment (:requirements data) (:traces data) docs-by-id)
                           :release_coverage (evidence/release-coverage (:documents data))
                           :risk_response_coverage (collab/risk-response-coverage (:risks data))

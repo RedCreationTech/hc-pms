@@ -199,7 +199,35 @@
                                 ^{:key (str "n-" key)} [antd/tag (str (collection-label key) " · " count)])]])])]))
 
 
-(defn- coverage-section
+(defn- requirement-priority-distribution-section
+  "按每个需求编号最新有效版本只读聚合其优先级(必需/期望两档固定枚举)的项目级分布: 各优先级需求数与占总数百分比, 已用档数与缺档数, 优先级覆盖率与主导优先级(需求数最多者); 与验证方式覆盖度(看多少需求声明验证方式)互补(本项看需求在必要性维度的构成与必须项是否压顶), 只读派生, 不改变任何记录."
+  [{:keys [model]}]
+  (let [dist (:requirement_priority_distribution model)
+        total (:total dist 0)
+        covered (:covered dist 0)
+        uncovered (:uncovered dist 0)
+        pct (:coverage-pct dist 0)
+        dominant (:dominant-priority dist)
+        dominant-count (:dominant-count dist 0)
+        by-priority (:by-priority dist [])
+        dominant-label (when dominant (:label (first (filter #(= dominant (:priority %)) by-priority))))
+        priority-colors {"required" "red" "desired" "green"}]
+    [shared/panel "需求优先级分布" "按每个需求编号最新有效版本只读聚合其优先级(必需/期望两档固定枚举)的项目级分布, 给出需求总数, 已用档数, 缺档数, 优先级覆盖率与主导优先级(需求数最多者), 并逐档附其占比; 与验证方式覆盖度互补, 只读派生, 不改变任何记录"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无URS需求, 登记需求后可在此查看必需/期望两档优先级分布."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "需求总数 " total)]
+         [antd/tag {:color (if (zero? pct) "red" "geekblue")} (str "优先级覆盖率 " pct "%")]
+         [antd/tag {:color "green"} (str "已用档位 " covered)]
+         (when (pos? uncovered)
+           [antd/tag {:color "orange"} (str "缺档档位 " uncovered)])
+         (when dominant
+           [antd/tag {:color "purple"} (str "主导优先级 " dominant-label " · " dominant-count)])]
+        [antd/space {:wrap true}
+         (for [p by-priority]
+           ^{:key (:priority p)} [antd/tag {:color (get priority-colors (:priority p) "default")}
+                                  (str (:label p) " · " (:count p) " (" (:pct p 0) "%)")])]])]))(defn- coverage-section
   "按每个需求编号的最新有效版本只读聚合验证方式声明覆盖度: 四类方法各自计数与覆盖率; 修订不重复计数, 已作废不计入."
   [{:keys [model]}]
   (let [cov (:verification_coverage model)
@@ -2798,7 +2826,7 @@
                       {:key key :label label :children (r/as-element
                                                          (into [:div {:style {:display "grid" :gap 20}}] (map #(vector % context) components)))})
                     [["charter" "章程" [charter-section]]
-                     ["requirements" "URS与追踪" [requirement-section coverage-section alignment-section traceability-section trace-section]]
+                     ["requirements" "URS与追踪" [requirement-section coverage-section requirement-priority-distribution-section alignment-section traceability-section trace-section]]
                      ["evidence" "证据版本" [document-section collection-section tree-section release-coverage-section]]
                      ["appointments" "成员任命" [appointment-section]]
                      ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section raci-role-distribution-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section comm-channel-usage-section comm-plan-audience-breadth-section stakeholder-category-distribution-section stakeholder-quadrant-distribution-section stakeholder-engagement-distribution-section]]

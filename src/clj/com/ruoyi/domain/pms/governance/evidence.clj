@@ -389,6 +389,40 @@
      :by-method (mapv (fn [m] {:method m :count (method-count m)}) methods)}))
 
 
+(def requirement-priority-order
+  "需求优先级固定枚举档 (与前端 widgets.cljs 显示口径一致), 供只读分布按此顺序统计; required/desired 为 s/enum! 必填受控枚举, 故两档计数之和恒等于需求总数."
+  ["required" "desired"])
+
+(def requirement-priority-labels
+  "需求优先级中文显示标签 (前端台账列 w/labels 同口径: required=必需, desired=期望)."
+  {"required" "必需" "desired" "期望"})
+
+(defn requirement-priority-distribution
+  "按每个需求业务编码最新有效版本(store/latest 折叠修订链)统计其优先级(:priority)的项目级只读分布: 按固定两档(required/desired)给出各优先级需求数与该档占需求总数百分比, 并给出需求总数/已覆盖档数/未覆盖档数/优先级覆盖率与主导优先级(需求数最多者). 最新版本被受控作废(discarded)的需求不计入. priority 由新增/修订经 s/enum! 校验取自 required/desired 且必填, 故两档计数之和恒等于需求总数(与会议类型/干系人类别/权力-利益象限分布同族, 都是必填受控枚举; 区别于可选的参与态度/渠道使用分布会有未设定档). 已覆盖档数等于登记中实际出现的不同优先级档数, 未覆盖档数=2-已覆盖(两档固定故不变量 covered+uncovered=2), 覆盖率=round(100*已覆盖/2)恒取整为0/50/100; 逐档占比之和等于 total. dominant 用 max-key 扫固定 requirement-priority-order(并列取扫描靠后者即 desired, 不承诺唯一), 需求总数为 0 时为 nil. 只读派生, 不落库不投递, 不改变不可变版本, 不构成任何门控; 与验证方式覆盖度(看多少需求声明了验证方式)互补(本项看需求在必要性维度的构成与必须项是否压顶)."
+  [requirements]
+  (let [active (filterv #(not= "discarded" (:status %)) (s/latest requirements))
+        total (count active)
+        tally (frequencies (map :priority active))
+        pct (fn [n] (if (pos? total) (int (Math/round ^double (* 100.0 (/ n total)))) 0))
+        by-priority (mapv (fn [p] {:priority p
+                                   :label (get requirement-priority-labels p p)
+                                   :count (get tally p 0)
+                                   :pct (pct (get tally p 0))})
+                         requirement-priority-order)
+        covered (count (filterv pos? (map :count by-priority)))
+        dominant (when (pos? total)
+                   (apply max-key (fn [p] (get tally p 0)) requirement-priority-order))
+        dominant-count (if dominant (get tally dominant 0) 0)]
+    {:available (pos? total)
+     :total total
+     :covered covered
+     :uncovered (- (count requirement-priority-order) covered)
+     :coverage-pct (int (Math/round ^double (* 100.0 (/ covered (count requirement-priority-order)))))
+     :dominant-priority dominant
+     :dominant-count dominant-count
+     :by-priority by-priority}))
+
+
 (defn verification-evidence-alignment
   "按每个业务编码最新有效版本交叉核对需求已声明的验证方式与其是否已配验证(verifies)证据关联的只读一致性: 统计声明验证方式的需求数, 其中已挂至少一条 verifies 关联者(aligned)与尚无验证证据关联者(gap), 以及对齐率. 进一步区分已挂验证关联者其证据文档是否已发布(approved): 至少一条 verifies 关联指向已发布证据文档者计入 evidence-released, 有关联但证据文档尚未发布(或验证证据为任务)者计入 evidence-pending, 并以声明数为分母给出 evidence-released-pct. 未声明验证方式的需求不进入分母, 最新版本被受控作废(discarded)的编号不计入. 只读派生, 不落库不投递, 不门控, 不改变不可变版本, 键名不带尾随问号."
   [requirements traces docs-by-id]

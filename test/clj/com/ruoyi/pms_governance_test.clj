@@ -446,6 +446,90 @@
     (is (= 100 (:coverage-pct (cov))))))
 
 
+(deftest requirement-priority-distribution-is-derived-read-only
+  (let [id (project!)
+        dist (fn [] (:requirement_priority_distribution (workspace id)))
+        pc (fn [k] (first (filter #(= k (:priority %)) (:by-priority (dist)))))
+        a (command! id :requirements :create nil {:code "URS-RP-A" :text "需求甲" :category "功能"
+                                                  :priority "required" :owner_id 9301})
+        _b (command! id :requirements :create nil {:code "URS-RP-B" :text "需求乙" :category "功能"
+                                                   :priority "required" :owner_id 9301})
+        c (command! id :requirements :create nil {:code "URS-RP-C" :text "需求丙" :category "功能"
+                                                  :priority "desired" :owner_id 9301})
+        d (command! id :requirements :create nil {:code "URS-RP-D" :text "需求丁" :category "功能"
+                                                  :priority "desired" :owner_id 9301})]
+    ;; 必填两档穷尽分区: required 2 + desired 2 = total 4, 无未设定档.
+    (is (true? (:available (dist))))
+    (is (= 4 (:total (dist))))
+    (is (= 2 (:covered (dist))))
+    (is (= 0 (:uncovered (dist))))
+    (is (= 100 (:coverage-pct (dist))))
+    (is (= 2 (:count (pc "required"))))
+    (is (= 2 (:count (pc "desired"))))
+    ;; 平票时 apply max-key 取扫描靠后者 => dominant desired (固定顺序 [required desired]).
+    (is (= "desired" (:dominant-priority (dist))))
+    (is (= 2 (:dominant-count (dist))))
+    ;; 逐档占比 round(100*count/total).
+    (is (= 50 (:pct (pc "required"))))
+    (is (= 50 (:pct (pc "desired"))))
+    ;; 修订把需求丙 desired->required: 按 code 折叠仍计一条, required 升 3, dominant 翻回 required.
+    (command! id :requirements :revisions (:id c) {:code "URS-RP-C" :text "需求丙(升为必须)" :category "功能"
+                                                   :priority "required" :owner_id 9301})
+    (is (= 4 (:total (dist))))
+    (is (= 3 (:count (pc "required"))))
+    (is (= 1 (:count (pc "desired"))))
+    (is (= "required" (:dominant-priority (dist))))
+    (is (= 3 (:dominant-count (dist))))
+    ;; 作废最新版本的 desired 需求丁: 分母收缩到 3, desired 归零 -> covered 1/uncovered 1/coverage-pct 50.
+    (command! id :requirements :discard (:id d) {:reason "取消期望项"})
+    (is (= 3 (:total (dist))))
+    (is (= 3 (:count (pc "required"))))
+    (is (= 0 (:count (pc "desired"))))
+    (is (= 1 (:covered (dist))))
+    (is (= 1 (:uncovered (dist))))
+    (is (= 50 (:coverage-pct (dist))))
+    (is (= "required" (:dominant-priority (dist))))
+    ;; 纯函数直测空输入: available 假, 两档全 0, dominant nil, covered 0 uncovered 2.
+    (let [empty (evidence/requirement-priority-distribution [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:total empty)))
+      (is (= 0 (:covered empty)))
+      (is (= 2 (:uncovered empty)))
+      (is (= 0 (:coverage-pct empty)))
+      (is (nil? (:dominant-priority empty)))
+      (is (= 0 (:dominant-count empty)))
+      (is (= [{:priority "required" :label "必需" :count 0 :pct 0}
+              {:priority "desired" :label "期望" :count 0 :pct 0}]
+             (:by-priority empty))))
+    ;; 纯函数非破坏 + store/latest 折叠同 code 取最新 rev(desired): 同一输入两次相等, total 1 dominant desired.
+    (let [rows [{:code "X" :revision 1 :status "registered" :priority "required"}
+                {:code "X" :revision 2 :status "registered" :priority "desired"}]
+          once (evidence/requirement-priority-distribution rows)]
+      (is (= once (evidence/requirement-priority-distribution rows)))
+      (is (= 1 (:total once)))
+      (is (= "desired" (:dominant-priority once))))))
+
+
+(deftest requirement-priority-distribution-workspace-exposes-derived-key
+  (let [id (project!)
+        _ (command! id :requirements :create nil {:code "URS-WP-1" :text "必须项" :category "功能"
+                                                  :priority "required" :owner_id 9301})
+        _ (command! id :requirements :create nil {:code "URS-WP-2" :text "期望项" :category "功能"
+                                                  :priority "desired" :owner_id 9301})
+        ws (workspace id)
+        dist (:requirement_priority_distribution ws)]
+    (is (= 2 (:total dist)))
+    ;; 顶层键与纯函数直测同源.
+    (is (= dist (evidence/requirement-priority-distribution (:requirements ws))))
+    ;; 追加一条必须项 -> total 3 主导由 desired(平票取靠后) 翻为 required (单操作者加性翻转).
+    (command! id :requirements :create nil {:code "URS-WP-3" :text "必须项二" :category "功能"
+                                            :priority "required" :owner_id 9301})
+    (let [d2 (:requirement_priority_distribution (workspace id))]
+      (is (= 3 (:total d2)))
+      (is (= "required" (:dominant-priority d2)))
+      (is (= 2 (:dominant-count d2))))))
+
+
 (deftest document-release-coverage-is-derived-read-only
   (let [id (project!)
         rel (fn [] (:release_coverage (workspace id)))
