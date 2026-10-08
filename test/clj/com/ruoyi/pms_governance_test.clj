@@ -6359,6 +6359,115 @@
     (is (= 0 (:span-days (cad))))))
 
 
+(deftest meeting-type-distribution-is-derived-read-only
+  ;; 纯函数直测: 固定五档恒渲染, 覆盖必填枚举五档计数之和=total/逐档占比/覆盖率/主导类型平票取扫描靠后/作废退出/同 code 只取最新/空输入零口径.
+  (let [base [{:code "M1" :revision 1 :status "recorded" :meeting_type "regular"}
+              {:code "M2" :revision 1 :status "recorded" :meeting_type "regular"}
+              {:code "M3" :revision 1 :status "approved" :meeting_type "kickoff"}
+              {:code "M4" :revision 1 :status "recorded" :meeting_type "review"}
+              {:code "M5" :revision 1 :status "discarded" :meeting_type "fat-summary"}]
+        s (collab/meeting-type-distribution base)]
+    ;; 四场未作废(作废 M5 不计): regular 2 / kickoff 1 / review 1 / fat-* 0, covered 3, uncovered 2.
+    (is (true? (:available s)))
+    (is (= 4 (:total s)))
+    (is (= 3 (:covered s)))
+    (is (= 2 (:uncovered s)))
+    (is (= 60 (:coverage-pct s)))
+    (is (= "regular" (:dominant-type s)))
+    (is (= 2 (:dominant-count s)))
+    ;; 固定五档全渲染, 顺序恒为 meeting-type-order; 每档 count 之和=total.
+    (is (= [{:type "regular" :label "例会" :count 2 :pct 50}
+            {:type "kickoff" :label "启动会" :count 1 :pct 25}
+            {:type "review" :label "评审会" :count 1 :pct 25}
+            {:type "fat-kickoff" :label "FAT启动" :count 0 :pct 0}
+            {:type "fat-summary" :label "FAT总结" :count 0 :pct 0}]
+           (:by-type s)))
+    (is (= (:total s) (reduce + (map :count (:by-type s)))))
+    ;; 不变式 covered + uncovered = 5.
+    (is (= 5 (+ (:covered s) (:uncovered s)))))
+  ;; 主导平票: 扫描靠后者胜 (max-key 返回最后最大者), regular 与 kickoff 各 2 则主导 kickoff.
+  (let [tie (collab/meeting-type-distribution
+              [{:code "T1" :revision 1 :status "recorded" :meeting_type "regular"}
+               {:code "T2" :revision 1 :status "recorded" :meeting_type "regular"}
+               {:code "T3" :revision 1 :status "recorded" :meeting_type "kickoff"}
+               {:code "T4" :revision 1 :status "recorded" :meeting_type "kickoff"}])]
+    (is (= "kickoff" (:dominant-type tie)))
+    (is (= 2 (:dominant-count tie)))
+    (is (= 2 (:covered tie))))
+  ;; 无会议: available 假, total 0, 五档全 0, dominant nil.
+  (let [empty (collab/meeting-type-distribution [])]
+    (is (false? (:available empty)))
+    (is (= 0 (:total empty)))
+    (is (= 0 (:covered empty)))
+    (is (= 5 (:uncovered empty)))
+    (is (= 0 (:coverage-pct empty)))
+    (is (nil? (:dominant-type empty)))
+    (is (= 0 (:dominant-count empty)))
+    (is (= 5 (count (:by-type empty))))
+    (is (every? zero? (map :count (:by-type empty)))))
+  ;; 同 code 多 revision 只取最新: 旧 regular 版被新 review 版取代, 只计一次且按最新类型.
+  (let [dedup (collab/meeting-type-distribution
+                [{:code "R" :revision 1 :status "recorded" :meeting_type "regular"}
+                 {:code "R" :revision 2 :status "approved" :meeting_type "review"}])]
+    (is (= 1 (:total dedup)))
+    (is (= 1 (:covered dedup)))
+    (is (= "review" (:dominant-type dedup)))
+    (is (= [{:type "review" :label "评审会" :count 1 :pct 100}]
+           (filterv (fn [b] (pos? (:count b))) (:by-type dedup)))))
+  ;; 最新版作废即退出分布: 全部作废 -> available 假 total 0.
+  (let [all-void (collab/meeting-type-distribution
+                   [{:code "V1" :revision 1 :status "discarded" :meeting_type "kickoff"}
+                    {:code "V2" :revision 1 :status "discarded" :meeting_type "review"}])]
+    (is (false? (:available all-void)))
+    (is (= 0 (:total all-void)))
+    (is (= 0 (:covered all-void)))))
+
+
+(deftest meeting-type-distribution-workspace-exposes-derived-key
+  ;; 经真实命令登记不同类型会议(避开启动会须绑会前包/基线的门控, 用其余四档), 校验 workspace 暴露 :meeting_type_distribution 且随新增与作废翻转覆盖率/未覆盖档与主导类型.
+  (let [id (project!)
+        dist (fn [] (:meeting_type_distribution (workspace id)))
+        m1 (command! id :meetings :create nil
+                     {:title "第一次例会" :held_on "2026-01-06" :minutes "结论甲"
+                      :attendee_ids [9301] :meeting_type "regular"})
+        m2 (command! id :meetings :create nil
+                     {:title "方案评审会" :held_on "2026-01-13" :minutes "结论乙"
+                      :attendee_ids [9301] :meeting_type "review"})
+        m3 (command! id :meetings :create nil
+                     {:title "第二次例会" :held_on "2026-01-20" :minutes "结论丙"
+                      :attendee_ids [9301] :meeting_type "regular"})]
+    ;; 三场: regular 2 / review 1, covered 2, 主导 regular, 未覆盖 3 档.
+    (is (true? (:available (dist))))
+    (is (= 3 (:total (dist))))
+    (is (= 2 (:covered (dist))))
+    (is (= 3 (:uncovered (dist))))
+    (is (= 40 (:coverage-pct (dist))))
+    (is (= "regular" (:dominant-type (dist))))
+    (is (= 2 (:dominant-count (dist))))
+    ;; 追加 FAT 启动会与 FAT 总结会 -> covered 4, 覆盖率 80, 未覆盖只剩 kickoff, 仍 regular 主导(2).
+    (command! id :meetings :create nil
+              {:title "FAT 启动会" :held_on "2026-02-03" :minutes "结论丁"
+               :attendee_ids [9301] :meeting_type "fat-kickoff"})
+    (command! id :meetings :create nil
+              {:title "FAT 总结会" :held_on "2026-02-10" :minutes "结论戊"
+               :attendee_ids [9301] :meeting_type "fat-summary"})
+    (is (= 5 (:total (dist))))
+    (is (= 4 (:covered (dist))))
+    (is (= 1 (:uncovered (dist))))
+    (is (= 80 (:coverage-pct (dist))))
+    (is (= "regular" (:dominant-type (dist))))
+    ;; 作废两场例会 -> regular 退出(0), 剩余三档各 1 平票取扫描靠后者, covered 3, 未覆盖 2.
+    (command! id :meetings :discard (:id m3) {:reason "例会合并"})
+    (command! id :meetings :discard (:id m1) {:reason "例会合并"})
+    (is (= 3 (:total (dist))))
+    (is (= 3 (:covered (dist))))
+    (is (= 2 (:uncovered (dist))))
+    (is (= 60 (:coverage-pct (dist))))
+    (is (= 1 (:dominant-count (dist))))
+    (is (= {"regular" 0 "kickoff" 0 "review" 1 "fat-kickoff" 1 "fat-summary" 1}
+           (zipmap (map :type (:by-type (dist))) (map :count (:by-type (dist))))))))
+
+
 (deftest node-pause-summary-is-derived-read-only
   ;; 纯函数直测: 固定 today 用整天粒度差值, 覆盖暂停中/已复工/节点类型/中断时项目状态/最长与平均时长.
   (let [today "2026-10-10"

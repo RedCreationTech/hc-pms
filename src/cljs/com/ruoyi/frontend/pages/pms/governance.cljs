@@ -1994,6 +1994,38 @@
 
 
 
+(defn- meeting-type-distribution-section
+  "按每个会议最新有效版本只读聚合其会议类型(例会/启动会/评审会/FAT启动/FAT总结五档固定枚举)的项目级分布: 各类型会议数与占总数百分比, 已用类型档数与缺档类型档数, 类型覆盖率与主导类型; 与参会概览(看出席)/节奏分布(看时间间隔)互补(本项看会议在类型维度的构成/覆盖与主导, 回答是否覆盖启动会/评审会/FAT 等关键节点), 只读派生, 不改变任何记录."
+  [{:keys [model]}]
+  (let [dist (:meeting_type_distribution model)
+        total (:total dist 0)
+        covered (:covered dist 0)
+        uncovered (:uncovered dist 0)
+        pct (:coverage-pct dist 0)
+        dominant (:dominant-type dist)
+        dominant-count (:dominant-count dist 0)
+        by-type (:by-type dist [])
+        dominant-label (when dominant (:label (first (filter #(= dominant (:type %)) by-type))))
+        type-colors {"regular" "blue" "kickoff" "gold" "review" "green"
+                     "fat-kickoff" "orange" "fat-summary" "purple"}]
+    [shared/panel "会议类型分布" "按每个会议最新有效版本只读聚合其会议类型(例会/启动会/评审会/FAT启动/FAT总结五档固定枚举)的项目级分布, 给出会议总数, 已用类型档数, 缺档类型档数, 类型覆盖率与主导类型(会议数最多者), 并逐档附其占比; 与参会概览/节奏分布互补, 只读派生, 不改变任何记录"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无有效会议, 登记会议后可在此查看五档类型分布."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "会议总数 " total)]
+         [antd/tag {:color (if (zero? pct) "red" "geekblue")} (str "类型覆盖率 " pct "%")]
+         [antd/tag {:color "green"} (str "已用类型 " covered)]
+         (when (pos? uncovered)
+           [antd/tag {:color "orange"} (str "缺档类型 " uncovered)])
+         (when dominant
+           [antd/tag {:color "purple"} (str "主导类型 " dominant-label " · " dominant-count)])]
+        [antd/space {:wrap true}
+         (for [t by-type]
+           ^{:key (:type t)} [antd/tag {:color (get type-colors (:type t) "default")}
+                                (str (:label t) " · " (:count t) " (" (:pct t 0) "%)")])]])]))
+
+
 (defn- action-section
   "会议行动转为实际WBS任务, 完成须证据与独立核验并提示逾期; 已关闭行动可受控重开."
   [{:keys [base model editable? open!] :as context}]
@@ -2772,7 +2804,7 @@
                      ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section raci-role-distribution-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section comm-channel-usage-section comm-plan-audience-breadth-section stakeholder-category-distribution-section stakeholder-quadrant-distribution-section stakeholder-engagement-distribution-section]]
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-stage-distribution-section risk-review-frequency-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
-                     ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section meeting-attendance-section meeting-cadence-section action-closure-section action-priority-distribution-section project-remediation-overview-section due-workload-overview-section owner-due-pressure-section action-section]]
+                     ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section meeting-attendance-section meeting-cadence-section meeting-type-distribution-section action-closure-section action-priority-distribution-section project-remediation-overview-section due-workload-overview-section owner-due-pressure-section action-section]]
                      ["changes" "变更控制" [change-section change-closure-section change-type-coverage-section change-impact-coverage-section change-impact-pattern-section change-impact-magnitude-section ccb-participation-section]]
                      ["quality" "DQ与局部暂停" [dq-summary-section dq-section node-pause-summary-section pause-section]]])}])
 

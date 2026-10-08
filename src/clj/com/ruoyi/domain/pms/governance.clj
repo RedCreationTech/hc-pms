@@ -153,6 +153,7 @@
                           :meeting_material_readiness (collab/meeting-material-readiness (:meetings data) docs-by-id)
                           :meeting_attendance_summary (collab/meeting-attendance-summary (:meetings data) members)
                           :meeting_cadence (collab/meeting-cadence-summary (:meetings data))
+                          :meeting_type_distribution (collab/meeting-type-distribution (:meetings data))
                           :node_pause_summary (quality/node-pause-summary (:node_pauses data) nil)
                           :change_closure_summary (approval/change-closure-summary (:changes data))
                           :ccb_participation (approval/ccb-participation-summary (:changes data))
