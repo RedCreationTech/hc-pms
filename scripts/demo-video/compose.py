@@ -23,12 +23,16 @@ of the chapter rail, so the viewer knows the recording was accelerated there.
 
 Usage: python3 scripts/demo-video/compose.py [--keep] [--limit=N]
 """
+import base64
 import bisect
 import json
 import os
 import shutil
 import subprocess
 import sys
+import time
+import urllib.error
+import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.abspath(os.environ.get('DEMO_VIDEO_DIR') or os.path.join(HERE, '../../reports/demo-video'))
@@ -40,9 +44,17 @@ OPEN_DUR, CARD_DUR, END_DUR = 4.0, 3.2, 7.0
 CLIP_FADE = 0.22
 HOLD, FF_RATE, FF_BADGE = 8.0, 3.0, 1.25
 FONT = 'Noto Sans CJK SC'
-# 旁白解说 (macOS say TTS): 逐镜解说词合成成音轨, 与背景音乐混音时给人声让路.
-NARR_VOICE = os.environ.get('DEMO_NARR_VOICE') or 'Tingting'
-NARR_RATE = int(os.environ.get('DEMO_NARR_RATE') or '195')
+# 旁白解说引擎: 默认用小米 MiMo TTS (OpenAI 兼容 chat.completions), 可回退 macOS say.
+# 逐镜解说词合成成音轨, 与背景音乐混音时给人声让路. API key 只从 MIMO_API_KEY 环境变量读取, 不入库/不写死.
+NARR_ENGINE = (os.environ.get('DEMO_NARR_ENGINE') or 'mimo').strip().lower()
+MIMO_BASE_URL = os.environ.get('MIMO_BASE_URL') or 'https://api.xiaomimimo.com/v1'
+MIMO_MODEL = os.environ.get('MIMO_TTS_MODEL') or 'mimo-v2.5-tts'
+MIMO_API_KEY = os.environ.get('MIMO_API_KEY') or ''
+# MiMo 中文音色簇默认 "冰糖"; 可用 DEMO_NARR_VOICE 覆盖 (mimo: 冰糖/茉莉/苏打/白桦/Mia/Chloe/Milo/Dean/say:Tingting).
+MIMO_VOICE = os.environ.get('DEMO_NARR_VOICE') or '冰糖'
+# say 回退参数 (仅 NARR_ENGINE=='say' 时使用).
+SAY_VOICE = os.environ.get('DEMO_SAY_VOICE') or 'Tingting'
+SAY_RATE = int(os.environ.get('DEMO_SAY_RATE') or '195')
 NARR_LEAD, NARR_TAIL = 0.25, 0.5   # 每个镜头内旁白前置/后置留白 (秒)
 NARR_MUSIC_GAIN = float(os.environ.get('DEMO_NARR_MUSIC_GAIN') or '0.28')  # 有旁白时背景音乐音量系数
 NARR_DIR = os.path.join(OUT, 'narration')
@@ -64,13 +76,61 @@ def probe_duration(path):
     return float(res.stdout.strip())
 
 
+def mimo_synth(text, dest_raw_wav):
+    """Synthesize one narration line via Xiaomi MiMo TTS (OpenAI-compatible chat.completions).
+
+    Writes the base64 wav payload returned by the model to dest_raw_wav (native 24 kHz mono).
+    Retries on 429 / transient errors with exponential backoff (the endpoint caps at 100 RPM).
+    """
+    url = MIMO_BASE_URL.rstrip('/') + '/chat/completions'
+    payload = json.dumps({
+        'model': MIMO_MODEL,
+        'messages': [{'role': 'assistant', 'content': text}],
+        'audio': {'format': 'wav', 'voice': MIMO_VOICE},
+    }).encode('utf-8')
+    last_err = None
+    for attempt in range(6):
+        req = urllib.request.Request(url, data=payload, method='POST')
+        req.add_header('Authorization', f'Bearer {MIMO_API_KEY}')
+        req.add_header('Content-Type', 'application/json')
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                body = json.loads(resp.read().decode('utf-8'))
+            data_b64 = body['choices'][0]['message']['audio']['data']
+            with open(dest_raw_wav, 'wb') as f:
+                f.write(base64.b64decode(data_b64))
+            return
+        except urllib.error.HTTPError as e:
+            snippet = ''
+            try:
+                snippet = e.read().decode('utf-8', 'replace')[:300]
+            except Exception:
+                pass
+            last_err = f'HTTP {e.code}: {snippet}'
+            if e.code not in (429, 500, 502, 503, 504):
+                break
+        except Exception as e:  # network / decode / shape surprises
+            last_err = repr(e)
+        time.sleep(min(2 ** attempt, 30) + 0.5)  # backoff, also paces the batch under the 100 RPM cap
+    raise SystemExit(f'MiMo TTS synthesis failed after retries: {last_err}')
+
+
 def synth_narration(text, dest):
-    """Synthesize one narration line via macOS `say` into a 48 kHz stereo wav; return its duration."""
-    aiff = dest + '.aiff'
-    run(['say', '-v', NARR_VOICE, '-r', str(NARR_RATE), text, '-o', aiff])
-    run(['ffmpeg', '-y', '-v', 'error', '-i', aiff, '-ac', '2', '-ar', '48000', dest])
-    if os.path.exists(aiff):
-        os.remove(aiff)
+    """Synthesize one narration line into a 48 kHz stereo wav (via MiMo TTS, or `say` fallback); return duration."""
+    if NARR_ENGINE == 'say':
+        aiff = dest + '.aiff'
+        run(['say', '-v', SAY_VOICE, '-r', str(SAY_RATE), text, '-o', aiff])
+        run(['ffmpeg', '-y', '-v', 'error', '-i', aiff, '-ac', '2', '-ar', '48000', dest])
+        if os.path.exists(aiff):
+            os.remove(aiff)
+        return probe_duration(dest)
+    if not MIMO_API_KEY:
+        raise SystemExit('MIMO_API_KEY not set; export it or run with DEMO_NARR_ENGINE=say')
+    raw = dest + '.mimo.wav'
+    mimo_synth(text, raw)
+    run(['ffmpeg', '-y', '-v', 'error', '-i', raw, '-ac', '2', '-ar', '48000', dest])
+    if os.path.exists(raw):
+        os.remove(raw)
     return probe_duration(dest)
 
 
@@ -381,7 +441,11 @@ def main():
                 wp = os.path.join(NARR_DIR, f'{sid}.wav')
                 narr_durs[sid] = synth_narration(narr_text[sid], wp)
                 narr_wav[sid] = wp
-        print(f'narration: {len(narr_wav)} line(s) synthesized (voice={NARR_VOICE}, rate={NARR_RATE})')
+        if NARR_ENGINE == 'say':
+            engine_desc = f'engine=say voice={SAY_VOICE} rate={SAY_RATE}'
+        else:
+            engine_desc = f'engine=mimo model={MIMO_MODEL} voice={MIMO_VOICE}'
+        print(f'narration: {len(narr_wav)} line(s) synthesized ({engine_desc})')
     edl = build_edl(timeline, board, narr_durs)
     json.dump(edl, open(os.path.join(OUT, 'edl.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
     print(f"edl: {len(edl['items'])} items, {edl['duration']:.1f}s")
