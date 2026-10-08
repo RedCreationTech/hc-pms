@@ -709,6 +709,38 @@
                                  (str (:label c) " · " (:count c))])]])]))
 
 
+(defn- comm-plan-audience-breadth-section
+  "按每个沟通计划最新有效版本只读聚合每条活动沟通计划面向受众人数的广度分布: 单受众/2-3人/4人及以上三档各自计划数, 设定与未设定受众计划数, 平均与最大广度及最宽计划; 与沟通受众覆盖度互补(覆盖度从干系人侧看谁被触达而本项从计划侧看每条计划面向多广), 只读派生, 不改变任何记录."
+  [{:keys [model]}]
+  (let [br (:comm_audience_breadth model)
+        total (:total br 0)
+        targeted (:targeted br 0)
+        untargeted (:untargeted br 0)
+        total-refs (:total-refs br 0)
+        avg-size (:avg-size br 0)
+        widest (:widest-plan br)
+        by-breadth (:by-breadth br [])
+        breadth-colors {"solo" "default" "few" "blue" "many" "purple"}]
+    [shared/panel "沟通计划受众广度分布" "按每个沟通计划最新有效版本只读聚合每条活动沟通计划面向受众人数的广度分布(单受众/2-3人/4人及以上三档各自计划数), 给出设定受众的计划数, 未设定受众计划数, 平均广度与最宽计划; 与沟通受众覆盖度互补, 只读派生, 不改变任何记录"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无沟通计划, 登记后可在此查看受众广度分布."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "沟通计划总数 " total)]
+         [antd/tag {:color "green"} (str "设定受众 " targeted)]
+         (when (pos? untargeted)
+           [antd/tag {:color "orange"} (str "未设定受众 " untargeted)])
+         [antd/tag {:color "geekblue"} (str "受众引用总数 " total-refs)]]
+        [antd/space {:wrap true}
+         [antd/tag {:color "cyan"} (str "平均广度 " avg-size " 人")]
+         (when widest
+           [antd/tag {:color "purple"} (str "最宽计划 " (:code widest) " · " (:size widest) " 人")])]
+        [antd/space {:wrap true}
+         (for [b by-breadth :when (pos? (:count b 0))]
+           ^{:key (:bucket b)} [antd/tag {:color (get breadth-colors (:bucket b) "default")}
+                                (str (:label b) " · " (:count b))])]])]))
+
+
 (defn- raci-assignment-section
   "按活动只读聚合RACI职责分配完整度(每项活动是否同时指派了负责A与执行R): 完整/缺负责A/缺执行R与覆盖率并列出未完整活动; 与逐活动缺口冲突提示互补(冲突只列缺口子集而本项给出项目级正向覆盖率), 只读派生, 不改变任何记录."
   [{:keys [model]}]
@@ -2608,7 +2640,7 @@
                      ["requirements" "URS与追踪" [requirement-section coverage-section alignment-section traceability-section trace-section]]
                      ["evidence" "证据版本" [document-section collection-section tree-section release-coverage-section]]
                      ["appointments" "成员任命" [appointment-section]]
-                     ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section comm-channel-usage-section]]
+                     ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section comm-channel-usage-section comm-plan-audience-breadth-section]]
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-stage-distribution-section risk-review-frequency-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section meeting-attendance-section meeting-cadence-section action-closure-section action-priority-distribution-section project-remediation-overview-section due-workload-overview-section owner-due-pressure-section action-section]]

@@ -136,6 +136,7 @@
                           :comm_audience_coverage (stakeholders/comm-audience-coverage (:stakeholders data) (:comm_plans data))
                           :comm_execution_coverage (stakeholders/comm-execution-coverage (:comm_plans data))
                           :comm_channel_usage (stakeholders/comm-channel-usage (:comm_plans data))
+                          :comm_audience_breadth (stakeholders/comm-plan-audience-breadth (:comm_plans data))
                           :raci_assignment_coverage (stakeholders/raci-assignment-completeness (:raci data))
                           :raci_engagement_coverage (stakeholders/raci-engagement-coverage (:raci data))
                           :issue_escalation_summary (collab/issue-escalation-disposition-summary (:issues data))

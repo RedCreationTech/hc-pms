@@ -421,6 +421,50 @@
      :by-channel by-channel}))
 
 
+(defn comm-plan-audience-breadth
+  "按每个沟通计划业务编码最新有效版本(store/latest 折叠修订链)统计每条活动沟通计划所面向受众人数(:audience 向量长度)的只读广度分布: 给出计划总数/已设定受众的计划数/未设定受众计划数/受众引用总数/平均广度(按已设定受众计划四舍五入)/最大广度与最宽计划(编号+目标+人数), 并按固定档位(单受众/2-3人/4人及以上)给出各档计划数(仅计入已设定受众者). 最新版本被受控作废(discarded)的沟通计划不计入. 只读派生, 不落库不投递, 不改变不可变版本, 不构成任何门控; 与沟通受众覆盖度互补(coverage 从干系人侧看有多少人被至少一条计划触达而本项从计划侧看每条计划面向多广)."
+  [comm-plans]
+  (let [active-plans (filterv #(not= "discarded" (:status %)) (s/latest comm-plans))
+        size-of (fn [plan] (count (:audience plan)))
+        total (count active-plans)
+        sized (mapv (fn [plan] {:code (:code plan)
+                                :objective (:objective plan)
+                                :size (size-of plan)})
+                    active-plans)
+        targeted (filterv (fn [m] (pos? (:size m))) sized)
+        targeted-count (count targeted)
+        untargeted (- total targeted-count)
+        total-refs (reduce + 0 (map :size targeted))
+        avg-size (if (pos? targeted-count)
+                   (int (Math/round ^double (/ total-refs targeted-count)))
+                   0)
+        widest (when (seq targeted)
+                 (reduce (fn [best m] (if (> (:size m) (:size best)) m best))
+                         (first targeted)
+                         targeted))
+        max-size (if widest (:size widest) 0)
+        bucket-of (fn [n] (cond (= 1 n) "solo"
+                                (<= n 3) "few"
+                                :else "many"))
+        buckets [["solo" "单受众"] ["few" "2-3 人"] ["many" "4 人及以上"]]
+        by-breadth (mapv (fn [[k label]]
+                           {:bucket k
+                            :label label
+                            :count (count (filterv #(= k (bucket-of (:size %))) targeted))})
+                         buckets)]
+    {:available (pos? total)
+     :total total
+     :targeted targeted-count
+     :untargeted untargeted
+     :total-refs total-refs
+     :avg-size avg-size
+     :max-size max-size
+     :widest-plan (when widest {:code (:code widest)
+                                :objective (:objective widest)
+                                :size (:size widest)})
+     :by-breadth by-breadth}))
+
+
 (defn raci-assignment-completeness
   "按活动汇总RACI职责分配完整度的只读覆盖度: 逐活动判断是否至少指派一个负责(A)与一个执行(R), 两者齐备视为完整, 给出活动总数/完整/缺负责A/缺执行R与覆盖率, 并列出未完整活动及其缺项. RACI指派行不按修订链折叠(与逐条冲突检查conflicts一致直接消费原始行). 只读派生, 不落库不投递, 不改变不可变版本, 不构成任何门控; 与逐条冲突检查互补(conflicts只返回冲突子集而本项给出项目级正向覆盖率与完整分布)."
   [raci-rows]

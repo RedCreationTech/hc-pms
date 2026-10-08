@@ -4192,7 +4192,93 @@
       (is (= 1 (:total-logs disc)))
       (is (= 1 (:declared disc)))
       (is (= "email" (:dominant-channel disc)))
-      (is (= 0 (:count (first (filter #(= "meeting" (:channel %)) (:by-channel disc)))))))))
+      (is (= 0 (:count (first (filter #(= "meeting" (:channel %)) (:by-channel disc)))))))
+
+
+(deftest comm-plan-audience-breadth-is-derived-read-only
+  (let [id (project!)
+        breadth (fn [] (:comm_audience_breadth (workspace id)))
+        bb (fn [k] (first (filter #(= k (:bucket %)) (:by-breadth (breadth)))))
+        sh (fn [code] (:id (command! id :stakeholders :create nil
+                                     {:code code :name (str "干系人-" code) :role "评审" :category "internal"
+                                      :interest "medium" :influence "medium" :owner_id 9301})))
+        plan (fn [code audience]
+               (command! id :comm-plans :create nil
+                         {:code code :objective (str "沟通-" code) :channel "meeting" :frequency "weekly"
+                          :audience audience :next_date "2026-10-15" :owner_id 9301}))
+        s1 (sh "AB-1") s2 (sh "AB-2") s3 (sh "AB-3") s4 (sh "AB-4")
+        p1 (plan "AB-P1" [s1]) p2 (plan "AB-P2" [s1 s2]) _ (plan "AB-P3" [s1 s2 s3 s4])]
+    ;; 三条计划分别面向 1/2/4 人 -> solo/few/many 各 1, 引用总数 7, 平均四舍五入 2, 最宽 AB-P3 4 人.
+    (is (true? (:available (breadth))))
+    (is (= 3 (:total (breadth))))
+    (is (= 3 (:targeted (breadth))))
+    ;; 真实命令受众恒为 1..50, 故未设定受众计划数为 0.
+    (is (= 0 (:untargeted (breadth))))
+    (is (= 7 (:total-refs (breadth))))
+    (is (= 2 (:avg-size (breadth))))
+    (is (= 4 (:max-size (breadth))))
+    (is (= "AB-P3" (:code (:widest-plan (breadth)))))
+    (is (= 4 (:size (:widest-plan (breadth)))))
+    (is (= ["solo" "few" "many"] (mapv :bucket (:by-breadth (breadth)))))
+    (is (= 1 (:count (bb "solo"))))
+    (is (= 1 (:count (bb "few"))))
+    (is (= 1 (:count (bb "many"))))
+    ;; 只读派生不改变记录: 重复读取稳定, 计划仍 active.
+    (is (= (breadth) (:comm_audience_breadth (workspace id))))
+    (let [row (first (filter #(= "AB-P1" (:code %)) (:comm_plans (workspace id))))]
+      (is (= "active" (:status row))))
+    ;; 界面受控修订: AB-P2 受众由 2 人增到 4 人 -> few 清零, many 升到 2, 引用 9, 平均 3, 最宽仍 4.
+    (command! id :comm-plans :revisions (:id p2)
+              {:code "AB-P2" :objective "沟通-AB-P2" :channel "meeting" :frequency "weekly"
+               :audience [s1 s2 s3 s4] :next_date "2026-10-15" :owner_id 9301})
+    (is (= 3 (:total (breadth))))
+    (is (= 9 (:total-refs (breadth))))
+    (is (= 3 (:avg-size (breadth))))
+    (is (= 4 (:max-size (breadth))))
+    (is (= 1 (:count (bb "solo"))))
+    (is (= 0 (:count (bb "few"))))
+    (is (= 2 (:count (bb "many"))))
+    ;; 纯函数直测: 空输入 available false/全 0/三档顺序 solo few many 全 0/无最宽计划.
+    (let [empty (stakeholders/comm-plan-audience-breadth [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:total empty)))
+      (is (= 0 (:targeted empty)))
+      (is (= 0 (:untargeted empty)))
+      (is (= 0 (:total-refs empty)))
+      (is (= 0 (:avg-size empty)))
+      (is (= 0 (:max-size empty)))
+      (is (nil? (:widest-plan empty)))
+      (is (= ["solo" "few" "many"] (mapv :bucket (:by-breadth empty))))
+      (is (every? zero? (mapv :count (:by-breadth empty)))))
+    ;; 合成: 无受众计划计入未设定, targeted 为 0 时平均广度取 0 且无最宽计划.
+    (let [ut (stakeholders/comm-plan-audience-breadth
+               [{:code "Z" :revision 1 :status "active"}])]
+      (is (= 1 (:total ut)))
+      (is (= 0 (:targeted ut)))
+      (is (= 1 (:untargeted ut)))
+      (is (= 0 (:total-refs ut)))
+      (is (= 0 (:avg-size ut)))
+      (is (nil? (:widest-plan ut))))
+    ;; 合成: s/latest 只计最新修订版受众, 旧版人数不重复计入, 新版收缩到 1 -> solo.
+    (let [rev (stakeholders/comm-plan-audience-breadth
+                [{:code "P" :revision 1 :status "active" :audience ["a" "b"]}
+                 {:code "P" :revision 2 :status "active" :audience ["a"]}])]
+      (is (= 1 (:total rev)))
+      (is (= 1 (:targeted rev)))
+      (is (= 1 (:total-refs rev)))
+      (is (= 1 (:max-size rev)))
+      (is (= 1 (:count (first (filter #(= "solo" (:bucket %)) (:by-breadth rev))))))
+      (is (= 0 (:count (first (filter #(= "few" (:bucket %)) (:by-breadth rev)))))))
+    ;; 合成: 最新版被作废的计划不计入, 仅活动计划参与广度统计.
+    (let [disc (stakeholders/comm-plan-audience-breadth
+                 [{:code "A" :revision 1 :status "discarded" :audience ["w" "x" "y" "z"]}
+                  {:code "B" :revision 1 :status "active" :audience ["p" "q"]}])]
+      (is (= 1 (:total disc)))
+      (is (= 1 (:targeted disc)))
+      (is (= 2 (:total-refs disc)))
+      (is (= 2 (:max-size disc)))
+      (is (= 1 (:count (first (filter #(= "few" (:bucket %)) (:by-breadth disc))))))
+      (is (= 0 (:count (first (filter #(= "many" (:bucket %)) (:by-breadth disc)))))))))))
 
 
 (deftest raci-assignment-coverage-is-derived-read-only
