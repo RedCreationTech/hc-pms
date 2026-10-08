@@ -3697,6 +3697,106 @@
       (is (= 4 (:avg-score (first (:stages one))))))))
 
 
+(deftest risk-review-frequency-distribution-is-derived-read-only
+  (let [id (project!)
+        dist (fn [] (:risk_review_frequency_distribution (workspace id)))
+        by (fn [k] (first (filter #(= k (:frequency %)) (:by-frequency (dist)))))
+        today (java.time.LocalDate/now)
+        create (fn [title due freq]
+                 (command! id :risks :create nil
+                           {:title title :probability 2 :impact 3
+                            :owner_id 9301 :mitigation "常规措施" :due_date due
+                            :review_frequency freq}))]
+    ;; 按复审频率只读分布: 四档各一条 + 一条未设定频率; 到期状态复用逐条 review_overdue/review_due_soon 口径.
+    (create "每周逾期复审风险" (str (.minusDays today 30)) "weekly")
+    (create "双周临期复审风险" (str (.plusDays today 2)) "biweekly")
+    (create "每月未来复审风险" (str (.plusDays today 60)) "monthly")
+    (create "每季度未来复审风险" (str (.plusDays today 90)) "quarterly")
+    (create "未设频率复审风险" (str (.plusDays today 30)) nil)
+    (is (true? (:available (dist))))
+    (is (= 5 (:total (dist))))
+    (is (= 4 (:declared (dist))))
+    (is (= 1 (:unassigned (dist))))
+    (is (= 80 (:declared-pct (dist))))
+    ;; 穷尽分区不变式: 已设定 + 未设定 = 总数, 四档计数之和 = 已设定.
+    (is (= 5 (+ (:unassigned (dist)) (:declared (dist)))))
+    (is (= 4 (reduce + 0 (map :count (:by-frequency (dist))))))
+    ;; 逐档 open/overdue/due-soon 与到期派生同口径: 每周逾期, 双周临期, 每月与每季度均未到期.
+    (let [w (by "weekly")]
+      (is (= 1 (:count w)))
+      (is (= 1 (:open w)))
+      (is (= 1 (:overdue w)))
+      (is (= 0 (:due-soon w))))
+    (let [bw (by "biweekly")]
+      (is (= 1 (:count bw)))
+      (is (= 1 (:open bw)))
+      (is (= 0 (:overdue bw)))
+      (is (= 1 (:due-soon bw))))
+    (let [m (by "monthly")]
+      (is (= 1 (:count m)))
+      (is (= 1 (:open m)))
+      (is (= 0 (:overdue m)))
+      (is (= 0 (:due-soon m))))
+    (let [q (by "quarterly")]
+      (is (= 1 (:count q)))
+      (is (= 1 (:open q)))
+      (is (= 0 (:overdue q)))
+      (is (= 0 (:due-soon q))))
+    ;; 单 actor 补登记一条未来到期每周风险: 分布实时翻转, declared 与 weekly.count 上翻, pct 由 80 降到 83 (5/6).
+    (create "第二条每周未来复审风险" (str (.plusDays today 45)) "weekly")
+    (is (= 6 (:total (dist))))
+    (is (= 5 (:declared (dist))))
+    (is (= 1 (:unassigned (dist))))
+    (is (= 83 (:declared-pct (dist))))
+    (is (= 5 (reduce + 0 (map :count (:by-frequency (dist))))))
+    (let [w (by "weekly")]
+      (is (= 2 (:count w)))
+      (is (= 2 (:open w)))
+      (is (= 1 (:overdue w)))
+      (is (= 0 (:due-soon w))))
+    ;; 只读派生不改变风险状态: 重复读取分布稳定, 源风险仍登记态且到期派生不漂移.
+    (is (= (dist) (:risk_review_frequency_distribution (workspace id))))
+    (let [row (first (filter #(= "每周逾期复审风险" (:title %)) (:risks (workspace id))))]
+      (is (= "weekly" (:review_frequency row)))
+      (is (true? (:review_overdue row)))
+      (is (= "open" (:status row))))
+    ;; 纯函数直测: 空输入全 0 且四档各 0.
+    (let [empty (collab/risk-review-frequency-distribution [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:total empty)))
+      (is (= 0 (:declared empty)))
+      (is (= 0 (:unassigned empty)))
+      (is (= 0 (:declared-pct empty)))
+      (is (= 4 (count (:by-frequency empty))))
+      (is (= [0 0 0 0] (map :count (:by-frequency empty)))))
+    ;; 合成(已带派生键): 已关闭不计入 open, 未设定频率恒入 unassigned, pct 随覆盖率变化.
+    (let [mix (collab/risk-review-frequency-distribution
+                [{:code "W1" :revision 1 :review_frequency "weekly" :status "open" :review_overdue true :review_due_soon false}
+                 {:code "W2" :revision 1 :review_frequency "weekly" :status "closed" :review_overdue false :review_due_soon false}
+                 {:code "M1" :revision 1 :review_frequency "monthly" :status "open" :review_overdue false :review_due_soon true}
+                 {:code "U1" :revision 1 :review_frequency nil :status "open" :review_overdue false :review_due_soon false}])]
+      (is (= 4 (:total mix)))
+      (is (= 3 (:declared mix)))
+      (is (= 1 (:unassigned mix)))
+      (is (= 75 (:declared-pct mix)))
+      (let [w (first (filter #(= "weekly" (:frequency %)) (:by-frequency mix)))]
+        (is (= 2 (:count w)))
+        (is (= 1 (:open w)))
+        (is (= 1 (:overdue w))))
+      (let [m (first (filter #(= "monthly" (:frequency %)) (:by-frequency mix)))]
+        (is (= 1 (:count m)))
+        (is (= 1 (:open m)))
+        (is (= 1 (:due-soon m)))))
+    ;; 同一 code 修订链只计最新有效版本: 旧版 weekly 被最新 monthly 取代, 归 monthly 不计 weekly.
+    (let [rev (collab/risk-review-frequency-distribution
+                [{:code "R" :revision 1 :review_frequency "weekly" :status "open" :review_overdue false :review_due_soon false}
+                 {:code "R" :revision 2 :review_frequency "monthly" :status "open" :review_overdue false :review_due_soon false}])]
+      (is (= 1 (:total rev)))
+      (is (= 1 (:declared rev)))
+      (is (= 0 (:count (first (filter #(= "weekly" (:frequency %)) (:by-frequency rev))))))
+      (is (= 1 (:count (first (filter #(= "monthly" (:frequency %)) (:by-frequency rev)))))))))
+
+
 (deftest risk-review-cadence-summary-is-derived-read-only
   (let [id (project!)
         cad (fn [] (:risk_review_cadence (workspace id)))

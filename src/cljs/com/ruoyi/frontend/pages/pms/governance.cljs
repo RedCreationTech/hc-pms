@@ -978,6 +978,39 @@
                                  (when (pos? critical) (str " · 严重" critical)))])]]])]))
 
 
+(defn- risk-review-frequency-section
+  "按每个风险最新有效版本只读统计复审频率(:review_frequency)在项目级四档(每周/双周/每月/每季度)上的分布: 各档条数与未闭环/复审逾期/临期计数, 以及已设定与未设定覆盖率; 到期口径复用逐条台账复审到期倒计时, 只读派生, 不改变风险状态."
+  [{:keys [model]}]
+  (let [dist (:risk_review_frequency_distribution model)
+        total (:total dist 0)
+        declared (:declared dist 0)
+        unassigned (:unassigned dist 0)
+        declared-pct (:declared-pct dist 0)
+        freq-label {"weekly" "每周" "biweekly" "双周" "monthly" "每月" "quarterly" "每季度"}
+        freq-color (fn [f] (cond (pos? (:overdue f 0)) "red"
+                                 (pos? (:due-soon f 0)) "gold"
+                                 :else "geekblue"))]
+    [shared/panel "风险复审频率分布" "按每个风险的最新有效版本只读统计复审频率(每周/双周/每月/每季度)分布, 并计各档未闭环, 复审逾期与临期数及已设定覆盖率; 与逐条台账到期倒计时同源, 只读派生, 不改变风险状态"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无项目风险, 登记后可在此查看复审频率分布."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "风险总数 " total)]
+         [antd/tag {:color "geekblue"} (str "已设定复审频率 " declared-pct "% (" declared "/" total ")")]
+         (when (pos? unassigned)
+           [antd/tag {:color "orange"} (str "未设定复审频率 " unassigned)])]
+        [:div
+         [:span {:style {:fontWeight 500}} "按复审频率: "]
+         [antd/space {:wrap true}
+          (for [f (filterv #(pos? (:count % 0)) (:by-frequency dist))]
+            ^{:key (:frequency f)} [antd/tag {:color (freq-color f)}
+                                    (str (get freq-label (:frequency f) (:frequency f))
+                                         " · " (:count f 0) " 条"
+                                         " · 未闭环 " (:open f 0)
+                                         (when (pos? (:overdue f 0)) (str " · 复审逾期 " (:overdue f 0)))
+                                         (when (pos? (:due-soon f 0)) (str " · 临期 " (:due-soon f 0))))])]]])]))
+
+
 (defn- risk-review-cadence-section
   "按每个风险最新有效版本只读聚合复审到期节奏: 未关闭风险按到期日三分已逾期/临期/未来到期, 并给出待复审与已关闭计数; 复用逐条台账到期倒计时口径, 只读派生, 不改变风险状态."
   [{:keys [model]}]
@@ -2548,7 +2581,7 @@
                      ["appointments" "成员任命" [appointment-section]]
                      ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section]]
                      ["gates" "Gate评审" [gate-section]]
-                     ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-stage-distribution-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
+                     ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-stage-distribution-section risk-review-frequency-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section meeting-attendance-section meeting-cadence-section action-closure-section action-priority-distribution-section project-remediation-overview-section due-workload-overview-section owner-due-pressure-section action-section]]
                      ["changes" "变更控制" [change-section change-closure-section change-type-coverage-section change-impact-coverage-section change-impact-pattern-section change-impact-magnitude-section ccb-participation-section]]
                      ["quality" "DQ与局部暂停" [dq-summary-section dq-section node-pause-summary-section pause-section]]])}])

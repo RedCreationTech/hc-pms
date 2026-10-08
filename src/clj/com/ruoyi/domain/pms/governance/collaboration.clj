@@ -143,6 +143,40 @@
                       (mapv entry groups))}))
 
 
+(def risk-review-frequency-order
+  "风险复审频率只读统计顺序 (与 ra/review-frequencies 词汇一致, 无未设定档因未设频率者计入 unassigned)."
+  ["weekly" "biweekly" "monthly" "quarterly"])
+
+
+(def risk-review-frequency-labels
+  "风险复审频率中文标签映射 (用于前端展示). 与 risk-review-frequency-order 同词汇."
+  {"weekly" "每周" "biweekly" "双周" "monthly" "每月" "quarterly" "每季度"})
+
+
+(defn risk-review-frequency-distribution
+  "按每个风险最新有效版本只读统计复审频率(:review_frequency 可选枚举 weekly/biweekly/monthly/quarterly)在项目级的分布: 四档固定顺序各 count/open/overdue/due-soon 计数, 顶层输出已设定/未设定与已设定百分比. open 排除 status=closed; overdue 与 due-soon 复用 reviews/risk-read-model 已派生的 :review_overdue 与 :review_due_soon (与逐条台账到期倒计时同口径不漂移); 未设定频率(:review_frequency nil)恒计入 unassigned 而不进入 by-frequency 四档(与手工登记风险无应对策略计入未声明同构); 只读派生, 不落库不投递, 不改变风险状态, 不构成门控. 键名 kebab-case 不带尾随问号."
+  [risks]
+  (let [freqs risk-review-frequency-order
+        active (s/latest risks)
+        total (count active)
+        declared (count (filterv #(some #{(:review_frequency %)} freqs) active))
+        unassigned (- total declared)
+        subset (fn [x] (filterv #(= x (:review_frequency %)) active))
+        tally (fn tally [rs]
+                 {:count (count rs)
+                  :open (count (remove #(= "closed" (:status %)) rs))
+                  :overdue (count (filterv :review_overdue rs))
+                  :due-soon (count (filterv :review_due_soon rs))})]
+    {:available (pos? total)
+     :total total
+     :declared declared
+     :unassigned unassigned
+     :declared-pct (if (pos? total)
+                     (int (Math/round ^double (* 100.0 (/ declared total))))
+                     0)
+     :by-frequency (mapv (fn [x] (into {:frequency x} (tally (subset x)))) freqs)}))
+
+
 (defn risk-review-cadence-summary
   "按每个风险最新有效版本只读聚合复审到期节奏: 未关闭风险按到期日三分已逾期(到期日<=今天)/临期(1 到 3 天内)/未来到期(距今超过临期窗口), 并给出未关闭与已关闭计数; 复用 reviews/risk-read-model 已派生的 :review_overdue/:review_due_soon 与 :status, 与逐条台账到期倒计时口径单一不漂移(登记风险必填到期日, 故未关闭风险恒落在三档之一); 只读派生, 不落库不投递, 不改变风险状态, 不构成门控. 键名不带尾随问号."
   [risks]
