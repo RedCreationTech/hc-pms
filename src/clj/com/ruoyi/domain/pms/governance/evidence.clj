@@ -423,6 +423,42 @@
      :by-priority by-priority}))
 
 
+(def document-classification-order
+  "证据文档密级固定枚举档 (与前端 class-labels 显示口径一致: public=公开, internal=内部, confidential=机密), 供只读分布按此顺序统计. 密级由新增/上传经 document-meta! 写入且缺省为 internal, 恒取值属于此三档集合, 故三档计数之和恒等于文档总数 (与会议类型/需求优先级/干系人类别分布同族, 都是受控固定枚举; 区别于可选字段会有未设定档)."
+  ["public" "internal" "confidential"])
+
+
+(def document-classification-labels
+  "证据文档密级中文显示标签 (前端 class-labels 同口径)."
+  {"public" "公开" "internal" "内部" "confidential" "机密"})
+
+
+(defn document-classification-distribution
+  "按每个证据文档业务编码最新有效版本(store/latest 折叠修订链)统计其密级(:classification)的项目级只读分布: 按固定三档(public/internal/confidential)给出各密级文档数与该档占文档总数百分比, 并给出文档总数/已覆盖档数/未覆盖档数/密级覆盖率与主导密级(文档数最多者). 最新版本被受控作废(discarded)的文档不计入. classification 由 document-meta! 写入且缺省 internal, 恒取三档之一, 故三档计数之和恒等于文档总数. 已覆盖档数等于登记中实际出现的不同密级档数, 未覆盖档数=3-已覆盖(三档固定故不变量 covered+uncovered=3), 覆盖率=round(100*已覆盖/3)恒取整为0/33/67/100; 逐档占比之和等于 total. dominant 用 max-key 扫固定 document-classification-order(并列取扫描靠后者即 confidential, 不承诺唯一), 文档总数为 0 时为 nil. 只读派生, 不落库不投递, 不改变不可变版本, 更不据密级做任何门控或访问拦截(机密文档的密级权限过滤仍在既有读取路径独立生效, 本项仅呈现构成); 与文档多层下钻归集(阶段->结构节点->密级的层级计数)互补: 归集看密级嵌在各结构节点下的分层分布, 本项看整个项目文档在密级维度上的构成占比与是否机密压顶."
+  [documents]
+  (let [active (filterv #(not= "discarded" (:status %)) (s/latest documents))
+        total (count active)
+        tally (frequencies (map :classification active))
+        pct (fn [n] (if (pos? total) (int (Math/round ^double (* 100.0 (/ n total)))) 0))
+        by-classification (mapv (fn [c] {:classification c
+                                         :label (get document-classification-labels c c)
+                                         :count (get tally c 0)
+                                         :pct (pct (get tally c 0))})
+                               document-classification-order)
+        covered (count (filterv pos? (map :count by-classification)))
+        dominant (when (pos? total)
+                   (apply max-key (fn [c] (get tally c 0)) document-classification-order))
+        dominant-count (if dominant (get tally dominant 0) 0)]
+    {:available (pos? total)
+     :total total
+     :covered covered
+     :uncovered (- (count document-classification-order) covered)
+     :coverage-pct (int (Math/round ^double (* 100.0 (/ covered (count document-classification-order)))))
+     :dominant-classification dominant
+     :dominant-count dominant-count
+     :by-classification by-classification}))
+
+
 (defn verification-evidence-alignment
   "按每个业务编码最新有效版本交叉核对需求已声明的验证方式与其是否已配验证(verifies)证据关联的只读一致性: 统计声明验证方式的需求数, 其中已挂至少一条 verifies 关联者(aligned)与尚无验证证据关联者(gap), 以及对齐率. 进一步区分已挂验证关联者其证据文档是否已发布(approved): 至少一条 verifies 关联指向已发布证据文档者计入 evidence-released, 有关联但证据文档尚未发布(或验证证据为任务)者计入 evidence-pending, 并以声明数为分母给出 evidence-released-pct. 未声明验证方式的需求不进入分母, 最新版本被受控作废(discarded)的编号不计入. 只读派生, 不落库不投递, 不门控, 不改变不可变版本, 键名不带尾随问号."
   [requirements traces docs-by-id]

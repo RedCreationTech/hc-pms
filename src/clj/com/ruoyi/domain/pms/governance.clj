@@ -123,6 +123,7 @@
                           :requirement_priority_distribution (evidence/requirement-priority-distribution (:requirements data))
                           :verification_evidence_alignment (evidence/verification-evidence-alignment (:requirements data) (:traces data) docs-by-id)
                           :release_coverage (evidence/release-coverage (:documents data))
+                          :document_classification_distribution (evidence/document-classification-distribution (:documents data))
                           :risk_response_coverage (collab/risk-response-coverage (:risks data))
                           :risk_category_coverage (collab/risk-category-coverage (:risks data))
                           :stakeholder_engagement_coverage (stakeholders/engagement-coverage (:stakeholders data))

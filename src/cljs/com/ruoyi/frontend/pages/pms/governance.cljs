@@ -310,6 +310,38 @@
            [antd/tag {:color "red"} (str "已驳回 " rejected)])]])]))
 
 
+(defn- document-classification-distribution-section
+  "按每个证据文档业务编码最新有效版本只读聚合其密级(公开/内部/机密三档固定枚举)的项目级分布: 各密级文档数与占总数百分比, 已用档数与缺档数, 密级覆盖率与主导密级(文档数最多者); 与文档多层下钻归集互补(本项看密级构成占比而非层级嵌套), 只读派生, 不改变任何记录, 更不据密级做任何门控."
+  [{:keys [model]}]
+  (let [dist (:document_classification_distribution model)
+        total (:total dist 0)
+        covered (:covered dist 0)
+        uncovered (:uncovered dist 0)
+        pct (:coverage-pct dist 0)
+        dominant (:dominant-classification dist)
+        dominant-count (:dominant-count dist 0)
+        by-classification (:by-classification dist [])
+        dominant-label (when dominant (:label (first (filter #(= dominant (:classification %)) by-classification))))
+        classification-colors {"public" "green" "internal" "blue" "confidential" "red"}]
+    [shared/panel "文档密级分布" "按每个证据文档业务编码最新有效版本只读聚合其密级(公开/内部/机密三档固定枚举)的项目级分布, 给出文档总数, 已用档数, 缺档数, 密级覆盖率与主导密级(文档数最多者), 并逐档附其占比; 与文档多层下钻归集互补, 只读派生, 不改变任何记录, 不据密级门控"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无证据文档, 登记后此处按公开/内部/机密三档聚合密级分布."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "文档总数 " total)]
+         [antd/tag {:color (if (zero? pct) "red" "geekblue")} (str "密级覆盖率 " pct "%")]
+         [antd/tag {:color "green"} (str "已用档位 " covered)]
+         (when (pos? uncovered)
+           [antd/tag {:color "orange"} (str "缺档档位 " uncovered)])
+         (when dominant
+           [antd/tag {:color "purple"} (str "主导密级 " dominant-label " · " dominant-count)])]
+        [antd/space {:wrap true}
+         (for [c by-classification]
+           ^{:key (:classification c)} [antd/tag {:color (get classification-colors (:classification c) "default")}
+                                         (str (:label c) " · " (:count c) " (" (:pct c 0) "%)")])]])]))
+
+
+
 (defn- document-section
   "列出可校验的真实证据文档及不可变版本, 支持打包批量下载, 密级过滤与独立发布审批."
   [{:keys [base model options editable? approve? open! document! preview! upload!]}]
@@ -2827,7 +2859,7 @@
                                                          (into [:div {:style {:display "grid" :gap 20}}] (map #(vector % context) components)))})
                     [["charter" "章程" [charter-section]]
                      ["requirements" "URS与追踪" [requirement-section coverage-section requirement-priority-distribution-section alignment-section traceability-section trace-section]]
-                     ["evidence" "证据版本" [document-section collection-section tree-section release-coverage-section]]
+                     ["evidence" "证据版本" [document-section collection-section tree-section release-coverage-section document-classification-distribution-section]]
                      ["appointments" "成员任命" [appointment-section]]
                      ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section raci-role-distribution-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section comm-channel-usage-section comm-plan-audience-breadth-section stakeholder-category-distribution-section stakeholder-quadrant-distribution-section stakeholder-engagement-distribution-section]]
                      ["gates" "Gate评审" [gate-section]]

@@ -530,6 +530,93 @@
       (is (= 2 (:dominant-count d2))))))
 
 
+(deftest document-classification-distribution-is-derived-read-only
+  (let [id (project!)
+        dist (fn [] (:document_classification_distribution (workspace id)))
+        cc (fn [k] (first (filter #(= k (:classification %)) (:by-classification (dist)))))
+        pub-a (command! id :documents :create nil {:code "DOC-CD-PUBA" :title "公开甲" :filename "a.txt" :content "A" :classification "public"})
+        int-a (command! id :documents :create nil {:code "DOC-CD-INTA" :title "内部甲" :filename "i.txt" :content "I"})
+        conf-a (command! id :documents :create nil {:code "DOC-CD-CONFA" :title "机密甲" :filename "c.txt" :content "C" :classification "confidential"})
+        pub-b (command! id :documents :create nil {:code "DOC-CD-PUBB" :title "公开乙" :filename "b.txt" :content "B" :classification "public"})]
+    ;; 三档穷尽分区: public 2 + internal 1 + confidential 1 = total 4, 无未设定档.
+    (is (true? (:available (dist))))
+    (is (= 4 (:total (dist))))
+    (is (= 3 (:covered (dist))))
+    (is (= 0 (:uncovered (dist))))
+    (is (= 100 (:coverage-pct (dist))))
+    (is (= 2 (:count (cc "public"))))
+    (is (= 1 (:count (cc "internal"))))
+    (is (= 1 (:count (cc "confidential"))))
+    ;; 逐档占比 round(100*count/total).
+    (is (= 50 (:pct (cc "public"))))
+    (is (= 25 (:pct (cc "internal"))))
+    (is (= 25 (:pct (cc "confidential"))))
+    ;; 唯一最高档 public(2) => 主导 public.
+    (is (= "public" (:dominant-classification (dist))))
+    (is (= 2 (:dominant-count (dist))))
+    ;; 修订把内部甲 internal->机密(按 code 折叠仍计一条): 机密升 2 与 public 2 平票, max-key 取扫描靠后者 => 主导翻 confidential.
+    (command! id :documents :revisions (:id int-a) {:code "DOC-CD-INTA" :title "内部甲(升密)" :filename "i2.txt" :content "I2" :classification "confidential"})
+    (is (= 4 (:total (dist))))
+    (is (= 2 (:count (cc "public"))))
+    (is (= 0 (:count (cc "internal"))))
+    (is (= 2 (:count (cc "confidential"))))
+    (is (= 2 (:covered (dist))))
+    (is (= 1 (:uncovered (dist))))
+    (is (= 67 (:coverage-pct (dist))))
+    (is (= "confidential" (:dominant-classification (dist))))
+    (is (= 2 (:dominant-count (dist))))
+    ;; 作废最新版本的公开乙: 分母收缩到 3, public 归 1 -> 主导回落到唯一最高 confidential(2).
+    (command! id :documents :discard (:id pub-b) {:reason "重复公开证据"})
+    (is (= 3 (:total (dist))))
+    (is (= 1 (:count (cc "public"))))
+    (is (= 2 (:count (cc "confidential"))))
+    (is (= "confidential" (:dominant-classification (dist))))
+    (is (= 2 (:dominant-count (dist))))
+    ;; 纯函数直测空输入: available 假, 三档全 0, dominant nil, covered 0 uncovered 3, coverage-pct 0.
+    (let [empty (evidence/document-classification-distribution [])]
+      (is (false? (:available empty)))
+      (is (= 0 (:total empty)))
+      (is (= 0 (:covered empty)))
+      (is (= 3 (:uncovered empty)))
+      (is (= 0 (:coverage-pct empty)))
+      (is (nil? (:dominant-classification empty)))
+      (is (= 0 (:dominant-count empty)))
+      (is (= [{:classification "public" :label "公开" :count 0 :pct 0}
+              {:classification "internal" :label "内部" :count 0 :pct 0}
+              {:classification "confidential" :label "机密" :count 0 :pct 0}]
+             (:by-classification empty))))
+    ;; 纯函数非破坏 + store/latest 折叠同 code 取最新 rev(confidential): 同一输入两次相等, total 1 dominant confidential.
+    (let [rows [{:code "X" :revision 1 :status "registered" :classification "public"}
+                {:code "X" :revision 2 :status "registered" :classification "confidential"}]
+          once (evidence/document-classification-distribution rows)]
+      (is (= once (evidence/document-classification-distribution rows)))
+      (is (= 1 (:total once)))
+      (is (= "confidential" (:dominant-classification once))))))
+
+
+(deftest document-classification-distribution-workspace-exposes-derived-key
+  (let [id (project!)
+        _ (command! id :documents :create nil {:code "DOC-WP-P" :title "公开" :filename "p.txt" :content "P" :classification "public"})
+        _ (command! id :documents :create nil {:code "DOC-WP-C" :title "机密" :filename "c.txt" :content "C" :classification "confidential"})
+        _ (command! id :documents :create nil {:code "DOC-WP-I" :title "内部" :filename "i.txt" :content "I"})
+        ws (workspace id)
+        dist (:document_classification_distribution ws)]
+    (is (= 3 (:total dist)))
+    (is (= 3 (:covered dist)))
+    (is (= 100 (:coverage-pct dist)))
+    ;; 三档平票各 1, max-key 取扫描靠后者 => 主导 confidential.
+    (is (= "confidential" (:dominant-classification dist)))
+    (is (= 1 (:dominant-count dist)))
+    ;; 顶层键与纯函数直测同源.
+    (is (= dist (evidence/document-classification-distribution (:documents ws))))
+    ;; 追加一条公开文档 -> total 4, public 升 2 -> 主导由 confidential(平票) 翻为 public (单操作者加性翻转).
+    (command! id :documents :create nil {:code "DOC-WP-P2" :title "公开二" :filename "p2.txt" :content "P2" :classification "public"})
+    (let [d2 (:document_classification_distribution (workspace id))]
+      (is (= 4 (:total d2)))
+      (is (= "public" (:dominant-classification d2)))
+      (is (= 2 (:dominant-count d2))))))
+
+
 (deftest document-release-coverage-is-derived-read-only
   (let [id (project!)
         rel (fn [] (:release_coverage (workspace id)))
