@@ -215,3 +215,25 @@ mysqldump -h127.0.0.1 -P3308 -uroot -ppassword --databases flowable > backup-flo
 
 - 确认绑定地址: 默认 `127.0.0.1`, 远程机器上 `clj-nrepl-eval` 需先 SSH 到部署机再连.
 - 端口以 `NREPL_PORT` 为准, 检查 `lsof -iTCP:7000 -sTCP:LISTEN -nP`.
+
+## 9. 一键部署到主机 (bb deploy)
+
+实现见 `bb/tasks/deploy.clj`, 任务登记在 `bb.edn`. 前提: 操作机能以 root SSH 登录部署主机 (别名取 `DEPLOY_HOST`, 默认 `gpu`), 且该主机装有 `/usr/lib/jvm/java-21-openjdk-amd64`. 运行形态是裸 `java -jar` + systemd 单元 (`Restart=always`、`MemoryMax=2G`、`CPUQuota=200%`), 不是容器.
+
+| 任务 | 作用 |
+|------|------|
+| `bb deploy:provision` | 首次装机: 向主机要一个空闲端口, 建 `/mnt/hc-pms-<端口>`、`app.env`、systemd 单元与 logrotate, 限时前台启动跑迁移, 然后把 `user_id=1` 换成随机口令, 最后验证 |
+| `bb deploy` | 依赖 `uberjar`: 上传 `target/rouyi-standalone.jar` → 停服 → 冷备份 `data/` (含 `pms-files` 与 Flowable H2 文件) → 换 jar 为 `hc-pms-standalone.jar` 重启 → 探测健康 → 只保留最近 10 份备份 |
+| `bb deploy:status` | 读服务状态 (active、MainPID、内存、端口监听、`/mnt` 余量、最近备份) 并做同一套验证 |
+| `bb deploy:logs` | 看 `logs/service.log` 尾部, 默认 80 行 |
+| `bb deploy:rollback` | 换回 `app.previous.jar` 并重启验证 |
+
+发布不是无停机的: `bb deploy` 先 `systemctl stop`, 停服窗口实测约 17 秒, 需安排在维护窗口. 任一步失败 (起不来、健康探测 240 秒超时、验证不通过) 都自动回滚上一版 jar 并重新验证; 回滚后仍不过则保留冷备份并以非 0 退出, 等人工介入.
+
+验证的四条断言: `/api/health` 200、`/` 200、`/js/app.js` 200 且大于 1 MB (防前端没打进去)、匿名 `GET /api/system/user?page=1&size=1` 必须 401 (防鉴权回归). 探测地址默认 `http://127.0.0.1:<端口>` 并在部署主机本机执行; 设 `DEPLOY_URL_HOST=<对外地址>` 改由操作机直连, 用来额外验证外部可达性.
+
+密钥纪律: `JWT_SECRET`、`COOKIE_SECRET` 与随机管理员口令只写入服务器上的 `app.env` (600) 和本地 `.runtime/` (已 gitignore), 脚本全程不打印明文, 也不进仓库、工单或聊天记录. `.runtime/deploy.edn` 保存主机、端口、目录、单元名与探测地址, 属部署侧状态, 不入库. 首次装机的迁移启动会把 `HTTP_HOST` 临时收到 `127.0.0.1`, 因为迁移完成前库里的口令还是模板值.
+
+必须知道的缺口: 本服务没有"拒绝模板口令"的生产守卫 (见第 7 节第 1 条与 `src/cljs/com/ruoyi/frontend/pages/login.cljs:15-16` 的预填 `admin / admin123`), 换密完全依赖部署脚本这一步执行成功; 若中途失败, 实例会以 `admin123` 对外可登录. 用 `bb deploy:provision` 后务必确认 `.runtime/admin-password.txt` 里的口令已生效并能登录, 再把该文件转入密码管理器并删除本地副本.
+
+实测状态: `bb deploy:status`、`bb deploy:logs` 在真实主机跑通; `kill -9` 崩溃恢复实测约 17 秒被 systemd 拉起 (`NRestarts` 递增), 业务库 `PRAGMA integrity_check` 与 Flowable 库均正常. `bb deploy` 的完整换 jar 流程与 `deploy:provision` 的空白主机首装路径尚未在真实主机上跑过, 首次执行须由负责人在场确认.

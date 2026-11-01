@@ -1,7 +1,9 @@
 {:min-bb-version "0.8.156"
+ :paths ["bb"]
  :deps  {failjure/failjure {:mvn/version "2.3.0"}}
  :tasks {:requires ([babashka.fs :as fs]
-                    [babashka.tasks :refer [shell]])
+                    [babashka.tasks :refer [shell]]
+                    [tasks.deploy :as deploy])
 
          run       {:doc  "starts the app"
                     :task (if (fs/windows?)
@@ -23,8 +25,25 @@
          uberjar   {:doc  "builds the uberjar"
                     :task (clojure {:dir "."} "-T:build all")}
 
-         format    {:doc  "Formats codebase"
+         format    {:doc  "格式化 Clojure/ClojureScript 源码与 babashka 任务(src/ 与 bb/)"
                     :task (try
-                            (shell {:dir "src"} "cljstyle fix")
+                            (shell "cljstyle fix src bb")
                             (catch Exception _
-                              (clojure {:dir "src"} "-M:dev -m cljstyle.main fix")))}}}
+                              (clojure "-M:dev -m cljstyle.main fix src bb")))}
+
+         ;; ── 部署(GPU 主机,实现在 bb/tasks/deploy.clj)────────────
+         deploy           {:doc  "发布到部署主机:uberjar -> 上传 -> systemd 滚动重启 -> 健康验证,失败自动回滚"
+                           :depends [uberjar]
+                           :task (deploy/deploy!)}
+
+         deploy:provision {:doc  "首次装机:随机端口与 /mnt 目录、app.env、systemd 单元、迁移、管理员换密"
+                           :task (deploy/provision! *command-line-args*)}
+
+         deploy:status    {:doc  "查看部署主机上的服务状态并做健康验证"
+                           :task (deploy/status!)}
+
+         deploy:logs      {:doc  "查看部署主机服务日志尾部(默认 80 行)"
+                           :task (deploy/logs! *command-line-args*)}
+
+         deploy:rollback  {:doc  "回滚到上一版 jar 并重新验证"
+                           :task (deploy/rollback!)}}}
