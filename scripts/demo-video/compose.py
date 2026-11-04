@@ -117,6 +117,8 @@ def mimo_synth(text, dest_raw_wav):
 
 def synth_narration(text, dest):
     """Synthesize one narration line into a 48 kHz stereo wav (via MiMo TTS, or `say` fallback); return duration."""
+    if os.path.exists(dest) and os.path.getsize(dest) > 0:
+        return probe_duration(dest)  # 已合成过的镜头直接复用 (按 shot id 命名, 文案同分镜)
     if NARR_ENGINE == 'say':
         aiff = dest + '.aiff'
         run(['say', '-v', SAY_VOICE, '-r', str(SAY_RATE), text, '-o', aiff])
@@ -239,7 +241,8 @@ def clock_mapper(rel, t0):
     """
     frames = frame_clock(rel)
     if not frames:
-        return (lambda seconds: seconds), 0
+        ident = lambda seconds: seconds  # noqa: E731 - 无时间码时按录像时钟近似对齐
+        return (ident, ident), 0
     base = t0 - t0 % CLOCK_MOD
     stamps, times, top = [], [], None
     for vt, value in frames:
@@ -255,7 +258,14 @@ def clock_mapper(rel, t0):
     def to_video(seconds):
         idx = bisect.bisect_left(stamps, t0 + seconds * 1000)
         return times[min(idx, len(times) - 1)]
-    return to_video, len(frames)
+
+    def to_video_end(seconds):
+        # 镜头结束取"目标时刻之前的最后一帧": 页面导航会短暂销毁注入的时间码条 (解码空洞),
+        # 若取空洞之后的第一帧会把镜头结束映射到下一镜的导航画面, 冻结帧还会把该错误画面放大数秒.
+        idx = bisect.bisect_right(stamps, t0 + seconds * 1000) - 1
+        return times[max(idx, 0)]
+
+    return (to_video, to_video_end), len(frames)
 
 
 def align(timeline):
@@ -267,8 +277,8 @@ def align(timeline):
         rel = clip_video(timeline, clip)
         if rel not in mappers:
             mappers[rel], report[rel] = clock_mapper(rel, clip['t0'])
-        to_video = mappers[rel]
-        start, end = to_video(clip['start']), to_video(clip['end'])
+        to_video, to_video_end = mappers[rel]
+        start, end = to_video(clip['start']), to_video_end(clip['end'])
         clip['lag'] = round(start - clip['start'], 2)
         for cue in clip['cues']:
             cue['t'] = max(start, to_video(cue['t']))

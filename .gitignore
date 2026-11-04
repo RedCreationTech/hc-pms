@@ -51,3 +51,6 @@ __pycache__/
 
 # Project-local toolchain (static ffmpeg with libass, python venv): local artifacts, not committed
 /tools/
+
+# Demo video artifacts (MP4/SRT/cards/raw): regenerated locally, not committed
+/reports/demo-video/

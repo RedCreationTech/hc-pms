@@ -52,7 +52,10 @@ module.exports = defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        channel: 'chrome',
+        // PW_NO_CHANNEL=1 时退回 Playwright 内置 Chromium: 有头 Chrome 的窗口边框会让录像
+        // 画面底部少约 84 像素 (补灰), 恰好盖住注入的时间码条, compose 逐帧对齐因此全部回退;
+        // 无边框的内置 Chromium 录制可完整读出时间码 (演示视频录屏用).
+        ...(process.env.PW_NO_CHANNEL ? {} : { channel: 'chrome' }),
       },
     },
   ],
