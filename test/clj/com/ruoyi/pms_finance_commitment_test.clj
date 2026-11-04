@@ -26,11 +26,11 @@
     (try
       (migratus/migrate {:store :database :db {:datasource db}
                          :migration-dir (if (.contains url "mysql") "migrations" "migrations-sqlite")})
-      (jdbc/execute! db ["INSERT INTO sys_role(role_id,role_name,role_key,role_sort,status,del_flag) VALUES(9500,'Commitment test','commitment-test',41,'0','0')"])
-      (jdbc/execute! db ["INSERT INTO sys_role_menu(role_id,menu_id) SELECT 9500,menu_id FROM sys_menu WHERE perms LIKE 'pms:%'"])
-      (doseq [id [9501 9502 9503]]
+      (jdbc/execute! db ["INSERT INTO sys_role(role_id,role_name,role_key,role_sort,status,del_flag) VALUES(9530,'Commitment test','commitment-test',41,'0','0')"])
+      (jdbc/execute! db ["INSERT INTO sys_role_menu(role_id,menu_id) SELECT 9530,menu_id FROM sys_menu WHERE perms LIKE 'pms:%'"])
+      (doseq [id [9531 9532 9533]]
         (jdbc/execute! db ["INSERT INTO sys_user(user_id,dept_id,user_name,nick_name,status,del_flag) VALUES(?,1,?,?,'0','0')" id (str "cm-" id) (str "承诺测试" id)])
-        (jdbc/execute! db ["INSERT INTO sys_user_role(user_id,role_id) VALUES(?,9500)" id]))
+        (jdbc/execute! db ["INSERT INTO sys_user_role(user_id,role_id) VALUES(?,9530)" id]))
       (let [files (->> (.listFiles (io/file "resources/sql"))
                        (filter #(re-matches #"pms.*\.sql" (.getName %)))
                        (map #(str "sql/" (.getName %))) sort)
@@ -59,25 +59,25 @@
 
 (defn- command!
   "以指定成员携带真实项目版本执行业务命令, 返回完整结果."
-  ([f id args body] (command! 9501 f id args body))
+  ([f id args body] (command! 9531 f id args body))
   ([uid f id args body]
    (apply f *svc* (actor uid) id (concat args [(assoc body :version (version-of id))]))))
 
 (defn- project!
   "建立带有经理和编辑成员的项目."
   []
-  (let [p (pms/create-project! *svc* (actor 9501)
+  (let [p (pms/create-project! *svc* (actor 9531)
              {:project_no (str "CM-" (kernel/id)) :name "承诺测试"
-              :manager_id 9501 :dept_id 1 :start_date "2026-09-01" :end_date "2026-12-31"})
+              :manager_id 9531 :dept_id 1 :start_date "2026-09-01" :end_date "2026-12-31"})
         id (:project_id p)]
-    (pms/set-member! *svc* (actor 9501) id {:user_id 9502 :role "editor"})
-    (pms/set-member! *svc* (actor 9501) id {:user_id 9503 :role "viewer"})
+    (pms/set-member! *svc* (actor 9531) id {:user_id 9532 :role "editor"})
+    (pms/set-member! *svc* (actor 9531) id {:user_id 9533 :role "viewer"})
     id))
 
 (defn- create-commitment!
   "登记一条草稿承诺, 默认走采购 CNY 100."
   ([id] (create-commitment! id {:kind "purchase" :code (kernel/id) :supplier "外部供应商"
-                                :currency "CNY" :gross "100.00" :reviewer_id 9502}))
+                                :currency "CNY" :gross "100.00" :reviewer_id 9532}))
   ([id overrides]
    (:result (command! commitment/create! id [] overrides))))
 
@@ -85,11 +85,11 @@
   "在指定项目上建立一条已批准预算版本, 总额由外部指定."
   [id total]
   (let [v (:result (command! cost/create! id [] {:kind "budget" :period "2026-09" :currency "CNY"
-                                                 :name "预算基线" :revenue "0" :reviewer_id 9502}))
+                                                 :name "预算基线" :revenue "0" :reviewer_id 9532}))
         cid (:id v)]
     (command! cost/add-entry! id [cid] {:category "material" :label "主料" :amount total :source_ref (str "BUD-" (kernel/id))})
     (command! cost/submit! id [cid] {})
-    (command! 9502 cost/review! id [cid] {:decision "approved" :reason "预算批准"})))
+    (command! 9532 cost/review! id [cid] {:decision "approved" :reason "预算批准"})))
 
 (deftest h12-lifecycle-and-constraints
   (testing "承诺能创建为草稿, 提交到 submitted, 独立审批到 approved, 部分释放保持 approved, 全额释放转 released."
@@ -100,19 +100,19 @@
       (is (= "100.00" (:gross base)))
       (is (= "100.00" (:base base)))
       (is (= "0.00" (:released base)))
-      (is (= 409 (error-status #(command! 9502 commitment/review! id [cid] {:decision "approved" :reason "跳过提交"}))))
+      (is (= 409 (error-status #(command! 9532 commitment/review! id [cid] {:decision "approved" :reason "跳过提交"}))))
       (command! commitment/submit! id [cid] {:baseline "budget"})
-      (is (= "submitted" (:status (first (:commitments (finance/overview *svc* (actor 9501) id))))))
+      (is (= "submitted" (:status (first (:commitments (finance/overview *svc* (actor 9531) id))))))
       (is (= 403 (error-status #(command! commitment/review! id [cid] {:decision "approved" :reason "自审"}))))
-      (command! 9502 commitment/review! id [cid] {:decision "approved" :reason "承诺成立"})
+      (command! 9532 commitment/review! id [cid] {:decision "approved" :reason "承诺成立"})
       (is (= 409 (error-status #(command! commitment/release! id [cid] {:amount "200.00"}))))
       (command! commitment/release! id [cid] {:amount "40.00"})
-      (let [partial (first (:commitments (finance/overview *svc* (actor 9501) id)))]
+      (let [partial (first (:commitments (finance/overview *svc* (actor 9531) id)))]
         (is (= "approved" (:status partial)))
         (is (= "40.00" (:released partial)))
         (is (= "60.00" (:remaining partial))))
       (command! commitment/release! id [cid] {:amount "60.00"})
-      (let [done (first (:commitments (finance/overview *svc* (actor 9501) id)))]
+      (let [done (first (:commitments (finance/overview *svc* (actor 9531) id)))]
         (is (= "released" (:status done)))
         (is (= "100.00" (:released done))))
       (is (= 409 (error-status #(command! commitment/cancel! id [cid] {:reason "释放后不能取消"})))))))
@@ -120,15 +120,15 @@
 (deftest h12-input-and-currency-validation
   (testing "币种, 金额, 汇率和分类不合法时全部拒绝, USD 承诺按汇率折算成本位."
     (let [id (project!)
-          valid {:kind "contract" :code "CT-1" :supplier "甲方" :currency "CNY" :gross "500.00" :reviewer_id 9502}]
+          valid {:kind "contract" :code "CT-1" :supplier "甲方" :currency "CNY" :gross "500.00" :reviewer_id 9532}]
       (is (= 400 (error-status #(command! commitment/create! id [] (assoc valid :kind "weird")))))
       (is (= 400 (error-status #(command! commitment/create! id [] (assoc valid :currency "JPY")))))
       (is (= 400 (error-status #(command! commitment/create! id [] (assoc valid :gross "0")))))
       (is (= 400 (error-status #(command! commitment/create! id [] (assoc valid :gross "-1")))))
-      (is (= 400 (error-status #(command! commitment/create! id [] (assoc valid :reviewer_id 9501)))))
+      (is (= 400 (error-status #(command! commitment/create! id [] (assoc valid :reviewer_id 9531)))))
       (let [usd (create-commitment! id {:kind "purchase" :code "USD-1" :supplier "美元供应商"
                                         :currency "USD" :gross "100.00" :base_currency "CNY"
-                                        :exchange_rate "7.1234" :reviewer_id 9502})]
+                                        :exchange_rate "7.1234" :reviewer_id 9532})]
         (is (= "USD" (:currency usd)))
         (is (= "100.00" (:gross usd)))
         (is (= "CNY" (:base_currency usd)))
@@ -136,7 +136,7 @@
       (is (= 400 (error-status #(command! commitment/create! id []
                                                      {:kind "purchase" :code "USD-2" :supplier "美元"
                                                       :currency "USD" :gross "1.00" :exchange_rate "abc"
-                                                      :reviewer_id 9502})))))))
+                                                      :reviewer_id 9532})))))))
 
 (deftest h12-draft-edit-and-cancel
   (testing "草稿可修改金额与说明, 提交后禁止修改, 被驳回可以取消, 释放后不能取消."
@@ -144,18 +144,18 @@
       (command! commitment/update-draft! id [cid] {:supplier "新供应商" :gross "250.00"
                                                    :currency "CNY" :base_currency "CNY"
                                                    :exchange_rate "1" :kind "purchase"
-                                                   :reviewer_id 9502})
-      (let [updated (first (:commitments (finance/overview *svc* (actor 9501) id)))]
+                                                   :reviewer_id 9532})
+      (let [updated (first (:commitments (finance/overview *svc* (actor 9531) id)))]
         (is (= "新供应商" (:supplier updated)))
         (is (= "250.00" (:base updated))))
       (command! commitment/submit! id [cid] {:baseline "budget"})
       (is (= 409 (error-status #(command! commitment/update-draft! id [cid] {:supplier "不能改" :currency "CNY"
                                                                             :base_currency "CNY" :gross "1"
                                                                             :exchange_rate "1" :kind "purchase"
-                                                                            :reviewer_id 9502}))))
-      (command! 9502 commitment/review! id [cid] {:decision "rejected" :reason "预算不足"})
+                                                                            :reviewer_id 9532}))))
+      (command! 9532 commitment/review! id [cid] {:decision "rejected" :reason "预算不足"})
       (command! commitment/cancel! id [cid] {:reason "重新登记"})
-      (let [cancelled (first (:commitments (finance/overview *svc* (actor 9501) id)))]
+      (let [cancelled (first (:commitments (finance/overview *svc* (actor 9531) id)))]
         (is (= "cancelled" (:status cancelled)))
         (is (= "重新登记" (:review_note cancelled)))))))
 
@@ -163,17 +163,17 @@
   (testing "预算 100, 已承诺 90 时提交 20 触发 block 规则, 携带 override_block 才能强制放行."
     (let [id (project!) _ (seed-budget! id "100.00")
           first-c (:result (command! commitment/create! id [] {:kind "purchase" :code "B1" :supplier "A"
-                                                                :currency "CNY" :gross "90.00" :reviewer_id 9502}))
+                                                                :currency "CNY" :gross "90.00" :reviewer_id 9532}))
           second-c (:result (command! commitment/create! id [] {:kind "purchase" :code "B2" :supplier "B"
-                                                                 :currency "CNY" :gross "20.00" :reviewer_id 9502}))]
+                                                                 :currency "CNY" :gross "20.00" :reviewer_id 9532}))]
       (command! commitment/submit! id [(:id first-c)] {:baseline "budget"})
-      (command! 9502 commitment/review! id [(:id first-c)] {:decision "approved" :reason "ok"})
+      (command! 9532 commitment/review! id [(:id first-c)] {:decision "approved" :reason "ok"})
       (let [ex (try (command! commitment/submit! id [(:id second-c)] {:baseline "budget"}) nil
                     (catch clojure.lang.ExceptionInfo e e))]
         (is (= 409 (:status (ex-data ex))))
         (is (re-find #"预算占用率" (.getMessage ^Throwable ex))))
       (command! commitment/submit! id [(:id second-c)] {:baseline "budget" :override_block true})
-      (let [state (finance/overview *svc* (actor 9501) id)
+      (let [state (finance/overview *svc* (actor 9531) id)
             committed (first (filter #(= "B2" (:code %)) (:commitments state)))
             control (get-in state [:budget_control :budget])]
         (is (= "submitted" (:status committed)))
@@ -189,9 +189,9 @@
           _ (command! budget/upsert-rule! id [] {:baseline "budget" :threshold_pct 80 :action "warn"
                                                  :enabled true :note "自管 warn 80" :project_scoped true})
           c (create-commitment! id {:kind "purchase" :code "W1" :supplier "W" :currency "CNY"
-                                    :gross "85.00" :reviewer_id 9502})]
+                                    :gross "85.00" :reviewer_id 9532})]
       (command! commitment/submit! id [(:id c)] {:baseline "budget"})
-      (let [state (finance/overview *svc* (actor 9501) id)
+      (let [state (finance/overview *svc* (actor 9531) id)
             control (get-in state [:budget_control :budget])]
         (is (= "submitted" (:status (first (:commitments state)))))
         (is (= 85 (:ratio_pct control)))
@@ -226,10 +226,10 @@
     (let [id (project!)
           _ (seed-budget! id "200.00")
           c (create-commitment! id {:kind "labor" :code "L1" :supplier "外包" :currency "CNY"
-                                    :gross "60.00" :reviewer_id 9502})]
+                                    :gross "60.00" :reviewer_id 9532})]
       (command! commitment/submit! id [(:id c)] {:baseline "budget"})
-      (command! 9502 commitment/review! id [(:id c)] {:decision "approved" :reason "已核对"})
-      (let [state (finance/overview *svc* (actor 9501) id)
+      (command! 9532 commitment/review! id [(:id c)] {:decision "approved" :reason "已核对"})
+      (let [state (finance/overview *svc* (actor 9531) id)
             control (get-in state [:budget_control :budget])]
         (is (= 1 (count (:commitments state))))
         (is (every? :id (:commitments state)))
@@ -242,50 +242,50 @@
   (testing "已封账会计期间的承诺登记/修改/提交/释放/取消全部 409; 未封账期间不受影响; 解锁后草稿可提交."
     (let [id (project!)
           c (:result (command! commitment/create! id [] {:kind "purchase" :code "P1" :supplier "甲"
-                                                          :currency "CNY" :gross "100.00" :period "2026-08" :reviewer_id 9502}))
+                                                          :currency "CNY" :gross "100.00" :period "2026-08" :reviewer_id 9532}))
           cid (:id c)]
-      (config/create! *svc* (actor 9501) "period-lock" {:period "2026-08" :reason "月结封账"})
+      (config/create! *svc* (actor 9531) "period-lock" {:period "2026-08" :reason "月结封账"})
       (is (= 409 (error-status #(command! commitment/create! id [] {:kind "purchase" :code "P2" :supplier "乙"
-                                                                    :currency "CNY" :gross "50.00" :period "2026-08" :reviewer_id 9502}))))
+                                                                    :currency "CNY" :gross "50.00" :period "2026-08" :reviewer_id 9532}))))
       (is (= 409 (error-status #(command! commitment/update-draft! id [cid] {:supplier "改" :currency "CNY" :base_currency "CNY"
-                                                                            :gross "120.00" :exchange_rate "1" :kind "purchase" :period "2026-08" :reviewer_id 9502}))))
+                                                                            :gross "120.00" :exchange_rate "1" :kind "purchase" :period "2026-08" :reviewer_id 9532}))))
       (is (= 409 (error-status #(command! commitment/submit! id [cid] {:baseline "budget"}))))
       (is (:id (:result (command! commitment/create! id [] {:kind "contract" :code "P3" :supplier "丙"
-                                                            :currency "CNY" :gross "30.00" :period "2026-11" :reviewer_id 9502}))))
-      (is (some #{"2026-08"} (:locked_periods (finance/overview *svc* (actor 9501) id))))
+                                                            :currency "CNY" :gross "30.00" :period "2026-11" :reviewer_id 9532}))))
+      (is (some #{"2026-08"} (:locked_periods (finance/overview *svc* (actor 9531) id))))
       (let [lock (first (filter #(= "2026-08" (:period %)) (config/published (:query-fn *svc*) "period-lock")))]
-        (config/retire! *svc* (actor 9501) "period-lock" (:id lock) {:reason "重开月结"}))
+        (config/retire! *svc* (actor 9531) "period-lock" (:id lock) {:reason "重开月结"}))
       (is (= "submitted" (:status (:result (command! commitment/submit! id [cid] {:baseline "budget"}))))))))
 
 (deftest period-lock-does-not-gate-independent-commitment-review
   (testing "承诺已提交后即使所属期间封账, 独立审批 review! 仍可批准 (与费用版本同口径)."
     (let [id (project!)
           c (:result (command! commitment/create! id [] {:kind "purchase" :code "R1" :supplier "甲"
-                                                         :currency "CNY" :gross "100.00" :period "2026-08" :reviewer_id 9502}))
+                                                         :currency "CNY" :gross "100.00" :period "2026-08" :reviewer_id 9532}))
           cid (:id c)]
       (command! commitment/submit! id [cid] {:baseline "budget"})
-      (config/create! *svc* (actor 9501) "period-lock" {:period "2026-08" :reason "月结封账"})
-      (is (= "approved" (:status (:result (command! 9502 commitment/review! id [cid] {:decision "approved" :reason "封期后独立批准"})))))
+      (config/create! *svc* (actor 9531) "period-lock" {:period "2026-08" :reason "月结封账"})
+      (is (= "approved" (:status (:result (command! 9532 commitment/review! id [cid] {:decision "approved" :reason "封期后独立批准"})))))
       (let [lock (first (filter #(= "2026-08" (:period %)) (config/published (:query-fn *svc*) "period-lock")))]
-        (config/retire! *svc* (actor 9501) "period-lock" (:id lock) {:reason "重开月结"}))))))
+        (config/retire! *svc* (actor 9531) "period-lock" (:id lock) {:reason "重开月结"}))))))
 
 (deftest h12-commitment-closure-summary-derivation
   (testing "承诺闭环汇总按状态计数, 给出待处理/已决定/审批完成率, 并对已批准与已释放汇总本位金额与释放闭环率, 只读不门控."
     (let [id (project!)
-          draft (create-commitment! id {:kind "purchase" :code "CC-D" :supplier "甲" :currency "CNY" :gross "30.00" :reviewer_id 9502})
-          sub (create-commitment! id {:kind "purchase" :code "CC-S" :supplier "乙" :currency "CNY" :gross "70.00" :reviewer_id 9502})
-          can (create-commitment! id {:kind "purchase" :code "CC-X" :supplier "丙" :currency "CNY" :gross "10.00" :reviewer_id 9502})
-          app (create-commitment! id {:kind "purchase" :code "CC-A" :supplier "丁" :currency "CNY" :gross "100.00" :reviewer_id 9502})
-          rel (create-commitment! id {:kind "purchase" :code "CC-R" :supplier "戊" :currency "CNY" :gross "50.00" :reviewer_id 9502})]
+          draft (create-commitment! id {:kind "purchase" :code "CC-D" :supplier "甲" :currency "CNY" :gross "30.00" :reviewer_id 9532})
+          sub (create-commitment! id {:kind "purchase" :code "CC-S" :supplier "乙" :currency "CNY" :gross "70.00" :reviewer_id 9532})
+          can (create-commitment! id {:kind "purchase" :code "CC-X" :supplier "丙" :currency "CNY" :gross "10.00" :reviewer_id 9532})
+          app (create-commitment! id {:kind "purchase" :code "CC-A" :supplier "丁" :currency "CNY" :gross "100.00" :reviewer_id 9532})
+          rel (create-commitment! id {:kind "purchase" :code "CC-R" :supplier "戊" :currency "CNY" :gross "50.00" :reviewer_id 9532})]
       (command! commitment/submit! id [(:id sub)] {:baseline "budget"})
       (command! commitment/cancel! id [(:id can)] {:reason "登记错误"})
       (command! commitment/submit! id [(:id app)] {:baseline "budget"})
-      (command! 9502 commitment/review! id [(:id app)] {:decision "approved" :reason "批准"})
+      (command! 9532 commitment/review! id [(:id app)] {:decision "approved" :reason "批准"})
       (command! commitment/release! id [(:id app)] {:amount "40.00"})
       (command! commitment/submit! id [(:id rel)] {:baseline "budget"})
-      (command! 9502 commitment/review! id [(:id rel)] {:decision "approved" :reason "批准"})
+      (command! 9532 commitment/review! id [(:id rel)] {:decision "approved" :reason "批准"})
       (command! commitment/release! id [(:id rel)] {:amount "50.00"})
-      (let [rows (:commitments (finance/overview *svc* (actor 9501) id))
+      (let [rows (:commitments (finance/overview *svc* (actor 9531) id))
             s (finance/commitment-closure-summary rows)]
         (is (true? (:available s)))
         (is (= 5 (:total s)))
@@ -318,7 +318,7 @@
       (is (= "0.00" (:remaining-amount empty)))
       (let [c (create-commitment! id)
             _ (command! commitment/submit! id [(:id c)] {:baseline "budget"})
-            state (finance/overview *svc* (actor 9501) id)]
+            state (finance/overview *svc* (actor 9531) id)]
         (is (= (finance/commitment-closure-summary (:commitments state)) (:commitment_closure state)))
         (is (= 1 (get-in state [:commitment_closure :total])))
         (is (= 1 (get-in state [:commitment_closure :submitted])))

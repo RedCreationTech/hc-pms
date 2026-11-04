@@ -5,6 +5,8 @@ const fs = require('node:fs/promises');
 const serial = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 const drawer = page => page.getByRole('dialog').filter({ has: page.getByRole('tab', { name: '项目概况', exact: true }) });
 const row = (page, text) => drawer(page).locator('tbody tr:visible').filter({ hasText: text }).first();
+// 收尾检查行须同时含 确认完成 按钮: 只读汇总面板 (H14 具体缺口列) 会回显 "尚未完成: X", 与真实检查行同文本, 裸 hasText 的 .first() 会误中汇总行.
+const checkRow = (page, text) => drawer(page).locator('tbody tr:visible').filter({ hasText: text }).filter({ has: page.getByRole('button', { name: '确认完成', exact: true }) }).first();
 const modal = (page, title) => page.getByRole('dialog', { name: title, exact: true });
 const base = id => `/api/pms/projects/${id}`;
 
@@ -392,7 +394,7 @@ test.describe('PMS 工作台真实浏览器验收', () => {
       await drawer(page).getByRole('button', { name: '添加检查项', exact: true }).click();
       await fill(modal(page, '添加收尾检查项'), { title: '确认签收凭证' });
       await save(page, '添加收尾检查项');
-      await row(page, '确认签收凭证').getByRole('button', { name: '确认完成', exact: true }).click();
+      await checkRow(page, '确认签收凭证').getByRole('button', { name: '确认完成', exact: true }).click();
       await choose(page, modal(page, '完成收尾检查'), 'evidence_ref', 'CLOSE-EV');
       await fill(modal(page, '完成收尾检查'), { comment: '核对不可变文档版本与签收内容' });
       await save(page, '完成收尾检查');
@@ -478,7 +480,7 @@ test.describe('PMS 工作台真实浏览器验收', () => {
       await drawer(page).getByRole('button', { name: '添加检查项', exact: true }).click();
       await fill(modal(page, '添加收尾检查项'), { title: '最终验收资料完整' });
       await save(page, '添加收尾检查项');
-      await row(page, '最终验收资料完整').getByRole('button', { name: '确认完成', exact: true }).click();
+      await checkRow(page, '最终验收资料完整').getByRole('button', { name: '确认完成', exact: true }).click();
       await choose(page, modal(page, '完成收尾检查'), 'evidence_ref', 'FLOW-EV');
       await fill(modal(page, '完成收尾检查'), { comment: '核对客户签收,质量证据和决算' });
       await save(page, '完成收尾检查');

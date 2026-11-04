@@ -93,7 +93,7 @@ async function ensureDemoMember(page) {
     if (options.users.some(user => user.user_name === 'pms_test_member')) return { code: 200 };
     const department = options.depts.find(dept => dept.dept_name === '研发部门');
     const response = await fetch('/api/system/user', { method: 'POST', headers, body: JSON.stringify({
-      user_name: 'pms_test_member', nick_name: '演示协作成员', password: crypto.randomUUID(),
+      user_name: 'pms_test_member', nick_name: '演示协作成员', password: `E2e!${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`,
       dept_id: department.dept_id, roles: [], posts: [], remark: 'PMS E2E 合成测试成员,无系统角色'
     }) });
     return response.json();

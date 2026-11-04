@@ -3440,7 +3440,7 @@
 (deftest risk-review-rescore-recomputes-escalation-gate
   (let [id (project!)
         evidence (:id (document! id "RS-DOC"))
-        next-date "2026-11-01"]
+        next-date (str (.plusDays (java.time.LocalDate/now) 10))]
     ;; 上升重评: 3x5=15 未达阈值风险, 复评提议 5x5=25, 批准前评分与升级不变, 批准后重算触发升级门控.
     (let [risk (command! id :risks :create nil {:title "复评上升风险" :probability 3 :impact 5
                                                 :owner_id 9301 :mitigation "例会跟踪" :due_date "2026-10-10"})
@@ -6064,9 +6064,9 @@
 (deftest issue-escalation-requires-independent-acknowledgment-before-resolution
   (let [id (project!) evidence (:id (document! id "ISS-ESC-1"))
         blocker (command! id :issues :create nil {:title "阻断级装配缺陷" :severity "blocker"
-                                                  :owner_id 9301 :due_date "2026-10-10"})
+                                                  :owner_id 9301 :due_date (str (.plusDays (java.time.LocalDate/now) 7))})
         major (command! id :issues :create nil {:title "一般缺陷" :severity "major"
-                                                :owner_id 9301 :due_date "2026-10-10"})]
+                                                :owner_id 9301 :due_date (str (.plusDays (java.time.LocalDate/now) 7))})]
     ;; 阻断级问题登记即自动升级到经理层待确认; 非阻断不写任何 escalation 键 (与既有用例兼容).
     (is (true? (:escalated blocker)))
     (is (= "pending" (:escalation_state blocker)))
@@ -6118,12 +6118,13 @@
 (deftest issue-closure-summary-is-derived-read-only
   (let [id (project!)
         evidence (:id (document! id "ISS-CL-1"))
-        i-open (command! id :issues :create nil {:title "待处理一般项" :severity "major" :owner_id 9301 :due_date "2026-12-31"})
+        future (str (.plusDays (java.time.LocalDate/now) 30))
+        i-open (command! id :issues :create nil {:title "待处理一般项" :severity "major" :owner_id 9301 :due_date future})
         i-overdue (command! id :issues :create nil {:title "逾期未关闭" :severity "major" :owner_id 9301 :due_date "2026-01-01"})
-        i-inreview (command! id :issues :create nil {:title "验证中" :severity "minor" :owner_id 9301 :due_date "2026-12-31"})
-        i-closed (command! id :issues :create nil {:title "已闭环" :severity "minor" :owner_id 9301 :due_date "2026-12-31"})
-        i-rejected (command! id :issues :create nil {:title "验证驳回" :severity "minor" :owner_id 9301 :due_date "2026-12-31"})
-        i-blocker (command! id :issues :create nil {:title "阻断未闭环" :severity "blocker" :owner_id 9301 :due_date "2026-12-31"})]
+        i-inreview (command! id :issues :create nil {:title "验证中" :severity "minor" :owner_id 9301 :due_date future})
+        i-closed (command! id :issues :create nil {:title "已闭环" :severity "minor" :owner_id 9301 :due_date future})
+        i-rejected (command! id :issues :create nil {:title "验证驳回" :severity "minor" :owner_id 9301 :due_date future})
+        i-blocker (command! id :issues :create nil {:title "阻断未闭环" :severity "blocker" :owner_id 9301 :due_date future})]
     ;; 三条 minor 分别推进到 in_review / closed / rejected; 阻断级仅登记不解决 (自动升级 pending 不影响闭环计数).
     (command! id :issues :resolve (:id i-inreview) {:resolution "初步整改" :evidence_ids [evidence] :reviewer_id 9302})
     (command! id :issues :resolve (:id i-closed) {:resolution "整改完成" :evidence_ids [evidence] :reviewer_id 9302})
