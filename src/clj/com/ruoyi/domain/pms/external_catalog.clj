@@ -107,21 +107,20 @@
     :required-fields ["企业预算科目" "人工/材料/制造等类别" "已批准预算与概算分离" "变更不覆盖旧预算"] :owner "待确认 (财务/ERP 负责人)" :status "待规则"
     :notes "本地 budget 独立版本/批准/修订已完成, 企业预算科目及 ERP 合同口径待确认."}])
 
-(defn- distribution
-  "对一个受控维度取值求频次, 返回按给定顺序的 [{:value :count}] 及覆盖度汇总."
-  [rows values]
-  (let [freq (frequencies (map :system rows))
-        by (mapv (fn [v] {:value v :count (get freq v 0)}) values)]
-    by))
+(defn- freq-table
+  "把频次 map 按给定取值顺序投影为 [{:value v :count n}] 向量, 未出现的取值记 0."
+  [freq values]
+  (mapv (fn [v] {:value v :count (get freq v 0)}) values))
 
 (defn catalog
   "外部接口配置目录只读视图: 汇总各能力数量, 依赖状态分布与外部系统分布, 并返回完整清单. 只读, 不查库, 不落库, 不做连通性测试."
   [svc actor]
   (let [rows capabilities
         total (count rows)
-        status-freq (frequencies (map :status rows))
-        group-freq (frequencies (map :group rows))
-        system-values (distinct (map :system rows))
+        freq-by (fn [key-fn] (frequencies (map key-fn rows)))
+        status-freq (freq-by :status)
+        group-freq (freq-by :group)
+        system-freq (freq-by :system)
         status-values (vec (sort capability-statuses))]
     {:available (pos? total)
      :total total
@@ -129,7 +128,7 @@
      :business-count (get group-freq "business" 0)
      :contract-count (get status-freq "待合同" 0)
      :rule-count (get status-freq "待规则" 0)
-     :by-status (mapv (fn [s] {:value s :count (get status-freq s 0)}) status-values)
-     :by-system (distribution rows system-values)
+     :by-status (freq-table status-freq status-values)
+     :by-system (freq-table system-freq (distinct (map :system rows)))
      :rows rows
      :note "本目录为静态配置清单, 逐条列出仍依赖真实外部合同/规则的能力及所需接口字段, 不代表任何真实集成已通过; 完成字段/认证/责任人/沙箱与对账样例后方可验收."}))
