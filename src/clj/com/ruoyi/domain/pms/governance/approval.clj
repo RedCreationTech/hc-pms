@@ -4,6 +4,7 @@
             [com.ruoyi.domain.pms.finance-money :as money]
             [com.ruoyi.domain.pms.governance.store :as s]
             [com.ruoyi.domain.pms.kernel :as k]
+            [com.ruoyi.domain.pms.read-model :as rm]
             [com.ruoyi.domain.pms.rules :as r])
   (:import
     (java.time
@@ -313,9 +314,7 @@
      :in-review (status-count "in_review")
      :approved approved
      :rejected (status-count "rejected")
-     :approval-pct (if (pos? total)
-                    (int (Math/round ^double (/ (* 100.0 approved) total)))
-                    0)
+     :approval-pct (rm/pct total approved)
      :high-impact (count (filterv high-impact? active))
      :escalated (count (filterv :escalated active))
      :pending (esc-count "pending")
@@ -356,9 +355,7 @@
      :members (count member-ids)
      :seats seats
      :ballots votes
-     :participation-pct (if (pos? seats)
-                          (int (Math/round ^double (/ (* 100.0 votes) seats)))
-                          0)
+     :participation-pct (rm/pct seats votes)
      :open-changes (count in-review)
      :stalled-changes stalled
      :by-member by-member}))
@@ -376,9 +373,7 @@
      :total total
      :declared declared
      :undeclared (- total declared)
-     :coverage-pct (if (pos? total)
-                     (int (Math/round ^double (* 100.0 (/ declared total))))
-                     0)
+     :coverage-pct (rm/pct total declared)
      :by-type (mapv (fn [x] {:type x :count (type-count x)}) types)}))
 
 
@@ -398,9 +393,7 @@
      :cost-declared cost-declared
      :quantified quantified
      :narrative-only (- total quantified)
-     :quantified-pct (if (pos? total)
-                       (int (Math/round ^double (* 100.0 (/ quantified total))))
-                       0)
+     :quantified-pct (rm/pct total quantified)
      :high-impact high-impact}))
 
 
@@ -422,9 +415,7 @@
      :schedule-only schedule-only
      :cost-only cost-only
      :neither neither
-     :full-pct (if (pos? total)
-                 (int (Math/round ^double (* 100.0 (/ both total))))
-                 0)
+     :full-pct (rm/pct total both)
      :pattern-level (cond
                       (zero? total) nil
                       (>= (* 2 both) total) "thorough"

@@ -5,6 +5,7 @@
             [com.ruoyi.domain.pms.governance.quality :as quality]
             [com.ruoyi.domain.pms.governance.store :as governance]
             [com.ruoyi.domain.pms.planning.progress :as progress]
+            [com.ruoyi.domain.pms.read-model :as rm]
             [com.ruoyi.domain.pms.delivery.store :as delivery]
             [com.ruoyi.domain.pms.rules :as rules]
             [com.ruoyi.domain.pms.planning.schedule :as schedule]
@@ -232,7 +233,5 @@
     {:total-leaves total
      :covered-leaves covered
      :uncovered-leaves (- total covered)
-     :coverage-pct (if (pos? total)
-                     (int (Math/round ^double (* 100.0 (/ covered total))))
-                     0)
+     :coverage-pct (rm/pct total covered)
      :uncovered-codes (mapv :wbs_code (remove :scope_covered enriched))}))

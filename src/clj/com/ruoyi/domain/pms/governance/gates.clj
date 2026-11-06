@@ -5,6 +5,7 @@
             [com.ruoyi.domain.pms.config.catalog :as catalog]
             [com.ruoyi.domain.pms.governance.store :as s]
             [com.ruoyi.domain.pms.kernel :as k]
+            [com.ruoyi.domain.pms.read-model :as rm]
             [com.ruoyi.domain.pms.rules :as r]))
 
 (defn create-template!
@@ -290,9 +291,7 @@
      :evidence-pending (count (filter :gate_evidence_unreleased gates))
      :remediated (count (filter #(pos? (:gate_remediation_total % 0)) gates))
      :remediation-open (count (filter #(pos? (:gate_remediation_open % 0)) gates))
-     :closure-pct (if (pos? total)
-                    (int (Math/round ^double (* 100.0 (/ signed total))))
-                    0)}))
+     :closure-pct (rm/pct total signed)}))
 
 (defn attach-gate-closure-summary
   "在治理读模型上追加 :gate_closure 只读汇总 (基于已富化的 :gates), 不改变任何逐条关口记录."
@@ -321,9 +320,7 @@
      :gates-with-exception gates-with-exception
      :gates-exception-dependent gates-exception-dependent
      :reason-missing reason-missing
-     :waiver-pct (if (pos? required-checks)
-                   (int (Math/round ^double (* 100.0 (/ exception-checks required-checks))))
-                   0)}))
+     :waiver-pct (rm/pct required-checks exception-checks)}))
 
 (defn attach-gate-exception-summary
   "在治理读模型上追加 :gate_exception_summary 只读汇总 (基于已富化的 :gates), 不改变任何逐条关口记录."
@@ -366,7 +363,7 @@
      :needs-checks needs
      :rework rework
      :actionable-backlog (+ ready awaiting rework)
-     :closure-pct (if (pos? total) (int (Math/round ^double (* 100.0 (/ signed total)))) 0)
+     :closure-pct (rm/pct total signed)
      :by-stage by-stage
      :ready-to-submit-list ready-list}))
 

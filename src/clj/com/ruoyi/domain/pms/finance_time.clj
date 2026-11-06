@@ -3,6 +3,7 @@
   (:require [com.ruoyi.domain.pms.config :as config]
             [com.ruoyi.domain.pms.finance-money :as money]
             [com.ruoyi.domain.pms.kernel :as kernel]
+            [com.ruoyi.domain.pms.read-model :as rm]
             [com.ruoyi.domain.pms.rules :as rules])
   (:import [java.time LocalDate]))
 
@@ -120,9 +121,7 @@
      :hours-total (money/hours (minutes entries))
      :hours-approved (money/hours (minutes approved-rows))
      :hours-pending (money/hours (minutes submitted-rows))
-     :review-pct (if (pos? total)
-                   (int (Math/round ^double (* 100.0 (/ processed total))))
-                   0)}))
+     :review-pct (rm/pct total processed)}))
 
 (defn attach-timesheet-review-summary
   "把 timesheet-review-summary 挂到财务概览读模型顶层 :timesheet_review; 读取时派生, 不改变任何逐条工时单."

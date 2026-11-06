@@ -44,9 +44,7 @@
     {:total total
      :declared declared
      :undeclared (- total declared)
-     :coverage-pct (if (pos? total)
-                     (int (Math/round ^double (* 100.0 (/ declared total))))
-                     0)
+     :coverage-pct (rm/pct total declared)
      :by-strategy (mapv (fn [x] {:strategy x :count (strategy-count x)}) strategies)}))
 
 
@@ -61,9 +59,7 @@
     {:total total
      :declared declared
      :undeclared (- total declared)
-     :coverage-pct (if (pos? total)
-                     (int (Math/round ^double (* 100.0 (/ declared total))))
-                     0)
+     :coverage-pct (rm/pct total declared)
      :by-category (mapv (fn [x] {:category x :count (category-count x)}) categories)}))
 
 
@@ -172,9 +168,7 @@
      :total total
      :declared declared
      :unassigned unassigned
-     :declared-pct (if (pos? total)
-                     (int (Math/round ^double (* 100.0 (/ declared total))))
-                     0)
+     :declared-pct (rm/pct total declared)
      :by-frequency (mapv (fn [x] (into {:frequency x} (tally (subset x)))) freqs)}))
 
 
@@ -1045,7 +1039,7 @@
         member-ids (into #{} (map :user_id) members)
         name-of (fn [uid] (or (get member-name uid) (str "用户" uid)))
         attendees (mapcat (fn [m] (distinct (:attendee_ids m))) in-scope)
-        pct (fn pct [n d] (if (pos? d) (int (Math/round ^double (* 100.0 (/ n d)))) 0))
+        pct (fn pct [n d] (rm/pct d n))
         freq (frequencies attendees)
         top (->> (for [[uid c] freq]
                    {:user-id uid :name (name-of uid) :attended c :attendance-pct (pct c total)})
@@ -1300,9 +1294,7 @@
                              open    (- total closed)
                              overdue (count (filter over? records))]
                          {:key key :label label :total total :open open :closed closed :overdue overdue
-                          :closure-pct (if (pos? total)
-                                         (int (Math/round ^double (* 100.0 (/ closed total))))
-                                         0)}))
+                          :closure-pct (rm/pct total closed)}))
         tallies      (mapv tally groups)
         present      (filterv #(pos? (:total %)) tallies)
         o-total      (reduce + 0 (map :total tallies))
@@ -1316,9 +1308,7 @@
      :overdue                  o-overdue
      :sources-with-remediation (count present)
      :sources-with-open         (count (filterv #(pos? (:open %)) present))
-     :closure-pct              (if (pos? o-total)
-                                 (int (Math/round ^double (* 100.0 (/ o-closed o-total))))
-                                 0)
+     :closure-pct              (rm/pct o-total o-closed)
      :by-source                present}))
 
 
@@ -1334,9 +1324,7 @@
      :open (- total closed)
      :converted converted
      :overdue overdue
-     :closure-pct (if (pos? total)
-                    (int (Math/round ^double (* 100.0 (/ closed total))))
-                    0)}))
+     :closure-pct (rm/pct total closed)}))
 
 
 (defn action-priority-distribution
@@ -1357,9 +1345,7 @@
      :total total
      :declared declared
      :unassigned unassigned
-     :declared-pct (if (pos? total)
-                     (int (Math/round ^double (* 100.0 (/ declared total))))
-                     0)
+     :declared-pct (rm/pct total declared)
      :open-high open-high
      :by-priority (mapv entry ["high" "medium" "low"])}))
 
@@ -1380,9 +1366,7 @@
      :in-review in-review
      :recorded recorded
      :discarded discarded
-     :release-pct (if (pos? denom)
-                    (int (Math/round ^double (* 100.0 (/ approved denom))))
-                    0)}))
+     :release-pct (rm/pct denom approved)}))
 
 
 (defn meeting-material-readiness
@@ -1398,9 +1382,7 @@
         pending-ids (fn [m] (filterv (complement approved-doc?) (:material_ids m)))
         published (count (filterv #(empty? (pending-ids %)) with-mat))
         pending (count (filterv #(seq (pending-ids %)) with-mat))
-        pct (fn [n] (if (pos? denom)
-                      (int (Math/round ^double (* 100.0 (/ n denom))))
-                      0))]
+        pct (fn [n] (rm/pct denom n))]
     {:available (pos? denom)
      :total denom
      :discarded discarded
@@ -1437,9 +1419,7 @@
      :overdue overdue
      :blocker-open blocker-open
      :by-severity (mapv (fn [x] {:severity x :count (severity-count x)}) ["blocker" "major" "minor"])
-     :closure-pct (if (pos? total)
-                    (int (Math/round ^double (* 100.0 (/ closed total))))
-                    0)}))
+     :closure-pct (rm/pct total closed)}))
 
 
 (defn issue-resolution-coverage
@@ -1453,9 +1433,7 @@
     {:total total
      :declared declared
      :undeclared (- total declared)
-     :coverage-pct (if (pos? total)
-                     (int (Math/round ^double (* 100.0 (/ declared total))))
-                     0)
+     :coverage-pct (rm/pct total declared)
      :by-resolution (mapv (fn [x] {:resolution x :count (type-count x)}) types)}))
 
 

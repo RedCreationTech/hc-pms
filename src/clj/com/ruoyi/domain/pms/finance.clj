@@ -8,6 +8,7 @@
             [com.ruoyi.domain.pms.finance-money :as money]
             [com.ruoyi.domain.pms.finance-time :as time]
             [com.ruoyi.domain.pms.kernel :as kernel]
+            [com.ruoyi.domain.pms.read-model :as rm]
             [com.ruoyi.domain.pms.rules :as rules]))
 
 (defn- summary
@@ -72,9 +73,7 @@
      :processed processed
      :pending pending
      :by-kind by-kind
-     :review-pct (if (pos? total)
-                   (int (Math/round ^double (* 100.0 (/ processed total))))
-                   0)}))
+     :review-pct (rm/pct total processed)}))
 
 (defn attach-cost-review-summary
   "把 cost-review-summary 挂到财务概览读模型顶层 :cost_review; 读取时派生, 不改变任何逐条费用版本."
@@ -165,15 +164,11 @@
      :cancelled cancelled
      :pending pending
      :processed processed
-     :review-pct (if (pos? total)
-                   (int (Math/round ^double (* 100.0 (/ processed total))))
-                   0)
+     :review-pct (rm/pct total processed)
      :base-amount (money/money base-minor)
      :released-amount (money/money released-minor)
      :remaining-amount (money/money remaining-minor)
-     :release-pct (if (pos? base-minor)
-                    (int (Math/round ^double (* 100.0 (/ released-minor base-minor))))
-                    0)}))
+     :release-pct (rm/pct base-minor released-minor)}))
 
 (defn attach-commitment-closure-summary
   "把 commitment-closure-summary 挂到财务概览读模型顶层 :commitment_closure; 读取时派生, 不改变任何逐条承诺."

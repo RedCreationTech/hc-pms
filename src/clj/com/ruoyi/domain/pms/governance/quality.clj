@@ -4,6 +4,7 @@
    局部暂停: 记录节点范围与原因, 暂停期间该节点及后代任务禁止进度反馈, 恢复时记录影响说明."
   (:require [com.ruoyi.domain.pms.governance.store :as s]
             [com.ruoyi.domain.pms.kernel :as k]
+            [com.ruoyi.domain.pms.read-model :as rm]
             [com.ruoyi.domain.pms.rules :as r]))
 
 ;; ── DQ ──────────────────────────────────────────────────────────
@@ -206,9 +207,7 @@
      :roles-declared (count (filter (comp seq :responsible_role) dqs))
      :remediated (count (filter #(pos? (:dq_remediation_total % 0)) dqs))
      :remediation-open (count (filter #(pos? (:dq_remediation_open % 0)) dqs))
-     :closure-pct (if (pos? total)
-                    (int (Math/round ^double (* 100.0 (/ approved total))))
-                    0)}))
+     :closure-pct (rm/pct total approved)}))
 
 (defn attach-dq-summary
   "在治理读模型上追加 :dq_summary 只读汇总 (基于已富化的 :dqs), 不改变任何逐条 DQ 记录."

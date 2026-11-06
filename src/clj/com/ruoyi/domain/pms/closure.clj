@@ -9,6 +9,7 @@
             [com.ruoyi.domain.pms.finance-money :as money]
             [com.ruoyi.domain.pms.governance :as governance]
             [com.ruoyi.domain.pms.kernel :as kernel]
+            [com.ruoyi.domain.pms.read-model :as rm]
             [com.ruoyi.domain.pms.rules :as rules]))
 
 (defn task-blockers
@@ -89,13 +90,13 @@
         kind-row (fn [key label rows]
                    (let [t (count rows) c (count (filterv closed? rows))]
                      {:key key :label label :total t :completed c
-                      :completed-pct (if (pos? t) (int (Math/round ^double (* 100.0 (/ c t)))) 0)}))]
+                      :completed-pct (rm/pct t c)}))]
     {:available (boolean (or (pos? total) (some? approval)))
      :total total :checks (count checks) :handoffs (count handoffs)
      :completed completed :open open :required (count required)
      :required-open required-open :overdue-open overdue-open :lessons (count lessons)
      :approval-state (or (:status approval) "none")
-     :closure-pct (if (pos? total) (int (Math/round ^double (* 100.0 (/ completed total)))) 0)
+     :closure-pct (rm/pct total completed)
      :by-kind (vector (kind-row "check" "收尾检查" checks) (kind-row "handoff" "遗留移交" handoffs))}))
 
 
@@ -114,14 +115,13 @@
                    spec)
         total-blockers (reduce + (map :blocker-count cats))
         clear-count (count (filter :clear cats))
-        cat-count (count cats)
-        pct (fn [n d] (if (pos? d) (int (Math/round ^double (* 100.0 (/ n d)))) 0))]
+        cat-count (count cats)]
     {:available true
      :categories cats
      :total-blockers total-blockers
      :clear-count clear-count
      :blocked-count (- cat-count clear-count)
-     :readiness-pct (pct clear-count cat-count)
+     :readiness-pct (rm/pct cat-count clear-count)
      :ready (zero? total-blockers)
      :approval-state (or (:status approval) "none")
      :next-focus (when (pos? total-blockers) (:label (first (remove :clear cats))))}))
@@ -151,7 +151,7 @@
                           (sort-by (fn [{:keys [stage count]}] [(- count) stage]))
                           vec)
         owner-assigned (count (keep :owner_id lessons))
-        pct          (fn [n] (if (pos? total) (int (Math/round ^double (* 100.0 (/ n total)))) 0))]
+        pct          (fn [n] (rm/pct total n))]
     {:available          (pos? total)
      :total              total
      :distinct-categories (count cat-counts)

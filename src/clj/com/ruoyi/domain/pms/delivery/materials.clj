@@ -3,6 +3,7 @@
   (:require [com.ruoyi.domain.pms.delivery.store :as d]
             [com.ruoyi.domain.pms.governance.store :as g]
             [com.ruoyi.domain.pms.planning.progress :as progress]
+            [com.ruoyi.domain.pms.read-model :as rm]
             [com.ruoyi.domain.pms.rules :as r]))
 
 
@@ -152,7 +153,7 @@
                       (loop [result #{node-id} frontier [node-id]]
                         (let [children (map :node_id (filter #(contains? (set frontier) (:parent_id %)) nodes))]
                           (if (empty? children) result (recur (into result children) (vec children))))))
-        percent (fn [complete required] (if (zero? required) 0 (int (Math/round (* 100.0 (/ complete required))))))
+        percent (fn [complete required] (rm/pct required complete))
         node-rows (mapv (fn [node]
                           (let [ids (descendants (:node_id node))
                                 rows (if (= "main" (:node_type node)) with-node (filter #(contains? ids (:node_id %)) with-node))
@@ -187,7 +188,7 @@
         in-review (status-count "in_review")
         rejected (status-count "rejected")
         draft (status-count "draft")
-        pct (if (zero? total) 0 (int (Math/round ^double (* 100.0 (/ approved total)))))]
+        pct (rm/pct total approved)]
     {:key key :label label :total total :approved approved :in-review in-review
      :rejected rejected :draft draft :closure-pct pct}))
 
@@ -206,7 +207,7 @@
      :in-review (combine :in-review)
      :rejected (combine :rejected)
      :draft (combine :draft)
-     :closure-pct (if (zero? total) 0 (int (Math/round ^double (* 100.0 (/ approved total)))))
+     :closure-pct (rm/pct total approved)
      :request-total (:total rt)
      :bom-total (:total bt)
      :by-source [rt bt]}))

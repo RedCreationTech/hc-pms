@@ -86,9 +86,7 @@
      :need-down down
      :unmarked unmarked
      :up-steps up-steps
-     :on-target-pct (if (pos? marked)
-                      (int (Math/round ^double (* 100.0 (/ on marked))))
-                      0)
+     :on-target-pct (rm/pct marked on)
      :need-up-stakeholders (pick "up")
      :need-down-stakeholders (pick "down")}))
 
@@ -336,9 +334,7 @@
     {:total total
      :declared declared
      :undeclared (- total declared)
-     :coverage-pct (if (pos? total)
-                     (int (Math/round ^double (* 100.0 (/ declared total))))
-                     0)
+     :coverage-pct (rm/pct total declared)
      :by-engagement (mapv (fn [l] {:engagement l :count (level-count l)}) levels)}))
 
 
@@ -358,9 +354,7 @@
      :plans (count active-plans)
      :covered covered
      :uncovered (- total covered)
-     :coverage-pct (if (pos? total)
-                     (int (Math/round ^double (* 100.0 (/ covered total))))
-                     0)
+     :coverage-pct (rm/pct total covered)
      :uncovered-stakeholders uncovered}))
 
 
@@ -383,9 +377,7 @@
      :not-executed (- total executed)
      :logged logged
      :met met
-     :execution-pct (if (pos? total)
-                      (int (Math/round ^double (* 100.0 (/ executed total))))
-                      0)
+     :execution-pct (rm/pct total executed)
      :not-executed-plans not-executed}))
 
 
@@ -419,9 +411,7 @@
      :total-logs total-logs
      :declared declared
      :unassigned (- total-logs declared)
-     :coverage-pct (if (pos? total-logs)
-                     (int (Math/round ^double (* 100.0 (/ declared total-logs))))
-                     0)
+     :coverage-pct (rm/pct total-logs declared)
      :dominant-channel dominant
      :dominant-count dominant-count
      :by-channel by-channel}))
@@ -532,7 +522,7 @@
         declared (count engaged)
         unassigned (- total declared)
         tally (frequencies engaged)
-        pct (fn [n] (if (pos? total) (int (Math/round ^double (* 100.0 (/ n total)))) 0))
+        pct (fn [n] (rm/pct total n))
         by-engagement (mapv (fn [e] {:engagement e
                                      :label (get engagement-labels e e)
                                      :count (get tally e 0)
@@ -578,9 +568,7 @@
      :complete complete
      :missing-accountable missing-accountable
      :missing-responsible missing-responsible
-     :coverage-pct (if (pos? total)
-                     (int (Math/round ^double (* 100.0 (/ complete total))))
-                     0)
+     :coverage-pct (rm/pct total complete)
      :incomplete-activities incomplete}))
 
 
@@ -631,9 +619,7 @@
      :with-consult with-consult
      :with-inform with-inform
      :fully-engaged fully-engaged
-     :engagement-pct (if (pos? total)
-                       (int (Math/round ^double (* 100.0 (/ fully-engaged total))))
-                       0)
+     :engagement-pct (rm/pct total fully-engaged)
      :thin-activities thin}))
 
 
@@ -652,9 +638,7 @@
   [raci-rows]
   (let [total (count raci-rows)
         tally (frequencies (remove nil? (map :responsibility raci-rows)))
-        role-pct (fn [n] (if (pos? total)
-                           (int (Math/round ^double (* 100.0 (/ n total))))
-                           0))
+        role-pct (fn [n] (rm/pct total n))
         by-role (mapv (fn [r] {:role r
                                :label (get role-labels r r)
                                :count (get tally r 0)

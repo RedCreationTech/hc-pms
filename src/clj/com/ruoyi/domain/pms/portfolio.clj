@@ -12,6 +12,7 @@
             [com.ruoyi.domain.pms.governance.gates :as gates]
             [com.ruoyi.domain.pms.governance.store :as g]
             [com.ruoyi.domain.pms.planning.progress :as progress]
+            [com.ruoyi.domain.pms.read-model :as rm]
             [com.ruoyi.domain.pms.rules :as r])
   (:import [java.time LocalDate]
            [java.time.temporal ChronoUnit]))
@@ -304,7 +305,7 @@
      :met met
      :near near
      :behind behind
-     :met-pct (if (pos? total) (int (Math/round ^double (* 100.0 (/ met total)))) 0)
+     :met-pct (rm/pct total met)
      :by-metric by-metric}))
 
 (defn targets

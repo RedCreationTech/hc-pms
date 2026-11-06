@@ -5,7 +5,8 @@
    这不是财务挣值 (金额口径在增量7 费率之后), 也不替代业务批准的进度口径."
   (:require
     [com.ruoyi.domain.pms.planning.progress :as progress]
-    [com.ruoyi.domain.pms.planning.schedule :as schedule]))
+    [com.ruoyi.domain.pms.planning.schedule :as schedule]
+    [com.ruoyi.domain.pms.read-model :as rm]))
 
 
 (defn- round2
@@ -147,9 +148,7 @@
      :action_total action-total
      :action_closed action-closed
      :action_open (- action-total action-closed)
-     :action_closure_pct (if (pos? action-total)
-                           (int (Math/round ^double (* 100.0 (/ action-closed action-total))))
-                           0)}))
+     :action_closure_pct (rm/pct action-total action-closed)}))
 
 
 (defn snapshot-payload

@@ -5,6 +5,7 @@
   (:require [com.ruoyi.domain.pms.delivery.store :as d]
             [com.ruoyi.domain.pms.governance.store :as g]
             [com.ruoyi.domain.pms.kernel :as k]
+            [com.ruoyi.domain.pms.read-model :as rm]
             [com.ruoyi.domain.pms.rules :as r])
   (:import [java.time LocalDate]))
 
@@ -82,7 +83,7 @@
         rejected (filterv #(= "rejected" (:status %)) surveys)
         open (filterv #(contains? #{"draft" "in_review"} (:status %)) surveys)
         overdue-open (filterv :survey_overdue open)
-        closure-pct (if (pos? total) (int (Math/round ^double (* 100.0 (/ (count approved) total)))) 0)
+        closure-pct (rm/pct total (count approved))
         nearest-planned (when-let [ds (seq (remove nil? (map :planned_date open)))] (first (sort ds)))
         by-status [{:key "draft" :label "待提交" :count (count draft)}
                    {:key "in_review" :label "确认中" :count (count in-review)}
@@ -167,9 +168,9 @@
      :in-progress (count (filterv #(= "in_progress" (:status %)) assemblies))
      :in-review (count (filterv #(= "in_review" (:status %)) assemblies))
      :approved approved
-     :closure-pct (if (pos? total) (int (Math/round ^double (* 100.0 (/ approved total)))) 0)
+     :closure-pct (rm/pct total approved)
      :fully-stepped fully-stepped
-     :step-pct (if (pos? step-denom) (int (Math/round ^double (* 100.0 (/ done-steps step-denom)))) 0)
+     :step-pct (rm/pct step-denom done-steps)
      :by-step by-step}))
 
 (defn attach-assembly-execution-progress
@@ -245,7 +246,7 @@
      :ready ready
      :blocked (- total ready)
      :released released
-     :readiness-pct (if (pos? total) (int (Math/round ^double (* 100.0 (/ ready total)))) 0)
+     :readiness-pct (rm/pct total ready)
      :by-condition by-condition}))
 
 (defn attach-preship-readiness
@@ -285,10 +286,8 @@
         in-transit (+ released shipped)
         exception (+ conditional returned)
         receipted (+ received conditional)
-        closure-pct (if (pos? total) (int (Math/round ^double (* 100.0 (/ received total)))) 0)
-        receipt-pct (if (pos? released-or-beyond)
-                      (int (Math/round ^double (* 100.0 (/ receipted released-or-beyond))))
-                      0)
+        closure-pct (rm/pct total received)
+        receipt-pct (rm/pct released-or-beyond receipted)
         by-status (mapv (fn [[k label]] {:key k :label label :count (cnt k)}) shipment-status-catalog)]
     {:available (boolean (seq shipments))
      :total total
@@ -348,7 +347,7 @@
         overdue-unresolved (count (filterv :service_overdue unresolved-rows))
         from-receipt (count (filterv #(= "receipt" (:source %)) services))
         from-manual (count (filterv #(= "manual_record" (:source %)) services))
-        closure-pct (if (pos? total) (int (Math/round ^double (* 100.0 (/ closed total)))) 0)
+        closure-pct (rm/pct total closed)
         nearest-due (when-let [ds (seq (remove nil? (map :due_date unresolved-rows)))] (first (sort ds)))
         by-status (mapv (fn [[k label]] {:key k :label label :count (cnt k)}) service-status-catalog)]
     {:available (boolean (seq services))
@@ -382,9 +381,7 @@
         open-pending (- (count open) (count overdue-open))
         completed-late (filterv :completed_late closed)
         completed-on-time (- (count closed) (count completed-late))
-        on-time-pct (if (pos? (count closed))
-                      (int (Math/round ^double (* 100.0 (/ completed-on-time (count closed)))))
-                      0)
+        on-time-pct (rm/pct (count closed) completed-on-time)
         nearest-deadline (when (seq open) (first (sort (map :deadline open))))
         by-state [{:key "open-pending" :label "待交底 (未逾期)" :count open-pending}
                   {:key "open-overdue" :label "待交底 (已逾期)" :count (count overdue-open)}
@@ -520,7 +517,7 @@
      :in-progress (count in-progress)
      :draft (count draft)
      :delayed (count delayed)
-     :closure-pct (if (pos? total) (int (Math/round ^double (* 100.0 (/ (count closed) total)))) 0)
+     :closure-pct (rm/pct total (count closed))
      :earliest-open (when-let [ds (seq (remove nil? (map :planned_start open)))] (first (sort ds)))
      :by-key by-key}))
 
@@ -565,13 +562,13 @@
         open (count (filterv #(contains? #{"draft" "ready" "in_review"} (:status %)) tests))
         results-recorded (count (filterv :test_results_recorded tests))
         required-ready (count (filterv :test_required_all_passed tests))
-        closure-pct (if (pos? total) (int (Math/round ^double (* 100.0 (/ approved total)))) 0)
+        closure-pct (rm/pct total approved)
         by-type (mapv (fn [[key label]]
                         (let [ts (filterv #(= key (:test_type %)) tests)
                               tp (count ts)
                               ta (count (filterv #(= "approved" (:status %)) ts))]
                           {:key key :label label :total tp :approved ta
-                           :approved-pct (if (pos? tp) (int (Math/round ^double (* 100.0 (/ ta tp)))) 0)}))
+                           :approved-pct (rm/pct tp ta)}))
                       test-execution-types)]
     {:available (boolean (seq tests))
      :total total
@@ -649,9 +646,7 @@
      :issue-total issue-total
      :issue-closed issue-closed
      :issue-open issue-open
-     :closure-pct (if (pos? issue-total)
-                    (int (Math/round ^double (* 100.0 (/ issue-closed issue-total))))
-                    0)}))
+     :closure-pct (rm/pct issue-total issue-closed)}))
 
 (defn attach-test-remediation-closure
   "把 test-remediation-closure-summary 挂到交付工作区读模型顶层 :test_remediation_closure; 须在 test-remediation-read-model 之后调用, 读取时派生, 不改变任何逐条试验."

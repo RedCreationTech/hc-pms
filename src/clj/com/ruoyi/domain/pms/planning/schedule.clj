@@ -1,6 +1,7 @@
 (ns com.ruoyi.domain.pms.planning.schedule
   "工作日历,四类前置依赖与关键路径的纯函数排程."
   (:require [clojure.set :as set]
+            [com.ruoyi.domain.pms.read-model :as rm]
             [com.ruoyi.domain.pms.rules :as rules])
   (:import [java.time LocalDate]))
 
@@ -228,9 +229,7 @@
   (let [floats (mapv :total_float (filterv #(not= "summary" (:task_type %)) (:tasks schedule)))
         leaf-count (count floats)
         critical-count (count (filter zero? floats))
-        critical-pct (if (pos? leaf-count)
-                       (int (Math/round ^double (* 100.0 (/ (double critical-count) (double leaf-count)))))
-                       0)
+        critical-pct (rm/pct leaf-count critical-count)
         avg-float (if (pos? leaf-count)
                     (/ (Math/round ^double (* 10.0 (double (/ (apply + floats) leaf-count)))) 10.0)
                     0)]
@@ -283,9 +282,7 @@
         endpoints (into #{} (mapcat #(vector (:predecessor_id %) (:successor_id %))) dependencies)
         linked-leaf-ids (set/intersection leaf-ids endpoints)
         linked-count (count linked-leaf-ids)
-        linked-pct (if (pos? leaf-count)
-                     (int (Math/round ^double (* 100.0 (/ (double linked-count) (double leaf-count)))))
-                     0)
+        linked-pct (rm/pct leaf-count linked-count)
         unlinked (->> leaves
                       (remove #(linked-leaf-ids (:task_id %)))
                       (sort-by :wbs_code)
@@ -328,9 +325,7 @@
   [dependencies]
   (let [typed (filter #(contains? #{"FS" "SS" "FF" "SF"} (:dependency_type %)) dependencies)
         total (count typed)
-        pct (fn [n] (if (pos? total)
-                      (int (Math/round ^double (* 100.0 (/ (double n) (double total)))))
-                      0))
+        pct (fn [n] (rm/pct total n))
         count-of (fn [t] (count (filter #(= t (:dependency_type %)) typed)))
         fs-count (count-of "FS")
         parallel-count (+ (count-of "SS") (count-of "FF") (count-of "SF"))

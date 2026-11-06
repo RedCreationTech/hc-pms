@@ -1,6 +1,7 @@
 (ns com.ruoyi.domain.pms.planning.capacity
   "跨项目人员容量汇总,对外只返回本项目资源和匿名占用总量."
-  (:require [com.ruoyi.domain.pms.planning.store :as store]))
+  (:require [com.ruoyi.domain.pms.planning.store :as store]
+            [com.ruoyi.domain.pms.read-model :as rm]))
 
 (defn- person-resources
   "从快照中取得需要共享容量的人员资源."
@@ -94,9 +95,7 @@
      :total-tasks total
      :with-allocations with
      :without-allocations (- total with)
-     :coverage-pct (if (pos? total)
-                     (int (Math/round ^double (* 100.0 (/ with total))))
-                     0)
+     :coverage-pct (rm/pct total with)
      :unallocated-tasks without}))
 
 (defn critical-path-staffing
@@ -117,9 +116,7 @@
      :critical-tasks total
      :staffed staffed
      :unstaffed (- total staffed)
-     :staffing-pct (if (pos? total)
-                     (int (Math/round ^double (* 100.0 (/ staffed total))))
-                     0)
+     :staffing-pct (rm/pct total staffed)
      :unstaffed-tasks gaps}))
 
 (def ^:private level-ratio

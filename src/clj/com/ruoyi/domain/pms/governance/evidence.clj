@@ -325,7 +325,7 @@
   [report]
   (let [total (count report)
         full (count (filterv #(and (:satisfied? %) (:verified? %)) report))
-        pct (fn [n] (if (zero? total) 0 (int (Math/round (* 100.0 (/ n total))))))]
+        pct (fn [n] (rm/pct total n))]
     {:requirements total
      :fully-traced full
      :missing-design (count (remove :satisfied? report))
@@ -384,9 +384,7 @@
     {:total total
      :declared declared
      :undeclared (- total declared)
-     :coverage-pct (if (pos? total)
-                     (int (Math/round ^double (* 100.0 (/ declared total))))
-                     0)
+     :coverage-pct (rm/pct total declared)
      :by-method (mapv (fn [m] {:method m :count (method-count m)}) methods)}))
 
 
@@ -452,14 +450,10 @@
     {:declared total-declared
      :aligned total-aligned
      :gap (- total-declared total-aligned)
-     :alignment-pct (if (pos? total-declared)
-                      (int (Math/round ^double (* 100.0 (/ total-aligned total-declared))))
-                      0)
+     :alignment-pct (rm/pct total-declared total-aligned)
      :evidence-released (count released)
      :evidence-pending (- total-aligned (count released))
-     :evidence-released-pct (if (pos? total-declared)
-                              (int (Math/round ^double (* 100.0 (/ (count released) total-declared))))
-                              0)}))
+     :evidence-released-pct (rm/pct total-declared (count released))}))
 
 
 (defn release-coverage
@@ -477,9 +471,7 @@
      :in-review in-review
      :registered registered
      :rejected rejected
-     :released-pct (if (pos? total)
-                     (int (Math/round ^double (* 100.0 (/ approved total))))
-                     0)}))
+     :released-pct (rm/pct total approved)}))
 
 
 (defn voided-document-codes
