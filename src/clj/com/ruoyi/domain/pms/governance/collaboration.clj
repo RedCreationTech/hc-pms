@@ -6,6 +6,7 @@
     [com.ruoyi.domain.pms.governance.store :as s]
     [com.ruoyi.domain.pms.kernel :as k]
     [com.ruoyi.domain.pms.planning :as planning]
+    [com.ruoyi.domain.pms.read-model :as rm]
     [com.ruoyi.domain.pms.rules :as r])
   (:import
     (java.time
@@ -1126,27 +1127,14 @@
 (defn meeting-type-distribution
   "按每个会议业务编码最新有效版本(store/latest 折叠修订链)统计其会议类型(:meeting_type)的项目级只读分布: 按固定五档(regular/kickoff/review/fat-kickoff/fat-summary)给出各类型会议数与该类型占会议总数百分比, 并给出会议总数/已覆盖类型数/未覆盖类型数/类型覆盖率与主导类型(会议数最多者). 最新版本被受控作废(discarded)的会议不计入. meeting_type 由 create-meeting!/修订经 s/enum! 校验取自 meeting-types 枚举且缺省 regular, 故每档计数之和恒等于会议总数(与干系人类别/权力-利益象限分布同族, 都是必填受控枚举; 区别于可选的参与态度/渠道使用分布会有未设定档). 已覆盖类型数等于登记中实际出现的不同会议类型档数, 未覆盖档数=5-已覆盖(五档固定故不变量 covered+uncovered=5), 覆盖率=round(100*已覆盖/5)恒取整为0/20/40/60/80/100; 逐档占比之和等于 total. dominant 用 max-key 扫固定 meeting-type-order(并列取扫描靠后者不承诺唯一), 会议总数为 0 时为 nil. 只读派生, 不落库不投递, 不改变不可变版本, 不构成任何门控; 与会议参会概览(by-type 仅列实际出现类型无覆盖率与主导项)/会议节奏与间隔分布互补(参会看出席人, 节奏看时间间隔, 本项看项目会议在类型维度的构成/覆盖与主导, 回答会议是否覆盖了启动会/评审会/FAT 等关键节点类型)."
   [meetings]
-  (let [active (filterv #(not= "discarded" (:status %)) (s/latest meetings))
-        total (count active)
-        tally (frequencies (map :meeting_type active))
-        pct (fn [n] (if (pos? total) (int (Math/round ^double (* 100.0 (/ n total)))) 0))
-        by-type (mapv (fn [t] {:type t
-                               :label (get meeting-type-labels t t)
-                               :count (get tally t 0)
-                               :pct (pct (get tally t 0))})
-                     meeting-type-order)
-        covered (count (filterv pos? (map :count by-type)))
-        dominant (when (pos? total)
-                   (apply max-key (fn [t] (get tally t 0)) meeting-type-order))
-        dominant-count (if dominant (get tally dominant 0) 0)]
-    {:available (pos? total)
-     :total total
-     :covered covered
-     :uncovered (- (count meeting-type-order) covered)
-     :coverage-pct (int (Math/round ^double (* 100.0 (/ covered (count meeting-type-order)))))
-     :dominant-type dominant
-     :dominant-count dominant-count
-     :by-type by-type}))
+  (rm/distribution
+    (filterv #(not= "discarded" (:status %)) (s/latest meetings))
+    {:key-fn :meeting_type
+     :order meeting-type-order
+     :labels meeting-type-labels
+     :value-k :type
+     :dominant-k :dominant-type
+     :by-k :by-type}))
 
 
 (defn enrich-risk-issue-links

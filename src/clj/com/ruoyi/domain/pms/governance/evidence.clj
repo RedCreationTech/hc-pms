@@ -6,6 +6,7 @@
     [com.ruoyi.domain.pms.governance.files :as files]
     [com.ruoyi.domain.pms.governance.store :as s]
     [com.ruoyi.domain.pms.kernel :as k]
+    [com.ruoyi.domain.pms.read-model :as rm]
     [com.ruoyi.domain.pms.rules :as r])
   (:import
     (java.math
@@ -400,27 +401,14 @@
 (defn requirement-priority-distribution
   "按每个需求业务编码最新有效版本(store/latest 折叠修订链)统计其优先级(:priority)的项目级只读分布: 按固定两档(required/desired)给出各优先级需求数与该档占需求总数百分比, 并给出需求总数/已覆盖档数/未覆盖档数/优先级覆盖率与主导优先级(需求数最多者). 最新版本被受控作废(discarded)的需求不计入. priority 由新增/修订经 s/enum! 校验取自 required/desired 且必填, 故两档计数之和恒等于需求总数(与会议类型/干系人类别/权力-利益象限分布同族, 都是必填受控枚举; 区别于可选的参与态度/渠道使用分布会有未设定档). 已覆盖档数等于登记中实际出现的不同优先级档数, 未覆盖档数=2-已覆盖(两档固定故不变量 covered+uncovered=2), 覆盖率=round(100*已覆盖/2)恒取整为0/50/100; 逐档占比之和等于 total. dominant 用 max-key 扫固定 requirement-priority-order(并列取扫描靠后者即 desired, 不承诺唯一), 需求总数为 0 时为 nil. 只读派生, 不落库不投递, 不改变不可变版本, 不构成任何门控; 与验证方式覆盖度(看多少需求声明了验证方式)互补(本项看需求在必要性维度的构成与必须项是否压顶)."
   [requirements]
-  (let [active (filterv #(not= "discarded" (:status %)) (s/latest requirements))
-        total (count active)
-        tally (frequencies (map :priority active))
-        pct (fn [n] (if (pos? total) (int (Math/round ^double (* 100.0 (/ n total)))) 0))
-        by-priority (mapv (fn [p] {:priority p
-                                   :label (get requirement-priority-labels p p)
-                                   :count (get tally p 0)
-                                   :pct (pct (get tally p 0))})
-                         requirement-priority-order)
-        covered (count (filterv pos? (map :count by-priority)))
-        dominant (when (pos? total)
-                   (apply max-key (fn [p] (get tally p 0)) requirement-priority-order))
-        dominant-count (if dominant (get tally dominant 0) 0)]
-    {:available (pos? total)
-     :total total
-     :covered covered
-     :uncovered (- (count requirement-priority-order) covered)
-     :coverage-pct (int (Math/round ^double (* 100.0 (/ covered (count requirement-priority-order)))))
-     :dominant-priority dominant
-     :dominant-count dominant-count
-     :by-priority by-priority}))
+  (rm/distribution
+    (filterv #(not= "discarded" (:status %)) (s/latest requirements))
+    {:key-fn :priority
+     :order requirement-priority-order
+     :labels requirement-priority-labels
+     :value-k :priority
+     :dominant-k :dominant-priority
+     :by-k :by-priority}))
 
 
 (def document-classification-order
@@ -436,27 +424,14 @@
 (defn document-classification-distribution
   "按每个证据文档业务编码最新有效版本(store/latest 折叠修订链)统计其密级(:classification)的项目级只读分布: 按固定三档(public/internal/confidential)给出各密级文档数与该档占文档总数百分比, 并给出文档总数/已覆盖档数/未覆盖档数/密级覆盖率与主导密级(文档数最多者). 最新版本被受控作废(discarded)的文档不计入. classification 由 document-meta! 写入且缺省 internal, 恒取三档之一, 故三档计数之和恒等于文档总数. 已覆盖档数等于登记中实际出现的不同密级档数, 未覆盖档数=3-已覆盖(三档固定故不变量 covered+uncovered=3), 覆盖率=round(100*已覆盖/3)恒取整为0/33/67/100; 逐档占比之和等于 total. dominant 用 max-key 扫固定 document-classification-order(并列取扫描靠后者即 confidential, 不承诺唯一), 文档总数为 0 时为 nil. 只读派生, 不落库不投递, 不改变不可变版本, 更不据密级做任何门控或访问拦截(机密文档的密级权限过滤仍在既有读取路径独立生效, 本项仅呈现构成); 与文档多层下钻归集(阶段->结构节点->密级的层级计数)互补: 归集看密级嵌在各结构节点下的分层分布, 本项看整个项目文档在密级维度上的构成占比与是否机密压顶."
   [documents]
-  (let [active (filterv #(not= "discarded" (:status %)) (s/latest documents))
-        total (count active)
-        tally (frequencies (map :classification active))
-        pct (fn [n] (if (pos? total) (int (Math/round ^double (* 100.0 (/ n total)))) 0))
-        by-classification (mapv (fn [c] {:classification c
-                                         :label (get document-classification-labels c c)
-                                         :count (get tally c 0)
-                                         :pct (pct (get tally c 0))})
-                               document-classification-order)
-        covered (count (filterv pos? (map :count by-classification)))
-        dominant (when (pos? total)
-                   (apply max-key (fn [c] (get tally c 0)) document-classification-order))
-        dominant-count (if dominant (get tally dominant 0) 0)]
-    {:available (pos? total)
-     :total total
-     :covered covered
-     :uncovered (- (count document-classification-order) covered)
-     :coverage-pct (int (Math/round ^double (* 100.0 (/ covered (count document-classification-order)))))
-     :dominant-classification dominant
-     :dominant-count dominant-count
-     :by-classification by-classification}))
+  (rm/distribution
+    (filterv #(not= "discarded" (:status %)) (s/latest documents))
+    {:key-fn :classification
+     :order document-classification-order
+     :labels document-classification-labels
+     :value-k :classification
+     :dominant-k :dominant-classification
+     :by-k :by-classification}))
 
 
 (defn verification-evidence-alignment
