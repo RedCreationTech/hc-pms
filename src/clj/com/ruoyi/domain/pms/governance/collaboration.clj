@@ -1164,94 +1164,85 @@
                    %))))
 
 
-(defn mitigation-rollup-by-risk
-  "按预防行动项持久化的 source_risk_id 反向聚合每个风险派生的预防措施行动总数/未完成数(排除 closed/converted)/逾期未完成数, 供风险台账只读呈现措施落实情况. 只读派生不落库."
-  [actions]
+(defn- action-source-tally
+  "整改/预防措施落实三胞胎共用聚合原语: 按 source-k 从 action 取来源对象 id, 反向聚合 total/open/overdue; 未完成 = 排除 closed/converted; 逾期复用 action-overdue?. 只读派生不落库."
+  [source-k actions]
   (reduce (fn [acc action]
-            (if-let [rid (:source_risk_id action)]
+            (if-let [sid (source-k action)]
               (let [done? (contains? #{"closed" "converted"} (:status action))
                     overdue? (action-overdue? action)]
-                (update acc rid (fn [{:keys [total open overdue]}]
+                (update acc sid (fn [{:keys [total open overdue]}]
                                   {:total (inc (or total 0))
                                    :open (if done? (or open 0) (inc (or open 0)))
                                    :overdue (if overdue? (inc (or overdue 0)) (or overdue 0))})))
               acc))
           {}
           actions))
+
+
+(defn- attach-remediation-derived
+  "整改/预防措施落实三胞胎共用只读派生挂载: 从 rollup 取 (:id row) 对应的 total/open/overdue, 按 opts 中的输出键 assoc 到 row 上; state 取 none-state(零总数) / in-progress(有未完成) / completed(全部落实). 键名不带尾随问号."
+  [rollup row {:keys [total-k open-k overdue-k state-k none-state]}]
+  (let [{:keys [total open overdue]} (get rollup (:id row) {:total 0 :open 0 :overdue 0})
+        state (cond
+                (zero? total) none-state
+                (pos? open) "in-progress"
+                :else "completed")]
+    (assoc row total-k total
+               open-k open
+               overdue-k overdue
+               state-k state)))
+
+
+(defn mitigation-rollup-by-risk
+  "按预防行动项持久化的 source_risk_id 反向聚合每个风险派生的预防措施行动总数/未完成数(排除 closed/converted)/逾期未完成数, 供风险台账只读呈现措施落实情况. 只读派生不落库."
+  [actions]
+  (action-source-tally :source_risk_id actions))
 
 
 (defn mitigation-read-model
   "在风险记录上追加只读派生键: mitigation_action_total/open/overdue 为该风险派生的预防行动总数/未完成数(排除 closed/converted)/其中逾期未完成数, mitigation_action_state 取 unimplemented(尚未落实) / in-progress(落实中) / completed(全部落实). 登记风险必填应对措施, 故不再单列无措施态. 键名不带尾随问号."
   [rollup risk]
-  (let [{:keys [total open overdue]} (get rollup (:id risk) {:total 0 :open 0 :overdue 0})
-        state (cond
-                (zero? total) "unimplemented"
-                (pos? open) "in-progress"
-                :else "completed")]
-    (assoc risk :mitigation_action_total total
-                 :mitigation_action_open open
-                 :mitigation_action_overdue overdue
-                 :mitigation_action_state state)))
+  (attach-remediation-derived rollup risk
+                              {:total-k :mitigation_action_total
+                               :open-k :mitigation_action_open
+                               :overdue-k :mitigation_action_overdue
+                               :state-k :mitigation_action_state
+                               :none-state "unimplemented"}))
 
 
 (defn remediation-rollup-by-dq
   "按整改行动项持久化的 source_dq_id 反向聚合每个 DQ 派生的整改行动总数/未完成数(排除 closed/converted)/其中逾期未完成数, 供 DQ 台账只读呈现整改落实情况. 只读派生不落库."
   [actions]
-  (reduce (fn [acc action]
-            (if-let [dqid (:source_dq_id action)]
-              (let [done? (contains? #{"closed" "converted"} (:status action))
-                    overdue? (action-overdue? action)]
-                (update acc dqid (fn [{:keys [total open overdue]}]
-                                  {:total (inc (or total 0))
-                                   :open (if done? (or open 0) (inc (or open 0)))
-                                   :overdue (if overdue? (inc (or overdue 0)) (or overdue 0))})))
-              acc))
-          {}
-          actions))
+  (action-source-tally :source_dq_id actions))
 
 
 (defn dq-remediation-read-model
   "在 DQ 记录上追加只读派生键: dq_remediation_total/open/overdue 为该 DQ 未通过必需检查项派生的整改行动总数/未完成数(排除 closed/converted)/其中逾期未完成数, dq_remediation_state 取 unremediated(尚未落实整改) / in-progress(整改中) / completed(全部整改完成). 只读派生不落库, 键名不带尾随问号."
   [rollup dq]
-  (let [{:keys [total open overdue]} (get rollup (:id dq) {:total 0 :open 0 :overdue 0})
-        state (cond
-                (zero? total) "unremediated"
-                (pos? open) "in-progress"
-                :else "completed")]
-    (assoc dq :dq_remediation_total total
-                :dq_remediation_open open
-                :dq_remediation_overdue overdue
-                :dq_remediation_state state)))
+  (attach-remediation-derived rollup dq
+                              {:total-k :dq_remediation_total
+                               :open-k :dq_remediation_open
+                               :overdue-k :dq_remediation_overdue
+                               :state-k :dq_remediation_state
+                               :none-state "unremediated"}))
 
 
 (defn remediation-rollup-by-gate
   "按整改行动项持久化的 source_gate_id 反向聚合每个关口实例派生的整改行动总数/未完成数(排除 closed/converted)/其中逾期未完成数, 供关口台账只读呈现整改落实情况. 只读派生不落库."
   [actions]
-  (reduce (fn [acc action]
-            (if-let [gid (:source_gate_id action)]
-              (let [done? (contains? #{"closed" "converted"} (:status action))
-                    overdue? (action-overdue? action)]
-                (update acc gid (fn [{:keys [total open overdue]}]
-                                  {:total (inc (or total 0))
-                                   :open (if done? (or open 0) (inc (or open 0)))
-                                   :overdue (if overdue? (inc (or overdue 0)) (or overdue 0))})))
-              acc))
-          {}
-          actions))
+  (action-source-tally :source_gate_id actions))
 
 
 (defn gate-remediation-read-model
   "在关口实例记录上追加只读派生键: gate_remediation_total/open/overdue 为该关口未通过必需检查项派生的整改行动总数/未完成数(排除 closed/converted)/其中逾期未完成数, gate_remediation_state 取 unremediated(尚未落实整改) / in-progress(整改中) / completed(全部整改完成). 只读派生不落库, 键名不带尾随问号."
   [rollup gate]
-  (let [{:keys [total open overdue]} (get rollup (:id gate) {:total 0 :open 0 :overdue 0})
-        state (cond
-                (zero? total) "unremediated"
-                (pos? open) "in-progress"
-                :else "completed")]
-    (assoc gate :gate_remediation_total total
-                  :gate_remediation_open open
-                  :gate_remediation_overdue overdue
-                  :gate_remediation_state state)))
+  (attach-remediation-derived rollup gate
+                              {:total-k :gate_remediation_total
+                               :open-k :gate_remediation_open
+                               :overdue-k :gate_remediation_overdue
+                               :state-k :gate_remediation_state
+                               :none-state "unremediated"}))
 
 
 (defn- issue-remediation-overdue?
