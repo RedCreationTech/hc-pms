@@ -193,12 +193,17 @@
   "整体容量利用率达到该百分比即视为资源接近满负荷 (日历容量与投入基本贴平, 再插任务即超配)."
   90)
 
+(defn- pct-bigdec-safe
+  "共用百分比原语: numer/denom 四舍五入整数百分比, denom 为 0 或缺失时给 0; 走 double 除法避开 BigDecimal 非终止小数异常 (1/3 之类). utilization-pct 与 share-pct 两个同形状 wrapper 共用此原语."
+  [numer denom]
+  (if (pos? (compare denom 0M))
+    (int (Math/round ^double (* 100.0 (/ (double numer) (double denom)))))
+    0))
+
 (defn- utilization-pct
   "committed/capacity 的百分比 (四舍五入整数), 容量为 0 或缺失时给 0, 走 double 避免 BigDecimal 非终止除法."
   [committed capacity]
-  (if (pos? (compare capacity 0M))
-    (int (Math/round ^double (* 100.0 (/ (double committed) (double capacity)))))
-    0))
+  (pct-bigdec-safe committed capacity))
 
 (defn capacity-utilization
   "把本项目每个资源在其被排入的工作日上的投入工时与其日历可用容量只读派生为容量利用率 (投入与容量匹配度) 概览:
@@ -286,9 +291,7 @@
 (defn- share-pct
   "part/total 的百分比 (四舍五入整数), total 为 0 或缺失时给 0, 走 double 避免 BigDecimal 非终止除法."
   [part total]
-  (if (pos? (compare total 0M))
-    (int (Math/round ^double (* 100.0 (/ (double part) (double total)))))
-    0))
+  (pct-bigdec-safe part total))
 
 (defn resource-type-mix
   "把本项目各资源按其 resource_type (person 人力 / equipment 设备) 分组的工时投入只读派生为投入结构
