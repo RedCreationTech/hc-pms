@@ -404,9 +404,8 @@
                                    :label (get channel-labels ch ch)
                                    :count (get tally ch 0)})
                          channel-order)
-        dominant (when (pos? declared)
-                   (apply max-key (fn [ch] (get tally ch 0)) channel-order))
-        dominant-count (if dominant (get tally dominant 0) 0)]
+        dominant (rm/dominant-value tally channel-order declared)
+        dominant-count (rm/dominant-count tally dominant)]
     {:available (pos? total-logs)
      :total-logs total-logs
      :declared declared
@@ -479,10 +478,9 @@
                                    :label (get category-labels c c)
                                    :count (get tally c 0)})
                          category-order)
-        covered (count (filterv pos? (map :count by-category)))
-        dominant (when (pos? total)
-                   (apply max-key (fn [c] (get tally c 0)) category-order))
-        dominant-count (if dominant (get tally dominant 0) 0)]
+        covered (rm/covered-count by-category)
+        dominant (rm/dominant-value tally category-order total)
+        dominant-count (rm/dominant-count tally dominant)]
     {:available (pos? total)
      :total total
      :covered covered
@@ -526,10 +524,9 @@
                                      :count (get tally e 0)
                                      :pct (pct (get tally e 0))})
                            engagement-order)
-        covered (count (filterv pos? (map :count by-engagement)))
-        dominant (when (pos? covered)
-                   (apply max-key (fn [e] (get tally e 0)) engagement-order))
-        dominant-count (if dominant (get tally dominant 0) 0)]
+        covered (rm/covered-count by-engagement)
+        dominant (rm/dominant-value tally engagement-order covered)
+        dominant-count (rm/dominant-count tally dominant)]
     {:available (pos? total)
      :total total
      :declared declared
@@ -642,10 +639,9 @@
                                :count (get tally r 0)
                                :pct (role-pct (get tally r 0))})
                       role-order)
-        covered (count (filterv pos? (map :count by-role)))
-        dominant (when (pos? total)
-                   (apply max-key (fn [r] (get tally r 0)) role-order))
-        dominant-count (if dominant (get tally dominant 0) 0)]
+        covered (rm/covered-count by-role)
+        dominant (rm/dominant-value tally role-order total)
+        dominant-count (rm/dominant-count tally dominant)]
     {:available (pos? total)
      :total total
      :covered covered

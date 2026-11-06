@@ -10,6 +10,25 @@
     0))
 
 
+(defn covered-count
+  "统计固定顺序分布行中实际出现(:count 为正)的档数, 统一内联的 (count (filterv pos? (map :count rows))) 惯用法. rows 为投影后的分布行向量."
+  [rows]
+  (count (filterv pos? (map :count rows))))
+
+
+(defn dominant-value
+  "guard 为正时按 tally 频次从 order 取计数最大的档(max-key, 并列取扫描靠后者不承诺唯一), guard 非正时返回 nil. 统一内联的 (when (pos? guard) (apply max-key (fn [v] (get tally v 0)) order)) 惯用法."
+  [tally order guard]
+  (when (pos? guard)
+    (apply max-key (fn [v] (get tally v 0)) order)))
+
+
+(defn dominant-count
+  "取主导档在 tally 中的频次计数, dominant 为 nil 时返回 0. 统一内联的 (if dominant (get tally dominant 0) 0) 惯用法."
+  [tally dominant]
+  (if dominant (get tally dominant 0) 0))
+
+
 (defn distribution
   "固定 order 维度, 必填受控枚举的项目级只读频次分布核心: 对 active-rows 按 key-fn 取值做 frequencies, 依 order 投影为 [{value-k label count pct}] 向量 (未出现的档恒记 0), 并给出 total/covered/uncovered/coverage-pct/dominant/dominant-count. dominant 用 max-key 扫 order (并列取扫描靠后者, 不承诺唯一), total=0 时为 nil. opts: :key-fn 取值函数, :order 固定档序, :labels 值到中文标签映射, :value-k 每档值键, :dominant-k 主导值输出键, :by-k 分布输出键."
   [active-rows {:keys [key-fn order labels value-k dominant-k by-k]}]
@@ -20,10 +39,9 @@
                           :count (get tally v 0)
                           :pct (pct total (get tally v 0))})
                  order)
-        covered (count (filterv pos? (map :count by)))
-        dominant (when (pos? total)
-                   (apply max-key (fn [v] (get tally v 0)) order))
-        dominant-count (if dominant (get tally dominant 0) 0)]
+        covered (covered-count by)
+        dominant (dominant-value tally order total)
+        dominant-count (dominant-count tally dominant)]
     {:available (pos? total)
      :total total
      :covered covered
