@@ -126,7 +126,7 @@
                    :cost (:total v)
                    :margin (:margin v)
                    :computable computable
-                   :margin-pct (when computable (int (Math/round ^double (* 100.0 (/ margin rev)))))})
+                   :margin-pct (when computable (rm/pct rev margin))})
                 {:kind kind :present false}))]
     {:available (boolean (seq approved))
      :comparable (<= (count (distinct (remove nil? (map :currency (vals latest))))) 1)

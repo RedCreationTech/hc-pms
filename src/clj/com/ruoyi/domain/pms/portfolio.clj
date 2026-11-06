@@ -337,7 +337,7 @@
                                       ("revenue" "gross_margin") (/ (money/amount! (:target_value target) "目标") 100.0)
                                       (:target_value target))
                          actual-num (case (:metric target) ("revenue" "gross_margin") (/ (money/amount! actual "实际") 100.0) actual)]]
-               (assoc target :actual actual :achievement_pct (if (and (number? target-num) (pos? target-num)) (int (Math/round (* 100.0 (/ actual-num target-num)))) 0)
+               (assoc target :actual actual :achievement_pct (if (number? target-num) (rm/pct target-num actual-num) 0)
                       :closed_projects (mapv #(select-keys % [:project_id :project_no :name :on_time :currency]) in-quarter)
                       :source (if finance? "approved_settlements" "counts_only")))]
     {:rows (vec (sort-by (juxt :year :quarter :metric :revision) rows)) :finance_visible finance?
