@@ -431,9 +431,7 @@
         targeted-count (count targeted)
         untargeted (- total targeted-count)
         total-refs (reduce + 0 (map :size targeted))
-        avg-size (if (pos? targeted-count)
-                   (int (Math/round ^double (/ total-refs targeted-count)))
-                   0)
+        avg-size (rm/mean-int targeted-count total-refs)
         widest (when (seq targeted)
                  (reduce (fn [best m] (if (> (:size m) (:size best)) m best))
                          (first targeted)
@@ -489,7 +487,7 @@
      :total total
      :covered covered
      :uncovered (- (count category-order) covered)
-     :coverage-pct (int (Math/round ^double (* 100.0 (/ covered (count category-order)))))
+     :coverage-pct (rm/pct (count category-order) covered)
      :dominant-category dominant
      :dominant-count dominant-count
      :by-category by-category}))
@@ -538,7 +536,7 @@
      :unassigned unassigned
      :covered covered
      :uncovered (- (count engagement-order) covered)
-     :coverage-pct (int (Math/round ^double (* 100.0 (/ covered (count engagement-order)))))
+     :coverage-pct (rm/pct (count engagement-order) covered)
      :dominant-engagement dominant
      :dominant-count dominant-count
      :by-engagement by-engagement}))
@@ -652,7 +650,7 @@
      :total total
      :covered covered
      :uncovered (- (count role-order) covered)
-     :role-coverage-pct (int (Math/round ^double (* 100.0 (/ covered (count role-order)))))
+     :role-coverage-pct (rm/pct (count role-order) covered)
      :dominant-role dominant
      :dominant-count dominant-count
      :by-role by-role}))

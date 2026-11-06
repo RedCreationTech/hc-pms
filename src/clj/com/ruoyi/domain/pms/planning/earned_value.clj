@@ -11,7 +11,7 @@
 
 (defn- round2
   [x]
-  (when (some? x) (/ (Math/round (* 100.0 (double x))) 100.0)))
+  (when (some? x) (rm/round-dec x 2)))
 
 
 (defn- ratio
@@ -75,7 +75,7 @@
      :bac_days bac :pv_days (round2 pv) :ev_days (round2 ev) :ac_days (round2 ac)
      :sv_days (round2 (- ev pv)) :cv_days (round2 (- ev ac))
      :spi spi :cpi cpi :eac_days eac :etc_days etc
-     :percent_complete (if (pos? bac) (int (Math/round (* 100.0 (/ ev bac)))) 0)
+     :percent_complete (rm/pct bac ev)
      :planned_finish planned-finish
      :forecast_finish (if (and (pos? bac) (>= ev bac)) planned-finish forecast)
      :schedule_status (cond (nil? spi) "no_baseline_yet" (< spi 0.9) "behind" (> spi 1.1) "ahead" :else "on_track")

@@ -231,7 +231,7 @@
         critical-count (count (filter zero? floats))
         critical-pct (rm/pct leaf-count critical-count)
         avg-float (if (pos? leaf-count)
-                    (/ (Math/round ^double (* 10.0 (double (/ (apply + floats) leaf-count)))) 10.0)
+                    (rm/round-dec (/ (apply + floats) leaf-count) 1)
                     0)]
     {:available (pos? leaf-count)
      :leaf-count leaf-count
@@ -361,7 +361,7 @@
   "把 sum/n 保留一位小数 (n<=0 时返回 0), 与 float-tightness 的 avg-float 同口径."
   [sum n]
   (if (pos? n)
-    (/ (Math/round ^double (* 10.0 (double (/ (double sum) (double n))))) 10.0)
+    (rm/round-dec (/ (double sum) (double n)) 1)
     0))
 
 (defn- median-days

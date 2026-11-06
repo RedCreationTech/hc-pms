@@ -32,3 +32,18 @@
      dominant-k dominant
      :dominant-count dominant-count
      by-k by}))
+
+
+(defn mean-int
+  "把 numer/denom 四舍五入为整数均值; denom 非正时返回 0. 统一原各处内联的 (if (pos? n) (int (Math/round (/ (double sum) n))) 0) 与 (if (seq coll) (int (Math/round (/ (double (reduce + 0 xs)) (count xs)))) 0) 惯用法 (两者对自然计数等价: (seq coll) ⇔ (pos? (count coll)))."
+  [denom numer]
+  (if (pos? denom)
+    (int (Math/round ^double (/ (double numer) (double denom))))
+    0))
+
+
+(defn round-dec
+  "把 x 四舍五入保留 n 位小数; 走 double 避免 BigDecimal 非终止除法. 统一原各处内联的 (/ (Math/round ^double (* 10.0 (double x))) 10.0) 与 (/ (Math/round (* 100.0 (double x))) 100.0) 惯用法 (n=1 一位小数, n=2 两位小数)."
+  [x n]
+  (let [scale (Math/pow 10 ^long n)]
+    (/ (Math/round ^double (* scale (double x))) scale)))

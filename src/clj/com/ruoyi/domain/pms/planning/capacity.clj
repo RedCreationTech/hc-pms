@@ -130,7 +130,7 @@
 (defn- rounded-dec
   "把一个数值保留一位小数 (走 double 避免 BigDecimal 非终止除法), 供负荷均值与峰值-平均比呈现."
   [x]
-  (/ (Math/round ^double (* 10.0 (double x))) 10.0))
+  (rm/round-dec x 1))
 
 (defn resource-load-leveling
   "把本项目各任务工作日上的工时分配只读派生为资源投入均衡度 (负荷平滑) 概览: 与 overload-summary (谁超容量) /
@@ -250,9 +250,7 @@
         total-committed (reduce + 0M (map :committed-hours rows))
         total-capacity (reduce + 0M (map :capacity-hours rows))
         overall-pct (utilization-pct total-committed total-capacity)
-        avg-pct (if (pos? n)
-                  (int (Math/round ^double (/ (double (reduce + 0.0 (map :utilization-pct rows))) (double n))))
-                  0)
+        avg-pct (rm/mean-int n (reduce + 0.0 (map :utilization-pct rows)))
         min-pct (when (pos? n) (apply min (map :utilization-pct rows)))
         max-pct (when (pos? n) (apply max (map :utilization-pct rows)))
         underused (->> (filterv #(< (:utilization-pct %) low-utilization-pct) rows)

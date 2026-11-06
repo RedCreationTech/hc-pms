@@ -293,9 +293,7 @@
      :by-node-type (into (sorted-map) (frequencies (map :node_type active-rows)))
      :by-project-status (into (sorted-map) (frequencies (map :project_status_at_pause active-rows)))
      :longest-active-days (if (empty? active-days) 0 (apply max active-days))
-     :avg-resume-days (if (empty? resumed-days)
-                        0
-                        (int (Math/round ^double (/ (apply + resumed-days) (double (count resumed-days))))))
+     :avg-resume-days (rm/mean-int (count resumed-days) (apply + resumed-days))
      :active-pauses (mapv (fn [p] {:node-code (:node_code p)
                                    :node-name (:node_name p)
                                    :node-type (:node_type p)

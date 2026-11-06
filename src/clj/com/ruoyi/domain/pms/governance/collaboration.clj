@@ -108,9 +108,7 @@
      :total total
      :high-or-above high-or-above
      :critical critical
-     :avg-score (if (pos? total)
-                  (int (Math/round ^double (/ (double sum) total)))
-                  0)
+     :avg-score (rm/mean-int total sum)
      :by-band (mapv (fn [{:keys [key label] :as band}]
                       {:band key :label label :count (band-count band)})
                     risk-score-bands)}))
@@ -126,7 +124,7 @@
         groups (vals (group-by :stage labeled))
         high-or-above (fn [rs] (count (filterv #(<= 10 (:score %)) rs)))
         critical (fn [rs] (count (filterv #(<= ra/escalation-threshold (:score %)) rs)))
-        avg-score (fn [rs] (int (Math/round ^double (/ (double (reduce + 0 (map :score rs))) (count rs)))))
+        avg-score (fn [rs] (rm/mean-int (count rs) (reduce + 0 (map :score rs))))
         entry (fn [rs] {:stage (:stage (first rs))
                         :count (count rs)
                         :avg-score (avg-score rs)
@@ -1060,7 +1058,7 @@
      :member-count (count member-ids)
      :attended-members (count attended-member-ids)
      :coverage-pct (pct (count attended-member-ids) (count member-ids))
-     :avg-attendance (if (pos? total) (int (Math/round ^double (/ (count attendees) total))) 0)
+     :avg-attendance (rm/mean-int total (count attendees))
      :by-type by-type
      :top-attendees top
      :unattended-members unattended}))
@@ -1102,7 +1100,7 @@
      :distinct-months (count month-freq)
      :shortest-gap-days (if (seq gaps) (apply min gaps) 0)
      :longest-gap-days (if (seq gaps) (apply max gaps) 0)
-     :avg-gap-days (if (seq gaps) (int (Math/round ^double (/ (double (apply + gaps)) (count gaps)))) 0)
+     :avg-gap-days (rm/mean-int (count gaps) (apply + gaps))
      :busiest-month (when busiest {:month busiest :count (get month-freq busiest 0)})
      :by-month by-month
      :by-weekday by-weekday}))

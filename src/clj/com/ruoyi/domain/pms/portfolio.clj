@@ -268,7 +268,7 @@
                :overdue (count (filter #(and (some? (:days_to_end %)) (neg? (:days_to_end %)) (not (contains? #{"closed" "cancelled"} (:status %)))) cards))
                :blocker_issues (reduce + 0 (map :blocker_issues cards))
                :escalations (reduce + 0 (map :escalations cards))
-               :average_percent (if (seq cards) (int (Math/round (double (/ (reduce + 0 (map :overall_percent cards)) (count cards))))) 0)}
+               :average_percent (rm/mean-int (count cards) (reduce + 0 (map :overall_percent cards)))}
      :generated_at (str (java.time.Instant/now))}))
 
 ;; ── 经营目标达成 ────────────────────────────────────────────────
@@ -296,9 +296,7 @@
                             {:metric m
                              :total (count rs)
                              :met (count (filterv #(>= (:achievement_pct %) 100) rs))
-                             :avg-pct (if (seq rs)
-                                        (int (Math/round ^double (/ (double (reduce + 0 (map :achievement_pct rs))) (count rs))))
-                                        0)}))
+                             :avg-pct (rm/mean-int (count rs) (reduce + 0 (map :achievement_pct rs)))}))
                         ["revenue" "gross_margin" "closed_projects" "on_time_rate"])]
     {:available (pos? total)
      :total total

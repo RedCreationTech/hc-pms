@@ -1,5 +1,7 @@
 (ns com.ruoyi.domain.pms.planning.progress
-  "阶段权重进度卷积与主/子/单机结构进度只读派生 (B02/B03): 读取时按叶子任务完成百分比与工期加权计算, 不落库.")
+  "阶段权重进度卷积与主/子/单机结构进度只读派生 (B02/B03): 读取时按叶子任务完成百分比与工期加权计算, 不落库."
+  (:require
+    [com.ruoyi.domain.pms.read-model :as rm]))
 
 (defn- inherit
   "任务未直接声明阶段/节点时, 沿 WBS 父链向上继承最近的声明值."
@@ -20,8 +22,7 @@
   [tasks]
   (let [weights (map #(max 1 (or (:duration_days %) 1)) tasks)
         total (reduce + 0 weights)]
-    (if (zero? total) 0
-        (int (Math/round (double (/ (reduce + 0 (map * (map #(or (:percent_complete %) 0) tasks) weights)) total)))))))
+    (rm/mean-int total (reduce + 0 (map * (map #(or (:percent_complete %) 0) tasks) weights)))))
 
 (defn leaf-rows
   "为每个叶子任务标注其阶段与节点归属 (沿父链继承)."
@@ -55,7 +56,7 @@
         unassigned (filter #(nil? (:stage %)) leaves)
         weight-total (reduce + 0 (map :weight stage-rows))
         overall (if (pos? weight-total)
-                  (int (Math/round (double (/ (reduce + 0 (map #(* (:weight %) (:percent %)) stage-rows)) weight-total))))
+                  (rm/mean-int weight-total (reduce + 0 (map #(* (:weight %) (:percent %)) stage-rows)))
                   (weighted-percent leaves))
         main? (fn [node] (= "main" (:node_type node)))
         node-rows (mapv (fn [node]
