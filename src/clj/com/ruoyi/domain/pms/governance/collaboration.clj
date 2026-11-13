@@ -764,17 +764,11 @@
   3)
 
 
-(defn- days-until
-  "到期日相对服务器当天的剩余天数; 负值表示已逾期天数, 空日期返回 nil. 只读派生不落库."
-  [due]
-  (when (some? due) (- (.toEpochDay (LocalDate/parse due)) (.toEpochDay (LocalDate/now)))))
-
-
 (defn action-read-model
   "以服务器日期展示会议行动是否逾期未完成及剩余到期天数; 已关闭或已转真实任务的行动不再计逾期与倒计时."
   [action]
   (let [done? (contains? #{"closed" "converted"} (:status action))
-        days (when-not done? (days-until (:due_date action)))]
+        days (when-not done? (rm/days-until (:due_date action)))]
     (assoc action
            :action_overdue (action-overdue? action)
            :action_due_in_days days
@@ -816,7 +810,7 @@
   "以服务器日期展示问题是否逾期未关闭, 标记阻断级严重度, 并给出剩余到期天数与临期提示供台账倒计时; 逾期且未升级时给出追溯升级建议."
   [issue]
   (let [closed? (= "closed" (:status issue))
-        days (when-not closed? (days-until (:due_date issue)))
+        days (when-not closed? (rm/days-until (:due_date issue)))
         overdue? (boolean (and (:due_date issue) (not closed?)
                                (not (.isAfter (LocalDate/parse (:due_date issue)) (LocalDate/now)))))]
     (assoc issue
@@ -917,7 +911,7 @@
                        row rows
                        :when (due-overview-open? kind row)
                        :let [due (due-overview-date kind row)
-                             days (when (some? due) (days-until due))]]
+                             days (when (some? due) (rm/days-until due))]]
                    {:source kind
                     :id (:id row)
                     :title (:title row)
@@ -973,7 +967,7 @@
                        row rows
                        :when (due-overview-open? kind row)
                        :let [due (due-overview-date kind row)
-                             days (when (some? due) (days-until due))]]
+                             days (when (some? due) (rm/days-until due))]]
                    {:owner (:owner_id row)
                     :bucket (due-overview-bucket days)})
         assigned (remove (comp nil? :owner) itemized)

@@ -288,7 +288,7 @@
   (if-let [next (when-let [s (:next_date plan)]
                   (try (LocalDate/parse s) (catch Exception _ nil)))]
     (assoc plan :comm_overdue (boolean (and (= "active" (:status plan)) (not (.isAfter next (LocalDate/now)))))
-                :comm_days_until (int (- (.toEpochDay next) (.toEpochDay (LocalDate/now)))))
+                :comm_days_until (int (rm/days-until next)))
     (assoc plan :comm_overdue false :comm_days_until nil)))
 
 

@@ -1,5 +1,6 @@
 (ns com.ruoyi.domain.pms.read-model
-  "PMS 只读派生视图的共享计算原语: 百分比与固定顺序频次分布. 纯函数, 不查库不落库不投递, 不构成任何门控.")
+  "PMS 只读派生视图的共享计算原语: 百分比, 固定顺序频次分布与日期差值. 除 days-until 1-arity 读服务器当天时钟外均为纯函数, 不查库不落库不投递, 不构成任何门控."
+  (:import [java.time LocalDate]))
 
 
 (defn pct
@@ -65,3 +66,13 @@
   [x n]
   (let [scale (Math/pow 10 ^long n)]
     (/ (Math/round ^double (* scale (double x))) scale)))
+
+
+(defn days-until
+  "due 相对基准日 today 的剩余天数(长整型天), 负值表示已逾期, due 为 nil 时返回 nil. due 可为 ISO-8601 日期字符串或 LocalDate(非法串由调用方边界校验后才进入), today 缺省取服务器当天(1-arity 读时钟). 统一原 collaboration/reviews 的私有 days-until 克隆副本与 service/stakeholders 的内联 toEpochDay 差值惯用法."
+  ([due]
+   (days-until due (LocalDate/now)))
+  ([due today]
+   (when (some? due)
+     (- (.toEpochDay ^LocalDate (if (string? due) (LocalDate/parse due) due))
+        (.toEpochDay ^LocalDate today)))))

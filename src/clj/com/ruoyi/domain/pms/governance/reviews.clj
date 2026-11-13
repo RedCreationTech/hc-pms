@@ -3,6 +3,7 @@
   (:require [com.ruoyi.domain.pms.governance.store :as s]
             [com.ruoyi.domain.pms.governance.risk-assessment :as ra]
             [com.ruoyi.domain.pms.kernel :as k]
+            [com.ruoyi.domain.pms.read-model :as rm]
             [com.ruoyi.domain.pms.rules :as r])
   (:import [java.time LocalDate]))
 
@@ -185,18 +186,12 @@
   3)
 
 
-(defn- days-until
-  "到期日相对服务器当天的剩余天数; 负值表示已逾期天数, 空日期返回 nil. collaboration.clj 依赖本命名空间, 故此处独立定义私有副本以避免循环依赖, 只读派生不落库."
-  [due]
-  (when (some? due) (- (.toEpochDay (LocalDate/parse due)) (.toEpochDay (LocalDate/now)))))
-
-
 (defn risk-read-model
   "以服务器日期展示风险复审是否已到期及剩余复审天数与临期提示, 已关闭风险无逾期与倒计时标记."
   [risk]
   (let [closed? (= "closed" (:status risk))
         due (if (contains? risk :review_due_date) (:review_due_date risk) (:due_date risk))
-        days (when-not closed? (days-until due))]
+        days (when-not closed? (rm/days-until due))]
     (assoc risk :review_due_date due
                 :review_overdue (boolean (and (not closed?) due
                                               (not (.isAfter (LocalDate/parse due) (LocalDate/now)))))

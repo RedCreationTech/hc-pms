@@ -7,6 +7,7 @@
             [com.ruoyi.domain.pms.rules :as rules]
             [com.ruoyi.domain.pms.lifecycle :as lifecycle]
             [com.ruoyi.domain.pms.planning :as planning]
+            [com.ruoyi.domain.pms.read-model :as rm]
             [integrant.core :as ig]
             [com.ruoyi.domain.pms.transaction :as transaction])
   (:import [java.sql SQLException]
@@ -225,8 +226,7 @@
   [ends-on today window]
   (if (nil? ends-on)
     "open-ended"
-    (let [days-left (- (.toEpochDay ^LocalDate (LocalDate/parse ends-on))
-                       (.toEpochDay ^LocalDate today))]
+    (let [days-left (rm/days-until ends-on today)]
       (cond (neg? days-left) "expired"
             (<= days-left window) "expiring-soon"
             :else "active"))))
@@ -241,9 +241,7 @@
         window expiring-window-days
         enrich (fn [m]
                  (let [ends-on (:ends_on m)
-                       days-left (when ends-on
-                                   (- (.toEpochDay ^LocalDate (LocalDate/parse ends-on))
-                                      (.toEpochDay ^LocalDate today)))
+                       days-left (rm/days-until ends-on today)
                        state (member-state ends-on today window)]
                    (assoc m :lifecycle-state state :days-left days-left)))
         enriched (mapv enrich rows)

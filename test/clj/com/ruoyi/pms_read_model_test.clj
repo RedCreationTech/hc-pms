@@ -1,8 +1,9 @@
 (ns com.ruoyi.pms-read-model-test
-  "com.ruoyi.domain.pms.read-model 纯函数原语的表征测试: 锁定 pct, distribution, mean-int, round-dec 的输出形状与数值语义, 作为跨治理/规划/组合模块内联惯用法收敛到共享原语的行为保持门."
+  "com.ruoyi.domain.pms.read-model 纯函数原语的表征测试: 锁定 pct, distribution, mean-int, round-dec, days-until 的输出形状与数值语义, 作为跨治理/规划/组合模块内联惯用法收敛到共享原语的行为保持门."
   (:require
     [clojure.test :refer [deftest is]]
-    [com.ruoyi.domain.pms.read-model :as rm]))
+    [com.ruoyi.domain.pms.read-model :as rm])
+  (:import [java.time LocalDate]))
 
 
 (deftest pct-rounds-half-up-and-guards-zero-denominator
@@ -174,3 +175,29 @@
     (doseq [x [0.0 0.1 0.15 0.149 1.0 1.2345 -0.7 -12.345 99.99 100.0]]
       (is (= (old-1 x) (rm/round-dec x 1)) (str "x=" x " n=1"))
       (is (= (old-2 x) (rm/round-dec x 2)) (str "x=" x " n=2")))))
+
+
+;; ---------- Batch 9: days-until 日期差值收敛门 ----------
+
+
+(deftest days-until-matches-inline-to-epoch-day-idiom
+  ;; 与 collaboration/reviews 旧内联 (when (some? due) (- (.toEpochDay (LocalDate/parse due)) (.toEpochDay today))) 逐字节等价.
+  (let [today (LocalDate/parse "2026-11-14")
+        old (fn [due]
+              (when (some? due)
+                (- (.toEpochDay (LocalDate/parse due)) (.toEpochDay today))))]
+    (doseq [due [nil "2026-11-14" "2026-11-09" "2026-12-14" "2027-01-01" "2026-02-28"]]
+      (is (= (old due) (rm/days-until due today)) (str "due=" due))))
+  ;; LocalDate 入参 (stakeholders comm-plan 站点) 与字符串同值
+  (is (= 30 (rm/days-until (LocalDate/parse "2026-12-14") (LocalDate/parse "2026-11-14"))))
+  (is (= -5 (rm/days-until (LocalDate/parse "2026-11-09") (LocalDate/parse "2026-11-14")))))
+
+
+(deftest days-until-one-arity-uses-server-today
+  ;; 1-arity 以服务器当天为基准, nil 恒 nil (nil 守卫下沉到原语, 各调用点原有守卫原样保留).
+  (let [now (LocalDate/now)]
+    (is (= 1 (rm/days-until (str (.plusDays now 1)))))
+    (is (= -1 (rm/days-until (str (.minusDays now 1)))))
+    (is (= 0 (rm/days-until (str now))))
+    (is (nil? (rm/days-until nil)))
+    (is (= 0 (rm/days-until now)))))
