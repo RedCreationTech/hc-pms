@@ -50,10 +50,7 @@
 (defn decide-survey!
   "指定审核人确认工勘交付物."
   [svc actor id rid body]
-  (d/mutate! svc actor id body "delivery.survey.decided" true
-    (fn [q project]
-      (g/input! body [:decision :reason])
-      (d/decide! q project actor (d/record! q project "survey" rid) body "approved"))))
+  (d/decide-endpoint! svc actor id rid body "delivery.survey.decided" "survey" "approved" nil))
 
 (defn survey-blockers
   "配置了必需工勘次数时, 已确认工勘不足则阻塞收尾."

@@ -62,10 +62,7 @@
 (defn decide-request!
   "独立批准物料申请,不伪造采购订单或外部回执."
   [svc actor id rid body]
-  (d/mutate! svc actor id body "delivery.material.decided" true
-    (fn [q project]
-      (g/input! body [:decision :reason])
-      (d/decide! q project actor (d/record! q project "material" rid) body "approved"))))
+  (d/decide-endpoint! svc actor id rid body "delivery.material.decided" "material" "approved" nil))
 
 
 (defn create-bom!
@@ -94,10 +91,7 @@
 (defn decide-bom!
   "冻结或拒绝BOM内容,冻结后仅记录实际齐套信息."
   [svc actor id rid body]
-  (d/mutate! svc actor id body "delivery.bom.decided" true
-    (fn [q project]
-      (g/input! body [:decision :reason])
-      (d/decide! q project actor (d/record! q project "bom" rid) body "frozen"))))
+  (d/decide-endpoint! svc actor id rid body "delivery.bom.decided" "bom" "frozen" nil))
 
 
 (defn- availability!

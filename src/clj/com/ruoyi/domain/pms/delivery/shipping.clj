@@ -59,12 +59,7 @@
 (defn decide-shipment!
   "指定审核人独立检查发运准备并批准放行或退回."
   [svc actor id rid body]
-  (d/mutate! svc actor id body "delivery.shipment.decided" true
-    (fn [q project]
-      (g/input! body [:decision :reason])
-      (let [shipment (d/record! q project "shipment" rid)]
-        (when (= "approved" (:decision body)) (shipping-ready! q project shipment))
-        (d/decide! q project actor shipment body "released")))))
+  (d/decide-endpoint! svc actor id rid body "delivery.shipment.decided" "shipment" "released" shipping-ready!))
 
 
 (defn dispatch!
@@ -170,7 +165,4 @@
 (defn decide-service!
   "指定独立人员验证售后整改后关闭或退回."
   [svc actor id rid body]
-  (d/mutate! svc actor id body "delivery.service.decided" true
-    (fn [q project]
-      (g/input! body [:decision :reason])
-      (d/decide! q project actor (d/record! q project "service" rid) body "closed"))))
+  (d/decide-endpoint! svc actor id rid body "delivery.service.decided" "service" "closed" nil))

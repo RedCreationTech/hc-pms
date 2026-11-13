@@ -111,6 +111,18 @@
              {:decision_reason (g/text! body :reason) :decided_by (:user_id actor)})))
 
 
+(defn decide-endpoint!
+  "交付链通用决定端点: 校验 body 仅含 decision/reason, 载入 kind 记录并按 approved-status 落决定, event 写入同事务审计; pre-approve 为 decision 为 approved 时的前置钩子 (nil 表示无). 统一七处 decide-* 端点内联的 input!+record!+decide! 惯用法."
+  [svc actor id rid body event kind approved-status pre-approve]
+  (mutate! svc actor id body event true
+    (fn [q project]
+      (g/input! body [:decision :reason])
+      (let [record (record! q project kind rid)]
+        (when (and pre-approve (= "approved" (:decision body)))
+          (pre-approve q project record))
+        (decide! q project actor record body approved-status)))))
+
+
 (defn configuration-of
   "把显式配置记录 (可为 nil) 合成执行链配置: 缺省为本地工程默认, 不声称是企业已确认规则."
   [explicit]

@@ -54,10 +54,7 @@
 (defn decide-assembly!
   "独立确认交检结果,拒绝后须重新开工和提交."
   [svc actor id rid body]
-  (d/mutate! svc actor id body "delivery.assembly.decided" true
-    (fn [q project]
-      (g/input! body [:decision :reason])
-      (d/decide! q project actor (d/record! q project "assembly" rid) body "approved"))))
+  (d/decide-endpoint! svc actor id rid body "delivery.assembly.decided" "assembly" "approved" nil))
 
 
 
@@ -221,9 +218,4 @@
 (defn decide-test!
   "指定独立检验人再次校验证据与整改后签核或退回."
   [svc actor id rid body]
-  (d/mutate! svc actor id body "delivery.test.decided" true
-    (fn [q project]
-      (g/input! body [:decision :reason])
-      (let [test (d/record! q project "test" rid)]
-        (when (= "approved" (:decision body)) (ready-test! q project test))
-        (d/decide! q project actor test body "approved")))))
+  (d/decide-endpoint! svc actor id rid body "delivery.test.decided" "test" "approved" ready-test!))
