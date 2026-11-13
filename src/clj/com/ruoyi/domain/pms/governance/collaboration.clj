@@ -42,7 +42,7 @@
         declared (count (filterv #(some #{(:response_strategy %)} strategies) active))
         strategy-count (fn [x] (count (filterv #(= x (:response_strategy %)) active)))]
     (assoc (rm/coverage-tally total declared)
-           :by-strategy (mapv (fn [x] {:strategy x :count (strategy-count x)}) strategies))))
+           :by-strategy (rm/count-rows strategies :strategy strategy-count))))
 
 
 (defn risk-category-coverage
@@ -54,7 +54,7 @@
         declared (count (filterv #(some #{(:risk_category %)} categories) active))
         category-count (fn [x] (count (filterv #(= x (:risk_category %)) active)))]
     (assoc (rm/coverage-tally total declared)
-           :by-category (mapv (fn [x] {:category x :count (category-count x)}) categories))))
+           :by-category (rm/count-rows categories :category category-count))))
 
 
 (defn risk-escalation-disposition-summary
@@ -72,7 +72,7 @@
      :pending (state-count "pending")
      :acknowledged (state-count "acknowledged")
      :waived (state-count "waived")
-     :by-level (mapv (fn [x] {:level x :count (level-count x)}) ["steering" "management"])}))
+     :by-level (rm/count-rows ["steering" "management"] :level level-count)}))
 
 
 (def risk-score-bands
@@ -829,7 +829,7 @@
      :pending (state-count "pending")
      :acknowledged (state-count "acknowledged")
      :waived (state-count "waived")
-     :by-level (mapv (fn [x] {:level x :count (level-count x)}) ["steering" "management"])}))
+     :by-level (rm/count-rows ["steering" "management"] :level level-count)}))
 
 
 (def owner-workload-threshold
@@ -1037,8 +1037,8 @@
                         (sort-by (fn [m] [(:name m) (:user-id m)]))
                         vec)
         type-freq (frequencies (map :meeting_type in-scope))
-        by-type (mapv (fn [t] {:type t :count (get type-freq t 0)})
-                      (filter #(contains? type-freq %) meeting-attendance-type-order))]
+        by-type (rm/count-rows (filter #(contains? type-freq %) meeting-attendance-type-order)
+                               :type #(get type-freq %))]
     {:available (pos? total)
      :total total
      :discarded discarded
@@ -1076,8 +1076,8 @@
         weekday-of (fn [h] (nth meeting-cadence-weekday-order
                                 (dec (.getValue (.getDayOfWeek (LocalDate/parse h))))))
         weekday-freq (frequencies (map weekday-of held-strs))
-        by-weekday (mapv (fn [w] {:weekday w :count (get weekday-freq w 0)})
-                         (filter #(contains? weekday-freq %) meeting-cadence-weekday-order))]
+        by-weekday (rm/count-rows (filter #(contains? weekday-freq %) meeting-cadence-weekday-order)
+                                   :weekday #(get weekday-freq %))]
     {:available (pos? total)
      :total total
      :discarded discarded
@@ -1394,7 +1394,7 @@
      :in-review (status-count "in_review")
      :overdue overdue
      :blocker-open blocker-open
-     :by-severity (mapv (fn [x] {:severity x :count (severity-count x)}) ["blocker" "major" "minor"])
+     :by-severity (rm/count-rows ["blocker" "major" "minor"] :severity severity-count)
      :closure-pct (rm/pct total closed)}))
 
 
@@ -1407,7 +1407,7 @@
         declared (count (filterv #(some #{(:resolution_type %)} types) active))
         type-count (fn [x] (count (filterv #(= x (:resolution_type %)) active)))]
     (assoc (rm/coverage-tally total declared)
-           :by-resolution (mapv (fn [x] {:resolution x :count (type-count x)}) types))))
+           :by-resolution (rm/count-rows types :resolution type-count))))
 
 
 (defn attach-issue-closure-summary

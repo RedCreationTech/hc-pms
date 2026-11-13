@@ -59,6 +59,12 @@
   (mapv (fn [[k label]] {value-k k :label label :count (count-fn k)}) catalog))
 
 
+(defn count-rows
+  "把固定顺序档序 catalog (值向量,档序由调用方给定) 按 count-fn 逐档投影为 [{value-k v :count n}] 向量, 无 :label 键(有标签的档序用 freq-rows), 未出现的档记 0. 统一原 governance/external_catalog 各处 (mapv (fn [v] {value-k v :count (count-fn v)}) catalog) 内联惯用法."
+  [catalog value-k count-fn]
+  (mapv (fn [v] {value-k v :count (count-fn v)}) catalog))
+
+
 (defn coverage-tally
   "声明覆盖度公共四键: 总数, 已声明, 未声明与覆盖率百分比 (total 非正时 0), 键序固定. 统一原 governance 六处覆盖度汇总内联的 {:total total :declared declared :undeclared (- total declared) :coverage-pct (rm/pct total declared)} 惯用法, 各站点用 assoc 挂自己的 :by-* 分档行."
   [total declared]

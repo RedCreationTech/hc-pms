@@ -370,7 +370,7 @@
         declared (count (filterv #(some #{(:change_type %)} types) active))
         type-count (fn [x] (count (filterv #(= x (:change_type %)) active)))]
     (assoc (into {:available (pos? total)} (rm/coverage-tally total declared))
-           :by-type (mapv (fn [x] {:type x :count (type-count x)}) types))))
+           :by-type (rm/count-rows types :type type-count))))
 
 
 (defn change-impact-coverage

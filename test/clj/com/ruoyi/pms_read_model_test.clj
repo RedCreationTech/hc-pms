@@ -276,3 +276,25 @@
     (is (= {:total 5 :declared 3 :undeclared 2 :coverage-pct 60} (rm/coverage-tally 5 3)))
     (testing "键序与旧字面量一致, 供 assoc 挂 :by-* 行时保持 JSON 输出顺序"
       (is (= [:total :declared :undeclared :coverage-pct] (keys (rm/coverage-tally 5 3)))))))
+
+
+;; ---------- Batch 15: count-rows 无 label 次数行投影收敛门 ----------
+
+
+(deftest count-rows-projects-values-without-label
+  ;; 与 governance/external_catalog 13 处内联 (mapv (fn [v] {value-k v :count (count-fn v)}) catalog) 逐字节等价.
+  (let [catalog ["a" "b" "c"]
+        tally {"a" 3 "c" 1}
+        old (fn [value-k]
+              (mapv (fn [v] {value-k v :count (get tally v 0)}) catalog))]
+    (is (= (old :type) (rm/count-rows catalog :type (fn [v] (get tally v 0)))))
+    (is (= (old :value) (rm/count-rows catalog :value (fn [v] (get tally v 0)))))
+    (is (= [{:type "a" :count 3} {:type "b" :count 0} {:type "c" :count 1}]
+           (rm/count-rows catalog :type (fn [v] (get tally v 0)))))
+    (testing "无 :label 键, 与 freq-rows 的有 label 形状区分"
+      (is (not (contains? (first (rm/count-rows catalog :type (fn [_] 0))) :label))))
+    (testing "count-fn 注入, 支持 filterv 计数口径与空档序"
+      (let [rows [{:k "a"} {:k "a"} {:k "b"}]]
+        (is (= [{:level "a" :count 2} {:level "b" :count 1} {:level "c" :count 0}]
+               (rm/count-rows catalog :level (fn [k] (count (filterv #(= k (:k %)) rows)))))))
+      (is (= [] (rm/count-rows [] :type (fn [_] 0)))))))

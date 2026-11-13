@@ -369,8 +369,7 @@
      :discarded-count discarded-count
      :by-stage (buckets :stage)
      :by-structure-node (buckets :structure_node)
-     :by-classification (mapv (fn [c] {:classification c :count (class-count c)})
-                              ["public" "internal" "confidential"])}))
+     :by-classification (rm/count-rows ["public" "internal" "confidential"] :classification class-count)}))
 
 
 (defn verification-coverage
@@ -382,7 +381,7 @@
         declared (count (filterv #(some #{(:verification_method %)} methods) active))
         method-count (fn [m] (count (filterv #(= m (:verification_method %)) active)))]
     (assoc (rm/coverage-tally total declared)
-           :by-method (mapv (fn [m] {:method m :count (method-count m)}) methods))))
+           :by-method (rm/count-rows methods :method method-count))))
 
 
 (def requirement-priority-order

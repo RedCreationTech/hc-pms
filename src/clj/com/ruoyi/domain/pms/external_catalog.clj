@@ -1,6 +1,7 @@
 (ns com.ruoyi.domain.pms.external-catalog
   "外部接口配置目录 (只读): 逐项登记仍依赖真实外部系统合同/规则的能力, 供集成配置人员对照准备字段, 认证, 责任人与测试环境.
-   本目录为随代码发布的静态清单, 读取时不查库, 不落库, 不做连通性测试, 不代表任何真实集成已通过; 每条能力给出所需接口字段与当前依赖状态 (待合同 / 待规则).")
+   本目录为随代码发布的静态清单, 读取时不查库, 不落库, 不做连通性测试, 不代表任何真实集成已通过; 每条能力给出所需接口字段与当前依赖状态 (待合同 / 待规则)."
+  (:require [com.ruoyi.domain.pms.read-model :as rm]))
 
 (def ^:private capability-statuses
   "受控的依赖状态取值, 与验收矩阵保持一致."
@@ -107,11 +108,6 @@
     :required-fields ["企业预算科目" "人工/材料/制造等类别" "已批准预算与概算分离" "变更不覆盖旧预算"] :owner "待确认 (财务/ERP 负责人)" :status "待规则"
     :notes "本地 budget 独立版本/批准/修订已完成, 企业预算科目及 ERP 合同口径待确认."}])
 
-(defn- freq-table
-  "把频次 map 按给定取值顺序投影为 [{:value v :count n}] 向量, 未出现的取值记 0."
-  [freq values]
-  (mapv (fn [v] {:value v :count (get freq v 0)}) values))
-
 (defn catalog
   "外部接口配置目录只读视图: 汇总各能力数量, 依赖状态分布与外部系统分布, 并返回完整清单. 只读, 不查库, 不落库, 不做连通性测试."
   [svc actor]
@@ -128,7 +124,7 @@
      :business-count (get group-freq "business" 0)
      :contract-count (get status-freq "待合同" 0)
      :rule-count (get status-freq "待规则" 0)
-     :by-status (freq-table status-freq status-values)
-     :by-system (freq-table system-freq (distinct (map :system rows)))
+     :by-status (rm/count-rows status-values :value #(get status-freq %))
+     :by-system (rm/count-rows (distinct (map :system rows)) :value #(get system-freq %))
      :rows rows
      :note "本目录为静态配置清单, 逐条列出仍依赖真实外部合同/规则的能力及所需接口字段, 不代表任何真实集成已通过; 完成字段/认证/责任人/沙箱与对账样例后方可验收."}))
