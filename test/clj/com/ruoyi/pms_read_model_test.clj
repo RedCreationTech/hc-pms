@@ -258,3 +258,21 @@
                              (fn [k] (count (filterv #(= k (:k %)) rows))))))))
     (testing "空档序输出空向量"
       (is (= [] (rm/freq-rows [] :key (fn [_] 0)))))))
+
+
+;; ---------- Batch 14: coverage-tally 声明覆盖度四键收敛门 ----------
+
+
+(deftest coverage-tally-rolls-up-declared-and-undeclared
+  ;; 与 governance 六处覆盖度汇总内联 {:total total :declared declared :undeclared (- total declared) :coverage-pct (rm/pct total declared)} 逐字节等价.
+  (let [old (fn [total declared]
+              {:total total
+               :declared declared
+               :undeclared (- total declared)
+               :coverage-pct (rm/pct total declared)})]
+    (doseq [[total declared] [[0 0] [5 3] [3 0] [4 3] [7 7] [100 33] [6 4] [1 1]]]
+      (is (= (old total declared) (rm/coverage-tally total declared)) (str [total declared])))
+    (is (= {:total 0 :declared 0 :undeclared 0 :coverage-pct 0} (rm/coverage-tally 0 0)))
+    (is (= {:total 5 :declared 3 :undeclared 2 :coverage-pct 60} (rm/coverage-tally 5 3)))
+    (testing "键序与旧字面量一致, 供 assoc 挂 :by-* 行时保持 JSON 输出顺序"
+      (is (= [:total :declared :undeclared :coverage-pct] (keys (rm/coverage-tally 5 3)))))))

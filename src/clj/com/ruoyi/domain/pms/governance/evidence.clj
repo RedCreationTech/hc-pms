@@ -381,11 +381,8 @@
         total (count active)
         declared (count (filterv #(some #{(:verification_method %)} methods) active))
         method-count (fn [m] (count (filterv #(= m (:verification_method %)) active)))]
-    {:total total
-     :declared declared
-     :undeclared (- total declared)
-     :coverage-pct (rm/pct total declared)
-     :by-method (mapv (fn [m] {:method m :count (method-count m)}) methods)}))
+    (assoc (rm/coverage-tally total declared)
+           :by-method (mapv (fn [m] {:method m :count (method-count m)}) methods))))
 
 
 (def requirement-priority-order

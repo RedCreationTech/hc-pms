@@ -41,11 +41,8 @@
         total (count active)
         declared (count (filterv #(some #{(:response_strategy %)} strategies) active))
         strategy-count (fn [x] (count (filterv #(= x (:response_strategy %)) active)))]
-    {:total total
-     :declared declared
-     :undeclared (- total declared)
-     :coverage-pct (rm/pct total declared)
-     :by-strategy (mapv (fn [x] {:strategy x :count (strategy-count x)}) strategies)}))
+    (assoc (rm/coverage-tally total declared)
+           :by-strategy (mapv (fn [x] {:strategy x :count (strategy-count x)}) strategies))))
 
 
 (defn risk-category-coverage
@@ -56,11 +53,8 @@
         total (count active)
         declared (count (filterv #(some #{(:risk_category %)} categories) active))
         category-count (fn [x] (count (filterv #(= x (:risk_category %)) active)))]
-    {:total total
-     :declared declared
-     :undeclared (- total declared)
-     :coverage-pct (rm/pct total declared)
-     :by-category (mapv (fn [x] {:category x :count (category-count x)}) categories)}))
+    (assoc (rm/coverage-tally total declared)
+           :by-category (mapv (fn [x] {:category x :count (category-count x)}) categories))))
 
 
 (defn risk-escalation-disposition-summary
@@ -1412,11 +1406,8 @@
         total (count active)
         declared (count (filterv #(some #{(:resolution_type %)} types) active))
         type-count (fn [x] (count (filterv #(= x (:resolution_type %)) active)))]
-    {:total total
-     :declared declared
-     :undeclared (- total declared)
-     :coverage-pct (rm/pct total declared)
-     :by-resolution (mapv (fn [x] {:resolution x :count (type-count x)}) types)}))
+    (assoc (rm/coverage-tally total declared)
+           :by-resolution (mapv (fn [x] {:resolution x :count (type-count x)}) types))))
 
 
 (defn attach-issue-closure-summary

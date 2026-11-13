@@ -331,11 +331,8 @@
         total (count active)
         declared (count (filterv #(some #{(:engagement %)} levels) active))
         level-count (fn [l] (count (filterv #(= l (:engagement %)) active)))]
-    {:total total
-     :declared declared
-     :undeclared (- total declared)
-     :coverage-pct (rm/pct total declared)
-     :by-engagement (mapv (fn [l] {:engagement l :count (level-count l)}) levels)}))
+    (assoc (rm/coverage-tally total declared)
+           :by-engagement (mapv (fn [l] {:engagement l :count (level-count l)}) levels))))
 
 
 (defn comm-audience-coverage

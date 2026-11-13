@@ -59,6 +59,15 @@
   (mapv (fn [[k label]] {value-k k :label label :count (count-fn k)}) catalog))
 
 
+(defn coverage-tally
+  "声明覆盖度公共四键: 总数, 已声明, 未声明与覆盖率百分比 (total 非正时 0), 键序固定. 统一原 governance 六处覆盖度汇总内联的 {:total total :declared declared :undeclared (- total declared) :coverage-pct (rm/pct total declared)} 惯用法, 各站点用 assoc 挂自己的 :by-* 分档行."
+  [total declared]
+  {:total total
+   :declared declared
+   :undeclared (- total declared)
+   :coverage-pct (pct total declared)})
+
+
 (defn mean-int
   "把 numer/denom 四舍五入为整数均值; denom 非正时返回 0. 统一原各处内联的 (if (pos? n) (int (Math/round (/ (double sum) n))) 0) 与 (if (seq coll) (int (Math/round (/ (double (reduce + 0 xs)) (count xs)))) 0) 惯用法 (两者对自然计数等价: (seq coll) ⇔ (pos? (count coll)))."
   [denom numer]
