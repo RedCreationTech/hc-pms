@@ -276,8 +276,7 @@
 (defn review!
   "指定独立审批人审核仍然有效的关闭依据, 不自动越过最终状态命令."
   [svc actor project-id body]
-  (rules/object! body [:version :decision :reason])
-  (when-not (contains? #{"approved" "rejected"} (:decision body)) (rules/fail! 400 "无效审批决定"))
+  (rules/decision! body "审批")
   (kernel/mutate! svc actor project-id "pms:project:close" body "closure.reviewed" {:write? false}
     (fn [q project]
       (let [approval (q :closure/approval {:project_id project-id})

@@ -24,8 +24,7 @@
 (defn review!
   "指定独立审批人批准重开或拒绝,批准时清除当前归档标记并保留旧快照."
   [svc actor id request-id body]
-  (r/object! body [:version :decision :reason])
-  (when-not (contains? #{"approved" "rejected"} (:decision body)) (r/fail! 400 "无效重开审批决定"))
+  (r/decision! body "重开审批")
   (k/mutate! svc actor id "pms:project:reopen" body "project.reopen.reviewed"
     {:allow-terminal? true :write? false}
     (fn [q project]

@@ -1,5 +1,5 @@
 (ns com.ruoyi.pms-rules-test
-  "com.ruoyi.domain.pms.rules 纯校验/授权原语的表征测试: 锁定 positive-id!, text!, date!, object!, page-params!, version!, changed!, editable!, permit!, access-params, actor, access! 与 project-input! 的返回值形状, 边界判定与 ex-data :status 码, 作为 ub-mode 后续重构 rules.clj 的行为保持门."
+  "com.ruoyi.domain.pms.rules 纯校验/授权原语的表征测试: 锁定 positive-id!, text!, date!, object!, decision!, page-params!, version!, changed!, editable!, permit!, access-params, actor, access! 与 project-input! 的返回值形状, 边界判定与 ex-data :status 码, 作为 ub-mode 后续重构 rules.clj 的行为保持门."
   (:require
     [clojure.test :refer [deftest is testing]]
     [com.ruoyi.domain.pms.rules :as r]))
@@ -59,6 +59,22 @@
   (testing "非对象与越权字段"
     (is (= 400 (:status (err-data #(r/object! "str" [:name])))))
     (is (= 400 (:status (err-data #(r/object! {:name "a" :evil 1} [:name])))))))
+
+(deftest decision!-gates-controlled-approval-decisions
+  (let [body {:version 3 :decision "approved" :reason "ok"}]
+    (testing "受控决定通过并原样返回请求体"
+      (is (= body (r/decision! body "审批")))
+      (let [rejected (assoc body :decision "rejected")]
+        (is (= rejected (r/decision! rejected "审核")))))
+    (testing "非法 decision 400, 文案按 label 拼接为各域既有措辞 (无效审批决定/无效审核决定/无效重开审批决定)"
+      (doseq [[label decision] [["审批" "maybe"] ["审核" nil] ["重开审批" "waived"]]]
+        (let [ex (try (r/decision! (assoc body :decision decision) label) nil
+                      (catch clojure.lang.ExceptionInfo e e))]
+          (is (= 400 (:status (ex-data ex))) (str label "/" (pr-str decision)))
+          (is (= (str "无效" label "决定") (ex-message ex)) (str label "/" (pr-str decision))))))
+    (testing "复用 object! 门: 非对象与越权字段仍 400"
+      (is (= 400 (:status (err-data #(r/decision! "str" "审批")))))
+      (is (= 400 (:status (err-data #(r/decision! (assoc body :evil 1) "审批"))))))))
 
 (deftest page-params!-normalizes-pagination-and-status-filter
   (is (= {:page_size 10 :offset 0 :status nil :q nil} (r/page-params! {})))

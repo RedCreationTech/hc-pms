@@ -135,8 +135,7 @@
 (defn review!
   "对锁定版本独立批准或驳回, 原始快照和明细均保留."
   [svc actor project-id version-id body]
-  (rules/object! body [:version :decision :reason])
-  (when-not (contains? #{"approved" "rejected"} (:decision body)) (rules/fail! 400 "无效审核决定"))
+  (rules/decision! body "审核")
   (kernel/mutate! svc actor project-id "pms:finance:approve" body "cost.reviewed" {:write? false}
     (fn [q project]
       (let [version (version! q project-id version-id)

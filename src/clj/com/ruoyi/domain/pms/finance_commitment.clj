@@ -170,9 +170,7 @@
 (defn review!
   "由指定审批人独立批准或驳回提交后的承诺."
   [svc actor project-id commitment-id body]
-  (rules/object! body [:version :decision :reason])
-  (when-not (contains? #{"approved" "rejected"} (:decision body))
-    (rules/fail! 400 "无效审批决定"))
+  (rules/decision! body "审批")
   (kernel/mutate! svc actor project-id "pms:finance:approve" body "commitment.reviewed" {:write? false}
     (fn [q _project]
       (let [existing (commitment! q project-id commitment-id)]

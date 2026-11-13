@@ -52,8 +52,7 @@
 (defn review!
   "由指定且不同于提交者的审核人决定工时, 驳回释放预留容量."
   [svc actor project-id entry-id body]
-  (rules/object! body [:version :decision :reason])
-  (when-not (contains? #{"approved" "rejected"} (:decision body)) (rules/fail! 400 "无效审核决定"))
+  (rules/decision! body "审核")
   (kernel/mutate! svc actor project-id "pms:time:approve" body "time.reviewed" {:write? false}
     (fn [q project]
       (let [entry (q :finance/time {:project_id project-id :entry_id entry-id})

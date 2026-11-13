@@ -73,6 +73,20 @@
     (fail! 400 "请求包含不支持或不可修改的字段"))
   body)
 
+
+(def decisions
+  "审批/审核类决定的受控取值: approved 批准与 rejected 驳回."
+  #{"approved" "rejected"})
+
+
+(defn decision!
+  "校验审批类决定请求体: 必须是仅含 version/decision/reason 的对象且 decision 为受控取值, 否则 400, 通过时原样返回 body. label 为各域既有审批称谓(审批/审核/重开审批), 拼接成 无效<label>决定 文案, 与原各站内联 object!+contains? 校验的输出逐字节一致."
+  [body label]
+  (object! body [:version :decision :reason])
+  (when-not (contains? decisions (:decision body))
+    (fail! 400 (str "无效" label "决定")))
+  body)
+
 (defn positive-id!
   "校验用户或部门标识."
   [value field]
