@@ -1,5 +1,5 @@
 (ns com.ruoyi.domain.pms.read-model
-  "PMS 只读派生视图的共享计算原语: 百分比, 固定顺序频次分布与日期差值. 除 days-until 1-arity 读服务器当天时钟外均为纯函数, 不查库不落库不投递, 不构成任何门控."
+  "PMS 只读派生视图的共享计算原语: 百分比, 固定顺序频次分布, 日期差值与行动闭环判定. 除 days-until 1-arity 读服务器当天时钟外均为纯函数, 不查库不落库不投递, 不构成任何门控."
   (:import [java.time LocalDate]))
 
 
@@ -76,3 +76,14 @@
    (when (some? due)
      (- (.toEpochDay ^LocalDate (if (string? due) (LocalDate/parse due) due))
         (.toEpochDay ^LocalDate today)))))
+
+
+(def ^:private action-done-statuses
+  "行动类记录的闭环状态集: 已关闭与已转真实任务都视为完成, 不再计逾期与倒计时."
+  #{"closed" "converted"})
+
+
+(defn action-done?
+  "status 已闭环(已关闭或已转真实任务)时返回 true, 其余(含 nil)返回 false. 统一原 earned_value/collaboration 各处内联的 (contains? #{\"closed\" \"converted\"} status) 惯用法; 其他状态集(discarded 等三/四元集)形状不同不并入."
+  [status]
+  (contains? action-done-statuses status))

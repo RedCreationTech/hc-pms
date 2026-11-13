@@ -755,7 +755,7 @@
   "行动存在到期日且未关闭未转任务且到期日不晚于服务器当天即视为逾期."
   [action]
   (boolean (and (:due_date action)
-                (not (contains? #{"closed" "converted"} (:status action)))
+                (not (rm/action-done? (:status action)))
                 (not (.isAfter (LocalDate/parse (:due_date action)) (LocalDate/now))))))
 
 
@@ -767,7 +767,7 @@
 (defn action-read-model
   "以服务器日期展示会议行动是否逾期未完成及剩余到期天数; 已关闭或已转真实任务的行动不再计逾期与倒计时."
   [action]
-  (let [done? (contains? #{"closed" "converted"} (:status action))
+  (let [done? (rm/action-done? (:status action))
         days (when-not done? (rm/days-until (:due_date action)))]
     (assoc action
            :action_overdue (action-overdue? action)
@@ -780,7 +780,7 @@
   [meetings actions-by-meeting]
   (mapv (fn [meeting]
           (let [acts (get actions-by-meeting (:id meeting) [])
-                open (filterv #(not (contains? #{"closed" "converted"} (:status %))) acts)
+                open (filterv #(not (rm/action-done? (:status %))) acts)
                 overdue (filterv action-overdue? open)]
             (assoc meeting :meeting_action_total (count acts)
                              :meeting_open_actions (count open)
@@ -852,7 +852,7 @@
           (concat
             (remove #(= "closed" (:status %)) issues)
             (remove #(= "closed" (:status %)) risks)
-            (remove #(contains? #{"closed" "converted"} (:status %)) actions)))))
+            (remove #(rm/action-done? (:status %)) actions)))))
 
 
 (defn owner-workload-read-model
@@ -881,7 +881,7 @@
   "跨类到期总览口径下判断某治理事项是否仍未闭环: 行动排除 closed/converted, 风险与问题排除 closed. 与 owner-workloads 逐类排除口径一致."
   [kind row]
   (if (= kind "action")
-    (not (contains? #{"closed" "converted"} (:status row)))
+    (not (rm/action-done? (:status row)))
     (not= "closed" (:status row))))
 
 
@@ -1163,7 +1163,7 @@
   [source-k actions]
   (reduce (fn [acc action]
             (if-let [sid (source-k action)]
-              (let [done? (contains? #{"closed" "converted"} (:status action))
+              (let [done? (rm/action-done? (:status action))
                     overdue? (action-overdue? action)]
                 (update acc sid (fn [{:keys [total open overdue]}]
                                   {:total (inc (or total 0))
@@ -1267,7 +1267,7 @@
                       {:key "dq" :label "质量检查整改" :records (filter :source_dq_id actions)}
                       {:key "risk" :label "风险预防整改" :records (filter :source_risk_id actions)}
                       {:key "variance" :label "绩效偏差纠正" :records (filter :variance_kind actions)}]
-        action-done? #(contains? #{"closed" "converted"} (:status %))
+        action-done? #(rm/action-done? (:status %))
         issue-done?  #(= "closed" (:status %))
         tally        (fn [{:keys [key label records issue?]}]
                        (let [done?   (if issue? issue-done? action-done?)
@@ -1299,7 +1299,7 @@
   "按全部会议与预防行动项只读聚合闭环情况: 总数/已闭环(closed 或 converted)/未完成/其中逾期未完成/转任务数与闭环率; 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
   [actions]
   (let [total (count actions)
-        closed (count (filterv #(contains? #{"closed" "converted"} (:status %)) actions))
+        closed (count (filterv #(rm/action-done? (:status %)) actions))
         converted (count (filterv #(= "converted" (:status %)) actions))
         overdue (count (filterv action-overdue? actions))]
     {:total total
@@ -1314,7 +1314,7 @@
   "按全部会议行动项只读聚合优先级申报分布: 以 action-priorities(高/中/低)为固定档位, 逐档统计 总数/未完成(排除 closed 与 converted)/其中逾期未完成, 另给已声明优先级数(落在三档内)与申报覆盖率, 未设定优先级数, 以及高优先级未完成数; 各档计数之和等于已声明数, 已声明与未设定之和等于总数, 逾期数不超过未完成数; 只读派生, 不落库不投递, 不构成门控, 键名不带尾随问号."
   [actions]
   (let [total (count actions)
-        done? #(contains? #{"closed" "converted"} (:status %))
+        done? #(rm/action-done? (:status %))
         of-priority (fn [p] (filterv #(= p (:priority %)) actions))
         declared (count (filterv #(some #{(:priority %)} action-priorities) actions))
         unassigned (- total declared)

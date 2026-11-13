@@ -106,7 +106,7 @@
 (defn- variance-action-open?
   "带偏差种类标记的纠正措施是否仍未闭环 (排除已关闭与已转真实任务)."
   [{:keys [status]}]
-  (not (contains? #{"closed" "converted"} status)))
+  (not (rm/action-done? status)))
 
 
 (defn variance-coverage
@@ -141,7 +141,7 @@
         variance-closed (count (filterv #(= "completed" (:variance_action_state %)) variances))
         variance-actions (filterv :variance_kind actions)
         action-total (count variance-actions)
-        action-closed (count (filterv #(contains? #{"closed" "converted"} (:status %)) variance-actions))]
+        action-closed (count (filterv #(rm/action-done? (:status %)) variance-actions))]
     {:variance_count variance-count
      :variance_with_action variance-with-action
      :variance_closed variance-closed

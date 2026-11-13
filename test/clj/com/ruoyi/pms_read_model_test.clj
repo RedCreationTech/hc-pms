@@ -201,3 +201,17 @@
     (is (= 0 (rm/days-until (str now))))
     (is (nil? (rm/days-until nil)))
     (is (= 0 (rm/days-until now)))))
+
+
+;; ---------- Batch 10: action-done? 行为闭环状态集收敛门 ----------
+
+
+(deftest action-done-predicate-matches-inline-status-set-idiom
+  ;; 与 earned_value/collaboration 旧内联 (contains? #{\"closed\" \"converted\"} status) 逐字节等价.
+  (let [old (fn [status] (contains? #{"closed" "converted"} status))]
+    (doseq [status [nil "closed" "converted" "open" "in-progress" "" 42]]
+      (is (= (old status) (rm/action-done? status)) (str "status=" (pr-str status)))))
+  (is (true? (rm/action-done? "closed")))
+  (is (true? (rm/action-done? "converted")))
+  (is (false? (rm/action-done? "open")))
+  (is (false? (rm/action-done? nil))))
