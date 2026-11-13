@@ -1,7 +1,7 @@
 (ns com.ruoyi.pms-read-model-test
-  "com.ruoyi.domain.pms.read-model 纯函数原语的表征测试: 锁定 pct, distribution, mean-int, round-dec, days-until 的输出形状与数值语义, 作为跨治理/规划/组合模块内联惯用法收敛到共享原语的行为保持门."
+  "com.ruoyi.domain.pms.read-model 纯函数原语的表征测试: 锁定 pct, distribution, mean-int, round-dec, days-until, action-done?, freq-rows 的输出形状与数值语义, 作为跨治理/规划/组合模块内联惯用法收敛到共享原语的行为保持门."
   (:require
-    [clojure.test :refer [deftest is]]
+    [clojure.test :refer [deftest is testing]]
     [com.ruoyi.domain.pms.read-model :as rm])
   (:import [java.time LocalDate]))
 
@@ -232,3 +232,29 @@
                             [1 3 1] [4 10 3] [7 21 6] [5 7 2]
                             [6 7 5] [3 7 2] [100 31 7] [2 8 3]]]
       (is (= (old total sum mx) (rm/pct sum mx)) (str [total sum mx])))))
+
+
+;; ---------- Batch 13: freq-rows 固定档序频次行投影收敛门 ----------
+
+
+(deftest freq-rows-projects-catalog-in-fixed-order
+  ;; 与 fieldwork/comm-cadence/by-breadth 旧内联 (mapv (fn [[k label]] {value-k k :label label :count (count-fn k)}) catalog) 逐字节等价.
+  (let [catalog [["a" "甲"] ["b" "乙"] ["c" "丙"]]
+        tally {"a" 3 "c" 1}
+        old (fn [value-k]
+              (mapv (fn [[k label]] {value-k k :label label :count (get tally k 0)}) catalog))]
+    (is (= (old :key) (rm/freq-rows catalog :key (fn [k] (get tally k 0)))))
+    (is (= (old :frequency) (rm/freq-rows catalog :frequency (fn [k] (get tally k 0)))))
+    (is (= [{:key "a" :label "甲" :count 3}
+            {:key "b" :label "乙" :count 0}
+            {:key "c" :label "丙" :count 1}]
+           (rm/freq-rows catalog :key (fn [k] (get tally k 0)))))
+    (testing "count-fn 由调用方注入, 支持 filterv 计数口径"
+      (let [rows [{:k "a"} {:k "a"} {:k "b"}]]
+        (is (= [{:bucket "a" :label "甲" :count 2}
+                {:bucket "b" :label "乙" :count 1}
+                {:bucket "c" :label "丙" :count 0}]
+               (rm/freq-rows catalog :bucket
+                             (fn [k] (count (filterv #(= k (:k %)) rows))))))))
+    (testing "空档序输出空向量"
+      (is (= [] (rm/freq-rows [] :key (fn [_] 0)))))))

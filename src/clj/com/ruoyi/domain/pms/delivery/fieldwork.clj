@@ -288,7 +288,7 @@
         receipted (+ received conditional)
         closure-pct (rm/pct total received)
         receipt-pct (rm/pct released-or-beyond receipted)
-        by-status (mapv (fn [[k label]] {:key k :label label :count (cnt k)}) shipment-status-catalog)]
+        by-status (rm/freq-rows shipment-status-catalog :key cnt)]
     {:available (boolean (seq shipments))
      :total total
      :draft draft
@@ -349,7 +349,7 @@
         from-manual (count (filterv #(= "manual_record" (:source %)) services))
         closure-pct (rm/pct total closed)
         nearest-due (when-let [ds (seq (remove nil? (map :due_date unresolved-rows)))] (first (sort ds)))
-        by-status (mapv (fn [[k label]] {:key k :label label :count (cnt k)}) service-status-catalog)]
+        by-status (rm/freq-rows service-status-catalog :key cnt)]
     {:available (boolean (seq services))
      :total total
      :open open

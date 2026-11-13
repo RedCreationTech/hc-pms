@@ -53,6 +53,12 @@
      by-k by}))
 
 
+(defn freq-rows
+  "把固定顺序档序 catalog ([[k label] ...]) 按 count-fn 逐档投影为 [{value-k k :label label :count n}] 向量, 档序与中文标签由 catalog 决定, count-fn 返回该档计数(未出现的档记 0). 统一原 fieldwork 发运/售后状态, collaboration 沟通节奏与 stakeholders 受众广度各处 (mapv (fn [[k label]] {value-k k :label label :count (count-fn k)}) catalog) 内联惯用法."
+  [catalog value-k count-fn]
+  (mapv (fn [[k label]] {value-k k :label label :count (count-fn k)}) catalog))
+
+
 (defn mean-int
   "把 numer/denom 四舍五入为整数均值; denom 非正时返回 0. 统一原各处内联的 (if (pos? n) (int (Math/round (/ (double sum) n))) 0) 与 (if (seq coll) (int (Math/round (/ (double (reduce + 0 xs)) (count xs)))) 0) 惯用法 (两者对自然计数等价: (seq coll) ⇔ (pos? (count coll)))."
   [denom numer]

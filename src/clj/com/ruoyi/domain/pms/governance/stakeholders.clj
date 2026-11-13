@@ -440,11 +440,8 @@
                                 (<= n 3) "few"
                                 :else "many"))
         buckets [["solo" "单受众"] ["few" "2-3 人"] ["many" "4 人及以上"]]
-        by-breadth (mapv (fn [[k label]]
-                           {:bucket k
-                            :label label
-                            :count (count (filterv #(= k (bucket-of (:size %))) targeted))})
-                         buckets)]
+        by-breadth (rm/freq-rows buckets :bucket
+                                  (fn [k] (count (filterv #(= k (bucket-of (:size %))) targeted))))]
     {:available (pos? total)
      :total total
      :targeted targeted-count

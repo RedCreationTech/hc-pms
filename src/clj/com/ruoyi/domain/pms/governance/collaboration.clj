@@ -215,8 +215,7 @@
      :overdue overdue
      :due-soon due-soon
      :upcoming (- total overdue due-soon)
-     :by-frequency (mapv (fn [[k label]] {:frequency k :label label :count (freq-count k)})
-                         comm-cadence-frequencies)}))
+     :by-frequency (rm/freq-rows comm-cadence-frequencies :frequency freq-count)}))
 
 
 (defn- insert-risk!
