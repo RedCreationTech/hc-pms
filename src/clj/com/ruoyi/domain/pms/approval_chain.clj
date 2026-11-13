@@ -233,7 +233,7 @@
   [svc actor flow-id body]
   (rules/object! body [:decision :comment])
   (let [decision (:decision body)]
-    (when-not (contains? #{"approved" "rejected"} decision) (rules/fail! 400 "无效审批决定"))
+    (when-not (contains? rules/decisions decision) (rules/fail! 400 "无效审批决定"))
     (kernel/transaction! svc
       (fn [q]
         (let [f (q :approval/flow {:flow_id flow-id})

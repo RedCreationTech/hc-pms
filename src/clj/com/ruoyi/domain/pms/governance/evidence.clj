@@ -191,7 +191,7 @@
              (fn [q project]
                (s/input! body [:decision :reason])
                (let [record (s/latest! q project (s/record! q project "document" rid))
-                     decision (s/enum! (:decision body) #{"approved" "rejected"} "decision")]
+                     decision (s/enum! (:decision body) r/decisions "decision")]
                  (s/status! record #{"in_review"})
                  (s/decision-actor! actor record)
                  (s/change! q project record decision

@@ -105,7 +105,7 @@
         (when-not (= "submitted" (:status record)) (rules/fail! 409 "该计划申请已完成审批"))
         (chain/guard-legacy-decision! q "plan-baseline" baseline-id)
         (when (= (:user_id actor) (:submitted_by record)) (rules/fail! 403 "提交者不能审批自己的计划"))
-        (when-not (contains? #{"approved" "rejected"} decision) (rules/fail! 400 "审批决定必须为 approved 或 rejected"))
+        (when-not (contains? rules/decisions decision) (rules/fail! 400 "审批决定必须为 approved 或 rejected"))
         (when (and (= decision "rejected") (str/blank? comment)) (rules/fail! 400 "拒绝计划必须填写原因"))
         (when (= decision "approved") (approval-ready! q project record))
         (rules/changed! (q :planning/review-baseline!

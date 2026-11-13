@@ -97,7 +97,7 @@
     (fn [q project]
       (s/input! body [:decision :reason])
       (let [dq (s/record! q project "dq" rid)
-            decision (s/enum! (:decision body) #{"approved" "rejected"} "decision")]
+            decision (s/enum! (:decision body) r/decisions "decision")]
         (s/status! dq #{"in_review"})
         (s/decision-actor! actor dq)
         (s/change! q project dq decision {:decision_reason (s/text! body :reason) :decided_by (:user_id actor)})))))

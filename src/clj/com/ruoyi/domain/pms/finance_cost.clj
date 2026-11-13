@@ -154,7 +154,7 @@
   (kernel/mutate! svc actor project-id "pms:finance:edit" body "cost.revised"
     (fn [q project]
       (let [old (version! q project-id version-id)
-            _ (when-not (contains? #{"approved" "rejected"} (:status old)) (rules/fail! 409 "只能修订已处理版本"))
+            _ (when-not (contains? rules/decisions (:status old)) (rules/fail! 409 "只能修订已处理版本"))
             _ (period-open! q (:period old))
             reviewer (kernel/user! q project (:reviewer_id body) "财务审批人")
             _ (when (= reviewer (:user_id actor)) (rules/fail! 400 "不能指定自己审批"))

@@ -190,7 +190,7 @@
     (fn [q project]
       (s/input! body [:decision :reason])
       (let [record (s/latest! q project (s/record! q project kind rid))
-            decision (s/enum! (:decision body) #{"approved" "rejected"} "decision")]
+            decision (s/enum! (:decision body) r/decisions "decision")]
         (s/status! record #{"in_review"})
         (when (and (= "change" kind) (= "approved" decision)
                    (:escalated record) (= "pending" (:escalation_state record)))
@@ -213,7 +213,7 @@
     (fn [q project]
       (s/input! body [:decision :note])
       (let [record (s/latest! q project (s/record! q project "change" rid))
-            decision (s/enum! (:decision body) #{"approved" "rejected"} "decision")
+            decision (s/enum! (:decision body) r/decisions "decision")
             note (s/text! body :note 500)]
         (s/status! record #{"in_review"})
         (when-not (:escalated record) (r/fail! 409 "该变更未触发升级, 无需确认"))

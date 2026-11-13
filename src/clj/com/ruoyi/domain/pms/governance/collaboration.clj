@@ -266,7 +266,7 @@
              (fn [q project]
                (s/input! body [:decision :note])
                (let [risk (s/record! q project "risk" rid)
-                     decision (s/enum! (:decision body) #{"approved" "rejected"} "decision")
+                     decision (s/enum! (:decision body) r/decisions "decision")
                      note (s/text! body :note 500)]
                  (when-not (:escalated risk) (r/fail! 409 "该风险未触发升级, 无需确认"))
                  (when-not (= "pending" (:escalation_state risk)) (r/fail! 409 "风险升级已确认, 请勿重复处理"))
@@ -517,7 +517,7 @@
              (fn [q project]
                (s/input! body [:decision :reason])
                (let [issue (s/record! q project "issue" rid)
-                     decision (s/enum! (:decision body) #{"approved" "rejected"} "decision")]
+                     decision (s/enum! (:decision body) r/decisions "decision")]
                  (s/status! issue #{"in_review"})
                  (s/decision-actor! actor issue)
                  (if (= "reopen" (:review_action issue))
@@ -550,7 +550,7 @@
              (fn [q project]
                (s/input! body [:decision :note])
                (let [issue (s/record! q project "issue" rid)
-                     decision (s/enum! (:decision body) #{"approved" "rejected"} "decision")
+                     decision (s/enum! (:decision body) r/decisions "decision")
                      note (s/text! body :note 500)]
                  (when-not (:escalated issue) (r/fail! 409 "该问题未触发升级, 无需确认"))
                  (when-not (= "pending" (:escalation_state issue)) (r/fail! 409 "问题升级已确认, 请勿重复处理"))
@@ -632,7 +632,7 @@
              (fn [q project]
                (s/input! body [:decision :reason])
                (let [meeting (s/record! q project "meeting" rid)
-                     decision (s/enum! (:decision body) #{"approved" "rejected"} "decision")]
+                     decision (s/enum! (:decision body) r/decisions "decision")]
                  (s/status! meeting #{"in_review"})
                  (s/decision-actor! actor meeting)
                  (s/change! q project meeting (if (= decision "approved") "approved" "recorded")
@@ -726,7 +726,7 @@
              (fn [q project]
                (s/input! body [:decision :reason])
                (let [action (s/record! q project "action" rid)
-                     decision (s/enum! (:decision body) #{"approved" "rejected"} "decision")]
+                     decision (s/enum! (:decision body) r/decisions "decision")]
                  (s/status! action #{"in_review"})
                  (s/decision-actor! actor action)
                  (if (= "action_reopen" (:review_action action))

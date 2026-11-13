@@ -45,7 +45,7 @@
   (s/status! issue #{"in_review"})
   (s/decision-actor! actor issue)
   (s/evidence! q project (:reopen_evidence_ids issue) true)
-  (let [decision (s/enum! (:decision body) #{"approved" "rejected"} "decision")
+  (let [decision (s/enum! (:decision body) r/decisions "decision")
         reason (s/text! body :reason)]
     (s/change! q project issue (if (= "approved" decision) "open" "closed")
                {:reopen_decision decision :reopen_decision_reason reason :reopen_decided_by (:user_id actor)
@@ -159,7 +159,7 @@
     (fn [q project]
       (s/input! body [:decision :reason])
       (let [risk (s/record! q project "risk" rid)
-            decision (s/enum! (:decision body) #{"approved" "rejected"} "decision")
+            decision (s/enum! (:decision body) r/decisions "decision")
             reason (s/text! body :reason) approved? (= "approved" decision)
             state (if approved? (case (:requested_outcome risk) "active" "open" "mitigated" "mitigated" "closed")
                       (:review_previous_status risk))

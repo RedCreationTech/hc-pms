@@ -106,7 +106,7 @@
   [q project actor record body approved-status]
   (g/status! record #{"in_review"})
   (g/decision-actor! actor record)
-  (let [decision (g/enum! (:decision body) #{"approved" "rejected"} "decision")]
+  (let [decision (g/enum! (:decision body) r/decisions "decision")]
     (change! q project record (if (= decision "approved") approved-status "rejected")
              {:decision_reason (g/text! body :reason) :decided_by (:user_id actor)})))
 
