@@ -164,9 +164,9 @@
         peak-date (when (pos? n) (first (filter #(= peak (get load-by-date % 0M)) sorted-dates)))
         mean-d (if (pos? n) (double (/ (double total-hours) (double n))) 0.0)
         peak-to-avg (if (and (pos? n) (pos? mean-d)) (rounded-dec (/ (double peak) mean-d)) 0)
-        cv-pct (if (and (pos? n) (pos? mean-d))
+        cv-pct (if (pos? mean-d)
                  (let [var (/ (reduce + 0.0 (map #(Math/pow (- (double %) mean-d) 2) loads)) (double n))]
-                   (int (Math/round ^double (* 100.0 (/ (Math/sqrt var) mean-d)))))
+                   (rm/pct mean-d (Math/sqrt var)))
                  0)]
     {:available (pos? n)
      :scheduled-days n

@@ -215,3 +215,20 @@
   (is (true? (rm/action-done? "converted")))
   (is (false? (rm/action-done? "open")))
   (is (false? (rm/action-done? nil))))
+
+
+;; ---------- Batch 11: 双护栏 pct 残余收敛门 (batch2 遗留) ----------
+
+
+(deftest pct-equivalent-to-double-guarded-inline-idiom
+  ;; schedule dominant-pct / capacity cv-pct 的旧护栏 (and (pos? total) (pos? sum)) 与 rm/pct 单护栏 (pos? denom) 等价:
+  ;; total=0 时 sum 恒 0 (空集求和), sum>0 时必有元素 (total>0), 故额外护栏恒被蕴含.
+  ;; 数值路径: 旧惯用法 double 除法 vs rm/pct 比率除法, 经 Math/round 后逐字节一致 (249,500 组 (d,n) fuzz 0 mismatch).
+  (let [old (fn [total sum mx]
+              (if (and (pos? total) (pos? sum))
+                (int (Math/round ^double (* 100.0 (/ (double mx) (double sum)))))
+                0))]
+    (doseq [[total sum mx] [[0 0 0] [3 0 5] [3 -2 5] [1 0 9]
+                            [1 3 1] [4 10 3] [7 21 6] [5 7 2]
+                            [6 7 5] [3 7 2] [100 31 7] [2 8 3]]]
+      (is (= (old total sum mx) (rm/pct sum mx)) (str [total sum mx])))))

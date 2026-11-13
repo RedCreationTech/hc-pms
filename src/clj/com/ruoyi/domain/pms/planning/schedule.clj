@@ -396,9 +396,7 @@
         sum (apply + durs)
         mx (when (pos? total) (apply max durs))
         mn (when (pos? total) (apply min durs))
-        dominant-pct (if (and (pos? total) (pos? sum))
-                       (int (Math/round ^double (* 100.0 (/ (double mx) (double sum)))))
-                       0)
+        dominant-pct (rm/pct sum mx)
         coarse (->> with-dur
                     (filterv #(>= (int (:duration_days %)) coarse-task-days))
                     (sort-by #(int (:duration_days %)) >)
