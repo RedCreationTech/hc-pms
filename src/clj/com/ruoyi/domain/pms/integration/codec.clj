@@ -1,7 +1,7 @@
 (ns com.ruoyi.domain.pms.integration.codec
   "企业接口消息的确定编码,来源白名单和安全读模型."
   (:require [cheshire.core :as json]
-            [clojure.walk :as walk]
+            [com.ruoyi.domain.pms.canonical :as canonical]
             [com.ruoyi.domain.pms.finance-money :as money]
             [com.ruoyi.domain.pms.rules :as r]))
 
@@ -12,7 +12,7 @@
   (when-not (systems value) (r/fail! 400 "不支持的外部系统")) value)
 
 (defn encode "稳定序列化消息,相同内容不受JSON键顺序影响." [value]
-  (json/generate-string (walk/postwalk #(if (map? %) (into (sorted-map-by (fn [a b] (compare (str a) (str b)))) %) %) value)))
+  (json/generate-string (canonical/stable-sorted value)))
 
 (defn payload!
   "校验有限大小的结构化外部事实,存储时保留原始业务字段."

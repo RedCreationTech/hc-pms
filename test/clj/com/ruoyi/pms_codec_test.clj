@@ -3,6 +3,8 @@
   (:require
     [cheshire.core :as json]
     [clojure.test :refer [deftest is testing]]
+    [clojure.walk :as walk]
+    [com.ruoyi.domain.pms.canonical :as canonical]
     [com.ruoyi.domain.pms.finance-money :as money]
     [com.ruoyi.domain.pms.integration.codec :as codec]))
 
@@ -29,6 +31,17 @@
     (is (= (codec/encode {:z 1 :a {:y 2 :b 3}})
            (codec/encode {:a {:b 3 :y 2} :z 1})))
     (is (= "{\"a\":{\"b\":3,\"y\":2},\"z\":1}" (codec/encode {:z 1 :a {:y 2 :b 3}})))))
+
+(deftest stable-sorted-canonicalizes-nested-map-key-order
+  ;; 与 codec/encode 与 closure/encoded-snapshot 旧内联 walk/postwalk + sorted-map-by (compare (str a) (str b)) 逐字节等价.
+  (let [old (fn [v]
+              (walk/postwalk #(if (map? %) (into (sorted-map-by (fn [a b] (compare (str a) (str b)))) %) %) v))]
+    (doseq [v [nil 42 "s" [1 2] {:b 1 :a 2}
+               {:z {:b 1 :a 2} :a [1 {:d 4 :c 3}]}
+               [{:k 1} {:k 2}] {:mixed1 :x "k" 1}]]
+      (is (= (old v) (canonical/stable-sorted v)) (str (pr-str v)))))
+  (is (= "{\"a\":1,\"b\":2}" (json/generate-string (canonical/stable-sorted {:b 2 :a 1})))))
+
 
 (deftest payload!-validates-encodes-and-self-hashes
   (let [{:keys [payload_json payload_hash]} (codec/payload! {:k "v" :n 2})]

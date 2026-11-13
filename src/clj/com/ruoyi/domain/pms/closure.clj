@@ -2,8 +2,8 @@
   "项目收尾清单, 遗留移交, 经验与绑定确定证据快照的独立关闭审批."
   (:require [cheshire.core :as json]
             [clojure.string :as str]
-            [clojure.walk :as walk]
             [com.ruoyi.domain.pms.approval-chain :as chain]
+            [com.ruoyi.domain.pms.canonical :as canonical]
             [com.ruoyi.domain.pms.finance :as finance]
             [com.ruoyi.domain.pms.delivery :as delivery]
             [com.ruoyi.domain.pms.finance-money :as money]
@@ -57,8 +57,7 @@
   "以稳定键序编码关闭输入快照用于摘要比较."
   [q project]
   (json/generate-string
-    (walk/postwalk #(if (map? %) (into (sorted-map-by (fn [a b] (compare (str a) (str b)))) %) %)
-                   (snapshot q project))))
+    (canonical/stable-sorted (snapshot q project))))
 
 (defn ready!
   "关闭时再次核对实际条件和审批时的内容摘要, 防止批准后改写依据."
