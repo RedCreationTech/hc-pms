@@ -352,6 +352,59 @@
      :met-pct (rm/pct total met)
      :by-metric by-metric}))
 
+(defn- settlement-of
+  "取关闭项目已批准决算的费用 DTO; 无决算返回 nil (revenue/margin 已按 nil 兜底), 不把 nil 交给 cost/dto 复算明细."
+  [q finance? p]
+  (when finance?
+    (some->> (q :finance/versions {:project_id (:project_id p)})
+             (filter #(and (= "settlement" (:kind %)) (= "approved" (:status %))))
+             (sort-by :version_no >)
+             first
+             (cost/dto q))))
+
+
+(defn- on-time-closed?
+  "归档日期不晚于计划完成日即准时结项; 缺计划完成日不计准时."
+  [closed-at p]
+  (and (:end_date p) (not (.isAfter (LocalDate/parse (subs closed-at 0 10)) (LocalDate/parse (:end_date p))))))
+
+
+(defn- closed-project-row
+  "关闭项目在经营目标口径下的季度事实: 归档季度/日期, 决算收入与毛利, 币种与准时判定."
+  [p closed-at settlement on-time?]
+  {:project_id (:project_id p) :project_no (:project_no p) :name (:name p)
+   :quarter (quarter-of closed-at) :closed_at (subs closed-at 0 10)
+   :revenue_minor (or (some-> settlement :revenue_minor) (when settlement (money/amount! (:revenue settlement) "收入")) 0)
+   :margin_minor (if settlement (- (money/amount! (:revenue settlement) "收入") (:total_minor settlement)) 0)
+   :currency (:currency settlement) :on_time on-time?})
+
+
+(defn- metric-actual
+  "按指标把季度内关闭项目折算为实际值: 收入/毛利取决算分求和转金额串, 结项数计数, 准时率为百分比."
+  [metric in-quarter]
+  (case metric
+    "revenue" (money/money (reduce + 0 (map :revenue_minor in-quarter)))
+    "gross_margin" (money/money (reduce + 0 (map :margin_minor in-quarter)))
+    "closed_projects" (count in-quarter)
+    "on_time_rate" (if (seq in-quarter) (double (/ (* 100 (count (filter :on_time in-quarter))) (count in-quarter))) 0.0)))
+
+
+(defn- target-row
+  "单条季度目标的实际值, 达成率, 关联关闭项目与来源标记 (目标/实际金额类从元与分归一到可比小数)."
+  [finance? target closed]
+  (let [key [(:year target) (:quarter target)]
+        in-quarter (filter #(= key (:quarter %)) closed)
+        metric (:metric target)
+        actual (metric-actual metric in-quarter)
+        target-num (case metric
+                     ("revenue" "gross_margin") (/ (money/amount! (:target_value target) "目标") 100.0)
+                     (:target_value target))
+        actual-num (case metric ("revenue" "gross_margin") (/ (money/amount! actual "实际") 100.0) actual)]
+    (assoc target :actual actual :achievement_pct (if (number? target-num) (rm/pct target-num actual-num) 0)
+           :closed_projects (mapv #(select-keys % [:project_id :project_no :name :on_time :currency]) in-quarter)
+           :source (if finance? "approved_settlements" "counts_only"))))
+
+
 (defn targets
   "季度经营目标与实际达成 (F09): 收入/毛利取该季度关闭项目已批准决算, 结项数取该季度关闭项目数; 目标修订不改写历史."
   [svc actor]
@@ -361,34 +414,12 @@
         projects (authorized-projects q actor)
         closed (for [p projects :when (= "closed" (:status p))
                      :let [closed-at (str (or (:archived_at (q :lifecycle/state {:project_id (:project_id p)})) (:updated_at p)))
-                           ;; 无已批准决算的关闭项目 settlement 为 nil (下方 revenue/margin 已按 nil 兜底), 不得把 nil 交给 cost/dto 复算明细
-                           settlement (when finance?
-                                        (some->> (q :finance/versions {:project_id (:project_id p)})
-                                                 (filter #(and (= "settlement" (:kind %)) (= "approved" (:status %))))
-                                                 (sort-by :version_no >)
-                                                 first
-                                                 (cost/dto q)))
-                           on-time? (and (:end_date p) (not (.isAfter (LocalDate/parse (subs closed-at 0 10)) (LocalDate/parse (:end_date p)))))]
+                           settlement (settlement-of q finance? p)
+                           on-time? (on-time-closed? closed-at p)]
                      :when (>= (count closed-at) 10)]
-                 {:project_id (:project_id p) :project_no (:project_no p) :name (:name p) :quarter (quarter-of closed-at) :closed_at (subs closed-at 0 10)
-                  :revenue_minor (or (some-> settlement :revenue_minor) (when settlement (money/amount! (:revenue settlement) "收入")) 0)
-                  :margin_minor (if settlement (- (money/amount! (:revenue settlement) "收入") (:total_minor settlement)) 0)
-                  :currency (:currency settlement) :on_time on-time?})
-        rows (for [target (config/records q "quarterly-target")
-                   :let [key [(:year target) (:quarter target)]
-                         in-quarter (filter #(= key (:quarter %)) closed)
-                         actual (case (:metric target)
-                                  "revenue" (money/money (reduce + 0 (map :revenue_minor in-quarter)))
-                                  "gross_margin" (money/money (reduce + 0 (map :margin_minor in-quarter)))
-                                  "closed_projects" (count in-quarter)
-                                  "on_time_rate" (if (seq in-quarter) (double (/ (* 100 (count (filter :on_time in-quarter))) (count in-quarter))) 0.0))
-                         target-num (case (:metric target)
-                                      ("revenue" "gross_margin") (/ (money/amount! (:target_value target) "目标") 100.0)
-                                      (:target_value target))
-                         actual-num (case (:metric target) ("revenue" "gross_margin") (/ (money/amount! actual "实际") 100.0) actual)]]
-               (assoc target :actual actual :achievement_pct (if (number? target-num) (rm/pct target-num actual-num) 0)
-                      :closed_projects (mapv #(select-keys % [:project_id :project_no :name :on_time :currency]) in-quarter)
-                      :source (if finance? "approved_settlements" "counts_only")))]
+                 (closed-project-row p closed-at settlement on-time?))
+        rows (for [target (config/records q "quarterly-target")]
+               (target-row finance? target closed))]
     {:rows (vec (sort-by (juxt :year :quarter :metric :revision) rows)) :finance_visible finance?
      :attainment (goal-attainment-summary rows)
      :metrics [{:value "revenue" :label "收入"} {:value "gross_margin" :label "毛利"} {:value "closed_projects" :label "结项数"} {:value "on_time_rate" :label "准时结项率%"}]}))
