@@ -1,7 +1,7 @@
 (ns com.ruoyi.pms-fieldwork-test
   "工勘 (B07), 装配步骤明细 (E01), 发货前本地条件 (E04), 交底时限 (E07), 现场任务 (E08/E09),
    齐套多层卷积 (D06), 包材申请 (D03), 阻断关口 (B11/B13), DQ (B08) 与单机局部暂停 (B16) 的真实数据库测试."
-  (:require [clojure.test :refer [deftest is use-fixtures]]
+  (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [com.ruoyi.domain.pms.delivery :as delivery]
             [com.ruoyi.domain.pms.delivery.fieldwork :as fieldwork]
             [com.ruoyi.domain.pms.governance :as gov]
@@ -152,6 +152,39 @@
 
 
 (defn- today-minus [days] (str (.minusDays (LocalDate/now) days)))
+
+
+;; batch48 (mutator 方向: cover the uncovered): 补齐 delivery/store 四缺口 — configure! 更新分支, references! 任务/需求两门, 执行阶段门.
+(deftest delivery-store-guards-configuration-references-and-execution
+  (let [id (:project_id (pms/create-project! *service* (actor 9641)
+                        {:project_no (str "DS-" (subs (str (UUID/randomUUID)) 0 8)) :name "交付存储门控"
+                         :customer "本地测试" :contract_no "DS-TEST" :project_type "equipment"
+                         :manager_id 9641 :dept_id 1 :start_date "2026-09-01" :end_date "2026-12-31"}))
+        task (:result (planning/create-task! *service* (actor 9641) id
+                                             {:version (version id) :wbs_code "DS-1" :name "交付任务"
+                                              :owner_id 9641 :duration_days 1}))]
+    (testing "配置重复更新: 第二次走 change! 分支并落新值"
+      (command! id :configuration :update nil {:required_stages ["materials"]
+                                               :required_test_types ["SIT"] :reason "首次配置"})
+      (let [updated (command! id :configuration :update nil
+                              {:required_stages ["materials" "assembly"]
+                               :required_test_types ["SIT"] :reason "二次配置"})]
+        (is (= ["materials" "assembly"] (:required_stages updated)))
+        (is (= "project_configuration" (:source updated)))))
+    (testing "物料申请: 关联任务不存在404, 需求版本不合法400 (先于明细校验)"
+      (is (= 404 (error-status #(command! id :material-requests :create nil
+                                          {:code "DS-MR" :title "长周期件" :request_type "standard" :owner_id 9641
+                                           :needed_on "2026-10-01" :task_id "no-such-task"
+                                           :requirement_ids []
+                                           :items [{:code "X" :name "件" :quantity 1 :unit "个"}]}))))
+      (is (= 400 (error-status #(command! id :material-requests :create nil
+                                          {:code "DS-MR2" :title "重复需求" :request_type "standard" :owner_id 9641
+                                           :needed_on "2026-10-01" :task_id (:task_id task)
+                                           :requirement_ids [1 1]
+                                           :items [{:code "X" :name "件" :quantity 1 :unit "个"}]})))))
+    (testing "执行阶段门: 未进入执行的发运登记在读取记录之前被拒"
+      (is (= 409 (error-status #(command! id :shipments :dispatch "nope"
+                                          {:shipped_on "2026-09-01" :tracking_no "X" :evidence_ids []})))))))
 
 
 (deftest survey-visits-are-controlled-and-block-closure
