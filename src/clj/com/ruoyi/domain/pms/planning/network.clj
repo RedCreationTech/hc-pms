@@ -79,6 +79,72 @@
           (recur (rest remaining) task))))))
 
 
+(defn- select-nodes
+  "按 body.node_ids 过滤候选节点 (主项目层不参与派生), 并校验 id 形状与归属."
+  [candidates wanted]
+  (let [selected (if (seq wanted) (filterv #(contains? (set wanted) (:node_id %)) candidates) candidates)]
+    (when (and (seq wanted) (not (vector? wanted)))
+      (rules/fail! 400 "node_ids 必须是节点 id 数组"))
+    (when (and (seq wanted) (not= (count selected) (count (set wanted))))
+      (rules/fail! 400 "结构节点不存在, 不属于当前项目或为主项目"))
+    selected))
+
+
+(defn- stage-container
+  "阶段容器任务: 同 WBS 的 summary 已存在则复用, 否则新建 (幂等)."
+  [q project actor stage start]
+  (let [tasks (store/rows q project :planning/tasks)]
+    (or (first (filter #(and (= (:code stage) (:wbs_code %)) (= "summary" (:task_type %))) tasks))
+        (tasks/create-record! q project actor
+                              {:wbs_code (:code stage) :name (:name stage) :task_type "summary" :duration_days 0
+                               :start_date start :stage_code (:code stage) :source_type "template" :description ""}))))
+
+
+(defn- link-main-stage!
+  "主计划相邻阶段 FS 串联: 仅在本阶段新建了任务且尚无同边时补依赖."
+  [q project prev task before counters]
+  (let [deps (store/rows q project :planning/dependencies)]
+    (when (and prev task (> (count @(:created counters)) before)
+               (not-any? #(and (= (:task_id prev) (:predecessor_id %)) (= (:task_id task) (:successor_id %))) deps))
+      (q :planning/create-dependency! {:dependency_id (kernel/id) :project_id (:project_id project)
+                                       :predecessor_id (:task_id prev) :successor_id (:task_id task)
+                                       :dependency_type "FS" :lag_days 0})
+      (swap! (:linked counters) inc))))
+
+
+(defn- derive-main-plan!
+  "主计划层: 每个 main 阶段一个任务放在该阶段容器下, 跨阶段 FS 串联."
+  [q project actor main-stages start counters]
+  (loop [remaining main-stages prev nil]
+    (when-let [stage (first remaining)]
+      (let [container (stage-container q project actor stage start)
+            before (count @(:created counters))]
+        (chain! q project actor container [stage]
+                (fn [s] (str (:code s) "-MAIN")) (fn [s] (str (:name s) " (主计划)")) {} start counters)
+        (let [task (q :planning/task-code {:project_id (:project_id project) :wbs_code (str (:code stage) "-MAIN")})]
+          (link-main-stage! q project prev task before counters)
+          (recur (rest remaining) task))))))
+
+
+(defn- derive-node-plan!
+  "单个子项目/单机节点: 找到或创建节点计划容器, 按该节点适用阶段串联派生."
+  [q project actor node instance start counters]
+  (let [tasks (store/rows q project :planning/tasks)
+        by-code (into {} (map (juxt :wbs_code identity) tasks))
+        container (or (by-code (:node_code node))
+                      (first (filter #(and (= (:node_id node) (:node_id %)) (= "summary" (:task_type %))) tasks))
+                      (tasks/create-record! q project actor
+                                            {:wbs_code (:node_code node) :name (str (:name node) "计划") :task_type "summary"
+                                             :duration_days 0 :start_date start
+                                             :node_id (:node_id node) :source_type "template" :description ""}))
+        applicable (filter #(some #{(:node_type node)} (stage-levels %)) (:stages instance))]
+    (chain! q project actor container applicable
+            (fn [stage] (str (:node_code node) "-" (:code stage)))
+            (fn [stage] (str (:name node) " " (:name stage)))
+            {:node_id (:node_id node) :source_id (:node_id node)}
+            (or (:start_date container) start) counters)))
+
+
 (defn derive!
   "从模板阶段派生主/子/单机计划 (B03): 主计划层按 levels 含 main 的阶段在阶段容器下建任务并按阶段顺序 FS 串联;
    每个子项目/单机节点按 levels 含其层级的阶段在节点计划容器下建任务 (WBS = <节点编码>-<阶段编码>) 并串联;
@@ -91,50 +157,17 @@
             all-nodes (vec (q :pms/nodes {:project_id (:project_id project)}))
             candidates (filterv #(not= "main" (:node_type %)) all-nodes)
             wanted (:node_ids body)
-            selected (if (seq wanted) (filterv #(contains? (set wanted) (:node_id %)) candidates) candidates)
-            start (or (:start_date project) (str (LocalDate/now)))]
-        (when (and (seq wanted) (not (vector? wanted))) (rules/fail! 400 "node_ids 必须是节点 id 数组"))
-        (when (and (seq wanted) (not= (count selected) (count (set wanted)))) (rules/fail! 400 "结构节点不存在, 不属于当前项目或为主项目"))
-        (let [counters {:created (atom []) :linked (atom 0) :skipped (atom 0)}
-              main-stages (filter #(some #{"main"} (stage-levels %)) (:stages instance))
-              stage-container (fn [stage]
-                                (let [tasks (store/rows q project :planning/tasks)]
-                                  (or (first (filter #(and (= (:code stage) (:wbs_code %)) (= "summary" (:task_type %))) tasks))
-                                      (tasks/create-record! q project actor {:wbs_code (:code stage) :name (:name stage) :task_type "summary" :duration_days 0
-                                                                              :start_date start :stage_code (:code stage) :source_type "template" :description ""}))))]
-          ;; 主计划: 每个 main 阶段一个任务, 放在该阶段容器下, 跨阶段 FS 串联.
-          (loop [remaining main-stages prev nil]
-            (when-let [stage (first remaining)]
-              (let [container (stage-container stage)
-                    before (count @(:created counters))]
-                (chain! q project actor container [stage] (fn [s] (str (:code s) "-MAIN")) (fn [s] (str (:name s) " (主计划)")) {} start counters)
-                (let [task (q :planning/task-code {:project_id (:project_id project) :wbs_code (str (:code stage) "-MAIN")})
-                      deps (store/rows q project :planning/dependencies)]
-                  (when (and prev task (> (count @(:created counters)) before)
-                             (not-any? #(and (= (:task_id prev) (:predecessor_id %)) (= (:task_id task) (:successor_id %))) deps))
-                    (q :planning/create-dependency! {:dependency_id (kernel/id) :project_id (:project_id project)
-                                                     :predecessor_id (:task_id prev) :successor_id (:task_id task)
-                                                     :dependency_type "FS" :lag_days 0})
-                    (swap! (:linked counters) inc))
-                  (recur (rest remaining) task)))))
-          (doseq [node selected]
-            (let [tasks (store/rows q project :planning/tasks)
-                  by-code (into {} (map (juxt :wbs_code identity) tasks))
-                  container (or (by-code (:node_code node))
-                                (first (filter #(and (= (:node_id node) (:node_id %)) (= "summary" (:task_type %))) tasks))
-                                (tasks/create-record! q project actor {:wbs_code (:node_code node) :name (str (:name node) "计划") :task_type "summary"
-                                                                        :duration_days 0 :start_date start
-                                                                        :node_id (:node_id node) :source_type "template" :description ""}))
-                  applicable (filter #(some #{(:node_type node)} (stage-levels %)) (:stages instance))]
-              (chain! q project actor container applicable
-                      (fn [stage] (str (:node_code node) "-" (:code stage)))
-                      (fn [stage] (str (:name node) " " (:name stage)))
-                      {:node_id (:node_id node) :source_id (:node_id node)}
-                      (or (:start_date container) start) counters)))
-          (when (and (empty? main-stages) (empty? selected)) (rules/fail! 409 "模板阶段没有可派生的层级"))
-          {:node_count (count selected) :main_stage_count (count main-stages)
-           :derived_count (count @(:created counters)) :skipped_count @(:skipped counters)
-           :dependency_count @(:linked counters) :tasks @(:created counters)})))))
+            selected (select-nodes candidates wanted)
+            start (or (:start_date project) (str (LocalDate/now)))
+            counters {:created (atom []) :linked (atom 0) :skipped (atom 0)}
+            main-stages (filter #(some #{"main"} (stage-levels %)) (:stages instance))]
+        (derive-main-plan! q project actor main-stages start counters)
+        (doseq [node selected]
+          (derive-node-plan! q project actor node instance start counters))
+        (when (and (empty? main-stages) (empty? selected)) (rules/fail! 409 "模板阶段没有可派生的层级"))
+        {:node_count (count selected) :main_stage_count (count main-stages)
+         :derived_count (count @(:created counters)) :skipped_count @(:skipped counters)
+         :dependency_count @(:linked counters) :tasks @(:created counters)}))))
 
 
 (defn conflicts
