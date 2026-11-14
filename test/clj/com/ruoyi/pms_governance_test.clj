@@ -1455,6 +1455,42 @@
       (is (= 0 (:dq_voided_deliverables (quality/dq-deliverable-voided-model vc docs {})))))))
 
 
+(defn- checked
+  "调用检查结果归一: 通过返回归一后的 checklist, 失败返回 [status message]."
+  [dq results]
+  (try (#'quality/checked-checklist dq results)
+       (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
+
+
+;; check-dq! 的检查结果归一门 (重构前的行为钉): 码集/白名单/waived 布尔/已通过不得例外/例外必填, 纯函数.
+(deftest checked-checklist-gates-results-waivers-and-notes
+  (let [dq {:checklist [{:code "C-1" :title "必需一" :required true}
+                        {:code "C-2" :title "可选二" :required false}]}
+        row (fn [c m] (merge {:code c} m))]
+    (testing "通过与未通过项按原清单归一, 缺省 waived 给 false 且补空说明"
+      (is (= [{:code "C-1" :title "必需一" :required true :passed true :note "齐" :waived false :waiver_reason ""}
+              {:code "C-2" :title "可选二" :required false :passed false :note "缺" :waived false :waiver_reason ""}]
+             (checked dq [(row "C-1" {:passed true :note "齐" :waived false})
+                          (row "C-2" {:passed false :note "缺"})]))))
+    (testing "结果必须是与清单同码集的向量"
+      (is (= [400 "必须提交清单全部检查项"] (checked dq [(row "C-1" {:passed true})])))
+      (is (= [400 "必须提交清单全部检查项"] (checked dq (row "C-1" {:passed true})))))
+    (testing "每项字段白名单与 waived 布尔门"
+      (is (= [400 "请求包含不支持或不可修改的字段"]
+             (checked dq [(row "C-1" {:passed true :evil 1}) (row "C-2" {:passed false})])))
+      (is (= [400 "waived必须为布尔值"]
+             (checked dq [(row "C-1" {:passed true :waived "yes"}) (row "C-2" {:passed false})]))))
+    (testing "已通过项不得例外, 例外必填说明且去空白"
+      (is (= [400 "检查项 C-1 已通过, 无需例外"]
+             (checked dq [(row "C-1" {:passed true :waived true :waiver_reason "x"})
+                          (row "C-2" {:passed false})])))
+      (is (= [400 "例外说明不能为空或超出长度限制"]
+             (checked dq [(row "C-1" {:passed false :waived true}) (row "C-2" {:passed false})])))
+      (is (= "必须的例外"
+             (:waiver_reason (first (checked dq [(row "C-1" {:passed false :waived true :waiver_reason " 必须的例外 "})
+                                                 (row "C-2" {:passed false})]))))))))
+
+
 (deftest dq-required-check-readiness-is-flagged-in-read-model
   (let [id (project!)
         dq (command! id :dqs :create nil

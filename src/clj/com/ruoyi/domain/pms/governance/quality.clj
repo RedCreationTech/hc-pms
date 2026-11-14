@@ -43,6 +43,26 @@
                    (seq (s/optional-text! body :responsible_role 100)) (assoc :responsible_role (s/optional-text! body :responsible_role 100)))
                  {:status "draft"}))))
 
+(defn- checked-checklist
+  "逐项校验并归一检查结果: 结果必须是与清单同码集的向量, 每项字段白名单, waived 必须布尔, 已通过不得例外, 例外必填说明; 返回归一后的 checklist."
+  [dq results]
+  (when-not (and (vector? results) (= (set (map :code results)) (set (map :code (:checklist dq)))))
+    (r/fail! 400 "必须提交清单全部检查项"))
+  (let [by-code (into {} (map (juxt :code identity) results))]
+    (mapv (fn [item]
+            (let [res (get by-code (:code item))
+                  waived (boolean (:waived res))]
+              (r/object! res [:code :passed :note :waived :waiver_reason])
+              (when (and (contains? res :waived) (not (boolean? (:waived res)))) (r/fail! 400 "waived必须为布尔值"))
+              (when (and waived (s/boolean! (:passed res) "passed")) (r/fail! 400 (str "检查项 " (:code item) " 已通过, 无需例外")))
+              (cond-> (assoc item :passed (s/boolean! (:passed res) "passed")
+                             :note (r/text! (:note res) "检查说明" 500 false)
+                             :waived waived)
+                waived (assoc :waiver_reason (r/text! (:waiver_reason res) "例外说明" 500 true))
+                (not waived) (assoc :waiver_reason ""))))
+          (:checklist dq))))
+
+
 (defn check-dq!
   "逐项登记检查结果, 全部必需项通过后进入待提交."
   [svc actor id rid body]
@@ -52,21 +72,7 @@
       (let [dq (s/record! q project "dq" rid)
             results (:results body)]
         (s/status! dq #{"draft" "ready" "rejected"})
-        (when-not (and (vector? results) (= (set (map :code results)) (set (map :code (:checklist dq)))))
-          (r/fail! 400 "必须提交清单全部检查项"))
-        (let [by-code (into {} (map (juxt :code identity) results))
-              checklist (mapv (fn [item]
-                                (let [res (get by-code (:code item))
-                                      waived (boolean (:waived res))]
-                                  (r/object! res [:code :passed :note :waived :waiver_reason])
-                                  (when (and (contains? res :waived) (not (boolean? (:waived res)))) (r/fail! 400 "waived必须为布尔值"))
-                                  (when (and waived (s/boolean! (:passed res) "passed")) (r/fail! 400 (str "检查项 " (:code item) " 已通过, 无需例外")))
-                                  (cond-> (assoc item :passed (s/boolean! (:passed res) "passed")
-                                                 :note (r/text! (:note res) "检查说明" 500 false)
-                                                 :waived waived)
-                                    waived (assoc :waiver_reason (r/text! (:waiver_reason res) "例外说明" 500 true))
-                                    (not waived) (assoc :waiver_reason ""))))
-                              (:checklist dq))
+        (let [checklist (checked-checklist dq results)
               deliverables (if (contains? body :deliverable_ids)
                              (s/evidence! q project (:deliverable_ids body) false)
                              (:deliverable_ids dq))]
