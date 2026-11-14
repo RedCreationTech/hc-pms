@@ -245,6 +245,38 @@
 
 
 ;; batch49 (mutator 方向: cover the uncovered): 模板实例化的执行锁与节点编号占用两门.
+;; batch51 (mutator 方向: cover the uncovered): config 剩余缺口 — strings! 上限, 模板 delivery 两门, 目录导入/列举, sequence-count 三分支.
+(deftest config-template-arrays-delivery-gates-and-code-counts
+  (let [id (project!)]
+    (testing "团队角色数组超过上限400"
+      (is (= 400 (error-status #(config/create! *service* (actor 9441) "project-template"
+                                                {:code "TPL-BIG" :title "角色超限" :project_types ["line"]
+                                                 :stages [{:code "S1" :name "a" :weight 100}]
+                                                 :team_roles (vec (repeat 21 "角色"))})))))
+    (testing "模板交付配置: 空数组与缺环节前置两门400"
+      (is (= 400 (error-status #(config/create! *service* (actor 9441) "project-template"
+                                                {:code "TPL-DELV1" :title "空环节" :project_types ["line"]
+                                                 :stages [{:code "S1" :name "a" :weight 100}]
+                                                 :delivery {:required_stages [] :required_test_types ["SIT"]}}))))
+      (is (= 400 (error-status #(config/create! *service* (actor 9441) "project-template"
+                                                {:code "TPL-DELV2" :title "缺前置" :project_types ["line"]
+                                                 :stages [{:code "S1" :name "a" :weight 100}]
+                                                 :delivery {:required_stages ["shipment"] :required_test_types ["SIT"]}})))))
+    (testing "目录导入与列举走 coding-rule/approval-policy 分支"
+      (let [draft (config/import-catalog! *service* (actor 9441) "coding-rule" {:code "RULE-SUB"})]
+        (is (= "RULE-SUB" (:code draft)))
+        (config/publish! *service* (actor 9441) "coding-rule" (:id draft) {:reason "启用"}))
+      (is (seq (:catalog (config/listing *service* (actor 9441) "coding-rule"))))
+      (is (seq (:catalog (config/listing *service* (actor 9441) "approval-policy")))))
+    (testing "sequence-count 按对象类型取子项目/文档/任务现存数量"
+      (doseq [code ["RULE-DOCUMENT" "RULE-TASK"]]
+        (let [draft (config/import-catalog! *service* (actor 9441) "coding-rule" {:code code})]
+          (config/publish! *service* (actor 9441) "coding-rule" (:id draft) {:reason "启用"})))
+      (is (string? (:code (config/next-code *service* (actor 9441) "sub" id nil))))
+      (is (string? (:code (config/next-code *service* (actor 9441) "document" id nil))))
+      (is (string? (:code (config/next-code *service* (actor 9441) "task" id nil)))))))
+
+
 (deftest template-instantiation-guards-execution-and-node-collision
   (let [template (import-and-publish! "project-template" "TPL-EQUIPMENT")
         id (project! "equipment")
