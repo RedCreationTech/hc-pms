@@ -497,6 +497,19 @@
         (is (= 404 (status #(command! plan/delete-dependency! id ["nope"] {}))))))))
 
 
+;; batch49 (mutator 方向: cover the uncovered): planning/store 两守卫 — 收尾中不可改计划409, 资源不存在404.
+(deftest planning-store-guards-closing-and-unknown-resource
+  (let [id (project!)]
+    (testing "项目收尾中不能修改计划"
+      (jdbc/execute! (:db *svc*) ["UPDATE pms_project SET status='closing' WHERE project_id=?" id])
+      (is (= 409 (status #(command! plan/create-task! id []
+                                    {:wbs_code "C-1" :name "收尾任务" :duration_days 1}))))
+      (jdbc/execute! (:db *svc*) ["UPDATE pms_project SET status='draft' WHERE project_id=?" id]))
+  (testing "资源不存在404 (需为合法 UUID 形状)"
+    (is (= 404 (status #(command! plan/update-resource! id ["11111111-1111-1111-1111-111111111111"]
+                                  {:daily_capacity 4})))))))
+
+
 (deftest http-contract-and-error-boundaries
   (let [id (project!) base (str "/api/pms/projects/" id)
         post (fn [suffix body] (request :post (str base suffix) 9201 (assoc body :version (version id))))]

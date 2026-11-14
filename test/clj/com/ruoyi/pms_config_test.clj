@@ -108,10 +108,11 @@
 
 
 (defn- import-and-publish!
-  "从目录导入并发布一个模板, 返回生效记录."
+  "从目录导入并发布一个模板, 返回生效记录; 同编码已发布时直接复用 (多个测试共享目录编码, 避免二次导入409)."
   [kind code]
-  (let [draft (config/import-catalog! *service* (actor 9441) kind {:code code})]
-    (config/publish! *service* (actor 9441) kind (:id draft) {:reason "发布用于测试"})))
+  (or (config/published-by-code (:query-fn *service*) kind code)
+      (let [draft (config/import-catalog! *service* (actor 9441) kind {:code code})]
+        (config/publish! *service* (actor 9441) kind (:id draft) {:reason "发布用于测试"}))))
 
 
 (defn- published
@@ -241,6 +242,21 @@
                                                    {:project_no (str "FREE-" (subs (str (UUID/randomUUID)) 0 6)) :name "自由编号" :project_type "line"
                                                     :manager_id 9441 :dept_id 1}))))
     (is (fn? q))))
+
+
+;; batch49 (mutator 方向: cover the uncovered): 模板实例化的执行锁与节点编号占用两门.
+(deftest template-instantiation-guards-execution-and-node-collision
+  (let [template (import-and-publish! "project-template" "TPL-EQUIPMENT")
+        id (project! "equipment")
+        project-no (:project_no (pms/project *service* (actor 9441) id))
+        main (first (filter #(= "main" (:node_type %)) (:rows (pms/nodes *service* (actor 9441) id))))]
+    (testing "结构节点编号被其它类型占用时409 (模板的单机位 M1 已被子项目占用)"
+      (pms/create-node! *service* (actor 9441) id {:parent_id (:node_id main) :node_type "sub"
+                                                   :node_code (str project-no "-M1") :name "抢占单机位"})
+      (is (= 409 (error-status #(command! id :template-instances :create nil {:template_id (:id template)})))))
+    (testing "执行开始后不可再实例化409 (状态门先于结构检查)"
+      (jdbc/execute! (:db *service*) ["UPDATE pms_project SET status='execution' WHERE project_id=?" id])
+      (is (= 409 (error-status #(command! id :template-instances :create nil {:template_id (:id template)})))))))
 
 
 (deftest template-instantiation-builds-project-network-once

@@ -257,6 +257,8 @@
     (transition! id "closed")
     (let [request (:result (command! reopen/request! id []
                             {:reviewer_id 9402 :scope "纠正交付归档" :reason "客户提出资料更正"}))]
+      (is (= 409 (error-status #(command! reopen/request! id []
+                                {:reviewer_id 9402 :scope "重复申请" :reason "已有待审批申请"}))))
       (is (= 403 (error-status #(command! reopen/review! id [(:id request)] {:decision "approved" :reason "自审"}))))
       (command! 9402 reopen/review! id [(:id request)] {:decision "approved" :reason "同意受控更正"})
       (is (= "closing" (:status (pms/project *svc* (actor 9401) id))))
