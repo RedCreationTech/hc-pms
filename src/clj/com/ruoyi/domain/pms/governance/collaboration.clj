@@ -583,23 +583,36 @@
           meetings)))
 
 
+(defn- attendee-ids!
+  "参会人员必须是 1 到 100 人的 id 数组, 返回原数组."
+  [body]
+  (let [ids (:attendee_ids body)]
+    (when-not (and (vector? ids) (<= 1 (count ids) 100))
+      (r/fail! 400 "参会人员必须为1到100人的数组"))
+    ids))
+
+
+(defn- kickoff-gates!
+  "启动会强制关联 (B05): 必须携带会前包 (售前/需求资料版本) 并引用主计划基线; 非启动会不约束."
+  [type materials baseline]
+  (when (= "kickoff" type)
+    (when (empty? materials) (r/fail! 409 "启动会必须绑定售前/需求资料作为会前包"))
+    (when-not baseline (r/fail! 409 "启动会必须引用主计划基线"))))
+
+
 (defn create-meeting!
   "持久化项目会议纪要,有效参会人员,可选会前资料(真实文档版本), 会议类型与主计划基线引用."
   [svc actor id body]
   (k/mutate! svc actor id "pms:project:edit" body "meeting.recorded"
              (fn [q project]
                (s/input! body [:title :held_on :minutes :attendee_ids :material_ids :meeting_type :baseline_id])
-               (when-not (and (vector? (:attendee_ids body)) (<= 1 (count (:attendee_ids body)) 100))
-                 (r/fail! 400 "参会人员必须为1到100人的数组"))
+               (attendee-ids! body)
                (let [type (s/enum! (or (:meeting_type body) "regular") meeting-types "meeting_type")
                      materials (s/evidence! q project (or (:material_ids body) []) false)
                      baseline (when (seq (:baseline_id body))
                                 (or (q :planning/baseline {:project_id (:project_id project) :baseline_id (:baseline_id body)})
                                     (r/fail! 404 "计划基线不存在或不属于本项目")))]
-                 ;; B05: 启动会必须携带会前包 (售前/需求资料版本) 并引用主计划基线, 形成强制关联.
-                 (when (= "kickoff" type)
-                   (when (empty? materials) (r/fail! 409 "启动会必须绑定售前/需求资料作为会前包"))
-                   (when-not baseline (r/fail! 409 "启动会必须引用主计划基线")))
+                 (kickoff-gates! type materials baseline)
                  (s/insert! q project actor "meeting"
                             (cond-> {:title (s/text! body :title 200) :held_on (s/date! body :held_on)
                                      :minutes (s/text! body :minutes 20000) :meeting_type type

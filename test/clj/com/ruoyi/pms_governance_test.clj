@@ -949,6 +949,35 @@
     (is (nil? (:risk_issue_title plain-risk)))))
 
 
+(defn- attendee-of
+  "调用参会人数组门: 通过返回 id 数组, 失败返回 [status message]."
+  [body]
+  (try (#'collab/attendee-ids! body)
+       (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
+
+
+(defn- kickoff-of
+  "调用 kickoff 强制关联门: 通过返回 nil, 失败返回 [status message]."
+  [type materials baseline]
+  (try (#'collab/kickoff-gates! type materials baseline)
+       (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
+
+
+;; create-meeting! 输入侧两门 (重构前的行为钉): 参会人数组与启动会强制关联, 纯函数.
+(deftest meeting-input-gates-attendees-and-kickoff-association
+  (testing "参会人员必须是 1 到 100 人的 id 数组"
+    (is (= [9641 9642] (attendee-of {:attendee_ids [9641 9642]})))
+    (is (= [400 "参会人员必须为1到100人的数组"] (attendee-of {:attendee_ids []})))
+    (is (= [400 "参会人员必须为1到100人的数组"] (attendee-of {:attendee_ids "9641"})))
+    (is (= [400 "参会人员必须为1到100人的数组"] (attendee-of {:attendee_ids (vec (range 1 102))}))))
+  (testing "启动会必须同时携带会前包与主计划基线"
+    (is (= [409 "启动会必须绑定售前/需求资料作为会前包"] (kickoff-of "kickoff" [] nil)))
+    (is (= [409 "启动会必须引用主计划基线"] (kickoff-of "kickoff" [{:id "d1"}] nil)))
+    (is (nil? (kickoff-of "kickoff" [{:id "d1"}] {:baseline_id "B1"}))))
+  (testing "非启动会不受强制关联门约束"
+    (is (nil? (kickoff-of "regular" [] nil)))))
+
+
 (deftest meeting-action-creates-one-real-task
   (let [id (project!) meeting (command! id :meetings :create nil
                                         {:title "设计评审" :held_on "2026-09-22" :minutes "补齐验证任务" :attendee_ids [9301 9302]})
