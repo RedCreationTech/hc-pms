@@ -1353,6 +1353,31 @@
       (is (true? (ready-of {:records docs} (gate [{:code "C9" :required false :passed false}])))))))
 
 
+;; batch50 (mutator 方向: cover the uncovered): gates 四分支 — 模板重号409, 检查项数量400, 编码不一致400, 无豁免申请409.
+(deftest gate-template-duplicate-check-count-code-and-waiver-gates
+  (let [id (project!)
+        document (document! id "GATE-GUARD")
+        template (command! id :gate-templates :create nil
+                           {:code "G-GUARD" :title "守卫关口" :stage "execution" :required true
+                            :checks [{:code "C-1" :title "唯一检查" :required true}]})]
+    (testing "关口模板编号已存在409"
+      (is (= 409 (error-status #(command! id :gate-templates :create nil
+                                          {:code "G-GUARD" :title "重复" :stage "execution" :required true
+                                           :checks [{:code "C-1" :title "c" :required true}]})))))
+    (let [gate (command! id :gates :create nil {:template_id (:id template) :title "阶段评审" :reviewer_id 9302})]
+      (testing "检查项数量与模板不符400, 编码与模板不一致400"
+        (is (= 400 (error-status #(command! id :gates :checks (:id gate) {:checks []}))))
+        (is (= 400 (error-status #(command! id :gates :checks (:id gate)
+                                            {:checks [{:code "C-9" :passed true :evidence_ids []}]})))))
+    (testing "提交时未附豁免申请, 决定 waived 被拒409"
+      (let [gate (command! id :gates :create nil {:template_id (:id template) :title "豁免关口" :reviewer_id 9302})]
+        (command! id :gates :checks (:id gate)
+                  {:checks [{:code "C-1" :passed true :evidence_ids [(:id document)]}]})
+        (command! id :gates :submit (:id gate) {})
+        (is (= 409 (error-status #(command! 9302 id :gates :decision (:id gate)
+                                            {:decision "waived" :reason "无申请却要豁免"})))))))))
+
+
 (deftest gate-uses-pinned-evidence-and-formal-waiver
   (let [id (project!) document (document! id "GATE-DOC") gate (gate! id "execution")
         charter (command! id :charters :create nil (charter-body))]
