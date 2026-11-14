@@ -2,7 +2,7 @@
   "验证真实数据库中的精确成本,工时审批和完整生命周期闭环."
   (:require [cheshire.core :as json]
             [clojure.java.io :as io]
-            [clojure.test :refer [deftest is use-fixtures]]
+            [clojure.test :refer [deftest is testing use-fixtures]]
             [com.ruoyi.domain.pms.config :as config]
             [com.ruoyi.domain.pms.kernel :as kernel]
             [com.ruoyi.domain.pms.service :as pms]
@@ -228,6 +228,33 @@
     (command! 9402 closure/review! id [] {:decision "approved" :reason "独立批准关闭"})
     (is (= "closed" (:status (transition! id "closed"))))
     (is (= 409 (error-status #(command! cost/create! id [] {:kind "actual"}))))))
+
+;; batch52 (mutator 方向: cover the uncovered): closure 守卫 — 必需标记400, 移交接收人403, 重复审批409, 审批时阻塞项409.
+(deftest closure-item-and-review-guards
+  (testing "收尾事项的必需标记必须是布尔值400"
+    (let [id (project!)]
+      (is (= 400 (error-status #(command! closure/create-item! id ["check"]
+                                           {:title "标记校验" :required "yes"}))))))
+  (testing "非指定接收人不能确认遗留移交403, 接收人本人可以"
+    (let [id (project!)
+          document (document! id)
+          item (:result (command! closure/create-item! id ["handoff"]
+                                  {:title "资料移交" :owner_id 9403 :due_date "2026-10-01"}))]
+      (is (= 403 (error-status #(command! closure/complete-item! id ["handoff" (:id item)]
+                                           {:evidence_ref (:id document) :comment "我来确认"}))))
+      (is (= "completed" (:status (:result (command! 9403 closure/complete-item! id ["handoff" (:id item)]
+                                                     {:evidence_ref (:id document) :comment "接收确认"})))))))
+  (testing "关闭申请已审批后不能再次审批409"
+    (let [{:keys [id]} (closure-ready-project!)]
+      (command! closure/submit! id [] {:reviewer_id 9402})
+      (command! 9402 closure/review! id [] {:decision "approved" :reason "通过"})
+      (is (= 409 (error-status #(command! 9402 closure/review! id [] {:decision "approved" :reason "重复审批"}))))))
+  (testing "审批通过前若新增了未完成必需项则被收尾缺口阻塞409"
+    (let [{:keys [id]} (closure-ready-project!)]
+      (command! closure/submit! id [] {:reviewer_id 9402})
+      (command! closure/create-item! id ["check"] {:title "审批中新增必需项" :required true})
+      (is (= 409 (error-status #(command! 9402 closure/review! id [] {:decision "approved" :reason "尚有缺口"})))))))
+
 
 (deftest approved-closure-snapshot-cannot-be-reused-after-change
   (let [{:keys [id]} (closure-ready-project!)]
