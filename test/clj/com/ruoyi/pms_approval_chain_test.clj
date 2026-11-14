@@ -111,6 +111,49 @@
   (:status ((:query-fn *svc*) :finance/version {:project_id id :version_id cid})))
 
 
+(defn- level-err
+  "调用审批级别校验: 通过返回级别行, 失败返回 [status message]."
+  [amount? level]
+  (try (#'config/approval-level! amount? level)
+       (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
+
+
+;; approval-level! 重构前的行为钉: 三类规则分支, 金额条件与对象/枚举/必填门, 纯函数不依赖数据库.
+(deftest approval-level-validates-rule-specific-fields
+  (testing "role 规则: 默认 mode/on_empty, 成员限定按 true 判定"
+    (is (= {:name "一级" :rule "role" :mode "any" :on_empty "reject" :min_amount nil
+            :role_key "leader" :members_only false}
+           (level-err true {:name "一级" :rule "role" :role_key "leader"})))
+    (is (= {:name "会签" :rule "role" :mode "all" :on_empty "skip" :min_amount nil
+            :role_key "fin" :members_only true}
+           (level-err true {:name "会签" :rule "role" :role_key "fin" :mode "all"
+                            :on_empty "skip" :members_only true}))))
+  (testing "dept_leader 规则: 上溯级数缺省 0, 越界或非整数 400"
+    (is (= 0 (:up (level-err true {:name "部门" :rule "dept_leader"}))))
+    (is (= 3 (:up (level-err true {:name "部门" :rule "dept_leader" :up 3}))))
+    (is (= [400 "上溯级数必须为0到5"] (level-err true {:name "部门" :rule "dept_leader" :up 9})))
+    (is (= [400 "上溯级数必须为0到5"] (level-err true {:name "部门" :rule "dept_leader" :up 1.5}))))
+  (testing "user 规则: 指定用户 1..20, 正整数并去重"
+    (is (= [9511 9512] (:user_ids (level-err true {:name "用户" :rule "user" :user_ids [9511 "9511" 9512]}))))
+    (is (= [400 "指定用户需要1到20人"] (level-err true {:name "用户" :rule "user" :user_ids []})))
+    (is (= [400 "指定用户需要1到20人"] (level-err true {:name "用户" :rule "user" :user_ids "9511"})))
+    (is (= [400 "指定用户需要1到20人"] (level-err true {:name "用户" :rule "user" :user_ids (vec (range 1 22))})))
+    (is (= 400 (first (level-err true {:name "用户" :rule "user" :user_ids [0]})))))
+  (testing "无专属字段的规则只返回 base"
+    (is (= {:name "经理" :rule "project_manager" :mode "any" :on_empty "reject" :min_amount nil}
+           (level-err true {:name "经理" :rule "project_manager"})))
+    (is (= {:name "提交" :rule "submitter_choice" :mode "any" :on_empty "reject" :min_amount nil}
+           (level-err true {:name "提交" :rule "submitter_choice"}))))
+  (testing "对象, 枚举, 必填文本与金额条件门"
+    (is (= [400 "审批级别必须是对象"] (level-err true "x")))
+    (is (= 400 (first (level-err true {:name "x" :rule "bogus"}))))
+    (is (= [400 "级别名称不能为空或超出长度限制"] (level-err true {:name "" :rule "role" :role_key "r"})))
+    (is (= [400 "该审批类型没有金额, 不能设置金额条件"]
+           (level-err false {:name "金额" :rule "project_manager" :min_amount "10.00"})))
+    (is (= [400 "金额条件不能为负数"] (level-err true {:name "金额" :rule "project_manager" :min_amount "-1"})))
+    (is (= "10.50" (:min_amount (level-err true {:name "金额" :rule "project_manager" :min_amount "10.5"}))))))
+
+
 (deftest policy-content-is-validated-and-versioned
   (let [admin (actor 9510)
         create #(config/create! *svc* admin "approval-policy" %)]

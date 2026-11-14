@@ -277,6 +277,21 @@
   "审批人规则: 指定角色, 项目所属部门负责人 (可上溯), 项目经理, 指定用户, 提交人选择."
   #{"role" "dept_leader" "project_manager" "user" "submitter_choice"})
 
+(defn- level-rule-fields
+  "按审批人规则补齐规则专属字段并返回级别行: role 的角色与成员限定, dept_leader 的上溯级数, user 的指定用户."
+  [rule level base]
+  (case rule
+    "role" (assoc base :role_key (r/text! (:role_key level) "角色" 100 true)
+                  :members_only (true? (:members_only level)))
+    "dept_leader" (let [up (or (:up level) 0)]
+                    (when-not (and (integer? up) (<= 0 up 5)) (r/fail! 400 "上溯级数必须为0到5"))
+                    (assoc base :up up))
+    "user" (let [ids (:user_ids level)]
+             (when-not (and (vector? ids) (<= 1 (count ids) 20)) (r/fail! 400 "指定用户需要1到20人"))
+             (assoc base :user_ids (vec (distinct (map #(r/positive-id! % "审批用户") ids)))))
+    base))
+
+
 (defn- approval-level!
   [amount? level]
   (when-not (map? level) (r/fail! 400 "审批级别必须是对象"))
@@ -290,16 +305,7 @@
                        (money/money minor)))
         base {:name (r/text! (:name level) "级别名称" 50 true) :rule rule :mode mode :on_empty on-empty
               :min_amount min-amount}]
-    (case rule
-      "role" (assoc base :role_key (r/text! (:role_key level) "角色" 100 true)
-                    :members_only (true? (:members_only level)))
-      "dept_leader" (let [up (or (:up level) 0)]
-                      (when-not (and (integer? up) (<= 0 up 5)) (r/fail! 400 "上溯级数必须为0到5"))
-                      (assoc base :up up))
-      "user" (let [ids (:user_ids level)]
-               (when-not (and (vector? ids) (<= 1 (count ids) 20)) (r/fail! 400 "指定用户需要1到20人"))
-               (assoc base :user_ids (vec (distinct (map #(r/positive-id! % "审批用户") ids)))))
-      base)))
+    (level-rule-fields rule level base)))
 
 (defn- approval-policy!
   "审批策略: 编码为业务类型, 1 到 6 级, 每级一个审批人规则."
