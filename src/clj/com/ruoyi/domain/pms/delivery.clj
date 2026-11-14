@@ -24,6 +24,50 @@
     (str "装配 " (:code assembly) " 缺少已批准 " type " 试验")))
 
 
+(defn- material-blockers
+  "未配置 BOM 齐套阶段, 或没有已冻结并就绪的 BOM."
+  [stages boms]
+  (when (and (stages "materials") (not-any? #(= "ready" (:status %)) boms))
+    ["缺少已冻结并实际齐套的BOM"]))
+
+
+(defn- assembly-blockers
+  "装配/质量阶段缺记录, 与未独立交检通过的装配 (逐条提示不受 stage 门控)."
+  [stages assemblies]
+  (concat
+    (when (and (or (stages "assembly") (stages "quality")) (empty? assemblies))
+      ["缺少实际装配交检记录"])
+    (for [assembly assemblies :when (not= "approved" (:status assembly))]
+      (str "装配尚未独立交检通过: " (:code assembly)))))
+
+
+(defn- shipment-blockers
+  "发运阶段缺记录, 未完整签收的发运单, 与未随单交付的装配 (逐条签收提示不受 stage 门控)."
+  [stages assemblies shipments received]
+  (concat
+    (when (and (stages "shipment") (empty? shipments)) ["缺少真实发运及签收记录"])
+    (for [shipment shipments :when (not= "received" (:status shipment))]
+      (str "发运单尚未完整签收: " (:code shipment)))
+    (when (stages "shipment")
+      (for [assembly assemblies :when (not-any? #(some #{(:id assembly)} (:assembly_ids %)) received)]
+        (str "装配范围尚未完整交付: " (:code assembly))))))
+
+
+(defn- service-blockers
+  "尚未独立关闭的售后异常."
+  [services]
+  (for [service services :when (not= "closed" (:status service))]
+    (str "售后异常尚未独立关闭: " (:title service))))
+
+
+(defn- handover-blockers
+  "配置要求交底时仍未完成的交底记录 (仅在要求时才读取)."
+  [q project config]
+  (when (:handover_required config)
+    (for [handover (d/records q project "handover") :when (= "open" (:status handover))]
+      (str "交底尚未完成: " (:code handover)))))
+
+
 (defn closure-blockers
   "返回完整交付链仍未完成的必要事实,不把未接入外部系统算作已同步."
   [q project]
@@ -32,23 +76,13 @@
         shipments (d/records q project "shipment") services (d/records q project "service")
         received (filter #(= "received" (:status %)) shipments)]
     (vec (concat
-           (when (and (stages "materials") (not-any? #(= "ready" (:status %)) boms)) ["缺少已冻结并实际齐套的BOM"])
-           (when (and (or (stages "assembly") (stages "quality")) (empty? assemblies)) ["缺少实际装配交检记录"])
-           (for [assembly assemblies :when (not= "approved" (:status assembly))]
-             (str "装配尚未独立交检通过: " (:code assembly)))
+           (material-blockers stages boms)
+           (assembly-blockers stages assemblies)
            (when (stages "quality") (quality-blockers q project config assemblies))
-           (when (and (stages "shipment") (empty? shipments)) ["缺少真实发运及签收记录"])
-           (for [shipment shipments :when (not= "received" (:status shipment))]
-             (str "发运单尚未完整签收: " (:code shipment)))
-           (when (stages "shipment")
-             (for [assembly assemblies :when (not-any? #(some #{(:id assembly)} (:assembly_ids %)) received)]
-               (str "装配范围尚未完整交付: " (:code assembly))))
-           (for [service services :when (not= "closed" (:status service))]
-             (str "售后异常尚未独立关闭: " (:title service)))
+           (shipment-blockers stages assemblies shipments received)
+           (service-blockers services)
            (fieldwork/survey-blockers q project config)
-           (when (:handover_required config)
-             (for [handover (d/records q project "handover") :when (= "open" (:status handover))]
-               (str "交底尚未完成: " (:code handover))))))))
+           (handover-blockers q project config)))))
 
 
 (defn closure-ready!

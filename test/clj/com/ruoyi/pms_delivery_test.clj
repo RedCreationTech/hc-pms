@@ -1,7 +1,7 @@
 (ns com.ruoyi.pms-delivery-test
   "真实数据库上的治理审批,证据,整批导入和跨模块闭环测试."
   (:require [cheshire.core :as json]
-            [clojure.test :refer [deftest is use-fixtures]]
+            [clojure.test :refer [deftest is testing use-fixtures]]
             [com.ruoyi.domain.pms.governance :as gov]
             [com.ruoyi.domain.pms.delivery :as delivery]
             [com.ruoyi.domain.pms.delivery.materials :as materials]
@@ -269,6 +269,63 @@
   [ctx shipment]
   (command! 9502 (:id ctx) :shipments :receipt (:id shipment)
             {:received_on (.toString (.minusDays (java.time.LocalDate/now) 1)) :receiver_name "现场签收人" :acceptance "accepted" :evidence_ids [(:evidence ctx)]}))
+
+
+(defn- fake-delivery-q
+  "按 :delivery/list 请求的 kind 返回罐头行, 供 closure-blockers 纯表征测试 (不查库)."
+  [rows-by-kind]
+  (fn [name params]
+    (when (= :delivery/list name) (get rows-by-kind (:kind params) []))))
+
+
+(defn- blockers
+  "在给定交付记录罐头数据下求收尾阻塞清单."
+  [rows-by-kind]
+  (delivery/closure-blockers (fake-delivery-q rows-by-kind) {:project_id 1}))
+
+
+;; closure-blockers 重构前的行为钉: 全部阻塞规则的触发,顺序与 stage 门控, 纯桩不依赖数据库.
+(deftest closure-blockers-covers-every-delivery-clause
+  (testing "完整阶段配置下逐条触发: BOM/交检/试验/签收/交付范围/售后/工勘/交底"
+    (is (= ["缺少已冻结并实际齐套的BOM"
+            "装配尚未独立交检通过: A1"
+            "装配 A1 缺少已批准 SIT 试验"
+            "发运单尚未完整签收: S1"
+            "装配范围尚未完整交付: A1"
+            "售后异常尚未独立关闭: 售后X"
+            "已确认工勘 0 次, 少于配置要求 1 次"
+            "交底尚未完成: H1"]
+           (blockers {"configuration" [{:record_id 1 :payload "{}"
+                                        :required_stages ["materials" "assembly" "quality" "shipment"]
+                                        :required_test_types ["SIT"] :handover_required true
+                                        :required_survey_visits 1}]
+                      "bom" []
+                      "assembly" [{:record_id 21 :payload "{}" :code "A1" :status "draft"}]
+                      "shipment" [{:record_id 31 :payload "{}" :code "S1" :status "shipped"}]
+                      "service" [{:record_id 41 :payload "{}" :title "售后X" :status "open"}]
+                      "survey" []
+                      "handover" [{:record_id 51 :payload "{}" :code "H1" :status "open"}]}))))
+  (testing "空装配与空发运: 容器级缺失提示先于逐条提示"
+    (is (= ["缺少已冻结并实际齐套的BOM"
+            "缺少实际装配交检记录"
+            "缺少真实发运及签收记录"]
+           (blockers {"configuration" [{:record_id 1 :payload "{}"
+                                        :required_stages ["materials" "assembly" "quality" "shipment"]
+                                        :required_test_types [] :handover_required false
+                                        :required_survey_visits 0}]
+                      "bom" [] "assembly" [] "shipment" [] "service" [] "survey" [] "handover" []}))))
+  (testing "未配置的阶段不产生对应阻塞, 逐条装配/发运/售后提示不受 stage 门控"
+    (is (= ["装配尚未独立交检通过: A1"
+            "发运单尚未完整签收: S1"
+            "售后异常尚未独立关闭: 售后X"]
+           (blockers {"configuration" [{:record_id 1 :payload "{}" :required_stages []
+                                        :required_test_types [] :handover_required false
+                                        :required_survey_visits 0}]
+                      "bom" []
+                      "assembly" [{:record_id 21 :payload "{}" :code "A1" :status "draft"}]
+                      "shipment" [{:record_id 31 :payload "{}" :code "S1" :status "shipped"}]
+                      "service" [{:record_id 41 :payload "{}" :title "售后X" :status "open"}]
+                      "survey" [] "handover" []})))))
 
 
 (deftest material-freeze-and-kitting-enforce-real-prerequisites
