@@ -43,6 +43,21 @@
       (gov/insert! q project actor "progress-snapshot" payload {:status "recorded"}))))
 
 
+(defn- overdue-tasks
+  "排程完成日已过且未完成的叶子任务 (汇总任务与已完成任务不计)."
+  [rows tasks date]
+  (for [t tasks :let [end (:end_date (rows (:task_id t)))] :when (and end (neg? (compare end date)))]
+    {:target_kind "task" :target_id (:task_id t) :title (str (:wbs_code t) " " (:name t))
+     :owner_id (:owner_id t) :due_date end :tab "计划与执行"}))
+
+
+(defn- overdue-reminders
+  "从对象中取仍开放且已过期的到期日并投影为提醒条目; due-of 返回 nil 表示不开放或无到期日, 到期日等于扫描日不算逾期."
+  [kind source due-of title-fn tab date]
+  (for [r source :let [due (due-of r)] :when (and due (neg? (compare due date)))]
+    {:target_kind kind :target_id (:id r) :title (title-fn r) :owner_id (:owner_id r) :due_date due :tab tab}))
+
+
 (defn- overdue-targets
   "扫描逾期对象: 叶子任务 (排程完成日已过且未完成), 问题/行动 (到期日已过且未关闭), 交底 (截止已过且未完成), 现场任务 (计划开始已过且未开始)."
   [q project date]
@@ -51,16 +66,15 @@
         tasks (filter #(and (not= "summary" (:task_type %)) (not= "done" (:status %))) (store/rows q project :planning/tasks))
         open-gov (fn [kind] (filter #(not (contains? #{"closed" "converted" "discarded" "resolved"} (:status %))) (gov/records q project kind)))]
     (concat
-      (for [t tasks :let [end (:end_date (rows (:task_id t)))] :when (and end (neg? (compare end date)))]
-        {:target_kind "task" :target_id (:task_id t) :title (str (:wbs_code t) " " (:name t)) :owner_id (:owner_id t) :due_date end :tab "计划与执行"})
-      (for [r (open-gov "issue") :when (and (:due_date r) (neg? (compare (:due_date r) date)))]
-        {:target_kind "issue" :target_id (:id r) :title (:title r) :owner_id (:owner_id r) :due_date (:due_date r) :tab "需求与治理"})
-      (for [r (open-gov "action") :when (and (:due_date r) (neg? (compare (:due_date r) date)))]
-        {:target_kind "action" :target_id (:id r) :title (:title r) :owner_id (:owner_id r) :due_date (:due_date r) :tab "需求与治理"})
-      (for [r (d/records q project "handover") :when (and (= "open" (:status r)) (:deadline r) (neg? (compare (:deadline r) date)))]
-        {:target_kind "handover" :target_id (:id r) :title (str "交底 " (:code r)) :owner_id (:owner_id r) :due_date (:deadline r) :tab "工程交付"})
-      (for [r (d/records q project "site-task") :when (and (= "draft" (:status r)) (:planned_start r) (neg? (compare (:planned_start r) date)))]
-        {:target_kind "site-task" :target_id (:id r) :title (str "现场任务 " (:title r)) :owner_id (:owner_id r) :due_date (:planned_start r) :tab "工程交付"}))))
+      (overdue-tasks rows tasks date)
+      (overdue-reminders "issue" (open-gov "issue") :due_date :title "需求与治理" date)
+      (overdue-reminders "action" (open-gov "action") :due_date :title "需求与治理" date)
+      (overdue-reminders "handover" (d/records q project "handover")
+                         (fn [r] (when (= "open" (:status r)) (:deadline r)))
+                         #(str "交底 " (:code %)) "工程交付" date)
+      (overdue-reminders "site-task" (d/records q project "site-task")
+                         (fn [r] (when (= "draft" (:status r)) (:planned_start r)))
+                         #(str "现场任务 " (:title %)) "工程交付" date))))
 
 
 (defn reminders!

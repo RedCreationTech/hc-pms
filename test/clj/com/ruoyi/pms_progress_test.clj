@@ -431,6 +431,29 @@
         (is (= 100 (:action_closure_pct closed-summary)))))))
 
 
+;; overdue-reminders 重构前的行为钉: 投影字段, 到期日字符串比较与开放状态守卫, 纯函数不依赖数据库.
+(deftest overdue-reminders-projects-open-overdue-objects
+  (let [rows [{:id 1 :owner_id 9903 :title "逾期行动" :due_date "2026-01-01" :status "open"}
+              {:id 2 :owner_id 9903 :title "未到期行动" :due_date "2026-12-01" :status "open"}
+              {:id 3 :owner_id 9903 :title "无到期日" :status "open"}]
+        overdue (fn [due-of] (vec (#'scan/overdue-reminders "action" rows due-of :title "需求与治理" "2026-09-24")))]
+    (testing "缺到期日与未过期的不计, 逾期的投影为提醒条目 (开放状态由调用方 open-gov 预先过滤)"
+      (is (= [{:target_kind "action" :target_id 1 :title "逾期行动" :owner_id 9903
+               :due_date "2026-01-01" :tab "需求与治理"}]
+             (overdue :due_date))))
+    (testing "开放状态守卫并入 due-of: 交底只取 open, 现场任务只取 draft"
+      (is (= [11]
+             (mapv :target_id
+                   (#'scan/overdue-reminders "handover"
+                                             [{:id 11 :code "H1" :owner_id 9 :deadline "2026-01-01" :status "open"}
+                                              {:id 12 :code "H2" :owner_id 9 :deadline "2026-01-01" :status "closed"}]
+                                             (fn [r] (when (= "open" (:status r)) (:deadline r)))
+                                             #(str "交底 " (:code %)) "工程交付" "2026-09-24")))))
+    (testing "到期日等于扫描日不算逾期 (字符串比较取负才计)"
+      (is (= [] (vec (#'scan/overdue-reminders "action" [(assoc (first rows) :due_date "2026-09-24")]
+                                               :due_date :title "需求与治理" "2026-09-24")))))))
+
+
 (deftest scan-writes-daily-snapshot-and-idempotent-reminders
   (let [id (project!)
         _ (derive! id)
