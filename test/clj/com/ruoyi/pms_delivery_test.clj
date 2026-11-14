@@ -385,6 +385,49 @@
     (is (= "not_configured" (:external_sync_status (delivery/workspace *service* (actor 9501) id))))))
 
 
+;; batch54 (mutator 方向: cover the uncovered): production 五门 — 准则两门400, 结果完整性400, SAT 发运门409, 前序版本变化409.
+(deftest test-creation-results-and-prerequisite-gates
+  (let [ctx (context!) id (:id ctx) assembly (approved-assembly! ctx)]
+    (testing "试验准则三门400: 空数组, 无必检项, 编码重复"
+      (is (= 400 (error-status #(command! id :tests :create nil
+                                          (merge (refs ctx) {:code "CR-1" :title "准则空" :assembly_id (:id assembly)
+                                                            :test_type "SIT" :owner_id 9501 :criteria []})))))
+      (is (= 400 (error-status #(command! id :tests :create nil
+                                          (merge (refs ctx) {:code "CR-2" :title "无必检" :assembly_id (:id assembly)
+                                                            :test_type "SIT" :owner_id 9501
+                                                            :criteria [{:code "A" :title "a" :required false}]})))))
+      (is (= 400 (error-status #(command! id :tests :create nil
+                                          (merge (refs ctx) {:code "CR-3" :title "编码重复" :assembly_id (:id assembly)
+                                                            :test_type "SIT" :owner_id 9501
+                                                            :criteria [{:code "A" :title "a" :required true}
+                                                                       {:code "A" :title "b" :required false}]}))))))
+    (testing "登记结果必须与准则码集一致400"
+      (let [test (command! id :tests :create nil
+                           (merge (refs ctx) {:code "CR-R" :title "结果完整性" :assembly_id (:id assembly)
+                                              :test_type "SIT" :owner_id 9501
+                                              :criteria [{:code "Q-1" :title "动作满足URS" :required true}]}))]
+        (is (= 400 (error-status #(command! id :tests :results (:id test)
+                                            {:checks [] :due_date "2026-10-03"}))))))
+    (testing "SAT现场试验须有已接收的实际发运记录409 (SIT/FAT 已批准但尚无发运)"
+      (approved-test! ctx assembly "SIT")
+      (approved-test! ctx assembly "FAT")
+      (let [sat (test-record! ctx assembly "SAT")]
+        (is (= 409 (error-status #(results! ctx sat true))))))
+    (testing "前序试验版本已变化时签核被拒409 (记录结果后新建并批准了更新的 SIT)"
+      (let [fat (command! id :tests :create nil
+                          (merge (refs ctx) {:code "FAT-2" :title "FAT复验" :assembly_id (:id assembly)
+                                             :test_type "FAT" :owner_id 9501
+                                             :criteria [{:code "Q-1" :title "动作满足URS" :required true}]}))]
+        (results! ctx fat true)
+        (let [sit2 (command! id :tests :create nil
+                             (merge (refs ctx) {:code "SIT-2" :title "SIT更新版" :assembly_id (:id assembly)
+                                                :test_type "SIT" :owner_id 9501
+                                                :criteria [{:code "Q-1" :title "动作满足URS" :required true}]}))]
+          (results! ctx sit2 true)
+          (review! ctx :tests (:id sit2) :submit))
+        (is (= 409 (error-status #(review! ctx :tests (:id fat) :submit))))))))
+
+
 (deftest full-delivery-requires-sat-and-independent-receipt
   (let [ctx (context!) id (:id ctx) assembly (approved-assembly! ctx)]
     (approved-test! ctx assembly "SIT")
