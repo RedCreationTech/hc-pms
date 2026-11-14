@@ -7068,3 +7068,39 @@
       (is (= [404 "结构节点不存在或不属于本项目"]
              (error-info #(command! id :node-pauses :create nil
                                     {:node_id "NO-SUCH-NODE" :reason "测试"})))))))
+
+
+;; batch61 (mutator 方向: cover the uncovered): 会议纪要空提交409 (L635) 与
+;; 行动断链任务409 (L684). 两态 API 流程无法自然产生 (创建侧 minutes 必填,
+;; delete-task! 按设计拒绝 meeting_action 任务), 由测试直接改写记录 payload 制造.
+(defn- force-record-payload!
+  "直接改写治理记录 payload 制造损坏态."
+  [id record-id f]
+  (let [raw ((:query-fn *service*) :gov/record {:project_id id :record_id record-id})
+        payload (json/parse-string (if (string? (:payload raw)) (:payload raw)
+                                       (json/generate-string (:payload raw))) true)]
+    (jdbc/execute! (:db *service*)
+                   ["UPDATE pms_gov_record SET payload=? WHERE project_id=? AND record_id=?"
+                    (json/generate-string (f payload)) id record-id])))
+
+
+(deftest meeting-empty-minutes-and-broken-action-task-guards
+  (let [id (project!)]
+    (testing "纪要内容为空不能提交发布409"
+      (let [meeting (command! id :meetings :create nil
+                              {:title "空纪要评审" :held_on "2026-09-22" :minutes "占位纪要"
+                               :attendee_ids [9301 9302]})]
+        (force-record-payload! id (:id meeting) #(assoc % :minutes ""))
+        (is (= [409 "纪要内容为空,不能提交发布"]
+               (error-info #(command! id :meetings :submit (:id meeting) {:reviewer_id 9302}))))))
+    (testing "行动已关联任务消失后重新落任务409"
+      (let [meeting (command! id :meetings :create nil
+                              {:title "断链评审" :held_on "2026-09-23" :minutes "纪要"
+                               :attendee_ids [9301 9302]})
+            action (command! id :meetings :actions (:id meeting)
+                             {:title "断链行动" :owner_id 9301 :due_date "2026-09-25"})
+            task (command! id :actions :task (:id action) {})]
+        (is (some? (:target_task_id task)))
+        (force-record-payload! id (:id action) #(assoc % :target_task_id "GONE-TASK"))
+        (is (= [409 "已关联任务不存在,需要修复任务引用"]
+               (error-info #(command! id :actions :task (:id action) {}))))))))

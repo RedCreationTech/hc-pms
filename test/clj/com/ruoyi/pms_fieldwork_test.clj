@@ -64,6 +64,12 @@
   (try (f) nil (catch clojure.lang.ExceptionInfo e (:status (ex-data e)))))
 
 
+(defn- error-info
+  "提取业务错误状态与文案, 成功时返回 nil."
+  [f]
+  (try (f) nil (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
+
+
 (defn- version [id] (:version (pms/project *service* (actor 9641) id)))
 
 
@@ -1017,3 +1023,19 @@
       (is (false? (:available empty)))
       (is (= 0 (:tests-with-remediation empty)))
       (is (= 0 (:closure-pct empty))))))
+
+
+;; batch61 (mutator 方向: cover the uncovered): 工勘关联任务404 (L27) 与
+;; 发货前提货款条件409 (L204). 步骤倒退补录 L128 经前缀不变量分析不可达 (见 commit).
+(deftest survey-unknown-task-and-payment-precondition-guards
+  (let [ctx (context! nil) id (:id ctx)]
+    (testing "工勘关联不存在任务404"
+      (is (= [404 "关联任务不存在或不属于本项目"]
+             (error-info #(command! id :surveys :create nil
+                                    {:code "SV-404" :title "任务门工勘" :visit_no 9 :owner_id 9641
+                                     :planned_date "2026-10-10" :deliverable "现场勘察报告"
+                                     :task_id "NO-SUCH-TASK"})))))
+    (testing "配置要求提货款条件而本地事实未确认时发货前409"
+      (is (= [409 "发货前条件未满足: 提货款条件未确认"]
+             (error-info #(fieldwork/conditions-ready! {:pre_ship_conditions ["payment"]}
+                                                       {:preconditions {}})))))))
