@@ -58,6 +58,28 @@
                                               (.movePointLeft (bigdec gross-minor) 2)) 2)]
       (long (.setScale product 0 java.math.RoundingMode/HALF_UP)))))
 
+(defn- accounting-period!
+  "会计期间: 空值或空白缺省当月, 必须匹配 YYYY-MM 且为真实月份, 返回规范期间."
+  [body]
+  (let [p (some-> (:period body) str/trim)
+        period (if (empty? p) (subs (str (LocalDate/now)) 0 7) p)]
+    (when-not (re-matches #"[0-9]{4}-[0-9]{2}" period) (rules/fail! 400 "会计期间格式必须为YYYY-MM"))
+    (try (YearMonth/parse period) (catch Exception _ (rules/fail! 400 "会计期间无效")))
+    period))
+
+
+(defn- commitment-amounts
+  "承诺金额与本位金额: 金额非负且大于零, 同币种免汇率按原额, 异币种按汇率折算."
+  [body base-currency]
+  (let [gross (money/amount! (:gross body) "承诺金额")]
+    (when (neg? gross) (rules/fail! 400 "承诺金额不能为负"))
+    (when (zero? gross) (rules/fail! 400 "承诺金额必须大于零"))
+    (let [same-currency? (= (:currency body) base-currency)
+          rate (if same-currency? "1" (:exchange_rate body))
+          base (if same-currency? gross (convert-base gross rate))]
+      {:gross gross :rate rate :base base})))
+
+
 (defn- input!
   "校验承诺输入并生成本位金额, 返回可插入结构."
   [q actor project body]
@@ -65,17 +87,10 @@
                         :gross :exchange_rate :description :reviewer_id])
   (when-not (kinds (:kind body)) (rules/fail! 400 "承诺分类只能为合同/采购/人工/其他"))
   (when-not (money/currencies (:currency body)) (rules/fail! 400 "承诺币种不在支持范围"))
-  (let [period (let [p (some-> (:period body) str/trim)]
-                 (if (empty? p) (subs (str (LocalDate/now)) 0 7) p))
-        _ (when-not (re-matches #"[0-9]{4}-[0-9]{2}" period) (rules/fail! 400 "会计期间格式必须为YYYY-MM"))
-        _ (try (YearMonth/parse period) (catch Exception _ (rules/fail! 400 "会计期间无效")))
+  (let [period (accounting-period! body)
         base-currency (or (:base_currency body) "CNY")]
     (when-not (money/currencies base-currency) (rules/fail! 400 "本位币种不在支持范围"))
-    (let [gross (money/amount! (:gross body) "承诺金额")
-          _ (when (neg? gross) (rules/fail! 400 "承诺金额不能为负"))
-          _ (when (zero? gross) (rules/fail! 400 "承诺金额必须大于零"))
-          rate (if (= (:currency body) base-currency) "1" (:exchange_rate body))
-          base (if (= (:currency body) base-currency) gross (convert-base gross rate))
+    (let [{:keys [gross rate base]} (commitment-amounts body base-currency)
           reviewer (kernel/user! q project (:reviewer_id body) "承诺审批人")]
       (when (= reviewer (:user_id actor)) (rules/fail! 400 "审批人不能是提交人"))
       {:commitment_id (kernel/id)

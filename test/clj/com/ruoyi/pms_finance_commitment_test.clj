@@ -117,6 +117,71 @@
         (is (= "100.00" (:released done))))
       (is (= 409 (error-status #(command! commitment/cancel! id [cid] {:reason "释放后不能取消"})))))))
 
+(defn- fake-input-q
+  "input! 纯表征用的桩查询: 用户与成员关系按罐头返回 (不查库)."
+  [{:keys [users members]}]
+  (fn [name params]
+    (case name
+      :pms/user (get users (:user_id params))
+      :pms/member (get members [(:project_id params) (:user_id params)])
+      nil)))
+
+
+(defn- input-of
+  "在给定用户/成员桩下调用承诺输入校验: 通过返回插入行, 失败返回 [status message]."
+  [stub body]
+  (try (#'commitment/input! (fake-input-q stub) {:user_id 9530} {:project_id 1 :manager_id 9530} body)
+       (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
+
+
+(def commitment-stub
+  "审批人 9532 存在且为项目成员的桩."
+  {:users {9532 {:user_id 9532}} :members {[1 9532] {:role "viewer"}}})
+
+
+;; input! 重构前的行为钉: 会计期间缺省与两道门, 本位币, 白名单, 必填文本与审批人三门, 纯函数只读桩.
+(deftest commitment-input-validates-period-currency-and-reviewer
+  (let [valid {:kind "contract" :code "CT-1" :supplier "甲方" :currency "CNY" :gross "500.00" :reviewer_id 9532}]
+    (testing "会计期间缺省当月, 空串同样缺省"
+      (is (= (subs (str (java.time.LocalDate/now)) 0 7) (:period (input-of commitment-stub valid))))
+      (is (= (subs (str (java.time.LocalDate/now)) 0 7)
+             (:period (input-of commitment-stub (assoc valid :period "  "))))))
+    (testing "会计期间两道门: 格式与真实月份"
+      (is (= [400 "会计期间格式必须为YYYY-MM"] (input-of commitment-stub (assoc valid :period "2026/01"))))
+      (is (= [400 "会计期间无效"] (input-of commitment-stub (assoc valid :period "2026-13")))))
+    (testing "本位币种缺省 CNY 且受控"
+      (is (= "CNY" (:base_currency (input-of commitment-stub valid))))
+      (is (= [400 "本位币种不在支持范围"]
+             (input-of commitment-stub (assoc valid :base_currency "JPY")))))
+    (testing "白名单外字段与必填文本"
+      (is (= [400 "请求包含不支持或不可修改的字段"] (input-of commitment-stub (assoc valid :evil 1))))
+      (is (= [400 "承诺编号不能为空或超出长度限制"] (input-of commitment-stub (assoc valid :code ""))))
+      (is (= [400 "相对方不能为空或超出长度限制"] (input-of commitment-stub (dissoc valid :supplier)))))
+    (testing "同币种免汇率按原金额折算, 异币种按汇率折算"
+      (let [row (input-of commitment-stub valid)]
+        (is (= "1" (:exchange_rate row)))
+        (is (= 50000 (:gross_minor row)))
+        (is (= 50000 (:base_minor row))))
+      (let [row (input-of commitment-stub (assoc valid :gross "100.00" :currency "USD" :base_currency "CNY" :exchange_rate "7.1234"))]
+        (is (= "7.1234" (:exchange_rate row)))
+        (is (= 71234 (:base_minor row)))))
+    (testing "审批人必须存在, 属于项目且不是提交人"
+      (is (= [400 "承诺审批人不存在或已停用"] (input-of commitment-stub (assoc valid :reviewer_id 9533))))
+      (is (= [400 "承诺审批人必须是当前项目成员"]
+             (input-of {:users {9534 {:user_id 9534}} :members {}} (assoc valid :reviewer_id 9534))))
+      (is (= [400 "审批人不能是提交人"]
+             (input-of {:users {9530 {:user_id 9530}} :members {[1 9530] {:role "viewer"}}}
+                       (assoc valid :reviewer_id 9530)))))
+    (testing "通过时生成可插入行"
+      (let [row (input-of commitment-stub valid)]
+        (is (= 1 (:project_id row)))
+        (is (= "contract" (:kind row)))
+        (is (= "CT-1" (:code row)))
+        (is (= 9532 (:reviewer_id row)))
+        (is (= 9530 (:submitted_by row)))
+        (is (string? (:commitment_id row)))))))
+
+
 (deftest h12-input-and-currency-validation
   (testing "币种, 金额, 汇率和分类不合法时全部拒绝, USD 承诺按汇率折算成本位."
     (let [id (project!)
