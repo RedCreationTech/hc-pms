@@ -1,11 +1,12 @@
 (ns com.ruoyi.pms-portfolio-test
   "追踪覆盖率与偏差 (C03), 文档多层下钻 (C04), 密级访问 (C05), 逾期追溯升级 (C09), 我的待办 (C07), 全局检索 (G16),
    项目组合看板 (G02), 工时更正与封期 (F04), 跨项目研发费用池 (F05), 四算拉通 (F06), 经营目标 (F09) 的真实数据库测试."
-  (:require [clojure.test :refer [deftest is use-fixtures]]
+  (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [com.ruoyi.domain.pms.config :as config]
             [com.ruoyi.domain.pms.finance :as finance]
             [com.ruoyi.domain.pms.finance-allocation :as allocation]
             [com.ruoyi.domain.pms.finance-cost :as cost]
+            [com.ruoyi.domain.pms.finance-money :as money]
             [com.ruoyi.domain.pms.finance-pool :as pool]
             [com.ruoyi.domain.pms.finance-time :as time]
             [com.ruoyi.domain.pms.governance :as gov]
@@ -215,6 +216,84 @@
       (is (map? (:finance card))))
     ;; 无财务权限用户看不到成本摘要.
     (is (nil? (:finance (first (:projects (portfolio/portfolio *service* (actor 9703)))))))))
+
+
+(defn- todo-shape
+  "把待办条目压成逐字段元组, 用于锁定分组, 字段取值与排序."
+  [items]
+  (mapv (juxt :group :kind :label :id :code :title :status :due_date :days :overdue :due_soon) items))
+
+
+;; portfolio/todo 重构前的行为钉: 纯桩查询覆盖 reviews/escalations/owned/reminders/legacy/approvals
+;; 全部分支 (含链式章程与自提交负例) 与排序汇总, 不依赖数据库.
+(deftest todo-all-groups-characterization
+  (let [today (LocalDate/now)
+        d (fn [n] (str (.plusDays today n)))
+        uid 9702
+        actor {:user_id uid :admin? false
+               :permissions #{"pms:project:list" "pms:project:query" "pms:quality:approve" "pms:plan:approve"}}
+        project {:project_id 1 :project_no "PF-1" :name "桩项目" :status "execution" :manager_id 9701}
+        row (fn [id m] (merge {:record_id id :payload "{}"} m))
+        gov [(row 11 {:project_id 1 :kind "risk" :status "in_review" :reviewer_id 9702 :submitted_by 9701
+                      :code "R-1" :title "风险甲" :due_date (d 2)})
+             (row 12 {:project_id 1 :kind "issue" :status "in_review" :reviewer_id 9701 :submitted_by 9701
+                      :escalated true :escalation_state "pending" :created_by 9701
+                      :code "I-1" :title "升级问题" :due_date (d -1)})
+             (row 13 {:project_id 1 :kind "issue" :status "open" :owner_id 9702
+                      :code "I-2" :title "我负责问题" :review_due_date (d -1)})
+             (row 14 {:project_id 1 :kind "reminder" :status "open" :owner_id 9702
+                      :target_kind "issue" :target_id 13 :raised_on (d -1) :due_date (d 1)
+                      :tab "需求与治理" :text "提醒文本"})
+             (row 555 {:project_id 1 :kind "charter" :status "in_review" :reviewer_id 9702 :submitted_by 9701
+                       :code "C-1" :title "已链式章程" :due_date (d 5)})
+             (row 15 {:project_id 1 :kind "risk" :status "in_review" :reviewer_id 9702 :submitted_by 9702
+                      :code "R-2" :title "自提交风险" :due_date (d 3)})]
+        del [(row 21 {:project_id 1 :kind "shipment" :status "shipped" :reviewer_id 9702 :code "S-1" :title "发运甲"})
+             (row 22 {:project_id 1 :kind "handover" :status "open" :owner_id 9702 :code "H-1" :title "交底甲" :deadline (d 3)})
+             (row 23 {:project_id 1 :kind "site-task" :status "draft" :owner_id 9702 :code "T-1" :title "现场任务" :planned_start (d 5)})]
+        times [{:project_id 1 :entry_id 31 :status "submitted" :reviewer_id 9702
+                :work_date "2026-11-01" :user_name "张三" :minutes 60}]
+        ref {:project_id 1 :project_no "PF-1" :project_name "桩项目"}
+        canned {:pms/authorized-projects [project]
+                :pms/gov-in-projects gov
+                :pms/delivery-in-projects del
+                :pms/times-in-projects times
+                :approval/pending-biz-ids [{:biz_id 555}]
+                :approval/legacy-costs [(assoc ref :version_id 61 :name "费用V1")]
+                :approval/legacy-closures [(assoc ref :approval_id 62)]
+                :approval/legacy-reopens [(assoc ref :request_id 63)]
+                :approval/legacy-baselines [(assoc ref :baseline_id 64 :plan_revision 3)]
+                :approval/my-pending [{:id 41 :biz_id 31 :biz_type "charter" :level_name "一级"}]}
+        svc {:query-fn (fn ([name _] (get canned name [])) ([tx name _] (get canned name [])))}
+        todo (portfolio/todo svc actor)]
+    (testing "reviews: 治理待审 + 签收验证 + 工时审核 + legacy 四类, 链式章程与自提交被排除"
+      (is (= [["reviews" "review" "风险复评" 11 "R-1" "风险甲" "in_review" (d 2) 2 false true]
+              ["reviews" "review" "签收验证" 21 "S-1" "发运甲" "shipped" nil nil false false]
+              ["reviews" "time" "工时审核" 31 "2026-11-01" "张三 1.00h" "submitted" nil nil false false]
+              ["reviews" "cost-version" "费用版本审批" 61 nil "费用V1" "submitted" nil nil nil nil]
+              ["reviews" "closure" "项目关闭审批" 62 nil "关闭申请" "submitted" nil nil nil nil]
+              ["reviews" "reopen" "重开申请审批" 63 nil "重开申请" "submitted" nil nil nil nil]
+              ["reviews" "plan-baseline" "计划基线审批" 64 nil "计划修订 3" "submitted" nil nil nil nil]]
+             (todo-shape (:reviews todo)))))
+    (testing "escalations: 待确认升级且非登记人"
+      (is (= [["escalations" "escalation" "问题升级确认" 12 "I-1" "升级问题" "in_review" (d -1) -1 true false]]
+             (todo-shape (:escalations todo)))))
+    (testing "owned: 我负责的问题/交底/现场任务, 逾期在前再按剩余天数升序"
+      (is (= [["owned" "issue" "我负责的问题" 13 "I-2" "我负责问题" "open" (d -1) -1 true false]
+              ["owned" "handover" "交底截止" 22 "H-1" "交底甲" "open" (d 3) 3 false true]
+              ["owned" "site-task" "现场任务计划开始" 23 "T-1" "现场任务" "draft" (d 5) 5 false false]]
+             (todo-shape (:owned todo)))))
+    (testing "reminders: 责任人系统提醒按剩余天数升序"
+      (is (= [["reminders" "reminder" "系统提醒: 问题逾期" 14 nil "提醒文本" "open" (d 1) 1 false true]]
+             (todo-shape (:reminders todo)))))
+    (testing "approvals: 统一待办按审批策略级别承载"
+      (is (= [["approvals" nil "项目章程 - 一级" 41 nil nil nil nil nil nil nil]]
+             (todo-shape (:approvals todo)))))
+    (testing "汇总与投递标记"
+      (is (= {:approvals 1 :reviews 7 :escalations 1 :owned 3 :reminders 1 :overdue 2 :due_soon 3}
+             (:summary todo)))
+      (is (= "local_only" (:delivery_status todo)))
+      (is (= (str today) (:generated_at todo))))))
 
 
 (deftest timesheet-correction-and-period-lock
