@@ -510,6 +510,32 @@
                                   {:daily_capacity 4})))))))
 
 
+;; batch53 (mutator 方向: cover the uncovered): 计划基线提交/审批守卫 — 未知基线404, 草稿409, 空汇总409, 重复提交409.
+;; 注: approval-ready! 的 偏离快照409 与 execution-ready! 的 基线不一致409 在当前实现下不可达 —
+;; 任何设计变更都经 store/mutation! 递增计划修订, 提交期间又被 editable! 锁定, 故快照内容与修订号恒同步.
+(deftest plan-baseline-submission-guards
+  (testing "未知计划基线404"
+    (let [id (project!)]
+      (is (= 404 (status #(plan/review-plan! *svc* (actor 9202) id "no-such-baseline"
+                                              {:version (version id) :decision "approved" :comment "批准"}))))))
+  (testing "草稿阶段不能提交计划审批409 (状态门先于任务检查)"
+    (let [id (:project_id (pms/create-project! *svc* (actor 1)
+                                               {:project_no (str "PLAN-D-" (kernel/id)) :name "草稿计划"
+                                                :customer "本地测试" :contract_no "PLAN-TEST" :project_type "equipment"
+                                                :manager_id 9201 :dept_id 1 :start_date "2026-09-21"}))]
+      (is (= 409 (status #(command! plan/submit-plan! id [] {:comment "草稿期提交"}))))))
+  (testing "空汇总任务不能提交审批409"
+    (let [id (project!)]
+      (command! plan/create-task! id [] {:wbs_code "BL-1" :name "叶子任务" :duration_days 2 :owner_id 9201})
+      (command! plan/create-task! id [] {:wbs_code "BL-S" :name "空汇总" :task_type "summary" :duration_days 0})
+      (is (= 409 (status #(command! plan/submit-plan! id [] {:comment "含空汇总"}))))))
+  (testing "同一计划修订重复提交409"
+    (let [id (project!)]
+      (command! plan/create-task! id [] {:wbs_code "BL-2" :name "正常任务" :duration_days 2 :owner_id 9201})
+      (command! plan/submit-plan! id [] {:comment "初版提交"})
+      (is (= 409 (status #(command! plan/submit-plan! id [] {:comment "重复提交"})))))))
+
+
 (deftest http-contract-and-error-boundaries
   (let [id (project!) base (str "/api/pms/projects/" id)
         post (fn [suffix body] (request :post (str base suffix) 9201 (assoc body :version (version id))))]
