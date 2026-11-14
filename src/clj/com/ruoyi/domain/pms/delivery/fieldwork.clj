@@ -587,6 +587,19 @@
 
 ;; ── E02/E03 试验不合格整改闭环只读派生 ──────────────────────────
 
+(defn- issue-tally
+  "单个最新问题对所属试验整改计数的增量: 总数 +1, 按状态分未关闭/已关闭桶, 逾期未关闭另计 (与 issue-read-model 到期日口径一致)."
+  [{:keys [total open closed overdue]} issue]
+  (let [closed? (= "closed" (:status issue))
+        overdue? (boolean (and (:due_date issue) (not closed?)
+                               (not (.isAfter (LocalDate/parse (:due_date issue)) (LocalDate/now)))))
+        total (or total 0) open (or open 0) closed (or closed 0) overdue (or overdue 0)]
+    {:total (inc total)
+     :open (if closed? open (inc open))
+     :closed (if closed? (inc closed) closed)
+     :overdue (if overdue? (inc overdue) overdue)}))
+
+
 (defn remediation-rollup-by-test
   "按问题记录持久化的 source_test_id 反向聚合每个试验因必检不合格自动生成的整改问题: 总数/未关闭数/已关闭数/其中逾期未关闭数.
    问题状态变更会堆叠版本, 故先取每个问题编码的最新有效版本再分组, 避免重复计数; 未关闭即非 closed, 逾期复用与 issue-read-model 一致的到期日口径.
@@ -594,14 +607,7 @@
   [issues]
   (reduce (fn [acc issue]
             (if-let [tid (:source_test_id issue)]
-              (let [closed? (= "closed" (:status issue))
-                    overdue? (boolean (and (:due_date issue) (not closed?)
-                                           (not (.isAfter (LocalDate/parse (:due_date issue)) (LocalDate/now)))))]
-                (update acc tid (fn [{:keys [total open closed overdue]}]
-                                  {:total (inc (or total 0))
-                                   :open (if closed? (or open 0) (inc (or open 0)))
-                                   :closed (if closed? (inc (or closed 0)) (or closed 0))
-                                   :overdue (if overdue? (inc (or overdue 0)) (or overdue 0))})))
+              (update acc tid issue-tally issue)
               acc))
           {}
           (g/latest issues)))
