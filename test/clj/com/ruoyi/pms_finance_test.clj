@@ -14,6 +14,7 @@
             [com.ruoyi.domain.pms.finance-time :as time]
             [com.ruoyi.domain.pms.finance-allocation :as allocation]
             [com.ruoyi.domain.pms.closure :as closure]
+            [com.ruoyi.domain.pms.approval-chain :as chain]
             [com.ruoyi.domain.pms.reopen :as reopen]
             [com.ruoyi.pms-delivery-scenario :as scenario]
             [com.ruoyi.domain.pms.lifecycle :as lifecycle]
@@ -52,6 +53,8 @@
 (defn- actor "读取实际有效身份和权限." [id] (pms/actor *svc* {:user-id id}))
 (defn- version "读取当前项目版本." [id] (:version ((:query-fn *svc*) :pms/project {:project_id id})))
 (defn- error-status "提取业务错误状态." [f] (try (f) nil (catch clojure.lang.ExceptionInfo e (:status (ex-data e)))))
+(defn- error-info "提取业务错误状态与文案, 成功时返回 nil." [f]
+  (try (f) nil (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
 
 (defn- command!
   "以指定成员携带真实版本执行业务命令."
@@ -476,3 +479,116 @@
         (is (= 0 (:stages-declared ls)))
         (is (= [] (:by-stage ls)))
         (is (= 0 (:owner-coverage-pct ls)))))))
+
+;; batch58 (mutator 方向: cover the uncovered): closure 审批链适配器 finalize! 全路径 —
+;; 发布 "closure" 策略后走 chain/decide! 收口, 覆盖批准落定, 驳回落定, 批准前收尾缺口 409,
+;; 批准前快照失配 409, 以及策略下提交的 reviewer 短路 (L262) 与首级审批人兜底 (L272).
+(deftest closure-chain-finalize-covers-adapter-guards
+  (let [admin (actor 9401)
+        levels [{:name "结项审批" :rule "user" :user_ids [9402]}]]
+    (try
+      (let [existing (last (sort-by :revision (filter #(= "closure" (:code %))
+                                                      (config/records (:query-fn *svc*) "approval-policy"))))
+            draft (cond
+                    (nil? existing) (config/create! *svc* admin "approval-policy" {:code "closure" :levels levels})
+                    (= "draft" (:status existing)) existing
+                    :else (config/revise! *svc* admin "approval-policy" (:id existing) {:levels levels}))]
+        (config/publish! *svc* admin "approval-policy" (:id draft) {:reason "结项改走审批链"}))
+      (testing "策略下提交无需指定审核人, 末级通过后适配器批准并可关闭"
+        (let [{:keys [id]} (closure-ready-project!)
+              approval (:result (command! closure/submit! id [] {}))]
+          (is (= "submitted" (:status approval)))
+          (is (= 9402 (:reviewer_id approval)) "策略解析的首级审批人落库, 提交人未指定")
+          (let [flow (first (chain/project-flows *svc* (actor 9401) id {:biz_type "closure"}))]
+            (is (= "pending" (:status flow)))
+            (is (= [9402] (mapv :approver_id (:steps (first (:levels flow))))))
+            (is (= "approved" (:status (chain/decide! *svc* (actor 9402) (:flow_id flow)
+                                                      {:decision "approved"}))) "不填意见也可通过, review_note 落空串")
+            (is (= "approved" (:status ((:query-fn *svc*) :closure/approval {:project_id id}))))
+            (is (= "closed" (:status (transition! id "closed")))))))
+      (testing "末级驳回时适配器把关闭申请置为 rejected, 项目不能关闭"
+        (let [{:keys [id]} (closure-ready-project!)]
+          (command! closure/submit! id [] {})
+          (let [flow (first (chain/project-flows *svc* (actor 9401) id {:biz_type "closure"}))]
+            (is (= "rejected" (:status (chain/decide! *svc* (actor 9402) (:flow_id flow)
+                                                      {:decision "rejected" :comment "依据不全"}))))
+            (is (= "rejected" (:status ((:query-fn *svc*) :closure/approval {:project_id id}))))
+            (is (= [409 "尚未获得独立关闭批准"] (error-info #(transition! id "closed")))))))
+      (testing "批准前新增未完成必需项: 适配器以收尾缺口拒绝且不留下半步决定"
+        (let [{:keys [id]} (closure-ready-project!)]
+          (command! closure/submit! id [] {})
+          (command! closure/create-item! id ["check"] {:title "审批中补充归档" :required true})
+          (let [flow (first (chain/project-flows *svc* (actor 9401) id {:biz_type "closure"}))]
+            (is (= [409 "尚未完成: 审批中补充归档"]
+                   (error-info #(chain/decide! *svc* (actor 9402) (:flow_id flow)
+                                               {:decision "approved" :comment "通过"}))))
+            (is (= "pending" (:status (chain/flow *svc* (actor 9401) (:flow_id flow)))) "决定回滚, 流仍待决")
+            (is (= "submitted" (:status ((:query-fn *svc*) :closure/approval {:project_id id})))))))
+      (testing "批准前关闭依据变化: 适配器以快照失配拒绝"
+        (let [{:keys [id]} (closure-ready-project!)]
+          (command! closure/submit! id [] {})
+          (command! closure/create-lesson! id [] {:title "结项复盘" :category "交付" :content "审批中新增经验"})
+          (let [flow (first (chain/project-flows *svc* (actor 9401) id {:biz_type "closure"}))]
+            (is (= [409 "关闭依据已变化,请驳回并重新提交"]
+                   (error-info #(chain/decide! *svc* (actor 9402) (:flow_id flow)
+                                               {:decision "approved" :comment "通过"}))))
+            (is (= "submitted" (:status ((:query-fn *svc*) :closure/approval {:project_id id})))))))
+      (finally
+        (when-let [p (config/published-by-code (:query-fn *svc*) "approval-policy" "closure")]
+          (config/retire! *svc* admin "approval-policy" (:id p) {:reason "测试退役"}))))))
+
+;; batch58 (mutator 方向: cover the uncovered): closure 提交, 复核与事项守卫 —
+;; 收尾任务门 (L19/L22), 就绪复核缺口 (L65), 工作台带出审批且脱敏 (L125/L188),
+;; 对象类型与移交期限 400 (L200/L208), 事项重复完成 404/409 (L220/L221),
+;; 提交缺口 409 (L258), 重复提交 409 (L266), 自审 400 (L267), 审批后依据变化 409 (L289/L290).
+(deftest closure-submit-review-and-item-guards
+  (testing "尚有未完成叶级任务时不能进入收尾"
+    (let [{:keys [id]} (execution-project!)]
+      (is (= [409 "仍有1个未完成的叶级任务"] (error-info #(transition! id "closing"))))))
+  (testing "收尾对象类型与移交期限受控400"
+    (let [id (project!)]
+      (is (= [400 "无效收尾对象类型"]
+             (error-info #(command! closure/create-item! id ["bogus"] {:title "坏类型" :required true}))))
+      (is (= [400 "移交期限不能为空"]
+             (error-info #(command! closure/create-item! id ["handoff"] {:title "缺期限移交" :owner_id 9403}))))))
+  (testing "收尾事项类型不符404, 已完成不能重复完成409"
+    (let [id (project!) document (document! id)
+          item (:result (command! closure/create-item! id ["check"] {:title "完成校验" :required false}))]
+      (command! closure/complete-item! id ["check" (:id item)] {:evidence_ref (:id document) :comment "首次完成"})
+      (is (= [404 "收尾事项不存在"]
+             (error-info #(command! closure/complete-item! id ["handoff" (:id item)]
+                                    {:evidence_ref (:id document) :comment "错类型"}))))
+      (is (= [409 "收尾事项已完成"]
+             (error-info #(command! closure/complete-item! id ["check" (:id item)]
+                                    {:evidence_ref (:id document) :comment "重复完成"}))))))
+  (testing "已有待处理的关闭申请不能重复提交, 提交后工作台带出脱敏审批"
+    (let [{:keys [id]} (closure-ready-project!)]
+      (command! closure/submit! id [] {:reviewer_id 9402})
+      (is (= [409 "已有待处理的关闭申请"]
+             (error-info #(command! closure/submit! id [] {:reviewer_id 9402}))))
+      (let [ov (closure/overview *svc* (actor 9401) id)]
+        (is (= "submitted" (get-in ov [:approval :status])))
+        (is (nil? (:snapshot_json (:approval ov))))
+        (is (= "submitted" (get-in ov [:readiness :approval-state])))
+        (is (= "submitted" (get-in ov [:progress :approval-state]))))))
+  (testing "不能审批自己提交的关闭申请400"
+    (let [{:keys [id]} (closure-ready-project!)]
+      (is (= [400 "不能审批自己提交的关闭申请"]
+             (error-info #(command! closure/submit! id [] {:reviewer_id 9401}))))))
+  (testing "存在收尾缺口时不能提交关闭申请409"
+    (let [{:keys [id]} (closure-ready-project!)]
+      (command! closure/create-item! id ["check"] {:title "提交前补充材料" :required true})
+      (is (= [409 "尚未完成: 提交前补充材料"]
+             (error-info #(command! closure/submit! id [] {:reviewer_id 9402}))))))
+  (testing "关闭依据在审批后变化时旧审批不能通过409"
+    (let [{:keys [id]} (closure-ready-project!)]
+      (command! closure/submit! id [] {:reviewer_id 9402})
+      (command! closure/create-lesson! id [] {:title "审批中新增依据" :category "交付" :content "复盘"})
+      (is (= [409 "关闭依据已变化,请驳回并重新提交"]
+             (error-info #(command! 9402 closure/review! id [] {:decision "approved" :reason "通过"}))))))
+  (testing "批准后新增缺口时就绪复核先阻塞关闭409"
+    (let [{:keys [id]} (closure-ready-project!)]
+      (command! closure/submit! id [] {:reviewer_id 9402})
+      (command! 9402 closure/review! id [] {:decision "approved" :reason "通过"})
+      (command! closure/create-item! id ["check"] {:title "关闭前新增缺口" :required true})
+      (is (= [409 "尚未完成: 关闭前新增缺口"] (error-info #(transition! id "closed")))))))
