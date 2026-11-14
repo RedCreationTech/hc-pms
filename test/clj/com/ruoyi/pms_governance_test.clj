@@ -133,6 +133,12 @@
   (try (f) nil (catch clojure.lang.ExceptionInfo e (:status (ex-data e)))))
 
 
+(defn- error-info
+  "提取业务错误状态与文案, 成功时返回 nil."
+  [f]
+  (try (f) nil (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
+
+
 (defn- document!
   "上传真实文本作为可核验的版本证据."
   [id code]
@@ -6988,3 +6994,77 @@
     (is (= 1 (:active clamp)))
     (is (= ["C2"] (map :node-code (:active-pauses clamp))))
     (is (= [0] (map :paused-days (:active-pauses clamp))))))
+
+
+;; batch60 (mutator 方向: cover the uncovered): evidence CSV 四门与追溯/修订守卫 —
+;; 表头400 (L215), 行数400 (L216), 超1MiB400 (L210), 未闭合引号格式400 (L212),
+;; 行内列数400 (L228), 追溯绑任务404 (L286), 修订改编号400 (L109).
+(deftest evidence-csv-guards-and-trace-revision-gates
+  (let [id (project!) header "code,text,category,priority,owner_id\n"]
+    (testing "CSV表头, 行数, 大小与格式四门400"
+      (is (= [400 "CSV表头必须为code,text,category,priority,owner_id"]
+             (error-info #(command! id :requirements :import nil {:csv "foo,bar\n1,2"}))))
+      (is (= [400 "CSV必须包含1到500条需求"]
+             (error-info #(command! id :requirements :import nil {:csv header}))))
+      (is (= [400 "CSV超过1MiB"]
+             (error-info #(command! id :requirements :import nil {:csv (apply str (repeat 400000 "中"))}))))
+      (is (= [400 "CSV格式不合法"]
+             (error-info #(command! id :requirements :import nil
+                                    {:csv (str header "R-1,\"未闭合引号")})))))
+    (testing "行内列数不足由预检逐行报错, 整批导入拒绝"
+      (let [csv (str header "R-1,只有四列,功能,required\n")
+            checked (gov/preview *service* (actor 9301) id {:csv csv})]
+        (is (false? (:valid? checked)))
+        (is (some #(= "列数必须为5" (:error %)) (:errors checked))))
+      (is (= 400 (error-status #(command! id :requirements :import nil
+                                          {:csv (str header "R-1,只有四列,功能,required\n")})))))
+    (testing "追溯绑定不存在任务404, 修订不得改业务编号400"
+      (let [req (command! id :requirements :create nil
+                          {:code "URS-B60-1" :text "批次60需求" :category "功能"
+                           :priority "required" :owner_id 9301})]
+        (is (= [404 "任务不存在或不属于本项目"]
+               (error-info #(command! id :traces :create nil
+                                      {:requirement_id (:id req) :target_kind "task"
+                                       :target_id "NO-SUCH-TASK" :relation "satisfies"}))))
+        (is (= [400 "修订不得改变业务编号"]
+               (error-info #(command! id :requirements :revisions (:id req)
+                                      {:code "URS-OTHER" :text "改编号" :category "功能"
+                                       :priority "required" :owner_id 9301}))))))))
+
+
+;; batch60 (mutator 方向: cover the uncovered): DQ 清单/任务绑定/交付件门与节点暂停404 —
+;; 清单空/非数组/重复编码400 (L18/L23), 关联任务404 (L34), 检查带交付件分支 (L77),
+;; 无交付件提交409 (L94), 补齐后提交进入签认, 暂停未知节点404 (L232).
+(deftest dq-gates-and-node-pause-404
+  (let [id (project!)]
+    (testing "DQ清单空/非数组400与重复编码400"
+      (is (= [400 "DQ检查清单需要1到50项"]
+             (error-info #(command! id :dqs :create nil
+                                    {:code "DQ-A" :title "清单门" :owner_id 9301 :checklist []}))))
+      (is (= [400 "DQ检查清单需要1到50项"]
+             (error-info #(command! id :dqs :create nil
+                                    {:code "DQ-A" :title "清单门" :owner_id 9301 :checklist "oops"}))))
+      (is (= [400 "DQ检查项编码重复"]
+             (error-info #(command! id :dqs :create nil
+                                    {:code "DQ-A" :title "清单门" :owner_id 9301
+                                     :checklist [{:code "c1" :title "甲"} {:code "c1" :title "乙"}]})))))
+    (testing "DQ关联不存在任务404"
+      (is (= [404 "关联任务不存在或不属于本项目"]
+             (error-info #(command! id :dqs :create nil
+                                    {:code "DQ-B" :title "任务门" :owner_id 9301 :task_id "NO-SUCH-TASK"
+                                     :checklist [{:code "c1" :title "甲"}]})))))
+    (testing "检查可补登交付件, 无交付件提交409, 补齐后提交进入签认"
+      (let [doc (document! id "DQ-DOC-60")
+            dq (command! id :dqs :create nil
+                         {:code "DQ-C" :title "交付件门" :owner_id 9301
+                          :checklist [{:code "c1" :title "尺寸" :required true}]})]
+        (command! id :dqs :checks (:id dq) {:results [{:code "c1" :passed true}]})
+        (is (= [409 "DQ必须绑定确定版本交付件"]
+               (error-info #(command! id :dqs :submit (:id dq) {:reviewer_id 9302}))))
+        (command! id :dqs :checks (:id dq) {:results [{:code "c1" :passed true}]
+                                            :deliverable_ids [(:id doc)]})
+        (is (= "in_review" (:status (command! id :dqs :submit (:id dq) {:reviewer_id 9302}))))))
+    (testing "暂停不存在的结构节点404"
+      (is (= [404 "结构节点不存在或不属于本项目"]
+             (error-info #(command! id :node-pauses :create nil
+                                    {:node_id "NO-SUCH-NODE" :reason "测试"})))))))
