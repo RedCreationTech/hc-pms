@@ -120,6 +120,12 @@
         (q :finance/insert-commitment! (assoc input :version_no (int next-no)))
         (dto (commitment! q project-id (:commitment_id input)))))))
 
+(defn- carry-over
+  "草稿修改时对未显式提供的字段沿用既有值 (缺键与显式 nil 均回落, 与原 #(or % existing) 语义一致)."
+  [body existing field-keys]
+  (reduce (fn [b k] (update b k #(or % (get existing k)))) body field-keys))
+
+
 (defn update-draft!
   "修改草稿承诺的字段, 保留版本号与编号."
   [svc actor project-id commitment-id body]
@@ -134,13 +140,8 @@
             input (input! q actor project
                           (-> body
                               (assoc :code (:code existing) :period period-in)
-                              (update :kind #(or % (:kind existing)))
-                              (update :supplier #(or % (:supplier existing)))
-                              (update :currency #(or % (:currency existing)))
-                              (update :base_currency #(or % (:base_currency existing)))
-                              (update :gross #(or % (:gross existing)))
-                              (update :exchange_rate #(or % (:exchange_rate existing)))
-                              (update :reviewer_id #(or % (:reviewer_id existing)))))]
+                              (carry-over existing [:kind :supplier :currency :base_currency
+                                                     :gross :exchange_rate :reviewer_id])))]
         (when-not (= (:kind input) (:kind existing))
           (rules/fail! 400 "已登记承诺不能修改分类"))
         (rules/changed!

@@ -203,6 +203,29 @@
                                                       :currency "USD" :gross "1.00" :exchange_rate "abc"
                                                       :reviewer_id 9532})))))))
 
+(defn- carried
+  "调用草稿字段沿用: 返回合并后的 body."
+  [body existing field-keys]
+  (#'commitment/carry-over body existing field-keys))
+
+
+;; carry-over 重构前的行为钉: 草稿修改对未显式提供的字段沿用既有值, 纯函数.
+(deftest carry-over-fills-missing-draft-fields-from-existing
+  (let [existing {:kind "contract" :supplier "甲方" :currency "USD"
+                  :base_currency "CNY" :gross "500.00" :exchange_rate "7.1" :reviewer_id 9532}
+        keys-of [:kind :supplier :currency :base_currency :gross :exchange_rate :reviewer_id]]
+    (testing "全部缺省时逐键沿用既有值"
+      (is (= existing (carried {} existing keys-of))))
+    (testing "显式提供的键覆盖, 其余沿用"
+      (is (= (assoc existing :supplier "乙方" :gross "600.00")
+             (carried {:supplier "乙方" :gross "600.00"} existing keys-of))))
+    (testing "显式 nil 同样回落到既有值 (与 or 语义一致)"
+      (is (= existing (carried {:supplier nil :reviewer_id nil} existing keys-of))))
+    (testing "不在此清单的键原样保留"
+      (is (= {:kind "purchase" :extra 1}
+             (carried {:kind "purchase" :extra 1} existing [:kind]))))))
+
+
 (deftest h12-draft-edit-and-cancel
   (testing "草稿可修改金额与说明, 提交后禁止修改, 被驳回可以取消, 释放后不能取消."
     (let [id (project!) c (create-commitment! id) cid (:id c)]
