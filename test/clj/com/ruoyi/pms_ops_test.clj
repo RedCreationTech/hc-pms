@@ -2,10 +2,12 @@
   "企业接口基础协议的真实网络,隔离数据库和失败恢复验证."
   (:require [cheshire.core :as json]
             [clojure.java.io :as io]
-            [clojure.test :refer [deftest is use-fixtures]]
+            [clojure.test :refer [deftest is testing use-fixtures]]
             [com.ruoyi.domain.pms.kernel :as kernel]
             [com.ruoyi.domain.pms.service :as pms]
             [com.ruoyi.domain.pms.governance :as gov]
+            [com.ruoyi.domain.pms.finance-cost :as cost]
+            [com.ruoyi.domain.pms.planning :as plan]
             [com.ruoyi.domain.pms.integration :as integration]
             [com.ruoyi.domain.pms.integration.inbox :as inbox]
             [com.ruoyi.domain.pms.integration.outbox :as outbox]
@@ -45,6 +47,8 @@
 (defn- actor "读取实际有效身份和权限." [id] (pms/actor *svc* {:user-id id}))
 (defn- version "读取当前项目版本." [id] (:version ((:query-fn *svc*) :pms/project {:project_id id})))
 (defn- error-status "提取业务错误状态." [f] (try (f) nil (catch clojure.lang.ExceptionInfo e (:status (ex-data e)))))
+(defn- error-info "提取业务错误状态与文案, 成功时返回 nil." [f]
+  (try (f) nil (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
 
 (defn- command!
   "以指定成员携带真实版本执行业务命令."
@@ -126,6 +130,52 @@
       (is (= 404 (error-status #(enqueue! id foreign "wrong-scope")))))
     (is (= 403 (error-status #(outbox/enqueue! *svc* (update (actor 9601) :permissions disj "pms:finance:query") id
                               {:version (version id) :target "erp" :topic "cost.approved" :source_id "fake" :idempotency_key "money"}))))))
+
+;; batch59 (mutator 方向: cover the uncovered): outbox 计划/财务主题载荷与幂等键/读取守卫 —
+;; plan.published 批准基线正文 (L22-25) 与未批准409, cost.approved 批准版本正文 (L27-29)
+;; 与未批准409, 未知主题400 (L31), 幂等键换对象409 (L44), 消息不存在404 (L61).
+(deftest outbox-plan-cost-topics-and-guards
+  (let [id (project!)]
+    (command! pms/transition-project! id [] {:status "initiated" :reason "立项"})
+    (command! pms/transition-project! id [] {:status "planning" :reason "计划"})
+    (testing "计划主题: 未批准基线409, 批准基线外发正文来自快照"
+      (command! plan/create-task! id [] {:wbs_code "1" :name "设计" :duration_days 1 :owner_id 9601})
+      (let [baseline (:result (command! plan/submit-plan! id [] {:comment "发布基线"}))
+            base-id (:baseline_id baseline)]
+        (is (= [409 "只允许外发同项目已批准基线"]
+               (error-info #(command! outbox/enqueue! id [] {:target "erp" :topic "plan.published"
+                                                          :source_id base-id :idempotency_key "plan-1"}))))
+        (command! 9602 plan/review-plan! id [base-id] {:decision "approved" :comment "已核验"})
+        (let [msg (:result (command! outbox/enqueue! id [] {:target "erp" :topic "plan.published"
+                                                        :source_id base-id :idempotency_key "plan-1"}))
+              payload (:payload (outbox/detail *svc* (actor 9601) id (:id msg)))]
+          (is (= "plan.published" (:topic msg)))
+          (is (= base-id (get-in payload [:data :baseline_id])))
+          (is (map? (get-in payload [:data :snapshot]))))))
+    (testing "财务主题: 未批准版本409, 批准版本外发正文含总额"
+      (let [v (:result (command! cost/create! id [] {:kind "actual" :period "2026-09" :currency "CNY"
+                                                    :name "九月核算" :revenue "0" :reviewer_id 9602}))]
+        (command! cost/add-entry! id [(:id v)] {:category "material" :label "原料" :amount "10"})
+        (is (= [409 "只允许外发已批准财务版本"]
+               (error-info #(command! outbox/enqueue! id [] {:target "erp" :topic "cost.approved"
+                                                          :source_id (:id v) :idempotency_key "cost-1"}))))
+        (command! cost/submit! id [(:id v)] {})
+        (command! 9602 cost/review! id [(:id v)] {:decision "approved" :reason "核对完成"})
+        (let [msg (:result (command! outbox/enqueue! id [] {:target "erp" :topic "cost.approved"
+                                                        :source_id (:id v) :idempotency_key "cost-1"}))]
+          (is (= "cost.approved" (:topic msg)))
+          (is (= "10.00" (get-in (outbox/detail *svc* (actor 9601) id (:id msg)) [:payload :data :total]))))))
+    (testing "未知主题400, 幂等键换对象409, 消息不存在404"
+      (is (= [400 "外发主题必须为已批准计划,财务版本或真实文档"]
+             (error-info #(command! outbox/enqueue! id [] {:target "erp" :topic "hr.created"
+                                                        :source_id "x" :idempotency_key "weird"}))))
+      (let [d1 (document! id) d2 (document! id)]
+        (command! outbox/enqueue! id [] {:target "crm" :topic "document.registered"
+                                       :source_id (:id d1) :idempotency_key "shared-key"})
+        (is (= [409 "外发幂等键已用于不同对象"]
+               (error-info #(command! outbox/enqueue! id [] {:target "crm" :topic "document.registered"
+                                                          :source_id (:id d2) :idempotency_key "shared-key"})))))
+      (is (= [404 "消息不存在"] (error-info #(outbox/detail *svc* (actor 9601) id "no-such-message")))))))
 
 (deftest actual-http-requires-matching-business-receipt
   (let [id (project!) message (enqueue! id (document! id) "network")]
