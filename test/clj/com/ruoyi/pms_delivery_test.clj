@@ -4,6 +4,7 @@
             [clojure.test :refer [deftest is testing use-fixtures]]
             [com.ruoyi.domain.pms.governance :as gov]
             [com.ruoyi.domain.pms.delivery :as delivery]
+            [com.ruoyi.domain.pms.delivery.store :as dstore]
             [com.ruoyi.domain.pms.delivery.materials :as materials]
             [com.ruoyi.pms-delivery-scenario :as scenario]
             [com.ruoyi.domain.pms.planning :as planning]
@@ -326,6 +327,42 @@
                       "shipment" [{:record_id 31 :payload "{}" :code "S1" :status "shipped"}]
                       "service" [{:record_id 41 :payload "{}" :title "售后X" :status "open"}]
                       "survey" [] "handover" []})))))
+
+
+(defn- config-err
+  "调用配置校验并返回 [status message] 或 nil (通过)."
+  [body project]
+  (try (#'dstore/validate-configuration! body project) nil
+       (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
+
+
+;; configure! 重构前的行为钉: 全部门控 (阶段锁/数值区间/数组/枚举/前置依赖/布尔位), 纯函数不依赖数据库.
+(deftest configuration-validation-gates-every-field
+  (let [draft {:status "draft"}
+        valid {:required_stages ["materials" "assembly"] :required_test_types ["SIT"] :reason "配置"
+               :required_survey_visits 2 :handover_deadline_days 7 :site_lag_days 3
+               :pre_ship_conditions ["warehouse_in"] :handover_required true}]
+    (testing "合法配置通过, 字段白名单外的键被拒"
+      (is (nil? (config-err valid draft)))
+      (is (= [400 "请求包含不支持或不可修改的字段"] (config-err (assoc valid :extra 1) draft))))
+    (testing "执行开始后锁定"
+      (is (= [409 "执行开始后不可修改适用交付流程"] (config-err valid {:status "execution"}))))
+    (testing "数值字段必须是 0 到上限的整数"
+      (is (= [400 "required_survey_visits 必须是0到10的整数"] (config-err (assoc valid :required_survey_visits 11) draft)))
+      (is (= [400 "handover_deadline_days 必须是0到30的整数"] (config-err (assoc valid :handover_deadline_days -1) draft)))
+      (is (= [400 "site_lag_days 必须是0到30的整数"] (config-err (assoc valid :site_lag_days 1.5) draft))))
+    (testing "发货前条件必须为不重复受控数组"
+      (is (= [400 "发货前条件必须为不重复数组"] (config-err (assoc valid :pre_ship_conditions ["payment" "payment"]) draft)))
+      (is (= [400 "发货前条件必须为不重复数组"] (config-err (assoc valid :pre_ship_conditions "payment") draft)))
+      (is (= [400 "pre_ship_conditions取值不合法"] (config-err (assoc valid :pre_ship_conditions ["nope"]) draft))))
+    (testing "环节与试验类型必须为非空不重复受控数组"
+      (is (= [400 "适用流程与试验类型必须为非空不重复数组"] (config-err (assoc valid :required_stages []) draft)))
+      (is (= [400 "适用流程与试验类型必须为非空不重复数组"] (config-err (assoc valid :required_test_types ["SIT" "SIT"]) draft)))
+      (is (= [400 "适用流程与试验类型必须为非空不重复数组"] (config-err (assoc valid :required_stages "materials") draft)))
+      (is (= [400 "required_test_types取值不合法"] (config-err (assoc valid :required_test_types ["XYZ"]) draft))))
+    (testing "环节前置依赖与布尔位"
+      (is (= [400 "适用环节必须包含物料,装配,质量的必要前置"] (config-err (assoc valid :required_stages ["shipment"]) draft)))
+      (is (= [400 "handover_required必须为布尔值"] (config-err (assoc valid :handover_required "yes") draft))))))
 
 
 (deftest material-freeze-and-kitting-enforce-real-prerequisites

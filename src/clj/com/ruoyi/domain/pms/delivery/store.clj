@@ -148,32 +148,56 @@
       (when (and (selected stage) (not-every? selected predecessors))
         (r/fail! 400 "适用环节必须包含物料,装配,质量的必要前置")))))
 
+(defn- numeric-fields!
+  "数值型配置字段必须是 0 到上限的整数 (仅校验请求中出现的字段)."
+  [body]
+  (doseq [[key limit] [[:required_survey_visits 10] [:handover_deadline_days 30] [:site_lag_days 30]]]
+    (when (contains? body key)
+      (when-not (and (integer? (get body key)) (<= 0 (get body key) limit))
+        (r/fail! 400 (str (name key) " 必须是0到" limit "的整数"))))))
+
+
+(defn- pre-ship-conditions!
+  "发货前条件必须是不重复的受控数组."
+  [body]
+  (when (contains? body :pre_ship_conditions)
+    (let [values (:pre_ship_conditions body)]
+      (when-not (and (vector? values) (= (count values) (count (set values))))
+        (r/fail! 400 "发货前条件必须为不重复数组"))
+      (doseq [value values] (g/enum! value #{"warehouse_in" "payment"} "pre_ship_conditions")))))
+
+
+(defn- stage-fields!
+  "适用环节与试验类型必须是非空不重复的受控数组, 且环节满足前置依赖."
+  [body]
+  (doseq [[key allowed] [[:required_stages #{"materials" "assembly" "quality" "shipment"}]
+                         [:required_test_types #{"SIT" "FAT" "SAT"}]]]
+    (let [values (get body key)]
+      (when-not (and (vector? values) (seq values) (= (count values) (count (set values))))
+        (r/fail! 400 "适用流程与试验类型必须为非空不重复数组"))
+      (doseq [value values] (g/enum! value allowed (name key)))))
+  (stages! (:required_stages body)))
+
+
+(defn- validate-configuration!
+  "配置请求体的全部门控, 按原顺序逐条判定: 字段白名单, 执行阶段锁, 数值区间, 条件数组, 环节与试验数组, 布尔位."
+  [body project]
+  (g/input! body [:required_stages :required_test_types :reason :required_survey_visits :pre_ship_conditions
+                  :handover_deadline_days :site_lag_days :handover_required])
+  (when-not (contains? #{"draft" "initiated" "planning"} (:status project))
+    (r/fail! 409 "执行开始后不可修改适用交付流程"))
+  (numeric-fields! body)
+  (pre-ship-conditions! body)
+  (stage-fields! body)
+  (when (contains? body :handover_required) (g/boolean! (:handover_required body) "handover_required")))
+
+
 (defn configure!
   "在正式执行前配置适用环节和试验,执行后锁定流程配置."
   [svc actor id body]
   (mutate! svc actor id body "delivery.configured" false
     (fn [q project]
-      (g/input! body [:required_stages :required_test_types :reason :required_survey_visits :pre_ship_conditions
-                      :handover_deadline_days :site_lag_days :handover_required])
-      (when-not (contains? #{"draft" "initiated" "planning"} (:status project))
-        (r/fail! 409 "执行开始后不可修改适用交付流程"))
-      (doseq [[key limit] [[:required_survey_visits 10] [:handover_deadline_days 30] [:site_lag_days 30]]]
-        (when (contains? body key)
-          (when-not (and (integer? (get body key)) (<= 0 (get body key) limit))
-            (r/fail! 400 (str (name key) " 必须是0到" limit "的整数")))))
-      (when (contains? body :pre_ship_conditions)
-        (let [values (:pre_ship_conditions body)]
-          (when-not (and (vector? values) (= (count values) (count (set values))))
-            (r/fail! 400 "发货前条件必须为不重复数组"))
-          (doseq [value values] (g/enum! value #{"warehouse_in" "payment"} "pre_ship_conditions"))))
-      (doseq [[key allowed] [[:required_stages #{"materials" "assembly" "quality" "shipment"}]
-                             [:required_test_types #{"SIT" "FAT" "SAT"}]]]
-        (let [values (get body key)]
-          (when-not (and (vector? values) (seq values) (= (count values) (count (set values))))
-            (r/fail! 400 "适用流程与试验类型必须为非空不重复数组"))
-          (doseq [value values] (g/enum! value allowed (name key)))))
-      (stages! (:required_stages body))
-      (when (contains? body :handover_required) (g/boolean! (:handover_required body) "handover_required"))
+      (validate-configuration! body project)
       (let [fields (assoc (select-keys body [:required_stages :required_test_types :required_survey_visits
                                              :pre_ship_conditions :handover_deadline_days :site_lag_days :handover_required])
                           :code "configuration" :source "project_configuration" :reason (g/text! body :reason))]
