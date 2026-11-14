@@ -143,13 +143,9 @@
         with-node (mapv #(assoc % :node_id (bom-node %)
                                 :required_lines (count (:items %))
                                 :complete_lines (or (:complete_line_count %) 0)) frozen)
-        descendants (fn [node-id]
-                      (loop [result #{node-id} frontier [node-id]]
-                        (let [children (map :node_id (filter #(contains? (set frontier) (:parent_id %)) nodes))]
-                          (if (empty? children) result (recur (into result children) (vec children))))))
         percent (fn [complete required] (rm/pct required complete))
         node-rows (mapv (fn [node]
-                          (let [ids (descendants (:node_id node))
+                          (let [ids (progress/node-descendants nodes (:node_id node))
                                 rows (if (= "main" (:node_type node)) with-node (filter #(contains? ids (:node_id %)) with-node))
                                 required (reduce + 0 (map :required_lines rows))
                                 complete (reduce + 0 (map :complete_lines rows))]
