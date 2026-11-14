@@ -2,12 +2,13 @@
   "真实数据库上的治理审批,证据,整批导入和跨模块闭环测试."
   (:require
     [cheshire.core :as json]
-    [clojure.test :refer [deftest is use-fixtures]]
+    [clojure.test :refer [deftest is testing use-fixtures]]
     [com.ruoyi.domain.pms.governance :as gov]
     [com.ruoyi.domain.pms.governance.approval :as approval]
     [com.ruoyi.domain.pms.governance.collaboration :as collab]
     [com.ruoyi.domain.pms.governance.evidence :as evidence]
     [com.ruoyi.domain.pms.governance.gates :as gates]
+    [com.ruoyi.domain.pms.governance.lifecycle :as lifecycle]
     [com.ruoyi.domain.pms.governance.quality :as quality]
     [com.ruoyi.domain.pms.governance.stakeholders :as stakeholders]
     [com.ruoyi.domain.pms.planning :as planning]
@@ -5852,6 +5853,38 @@
     (is (= "" (:key (last (:by-stage col)))))
     (is (= "" (:key (last (:by-structure-node col)))))
     (is (= ["public" "internal" "confidential"] (map :classification (:by-classification col))))))
+
+
+(defn- fake-record-q
+  "按 :gov/list 请求的 kind 返回罐头行的桩查询, 供 references-of 纯表征测试 (不查库)."
+  [rows-by-kind]
+  (fn [name params]
+    (when (= :gov/list name) (get rows-by-kind (:kind params) []))))
+
+
+;; references-of 重构前的行为钉: 四类可作废对象的全部引用规则与输出顺序, 纯桩不依赖数据库.
+(deftest references-of-covers-every-discardable-kind
+  (let [rows {"trace" [{:code "T-DOC" :requirement_id 11 :target_kind "document" :target_id 22}]
+              "meeting" [{:title "引用会议" :material_ids [22]} {:title "关联会议" :last_meeting_id 33}]
+              "issue" [{:title "带证据问题" :evidence_ids [22] :reopen_evidence_ids []}]
+              "risk" [{:title "带证据风险" :evidence_ids [] :review_evidence_ids [22]}]
+              "action" [{:title "带证据行动" :evidence_ids [22] :meeting_id 33}]
+              "raci" [{:activity "需求评审" :stakeholder_id 44}]
+              "comm-plan" [{:code "CP-1" :audience [44] :last_meeting_id 33}]}
+        q (fake-record-q rows)
+        refs (fn [kind rid] (vec (@#'lifecycle/references-of q {:project_id 1} kind rid)))]
+    (testing "requirement: 仅追踪引用"
+      (is (= ["需求追踪 T-DOC"] (refs "requirement" 11))))
+    (testing "document: 追踪/会议/问题/风险/行动五类按固定顺序"
+      (is (= ["需求追踪 T-DOC" "会议 引用会议" "问题 带证据问题" "风险 带证据风险" "行动 带证据行动"]
+             (refs "document" 22))))
+    (testing "stakeholder: RACI 与沟通计划受众按固定顺序"
+      (is (= ["RACI 需求评审" "沟通计划 CP-1"] (refs "stakeholder" 44))))
+    (testing "meeting: 行动与沟通计划按固定顺序"
+      (is (= ["行动 带证据行动" "沟通计划 CP-1"] (refs "meeting" 33))))
+    (testing "无引用规则的类型或无引用记录返回空"
+      (is (= [] (refs "charter" 1)))
+      (is (= [] (refs "requirement" 999))))))
 
 
 (deftest requirement-discard-is-soft-and-reference-guarded

@@ -18,45 +18,47 @@
    "meeting" #{"recorded"}})
 
 
+(defn- reference-rules
+  "各类型仍引用该记录的检索规则, 逐条给出 [源类型 谓词 文案函数]; 规则顺序即引用清单输出顺序, 未登记的类型给空规则."
+  [kind rid]
+  (case kind
+    "requirement"
+    [["trace" (fn [t] (= rid (:requirement_id t)))
+      (fn [t] (str "需求追踪 " (:code t)))]]
+
+    "document"
+    [["trace" (fn [t] (and (= "document" (:target_kind t)) (= rid (:target_id t))))
+      (fn [t] (str "需求追踪 " (:code t)))]
+     ["meeting" (fn [m] (some #{rid} (:material_ids m)))
+      (fn [m] (str "会议 " (:title m)))]
+     ["issue" (fn [i] (or (some #{rid} (:evidence_ids i)) (some #{rid} (:reopen_evidence_ids i))))
+      (fn [i] (str "问题 " (:title i)))]
+     ["risk" (fn [rk] (or (some #{rid} (:evidence_ids rk)) (some #{rid} (:review_evidence_ids rk))))
+      (fn [rk] (str "风险 " (:title rk)))]
+     ["action" (fn [a] (some #{rid} (:evidence_ids a)))
+      (fn [a] (str "行动 " (:title a)))]]
+
+    "stakeholder"
+    [["raci" (fn [rc] (= rid (:stakeholder_id rc)))
+      (fn [rc] (str "RACI " (:activity rc)))]
+     ["comm-plan" (fn [c] (some #{rid} (:audience c)))
+      (fn [c] (str "沟通计划 " (:code c)))]]
+
+    "meeting"
+    [["action" (fn [a] (= rid (:meeting_id a)))
+      (fn [a] (str "行动 " (:title a)))]
+     ["comm-plan" (fn [c] (= rid (:last_meeting_id c)))
+      (fn [c] (str "沟通计划 " (:code c)))]]
+
+    []))
+
+
 (defn- references-of
   "列出仍引用该记录的其它治理对象, 供拒绝作废时给出可读原因."
   [q project kind rid]
-  (case kind
-    "requirement"
-    (for [t (s/records q project "trace") :when (= rid (:requirement_id t))]
-      (str "需求追踪 " (:code t)))
-
-    "document"
-    (concat
-      (for [t (s/records q project "trace")
-            :when (and (= "document" (:target_kind t)) (= rid (:target_id t)))]
-        (str "需求追踪 " (:code t)))
-      (for [m (s/records q project "meeting") :when (some #{rid} (:material_ids m))]
-        (str "会议 " (:title m)))
-      (for [i (s/records q project "issue")
-            :when (or (some #{rid} (:evidence_ids i)) (some #{rid} (:reopen_evidence_ids i)))]
-        (str "问题 " (:title i)))
-      (for [rk (s/records q project "risk")
-            :when (or (some #{rid} (:evidence_ids rk)) (some #{rid} (:review_evidence_ids rk)))]
-        (str "风险 " (:title rk)))
-      (for [a (s/records q project "action") :when (some #{rid} (:evidence_ids a))]
-        (str "行动 " (:title a))))
-
-    "stakeholder"
-    (concat
-      (for [rc (s/records q project "raci") :when (= rid (:stakeholder_id rc))]
-        (str "RACI " (:activity rc)))
-      (for [c (s/records q project "comm-plan") :when (some #{rid} (:audience c))]
-        (str "沟通计划 " (:code c))))
-
-    "meeting"
-    (concat
-      (for [a (s/records q project "action") :when (= rid (:meeting_id a))]
-        (str "行动 " (:title a)))
-      (for [c (s/records q project "comm-plan") :when (= rid (:last_meeting_id c))]
-        (str "沟通计划 " (:code c))))
-
-    []))
+  (mapcat (fn [[source pred label]]
+            (for [rec (s/records q project source) :when (pred rec)] (label rec)))
+          (reference-rules kind rid)))
 
 
 (defn discard!
