@@ -19,18 +19,24 @@
         (q :planning/calendar! {:project_id id :calendar_json (json/generate-string calendar)})
         calendar))))
 
+(defn- resource-gates!
+  "资源四门: 类型受控, 人员须带项目成员, 设备不得带成员, 同成员不重复建档."
+  [q project resource-id type uid]
+  (when-not (contains? #{"person" "equipment"} type) (rules/fail! 400 "资源类别必须为 person 或 equipment"))
+  (when (and (= type "person") (nil? uid)) (rules/fail! 400 "人员资源必须关联当前项目成员"))
+  (when (and (= type "equipment") uid) (rules/fail! 400 "设备资源不能关联人员账号"))
+  (when (and uid (some #(and (= uid (:user_id %)) (not= resource-id (:resource_id %)))
+                       (store/rows q project :planning/resources)))
+    (rules/fail! 409 "该成员已经建立资源档案")))
+
+
 (defn- input!
   "校验资源类别,项目成员及日容量,同一成员只建一个资源档案."
   [q project resource-id body]
   (let [type (or (:resource_type body) "person")
         uid (when (:user_id body) (kernel/user! q project (:user_id body) "资源成员"))
         daily (or (:daily_capacity body) (get-in (store/plan q project) [:calendar :hours_per_day]))]
-    (when-not (contains? #{"person" "equipment"} type) (rules/fail! 400 "资源类别必须为 person 或 equipment"))
-    (when (and (= type "person") (nil? uid)) (rules/fail! 400 "人员资源必须关联当前项目成员"))
-    (when (and (= type "equipment") uid) (rules/fail! 400 "设备资源不能关联人员账号"))
-    (when (and uid (some #(and (= uid (:user_id %)) (not= resource-id (:resource_id %)))
-                         (store/rows q project :planning/resources)))
-      (rules/fail! 409 "该成员已经建立资源档案"))
+    (resource-gates! q project resource-id type uid)
     {:resource_id resource-id :project_id (:project_id project)
      :name (rules/text! (:name body) "资源名称" 200 true) :resource_type type
      :user_id uid :daily_capacity (store/hours! daily "每日容量" true)}))

@@ -12,6 +12,7 @@
             [com.ruoyi.domain.pms.planning.capacity :as capacity]
             [com.ruoyi.domain.pms.planning.schedule :as schedule]
             [com.ruoyi.domain.pms.planning.tasks :as tasks]
+            [com.ruoyi.domain.pms.planning.resources :as resources]
             [com.ruoyi.infra.security :as security]
             [com.ruoyi.web.middleware.auth :as auth]
             [com.ruoyi.web.routes.api :as api]
@@ -330,6 +331,66 @@
                                               {:version before-version :decision "approved"})))
       (is (= before-version (version id)))
       (is (= "submitted" (:status (plan/read-baseline *svc* (actor 9201) id baseline-id)))))))
+
+(defn- fake-resource-q
+  "resources/input! 纯表征用的桩查询: 成员, 计划日历与既有资源按罐头返回 (不查库)."
+  [{:keys [users members plan resources]}]
+  (fn [name params]
+    (case name
+      :pms/user (get users (:user_id params))
+      :pms/member (get members [(:project_id params) (:user_id params)])
+      :planning/plan plan
+      :planning/resources (or resources [])
+      nil)))
+
+
+(defn- resource-in
+  "在给定桩下校验资源输入: 通过返回资源行, 失败返回 [status message]."
+  [stub project resource-id body]
+  (try (#'resources/input! (fake-resource-q stub) project resource-id body)
+       (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
+
+
+;; resources/input! 重构前的行为钉: 类型/人员设备交叉/重档/名称/成员/容量门与日历缺省, 纯函数只读桩.
+(deftest resource-input-validates-type-member-and-duplicate
+  (let [project {:project_id 1}
+        rid "44444444-4444-4444-4444-444444444444"
+        stub {:users {9201 {:user_id 9201}} :members {[1 9201] {:role "member"}}}]
+    (testing "人员资源: 类型缺省 person, 容量缺省取计划日历工时"
+      (let [row (resource-in stub project rid {:name "张三" :user_id 9201})]
+        (is (= "person" (:resource_type row)))
+        (is (= 9201 (:user_id row)))
+        (is (= 8M (:daily_capacity row))))
+      (is (= 9M (:daily_capacity (resource-in (assoc stub :plan {:project_id 1 :calendar_json "{\"hours_per_day\":9}"})
+                                               project rid {:name "张三" :user_id 9201})))))
+    (testing "设备资源: 不带人员, 显式容量"
+      (let [row (resource-in stub project rid {:name "吊车" :resource_type "equipment" :daily_capacity 7.5})]
+        (is (= "equipment" (:resource_type row)))
+        (is (nil? (:user_id row)))
+        (is (= 7.5M (:daily_capacity row)))))
+    (testing "类型枚举与人员/设备交叉门"
+      (is (= [400 "资源类别必须为 person 或 equipment"]
+             (resource-in stub project rid {:name "x" :resource_type "vehicle"})))
+      (is (= [400 "人员资源必须关联当前项目成员"]
+             (resource-in stub project rid {:name "x"})))
+      (is (= [400 "设备资源不能关联人员账号"]
+             (resource-in stub project rid {:name "x" :resource_type "equipment" :user_id 9201}))))
+    (testing "同一成员只建一个资源档案, 同 id 更新放行"
+      (is (= [409 "该成员已经建立资源档案"]
+             (resource-in (assoc stub :resources [{:resource_id "55555555-5555-5555-5555-555555555555" :user_id 9201}])
+                          project rid {:name "张三" :user_id 9201})))
+      (is (map? (resource-in (assoc stub :resources [{:resource_id rid :user_id 9201}])
+                             project rid {:name "张三" :user_id 9201}))))
+    (testing "名称必填, 成员须存在, 容量两位小数且 0 至 24"
+      (is (= [400 "资源名称不能为空或超出长度限制"]
+             (resource-in stub project rid {:name "" :user_id 9201})))
+      (is (= [400 "资源成员不存在或已停用"]
+             (resource-in (dissoc stub :users) project rid {:name "x" :user_id 9999})))
+      (is (= [400 "每日容量必须在 0 至 24 之间"]
+             (resource-in stub project rid {:name "x" :user_id 9201 :daily_capacity 25})))
+      (is (= [400 "每日容量最多保留两位小数"]
+             (resource-in stub project rid {:name "x" :user_id 9201 :daily_capacity 1.111}))))))
+
 
 (deftest http-contract-and-error-boundaries
   (let [id (project!) base (str "/api/pms/projects/" id)
