@@ -127,6 +127,27 @@
        (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
 
 
+(defn- guard
+  "调用配置函数: 成功返回归一结果, 失败返回 [status message]."
+  [f & args]
+  (try (apply f args)
+       (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
+
+
+(defn- target-err
+  "调用季度目标校验并返回 [status message] 或 nil (通过)."
+  [body]
+  (try (#'config/quarterly-target! body) nil
+       (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
+
+
+(defn- stages-err
+  "调用阶段模板校验并返回 [status message] 或 nil (通过)."
+  [stages]
+  (try (#'config/stages! stages) nil
+       (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
+
+
 ;; gate-template! 重构前的行为钉: 检查项列表与编码唯一, 阻断检查点, 必需项, 枚举与可选布尔, 纯函数.
 (deftest gate-template-gates-checks-blocks-and-required
   (let [checks [{:code "C1" :title "检查一" :required true}
@@ -277,6 +298,142 @@
       (is (string? (:code (config/next-code *service* (actor 9441) "task" id nil)))))))
 
 
+;; batch56 (mutator 方向: cover the uncovered): config 校验层剩余分支 — record! 形状与类型404,
+;; strings!/结构模板/Gate模板/交付配置/收尾清单的形状与枚举门, 目标与封期的数值格式门,
+;; 审批策略级数, 修订两门, 冻结版退役, 目录导入404, 编码渲染占位符.
+(deftest config-validation-remaining-guards
+  (let [q (:query-fn *service*)]
+    (testing "record! id 形状与类型匹配"
+      (is (= [400 "配置ID必须为字符串"] (guard config/record! q "project-template" 123)))
+      (is (= [404 "配置不存在或类型不匹配"] (guard config/record! q "project-template" (str (UUID/randomUUID)))))
+      (let [rule (config/create! *service* (actor 9441) "coding-rule"
+                                 {:code "RULE-KIND" :object_type "task" :pattern "T-{SEQ:2}"})]
+        (is (= [404 "配置不存在或类型不匹配"] (guard config/record! q "project-template" (:id rule))))))
+    (testing "strings! 非数组被拒"
+      (is (= [400 "团队角色必须是最多20项的数组"] (guard #'config/strings! "roles" "团队角色" 20))))
+    (testing "阶段默认工期非整数被拒"
+      (is (= [400 "阶段默认工期必须是1到3650的整数"]
+             (stages-err [{:code "S1" :name "n" :weight 100 :default_days 1.5}]))))
+    (testing "结构模板: 形状/单机/枚举/编号唯一"
+      (is (= [400 "结构模板最多50个子项目"] (guard #'config/structure! "S1")))
+      (is (= [400 "结构模板最多50个子项目"]
+             (guard #'config/structure! (vec (repeat 51 {:node_type "sub" :suffix "A" :name "n"})))))
+      (is (= [400 "单机模板最多50台"]
+             (guard #'config/structure! [{:node_type "sub" :suffix "A" :name "n" :machines "M1"}])))
+      (is (= [400 "node_type取值不合法"]
+             (guard #'config/structure! [{:node_type "machine" :suffix "A" :name "n"}])))
+      (is (= [400 "结构编号后缀重复"]
+             (guard #'config/structure! [{:node_type "sub" :suffix "A" :name "一"}
+                                         {:node_type "sub" :suffix "A" :name "二"}])))
+      (is (= [400 "结构编号后缀重复"]
+             (guard #'config/structure! [{:node_type "sub" :suffix "A" :name "n" :machines [{:suffix "A" :name "机"}]}]))))
+    (testing "Gate 模板数组与编码唯一"
+      (is (= [400 "模板最多30个Gate"] (guard #'config/gate-templates! "G")))
+      (is (= [400 "模板最多30个Gate"]
+             (guard #'config/gate-templates!
+                    (vec (repeat 31 {:code "G" :title "g" :stage "execution" :required false
+                                     :checks [{:code "C" :title "c" :required true}]})))))
+      (is (= [400 "Gate模板编码重复"]
+             (guard #'config/gate-templates!
+                    [{:code "G" :title "一" :stage "execution" :required false
+                      :checks [{:code "C" :title "c" :required true}]}
+                     {:code "G" :title "二" :stage "execution" :required false
+                      :checks [{:code "C" :title "c" :required true}]}])))
+      (is (= [400 "阻断检查点取值不合法"]
+             (gate-err {:code "G1" :title "关口" :stage "execution" :required true :blocks "test.FAT"
+                        :checks [{:code "C" :title "c" :required true}]}))))
+    (testing "交付配置: 形状/枚举/前置链"
+      (is (= [400 "适用流程与试验类型必须为非空不重复数组"]
+             (guard #'config/delivery! {:required_stages "materials" :required_test_types ["SIT"]})))
+      (is (= [400 "适用流程与试验类型必须为非空不重复数组"]
+             (guard #'config/delivery! {:required_stages ["materials"] :required_test_types []})))
+      (is (= [400 "适用流程与试验类型必须为非空不重复数组"]
+             (guard #'config/delivery! {:required_stages ["materials" "materials"] :required_test_types ["SIT"]})))
+      (is (= [400 "required_stages取值不合法"]
+             (guard #'config/delivery! {:required_stages ["bogus"] :required_test_types ["SIT"]})))
+      (is (= [400 "required_test_types取值不合法"]
+             (guard #'config/delivery! {:required_stages ["materials"] :required_test_types ["BOGUS"]})))
+      (is (= [400 "适用环节必须包含物料,装配,质量的必要前置"]
+             (guard #'config/delivery! {:required_stages ["assembly"] :required_test_types ["SIT"]})))
+      (is (= [400 "适用环节必须包含物料,装配,质量的必要前置"]
+             (guard #'config/delivery! {:required_stages ["materials" "quality"] :required_test_types ["SIT"]})))
+      (is (map? (#'config/delivery! {:required_stages ["materials" "assembly"] :required_test_types ["SIT"]}))))
+    (testing "收尾清单: 形状/枚举/必填布尔"
+      (is (= [400 "收尾清单最多30项"] (guard #'config/closure-items! "C")))
+      (is (= [400 "收尾清单最多30项"]
+             (guard #'config/closure-items! (vec (repeat 31 {:title "t" :required true})))))
+      (is (= [400 "kind取值不合法"]
+             (guard #'config/closure-items! [{:kind "bogus" :title "t"}])))
+      (is (= [{:kind "check" :title "t" :required false} {:kind "handoff" :title "h" :required true}]
+             (#'config/closure-items! [{:title "t" :required false} {:kind "handoff" :title "h"}]))))
+    (testing "适用项目类别: 空数组与非数组"
+      (is (= [400 "适用项目类别不合法"]
+             (guard #'config/template! {:code "T1" :title "t" :project_types []
+                                        :stages [{:code "S1" :name "a" :weight 100}]})))
+      (is (= [400 "适用项目类别不合法"]
+             (guard #'config/template! {:code "T2" :title "t" :project_types "line"
+                                        :stages [{:code "S1" :name "a" :weight 100}]}))))
+    (testing "季度目标: 数值与格式门"
+      (is (= [400 "准时率目标必须是0到100"] (target-err {:year 2026 :quarter 1 :metric "on_time_rate" :target_value "abc"})))
+      (is (= [400 "准时率目标必须是0到100"] (target-err {:year 2026 :quarter 1 :metric "on_time_rate" :target_value -1})))
+      (is (= [400 "年份必须是2000到2100的整数"] (target-err {:year 2026.5 :quarter 1 :metric "revenue" :target_value "1"})))
+      (is (= [400 "季度必须是1到4"] (target-err {:year 2026 :quarter 1.5 :metric "revenue" :target_value "1"}))))
+    (testing "期间格式与费用池金额/币种"
+      (is (= [400 "期间格式必须为 YYYY-MM"] (guard #'config/period! "2026-1")))
+      (is (= [400 "期间格式必须为 YYYY-MM"] (guard #'config/period! 202611)))
+      (is (= [400 "费用池金额必须大于0"] (guard #'config/rd-pool! {:period "2026-11" :amount 0})))
+      (is (= [400 "暂仅支持CNY/USD/EUR/GBP/HKD"] (guard #'config/rd-pool! {:period "2026-11" :amount "100" :currency "JPY"}))))
+    (testing "审批策略级数 1 到 6"
+      (is (= [400 "审批策略需要1到6级"] (guard #'config/approval-policy! {:code "closure" :levels []})))
+      (is (= [400 "审批策略需要1到6级"] (guard #'config/approval-policy! {:code "closure" :levels "L"})))
+      (is (= [400 "审批策略需要1到6级"]
+             (guard #'config/approval-policy! {:code "closure" :levels (vec (repeat 7 {:name "n" :rule "project_manager"}))}))))
+    (testing "修订: 草稿 409 与改编码 400"
+      (let [draft (config/create! *service* (actor 9441) "coding-rule"
+                                  {:code "RULE-DRAFT" :object_type "task" :pattern "D-{SEQ:2}"})]
+        (is (= [409 "当前版本仍是草稿, 可直接发布或作废"]
+               (guard config/revise! *service* (actor 9441) "coding-rule" (:id draft)
+                      {:code "RULE-DRAFT" :object_type "task" :pattern "D-{SEQ:3}"}))))
+      (let [target (config/create! *service* (actor 9441) "quarterly-target"
+                                   {:year 2027 :quarter 1 :metric "revenue" :target_value "100"})
+            _ (config/publish! *service* (actor 9441) "quarterly-target" (:id target) {:reason "发布"})]
+        (is (= [400 "修订不能改变配置编码"]
+               (guard config/revise! *service* (actor 9441) "quarterly-target" (:id target)
+                      {:year 2027 :quarter 1 :metric "closed_projects" :target_value 5})))))
+    (testing "费用池修订发布后冻结旧版退役"
+      (let [pool (config/create! *service* (actor 9441) "rd-pool"
+                                 {:period "2026-12" :amount "100" :description "十二月池"})
+            _ (config/publish! *service* (actor 9441) "rd-pool" (:id pool) {:reason "冻结"})
+            rev (config/revise! *service* (actor 9441) "rd-pool" (:id pool)
+                                {:period "2026-12" :amount "200" :description "十二月池"})
+            _ (config/publish! *service* (actor 9441) "rd-pool" (:id rev) {:reason "再冻"})]
+        (is (= "retired" (:status (config/record! q "rd-pool" (:id pool)))))
+        (is (= "frozen" (:status (config/record! q "rd-pool" (:id rev)))))))
+    (testing "目录导入: 未知项与未支持类型 404"
+      (is (= [404 "目录项不存在"] (guard config/import-catalog! *service* (actor 9441) "project-template" {:code "NO-SUCH"})))
+      (is (= [404 "目录项不存在"] (guard config/import-catalog! *service* (actor 9441) "rd-pool" {:code "POOL-X"}))))
+    (testing "编码渲染: 占位符各分支与缺省回退"
+      (let [today (java.time.LocalDate/now)
+            code (config/render {:pattern "{YY}-{MM}-{TYPE}-{PROJECT}-{SEQ:3}"} {:type "line" :project_no "PRJ-1" :count 5})]
+        (is (= (str (subs (str (.getYear today)) 2) "-" (format "%02d" (.getMonthValue today)) "-LINE-PRJ-1-006") code)))
+      (is (= "EQUIPMENT/PRJ/01" (config/render {:pattern "{TYPE}/{PROJECT}/{SEQ:2}"} {})))
+      (is (re-matches (config/pattern-regex "A-{YY}-{MM}-{SEQ:2}") "A-26-11-01"))
+      (is (re-matches (config/pattern-regex "{TYPE}-{SEQ:2}") "LINE-01")))
+    (testing "sequence-count 的 machine/requirement 分支与 next-code 显式类型"
+      (doseq [code ["RULE-MACHINE" "RULE-REQUIREMENT"]]
+        (let [draft (config/import-catalog! *service* (actor 9441) "coding-rule" {:code code})]
+          (config/publish! *service* (actor 9441) "coding-rule" (:id draft) {:reason "启用"})))
+      (let [id (project!)]
+        (is (string? (:code (config/next-code *service* (actor 9441) "machine" id nil))))
+        (is (string? (:code (config/next-code *service* (actor 9441) "requirement" id nil))))
+        (let [rule (config/create! *service* (actor 9441) "coding-rule"
+                                   {:code "RULE-TYPE" :object_type "project" :pattern "PR-{TYPE}-{SEQ:3}"})
+              _ (config/publish! *service* (actor 9441) "coding-rule" (:id rule) {:reason "启用"})
+              suggestion (config/next-code *service* (actor 9441) "project" id "line")]
+          (is (string? (:code suggestion)))
+          (config/retire! *service* (actor 9441) "coding-rule" (:id rule) {:reason "用完退役"}))))))
+
+
 (deftest template-instantiation-guards-execution-and-node-collision
   (let [template (import-and-publish! "project-template" "TPL-EQUIPMENT")
         id (project! "equipment")
@@ -371,20 +528,6 @@
         (is (= "approved" (:status progress)))
         (is (= 1 (:passed_checks progress)))
         (is (true? (:passed progress)))))))
-
-
-(defn- target-err
-  "调用季度目标校验并返回 [status message] 或 nil (通过)."
-  [body]
-  (try (#'config/quarterly-target! body) nil
-       (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
-
-
-(defn- stages-err
-  "调用阶段模板校验并返回 [status message] 或 nil (通过)."
-  [stages]
-  (try (#'config/stages! stages) nil
-       (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
 
 
 ;; stages! 重构前的行为钉: 数组门/逐阶段三门/唯一性/合计与组装形状, 纯函数不依赖数据库.

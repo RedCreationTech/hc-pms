@@ -9,6 +9,7 @@
     [com.ruoyi.domain.pms.governance.store :as gov-store]
     [com.ruoyi.domain.pms.planning :as planning]
     [com.ruoyi.domain.pms.planning.earned-value :as ev]
+    [com.ruoyi.domain.pms.planning.network :as network]
     [com.ruoyi.domain.pms.planning.schedule :as schedule]
     [com.ruoyi.domain.pms.portfolio :as portfolio]
     [com.ruoyi.domain.pms.queries :as queries]
@@ -172,6 +173,7 @@
   (let [id (project!)
         m1 (node-by-code id "-M1")
         main (planning/create-task! *service* (actor 9901) id (with-version id {:wbs_code "MAIN-S4" :name "主计划装配调试" :task_type "task" :duration_days 5 :start_date "2026-10-01" :stage_code "S4"}))
+        early (planning/create-task! *service* (actor 9901) id (with-version id {:wbs_code "M1-EARLY" :name "单机装配 (早于主计划)" :task_type "task" :duration_days 5 :start_date "2026-09-01" :stage_code "S4" :node_id (:node_id m1)}))
         late (planning/create-task! *service* (actor 9901) id (with-version id {:wbs_code "M1-LATE" :name "单机装配 (晚于主计划)" :task_type "task" :duration_days 5 :start_date "2026-10-20" :stage_code "S4" :node_id (:node_id m1)}))
         conflicts (:plan_conflicts (plan id))]
     (is (map? (:result main)))
@@ -181,6 +183,8 @@
     (is (pos? (:days_late (first conflicts))))
     (is (= (:node_code m1) (:node_code (first conflicts))))
     (is (string? (:main_end_date (first conflicts))))
+    (is (not (some #(= "M1-EARLY" (:wbs_code %)) conflicts)) "早于主计划窗口的节点任务不构成冲突")
+    (is (map? (:result early)))
     (is (map? (:result late)))))
 
 
@@ -219,6 +223,71 @@
       (planning/task-feedback! *service* (actor 9901) id (:task_id task) (with-version id {:status "in_progress" :percent_complete 20 :remaining_days 4 :comment "开工"}))
       (is (= [409 "节点下已有开始或完成的任务, 不能整体重排"]
              (error #(planning/reschedule-node! *service* (actor 9901) id (:node_id u1) (with-version id {:start_date new-start :reason "再排"}))))))))
+
+
+;; batch56 (mutator 方向: cover the uncovered): network 的形状/空集守卫 —
+;; node_ids 非数组, 无可派生层级409, 节点重排404/409, 阶段权重覆盖三门.
+(deftest network-shape-guards-node-ids-reschedule-and-weights
+  (let [id (project!)]
+    (testing "node_ids 必须是节点 id 数组"
+      (is (= [400 "node_ids 必须是节点 id 数组"] (error #(derive! id {:node_ids "abc"})))))
+    (testing "重排: 节点不存在404 与 节点下无叶子任务409"
+      (is (= [404 "结构节点不存在或不属于当前项目"]
+             (error #(planning/reschedule-node! *service* (actor 9901) id (str (UUID/randomUUID))
+                                                (with-version id {:start_date "2026-11-01" :reason "x"})))))
+      (let [main (first (filter #(= "main" (:node_type %)) (:nodes (plan id))))
+            fresh (pms/create-node! *service* (actor 9901) id
+                                    {:parent_id (:node_id main) :node_type "sub"
+                                     :node_code (str (:project_no (pms/project *service* (actor 9901) id)) "-UF")
+                                     :name "新建空单元"})]
+        (is (= [409 "该节点下没有可重排的叶子任务"]
+               (error #(planning/reschedule-node! *service* (actor 9901) id (:node_id fresh)
+                                                  (with-version id {:start_date "2026-11-01" :reason "x"})))))))
+    (testing "阶段权重覆盖: 非数组/非整数权重/编码重复三门"
+      (let [codes (mapv :code (:stages (first (gov-store/records (:query-fn *service*) {:project_id id} "template-instance"))))
+            rows (mapv (fn [c] {:code c :weight 10}) codes)]
+        (is (= [400 "stages 必须是阶段权重数组"]
+               (error #(planning/set-stage-weights! *service* (actor 9901) id (with-version id {:stages []})))))
+        (is (= [400 "stages 必须是阶段权重数组"]
+               (error #(planning/set-stage-weights! *service* (actor 9901) id (with-version id {:stages "S1"})))))
+        (is (= [400 "阶段权重必须是0到100的整数"]
+               (error #(planning/set-stage-weights! *service* (actor 9901) id
+                                                    (with-version id {:stages (assoc rows 0 {:code (first codes) :weight 1.5})})))))
+        (is (= [400 "阶段编码重复"]
+               (error #(planning/set-stage-weights! *service* (actor 9901) id
+                                                    (with-version id {:stages (conj (vec (butlast rows)) (first rows))})))))))))
+
+
+;; batch56: 派生空集守卫 (模板无 main 层级且无结构节点 → 409) 与阶段缺省工期回退 5 天.
+(deftest derive-guards-empty-derivable-levels-and-default-duration
+  (let [mk-template (fn [code stages]
+                      (config/publish! *service* (actor 9901) "project-template"
+                                       (:id (config/create! *service* (actor 9901) "project-template"
+                                                            {:code code :title code :project_types ["equipment"]
+                                                             :stages stages}))
+                                       {:reason "发布用于派生守卫"}))
+        bare-project (fn []
+                       (:project_id (pms/create-project! *service* (actor 9901)
+                                                         {:project_no (str "PRG-" (subs (str (UUID/randomUUID)) 0 8))
+                                                          :name "派生守卫" :customer "x" :contract_no "x"
+                                                          :project_type "equipment" :manager_id 9901 :dept_id 1
+                                                          :start_date "2026-09-01" :end_date "2026-12-31"})))
+        sub-only (mk-template "TPL-SUBONLY" [{:code "X1" :name "仅子层" :weight 100 :levels ["sub"]}])
+        main-only (mk-template "TPL-MAINONLY" [{:code "Y1" :name "仅主层" :weight 100 :levels ["main"]}])]
+    (testing "stage-levels 显式层级, 工程默认与 main 回退"
+      (is (= ["machine"] (network/stage-levels {:code "S1" :levels ["machine"]})))
+      (is (= ["sub" "machine"] (network/stage-levels {:code "S3"})))
+      (is (= ["main"] (network/stage-levels {:code "ZZZ"})))
+      (is (= ["main"] (network/stage-levels {:code "S1" :levels []}))))
+    (testing "模板无 main 层级且无结构节点时无可派生层级409"
+      (let [id (bare-project)]
+        (command! id :template-instances :create nil {:template_id (:id sub-only) :reason "实例化"})
+        (is (= [409 "模板阶段没有可派生的层级"] (error #(derive! id))))))
+    (testing "阶段未声明默认工期时派生任务回退5天"
+      (let [id (bare-project)]
+        (command! id :template-instances :create nil {:template_id (:id main-only) :reason "实例化"})
+        (let [task (first (filter #(= "Y1-MAIN" (:wbs_code %)) (:tasks (derive! id))))]
+          (is (= 5 (:duration_days task))))))))
 
 
 (deftest stage-weight-override-is-versioned-and-changes-rollup-only
