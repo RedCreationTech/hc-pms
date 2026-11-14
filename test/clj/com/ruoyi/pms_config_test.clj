@@ -289,6 +289,53 @@
        (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
 
 
+(defn- stages-err
+  "调用阶段模板校验并返回 [status message] 或 nil (通过)."
+  [stages]
+  (try (#'config/stages! stages) nil
+       (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
+
+
+;; stages! 重构前的行为钉: 数组门/逐阶段三门/唯一性/合计与组装形状, 纯函数不依赖数据库.
+(deftest stages-validation-gates-weights-levels-and-uniqueness
+  (testing "合法模板按 cond-> 组装, 可选键缺省不带, levels 去重"
+    (is (= [{:code "S1" :name "启动" :weight 60 :gate_type "gate-a" :levels ["main" "sub"] :default_days 5}
+            {:code "S2" :name "交付" :weight 40}]
+           (#'config/stages! [{:code "S1" :name "启动" :weight 60 :gate_type "gate-a"
+                               :levels ["main" "sub" "sub"] :default_days 5}
+                              {:code "S2" :name "交付" :weight 40}]))))
+  (testing "阶段数组必须是 1 到 20 项"
+    (is (= [400 "模板需要1到20个阶段"] (stages-err [])))
+    (is (= [400 "模板需要1到20个阶段"] (stages-err "S1")))
+    (is (= [400 "模板需要1到20个阶段"]
+           (stages-err (vec (repeat 21 {:code "S" :name "n" :weight 100}))))))
+  (testing "权重必须是 0 到 100 的整数"
+    (is (= [400 "阶段权重必须是0到100的整数"] (stages-err [{:code "S1" :name "n" :weight 101}])))
+    (is (= [400 "阶段权重必须是0到100的整数"] (stages-err [{:code "S1" :name "n" :weight 1.5}])))
+    (is (= [400 "阶段权重必须是0到100的整数"] (stages-err [{:code "S1" :name "n"}]))))
+  (testing "派生层级必须是非空的 main/sub/machine 数组"
+    (is (= [400 "阶段派生层级只能是 main/sub/machine"]
+           (stages-err [{:code "S1" :name "n" :weight 100 :levels "main"}])))
+    (is (= [400 "阶段派生层级只能是 main/sub/machine"]
+           (stages-err [{:code "S1" :name "n" :weight 100 :levels []}])))
+    (is (= [400 "阶段派生层级只能是 main/sub/machine"]
+           (stages-err [{:code "S1" :name "n" :weight 100 :levels ["bogus"]}]))))
+  (testing "默认工期必须是 1 到 3650 的整数"
+    (is (= [400 "阶段默认工期必须是1到3650的整数"]
+           (stages-err [{:code "S1" :name "n" :weight 100 :default_days 0}])))
+    (is (= [400 "阶段默认工期必须是1到3650的整数"]
+           (stages-err [{:code "S1" :name "n" :weight 100 :default_days 3651}]))))
+  (testing "阶段字段白名单与必填文本"
+    (is (= [400 "请求包含不支持或不可修改的字段"]
+           (stages-err [{:code "S1" :name "n" :weight 100 :evil 1}])))
+    (is (= [400 "code不能为空或超出长度限制"] (stages-err [{:code "" :name "n" :weight 100}]))))
+  (testing "编码唯一与权重合计 100"
+    (is (= [400 "阶段编码重复"]
+           (stages-err [{:code "S1" :name "a" :weight 50} {:code "S1" :name "b" :weight 50}])))
+    (is (= [400 "阶段权重合计必须等于100"]
+           (stages-err [{:code "S1" :name "a" :weight 30} {:code "S2" :name "b" :weight 30}])))))
+
+
 ;; quarterly-target! 重构前的行为钉: 四指标分支, 年季范围, 金额/币种/比率门控, 纯函数不依赖数据库.
 (deftest quarterly-target-validates-every-metric-branch
   (testing "四个指标的合法目标值按各自口径归一"
