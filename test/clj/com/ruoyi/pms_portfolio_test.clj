@@ -226,6 +226,79 @@
 
 ;; portfolio/todo 重构前的行为钉: 纯桩查询覆盖 reviews/escalations/owned/reminders/legacy/approvals
 ;; 全部分支 (含链式章程与自提交负例) 与排序汇总, 不依赖数据库.
+(defn- fake-search-q
+  "search 纯表征用的桩查询: 按查询名返回罐头数据 (不查库)."
+  [{:keys [projects tasks gov delivery]}]
+  (fn [name _]
+    (case name
+      :pms/authorized-projects (or projects [])
+      :pms/search-tasks (or tasks [])
+      :pms/search-gov (or gov [])
+      :pms/search-delivery (or delivery [])
+      nil)))
+
+
+(defn- search-of
+  "在给定罐头数据下执行检索."
+  [stub actor params]
+  (portfolio/search {:query-fn (fake-search-q stub)} actor params))
+
+
+;; search 重构前的行为钉: kind 白名单与 label/tab 回退, 授权范围, matches? 字段集, 密级短路与 200 条截断.
+(deftest search-filters-by-kind-perimeter-and-truncates
+  (let [actor {:user_id 9701 :admin? false :permissions #{"pms:project:list" "pms:project:query"}}
+        projects [{:project_id 1 :project_no "PF-1" :name "甲项目"}]]
+    (testing "任务与项目候选的 label/tab/id/code/title 回退链"
+      (let [r (search-of {:projects projects
+                          :tasks [{:project_id 1 :task_id "T1" :wbs_code "WBS.1" :name "needle任务"}]}
+                         actor {:q "needle"})]
+        (is (= [{:project_id 1 :project_no "PF-1" :project_name "甲项目"
+                 :kind "task" :label "WBS任务" :tab "计划与执行"
+                 :id "T1" :code "WBS.1" :title "needle任务"
+                 :revision nil :status nil :classification nil}]
+               (:results r)))
+        (is (= 1 (:count r))) (is (false? (:truncated r))) (is (false? (:confidential_visible r))))
+      (let [r (search-of {:projects [{:project_id 1 :project_no "PF-1" :name "needle项目"}]}
+                         actor {:q " needle "})]
+        (is (= "needle" (:q r)) "检索词去空白并小写")
+        (is (= [{:project_id 1 :project_no "PF-1" :project_name "needle项目"
+                 :kind "project" :label "项目" :tab "项目概况"
+                 :id 1 :code "PF-1" :title "needle项目"
+                 :revision nil :status nil :classification nil}]
+               (:results r)))))
+    (testing "kind 白名单外与未授权项目的候选被排除"
+      (is (empty? (:results (search-of {:projects projects
+                                        :gov [{:project_id 1 :record_id 7 :payload "{}"
+                                               :kind "reminder" :title "needle"}]}
+                                       actor {:q "needle"}))))
+      (is (empty? (:results (search-of {:projects projects
+                                        :tasks [{:project_id 999 :task_id "T9" :name "needle越界"}]}
+                                       actor {:q "needle"})))))
+    (testing "matches? 只看受控字段集, 未列字段不算命中"
+      (is (empty? (:results (search-of {:projects projects
+                                        :tasks [{:project_id 1 :task_id "T2" :name "无关" :extra "needle"}]}
+                                       actor {:q "needle"})))))
+    (testing "只有文档参与密级/密级过滤, 其余类型直接可见"
+      (is (= ["risk"]
+             (mapv :kind (:results (search-of {:projects projects
+                                               :gov [{:project_id 1 :record_id 8 :payload "{}"
+                                                      :kind "risk" :title "needle风险"
+                                                      :classification "confidential"}]}
+                                              actor {:q "needle"})))))
+      (is (empty? (:results (search-of {:projects projects
+                                        :gov [{:project_id 1 :record_id 9 :payload "{}"
+                                               :kind "document" :title "needle文档"
+                                               :classification "confidential"}]}
+                                       actor {:q "needle"})))))
+    (testing "超过 200 条截断"
+      (let [rows (vec (for [i (range 250)]
+                        {:project_id 1 :task_id (str "T" i) :name (str "needle " i)}))
+            r (search-of {:projects projects :tasks rows} actor {:q "needle"})]
+        (is (= 200 (:count r)))
+        (is (true? (:truncated r)))
+        (is (= 200 (count (:results r))))))))
+
+
 (deftest todo-all-groups-characterization
   (let [today (LocalDate/now)
         d (fn [n] (str (.plusDays today n)))

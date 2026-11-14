@@ -196,6 +196,32 @@
   (let [hay (str/lower-case (str/join " " (remove nil? (map #(get record %) [:code :title :text :name :wbs_code :reason :minutes :description :deliverable]))))]
     (str/includes? hay needle)))
 
+(def ^:private search-kind-set
+  "检索允许回链的对象类型: 目录内类型加项目与任务."
+  (set (concat (keys search-kinds) ["project" "task"])))
+
+
+(defn- search-hit?
+  "候选记录命中: 属于授权项目, kind 在白名单, 关键字命中受控字段集; 文档另需密级可见与密级过滤."
+  [needle classification confidential? project rec]
+  (and project
+       (contains? search-kind-set (:kind rec))
+       (matches? needle rec)
+       (or (not= "document" (:kind rec))
+           (and (or confidential? (not= "confidential" (:classification rec)))
+                (or (nil? classification) (= classification (:classification rec)))))))
+
+
+(defn- search-hit
+  "命中记录投影为回链到项目页签的结果行 (id/code/title 按对象类型回退)."
+  [project rec]
+  (let [[label tab] (get search-kinds (:kind rec) (if (= "task" (:kind rec)) ["WBS任务" "计划与执行"] ["项目" "项目概况"]))]
+    {:project_id (:project_id project) :project_no (:project_no project) :project_name (:name project)
+     :kind (:kind rec) :label label :tab tab :id (or (:id rec) (:task_id rec) (:project_id rec))
+     :code (or (:code rec) (:wbs_code rec)) :title (or (:title rec) (:name rec) (:text rec))
+     :revision (:revision rec) :status (:status rec) :classification (:classification rec)}))
+
+
 (defn search
   "按项目权限检索项目/任务/治理/交付对象; 机密文档仅对具备密级权限者可见; 结果回链到项目页签, 不返回正文."
   [svc actor params]
@@ -214,15 +240,8 @@
                            (map g/decode (q :pms/search-delivery params)))
         results (for [rec candidates
                       :let [project (get by-project (:project_id rec))]
-                      :when (and project (contains? (set (concat (keys search-kinds) ["project" "task"])) (:kind rec))
-                                 (matches? needle rec)
-                                 (or (not= "document" (:kind rec)) (and (or confidential? (not= "confidential" (:classification rec)))
-                                                                        (or (nil? classification) (= classification (:classification rec))))))
-                      :let [[label tab] (get search-kinds (:kind rec) (if (= "task" (:kind rec)) ["WBS任务" "计划与执行"] ["项目" "项目概况"]))]]
-                  {:project_id (:project_id project) :project_no (:project_no project) :project_name (:name project)
-                   :kind (:kind rec) :label label :tab tab :id (or (:id rec) (:task_id rec) (:project_id rec))
-                   :code (or (:code rec) (:wbs_code rec)) :title (or (:title rec) (:name rec) (:text rec))
-                   :revision (:revision rec) :status (:status rec) :classification (:classification rec)})]
+                      :when (search-hit? needle classification confidential? project rec)]
+                  (search-hit project rec))]
     {:q needle :count (count (take 200 results)) :truncated (> (count results) 200)
      :results (vec (take 200 results)) :confidential_visible confidential?}))
 
