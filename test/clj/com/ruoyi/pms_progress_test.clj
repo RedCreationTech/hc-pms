@@ -311,6 +311,29 @@
       (is (vector? (:progress_history p))))))
 
 
+(deftest feedback-validates-dates-progress-and-status
+  ;; feedback! 重构前的行为钉: 覆盖日期四门与状态/进度三门 (原仅有 开始晚于今天/未完成填完成日期 两例).
+  (let [id (project!)
+        _ (derive! id)
+        _ (execution! id)
+        task (first (filter #(and (= "derived" (:source_type %)) (some? (:node_id %))) (:tasks (plan id))))
+        fb (fn [body] (error #(planning/task-feedback! *service* (actor 9901) id (:task_id task) (with-version id body))))]
+    (testing "日期门: 完成日期不得晚于今天, 不得早于实际开始, 仅完成状态可填完成日期"
+      (is (= 400 (first (fb {:status "done" :percent_complete 100 :remaining_days 0
+                             :actual_start "2026-09-01" :actual_end "2999-01-01"}))))
+      (is (= 400 (first (fb {:status "done" :percent_complete 100 :remaining_days 0
+                             :actual_start "2026-09-01" :actual_end "2026-08-01"})))))
+    (testing "状态门: 仅 in_progress/blocked/done 可反馈"
+      (is (= 400 (first (fb {:status "paused" :percent_complete 10 :remaining_days 9})))))
+    (testing "进度门: 完成状态必须 100% 且剩余工期为 0, 非完成状态不得 100%"
+      (is (= 400 (first (fb {:status "done" :percent_complete 80 :remaining_days 0}))))
+      (is (= 400 (first (fb {:status "in_progress" :percent_complete 100 :remaining_days 0})))))
+    (testing "实际进度不可回退: 已反馈 40% 后回退到 20% 被拒"
+      (is (some? (:result (planning/task-feedback! *service* (actor 9901) id (:task_id task)
+                                                   (with-version id {:status "in_progress" :percent_complete 40 :remaining_days 6})))))
+      (is (= 409 (first (fb {:status "in_progress" :percent_complete 20 :remaining_days 8})))))))
+
+
 (deftest variance-derivation-and-coverage-are-pure-read-only
   (testing "绩效偏差只读派生: behind 记进度落后, over 记工时超支, 提前/节约/按计划/尚无基线均不产生偏差"
     (is (= [{:variance_kind "schedule" :metric "spi" :value 0.7 :threshold 0.9 :status_date "2026-09-30"}]

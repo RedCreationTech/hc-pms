@@ -159,6 +159,49 @@
       (q :planning/delete-dependency! {:project_id id :dependency_id dependency-id})
       {:dependency_id dependency-id :deleted true})))
 
+(defn- check-feedback-dates!
+  "日期不变量: 不得晚于今天, 完成日期仅完成状态可填且不得早于开始 (按原顺序逐条判定)."
+  [today status actual-start actual-end]
+  (when (and actual-start (pos? (compare actual-start today))) (rules/fail! 400 "实际开始日期不能晚于今天"))
+  (when (and actual-end (pos? (compare actual-end today))) (rules/fail! 400 "实际完成日期不能晚于今天"))
+  (when (and actual-end (not= "done" status)) (rules/fail! 400 "只有完成状态可以填写实际完成日期"))
+  (when (and actual-start actual-end (neg? (compare actual-end actual-start)))
+    (rules/fail! 400 "实际完成日期不能早于实际开始日期")))
+
+
+(defn- feedback-dates!
+  "解析并校验实际开始/完成日期: 开始日缺省回退已有值或执行态当天; 通过日期不变量后, 完成状态的完成日缺省补已有值或当天. 返回 [actual-start actual-end]."
+  [body task status today]
+  (let [actual-start (or (some-> (:actual_start body) (rules/date! "实际开始日期"))
+                         (:actual_start task)
+                         (when (contains? #{"in_progress" "blocked" "done"} status) today))
+        actual-end (some-> (:actual_end body) (rules/date! "实际完成日期"))]
+    (check-feedback-dates! today status actual-start actual-end)
+    [actual-start (if (= "done" status) (or actual-end (:actual_end task) today) (:actual_end task))]))
+
+
+(defn- progress-regressed?
+  "实际进度低于已确认进度, 或已确认完成的任务被改为非完成."
+  [task status percent]
+  (or (< percent (:percent_complete task))
+      (and (= "done" (:status task)) (not= status "done"))))
+
+
+(defn- completion-problem?
+  "完成状态与百分比/剩余工期不一致: 完成态却非 100% 且 0, 或非完成态已达 100%."
+  [status percent remaining]
+  (or (and (= status "done") (not (and (= 100 percent) (zero? remaining))))
+      (and (not= status "done") (= 100 percent))))
+
+
+(defn- feedback-progress-guard!
+  "进度反馈一致性门: 仅执行状态可反馈, 实际进度不可回退, 完成状态必须 100% 且剩余工期为 0."
+  [task status percent remaining]
+  (when-not (contains? #{"in_progress" "blocked" "done"} status) (rules/fail! 400 "无效任务状态"))
+  (when (progress-regressed? task status percent) (rules/fail! 409 "已确认的实际进度不可回退"))
+  (when (completion-problem? status percent remaining) (rules/fail! 400 "完成状态必须为 100% 且剩余工期为 0")))
+
+
 (defn feedback!
   "执行期间记录实际进度,完成任务不可回退,不修改计划设计修订."
   [svc actor id task-id body]
@@ -170,13 +213,7 @@
             percent (store/integer! (:percent_complete body) "完成百分比" 0 100)
             remaining (store/integer! (:remaining_days body) "剩余工期" 0 3650)
             today (str (java.time.LocalDate/now))
-            actual-start (or (some-> (:actual_start body) (rules/date! "实际开始日期")) (:actual_start task) (when (contains? #{"in_progress" "blocked" "done"} status) today))
-            actual-end (some-> (:actual_end body) (rules/date! "实际完成日期"))
-            _ (when (and actual-start (pos? (compare actual-start today))) (rules/fail! 400 "实际开始日期不能晚于今天"))
-            _ (when (and actual-end (pos? (compare actual-end today))) (rules/fail! 400 "实际完成日期不能晚于今天"))
-            _ (when (and actual-end (not= "done" status)) (rules/fail! 400 "只有完成状态可以填写实际完成日期"))
-            _ (when (and actual-start actual-end (neg? (compare actual-end actual-start))) (rules/fail! 400 "实际完成日期不能早于实际开始日期"))
-            actual-end (if (= "done" status) (or actual-end (:actual_end task) today) (:actual_end task))
+            [actual-start actual-end] (feedback-dates! body task status today)
             record {:feedback_id (kernel/id) :project_id id :task_id task-id :user_id (:user_id actor)
                     :status status :percent_complete percent :remaining_days remaining
                     :actual_start actual-start :actual_end actual-end
@@ -186,13 +223,7 @@
         (let [node (progress/task-node (store/rows q project :planning/tasks) task)]
           (when (and node (contains? (quality/paused-node-ids q project) node))
             (rules/fail! 409 "所属子项目/单机已局部暂停,恢复后才能反馈进度")))
-        (when-not (contains? #{"in_progress" "blocked" "done"} status) (rules/fail! 400 "无效任务状态"))
-        (when (or (< percent (:percent_complete task))
-                  (and (= "done" (:status task)) (not= status "done")))
-          (rules/fail! 409 "已确认的实际进度不可回退"))
-        (when (or (and (= status "done") (not (and (= 100 percent) (zero? remaining))))
-                  (and (not= status "done") (= 100 percent)))
-          (rules/fail! 400 "完成状态必须为 100% 且剩余工期为 0"))
+        (feedback-progress-guard! task status percent remaining)
         (q :planning/create-feedback! record)
         (q :planning/task-progress! record)
         record))))
