@@ -115,6 +115,12 @@
   (try (f) nil (catch clojure.lang.ExceptionInfo e (:status (ex-data e)))))
 
 
+(defn- error-info
+  "提取业务错误状态与文案, 成功时返回 nil."
+  [f]
+  (try (f) nil (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
+
+
 (defn- document!
   "上传真实文本作为可核验的版本证据."
   [id code]
@@ -692,3 +698,79 @@
     (is (= ["request" "bom"] (mapv :key (:by-source summary))))
     (is (= "not_configured" (:external_sync_status ws)))
     (is (some? (:kitting_rollup ws))))))
+
+
+;; batch65 (mutator 方向: cover the uncovered): 物料数量/清单/节点门 (L14/L22/L39),
+;; 齐套缺行与装配开工降级 (L102/L127), 发运范围与签收人登记冲突 (L19/L77),
+;; 未知交付命令404 (L182). 注: delivery/closure-ready! (L91) 无任何调用者,
+;; 与 chain/cancel! 同类属未接线公开能力, 按惯例不删不测.
+(deftest material-node-kitting-shipment-and-command-guards
+  (let [ctx (context!) id (:id ctx)
+        item {:code "X-1" :name "部件" :quantity 1 :unit "个"}]
+    (testing "物料数量必须为整数400"
+      (is (= [400 "物料数量必须为规定范围内整数"]
+             (error-info #(command! id :material-requests :create nil
+                                    (merge (refs ctx) {:code "MQ-1" :title "小数数量" :request_type "standard"
+                                                       :owner_id 9501 :needed_on "2026-10-01"
+                                                       :items [(assoc item :quantity 1.5)]}))))))
+    (testing "物料清单需要1到200行400"
+      (is (= [400 "物料清单需要1到200行"]
+             (error-info #(command! id :material-requests :create nil
+                                    (merge (refs ctx) {:code "MQ-2" :title "空清单" :request_type "standard"
+                                                       :owner_id 9501 :needed_on "2026-10-01" :items []}))))))
+    (testing "结构节点不存在404 (先于清单校验)"
+      (is (= [404 "结构节点不存在或不属于本项目"]
+             (error-info #(command! id :material-requests :create nil
+                                    (merge (refs ctx) {:code "MQ-3" :title "坏节点" :request_type "standard"
+                                                       :owner_id 9501 :needed_on "2026-10-01"
+                                                       :items [item] :node_id "NO-SUCH-NODE"}))))))
+    (testing "齐套缺行400, 装配开工后降低齐套409, 交检批准后进入发运链"
+      (let [bom (frozen-bom! ctx)]
+        (is (= [400 "齐套记录必须完整对应冻结BOM清单"]
+               (error-info #(command! id :boms :kit (:id bom)
+                                      {:items [{:code "M-1" :available_quantity 1}]
+                                       :evidence_ids [(:evidence ctx)]}))))
+        (command! id :boms :kit (:id bom) {:items [{:code "M-1" :available_quantity 2}
+                                                   {:code "M-2" :available_quantity 4}]
+                                          :evidence_ids [(:evidence ctx)]})
+        (let [assembly (command! id :assemblies :create nil
+                                 (merge (refs ctx) {:code "A-KIT" :title "开工降级校验"
+                                                    :bom_id (:id bom) :owner_id 9501}))]
+          (command! id :assemblies :start (:id assembly) {:evidence_ids [(:evidence ctx)]})
+          (is (= [409 "装配已经开工,不得降低已使用BOM的齐套状态"]
+                 (error-info #(command! id :boms :kit (:id bom)
+                                        {:items [{:code "M-1" :available_quantity 1}
+                                                 {:code "M-2" :available_quantity 4}]
+                                         :evidence_ids [(:evidence ctx)]}))))
+          (review! ctx :assemblies (:id assembly) :submit)
+          (approved-test! ctx assembly "SIT")
+          (approved-test! ctx assembly "FAT")
+          (testing "发运范围必须非空且不重复400"
+            (is (= [400 "发运范围必须为1到50个不重复装配对象"]
+                   (error-info #(command! id :shipments :create nil
+                                          (merge (refs ctx) {:code "SH-EMPTY" :title "空范围" :assembly_ids []
+                                                             :consignee "现场" :delivery_address "客户"
+                                                             :planned_date "2026-10-05" :reviewer_id 9502})))))
+            (is (= [400 "发运范围必须为1到50个不重复装配对象"]
+                   (error-info #(command! id :shipments :create nil
+                                          (merge (refs ctx) {:code "SH-DUP" :title "重复范围"
+                                                             :assembly_ids ["fake-a" "fake-a"]
+                                                             :consignee "现场" :delivery_address "客户"
+                                                             :planned_date "2026-10-05" :reviewer_id 9502}))))))
+          (testing "签收验证人不能同时登记实际发运409"
+            ;; 审核人须为可写成员: 9503 提交, 9501 (审核人) 放行后亲自登记发运命中 L77
+            (let [shipment (command! 9503 id :shipments :create nil
+                                     (merge (refs ctx) {:code "SHIP-SELF" :title "自审发运"
+                                                        :assembly_ids [(:id assembly)]
+                                                        :consignee "现场" :delivery_address "客户"
+                                                        :planned_date "2026-10-05" :reviewer_id 9501}))]
+              (command! 9503 id :shipments :submit (:id shipment) {:evidence_ids [(:evidence ctx)]})
+              (command! 9501 id :shipments :decision (:id shipment)
+                        {:decision "approved" :reason "独立放行"})
+              (is (= [409 "指定签收验证人不能同时登记实际发运"]
+                     (error-info #(command! 9501 id :shipments :dispatch (:id shipment)
+                                            {:shipped_on (.toString (.minusDays (java.time.LocalDate/now) 2))
+                                             :tracking_no "SELF-RECORD" :evidence_ids [(:evidence ctx)]})))))))))
+    (testing "未知交付命令404"
+      (is (= [404 "交付命令不存在"]
+             (error-info #(command! id :bogus :create nil {})))))))
