@@ -392,6 +392,52 @@
              (resource-in stub project rid {:name "x" :user_id 9201 :daily_capacity 1.111}))))))
 
 
+;; batch45 (mutator 方向: cover the uncovered): 补齐 resources.clj 中 cloverage 标记为未覆盖的端点与错误分支.
+(deftest resource-endpoint-lifecycle-and-gates
+  (let [id (project!)
+        task (task! id "R-1" 3)
+        summary (:result (command! plan/create-task! id [] {:wbs_code "R-S" :name "汇总"
+                                                            :task_type "summary" :duration_days 0}))
+        rid (:resource_id (:result (command! plan/create-resource! id [] {:name "张三" :user_id 9201})))]
+    (testing "工作日历: 合法保存, 空工作日与非数组假日被拒"
+      (let [calendar (:result (command! plan/update-calendar! id []
+                                        {:working_days [1 2 3 4 5] :holidays ["2026-10-01"]
+                                         :extra_workdays [] :hours_per_day 8}))]
+        (is (= [1 2 3 4 5] (:working_days calendar)))
+        (is (= ["2026-10-01"] (:holidays calendar))))
+      (is (= 400 (status #(command! plan/update-calendar! id [] {:working_days []}))))
+      (is (= 400 (status #(command! plan/update-calendar! id [] {:working_days [1] :holidays "x"})))))
+    (testing "更新资源: 日容量改写保留类型与负责人, 改类型到设备因带人员被拒"
+      (let [updated (:result (command! plan/update-resource! id [rid] {:daily_capacity 6}))]
+        (is (= 6M (:daily_capacity updated)))
+        (is (= "person" (:resource_type updated)))
+        (is (= 9201 (:user_id updated))))
+      (is (= 400 (status #(command! plan/update-resource! id [rid] {:resource_type "equipment"})))))
+    (testing "容量覆盖: 缺日期被拒, 合法日期写入 (0 表示不可用)"
+      (is (= 400 (status #(command! plan/set-capacity! id [rid] {:capacity_hours 4}))))
+      (is (= "2026-09-21" (:date (:result (command! plan/set-capacity! id [rid]
+                                                     {:date "2026-09-21" :capacity_hours 0}))))))
+    (testing "分配: 普通任务可分配, 汇总任务与重复分配被拒"
+      (let [aid (:allocation_id (:result (command! plan/create-allocation! id []
+                                                   {:task_id (:task_id task) :resource_id rid :hours_per_day 6})))]
+        (is (string? aid))
+        (is (= 409 (status #(command! plan/create-allocation! id []
+                                       {:task_id (:task_id task) :resource_id rid :hours_per_day 4}))))
+        (testing "删除分配: 存在可删, 不存在 404"
+          (is (= {:allocation_id aid :deleted true}
+                 (:result (command! plan/delete-allocation! id [aid] {}))))
+          (is (= 404 (status #(command! plan/delete-allocation! id ["nope"] {}))))))
+      (is (= 400 (status #(command! plan/create-allocation! id []
+                                     {:task_id (:task_id summary) :resource_id rid :hours_per_day 2})))))
+    (testing "删除资源: 有分配 409, 释放分配后可删"
+      (let [aid (:allocation_id (:result (command! plan/create-allocation! id []
+                                                   {:task_id (:task_id task) :resource_id rid :hours_per_day 4})))]
+        (is (= 409 (status #(command! plan/delete-resource! id [rid] {}))))
+        (command! plan/delete-allocation! id [aid] {}))
+      (is (= {:resource_id rid :deleted true}
+             (:result (command! plan/delete-resource! id [rid] {})))))))
+
+
 (deftest http-contract-and-error-boundaries
   (let [id (project!) base (str "/api/pms/projects/" id)
         post (fn [suffix body] (request :post (str base suffix) 9201 (assoc body :version (version id))))]
