@@ -3,7 +3,7 @@
   (:require
     [cheshire.core :as json]
     [clojure.string :as str]
-    [clojure.test :refer [deftest is use-fixtures]]
+    [clojure.test :refer [deftest is testing use-fixtures]]
     [com.ruoyi.domain.pms.config :as config]
     [com.ruoyi.domain.pms.external-catalog :as external]
     [com.ruoyi.domain.pms.governance :as gov]
@@ -280,6 +280,37 @@
         (is (= "approved" (:status progress)))
         (is (= 1 (:passed_checks progress)))
         (is (true? (:passed progress)))))))
+
+
+(defn- target-err
+  "调用季度目标校验并返回 [status message] 或 nil (通过)."
+  [body]
+  (try (#'config/quarterly-target! body) nil
+       (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
+
+
+;; quarterly-target! 重构前的行为钉: 四指标分支, 年季范围, 金额/币种/比率门控, 纯函数不依赖数据库.
+(deftest quarterly-target-validates-every-metric-branch
+  (testing "四个指标的合法目标值按各自口径归一"
+    (is (= {:code "2026Q3-revenue" :year 2026 :quarter 3 :metric "revenue"
+            :target_value "5000.00" :basis "测试" :currency "CNY"}
+           (#'config/quarterly-target! {:year 2026 :quarter 3 :metric "revenue" :target_value "5000" :basis "测试"})))
+    (is (= "5000.00" (:target_value (#'config/quarterly-target! {:year 2026 :quarter 3 :metric "gross_margin" :target_value "5000"}))))
+    (is (= 7 (:target_value (#'config/quarterly-target! {:year 2026 :quarter 3 :metric "closed_projects" :target_value 7}))))
+    (is (= 99.5 (:target_value (#'config/quarterly-target! {:year 2026 :quarter 3 :metric "on_time_rate" :target_value 99.5}))))
+    (is (nil? (:currency (#'config/quarterly-target! {:year 2026 :quarter 3 :metric "closed_projects" :target_value 7})))))
+  (testing "年份与季度范围"
+    (is (= [400 "年份必须是2000到2100的整数"] (target-err {:year 1999 :quarter 1 :metric "revenue" :target_value "1"})))
+    (is (= [400 "季度必须是1到4"] (target-err {:year 2026 :quarter 5 :metric "revenue" :target_value "1"}))))
+  (testing "指标受控枚举"
+    (is (= 400 (first (target-err {:year 2026 :quarter 1 :metric "bogus" :target_value "1"})))))
+  (testing "结项数与准时率的数值门"
+    (is (= [400 "结项数目标必须是非负整数"] (target-err {:year 2026 :quarter 1 :metric "closed_projects" :target_value 1.5})))
+    (is (= [400 "结项数目标必须是非负整数"] (target-err {:year 2026 :quarter 1 :metric "closed_projects" :target_value -1})))
+    (is (= [400 "准时率目标必须是0到100"] (target-err {:year 2026 :quarter 1 :metric "on_time_rate" :target_value 101}))))
+  (testing "金额与币种门"
+    (is (= [400 "目标金额不得为负数"] (target-err {:year 2026 :quarter 1 :metric "revenue" :target_value "-1"})))
+    (is (= [400 "暂仅支持CNY/USD/EUR/GBP/HKD"] (target-err {:year 2026 :quarter 1 :metric "revenue" :target_value "1" :currency "JPY"})))))
 
 
 (deftest quarterly-target-rd-pool-and-period-lock-lifecycle

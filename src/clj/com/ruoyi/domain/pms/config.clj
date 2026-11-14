@@ -199,6 +199,30 @@
   "季度经营目标指标: 收入/毛利为金额, 结项数为整数, 准时率为百分比."
   #{"revenue" "gross_margin" "closed_projects" "on_time_rate"})
 
+(defn- target-value!
+  "按指标校验并归一目标值: 结项数为 0..100000 整数, 准时率为 0..100 数值, 金额类转分且不得为负."
+  [metric body]
+  (case metric
+    "closed_projects" (let [v (:target_value body)]
+                        (when-not (and (integer? v) (<= 0 v 100000)) (r/fail! 400 "结项数目标必须是非负整数"))
+                        v)
+    "on_time_rate" (let [v (:target_value body)]
+                     (when-not (and (number? v) (<= 0 v 100)) (r/fail! 400 "准时率目标必须是0到100"))
+                     (double v))
+    (let [amount (money/amount! (:target_value body) "目标金额")]
+      (when (neg? amount) (r/fail! 400 "目标金额不得为负数"))
+      (money/money amount))))
+
+
+(defn- target-currency!
+  "金额类指标带币种 (缺省 CNY 且受控枚举), 其余指标不带币种."
+  [metric body]
+  (when (contains? #{"revenue" "gross_margin"} metric)
+    (let [c (or (:currency body) "CNY")]
+      (when-not (money/currencies c) (r/fail! 400 "暂仅支持CNY/USD/EUR/GBP/HKD"))
+      c)))
+
+
 (defn- quarterly-target!
   [body]
   (r/object! body [:year :quarter :metric :target_value :currency :basis :reason])
@@ -206,16 +230,8 @@
         metric (s/enum! (:metric body) target-metrics "metric")]
     (when-not (and (integer? year) (<= 2000 year 2100)) (r/fail! 400 "年份必须是2000到2100的整数"))
     (when-not (and (integer? quarter) (<= 1 quarter 4)) (r/fail! 400 "季度必须是1到4"))
-    (let [value (case metric
-                  "closed_projects" (let [v (:target_value body)]
-                                      (when-not (and (integer? v) (<= 0 v 100000)) (r/fail! 400 "结项数目标必须是非负整数")) v)
-                  "on_time_rate" (let [v (:target_value body)]
-                                   (when-not (and (number? v) (<= 0 v 100)) (r/fail! 400 "准时率目标必须是0到100")) (double v))
-                  (let [amount (money/amount! (:target_value body) "目标金额")]
-                    (when (neg? amount) (r/fail! 400 "目标金额不得为负数")) (money/money amount)))
-          currency (if (contains? #{"revenue" "gross_margin"} metric)
-                     (let [c (or (:currency body) "CNY")] (when-not (money/currencies c) (r/fail! 400 "暂仅支持CNY/USD/EUR/GBP/HKD")) c)
-                     nil)]
+    (let [value (target-value! metric body)
+          currency (target-currency! metric body)]
       (cond-> {:code (str year "Q" quarter "-" metric) :year year :quarter quarter :metric metric
                :target_value value :basis (s/optional-text! body :basis 1000)}
         currency (assoc :currency currency)))))
