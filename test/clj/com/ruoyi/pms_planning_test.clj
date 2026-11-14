@@ -118,6 +118,80 @@
                                                   [{:predecessor_id "a" :successor_id "b"}
                                                    {:predecessor_id "b" :successor_id "a"}])))))
 
+(defn- fake-task-q
+  "task-input! 纯表征用的桩查询: WBS 编号, 父任务, 结构节点, 用户与成员关系按罐头返回."
+  [{:keys [existing parent nodes users members]}]
+  (fn [name params]
+    (case name
+      :planning/task-code (get existing (:wbs_code params))
+      :planning/task (get parent (:task_id params))
+      :pms/node (get nodes [(:project_id params) (:node_id params)])
+      :pms/user (get users (:user_id params))
+      :pms/member (get members [(:project_id params) (:user_id params)])
+      nil)))
+
+
+(defn- task-in
+  "在给定桩下校验任务设计: 通过返回任务行, 失败返回 [status message]."
+  [stub project task-id body]
+  (try (#'tasks/task-input! (fake-task-q stub) project task-id body)
+       (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
+
+
+(def task-stub
+  "无既有编号, 无父任务, 负责人 9201 存在且为项目成员的桩."
+  {:users {9201 {:user_id 9201}} :members {[1 9201] {:role "editor"}}})
+
+
+;; task-input! 重构前的行为钉: 类型/工期取值域/日期缺省/编号冲突/负责人/节点门与组装形状, 纯函数只读桩.
+(deftest task-input-validates-type-duration-dates-and-keys
+  (let [project {:project_id 1 :start_date "2026-08-01"}
+        tid "22222222-2222-2222-2222-222222222222"
+        base {:wbs_code "WBS.1" :name "任务甲" :duration_days 5 :start_date "2026-09-01" :owner_id 9201}]
+    (testing "合法任务组装: 类型缺省 task, 阶段编码去空白, 无节点给 nil"
+      (let [row (task-in task-stub project tid (assoc base :stage_code "  S4 " :description ""))]
+        (is (= tid (:task_id row)))
+        (is (= 1 (:project_id row)))
+        (is (= "task" (:task_type row)))
+        (is (= "WBS.1" (:wbs_code row)))
+        (is (= "S4" (:stage_code row)))
+        (is (= "" (:description row)))
+        (is (nil? (:node_id row)))
+        (is (= 9201 (:owner_id row)))
+        (is (= "2026-09-01" (:start_date row)))))
+    (testing "任务类型受控, 缺省 task"
+      (is (= [400 "无效任务类型"] (task-in task-stub project tid (assoc base :task_type "epic"))))
+      (is (= "summary" (:task_type (task-in task-stub project tid
+                                             (assoc base :task_type "summary" :duration_days 0))))))
+    (testing "工期按类型取值域: task 1..3650, summary/milestone 0..0"
+      (is (= [400 "计划工期必须是 1 至 3650 的整数"]
+             (task-in task-stub project tid (assoc base :duration_days 0))))
+      (is (= [400 "计划工期必须是 0 至 0 的整数"]
+             (task-in task-stub project tid (assoc base :task_type "summary" :duration_days 1))))
+      (is (= 0 (:duration_days (task-in task-stub project tid
+                                        (assoc base :task_type "milestone" :duration_days 0))))))
+    (testing "开始日期缺省到项目, 缺失或格式错被拒"
+      (is (= "2026-08-01" (:start_date (task-in task-stub project tid (dissoc base :start_date)))))
+      (is (= [400 "请填写任务或项目开始日期"]
+             (task-in task-stub {:project_id 1} tid (dissoc base :start_date))))
+      (is (= [400 "任务开始日期格式必须为 YYYY-MM-DD"]
+             (task-in task-stub project tid (assoc base :start_date "2026/09/01")))))
+    (testing "WBS 编号必填且不与他任务冲突, 同任务更新放行"
+      (is (= [400 "WBS编号不能为空或超出长度限制"]
+             (task-in task-stub project tid (assoc base :wbs_code " "))))
+      (is (= [409 "WBS编号已存在"]
+             (task-in (assoc task-stub :existing {"WBS.1" {:task_id "33333333-3333-3333-3333-333333333333"}})
+                      project tid base)))
+      (is (map? (task-in (assoc task-stub :existing {"WBS.1" {:task_id tid}}) project tid base))))
+    (testing "名称必填, 负责人与结构节点须属于项目"
+      (is (= [400 "任务名称不能为空或超出长度限制"]
+             (task-in task-stub project tid (assoc base :name ""))))
+      (is (= [400 "任务负责人不存在或已停用"]
+             (task-in (dissoc task-stub :users) project tid (assoc base :owner_id 9999))))
+      (is (= [400 "结构节点不存在或不属于当前项目"]
+             (task-in task-stub project tid (assoc base :node_id "N1")))))))
+
+
 (deftest wbs-isolation-and-cycle-guards
   (let [id (project!) other (project!)
         parent (:result (command! plan/create-task! id [] {:wbs_code "WBS" :name "阶段" :task_type "summary" :duration_days 0}))

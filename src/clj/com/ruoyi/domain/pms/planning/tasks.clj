@@ -35,6 +35,25 @@
           (rules/fail! 400 "父任务必须是汇总任务"))
         (recur (:parent_id parent) (inc depth))))))
 
+(defn- task-duration-gate!
+  "工期按类型取值域校验: task 1..3650, summary/milestone 0..0."
+  [type duration]
+  (store/integer! duration "计划工期" (if (= type "task") 1 0) (if (= type "task") 3650 0)))
+
+
+(defn- task-row
+  "组装任务设计行: 必填名称/说明/阶段编码与可选负责人/结构节点, 按原 map 求值顺序逐段校验."
+  [q project task-id body code start type duration]
+  {:task_id task-id :project_id (:project_id project) :parent_id (:parent_id body)
+   :wbs_code code :name (rules/text! (:name body) "任务名称" 200 true)
+   :task_type type :duration_days duration :start_date start
+   :owner_id (when (:owner_id body) (kernel/user! q project (:owner_id body) "任务负责人"))
+   :description (rules/text! (:description body) "任务说明" 2000 false)
+   :node_id (node! q project (:node_id body))
+   :stage_code (not-empty (rules/text! (:stage_code body) "阶段编码" 50 false))
+   :source_type (:source_type body) :source_id (:source_id body)})
+
+
 (defn- task-input!
   "校验任务设计,必填开始日期,成员负责人和工期."
   [q project task-id body]
@@ -44,18 +63,11 @@
         existing (q :planning/task-code {:project_id (:project_id project) :wbs_code code})
         start (rules/date! (or (:start_date body) (:start_date project)) "任务开始日期")]
     (when-not (contains? #{"summary" "task" "milestone"} type) (rules/fail! 400 "无效任务类型"))
-    (store/integer! duration "计划工期" (if (= type "task") 1 0) (if (= type "task") 3650 0))
+    (task-duration-gate! type duration)
     (when-not start (rules/fail! 400 "请填写任务或项目开始日期"))
     (when (and existing (not= task-id (:task_id existing))) (rules/fail! 409 "WBS编号已存在"))
     (parent! q project task-id (:parent_id body))
-    {:task_id task-id :project_id (:project_id project) :parent_id (:parent_id body)
-     :wbs_code code :name (rules/text! (:name body) "任务名称" 200 true)
-     :task_type type :duration_days duration :start_date start
-     :owner_id (when (:owner_id body) (kernel/user! q project (:owner_id body) "任务负责人"))
-     :description (rules/text! (:description body) "任务说明" 2000 false)
-     :node_id (node! q project (:node_id body))
-     :stage_code (not-empty (rules/text! (:stage_code body) "阶段编码" 50 false))
-     :source_type (:source_type body) :source_id (:source_id body)}))
+    (task-row q project task-id body code start type duration)))
 
 (defn create-record!
   "在调用方事务内创建真实任务并递增设计修订,供会议行动项复用."
