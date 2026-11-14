@@ -227,6 +227,53 @@
       (some #(= "approved" (:status %)) rows))))
 
 
+(defn- decide-context
+  "载入审批流与步骤并逐门校验 (顺序即错误优先级): 流存在, 流待决, 提交者回避, 当前级审批人, 意见必填(驳回), 业务适配器已登记.
+   返回进入事务写入前的上下文."
+  [q actor flow-id body decision]
+  (let [f (q :approval/flow {:flow_id flow-id})
+        _ (when-not f (rules/fail! 404 "审批不存在"))
+        _ (when-not (= "pending" (:status f)) (rules/fail! 409 "审批已结束"))
+        project (q :pms/project {:project_id (:project_id f)})
+        uid (:user_id actor)
+        _ (when (= uid (:submitted_by f)) (rules/fail! 403 "提交者不能审批自己的申请"))
+        steps (q :approval/steps {:flow_id flow-id})
+        mine (first (filter #(and (= uid (:approver_id %)) (= "pending" (:status %))
+                                  (= (:current_level f) (:level_no %))) steps))
+        _ (when-not mine (rules/fail! 403 "只有当前级的审批人可以作出此决定"))
+        comment (rules/text! (:comment body) "审批意见" 1000 (= "rejected" decision))
+        adapter (get @adapters (:biz_type f))]
+    (when-not adapter (rules/fail! 500 "审批业务未登记"))
+    {:f f :project project :steps steps :mine mine :comment comment :adapter adapter}))
+
+
+(defn- finish-flow!
+  "关闭流程剩余步骤并调用业务适配器收口: 通过时其余步骤记 skipped, 否则 cancelled."
+  [q actor project f level status comment adapter]
+  (q :approval/close-open-steps! {:flow_id (:flow_id f) :status (if (= "approved" status) "skipped" "cancelled")})
+  (rules/changed! (q :approval/update-flow! {:flow_id (:flow_id f) :status status :current_level level}))
+  ((:finalize adapter) q actor project (:biz_id f) status comment))
+
+
+(defn- advance!
+  "按当前决定推进审批: 驳回即关闭, 本级完成则跳到下一级, 末级通过则收口; 返回流程结果状态."
+  [q actor project f mine level steps decision comment adapter]
+  (cond
+    (= "rejected" decision)
+    (do (finish-flow! q actor project f level "rejected" comment adapter) "rejected")
+
+    (level-done? steps level (:mode mine))
+    (let [next-level (->> steps (map :level_no) (filter #(> % level)) sort first)]
+      (q :approval/set-level-status! {:flow_id (:flow_id f) :level_no level :status "skipped" :from_status "pending"})
+      (if next-level
+        (do (q :approval/set-level-status! {:flow_id (:flow_id f) :level_no next-level :status "pending" :from_status "waiting"})
+            (rules/changed! (q :approval/update-flow! {:flow_id (:flow_id f) :status "pending" :current_level next-level}))
+            "pending")
+        (do (finish-flow! q actor project f level "approved" comment adapter) "approved")))
+
+    :else "pending"))
+
+
 (defn decide!
   "当前级审批人通过或驳回. 驳回必须填写意见; 末级通过后调用业务适配器完成批准.
    提交人不能审批, 只有当前级的待处理审批人可以决定 (管理员也不能代批)."
@@ -236,41 +283,12 @@
     (when-not (contains? rules/decisions decision) (rules/fail! 400 "无效审批决定"))
     (kernel/transaction! svc
       (fn [q]
-        (let [f (q :approval/flow {:flow_id flow-id})
-              _ (when-not f (rules/fail! 404 "审批不存在"))
-              _ (when-not (= "pending" (:status f)) (rules/fail! 409 "审批已结束"))
-              project (q :pms/project {:project_id (:project_id f)})
-              uid (:user_id actor)
-              _ (when (= uid (:submitted_by f)) (rules/fail! 403 "提交者不能审批自己的申请"))
-              steps (q :approval/steps {:flow_id flow-id})
-              mine (first (filter #(and (= uid (:approver_id %)) (= "pending" (:status %))
-                                        (= (:current_level f) (:level_no %))) steps))
-              _ (when-not mine (rules/fail! 403 "只有当前级的审批人可以作出此决定"))
-              comment (rules/text! (:comment body) "审批意见" 1000 (= "rejected" decision))
-              adapter (get @adapters (:biz_type f))
-              _ (when-not adapter (rules/fail! 500 "审批业务未登记"))]
+        (let [{:keys [f project mine comment adapter]} (decide-context q actor flow-id body decision)]
           (rules/changed! (q :approval/decide-step! {:step_id (:step_id mine) :status decision :comment comment}))
           (rules/changed! (q :pms/touch-project! project))
           (let [steps (q :approval/steps {:flow_id flow-id})
                 level (:current_level f)
-                finish! (fn [status]
-                          (q :approval/close-open-steps! {:flow_id flow-id :status (if (= "approved" status) "skipped" "cancelled")})
-                          (rules/changed! (q :approval/update-flow! {:flow_id flow-id :status status :current_level level}))
-                          ((:finalize adapter) q actor project (:biz_id f) status comment))
-                result (cond
-                         (= "rejected" decision)
-                         (do (finish! "rejected") "rejected")
-
-                         (level-done? steps level (:mode mine))
-                         (let [next-level (->> steps (map :level_no) (filter #(> % level)) sort first)]
-                           (q :approval/set-level-status! {:flow_id flow-id :level_no level :status "skipped" :from_status "pending"})
-                           (if next-level
-                             (do (q :approval/set-level-status! {:flow_id flow-id :level_no next-level :status "pending" :from_status "waiting"})
-                                 (rules/changed! (q :approval/update-flow! {:flow_id flow-id :status "pending" :current_level next-level}))
-                                 "pending")
-                             (do (finish! "approved") "approved")))
-
-                         :else "pending")]
+                result (advance! q actor project f mine level steps decision comment adapter)]
             (kernel/event! q actor project (str "approval." (:biz_type f) "." decision)
                            {:reason comment :result {:id flow-id :status result :decision decision}})
             (flow-view q (q :approval/flow {:flow_id flow-id}))))))))
