@@ -119,6 +119,49 @@
   (config/published-by-code (:query-fn *service*) kind code))
 
 
+(defn- gate-err
+  "调用 Gate 模板校验: 通过返回归一后的模板, 失败返回 [status message]."
+  [gate]
+  (try (#'config/gate-template! gate)
+       (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
+
+
+;; gate-template! 重构前的行为钉: 检查项列表与编码唯一, 阻断检查点, 必需项, 枚举与可选布尔, 纯函数.
+(deftest gate-template-gates-checks-blocks-and-required
+  (let [checks [{:code "C1" :title "检查一" :required true}
+                {:code "C2" :title "检查二" :required false}]
+        base {:code "G1" :title "关口一" :stage "execution" :required true :checks checks}]
+    (testing "合法模板按词汇表归一: 类型缺省 generic, 可选键缺省不带"
+      (let [row (gate-err base)]
+        (is (= "G1" (:code row)))
+        (is (= "generic" (:gate_type row)))
+        (is (= "execution" (:stage row)))
+        (is (= [true false] (mapv :required (:checks row))))
+        (is (nil? (:require_released (first (:checks row)))))
+        (is (= [] (:blocks row)))))
+    (testing "检查项列表 1 到 30 项且编码唯一"
+      (is (= [400 "关口模板需要1到30个检查项"] (gate-err (assoc base :checks []))))
+      (is (= [400 "关口模板需要1到30个检查项"] (gate-err (assoc base :checks "C1"))))
+      (is (= [400 "关口模板需要1到30个检查项"]
+             (gate-err (assoc base :checks (vec (for [i (range 31)] {:code (str i) :title "t" :required true}))))))
+      (is (= [400 "关口检查项编码重复"]
+             (gate-err (assoc base :checks [{:code "C1" :title "a" :required true}
+                                            {:code "C1" :title "b" :required false}])))))
+    (testing "阻断检查点受控且不重复"
+      (is (= [400 "阻断检查点取值不合法"] (gate-err (assoc base :blocks ["nope"]))))
+      (is (= [400 "阻断检查点取值不合法"]
+             (gate-err (assoc base :blocks ["test.FAT" "test.FAT"]))))
+      (is (= ["test.FAT"] (:blocks (gate-err (assoc base :blocks ["test.FAT"]))))))
+    (testing "必需关口至少一个必需检查项, 非必需关口不受限"
+      (is (= [400 "必需关口模板至少应有一个必需检查项"]
+             (gate-err (assoc base :required true :checks [{:code "C1" :title "t" :required false}]))))
+      (is (map? (gate-err (assoc base :required false :checks [{:code "C1" :title "t" :required false}])))))
+    (testing "关口类型与阶段受控枚举, 检查项可选布尔"
+      (is (= [400 "gate_type取值不合法"] (gate-err (assoc base :gate_type "nope"))))
+      (is (= [400 "stage取值不合法"] (gate-err (assoc base :stage "nope"))))
+      (is (true? (:require_released (first (:checks (gate-err (assoc base :checks [{:code "C1" :title "t" :required true :require_released true}]))))))))))
+
+
 (deftest template-catalog-import-publish-revise-and-retire
   (let [listing (config/listing *service* (actor 9442) "project-template")]
     (is (<= 6 (count (:catalog listing))))

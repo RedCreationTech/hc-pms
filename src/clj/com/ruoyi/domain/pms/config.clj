@@ -123,26 +123,33 @@
     (when-not (= (count suffixes) (count (set suffixes))) (r/fail! 400 "结构编号后缀重复"))
     rows))
 
-(defn gate-template!
-  "校验一条 Gate 模板定义 (供平台模板与项目内从目录建立共用)."
+(defn- gate-checks!
+  "检查项列表门: 1 到 30 项, 每项白名单与必填文本, 编码唯一; 返回归一后的检查项行."
   [gate]
-  (r/object! gate [:code :title :gate_type :stage :required :blocks :checks])
   (let [checks (:checks gate)]
     (when-not (and (vector? checks) (<= 1 (count checks) 30)) (r/fail! 400 "关口模板需要1到30个检查项"))
     (let [rows (mapv (fn [c] (r/object! c [:code :title :required :require_released])
                        (cond-> {:code (s/text! c :code 50) :title (s/text! c :title 200)
                                 :required (s/boolean! (:required c) "required")}
                          (contains? c :require_released) (assoc :require_released (s/boolean! (:require_released c) "require_released"))))
-                     checks)
-          blocks (or (:blocks gate) [])]
+                     checks)]
       (when-not (= (count rows) (count (set (map :code rows)))) (r/fail! 400 "关口检查项编码重复"))
-      (when-not (and (vector? blocks) (every? checkpoints blocks) (= (count blocks) (count (set blocks))))
-        (r/fail! 400 "阻断检查点取值不合法"))
-      (when (and (:required gate) (not-any? :required rows)) (r/fail! 400 "必需关口模板至少应有一个必需检查项"))
-      {:code (s/text! gate :code 100) :title (s/text! gate :title 200)
-       :gate_type (s/enum! (or (:gate_type gate) "generic") (set (map :gate_type catalog/gate-types)) "gate_type")
-       :stage (s/enum! (:stage gate) gate-stages "stage")
-       :required (s/boolean! (:required gate) "required") :blocks (vec blocks) :checks rows})))
+      rows)))
+
+
+(defn gate-template!
+  "校验一条 Gate 模板定义 (供平台模板与项目内从目录建立共用)."
+  [gate]
+  (r/object! gate [:code :title :gate_type :stage :required :blocks :checks])
+  (let [rows (gate-checks! gate)
+        blocks (or (:blocks gate) [])]
+    (when-not (and (vector? blocks) (every? checkpoints blocks) (= (count blocks) (count (set blocks))))
+      (r/fail! 400 "阻断检查点取值不合法"))
+    (when (and (:required gate) (not-any? :required rows)) (r/fail! 400 "必需关口模板至少应有一个必需检查项"))
+    {:code (s/text! gate :code 100) :title (s/text! gate :title 200)
+     :gate_type (s/enum! (or (:gate_type gate) "generic") (set (map :gate_type catalog/gate-types)) "gate_type")
+     :stage (s/enum! (:stage gate) gate-stages "stage")
+     :required (s/boolean! (:required gate) "required") :blocks (vec blocks) :checks rows}))
 
 (defn- gate-templates!
   [gates]
