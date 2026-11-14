@@ -46,6 +46,46 @@
        (sort-by :key) vec))
 
 
+(defn- task-items
+  "逐叶子任务折算 BAC/PV/EV/AC 与排程行: 缺排程行 PV 记 0, PV 不超过 BAC."
+  [leaves rows by-task hours status-date]
+  (mapv (fn [task]
+          (let [row (rows (:task_id task)) bac (max 0 (or (:duration_days task) 0))
+                pv (if row (min bac (planned-value row status-date)) 0)
+                ev (* bac (/ (or (:percent_complete task) 0) 100.0))
+                ac (actual-days (get by-task (:task_id task)) hours status-date)]
+            {:task_id (:task_id task) :wbs_code (:wbs_code task) :stage (:stage task) :node (:node task)
+             :bac bac :pv pv :ev ev :ac ac :end_date (:end_date row)}))
+        leaves))
+
+
+(defn- ev-totals
+  "把逐任务行汇总为项目级 BAC/PV/EV/AC 与 SPI/CPI/EAC/ETC/剩余价值 (指数缺失给 nil)."
+  [items]
+  (let [bac (reduce + 0 (map :bac items))
+        pv (reduce + 0.0 (map :pv items)) ev (reduce + 0.0 (map :ev items)) ac (reduce + 0.0 (map :ac items))
+        spi (ratio ev pv) cpi (ratio ev ac)
+        eac (when (and cpi (pos? cpi)) (round2 (/ bac cpi)))
+        etc (when eac (round2 (- eac ac)))]
+    {:bac bac :pv pv :ev ev :ac ac :spi spi :cpi cpi :eac eac :etc etc :remaining (- bac ev)}))
+
+
+(defn- ev-statuses
+  "SPI/CPI 分档: 指数缺失给 无基线/无实际, 否则按 0.9 与 1.1 分三档."
+  [spi cpi]
+  {:schedule_status (cond (nil? spi) "no_baseline_yet" (< spi 0.9) "behind" (> spi 1.1) "ahead" :else "on_track")
+   :cost_status (cond (nil? cpi) "no_actuals" (< cpi 0.9) "over" (> cpi 1.1) "under" :else "on_track")})
+
+
+(defn- forecast-finish
+  "完工预测: 已完成 (EV >= BAC 且 BAC 为正) 取计划完工日, 否则按剩余价值/SPI 工作日前移; 无基线或 SPI 非正给 nil."
+  [calendar status-date bac ev spi remaining planned-finish]
+  (if (and (pos? bac) (>= ev bac))
+    planned-finish
+    (when (and (pos? bac) spi (pos? spi))
+      (schedule/shift-working-days calendar status-date (int (Math/ceil (/ remaining spi)))))))
+
+
 (defn earned-value
   "计算项目级与按阶段/节点分组的挣值指标. tasks 为全部任务, schedule 为 CPM 结果, entries 为工时单, status-date 为状态日期 (yyyy-MM-dd)."
   [tasks schedule calendar entries nodes status-date]
@@ -54,32 +94,21 @@
         hours (or (:hours_per_day calendar) 8)
         by-task (group-by :task_id entries)
         node-code (into {} (map (juxt :node_id :node_code) nodes))
-        items (mapv (fn [task]
-                      (let [row (rows (:task_id task)) bac (max 0 (or (:duration_days task) 0))
-                            pv (if row (min bac (planned-value row status-date)) 0)
-                            ev (* bac (/ (or (:percent_complete task) 0) 100.0))
-                            ac (actual-days (get by-task (:task_id task)) hours status-date)]
-                        {:task_id (:task_id task) :wbs_code (:wbs_code task) :stage (:stage task) :node (:node task)
-                         :bac bac :pv pv :ev ev :ac ac :end_date (:end_date row)}))
-                    leaves)
-        bac (reduce + 0 (map :bac items))
-        pv (reduce + 0.0 (map :pv items)) ev (reduce + 0.0 (map :ev items)) ac (reduce + 0.0 (map :ac items))
-        spi (ratio ev pv) cpi (ratio ev ac)
-        eac (when (and cpi (pos? cpi)) (round2 (/ bac cpi)))
-        etc (when eac (round2 (- eac ac)))
-        remaining (- bac ev)
-        forecast (when (and (pos? bac) spi (pos? spi))
-                   (schedule/shift-working-days calendar status-date (int (Math/ceil (/ remaining spi)))))
-        planned-finish (:end_date schedule)]
+        items (task-items leaves rows by-task hours status-date)
+        totals (ev-totals items)
+        planned-finish (:end_date schedule)
+        forecast (forecast-finish calendar status-date (:bac totals) (:ev totals) (:spi totals)
+                                  (:remaining totals) planned-finish)
+        statuses (ev-statuses (:spi totals) (:cpi totals))]
     {:status_date status-date :unit "working_days"
-     :bac_days bac :pv_days (round2 pv) :ev_days (round2 ev) :ac_days (round2 ac)
-     :sv_days (round2 (- ev pv)) :cv_days (round2 (- ev ac))
-     :spi spi :cpi cpi :eac_days eac :etc_days etc
-     :percent_complete (rm/pct bac ev)
+     :bac_days (:bac totals) :pv_days (round2 (:pv totals)) :ev_days (round2 (:ev totals)) :ac_days (round2 (:ac totals))
+     :sv_days (round2 (- (:ev totals) (:pv totals))) :cv_days (round2 (- (:ev totals) (:ac totals)))
+     :spi (:spi totals) :cpi (:cpi totals) :eac_days (:eac totals) :etc_days (:etc totals)
+     :percent_complete (rm/pct (:bac totals) (:ev totals))
      :planned_finish planned-finish
-     :forecast_finish (if (and (pos? bac) (>= ev bac)) planned-finish forecast)
-     :schedule_status (cond (nil? spi) "no_baseline_yet" (< spi 0.9) "behind" (> spi 1.1) "ahead" :else "on_track")
-     :cost_status (cond (nil? cpi) "no_actuals" (< cpi 0.9) "over" (> cpi 1.1) "under" :else "on_track")
+     :forecast_finish forecast
+     :schedule_status (:schedule_status statuses)
+     :cost_status (:cost_status statuses)
      :stages (group-metrics items :stage identity)
      :nodes (group-metrics items :node #(get node-code % %))}))
 

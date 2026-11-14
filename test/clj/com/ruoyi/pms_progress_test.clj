@@ -283,6 +283,37 @@
       (is (= "no_actuals" (:cost_status none))))))
 
 
+;; earned-value 状态分档与收尾分支的行为钉: 既有测试覆盖 behind/no_baseline/no_actuals, 此处补齐 ahead/under/on_track/over 与 ev>=bac 走计划完工日的分支.
+(deftest earned-value-status-bands-and-finish-branches
+  (let [calendar schedule/default-calendar
+        dates ["2026-09-01" "2026-09-02" "2026-09-03" "2026-09-04" "2026-09-07" "2026-09-08" "2026-09-09" "2026-09-10"]
+        sched {:tasks [{:task_id "a" :working_dates dates :end_date "2026-09-10"}] :end_date "2026-09-10"}
+        nodes []
+        ahead (ev/earned-value [{:task_id "a" :wbs_code "A" :name "A" :task_type "task"
+                                 :duration_days 8 :percent_complete 100 :stage_code "S4"}]
+                               sched calendar
+                               [{:task_id "a" :status "approved" :minutes 60 :work_date "2026-09-01"}]
+                               nodes "2026-09-02")
+        over (ev/earned-value [{:task_id "a" :wbs_code "A" :name "A" :task_type "task"
+                                :duration_days 8 :percent_complete 50 :stage_code "S4"}]
+                              sched calendar
+                              [{:task_id "a" :status "approved" :minutes 2880 :work_date "2026-09-01"}]
+                              nodes "2026-09-04")]
+    (testing "SPI/CPI 双高且已完成: ahead/under, 收尾取计划完工日"
+      (is (= 4.0 (:spi ahead)))
+      (is (= "ahead" (:schedule_status ahead)))
+      (is (= 64.0 (:cpi ahead)) "EV 8 / AC 0.125")
+      (is (= "under" (:cost_status ahead)))
+      (is (= 100 (:percent_complete ahead)))
+      (is (= "2026-09-10" (:forecast_finish ahead)) "EV >= BAC 时不外推"))
+    (testing "进度持平但成本超支: on_track/over, 收尾按剩余价值与 SPI 外推"
+      (is (= 1.0 (:spi over)))
+      (is (= "on_track" (:schedule_status over)))
+      (is (= 0.67 (:cpi over)) "EV 4 / AC 6")
+      (is (= "over" (:cost_status over)))
+      (is (= (schedule/shift-working-days calendar "2026-09-04" 4) (:forecast_finish over))))))
+
+
 (deftest feedback-records-actual-dates-and-plan-exposes-earned-value
   (let [id (project!)
         _ (derive! id)
