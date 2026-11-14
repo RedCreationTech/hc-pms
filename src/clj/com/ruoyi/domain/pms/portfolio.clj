@@ -63,23 +63,40 @@
      :due_date due :days days :overdue (boolean (and (some? days) (neg? days)))
      :due_soon (boolean (and (some? days) (<= 0 days 3)))}))
 
+(defn- review-gov-items
+  "待我独立审核的治理/交付记录: 状态待审, 指定给我且非提交人; 未发布审批策略的链式章程不重复出现."
+  [project today uid gov del chained-charters]
+  (for [rec (concat gov del)
+        :when (and (= "in_review" (:status rec)) (= uid (:reviewer_id rec)) (not= uid (:submitted_by rec))
+                   (not (and (= "charter" (:kind rec)) (contains? chained-charters (:id rec)))))
+        :let [[label tab] (get review-kinds (:kind rec) ["审批" "需求与治理"])]]
+    (assoc (item project today "review" label tab rec (:due_date rec)) :group "reviews")))
+
+
+(defn- receipt-items
+  "发运签收验证: 已发运/条件接收/拒收退回且指定给我的发运单."
+  [project today uid del]
+  (for [rec del :when (and (contains? #{"shipped" "conditional" "returned"} (:status rec))
+                           (= "shipment" (:kind rec)) (= uid (:reviewer_id rec)))]
+    (assoc (item project today "review" "签收验证" "工程交付" rec nil) :group "reviews")))
+
+
+(defn- time-review-items
+  "待我审核的工时: 已提交且指定给我的工时单."
+  [project today uid times]
+  (for [t times :when (and (= "submitted" (:status t)) (= uid (:reviewer_id t)))]
+    (assoc (item project today "time" "工时审核" "实际工时"
+                 {:id (:entry_id t) :code (:work_date t)
+                  :title (str (:user_name t) " " (money/hours (:minutes t)) "h") :status (:status t)} nil)
+           :group "reviews")))
+
+
 (defn- review-items
   "待我独立审核的治理/交付记录 (含发运签收验证与工时审核), 归入 reviews 分组; 未发布审批策略的链式章程与提交人自审不重复出现."
   [project today uid gov del times chained-charters]
-  (concat
-    (for [rec (concat gov del)
-          :when (and (= "in_review" (:status rec)) (= uid (:reviewer_id rec)) (not= uid (:submitted_by rec))
-                     (not (and (= "charter" (:kind rec)) (contains? chained-charters (:id rec)))))
-          :let [[label tab] (get review-kinds (:kind rec) ["审批" "需求与治理"])]]
-      (assoc (item project today "review" label tab rec (:due_date rec)) :group "reviews"))
-    (for [rec del :when (and (contains? #{"shipped" "conditional" "returned"} (:status rec))
-                             (= "shipment" (:kind rec)) (= uid (:reviewer_id rec)))]
-      (assoc (item project today "review" "签收验证" "工程交付" rec nil) :group "reviews"))
-    (for [t times :when (and (= "submitted" (:status t)) (= uid (:reviewer_id t)))]
-      (assoc (item project today "time" "工时审核" "实际工时"
-                   {:id (:entry_id t) :code (:work_date t)
-                    :title (str (:user_name t) " " (money/hours (:minutes t)) "h") :status (:status t)} nil)
-             :group "reviews"))))
+  (concat (review-gov-items project today uid gov del chained-charters)
+          (receipt-items project today uid del)
+          (time-review-items project today uid times)))
 
 
 (defn- escalation-items
@@ -91,20 +108,37 @@
                  "需求与治理" rec (:due_date rec)) :group "escalations")))
 
 
+(defn- owned-gov-items
+  "我负责的治理事项: 问题/行动/风险且未闭环."
+  [project today uid gov]
+  (for [rec gov :when (and (= uid (:owner_id rec)) (contains? #{"issue" "action" "risk"} (:kind rec))
+                           (not (contains? #{"closed" "converted" "discarded"} (:status rec))))]
+    (assoc (item project today (:kind rec)
+                 (get {"issue" "我负责的问题" "action" "我负责的行动" "risk" "我负责的风险"} (:kind rec))
+                 "需求与治理" rec (or (:review_due_date rec) (:due_date rec)))
+           :group "owned")))
+
+
+(defn- handover-items
+  "我负责且未完成的交底 (截止倒计时)."
+  [project today uid del]
+  (for [rec del :when (and (= uid (:owner_id rec)) (= "handover" (:kind rec)) (= "open" (:status rec)))]
+    (assoc (item project today "handover" "交底截止" "工程交付" rec (:deadline rec)) :group "owned")))
+
+
+(defn- site-task-items
+  "我负责且未开始的现场任务 (计划开始倒计时)."
+  [project today uid del]
+  (for [rec del :when (and (= uid (:owner_id rec)) (= "site-task" (:kind rec)) (= "draft" (:status rec)))]
+    (assoc (item project today "site-task" "现场任务计划开始" "工程交付" rec (:planned_start rec)) :group "owned")))
+
+
 (defn- owned-items
   "我负责的治理事项与交付时限: 问题/行动/风险, 交底截止与现场任务计划开始."
   [project today uid gov del]
-  (concat
-    (for [rec gov :when (and (= uid (:owner_id rec)) (contains? #{"issue" "action" "risk"} (:kind rec))
-                             (not (contains? #{"closed" "converted" "discarded"} (:status rec))))]
-      (assoc (item project today (:kind rec)
-                   (get {"issue" "我负责的问题" "action" "我负责的行动" "risk" "我负责的风险"} (:kind rec))
-                   "需求与治理" rec (or (:review_due_date rec) (:due_date rec)))
-             :group "owned"))
-    (for [rec del :when (and (= uid (:owner_id rec)) (= "handover" (:kind rec)) (= "open" (:status rec)))]
-      (assoc (item project today "handover" "交底截止" "工程交付" rec (:deadline rec)) :group "owned"))
-    (for [rec del :when (and (= uid (:owner_id rec)) (= "site-task" (:kind rec)) (= "draft" (:status rec)))]
-      (assoc (item project today "site-task" "现场任务计划开始" "工程交付" rec (:planned_start rec)) :group "owned"))))
+  (concat (owned-gov-items project today uid gov)
+          (handover-items project today uid del)
+          (site-task-items project today uid del)))
 
 
 (defn- reminder-items
