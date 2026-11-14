@@ -244,3 +244,55 @@
         (is (false? (:accepted? result)))
         (is (< elapsed 1200)))
       (finally (.stop server 0)))))
+
+;; batch64 (mutator 方向: cover the uncovered): 收件箱跨事件同版本异内容409 (L26)
+;; 与发送租约/重试资格/回执版本冲突重试环守卫 (L84-85/L87/L58-61).
+(deftest inbox-cross-event-same-revision-conflict
+  (let [id (project!)
+        base {:source "erp" :entity_type "order" :external_key "ORD-9"
+              :source_revision 2 :data {:status "released"}}]
+    (command! inbox/receive! id [] (assoc base :event_id "evt-A"))
+    (testing "同一来源版本换事件携带不同内容409 (事实投影不倒退)"
+      (is (= [409 "同一来源版本携带不同内容,须在源系统修正版本"]
+             (error-info #(command! inbox/receive! id []
+                                    (assoc base :event_id "evt-B" :data {:status "changed"}))))))
+    (testing "不支持的来源事实类型400"
+      (is (= [400 "不支持的来源事实类型"]
+             (error-info #(command! inbox/receive! id []
+                                    (assoc base :event_id "evt-D" :entity_type "bogus"))))))
+    (testing "更高来源版本更新事实投影"
+      (is (= "applied" (:status (:result (command! inbox/receive! id []
+                                                    (assoc base :event_id "evt-C"
+                                                           :source_revision 3
+                                                           :data {:status "shipped"})))))))))
+
+
+(deftest dispatch-retry-lease-and-version-conflict-guards
+  (testing "不存在的外发消息404"
+    (let [id (project!)]
+      (is (= [404 "外发消息不存在"]
+             (error-info #(command! dispatch/deliver! id ["no-such-message"] {}))))))
+  (testing "排队中的消息不能人工重试409"
+    (let [id (project!) message (enqueue! id (document! id) "retry-queued")]
+      (is (= [409 "仅失败,死信或过期发送可以重试"]
+             (error-info #(command! dispatch/retry! id [(:id message)] {:reason "尚未失败"}))))))
+  (testing "发送租约仍有效409, 过期后可恢复为排队"
+    (let [id (project!) message (enqueue! id (document! id) "retry-lease")]
+      (jdbc/execute! (:db *svc*)
+                     ["UPDATE pms_outbox SET status='sending',lease_id='L-1',lease_started_at=? WHERE message_id=?"
+                      (System/currentTimeMillis) (:id message)])
+      (is (= [409 "发送租约仍有效,请等待回执或租约到期"]
+             (error-info #(command! dispatch/retry! id [(:id message)] {:reason "租约未到期"}))))
+      (jdbc/execute! (:db *svc*)
+                     ["UPDATE pms_outbox SET lease_started_at=? WHERE message_id=?"
+                      (- (System/currentTimeMillis) 31000) (:id message)])
+      (is (= "queued" (:status (:result (command! dispatch/retry! id [(:id message)]
+                                                   {:reason "租约已过期"})))))))
+  (testing "网络期间租约被抢占 -> finish! 版本冲突重试3次耗尽后抛出409"
+    (let [id (project!) message (enqueue! id (document! id) "retry-conflict") db (:db *svc*)]
+      (with-endpoint (fn [body]
+                       (jdbc/execute! db ["UPDATE pms_outbox SET lease_id='stolen' WHERE message_id=?"
+                                          (:id message)])
+                       [200 {:accepted true :message_id (:message_id body) :receipt_id "ACK-C"}])
+        (fn [_]
+          (is (= 409 (error-status #(command! dispatch/deliver! id [(:id message)] {})))))))))
