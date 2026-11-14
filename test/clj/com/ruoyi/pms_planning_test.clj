@@ -93,6 +93,12 @@
   [f]
   (try (f) nil (catch clojure.lang.ExceptionInfo e (:status (ex-data e)))))
 
+
+(defn- error-info
+  "提取业务错误状态与文案, 成功时返回 nil."
+  [f]
+  (try (f) nil (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
+
 (defn- pure-tasks
   "构造不依赖数据库的两个排程任务."
   []
@@ -1559,3 +1565,24 @@
         (is (= 0M (:committed-hours equip-row)))
         (is (= v-before (version id)))
         (is (= v-before (:project_version model)))))))
+
+
+;; batch62 (mutator 方向: cover the uncovered): 审批落定后同修订重复提交409 (L79)
+;; 与 排程日期超百年400 (L73). 注: L79 与 editable! 的'计划正在审批'是两道门 —
+;; 后者挡在 submitted 状态前, 前者只在基线已落定 (approved/rejected) 后可达.
+(deftest plan-resubmit-after-decision-and-century-range-guards
+  (testing "独立审批落定后同一计划修订再次提交409"
+    (let [id (project!)]
+      (task! id "R-1" 2)
+      (let [baseline (:result (command! plan/submit-plan! id [] {:comment "初版提交"}))]
+        (plan/review-plan! *svc* (actor 9202) id (:baseline_id baseline)
+                           {:version (version id) :decision "approved" :comment "独立批准"})
+        (is (= [409 "此计划修订已提交,请修改设计后再发起新的审批"]
+               (error-info #(command! plan/submit-plan! id [] {:comment "再次提交"})))))))
+  (testing "排程日期超过一百年支持范围400"
+    (let [id (project!)]
+      (task! id "C-1" 2)
+      (command! plan/create-task! id [] {:wbs_code "C-FAR" :name "百年外任务" :duration_days 1
+                                         :owner_id 9201 :start_date "2200-01-01"})
+      (is (= [400 "排程日期超过一百年支持范围"]
+             (error-info #(command! plan/submit-plan! id [] {:comment "超远日期"})))))))

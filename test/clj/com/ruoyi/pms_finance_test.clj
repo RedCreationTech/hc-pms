@@ -592,3 +592,25 @@
       (command! 9402 closure/review! id [] {:decision "approved" :reason "通过"})
       (command! closure/create-item! id ["check"] {:title "关闭前新增缺口" :required true})
       (is (= [409 "尚未完成: 关闭前新增缺口"] (error-info #(transition! id "closed")))))))
+
+;; batch62 (mutator 方向: cover the uncovered): 分摊期间/金额校验 (L25/L26)
+;; 与工时期间对齐费用版本期间 (L71).
+(deftest allocation-period-amount-and-version-alignment-guards
+  (let [id (project!)
+        v (:result (command! cost/create! id [] {:kind "actual" :period "2026-09" :currency "CNY"
+                                                :name "九月分摊" :revenue "0" :reviewer_id 9402}))]
+    (testing "分摊期间无效400 (结束早于开始)"
+      (is (= [400 "分摊期间无效"]
+             (error-info #(command! allocation/allocate! id [(:id v)]
+                                    {:amount "1.00" :from_date "2026-09-22" :to_date "2026-09-01"
+                                     :idempotency_key "bad-period" :label "反序期间"})))))
+    (testing "分摊费用必须为正数400"
+      (is (= [400 "分摊费用必须为正数"]
+             (error-info #(command! allocation/allocate! id [(:id v)]
+                                    {:amount "0" :from_date "2026-09-01" :to_date "2026-09-05"
+                                     :idempotency_key "zero-amount" :label "零额"})))))
+    (testing "工时期间必须位于当前费用版本期间内400"
+      (is (= [400 "工时期间必须位于当前费用版本期间内"]
+             (error-info #(command! allocation/allocate! id [(:id v)]
+                                    {:amount "1.00" :from_date "2026-10-01" :to_date "2026-10-05"
+                                     :idempotency_key "wrong-month" :label "跨月期间"})))))))
