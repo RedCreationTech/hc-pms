@@ -314,6 +314,33 @@
     (command! cost/add-entry! id [(:id version)] {:category "other" :label "本项目零费用确认" :amount "0"})
     (is (= "approved" (get-in (approve-cost! id (:id version)) [:result :status])))))
 
+;; batch55 (mutator 方向: cover the uncovered): cost 版本四门 — 口径400, 未知版本404, 删除明细成功, 非草稿取消409.
+(deftest cost-version-lifecycle-gates
+  (let [id (project!)
+        version (:result (command! cost/create! id [] {:kind "estimate" :period "2026-11" :currency "CNY"
+                                                        :name "十一月估算" :revenue "100.00" :reviewer_id 9402}))]
+    (testing "费用口径受控400"
+      (is (= 400 (error-status #(command! cost/create! id [] {:kind "weird" :period "2026-11" :currency "CNY"
+                                                              :name "坏口径" :revenue "0" :reviewer_id 9402})))))
+    (testing "未知费用版本404"
+      (is (= 404 (error-status #(command! cost/add-entry! id ["no-such-version"]
+                                           {:category "material" :label "x" :amount "1"})))))
+    (testing "草稿明细可删除: 成功路径返回版本 dto 且明细消失"
+      (let [with-entry (:result (command! cost/add-entry! id [(:id version)]
+                                           {:category "material" :label "临时明细" :amount "10"}))
+            entry (first (filter #(= "临时明细" (:label %)) (:entries with-entry)))]
+        (is (some? entry))
+        (let [after (:result (command! cost/delete-entry! id [(:id version) (:entry_id entry)] {}))]
+          (is (some? after))
+          (is (empty? (filter #(= "临时明细" (:label %)) (:entries after)))))))
+    (testing "已批准版本不能取消409 (用另一份带明细的版本走审批)"
+      (let [v2 (:result (command! cost/create! id [] {:kind "budget" :period "2026-11" :currency "CNY"
+                                                      :name "十一月预算" :revenue "0.00" :reviewer_id 9402}))]
+        (command! cost/add-entry! id [(:id v2)] {:category "material" :label "留用明细" :amount "5"})
+        (approve-cost! id (:id v2))
+        (is (= 409 (error-status #(command! cost/cancel! id [(:id v2)] {:reason "想取消已批准版本"}))))))))
+
+
 (deftest period-lock-gates-cost-version-writes
   (let [id (project!)
         c1 (:id (:result (command! cost/create! id [] {:kind "budget" :period "2026-09" :currency "CNY" :name "预算A" :revenue "100.00" :reviewer_id 9402})))

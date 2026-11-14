@@ -682,6 +682,13 @@
       (is (= "350.00" (:actual (first (filter #(= "material" (:category %)) (:rows fc))))))
       (is (= "10.00" (:actual (first (filter #(= "travel" (:category %)) (:rows fc))))))
       (is (= "0.00" (:budget (first (filter #(= "travel" (:category %)) (:rows fc)))))))
+    ;; 组合看板卡片的财务摘要: 有已批准成本版本时 version-summary 复算总额/收入/毛利.
+    (let [card (first (filter #(= id (:project_id %)) (:projects (portfolio/portfolio *service* (actor 9701)))))]
+      (is (= "500.00" (get-in card [:finance :estimate])))
+      (is (= "500.00" (get-in card [:finance :budget])))
+      (is (= "550.00" (get-in card [:finance :actual])))
+      (is (= "1000.00" (get-in card [:finance :revenue])))
+      (is (= "450.00" (get-in card [:finance :margin]))))
     ;; 经营目标看板: 已发布目标按季度汇总关闭项目 (当前无关闭项目 -> 实际 0, 达成 0%), 有财务权限取决算口径.
     (let [target (config/create! *service* (actor 9701) "quarterly-target" {:year 2026 :quarter 3 :metric "revenue" :target_value "5000" :basis "测试"})]
       (config/publish! *service* (actor 9701) "quarterly-target" (:id target) {:reason "下达"})
