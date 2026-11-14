@@ -81,17 +81,23 @@
         (s/change! q project gate "ready"
                    {:checks (completed-checks! q project gate (:checks body))})))))
 
+(defn- check-ready!
+  "单个必需检查项的就绪门: 通过或豁免, 豁免须有说明, 通过须有确定证据, 声明 require_released 的证据须已独立发布 (C06 发布链联动)."
+  [q project check]
+  (when-not (or (:passed check) (:waived check)) (r/fail! 409 (str "必需检查未通过: " (:code check))))
+  (when (:waived check) (when-not (seq (:waiver_reason check)) (r/fail! 409 (str "例外检查项缺少说明: " (:code check)))))
+  (when (:passed check) (s/evidence! q project (:evidence_ids check) true))
+  (when (:require_released check)
+    (doseq [id (:evidence_ids check)]
+      (when-not (= "approved" (:status (s/record! q project "document" id)))
+        (r/fail! 409 (str "检查项 " (:code check) " 引用的证据尚未发布"))))))
+
+
 (defn- evidence-ready!
   "所有必需项须通过并提供确定文档版本; 声明 require_released 的检查项其证据须已经独立发布 (C06 发布链联动)."
   [q project gate]
   (doseq [check (:checks gate) :when (:required check)]
-    (when-not (or (:passed check) (:waived check)) (r/fail! 409 (str "必需检查未通过: " (:code check))))
-    (when (:waived check) (when-not (seq (:waiver_reason check)) (r/fail! 409 (str "例外检查项缺少说明: " (:code check)))))
-    (when (:passed check) (s/evidence! q project (:evidence_ids check) true))
-    (when (:require_released check)
-      (doseq [id (:evidence_ids check)]
-        (when-not (= "approved" (:status (s/record! q project "document" id)))
-          (r/fail! 409 (str "检查项 " (:code check) " 引用的证据尚未发布"))))))
+    (check-ready! q project check))
   true)
 
 (defn checkpoint-ready!

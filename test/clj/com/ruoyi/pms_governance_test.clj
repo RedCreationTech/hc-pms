@@ -1309,6 +1309,50 @@
     (command! id :gates :create nil {:template_id (:id template) :title "阶段评审" :reviewer_id 9302})))
 
 
+(defn- fake-gate-q
+  "evidence-ready! 纯表征用的桩查询: 治理记录按 id 返回罐头 (不查库)."
+  [{:keys [records]}]
+  (fn [name params]
+    (case name
+      :gov/record (get records (:record_id params))
+      nil)))
+
+
+(defn- ready-of
+  "调用关口检查项就绪门: 通过返回 true, 失败返回 [status message]."
+  [stub gate]
+  (try (#'gates/evidence-ready! (fake-gate-q stub) {:project_id 1} gate)
+       (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
+
+
+;; evidence-ready! 重构前的行为钉: 必需项/例外说明/证据存在/require_released 四门, 纯函数只读桩.
+(deftest evidence-ready-gates-required-passed-waived-and-released
+  (let [docs {"D1" {:record_id "D1" :kind "document" :status "approved"}
+              "D2" {:record_id "D2" :kind "document" :status "registered"}}
+        gate (fn [checks] {:checks checks})]
+    (testing "必需检查未通过或缺证据被拒"
+      (is (= [409 "必需检查未通过: C1"]
+             (ready-of {:records docs} (gate [{:code "C1" :required true :passed false}]))))
+      (is (= [409 "必须提供文档版本证据"]
+             (ready-of {:records docs} (gate [{:code "C1" :required true :passed true :evidence_ids []}])))))
+    (testing "例外放行须带说明"
+      (is (= [409 "例外检查项缺少说明: C1"]
+             (ready-of {:records docs} (gate [{:code "C1" :required true :passed false :waived true :waiver_reason ""}]))))
+      (is (true? (ready-of {:records docs} (gate [{:code "C1" :required true :passed false :waived true :waiver_reason "理由"}])))))
+    (testing "通过项校验证据存在且类型为文档"
+      (is (true? (ready-of {:records docs} (gate [{:code "C1" :required true :passed true :evidence_ids ["D1"]}]))))
+      (is (= [404 "治理对象不存在或类型不匹配"]
+             (ready-of {:records docs} (gate [{:code "C1" :required true :passed true :evidence_ids ["D9"]}])))))
+    (testing "声明 require_released 的证据须已独立发布"
+      (is (= [409 "检查项 C1 引用的证据尚未发布"]
+             (ready-of {:records docs} (gate [{:code "C1" :required true :passed true
+                                               :evidence_ids ["D2"] :require_released true}]))))
+      (is (true? (ready-of {:records docs} (gate [{:code "C1" :required true :passed true
+                                                   :evidence_ids ["D1"] :require_released true}])))))
+    (testing "非必需检查项跳过, 整体就绪返回 true"
+      (is (true? (ready-of {:records docs} (gate [{:code "C9" :required false :passed false}])))))))
+
+
 (deftest gate-uses-pinned-evidence-and-formal-waiver
   (let [id (project!) document (document! id "GATE-DOC") gate (gate! id "execution")
         charter (command! id :charters :create nil (charter-body))]
