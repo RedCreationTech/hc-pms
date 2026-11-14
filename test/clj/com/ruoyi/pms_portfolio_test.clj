@@ -621,6 +621,67 @@
       (is (false? (:finance_visible (portfolio/targets *service* (actor 9703))))))))
 
 
+(defn- fake-targets-q
+  "targets 纯表征用的桩查询: 按查询名返回罐头数据 (不查库)."
+  [projects lifecycle versions entries targets]
+  (fn [name params]
+    (case name
+      :pms/authorized-projects projects
+      :lifecycle/state (get lifecycle (:project_id params) {})
+      :finance/versions (get versions (:project_id params) [])
+      :finance/entries (get entries (:version_id params) [])
+      :config/list targets
+      :approval/pending-flow nil
+      nil)))
+
+
+;; targets 重构前的行为钉: 关闭项目决算/毛利/准时率推导与四个指标的实际值计算, 纯桩不依赖数据库.
+(deftest targets-derives-closed-settlements-and-four-metrics
+  (let [actor {:user_id 9701 :admin? false
+               :permissions #{"pms:finance:query" "pms:dashboard:query" "pms:project:list" "pms:project:query"}}
+        projects [{:project_id 1 :project_no "T-A" :name "甲" :status "closed" :end_date "2026-09-30"}
+                  {:project_id 2 :project_no "T-B" :name "乙" :status "closed" :end_date "2026-09-30"}
+                  {:project_id 3 :project_no "T-C" :name "丙" :status "execution" :end_date "2026-09-30"}]
+        lifecycle {1 {:archived_at "2026-08-15T10:00:00"} 2 {:archived_at "2026-10-05T00:00:00"}}
+        versions {1 [{:version_id 101 :kind "settlement" :status "approved" :version_no 1
+                      :revenue_minor 500000 :currency "CNY"}]}
+        entries {101 [{:entry_id "e1" :amount_minor 200000} {:entry_id "e2" :amount_minor 50000}]}
+        q (fake-targets-q projects lifecycle versions entries
+                           [{:config_id "t1" :payload "{}" :year 2026 :quarter 3 :metric "revenue"
+                             :target_value "5000" :revision 1 :status "published" :code "2026Q3-revenue"}
+                            {:config_id "t2" :payload "{}" :year 2026 :quarter 3 :metric "gross_margin"
+                             :target_value "1000" :revision 1 :status "published" :code "2026Q3-margin"}
+                            {:config_id "t3" :payload "{}" :year 2026 :quarter 3 :metric "closed_projects"
+                             :target_value 1 :revision 1 :status "published" :code "2026Q3-closed"}
+                            {:config_id "t4" :payload "{}" :year 2026 :quarter 4 :metric "on_time_rate"
+                             :target_value 50 :revision 1 :status "published" :code "2026Q4-ontime"}])
+        board (portfolio/targets {:query-fn q} actor)
+        row (fn [id] (first (filter #(= id (:id %)) (:rows board))))]
+    (testing "关闭项目按归档季度分组, 决算收入/毛利与准时结项判定 (无决算项目不崩且按 0 计)"
+      (is (true? (:finance_visible board)))
+      (is (= [{:project_id 1 :project_no "T-A" :name "甲" :on_time true :currency "CNY"}]
+             (mapv #(select-keys % [:project_id :project_no :name :on_time :currency])
+                   (:closed_projects (row "t1")))))
+      (is (= [{:project_id 2 :project_no "T-B" :name "乙" :on_time false :currency nil}]
+             (mapv #(select-keys % [:project_id :project_no :name :on_time :currency])
+                   (:closed_projects (row "t4")))))
+      (is (not-any? #(= "T-C" (:project_no %)) (mapcat :closed_projects (:rows board))) "未关闭项目不计入"))
+    (testing "四指标实际值与达成率: 收入/毛利取已批准决算, 结项数与准时率按季度计数"
+      (is (= "5000.00" (:actual (row "t1"))))
+      (is (= 100 (:achievement_pct (row "t1"))))
+      (is (= "2500.00" (:actual (row "t2"))))
+      (is (= 250 (:achievement_pct (row "t2"))))
+      (is (= 1 (:actual (row "t3"))))
+      (is (= 100 (:achievement_pct (row "t3"))))
+      (is (= 0.0 (:actual (row "t4"))))
+      (is (= 0 (:achievement_pct (row "t4")))))
+    (testing "逐行来源标记与季度排序, 达成汇总按四指标聚合"
+      (is (= ["t3" "t2" "t1" "t4"] (mapv :id (:rows board))))
+      (is (every? #(= "approved_settlements" (:source %)) (:rows board)))
+      (is (= {:total 4 :met 3 :near 0 :behind 1}
+             (select-keys (:attainment board) [:total :met :near :behind]))))))
+
+
 (deftest goal-attainment-summary-is-derived-read-only
   ;; 纯函数: 按目标编码取最新版本(剔除已退役), 达成率分档 (达标/接近/落后) 与四指标分布; 只读派生不改入参.
   (let [rows [{:code "2026Q3-revenue" :revision 1 :status "published" :metric "revenue" :achievement_pct 120}

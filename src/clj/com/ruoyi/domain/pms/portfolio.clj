@@ -361,10 +361,13 @@
         projects (authorized-projects q actor)
         closed (for [p projects :when (= "closed" (:status p))
                      :let [closed-at (str (or (:archived_at (q :lifecycle/state {:project_id (:project_id p)})) (:updated_at p)))
+                           ;; 无已批准决算的关闭项目 settlement 为 nil (下方 revenue/margin 已按 nil 兜底), 不得把 nil 交给 cost/dto 复算明细
                            settlement (when finance?
-                                        (->> (q :finance/versions {:project_id (:project_id p)})
-                                             (filter #(and (= "settlement" (:kind %)) (= "approved" (:status %))))
-                                             (sort-by :version_no >) first (cost/dto q)))
+                                        (some->> (q :finance/versions {:project_id (:project_id p)})
+                                                 (filter #(and (= "settlement" (:kind %)) (= "approved" (:status %))))
+                                                 (sort-by :version_no >)
+                                                 first
+                                                 (cost/dto q)))
                            on-time? (and (:end_date p) (not (.isAfter (LocalDate/parse (subs closed-at 0 10)) (LocalDate/parse (:end_date p)))))]
                      :when (>= (count closed-at) 10)]
                  {:project_id (:project_id p) :project_no (:project_no p) :name (:name p) :quarter (quarter-of closed-at) :closed_at (subs closed-at 0 10)
