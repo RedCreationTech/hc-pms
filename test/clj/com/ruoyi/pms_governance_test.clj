@@ -1378,6 +1378,123 @@
                                             {:decision "waived" :reason "无申请却要豁免"})))))))))
 
 
+;; batch57 (mutator 方向: cover the uncovered): gates 剩余缺口 — 目录导入可选关口,
+;; 检查结果非数组与 waived 布尔, 读模型空检查回退, 流转汇总未分类阶段,
+;; 整改排除已豁免项与超长回退标题截断, 阶段准入三态, 多证据发布链, 双阻断关口.
+(deftest gate-read-models-fallbacks-and-velocity-unspecified-stage
+  (testing "无检查项的读模型回退空数组"
+    (is (= 0 (:gate_total (gates/gate-read-model {}))))
+    (is (true? (:ready_to_sign (gates/gate-read-model {}))))
+    (is (= [] (:blocking_checks (gates/gate-read-model {}))))
+    (is (= 0 (:gate_voided_checks (gates/gate-evidence-voided-model #{} {} {}))))
+    (is (false? (:gate_evidence_voided (gates/gate-evidence-voided-model #{} {} {}))))
+    (is (= 0 (:gate_evidence_checks (gates/gate-evidence-release-model {} {}))))
+    (is (false? (:gate_evidence_unreleased (gates/gate-evidence-release-model {} {})))))
+  (testing "流转汇总缺省阶段归入 unspecified 且点名列表可排序"
+    (let [s (gates/gate-velocity-summary [{:id "g1" :status "draft" :ready_to_sign true}])]
+      (is (= 1 (get-in s [:by-stage "unspecified" :total])))
+      (is (= 1 (:ready-to-submit s)))
+      (is (= 1 (count (:ready-to-submit-list s))))
+      (is (nil? (:stage (first (:ready-to-submit-list s))))))))
+
+
+(deftest evidence-ready-covers-multiple-evidence-ids-in-release-chain
+  (let [docs {"D1" {:record_id "D1" :kind "document" :status "approved"}
+              "D2" {:record_id "D2" :kind "document" :status "registered"}}
+        g (fn [checks] {:checks checks})]
+    (testing "同一检查项绑定多个证据时逐个校验发布状态 (首个已发布, 次个未发布)"
+      (is (= [409 "检查项 C1 引用的证据尚未发布"]
+             (ready-of {:records docs} (g [{:code "C1" :required true :passed true
+                                            :evidence_ids ["D1" "D2"] :require_released true}])))))
+    (testing "两个必需检查项依次就绪 (doseq 多次迭代)"
+      (is (true? (ready-of {:records docs} (g [{:code "C1" :required true :passed true :evidence_ids ["D1"]}
+                                               {:code "C2" :required true :passed false
+                                                :waived true :waiver_reason "已评估"}])))))))
+
+
+(deftest checkpoint-ready-blocks-until-every-blocking-template-passes
+  (let [id (project!)
+        q (:query-fn *service*)
+        project (pms/project *service* (actor 9301) id)
+        doc (document! id "GATE-CP")
+        mk (fn [code]
+             (command! id :gate-templates :create nil
+                       {:code code :title code :stage "manufacturing" :required false
+                        :blocks ["assembly.start"]
+                        :checks [{:code "K" :title "齐套检查" :required true}]}))
+        t1 (mk "G-CP1")
+        t2 (mk "G-CP2")]
+    (testing "两个模板同时阻断同一检查点, 任一未通过即拒绝"
+      (is (= 409 (error-status #(gates/checkpoint-ready! q project "assembly.start")))))
+    (testing "两个阻断关口实例全部独立批准后放行"
+      (doseq [tpl [t1 t2]]
+        (let [g (command! id :gates :create nil {:template_id (:id tpl) :title (:title tpl) :reviewer_id 9302})]
+          (command! id :gates :checks (:id g) {:checks [{:code "K" :passed true :evidence_ids [(:id doc)]}]})
+          (command! id :gates :submit (:id g) {})
+          (command! 9302 id :gates :decision (:id g) {:decision "approved" :reason "独立签核"})))
+      (is (true? (gates/checkpoint-ready! q project "assembly.start"))))))
+
+
+(deftest gate-input-guards-and-remediation-title-truncation
+  (let [id (project!)]
+    (testing "目录导入可选关口: required false 与无阻断点回退空数组"
+      (let [t (command! id :gate-templates :from-catalog nil {:gate_type "requirement-confirm" :required false})]
+        (is (false? (:required t)))
+        (is (= [] (:blocks t)))))
+    (let [template (command! id :gate-templates :create nil
+                             {:code "G-B57" :title "批57关口" :stage "execution" :required true
+                              :checks [{:code "C-1" :title "检查一" :required true}
+                                       {:code "C-2" :title "检查二" :required true}]})
+          gate (command! id :gates :create nil {:template_id (:id template) :title "阶段评审" :reviewer_id 9302})]
+      (testing "检查结果必须是向量, waived 必须为布尔"
+        (is (= 400 (error-status #(command! id :gates :checks (:id gate) {:checks {"C-1" {:passed true}}}))))
+        (is (= 400 (error-status #(command! id :gates :checks (:id gate)
+                                            {:checks [{:code "C-1" :passed false :evidence_ids [] :waived "yes"}
+                                                      {:code "C-2" :passed false :evidence_ids []}]})))))
+      (testing "整改排除已豁免的必需项, 只落实真正未通过项"
+        (command! id :gates :checks (:id gate)
+                  {:checks [{:code "C-1" :passed false :evidence_ids [] :waived true :waiver_reason "已评估接受"}
+                            {:code "C-2" :passed false :evidence_ids []}]})
+        (let [a (command! id :gates :remediation-action (:id gate) {:due_date "2026-10-20"})]
+          (is (= "C-2" (:source_check_code a))))
+        (let [acts (command! id :gates :remediation-actions (:id gate) {:due_date "2026-10-21"})]
+          (is (= ["C-2"] (mapv :source_check_code acts))))))
+    (testing "回退标题超长时截断到200字 (单条与批量)"
+      (let [template (command! id :gate-templates :create nil
+                               {:code "G-B57L" :title "超长标题关口" :stage "delivery" :required true
+                                :checks [{:code "L-1" :title "交付检查" :required true}]})
+            long-gate (command! id :gates :create nil
+                                {:template_id (:id template) :title (apply str (repeat 200 "长"))
+                                 :reviewer_id 9302})
+            a (command! id :gates :remediation-action (:id long-gate) {:due_date "2026-10-20"})]
+        (is (= 200 (count (:title a))))
+        (is (true? (.startsWith (:title a) "整改: ")))
+        (let [acts (command! id :gates :remediation-actions (:id long-gate) {:due_date "2026-10-22"})]
+          (is (every? #(= 200 (count (:title %))) acts)))))))
+
+
+(deftest stage-readiness-blocks-until-required-gates-independently-approved
+  (let [id (project!)
+        charter (command! id :charters :create nil (charter-body))]
+    (approve! id :charters (:id charter))
+    (testing "无该阶段必需关口模板即阻断"
+      (is (= ["尚未配置该阶段必需关口模板"] (get-in (workspace id) [:blockers :execution]))))
+    (let [template (command! id :gate-templates :create nil
+                             {:code "G-B57EX" :title "执行准入关口" :stage "execution" :required true
+                              :checks [{:code "E-1" :title "执行检查" :required true}]})]
+      (testing "有模板但无实例即阻断"
+        (is (= ["必需关口尚未通过: 执行准入关口"] (get-in (workspace id) [:blockers :execution]))))
+      (let [gate (command! id :gates :create nil {:template_id (:id template) :title "执行评审" :reviewer_id 9302})
+            doc (document! id "GATE-EX")]
+        (testing "有实例但未签核即阻断"
+          (is (= ["必需关口尚未通过: 执行准入关口"] (get-in (workspace id) [:blockers :execution]))))
+        (testing "检查通过并由独立审核人批准后放行"
+          (command! id :gates :checks (:id gate) {:checks [{:code "E-1" :passed true :evidence_ids [(:id doc)]}]})
+          (command! id :gates :submit (:id gate) {})
+          (command! 9302 id :gates :decision (:id gate) {:decision "approved" :reason "独立签核"})
+          (is (empty? (get-in (workspace id) [:blockers :execution]))))))))
+
+
 (deftest gate-uses-pinned-evidence-and-formal-waiver
   (let [id (project!) document (document! id "GATE-DOC") gate (gate! id "execution")
         charter (command! id :charters :create nil (charter-body))]
