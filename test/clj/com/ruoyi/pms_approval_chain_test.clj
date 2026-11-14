@@ -230,6 +230,43 @@
     (finally (retire-policy! "cost-version"))))
 
 
+;; batch47 (mutator 方向: cover the uncovered): 补齐 approval_chain 的策略视图, 流读取与无审批人两门.
+(deftest policy-view-flow-read-and-no-approver-gates
+  (let [id (project!)]
+    (testing "active-policies: 已发布策略带出 id/revision/levels/needs_reviewer"
+      (publish-policy! "cost-version"
+                       [{:name "部门审批" :rule "dept_leader" :up 0 :mode "any"}
+                        {:name "指定审批" :rule "submitter_choice"}])
+      (let [policies (chain/active-policies *svc* (actor 9510))
+            p (get policies "cost-version")]
+        (is (some? (:id p)))
+        (is (pos? (:revision p)))
+        (is (= ["部门审批" "指定审批"] (mapv :name (:levels p))))
+        (is (true? (:needs_reviewer p))))
+      (retire-policy! "cost-version"))
+    (testing "flow 读取: 未知404, 存在返回含步骤的视图"
+      (publish-policy! "cost-version" [{:name "部门审批" :rule "dept_leader" :up 0 :mode "any"}])
+      (let [cid (cost-version! id "100.00")
+            flow (flow-of id "cost-version" cid)
+            view (chain/flow *svc* (actor 9510) (:flow_id flow))]
+        (is (= "pending" (:status view)))
+        (is (vector? (:levels view)))
+        (is (pos? (count (:levels view))))
+        (is (vector? (:steps (first (:levels view))))))
+      (is (= 404 (error-status #(chain/flow *svc* (actor 9510) "nope"))))
+      (retire-policy! "cost-version"))
+    (testing "成员限定级别: 角色用户均非项目成员时该级无审批人 ->409"
+      (publish-policy! "cost-version"
+                       [{:name "财务限定" :rule "role" :role_key "chain-finance" :members_only true}])
+      (is (= 409 (error-status #(cost-version! id "200.00"))))
+      (retire-policy! "cost-version"))
+    (testing "全部级别被 skip 跳过 ->409 审批策略没有可用审批人"
+      (publish-policy! "cost-version"
+                       [{:name "无人" :rule "user" :user_ids [99999] :on_empty "skip"}])
+      (is (= 409 (error-status #(cost-version! id "300.00"))))
+      (retire-policy! "cost-version"))))
+
+
 (deftest countersign-empty-level-and-snapshot
   (try
     (testing "某级没有可用审批人且配置为拒绝时, 提交失败并回滚"
