@@ -48,7 +48,7 @@
                          :migration-dir (if (.contains url "mysql") "migrations" "migrations-sqlite")})
       (jdbc/execute! db ["INSERT INTO sys_role(role_id,role_name,role_key,role_sort,status,del_flag) VALUES(9200,'Planning test','planning-test',20,'0','0')"])
       (jdbc/execute! db ["INSERT INTO sys_role_menu(role_id,menu_id) SELECT 9200,menu_id FROM sys_menu WHERE perms LIKE 'pms:%'"])
-      (doseq [id [9201 9202 9203 9204 9210]]
+      (doseq [id [9201 9202 9203 9204 9210 9299]]
         (jdbc/execute! db ["INSERT INTO sys_user(user_id,dept_id,user_name,nick_name,status,del_flag) VALUES(?,1,?,?,'0','0')"
                            id (str "plan-user-" id) (str "计划测试" id)])
         (jdbc/execute! db ["INSERT INTO sys_user_role(user_id,role_id) VALUES(?,9200)" id]))
@@ -1586,3 +1586,56 @@
                                          :owner_id 9201 :start_date "2200-01-01"})
       (is (= [400 "排程日期超过一百年支持范围"]
              (error-info #(command! plan/submit-plan! id [] {:comment "超远日期"})))))))
+
+;; batch63 (mutator 方向: cover the uncovered): 执行准入时外部共享人员超配409 (L140).
+;; 批准窗口 editable! 冻结本项目计划写入, 自身超配无法在批准后引入且不改修订 —
+;; 超配只能来自 shared-person-projects 的外部同人项目, 本项目修订与快照哈希
+;; 均不变, 恰好穿过 L136/L138 两门后命中 L140. 专用人员 9299 隔离同库其它用例.
+(deftest execution-gate-blocks-on-external-shared-person-overload
+  (let [a (project!)
+        _ (pms/set-member! *svc* (actor 1) a {:user_id 9299 :role "viewer"})
+        _ (task! a "X-1" 3)
+        _ (command! plan/create-resource! a [] {:name "超配专用人员" :resource_type "person"
+                                                :user_id 9299 :daily_capacity 8})
+        baseline (:result (command! plan/submit-plan! a [] {:comment "初版提交"}))]
+    (plan/review-plan! *svc* (actor 9202) a (:baseline_id baseline)
+                       {:version (version a) :decision "approved" :comment "独立批准"})
+    (let [b (project!)
+          _ (pms/set-member! *svc* (actor 1) b {:user_id 9299 :role "viewer"})
+          task-b (task! b "Y-1" 3)
+          res-b (:result (command! plan/create-resource! b [] {:name "超配专用人员" :resource_type "person"
+                                                               :user_id 9299 :daily_capacity 8}))]
+      (command! plan/create-allocation! b [] {:task_id (:task_id task-b)
+                                              :resource_id (:resource_id res-b) :hours_per_day 12})
+      (is (= [409 "共享资源存在超配,请调整计划后再进入执行"]
+             (error-info #(command! pms/transition-project! a [] {:status "execution" :reason "进入执行"}))))
+      ;; 清理: 取消外部项目使其退出 shared-person-projects, 不污染同库其它用例
+      (command! pms/transition-project! b [] {:status "cancelled" :reason "超配用例清理"}))))
+
+;; batch64 (mutator 方向: cover the uncovered): 批准时外部共享人员超配409 (L95).
+;; 与 L140 同源: shared-person-projects 的外部负载不在本项目快照/修订内,
+;; 提交后引入即可让批准门命中; 清除外部负载后同一申请可正常批准.
+(deftest approval-gate-blocks-on-external-shared-person-overload
+  (let [a (project!)
+        _ (pms/set-member! *svc* (actor 1) a {:user_id 9299 :role "viewer"})
+        _ (task! a "X-2" 3)
+        _ (command! plan/create-resource! a [] {:name "超配专用人员" :resource_type "person"
+                                                :user_id 9299 :daily_capacity 8})
+        baseline (:result (command! plan/submit-plan! a [] {:comment "初版提交"}))]
+    (let [b (project!)
+          _ (pms/set-member! *svc* (actor 1) b {:user_id 9299 :role "viewer"})
+          task-b (task! b "Y-2" 3)
+          res-b (:result (command! plan/create-resource! b [] {:name "超配专用人员" :resource_type "person"
+                                                               :user_id 9299 :daily_capacity 8}))]
+      (command! plan/create-allocation! b [] {:task_id (:task_id task-b)
+                                              :resource_id (:resource_id res-b) :hours_per_day 12})
+      (is (= [409 "当前共享资源存在超配,不能批准计划"]
+             (error-info #(plan/review-plan! *svc* (actor 9202) a (:baseline_id baseline)
+                                             {:version (version a) :decision "approved"
+                                              :comment "独立批准"}))))
+      ;; 清理外部负载: 取消外部项目后同一申请可正常批准
+      (command! pms/transition-project! b [] {:status "cancelled" :reason "超配用例清理"})
+      (is (= "approved" (get-in (plan/review-plan! *svc* (actor 9202) a (:baseline_id baseline)
+                                                   {:version (version a) :decision "approved"
+                                                    :comment "解除超配后批准"})
+                                [:result :status]))))))
