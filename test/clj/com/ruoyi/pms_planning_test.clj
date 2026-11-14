@@ -438,6 +438,65 @@
              (:result (command! plan/delete-resource! id [rid] {})))))))
 
 
+;; batch46 (mutator 方向: cover the uncovered): 补齐 planning/tasks 写路径守卫 — 父任务类型, 类型变更四态, 删除三态, 依赖三门与404.
+(deftest task-write-guards-for-type-change-delete-and-dependency
+  (let [id (project!)
+        feedback-task (:task_id (task! id "F-1" 2))]
+    (testing "父任务必须是汇总任务"
+      (let [normal (task! id "G-1" 2)]
+        (is (= 400 (status #(command! plan/create-task! id []
+                                       {:wbs_code "G-1.1" :name "子任务" :duration_days 1
+                                        :parent_id (:task_id normal)}))))))
+    (testing "类型变更: 存在依赖时409"
+      (let [a (task! id "T-2" 2) b (task! id "T-3" 2)]
+        (command! plan/create-dependency! id [] {:predecessor_id (:task_id a) :successor_id (:task_id b)
+                                                 :dependency_type "FS"})
+        (is (= 409 (status #(command! plan/update-task! id [(:task_id a)]
+                                      {:task_type "summary" :duration_days 0}))))))
+    (testing "类型变更: 存在资源分配时409"
+      (let [t (task! id "T-4" 2)
+            r (:result (command! plan/create-resource! id [] {:name "设备甲" :resource_type "equipment"}))]
+        (command! plan/create-allocation! id [] {:task_id (:task_id t) :resource_id (:resource_id r)
+                                                 :hours_per_day 4})
+        (is (= 409 (status #(command! plan/update-task! id [(:task_id t)]
+                                      {:task_type "summary" :duration_days 0}))))))
+    (testing "类型变更: 已有实际进度 (非 todo) 时409"
+      (jdbc/execute! (:db *svc*) ["UPDATE pms_project SET status='execution' WHERE project_id=?" id])
+      (command! plan/task-feedback! id [feedback-task] {:status "in_progress" :percent_complete 50
+                                                       :remaining_days 1})
+      (is (= 409 (status #(command! plan/update-task! id [feedback-task]
+                                    {:task_type "summary" :duration_days 0})))))
+    (testing "删除: 无关联任务可删, 有资源分配或实际反馈409"
+      (let [free (task! id "D-1" 2)]
+        (is (= {:task_id (:task_id free) :deleted true}
+               (:result (command! plan/delete-task! id [(:task_id free)] {})))))
+      (let [t (task! id "D-2" 2)
+            r (:result (command! plan/create-resource! id [] {:name "设备乙" :resource_type "equipment"}))]
+        (command! plan/create-allocation! id [] {:task_id (:task_id t) :resource_id (:resource_id r)
+                                                 :hours_per_day 4})
+        (is (= 409 (status #(command! plan/delete-task! id [(:task_id t)] {})))))
+      (is (= 409 (status #(command! plan/delete-task! id [feedback-task] {})))))
+    (testing "依赖: 自依赖与涉汇总任务400, 非法类型400, 重复409, 删除不存在404"
+      (let [a (task! id "K-1" 2) b (task! id "K-2" 2)
+            s (:result (command! plan/create-task! id [] {:wbs_code "K-S" :name "汇总" :task_type "summary"
+                                                          :duration_days 0}))]
+        (is (= 400 (status #(command! plan/create-dependency! id []
+                                       {:predecessor_id (:task_id a) :successor_id (:task_id a)
+                                        :dependency_type "FS"}))))
+        (is (= 400 (status #(command! plan/create-dependency! id []
+                                       {:predecessor_id (:task_id a) :successor_id (:task_id s)
+                                        :dependency_type "FS"}))))
+        (is (= 400 (status #(command! plan/create-dependency! id []
+                                       {:predecessor_id (:task_id a) :successor_id (:task_id b)
+                                        :dependency_type "XX"}))))
+        (command! plan/create-dependency! id [] {:predecessor_id (:task_id a) :successor_id (:task_id b)
+                                                 :dependency_type "FS"})
+        (is (= 409 (status #(command! plan/create-dependency! id []
+                                       {:predecessor_id (:task_id a) :successor_id (:task_id b)
+                                        :dependency_type "FS"}))))
+        (is (= 404 (status #(command! plan/delete-dependency! id ["nope"] {}))))))))
+
+
 (deftest http-contract-and-error-boundaries
   (let [id (project!) base (str "/api/pms/projects/" id)
         post (fn [suffix body] (request :post (str base suffix) 9201 (assoc body :version (version id))))]
