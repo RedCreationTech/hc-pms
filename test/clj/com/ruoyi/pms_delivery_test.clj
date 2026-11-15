@@ -702,8 +702,8 @@
 
 ;; batch65 (mutator 方向: cover the uncovered): 物料数量/清单/节点门 (L14/L22/L39),
 ;; 齐套缺行与装配开工降级 (L102/L127), 发运范围与签收人登记冲突 (L19/L77),
-;; 未知交付命令404 (L182). 注: delivery/closure-ready! (L91) 无任何调用者,
-;; 与 chain/cancel! 同类属未接线公开能力, 按惯例不删不测.
+;; 未知交付命令404 (L182). 注: delivery/closure-ready! 与 chain/cancel! 已于
+;; batch81 作为零调用者死代码删除.
 (deftest material-node-kitting-shipment-and-command-guards
   (let [ctx (context!) id (:id ctx)
         item {:code "X-1" :name "部件" :quantity 1 :unit "个"}]

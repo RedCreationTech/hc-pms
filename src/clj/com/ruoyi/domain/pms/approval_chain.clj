@@ -141,14 +141,6 @@
       {:flow_id flow-id :first-approver (first (:approvers (first levels)))})))
 
 
-(defn cancel!
-  "业务侧撤销 (如费用版本作废) 时关闭仍在进行的审批流."
-  [q biz-type biz-id]
-  (when-let [flow (pending-flow q biz-type biz-id)]
-    (q :approval/close-open-steps! {:flow_id (:flow_id flow) :status "cancelled"})
-    (q :approval/update-flow! {:flow_id (:flow_id flow) :status "cancelled" :current_level (:current_level flow)})))
-
-
 (defn guard-legacy-decision!
   "有审批流进行中时, 原单人审核接口拒绝直接决定."
   [q biz-type biz-id]

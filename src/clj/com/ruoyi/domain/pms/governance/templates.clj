@@ -104,8 +104,3 @@
                       :delivery_configured (boolean configuration) :closure_item_count closure-count
                       :reason (s/optional-text! body :reason 500)}
                      {:status "registered" :revision (:revision template)}))))))
-
-(defn stage-weights
-  "读取项目实例化模板的阶段权重, 未实例化时返回空."
-  [q project]
-  (:stages (first (s/records q project "template-instance"))))

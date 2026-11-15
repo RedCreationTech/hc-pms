@@ -85,13 +85,6 @@
            (handover-blockers q project config)))))
 
 
-(defn closure-ready!
-  "供项目生命周期调用完整交付事实的收尾约束."
-  [q project]
-  (when-let [message (first (closure-blockers q project))] (r/fail! 409 message))
-  true)
-
-
 (defn member-removal-blockers
   "保护尚在执行或等待确认的责任人与指定审批人."
   [q project uid]

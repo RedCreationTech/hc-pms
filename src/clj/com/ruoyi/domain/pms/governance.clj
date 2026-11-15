@@ -47,12 +47,6 @@
     document))
 
 
-(defn approved-change!
-  "供计划发布引用已独立批准的正式变更."
-  [q project id]
-  (approval/approved-change! q project id))
-
-
 (defn blockers
   "返回生命周期前置缺口,不将未知异常伪装成业务条件."
   [q project]

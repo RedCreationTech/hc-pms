@@ -2825,8 +2825,8 @@
     (is (= 409 (error-status #(gov/command! *service* (actor 9301) id :changes :submit (:id change)
                                             {:version stale :reviewer_id 9302}))))
     (approve! id :changes (:id change))
-    (is (= "approved" (:status (gov/approved-change! (:query-fn *service*)
-                                                     (pms/project *service* (actor 1) id) (:id change)))))
+    (is (= "approved" (:status (approval/approved-change! (:query-fn *service*)
+                                                          (pms/project *service* (actor 1) id) (:id change)))))
     (let [original (:query-fn *service*) before (version id)
           broken (assoc *service* :query-fn
                         (fn
