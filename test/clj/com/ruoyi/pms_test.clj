@@ -4,6 +4,7 @@
             [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [com.ruoyi.domain.pms.closure :as closure]
+            [com.ruoyi.domain.pms.planning :as planning]
             [com.ruoyi.domain.pms.service :as pms]
             [com.ruoyi.infra.security :as security]
             [com.ruoyi.web.routes.api :as api]
@@ -445,3 +446,27 @@
     (is (= (:ready r) (empty? (:blockers overview))))
     (is (true? (pos? (:total-blockers r))))
     (is (string? (:next-focus r))))))
+
+;; batch67 (mutator 方向: cover the uncovered): 项目日期变更锁计划 (service L160 +
+;; planning L96-98), 父节点UUID400 (L194), 成员角色400 (L281).
+(deftest project-dates-node-parent-and-member-role-guards
+  (testing "项目日期变更触发计划锁定并递增设计修订"
+    (let [project (create!) id (:project_id project)]
+      (planning/create-task! *service* (actor 9101) id
+                             {:version (:version project) :wbs_code "D-1" :name "日期锁定任务"
+                              :owner_id 9101 :duration_days 1})
+      (let [rev-before (:revision ((:query-fn *service*) :planning/plan {:project_id id}))
+            latest (pms/project *service* (actor 1) id)
+            updated (pms/update-project! *service* (actor 1) id
+                                         {:version (:version latest) :end_date "2026-03-01"})]
+        (is (= "2026-03-01" (:end_date updated)))
+        (is (= (inc rev-before) (:revision ((:query-fn *service*) :planning/plan {:project_id id})))))))
+  (testing "父节点标识必须为有效UUID400"
+    (let [project (create!) id (:project_id project)]
+      (is (= 400 (error-status #(pms/create-node! *service* (actor 9101) id
+                                                  {:parent_id "not-a-uuid" :node_type "sub"
+                                                   :node_code "S-BAD" :name "坏父节点"}))))))
+  (testing "成员角色必须为 manager/editor/viewer400"
+    (let [project (create!) id (:project_id project)]
+      (is (= 400 (error-status #(pms/set-member! *service* (actor 1) id
+                                                  {:user_id 9102 :role "boss"})))))))

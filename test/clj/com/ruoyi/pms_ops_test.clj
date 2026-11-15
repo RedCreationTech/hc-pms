@@ -296,3 +296,11 @@
                        [200 {:accepted true :message_id (:message_id body) :receipt_id "ACK-C"}])
         (fn [_]
           (is (= 409 (error-status #(command! dispatch/deliver! id [(:id message)] {})))))))))
+
+;; batch67 (mutator 方向: cover the uncovered): 已提交评审的文档版本不能外发 (governance L46).
+(deftest outbox-rejects-unregistered-document-version
+  (let [id (project!) doc (document! id)]
+    (command! gov/command! id [:documents :submit (:id doc)] {:reviewer_id 9602})
+    (is (= [409 "证据版本尚未登记"]
+           (error-info #(command! outbox/enqueue! id [] {:target "crm" :topic "document.registered"
+                                                      :source_id (:id doc) :idempotency_key "ev-unreg"}))))))
