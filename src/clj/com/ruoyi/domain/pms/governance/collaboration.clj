@@ -47,10 +47,10 @@
                     :risk_category :category :by-category))
 
 
-(defn risk-escalation-disposition-summary
-  "按每个风险最新有效版本只读聚合超阈值升级处置情况: 升级总数与待确认/已确认/已豁免及 steering/management 分级计数; 只读派生, 不落库不投递, 不改变风险状态."
-  [risks]
-  (let [active (s/latest risks)
+(defn- escalation-disposition-summary
+  "升级处置摘要公共体: 按最新有效版本聚合升级总数, 待确认/已确认/已豁免三态与 steering/management 分级计数."
+  [records]
+  (let [active (s/latest records)
         escalated (filterv :escalated active)
         total (count active)
         esc-total (count escalated)
@@ -63,6 +63,12 @@
      :acknowledged (state-count "acknowledged")
      :waived (state-count "waived")
      :by-level (rm/count-rows ["steering" "management"] :level level-count)}))
+
+
+(defn risk-escalation-disposition-summary
+  "按每个风险最新有效版本只读聚合超阈值升级处置情况: 升级总数与待确认/已确认/已豁免及 steering/management 分级计数; 只读派生, 不落库不投递, 不改变风险状态."
+  [risks]
+  (escalation-disposition-summary risks))
 
 
 (def risk-score-bands
@@ -249,25 +255,31 @@
                              :evidence_ids (s/evidence! q project (:evidence_ids body) true)})))))
 
 
+(defn- escalation-ack!
+  "升级确认公共落定: 输入白名单, 读取记录, 枚举决定与说明, 未升级/已确认/本人登记三道门后写入处置与审计."
+  [q project actor rid body {:keys [kind entity]}]
+  (s/input! body [:decision :note])
+  (let [record (s/record! q project kind rid)
+        decision (s/enum! (:decision body) r/decisions "decision")
+        note (s/text! body :note 500)]
+    (when-not (:escalated record) (r/fail! 409 (str "该" entity "未触发升级, 无需确认")))
+    (when-not (= "pending" (:escalation_state record)) (r/fail! 409 (str entity "升级已确认, 请勿重复处理")))
+    (when (= (:user_id actor) (:created_by record)) (r/fail! 403 (str "升级确认不得由" entity "登记人本人完成")))
+    (s/change! q project record (:status record)
+               {:escalation_state (if (= "approved" decision) "acknowledged" "waived")
+                :escalation_decision decision :escalation_note note
+                :escalation_ack_by (:user_id actor) :escalation_ack_on (str (LocalDate/now))
+                :workflow_history (conj (vec (:workflow_history record))
+                                        {:action "escalation_acknowledged" :actor_id (:user_id actor)
+                                         :on (str (LocalDate/now)) :decision decision})})))
+
+
 (defn acknowledge-escalation!
   "由独立质量审批人确认超阈值风险的升级处置, 批准责成处置或经评估豁免, 记录后方可继续缓解."
   [svc actor id rid body]
   (k/mutate! svc actor id "pms:quality:approve" body "risk.escalation-acknowledged" {:write? false}
              (fn [q project]
-               (s/input! body [:decision :note])
-               (let [risk (s/record! q project "risk" rid)
-                     decision (s/enum! (:decision body) r/decisions "decision")
-                     note (s/text! body :note 500)]
-                 (when-not (:escalated risk) (r/fail! 409 "该风险未触发升级, 无需确认"))
-                 (when-not (= "pending" (:escalation_state risk)) (r/fail! 409 "风险升级已确认, 请勿重复处理"))
-                 (when (= (:user_id actor) (:created_by risk)) (r/fail! 403 "升级确认不得由风险登记人本人完成"))
-                 (s/change! q project risk (:status risk)
-                            {:escalation_state (if (= "approved" decision) "acknowledged" "waived")
-                             :escalation_decision decision :escalation_note note
-                             :escalation_ack_by (:user_id actor) :escalation_ack_on (str (LocalDate/now))
-                             :workflow_history (conj (vec (:workflow_history risk))
-                                                     {:action "escalation_acknowledged" :actor_id (:user_id actor)
-                                                      :on (str (LocalDate/now)) :decision decision})})))))
+               (escalation-ack! q project actor rid body {:kind "risk" :entity "风险"}))))
 
 
 (def risk-library
@@ -537,20 +549,7 @@
   [svc actor id rid body]
   (k/mutate! svc actor id "pms:quality:approve" body "issue.escalation-acknowledged" {:write? false}
              (fn [q project]
-               (s/input! body [:decision :note])
-               (let [issue (s/record! q project "issue" rid)
-                     decision (s/enum! (:decision body) r/decisions "decision")
-                     note (s/text! body :note 500)]
-                 (when-not (:escalated issue) (r/fail! 409 "该问题未触发升级, 无需确认"))
-                 (when-not (= "pending" (:escalation_state issue)) (r/fail! 409 "问题升级已确认, 请勿重复处理"))
-                 (when (= (:user_id actor) (:created_by issue)) (r/fail! 403 "升级确认不得由问题登记人本人完成"))
-                 (s/change! q project issue (:status issue)
-                            {:escalation_state (if (= "approved" decision) "acknowledged" "waived")
-                             :escalation_decision decision :escalation_note note
-                             :escalation_ack_by (:user_id actor) :escalation_ack_on (str (LocalDate/now))
-                             :workflow_history (conj (vec (:workflow_history issue))
-                                                     {:action "escalation_acknowledged" :actor_id (:user_id actor)
-                                                      :on (str (LocalDate/now)) :decision decision})})))))
+               (escalation-ack! q project actor rid body {:kind "issue" :entity "问题"}))))
 
 
 (def meeting-types
@@ -819,19 +818,7 @@
 (defn issue-escalation-disposition-summary
   "按每个问题最新有效版本只读聚合阻断级/逾期自动升级的独立确认处置情况: 升级总数与待确认/已确认/已豁免及 steering/management 分级计数; 只读派生, 不落库不投递, 不改变问题状态."
   [issues]
-  (let [active (s/latest issues)
-        escalated (filterv :escalated active)
-        total (count active)
-        esc-total (count escalated)
-        state-count (fn [x] (count (filterv #(= x (:escalation_state %)) escalated)))
-        level-count (fn [x] (count (filterv #(= x (:escalation_level %)) escalated)))]
-    {:total total
-     :escalated esc-total
-     :not-escalated (- total esc-total)
-     :pending (state-count "pending")
-     :acknowledged (state-count "acknowledged")
-     :waived (state-count "waived")
-     :by-level (rm/count-rows ["steering" "management"] :level level-count)}))
+  (escalation-disposition-summary issues))
 
 
 (def owner-workload-threshold

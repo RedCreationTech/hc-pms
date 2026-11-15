@@ -57,3 +57,6 @@ __pycache__/
 
 # Demo video artifacts (MP4/SRT/cards/raw): regenerated locally, not committed
 /reports/demo-video/
+
+# Dryer tool metrics (regenerated per analysis run)
+/.metrics/
