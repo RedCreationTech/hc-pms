@@ -56,6 +56,8 @@
 (defn- actor [id] (pms/actor *svc* {:user-id id}))
 (defn- version [id] (:version ((:query-fn *svc*) :pms/project {:project_id id})))
 (defn- error-status [f] (try (f) nil (catch clojure.lang.ExceptionInfo e (:status (ex-data e)))))
+(defn- error-info "提取业务错误状态与文案, 成功时返回 nil." [f]
+  (try (f) nil (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
 
 (defn- command!
   ([f id args body] (command! 9510 f id args body))
@@ -323,3 +325,9 @@
       (finally
         (retire-policy! "charter")
         (retire-policy! "plan-baseline")))))
+
+;; batch71 (mutator 方向: cover the uncovered): 无效审批决定400 (approval_chain L283,
+;; 决定枚举校验先于流程查找, 无需真实流程).
+(deftest decide-rejects-invalid-decision-before-flow-lookup
+  (is (= [400 "无效审批决定"]
+         (error-info #(chain/decide! *svc* (actor 9510) "no-such-flow" {:decision "maybe"})))))

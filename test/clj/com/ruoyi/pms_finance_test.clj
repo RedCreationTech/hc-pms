@@ -653,3 +653,124 @@
     (command! plan/create-task! id [] {:wbs_code "SUM-70" :name "汇总节点" :task_type "summary"
                                        :duration_days 0 :owner_id 9401})
     (is (= "closing" (:status (transition! id "closing"))))))
+
+;; batch71 (mutator 方向: cover the uncovered): 费用版本输入守卫群 (finance_cost
+;; L62/L63/L64/L65/L66/L87/L108/L123/L124/L143/L157/L160 十二门).
+(deftest cost-input-guards-cover-create-entry-submit-review-revise
+  (let [id (project!)]
+    (testing "创建门: 期间格式/无效月份/币种/负收入/自审"
+      (is (= [400 "期间格式必须为YYYY-MM"]
+             (error-info #(command! cost/create! id [] {:kind "actual" :period "2026-9" :currency "CNY"
+                                                        :name "坏期间" :revenue "0" :reviewer_id 9402}))))
+      (is (= [400 "期间无效"]
+             (error-info #(command! cost/create! id [] {:kind "actual" :period "2026-13" :currency "CNY"
+                                                        :name "坏月份" :revenue "0" :reviewer_id 9402}))))
+      (is (= [400 "暂仅支持CNY/USD/EUR/GBP/HKD"]
+             (error-info #(command! cost/create! id [] {:kind "actual" :period "2026-09" :currency "JPY"
+                                                        :name "坏币种" :revenue "0" :reviewer_id 9402}))))
+      (is (= [400 "收入不能为负数"]
+             (error-info #(command! cost/create! id [] {:kind "actual" :period "2026-09" :currency "CNY"
+                                                        :name "负收入" :revenue "-1" :reviewer_id 9402}))))
+      (is (= [400 "财务审批人不能是提交者"]
+             (error-info #(command! cost/create! id [] {:kind "actual" :period "2026-09" :currency "CNY"
+                                                        :name "自审版本" :revenue "0" :reviewer_id 9401})))))
+    (let [v (:result (command! cost/create! id [] {:kind "actual" :period "2026-09" :currency "CNY"
+                                                   :name "正常版本" :revenue "0" :reviewer_id 9403}))]
+      (testing "明细分类受控400"
+        (is (= [400 "无效费用分类"]
+               (error-info #(command! cost/add-entry! id [(:id v)] {:category "bogus" :label "x" :amount "1"})))))
+      (testing "空明细不能提交409"
+        (is (= [409 "费用明细为空,不能提交"]
+               (error-info #(command! cost/submit! id [(:id v)] {})))))
+      (command! cost/add-entry! id [(:id v)] {:category "material" :label "原料" :amount "10"})
+      (testing "指定审批人不能代提交403 (9403 为可写编辑者, 排除 access! 先拦)"
+        (is (= [403 "指定审批人不能代替提交者提交"]
+               (error-info #(command! 9403 cost/submit! id [(:id v)] {})))))
+      (testing "草稿版本不能审批/修订"
+        (is (= [409 "费用版本不在待审批状态"]
+               (error-info #(command! 9403 cost/review! id [(:id v)] {:decision "approved" :reason "未提交"}))))
+        (is (= [409 "只能修订已处理版本"]
+               (error-info #(command! cost/revise! id [(:id v)] {:reviewer_id 9402})))))
+      (testing "删除他版明细404 与 修订自审400"
+        (let [v2 (:result (command! cost/create! id [] {:kind "budget" :period "2026-09" :currency "CNY"
+                                                        :name "对照版本" :revenue "0" :reviewer_id 9402}))]
+          (is (= [404 "费用项不存在"]
+                 (error-info #(command! cost/delete-entry! id [(:id v2) "no-such-entry"] {})))))
+        (command! cost/submit! id [(:id v)] {})
+        (command! 9403 cost/review! id [(:id v)] {:decision "approved" :reason "核对完成"})
+        (is (= [400 "不能指定自己审批"]
+               (error-info #(command! cost/revise! id [(:id v)] {:reviewer_id 9401}))))))))
+
+
+;; batch71: 工时单次上限24小时400 (finance_money L32 的范围分支).
+(deftest time-entry-hours-range-guard
+  (let [{:keys [id task]} (execution-project!)]
+    (is (= [400 "工时必须在1分钟至24小时之间"]
+           (error-info #(time! id task "25" "2026-09-01" false))))))
+
+
+;; batch71: 重开三门 (reopen L12/L20/L34).
+(deftest reopen-request-and-review-guards
+  (testing "非关闭项目不能申请重开409"
+    (let [id (project!)]
+      (is (= [409 "仅已关闭项目可申请重开"]
+             (error-info #(command! reopen/request! id [] {:reviewer_id 9402 :scope "纠正" :reason "申请"}))))))
+  (let [{:keys [id]} (closure-ready-project!)]
+    (command! closure/submit! id [] {:reviewer_id 9402})
+    (command! 9402 closure/review! id [] {:decision "approved" :reason "独立批准关闭"})
+    (transition! id "closed")
+    (testing "重开审批人不能是申请人400"
+      (is (= [400 "重开审批人不能是申请人"]
+             (error-info #(command! reopen/request! id [] {:reviewer_id 9401 :scope "自审" :reason "申请"})))))
+    (testing "已审批的重开申请不能再审409"
+      (let [request (:result (command! reopen/request! id [] {:reviewer_id 9402 :scope "纠正" :reason "资料更正"}))]
+        (command! 9402 reopen/review! id [(:id request)] {:decision "approved" :reason "同意受控更正"})
+        (is (= [409 "该项目没有对应待审重开申请"]
+               (error-info #(command! 9402 reopen/review! id [(:id request)]
+                                      {:decision "approved" :reason "再次审批"}))))))))
+
+
+;; batch71: 预算规则输入六门 (finance_budget L86/L87/L89/L106/L112/L113/L139).
+(deftest budget-rule-input-guards
+  (let [id (project!)]
+    (testing "新建门: 基线/动作/阈值"
+      (is (= [400 "基线口径只能为 estimate 或 budget"]
+             (error-info #(command! budget/upsert-rule! id [] {:baseline "weird" :threshold_pct 80
+                                                               :action "warn" :project_scoped true}))))
+      (is (= [400 "动作只能为 warn, require_approval 或 block"]
+             (error-info #(command! budget/upsert-rule! id [] {:baseline "budget" :threshold_pct 80
+                                                               :action "explode" :project_scoped true}))))
+      (is (= [400 "阈值必须在 5%-500% 之间"]
+             (error-info #(command! budget/upsert-rule! id [] {:baseline "budget" :threshold_pct 3
+                                                               :action "warn" :project_scoped true})))))
+    (testing "更新/停用未知规则404 与 更新门400"
+      (is (= [404 "预算控制规则不存在"]
+             (error-info #(command! budget/upsert-rule! id [] {:rule_id "fake-rule" :threshold_pct 80
+                                                               :action "warn"}))))
+      (is (= [404 "预算控制规则不存在"]
+             (error-info #(command! budget/disable-rule! id ["fake-rule"] {:reason "不存在"}))))
+      (let [rule (:result (command! budget/upsert-rule! id [] {:baseline "budget" :threshold_pct 80
+                                                               :action "warn" :project_scoped true}))]
+        (is (= [400 "阈值必须在 5%-500% 之间"]
+               (error-info #(command! budget/upsert-rule! id [] {:rule_id (or (:id rule) (:rule_id rule))
+                                                                 :threshold_pct 1 :action "warn"}))))
+        (is (= [400 "无效动作"]
+               (error-info #(command! budget/upsert-rule! id [] {:rule_id (or (:id rule) (:rule_id rule))
+                                                                 :threshold_pct 80 :action "explode"}))))))))
+
+
+;; batch71: closure 策略 submitter_choice 未指定审批人时带后缀409
+;; (approval_chain L104 的 '请指定审批人' 分支).
+(deftest closure-submitter-choice-policy-requires-named-reviewer
+  (let [admin (actor 9401)
+        draft (config/create! *svc* admin "approval-policy"
+                              {:code "closure" :levels [{:name "提交人选择" :rule "submitter_choice"}]})]
+    (config/publish! *svc* admin "approval-policy" (:id draft) {:reason "结项走提交人选择"})
+    (try
+      (let [{:keys [id]} (closure-ready-project!)
+            info (error-info #(command! closure/submit! id [] {}))]
+        (is (= 409 (first info)))
+        (is (.contains (str (second info)) "请指定审批人")))
+      (finally
+        (when-let [p (config/published-by-code (:query-fn *svc*) "approval-policy" "closure")]
+          (config/retire! *svc* admin "approval-policy" (:id p) {:reason "测试退役"}))))))
