@@ -7138,3 +7138,10 @@
           s (collab/meeting-attendance-summary meetings members)]
       (is (= "用户7" (:name (first (filter #(= 7 (:user-id %)) (:top-attendees s))))))
       (is (= "有名" (:name (first (filter #(= 8 (:user-id %)) (:top-attendees s)))))))))
+
+;; batch73 (mutator 方向: cover the uncovered): kernel 对象体守卫 (kernel L64) —
+;; 命令直接以非对象 body 调用时在访问/版本校验之前拒绝.
+(deftest kernel-rejects-non-map-command-body
+  (let [id (project!)]
+    (is (= [400 "请求体必须是JSON对象"]
+           (error-info #(lifecycle/discard! *service* (actor 9301) id "document" "any-id" []))))))

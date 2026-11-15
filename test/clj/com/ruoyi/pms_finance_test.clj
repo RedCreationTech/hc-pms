@@ -774,3 +774,53 @@
       (finally
         (when-let [p (config/published-by-code (:query-fn *svc*) "approval-policy" "closure")]
           (config/retire! *svc* admin "approval-policy" (:id p) {:reason "测试退役"}))))))
+
+;; batch73 (mutator 方向: cover the uncovered): 工时提交/审核/更正输入守卫
+;; (finance_time L26/L33/L60/L61/L80/L90 六门).
+(deftest time-submit-review-and-correction-input-guards
+  (testing "非执行项目不能提交工时409 (先于任务与审核人检查)"
+    (let [id (project!)]
+      (is (= [409 "仅执行中的项目可以提交工时"]
+             (error-info #(command! time/submit! id [] {:task_id "x" :work_date "2026-09-01" :hours "1"
+                                                        :note "说明" :reviewer_id 9402}))))))
+  (let [{:keys [id task]} (execution-project!)]
+    (testing "审核人不能是提交者400"
+      (is (= [400 "工时审核人不能是提交者"]
+             (error-info #(command! time/submit! id [] {:task_id (:task_id task) :work_date "2026-09-01"
+                                                        :hours "1" :note "说明" :reviewer_id 9401})))))
+    (testing "审核与更正的记录存在性404"
+      (is (= [404 "工时单不存在"]
+             (error-info #(command! time/review! id ["no-such-entry"] {:decision "approved"}))))
+      (is (= [404 "工时单不存在"]
+             (error-info #(command! time/correct! id ["no-such-entry"]
+                                    {:hours "1" :note "n" :reason "改" :reviewer_id 9402})))))
+    (let [entry (time! id task "1" "2026-06-17" true)]
+      (testing "已处理工时单不能再审409"
+        (is (= [409 "工时单已处理"]
+               (error-info #(command! time/review! id [(:id entry)] {:decision "approved" :reason "再审"})))))
+      (testing "更正自审400 (批准态入口各门通过后落在审核人检查)"
+        (is (= [400 "工时审核人不能是提交者"]
+               (error-info #(command! time/correct! id [(:id entry)]
+                                      {:hours "1" :note "n" :reason "改" :reviewer_id 9401}))))))))
+
+
+;; batch73: 工时日容量两个不变量 — 更正加量超限 (L93) 与驳回恢复原单超限 (L69).
+(deftest time-correction-capacity-invariants
+  (testing "更正工时超出同日剩余容量409 (L93: 释放原单后加量重占失败)"
+    (let [p1 (execution-project!) p2 (execution-project!)]
+      (time! (:id p1) (:task p1) "1" "2026-06-15" true)
+      (time! (:id p2) (:task p2) "22.5" "2026-06-15" true)
+      (let [orig (first (:rows (finance/times *svc* (actor 9401) (:id p1))))]
+        (is (= [409 "同一天跨项目累计工时不能超过24小时"]
+               (error-info #(command! time/correct! (:id p1) [(:entry_id orig)]
+                                      {:hours "2" :note "加量" :reason "需求增加" :reviewer_id 9402})))))))
+  (testing "驳回更正恢复原单时容量不足409 (L69: 更正期间被第三方占满)"
+    (let [p1 (execution-project!) p2 (execution-project!)]
+      (time! (:id p1) (:task p1) "2" "2026-06-16" true)
+      (let [orig (first (:rows (finance/times *svc* (actor 9401) (:id p1))))
+            corr (:result (command! time/correct! (:id p1) [(:entry_id orig)]
+                                    {:hours "1" :note "压低" :reason "压低工时" :reviewer_id 9402}))]
+        (time! (:id p2) (:task p2) "22.5" "2026-06-16" true)
+        (is (= [409 "恢复原工时单时同日容量不足"]
+               (error-info #(command! 9402 time/review! (:id p1) [(:id corr)]
+                                      {:decision "rejected" :reason "不予更正"}))))))))
