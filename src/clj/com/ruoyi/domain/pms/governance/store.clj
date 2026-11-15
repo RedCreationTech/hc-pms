@@ -178,3 +178,37 @@
     (or (some #(= task-id (:target_task_id %)) (records q project "action"))
         (some #(and (= "task" (:target_kind %)) (= task-id (:target_id %)))
               (records q project "trace")))))
+
+
+(defn failing-checks!
+  "整改前奏: 按领域差异读取记录并校验状态门, 过滤未通过的必需检查项;
+   全部已过时按领域文案拒绝. 返回 [record failing]."
+  [q project rid {:keys [kind statuses checks-key empty-message]}]
+  (let [record (record! q project kind rid)
+        _ (status! record statuses)
+        failing (filterv #(and (:required %) (not (:passed %)) (not (:waived %)))
+                         (checks-key record))]
+    (when (empty? failing) (rules/fail! 409 empty-message))
+    [record failing]))
+
+
+(defn remediation-target
+  "单条整改的目标选择: 指定检查编码须命中未通过项, 否则取首个未通过项."
+  [failing check-code]
+  (if check-code
+    (or (first (filter #(= check-code (:code %)) failing))
+        (rules/fail! 400 "指定的检查项不存在或并非未通过的必需项"))
+    (first failing)))
+
+
+(defn insert-remediation!
+  "按领域差异落一条 open 整改行动: 标题取指定标题或 '整改: '+基名回退 (截断到 200),
+   缺省负责人取键与来源键随领域 spec."
+  [q project actor body record {:keys [source-k owner-default rid check-code given base-title]}]
+  (insert! q project actor "action"
+           {:title (if (seq given) given (fallback-title "整改: " base-title 200))
+            :owner_id (kernel/user! q project (or (:owner_id body) (owner-default record)) "负责人")
+            :due_date (date! body :due_date)
+            source-k rid
+            :source_check_code check-code}
+           {:status "open"}))

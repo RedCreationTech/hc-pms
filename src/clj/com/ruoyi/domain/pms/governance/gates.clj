@@ -197,32 +197,25 @@
           (r/fail! 409 "未提出豁免申请,不能直接豁免"))
         (s/change! q project gate decision {:decision_reason reason :decided_by (:user_id actor)})))))
 
+(def ^:private remediation-spec
+  "关口整改的领域差异: 状态门, 检查项取键与空失败文案."
+  {:kind "gate" :statuses #{"draft" "ready" "rejected"} :checks-key :checks
+   :empty-message "该关口没有未通过的必需检查项, 无需整改"})
+
+
 (defn remediation-action!
   "把关口未通过的必需检查项落实为可追踪的整改行动项: 复用行动类型与既有完成/独立验证/转任务生命周期, 记录来源关口与所选未通过必需检查项编码, 缺省沿用关口审核人为负责人; 需项目编辑权限, 仅对尚未签核(draft/ready/rejected)且确有未通过必需检查项的关口实例开放."
   [svc actor id rid body]
   (k/mutate! svc actor id "pms:project:edit" body "gate.remediation-action-created"
     (fn [q project]
       (s/input! body [:title :owner_id :due_date :check_code])
-      (let [gate (s/record! q project "gate" rid)
-            _ (s/status! gate #{"draft" "ready" "rejected"})
-            failing (filterv #(and (:required %) (not (:passed %)) (not (:waived %))) (:checks gate))]
-        (when (empty? failing) (r/fail! 409 "该关口没有未通过的必需检查项, 无需整改"))
-        (let [cc (not-empty (s/optional-text! body :check_code 50))
-              target (if cc
-                       (or (first (filter #(= cc (:code %)) failing))
-                           (r/fail! 400 "指定的检查项不存在或并非未通过的必需项"))
-                       (first failing))
-              prefix "整改: "
-              base (str (:title gate) " / " (:title target))
-              fallback (s/fallback-title prefix base 200)
-              given (s/optional-text! body :title 200)]
-          (s/insert! q project actor "action"
-                     {:title (if (seq given) given fallback)
-                      :owner_id (k/user! q project (or (:owner_id body) (:reviewer_id gate)) "负责人")
-                      :due_date (s/date! body :due_date)
-                      :source_gate_id rid
-                      :source_check_code (:code target)}
-                     {:status "open"}))))))
+      (let [[gate failing] (s/failing-checks! q project rid remediation-spec)
+            target (s/remediation-target failing (not-empty (s/optional-text! body :check_code 50)))]
+        (s/insert-remediation! q project actor body gate
+                               {:source-k :source_gate_id :owner-default :reviewer_id
+                                :rid rid :check-code (:code target)
+                                :given (s/optional-text! body :title 200)
+                                :base-title (str (:title gate) " / " (:title target))})))))
 
 (defn remediation-actions!
   "把关口全部未通过的必需检查项一次性落实为多条可追踪整改行动项: 对每条未通过必需项各生成一条独立 open 行动 (分别记录其检查项编码), 复用行动类型与既有完成/独立验证/转任务生命周期, 共用同一负责人与到期日 (缺省负责人沿用关口审核人); 需项目编辑权限, 仅对尚未签核(draft/ready/rejected)且确有未通过必需检查项的关口实例开放. 与单条 remediation-action! 的差别仅在逐条落实全部未过必需项而非仅首条或指定项, 同样不改动关口状态."
@@ -230,23 +223,12 @@
   (k/mutate! svc actor id "pms:project:edit" body "gate.remediation-actions-created"
     (fn [q project]
       (s/input! body [:owner_id :due_date])
-      (let [gate (s/record! q project "gate" rid)
-            _ (s/status! gate #{"draft" "ready" "rejected"})
-            failing (filterv #(and (:required %) (not (:passed %)) (not (:waived %))) (:checks gate))]
-        (when (empty? failing) (r/fail! 409 "该关口没有未通过的必需检查项, 无需整改"))
-        (let [owner (k/user! q project (or (:owner_id body) (:reviewer_id gate)) "负责人")
-              due (s/date! body :due_date)]
-          (mapv #(let [prefix "整改: "
-                       base (str (:title gate) " / " (:title %))
-                       title (s/fallback-title prefix base 200)]
-                   (s/insert! q project actor "action"
-                              {:title title
-                               :owner_id owner
-                               :due_date due
-                               :source_gate_id rid
-                               :source_check_code (:code %)}
-                              {:status "open"}))
-                failing))))))
+      (let [[gate failing] (s/failing-checks! q project rid remediation-spec)]
+        (mapv #(s/insert-remediation! q project actor body gate
+                                      {:source-k :source_gate_id :owner-default :reviewer_id
+                                       :rid rid :check-code (:code %)
+                                       :base-title (str (:title gate) " / " (:title %))})
+              failing)))))
 
 (defn- stage-ready!
   "要求必需关口模板存在且全部实例已通过或被正式豁免."
