@@ -774,3 +774,50 @@
     (testing "未知交付命令404"
       (is (= [404 "交付命令不存在"]
              (error-info #(command! id :bogus :create nil {})))))))
+
+;; batch75 (mutator 方向: cover the uncovered): 试验前序/必检/复验/整改链门
+;; (production L124-125/L177/L196/L198-199) 与交付引用/配置数值门
+;; (store L23/L25/L155-157). L194 结果计数不齐由 results! 码集等价不变量
+;; 保证 (不齐直接 400), 判定不可达.
+(deftest test-prerequisite-required-retest-and-reference-guards
+  (let [ctx (context!) id (:id ctx) assembly (approved-assembly! ctx)
+        sit-rec (fn [code]
+                  (command! id :tests :create nil
+                            (merge (refs ctx) {:code code :title "SIT验证" :assembly_id (:id assembly)
+                                               :test_type "SIT" :owner_id 9501
+                                               :criteria [{:code "Q-1" :title "动作满足URS" :required true}]})))]
+    (testing "SAT 记录结果前须 SIT/FAT 已批准409"
+      (let [sat (test-record! ctx assembly "SAT")]
+        (is (= [409 "前序试验尚未有效批准: SIT"]
+               (error-info #(results! ctx sat false))))))
+    (testing "必检项未通过不能提交409"
+      (let [sit (sit-rec "SIT-A")]
+        (results! ctx sit false)
+        (is (= [409 "仍有必检项未通过"]
+               (error-info #(review! ctx :tests (:id sit) :submit))))))
+    (testing "复验次数达100后拒绝409"
+      (let [sit2 (sit-rec "SIT-B")]
+        (dotimes [_ 100] (results! ctx sit2 true))
+        (is (= [409 "复验次数已达100,请创建新的受控试验记录"]
+               (error-info #(results! ctx sit2 true))))))
+    (testing "整改链未关闭不能提交409 (失败自动建 issue, 重记通过保留 issue 引用)"
+      (let [sit3 (sit-rec "SIT-C")]
+        (results! ctx sit3 false)
+        (results! ctx sit3 true)
+        (is (= 409 (first (error-info #(review! ctx :tests (:id sit3) :submit))))))))
+  (testing "引用ID必须为字符串400 与 交付对象不存在404"
+    (let [ctx (context!) id (:id ctx)]
+      (is (= [400 "引用ID必须为字符串"]
+             (error-info #(command! id :boms :kit :not-a-string
+                                    {:items [] :evidence_ids [(:evidence ctx)]}))))
+      (is (= [404 "交付对象不存在或不属于本项目"]
+             (error-info #(command! id :boms :kit "no-such-bom"
+                                    {:items [] :evidence_ids [(:evidence ctx)]}))))))
+  (testing "配置数值字段必须为范围内整数400 (执行锁之前的数值门)"
+    (let [p (project!)]
+      (is (= [400 "required_survey_visits 必须是0到10的整数"]
+             (error-info #(command! p :configuration :update nil
+                                    {:required_stages ["materials" "assembly" "quality" "shipment"]
+                                     :required_test_types ["SIT"]
+                                     :required_survey_visits 1.5
+                                     :reason "数值门"})))))))
