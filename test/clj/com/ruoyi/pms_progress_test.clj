@@ -620,3 +620,9 @@
         (is (= 2 (:passed_checks progress)))
         (is (= 1 (:waived_checks progress)))
         (is (true? (:passed progress)))))))
+
+;; batch68 (mutator 方向: cover the uncovered): run-all! 2元缺省当日 (scan L115).
+(deftest scan-run-all-defaults-to-today
+  (let [result (scan/run-all! *service* (actor 9901))]
+    (is (map? result))
+    (is (vector? (:results result)))))

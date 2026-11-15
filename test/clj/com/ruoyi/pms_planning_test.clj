@@ -1639,3 +1639,12 @@
                                                    {:version (version a) :decision "approved"
                                                     :comment "解除超配后批准"})
                                 [:result :status]))))))
+
+;; batch68 (mutator 方向: cover the uncovered): 手动进度快照命令 (planning L124-126).
+(deftest snapshot-now-derives-progress-scan
+  (let [id (project!)]
+    (task! id "SNAP-1" 2)
+    (let [result (command! plan/snapshot-now! id [] {})]
+      (is (some? (:snapshot_id result)))
+      (is (number? (:overall_percent result)))
+      (is (map? (:reminders result))))))

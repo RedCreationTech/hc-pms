@@ -7104,3 +7104,19 @@
         (force-record-payload! id (:id action) #(assoc % :target_task_id "GONE-TASK"))
         (is (= [409 "已关联任务不存在,需要修复任务引用"]
                (error-info #(command! id :actions :task (:id action) {}))))))))
+
+;; batch68 (mutator 方向: cover the uncovered): 未知治理命令404 (governance L264)
+;; 与风险复审联动问题状态门 (reviews L91 — materialize 后的 open 问题阻塞复审).
+(deftest governance-unknown-command-and-risk-linked-issue-guard
+  (testing "未知治理命令404"
+    (let [id (project!)]
+      (is (= [404 "治理命令不存在"] (error-info #(command! id :bogus :create nil {}))))))
+  (testing "风险复审前联动问题必须关闭"
+    (let [id (project!) evidence (:id (document! id "RI-1"))
+          risk (command! id :risks :create nil {:title "联动问题风险" :probability 3 :impact 5
+                                                :owner_id 9301 :mitigation "准备复测" :due_date "2026-10-01"})
+          _ (command! id :risks :mitigate (:id risk) {:mitigation "复测执行" :evidence_ids [evidence]})
+          _ (command! id :risks :materialize (:id risk) {})]
+      (is (= 409 (error-status #(command! id :risks :review (:id risk)
+                                          {:outcome "closed" :review_note "周期复审关闭"
+                                           :reviewer_id 9302 :evidence_ids [evidence]})))))))
