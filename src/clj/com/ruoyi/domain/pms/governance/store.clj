@@ -33,6 +33,13 @@
   (rules/text! (get body key) (name key) limit false))
 
 
+(defn fallback-title
+  "拼接前缀与基名作为回退标题; 拼接总长超过 limit 时截断基名, 保证前缀加基名不超过 limit."
+  [prefix base limit]
+  (str prefix (if (> (count base) (- limit (count prefix)))
+                (subs base 0 (- limit (count prefix))) base)))
+
+
 (defn enum!
   "校验明确的业务枚举."
   [value allowed field]

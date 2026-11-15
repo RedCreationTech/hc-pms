@@ -11,6 +11,7 @@
     [com.ruoyi.domain.pms.governance.lifecycle :as lifecycle]
     [com.ruoyi.domain.pms.governance.quality :as quality]
     [com.ruoyi.domain.pms.governance.stakeholders :as stakeholders]
+    [com.ruoyi.domain.pms.governance.store :as s]
     [com.ruoyi.domain.pms.planning :as planning]
     [com.ruoyi.domain.pms.queries :as queries]
     [com.ruoyi.domain.pms.service :as pms]
@@ -7145,6 +7146,20 @@
   (let [id (project!)]
     (is (= [400 "请求体必须是JSON对象"]
            (error-info #(lifecycle/discard! *service* (actor 9301) id "document" "any-id" []))))))
+
+;; batch76 (dryer): 回退标题截断惯用法提取为 s/fallback-title —
+;; quality/gates/collaboration 五处逐字克隆 (含单条与批量两形态) 收敛到单一纯函数.
+(deftest fallback-title-truncates-base-to-fit-limit
+  (is (= "整改: 短名" (s/fallback-title "整改: " "短名" 200)))
+  (let [long (apply str (repeat 500 "x"))
+        t (s/fallback-title "落实预防措施: " long 200)]
+    (is (= 200 (count t)))
+    (is (.startsWith t "落实预防措施: "))
+    (is (= (subs long 0 (- 200 (count "落实预防措施: "))) (subs t (count "落实预防措施: ")))))
+  (let [prefix "整改: " room (- 200 (count prefix))
+        base (apply str (repeat room "y"))]
+    (is (= (str prefix base) (s/fallback-title prefix base 200)) "恰好等于上限不截断")
+    (is (= 200 (count (s/fallback-title prefix (str base "z") 200))) "超出上限截到整200")))
 
 ;; batch74 (mutator 方向: cover the uncovered): 变更升级确认与 ccb 表决的
 ;; 提交人门 (approval L219/L222/L272).

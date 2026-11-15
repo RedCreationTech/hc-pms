@@ -463,8 +463,7 @@
                      _ (s/status! risk #{"open" "mitigated"})
                      prefix "落实预防措施: "
                      base (:title risk)
-                     fallback (str prefix (if (> (count base) (- 200 (count prefix)))
-                                            (subs base 0 (- 200 (count prefix))) base))
+                     fallback (s/fallback-title prefix base 200)
                      given (s/optional-text! body :title 200)]
                  (s/insert! q project actor "action"
                             {:title (if (seq given) given fallback)
