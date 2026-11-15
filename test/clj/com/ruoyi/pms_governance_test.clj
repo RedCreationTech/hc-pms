@@ -7120,3 +7120,21 @@
       (is (= 409 (error-status #(command! id :risks :review (:id risk)
                                           {:outcome "closed" :review_note "周期复审关闭"
                                            :reviewer_id 9302 :evidence_ids [evidence]})))))))
+
+;; batch70 (mutator 形式级甄别): 读模型回退分支纯函数直钉 —
+;; 沟通计划无有效 next_date 不算到期 (stakeholders L292),
+;; 空白显示名成员回退 用户<id> (collaboration L1035).
+(deftest read-model-fallback-branches
+  (testing "沟通计划无有效 next_date 时不算到期"
+    (doseq [plan [{:code "C1" :status "active"} {:code "C2" :next_date "not-a-date"}]]
+      (let [m (stakeholders/comm-plan-read-model plan)]
+        (is (false? (:comm_overdue m)))
+        (is (nil? (:comm_days_until m))))))
+  (testing "成员空白显示名回退 用户<id>"
+    (let [members [{:user_id 7 :nick_name "" :user_name ""}
+                   {:user_id 8 :nick_name "有名" :user_name "named"}]
+          meetings [{:code "M1" :revision 1 :status "recorded" :title "例会"
+                     :meeting_type "regular" :attendee_ids [7 8]}]
+          s (collab/meeting-attendance-summary meetings members)]
+      (is (= "用户7" (:name (first (filter #(= 7 (:user-id %)) (:top-attendees s))))))
+      (is (= "有名" (:name (first (filter #(= 8 (:user-id %)) (:top-attendees s)))))))))

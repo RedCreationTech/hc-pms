@@ -644,3 +644,12 @@
     (is (= [403 "只能停用本项目或系统默认规则"]
            (error-info #(command! budget/disable-rule! b [(or (:id rule) (:rule_id rule))]
                                   {:reason "越权停用"}))))))
+
+;; batch70 (mutator 形式级甄别): 汇总任务不计入收尾任务门 —
+;; done 叶级 + summary 并存时 transition closing 放行 (closure L19 谓词两分支).
+(deftest summary-tasks-do-not-block-closing
+  (let [{:keys [id task]} (execution-project!)]
+    (command! plan/task-feedback! id [(:task_id task)] {:status "done" :percent_complete 100 :remaining_days 0})
+    (command! plan/create-task! id [] {:wbs_code "SUM-70" :name "汇总节点" :task_type "summary"
+                                       :duration_days 0 :owner_id 9401})
+    (is (= "closing" (:status (transition! id "closing"))))))

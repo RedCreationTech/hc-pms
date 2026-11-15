@@ -800,3 +800,12 @@
       (is (= 0 (:achievement_pct row)))
       (is (>= (:behind att) 1))
       (is (some #(and (= "revenue" (:metric %)) (>= (:total %) 1)) (:by-metric att))))))
+
+;; batch70 (mutator 形式级甄别): 同编码低修订回退累加器分支 (portfolio L386).
+(deftest goal-attainment-skips-lower-revision-rows
+  (let [rows [{:code "Q-B70" :revision 2 :status "published" :metric "revenue" :achievement_pct 120}
+              {:code "Q-B70" :revision 1 :status "published" :metric "revenue" :achievement_pct 40}]
+        s (portfolio/goal-attainment-summary rows)]
+    (is (= 1 (:total s)))
+    (is (= 1 (:met s)))
+    (is (= {:metric "revenue" :total 1 :met 1 :avg-pct 120} (first (:by-metric s))))))
