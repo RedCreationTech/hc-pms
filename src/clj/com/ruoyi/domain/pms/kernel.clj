@@ -11,20 +11,27 @@
   []
   (str (UUID/randomUUID)))
 
-(defn database-error!
-  "将数据库唯一约束及锁冲突转换为安全的409响应."
+(defn- sql-cause
+  "从包装异常链中找到 JDBC SQLException, 无则 nil."
   [error]
-  (let [cause (first (filter #(instance? SQLException %)
-                            (take-while some? (iterate #(.getCause ^Throwable %) error))))]
-    (if-not cause (throw error)
-      (cond
-        (or (contains? #{"40001" "41000"} (.getSQLState ^SQLException cause))
-            (contains? #{5 6 1205 1213} (.getErrorCode ^SQLException cause)))
-        (rules/fail! 409 "存在并发修改,请刷新后重试")
-        (or (= "23000" (.getSQLState ^SQLException cause))
-            (re-find #"(?i)unique|duplicate|constraint" (or (.getMessage ^Throwable cause) "")))
-        (rules/fail! 409 "数据约束冲突,请检查编号和关联对象")
-        :else (throw error)))))
+  (first (filter #(instance? SQLException %)
+                 (take-while some? (iterate #(.getCause ^Throwable %) error)))))
+
+
+(defn database-error!
+  "将数据库唯一约束及锁冲突转换为安全的409响应; 约束冲突文案由调用方按业务域指定."
+  ([error] (database-error! error "数据约束冲突,请检查编号和关联对象"))
+  ([error constraint-message]
+   (if-let [^SQLException cause (sql-cause error)]
+     (cond
+       (or (contains? #{"40001" "41000"} (.getSQLState cause))
+           (contains? #{5 6 1205 1213} (.getErrorCode cause)))
+       (rules/fail! 409 "存在并发修改,请刷新后重试")
+       (or (= "23000" (.getSQLState cause))
+           (re-find #"(?i)unique|duplicate|constraint" (or (.getMessage cause) "")))
+       (rules/fail! 409 constraint-message)
+       :else (throw error))
+     (throw error))))
 
 (defn transaction!
   "在同一连接执行参数化查询, 异常时原子回滚."

@@ -4,14 +4,14 @@
             [clojure.string :as str]
             [com.ruoyi.domain.pms.config :as config]
             [com.ruoyi.domain.pms.governance.store :as gov-store]
+            [com.ruoyi.domain.pms.kernel :as kernel]
             [com.ruoyi.domain.pms.rules :as rules]
             [com.ruoyi.domain.pms.lifecycle :as lifecycle]
             [com.ruoyi.domain.pms.planning :as planning]
             [com.ruoyi.domain.pms.read-model :as rm]
             [integrant.core :as ig]
             [com.ruoyi.domain.pms.transaction :as transaction])
-  (:import [java.sql SQLException]
-           [java.time LocalDate]
+  (:import [java.time LocalDate]
            [java.util UUID]))
 
 (defmethod ig/init-key :app.pms/service
@@ -30,33 +30,14 @@
   [{:keys [query-fn]} identity]
   (rules/actor query-fn identity))
 
-(defn- sql-cause
-  "从 Conman 包装异常中找到 JDBC 原因."
-  [error]
-  (first (filter #(instance? SQLException %)
-                 (take-while some? (iterate #(.getCause ^Throwable %) error)))))
-
-(defn- database-error!
-  "把唯一约束与并发锁冲突转换为可重试的业务冲突."
-  [error]
-  (if-let [^SQLException cause (sql-cause error)]
-    (cond
-      (or (contains? #{"40001" "41000"} (.getSQLState cause))
-          (contains? #{5 6 1205 1213} (.getErrorCode cause)))
-      (rules/fail! 409 "存在并发修改,请刷新后重试")
-      (or (= "23000" (.getSQLState cause))
-          (re-find #"(?i)unique|duplicate|constraint" (or (.getMessage cause) "")))
-      (rules/fail! 409 "数据约束冲突,项目或节点编号可能已存在")
-      :else (throw error))
-    (throw error)))
-
 (defn- transaction!
   "执行事务,确保业务写入和审计同时提交或回滚."
   [{:keys [db query-fn]} f]
   (try
     (transaction/execute! db
       (fn [tx] (f (fn [query params] (query-fn tx query params)))))
-    (catch Exception e (database-error! e))))
+    (catch Exception e
+      (kernel/database-error! e "数据约束冲突,项目或节点编号可能已存在"))))
 
 (defn- load-project!
   "读取项目并检查数据权限."
