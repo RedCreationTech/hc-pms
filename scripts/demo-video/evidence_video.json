@@ -1,0 +1,134 @@
+{
+  "title": {
+    "heading": "红创PMS 最新进展证据",
+    "sub": "ub-mode 质量提升战役 · batch 45-81",
+    "meta": ["2026-11-14 / 15", "37 个批次", "全部已合入 main"]
+  },
+  "segments": [
+    {
+      "id": "01-title",
+      "type": "title",
+      "heading": "红创PMS 最新进展证据",
+      "sub": "ub-mode 质量提升战役 · batch 45-81",
+      "meta": ["2026-11-14 / 15", "37 个批次", "全部已合入 main"],
+      "narration": "红创PMS最新进展证据。本次汇报覆盖二〇二六年十一月十四日至十五日完成的ub-mode质量提升战役, 共三十七个批次, 全部已合入主分支。"
+    },
+    {
+      "id": "02-method",
+      "type": "chapter",
+      "kicker": "EVIDENCE 02 / 09",
+      "heading": "方法: ub-mode 三支柱",
+      "bullets": [
+        "crapper — 每个函数复杂度 CRAP 压到 10 以下",
+        "mutator — 覆盖未测分支, 清除幸存者与死代码",
+        "dryer — 消除结构相似度 0.8 以上的重复",
+        "本阶段系统完成 mutator 与 dryer"
+      ],
+      "narration": "我们遵循ub-mode三支柱方法: crapper把每个函数的复杂度压到十以下, mutator覆盖所有未测分支并清除死代码, dryer消除相似度零点八以上的结构重复。本阶段系统完成了后两项。"
+    },
+    {
+      "id": "03-coverage",
+      "type": "chapter",
+      "kicker": "EVIDENCE 03 / 09",
+      "heading": "mutator: 覆盖率跃升",
+      "metrics": [
+        {"value": "90.66% → 95.52%", "label": "PMS 域整体覆盖"},
+        {"value": "44 → 31", "label": "未覆盖行 (全部归档)"}
+      ],
+      "bullets": [
+        "可达错误分支清零, 每支都有真实数据库行为断言",
+        "剩余 31 行全部是有完整论证的不可达守卫",
+        "覆盖解析与不可达清单沉淀进项目记忆"
+      ],
+      "narration": "mutator阶段把PMS域整体覆盖率从百分之九十点六六提升到百分之九十五点五二。未覆盖行降至三十一行, 全部归档为有完整论证的不可达守卫, 可达错误分支清零。"
+    },
+    {
+      "id": "04-milestones",
+      "type": "chapter",
+      "kicker": "EVIDENCE 04 / 09",
+      "heading": "里程碑: 关键文件",
+      "metrics": [
+        {"value": "100%", "label": "outbox · dispatch · inbox"},
+        {"value": "98.74%", "label": "closure 收尾域"},
+        {"value": "99.43%", "label": "approval 变更审批"}
+      ],
+      "bullets": [
+        "审批链收口 finalize! 全路径 (批准/驳回/双409/回滚)",
+        "发送租约与回执版本冲突重试环三形态全覆盖",
+        "跨项目共享人员容量双门与日容量不变量"
+      ],
+      "narration": "外发消息、发送调度与收件箱三个文件达到百分之百覆盖, 收尾域九十八点七四, 变更审批域九十九点四三。审批链收口、发送租约与跨项目容量不变量都有直接断言。"
+    },
+    {
+      "id": "05-tests",
+      "type": "chapter",
+      "kicker": "EVIDENCE 05 / 09",
+      "heading": "测试规模与全量门",
+      "metrics": [
+        {"value": "728 → 820", "label": "测试用例"},
+        {"value": "7012 → 7711", "label": "断言总数"},
+        {"value": "0 / 0", "label": "failures / errors"}
+      ],
+      "bullets": [
+        "每批隔离数据库全量门 (SQLite + Flowable 隔离)",
+        "先钉后改: 表征测试对旧代码跑绿再重构",
+        "双库规则与陷阱配方写入 AGENTS 与项目记忆"
+      ],
+      "narration": "测试从七百二十八条增长到八百二十条, 断言达到七千七百一十一个。每个批次都通过隔离数据库的全量门, 零失败零错误后才允许提交。"
+    },
+    {
+      "id": "06-dryer",
+      "type": "chapter",
+      "kicker": "EVIDENCE 06 / 09",
+      "heading": "dryer: 官方工具消除重复",
+      "metrics": [
+        {"value": "46 → 40", "label": "重复候选对 (官方 dryer)"}
+      ],
+      "bullets": [
+        "安装 unclebob/dryer, 阈值 0.82",
+        "提取五族: 回退标题 · 枚举覆盖 · 升级确认 · 错误映射 · 整改四函数",
+        "领域差异入声明式 spec 表, 逻辑从 4 份收敛到 1 份"
+      ],
+      "narration": "dryer阶段安装官方重复检测工具, 基线四十六对。回退标题、枚举覆盖度、升级确认、数据库错误映射与整改五族重复全部提取为单一实现, 剩余候选降为惯用包装。"
+    },
+    {
+      "id": "07-deadcode",
+      "type": "chapter",
+      "kicker": "EVIDENCE 07 / 09",
+      "heading": "死代码清理: DEAD = NONE",
+      "metrics": [
+        {"value": "4 → 0", "label": "零调用者函数"}
+      ],
+      "bullets": [
+        "cancel! · closure-ready! · stage-weights · approved-change!",
+        "双向引用扫描: 别名解析 + 路由暴露全量核查",
+        "同步修正过时注释, 测试改直调真实现"
+      ],
+      "narration": "引用审计发现四个零调用者函数, 全部删除并同步修正过时注释与测试。复扫确认PMS域死代码清零。"
+    },
+    {
+      "id": "08-practice",
+      "type": "chapter",
+      "kicker": "EVIDENCE 08 / 09",
+      "heading": "工程实践与沉淀",
+      "bullets": [
+        "每批: 定位 → 钉住 → 最小改动 → 全量门 → 单独提交推送",
+        "日期池污染 · 编号撞车 · 编辑器换行粘连等陷阱入库",
+        "形式级 partial 逐个甄别, 4 个被误判分支实为真分支"
+      ],
+      "narration": "每批遵循先钉后改、全量门、单独提交并推送的流程。日期池污染、编号撞车等陷阱全部沉淀到项目记忆, 供后续会话直接复用。"
+    },
+    {
+      "id": "09-next",
+      "type": "end",
+      "kicker": "EVIDENCE 09 / 09",
+      "heading": "后续方向",
+      "bullets": [
+        "BPM 与办公域扩展 (按范围授权)",
+        "新功能开发同步补齐测试",
+        "形式级 partial 收尾与持续守护"
+      ],
+      "narration": "下一步将按范围授权扩展到BPM与办公域, 并为新功能同步补齐测试。感谢观看。"
+    }
+  ]
+}
