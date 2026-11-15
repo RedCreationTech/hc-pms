@@ -11,6 +11,7 @@
             [com.ruoyi.domain.pms.finance :as finance]
             [com.ruoyi.domain.pms.finance-money :as money]
             [com.ruoyi.domain.pms.finance-cost :as cost]
+            [com.ruoyi.domain.pms.finance-budget :as budget]
             [com.ruoyi.domain.pms.finance-time :as time]
             [com.ruoyi.domain.pms.finance-allocation :as allocation]
             [com.ruoyi.domain.pms.closure :as closure]
@@ -614,3 +615,32 @@
              (error-info #(command! allocation/allocate! id [(:id v)]
                                     {:amount "1.00" :from_date "2026-10-01" :to_date "2026-10-05"
                                      :idempotency_key "wrong-month" :label "跨月期间"})))))))
+
+;; batch66 (mutator 方向: cover the uncovered): 工时小数位/未来日期400 (money L29/time L32)
+;; 与 closure-blockers 费用草稿/待审工时分支 (finance L216/L218), 预算规则跨项目停用403 (L141-142).
+(deftest time-entry-format-and-date-guards
+  (let [{:keys [id task]} (execution-project!)]
+    (is (= [400 "工作日期不能为空或晚于今天"]
+           (error-info #(time! id task "1" "2099-01-01" false))))
+    (is (= [400 "工时必须是最多两位小数的正数"]
+           (error-info #(time! id task "1.005" "2026-09-01" false))))))
+
+
+(deftest closure-blockers-surface-draft-costs-and-pending-times
+  (let [{:keys [id task]} (execution-project!)]
+    (time! id task "1" "2026-09-01" false)
+    (cost! id "estimate")
+    (let [q (:query-fn *svc*) project (q :pms/project {:project_id id})
+          msgs (finance/closure-blockers q project)]
+      (is (some #(= "存在尚未处理的费用草稿或待审批版本" %) msgs))
+      (is (some #(= "存在待审核工时" %) msgs)))))
+
+
+(deftest budget-rule-disable-across-projects-is-forbidden
+  (let [a (project!) b (project!)
+        rule (:result (command! budget/upsert-rule! a [] {:baseline "budget" :threshold_pct 80
+                                                          :action "warn" :project_scoped true}))]
+    (is (some? (or (:id rule) (:rule_id rule))))
+    (is (= [403 "只能停用本项目或系统默认规则"]
+           (error-info #(command! budget/disable-rule! b [(or (:id rule) (:rule_id rule))]
+                                  {:reason "越权停用"}))))))

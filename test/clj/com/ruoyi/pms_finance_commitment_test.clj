@@ -56,6 +56,8 @@
 (defn- actor [id] (pms/actor *svc* {:user-id id}))
 (defn- version-of [id] (:version ((:query-fn *svc*) :pms/project {:project_id id})))
 (defn- error-status [f] (try (f) nil (catch clojure.lang.ExceptionInfo e (:status (ex-data e)))))
+(defn- error-info "提取业务错误状态与文案, 成功时返回 nil." [f]
+  (try (f) nil (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
 
 (defn- command!
   "以指定成员携带真实项目版本执行业务命令, 返回完整结果."
@@ -411,3 +413,23 @@
         (is (= 1 (get-in state [:commitment_closure :total])))
         (is (= 1 (get-in state [:commitment_closure :submitted])))
         (is (= 0 (get-in state [:commitment_closure :review-pct]))))))))
+
+;; batch66 (mutator 方向: cover the uncovered): 承诺 404/分类锁/未批准释放 (L31/L146/L213)
+;; 与提交非空备注写入控制说明 (L176).
+(deftest commitment-missing-kind-change-note-and-release-guards
+  (let [id (project!)]
+    (testing "承诺不存在404"
+      (is (= [404 "承诺不存在"]
+             (error-info #(command! commitment/release! id ["no-such-commitment"] {:amount "1.00"})))))
+    (let [cid (:id (create-commitment! id))]
+      (testing "未批准承诺不能转实付409"
+        (is (= [409 "只有已批准承诺可以转为实付"]
+               (error-info #(command! commitment/release! id [cid] {:amount "1.00"})))))
+      (testing "已登记承诺不能修改分类400"
+        (is (= [400 "已登记承诺不能修改分类"]
+               (error-info #(command! commitment/update-draft! id [cid] {:kind "contract" :gross "100.00"})))))
+      (testing "提交时非空备注拼入预算控制说明"
+        (let [result (:result (command! commitment/submit! id [cid] {:baseline "budget" :reason "年框锁量"}))]
+          (is (= "submitted" (:status result)))
+          (is (.contains (str (:control_note result)) "备注"))
+          (is (.contains (str (:control_note result)) "年框锁量")))))))
