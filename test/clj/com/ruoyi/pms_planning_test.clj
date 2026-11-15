@@ -1648,3 +1648,11 @@
       (is (some? (:snapshot_id result)))
       (is (number? (:overall_percent result)))
       (is (map? (:reminders result))))))
+
+;; batch69 (mutator 方向: cover the uncovered): 任务数量上限400 (tasks L77).
+(deftest task-count-limit-enforced-at-1000
+  (let [id (project!)]
+    (dotimes [i 1000]
+      (task! id (str "LIM-" i) 1))
+    (is (= [400 "当前项目任务数量已达到 1000 个上限"]
+           (error-info #(task! id "LIM-OVER" 1))))))
