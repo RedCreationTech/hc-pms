@@ -7145,3 +7145,73 @@
   (let [id (project!)]
     (is (= [400 "请求体必须是JSON对象"]
            (error-info #(lifecycle/discard! *service* (actor 9301) id "document" "any-id" []))))))
+
+;; batch74 (mutator 方向: cover the uncovered): 变更升级确认与 ccb 表决的
+;; 提交人门 (approval L219/L222/L272).
+(deftest change-escalation-submitter-and-ccb-ballot-guards
+  (let [id (project!)
+        base {:title "小范围调整" :reason "现场微调" :scope_impact "少量设备"
+              :schedule_impact "增加两日" :cost_impact "小幅" :quality_impact "无额外"
+              :resource_impact "无"}]
+    (testing "未触发升级的变更不能确认409"
+      (let [low (command! id :changes :create nil
+                          (assoc base :schedule_impact_days 3 :cost_impact_amount "99999.99"))
+            lid (:id low)]
+        (command! id :changes :submit lid {:reviewer_id 9302})
+        (is (= [409 "该变更未触发升级, 无需确认"]
+               (error-info #(command! 9301 id :changes :escalation lid
+                                      {:decision "approved" :note "不应确认"}))))))
+    (testing "提交人不能确认升级403 (登记9301, 提交9303)"
+      (let [hi (command! id :changes :create nil
+                         {:title "重大范围变更" :reason "合同调整" :scope_impact "增加设备"
+                          :schedule_impact "增加十日" :cost_impact "重新估价"
+                          :quality_impact "增加测试" :resource_impact "追加工程师"
+                          :schedule_impact_days 12 :cost_impact_amount "150000.5"})
+            hid (:id hi)]
+        (command! 9303 id :changes :submit hid {:reviewer_id 9302})
+        (is (= [403 "升级确认不得由提交人本人完成"]
+               (error-info #(command! 9303 id :changes :escalation hid
+                                      {:decision "approved" :note "本人确认"}))))))
+    (testing "提交人不能参与ccb表决403"
+      (let [vote (command! id :changes :create nil (assoc base :title "表决变更"))
+            vid (:id vote)]
+        (command! 9303 id :changes :submit vid {:reviewer_id 9302})
+        (command! id :changes :ccb vid {:members [9302 9303] :required 2})
+        (is (= [403 "变更提交人不得参与自身变更表决"]
+               (error-info #(command! 9303 id :changes :ballot vid
+                                      {:vote "approve" :note "本人票"}))))))))
+
+
+;; batch74: require_released 检查项的证据须已独立发布409 (gates L92/L93).
+(deftest gate-require-released-evidence-guard
+  (let [id (project!)
+        doc (command! id :documents :create nil
+                      {:code "RL-DOC" :title "未发布证据" :filename "r.txt" :content "c"})
+        tmpl (command! id :gate-templates :create nil
+                       {:code "GT-RL" :title "发布门" :stage "execution" :required true
+                        :checks [{:code "RL" :title "发布证据" :required true :require_released true}]})
+        gate (command! id :gates :create nil {:template_id (:id tmpl) :title "发布检查" :reviewer_id 9302})]
+    (command! id :gates :checks (:id gate) {:checks [{:code "RL" :passed true :evidence_ids [(:id doc)]}]})
+    (let [info (error-info #(command! id :gates :submit (:id gate) {}))]
+      (is (= 409 (first info)))
+      (is (.contains (str (second info)) "引用的证据尚未发布")))))
+
+
+;; batch74: 沟通计划修订不得改编号400 (stakeholders L225) 与
+;; 受众干系人无责任人不能生成会议409 (L249).
+(deftest comm-plan-revision-and-empty-audience-guards
+  (let [id (project!)
+        st (command! id :stakeholders :create nil
+                     {:code "ST-B74" :name "关键干系人" :role "评审" :category "internal"
+                      :interest "high" :influence "high"})
+        fields {:objective "进度同步" :channel "meeting" :frequency "weekly"
+                :audience [(:id st)] :next_date "2026-12-01" :owner_id 9301}]
+    (testing "修订不得改变沟通计划编号400"
+      (let [plan (command! id :comm-plans :create nil (assoc fields :code "CP-B74"))]
+        (is (= [400 "修订不得改变沟通计划编号"]
+               (error-info #(command! id :comm-plans :revisions (:id plan)
+                                      (assoc fields :code "CP-OTHER")))))))
+    (testing "受众干系人无责任人时不能生成会议409"
+      (let [plan (command! id :comm-plans :create nil (assoc fields :code "CP-EMPTY"))]
+        (is (= [409 "沟通计划受众未绑定有效项目成员, 无法生成会议"]
+               (error-info #(command! id :comm-plans :meeting (:id plan) {}))))))))
