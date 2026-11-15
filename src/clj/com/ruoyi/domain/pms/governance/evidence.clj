@@ -375,13 +375,9 @@
 (defn verification-coverage
   "按每个业务编码最新有效版本统计需求验证方式声明的只读覆盖度: 四类方法各自计数, 已声明/未设定与百分比覆盖率; 最新版本被受控作废(discarded)的编号不计入. 只读派生, 不落库不投递, 不改变不可变版本."
   [requirements]
-  (let [methods ["test" "inspection" "demonstration" "analysis"]
-        active (filterv #(not= "discarded" (:status %)) (s/latest requirements))
-        total (count active)
-        declared (count (filterv #(some #{(:verification_method %)} methods) active))
-        method-count (fn [m] (count (filterv #(= m (:verification_method %)) active)))]
-    (assoc (rm/coverage-tally total declared)
-           :by-method (rm/count-rows methods :method method-count))))
+  (rm/enum-coverage (filterv #(not= "discarded" (:status %)) (s/latest requirements))
+                    ["test" "inspection" "demonstration" "analysis"]
+                    :verification_method :method :by-method))
 
 
 (def requirement-priority-order

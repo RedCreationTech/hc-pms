@@ -74,6 +74,20 @@
    :coverage-pct (pct total declared)})
 
 
+(defn enum-coverage
+  "按固定枚举档统计声明覆盖度: 对已就绪记录集合按 field 取值在 order 档序内逐档计数,
+   返回 coverage-tally 四键并以 by-k 挂 [{row-k v :count n}] 分档行. 统一原
+   collaboration/evidence/stakeholders/approval 六处
+   (let [order ... total (count active) declared (filterv some#{...}) count-fn ...]
+     (assoc (coverage-tally total declared) by-k (count-rows order row-k count-fn)))
+   内联惯用法; active 由调用方决定 (s/latest 或再剔除 discarded)."
+  [active order field row-k by-k]
+  (let [total (count active)
+        declared (count (filterv #(some #{(field %)} order) active))
+        count-fn (fn [x] (count (filterv #(= x (field %)) active)))]
+    (assoc (coverage-tally total declared) by-k (count-rows order row-k count-fn))))
+
+
 (defn mean-int
   "把 numer/denom 四舍五入为整数均值; denom 非正时返回 0. 统一原各处内联的 (if (pos? n) (int (Math/round (/ (double sum) n))) 0) 与 (if (seq coll) (int (Math/round (/ (double (reduce + 0 xs)) (count xs)))) 0) 惯用法 (两者对自然计数等价: (seq coll) ⇔ (pos? (count coll)))."
   [denom numer]

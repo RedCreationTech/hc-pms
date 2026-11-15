@@ -326,13 +326,9 @@
 (defn engagement-coverage
   "按每个干系人业务编码最新有效版本统计参与态度声明的只读覆盖度: PMBOK五类态度(未知晓/抵制/中立/支持/主导)各自计数, 已声明/未设定与百分比覆盖率; 最新版本被受控作废(discarded)的编号不计入. 只读派生, 不落库不投递, 不改变不可变版本."
   [stakeholders]
-  (let [levels ["unaware" "resistant" "neutral" "supportive" "leading"]
-        active (filterv #(not= "discarded" (:status %)) (s/latest stakeholders))
-        total (count active)
-        declared (count (filterv #(some #{(:engagement %)} levels) active))
-        level-count (fn [l] (count (filterv #(= l (:engagement %)) active)))]
-    (assoc (rm/coverage-tally total declared)
-           :by-engagement (rm/count-rows levels :engagement level-count))))
+  (rm/enum-coverage (filterv #(not= "discarded" (:status %)) (s/latest stakeholders))
+                    ["unaware" "resistant" "neutral" "supportive" "leading"]
+                    :engagement :engagement :by-engagement))
 
 
 (defn comm-audience-coverage

@@ -36,25 +36,15 @@
 (defn risk-response-coverage
   "按每个风险最新有效版本统计应对策略声明的只读覆盖度: PMI 四类策略各自计数, 已声明/未设定与覆盖率; 只读派生, 不落库不投递, 不改变风险状态."
   [risks]
-  (let [strategies ["avoid" "transfer" "mitigate" "accept"]
-        active (s/latest risks)
-        total (count active)
-        declared (count (filterv #(some #{(:response_strategy %)} strategies) active))
-        strategy-count (fn [x] (count (filterv #(= x (:response_strategy %)) active)))]
-    (assoc (rm/coverage-tally total declared)
-           :by-strategy (rm/count-rows strategies :strategy strategy-count))))
+  (rm/enum-coverage (s/latest risks) ["avoid" "transfer" "mitigate" "accept"]
+                    :response_strategy :strategy :by-strategy))
 
 
 (defn risk-category-coverage
   "按每个风险最新有效版本统计风险类别(RBS)声明的只读覆盖度: PMI 六类风险分解结构类别各自计数, 已声明/未设定与覆盖率; 只读派生, 不落库不投递, 不改变风险状态."
   [risks]
-  (let [categories ["technical" "external" "organizational" "schedule" "cost" "quality"]
-        active (s/latest risks)
-        total (count active)
-        declared (count (filterv #(some #{(:risk_category %)} categories) active))
-        category-count (fn [x] (count (filterv #(= x (:risk_category %)) active)))]
-    (assoc (rm/coverage-tally total declared)
-           :by-category (rm/count-rows categories :category category-count))))
+  (rm/enum-coverage (s/latest risks) ["technical" "external" "organizational" "schedule" "cost" "quality"]
+                    :risk_category :category :by-category))
 
 
 (defn risk-escalation-disposition-summary
@@ -1413,13 +1403,8 @@
 (defn issue-resolution-coverage
   "按全部问题最新有效版本只读统计解决方式(Issue 处置类型)声明覆盖度: 六类解决方式各自计数, 已声明/未设定与覆盖率; 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
   [issues]
-  (let [types ["fixed" "workaround" "by-design" "duplicate" "cannot-reproduce" "wont-fix"]
-        active (s/latest issues)
-        total (count active)
-        declared (count (filterv #(some #{(:resolution_type %)} types) active))
-        type-count (fn [x] (count (filterv #(= x (:resolution_type %)) active)))]
-    (assoc (rm/coverage-tally total declared)
-           :by-resolution (rm/count-rows types :resolution type-count))))
+  (rm/enum-coverage (s/latest issues) ["fixed" "workaround" "by-design" "duplicate" "cannot-reproduce" "wont-fix"]
+                    :resolution_type :resolution :by-resolution))
 
 
 (defn attach-issue-closure-summary
