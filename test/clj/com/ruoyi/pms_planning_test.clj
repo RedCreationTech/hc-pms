@@ -11,6 +11,7 @@
             [com.ruoyi.domain.pms.planning :as plan]
             [com.ruoyi.domain.pms.planning.capacity :as capacity]
             [com.ruoyi.domain.pms.planning.schedule :as schedule]
+            [com.ruoyi.domain.pms.planning.store :as store]
             [com.ruoyi.domain.pms.planning.tasks :as tasks]
             [com.ruoyi.domain.pms.planning.resources :as resources]
             [com.ruoyi.infra.security :as security]
@@ -1656,3 +1657,47 @@
       (task! id (str "LIM-" i) 1))
     (is (= [400 "当前项目任务数量已达到 1000 个上限"]
            (error-info #(task! id "LIM-OVER" 1))))))
+
+;; batch72 (mutator 方向: cover the uncovered): 计划提交/反馈/资源/日历守卫群 —
+;; baseline L51/L53/L108, tasks L223/L234, store L84/L97-100 八门.
+(deftest plan-submit-feedback-resource-and-calendar-guards
+  (testing "无可执行任务不能提交计划审批409"
+    (let [id (project!)]
+      (is (= [409 "请先建立可执行任务或里程碑"]
+             (error-info #(command! plan/submit-plan! id [] {:comment "空计划"}))))))
+  (testing "任务缺少负责人不能提交409"
+    (let [id (project!)]
+      (command! plan/create-task! id [] {:wbs_code "NO-OWNER" :name "无主任务" :duration_days 1})
+      (is (= [409 "任务缺少负责人: 无主任务"]
+             (error-info #(command! plan/submit-plan! id [] {:comment "无主提交"}))))))
+  (testing "审批决定受控400 (状态门与提交人门之后, 批准门之前)"
+    (let [id (project!)]
+      (task! id "R-1" 2)
+      (let [baseline (:result (command! plan/submit-plan! id [] {:comment "待审"}))]
+        (is (= [400 "审批决定必须为 approved 或 rejected"]
+               (error-info #(plan/review-plan! *svc* (actor 9202) id (:baseline_id baseline)
+                                              {:version (version id) :decision "maybe" :comment "x"})))))))
+  (testing "非执行阶段不能反馈进度409 (先于任务查找)"
+    (let [id (project!)]
+      (is (= [409 "仅执行阶段可以反馈任务进度"]
+             (error-info #(command! plan/task-feedback! id ["any-task"]
+                                    {:status "done" :percent_complete 100 :remaining_days 0}))))))
+  (testing "汇总任务不能直接反馈进度400"
+    (let [id (project!)]
+      (command! plan/create-task! id [] {:wbs_code "SUM-FB" :name "汇总反馈" :task_type "summary"
+                                         :duration_days 0 :owner_id 9201})
+      (jdbc/execute! (:db *svc*) ["UPDATE pms_project SET status='execution' WHERE project_id=?" id])
+      (let [summary (first (filter #(= "SUM-FB" (:wbs_code %))
+                                   ((:query-fn *svc*) :planning/tasks {:project_id id})))]
+        (is (= [400 "汇总任务不能直接反馈进度"]
+               (error-info #(command! plan/task-feedback! id [(:task_id summary)]
+                                      {:status "done" :percent_complete 100 :remaining_days 0})))))))
+  (testing "资源标识必须为有效UUID400"
+    (let [id (project!)]
+      (is (= [400 "资源标识必须是有效UUID"]
+             (error-info #(command! plan/update-resource! id ["not-a-uuid"] {:daily_capacity 4}))))))
+  (testing "日历假日列表与日期门400 (纯函数直钉)"
+    (is (= [400 "假日与额外工作日必须是有限的日期列表"]
+           (error-info #(store/calendar! {:working_days [1] :holidays "oops"}))))
+    (is (= [400 "日历日期不能为空"]
+           (error-info #(store/calendar! {:working_days [1] :holidays [""]}))))))
