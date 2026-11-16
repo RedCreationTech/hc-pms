@@ -824,3 +824,67 @@
         (is (= [409 "恢复原工时单时同日容量不足"]
                (error-info #(command! 9402 time/review! (:id p1) [(:id corr)]
                                       {:decision "rejected" :reason "不予更正"}))))))))
+
+;; ── H07 有效期费率表与批准工时人工成本只读派生 ─────────────────────
+
+(deftest rate-table-validates-effective-windows
+  (let [mk (fn [rates] #(config/create! *svc* (actor 9401) "rate-table" {:base_currency "CNY" :rates rates}))]
+    (testing "同一角色有效期重叠400"
+      (is (= [400 "同一对象的费率有效期重叠"]
+             (error-info (mk [{:code "MGR-A" :scope "role" :role "manager" :amount_per_hour "100.00"
+                               :effective_from "2026-01-01" :effective_to "2026-06-30"}
+                              {:code "MGR-B" :scope "role" :role "manager" :amount_per_hour "120.00"
+                               :effective_from "2026-06-01" :effective_to "2026-12-31"}])))))
+    (testing "止日早于起日400"
+      (is (= 400 (first (error-info (mk [{:code "BAD" :scope "role" :role "viewer" :amount_per_hour "10.00"
+                                          :effective_from "2026-05-01" :effective_to "2026-04-01"}]))))))
+    (testing "非法范围400"
+      (is (= 400 (first (error-info (mk [{:code "X" :scope "team" :role "viewer" :amount_per_hour "10.00"
+                                          :effective_from "2026-01-01"}]))))))
+    (testing "非正费率400"
+      (is (= 400 (first (error-info (mk [{:code "Z" :scope "role" :role "viewer" :amount_per_hour "0"
+                                          :effective_from "2026-01-01"}]))))))
+    (testing "人员范围必须给正整数人员400"
+      (is (= 400 (first (error-info (mk [{:code "P" :scope "person" :amount_per_hour "10.00"
+                                          :effective_from "2026-01-01"}]))))))
+    (testing "非法日期格式400"
+      (is (= 400 (first (error-info (mk [{:code "D" :scope "role" :role "viewer" :amount_per_hour "10.00"
+                                          :effective_from "2026/01/01"}]))))))))
+
+(deftest approved-times-derive-labor-cost-with-effective-rates
+  (let [env (execution-project!) id (:id env) task (:task env)
+        rates (fn [person-amount]
+                [{:code "P-9401" :scope "person" :user_id 9401 :amount_per_hour person-amount :effective_from "2026-09-01"}
+                 {:code "R-MGR" :scope "role" :role "manager" :amount_per_hour "100.00" :effective_from "2026-09-01"}
+                 {:code "R-EDT" :scope "role" :role "editor" :amount_per_hour "80.00" :effective_from "2026-09-01"}])]
+    (testing "创建并发布有效期费率表"
+      (let [rec (config/create! *svc* (actor 9401) "rate-table"
+                  {:base_currency "CNY" :reason "验收费率" :rates (rates "150.00")})]
+        (config/publish! *svc* (actor 9401) "rate-table" (:id rec) {:reason "启用费率"})))
+    (testing "已批准工时按人员费率, 角色费率与生效前未覆盖分别折算"
+      (time! id task "2" "2026-09-08" true)
+      (let [e (:result (command! 9403 time/submit! id []
+                        {:task_id (:task_id task) :work_date "2026-09-09" :hours "1" :note "编辑支持" :reviewer_id 9402}))]
+        (command! 9402 time/review! id [(:id e)] {:decision "approved" :reason "核验"}))
+      (time! id task "2" "2026-08-15" true)
+      (let [lc (:labor_cost (finance/overview *svc* (actor 9401) id))]
+        (is (:configured? lc))
+        (is (= "CNY" (:base_currency lc)))
+        (is (= 38000 (:covered_minor lc)) "9401 2h x150 + 9403 1h x80")
+        (is (= 180 (:covered_minutes lc)))
+        (is (= 120 (:uncovered_minutes lc)) "生效前的工时如实列为未覆盖")
+        (let [person (some #(when (and (= 9401 (:user_id %)) (:covered %)) %) (:rows lc))
+              role (some #(when (= 9403 (:user_id %)) %) (:rows lc))
+              uncovered (some #(when (and (= 9401 (:user_id %)) (not (:covered %))) %) (:rows lc))]
+          (is (= ["P-9401" "person"] [(:rate_code person) (:rate_scope person)]))
+          (is (= ["R-EDT" "role"] [(:rate_code role) (:rate_scope role)]))
+          (is (nil? (:amount uncovered)) "未覆盖行不伪造成本金额"))))
+    (testing "修订费率并发布后按新费率重算 (版本化不改旧版)"
+      (let [old (config/published-by-code (:query-fn *svc*) "rate-table" "RATE-CNY")
+            revised (config/revise! *svc* (actor 9401) "rate-table" (:id old)
+                      {:base_currency "CNY" :reason "调价"
+                       :rates [{:code "P-9401" :scope "person" :user_id 9401 :amount_per_hour "200.00" :effective_from "2026-09-01"}
+                               {:code "R-MGR" :scope "role" :role "manager" :amount_per_hour "100.00" :effective_from "2026-09-01"}
+                               {:code "R-EDT" :scope "role" :role "editor" :amount_per_hour "80.00" :effective_from "2026-09-01"}]})]
+        (config/publish! *svc* (actor 9401) "rate-table" (:id revised) {:reason "调价发布"})
+        (is (= 48000 (:covered_minor (:labor_cost (finance/overview *svc* (actor 9401) id)))))))))
