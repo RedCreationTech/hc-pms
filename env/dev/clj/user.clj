@@ -132,12 +132,11 @@
   (log/info "Controllers reloaded."))
 
 (defn reload-infra
-  "Reload infrastructure namespaces (security, online, data-perm)."
+  "Reload infrastructure namespaces (security, online)."
   []
   (log/info "Reloading infra...")
   (require 'com.ruoyi.infra.security :reload)
   (require 'com.ruoyi.infra.online :reload)
-  (require 'com.ruoyi.infra.data-perm :reload)
   (log/info "Infra reloaded."))
 
 (defn reload-all

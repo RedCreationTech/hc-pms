@@ -319,6 +319,37 @@
                      [antd/tag {:color "red"} "各口径币种不一致, 毛利率不可横向比较"])
                    (map row (:by-kind cm)))))]))
 
+(defn- labor-section
+  "H07 人工成本 (费率折算): 已批准工时按有效期费率只读派生, 人员费率优先于角色费率, 缺费率分钟如实未覆盖."
+  [{:keys [model]}]
+  (let [lc (:labor_cost model)
+        yuan (fn [minor] (str (quot minor 100) "." (let [m (mod minor 100)] (if (< m 10) (str "0" m) m))))
+        rows (mapv (fn [r] {:entry_id (:entry_id r) :work_date (:work_date r) :user_id (:user_id r)
+                            :hours (:hours r)
+                            :rate (if (:covered r)
+                                    (str (:rate_code r) " (" (if (= "person" (:rate_scope r)) "人员" "角色") ")")
+                                    "未覆盖")
+                            :amount (if (:covered r) (str (:amount r) " " (:base_currency lc)) "—")})
+                   (:rows lc))]
+    [shared/panel "人工成本 (费率折算)" "只读派生 · 已批准工时按当前生效费率表折算 (人员费率优先于角色费率), 不构成任何门控"
+     (if-not (:configured? lc)
+       [:span {:style {:color "#98a2b3"}} "尚未发布费率表; 在 模板与规则 > 费率表 建立并发布后, 此处自动按生效费率折算人工成本."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "green"} (str "已覆盖 " (yuan (:covered_minor lc)) " " (:base_currency lc))]
+         [antd/tag {:color "blue"} (str "已覆盖工时 " (:covered_minutes lc) " 分钟")]
+         (when (pos? (:uncovered_minutes lc))
+           [antd/tag {:color "orange"} (str "未覆盖 " (:uncovered_minutes lc) " 分钟 (缺生效费率, 不计成本)")])]
+        (if (empty? rows)
+          [:span {:style {:color "#98a2b3"}} "尚无已批准的工时单."]
+          [antd/table {:size "small" :pagination false :rowKey "entry_id"
+                       :dataSource (clj->js rows)
+                       :columns (clj->js [{:title "日期" :dataIndex "work_date" :width 120}
+                                          {:title "人员" :dataIndex "user_id" :width 100 :render (fn [v] (str "用户 " v))}
+                                          {:title "工时" :dataIndex "hours" :width 90}
+                                          {:title "适用费率" :dataIndex "rate" :width 220}
+                                          {:title "金额" :dataIndex "amount" :width 150}])}])])]))
+
 (defn- commitment-closure-section
   "H12 承诺成本闭环健康度: 按项目全部承诺台账行只读派生, 汇总草稿/审批中/已批准/已驳回/已释放/已取消与审批完成率, 并对已批准与已释放承诺给出本位承诺总额, 已转实付额, 剩余未释放额与释放闭环率, 不构成任何门控."
   [{:keys [model]}]
@@ -518,6 +549,7 @@
                         :children (r/as-element [:div {:style {:display "grid" :gap 20}}
                                                 [cost-review-section context]
                                                 [cost-margin-section context]
+                                                [labor-section context]
                                                 [four-count-section context]
                                                 [cost-section context] [ledger-section context selected] [allocation-review-section context] [allocation-history (:model context)]])}
                        {:key "commitments" :label "承诺与预算控制"
