@@ -301,21 +301,155 @@
           [w/edit-button "解锁" #(open! {:title "解锁期间" :path (str "/config/period-lock/" (:id row) "/retire") :fields [{:key :reason :label "解锁原因" :type :textarea :required? true}]})]))]]))
 
 
+;; ── H07 有效期费率表 ─────────────────────────────────────────────
+
+(def rate-role-options
+  "费率可按项目成员角色配置."
+  [{:value "manager" :label "项目经理"} {:value "editor" :label "协作成员"} {:value "viewer" :label "只读成员"}])
+
+(defn- rate-blank
+  []
+  {:key (str (random-uuid)) :code "" :scope "role" :role "manager"
+   :amount_per_hour "" :effective_from "" :effective_to ""})
+
+(defn- rate-payload
+  "组装费率表命令报文 (去掉视图专用 key)."
+  [currency rates reason]
+  {:base_currency currency
+   :rates (mapv #(dissoc % :key) rates)
+   :reason reason})
+
+(defn- rate-dialog
+  "H07 费率表命令弹窗: :mode :rates 维护费率行, :mode :reason 仅填原因 (发布/退役)."
+  [{:keys [title path mode initial options on-close on-saved]}]
+  (let [[currency set-currency!] (hooks/use-state (get initial :base_currency "CNY"))
+        [rates set-rates!] (hooks/use-state (mapv #(assoc % :key (str (random-uuid))) (get initial :rates [(rate-blank)])))
+        [reason set-reason!] (hooks/use-state "")
+        {:keys [busy? error run!]} (shared/use-action on-saved)
+        set-row! (fn [i k v] (set-rates! (vec (map-indexed (fn [j r] (if (= i j) (assoc r k v) r)) rates))))
+        drop-row! (fn [i] (set-rates! (vec (concat (subvec rates 0 i) (subvec rates (inc i))))))
+        input! (fn [i k] (fn [e] (set-row! i k (.. e -target -value))))
+        submit! (fn [] (run! :post path (if (= :rates mode) (rate-payload currency rates reason) {:reason reason})
+                             (str title "成功")))]
+    [antd/modal {:title title :open true :onCancel on-close :onOk submit!
+                 :okText "保存" :cancelText "返回" :confirmLoading busy? :destroyOnHidden true
+                 :style {:maxWidth "calc(100vw - 32px)"} :width 900}
+     (when error [shared/error-panel error nil])
+     (if (= :rates mode)
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:align "center"}
+         [:span "基准币种"]
+         [antd/select {:style {:width 140} :value currency
+                       :options (clj->js (mapv (fn [c] {:value c :label c}) ["CNY" "USD" "EUR" "GBP" "HKD"]))
+                       :on-change set-currency!}]
+         [antd/button {:on-click #(set-rates! (conj (vec rates) (rate-blank)))} "添加费率行"]]
+        (for [[i row] (map-indexed vector rates)]
+          ^{:key (:key row)}
+          [:div {:style {:display "flex" :gap 8 :flexWrap "wrap" :alignItems "center"
+                         :padding "8px" :border "1px solid #e4e8ee" :borderRadius 8}}
+           [antd/input {:style {:width 96} :value (:code row) :placeholder "编码" :on-change (input! i :code)}]
+           [antd/select {:style {:width 108} :value (:scope row)
+                         :options (clj->js [{:value "role" :label "按角色"} {:value "person" :label "按人员"}])
+                         :on-change #(set-row! i :scope %)}]
+           (if (= "person" (:scope row))
+             [antd/select {:style {:width 190} :showSearch true :value (:user_id row) :placeholder "选择人员"
+                           :optionFilterProp "label"
+                           :options (clj->js (w/user-options (:users options)))
+                           :on-change #(set-row! i :user_id %)}]
+             [antd/select {:style {:width 120} :value (:role row) :options (clj->js rate-role-options)
+                           :on-change #(set-row! i :role %)}])
+           [antd/input {:style {:width 110} :value (:amount_per_hour row) :placeholder "每小时费率"
+                        :on-change (input! i :amount_per_hour)}]
+           [antd/input {:type "date" :style {:width 148} :value (:effective_from row) :on-change (input! i :effective_from)}]
+           [antd/input {:type "date" :style {:width 148} :value (or (:effective_to row) "") :placeholder "止日可空"
+                        :on-change (input! i :effective_to)}]
+           [antd/button {:type "link" :danger true :on-click #(drop-row! i)} "移除"]])
+        [:p {:style {:color "#7b8798" :margin 0}} "人员费率优先于角色费率; 有效期含端点, 止日可空表示持续有效; 同一对象的有效期不可重叠; 缺费率的工时在人工成本中如实列为未覆盖."]
+        [:div [antd/text-area {:rows 2 :value reason :placeholder "说明 (可空)" :on-change #(set-reason! (.. % -target -value))}]]]
+       [:div {:style {:display "grid" :gap 12}}
+        [:span "说明 / 原因"]
+        [antd/text-area {:rows 3 :value reason :placeholder "本次操作原因" :on-change #(set-reason! (.. % -target -value))}]])]))
+
+(defn- rate-detail
+  "只读展示费率表版本内容."
+  [record on-close]
+  (let [rows (mapv (fn [r] {:code (:code r)
+                            :scope (if (= "person" (:scope r)) "人员" "角色")
+                            :who (if (= "person" (:scope r)) (str "人员 #" (:user_id r))
+                                   (or (some #(when (= (:value %) (:role r)) (:label %)) rate-role-options) (:role r)))
+                            :amount (:amount_per_hour r)
+                            :from (:effective_from r)
+                            :to (or (:effective_to r) "持续")})
+                   (:rates record))]
+    [antd/modal {:title (str "费率表 " (:code record) " / V" (:revision record)) :open true :onCancel on-close :footer nil :width 860
+                 :style {:maxWidth "calc(100vw - 32px)"}}
+     [:div {:style {:display "grid" :gap 16}}
+      [antd/space {:wrap true}
+       [status-badge (:status record)]
+       [antd/tag (:base_currency record)]
+       [antd/tag (str (count rows) " 条费率")]]
+      [antd/table {:size "small" :pagination false :rowKey "code"
+                   :dataSource (clj->js rows)
+                   :columns (clj->js [{:title "编码" :dataIndex "code" :width 120}
+                                      {:title "范围" :dataIndex "scope" :width 80}
+                                      {:title "角色/人员" :dataIndex "who" :width 240}
+                                      {:title "每小时费率" :dataIndex "amount" :width 130}
+                                      {:title "生效起" :dataIndex "from" :width 130}
+                                      {:title "生效止" :dataIndex "to" :width 130}])}]
+      (when (seq (:history record))
+        [:div [:h4 "版本历史"]
+         [:ul {:style {:margin 0 :paddingLeft 20}}
+          (for [h (:history record)] ^{:key (:at h)}
+            [:li (str (:at h) " · " (:action h) " · " (:actor_name h) (when (seq (:reason h)) (str " · " (:reason h))))])]])]]))
+
+(defn- rate-section
+  "H07 有效期费率表: 按人员或角色维护每小时费率与生效区间, 批准工时按其折算人工成本."
+  [{:keys [data editable? open! detail!]}]
+  [shared/panel "有效期费率表" "人员费率优先于角色费率; 项目费用页把已批准工时按生效费率折算为人工成本, 缺费率的分钟如实列为未覆盖"
+   (when editable?
+     [antd/button {:type "primary"
+                   :on-click #(open! {:title "建立费率表" :mode :rates :path "/config/rate-table"
+                                      :initial {:base_currency "CNY" :rates [(rate-blank)]}})}
+      "建立费率表"])
+   [w/record-table (:rows data)
+    [{:title "编码" :dataIndex "code" :width 170}
+     {:title "币种" :dataIndex "base_currency" :width 80}
+     {:title "费率行" :dataIndex "rates" :width 90 :render (fn [v] (str (count (or v []))))}
+     {:title "版本" :dataIndex "revision" :width 70}
+     {:title "状态" :dataIndex "status" :width 100 :render (fn [v] (r/as-element [status-badge v]))}
+     {:title "创建人" :dataIndex "created_by_name" :width 150}]
+    (fn [row]
+      [antd/space {:wrap true}
+       [w/edit-button "详情" #(detail! row)]
+       (when (and editable? (= "draft" (:status row)))
+         [w/edit-button "发布" #(open! {:title "发布费率表" :mode :reason
+                                        :path (str "/config/rate-table/" (:id row) "/publish")})])
+       (when (and editable? (= "published" (:status row)))
+         [w/edit-button "修订" #(open! {:title "修订费率表" :mode :rates
+                                        :path (str "/config/rate-table/" (:id row) "/revisions")
+                                        :initial {:base_currency (:base_currency row) :rates (:rates row)}})])
+       (when (and editable? (contains? #{"draft" "published"} (:status row)))
+         [w/edit-button "退役" #(open! {:title "退役费率表" :mode :reason
+                                        :path (str "/config/rate-table/" (:id row) "/retire")})])])]])
+
 (defn- kind-workspace
-  "按类型加载配置列表并协调命令弹窗."
-  [kind section detail-view]
-  (let [resource (shared/use-resource (str "/config/" kind) {} [])
-        options (shared/use-resource "/options" {} [])
-        [dialog set-dialog!] (hooks/use-state nil)
-        [detail set-detail!] (hooks/use-state nil)
-        editable? (shared/use-permission "pms:config:edit")
-        context {:kind kind :data (:data resource) :options (:data options) :editable? editable? :open! set-dialog! :detail! set-detail!
-                 :refresh! (:refresh! resource)}]
+  "按类型加载配置列表并协调命令弹窗; 可按类型覆盖写权限与命令弹窗组件."
+  ([kind section detail-view] (kind-workspace kind section detail-view nil))
+  ([kind section detail-view {:keys [permission dialog-comp]
+                              :or {permission "pms:config:edit" dialog-comp config-dialog}}]
+   (let [resource (shared/use-resource (str "/config/" kind) {} [])
+         options (shared/use-resource "/options" {} [])
+         [dialog set-dialog!] (hooks/use-state nil)
+         [detail set-detail!] (hooks/use-state nil)
+         editable? (shared/use-permission permission)
+         context {:kind kind :data (:data resource) :options (:data options) :editable? editable? :open! set-dialog! :detail! set-detail!
+                  :refresh! (:refresh! resource)}]
     [:div
      [w/resource-view resource (fn [_] [section context])]
-     (when dialog [config-dialog (merge dialog {:on-close #(set-dialog! nil)
-                                                :on-saved (fn [_] (set-dialog! nil) ((:refresh! resource)))})])
-     (when detail [detail-view detail #(set-detail! nil)])]))
+     (when dialog [dialog-comp (merge dialog {:on-close #(set-dialog! nil)
+                                              :on-saved (fn [_] (set-dialog! nil) ((:refresh! resource)))
+                                              :options (:data options)})])
+     (when detail [detail-view detail #(set-detail! nil)])])))
 
 
 (defn config-page
@@ -332,5 +466,8 @@
                         :children (r/as-element [kind-workspace "rd-pool" pool-section pool-preview])}
                        {:key "locks" :label "工时封期"
                         :children (r/as-element [kind-workspace "period-lock" lock-section rule-detail])}
+                       {:key "rates" :label "费率表"
+                        :children (r/as-element [kind-workspace "rate-table" rate-section rate-detail
+                                                 {:permission "pms:finance:approve" :dialog-comp rate-dialog}])}
                        {:key "approvals" :label "审批策略"
                         :children (r/as-element [kind-workspace "approval-policy" approval/policy-section approval/policy-detail])}]}]])

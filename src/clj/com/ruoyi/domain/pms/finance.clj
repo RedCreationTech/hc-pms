@@ -6,6 +6,7 @@
             [com.ruoyi.domain.pms.finance-commitment :as commitment]
             [com.ruoyi.domain.pms.finance-cost :as cost]
             [com.ruoyi.domain.pms.finance-money :as money]
+            [com.ruoyi.domain.pms.finance-rate :as rate]
             [com.ruoyi.domain.pms.finance-time :as time]
             [com.ruoyi.domain.pms.kernel :as kernel]
             [com.ruoyi.domain.pms.read-model :as rm]
@@ -189,6 +190,7 @@
                 :budget_rules (budget/list-rules q project-id)
                 :budget_control {:budget (budget/evaluate q project-id "budget" 0)
                                  :estimate (budget/evaluate q project-id "estimate" 0)}
+                :labor_cost (rate/summary q project-id)
                 :locked_periods (mapv :period (config/published q "period-lock"))}
                (summary versions)) time/attach-timesheet-review-summary attach-cost-review-summary attach-allocation-review-summary attach-margin-summary attach-commitment-closure-summary)))))
 

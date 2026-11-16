@@ -12,7 +12,7 @@
 
 (def kinds
   "允许持久化的平台配置类型."
-  #{"project-template" "coding-rule" "quarterly-target" "rd-pool" "period-lock" "approval-policy"})
+  #{"project-template" "coding-rule" "quarterly-target" "rd-pool" "period-lock" "approval-policy" "rate-table"})
 
 (def project-types
   "项目类别: 订单型三类与研发/部门事务型 (A11)."
@@ -30,7 +30,7 @@
   "各类型的维护权限."
   {"project-template" "pms:config:edit" "coding-rule" "pms:config:edit"
    "quarterly-target" "pms:target:edit" "rd-pool" "pms:finance:approve" "period-lock" "pms:finance:approve"
-   "approval-policy" "pms:config:edit"})
+   "approval-policy" "pms:config:edit" "rate-table" "pms:finance:approve"})
 
 (def read-permissions
   "读取平台配置的任一权限."
@@ -273,6 +273,44 @@
   (r/object! body [:period :reason])
   {:code (period! (:period body)) :period (:period body) :reason (s/text! body :reason 500)})
 
+(def ^:private member-roles
+  "费率可按项目成员角色取值 (与 pms_member.role 一致)."
+  #{"manager" "editor" "viewer"})
+
+(defn- rate-entry!
+  "校验一条有效期费率: 角色或人员范围, 每小时金额为正, 起止日期有序."
+  [row]
+  (r/object! row [:code :scope :role :user_id :amount_per_hour :effective_from :effective_to])
+  (let [scope (s/enum! (:scope row) #{"role" "person"} "scope")
+        amount (money/amount! (:amount_per_hour row) "每小时费率")
+        from (r/date! (:effective_from row) "生效起日")
+        to (r/date! (:effective_to row) "生效止日")]
+    (when-not (pos? amount) (r/fail! 400 "每小时费率必须大于0"))
+    (when-not from (r/fail! 400 "生效起日必填"))
+    (when (and to (pos? (compare from to))) (r/fail! 400 "生效止日不能早于生效起日"))
+    (when (= "role" scope) (s/enum! (:role row) member-roles "role"))
+    (when (= "person" scope) (r/positive-id! (:user_id row) "人员"))
+    {:code (s/text! row :code 50) :scope scope
+     :role (when (= "role" scope) (:role row))
+     :user_id (when (= "person" scope) (r/positive-id! (:user_id row) "人员"))
+     :amount_per_hour (money/money amount) :amount_per_hour_minor amount
+     :effective_from from :effective_to to}))
+
+(defn- rate-table!
+  "有效期费率表: 同一对象 (角色或人员) 的有效期互不重叠, 允许留白区间 (该区间未覆盖)."
+  [body]
+  (r/object! body [:base_currency :rates :reason])
+  (let [currency (or (:base_currency body) "CNY")]
+    (when-not (money/currencies currency) (r/fail! 400 "暂仅支持CNY/USD/EUR/GBP/HKD"))
+    (when-not (and (vector? (:rates body)) (<= 1 (count (:rates body)) 200))
+      (r/fail! 400 "费率行需要1到200条"))
+    (let [rates (mapv rate-entry! (:rates body))]
+      (doseq [[_ rows] (group-by (juxt :scope :role :user_id) rates)]
+        (doseq [[a b] (partition 2 1 (sort-by :effective_from rows))]
+          (when-not (pos? (compare (:effective_from b) (or (:effective_to a) "9999-12-31")))
+            (r/fail! 400 "同一对象的费率有效期重叠"))))
+      {:code (str "RATE-" currency) :base_currency currency :rates rates})))
+
 (def approval-types
   "可按策略配置多级审批的业务类型 (编码即类型); 带金额的类型允许按金额设置级别条件."
   {"plan-baseline" {:label "计划基线" :amount? false}
@@ -333,6 +371,7 @@
     "quarterly-target" (quarterly-target! body)
     "rd-pool" (rd-pool! body)
     "period-lock" (period-lock! body)
+    "rate-table" (rate-table! body)
     "approval-policy" (approval-policy! body)))
 
 ;; ── 命令 ────────────────────────────────────────────────────────

@@ -2579,6 +2579,17 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: 本项是三段式指令第 (3) 段"依赖外部接口的能力单独出一个配置页"的交付, 属平台级只读配置目录, 不对应验收矩阵某条 PPT 功能整行, 也不上抬任何 `planned / 待合同` / `planned / 待规则` 行的状态 — 目录只是集中登记"仍缺哪些外部能力 + 每条需准备什么字段 + 责任方 + 依赖状态", 八套企业系统适配器与各业务对接点仍需真实字段合同/认证/沙箱与对账样例才能验收, 不允许用本清单或界面冒充真实集成已通过; 读取不查库/不落库/不做连通性测试, `required-fields` 为占位清单不承诺字段合同已签, 不投递提醒, 不做任何写命令或门控. 依用户 2026-10-05 约定, 录屏/演示视频不写入本验收文档; 本项全程单上下文真实浏览器只读验证, 依规则 B 属可进 B 列的真实浏览器验证 (不依赖第二审批人上下文闭环).
 
+## H07 有效期费率表与批准工时人工成本 (增量7首切片, 2026-11-16)
+
+| 验证 | 实际结果 | 范围 |
+|---|---|---|
+| 全量 PMS 回归 (SQLite, 冷 JVM) | 440 tests / 6060 assertions, 0 failures/errors | `clojure -M:test -d test/clj -r 'com.ruoyi.pms.*-test'`; 含新增 `rate-table-validates-effective-windows` (重叠/止日早于起日/非法范围/非正费率/缺人员/非法日期 六类 400) 与 `approved-times-derive-labor-cost-with-effective-rates` (发布双范围费率表 -> 三笔已批准工时分别按人员 150/h、角色 80/h、生效前未覆盖折算 covered=38000 minor/covered_minutes=180/uncovered=120, 修订到 200/h 后重算 48000 证明版本化不改旧版); 财务套件 36 tests / 212 assertions |
+| 迁移双库 | SQLite `202611160001-rate-table-kind` (表重建更新 kind CHECK 含 rate-table) 已在开发库实际应用并经 `GET /api/pms/config/rate-table` 200 验证; MySQL 版 (DROP/ADD CHECK) 文件已同步, 本地无 MySQL 实例本轮未执行 (如实记录, 待环境补跑) | kind 白名单扩到 `rate-table`, 回退仅删行 (CHECK 保持宽白名单, 沿用 approval-chain 回退惯例) |
+| 前端编译 | `npx shadow-cljs compile app` 0 warnings | 新增 模板与规则>费率表 页签 (rate-dialog/rate-section/rate-detail, kind-workspace 支持按类型覆盖写权限与弹窗组件) 与 项目费用>成本与分摊>人工成本面板 |
+| 真实浏览器 | `pms-h07-rates.spec.js` 1 passed (20.4s); 截图 `reports/h07-rates/h07-rate-table-published.png`, `h07-labor-cost-panel.png` | 清场退役旧表 -> 界面建立 R-MGR (角色 100/h 自 2026-01-01) 与 P-ADMIN (人员 admin 150/h 自 2026-09-01) -> 发布 -> 找到 admin 于生效日后有已批准工时的项目, 项目费用页 `人工成本 (费率折算)` 面板 `已覆盖 xx CNY` 与行 `P-ADMIN (人员)` 真实可见 |
+
+边界: 人工成本为读取时派生, 不物化写入费用版本 (与 RD 费用池分摊各司其职, 不构成双计); 物化/费率进成本版本的口径待业务批准后另立增量. 本切片交付 H07 全部剩余子项 (费率有效期, 追溯更正与封期已由既往增量覆盖), H07 行上行为 `implemented / local`.
+
 ## 核心通过场景
 
 1. 四种依赖关系,工作日/例外日历,已知并行网络的CPM与浮动,树形任务隔离和循环拒绝;跨项目人员占用仅显示匿名汇总. 提交计划锁定,独立批准形成不可变基线,执行期重基线绑定已批准变更. 审批中变更失效仍可驳回解除锁定.
