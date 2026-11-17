@@ -8,11 +8,13 @@
     [reagent.core :as r]
     [reagent.hooks :as hooks]))
 
+
 (def metrics
   [{:key :total :label "项目总数" :caption "当前权限范围内的全部项目" :number "01"}
    {:key :active :label "进行中" :caption "已立项及正在推进的项目" :number "02"}
    {:key :overdue :label "已逾期" :caption "超过计划完成日期的未关闭项目" :number "03"}
    {:key :draft :label "待立项" :caption "仍处于草稿阶段的项目" :number "04"}])
+
 
 (defn- metric-card
   "用真实汇总数字呈现项目组合概况."
@@ -28,6 +30,7 @@
                     :fontVariantNumeric "tabular-nums" :color (if overdue? (:danger colors) (:text colors))}}
       (if loading? "—" (get data (:key metric) "—"))]
      [:div {:style {:fontSize 12 :color (:muted colors)}} (:caption metric)]]))
+
 
 (defn- recent-projects
   "最近创建的项目直接进入项目详情."
@@ -53,6 +56,7 @@
                      {:title "状态" :dataIndex "status" :width 120 :render #(r/as-element [shared/status-tag %])}
                      {:title "计划完成" :dataIndex "end_date" :width 150 :render shared/display-value}])}]]))
 
+
 (defn- workflow-note
   "给项目经理提供明确的首批业务路径."
   []
@@ -67,6 +71,7 @@
      [:div {:style {:display "flex" :gap 10 :alignItems "center" :flexWrap "wrap"}}
       [antd/tag "01 创建草稿"] [:span "→"] [antd/tag {:color "blue"} "02 项目立项"]
       [:span "→"] [antd/tag {:color "cyan"} "03 计划准备"]]]))
+
 
 (defn- dashboard-workspace
   "汇总项目组合状态并提供项目入口."
@@ -87,6 +92,7 @@
       (for [metric metrics] ^{:key (:key metric)} [metric-card metric data loading?])]
      (when can-list? [recent-projects revision])
      [workflow-note]]))
+
 
 (defn dashboard-page
   "驾驶舱遵循当前用户的模块权限."

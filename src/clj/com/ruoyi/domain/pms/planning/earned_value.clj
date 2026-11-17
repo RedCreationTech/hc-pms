@@ -157,8 +157,8 @@
                               (pos? open) "in-progress"
                               :else "completed")]
               (assoc v :variance_action_total total
-                       :variance_action_open open
-                       :variance_action_state state)))
+                     :variance_action_open open
+                     :variance_action_state state)))
           variances)))
 
 

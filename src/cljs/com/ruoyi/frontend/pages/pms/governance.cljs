@@ -4,8 +4,8 @@
     [clojure.string :as str]
     [com.ruoyi.frontend.antd :as antd]
     [com.ruoyi.frontend.api :as api]
-    [com.ruoyi.frontend.pages.pms.governance-forms :as forms]
     [com.ruoyi.frontend.pages.pms.approval :as approval]
+    [com.ruoyi.frontend.pages.pms.governance-forms :as forms]
     [com.ruoyi.frontend.pages.pms.shared :as shared]
     [com.ruoyi.frontend.pages.pms.widgets :as w]
     [reagent.core :as r]
@@ -43,30 +43,30 @@
   (let [policies (approval/use-policies)
         {:keys [flows]} (approval/use-project-flows base "charter" (hash (map (juxt :id :status) (:charters model))))
         context (assoc context :policies policies :chain-pending (approval/pending-ids flows))]
-  [shared/panel "项目章程" "立项依据与责任共识"
-   (when editable? [antd/button {:type "primary" :on-click #(open! (forms/charter-dialog base options))} "编制项目章程"])
-   [w/record-table (:charters model)
-    [(w/text-column :title "标题") (w/text-column :objective "项目目标") (w/text-column :scope "范围")
-     (w/text-column :success_criteria "成功标准")
-     {:title "初始预算" :dataIndex "initial_budget" :width 160
-      :render (fn [_ row]
-                (let [budget (aget row "initial_budget") currency (aget row "budget_currency")]
-                  (if (and budget (not= "" budget))
-                    (str budget " " currency)
-                    (r/as-element [:span {:style {:color "#98a2b3"}} "未设定"]))))}
-     {:title "授权PM" :dataIndex "authorized_pm_id" :width 140
-      :render (fn [_ row]
-                (let [uid (aget row "authorized_pm_id")
-                      user (when (some? uid)
-                             (first (filter #(= (str (:user_id %)) (str uid)) (:users options))))
-                      label (when user (or (:nick_name user) (:user_name user)))]
-                  (r/as-element
-                   (if (some? uid)
-                     [:span (or label (str uid))]
-                     [:span {:style {:color "#98a2b3"}} "未指定"]))))}
-     (w/state-column)]
-    #(review-actions context "charters" %)]
-   [approval/latest-flow-panel flows "章程审批进度"]]))
+    [shared/panel "项目章程" "立项依据与责任共识"
+     (when editable? [antd/button {:type "primary" :on-click #(open! (forms/charter-dialog base options))} "编制项目章程"])
+     [w/record-table (:charters model)
+      [(w/text-column :title "标题") (w/text-column :objective "项目目标") (w/text-column :scope "范围")
+       (w/text-column :success_criteria "成功标准")
+       {:title "初始预算" :dataIndex "initial_budget" :width 160
+        :render (fn [_ row]
+                  (let [budget (aget row "initial_budget") currency (aget row "budget_currency")]
+                    (if (and budget (not= "" budget))
+                      (str budget " " currency)
+                      (r/as-element [:span {:style {:color "#98a2b3"}} "未设定"]))))}
+       {:title "授权PM" :dataIndex "authorized_pm_id" :width 140
+        :render (fn [_ row]
+                  (let [uid (aget row "authorized_pm_id")
+                        user (when (some? uid)
+                               (first (filter #(= (str (:user_id %)) (str uid)) (:users options))))
+                        label (when user (or (:nick_name user) (:user_name user)))]
+                    (r/as-element
+                      (if (some? uid)
+                        [:span (or label (str uid))]
+                        [:span {:style {:color "#98a2b3"}} "未指定"]))))}
+       (w/state-column)]
+      #(review-actions context "charters" %)]
+     [approval/latest-flow-panel flows "章程审批进度"]]))
 
 
 (defn- requirement-section
@@ -80,10 +80,11 @@
     [(w/text-column :code "编号") (w/text-column :revision "版本") (w/text-column :text "需求描述")
      (w/text-column :category "类别") {:title "优先级" :dataIndex "priority" :render #(get w/labels % %)}
      {:title "验证方式" :dataIndex "verification_method" :width 100
-      :render (fn [v] (let [label (cond (= v "test") "测试" (= v "inspection") "检验"
-                                         (= v "demonstration") "演示" (= v "analysis") "分析" :else nil)]
-                         (r/as-element (if label [antd/tag {:color "geekblue"} label]
-                                           [:span {:style {:color "#98a2b3"}} "未设定"]))))}
+      :render (fn [v]
+                (let [label (cond (= v "test") "测试" (= v "inspection") "检验"
+                                  (= v "demonstration") "演示" (= v "analysis") "分析" :else nil)]
+                  (r/as-element (if label [antd/tag {:color "geekblue"} label]
+                                    [:span {:style {:color "#98a2b3"}} "未设定"]))))}
      {:title "追踪状态" :dataIndex "trace_state" :width 130
       :render (fn [v row]
                 (let [color ({"complete" "green" "missing-design" "gold" "missing-verification" "volcano" "untracked" "default"} v)
@@ -109,13 +110,14 @@
                     [:div {:style {:display "flex" :flex-wrap "wrap" :gap 4}}
                      [antd/tag {:color color} text]
                      (when voided [antd/tag {:color "red"} "证据已作废"])])))}]
-    (when editable? (fn [row] [antd/space {:wrap true}
-                              [w/edit-button "新修订" #(open! (forms/requirement-dialog base options row))]
-                              [w/edit-button "级联影响" #(preview! {:collection "requirements" :id (:id row) :label (str "URS需求 " (:code row))})]
-                              (when (= "registered" (:status row))
-                                [w/edit-button "作废" #(open! (forms/discard-dialog (str base "/requirements/" (:id row) "/discard") "URS需求"))])
-                              (when (= "discarded" (:status row))
-                                [w/edit-button "恢复" #(open! (forms/restore-dialog (str base "/requirements/" (:id row) "/restore") "URS需求"))])]))]])
+    (when editable? (fn [row]
+                      [antd/space {:wrap true}
+                       [w/edit-button "新修订" #(open! (forms/requirement-dialog base options row))]
+                       [w/edit-button "级联影响" #(preview! {:collection "requirements" :id (:id row) :label (str "URS需求 " (:code row))})]
+                       (when (= "registered" (:status row))
+                         [w/edit-button "作废" #(open! (forms/discard-dialog (str base "/requirements/" (:id row) "/discard") "URS需求"))])
+                       (when (= "discarded" (:status row))
+                         [w/edit-button "恢复" #(open! (forms/restore-dialog (str base "/requirements/" (:id row) "/restore") "URS需求"))])]))]])
 
 
 (defn- latest-document-ids
@@ -154,9 +156,10 @@
                                          (mapv (fn [c]
                                                  (node (str "s:" (:stage stage) ":n:" (:structure_node n) ":c:" (:classification c))
                                                        [antd/tag {:color (get {"public" "green" "internal" "blue" "confidential" "red"} (:classification c))} (str (get class-labels (:classification c) (:classification c)) " " (:count c))]
-                                                       (mapv (fn [d] {:key (:id d) :isLeaf true
-                                                                      :title (r/as-element [antd/button {:type "link" :size "small" :style {:padding 0} :on-click #(document! d)}
-                                                                                            (str (:code d) " V" (:revision d) " · " (:title d) " · " (get {"registered" "已登记" "in_review" "待发布审批" "approved" "已发布" "rejected" "已退回"} (:status d) (:status d)))])})
+                                                       (mapv (fn [d]
+                                                               {:key (:id d) :isLeaf true
+                                                                :title (r/as-element [antd/button {:type "link" :size "small" :style {:padding 0} :on-click #(document! d)}
+                                                                                      (str (:code d) " V" (:revision d) " · " (:title d) " · " (get {"registered" "已登记" "in_review" "待发布审批" "approved" "已发布" "rejected" "已退回"} (:status d) (:status d)))])})
                                                              (:documents c))))
                                                (:classifications n))))
                                  (:nodes stage))))
@@ -227,7 +230,10 @@
         [antd/space {:wrap true}
          (for [p by-priority]
            ^{:key (:priority p)} [antd/tag {:color (get priority-colors (:priority p) "default")}
-                                  (str (:label p) " · " (:count p) " (" (:pct p 0) "%)")])]])]))(defn- coverage-section
+                                  (str (:label p) " · " (:count p) " (" (:pct p 0) "%)")])]])]))
+
+
+(defn- coverage-section
   "按每个需求编号的最新有效版本只读聚合验证方式声明覆盖度: 四类方法各自计数与覆盖率; 修订不重复计数, 已作废不计入."
   [{:keys [model]}]
   (let [cov (:verification_coverage model)
@@ -338,8 +344,7 @@
         [antd/space {:wrap true}
          (for [c by-classification]
            ^{:key (:classification c)} [antd/tag {:color (get classification-colors (:classification c) "default")}
-                                         (str (:label c) " · " (:count c) " (" (:pct c 0) "%)")])]])]))
-
+                                        (str (:label c) " · " (:count c) " (" (:pct c 0) "%)")])]])]))
 
 
 (defn- document-section
@@ -369,9 +374,10 @@
      [w/record-table docs
       [(w/text-column :code "文档编号") (w/text-column :title "标题") (w/text-column :revision "版本")
        {:title "文件" :key "file" :width 200 :ellipsis true
-        :render (fn [_ row] (r/as-element [:span (aget row "filename")
-                                           [:span {:style {:color "#98a2b3" :marginLeft 6 :fontSize 12}}
-                                            (if (= "file" (aget row "content_kind")) (file-size (aget row "byte_size")) "文本")]]))}
+        :render (fn [_ row]
+                  (r/as-element [:span (aget row "filename")
+                                 [:span {:style {:color "#98a2b3" :marginLeft 6 :fontSize 12}}
+                                  (if (= "file" (aget row "content_kind")) (file-size (aget row "byte_size")) "文本")]]))}
        (w/text-column :category "类别")
        {:title "密级" :dataIndex "classification"
         :render #(get {"public" "公开" "internal" "内部" "confidential" "机密"} % %)}
@@ -390,9 +396,10 @@
            [:<>
             [w/edit-button "批准发布" #(open! (forms/decision-dialog (str base "/documents/" (:id row) "/decision") "approved" "正式签发发布"))]
             [w/edit-button "驳回" #(open! (forms/decision-dialog (str base "/documents/" (:id row) "/decision") "rejected" "驳回文档发布"))]])
-         (when editable? [w/edit-button "新版本" (fn [] (if (= "file" (:content_kind row))
-                                                       (upload! {:document row :categories categories})
-                                                       (open! (forms/document-dialog base row categories))))])
+         (when editable? [w/edit-button "新版本" (fn []
+                                                (if (= "file" (:content_kind row))
+                                                  (upload! {:document row :categories categories})
+                                                  (open! (forms/document-dialog base row categories))))])
          (when editable? [w/edit-button "级联影响" #(preview! {:collection "documents" :id (:id row) :label (str "证据文档 " (:code row))})])
          (when (and editable? (contains? #{"registered" "rejected"} (:status row)))
            [w/edit-button "作废" #(open! (forms/discard-dialog (str base "/documents/" (:id row) "/discard") "证据文档"))])
@@ -487,13 +494,14 @@
      {:title "投入差距" :dataIndex "stakeholder_engagement_state" :width 140 :render (fn [_ row] (engagement-gap-cell row))}
      {:title "管理策略" :dataIndex "stakeholder_quadrant" :width 200 :render (fn [_ row] (quadrant-cell row))}
      (w/state-column)]
-    (when editable? (fn [row] [antd/space {:wrap true}
-                         [w/edit-button "新修订" #(open! (forms/stakeholder-dialog base options row))]
-                         [w/edit-button "级联影响" #(preview! {:collection "stakeholders" :id (:id row) :label (str "干系人 " (:code row))})]
-                         (when (= "active" (:status row))
-                           [w/edit-button "作废" #(open! (forms/discard-dialog (str base "/stakeholders/" (:id row) "/discard") "干系人"))])
-                         (when (= "discarded" (:status row))
-                           [w/edit-button "恢复" #(open! (forms/restore-dialog (str base "/stakeholders/" (:id row) "/restore") "干系人"))])]))]])
+    (when editable? (fn [row]
+                      [antd/space {:wrap true}
+                       [w/edit-button "新修订" #(open! (forms/stakeholder-dialog base options row))]
+                       [w/edit-button "级联影响" #(preview! {:collection "stakeholders" :id (:id row) :label (str "干系人 " (:code row))})]
+                       (when (= "active" (:status row))
+                         [w/edit-button "作废" #(open! (forms/discard-dialog (str base "/stakeholders/" (:id row) "/discard") "干系人"))])
+                       (when (= "discarded" (:status row))
+                         [w/edit-button "恢复" #(open! (forms/restore-dialog (str base "/stakeholders/" (:id row) "/restore") "干系人"))])]))]])
 
 
 (defn- engagement-coverage-section
@@ -522,7 +530,7 @@
          [antd/space {:wrap true}
           (for [{:keys [engagement count]} (:by-engagement cov)]
             ^{:key engagement} [antd/tag {:color (if (pos? count) (get engagement-color engagement "geekblue") "default")}
-                              (str (get engagement-label engagement engagement) " · " count)])]]])]))
+                                (str (get engagement-label engagement engagement) " · " count)])]]])]))
 
 
 (defn- engagement-matrix-section
@@ -607,7 +615,7 @@
              (let [load (aget row "owner_open_load") over (true? (aget row "owner_overloaded"))]
                (r/as-element [antd/space {:wrap true}
                               [antd/tag {:color (if (pos? load) "blue" "default")} (str "未关闭 x " load)]
-                                     (when over [antd/tag {:color "red"} "负载过重"])])))})
+                              (when over [antd/tag {:color "red"} "负载过重"])])))})
 
 
 (defn- due-countdown-column
@@ -644,10 +652,10 @@
       :render (fn [_ row]
                 (let [overdue (true? (aget row "comm_overdue")) days (aget row "comm_days_until")]
                   (r/as-element
-                   (cond overdue [antd/tag {:color "red"} "沟通已到期"]
-                         (and (number? days) (pos? days)) [antd/tag {:color "gold"} (str days " 天后沟通")]
-                         (number? days) [antd/tag {:color "default"} "已过期"]
-                         :else [antd/tag "未排期"]))))}
+                    (cond overdue [antd/tag {:color "red"} "沟通已到期"]
+                          (and (number? days) (pos? days)) [antd/tag {:color "gold"} (str days " 天后沟通")]
+                          (number? days) [antd/tag {:color "default"} "已过期"]
+                          :else [antd/tag "未排期"]))))}
      (w/text-column :last_meeting_id "最近会议") (w/state-column)]
     (when editable?
       (fn [plan]
@@ -829,7 +837,7 @@
         [antd/space {:wrap true}
          (for [c by-cat :when (pos? (:count c 0))]
            ^{:key (:category c)} [antd/tag {:color (get category-colors (:category c) "default")}
-                                   (str (:label c) " · " (:count c))])]])]))
+                                  (str (:label c) " · " (:count c))])]])]))
 
 
 (defn- stakeholder-quadrant-distribution-section
@@ -957,10 +965,10 @@
           [antd/space {:wrap true}
            (for [ac thin]
              ^{:key (:activity ac)} [antd/tag {:color "default"}
-                                      (str (:activity ac) " · "
-                                           (if (and (:missing-consult ac) (:missing-inform ac))
-                                             "缺咨询C、缺知会I"
-                                             (if (:missing-consult ac) "缺咨询C" "缺知会I")))])])])]))
+                                     (str (:activity ac) " · "
+                                          (if (and (:missing-consult ac) (:missing-inform ac))
+                                            "缺咨询C、缺知会I"
+                                            (if (:missing-consult ac) "缺咨询C" "缺知会I")))])])])]))
 
 
 (defn- raci-role-distribution-section
@@ -1018,9 +1026,10 @@
      {:title "关系" :dataIndex "relation" :render #(if (= % "satisfies") "满足需求" "验证需求")}
      {:title "阶段" :dataIndex "phase" :width 110 :render #(get forms/phase-labels % (or % "—"))}
      {:title "偏差" :dataIndex "deviation_level" :width 200
-      :render (fn [v row] (r/as-element (cond (or (nil? v) (= v "none")) [:span {:style {:color "#98a2b3"}} "无偏差"]
-                                              :else [antd/space [antd/tag {:color (get {"minor" "gold" "major" "orange" "blocker" "red"} v "default")} (get forms/deviation-labels v v)]
-                                                     [:span {:style {:fontSize 12 :color "#718096"}} (aget row "deviation_note")]])))}]
+      :render (fn [v row]
+                (r/as-element (cond (or (nil? v) (= v "none")) [:span {:style {:color "#98a2b3"}} "无偏差"]
+                                    :else [antd/space [antd/tag {:color (get {"minor" "gold" "major" "orange" "blocker" "red"} v "default")} (get forms/deviation-labels v v)]
+                                           [:span {:style {:fontSize 12 :color "#718096"}} (aget row "deviation_note")]])))}]
     nil]])
 
 
@@ -1051,9 +1060,9 @@
       [antd/tag {:color (if (pos? (:missing-verification summary 0)) "red" "default")}
        (str "缺验证证据 " (:missing-verification summary 0))]
       (for [[phase n] (get summary :by-phase)] ^{:key phase}
-        [antd/tag (str (get forms/phase-labels (name phase) (name phase)) " " n)])
+           [antd/tag (str (get forms/phase-labels (name phase) (name phase)) " " n)])
       (for [[level n] (get summary :deviations) :when (pos? n)] ^{:key level}
-        [antd/tag {:color (get {"minor" "gold" "major" "orange" "blocker" "red"} (name level) "default")} (str (get forms/deviation-labels (name level) (name level)) "偏差 " n)])]
+           [antd/tag {:color (get {"minor" "gold" "major" "orange" "blocker" "red"} (name level) "default")} (str (get forms/deviation-labels (name level) (name level)) "偏差 " n)])]
      [w/record-table report
       [(w/text-column :code "URS编号") (w/text-column :revision "版本")
        {:title "优先级" :dataIndex "priority" :render #(get w/labels % %)}
@@ -1111,7 +1120,7 @@
          [antd/space {:wrap true}
           (for [{:keys [strategy count]} (:by-strategy cov)]
             ^{:key strategy} [antd/tag {:color (if (pos? count) "geekblue" "default")}
-                            (str (get strategy-label strategy strategy) " · " count)])]]])]))
+                              (str (get strategy-label strategy strategy) " · " count)])]]])]))
 
 
 (defn- risk-category-coverage-section
@@ -1137,7 +1146,7 @@
          [antd/space {:wrap true}
           (for [{:keys [category count]} (:by-category cov)]
             ^{:key category} [antd/tag {:color (if (pos? count) "geekblue" "default")}
-                            (str (get category-label category category) " · " count)])]]])]))
+                              (str (get category-label category category) " · " count)])]]])]))
 
 
 (defn- risk-escalation-section
@@ -1168,7 +1177,7 @@
          [antd/space {:wrap true}
           (for [{:keys [level count]} (:by-level esc)]
             ^{:key level} [antd/tag {:color (if (pos? count) "geekblue" "default")}
-                            (str (get level-label level level) " · " count)])]]])]))
+                           (str (get level-label level level) " · " count)])]]])]))
 
 
 (defn- risk-score-distribution-section
@@ -1206,9 +1215,10 @@
         total (:total dist 0)
         labeled (:labeled-stages dist 0)
         unclassified (:unclassified dist 0)
-        stage-color (fn [s] (cond (pos? (:critical s 0)) "red"
-                                  (pos? (:high-or-above s 0)) "gold"
-                                  :else "geekblue"))]
+        stage-color (fn [s]
+                      (cond (pos? (:critical s 0)) "red"
+                            (pos? (:high-or-above s 0)) "gold"
+                            :else "geekblue"))]
     [shared/panel "风险项目阶段分布" "按每个风险的最新有效版本只读统计风险在项目阶段(如设计/采购/执行)的分布, 并计高危及以上与达超阈值升级门控的严重风险数; 只读派生, 不改变风险状态"
      (if (zero? total)
        [:span {:style {:color "#8793a3"}} "暂无项目风险, 登记后可在此查看阶段分布."]
@@ -1223,9 +1233,9 @@
          [antd/space {:wrap true}
           (for [{:keys [stage count avg-score high-or-above critical]} (:stages dist)]
             ^{:key stage} [antd/tag {:color (stage-color {:high-or-above high-or-above :critical critical})}
-                            (str stage " · " count " · 均分" avg-score
-                                 (when (pos? high-or-above) (str " · 高危" high-or-above))
-                                 (when (pos? critical) (str " · 严重" critical)))])]]])]))
+                           (str stage " · " count " · 均分" avg-score
+                                (when (pos? high-or-above) (str " · 高危" high-or-above))
+                                (when (pos? critical) (str " · 严重" critical)))])]]])]))
 
 
 (defn- risk-review-frequency-section
@@ -1237,9 +1247,10 @@
         unassigned (:unassigned dist 0)
         declared-pct (:declared-pct dist 0)
         freq-label {"weekly" "每周" "biweekly" "双周" "monthly" "每月" "quarterly" "每季度"}
-        freq-color (fn [f] (cond (pos? (:overdue f 0)) "red"
-                                 (pos? (:due-soon f 0)) "gold"
-                                 :else "geekblue"))]
+        freq-color (fn [f]
+                     (cond (pos? (:overdue f 0)) "red"
+                           (pos? (:due-soon f 0)) "gold"
+                           :else "geekblue"))]
     [shared/panel "风险复审频率分布" "按每个风险的最新有效版本只读统计复审频率(每周/双周/每月/每季度)分布, 并计各档未闭环, 复审逾期与临期数及已设定覆盖率; 与逐条台账到期倒计时同源, 只读派生, 不改变风险状态"
      (if (zero? total)
        [:span {:style {:color "#8793a3"}} "暂无项目风险, 登记后可在此查看复审频率分布."]
@@ -1312,13 +1323,14 @@
       :render (fn [_ row]
                 (let [sc (aget row "score")]
                   (r/as-element
-                   (cond (>= sc 20) [antd/tag {:color "red"} "实例化将升级至决策层"]
-                         (>= sc 16) [antd/tag {:color "gold"} "实例化将超阈值升级"]
-                         :else [:span {:style {:color "#98a2b3"}} "低于升级阈值"]))))}]
-    (when editable? (fn [row] [antd/space {:wrap true}
-                              [w/edit-button "实例化为风险" #(open! (forms/risk-custom-template-dialog base (:risk_templates model) options))]
-                              [w/edit-button "编辑" #(open! (forms/risk-template-update-dialog base row))]
-                              [w/edit-button "作废" #(open! (forms/discard-dialog (str base "/risk-templates/" (:id row) "/discard") "风险模板"))]]))]])
+                    (cond (>= sc 20) [antd/tag {:color "red"} "实例化将升级至决策层"]
+                          (>= sc 16) [antd/tag {:color "gold"} "实例化将超阈值升级"]
+                          :else [:span {:style {:color "#98a2b3"}} "低于升级阈值"]))))}]
+    (when editable? (fn [row]
+                      [antd/space {:wrap true}
+                       [w/edit-button "实例化为风险" #(open! (forms/risk-custom-template-dialog base (:risk_templates model) options))]
+                       [w/edit-button "编辑" #(open! (forms/risk-template-update-dialog base row))]
+                       [w/edit-button "作废" #(open! (forms/discard-dialog (str base "/risk-templates/" (:id row) "/discard") "风险模板"))]]))]])
 
 
 (defn- risk-section
@@ -1338,20 +1350,20 @@
       :render (fn [_ row]
                 (let [esc (aget row "escalated") state (aget row "escalation_state")]
                   (r/as-element
-                   (cond
-                     (and (not esc) (true? (aget row "issue_escalation_suggested"))) [antd/tag {:color "orange"} "逾期未升级, 建议追溯升级"]
-                     (not esc) [:span {:style {:color "#98a2b3"}} "未触发"]
-                     (= state "pending") [antd/tag {:color "red"} (str "待升级确认 / " (aget row "escalation_level") (when (= "overdue_retroactive" (aget row "escalation_source")) " (逾期追溯)"))]
-                     (= state "acknowledged") [antd/tag {:color "green"} "升级已确认"]
-                     (= state "waived") [antd/tag {:color "blue"} "升级已豁免"]
-                     :else [antd/tag state]))))}
+                    (cond
+                      (and (not esc) (true? (aget row "issue_escalation_suggested"))) [antd/tag {:color "orange"} "逾期未升级, 建议追溯升级"]
+                      (not esc) [:span {:style {:color "#98a2b3"}} "未触发"]
+                      (= state "pending") [antd/tag {:color "red"} (str "待升级确认 / " (aget row "escalation_level") (when (= "overdue_retroactive" (aget row "escalation_source")) " (逾期追溯)"))]
+                      (= state "acknowledged") [antd/tag {:color "green"} "升级已确认"]
+                      (= state "waived") [antd/tag {:color "blue"} "升级已豁免"]
+                      :else [antd/tag state]))))}
      {:title "复审重评" :dataIndex "review_proposed_score" :width 150
       :render (fn [_ row]
                 (let [proposed (aget row "review_proposed_score")]
                   (r/as-element
-                   (if (some? proposed)
-                     [antd/tag {:color "orange"} (str (aget row "score") " → " proposed " 待批准")]
-                     [:span {:style {:color "#98a2b3"}} "—"]))))}
+                    (if (some? proposed)
+                      [antd/tag {:color "orange"} (str (aget row "score") " → " proposed " 待批准")]
+                      [:span {:style {:color "#98a2b3"}} "—"]))))}
      {:title "应对策略" :dataIndex "response_strategy" :width 110
       :render (fn [_ row]
                 (let [s (aget row "response_strategy")
@@ -1390,12 +1402,12 @@
                                   (= st "unimplemented") [antd/tag {:color "orange"} "措施未落实"]
                                   :else nil)]
                   (r/as-element
-                   (if (nil? state-tag)
-                     [:span {:style {:color "#98a2b3"}} "—"]
-                     [:span
-                      state-tag
-                      (when (and (= st "in-progress") (pos? overdue))
-                        [antd/tag {:color "red"} (str overdue " 项逾期")])]))))}
+                    (if (nil? state-tag)
+                      [:span {:style {:color "#98a2b3"}} "—"]
+                      [:span
+                       state-tag
+                       (when (and (= st "in-progress") (pos? overdue))
+                         [antd/tag {:color "red"} (str overdue " 项逾期")])]))))}
      (w/text-column :review_due_date "下次复评")
      {:title "复评提醒" :dataIndex "review_overdue" :render #(when % (r/as-element [antd/tag {:color "red"} "复评已逾期"]))}
      (due-countdown-column "review_due_in_days")
@@ -1437,21 +1449,21 @@
       :render (fn [_ row]
                 (let [overdue (true? (aget row "issue_overdue")) critical (true? (aget row "issue_critical"))]
                   (r/as-element
-                   [antd/space {:wrap true}
-                    (when critical [antd/tag {:color "red"} "阻断级"])
-                    (when overdue [antd/tag {:color "volcano"} "已逾期"])])))}
+                    [antd/space {:wrap true}
+                     (when critical [antd/tag {:color "red"} "阻断级"])
+                     (when overdue [antd/tag {:color "volcano"} "已逾期"])])))}
      (due-countdown-column "issue_due_in_days")
      {:title "超阈值升级" :dataIndex "escalation_state" :width 180
       :render (fn [_ row]
                 (let [esc (aget row "escalated") state (aget row "escalation_state")]
                   (r/as-element
-                   (cond
-                     (and (not esc) (true? (aget row "issue_escalation_suggested"))) [antd/tag {:color "orange"} "逾期未升级, 建议追溯升级"]
-                     (not esc) [:span {:style {:color "#98a2b3"}} "未触发"]
-                     (= state "pending") [antd/tag {:color "red"} (str "待升级确认 / " (aget row "escalation_level") (when (= "overdue_retroactive" (aget row "escalation_source")) " (逾期追溯)"))]
-                     (= state "acknowledged") [antd/tag {:color "green"} "升级已确认"]
-                     (= state "waived") [antd/tag {:color "blue"} "升级已豁免"]
-                     :else [antd/tag state]))))}
+                    (cond
+                      (and (not esc) (true? (aget row "issue_escalation_suggested"))) [antd/tag {:color "orange"} "逾期未升级, 建议追溯升级"]
+                      (not esc) [:span {:style {:color "#98a2b3"}} "未触发"]
+                      (= state "pending") [antd/tag {:color "red"} (str "待升级确认 / " (aget row "escalation_level") (when (= "overdue_retroactive" (aget row "escalation_source")) " (逾期追溯)"))]
+                      (= state "acknowledged") [antd/tag {:color "green"} "升级已确认"]
+                      (= state "waived") [antd/tag {:color "blue"} "升级已豁免"]
+                      :else [antd/tag state]))))}
      (owner-load-column)
      (w/text-column :resolution "解决说明")
      {:title "解决方式" :dataIndex "resolution_type" :width 110
@@ -1464,8 +1476,8 @@
          [w/edit-button "确认升级处置" #(open! (forms/issue-escalation-dialog base issue))])
        (when (and editable? (:issue_escalation_suggested issue))
          [w/edit-button "追溯升级" #(open! {:title "逾期追溯升级" :path (str base "/issues/" (:id issue) "/escalate-overdue")
-                                          :description "问题已逾期且未升级: 追溯升级到经理层并进入待独立确认, 确认前不能提交解决."
-                                          :fields [{:key :reason :label "升级说明" :type :textarea}]})])
+                                        :description "问题已逾期且未升级: 追溯升级到经理层并进入待独立确认, 确认前不能提交解决."
+                                        :fields [{:key :reason :label "升级说明" :type :textarea}]})])
        (when (and editable? (= "closed" (:status issue)))
          [w/edit-button "申请重开" #(open! (forms/issue-reopen-dialog base options (:documents model) issue))])
        (when (and editable? (contains? #{"open" "rejected"} (:status issue)))
@@ -1510,7 +1522,7 @@
          [antd/space {:wrap true}
           (for [{:keys [level count]} (:by-level esc)]
             ^{:key level} [antd/tag {:color (if (pos? count) "geekblue" "default")}
-                            (str (get level-label level level) " · " count)])]]])]))
+                           (str (get level-label level level) " · " count)])]]])]))
 
 
 (defn- issue-closure-summary-section
@@ -1549,7 +1561,7 @@
          [antd/space {:wrap true}
           (for [{:keys [severity count]} (:by-severity cl)]
             ^{:key severity} [antd/tag {:color (if (pos? count) "geekblue" "default")}
-                            (str (get sev-label severity severity) " · " count)])]]])]))
+                              (str (get sev-label severity severity) " · " count)])]]])]))
 
 
 (defn- resolution-coverage-section
@@ -1578,7 +1590,7 @@
          [antd/space {:wrap true}
           (for [{:keys [resolution count]} (:by-resolution cov)]
             ^{:key resolution} [antd/tag {:color (if (pos? count) (get resolution-color resolution "geekblue") "default")}
-                              (str (get resolution-label resolution resolution) " · " count)])]]])]))
+                                (str (get resolution-label resolution resolution) " · " count)])]]])]))
 
 
 (defn- meeting-section
@@ -1591,25 +1603,26 @@
      {:title "类型" :dataIndex "meeting_type" :width 100 :render #(get forms/meeting-type-labels % (or % "常规会议"))}
      (w/text-column :held_on "会议日期") (w/text-column :minutes "会议纪要")
      {:title "主计划基线" :dataIndex "baseline_revision" :width 150
-      :render (fn [_ row] (let [rev (aget row "baseline_revision") stale (true? (aget row "baseline_stale"))]
-                            (r/as-element (if (some? rev)
-                                            [antd/space [antd/tag {:color "blue"} (str "计划修订 " rev)] (when stale [antd/tag {:color "red"} "基线已失效"])]
-                                            [:span {:style {:color "#98a2b3"}} "未引用"]))))}
+      :render (fn [_ row]
+                (let [rev (aget row "baseline_revision") stale (true? (aget row "baseline_stale"))]
+                  (r/as-element (if (some? rev)
+                                  [antd/space [antd/tag {:color "blue"} (str "计划修订 " rev)] (when stale [antd/tag {:color "red"} "基线已失效"])]
+                                  [:span {:style {:color "#98a2b3"}} "未引用"]))))}
      {:title "会前资料" :dataIndex "material_ids" :render #(r/as-element [antd/tag {:color (if (pos? (count %)) "blue" "default")} (count %)])}
      {:title "纪要发布" :dataIndex "status" :width 110
       :render #(r/as-element (let [[t c] (get {"recorded" ["草稿" "default"] "in_review" ["发布审批中" "blue"] "approved" ["已发布" "green"] "discarded" ["已作废" "red"]} % [% "default"])]
-                              [antd/tag {:color c} t]))}
+                               [antd/tag {:color c} t]))}
      {:title "行动闭环" :dataIndex "meeting_open_actions" :width 180
       :render (fn [_ row]
                 (let [total (aget row "meeting_action_total")
                       open (aget row "meeting_open_actions")
                       overdue (aget row "meeting_overdue_actions")]
                   (r/as-element
-                   [antd/space {:wrap true}
-                    (cond (zero? total) [:span {:style {:color "#98a2b3"}} "无行动"]
-                          (zero? open) [antd/tag {:color "green"} "行动已全部闭环"]
-                          :else [antd/tag {:color "gold"} (str "未完成 " open "/" total)])
-                    (when (and (number? overdue) (pos? overdue)) [antd/tag {:color "red"} (str "逾期 " overdue)])])))}]
+                    [antd/space {:wrap true}
+                     (cond (zero? total) [:span {:style {:color "#98a2b3"}} "无行动"]
+                           (zero? open) [antd/tag {:color "green"} "行动已全部闭环"]
+                           :else [antd/tag {:color "gold"} (str "未完成 " open "/" total)])
+                     (when (and (number? overdue) (pos? overdue)) [antd/tag {:color "red"} (str "逾期 " overdue)])])))}]
     (fn [meeting]
       (let [current (:currentUserId options) st (:status meeting)]
         [antd/space {:wrap true}
@@ -1694,10 +1707,11 @@
         pct (:declared-pct dist 0)
         open-high (:open-high dist 0)
         pri-label {"high" "高" "medium" "中" "low" "低"}
-        pri-color (fn [b] (cond (pos? (:overdue b 0)) "red"
-                                (pos? (:open b 0)) "gold"
-                                (pos? (:count b 0)) "green"
-                                :else "default"))]
+        pri-color (fn [b]
+                    (cond (pos? (:overdue b 0)) "red"
+                          (pos? (:open b 0)) "gold"
+                          (pos? (:count b 0)) "green"
+                          :else "default"))]
     [shared/panel "会议行动优先级分布" "按全部会议与预防行动只读统计优先级(高/中/低)申报分布: 逐档计数与未完成/逾期, 并给已申报覆盖率与高优先级未完成数; 优先级来自登记时可选枚举, 只读派生, 不改变行动状态"
      (if (zero? total)
        [:span {:style {:color "#8793a3"}} "暂无行动项, 登记行动并申报优先级后可在此查看分布."]
@@ -2052,8 +2066,6 @@
                       by-weekday))])])]))
 
 
-
-
 (defn- meeting-type-distribution-section
   "按每个会议最新有效版本只读聚合其会议类型(例会/启动会/评审会/FAT启动/FAT总结五档固定枚举)的项目级分布: 各类型会议数与占总数百分比, 已用类型档数与缺档类型档数, 类型覆盖率与主导类型; 与参会概览(看出席)/节奏分布(看时间间隔)互补(本项看会议在类型维度的构成/覆盖与主导, 回答是否覆盖启动会/评审会/FAT 等关键节点), 只读派生, 不改变任何记录."
   [{:keys [model]}]
@@ -2083,7 +2095,7 @@
         [antd/space {:wrap true}
          (for [t by-type]
            ^{:key (:type t)} [antd/tag {:color (get type-colors (:type t) "default")}
-                                (str (:label t) " · " (:count t) " (" (:pct t 0) "%)")])]])]))
+                              (str (:label t) " · " (:count t) " (" (:pct t 0) "%)")])]])]))
 
 
 (defn- action-section
@@ -2163,23 +2175,23 @@
                       high (true? (aget row "change_high_impact"))
                       quant? (or (some? days) (and (some? cost) (not= "" cost)))]
                   (r/as-element
-                   (if (or quant? high)
-                     (into [antd/space {:wrap true}]
-                           (cond-> []
-                             (some? days) (conj [antd/tag {:color "blue"} (str "工期 +" days " 天")])
-                             (and (some? cost) (not= "" cost)) (conj [antd/tag {:color "blue"} (str "成本 +" cost)])
-                             high (conj [antd/tag {:color "red"} "高影响"])))
-                     [:span {:style {:color "#98a2b3"}} "未量化"]))))}
+                    (if (or quant? high)
+                      (into [antd/space {:wrap true}]
+                            (cond-> []
+                              (some? days) (conj [antd/tag {:color "blue"} (str "工期 +" days " 天")])
+                              (and (some? cost) (not= "" cost)) (conj [antd/tag {:color "blue"} (str "成本 +" cost)])
+                              high (conj [antd/tag {:color "red"} "高影响"])))
+                      [:span {:style {:color "#98a2b3"}} "未量化"]))))}
      {:title "变更控制升级" :dataIndex "escalation_state" :width 150
       :render (fn [_ row]
                 (let [esc (aget row "escalated") state (aget row "escalation_state")]
                   (r/as-element
-                   (cond
-                     (not esc) [:span {:style {:color "#98a2b3"}} "未触发"]
-                     (= state "pending") [antd/tag {:color "red"} "待独立确认"]
-                     (= state "acknowledged") [antd/tag {:color "green"} "升级已确认"]
-                     (= state "waived") [antd/tag {:color "blue"} "升级已豁免"]
-                     :else [antd/tag state]))))}
+                    (cond
+                      (not esc) [:span {:style {:color "#98a2b3"}} "未触发"]
+                      (= state "pending") [antd/tag {:color "red"} "待独立确认"]
+                      (= state "acknowledged") [antd/tag {:color "green"} "升级已确认"]
+                      (= state "waived") [antd/tag {:color "blue"} "升级已豁免"]
+                      :else [antd/tag state]))))}
      {:title "变更控制表决" :dataIndex "ccb_summary" :width 190
       :render (fn [_ row]
                 (let [s (aget row "ccb_summary")
@@ -2188,11 +2200,11 @@
                       required (when s (aget s "required"))
                       members (when s (aget s "members"))]
                   (r/as-element
-                   (cond
-                     (or (nil? s) (= state "none")) [:span {:style {:color "#98a2b3"}} "未设立委员会"]
-                     (= state "passed") [antd/tag {:color "green"} (str "表决通过 " approve "/" required)]
-                     (= state "failed") [antd/tag {:color "red"} (str "表决未通过 " approve "/" required " / 成员 " members)]
-                     :else [antd/tag {:color "gold"} (str "表决中 " approve "/" required " / 成员 " members)]))))}
+                    (cond
+                      (or (nil? s) (= state "none")) [:span {:style {:color "#98a2b3"}} "未设立委员会"]
+                      (= state "passed") [antd/tag {:color "green"} (str "表决通过 " approve "/" required)]
+                      (= state "failed") [antd/tag {:color "red"} (str "表决未通过 " approve "/" required " / 成员 " members)]
+                      :else [antd/tag {:color "gold"} (str "表决中 " approve "/" required " / 成员 " members)]))))}
      (w/state-column)]
     #(change-actions context %)]])
 
@@ -2262,7 +2274,7 @@
          [antd/space {:wrap true}
           (for [{:keys [type count]} (:by-type cov)]
             ^{:key type} [antd/tag {:color (if (pos? count) "geekblue" "default")}
-                            (str (get type-label type type) " · " count)])]]])]))
+                          (str (get type-label type type) " · " count)])]]])]))
 
 
 (defn- change-impact-coverage-section
@@ -2425,11 +2437,14 @@
 (def gate-stage-labels
   {"execution" "执行准入" "closure" "结项准出" "design" "设计阶段" "manufacturing" "制造阶段" "delivery" "交付阶段" "site" "现场阶段"})
 
+
 (def checkpoint-labels
   {"assembly.start" "装配开工" "test.SIT" "SIT试验" "test.FAT" "FAT试验" "test.SAT" "SAT试验" "shipment.dispatch" "发运"})
 
+
 (def gate-status-labels
   {"not_started" "未发起" "draft" "草稿" "ready" "待提交" "in_review" "评审中" "approved" "已通过" "rejected" "已驳回" "waived" "已豁免"})
+
 
 (defn- gate-progress-section
   "只读汇总各关口模板的实例进展与检查项通过情况, 供主机/附件汇总等 Gate 下钻 (B09/B10)."
@@ -2440,15 +2455,16 @@
        [:span {:style {:color "#8793a3"}} "尚无Gate模板, 可从关口目录建立或应用项目模板."]
        [antd/space {:wrap true}
         (for [row rows] ^{:key (:template_id row)}
-          [:div {:style {:border "1px solid #e4e8ee" :borderRadius 8 :padding "10px 14px" :minWidth 220}}
-           [:div {:style {:fontWeight 600}} (:title row)]
-           [:div {:style {:fontSize 12 :color "#718096" :margin "4px 0"}} (str (get gate-stage-labels (:stage row) (:stage row)) " · " (:gate_type row))]
-           [antd/space {:wrap true}
-            [antd/tag {:color (cond (:passed row) "green" (= "not_started" (:status row)) "default" (= "rejected" (:status row)) "red" :else "blue")}
-             (get gate-status-labels (:status row) (:status row))]
-            [antd/tag (str "检查 " (:passed_checks row) "/" (:total_checks row))]
-            (when (pos? (or (:waived_checks row) 0)) [antd/tag {:color "gold"} (str "例外 " (:waived_checks row))])
-            (for [b (:blocks row)] ^{:key b} [antd/tag {:color "orange"} (str "阻断 " (get checkpoint-labels b b))])]])])]))
+             [:div {:style {:border "1px solid #e4e8ee" :borderRadius 8 :padding "10px 14px" :minWidth 220}}
+              [:div {:style {:fontWeight 600}} (:title row)]
+              [:div {:style {:fontSize 12 :color "#718096" :margin "4px 0"}} (str (get gate-stage-labels (:stage row) (:stage row)) " · " (:gate_type row))]
+              [antd/space {:wrap true}
+               [antd/tag {:color (cond (:passed row) "green" (= "not_started" (:status row)) "default" (= "rejected" (:status row)) "red" :else "blue")}
+                (get gate-status-labels (:status row) (:status row))]
+               [antd/tag (str "检查 " (:passed_checks row) "/" (:total_checks row))]
+               (when (pos? (or (:waived_checks row) 0)) [antd/tag {:color "gold"} (str "例外 " (:waived_checks row))])
+               (for [b (:blocks row)] ^{:key b} [antd/tag {:color "orange"} (str "阻断 " (get checkpoint-labels b b))])]])])]))
+
 
 (defn- gate-closure-summary-section
   "只读汇总全部关口实例的签核闭环健康度: 按状态计数与已签核占比, 另汇总被必需检查阻断, 证据待发布与证据已作废的实例数; 与 Gate 模板层进展汇总互补, 只读派生, 不改变任何关口状态."
@@ -2495,6 +2511,7 @@
         (when (pos? remediation-open)
           [antd/tag {:color "orange"} (str "整改未完成 " remediation-open)])])]))
 
+
 (defn- gate-exception-summary-section
   "只读汇总全部关口实例的检查项级例外放行治理健康度: 统计必需检查项总数, 其中靠豁免而非真实通过的数量与占比, 含豁免的关口数, 以及仅靠豁免才达到就绪的关口数; 与关口验收签核闭环汇总互补 (后者按实例状态计数, 本项按逐检查项豁免计数), 只读派生, 不改变任何关口状态或检查项."
   [{:keys [model]}]
@@ -2522,6 +2539,7 @@
           [antd/tag {:color "volcano"} (str "仅靠豁免才就绪 " gates-dep)])
         (when (pos? reason-missing)
           [antd/tag {:color "red"} (str "缺失豁免理由 " reason-missing)])])]))
+
 
 (defn- gate-velocity-summary-section
   "只读按签核流转阶段为全部关口实例分桶, 回答\"尚未签核的关口此刻卡在哪一步, 哪些可以立刻推进\": 已签核, 待独立裁决, 就绪待提交, 待满足检查, 需返工五桶互斥且并集为全部实例, 另给可推进积压数, 已签核占比, 各阶段推进度与可立即提交评审的关口点名; 只读派生, 不改变任何关口状态, 不构成门控."
@@ -2560,16 +2578,18 @@
           [:div {:style {:margin-top 8}}
            [:span {:style {:color "#8793a3"}} "各阶段签核推进度: "]
            (into [antd/space {:wrap true}]
-                 (map (fn [[k v]] (let [ks (if (keyword? k) (name k) (str k))]
-                        ^{:key (str "st-" ks)}
-                        [antd/tag {:color (if (zero? (:pending v 0)) "green" "geekblue")}
-                         (str (get gate-stage-labels ks ks) " 已签 " (:signed v 0) "/" (:total v 0))]))
+                 (map (fn [[k v]]
+                        (let [ks (if (keyword? k) (name k) (str k))]
+                          ^{:key (str "st-" ks)}
+                          [antd/tag {:color (if (zero? (:pending v 0)) "green" "geekblue")}
+                           (str (get gate-stage-labels ks ks) " 已签 " (:signed v 0) "/" (:total v 0))]))
                       (seq by-stage)))])
         (if (seq ready-list)
           [:div {:style {:margin-top 8}}
            [:span {:style {:color "#8793a3"}} "可立即提交评审: "]
            (into [antd/space {:wrap true}]
-                 (map (fn [g] ^{:key (:gate-id g)}
+                 (map (fn [g]
+                        ^{:key (:gate-id g)}
                         [antd/tag {:color "cyan"}
                          (str (:title g) (when-let [s (:stage g)] (str " · " (get gate-stage-labels s s)))
                               " · 检查 " (:checks-passed g 0) "/" (:checks-total g 0))])
@@ -2601,9 +2621,10 @@
       {:title "类型" :dataIndex "gate_type" :width 170 :render #(shared/display-value %)}
       {:title "控制阶段" :dataIndex "stage" :width 100 :render #(get gate-stage-labels % %)}
       {:title "阻断检查点" :dataIndex "blocks" :width 160
-       :render (fn [v] (let [items (array-seq (or v #js []))]
-                         (r/as-element (if (seq items) (into [antd/space {:wrap true}] (map (fn [b] [antd/tag {:color "orange"} (get checkpoint-labels b b)]) items))
-                                           [:span {:style {:color "#98a2b3"}} "无"]))))}
+       :render (fn [v]
+                 (let [items (array-seq (or v #js []))]
+                   (r/as-element (if (seq items) (into [antd/space {:wrap true}] (map (fn [b] [antd/tag {:color "orange"} (get checkpoint-labels b b)]) items))
+                                     [:span {:style {:color "#98a2b3"}} "无"]))))}
       {:title "检查项" :dataIndex "checks" :width 90 :render (fn [v] (count (array-seq (or v #js []))))}] nil]]
    [shared/panel "Gate检查与评审" "审批绑定具体检查结果及证据版本"
     (when editable? [antd/button {:type "primary" :on-click #(open! (forms/gate-dialog base model options))} "发起Gate检查"])
@@ -2620,14 +2641,14 @@
                                                      voided (true? (aget row "gate_evidence_voided"))
                                                      unreleased (true? (aget row "gate_evidence_unreleased"))]
                                                  (r/as-element
-                                                  (into [antd/space {:wrap true}]
-                                                        (cons [antd/tag {:color (if ready "green" "red")} (str "检查 " passed "/" total)]
-                                                              (cond-> []
-                                                                (pos? waived) (conj [antd/tag {:color "blue"} (str "豁免 " waived)])
-                                                                (seq blocking) (conj [antd/tag {:color "orange"} (str "待满足 " (str/join ", " blocking))])
-                                                                ready (conj [antd/tag {:color "green"} "可签核"])
-                                                                voided (conj [antd/tag {:color "red"} (str "证据已作废 " (aget row "gate_voided_checks"))])
-                                                                unreleased (conj [antd/tag {:color "gold"} (str "证据待发布 " (aget row "gate_evidence_pending"))])))))))}
+                                                   (into [antd/space {:wrap true}]
+                                                         (cons [antd/tag {:color (if ready "green" "red")} (str "检查 " passed "/" total)]
+                                                               (cond-> []
+                                                                 (pos? waived) (conj [antd/tag {:color "blue"} (str "豁免 " waived)])
+                                                                 (seq blocking) (conj [antd/tag {:color "orange"} (str "待满足 " (str/join ", " blocking))])
+                                                                 ready (conj [antd/tag {:color "green"} "可签核"])
+                                                                 voided (conj [antd/tag {:color "red"} (str "证据已作废 " (aget row "gate_voided_checks"))])
+                                                                 unreleased (conj [antd/tag {:color "gold"} (str "证据待发布 " (aget row "gate_evidence_pending"))])))))))}
                                     {:title "整改情况" :key "gate_remediation" :width 160
                                      :render (fn [_ row]
                                                (let [state (aget row "gate_remediation_state")
@@ -2636,15 +2657,15 @@
                                                      overdue (aget row "gate_remediation_overdue")
                                                      missing (aget row "gate_required_missing")]
                                                  (r/as-element
-                                                  [:span
-                                                   (cond
-                                                     (= state "completed") [antd/tag {:color "green"} (str "整改完成 " total "/" total)]
-                                                     (= state "in-progress") [antd/tag {:color "gold"} (str "整改中 " (- total open) "/" total)]
-                                                     :else (if (pos? (or missing 0))
-                                                             [antd/tag {:color "red"} "待落实整改"]
-                                                             [antd/tag {:color "default"} "无需整改"]))
-                                                   (when (and (pos? (or overdue 0)) (not= state "completed"))
-                                                     [antd/tag {:color "red"} (str "逾期 " overdue)])])))}
+                                                   [:span
+                                                    (cond
+                                                      (= state "completed") [antd/tag {:color "green"} (str "整改完成 " total "/" total)]
+                                                      (= state "in-progress") [antd/tag {:color "gold"} (str "整改中 " (- total open) "/" total)]
+                                                      :else (if (pos? (or missing 0))
+                                                              [antd/tag {:color "red"} "待落实整改"]
+                                                              [antd/tag {:color "default"} "无需整改"]))
+                                                    (when (and (pos? (or overdue 0)) (not= state "completed"))
+                                                      [antd/tag {:color "red"} (str "逾期 " overdue)])])))}
                                     (w/state-column)
                                     (w/text-column :reviewer_id "审批人") (w/text-column :decision_reason "评审意见")]
      #(gate-actions context %)]]])
@@ -2666,6 +2687,7 @@
        [:<>
         [w/edit-button "签认" #(open! (forms/decision-dialog (str base "/dqs/" (:id dq) "/decision") "approved" "签认DQ"))]
         [w/edit-button "退回" #(open! (forms/decision-dialog (str base "/dqs/" (:id dq) "/decision") "rejected" "退回DQ"))]])]))
+
 
 (defn- dq-summary-section
   "按全部 DQ 关键任务的最新状态只读聚合项目级质量检查闭环概览: 已签认占全部分母的整数百分比, 交付件失效/作废数; 只读派生, 不改变任何 DQ 状态, 不构成门控."
@@ -2718,6 +2740,7 @@
         (when (pos? voided)
           [antd/tag {:color "red"} (str "交付件作废 " voided)])])]))
 
+
 (defn- dq-section
   "B08 DQ 编制与确认关键任务: 检查清单 + 确定版本交付件 + 独立签认, 交付件更新即标注失效."
   [{:keys [base model options planning editable? open!] :as context}]
@@ -2750,13 +2773,13 @@
                       missing (aget row "dq_required_missing")
                       met (true? (aget row "dq_required_met"))]
                   (r/as-element
-                   [:span
-                    (if (zero? rt)
-                      [antd/tag {:color "default"} "无必需项"]
-                      (if met
-                        [antd/tag {:color "green"} (str "必需就绪 " rs "/" rt)]
-                        [antd/tag {:color "red"} (str "必需 " rs "/" rt " 缺 " missing)]))
-                    (when (pos? (or rw 0)) [antd/tag {:color "gold"} (str "例外 " rw)])])))}
+                    [:span
+                     (if (zero? rt)
+                       [antd/tag {:color "default"} "无必需项"]
+                       (if met
+                         [antd/tag {:color "green"} (str "必需就绪 " rs "/" rt)]
+                         [antd/tag {:color "red"} (str "必需 " rs "/" rt " 缺 " missing)]))
+                     (when (pos? (or rw 0)) [antd/tag {:color "gold"} (str "例外 " rw)])])))}
      {:title "整改情况" :key "dq_remediation" :width 160
       :render (fn [_ row]
                 (let [state (aget row "dq_remediation_state")
@@ -2765,15 +2788,15 @@
                       overdue (aget row "dq_remediation_overdue")
                       missing (aget row "dq_required_missing")]
                   (r/as-element
-                   [:span
-                    (cond
-                      (= state "completed") [antd/tag {:color "green"} (str "整改完成 " total "/" total)]
-                      (= state "in-progress") [antd/tag {:color "gold"} (str "整改中 " (- total open) "/" total)]
-                      :else (if (pos? (or missing 0))
-                              [antd/tag {:color "red"} "待落实整改"]
-                              [antd/tag {:color "default"} "无需整改"]))
-                    (when (and (pos? (or overdue 0)) (not= state "completed"))
-                      [antd/tag {:color "red"} (str "逾期 " overdue)])])))}
+                    [:span
+                     (cond
+                       (= state "completed") [antd/tag {:color "green"} (str "整改完成 " total "/" total)]
+                       (= state "in-progress") [antd/tag {:color "gold"} (str "整改中 " (- total open) "/" total)]
+                       :else (if (pos? (or missing 0))
+                               [antd/tag {:color "red"} "待落实整改"]
+                               [antd/tag {:color "default"} "无需整改"]))
+                     (when (and (pos? (or overdue 0)) (not= state "completed"))
+                       [antd/tag {:color "red"} (str "逾期 " overdue)])])))}
      {:title "交付件" :dataIndex "deliverable_ids" :width 220
       :render (fn [v] (str/join ", " (map #(w/related-label (:documents model) :id :code %) (js->clj v))))}
      {:title "版本失效" :dataIndex "dq_stale" :width 110
@@ -2785,12 +2808,14 @@
      (w/state-column) (w/text-column :decision_reason "签认意见")]
     #(dq-actions context %)]])
 
+
 (defn- node-pause-label
   [k fallback]
   (get {"sub" "子项目" "machine" "单机" "main" "主项目"
-       "draft" "起草" "approved" "已批准" "planning" "计划中" "executing" "执行中"
-       "closing" "收尾" "closed" "已关闭" "paused" "已暂停" "cancelled" "已取消"}
-    (if (string? k) k (name k)) fallback))
+        "draft" "起草" "approved" "已批准" "planning" "计划中" "executing" "执行中"
+        "closing" "收尾" "closed" "已关闭" "paused" "已暂停" "cancelled" "已取消"}
+       (if (string? k) k (name k)) fallback))
+
 
 (defn- node-pause-summary-section
   "B02/B16/B12 结构节点暂停与复工概览: 只读聚合 node-pause 台账的暂停中/已复工节点数, 中断时项目状态分布, 最长暂停与平均复工时长, 并点名仍暂停的节点; 只读派生, 不改变暂停或复工状态, 不构成门控."
@@ -2830,12 +2855,14 @@
           [:div {:style {:margin-top 8}}
            [:span {:style {:color "#8793a3"}} "仍暂停节点: "]
            (into [antd/space {:wrap true}]
-                 (map (fn [p] ^{:key (:node-code p)}
+                 (map (fn [p]
+                        ^{:key (:node-code p)}
                         [antd/tag {:color "red"}
                          (str (:node-code p) " " (:node-name p)
                               (when-let [t (:node-type p)] (str " · " (node-pause-label t t)))
                               " · 已停 " (:paused-days p 0) " 天")])
                       active-list))])])]))
+
 
 (defn- pause-section
   "B16 项目/单机局部暂停与恢复."
@@ -2847,8 +2874,10 @@
      (w/text-column :project_status_at_pause "暂停时项目状态") (w/text-column :paused_at "暂停时间")
      (w/text-column :impact_note "恢复影响说明") (w/text-column :resumed_at "恢复时间")
      {:title "状态" :dataIndex "status" :width 100 :render #(r/as-element [antd/tag {:color (if (= % "active") "red" "green")} (if (= % "active") "暂停中" "已恢复")])}]
-    (fn [row] (when (and editable? (= "active" (:status row)))
-                [w/edit-button "恢复" #(open! (forms/node-resume-dialog base row))]))]])
+    (fn [row]
+      (when (and editable? (= "active" (:status row)))
+        [w/edit-button "恢复" #(open! (forms/node-resume-dialog base row))]))]])
+
 
 (defn- governance-content
   "按工程协作主题组织治理页面."
@@ -2983,13 +3012,14 @@
                  :style {:maxWidth "calc(100vw - 32px)"} :width 960}
      [:div {:style {:display "grid" :gap 10}}
       [antd/space {:wrap true}
-       [antd/button {:on-click (fn [] (api/pms-fetch-blob (str path "/download")
-                                                          (fn [blob _] (api/save-blob! blob (:filename document)))
-                                                          (fn [body] (antd/error! (or (:msg body) "下载失败")))))} "下载此版本"]
+       [antd/button {:on-click (fn []
+                                 (api/pms-fetch-blob (str path "/download")
+                                                     (fn [blob _] (api/save-blob! blob (:filename document)))
+                                                     (fn [body] (antd/error! (or (:msg body) "下载失败")))))} "下载此版本"]
        [antd/tag (str (:content_type document))] [antd/tag (file-size (:byte_size document))]
        (when (:category document) [antd/tag {:color "blue"} (:category document)])]
       [:p {:style {:fontSize 12 :color "#718096" :overflowWrap "anywhere" :margin 0}} (str "SHA256: " (:sha256 document)
-                                                                                         (when-let [m (:meta state)] (str " · 服务端复核: " (if (= (:sha256 m) (:sha256 document)) "一致" "不一致"))))]
+                                                                                           (when-let [m (:meta state)] (str " · 服务端复核: " (if (= (:sha256 m) (:sha256 document)) "一致" "不一致"))))]
       (cond
         (:error state) [shared/error-panel (:error state) nil]
         (not (:preview document)) [:div {:style {:color "#98a2b3"}} "该文件类型不支持在线预览, 请下载后查看."]

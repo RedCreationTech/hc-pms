@@ -1,15 +1,21 @@
 (ns com.ruoyi.domain.pms.kernel
   "PMS扩展模块共享的事务, 权限, 乐观锁和审计边界."
-  (:require [cheshire.core :as json]
-            [com.ruoyi.domain.pms.rules :as rules]
-            [com.ruoyi.domain.pms.transaction :as transaction])
-  (:import [java.sql SQLException]
-           [java.util UUID]))
+  (:require
+    [cheshire.core :as json]
+    [com.ruoyi.domain.pms.rules :as rules]
+    [com.ruoyi.domain.pms.transaction :as transaction])
+  (:import
+    (java.sql
+      SQLException)
+    (java.util
+      UUID)))
+
 
 (defn id
   "生成跨数据库稳定的UUID业务标识."
   []
   (str (UUID/randomUUID)))
+
 
 (defn- sql-cause
   "从包装异常链中找到 JDBC SQLException, 无则 nil."
@@ -33,37 +39,41 @@
        :else (throw error))
      (throw error))))
 
+
 (defn transaction!
   "在同一连接执行参数化查询, 异常时原子回滚."
   [{:keys [db query-fn]} f]
   (try
     (transaction/execute! db
-      (fn [tx] (f (fn [query params] (query-fn tx query params)))))
+                          (fn [tx] (f (fn [query params] (query-fn tx query params)))))
     (catch Exception e (database-error! e))))
+
 
 (defn read!
   "校验功能权限和项目读取范围后执行查询函数."
   [{:keys [query-fn]} actor project-id permission f]
   (rules/permit! actor permission)
   (let [project (rules/access! query-fn actor
-                              (query-fn :pms/project {:project_id project-id}) false)]
+                               (query-fn :pms/project {:project_id project-id}) false)]
     (f query-fn project)))
+
 
 (defn event!
   "记录聚合版本下的业务动作, 不把附件正文或凭据写入通用审计."
   [q actor project event-type payload]
   (let [payload (if (.startsWith event-type "cost.") (dissoc payload :reason) payload)]
     (q :pms/insert-event!
-     {:event_id (id) :project_id (:project_id project)
-      :event_type event-type :description (subs (or (not-empty (:reason payload)) event-type) 0
-                                                (min 500 (count (or (not-empty (:reason payload)) event-type))))
-      :actor_id (:user_id actor) :actor_name (:user_name actor)
-      :from_status (:status project)
-      :to_status (:status (q :pms/project {:project_id (:project_id project)}))
-      :payload (json/generate-string (merge {:from_status (:status project)
-                                            :to_status (:status (q :pms/project {:project_id (:project_id project)}))}
-                                           payload))
-      :aggregate_version (:version (q :pms/project {:project_id (:project_id project)}))})))
+       {:event_id (id) :project_id (:project_id project)
+        :event_type event-type :description (subs (or (not-empty (:reason payload)) event-type) 0
+                                                  (min 500 (count (or (not-empty (:reason payload)) event-type))))
+        :actor_id (:user_id actor) :actor_name (:user_name actor)
+        :from_status (:status project)
+        :to_status (:status (q :pms/project {:project_id (:project_id project)}))
+        :payload (json/generate-string (merge {:from_status (:status project)
+                                               :to_status (:status (q :pms/project {:project_id (:project_id project)}))}
+                                              payload))
+        :aggregate_version (:version (q :pms/project {:project_id (:project_id project)}))})))
+
 
 (defn- writable!
   "校验项目版本及写入状态, 审批可显式使用项目只读范围."
@@ -77,6 +87,7 @@
     (rules/version! project (:version body))
     project))
 
+
 (defn mutate!
   "原子执行项目命令, 检查版本, 递增聚合版本并记录审计."
   ([svc actor project-id permission body event-type f]
@@ -84,17 +95,18 @@
   ([svc actor project-id permission body event-type options f]
    (rules/permit! actor permission)
    (transaction! svc
-     (fn [q]
-       (let [project (writable! q actor project-id body (merge {:write? true} options))]
-         (rules/changed! (q :pms/touch-project! project))
-         (let [result (f q project)
-               current (q :pms/project {:project_id project-id})]
-           (event! q actor project event-type
-                   {:reason (:reason body) :request_fields (mapv name (sort (keys body)))
-                    :result (when (map? result)
-                              (select-keys result [:id :record_id :task_id :baseline_id
-                                                   :version_id :gate_id :status :decision]))})
-           {:result result :project_version (:version current)}))))))
+                 (fn [q]
+                   (let [project (writable! q actor project-id body (merge {:write? true} options))]
+                     (rules/changed! (q :pms/touch-project! project))
+                     (let [result (f q project)
+                           current (q :pms/project {:project_id project-id})]
+                       (event! q actor project event-type
+                               {:reason (:reason body) :request_fields (mapv name (sort (keys body)))
+                                :result (when (map? result)
+                                          (select-keys result [:id :record_id :task_id :baseline_id
+                                                               :version_id :gate_id :status :decision]))})
+                       {:result result :project_version (:version current)}))))))
+
 
 (defn user!
   "要求关联用户仍有效且属于项目, 管理者本身也允许."
@@ -105,6 +117,7 @@
                   (q :pms/member {:project_id (:project_id project) :user_id uid}))
       (rules/fail! 400 (str label "必须是当前项目成员")))
     uid))
+
 
 (defn independent-review!
   "检查指定审批人与提交者分离, 不允许管理员替代指定人员自审."

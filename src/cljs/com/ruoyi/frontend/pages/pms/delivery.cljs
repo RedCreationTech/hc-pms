@@ -1,13 +1,15 @@
 (ns com.ruoyi.frontend.pages.pms.delivery
   "备料,装配,质量试验,发运签收及售后闭环工作台."
-  (:require ["antd" :refer [Alert]]
-            [clojure.string :as str]
-            [com.ruoyi.frontend.antd :as antd]
-            [com.ruoyi.frontend.pages.pms.delivery-forms :as forms]
-            [com.ruoyi.frontend.pages.pms.shared :as shared]
-            [com.ruoyi.frontend.pages.pms.widgets :as w]
-            [reagent.core :as r]
-            [reagent.hooks :as hooks]))
+  (:require
+    ["antd" :refer [Alert]]
+    [clojure.string :as str]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.pages.pms.delivery-forms :as forms]
+    [com.ruoyi.frontend.pages.pms.shared :as shared]
+    [com.ruoyi.frontend.pages.pms.widgets :as w]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
+
 
 (def labels
   "交付记录的业务状态与配置名称."
@@ -16,6 +18,7 @@
    "materials" "备料与BOM" "assembly" "装配交检" "quality" "质量试验" "shipment" "发运签收"
    "engineering_default" "工程默认要求" "project_configuration" "项目已配置要求"})
 
+
 (defn- state-column
   "以明确业务名称展示状态."
   []
@@ -23,12 +26,14 @@
    :render #(r/as-element [antd/tag {:color (cond (contains? #{"approved" "frozen" "ready" "received" "closed"} %) "green"
                                                   (contains? #{"rejected" "returned" "conditional"} %) "orange"
                                                   :else "blue")}
-                          (get labels % (get w/labels % %))])})
+                           (get labels % (get w/labels % %))])})
+
 
 (defn- action
   "打开对应的受控业务命令表单."
   [{:keys [open!]} label config]
   [w/edit-button label #(open! config)])
+
 
 (defn- review-actions
   "只有指定独立审核人可以决定冻结记录."
@@ -40,11 +45,13 @@
      [action context "批准" (forms/decision-dialog context collection row "approved")]
      [action context "驳回" (forms/decision-dialog context collection row "rejected")]]))
 
+
 (defn- material-actions
   "提交备料申请并冻结实际证据."
   [{:keys [editable?] :as context} row]
   (when (and editable? (contains? #{"draft" "rejected"} (:status row)))
     [action context "提交审批" (forms/submit-dialog context "material-requests" row "submit" true "提交备料申请")]))
+
 
 (defn- bom-actions
   "冻结BOM后按实际物料逐项登记齐套."
@@ -54,6 +61,7 @@
      [action context "申请冻结" (forms/submit-dialog context "boms" row "freeze" true "申请BOM冻结")])
    (when (and executing? (contains? #{"frozen" "partial" "ready"} (:status row)))
      [action context "登记齐套" (forms/kit-dialog context row)])])
+
 
 (defn- assembly-actions
   "实际开工和交检分别保留证据与责任; 上岛/装配/交检/连线/下岛/交接步骤逐项登记."
@@ -66,22 +74,26 @@
    (when (and executing? (contains? #{"in_progress" "in_review" "approved"} (:status row)) (:next_step row))
      [action context "登记步骤" (forms/step-dialog context row)])])
 
+
 (defn- survey-actions
   "工勘完成后提交独立确认."
   [{:keys [editable?] :as context} row]
   (when (and editable? (contains? #{"draft" "rejected"} (:status row)))
     [action context "提交工勘确认" (forms/survey-submit-dialog context row)]))
 
+
 (defn- handover-actions
   [{:keys [executing?] :as context} row]
   (when (and executing? (= "open" (:status row)))
     [action context "完成交底" (forms/handover-dialog context row)]))
+
 
 (defn- site-task-actions
   [{:keys [executing?] :as context} row]
   [antd/space
    (when (and executing? (= "draft" (:status row))) [action context "开始" (forms/site-start-dialog context row)])
    (when (and executing? (= "in_progress" (:status row))) [action context "完成" (forms/site-complete-dialog context row)])])
+
 
 (defn- test-actions
   "试验结果逐项登记后提交独立评审."
@@ -91,6 +103,7 @@
      [action context "登记结果" (forms/results-dialog context row)])
    (when (and executing? (= "ready" (:status row)))
      [action context "提交试验评审" (forms/submit-dialog context "tests" row "submit" true "提交质量试验评审")])])
+
 
 (defn- shipment-actions
   "放行,实际发运与独立签收验证保持职责分离."
@@ -108,11 +121,13 @@
                 (= current (:reviewer_id row)) (not= current (:shipped_by row)) (not= current (:submitted_by row)))
        [action context "验证签收" (forms/receipt-dialog context row)])]))
 
+
 (defn- service-actions
   "售后解决后由独立人员验证关闭."
   [{:keys [executing?] :as context} row]
   (when (and executing? (contains? #{"open" "rejected"} (:status row)))
     [action context "提交解决验证" (forms/resolve-dialog context row)]))
+
 
 (defn- record-actions
   "按业务类型显示必要的下一步及明细."
@@ -120,9 +135,10 @@
   [antd/space {:wrap true}
    [w/edit-button "查看明细" #(inspect! (assoc row :collection collection))]
    [(case collection "material-requests" material-actions "boms" bom-actions "assemblies" assembly-actions
-                     "tests" test-actions "shipments" shipment-actions "service-cases" service-actions
-                     "surveys" survey-actions "handovers" handover-actions "site-tasks" site-task-actions) context row]
+          "tests" test-actions "shipments" shipment-actions "service-cases" service-actions
+          "surveys" survey-actions "handovers" handover-actions "site-tasks" site-task-actions) context row]
    [review-actions context collection row]])
+
 
 (defn- record-section
   "统一业务台账,每条记录对应真实服务端命令."
@@ -133,8 +149,10 @@
     (vec (concat [(w/text-column :code "编号") (w/text-column :title "标题")] columns [(state-column)]))
     #(record-actions context collection %)]])
 
+
 (def request-type-labels
   {"standard" "标准备料" "long_lead" "长周期物料" "raw_material" "原材料预投" "direct_ship" "直发物料" "packaging" "包材申请"})
+
 
 (defn- kitting-rollup-section
   "D06 齐套率按主/子/单机多层卷积并可下钻缺件清单 (读取时派生)."
@@ -163,6 +181,7 @@
          {:title "责任人" :dataIndex "owner_id" :render #(w/related-label (:users options) :user_id :nick_name %)}
          {:title "齐套登记" :dataIndex "kit_recorded" :render #(if % "已登记" "未登记")}] nil]]]]))
 
+
 (defn- material-approval-summary-section
   "B11/B08 交付物料审批闭环只读汇总: 独立审批链健康度 (批准落地/审批中/已驳回/草稿 + 闭环率) 与申请/清单两源分解 (读取时派生, 不门控)."
   [{:keys [model]}]
@@ -189,19 +208,21 @@
         [antd/table {:rowKey "key" :size "small" :pagination false
                      :dataSource (clj->js (:by-source summary)) :columns columns}]])]))
 
+
 (defn- materials-section
   "备料审批与冻结BOM保留清晰来源关系."
   [context]
   [:div {:style {:display "grid" :gap 20}}
    [record-section context :material_requests "material-requests" "备料申请" "审批申请形成BOM来源 (含长周期/原材预投/直发/包材), 不把手工登记标记为已采购"
     "新建备料申请" forms/material-dialog [{:title "类型" :dataIndex "request_type" :width 110 :render #(get request-type-labels % %)}
-                                          (w/text-column :needed_on "需求日期")
-                                          {:title "目标节点" :dataIndex "node_id" :width 120 :render #(w/related-label (get-in context [:planning :nodes]) :node_id :node_code %)}]]
+                                    (w/text-column :needed_on "需求日期")
+                                    {:title "目标节点" :dataIndex "node_id" :width 120 :render #(w/related-label (get-in context [:planning :nodes]) :node_id :node_code %)}]]
    [record-section context :boms "boms" "BOM与齐套" "冻结清单保持不变,齐套率按满足数量的物料行计算"
     "建立BOM" forms/bom-dialog [(w/text-column :complete_line_count "齐套行数")
-                             (w/text-column :required_line_count "总行数") (w/text-column :kit_percent "齐套率%")]]
+                              (w/text-column :required_line_count "总行数") (w/text-column :kit_percent "齐套率%")]]
    [kitting-rollup-section context]
    [material-approval-summary-section context]])
+
 
 (defn- step-timeline
   "装配执行明细: 上岛/装配/单机交检/连线交检/下岛/交接."
@@ -209,8 +230,9 @@
   (let [done (into {} (map (juxt :step identity) (:steps row)))]
     [antd/space {:wrap true}
      (for [step forms/step-order] ^{:key step}
-       [antd/tag {:color (if (get done step) "green" "default")}
-        (str (get forms/step-labels step step) (when-let [d (get done step)] (str " " (:actual_date d))))])]))
+          [antd/tag {:color (if (get done step) "green" "default")}
+           (str (get forms/step-labels step step) (when-let [d (get done step)] (str " " (:actual_date d))))])]))
+
 
 (defn- site-task-progress-section
   "E09 现场任务进度只读汇总: 交底后自动生成的定位/安装/调试/SAT现场任务序列整体闭环健康度, 读取时派生, 不门控任何写操作."
@@ -234,8 +256,10 @@
                                         {:title "任务数" :dataIndex "total" :width 90}
                                         {:title "已闭环" :dataIndex "closed" :width 90}
                                         {:title "完成度" :key "pct" :width 220
-                                         :render (fn [_ row] (let [t (aget row "total") c (aget row "closed")]
-                                                                (r/as-element [antd/progress {:percent (if (pos? t) (int (* 100 (/ c t))) 0) :size "small" :style {:width 180}}])))}])}]])]))
+                                         :render (fn [_ row]
+                                                   (let [t (aget row "total") c (aget row "closed")]
+                                                     (r/as-element [antd/progress {:percent (if (pos? t) (int (* 100 (/ c t))) 0) :size "small" :style {:width 180}}])))}])}]])]))
+
 
 (defn- assembly-execution-progress-section
   "E01 装配执行闭环只读汇总: 上岛/装配/单机交检/连线交检/下岛/交接序列的整体执行健康度, 读取时派生, 不门控任何写操作."
@@ -261,8 +285,9 @@
                      :columns (clj->js [{:title "当前环节" :dataIndex "key" :width 140 :render (fn [v] (get step-labels v v))}
                                         {:title "装配数" :dataIndex "total" :width 90}
                                         {:title "分布" :key "bar" :width 220
-                                         :render (fn [_ row] (let [t (aget row "total")]
-                                                                (r/as-element [antd/progress {:percent (if (pos? (:total ap)) (int (* 100 (/ t (:total ap)))) 0) :size "small" :style {:width 180}}])))}])}]])]))
+                                         :render (fn [_ row]
+                                                   (let [t (aget row "total")]
+                                                     (r/as-element [antd/progress {:percent (if (pos? (:total ap)) (int (* 100 (/ t (:total ap)))) 0) :size "small" :style {:width 180}}])))}])}]])]))
 
 
 (defn- preship-readiness-section
@@ -286,8 +311,10 @@
                                         {:title "适用发货单" :dataIndex "applicable" :width 110}
                                         {:title "已满足" :dataIndex "satisfied" :width 90}
                                         {:title "满足度" :key "bar" :width 220
-                                         :render (fn [_ row] (let [a (aget row "applicable") s (aget row "satisfied")]
-                                                                (r/as-element [antd/progress {:percent (if (pos? a) (int (* 100 (/ s a))) 0) :size "small" :style {:width 180}}])))}])}]])]))
+                                         :render (fn [_ row]
+                                                   (let [a (aget row "applicable") s (aget row "satisfied")]
+                                                     (r/as-element [antd/progress {:percent (if (pos? a) (int (* 100 (/ s a))) 0) :size "small" :style {:width 180}}])))}])}]])]))
+
 
 (defn- shipment-closure-section
   "E05 发运放行与签收闭环只读汇总: 按发运生命周期状态聚合项目全部发货单的放行进度与签收闭环健康度, 读取时派生, 不门控任何写操作 (放行/发运/签收仍由服务端状态机强制)."
@@ -311,8 +338,9 @@
                      :columns (clj->js [{:title "发运状态" :dataIndex "label" :width 200}
                                         {:title "发货单数" :dataIndex "count" :width 110}
                                         {:title "占比" :key "bar" :width 220
-                                         :render (fn [_ row] (let [c (aget row "count")]
-                                                                (r/as-element [antd/progress {:percent (if (pos? (:total pr)) (int (* 100 (/ c (:total pr)))) 0) :size "small" :style {:width 180}}])))}])}]])]))
+                                         :render (fn [_ row]
+                                                   (let [c (aget row "count")]
+                                                     (r/as-element [antd/progress {:percent (if (pos? (:total pr)) (int (* 100 (/ c (:total pr)))) 0) :size "small" :style {:width 180}}])))}])}]])]))
 
 
 (defn- handover-timeliness-section
@@ -338,8 +366,10 @@
                      :columns (clj->js [{:title "交底状态" :dataIndex "label" :width 200}
                                         {:title "交底单数" :dataIndex "count" :width 110}
                                         {:title "占比" :key "bar" :width 220
-                                         :render (fn [_ row] (let [c (aget row "count")]
-                                                                (r/as-element [antd/progress {:percent (if (pos? (:total ht)) (int (* 100 (/ c (:total ht)))) 0) :size "small" :style {:width 180}}])))}])}]])]))
+                                         :render (fn [_ row]
+                                                   (let [c (aget row "count")]
+                                                     (r/as-element [antd/progress {:percent (if (pos? (:total ht)) (int (* 100 (/ c (:total ht)))) 0) :size "small" :style {:width 180}}])))}])}]])]))
+
 
 (defn- survey-closure-section
   "B07 工勘闭环只读汇总: 按工勘生命周期 (待提交/确认中/已确认/已驳回) 聚合项目全部工勘的确认进度/逾期与最近计划日期, 读取时派生, 不门控任何写操作 (收尾阻塞仍由 required_survey_visits 判定)."
@@ -364,8 +394,10 @@
                      :columns (clj->js [{:title "工勘状态" :dataIndex "label" :width 200}
                                         {:title "工勘数" :dataIndex "count" :width 110}
                                         {:title "占比" :key "bar" :width 220
-                                         :render (fn [_ row] (let [c (aget row "count")]
-                                                                (r/as-element [antd/progress {:percent (if (pos? (:total sc)) (int (* 100 (/ c (:total sc)))) 0) :size "small" :style {:width 180}}])))}])}]])]))
+                                         :render (fn [_ row]
+                                                   (let [c (aget row "count")]
+                                                     (r/as-element [antd/progress {:percent (if (pos? (:total sc)) (int (* 100 (/ c (:total sc)))) 0) :size "small" :style {:width 180}}])))}])}]])]))
+
 
 (defn- fieldwork-section
   "B07 工勘,
@@ -374,26 +406,28 @@
   [:div {:style {:display "grid" :gap 20}}
    [record-section context :surveys "surveys" "工勘任务" "按项目适用性登记各次工勘, 责任/日期/交付物明确, 完成须证据并独立确认"
     "登记工勘任务" forms/survey-dialog [(w/text-column :visit_no "次序") (w/text-column :planned_date "计划日期")
-                                       (w/text-column :actual_date "实际日期") (w/text-column :deliverable "交付物")
-                                       {:title "时限" :key "days" :width 150
-                                        :render (fn [_ row] (let [left (aget row "survey_days_left")
-                                                                   overdue (true? (aget row "survey_overdue"))
-                                                                   st (aget row "status")]
-                                                               (r/as-element (cond overdue [antd/tag {:color "red"} (str "计划已过 " (- left) " 天")]
-                                                                                   (some? left) [antd/tag {:color "gold"} (str "距计划 " left " 天")]
-                                                                                   (= "approved" st) [antd/tag {:color "green"} "已确认"]
-                                                                                   (= "rejected" st) [antd/tag {:color "red"} "已驳回"]
-                                                                                   :else [:span "—"]))))}]]
+                                  (w/text-column :actual_date "实际日期") (w/text-column :deliverable "交付物")
+                                  {:title "时限" :key "days" :width 150
+                                   :render (fn [_ row]
+                                             (let [left (aget row "survey_days_left")
+                                                   overdue (true? (aget row "survey_overdue"))
+                                                   st (aget row "status")]
+                                               (r/as-element (cond overdue [antd/tag {:color "red"} (str "计划已过 " (- left) " 天")]
+                                                                   (some? left) [antd/tag {:color "gold"} (str "距计划 " left " 天")]
+                                                                   (= "approved" st) [antd/tag {:color "green"} "已确认"]
+                                                                   (= "rejected" st) [antd/tag {:color "red"} "已驳回"]
+                                                                   :else [:span "—"]))))}]]
    [survey-closure-section context]
    [shared/panel "发货后交底" "发运登记后自动生成, 截止期 = 发运日 + 配置天数 (自然日); 文件清单推CRM未配置, 仅本地签交" nil
     [w/record-table (:handovers (:model context))
      [(w/text-column :code "编号") (w/text-column :shipped_on "发运日期") (w/text-column :deadline "截止日期")
       {:title "时限" :key "days" :width 140
-       :render (fn [_ row] (let [left (aget row "handover_days_left") overdue (true? (aget row "handover_overdue")) late (true? (aget row "completed_late"))]
-                             (r/as-element (cond overdue [antd/tag {:color "red"} (str "已逾期 " (- left) " 天")]
-                                                 (some? left) [antd/tag {:color "gold"} (str "剩 " left " 天")]
-                                                 late [antd/tag {:color "orange"} "逾期完成"]
-                                                 :else [antd/tag {:color "green"} "按期完成"]))))}
+       :render (fn [_ row]
+                 (let [left (aget row "handover_days_left") overdue (true? (aget row "handover_overdue")) late (true? (aget row "completed_late"))]
+                   (r/as-element (cond overdue [antd/tag {:color "red"} (str "已逾期 " (- left) " 天")]
+                                       (some? left) [antd/tag {:color "gold"} (str "剩 " left " 天")]
+                                       late [antd/tag {:color "orange"} "逾期完成"]
+                                       :else [antd/tag {:color "green"} "按期完成"]))))}
       (w/text-column :completed_on "完成日期") (w/text-column :checklist_note "清单说明")
       {:title "CRM推送" :dataIndex "crm_sync_status" :width 100 :render (fn [v] (if (= v "not_configured") "未配置" v))}
       (state-column)]
@@ -402,12 +436,14 @@
     [w/record-table (sort-by (juxt :handover_id :sequence) (:site_tasks (:model context)))
      [(w/text-column :sequence "序") (w/text-column :title "任务") (w/text-column :planned_start "计划开始")
       {:title "延误" :key "delay" :width 110
-       :render (fn [_ row] (r/as-element (if (true? (aget row "site_delayed")) [antd/tag {:color "red"} "计划开始已过"]
-                                             (if-let [d (aget row "site_days_to_start")] [antd/tag (str "距开始 " d " 天")] [:span "—"]))))}
+       :render (fn [_ row]
+                 (r/as-element (if (true? (aget row "site_delayed")) [antd/tag {:color "red"} "计划开始已过"]
+                                   (if-let [d (aget row "site_days_to_start")] [antd/tag (str "距开始 " d " 天")] [:span "—"]))))}
       (w/text-column :actual_start "实际开始") (w/text-column :actual_end "实际完成") (w/text-column :result "结果") (state-column)]
      #(record-actions context "site-tasks" %)]]
    [site-task-progress-section context]
    [handover-timeliness-section context]])
+
 
 (defn- assemblies-section
   "装配台账展示实际开工, 执行步骤明细与独立交检."
@@ -418,6 +454,7 @@
     [{:title "BOM来源" :dataIndex "bom_id" :render #(w/related-label (get-in context [:model :boms]) :id :title %)}
      {:title "执行步骤" :dataIndex "steps" :width 420 :render (fn [_ row] (r/as-element [step-timeline (js->clj row :keywordize-keys true)]))}]]
    [assembly-execution-progress-section context]])
+
 
 (defn- test-execution-section
   "E02/E03 试验执行闭环只读汇总: 按试验生命周期 (草稿/待提交/检验中/已批准/已驳回) 与 SIT/FAT/SAT 类型聚合项目全部试验的执行健康度与必检达标情况, 读取时派生, 不门控任何写操作."
@@ -444,8 +481,9 @@
                                         {:title "试验数" :dataIndex "total" :width 90}
                                         {:title "已批准" :dataIndex "approved" :width 90}
                                         {:title "批准率" :key "bar" :width 220
-                                         :render (fn [_ row] (let [p (aget row "approved-pct")]
-                                                                (r/as-element [antd/progress {:percent p :size "small" :style {:width 180}}])))}])}]])]))
+                                         :render (fn [_ row]
+                                                   (let [p (aget row "approved-pct")]
+                                                     (r/as-element [antd/progress {:percent p :size "small" :style {:width 180}}])))}])}]])]))
 
 
 (defn- test-remediation-closure-section
@@ -473,22 +511,24 @@
   [:div {:style {:display "grid" :gap 20}}
    [record-section context :tests "tests" "SIT / FAT / SAT试验" "必需检查项失败自动形成阻断问题,整改关闭后才能独立批准"
     "建立质量试验" forms/test-dialog [(w/text-column :test_type "试验类别")
-                                      {:title "装配来源" :dataIndex "assembly_id"
-                                       :render #(w/related-label (get-in context [:model :assemblies]) :id :title %)}
-                                      {:title "整改闭环" :dataIndex "test_remediation_state" :width 200
-                                       :render (fn [_ row] (let [state (aget row "test_remediation_state")
-                                                                  open (aget row "test_remediation_open")
-                                                                  total (aget row "test_remediation_total")
-                                                                  overdue (aget row "test_remediation_overdue")]
-                                                              (r/as-element
-                                                                (case state
-                                                                  "resolved" [antd/tag {:color "green"} (str "整改已闭环 " total "/" total)]
-                                                                  "pending" (into [antd/space {:wrap true}]
-                                                                                    (concat [[antd/tag {:color "gold"} (str "整改中 " (- total open) "/" total)]]
-                                                                                            (when (pos? overdue) [[antd/tag {:color "red"} (str "逾期 " overdue)]])))
-                                                                  [antd/tag {:color "default"} "无整改"]))))}]]
+                                {:title "装配来源" :dataIndex "assembly_id"
+                                 :render #(w/related-label (get-in context [:model :assemblies]) :id :title %)}
+                                {:title "整改闭环" :dataIndex "test_remediation_state" :width 200
+                                 :render (fn [_ row]
+                                           (let [state (aget row "test_remediation_state")
+                                                 open (aget row "test_remediation_open")
+                                                 total (aget row "test_remediation_total")
+                                                 overdue (aget row "test_remediation_overdue")]
+                                             (r/as-element
+                                               (case state
+                                                 "resolved" [antd/tag {:color "green"} (str "整改已闭环 " total "/" total)]
+                                                 "pending" (into [antd/space {:wrap true}]
+                                                                 (concat [[antd/tag {:color "gold"} (str "整改中 " (- total open) "/" total)]]
+                                                                         (when (pos? overdue) [[antd/tag {:color "red"} (str "逾期 " overdue)]])))
+                                                 [antd/tag {:color "default"} "无整改"]))))}]]
    [test-execution-section context]
    [test-remediation-closure-section context]])
+
 
 (defn- shipments-section
   "记录放行,真实物流和客户签收验证; 台账下追加发货前条件满足度只读汇总."
@@ -496,13 +536,15 @@
   [:div {:style {:display "grid" :gap 20}}
    [record-section context :shipments "shipments" "发运与签收" "质量合格后放行,独立审核人依据实际证据验证客户签收"
     "建立发运计划" forms/shipment-dialog [(w/text-column :consignee "收货方") (w/text-column :planned_date "计划日期")
-                                         {:title "发货前条件" :dataIndex "preship_checklist" :width 260
-                                          :render (fn [v] (r/as-element (into [antd/space {:wrap true}]
-                                                                              (map (fn [c] [antd/tag {:color (if (:satisfied c) "green" "red")} (:label c)])
-                                                                                   (js->clj v :keywordize-keys true)))))}
-                                         (w/text-column :tracking_no "运单编号") (w/text-column :received_on "签收日期")]]
+                                    {:title "发货前条件" :dataIndex "preship_checklist" :width 260
+                                     :render (fn [v]
+                                               (r/as-element (into [antd/space {:wrap true}]
+                                                                   (map (fn [c] [antd/tag {:color (if (:satisfied c) "green" "red")} (:label c)])
+                                                                        (js->clj v :keywordize-keys true)))))}
+                                    (w/text-column :tracking_no "运单编号") (w/text-column :received_on "签收日期")]]
    [preship-readiness-section context]
    [shipment-closure-section context]])
+
 
 (defn- service-closure-section
   "H11 售后遗留项闭环只读汇总: 按售后生命周期 (待处理/解决审核中/已关闭/已驳回) 聚合项目全部售后异常的期限达成与闭环率, 含逾期未闭环预警, 来源分解 (条件接收自动生成 vs 手工登记) 与最近处理期限; 只读派生, 不门控任何写操作 (解决须证据并独立关闭仍由服务端状态机强制)."
@@ -529,8 +571,10 @@
                      :columns (clj->js [{:title "售后状态" :dataIndex "label" :width 200}
                                         {:title "数量" :dataIndex "count" :width 110}
                                         {:title "占比" :key "bar" :width 220
-                                         :render (fn [_ row] (let [c (aget row "count")]
-                                                                (r/as-element [antd/progress {:percent (if (pos? (:total sv)) (int (* 100 (/ c (:total sv)))) 0) :size "small" :style {:width 180}}])))}])}]])]))
+                                         :render (fn [_ row]
+                                                   (let [c (aget row "count")]
+                                                     (r/as-element [antd/progress {:percent (if (pos? (:total sv)) (int (* 100 (/ c (:total sv)))) 0) :size "small" :style {:width 180}}])))}])}]])]))
+
 
 (defn- services-section
   "发运异常和售后处理需要解决证据与独立关闭; 台账下追加售后遗留项闭环只读汇总."
@@ -538,13 +582,15 @@
   [:div {:style {:display "grid" :gap 20}}
    [record-section context :service_cases "service-cases" "售后异常闭环" "条件接收或拒收保留异常链,解决后再次确认完整接受"
     "登记售后异常" forms/service-dialog [(w/text-column :due_date "处理期限")
-                                        {:title "处理时限" :key "svc-days" :width 150
-                                         :render (fn [_ row] (let [left (aget row "service_days_left") overdue (true? (aget row "service_overdue"))]
-                                                                (r/as-element (cond overdue [antd/tag {:color "red"} (str "已逾期 " (- left) " 天")]
-                                                                                    (some? left) [antd/tag {:color "gold"} (str "剩 " left " 天")]
-                                                                                    :else [:span "—"]))))}
-                                        (w/text-column :resolution "解决说明")]]
+                                   {:title "处理时限" :key "svc-days" :width 150
+                                    :render (fn [_ row]
+                                              (let [left (aget row "service_days_left") overdue (true? (aget row "service_overdue"))]
+                                                (r/as-element (cond overdue [antd/tag {:color "red"} (str "已逾期 " (- left) " 天")]
+                                                                    (some? left) [antd/tag {:color "gold"} (str "剩 " left " 天")]
+                                                                    :else [:span "—"]))))}
+                                   (w/text-column :resolution "解决说明")]]
    [service-closure-section context]])
+
 
 (defn- overview
   "展示项目要求,尚未完成事项与外部系统状态."
@@ -562,10 +608,11 @@
       [antd/tag (str "现场滞后 +" (or (:site_lag_days config) 2) " 天")]]
      (when (seq (:blockers model))
        [:> Alert {:type "warning" :showIcon true :message "交付尚有待完成事项"
-                    :description (r/as-element [:ul {:style {:paddingLeft 20 :margin 0}}
-                                                (for [text (:blockers model)] ^{:key text} [:li text])])}])
+                  :description (r/as-element [:ul {:style {:paddingLeft 20 :margin 0}}
+                                              (for [text (:blockers model)] ^{:key text} [:li text])])}])
      [:p {:style {:marginBottom 0 :color "#718096" :fontSize 12}}
       (if (= "not_configured" (:external_sync_status model)) "外部系统未配置,此页显示项目内登记与审批记录." "外部同步状态以实际回执为准.")]]))
+
 
 (def detail-fields
   "交付明细中可读的业务字段."
@@ -574,10 +621,12 @@
    [:received_on "签收日期"] [:receiver_name "实际收货人"] [:due_date "处理期限"]
    [:exception_reason "异常原因"] [:resolution "解决记录"] [:decision_reason "审核结论"]])
 
+
 (defn- evidence-text
   "用确切文档版本的名称解释证据列表."
   [documents ids]
   (str/join ", " (map #(w/related-label documents :id :title %) (js->clj ids))))
+
 
 (defn- check-table
   "展示实际试验结果及真实整改问题名称."
@@ -587,6 +636,7 @@
     (w/text-column :actual "实际结果")
     {:title "证据版本" :dataIndex "evidence_ids" :render #(evidence-text (:documents governance) %)}
     {:title "整改问题" :dataIndex "issue_id" :render #(w/related-label (:issues governance) :id :title %)}] nil])
+
 
 (defn- record-history
   "保留可展开的历次复验,签收和各阶段证据."
@@ -598,8 +648,8 @@
      ^{:key key} [:p (str label ": " (evidence-text (:documents governance) (get row key)))])
    (for [[index entry] (map-indexed vector (:result_history row))]
      ^{:key index} [:details {:style {:marginTop 12}}
-                   [:summary (str "第 " (inc index) " 次试验记录 / 项目版本 " (:project_version entry))]
-                   [check-table governance (:checks entry)]])
+                    [:summary (str "第 " (inc index) " 次试验记录 / 项目版本 " (:project_version entry))]
+                    [check-table governance (:checks entry)]])
    (when (seq (:receipt_history row))
      [:details {:style {:marginTop 12}}
       [:summary "历次签收验证"]
@@ -607,6 +657,7 @@
        [(w/text-column :received_on "签收日期") (w/text-column :receiver_name "实际收货人")
         {:title "结果" :dataIndex "acceptance" :render #(get labels % (get w/labels % %))}
         {:title "证据版本" :dataIndex "receipt_evidence_ids" :render #(evidence-text (:documents governance) %)}] nil]])])
+
 
 (defn- record-details
   "逐行展示冻结物料,质量准则和实际结果,不输出原始JSON."
@@ -618,14 +669,15 @@
     [:dt "关联任务"] [:dd (w/related-label (:tasks planning) :task_id :name (:task_id row))]
     [:dt "URS版本"] [:dd (str/join ", " (map #(w/related-label (:requirements governance) :id :code %) (:requirement_ids row)))]]
    (when (seq (:items row)) [w/record-table (or (seq (:availability row)) (:items row))
-                            [(w/text-column :code "物料编号") (w/text-column :name "物料名称")
-                             (w/text-column :quantity "冻结数量") (w/text-column :unit "单位")
-                             (w/text-column :available_quantity "实际可用量")] nil])
+                             [(w/text-column :code "物料编号") (w/text-column :name "物料名称")
+                              (w/text-column :quantity "冻结数量") (w/text-column :unit "单位")
+                              (w/text-column :available_quantity "实际可用量")] nil])
    (when (seq (:criteria row)) [w/record-table (:criteria row)
-                               [(w/text-column :code "检查编号") (w/text-column :title "验收标准")
-                                {:title "必需项" :dataIndex "required" :render #(if % "是" "否")}] nil])
+                                [(w/text-column :code "检查编号") (w/text-column :title "验收标准")
+                                 {:title "必需项" :dataIndex "required" :render #(if % "是" "否")}] nil])
    (when (seq (:checks row)) [check-table governance (:checks row)])
    [record-history governance row]])
+
 
 (defn- content
   "按交付链环节组织可执行的工作台页签."
@@ -633,11 +685,12 @@
   [:div {:style {:display "grid" :gap 20}}
    [overview context]
    [antd/tabs {:items (mapv (fn [[key label component]]
-                             {:key key :label label :children (r/as-element [component context])})
-                           [["materials" "备料与BOM" materials-section] ["assemblies" "装配交检" assemblies-section]
-                            ["tests" "质量试验" tests-section] ["shipments" "发运签收" shipments-section]
-                            ["fieldwork" "工勘与现场" fieldwork-section]
-                            ["services" "售后闭环" services-section]])}]])
+                              {:key key :label label :children (r/as-element [component context])})
+                            [["materials" "备料与BOM" materials-section] ["assemblies" "装配交检" assemblies-section]
+                             ["tests" "质量试验" tests-section] ["shipments" "发运签收" shipments-section]
+                             ["fieldwork" "工勘与现场" fieldwork-section]
+                             ["services" "售后闭环" services-section]])}]])
+
 
 (defn delivery-workspace
   "加载交付,需求证据与任务,成功写入后刷新项目统一版本."

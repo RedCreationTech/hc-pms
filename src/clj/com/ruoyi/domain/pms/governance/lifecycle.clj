@@ -65,21 +65,21 @@
   "受控作废最新版本记录: 校验可作废状态, 拒绝仍被引用的对象, 软置为 discarded 并留审计, 绝不物理删除."
   [svc actor id kind rid body]
   (k/mutate! svc actor id "pms:project:edit" body (str kind ".discarded")
-    (fn [q project]
-      (s/input! body [:reason])
-      (let [record (s/record! q project kind rid)
-            _ (s/latest! q project record)
-            _ (s/status! record (get discardable-status kind #{}))
-            refs (references-of q project kind rid)
-            reason (s/optional-text! body :reason 500)]
-        (when (seq refs)
-          (r/fail! 409 (str "记录仍被其它对象引用, 不能作废: " (str/join "、" (take 5 refs)))))
-        (s/change! q project record "discarded"
-                   {:discard_reason reason :discarded_by (:user_id actor) :discarded_on (str (LocalDate/now))
-                    :workflow_history (conj (vec (:workflow_history record))
-                                            {:action "discarded" :actor_id (:user_id actor)
-                                             :on (str (LocalDate/now)) :prior_status (:status record)
-                                             :reason reason})})))))
+             (fn [q project]
+               (s/input! body [:reason])
+               (let [record (s/record! q project kind rid)
+                     _ (s/latest! q project record)
+                     _ (s/status! record (get discardable-status kind #{}))
+                     refs (references-of q project kind rid)
+                     reason (s/optional-text! body :reason 500)]
+                 (when (seq refs)
+                   (r/fail! 409 (str "记录仍被其它对象引用, 不能作废: " (str/join "、" (take 5 refs)))))
+                 (s/change! q project record "discarded"
+                            {:discard_reason reason :discarded_by (:user_id actor) :discarded_on (str (LocalDate/now))
+                             :workflow_history (conj (vec (:workflow_history record))
+                                                     {:action "discarded" :actor_id (:user_id actor)
+                                                      :on (str (LocalDate/now)) :prior_status (:status record)
+                                                      :reason reason})})))))
 
 
 (defn- prior-status-before-discard
@@ -95,35 +95,35 @@
   "受控撤销作废: 只把处于 discarded 的最新版本恢复到作废前状态, 保留审计, 不重放任何副作用."
   [svc actor id kind rid body]
   (k/mutate! svc actor id "pms:project:edit" body (str kind ".restored")
-    (fn [q project]
-      (s/input! body [:reason])
-      (let [record (s/record! q project kind rid)
-            _ (s/latest! q project record)
-            _ (s/status! record #{"discarded"})
-            prior (prior-status-before-discard record)
-            reason (s/optional-text! body :reason 500)]
-        (when (nil? prior)
-          (r/fail! 409 "无法确定作废前状态, 不能恢复"))
-        (s/change! q project record prior
-                   {:restore_reason reason :restored_by (:user_id actor) :restored_on (str (LocalDate/now))
-                    :workflow_history (conj (vec (:workflow_history record))
-                                            {:action "restored" :actor_id (:user_id actor)
-                                             :on (str (LocalDate/now)) :prior_status "discarded"
-                                             :restored_to prior :reason reason})})))))
+             (fn [q project]
+               (s/input! body [:reason])
+               (let [record (s/record! q project kind rid)
+                     _ (s/latest! q project record)
+                     _ (s/status! record #{"discarded"})
+                     prior (prior-status-before-discard record)
+                     reason (s/optional-text! body :reason 500)]
+                 (when (nil? prior)
+                   (r/fail! 409 "无法确定作废前状态, 不能恢复"))
+                 (s/change! q project record prior
+                            {:restore_reason reason :restored_by (:user_id actor) :restored_on (str (LocalDate/now))
+                             :workflow_history (conj (vec (:workflow_history record))
+                                                     {:action "restored" :actor_id (:user_id actor)
+                                                      :on (str (LocalDate/now)) :prior_status "discarded"
+                                                      :restored_to prior :reason reason})})))))
 
 
 (defn discard-preview
   "只读级联影响预览: 报告若对该记录发起受控作废将命中的状态门控与引用清单, 不写入不改变任何状态."
   [svc actor id kind rid]
   (k/read! svc actor id "pms:project:query"
-    (fn [q project]
-      (let [record (s/record! q project kind rid)
-            newer? (some #(and (= (:code %) (:code record)) (> (:revision %) (:revision record)))
-                         (s/records q project kind))
-            status (:status record)
-            status-ok? (boolean (contains? (get discardable-status kind #{}) status))
-            refs (references-of q project kind rid)]
-        {:kind kind :record_id rid :code (:code record) :revision (:revision record)
-         :status status :latest? (not newer?) :status_discardable? status-ok?
-         :references (vec refs)
-         :discardable? (boolean (and (not newer?) status-ok? (empty? refs)))}))))
+           (fn [q project]
+             (let [record (s/record! q project kind rid)
+                   newer? (some #(and (= (:code %) (:code record)) (> (:revision %) (:revision record)))
+                                (s/records q project kind))
+                   status (:status record)
+                   status-ok? (boolean (contains? (get discardable-status kind #{}) status))
+                   refs (references-of q project kind rid)]
+               {:kind kind :record_id rid :code (:code record) :revision (:revision record)
+                :status status :latest? (not newer?) :status_discardable? status-ok?
+                :references (vec refs)
+                :discardable? (boolean (and (not newer?) status-ok? (empty? refs)))}))))

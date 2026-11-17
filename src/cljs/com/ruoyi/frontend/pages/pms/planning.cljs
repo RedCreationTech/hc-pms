@@ -1,19 +1,22 @@
 (ns com.ruoyi.frontend.pages.pms.planning
   "项目计划,资源与独立基线审批工作台."
-  (:require [clojure.string :as str]
-            [com.ruoyi.frontend.antd :as antd]
-            [com.ruoyi.frontend.pages.pms.approval :as approval]
-            [com.ruoyi.frontend.pages.pms.plan-forms :as forms]
-            [com.ruoyi.frontend.pages.pms.plan-views :as views]
-            [com.ruoyi.frontend.pages.pms.shared :as shared]
-            [com.ruoyi.frontend.pages.pms.widgets :as w]
-            [reagent.core :as r]
-            [reagent.hooks :as hooks]))
+  (:require
+    [clojure.string :as str]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.pages.pms.approval :as approval]
+    [com.ruoyi.frontend.pages.pms.plan-forms :as forms]
+    [com.ruoyi.frontend.pages.pms.plan-views :as views]
+    [com.ruoyi.frontend.pages.pms.shared :as shared]
+    [com.ruoyi.frontend.pages.pms.widgets :as w]
+    [reagent.core :as r]
+    [reagent.hooks :as hooks]))
+
 
 (defn- remove-dialog
   "确认删除计划关联而不静默改变计划."
   [path title]
   {:title title :path path :method :delete :fields [] :description "确认删除这条计划记录? 此操作将记录在项目审计轨迹中."})
+
 
 (defn- task-section
   "维护 WBS 分解与执行阶段进度反馈."
@@ -26,26 +29,26 @@
      {:title "范围覆盖" :key "scope" :width 170
       :render (fn [_ row]
                 (r/as-element
-                 (if-not (aget row "scope_leaf")
-                   [antd/tag {:color "default"} "汇总"]
-                   (if (aget row "scope_covered")
-                     [:span {:style {:display "inline-flex" :gap 4}}
-                      [antd/tag {:color "green"} (str "已覆盖 设计 " (aget row "scope_satisfies_count"))]
-                      (when (< 0 (or (aget row "scope_verifies_count") 0))
-                        [antd/tag {:color "cyan"} (str "验证 " (aget row "scope_verifies_count"))])]
-                     [antd/tag {:color "orange"} "未覆盖"]))))}
+                  (if-not (aget row "scope_leaf")
+                    [antd/tag {:color "default"} "汇总"]
+                    (if (aget row "scope_covered")
+                      [:span {:style {:display "inline-flex" :gap 4}}
+                       [antd/tag {:color "green"} (str "已覆盖 设计 " (aget row "scope_satisfies_count"))]
+                       (when (< 0 (or (aget row "scope_verifies_count") 0))
+                         [antd/tag {:color "cyan"} (str "验证 " (aget row "scope_verifies_count"))])]
+                      [antd/tag {:color "orange"} "未覆盖"]))))}
      {:title "基线偏差" :key "bvar" :width 180
       :render (fn [_ row]
                 (let [st (aget row "baseline_state")
                       fv (aget row "baseline_finish_variance")]
                   (r/as-element
-                   (if-not st
-                     [antd/tag {:color "default"} "无基线"]
-                     [:span {:style {:display "inline-flex" :gap 4}}
-                      [antd/tag {:color (case st "behind" "red" "ahead" "green" "added" "orange" "blue")}
-                       (get {"behind" "延后" "ahead" "提前" "added" "新增" "on_baseline" "持平"} st st)]
-                      (when (and (= "behind" st) (number? fv) (pos? fv))
-                        [antd/tag {:color "red"} (str "+" fv " 天")])]))))}
+                    (if-not st
+                      [antd/tag {:color "default"} "无基线"]
+                      [:span {:style {:display "inline-flex" :gap 4}}
+                       [antd/tag {:color (case st "behind" "red" "ahead" "green" "added" "orange" "blue")}
+                        (get {"behind" "延后" "ahead" "提前" "added" "新增" "on_baseline" "持平"} st st)]
+                       (when (and (= "behind" st) (number? fv) (pos? fv))
+                         [antd/tag {:color "red"} (str "+" fv " 天")])]))))}
      {:title "节点" :dataIndex "node_id" :width 130 :render #(w/related-label (:nodes model) :node_id :node_code %)}
      {:title "阶段" :dataIndex "stage_code" :width 110 :render shared/display-value}
      (w/text-column :owner_name "责任人") (w/text-column :duration_days "工作日")
@@ -59,6 +62,7 @@
        (when editable? [w/edit-button "删除" #(open! (remove-dialog (str base "/tasks/" (:task_id task)) "删除WBS任务"))])
        (when (and can-feedback? (= "execution" (:status project)) (not= "summary" (:task_type task)))
          [w/edit-button "反馈进度" #(open! (forms/feedback-dialog base task))])])]])
+
 
 (defn- scope-coverage-section
   "按需求 satisfies 追踪链只读派生的范围覆盖性审查汇总, 仅作提示, 不阻断计划编制."
@@ -76,6 +80,7 @@
       [antd/tag {:color (if (pos? uncovered) "orange" "default")} (str "未覆盖 " uncovered)]
       (when (seq codes)
         [:span {:style {:color "#718096"}} (str "未覆盖 WBS: " (str/join ", " codes))])]]))
+
 
 (defn- baseline-variance-section
   "与最新已批准计划基线冻结排程逐任务只读比较的进度偏差汇总, 仅提示偏移, 不门控保存与提交."
@@ -100,6 +105,7 @@
         (when-let [rev (:baseline_revision v)]
           [:span {:style {:color "#718096"}} (str "基线修订 " rev)])])]))
 
+
 (defn- dependency-section
   "展示四类任务依赖与工作日间隔."
   [{:keys [base model editable? open!]}]
@@ -110,6 +116,7 @@
      {:title "后续任务" :dataIndex "successor_id" :render #(w/related-label (:tasks model) :task_id :name %)}
      (w/text-column :dependency_type "依赖关系") (w/text-column :lag_days "间隔工作日")]
     (when editable? (fn [row] [w/edit-button "移除" #(open! (remove-dialog (str base "/dependencies/" (:dependency_id row)) "移除任务依赖"))]))]])
+
 
 (defn- resource-section
   "维护资源容量,日历例外与每日任务分配."
@@ -126,6 +133,7 @@
          [w/edit-button "日历例外" #(open! (forms/capacity-dialog base resource))]
          [w/edit-button "删除" #(open! (remove-dialog (str base "/resources/" (:resource_id resource)) "删除项目资源"))]]))]])
 
+
 (defn- allocation-section
   "展示资源任务分配并允许移除关联."
   [{:keys [base model editable? open!]}]
@@ -137,6 +145,7 @@
      (w/text-column :hours_per_day "每日计划工时")]
     (when editable? (fn [row] [w/edit-button "移除" #(open! (remove-dialog (str base "/allocations/" (:allocation_id row)) "移除资源分配"))]))]])
 
+
 (defn- calendar-section
   "显示项目工作日历以及容量例外."
   [{:keys [base model editable? open!]}]
@@ -144,13 +153,14 @@
     [shared/panel "项目工作日历" "CPM 计算跳过休息日,优先应用调休工作日"
      (when editable? [antd/button {:on-click #(open! (forms/calendar-dialog base calendar))} "编辑工作日历"])
      [:div {:style {:display "flex" :gap 12 :flexWrap "wrap" :marginBottom 16}}
-      [antd/tag (str "每周工作日: " (clojure.string/join ", " (:working_days calendar))) ]
+      [antd/tag (str "每周工作日: " (clojure.string/join ", " (:working_days calendar)))]
       [antd/tag (str "每日 " (:hours_per_day calendar) " 小时")]
       [antd/tag (str "休息日 " (count (:holidays calendar)) " 天")]
       [antd/tag (str "调休 " (count (:extra_workdays calendar)) " 天")]]
      [w/record-table (:capacities model)
       [{:title "资源" :dataIndex "resource_id" :render #(w/related-label (:resources model) :resource_id :name %)}
        (w/text-column :date "例外日期") (w/text-column :capacity_hours "当日可用工时")] nil]]))
+
 
 (defn- submit-dialog
   "执行期基线修订必须关联已独立批准的变更."
@@ -162,27 +172,29 @@
                     :options (w/options (:approved_changes model) :id :title)
                     :hint "执行期调整须先完成独立变更评审,再形成新计划基线."}))})
 
+
 (defn- baseline-section
   "展示不可变基线并要求提交者以外的审批人决策 (已发布 \"计划基线\" 审批策略时按策略逐级审批)."
   [{:keys [base model project editable? can-approve? open! compare!]}]
   (let [{:keys [flows]} (approval/use-project-flows (str "/projects/" (:project_id project)) "plan-baseline"
                                                     (hash (map (juxt :baseline_id :status) (:baselines model))))
         chained (approval/pending-ids flows)]
-  [shared/panel "计划提交与基线" "提交时冻结当前计划,独立审批后成为正式基线"
-   (when (and editable? (contains? #{"planning" "execution"} (:status project)))
-     [antd/button {:type "primary" :on-click #(open! (submit-dialog base model project))} "提交计划审批"])
-   [w/record-table (:baselines model)
-    [(w/text-column :plan_revision "计划修订") (w/state-column) (w/text-column :submitted_name "提交人")
-     (w/text-column :submitted_at "提交时间") (w/text-column :reviewed_name "审批人") (w/text-column :review_comment "审批意见")]
-    (fn [baseline]
-      [antd/space
-       [w/edit-button "查看差异" #(compare! baseline)]
-       (when (and can-approve? (= "submitted" (:status baseline)) (not (contains? chained (:baseline_id baseline)))
-                  (not= (:current_user_id model) (:submitted_by baseline)))
-         [:<>
-          [w/edit-button "批准" #(open! (forms/approval-dialog base baseline "approved"))]
-          [w/edit-button "驳回" #(open! (forms/approval-dialog base baseline "rejected"))]])])]
-   [approval/latest-flow-panel flows "计划基线审批进度"]]))
+    [shared/panel "计划提交与基线" "提交时冻结当前计划,独立审批后成为正式基线"
+     (when (and editable? (contains? #{"planning" "execution"} (:status project)))
+       [antd/button {:type "primary" :on-click #(open! (submit-dialog base model project))} "提交计划审批"])
+     [w/record-table (:baselines model)
+      [(w/text-column :plan_revision "计划修订") (w/state-column) (w/text-column :submitted_name "提交人")
+       (w/text-column :submitted_at "提交时间") (w/text-column :reviewed_name "审批人") (w/text-column :review_comment "审批意见")]
+      (fn [baseline]
+        [antd/space
+         [w/edit-button "查看差异" #(compare! baseline)]
+         (when (and can-approve? (= "submitted" (:status baseline)) (not (contains? chained (:baseline_id baseline)))
+                    (not= (:current_user_id model) (:submitted_by baseline)))
+           [:<>
+            [w/edit-button "批准" #(open! (forms/approval-dialog base baseline "approved"))]
+            [w/edit-button "驳回" #(open! (forms/approval-dialog base baseline "rejected"))]])])]
+     [approval/latest-flow-panel flows "计划基线审批进度"]]))
+
 
 (defn- feedback-section
   "保留每次实际执行反馈及责任人."
@@ -193,6 +205,7 @@
      (w/text-column :user_name "反馈人") (w/state-column) (w/text-column :percent_complete "进度%")
      (w/text-column :remaining_days "剩余天数") (w/text-column :actual_start "实际开始") (w/text-column :actual_end "实际完成")
      (w/text-column :comment "说明") (w/text-column :created_at "时间")] nil]])
+
 
 (defn- rollup-tab
   "进度卷积 + 挣值预测 + 主子冲突 + 绩效偏差纠正措施 + 趋势快照 + 重排记录 (增量6)."
@@ -205,8 +218,9 @@
                  (when (and can-feedback? (= "execution" (:status project)))
                    [antd/button {:size "small" :on-click #(open! (forms/snapshot-dialog base))} "生成进度快照"])]
         node-action (when editable?
-                      (fn [node] (when (not= "main" (:node_type node))
-                                   [w/edit-button "重排" #(open! (forms/reschedule-dialog base node))])))
+                      (fn [node]
+                        (when (not= "main" (:node_type node))
+                          [w/edit-button "重排" #(open! (forms/reschedule-dialog base node))])))
         register-variance (when editable?
                             (fn [row] [w/edit-button "登记纠正措施" #(open! (forms/variance-action-dialog base options row))]))]
     [:div {:style {:display "grid" :gap 20}}
@@ -230,14 +244,15 @@
       (when (seq (:plan_conflicts model)) [antd/tag {:color "red"} (str "主子约束冲突 " (count (:plan_conflicts model)))])
       (when-let [spi (get-in model [:earned_value :spi])] [antd/tag {:color (if (< spi 0.9) "red" "blue")} (str "SPI " spi)])]
      [antd/tabs {:items
-                  [{:key "wbs" :label "WBS与排程" :children (r/as-element [:div {:style {:display "grid" :gap 20}}
-                                                                          [baseline-variance-section context] [scope-coverage-section context] [task-section context] [dependency-section context] [views/gantt model]])}
-                   {:key "resources" :label "资源与日历" :children (r/as-element [:div {:style {:display "grid" :gap 20}}
-                                                                                [resource-section context] [allocation-section context]
-                                                                                [calendar-section context] [views/allocation-coverage model] [views/critical-path-staffing model] [views/schedule-sensitivity model] [views/schedule-tightness model] [views/schedule-connectivity model] [views/dependency-type-mix model] [views/duration-granularity model] [views/wbs-hierarchy model] [views/resource-load-leveling model] [views/capacity-utilization model] [views/resource-type-mix model] [views/overloads model]])}
-                   {:key "rollup" :label "进度卷积" :children (r/as-element [rollup-tab context])}
-                   {:key "baselines" :label "审批与基线" :children (r/as-element [baseline-section context])}
-                   {:key "feedback" :label "执行反馈" :children (r/as-element [feedback-section context])}]}]]))
+                 [{:key "wbs" :label "WBS与排程" :children (r/as-element [:div {:style {:display "grid" :gap 20}}
+                                                                       [baseline-variance-section context] [scope-coverage-section context] [task-section context] [dependency-section context] [views/gantt model]])}
+                  {:key "resources" :label "资源与日历" :children (r/as-element [:div {:style {:display "grid" :gap 20}}
+                                                                            [resource-section context] [allocation-section context]
+                                                                            [calendar-section context] [views/allocation-coverage model] [views/critical-path-staffing model] [views/schedule-sensitivity model] [views/schedule-tightness model] [views/schedule-connectivity model] [views/dependency-type-mix model] [views/duration-granularity model] [views/wbs-hierarchy model] [views/resource-load-leveling model] [views/capacity-utilization model] [views/resource-type-mix model] [views/overloads model]])}
+                  {:key "rollup" :label "进度卷积" :children (r/as-element [rollup-tab context])}
+                  {:key "baselines" :label "审批与基线" :children (r/as-element [baseline-section context])}
+                  {:key "feedback" :label "执行反馈" :children (r/as-element [feedback-section context])}]}]]))
+
 
 (defn planning-workspace
   "加载计划读模型并统一携带当前项目版本写入."
@@ -255,5 +270,5 @@
     [:div
      [w/resource-view resource (fn [_] [planning-content context])]
      (when dialog [w/mutation-dialog (merge dialog {:project project :on-close #(set-dialog! nil)
-                                                   :on-saved (fn [_] (set-dialog! nil) (changed!))})])
+                                                    :on-saved (fn [_] (set-dialog! nil) (changed!))})])
      (when comparing [views/baseline-diff base comparing #(set-comparing! nil)])]))

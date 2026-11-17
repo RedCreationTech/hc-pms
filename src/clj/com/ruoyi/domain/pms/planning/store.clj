@@ -1,14 +1,17 @@
 (ns com.ruoyi.domain.pms.planning.store
   "计划聚合的持久化边界,快照与输入校验工具."
-  (:require [cheshire.core :as json]
-            [com.ruoyi.domain.pms.kernel :as kernel]
-            [com.ruoyi.domain.pms.rules :as rules]
-            [com.ruoyi.domain.pms.planning.schedule :as schedule]))
+  (:require
+    [cheshire.core :as json]
+    [com.ruoyi.domain.pms.kernel :as kernel]
+    [com.ruoyi.domain.pms.planning.schedule :as schedule]
+    [com.ruoyi.domain.pms.rules :as rules]))
+
 
 (def task-fields
   "计划版本包含的任务设计字段,不混入实际进度."
   [:task_id :project_id :parent_id :wbs_code :name :task_type :duration_days
    :owner_id :start_date :description :source_type :source_id :node_id :stage_code])
+
 
 (defn integer!
   "校验有边界的整数值."
@@ -16,6 +19,7 @@
   (when-not (and (integer? value) (<= minimum value maximum))
     (rules/fail! 400 (str label "必须是 " minimum " 至 " maximum " 的整数")))
   value)
+
 
 (defn hours!
   "校验有限的日工时或容量,最多两位小数."
@@ -28,10 +32,12 @@
       (rules/fail! 400 (str label "最多保留两位小数")))
     value))
 
+
 (defn rows
   "读取属于项目的计划集合."
   [q project key]
   (vec (q key {:project_id (:project_id project)})))
+
 
 (defn plan
   "读取计划版本与日历,尚未编辑时使用默认日历."
@@ -40,12 +46,14 @@
     (-> row (assoc :calendar (json/parse-string (:calendar_json row) true)) (dissoc :calendar_json))
     {:project_id (:project_id project) :revision 0 :calendar schedule/default-calendar}))
 
+
 (defn ensure-plan!
   "在首个修改事务中创建计划容器."
   [q project]
   (when-not (q :planning/plan {:project_id (:project_id project)})
     (q :planning/insert-plan! {:project_id (:project_id project)
                                :calendar_json (json/generate-string schedule/default-calendar)})))
+
 
 (defn editable!
   "待审核快照提交后锁定设计,拒绝或审批结束后可以另开修订."
@@ -55,21 +63,24 @@
   (when (contains? #{"closing"} (:status project))
     (rules/fail! 409 "项目收尾中,不能修改计划")))
 
+
 (defn changed!
   "递增计划设计修订,实际反馈不调用此函数."
   [q project]
   (ensure-plan! q project)
   (q :planning/bump-plan! {:project_id (:project_id project)}))
 
+
 (defn mutation!
   "通过共享项目事务执行计划设计变更并递增设计修订."
   [svc actor id body event-type f]
   (kernel/mutate! svc actor id "pms:project:edit" body event-type
-    (fn [q project]
-      (editable! q project)
-      (let [result (f q project)]
-        (changed! q project)
-        result))))
+                  (fn [q project]
+                    (editable! q project)
+                    (let [result (f q project)]
+                      (changed! q project)
+                      result))))
+
 
 (defn task!
   "读取当前项目中的任务,禁止通过外部标识绑定跨项目数据."
@@ -78,12 +89,14 @@
   (or (q :planning/task {:project_id (:project_id project) :task_id id})
       (rules/fail! 404 "任务不存在或不属于当前项目")))
 
+
 (defn resource!
   "读取当前项目中的资源."
   [q project id]
   (when-not (and (string? id) (parse-uuid id)) (rules/fail! 400 "资源标识必须是有效UUID"))
   (or (q :planning/resource {:project_id (:project_id project) :resource_id id})
       (rules/fail! 404 "资源不存在或不属于当前项目")))
+
 
 (defn calendar!
   "校验周工作日,假日和额外工作日,拒绝无工作日的日历."
@@ -103,6 +116,7 @@
            :extra_workdays (vec (sort (distinct (:extra_workdays calendar))))
            :hours_per_day (hours! (:hours_per_day calendar) "每天工作小时" false))))
 
+
 (defn snapshot
   "读取不可变基线所需的纯设计数据及可复算排程."
   [q project]
@@ -116,8 +130,9 @@
      :allocations allocations :capacities capacities
      :schedule (schedule/schedule project tasks dependencies calendar)}))
 
+
 (defn overloads
   "计算当前设计快照的日容量冲突."
   [snapshot]
   (schedule/overallocations (:schedule snapshot) (:resources snapshot)
-                           (:allocations snapshot) (:capacities snapshot)))
+                            (:allocations snapshot) (:capacities snapshot)))

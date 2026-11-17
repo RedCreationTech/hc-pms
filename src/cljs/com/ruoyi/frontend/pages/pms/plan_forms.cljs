@@ -1,7 +1,9 @@
 (ns com.ruoyi.frontend.pages.pms.plan-forms
   "计划工作台的任务,资源与审批业务表单定义."
-  (:require [clojure.string :as str]
-            [com.ruoyi.frontend.pages.pms.widgets :as w]))
+  (:require
+    [clojure.string :as str]
+    [com.ruoyi.frontend.pages.pms.widgets :as w]))
+
 
 (defn task-fields
   "选择汇总父项,责任人和明确的任务类型."
@@ -23,6 +25,7 @@
    {:key :start_date :label "最早开始日期" :type :date}
    {:key :description :label "交付内容" :type :textarea}])
 
+
 (defn task-dialog
   "构造任务新增或编辑配置."
   [base model options task]
@@ -31,6 +34,7 @@
    :method (if task :put :post) :fields (task-fields model options)
    :initial (if task (select-keys task [:wbs_code :name :task_type :parent_id :owner_id :duration_days :start_date :description :node_id :stage_code])
                 {:task_type "task" :duration_days 1})})
+
 
 (defn dependency-dialog
   "关联前置与后续任务并声明依赖方式."
@@ -43,6 +47,7 @@
                :options [{:value "FS" :label "完成后开始(FS)"} {:value "SS" :label "同时开始(SS)"}
                          {:value "FF" :label "同时完成(FF)"} {:value "SF" :label "开始后完成(SF)"}]}
               {:key :lag_days :label "间隔工作日" :type :number :min -365 :required? true}]}))
+
 
 (defn resource-dialog
   "定义真实人员或设备资源的每日容量."
@@ -57,6 +62,7 @@
             {:key :user_id :label "关联用户" :type :select :options (w/user-options (:users options))}
             {:key :daily_capacity :label "每日可用工时" :type :number :min 0 :max 24 :required? true}]})
 
+
 (defn allocation-dialog
   "把任务与资源关联并声明计划负荷."
   [base model]
@@ -67,6 +73,7 @@
              :options (w/options (:resources model) :resource_id :name)}
             {:key :hours_per_day :label "每日计划工时" :type :number :min 0.01 :max 24 :required? true}]})
 
+
 (defn capacity-dialog
   "为真实资源设置特定日期容量例外."
   [base resource]
@@ -74,6 +81,7 @@
    :description (:name resource) :initial {:capacity_hours (:daily_capacity resource)}
    :fields [{:key :date :label "日期" :type :date :required? true}
             {:key :capacity_hours :label "当日可用工时" :type :number :min 0 :max 24 :required? true}]})
+
 
 (defn calendar-dialog
   "以周历和日期清单维护工作日历."
@@ -83,12 +91,13 @@
                 (assoc :holidays (str/join "\n" (:holidays calendar))
                        :extra_workdays (str/join "\n" (:extra_workdays calendar))))
    :transform #(-> % (update :holidays (fn [s] (vec (remove str/blank? (str/split (or s "") #"[\s,]+")))))
-                     (update :extra_workdays (fn [s] (vec (remove str/blank? (str/split (or s "") #"[\s,]+"))))))
+                   (update :extra_workdays (fn [s] (vec (remove str/blank? (str/split (or s "") #"[\s,]+"))))))
    :fields [{:key :working_days :label "每周工作日" :type :multi :required? true
              :options (mapv (fn [n label] {:value n :label label}) (range 1 8) ["周一" "周二" "周三" "周四" "周五" "周六" "周日"])}
             {:key :hours_per_day :label "标准日工时" :type :number :min 1 :max 24 :required? true}
             {:key :holidays :label "休息日" :type :textarea :hint "每行一个 YYYY-MM-DD 日期."}
             {:key :extra_workdays :label "调休工作日" :type :textarea :hint "每行一个 YYYY-MM-DD 日期."}]})
+
 
 (defn feedback-dialog
   "执行阶段回填任务进度和剩余工期."
@@ -127,8 +136,9 @@
   {:title "覆盖阶段权重" :path (str base "/planning/stage-weights")
    :description "工程默认为模板权重; 覆盖后进度卷积按新权重计算, 模板快照不变, 每次覆盖生成新版本. 待业务口径批准前只是本地规则."
    :initial (into {} (map (fn [s] [(keyword (str "w_" (:code s))) (:weight s)]) stages))
-   :transform (fn [data] {:stages (mapv (fn [s] {:code (:code s) :weight (js/parseInt (get data (keyword (str "w_" (:code s)))))}) stages)
-                          :reason (:reason data)})
+   :transform (fn [data]
+                {:stages (mapv (fn [s] {:code (:code s) :weight (js/parseInt (get data (keyword (str "w_" (:code s)))))}) stages)
+                 :reason (:reason data)})
    :fields (conj (mapv (fn [s] {:key (keyword (str "w_" (:code s))) :label (str (:code s) " " (:name s) " 权重%") :type :number :min 0 :max 100 :required? true}) stages)
                  {:key :reason :label "覆盖说明" :type :textarea})})
 

@@ -9,8 +9,10 @@
     [reagent.core :as r]
     [reagent.hooks :as hooks]))
 
+
 (def node-labels {"main" "主项目" "sub" "子项目" "machine" "单机"})
 (def role-labels {"manager" "项目经理" "editor" "协作成员" "viewer" "只读成员"})
+
 
 (defn- tree-data
   "按父节点组装项目结构,后端数据作为唯一来源."
@@ -25,6 +27,7 @@
                      [:span {:style {:fontSize 12 :color "#8b96a5"}} (:node_code node)]])
            :children (tree-data rows (:node_id node))})
         (filter #(= parent (:parent_id %)) rows)))
+
 
 (defn- node-form
   "根据父节点自动确定子项目或单机类型."
@@ -47,11 +50,12 @@
                            "项目节点已添加")))}
       [antd/form-item {:name "parent_id" :label "父节点" :rules [{:required true :message "请选择父节点"}]}
        [antd/select {:options (mapv #(hash-map :value (:node_id %)
-                                              :label (str (get node-labels (:node_type %)) " / " (:name %))) parent-options)}]]
+                                               :label (str (get node-labels (:node_type %)) " / " (:name %))) parent-options)}]]
       [antd/form-item {:name "node_code" :label "节点编号" :rules [{:required true :whitespace true :message "请输入节点编号"}]}
        [antd/input {:placeholder "例如 SUB-01 或 EQ-01" :maxLength 64}]]
       [antd/form-item {:name "name" :label "节点名称" :rules [{:required true :whitespace true :message "请输入节点名称"}]}
        [antd/input {:placeholder "填写子项目或设备名称" :maxLength 200}]]]]))
+
 
 (defn project-structure
   "加载并维护主项目,子项目与单机树."
@@ -71,6 +75,7 @@
                          :selectable false :blockNode true}])
      (when adding? [node-form id rows #(set-adding! false)
                     (fn [_] (set-adding! false) (refresh!) (on-change))])]))
+
 
 (defn- member-form
   "新增或调整项目成员角色."
@@ -93,6 +98,7 @@
       [antd/form-item {:name "ends_on" :label "委派到期日" :extra "留空表示长期有效,填写后到期成员在台账中标记为已过期"}
        [antd/input {:type "date"}]]]]))
 
+
 (defn- lifecycle-tag
   "按后端派生的生命周期状态为成员打上徽标."
   [member]
@@ -107,19 +113,21 @@
       "open-ended" [antd/tag {:color "default"} "长期有效"]
       nil)))
 
+
 (defn- lifecycle-list
   "把到期/过期成员渲染为可读徽标清单."
   [rows color]
   (let [colors (shared/use-colors)]
     (into [:div {:style {:display "flex" :flexWrap "wrap" :gap 6}}]
-      (map (fn [m]
-             ^{:key (:user_id m)}
-             [antd/tag {:color color}
-              (str (or (:nick_name m) (:user_name m) (:user_id m))
-                   " · " (:ends_on m)
-                   (when-let [d (:days-left m)]
-                     (if (neg? d) (str " 已逾期" (- d) "天") (str " 剩" d "天"))))])
-           rows))))
+          (map (fn [m]
+                 ^{:key (:user_id m)}
+                 [antd/tag {:color color}
+                  (str (or (:nick_name m) (:user_name m) (:user_id m))
+                       " · " (:ends_on m)
+                       (when-let [d (:days-left m)]
+                         (if (neg? d) (str " 已逾期" (- d) "天") (str " 剩" d "天"))))])
+               rows))))
+
 
 (defn- lifecycle-overview
   "只读呈现成员权限生命周期汇总,数据源与台账同源 (GET /members lifecycle)."
@@ -144,6 +152,7 @@
         [:div {:style {:fontSize 12 :color (:muted colors) :marginBottom 6}} "已过期, 建议复核访问权限"]
         [lifecycle-list (:expired lc) "red"]])]))
 
+
 (defn- member-row
   "显示成员身份与项目角色."
   [member remove!]
@@ -161,7 +170,8 @@
       [antd/tag {:color (if (= "manager" (:role member)) "blue" "default")}
        (get role-labels (:role member) (:role member))]
       (when (and remove! (not= "manager" (:role member)))
-        [antd/button {:type "link" :danger true :size "small" :on-click #(remove! member)} "移除"])] ]))
+        [antd/button {:type "link" :danger true :size "small" :on-click #(remove! member)} "移除"])]]))
+
 
 (defn project-members
   "加载与维护有真实权限的项目成员."

@@ -1,22 +1,30 @@
 (ns com.ruoyi.domain.pms.rules
   "项目领域的输入校验,身份权限和生命周期规则."
-  (:require [clojure.string :as str])
-  (:import [java.time LocalDate]
-           [java.time.format DateTimeParseException]))
+  (:require
+    [clojure.string :as str])
+  (:import
+    (java.time
+      LocalDate)
+    (java.time.format
+      DateTimeParseException)))
+
 
 (def project-fields
   "项目允许由客户端维护的字段."
   [:project_no :name :customer :contract_no :project_type :manager_id
    :dept_id :start_date :end_date])
 
+
 (def statuses
   "可识别的项目状态."
   #{"draft" "initiated" "planning" "execution" "paused" "closing" "closed" "cancelled"})
+
 
 (defn fail!
   "抛出带 HTTP 状态的可预期业务异常."
   [status message]
   (throw (ex-info message {:status status :pms-error true})))
+
 
 (defn actor
   "从数据库读取当前有效用户及权限,避免依赖过期的 JWT 角色快照."
@@ -30,6 +38,7 @@
                                   (query-fn :pms/user-roles params)))
            :permissions (set (map :perms (query-fn :pms/user-perms params))))))
 
+
 (defn permit!
   "检查当前用户的功能权限."
   [actor permission]
@@ -39,10 +48,12 @@
                       (if (sequential? permission) permission [permission])))
     (fail! 403 "没有操作权限")))
 
+
 (defn access-params
   "构造列表和统计共用的数据隔离条件."
   [actor]
   {:admin (if (:admin? actor) 1 0) :user_id (:user_id actor)})
+
 
 (defn access!
   "检查当前项目成员和管理者的读取或编辑范围,撤销成员立即失效.
@@ -59,11 +70,13 @@
       (fail! 403 "没有该项目的数据访问权限")))
   project)
 
+
 (defn editable!
   "暂停及终态项目不允许普通业务修改."
   [project]
   (when (contains? #{"paused" "closed" "cancelled"} (:status project))
     (fail! 409 "项目已暂停,结束或取消,不允许修改")))
+
 
 (defn object!
   "要求请求体为对象且不包含不可写字段."
@@ -87,6 +100,7 @@
     (fail! 400 (str "无效" label "决定")))
   body)
 
+
 (defn positive-id!
   "校验用户或部门标识."
   [value field]
@@ -96,6 +110,7 @@
     (when-not (and id (pos? id) (<= id Long/MAX_VALUE))
       (fail! 400 (str field "必须是正整数")))
     id))
+
 
 (defn text!
   "校验必填或可选文本的类型和长度."
@@ -107,6 +122,7 @@
         (fail! 400 (str field "不能为空或超出长度限制")))
       value)))
 
+
 (defn date!
   "校验真实的 ISO 日历日期并规范空值."
   [value field]
@@ -117,6 +133,7 @@
         (try (LocalDate/parse value)
              (catch DateTimeParseException _ (fail! 400 (str field "不是有效日期"))))
         value)))
+
 
 (defn project-input!
   "归一化项目字段并校验日期区间与关联主数据."
@@ -142,6 +159,7 @@
       (fail! 400 "部门不存在或已停用"))
     (select-keys m project-fields)))
 
+
 (defn version!
   "要求客户端携带当前版本,拒绝陈旧写入."
   [project version]
@@ -150,10 +168,12 @@
       (fail! 409 "项目已被其他操作更新,请刷新后重试"))
     version))
 
+
 (defn changed!
   "检查乐观锁写入结果."
   [count]
   (when-not (= 1 count) (fail! 409 "项目已被其他操作更新,请刷新后重试")))
+
 
 (defn page-params!
   "校验并转换分页与筛选参数."

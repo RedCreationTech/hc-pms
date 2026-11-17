@@ -178,23 +178,24 @@
         [antd/button {:type "primary" :on-click #(set-editor! {:record nil})} "新建审批策略"])
       [:div {:style {:display "grid" :gridTemplateColumns "repeat(auto-fill, minmax(300px, 1fr))" :gap 12 :marginBottom 16}}
        (for [item (:catalog data)] ^{:key (:code item)}
-         [:div {:style {:border "1px solid #e4e8ee" :borderRadius 8 :padding 14}}
-          [:div {:style {:fontWeight 600}} (str (:name item) " · " (type-labels (:code item)))]
-          [:div {:style {:fontSize 12 :color "#718096" :margin "6px 0"}}
-           (for [[i l] (map-indexed vector (:levels item))] ^{:key i} [:div (str (inc i) ". " (level-summary l org))])]
-          (when editable?
-            [antd/button {:size "small" :on-click #(open! {:title (str "导入示例 " (:name item)) :path "/config/approval-policy/import"
-                                                           :initial {:code (:code item)} :fields [{:key :code :label "审批类型" :required? true}]})}
-             "导入为草稿"])])]
+            [:div {:style {:border "1px solid #e4e8ee" :borderRadius 8 :padding 14}}
+             [:div {:style {:fontWeight 600}} (str (:name item) " · " (type-labels (:code item)))]
+             [:div {:style {:fontSize 12 :color "#718096" :margin "6px 0"}}
+              (for [[i l] (map-indexed vector (:levels item))] ^{:key i} [:div (str (inc i) ". " (level-summary l org))])]
+             (when editable?
+               [antd/button {:size "small" :on-click #(open! {:title (str "导入示例 " (:name item)) :path "/config/approval-policy/import"
+                                                              :initial {:code (:code item)} :fields [{:key :code :label "审批类型" :required? true}]})}
+                "导入为草稿"])])]
       [w/record-table (:rows data)
        [{:title "审批类型" :dataIndex "code" :width 110 :render #(type-labels % %)}
         (assoc (w/text-column :revision "版本") :width 64) (assoc (w/text-column :name "策略名称") :width 180)
         {:title "审批级别" :key "levels" :render (fn [_ ^js row]
-                                                  (let [levels (js->clj (aget row "levels") :keywordize-keys true)]
-                                                    (r/as-element (into [:div {:style {:whiteSpace "normal" :textAlign "left"}}]
-                                                                        (map-indexed (fn [i l] [:div {:key i} (str (inc i) ". " (level-summary l org))]) levels)))))}
-        {:title "状态" :dataIndex "status" :width 90 :render (fn [s] (r/as-element [antd/tag {:color (case s "published" "green" "retired" "default" "blue")}
-                                                                                    (get {"draft" "草稿" "published" "已发布" "retired" "已退役"} s s)]))}]
+                                               (let [levels (js->clj (aget row "levels") :keywordize-keys true)]
+                                                 (r/as-element (into [:div {:style {:whiteSpace "normal" :textAlign "left"}}]
+                                                                     (map-indexed (fn [i l] [:div {:key i} (str (inc i) ". " (level-summary l org))]) levels)))))}
+        {:title "状态" :dataIndex "status" :width 90 :render (fn [s]
+                                                             (r/as-element [antd/tag {:color (case s "published" "green" "retired" "default" "blue")}
+                                                                            (get {"draft" "草稿" "published" "已发布" "retired" "已退役"} s s)]))}]
        (fn [row]
          (let [base (str "/config/approval-policy/" (:id row))]
            [antd/space {:wrap true}
@@ -225,8 +226,8 @@
                                         {:title (:level_name l)
                                          :status (case (:status l) "approved" "finish" "rejected" "error" "pending" "process" "wait")
                                          :description (str/join "; " (map #(str (:approver_name %) " " (get step-status-labels (:status %) (:status %))
-                                                                              (when (seq (:comment %)) (str " (" (:comment %) ")")))
-                                                                         (:steps l)))})
+                                                                                (when (seq (:comment %)) (str " (" (:comment %) ")")))
+                                                                          (:steps l)))})
                                       (:levels flow)))}]])
 
 
@@ -253,7 +254,7 @@
       (when-let [data (:data flow)] [flow-steps data])
       (when error [shared/error-panel error nil])
       [antd/text-area {:rows 3 :value comment :placeholder "审批意见 (驳回时必填)" :aria-label "审批意见"
-                             :onChange #(set-comment! (.. % -target -value))}]
+                       :onChange #(set-comment! (.. % -target -value))}]
       [antd/space
        [antd/button {:type "primary" :loading busy?
                      :on-click #(run! :post (str "/approvals/" (:flow_id item) "/decide") {:decision "approved" :comment comment} "已通过")}

@@ -1,6 +1,7 @@
 (ns com.ruoyi.domain.pms.governance.risk-assessment
   "风险概率 x 影响评分与超阈值升级判定的纯函数与常量, 供登记与复评重新评分共用; 不依赖其它治理命名空间以避免循环引用."
-  (:require [com.ruoyi.domain.pms.rules :as r]))
+  (:require
+    [com.ruoyi.domain.pms.rules :as r]))
 
 
 (def escalation-threshold

@@ -1,6 +1,8 @@
 (ns com.ruoyi.domain.pms.read-model
   "PMS 只读派生视图的共享计算原语: 百分比, 固定顺序频次分布, 日期差值与行动闭环判定. 除 days-until 1-arity 读服务器当天时钟外均为纯函数, 不查库不落库不投递, 不构成任何门控."
-  (:import [java.time LocalDate]))
+  (:import
+    (java.time
+      LocalDate)))
 
 
 (defn pct
@@ -35,10 +37,11 @@
   [active-rows {:keys [key-fn order labels value-k dominant-k by-k]}]
   (let [total (count active-rows)
         tally (frequencies (map key-fn active-rows))
-        by (mapv (fn [v] {value-k v
-                          :label (get labels v v)
-                          :count (get tally v 0)
-                          :pct (pct total (get tally v 0))})
+        by (mapv (fn [v]
+                   {value-k v
+                    :label (get labels v v)
+                    :count (get tally v 0)
+                    :pct (pct total (get tally v 0))})
                  order)
         covered (covered-count by)
         dominant (dominant-value tally order total)

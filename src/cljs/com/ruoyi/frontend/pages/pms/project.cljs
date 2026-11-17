@@ -10,6 +10,7 @@
     [reagent.core :as r]
     [reagent.hooks :as hooks]))
 
+
 (defn- project-name
   "项目名称与编号作为列表视觉锚点."
   [record open!]
@@ -21,6 +22,7 @@
        [:span {:style {:fontWeight 600}} (:name project)])
      [:div {:style {:fontSize 11 :fontFamily "ui-monospace, SFMono-Regular, monospace"
                     :color "#8793a3" :marginTop 5}} (:project_no project)]]))
+
 
 (defn- columns
   "适合项目经理扫描的关键项目字段."
@@ -39,6 +41,7 @@
               (when open!
                 (r/as-element [antd/button {:type "link" :size "small"
                                             :on-click #(open! (.-project_id record))} "详情"])))}])
+
 
 (defn- search-bar
   "关键字和状态筛选改变时返回第一页."
@@ -59,6 +62,7 @@
      [antd/button {:title "刷新项目" :aria-label "刷新项目" :loading loading?
                    :icon (r/as-element [:> ReloadOutlined]) :on-click refresh!}]]))
 
+
 (defn- project-table
   "受控分页保留当前筛选条件."
   [resource query set-query! open! create!]
@@ -69,14 +73,15 @@
      [antd/table {:rowKey "project_id" :size "middle" :columns (clj->js (columns open!))
                   :dataSource (clj->js rows) :loading loading? :scroll {:x 1120}
                   :locale {:emptyText (r/as-element
-                                       [shared/empty-state
-                                        (if (or (seq (:q query)) (seq (:status query)))
-                                          "没有匹配的项目,试试调整搜索条件" "还没有项目,从第一个项目开始")
-                                        (when create! [antd/button {:type "primary" :on-click create!} "创建项目"])])}
+                                        [shared/empty-state
+                                         (if (or (seq (:q query)) (seq (:status query)))
+                                           "没有匹配的项目,试试调整搜索条件" "还没有项目,从第一个项目开始")
+                                         (when create! [antd/button {:type "primary" :on-click create!} "创建项目"])])}
                   :pagination {:current (:page query) :pageSize (:size query) :total (:total data 0)
                                :showSizeChanger true :pageSizeOptions [10 20 50]
                                :showTotal #(str "共 " % " 个项目")
                                :onChange #(set-query! (assoc query :page %1 :size %2))}}]]))
+
 
 (defn- read-query
   "从地址恢复筛选与分页,保证刷新后视图一致."
@@ -87,6 +92,7 @@
      :size (if (contains? #{10 20 50} size) size 10)
      :q (or (.get params "q") "")
      :status (or (.get params "status") "")}))
+
 
 (defn- use-project-url
   "保存当前项目与筛选,详情地址可分享且刷新不会丢失."
@@ -100,6 +106,7 @@
         (.replaceState js/history nil "" (str "/pms/project?" (.toString params))))
       js/undefined)
     [(:page query) (:size query) (:q query) (:status query) selected]))
+
 
 (defn- project-workspace
   "协调项目列表,新增抽屉与详情抽屉."
@@ -127,12 +134,14 @@
       [search-bar query set-query! (:loading? resource) (:refresh! resource)]
       [project-table resource query set-query! (when can-query? set-selected!) create!]]
      (when creating? [project-form/project-form
-                     {:project nil :options (:data options) :on-close #(set-creating! false)
-                      :on-saved (fn [project] (set-creating! false) ((:refresh! resource))
-                                  (set-selected! (:project_id project)))}])
+                      {:project nil :options (:data options) :on-close #(set-creating! false)
+                       :on-saved (fn [project]
+                                   (set-creating! false) ((:refresh! resource))
+                                   (set-selected! (:project_id project)))}])
      (when (and selected can-query?) [detail/project-detail
-                     {:id selected :options (:data options) :on-close #(set-selected! nil)
-                      :on-change (:refresh! resource)}])]))
+                                      {:id selected :options (:data options) :on-close #(set-selected! nil)
+                                       :on-change (:refresh! resource)}])]))
+
 
 (defn project-page
   "项目台账遵循当前登录用户的模块权限."

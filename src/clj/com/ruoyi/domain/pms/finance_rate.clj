@@ -1,8 +1,10 @@
 (ns com.ruoyi.domain.pms.finance-rate
   "H07 有效期费率表与批准工时人工成本只读派生: 人员费率优先于项目角色费率,
    按分钟比例折算到分 (向下取整, 不虚构精度), 缺费率的分钟如实单列为未覆盖."
-  (:require [com.ruoyi.domain.pms.config :as config]
-            [com.ruoyi.domain.pms.finance-money :as money]))
+  (:require
+    [com.ruoyi.domain.pms.config :as config]
+    [com.ruoyi.domain.pms.finance-money :as money]))
+
 
 (defn- windowed?
   "费率有效期含端点; 无止日表示持续有效."
@@ -11,9 +13,11 @@
        (<= (compare (:effective_from rate) date) 0)
        (or (nil? (:effective_to rate)) (<= (compare date (:effective_to rate)) 0))))
 
+
 (defn- member-role
   [members user-id]
   (:role (some #(when (= user-id (:user_id %)) %) members)))
+
 
 (defn rate-for
   "取用户在指定日期适用的费率: 人员范围优先, 其次按其项目成员角色; 无则 nil."
@@ -22,10 +26,12 @@
       (when-let [role (member-role members user-id)]
         (some #(when (and (= "role" (:scope %)) (= role (:role %)) (windowed? % date)) %) rates))))
 
+
 (defn- labor-amount
   "分钟 x 每小时费率 / 60, 整数除法向下取整到分."
   [rate-minor minutes]
   (quot (* (long rate-minor) (long minutes)) 60))
+
 
 (defn summary
   "把项目已批准工时按当前生效费率表折算为人工成本 (读取时派生, 不写入任何费用版本)."

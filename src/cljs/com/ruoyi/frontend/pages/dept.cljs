@@ -153,9 +153,10 @@
                      :allowClear true
                      :showSearch true
                      :optionFilterProp "label"
-                     :options (clj->js (mapv (fn [u] {:value (:user_id u)
-                                                      :label (str (or (not-empty (:nick_name u)) (:user_name u))
-                                                                  " (" (:user_name u) ")")})
+                     :options (clj->js (mapv (fn [u]
+                                               {:value (:user_id u)
+                                                :label (str (or (not-empty (:nick_name u)) (:user_name u))
+                                                            " (" (:user_name u) ")")})
                                              users))}]]
       [antd/form-item {:label "联系电话" :name "phone"}
        [antd/input {:placeholder "请输入联系电话"}]]

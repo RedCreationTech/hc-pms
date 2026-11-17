@@ -115,11 +115,12 @@
         high-or-above (fn [rs] (count (filterv #(<= 10 (:score %)) rs)))
         critical (fn [rs] (count (filterv #(<= ra/escalation-threshold (:score %)) rs)))
         avg-score (fn [rs] (rm/mean-int (count rs) (reduce + 0 (map :score rs))))
-        entry (fn [rs] {:stage (:stage (first rs))
-                        :count (count rs)
-                        :avg-score (avg-score rs)
-                        :high-or-above (high-or-above rs)
-                        :critical (critical rs)})]
+        entry (fn [rs]
+                {:stage (:stage (first rs))
+                 :count (count rs)
+                 :avg-score (avg-score rs)
+                 :high-or-above (high-or-above rs)
+                 :critical (critical rs)})]
     {:available (pos? total)
      :total total
      :labeled-stages (count groups)
@@ -147,11 +148,12 @@
         declared (count (filterv #(some #{(:review_frequency %)} freqs) active))
         unassigned (- total declared)
         subset (fn [x] (filterv #(= x (:review_frequency %)) active))
-        tally (fn tally [rs]
-                 {:count (count rs)
-                  :open (count (remove #(= "closed" (:status %)) rs))
-                  :overdue (count (filterv :review_overdue rs))
-                  :due-soon (count (filterv :review_due_soon rs))})]
+        tally (fn tally
+                [rs]
+                {:count (count rs)
+                 :open (count (remove #(= "closed" (:status %)) rs))
+                 :overdue (count (filterv :review_overdue rs))
+                 :due-soon (count (filterv :review_due_soon rs))})]
     {:available (pos? total)
      :total total
      :declared declared
@@ -225,9 +227,9 @@
                        (:response_strategy fields) (assoc :response_strategy
                                                           (s/enum! (:response_strategy fields) risk-response-strategies "应对策略"))
                        (:risk_category fields) (assoc :risk_category
-                                                        (s/enum! (:risk_category fields) risk-categories "风险类别"))
+                                                      (s/enum! (:risk_category fields) risk-categories "风险类别"))
                        (:review_frequency fields) (assoc :review_frequency
-                                                           (s/enum! (:review_frequency fields) ra/review-frequencies "复审频率"))))
+                                                         (s/enum! (:review_frequency fields) ra/review-frequencies "复审频率"))))
                {:status "open"})))
 
 
@@ -361,7 +363,7 @@
                (let [template-id (k/id)
                      fields (template-fields! body)]
                  (q :rt/insert! (assoc fields :template_id template-id :project_id (:project_id project)
-                                                 :created_by (:user_id actor)))
+                                       :created_by (:user_id actor)))
                  (template-view (q :rt/record {:project_id (:project_id project) :template_id template-id}))))))
 
 
@@ -777,8 +779,8 @@
                 open (filterv #(not (rm/action-done? (:status %))) acts)
                 overdue (filterv action-overdue? open)]
             (assoc meeting :meeting_action_total (count acts)
-                             :meeting_open_actions (count open)
-                             :meeting_overdue_actions (count overdue))))
+                   :meeting_open_actions (count open)
+                   :meeting_overdue_actions (count overdue))))
         meetings))
 
 
@@ -850,9 +852,11 @@
   "跨类到期总览把未闭环事项到期日距今 1 到该天数视为临期(与逾期分档), 供组合级提前关注, 与逐条台账 due-soon-days 独立."
   7)
 
+
 (def due-overview-horizon-days
   "跨类到期总览把未闭环事项到期日距今不超过该天数视为未来到期, 超过则归入更远期, 供近窗口聚焦."
   30)
+
 
 (def due-overview-soonest-limit
   "跨类到期总览最近到期清单最多展示的条目数, 按剩余天数升序截断, 逾期(负值)自然排在最前."
@@ -929,13 +933,16 @@
   "责任人到期压力热点把每条已逾期事项按该权重计入责任人压力指数, 逾期最痛故权重最高 (工程默认启发式, 仅用于只读排名不构成门控)."
   4)
 
+
 (def owner-pressure-due-soon-weight
   "责任人到期压力热点把每条临期(7天内)事项按该权重计入责任人压力指数 (工程默认启发式, 仅用于只读排名)."
   2)
 
+
 (def owner-pressure-upcoming-weight
   "责任人到期压力热点把每条未来到期(30天内)事项按该权重计入责任人压力指数 (工程默认启发式, 仅用于只读排名)."
   1)
+
 
 (def owner-hotspot-limit
   "责任人到期压力热点按压力指数降序最多点名的责任人条数, 压力相同依次比较逾期数/临期数/未闭环总数/责任人ID升序保证确定性."
@@ -954,7 +961,8 @@
                     :bucket (due-overview-bucket days)})
         assigned (remove (comp nil? :owner) itemized)
         unassigned (count (filter (comp nil? :owner) itemized))
-        tally (fn tally [items]
+        tally (fn tally
+                [items]
                 (let [c (frequencies (map :bucket items))
                       t {:open (count items)
                          :overdue (get c :overdue 0)
@@ -1005,11 +1013,12 @@
         discarded (count (filterv #(= "discarded" (:status %)) active))
         in-scope (filterv #(not= "discarded" (:status %)) active)
         total (count in-scope)
-        member-name (into {} (map (fn [m] [(:user_id m)
-                                           (or (not-empty (:nick_name m))
-                                               (not-empty (:user_name m))
-                                               (str "用户" (:user_id m)))]))
-                         members)
+        member-name (into {} (map (fn [m]
+                                    [(:user_id m)
+                                     (or (not-empty (:nick_name m))
+                                         (not-empty (:user_name m))
+                                         (str "用户" (:user_id m)))]))
+                          members)
         member-ids (into #{} (map :user_id) members)
         name-of (fn [uid] (or (get member-name uid) (str "用户" uid)))
         attendees (mapcat (fn [m] (distinct (:attendee_ids m))) in-scope)
@@ -1050,8 +1059,9 @@
   [meetings]
   (let [active (s/latest meetings)
         discarded (count (filterv #(= "discarded" (:status %)) active))
-        dated (filterv (fn [m] (and (not= "discarded" (:status m))
-                                    (some? (:held_on m)))) active)
+        dated (filterv (fn [m]
+                         (and (not= "discarded" (:status m))
+                              (some? (:held_on m)))) active)
         held-strs (sort (map :held_on dated))
         total (count held-strs)
         days (mapv #(.toEpochDay (LocalDate/parse %)) held-strs)
@@ -1062,11 +1072,12 @@
                        (sort (keys month-freq)))
         busiest (when (seq month-freq)
                   (ffirst (sort-by (fn [[mo c]] [(- c) mo]) month-freq)))
-        weekday-of (fn [h] (nth meeting-cadence-weekday-order
-                                (dec (.getValue (.getDayOfWeek (LocalDate/parse h))))))
+        weekday-of (fn [h]
+                     (nth meeting-cadence-weekday-order
+                          (dec (.getValue (.getDayOfWeek (LocalDate/parse h))))))
         weekday-freq (frequencies (map weekday-of held-strs))
         by-weekday (rm/count-rows (filter #(contains? weekday-freq %) meeting-cadence-weekday-order)
-                                   :weekday #(get weekday-freq %))]
+                                  :weekday #(get weekday-freq %))]
     {:available (pos? total)
      :total total
      :discarded discarded
@@ -1115,13 +1126,13 @@
         (update :issues #(mapv (fn [issue]
                                  (if-let [rid (:source_risk_id issue)]
                                    (assoc issue :issue_source_risk_id rid
-                                                  :issue_source_risk_title (:title (get risk-by-id rid)))
+                                          :issue_source_risk_title (:title (get risk-by-id rid)))
                                    issue))
                                %))
         (update :risks #(mapv (fn [risk]
                                 (if-let [iid (:issue_id risk)]
                                   (assoc risk :risk_issue_id iid
-                                                 :risk_issue_title (:title (get issue-by-id iid)))
+                                         :risk_issue_title (:title (get issue-by-id iid)))
                                   risk))
                               %)))))
 
@@ -1135,7 +1146,7 @@
             #(mapv (fn [action]
                      (if-let [rid (:source_risk_id action)]
                        (assoc action :action_source_risk_id rid
-                                      :action_source_risk_title (:title (get risk-by-id rid)))
+                              :action_source_risk_title (:title (get risk-by-id rid)))
                        action))
                    %))))
 
@@ -1165,9 +1176,9 @@
                 (pos? open) "in-progress"
                 :else "completed")]
     (assoc row total-k total
-               open-k open
-               overdue-k overdue
-               state-k state)))
+           open-k open
+           overdue-k overdue
+           state-k state)))
 
 
 (defn mitigation-rollup-by-risk
@@ -1300,11 +1311,12 @@
         of-priority (fn [p] (filterv #(= p (:priority %)) actions))
         declared (count (filterv #(some #{(:priority %)} action-priorities) actions))
         unassigned (- total declared)
-        entry (fn [p] (let [rs (of-priority p)]
-                        {:priority p
-                         :count (count rs)
-                         :open (count (remove done? rs))
-                         :overdue (count (filterv action-overdue? rs))}))
+        entry (fn [p]
+                (let [rs (of-priority p)]
+                  {:priority p
+                   :count (count rs)
+                   :open (count (remove done? rs))
+                   :overdue (count (filterv action-overdue? rs))}))
         open-high (count (remove done? (of-priority "high")))]
     {:available (pos? total)
      :total total
@@ -1359,8 +1371,9 @@
      :full-readiness-pct (pct published)
      :unprepared-meetings (mapv #(select-keys % [:code :title])
                                 (sort-by :code (remove #(seq (:material_ids %)) in-scope)))
-     :pending-material-meetings (mapv (fn [m] {:code (:code m) :title (:title m)
-                                               :pending-count (count (pending-ids m))})
+     :pending-material-meetings (mapv (fn [m]
+                                        {:code (:code m) :title (:title m)
+                                         :pending-count (count (pending-ids m))})
                                       (sort-by :code (filterv #(seq (pending-ids %)) with-mat)))}))
 
 

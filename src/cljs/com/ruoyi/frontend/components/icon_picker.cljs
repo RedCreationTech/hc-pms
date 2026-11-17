@@ -17,7 +17,7 @@
                                  AuditOutlined HistoryOutlined RocketOutlined
                                  CalendarOutlined CustomerServiceOutlined
                                  MoneyCollectOutlined
-                             PlayCircleOutlined FundOutlined ApiOutlined]]
+                                 PlayCircleOutlined FundOutlined ApiOutlined]]
     [clojure.string :as str]
     [reagent.core :as r]
     [reagent.hooks :as hooks]))

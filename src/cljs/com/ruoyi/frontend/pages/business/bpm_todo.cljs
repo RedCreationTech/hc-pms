@@ -407,8 +407,8 @@
                  detail-history (r/atom [])
                  users (r/atom [])
                  _ (api/user-options {:page 1 :size 1000}
-                                   #(reset! users (walk/keywordize-keys (or (:rows (:data %)) [])))
-                                   #())
+                                     #(reset! users (walk/keywordize-keys (or (:rows (:data %)) [])))
+                                     #())
                  open-ops (fn [task type]
                             (reset! ops-task task)
                             (reset! ops-type type)

@@ -149,9 +149,9 @@
 
    ["/dict/data"
     ["" {:get  {:perms :login :summary "字典数据列表" :parameters {:query [:map {:closed true}
-                                                       [:page {:optional true} :int] [:size {:optional true} :int]
-                                                       [:order_by {:optional true} :string] [:is_asc {:optional true} :string]
-                                                       [:dict_type {:optional true} :string]]}
+                                                                     [:page {:optional true} :int] [:size {:optional true} :int]
+                                                                     [:order_by {:optional true} :string] [:is_asc {:optional true} :string]
+                                                                     [:dict_type {:optional true} :string]]}
                 :handler (partial dict/list-dict-data {:dict-service dict-service})}
          :post {:perms "system:dict:add" :summary "新增字典数据" :handler (partial dict/create-dict-data {:dict-service dict-service})}}]
     ["/export" {:get {:perms "system:dict:export" :summary "导出字典数据" :description "导出字典数据为CSV文件"

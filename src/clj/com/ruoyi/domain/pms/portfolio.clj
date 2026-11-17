@@ -2,33 +2,41 @@
   "跨项目只读派生: 我的待办 (C07/C09 本地提醒, 不投递外部消息), 全局检索 (G16, 按项目权限与密级过滤),
    项目组合看板 (G02, 主/子/单机进度/齐套/试验/问题/成本下钻) 与经营目标达成 (F09).
    全部读取时计算, 不落库, 仅覆盖当前用户可访问的项目."
-  (:require [clojure.string :as str]
-            [com.ruoyi.domain.pms.approval-chain :as chain]
-            [com.ruoyi.domain.pms.config :as config]
-            [com.ruoyi.domain.pms.delivery.materials :as materials]
-            [com.ruoyi.domain.pms.delivery.store :as d]
-            [com.ruoyi.domain.pms.finance-cost :as cost]
-            [com.ruoyi.domain.pms.finance-money :as money]
-            [com.ruoyi.domain.pms.governance.gates :as gates]
-            [com.ruoyi.domain.pms.governance.store :as g]
-            [com.ruoyi.domain.pms.planning.progress :as progress]
-            [com.ruoyi.domain.pms.read-model :as rm]
-            [com.ruoyi.domain.pms.rules :as r])
-  (:import [java.time LocalDate]
-           [java.time.temporal ChronoUnit]))
+  (:require
+    [clojure.string :as str]
+    [com.ruoyi.domain.pms.approval-chain :as chain]
+    [com.ruoyi.domain.pms.config :as config]
+    [com.ruoyi.domain.pms.delivery.materials :as materials]
+    [com.ruoyi.domain.pms.delivery.store :as d]
+    [com.ruoyi.domain.pms.finance-cost :as cost]
+    [com.ruoyi.domain.pms.finance-money :as money]
+    [com.ruoyi.domain.pms.governance.gates :as gates]
+    [com.ruoyi.domain.pms.governance.store :as g]
+    [com.ruoyi.domain.pms.planning.progress :as progress]
+    [com.ruoyi.domain.pms.read-model :as rm]
+    [com.ruoyi.domain.pms.rules :as r])
+  (:import
+    (java.time
+      LocalDate)
+    (java.time.temporal
+      ChronoUnit)))
+
 
 (defn authorized-projects
   "当前用户可见的全部项目 (管理员/经理/成员范围), 不分页."
   [q actor]
   (vec (q :pms/authorized-projects (r/access-params actor))))
 
+
 (defn- days-until
   [today date]
   (when (seq date) (.between ChronoUnit/DAYS today (LocalDate/parse date))))
 
+
 (defn- project-ref
   [project]
   (select-keys project [:project_id :project_no :name :status]))
+
 
 (defn- by-project
   "按授权项目集合一次性批量读取并按 project_id 分组, 避免逐项目逐类型的 N+1 查询; 空集合不发查询.
@@ -39,9 +47,11 @@
      (group-by :project_id (map xf (q query (merge {:project_ids (mapv :project_id projects)} extra))))
      {})))
 
+
 (defn- of-kind
   [rows kind]
   (filterv #(= kind (:kind %)) rows))
+
 
 ;; ── 我的待办 ────────────────────────────────────────────────────
 
@@ -54,6 +64,7 @@
    "test" ["试验评审" "工程交付"] "shipment" ["发运放行/签收" "工程交付"] "service" ["售后验证" "工程交付"]
    "survey" ["工勘确认" "工程交付"]})
 
+
 (defn- item
   [project today kind label tab record due]
   (let [days (days-until today due)]
@@ -62,6 +73,7 @@
      :title (or (:title record) (:text record) (:code record)) :status (:status record)
      :due_date due :days days :overdue (boolean (and (some? days) (neg? days)))
      :due_soon (boolean (and (some? days) (<= 0 days 3)))}))
+
 
 (defn- review-gov-items
   "待我独立审核的治理/交付记录: 状态待审, 指定给我且非提交人; 未发布审批策略的链式章程不重复出现."
@@ -148,8 +160,8 @@
                            (or (= uid (:owner_id rec)) (= uid (:manager_id project))))]
     (assoc (item project today "reminder"
                  (str "系统提醒: " (get {"task" "任务逾期" "issue" "问题逾期" "action" "行动逾期"
-                                          "handover" "交底逾期" "site-task" "现场任务未开始"}
-                                         (:target_kind rec) "逾期"))
+                                     "handover" "交底逾期" "site-task" "现场任务未开始"}
+                                    (:target_kind rec) "逾期"))
                  (:tab rec) rec (:due_date rec))
            :group "reminders" :target_kind (:target_kind rec) :target_id (:target_id rec) :raised_on (:raised_on rec))))
 
@@ -216,6 +228,7 @@
         all (vec (concat (apply concat items) (legacy-items q actor uid active) approvals))]
     (assoc (group-todos all) :delivery_status "local_only" :generated_at (str today))))
 
+
 ;; ── 全局检索 ────────────────────────────────────────────────────
 
 (def search-kinds
@@ -225,10 +238,12 @@
    "material" ["备料申请" "工程交付"] "bom" ["BOM" "工程交付"] "assembly" ["装配" "工程交付"] "test" ["试验" "工程交付"]
    "shipment" ["发运" "工程交付"] "service" ["售后" "工程交付"] "survey" ["工勘" "工程交付"] "handover" ["交底" "工程交付"] "site-task" ["现场任务" "工程交付"]})
 
+
 (defn- matches?
   [needle record]
   (let [hay (str/lower-case (str/join " " (remove nil? (map #(get record %) [:code :title :text :name :wbs_code :reason :minutes :description :deliverable]))))]
     (str/includes? hay needle)))
+
 
 (def ^:private search-kind-set
   "检索允许回链的对象类型: 目录内类型加项目与任务."
@@ -279,6 +294,7 @@
     {:q needle :count (count (take 200 results)) :truncated (> (count results) 200)
      :results (vec (take 200 results)) :confidential_visible confidential?}))
 
+
 ;; ── 项目组合看板 ────────────────────────────────────────────────
 
 (defn- version-summary
@@ -289,6 +305,7 @@
         (assoc :id (:version_id version) :revenue (money/money (:revenue_minor version))
                :total (money/money total) :total_minor total
                :margin (money/money (- (:revenue_minor version) total))))))
+
 
 (defn- finance-summary
   [actor versions entries]
@@ -302,8 +319,10 @@
        :revenue (:revenue (or settlement actual budget estimate)) :margin (:margin (or settlement actual budget))
        :budget_variance (when (and budget actual) (money/money (- (:total_minor actual) (:total_minor budget))))})))
 
+
 (def ^:private card-gov-kinds ["template-instance" "stage-weights" "issue" "risk" "gate-template" "gate" "progress-snapshot"])
 (def ^:private card-delivery-kinds ["bom" "test" "shipment" "configuration"])
+
 
 (defn- project-card
   "用批量预读的同项目数据卷积一张项目卡片; 读取时派生, 不落库."
@@ -342,6 +361,7 @@
             :finance (finance-summary actor versions entries)
             :data_time (str (java.time.Instant/now))})))
 
+
 (defn portfolio
   "多项目组合看板: 每个可见项目的进度/齐套/试验/问题/关口/成本卷积, 结构节点可下钻.
    全部数据按授权项目集合分七次批量读取 (任务/节点/治理/交付/费用版本/明细), 项目数增加不再线性增加查询次数."
@@ -370,11 +390,13 @@
                :average_percent (rm/mean-int (count cards) (reduce + 0 (map :overall_percent cards)))}
      :generated_at (str (java.time.Instant/now))}))
 
+
 ;; ── 经营目标达成 ────────────────────────────────────────────────
 
 (defn- quarter-of
   [date]
   (let [d (LocalDate/parse (subs date 0 10))] [(.getYear d) (inc (quot (dec (.getMonthValue d)) 3))]))
+
 
 (defn goal-attainment-summary
   "F09 季度经营目标达成组合级只读汇总: 按目标编码取当前最新版本 (剔除已退役) 后依达成率分档统计达标 (>=100%)/接近 (60-99%)/落后 (<60%) 目标数与达标率, 并按收入/毛利/结项数/准时率四指标给出目标数·达标数·平均达成率; 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
@@ -404,6 +426,7 @@
      :behind behind
      :met-pct (rm/pct total met)
      :by-metric by-metric}))
+
 
 (defn- settlement-of
   "取关闭项目已批准决算的费用 DTO; 无决算返回 nil (revenue/margin 已按 nil 兜底), 不把 nil 交给 cost/dto 复算明细."

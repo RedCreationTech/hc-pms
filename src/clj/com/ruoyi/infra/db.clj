@@ -219,6 +219,12 @@
     (com.zaxxer.hikari.HikariDataSource. hc)))
 
 
+(defn default-migration-dir
+  "按 JDBC URL 推导迁移目录: MySQL 用 migrations, 其余用 migrations-sqlite. system.edn 与热切换共用此唯一定义."
+  [jdbc-url]
+  (if (and jdbc-url (.contains jdbc-url "mysql")) "migrations" "migrations-sqlite"))
+
+
 (defn run-migrations!
   "对指定 DataSource 执行数据库迁移."
   [datasource migration-dir]
@@ -238,8 +244,7 @@
                       {:type (type conn)})))
     (log/info "[swap-db!] 创建新连接池:" jdbc-url)
     (let [new-ds (make-hikari-datasource jdbc-url {:pool-size pool-size})
-          migration-dir (or migration-dir
-                            (if (.contains jdbc-url "mysql") "migrations" "migrations-sqlite"))]
+          migration-dir (or migration-dir (default-migration-dir jdbc-url))]
       ;; 运行迁移
       (log/info "[swap-db!] 运行迁移 (" migration-dir ")...")
       (run-migrations! new-ds migration-dir)

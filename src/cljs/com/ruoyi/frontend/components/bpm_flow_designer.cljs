@@ -635,13 +635,13 @@
                                                               #()))))
                                       #()))
                _ (api/user-options {:page 1 :size 1000}
-                                 #(reset! users (walk/keywordize-keys (rows-or-vec %))) #())
+                                   #(reset! users (walk/keywordize-keys (rows-or-vec %))) #())
                _ (api/role-options {:page 1 :size 1000}
-                                 #(reset! roles (walk/keywordize-keys (rows-or-vec %))) #())
+                                   #(reset! roles (walk/keywordize-keys (rows-or-vec %))) #())
                _ (api/dept-options {:page 1 :size 1000}
-                                 #(reset! depts (walk/keywordize-keys (rows-or-vec %))) #())
+                                   #(reset! depts (walk/keywordize-keys (rows-or-vec %))) #())
                _ (api/post-options {:page 1 :size 1000}
-                                 #(reset! posts (walk/keywordize-keys (rows-or-vec %))) #())
+                                   #(reset! posts (walk/keywordize-keys (rows-or-vec %))) #())
                _ (api/bpmmgmt-list "user-group" {:page 1 :size 1000}
                                    #(reset! groups (walk/keywordize-keys (rows-or-vec %))) #())
                _ (api/bpmmgmt-list "expression" {:page 1 :size 1000}
@@ -800,11 +800,12 @@
                                                 :type "condition"
                                                 :child-node nil}))))
                bpmn-approver-text (fn [node]
-                                    (let [nick (fn [nm] (let [u (first (filter #(= nm (:user_name %)) @users))]
-                                                           (or (:nick_name u) nm)))
+                                    (let [nick (fn [nm]
+                                                 (let [u (first (filter #(= nm (:user_name %)) @users))]
+                                                   (or (:nick_name u) nm)))
                                           cands (remove str/blank?
-                                                    (concat (:candidate-users node)
-                                                            (when-let [a (:assignee node)] [a])))]
+                                                        (concat (:candidate-users node)
+                                                                (when-let [a (:assignee node)] [a])))]
                                       (when (seq cands)
                                         (str "审批人：" (str/join "、" (take 5 (map nick cands)))))))
                show-text-of (fn [node]

@@ -84,12 +84,12 @@
         (user-service/check-user-allowed! (:user_id existing))
         (when-not (data-scope/user-visible? scope existing)
           (throw (Exception. "没有权限访问该用户数据")))
-      (user-service/update-user! user-service
-                                 (assoc row-user
-                                        :user-id (:user_id existing)
-                                        :roles []
-                                        :posts []
-                                        :update_by (:user_name identity ""))))
+        (user-service/update-user! user-service
+                                   (assoc row-user
+                                          :user-id (:user_id existing)
+                                          :roles []
+                                          :posts []
+                                          :update_by (:user_name identity ""))))
       (throw (Exception. "登录账号不能重复")))
     (user-service/create-user! user-service
                                (assoc row-user

@@ -2932,19 +2932,19 @@
            (fn [_]
              ;; 选项接口仅需登录 (只返回编号/名称/字符/状态), 部门管理员没有角色管理权限也能给用户选角色
              (api/role-options {}
-                             (fn [result]
-                               (when (= 200 (:code result))
-                                 (rf/dispatch [:users/set-role-options (:data result)])))
-                             (fn [_]))))
+                               (fn [result]
+                                 (when (= 200 (:code result))
+                                   (rf/dispatch [:users/set-role-options (:data result)])))
+                               (fn [_]))))
 
 
 (rf/reg-fx :api/list-post-options
            (fn [_]
              (api/post-options {}
-                             (fn [result]
-                               (when (= 200 (:code result))
-                                 (rf/dispatch [:users/set-post-options (:data result)])))
-                             (fn [_]))))
+                               (fn [result]
+                                 (when (= 200 (:code result))
+                                   (rf/dispatch [:users/set-post-options (:data result)])))
+                               (fn [_]))))
 
 
 ;; ─── 部门树构建工具 ───────────────────────────────────────────────────────────

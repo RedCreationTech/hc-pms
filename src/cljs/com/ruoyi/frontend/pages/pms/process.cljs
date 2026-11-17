@@ -28,9 +28,14 @@
 
 
 (def request-labels {"standard" "标准备料" "long_lead" "长周期" "raw_material" "原材预投" "direct_ship" "直发" "packaging" "包材"})
-(def status-labels {"draft" "草稿" "in_review" "待审" "approved" "已批准" "rejected" "已驳回" "frozen" "已冻结" "partial" "部分齐套" "ready" "已齐套"
-                    "in_progress" "进行中" "released" "已放行" "shipped" "已发运" "received" "已签收" "open" "待处理" "closed" "已关闭"
-                    "resolved" "待验证" "registered" "已登记" "not_started" "未发起" "waived" "已豁免"})
+
+
+(def status-labels
+  {"draft" "草稿" "in_review" "待审" "approved" "已批准" "rejected" "已驳回" "frozen" "已冻结" "partial" "部分齐套" "ready" "已齐套"
+   "in_progress" "进行中" "released" "已放行" "shipped" "已发运" "received" "已签收" "open" "待处理" "closed" "已关闭"
+   "resolved" "待验证" "registered" "已登记" "not_started" "未发起" "waived" "已豁免"})
+
+
 (def status-colors {"approved" "green" "ready" "green" "received" "green" "closed" "green" "in_review" "blue" "in_progress" "blue" "rejected" "red" "open" "orange" "partial" "gold"})
 
 
@@ -44,11 +49,11 @@
           (for [[label types] [["主机汇总" #{"host-summary"}] ["附件汇总" #{"attachment-summary"}] ["需求确认" #{"requirement-confirm"}]
                                ["齐套/交接" #{"kitting" "assembly-test-handover"}] ["FAT/交底/SAT" #{"fat-confirm" "handover" "sat-confirm"}] ["其它" #{"generic"}]]
                 :let [items (pick types)] :when (seq items)] ^{:key label}
-            [:div {:style {:display "flex" :gap 8 :alignItems "center" :flexWrap "wrap"}}
-             [:span {:style {:width 90 :color "#718096"}} label]
-             (for [g items] ^{:key (:template_id g)}
-               [antd/tag {:color (cond (:passed g) "green" (= "not_started" (:status g)) "default" (= "rejected" (:status g)) "red" :else "blue")}
-                (str (:title g) " " (:passed_checks g) "/" (:total_checks g) " · " (get status-labels (:status g) (:status g)))])])])]))
+               [:div {:style {:display "flex" :gap 8 :alignItems "center" :flexWrap "wrap"}}
+                [:span {:style {:width 90 :color "#718096"}} label]
+                (for [g items] ^{:key (:template_id g)}
+                     [antd/tag {:color (cond (:passed g) "green" (= "not_started" (:status g)) "default" (= "rejected" (:status g)) "red" :else "blue")}
+                      (str (:title g) " " (:passed_checks g) "/" (:total_checks g) " · " (get status-labels (:status g) (:status g)))])])])]))
 
 
 (defn- material-board
@@ -58,9 +63,9 @@
      (if (empty? rows) [:span {:style {:color "#98a2b3"}} "尚无申请"]
          [:div {:style {:display "grid" :gap 6}}
           (for [[type items] (group-by :request_type rows)] ^{:key type}
-            [:div {:style {:display "flex" :gap 8 :alignItems "center"}}
-             [:span {:style {:width 80 :color "#718096"}} (get request-labels type type)]
-             [status-tags (count-by :status items) status-labels status-colors]])])]))
+               [:div {:style {:display "flex" :gap 8 :alignItems "center"}}
+                [:span {:style {:width 80 :color "#718096"}} (get request-labels type type)]
+                [status-tags (count-by :status items) status-labels status-colors]])])]))
 
 
 (defn- kitting-board
@@ -73,7 +78,7 @@
        [antd/tag (str "冻结BOM " (:bom_count rollup))] [antd/tag (str "齐套行 " (:complete_lines rollup) "/" (:required_lines rollup))]
        [antd/tag {:color (if (pos? (count (:shortages rollup))) "red" "green")} (str "缺件行 " (count (:shortages rollup)))]]
       (for [n (:nodes rollup) :when (not= "main" (:node_type n))] ^{:key (:node_id n)}
-        [:div {:style {:fontSize 12}} (str (:node_code n) " " (:name n) ": " (:kit_percent n) "% (" (:complete_lines n) "/" (:required_lines n) ")")])]]))
+           [:div {:style {:fontSize 12}} (str (:node_code n) " " (:name n) ": " (:kit_percent n) "% (" (:complete_lines n) "/" (:required_lines n) ")")])]]))
 
 
 (defn- assembly-board
@@ -83,12 +88,12 @@
      (if (empty? rows) [:span {:style {:color "#98a2b3"}} "尚无装配任务"]
          [:div {:style {:display "grid" :gap 6}}
           (for [a rows] ^{:key (:id a)}
-            [:div {:style {:display "flex" :gap 8 :alignItems "center" :flexWrap "wrap"}}
-             [:span {:style {:minWidth 120}} (:code a)]
-             [antd/tag {:color (get status-colors (:status a) "default")} (get status-labels (:status a) (:status a))]
-             [antd/progress {:percent (int (* 100 (/ (or (:step_count a) 0) (max 1 (or (:step_total a) 6))))) :size "small" :style {:width 160}
-                             :format (fn [_] (str (:step_count a) "/" (:step_total a) " 步"))}]
-             [:span {:style {:fontSize 12 :color "#718096"}} (str "当前 " (get {"not_started" "未开始" "on_island" "上岛" "assembling" "装配" "unit_inspection" "单机交检" "wiring_inspection" "连线交检" "off_island" "下岛" "handover" "交接"} (:current_step a) (:current_step a)))]])])]))
+               [:div {:style {:display "flex" :gap 8 :alignItems "center" :flexWrap "wrap"}}
+                [:span {:style {:minWidth 120}} (:code a)]
+                [antd/tag {:color (get status-colors (:status a) "default")} (get status-labels (:status a) (:status a))]
+                [antd/progress {:percent (int (* 100 (/ (or (:step_count a) 0) (max 1 (or (:step_total a) 6))))) :size "small" :style {:width 160}
+                                :format (fn [_] (str (:step_count a) "/" (:step_total a) " 步"))}]
+                [:span {:style {:fontSize 12 :color "#718096"}} (str "当前 " (get {"not_started" "未开始" "on_island" "上岛" "assembling" "装配" "unit_inspection" "单机交检" "wiring_inspection" "连线交检" "off_island" "下岛" "handover" "交接"} (:current_step a) (:current_step a)))]])])]))
 
 
 (defn- test-board
@@ -97,10 +102,10 @@
     [card "SIT / FAT / SAT" "按试验类别统计状态; 必需试验未批准时发运/收尾被阻塞"
      [:div {:style {:display "grid" :gap 6}}
       (for [type (or required ["SIT" "FAT" "SAT"])] ^{:key type}
-        (let [items (filter #(= type (:test_type %)) rows)]
-          [:div {:style {:display "flex" :gap 8 :alignItems "center"}}
-           [:span {:style {:width 50 :fontWeight 600}} type]
-           (if (empty? items) [antd/tag "未建立"] [status-tags (count-by :status items) status-labels status-colors])]))]]))
+           (let [items (filter #(= type (:test_type %)) rows)]
+             [:div {:style {:display "flex" :gap 8 :alignItems "center"}}
+              [:span {:style {:width 50 :fontWeight 600}} type]
+              (if (empty? items) [antd/tag "未建立"] [status-tags (count-by :status items) status-labels status-colors])]))]]))
 
 
 (defn- issue-board
@@ -110,14 +115,14 @@
      [:div {:style {:display "grid" :gap 8}}
       [antd/space {:wrap true}
        (for [[sev n] (count-by :severity (remove #(= "closed" (:status %)) issues))] ^{:key sev}
-         [antd/tag {:color (get {"blocker" "red" "major" "orange" "minor" "gold"} sev)} (str (get w/labels sev sev) " " n)])
+            [antd/tag {:color (get {"blocker" "red" "major" "orange" "minor" "gold"} sev)} (str (get w/labels sev sev) " " n)])
        [antd/tag (str "已关闭 " (count (filter #(= "closed" (:status %)) issues)))]
        [antd/tag {:color (if (pos? (count (filter :issue_overdue issues))) "red" "default")} (str "逾期 " (count (filter :issue_overdue issues)))]
        [antd/tag {:color (if (pos? (count (filter #(= "pending" (:escalation_state %)) issues))) "red" "default")} (str "待升级确认 " (count (filter #(= "pending" (:escalation_state %)) issues)))]]
       [antd/space {:wrap true}
        [antd/tag {:color "blue"} (str "追踪覆盖率 " (get summary :coverage-pct 0) "%")]
        (for [[level n] (get summary :deviations) :when (pos? n)] ^{:key level}
-         [antd/tag {:color (get {"minor" "gold" "major" "orange" "blocker" "red"} (name level))} (str "追踪偏差 " (name level) " " n)])]]]))
+            [antd/tag {:color (get {"minor" "gold" "major" "orange" "blocker" "red"} (name level))} (str "追踪偏差 " (name level) " " n)])]]]))
 
 
 (defn- deliverable-board
@@ -129,7 +134,7 @@
        [antd/tag {:color "blue"} (str "覆盖文档 " (:total coverage 0))] [antd/tag {:color "green"} (str "已发布率 " (get coverage :released-pct 0) "%")]
        [antd/tag (str "待审 " (get coverage :in-review 0))] [antd/tag (str "未提交 " (:registered coverage 0))]]
       (for [stage tree] ^{:key (:stage stage)}
-        [:div {:style {:fontSize 12}} (str (:stage stage) ": " (:count stage) " 份 · 节点 " (count (:nodes stage)))])]]))
+           [:div {:style {:fontSize 12}} (str (:stage stage) ": " (:count stage) " 份 · 节点 " (count (:nodes stage)))])]]))
 
 
 (defn- site-board

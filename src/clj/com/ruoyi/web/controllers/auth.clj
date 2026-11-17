@@ -8,8 +8,8 @@
     [com.ruoyi.infra.login-guard :as login-guard]
     [com.ruoyi.infra.online :as online]
     [com.ruoyi.infra.security :as security]
-    [com.ruoyi.web.middleware.authz :as authz]
     [com.ruoyi.web.controllers.captcha :as captcha]
+    [com.ruoyi.web.middleware.authz :as authz]
     [ring.util.response :as response]))
 
 

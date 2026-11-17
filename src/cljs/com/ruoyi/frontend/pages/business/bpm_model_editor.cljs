@@ -213,11 +213,11 @@
                                  #(set-categories! (walk/keywordize-keys (get-in % [:data :rows])))
                                  #())
         (api/user-options {:page 1 :size 1000}
-                        #(set-users! (walk/keywordize-keys (get-in % [:data :rows])))
-                        #())
+                          #(set-users! (walk/keywordize-keys (get-in % [:data :rows])))
+                          #())
         (api/dept-options {:page 1 :size 1000}
-                        #(set-depts! (walk/keywordize-keys (get-in % [:data :rows])))
-                        #())
+                          #(set-depts! (walk/keywordize-keys (get-in % [:data :rows])))
+                          #())
         js/undefined)
       [model-id])
     (cond

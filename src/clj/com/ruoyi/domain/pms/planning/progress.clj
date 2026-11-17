@@ -3,6 +3,7 @@
   (:require
     [com.ruoyi.domain.pms.read-model :as rm]))
 
+
 (defn- inherit
   "任务未直接声明阶段/节点时, 沿 WBS 父链向上继承最近的声明值."
   [by-id task key]
@@ -12,10 +13,12 @@
           (> depth 40) nil
           :else (recur (get by-id (:parent_id current)) (inc depth)))))
 
+
 (defn task-node
   "返回任务直接声明或沿父链继承的结构节点 id."
   [tasks task]
   (inherit (into {} (map (juxt :task_id identity) tasks)) task :node_id))
+
 
 (defn- weighted-percent
   "按工期加权的完成百分比 (整数), 无任务返回 0."
@@ -23,6 +26,7 @@
   (let [weights (map #(max 1 (or (:duration_days %) 1)) tasks)
         total (reduce + 0 weights)]
     (rm/mean-int total (reduce + 0 (map * (map #(or (:percent_complete %) 0) tasks) weights)))))
+
 
 (defn leaf-rows
   "为每个叶子任务标注其阶段与节点归属 (沿父链继承)."
@@ -32,12 +36,14 @@
          (remove #(= "summary" (:task_type %)))
          (mapv #(assoc % :stage (inherit by-id % :stage_code) :node (inherit by-id % :node_id))))))
 
+
 (defn node-descendants
   "返回节点及其全部后代节点 id 集合."
   [nodes node-id]
   (loop [result #{node-id} frontier [node-id]]
     (let [children (map :node_id (filter #(contains? (set frontier) (:parent_id %)) nodes))]
       (if (empty? children) result (recur (into result children) (vec children))))))
+
 
 (defn rollup
   "输出阶段卷积 (权重来自模板实例, 无模板时等权), 结构节点卷积与总体进度."

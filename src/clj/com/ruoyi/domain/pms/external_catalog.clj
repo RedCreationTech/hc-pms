@@ -1,11 +1,14 @@
 (ns com.ruoyi.domain.pms.external-catalog
   "外部接口配置目录 (只读): 逐项登记仍依赖真实外部系统合同/规则的能力, 供集成配置人员对照准备字段, 认证, 责任人与测试环境.
    本目录为随代码发布的静态清单, 读取时不查库, 不落库, 不做连通性测试, 不代表任何真实集成已通过; 每条能力给出所需接口字段与当前依赖状态 (待合同 / 待规则)."
-  (:require [com.ruoyi.domain.pms.read-model :as rm]))
+  (:require
+    [com.ruoyi.domain.pms.read-model :as rm]))
+
 
 (def ^:private capability-statuses
   "受控的依赖状态取值, 与验收矩阵保持一致."
   #{"待合同" "待规则"})
+
 
 (def capabilities
   "全部依赖外部系统的能力清单. 键义: :key 稳定标识, :capability 能力名, :system 外部系统归类, :group 归类 (adapter 系统适配器 / business 业务对接点),
@@ -107,6 +110,7 @@
     :matrix-rows "F02" :direction "双向"
     :required-fields ["企业预算科目" "人工/材料/制造等类别" "已批准预算与概算分离" "变更不覆盖旧预算"] :owner "待确认 (财务/ERP 负责人)" :status "待规则"
     :notes "本地 budget 独立版本/批准/修订已完成, 企业预算科目及 ERP 合同口径待确认."}])
+
 
 (defn catalog
   "外部接口配置目录只读视图: 汇总各能力数量, 依赖状态分布与外部系统分布, 并返回完整清单. 只读, 不查库, 不落库, 不做连通性测试."

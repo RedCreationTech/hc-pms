@@ -17,7 +17,8 @@
   "把平铺部门列表转换为树; node-fn 把部门转换为节点 (子节点放在 :children)."
   [items node-fn]
   (let [by-parent (group-by :parent_id items)
-        build (fn build [d]
+        build (fn build
+                [d]
                 (let [node (node-fn d)
                       children (mapv build (get by-parent (:dept_id d)))]
                   (if (seq children) (assoc node :children children) node)))]

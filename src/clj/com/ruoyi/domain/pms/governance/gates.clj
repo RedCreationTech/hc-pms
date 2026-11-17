@@ -1,53 +1,58 @@
 (ns com.ruoyi.domain.pms.governance.gates
   "关口模板,指定版本证据,独立签核及生命周期前置检查."
-  (:require [clojure.string :as str]
-            [com.ruoyi.domain.pms.config :as config]
-            [com.ruoyi.domain.pms.config.catalog :as catalog]
-            [com.ruoyi.domain.pms.governance.store :as s]
-            [com.ruoyi.domain.pms.kernel :as k]
-            [com.ruoyi.domain.pms.read-model :as rm]
-            [com.ruoyi.domain.pms.rules :as r]))
+  (:require
+    [clojure.string :as str]
+    [com.ruoyi.domain.pms.config :as config]
+    [com.ruoyi.domain.pms.config.catalog :as catalog]
+    [com.ruoyi.domain.pms.governance.store :as s]
+    [com.ruoyi.domain.pms.kernel :as k]
+    [com.ruoyi.domain.pms.read-model :as rm]
+    [com.ruoyi.domain.pms.rules :as r]))
+
 
 (defn create-template!
   "登记不可变的项目关口模板: 类型, 适用阶段, 阻断检查点与检查项 (含发布版本要求)."
   [svc actor id body]
   (k/mutate! svc actor id "pms:project:edit" body "gate-template.created"
-    (fn [q project]
-      (s/input! body [:code :title :stage :required :checks :gate_type :blocks])
-      (let [template (config/gate-template! (dissoc body :version))]
-        (when (some #(= (:code template) (:code %)) (s/records q project "gate-template"))
-          (r/fail! 409 "关口模板编号已存在"))
-        (s/insert! q project actor "gate-template" template {:status "registered"})))))
+             (fn [q project]
+               (s/input! body [:code :title :stage :required :checks :gate_type :blocks])
+               (let [template (config/gate-template! (dissoc body :version))]
+                 (when (some #(= (:code template) (:code %)) (s/records q project "gate-template"))
+                   (r/fail! 409 "关口模板编号已存在"))
+                 (s/insert! q project actor "gate-template" template {:status "registered"})))))
+
 
 (defn from-catalog!
   "按原蓝图关口目录一键建立项目内 Gate 模板 (B06-B15 模板候选, 适用范围待业务签收)."
   [svc actor id body]
   (k/mutate! svc actor id "pms:project:edit" body "gate-template.created"
-    (fn [q project]
-      (s/input! body [:gate_type :required])
-      (let [item (or (catalog/gate-type (:gate_type body)) (r/fail! 404 "关口目录项不存在"))
-            template (config/gate-template! {:code (str "GT-" (str/upper-case (:gate_type item)))
-                                             :title (:title item) :gate_type (:gate_type item) :stage (:stage item)
-                                             :required (if (false? (:required body)) false true)
-                                             :blocks (or (:blocks item) []) :checks (:checks item)})]
-        (when (some #(= (:code template) (:code %)) (s/records q project "gate-template"))
-          (r/fail! 409 "该类型关口模板已建立"))
-        (s/insert! q project actor "gate-template" (assoc template :source "catalog") {:status "registered"})))))
+             (fn [q project]
+               (s/input! body [:gate_type :required])
+               (let [item (or (catalog/gate-type (:gate_type body)) (r/fail! 404 "关口目录项不存在"))
+                     template (config/gate-template! {:code (str "GT-" (str/upper-case (:gate_type item)))
+                                                      :title (:title item) :gate_type (:gate_type item) :stage (:stage item)
+                                                      :required (if (false? (:required body)) false true)
+                                                      :blocks (or (:blocks item) []) :checks (:checks item)})]
+                 (when (some #(= (:code template) (:code %)) (s/records q project "gate-template"))
+                   (r/fail! 409 "该类型关口模板已建立"))
+                 (s/insert! q project actor "gate-template" (assoc template :source "catalog") {:status "registered"})))))
+
 
 (defn create!
   "从确定模板创建关口实例并绑定独立审核人."
   [svc actor id body]
   (k/mutate! svc actor id "pms:project:edit" body "gate.created"
-    (fn [q project]
-      (s/input! body [:template_id :title :reviewer_id])
-      (let [template (s/record! q project "gate-template" (:template_id body))]
-        (s/insert! q project actor "gate"
-                   {:title (s/text! body :title 200) :template_id (:id template)
-                    :stage (:stage template) :required (:required template)
-                    :gate_type (:gate_type template "generic")
-                    :reviewer_id (s/reviewer! q project actor (:reviewer_id body))
-                    :checks (mapv #(assoc % :passed false :evidence_ids []) (:checks template))}
-                   {})))))
+             (fn [q project]
+               (s/input! body [:template_id :title :reviewer_id])
+               (let [template (s/record! q project "gate-template" (:template_id body))]
+                 (s/insert! q project actor "gate"
+                            {:title (s/text! body :title 200) :template_id (:id template)
+                             :stage (:stage template) :required (:required template)
+                             :gate_type (:gate_type template "generic")
+                             :reviewer_id (s/reviewer! q project actor (:reviewer_id body))
+                             :checks (mapv #(assoc % :passed false :evidence_ids []) (:checks template))}
+                            {})))))
+
 
 (defn- completed-checks!
   "将检查结果绑定模板原有项目和不可变文档证据."
@@ -70,16 +75,18 @@
                 (not waived) (dissoc :waiver_reason))))
           (:checks gate))))
 
+
 (defn checks!
   "编辑未签核关口的检查结果,保留模板必需性不被客户端覆盖."
   [svc actor id rid body]
   (k/mutate! svc actor id "pms:project:edit" body "gate.checked"
-    (fn [q project]
-      (s/input! body [:checks])
-      (let [gate (s/record! q project "gate" rid)]
-        (s/status! gate #{"draft" "ready" "rejected"})
-        (s/change! q project gate "ready"
-                   {:checks (completed-checks! q project gate (:checks body))})))))
+             (fn [q project]
+               (s/input! body [:checks])
+               (let [gate (s/record! q project "gate" rid)]
+                 (s/status! gate #{"draft" "ready" "rejected"})
+                 (s/change! q project gate "ready"
+                            {:checks (completed-checks! q project gate (:checks body))})))))
+
 
 (defn- check-ready!
   "单个必需检查项的就绪门: 通过或豁免, 豁免须有说明, 通过须有确定证据, 声明 require_released 的证据须已独立发布 (C06 发布链联动)."
@@ -100,6 +107,7 @@
     (check-ready! q project check))
   true)
 
+
 (defn checkpoint-ready!
   "阻断型关口: 声明了该交付检查点的模板必须已有通过或豁免的实例, 否则拒绝后续交付命令."
   [q project checkpoint]
@@ -108,6 +116,7 @@
       (when-not (some #(contains? #{"approved" "waived"} (:status %)) instances)
         (r/fail! 409 (str "阻断关口尚未通过: " (:title template))))))
   true)
+
 
 (defn gate-progress
   "只读汇总各关口模板的实例进展与检查项通过数, 供汇总 Gate 下钻 (B09/B10)."
@@ -125,6 +134,7 @@
              :passed (boolean (some #(contains? #{"approved" "waived"} (:status %)) instances))}))
         templates))
 
+
 (defn gate-read-model
   "只读派生单个关口实例的签核就绪度: 检查项总数/已满足数/豁免数, 必需未满足项编码及其数量(gate_required_missing)及是否可签核, 不写存储."
   [gate]
@@ -139,6 +149,7 @@
            :gate_required_missing (count blocking)
            :ready_to_sign (empty? blocking))))
 
+
 (defn gate-evidence-voided-model
   "只读派生关口验收快照所引用证据是否现已作废: 逐个检查项的 evidence_ids (登记时绑定的不可变文档版本 id) 经 docs-by-id 解析其业务编码, 若该编码最新版本已被受控作废(discarded) 则计入 gate_voided_checks, 任一命中则 gate_evidence_voided 为 true. 检查项自身快照口径不漂移(引用的仍是那一个历史版本), 本标注仅额外提示证据现已整体作废. 免迁移读取时计算, 不写存储, 不改变不可变版本, 不门控, 键名不带尾随问号."
   [voided-codes docs-by-id gate]
@@ -151,6 +162,7 @@
     (assoc gate
            :gate_voided_checks voided-count
            :gate_evidence_voided (pos? voided-count))))
+
 
 (defn gate-evidence-release-model
   "只读派生关口验收快照所引用的已通过证据是否已正式发布: 逐个已勾选通过 (:passed) 且绑定了 evidence_ids (登记时锁定的不可变文档版本 id) 的检查项, 经 docs-by-id 解析所绑文档的当前状态, 只要存在任一绑定文档尚未签发 (status 不为 approved, 含 still registered/in_review/rejected/缺档) 即计入 gate_evidence_pending. 派生 gate_evidence_checks (通过且绑证据的检查项数), gate_evidence_pending (其中证据未全发布的检查项数) 与布尔 gate_evidence_unreleased (gate_evidence_pending > 0). 本标注只提示证据尚未正式发布, 与 gate_evidence_voided (作废) 正交; 免迁移读取时计算, 不写存储, 不改变不可变版本, 不门控, 键名不带尾随问号."
@@ -167,35 +179,38 @@
            :gate_evidence_pending pending-count
            :gate_evidence_unreleased (pos? pending-count))))
 
+
 (defn submit!
   "提交关口审核,允许完整检查或有理由的豁免申请."
   [svc actor id rid body]
   (k/mutate! svc actor id "pms:project:edit" body "gate.submitted"
-    (fn [q project]
-      (s/input! body [:waiver_reason])
-      (let [gate (s/record! q project "gate" rid)
-            waiver (s/optional-text! body :waiver_reason 2000)]
-        (s/status! gate #{"draft" "ready" "rejected"})
-        (s/reviewer! q project actor (:reviewer_id gate))
-        (when (empty? waiver) (evidence-ready! q project gate))
-        (s/change! q project gate "in_review"
-                   {:submitted_by (:user_id actor) :waiver_reason waiver})))))
+             (fn [q project]
+               (s/input! body [:waiver_reason])
+               (let [gate (s/record! q project "gate" rid)
+                     waiver (s/optional-text! body :waiver_reason 2000)]
+                 (s/status! gate #{"draft" "ready" "rejected"})
+                 (s/reviewer! q project actor (:reviewer_id gate))
+                 (when (empty? waiver) (evidence-ready! q project gate))
+                 (s/change! q project gate "in_review"
+                            {:submitted_by (:user_id actor) :waiver_reason waiver})))))
+
 
 (defn decide!
   "指定审核人批准,拒绝或带充分理由豁免关口."
   [svc actor id rid body]
   (k/mutate! svc actor id "pms:quality:approve" body "gate.decided" {:write? false}
-    (fn [q project]
-      (s/input! body [:decision :reason])
-      (let [gate (s/record! q project "gate" rid)
-            decision (s/enum! (:decision body) #{"approved" "rejected" "waived"} "decision")
-            reason (s/text! body :reason)]
-        (s/status! gate #{"in_review"})
-        (s/decision-actor! actor gate)
-        (when (= decision "approved") (evidence-ready! q project gate))
-        (when (and (= decision "waived") (empty? (:waiver_reason gate)))
-          (r/fail! 409 "未提出豁免申请,不能直接豁免"))
-        (s/change! q project gate decision {:decision_reason reason :decided_by (:user_id actor)})))))
+             (fn [q project]
+               (s/input! body [:decision :reason])
+               (let [gate (s/record! q project "gate" rid)
+                     decision (s/enum! (:decision body) #{"approved" "rejected" "waived"} "decision")
+                     reason (s/text! body :reason)]
+                 (s/status! gate #{"in_review"})
+                 (s/decision-actor! actor gate)
+                 (when (= decision "approved") (evidence-ready! q project gate))
+                 (when (and (= decision "waived") (empty? (:waiver_reason gate)))
+                   (r/fail! 409 "未提出豁免申请,不能直接豁免"))
+                 (s/change! q project gate decision {:decision_reason reason :decided_by (:user_id actor)})))))
+
 
 (def ^:private remediation-spec
   "关口整改的领域差异: 状态门, 检查项取键与空失败文案."
@@ -207,28 +222,30 @@
   "把关口未通过的必需检查项落实为可追踪的整改行动项: 复用行动类型与既有完成/独立验证/转任务生命周期, 记录来源关口与所选未通过必需检查项编码, 缺省沿用关口审核人为负责人; 需项目编辑权限, 仅对尚未签核(draft/ready/rejected)且确有未通过必需检查项的关口实例开放."
   [svc actor id rid body]
   (k/mutate! svc actor id "pms:project:edit" body "gate.remediation-action-created"
-    (fn [q project]
-      (s/input! body [:title :owner_id :due_date :check_code])
-      (let [[gate failing] (s/failing-checks! q project rid remediation-spec)
-            target (s/remediation-target failing (not-empty (s/optional-text! body :check_code 50)))]
-        (s/insert-remediation! q project actor body gate
-                               {:source-k :source_gate_id :owner-default :reviewer_id
-                                :rid rid :check-code (:code target)
-                                :given (s/optional-text! body :title 200)
-                                :base-title (str (:title gate) " / " (:title target))})))))
+             (fn [q project]
+               (s/input! body [:title :owner_id :due_date :check_code])
+               (let [[gate failing] (s/failing-checks! q project rid remediation-spec)
+                     target (s/remediation-target failing (not-empty (s/optional-text! body :check_code 50)))]
+                 (s/insert-remediation! q project actor body gate
+                                        {:source-k :source_gate_id :owner-default :reviewer_id
+                                         :rid rid :check-code (:code target)
+                                         :given (s/optional-text! body :title 200)
+                                         :base-title (str (:title gate) " / " (:title target))})))))
+
 
 (defn remediation-actions!
   "把关口全部未通过的必需检查项一次性落实为多条可追踪整改行动项: 对每条未通过必需项各生成一条独立 open 行动 (分别记录其检查项编码), 复用行动类型与既有完成/独立验证/转任务生命周期, 共用同一负责人与到期日 (缺省负责人沿用关口审核人); 需项目编辑权限, 仅对尚未签核(draft/ready/rejected)且确有未通过必需检查项的关口实例开放. 与单条 remediation-action! 的差别仅在逐条落实全部未过必需项而非仅首条或指定项, 同样不改动关口状态."
   [svc actor id rid body]
   (k/mutate! svc actor id "pms:project:edit" body "gate.remediation-actions-created"
-    (fn [q project]
-      (s/input! body [:owner_id :due_date])
-      (let [[gate failing] (s/failing-checks! q project rid remediation-spec)]
-        (mapv #(s/insert-remediation! q project actor body gate
-                                      {:source-k :source_gate_id :owner-default :reviewer_id
-                                       :rid rid :check-code (:code %)
-                                       :base-title (str (:title gate) " / " (:title %))})
-              failing)))))
+             (fn [q project]
+               (s/input! body [:owner_id :due_date])
+               (let [[gate failing] (s/failing-checks! q project rid remediation-spec)]
+                 (mapv #(s/insert-remediation! q project actor body gate
+                                               {:source-k :source_gate_id :owner-default :reviewer_id
+                                                :rid rid :check-code (:code %)
+                                                :base-title (str (:title gate) " / " (:title %))})
+                       failing)))))
+
 
 (defn- stage-ready!
   "要求必需关口模板存在且全部实例已通过或被正式豁免."
@@ -242,12 +259,14 @@
           (r/fail! 409 (str "必需关口尚未通过: " (:title template))))))
     true))
 
+
 (defn execution-ready!
   "执行开始需要当前正式章程及所有必需执行关口通过."
   [q project]
   (let [charter (first (s/latest (s/records q project "charter")))]
     (when-not (= "approved" (:status charter)) (r/fail! 409 "当前项目章程尚未独立批准"))
     (stage-ready! q project "execution")))
+
 
 (defn closure-ready!
   "收尾需要必需验收关口通过且无未关闭的阻塞问题."
@@ -256,6 +275,7 @@
               (s/records q project "issue"))
     (r/fail! 409 "仍有未关闭的阻塞问题"))
   (stage-ready! q project "closure"))
+
 
 (defn gate-closure-summary
   "只读聚合全部关口实例的签核闭环健康度: 按状态计数 (批准/豁免/审批中/待提交/草稿/驳回), 已签核 (批准或豁免) 占全部实例的整数百分比, 被未满足必需检查阻断的实例数, 证据已作废与证据待发布的实例数, 以及已落实整改 (至少派生一条整改行动, 依 gate_remediation_total) 与仍有未完成整改 (依 gate_remediation_open) 的关口数; 是关口实例层的签核闭环汇总, 与 gate-progress 的模板层下钻互补. 依赖 gate-remediation-read-model 已写入的派生键, 故须在其之后调用. 只读派生, 不改变任何关口状态, 不构成门控, 键名不带尾随问号."
@@ -279,10 +299,12 @@
      :remediation-open (count (filter #(pos? (:gate_remediation_open % 0)) gates))
      :closure-pct (rm/pct total signed)}))
 
+
 (defn attach-gate-closure-summary
   "在治理读模型上追加 :gate_closure 只读汇总 (基于已富化的 :gates), 不改变任何逐条关口记录."
   [data]
   (assoc data :gate_closure (gate-closure-summary (:gates data))))
+
 
 (defn gate-exception-summary
   "只读聚合全部关口实例的检查项级例外放行治理健康度: 必需检查项总数 required-checks, 其中经真实通过数 passed-checks 与经检查项例外放行 (:waived + :waiver_reason) 清除数 exception-checks, 含至少一项必需检查项被例外放行的关口数 gates-with-exception, 以及“靠例外放行才就绪”的关口数 gates-exception-dependent (该关口全部必需检查项当前均满足, 但其中至少一项仅因例外放行而满足—即去掉例外放行即无法满足必需项), 例外放行占必需检查项的整数百分比 waiver-pct (required-checks 为 0 时给 0), 与例外放行却缺失说明的必需检查项数 reason-missing (写路径 evidence-ready! 已强制例外检查须带说明, 故通常恒为 0, 本项作控制断言以显式暴露违规例外). 与 gate-closure-summary 互补且口径正交—后者按关口整体实例状态 (approved/waived 裁决/in_review/…) 计数签核闭环, 本项聚焦检查项粒度的例外放行依赖度, 回答“关口的通过有多少是靠逐检查项豁免撑起来的”这一控制问题. 免迁移读取时派生, 不写存储, 不改变任何关口状态或检查项, 不构成门控, 键名不带尾随问号."
@@ -308,21 +330,24 @@
      :reason-missing reason-missing
      :waiver-pct (rm/pct required-checks exception-checks)}))
 
+
 (defn attach-gate-exception-summary
   "在治理读模型上追加 :gate_exception_summary 只读汇总 (基于已富化的 :gates), 不改变任何逐条关口记录."
   [data]
   (assoc data :gate_exception_summary (gate-exception-summary (:gates data))))
 
+
 (defn gate-velocity-summary
   "只读按签核流转阶段为每个关口实例分桶, 回答\"尚未签核的关口此刻卡在哪一步, 哪些可以立刻推进\": signed (approved 或 waived, 已签核), awaiting-decision (in_review, 已提交待独立审核人裁决), ready-to-submit (仍处 draft 或 ready 但全部必需检查项已满足—即 gate-read-model 派生的 ready_to_sign 为真—可立即提交评审), needs-checks (仍处 draft 或 ready 且尚有未满足的必需检查项, 被检查内容阻断), rework (rejected, 已驳回需返工). 五桶互斥且并集恰为全部关口实例, 因为关口签核流转的全部合法状态 draft/ready/in_review/rejected/approved/waived 被完整覆盖. actionable-backlog 为尚未签核却存在明确可推进动作的关口数 (ready-to-submit + awaiting-decision + rework), closure-pct 为已签核占全部实例的整数百分比 (total 为 0 时给 0). by-stage 按关口适用阶段 (payload :stage, 缺省归入 unspecified) 用 sorted-map 统计各阶段 total/signed/pending, 呈现阶段准入流水线 (执行/收尾等) 的推进度. ready-to-submit-list 点名当前可立即提交评审的关口 (gate-id/title/stage/checks-passed/checks-total), 依 stage 再 title 稳定排序, 供工作台据此推进. 与 gate-closure-summary (纯状态直方图加闭环占比) 及 gate-exception-summary (逐检查项豁免依赖度) 口径正交: 本项把逐条关口派生的 ready_to_sign 与其当前 status 交叉, 唯一揭示\"就绪待提交\"这一既非草稿亦非评审中, 却可即刻提交评审的可执行积压. 免迁移读取时派生, 不写存储, 不改变任何关口状态或检查项, 不构成门控, 键名不带尾随问号."
   [gates]
   (let [signed-status #{"approved" "waived"}
-        bucket (fn [g] (let [st (:status g)]
-                         (cond (signed-status st) :signed
-                               (= st "in_review") :awaiting-decision
-                               (= st "rejected") :rework
-                               (true? (:ready_to_sign g)) :ready-to-submit
-                               :else :needs-checks)))
+        bucket (fn [g]
+                 (let [st (:status g)]
+                   (cond (signed-status st) :signed
+                         (= st "in_review") :awaiting-decision
+                         (= st "rejected") :rework
+                         (true? (:ready_to_sign g)) :ready-to-submit
+                         :else :needs-checks)))
         rows (mapv #(assoc % ::bucket (bucket %)) gates)
         counts (frequencies (map ::bucket rows))
         total (count rows)
@@ -337,8 +362,9 @@
                                       :signed (count (filter #(= :signed (::bucket %)) gs))
                                       :pending (count (remove #(= :signed (::bucket %)) gs))}])
                             (group-by #(or (:stage %) "unspecified") rows)))
-        ready-list (mapv (fn [g] {:gate-id (:id g) :title (:title g) :stage (:stage g)
-                                  :checks-passed (:gate_passed g) :checks-total (:gate_total g)})
+        ready-list (mapv (fn [g]
+                           {:gate-id (:id g) :title (:title g) :stage (:stage g)
+                            :checks-passed (:gate_passed g) :checks-total (:gate_total g)})
                          (sort-by (juxt #(or (:stage %) "") #(or (:title %) ""))
                                   (filterv #(= :ready-to-submit (::bucket %)) rows)))]
     {:available (pos? total)
@@ -352,6 +378,7 @@
      :closure-pct (rm/pct total signed)
      :by-stage by-stage
      :ready-to-submit-list ready-list}))
+
 
 (defn attach-gate-velocity-summary
   "在治理读模型上追加 :gate_velocity 只读汇总 (基于已富化的 :gates), 不改变任何逐条关口记录. 须在 gate-read-model 富化之后调用, 因分桶依赖每条关口的 ready_to_sign 派生键."

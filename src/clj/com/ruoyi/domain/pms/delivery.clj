@@ -1,19 +1,24 @@
 (ns com.ruoyi.domain.pms.delivery
   "交付执行工作台,受控业务命令及收尾阻塞检查."
-  (:require [com.ruoyi.domain.pms.delivery.fieldwork :as fieldwork]
-            [com.ruoyi.domain.pms.delivery.materials :as materials]
-            [com.ruoyi.domain.pms.delivery.production :as production]
-            [com.ruoyi.domain.pms.delivery.shipping :as shipping]
-            [com.ruoyi.domain.pms.delivery.store :as d]
-            [com.ruoyi.domain.pms.governance.store :as g]
-            [com.ruoyi.domain.pms.kernel :as k]
-            [com.ruoyi.domain.pms.rules :as r])
-  (:import [java.time LocalDate]))
+  (:require
+    [com.ruoyi.domain.pms.delivery.fieldwork :as fieldwork]
+    [com.ruoyi.domain.pms.delivery.materials :as materials]
+    [com.ruoyi.domain.pms.delivery.production :as production]
+    [com.ruoyi.domain.pms.delivery.shipping :as shipping]
+    [com.ruoyi.domain.pms.delivery.store :as d]
+    [com.ruoyi.domain.pms.governance.store :as g]
+    [com.ruoyi.domain.pms.kernel :as k]
+    [com.ruoyi.domain.pms.rules :as r])
+  (:import
+    (java.time
+      LocalDate)))
 
 
-(def sections "交付工作台类型集合." {:material_requests "material" :boms "bom" :assemblies "assembly"
-                                     :tests "test" :shipments "shipment" :service_cases "service"
-                                     :surveys "survey" :handovers "handover" :site_tasks "site-task"})
+(def sections
+  "交付工作台类型集合."
+  {:material_requests "material" :boms "bom" :assemblies "assembly"
+   :tests "test" :shipments "shipment" :service_cases "service"
+   :surveys "survey" :handovers "handover" :site_tasks "site-task"})
 
 
 (defn- quality-blockers
@@ -109,41 +114,41 @@
   "读取实际交付对象, 只读派生 (齐套卷积/装配步骤/发货前条件/交底时限/现场任务延误) 和明确的未接入外部同步状态."
   [svc actor id]
   (k/read! svc actor id "pms:project:query"
-    (fn [q project]
-      (let [config (d/configuration q project)
-            today (LocalDate/now)
-            data (into {} (for [[section kind] sections] [section (d/records q project kind)]))
-            tasks (vec (q :planning/tasks {:project_id (:project_id project)}))
-            nodes (vec (q :pms/nodes {:project_id (:project_id project)}))
-            issues (g/records q project "issue")
-            blocker-free? (not-any? #(and (= "blocker" (:severity %)) (not= "closed" (:status %))) issues)
-            test-remediation-rollup (fieldwork/remediation-rollup-by-test issues)
-            types (remove #{"SAT"} (:required_test_types config))
-            fat-ok? (fn [shipment] (every? (fn [rid] (every? #(production/type-approved? q project rid %) types)) (:assembly_ids shipment)))]
-        (-> data
-            (update :surveys #(mapv (partial fieldwork/survey-read-model today) %))
-            (update :assemblies #(mapv fieldwork/assembly-read-model %))
-            (update :shipments #(mapv (fn [s] (fieldwork/shipment-read-model config (fat-ok? s) blocker-free? s)) %))
-            (update :handovers #(mapv (partial fieldwork/handover-read-model today) %))
-            (update :service_cases #(mapv (partial fieldwork/service-read-model today) %))
-            (update :site_tasks #(mapv (partial fieldwork/site-task-read-model today) %))
-            (update :tests #(mapv fieldwork/test-execution-read-model %))
-            (update :tests #(mapv (partial fieldwork/test-remediation-read-model test-remediation-rollup) %))
-            fieldwork/attach-site-task-progress
-            fieldwork/attach-assembly-execution-progress
-            fieldwork/attach-preship-readiness
-            fieldwork/attach-shipment-closure
-            fieldwork/attach-handover-timeliness
-            fieldwork/attach-survey-closure
-            fieldwork/attach-service-closure
-            fieldwork/attach-test-execution
-            fieldwork/attach-test-remediation-closure
-            (assoc :configuration config :project_version (:version project)
-                   :blockers (closure-blockers q project) :external_sync_status "not_configured"
-                   :kitting_rollup (materials/kitting-rollup (:boms data) tasks nodes)
-                   :material_approval_summary (materials/material-approval-summary (:material_requests data) (:boms data))
-                   :task_links (task-links data)
-                   :assembly_steps fieldwork/assembly-steps))))))
+           (fn [q project]
+             (let [config (d/configuration q project)
+                   today (LocalDate/now)
+                   data (into {} (for [[section kind] sections] [section (d/records q project kind)]))
+                   tasks (vec (q :planning/tasks {:project_id (:project_id project)}))
+                   nodes (vec (q :pms/nodes {:project_id (:project_id project)}))
+                   issues (g/records q project "issue")
+                   blocker-free? (not-any? #(and (= "blocker" (:severity %)) (not= "closed" (:status %))) issues)
+                   test-remediation-rollup (fieldwork/remediation-rollup-by-test issues)
+                   types (remove #{"SAT"} (:required_test_types config))
+                   fat-ok? (fn [shipment] (every? (fn [rid] (every? #(production/type-approved? q project rid %) types)) (:assembly_ids shipment)))]
+               (-> data
+                   (update :surveys #(mapv (partial fieldwork/survey-read-model today) %))
+                   (update :assemblies #(mapv fieldwork/assembly-read-model %))
+                   (update :shipments #(mapv (fn [s] (fieldwork/shipment-read-model config (fat-ok? s) blocker-free? s)) %))
+                   (update :handovers #(mapv (partial fieldwork/handover-read-model today) %))
+                   (update :service_cases #(mapv (partial fieldwork/service-read-model today) %))
+                   (update :site_tasks #(mapv (partial fieldwork/site-task-read-model today) %))
+                   (update :tests #(mapv fieldwork/test-execution-read-model %))
+                   (update :tests #(mapv (partial fieldwork/test-remediation-read-model test-remediation-rollup) %))
+                   fieldwork/attach-site-task-progress
+                   fieldwork/attach-assembly-execution-progress
+                   fieldwork/attach-preship-readiness
+                   fieldwork/attach-shipment-closure
+                   fieldwork/attach-handover-timeliness
+                   fieldwork/attach-survey-closure
+                   fieldwork/attach-service-closure
+                   fieldwork/attach-test-execution
+                   fieldwork/attach-test-remediation-closure
+                   (assoc :configuration config :project_version (:version project)
+                          :blockers (closure-blockers q project) :external_sync_status "not_configured"
+                          :kitting_rollup (materials/kitting-rollup (:boms data) tasks nodes)
+                          :material_approval_summary (materials/material-approval-summary (:material_requests data) (:boms data))
+                          :task_links (task-links data)
+                          :assembly_steps fieldwork/assembly-steps))))))
 
 
 (def commands
@@ -171,5 +176,5 @@
   "将明确HTTP动作分派给相应业务状态机."
   [svc actor id resource action rid body]
   (if (= [resource action] [:configuration :update]) (d/configure! svc actor id body)
-    (if-let [command (get commands [resource action])] (command svc actor id rid body)
-      (r/fail! 404 "交付命令不存在"))))
+      (if-let [command (get commands [resource action])] (command svc actor id rid body)
+              (r/fail! 404 "交付命令不存在"))))

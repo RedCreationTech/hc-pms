@@ -1,6 +1,7 @@
 (ns com.ruoyi.web.routes.pms-delivery
   "物料,装配,试验,发运与售后执行的受认证业务路由."
-  (:require [com.ruoyi.web.controllers.pms-delivery :as c]))
+  (:require
+    [com.ruoyi.web.controllers.pms-delivery :as c]))
 
 
 (defn- command

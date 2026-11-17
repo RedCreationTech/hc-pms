@@ -1,10 +1,11 @@
 (ns com.ruoyi.domain.pms.delivery.materials
   "物料申请,独立批准,冻结BOM和可核对齐套备料."
-  (:require [com.ruoyi.domain.pms.delivery.store :as d]
-            [com.ruoyi.domain.pms.governance.store :as g]
-            [com.ruoyi.domain.pms.planning.progress :as progress]
-            [com.ruoyi.domain.pms.read-model :as rm]
-            [com.ruoyi.domain.pms.rules :as r]))
+  (:require
+    [com.ruoyi.domain.pms.delivery.store :as d]
+    [com.ruoyi.domain.pms.governance.store :as g]
+    [com.ruoyi.domain.pms.planning.progress :as progress]
+    [com.ruoyi.domain.pms.read-model :as rm]
+    [com.ruoyi.domain.pms.rules :as r]))
 
 
 (defn- quantity!
@@ -32,31 +33,31 @@
   "创建普通,长周期,原材预投或直发申请并固定任务及URS来源."
   [svc actor id _ body]
   (d/mutate! svc actor id body "delivery.material.created" false
-    (fn [q project]
-      (g/input! body [:code :title :request_type :owner_id :needed_on :items :task_id :requirement_ids :packaging_spec :node_id])
-      (when (seq (:node_id body))
-        (when-not (q :pms/node {:project_id (:project_id project) :node_id (:node_id body)})
-          (r/fail! 404 "结构节点不存在或不属于本项目")))
-      (let [type (g/enum! (:request_type body) #{"standard" "long_lead" "raw_material" "direct_ship" "packaging"} "request_type")]
-        (when (and (= "packaging" type) (empty? (:packaging_spec body))) (r/fail! 400 "包材申请必须填写包装规格"))
-        (d/insert! q project actor "material"
-                   (merge (d/references! q project body)
-                          (cond-> {:code (g/text! body :code 100) :title (g/text! body :title 200)
-                                   :request_type type
-                                   :owner_id (d/owner! q project (:owner_id body))
-                                   :needed_on (g/date! body :needed_on) :items (items! (:items body))
-                                   :external_sync_status "not_configured"}
-                            (seq (:packaging_spec body)) (assoc :packaging_spec (g/text! body :packaging_spec 1000))
-                            (seq (:node_id body)) (assoc :node_id (:node_id body)))) "draft")))))
+             (fn [q project]
+               (g/input! body [:code :title :request_type :owner_id :needed_on :items :task_id :requirement_ids :packaging_spec :node_id])
+               (when (seq (:node_id body))
+                 (when-not (q :pms/node {:project_id (:project_id project) :node_id (:node_id body)})
+                   (r/fail! 404 "结构节点不存在或不属于本项目")))
+               (let [type (g/enum! (:request_type body) #{"standard" "long_lead" "raw_material" "direct_ship" "packaging"} "request_type")]
+                 (when (and (= "packaging" type) (empty? (:packaging_spec body))) (r/fail! 400 "包材申请必须填写包装规格"))
+                 (d/insert! q project actor "material"
+                            (merge (d/references! q project body)
+                                   (cond-> {:code (g/text! body :code 100) :title (g/text! body :title 200)
+                                            :request_type type
+                                            :owner_id (d/owner! q project (:owner_id body))
+                                            :needed_on (g/date! body :needed_on) :items (items! (:items body))
+                                            :external_sync_status "not_configured"}
+                                     (seq (:packaging_spec body)) (assoc :packaging_spec (g/text! body :packaging_spec 1000))
+                                     (seq (:node_id body)) (assoc :node_id (:node_id body)))) "draft")))))
 
 
 (defn submit-request!
   "申请人提供真实依据并指定独立物料审核人."
   [svc actor id rid body]
   (d/mutate! svc actor id body "delivery.material.submitted" false
-    (fn [q project]
-      (g/input! body [:reviewer_id :evidence_ids])
-      (d/submit! q project actor (d/record! q project "material" rid) body))))
+             (fn [q project]
+               (g/input! body [:reviewer_id :evidence_ids])
+               (d/submit! q project actor (d/record! q project "material" rid) body))))
 
 
 (defn decide-request!
@@ -69,23 +70,23 @@
   "从已批准申请建立固定物料清单,禁止复制未批准申请."
   [svc actor id _ body]
   (d/mutate! svc actor id body "delivery.bom.created" false
-    (fn [q project]
-      (g/input! body [:code :title :material_request_id])
-      (let [request (d/record! q project "material" (:material_request_id body))]
-        (g/status! request #{"approved"})
-        (d/insert! q project actor "bom"
-                   (merge (select-keys request [:task_id :requirement_ids :items :owner_id])
-                          {:code (g/text! body :code 100) :title (g/text! body :title 200)
-                           :material_request_id (:id request) :external_sync_status "not_configured"}) "draft")))))
+             (fn [q project]
+               (g/input! body [:code :title :material_request_id])
+               (let [request (d/record! q project "material" (:material_request_id body))]
+                 (g/status! request #{"approved"})
+                 (d/insert! q project actor "bom"
+                            (merge (select-keys request [:task_id :requirement_ids :items :owner_id])
+                                   {:code (g/text! body :code 100) :title (g/text! body :title 200)
+                                    :material_request_id (:id request) :external_sync_status "not_configured"}) "draft")))))
 
 
 (defn freeze!
   "将BOM完整清单提交独立冻结审批."
   [svc actor id rid body]
   (d/mutate! svc actor id body "delivery.bom.freeze-submitted" false
-    (fn [q project]
-      (g/input! body [:reviewer_id :evidence_ids])
-      (d/submit! q project actor (d/record! q project "bom" rid) body))))
+             (fn [q project]
+               (g/input! body [:reviewer_id :evidence_ids])
+               (d/submit! q project actor (d/record! q project "bom" rid) body))))
 
 
 (defn decide-bom!
@@ -98,7 +99,7 @@
   "逐行对照冻结BOM,拒绝缺行,多行,重复编码和超量."
   [bom items]
   (when-not (and (vector? items) (= (count items) (count (:items bom)))
-                (= (set (map :code items)) (set (map :code (:items bom)))))
+                 (= (set (map :code items)) (set (map :code (:items bom)))))
     (r/fail! 400 "齐套记录必须完整对应冻结BOM清单"))
   (let [supplied (into {} (map (juxt :code identity) items))]
     (mapv (fn [item]
@@ -114,22 +115,22 @@
   "登记有来源证据的逐项备料数量,按齐套行数计算比例."
   [svc actor id rid body]
   (d/mutate! svc actor id body "delivery.bom.kitted" false
-    (fn [q project]
-      (g/input! body [:items :evidence_ids])
-      (d/execution! project)
-      (let [bom (d/record! q project "bom" rid)
-            items (availability! bom (:items body))
-            total (count items) complete (count (filter :complete items))
-            ready? (= complete total)]
-        (g/status! bom #{"frozen" "partial" "ready"})
-        (when (and (not ready?)
-                   (some #(and (= rid (:bom_id %)) (not= "draft" (:status %))) (d/records q project "assembly")))
-          (r/fail! 409 "装配已经开工,不得降低已使用BOM的齐套状态"))
-        (d/change! q project bom (if ready? "ready" "partial")
-                   {:availability items :complete_line_count complete :required_line_count total
-                    :kit_percent (/ (* 100.0 complete) total)
-                    :kit_evidence_ids (g/evidence! q project (:evidence_ids body) true)
-                    :kit_recorded_by (:user_id actor)})))))
+             (fn [q project]
+               (g/input! body [:items :evidence_ids])
+               (d/execution! project)
+               (let [bom (d/record! q project "bom" rid)
+                     items (availability! bom (:items body))
+                     total (count items) complete (count (filter :complete items))
+                     ready? (= complete total)]
+                 (g/status! bom #{"frozen" "partial" "ready"})
+                 (when (and (not ready?)
+                            (some #(and (= rid (:bom_id %)) (not= "draft" (:status %))) (d/records q project "assembly")))
+                   (r/fail! 409 "装配已经开工,不得降低已使用BOM的齐套状态"))
+                 (d/change! q project bom (if ready? "ready" "partial")
+                            {:availability items :complete_line_count complete :required_line_count total
+                             :kit_percent (/ (* 100.0 complete) total)
+                             :kit_evidence_ids (g/evidence! q project (:evidence_ids body) true)
+                             :kit_recorded_by (:user_id actor)})))))
 
 
 (defn kitting-rollup
@@ -138,8 +139,9 @@
   [boms tasks nodes]
   (let [frozen (filter #(contains? #{"frozen" "partial" "ready"} (:status %)) boms)
         task-by-id (into {} (map (juxt :task_id identity) tasks))
-        bom-node (fn [bom] (when-let [task (get task-by-id (:task_id bom))]
-                             (progress/task-node tasks task)))
+        bom-node (fn [bom]
+                   (when-let [task (get task-by-id (:task_id bom))]
+                     (progress/task-node tasks task)))
         with-node (mapv #(assoc % :node_id (bom-node %)
                                 :required_lines (count (:items %))
                                 :complete_lines (or (:complete_line_count %) 0)) frozen)

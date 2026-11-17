@@ -1,6 +1,7 @@
 (ns com.ruoyi.domain.pms.queries
   "PMS运行时与集成测试共享的SQL资源注册清单.")
 
+
 (def filenames
   "业务查询文件, 各模块由HugSQL绑定并使用参数化SQL."
   ["sql/pms.sql" "sql/pms_planning.sql" "sql/pms_planning_resources.sql"

@@ -1,16 +1,18 @@
 (ns com.ruoyi.domain.pms.finance
   "四算, 工时和费用分摊读取模型, 财务金额查询拥有独立功能权限."
-  (:require [com.ruoyi.domain.pms.config :as config]
-            [com.ruoyi.domain.pms.finance-allocation :as allocation]
-            [com.ruoyi.domain.pms.finance-budget :as budget]
-            [com.ruoyi.domain.pms.finance-commitment :as commitment]
-            [com.ruoyi.domain.pms.finance-cost :as cost]
-            [com.ruoyi.domain.pms.finance-money :as money]
-            [com.ruoyi.domain.pms.finance-rate :as rate]
-            [com.ruoyi.domain.pms.finance-time :as time]
-            [com.ruoyi.domain.pms.kernel :as kernel]
-            [com.ruoyi.domain.pms.read-model :as rm]
-            [com.ruoyi.domain.pms.rules :as rules]))
+  (:require
+    [com.ruoyi.domain.pms.config :as config]
+    [com.ruoyi.domain.pms.finance-allocation :as allocation]
+    [com.ruoyi.domain.pms.finance-budget :as budget]
+    [com.ruoyi.domain.pms.finance-commitment :as commitment]
+    [com.ruoyi.domain.pms.finance-cost :as cost]
+    [com.ruoyi.domain.pms.finance-money :as money]
+    [com.ruoyi.domain.pms.finance-rate :as rate]
+    [com.ruoyi.domain.pms.finance-time :as time]
+    [com.ruoyi.domain.pms.kernel :as kernel]
+    [com.ruoyi.domain.pms.read-model :as rm]
+    [com.ruoyi.domain.pms.rules :as rules]))
+
 
 (defn- summary
   "仅比较同一期间和币种的最新已批准四算版本, 缺失口径保持缺失."
@@ -23,6 +25,7 @@
                          [kind (let [v (first (sort-by :version_no > rows))]
                                  (assoc (select-keys v [:version_id :period :currency :revenue :margin])
                                         :amount (:total v)))]))}))
+
 
 (defn four-count-comparison
   "F06 四算拉通: 各口径取最新已批准版本, 按费用分类对比金额, 并给出概算->预算->核算->决算的逐级差异; 只读派生, 币种不一致时标注不可比."
@@ -44,6 +47,7 @@
      :rows rows :totals totals
      :variances {:budget_vs_estimate (diff "estimate" "budget") :actual_vs_budget (diff "budget" "actual")
                  :settlement_vs_actual (diff "actual" "settlement") :settlement_vs_budget (diff "budget" "settlement")}}))
+
 
 (defn cost-review-summary
   "按项目全部四算版本只读聚合审批闭环健康度: 总数/各状态计数(草稿 draft, 审批中 submitted, 已批准 approved, 已驳回 rejected, 已取消 cancelled)/已作决定数/待处理数/审核完成率, 并按概算-预算-核算-决算四口径给出总数·已批准·待处理分布; 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
@@ -76,10 +80,12 @@
      :by-kind by-kind
      :review-pct (rm/pct total processed)}))
 
+
 (defn attach-cost-review-summary
   "把 cost-review-summary 挂到财务概览读模型顶层 :cost_review; 读取时派生, 不改变任何逐条费用版本."
   [data]
   (assoc data :cost_review (cost-review-summary (:cost_versions data))))
+
 
 (defn allocation-review-summary
   "按项目全部费用分摊批次只读聚合研发费用分摊闭环健康度: 批次数/冻结费用池金额合计/实际摊出金额合计/生成成本条目数/覆盖任务数/因舍入未摊到金额的任务数/总额是否守恒; 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
@@ -100,10 +106,12 @@
      :task-count task-count
      :conserved (= pool-minor allocated-minor)}))
 
+
 (defn attach-allocation-review-summary
   "把 allocation-review-summary 挂到财务概览读模型顶层 :allocation_review; 读取时派生, 不改变任何逐条分摊批次."
   [data]
   (assoc data :allocation_review (allocation-review-summary (:allocations data))))
+
 
 (defn margin-summary
   "F08 成本毛利看板只读派生: 概算-预算-核算-决算各口径取最新已批准版本, 给出收入/成本/毛利金额与毛利率(百分比), 零或负收入标注不可算(computable=false); 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
@@ -133,10 +141,12 @@
      :comparable (<= (count (distinct (remove nil? (map :currency (vals latest))))) 1)
      :by-kind (mapv one ["estimate" "budget" "actual" "settlement"])}))
 
+
 (defn attach-margin-summary
   "把 margin-summary 挂到财务概览读模型顶层 :cost_margin; 读取时派生, 不改变任何逐条费用版本."
   [data]
   (assoc data :cost_margin (margin-summary (:cost_versions data))))
+
 
 (defn commitment-closure-summary
   "H12 按项目全部承诺台账行只读聚合承诺闭环健康度: 总数/各状态计数(草稿 draft, 审批中 submitted, 已批准 approved, 已驳回 rejected, 已释放 released, 已取消 cancelled)/待处理数(draft+submitted)/已作决定数(approved+released+rejected+cancelled)/审批完成率; 并对已批准及已释放承诺按本位金额汇总承诺总额/已转实付额/剩余未释放额与释放闭环率; 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
@@ -171,39 +181,43 @@
      :remaining-amount (money/money remaining-minor)
      :release-pct (rm/pct base-minor released-minor)}))
 
+
 (defn attach-commitment-closure-summary
   "把 commitment-closure-summary 挂到财务概览读模型顶层 :commitment_closure; 读取时派生, 不改变任何逐条承诺."
   [data]
   (assoc data :commitment_closure (commitment-closure-summary (:commitments data))))
 
+
 (defn overview
   "在项目权限和财务权限交集内返回可对账四算与工时数据."
   [svc actor project-id]
   (kernel/read! svc actor project-id "pms:finance:query"
-    (fn [q project]
-      (let [versions (mapv #(cost/dto q %) (q :finance/versions {:project_id project-id}))]
-        (-> (merge {:project_version (:version project) :cost_versions versions
-                :time_entries (mapv time/dto (q :finance/times {:project_id project-id}))
-                :allocations (mapv allocation/dto (q :finance/allocations {:project_id project-id}))
-                :four_count (four-count-comparison versions)
-                :commitments (commitment/list-all q project-id)
-                :budget_rules (budget/list-rules q project-id)
-                :budget_control {:budget (budget/evaluate q project-id "budget" 0)
-                                 :estimate (budget/evaluate q project-id "estimate" 0)}
-                :labor_cost (rate/summary q project-id)
-                :locked_periods (mapv :period (config/published q "period-lock"))}
-               (summary versions)) time/attach-timesheet-review-summary attach-cost-review-summary attach-allocation-review-summary attach-margin-summary attach-commitment-closure-summary)))))
+                (fn [q project]
+                  (let [versions (mapv #(cost/dto q %) (q :finance/versions {:project_id project-id}))]
+                    (-> (merge {:project_version (:version project) :cost_versions versions
+                                :time_entries (mapv time/dto (q :finance/times {:project_id project-id}))
+                                :allocations (mapv allocation/dto (q :finance/allocations {:project_id project-id}))
+                                :four_count (four-count-comparison versions)
+                                :commitments (commitment/list-all q project-id)
+                                :budget_rules (budget/list-rules q project-id)
+                                :budget_control {:budget (budget/evaluate q project-id "budget" 0)
+                                                 :estimate (budget/evaluate q project-id "estimate" 0)}
+                                :labor_cost (rate/summary q project-id)
+                                :locked_periods (mapv :period (config/published q "period-lock"))}
+                               (summary versions)) time/attach-timesheet-review-summary attach-cost-review-summary attach-allocation-review-summary attach-margin-summary attach-commitment-closure-summary)))))
+
 
 (defn times
   "普通成员仅看本人工时和待本人审核的工时, 不附带财务金额."
   [svc actor project-id]
   (kernel/read! svc actor project-id "pms:project:query"
-    (fn [q project]
-      {:project_version (:version project)
-       :rows (->> (q :finance/times {:project_id project-id})
-                  (filter #(or (:admin? actor) (= (:user_id actor) (:user_id %))
-                               (= (:user_id actor) (:reviewer_id %))))
-                  (mapv time/dto))})))
+                (fn [q project]
+                  {:project_version (:version project)
+                   :rows (->> (q :finance/times {:project_id project-id})
+                              (filter #(or (:admin? actor) (= (:user_id actor) (:user_id %))
+                                           (= (:user_id actor) (:reviewer_id %))))
+                              (mapv time/dto))})))
+
 
 (defn closure-blockers
   "关闭前必须有已批准决算并处理所有待审核工时及费用版本."
