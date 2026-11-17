@@ -215,7 +215,7 @@ open http://localhost:3000
 | HTTP 后端    | `3000`   | `PORT` 环境变量 / `system.edn` `:server/http`        | 前端静态资源也由同一端口提供  |
 | nREPL        | `7000`   | `NREPL_PORT` 环境变量 / `system.edn` `:nrepl/server` | **动态开发/测试的核心入口**   |
 | shadow-cljs  | `9630` 起 | 被占用时自动顺延;`start_dev.sh` 从日志解析实际端口 | 前端 watch/devtools 服务      |
-| MySQL (可选) | `3306`   | `resources/config.edn` / `JDBC_URL`                  | 切到 MySQL 时才需要外部实例   |
+| MySQL (可选) | `3306`   | `JDBC_URL` (+ `MIGRATION_DIR`, 缺省按 URL 推导)      | 切到 MySQL 时才需要外部实例   |
 
 **使用 `start_dev.sh` 一键启动时**:脚本会自动处理端口冲突--只杀掉当前项目目录下的旧进程;如果端口仍被外部占用,HTTP 与 nREPL 会自动向后找空闲端口(如 3001,7001),shadow-cljs 自动顺延并记录实际端口.因此用脚本启动后,**务必以脚本输出的 HTTP / nREPL 端口为准**.停止服务统一用 `./stop_dev.sh`(优先按 `.dev-pids` 精确停止,端口扫描兜底).
 
