@@ -3,6 +3,7 @@
    DQ: 检查清单 + 确定版本交付件, 逐项检查后提交独立签认; 交付件出现新版本时只读标注失效.
    局部暂停: 记录节点范围与原因, 暂停期间该节点及后代任务禁止进度反馈, 恢复时记录影响说明."
   (:require
+    [com.ruoyi.domain.pms.governance.remediation :as remediation]
     [com.ruoyi.domain.pms.governance.store :as s]
     [com.ruoyi.domain.pms.kernel :as k]
     [com.ruoyi.domain.pms.read-model :as rm]
@@ -117,39 +118,14 @@
                  (s/change! q project dq decision {:decision_reason (s/text! body :reason) :decided_by (:user_id actor)})))))
 
 
-(def ^:private remediation-spec
-  "DQ 整改的领域差异: 状态门, 检查项取键与空失败文案."
-  {:kind "dq" :statuses #{"draft" "rejected"} :checks-key :checklist
-   :empty-message "该 DQ 没有未通过的必需检查项, 无需整改"})
-
-
-(defn remediation-action!
+(def remediation-action!
   "把 DQ 未通过的必需检查项落实为可追踪的整改行动项: 复用行动类型与既有完成/独立验证/转任务生命周期, 记录来源 DQ 与所选未通过必需检查项编码, 缺省沿用 DQ 责任人; 需项目编辑权限, 仅对草稿或已退回且确有未通过必需检查项的 DQ 开放."
-  [svc actor id rid body]
-  (k/mutate! svc actor id "pms:project:edit" body "dq.remediation-action-created"
-             (fn [q project]
-               (s/input! body [:title :owner_id :due_date :check_code])
-               (let [[dq failing] (s/failing-checks! q project rid remediation-spec)
-                     target (s/remediation-target failing (not-empty (s/optional-text! body :check_code 50)))]
-                 (s/insert-remediation! q project actor body dq
-                                        {:source-k :source_dq_id :owner-default :owner_id
-                                         :rid rid :check-code (:code target)
-                                         :given (s/optional-text! body :title 200)
-                                         :base-title (str (:title dq) " / " (:title target))})))))
+  (partial remediation/create! remediation/dq-spec))
 
 
-(defn remediation-actions!
+(def remediation-actions!
   "把 DQ 全部未通过的必需检查项一次性落实为多条可追踪整改行动项: 单条 remediation-action! 的批量版, 复用同一行动类型与既有完成/独立验证/转任务生命周期, 每个未通过必需项各生成一条独立 open 行动并记录来源 DQ 与该项检查编码, 缺省沿用 DQ 责任人与统一到期日; 需项目编辑权限, 仅对草稿或已退回且确有未通过必需检查项的 DQ 开放, 不改动 DQ 状态."
-  [svc actor id rid body]
-  (k/mutate! svc actor id "pms:project:edit" body "dq.remediation-actions-created"
-             (fn [q project]
-               (s/input! body [:owner_id :due_date])
-               (let [[dq failing] (s/failing-checks! q project rid remediation-spec)]
-                 (mapv #(s/insert-remediation! q project actor body dq
-                                               {:source-k :source_dq_id :owner-default :owner_id
-                                                :rid rid :check-code (:code %)
-                                                :base-title (str (:title dq) " / " (:title %))})
-                       failing)))))
+  (partial remediation/create-all! remediation/dq-spec))
 
 
 (defn dq-read-model
