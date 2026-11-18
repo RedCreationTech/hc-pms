@@ -1,61 +1,57 @@
 (ns com.ruoyi.domain.pms.delivery.production
   "装配交检及SIT,FAT,SAT的受控试验,失败整改和独立确认."
-  (:require [com.ruoyi.domain.pms.delivery.store :as d]
-            [com.ruoyi.domain.pms.governance.gates :as gates]
-            [com.ruoyi.domain.pms.governance.store :as g]
-            [com.ruoyi.domain.pms.rules :as r]))
-
+  (:require
+    [com.ruoyi.domain.pms.delivery.store :as d]
+    [com.ruoyi.domain.pms.governance.gates :as gates]
+    [com.ruoyi.domain.pms.governance.store :as g]
+    [com.ruoyi.domain.pms.rules :as r]))
 
 
 (defn create-assembly!
   "建立基于实际齐套BOM的装配任务记录."
   [svc actor id _ body]
   (d/mutate! svc actor id body "delivery.assembly.created" false
-    (fn [q project]
-      (g/input! body [:code :title :bom_id :owner_id :task_id :requirement_ids])
-      (let [bom (d/record! q project "bom" (:bom_id body))]
-        (g/status! bom #{"ready"})
-        (d/insert! q project actor "assembly"
-                   (merge (d/references! q project body)
-                          {:code (g/text! body :code 100) :title (g/text! body :title 200)
-                           :bom_id (:id bom) :owner_id (d/owner! q project (:owner_id body))}) "draft")))))
-
+             (fn [q project]
+               (g/input! body [:code :title :bom_id :owner_id :task_id :requirement_ids])
+               (let [bom (d/record! q project "bom" (:bom_id body))]
+                 (g/status! bom #{"ready"})
+                 (d/insert! q project actor "assembly"
+                            (merge (d/references! q project body)
+                                   {:code (g/text! body :code 100) :title (g/text! body :title 200)
+                                    :bom_id (:id bom) :owner_id (d/owner! q project (:owner_id body))}) "draft")))))
 
 
 (defn start!
   "齐套条件仍满足时登记装配开工或退回返工."
   [svc actor id rid body]
   (d/mutate! svc actor id body "delivery.assembly.started" false
-    (fn [q project]
-      (g/input! body [:evidence_ids])
-      (d/execution! project)
-      (let [assembly (d/record! q project "assembly" rid)]
-        (g/status! assembly #{"draft" "rejected"})
-        (g/status! (d/record! q project "bom" (:bom_id assembly)) #{"ready"})
-        (gates/checkpoint-ready! q project "assembly.start")
-        (d/change! q project assembly "in_progress"
-                   {:started_by (:user_id actor) :start_evidence_ids (g/evidence! q project (:evidence_ids body) true)})))))
-
+             (fn [q project]
+               (g/input! body [:evidence_ids])
+               (d/execution! project)
+               (let [assembly (d/record! q project "assembly" rid)]
+                 (g/status! assembly #{"draft" "rejected"})
+                 (g/status! (d/record! q project "bom" (:bom_id assembly)) #{"ready"})
+                 (gates/checkpoint-ready! q project "assembly.start")
+                 (d/change! q project assembly "in_progress"
+                            {:started_by (:user_id actor) :start_evidence_ids (g/evidence! q project (:evidence_ids body) true)})))))
 
 
 (defn submit-assembly!
   "提交完成装配的真实交检证据."
   [svc actor id rid body]
   (d/mutate! svc actor id body "delivery.assembly.submitted" false
-    (fn [q project]
-      (g/input! body [:reviewer_id :evidence_ids])
-      (d/execution! project)
-      (let [record (d/record! q project "assembly" rid)]
-        (g/status! record #{"in_progress"})
-        (d/submit! q project actor record body)))))
-
+             (fn [q project]
+               (g/input! body [:reviewer_id :evidence_ids])
+               (d/execution! project)
+               (let [record (d/record! q project "assembly" rid)]
+                 (g/status! record #{"in_progress"})
+                 (d/submit! q project actor record body)))))
 
 
 (defn decide-assembly!
   "独立确认交检结果,拒绝后须重新开工和提交."
   [svc actor id rid body]
   (d/decide-endpoint! svc actor id rid body "delivery.assembly.decided" "assembly" "approved" nil))
-
 
 
 (defn- criteria!
@@ -72,22 +68,20 @@
     checks))
 
 
-
 (defn create-test!
   "预先登记试验准则及范围,结果与批准在后续明确命令中完成."
   [svc actor id _ body]
   (d/mutate! svc actor id body "delivery.test.created" false
-    (fn [q project]
-      (g/input! body [:code :title :assembly_id :test_type :owner_id :criteria :task_id :requirement_ids])
-      (d/record! q project "assembly" (:assembly_id body))
-      (d/insert! q project actor "test"
-                 (merge (d/references! q project body)
-                        {:code (g/text! body :code 100) :title (g/text! body :title 200)
-                         :assembly_id (:assembly_id body)
-                         :test_type (g/enum! (:test_type body) #{"SIT" "FAT" "SAT"} "test_type")
-                         :owner_id (d/owner! q project (:owner_id body))
-                         :criteria (criteria! (:criteria body))}) "draft"))))
-
+             (fn [q project]
+               (g/input! body [:code :title :assembly_id :test_type :owner_id :criteria :task_id :requirement_ids])
+               (d/record! q project "assembly" (:assembly_id body))
+               (d/insert! q project actor "test"
+                          (merge (d/references! q project body)
+                                 {:code (g/text! body :code 100) :title (g/text! body :title 200)
+                                  :assembly_id (:assembly_id body)
+                                  :test_type (g/enum! (:test_type body) #{"SIT" "FAT" "SAT"} "test_type")
+                                  :owner_id (d/owner! q project (:owner_id body))
+                                  :criteria (criteria! (:criteria body))}) "draft"))))
 
 
 (defn- latest-test
@@ -139,7 +133,6 @@
               :source_test_id (:id test) :source_criterion_code (:code criterion)} {:status "open"}))
 
 
-
 (defn- results!
   "完整校验结果,固定证据版本并为失败项生成一次整改链."
   [q project actor test body]
@@ -147,7 +140,7 @@
         previous (into {} (map (juxt :code identity) (:checks test)))
         due-date (g/date! body :due_date)]
     (when-not (and (vector? checks) (= (count checks) (count criteria))
-                  (= (set (map :code checks)) (set (map :code criteria))))
+                   (= (set (map :code checks)) (set (map :code criteria))))
       (r/fail! 400 "必须完整提交全部试验准则结果"))
     (let [by-code (into {} (map (juxt :code identity) checks))]
       (mapv (fn [criterion]
@@ -163,27 +156,25 @@
                     issue-id (assoc :issue_id issue-id))))) criteria))))
 
 
-
 (defn record-results!
   "实际试验反馈和自动整改同事务保存,复验保留历次结果."
   [svc actor id rid body]
   (d/mutate! svc actor id body "delivery.test.results-recorded" false
-    (fn [q project]
-      (g/input! body [:checks :due_date])
-      (d/execution! project)
-      (let [test (d/record! q project "test" rid)]
-        (g/status! test #{"draft" "ready" "rejected"})
-        (gates/checkpoint-ready! q project (str "test." (:test_type test)))
-        (when (>= (count (:result_history test)) 100) (r/fail! 409 "复验次数已达100,请创建新的受控试验记录"))
-        (let [prerequisites (prerequisites! q project test)
-              checks (results! q project actor test body)]
-          (d/change! q project test "ready"
-                     {:checks checks :prerequisite_test_ids prerequisites
-                      :result_history (conj (vec (:result_history test))
-                                            {:recorded_by (:user_id actor) :project_version (inc (:version project))
-                                             :checks checks :prerequisite_test_ids prerequisites
-                                             :recorded_on (str (java.time.LocalDate/now))})}))))))
-
+             (fn [q project]
+               (g/input! body [:checks :due_date])
+               (d/execution! project)
+               (let [test (d/record! q project "test" rid)]
+                 (g/status! test #{"draft" "ready" "rejected"})
+                 (gates/checkpoint-ready! q project (str "test." (:test_type test)))
+                 (when (>= (count (:result_history test)) 100) (r/fail! 409 "复验次数已达100,请创建新的受控试验记录"))
+                 (let [prerequisites (prerequisites! q project test)
+                       checks (results! q project actor test body)]
+                   (d/change! q project test "ready"
+                              {:checks checks :prerequisite_test_ids prerequisites
+                               :result_history (conj (vec (:result_history test))
+                                                     {:recorded_by (:user_id actor) :project_version (inc (:version project))
+                                                      :checks checks :prerequisite_test_ids prerequisites
+                                                      :recorded_on (str (java.time.LocalDate/now))})}))))))
 
 
 (defn ready-test!
@@ -200,19 +191,17 @@
   true)
 
 
-
 (defn submit-test!
   "试验条件全部满足后提交独立检验."
   [svc actor id rid body]
   (d/mutate! svc actor id body "delivery.test.submitted" false
-    (fn [q project]
-      (g/input! body [:reviewer_id :evidence_ids])
-      (d/execution! project)
-      (let [test (d/record! q project "test" rid)]
-        (g/status! test #{"ready" "rejected"})
-        (ready-test! q project test)
-        (d/submit! q project actor test body)))))
-
+             (fn [q project]
+               (g/input! body [:reviewer_id :evidence_ids])
+               (d/execution! project)
+               (let [test (d/record! q project "test" rid)]
+                 (g/status! test #{"ready" "rejected"})
+                 (ready-test! q project test)
+                 (d/submit! q project actor test body)))))
 
 
 (defn decide-test!

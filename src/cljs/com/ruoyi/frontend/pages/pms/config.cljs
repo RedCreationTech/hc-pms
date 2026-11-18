@@ -95,8 +95,8 @@
      (if (empty? (:structure record)) [:span {:style {:color "#98a2b3"}} "无结构节点 (研发/服务类)"]
          [:ul {:style {:margin 0 :paddingLeft 20}}
           (for [s (:structure record)] ^{:key (:suffix s)}
-            [:li (str (:name s) " (" (:suffix s) ")")
-             (when (seq (:machines s)) (str " -> " (str/join ", " (map #(str (:name %) "(" (:suffix %) ")") (:machines s)))))])])]
+               [:li (str (:name s) " (" (:suffix s) ")")
+                (when (seq (:machines s)) (str " -> " (str/join ", " (map #(str (:name %) "(" (:suffix %) ")") (:machines s)))))])])]
     [:div [:h4 "Gate 模板"]
      [antd/table {:size "small" :pagination false :rowKey "code" :dataSource (clj->js (:gate_templates record))
                   :columns (clj->js [{:title "编码" :dataIndex "code" :width 150} {:title "名称" :dataIndex "title"}
@@ -127,20 +127,20 @@
                                     :fields [{:key :reason :label "发布说明" :type :textarea}]})])
      (when (and editable? (contains? #{"published" "frozen"} (:status row)) (not= kind "period-lock"))
        [w/edit-button "修订" #(open! (if (= kind "project-template")
-                                       {:title "修订模板" :path (str base "/revisions") :fields (vec (rest (template-fields)))
-                                        :initial (assoc (select-keys row [:title :description :project_types]) :advanced (advanced-json row))
-                                        :transform template-transform}
-                                       {:title "修订规则" :path (str base "/revisions")
-                                        :initial (select-keys row [:object_type :pattern :enforced :description :version_rule :collection_rule])
-                                        :fields [{:key :object_type :label "对象类型" :type :select :required? true
-                                                  :options (mapv (fn [[v l]] {:value v :label l}) object-labels)}
-                                                 {:key :pattern :label "编码模式" :required? true}
-                                                 {:key :enforced :label "强制校验" :type :select :options [{:value true :label "强制"} {:value false :label "仅建议"}]}
-                                                 {:key :description :label "说明" :type :textarea}
-                                                 {:key :version_rule :label "版本规则"} {:key :collection_rule :label "对象收集规则"}]}))])
+                                     {:title "修订模板" :path (str base "/revisions") :fields (vec (rest (template-fields)))
+                                      :initial (assoc (select-keys row [:title :description :project_types]) :advanced (advanced-json row))
+                                      :transform template-transform}
+                                     {:title "修订规则" :path (str base "/revisions")
+                                      :initial (select-keys row [:object_type :pattern :enforced :description :version_rule :collection_rule])
+                                      :fields [{:key :object_type :label "对象类型" :type :select :required? true
+                                                :options (mapv (fn [[v l]] {:value v :label l}) object-labels)}
+                                               {:key :pattern :label "编码模式" :required? true}
+                                               {:key :enforced :label "强制校验" :type :select :options [{:value true :label "强制"} {:value false :label "仅建议"}]}
+                                               {:key :description :label "说明" :type :textarea}
+                                               {:key :version_rule :label "版本规则"} {:key :collection_rule :label "对象收集规则"}]}))])
      (when (and editable? (contains? #{"draft" "published" "frozen" "locked"} (:status row)))
        [w/edit-button (if (= "locked" (:status row)) "解锁" "退役") #(open! {:title (if (= "locked" (:status row)) "解锁封期" "退役版本") :path (str base "/retire")
-                                                                          :fields [{:key :reason :label "原因" :type :textarea :required? true}]})])]))
+                                                                         :fields [{:key :reason :label "原因" :type :textarea :required? true}]})])]))
 
 
 (defn- template-section
@@ -150,22 +150,22 @@
     nil
     [:div {:style {:display "grid" :gridTemplateColumns "repeat(auto-fill, minmax(280px, 1fr))" :gap 12}}
      (for [item (:catalog data)] ^{:key (:code item)}
-       [:div {:style {:border "1px solid #e4e8ee" :borderRadius 8 :padding 14}}
-        [:div {:style {:fontWeight 600}} (:title item)]
-        [:div {:style {:fontSize 12 :color "#718096" :margin "6px 0"}} (:description item)]
-        [antd/space {:wrap true}
-         (for [t (:project_types item)] ^{:key t} [antd/tag {:color "geekblue"} (get type-labels t t)])
-         [antd/tag (str "阶段 " (count (:stages item)))] [antd/tag (str "Gate " (count (:gate_templates item)))]]
-        (when editable?
-          [antd/button {:size "small" :style {:marginTop 8}
-                        :on-click #(open! {:title (str "导入模板 " (:code item)) :path "/config/project-template/import"
-                                           :initial {:code (:code item)} :fields [{:key :code :label "目录编码" :required? true}]})}
-           "导入为草稿"])])]]
+          [:div {:style {:border "1px solid #e4e8ee" :borderRadius 8 :padding 14}}
+           [:div {:style {:fontWeight 600}} (:title item)]
+           [:div {:style {:fontSize 12 :color "#718096" :margin "6px 0"}} (:description item)]
+           [antd/space {:wrap true}
+            (for [t (:project_types item)] ^{:key t} [antd/tag {:color "geekblue"} (get type-labels t t)])
+            [antd/tag (str "阶段 " (count (:stages item)))] [antd/tag (str "Gate " (count (:gate_templates item)))]]
+           (when editable?
+             [antd/button {:size "small" :style {:marginTop 8}
+                           :on-click #(open! {:title (str "导入模板 " (:code item)) :path "/config/project-template/import"
+                                              :initial {:code (:code item)} :fields [{:key :code :label "目录编码" :required? true}]})}
+              "导入为草稿"])])]]
    [shared/panel "项目模板版本" "发布后供项目实例化; 修订产生新版本, 旧版本退役但已实例化项目保留原版本快照"
     (when editable? [antd/button {:type "primary" :on-click #(open! {:title "新建项目模板" :path "/config/project-template"
-                                                                      :fields (template-fields) :transform template-transform
-                                                                      :initial {:advanced (advanced-json {:stages [{:code "S1" :name "阶段一" :weight 100}] :structure [] :gate_templates [] :team_roles [] :document_categories [] :delivery {:required_stages ["materials" "assembly" "quality" "shipment"] :required_test_types ["SIT" "FAT" "SAT"]} :closure_items []})}})}
-                      "新建项目模板"])
+                                                                     :fields (template-fields) :transform template-transform
+                                                                     :initial {:advanced (advanced-json {:stages [{:code "S1" :name "阶段一" :weight 100}] :structure [] :gate_templates [] :team_roles [] :document_categories [] :delivery {:required_stages ["materials" "assembly" "quality" "shipment"] :required_test_types ["SIT" "FAT" "SAT"]} :closure_items []})}})}
+                     "新建项目模板"])
     [w/record-table (:rows data)
      [(w/text-column :code "编码") (w/text-column :revision "版本") (w/text-column :title "模板名称")
       {:title "适用类别" :dataIndex "project_types" :render (fn [v] (r/as-element (into [antd/space {:wrap true}] (map (fn [t] [antd/tag {:color "geekblue"} (get type-labels t t)]) (array-seq (or v #js []))))))}
@@ -203,14 +203,14 @@
                                         :fields [{:key :code :label "目录编码" :type :select :required? true
                                                   :options (mapv (fn [c] {:value (:code c) :label (str (:code c) " · " (:pattern c))}) (:catalog data))}]})} "导入内置规则"]
        [antd/button {:type "primary" :on-click #(open! {:title "新建编码规则" :path "/config/coding-rule"
-                                                         :initial {:object_type "project" :pattern "PRJ-{YYYY}-{SEQ:4}" :enforced false}
-                                                         :fields [{:key :code :label "规则编码" :required? true}
-                                                                  {:key :object_type :label "对象类型" :type :select :required? true
-                                                                   :options (mapv (fn [[v l]] {:value v :label l}) object-labels)}
-                                                                  {:key :pattern :label "编码模式" :required? true}
-                                                                  {:key :enforced :label "强制校验" :type :select :options [{:value true :label "强制"} {:value false :label "仅建议"}]}
-                                                                  {:key :description :label "说明" :type :textarea}
-                                                                  {:key :version_rule :label "版本规则"} {:key :collection_rule :label "对象收集规则"}]})} "新建编码规则"]])
+                                                        :initial {:object_type "project" :pattern "PRJ-{YYYY}-{SEQ:4}" :enforced false}
+                                                        :fields [{:key :code :label "规则编码" :required? true}
+                                                                 {:key :object_type :label "对象类型" :type :select :required? true
+                                                                  :options (mapv (fn [[v l]] {:value v :label l}) object-labels)}
+                                                                 {:key :pattern :label "编码模式" :required? true}
+                                                                 {:key :enforced :label "强制校验" :type :select :options [{:value true :label "强制"} {:value false :label "仅建议"}]}
+                                                                 {:key :description :label "说明" :type :textarea}
+                                                                 {:key :version_rule :label "版本规则"} {:key :collection_rule :label "对象收集规则"}]})} "新建编码规则"]])
     [:div {:style {:marginBottom 16}} [next-code-preview]]
     [w/record-table (:rows data)
      [(w/text-column :code "规则") (w/text-column :revision "版本")
@@ -259,11 +259,12 @@
   (let [approver? (shared/use-permission "pms:finance:approve")]
     [shared/panel "跨项目研发费用池" "冻结费用池与期间工时后按批准算法分摊 (最大余数法, 舍入守恒, 零工时项目不分摊, 直接人工不重计), 各项目核算版本仍需独立财务审批"
      (when approver?
-       [antd/button {:type "primary" :on-click (fn [] (open! {:title "建立研发费用池" :path "/config/rd-pool" :initial {:currency "CNY"}
-                                                               :fields [{:key :period :label "期间 (YYYY-MM)" :required? true}
-                                                                        {:key :amount :label "费用池金额" :required? true}
-                                                                        {:key :currency :label "币种" :type :select :options (mapv (fn [c] {:value c :label c}) ["CNY" "USD" "EUR" "GBP" "HKD"])}
-                                                                        {:key :description :label "说明" :type :textarea}]}))} "建立研发费用池"])
+       [antd/button {:type "primary" :on-click (fn []
+                                                 (open! {:title "建立研发费用池" :path "/config/rd-pool" :initial {:currency "CNY"}
+                                                         :fields [{:key :period :label "期间 (YYYY-MM)" :required? true}
+                                                                  {:key :amount :label "费用池金额" :required? true}
+                                                                  {:key :currency :label "币种" :type :select :options (mapv (fn [c] {:value c :label c}) ["CNY" "USD" "EUR" "GBP" "HKD"])}
+                                                                  {:key :description :label "说明" :type :textarea}]}))} "建立研发费用池"])
      [w/record-table (:rows data)
       [(w/text-column :code "费用池") (w/text-column :period "期间") (w/text-column :amount "金额") (w/text-column :currency "币种")
        {:title "分摊" :dataIndex "allocation" :width 200
@@ -275,11 +276,12 @@
          (when (and approver? (= "draft" (:status row)))
            [w/edit-button "冻结" #(open! {:title "冻结费用池" :path (str "/config/rd-pool/" (:id row) "/publish") :fields [{:key :reason :label "说明" :type :textarea}]})])
          (when (and approver? (= "frozen" (:status row)) (nil? (:allocation row)))
-           [w/edit-button "执行分摊" (fn [] (open! {:title "执行跨项目分摊" :path (str "/config/rd-pool/" (:id row) "/allocate")
-                                                    :description "在每个有已批准工时的项目生成待审核的核算版本与人工成本条目; 幂等不重复计费."
-                                                    :fields [{:key :reviewer_id :label "各项目核算版本的财务审批人" :type :select :required? true
-                                                              :options (w/user-options (:users (:options context)))}
-                                                             {:key :name :label "版本名称"}]}))])
+           [w/edit-button "执行分摊" (fn []
+                                   (open! {:title "执行跨项目分摊" :path (str "/config/rd-pool/" (:id row) "/allocate")
+                                           :description "在每个有已批准工时的项目生成待审核的核算版本与人工成本条目; 幂等不重复计费."
+                                           :fields [{:key :reviewer_id :label "各项目核算版本的财务审批人" :type :select :required? true
+                                                     :options (w/user-options (:users (:options context)))}
+                                                    {:key :name :label "版本名称"}]}))])
          (when (and approver? (contains? #{"draft" "frozen"} (:status row)))
            [w/edit-button "退役" #(open! {:title "退役费用池" :path (str "/config/rd-pool/" (:id row) "/retire") :fields [{:key :reason :label "原因" :type :textarea :required? true}]})])])]]))
 
@@ -291,8 +293,8 @@
     [shared/panel "会计期间封期" "封期后该期间的工时提交与更正, 以及费用版本的新建/增删明细/提交/修订/取消均被拒绝 (已提交版本的独立审批不受影响); 解锁记录原因与操作人"
      (when approver?
        [antd/button {:type "primary" :on-click #(open! {:title "锁定期间" :path "/config/period-lock"
-                                                         :fields [{:key :period :label "期间 (YYYY-MM)" :required? true}
-                                                                  {:key :reason :label "封期原因" :type :textarea :required? true}]})} "锁定期间"])
+                                                        :fields [{:key :period :label "期间 (YYYY-MM)" :required? true}
+                                                                 {:key :reason :label "封期原因" :type :textarea :required? true}]})} "锁定期间"])
      [w/record-table (:rows data)
       [(w/text-column :period "期间") (w/text-column :reason "原因") (w/text-column :created_by_name "操作人")
        {:title "状态" :dataIndex "status" :width 100 :render #(r/as-element [status-badge %])}]
@@ -307,10 +309,12 @@
   "费率可按项目成员角色配置."
   [{:value "manager" :label "项目经理"} {:value "editor" :label "协作成员"} {:value "viewer" :label "只读成员"}])
 
+
 (defn- rate-blank
   []
   {:key (str (random-uuid)) :code "" :scope "role" :role "manager"
    :amount_per_hour "" :effective_from "" :effective_to ""})
+
 
 (defn- rate-payload
   "组装费率表命令报文 (去掉视图专用 key)."
@@ -318,6 +322,7 @@
   {:base_currency currency
    :rates (mapv #(dissoc % :key) rates)
    :reason reason})
+
 
 (defn- rate-dialog
   "H07 费率表命令弹窗: :mode :rates 维护费率行, :mode :reason 仅填原因 (发布/退役)."
@@ -329,8 +334,9 @@
         set-row! (fn [i k v] (set-rates! (vec (map-indexed (fn [j r] (if (= i j) (assoc r k v) r)) rates))))
         drop-row! (fn [i] (set-rates! (vec (concat (subvec rates 0 i) (subvec rates (inc i))))))
         input! (fn [i k] (fn [e] (set-row! i k (.. e -target -value))))
-        submit! (fn [] (run! :post path (if (= :rates mode) (rate-payload currency rates reason) {:reason reason})
-                             (str title "成功")))]
+        submit! (fn []
+                  (run! :post path (if (= :rates mode) (rate-payload currency rates reason) {:reason reason})
+                        (str title "成功")))]
     [antd/modal {:title title :open true :onCancel on-close :onOk submit!
                  :okText "保存" :cancelText "返回" :confirmLoading busy? :destroyOnHidden true
                  :style {:maxWidth "calc(100vw - 32px)"} :width 900}
@@ -370,16 +376,18 @@
         [:span "说明 / 原因"]
         [antd/text-area {:rows 3 :value reason :placeholder "本次操作原因" :on-change #(set-reason! (.. % -target -value))}]])]))
 
+
 (defn- rate-detail
   "只读展示费率表版本内容."
   [record on-close]
-  (let [rows (mapv (fn [r] {:code (:code r)
-                            :scope (if (= "person" (:scope r)) "人员" "角色")
-                            :who (if (= "person" (:scope r)) (str "人员 #" (:user_id r))
-                                   (or (some #(when (= (:value %) (:role r)) (:label %)) rate-role-options) (:role r)))
-                            :amount (:amount_per_hour r)
-                            :from (:effective_from r)
-                            :to (or (:effective_to r) "持续")})
+  (let [rows (mapv (fn [r]
+                     {:code (:code r)
+                      :scope (if (= "person" (:scope r)) "人员" "角色")
+                      :who (if (= "person" (:scope r)) (str "人员 #" (:user_id r))
+                               (or (some #(when (= (:value %) (:role r)) (:label %)) rate-role-options) (:role r)))
+                      :amount (:amount_per_hour r)
+                      :from (:effective_from r)
+                      :to (or (:effective_to r) "持续")})
                    (:rates record))]
     [antd/modal {:title (str "费率表 " (:code record) " / V" (:revision record)) :open true :onCancel on-close :footer nil :width 860
                  :style {:maxWidth "calc(100vw - 32px)"}}
@@ -400,7 +408,8 @@
         [:div [:h4 "版本历史"]
          [:ul {:style {:margin 0 :paddingLeft 20}}
           (for [h (:history record)] ^{:key (:at h)}
-            [:li (str (:at h) " · " (:action h) " · " (:actor_name h) (when (seq (:reason h)) (str " · " (:reason h))))])]])]]))
+               [:li (str (:at h) " · " (:action h) " · " (:actor_name h) (when (seq (:reason h)) (str " · " (:reason h))))])]])]]))
+
 
 (defn- rate-section
   "H07 有效期费率表: 按人员或角色维护每小时费率与生效区间, 批准工时按其折算人工成本."
@@ -423,14 +432,15 @@
        [w/edit-button "详情" #(detail! row)]
        (when (and editable? (= "draft" (:status row)))
          [w/edit-button "发布" #(open! {:title "发布费率表" :mode :reason
-                                        :path (str "/config/rate-table/" (:id row) "/publish")})])
+                                      :path (str "/config/rate-table/" (:id row) "/publish")})])
        (when (and editable? (= "published" (:status row)))
          [w/edit-button "修订" #(open! {:title "修订费率表" :mode :rates
-                                        :path (str "/config/rate-table/" (:id row) "/revisions")
-                                        :initial {:base_currency (:base_currency row) :rates (:rates row)}})])
+                                      :path (str "/config/rate-table/" (:id row) "/revisions")
+                                      :initial {:base_currency (:base_currency row) :rates (:rates row)}})])
        (when (and editable? (contains? #{"draft" "published"} (:status row)))
          [w/edit-button "退役" #(open! {:title "退役费率表" :mode :reason
-                                        :path (str "/config/rate-table/" (:id row) "/retire")})])])]])
+                                      :path (str "/config/rate-table/" (:id row) "/retire")})])])]])
+
 
 (defn- kind-workspace
   "按类型加载配置列表并协调命令弹窗; 可按类型覆盖写权限与命令弹窗组件."
@@ -444,12 +454,12 @@
          editable? (shared/use-permission permission)
          context {:kind kind :data (:data resource) :options (:data options) :editable? editable? :open! set-dialog! :detail! set-detail!
                   :refresh! (:refresh! resource)}]
-    [:div
-     [w/resource-view resource (fn [_] [section context])]
-     (when dialog [dialog-comp (merge dialog {:on-close #(set-dialog! nil)
-                                              :on-saved (fn [_] (set-dialog! nil) ((:refresh! resource)))
-                                              :options (:data options)})])
-     (when detail [detail-view detail #(set-detail! nil)])])))
+     [:div
+      [w/resource-view resource (fn [_] [section context])]
+      (when dialog [dialog-comp (merge dialog {:on-close #(set-dialog! nil)
+                                               :on-saved (fn [_] (set-dialog! nil) ((:refresh! resource)))
+                                               :options (:data options)})])
+      (when detail [detail-view detail #(set-detail! nil)])])))
 
 
 (defn config-page

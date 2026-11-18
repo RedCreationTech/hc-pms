@@ -14,10 +14,10 @@
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <fileNamePattern>log/com.ruoyi.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
             <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
-                <maxFileSize>100MB</maxFileSize>
+                <maxFileSize>20MB</maxFileSize>
             </timeBasedFileNamingAndTriggeringPolicy>
-            <!-- keep 30 days of history -->
-            <maxHistory>30</maxHistory>
+            <!-- keep 7 days of history, 20MB per file: dev log stays bounded -->
+            <maxHistory>7</maxHistory>
         </rollingPolicy>
         <encoder>
             <charset>UTF-8</charset>

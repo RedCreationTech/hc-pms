@@ -40,28 +40,32 @@
 (defn- columns
   []
   [{:title "项目" :dataIndex "name" :width 240
-    :render (fn [v row] (r/as-element [:div [antd/button {:type "link" :style {:padding 0 :fontWeight 600} :on-click #(todo/open-project! (aget row "project_id"))} v]
-                                      [:div {:style {:fontSize 11 :color "#8793a3"}} (aget row "project_no")]]))}
+    :render (fn [v row]
+              (r/as-element [:div [antd/button {:type "link" :style {:padding 0 :fontWeight 600} :on-click #(todo/open-project! (aget row "project_id"))} v]
+                             [:div {:style {:fontSize 11 :color "#8793a3"}} (aget row "project_no")]]))}
    {:title "状态" :dataIndex "status" :width 100 :render #(r/as-element [shared/status-tag %])}
    {:title "类别" :dataIndex "project_type" :width 100 :render #(shared/project-type-label %)}
    {:title "进度" :dataIndex "overall_percent" :width 180 :render (fn [v] (r/as-element [antd/progress {:percent (or v 0) :size "small" :style {:width 140}}]))}
    {:title "SPI / CPI" :key "evm" :width 150
-    :render (fn [_ row] (let [spi (aget row "spi") cpi (aget row "cpi")]
-                          (r/as-element (if (and (nil? spi) (nil? cpi))
-                                          [:span {:style {:color "#98a2b3" :fontSize 12}} "无快照"]
-                                          [antd/space
-                                           [antd/tag {:color (cond (nil? spi) "default" (< spi 0.9) "red" (> spi 1.1) "blue" :else "green")} (str "SPI " (if (nil? spi) "—" spi))]
-                                           [antd/tag {:color (cond (nil? cpi) "default" (< cpi 0.9) "red" :else "green")} (str "CPI " (if (nil? cpi) "—" cpi))]]))))}
+    :render (fn [_ row]
+              (let [spi (aget row "spi") cpi (aget row "cpi")]
+                (r/as-element (if (and (nil? spi) (nil? cpi))
+                                [:span {:style {:color "#98a2b3" :fontSize 12}} "无快照"]
+                                [antd/space
+                                 [antd/tag {:color (cond (nil? spi) "default" (< spi 0.9) "red" (> spi 1.1) "blue" :else "green")} (str "SPI " (if (nil? spi) "—" spi))]
+                                 [antd/tag {:color (cond (nil? cpi) "default" (< cpi 0.9) "red" :else "green")} (str "CPI " (if (nil? cpi) "—" cpi))]]))))}
    {:title "阶段" :dataIndex "stages" :width 260
     :render (fn [v] (r/as-element (into [antd/space {:wrap true}] (map (fn [s] [antd/tag {:color (cond (>= (:percent s) 100) "green" (pos? (:percent s)) "blue" :else "default")} (str (:name s) " " (:percent s) "%")]) (js->clj v :keywordize-keys true)))))}
    {:title "齐套" :dataIndex "kit_percent" :width 110 :render (fn [v row] (r/as-element [:span (str v "% " (when (pos? (aget row "shortage_count")) (str "缺 " (aget row "shortage_count"))))]))}
    {:title "试验" :key "tests" :width 150
-    :render (fn [_ row] (let [required (js->clj (aget row "tests_required")) approved (set (js->clj (aget row "tests_approved")))]
-                          (r/as-element (into [antd/space {:wrap true}] (map (fn [t] [antd/tag {:color (if (approved t) "green" "default")} t]) required)))))}
+    :render (fn [_ row]
+              (let [required (js->clj (aget row "tests_required")) approved (set (js->clj (aget row "tests_approved")))]
+                (r/as-element (into [antd/space {:wrap true}] (map (fn [t] [antd/tag {:color (if (approved t) "green" "default")} t]) required)))))}
    {:title "问题/风险" :key "issues" :width 130
-    :render (fn [_ row] (r/as-element [antd/space
-                                       [antd/tag {:color (if (pos? (aget row "blocker_issues")) "red" "default")} (str "阻断 " (aget row "blocker_issues"))]
-                                       [antd/tag (str "问题 " (aget row "open_issues"))] [antd/tag (str "风险 " (aget row "open_risks"))]]))}
+    :render (fn [_ row]
+              (r/as-element [antd/space
+                             [antd/tag {:color (if (pos? (aget row "blocker_issues")) "red" "default")} (str "阻断 " (aget row "blocker_issues"))]
+                             [antd/tag (str "问题 " (aget row "open_issues"))] [antd/tag (str "风险 " (aget row "open_risks"))]]))}
    {:title "Gate" :key "gates" :width 90 :render (fn [_ row] (str (aget row "gates_passed") "/" (aget row "gates_total")))}
    {:title "交付" :dataIndex "shipments_received" :width 80 :render (fn [v] (str "签收 " v))}
    {:title "计划完成" :dataIndex "end_date" :width 130

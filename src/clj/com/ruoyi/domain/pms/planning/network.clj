@@ -152,22 +152,22 @@
   [svc actor id body]
   (rules/object! body [:version :node_ids :reason])
   (store/mutation! svc actor id body "plan.network.derived"
-    (fn [q project]
-      (let [instance (instance! q project)
-            all-nodes (vec (q :pms/nodes {:project_id (:project_id project)}))
-            candidates (filterv #(not= "main" (:node_type %)) all-nodes)
-            wanted (:node_ids body)
-            selected (select-nodes candidates wanted)
-            start (or (:start_date project) (str (LocalDate/now)))
-            counters {:created (atom []) :linked (atom 0) :skipped (atom 0)}
-            main-stages (filter #(some #{"main"} (stage-levels %)) (:stages instance))]
-        (derive-main-plan! q project actor main-stages start counters)
-        (doseq [node selected]
-          (derive-node-plan! q project actor node instance start counters))
-        (when (and (empty? main-stages) (empty? selected)) (rules/fail! 409 "模板阶段没有可派生的层级"))
-        {:node_count (count selected) :main_stage_count (count main-stages)
-         :derived_count (count @(:created counters)) :skipped_count @(:skipped counters)
-         :dependency_count @(:linked counters) :tasks @(:created counters)}))))
+                   (fn [q project]
+                     (let [instance (instance! q project)
+                           all-nodes (vec (q :pms/nodes {:project_id (:project_id project)}))
+                           candidates (filterv #(not= "main" (:node_type %)) all-nodes)
+                           wanted (:node_ids body)
+                           selected (select-nodes candidates wanted)
+                           start (or (:start_date project) (str (LocalDate/now)))
+                           counters {:created (atom []) :linked (atom 0) :skipped (atom 0)}
+                           main-stages (filter #(some #{"main"} (stage-levels %)) (:stages instance))]
+                       (derive-main-plan! q project actor main-stages start counters)
+                       (doseq [node selected]
+                         (derive-node-plan! q project actor node instance start counters))
+                       (when (and (empty? main-stages) (empty? selected)) (rules/fail! 409 "模板阶段没有可派生的层级"))
+                       {:node_count (count selected) :main_stage_count (count main-stages)
+                        :derived_count (count @(:created counters)) :skipped_count @(:skipped counters)
+                        :dependency_count @(:linked counters) :tasks @(:created counters)}))))
 
 
 (defn conflicts
@@ -199,28 +199,28 @@
   [svc actor id node-id body]
   (rules/object! body [:version :start_date :reason])
   (store/mutation! svc actor id body "plan.node.rescheduled"
-    (fn [q project]
-      (let [node (or (q :pms/node {:project_id (:project_id project) :node_id node-id}) (rules/fail! 404 "结构节点不存在或不属于当前项目"))
-            new-start (rules/date! (:start_date body) "新开始日期")
-            reason (rules/text! (:reason body) "重排原因" 500 true)
-            tasks (store/rows q project :planning/tasks)
-            all-nodes (vec (q :pms/nodes {:project_id (:project_id project)}))
-            ids (progress/node-descendants all-nodes node-id)
-            targets (filterv #(and (not= "summary" (:task_type %)) (contains? ids (progress/task-node tasks %))) tasks)]
-        (when (= "main" (:node_type node)) (rules/fail! 400 "主项目请直接调整主计划任务, 节点重排只针对子项目/单机"))
-        (when (empty? targets) (rules/fail! 409 "该节点下没有可重排的叶子任务"))
-        (when (some #(not= "todo" (:status %)) targets) (rules/fail! 409 "节点下已有开始或完成的任务, 不能整体重排"))
-        (let [calendar (:calendar (store/plan q project))
-              old-start (first (sort (map :start_date targets)))
-              delta (schedule/working-days-between calendar old-start new-start)]
-          (doseq [task targets]
-            (q :planning/update-task! (assoc task :start_date (schedule/shift-working-days calendar (:start_date task) delta))))
-          (gov/insert! q project actor "reschedule"
-                       {:code (str "RS-" (:node_code node) "-" (count (gov/records q project "reschedule")))
-                        :node_id node-id :node_code (:node_code node) :node_name (:name node)
-                        :from_start old-start :to_start new-start :delta_working_days delta
-                        :task_count (count targets) :task_ids (mapv :task_id targets) :reason reason}
-                       {:status "recorded"}))))))
+                   (fn [q project]
+                     (let [node (or (q :pms/node {:project_id (:project_id project) :node_id node-id}) (rules/fail! 404 "结构节点不存在或不属于当前项目"))
+                           new-start (rules/date! (:start_date body) "新开始日期")
+                           reason (rules/text! (:reason body) "重排原因" 500 true)
+                           tasks (store/rows q project :planning/tasks)
+                           all-nodes (vec (q :pms/nodes {:project_id (:project_id project)}))
+                           ids (progress/node-descendants all-nodes node-id)
+                           targets (filterv #(and (not= "summary" (:task_type %)) (contains? ids (progress/task-node tasks %))) tasks)]
+                       (when (= "main" (:node_type node)) (rules/fail! 400 "主项目请直接调整主计划任务, 节点重排只针对子项目/单机"))
+                       (when (empty? targets) (rules/fail! 409 "该节点下没有可重排的叶子任务"))
+                       (when (some #(not= "todo" (:status %)) targets) (rules/fail! 409 "节点下已有开始或完成的任务, 不能整体重排"))
+                       (let [calendar (:calendar (store/plan q project))
+                             old-start (first (sort (map :start_date targets)))
+                             delta (schedule/working-days-between calendar old-start new-start)]
+                         (doseq [task targets]
+                           (q :planning/update-task! (assoc task :start_date (schedule/shift-working-days calendar (:start_date task) delta))))
+                         (gov/insert! q project actor "reschedule"
+                                      {:code (str "RS-" (:node_code node) "-" (count (gov/records q project "reschedule")))
+                                       :node_id node-id :node_code (:node_code node) :node_name (:name node)
+                                       :from_start old-start :to_start new-start :delta_working_days delta
+                                       :task_count (count targets) :task_ids (mapv :task_id targets) :reason reason}
+                                      {:status "recorded"}))))))
 
 
 (defn set-stage-weights!
@@ -228,25 +228,25 @@
   [svc actor id body]
   (rules/object! body [:version :stages :reason])
   (kernel/mutate! svc actor id "pms:project:edit" body "plan.stage-weights.set"
-    (fn [q project]
-      (let [instance (instance! q project)
-            template-stages (:stages instance)
-            codes (set (map :code template-stages))
-            stages (:stages body)]
-        (when-not (and (vector? stages) (seq stages)) (rules/fail! 400 "stages 必须是阶段权重数组"))
-        (let [rows (mapv (fn [row]
-                           (rules/object! row [:code :weight])
-                           (when-not (contains? codes (:code row)) (rules/fail! 400 (str "阶段编码不在模板内: " (:code row))))
-                           (when-not (and (integer? (:weight row)) (<= 0 (:weight row) 100)) (rules/fail! 400 "阶段权重必须是0到100的整数"))
-                           (select-keys row [:code :weight]))
-                         stages)]
-          (when-not (= (count rows) (count (set (map :code rows)))) (rules/fail! 400 "阶段编码重复"))
-          (when-not (= codes (set (map :code rows))) (rules/fail! 400 "必须给出模板全部阶段的权重"))
-          (when-not (= 100 (reduce + (map :weight rows))) (rules/fail! 400 "阶段权重合计必须等于100"))
-          (let [names (into {} (map (juxt :code :name) template-stages))
-                prior (gov/records q project "stage-weights")
-                revision (inc (reduce max 0 (map :revision prior)))]
-            (gov/insert! q project actor "stage-weights"
-                         {:code "stage-weights" :stages (mapv #(assoc % :name (names (:code %))) rows)
-                          :reason (rules/text! (:reason body) "覆盖说明" 500 false) :source "project_override"}
-                         {:status "recorded" :revision revision})))))))
+                  (fn [q project]
+                    (let [instance (instance! q project)
+                          template-stages (:stages instance)
+                          codes (set (map :code template-stages))
+                          stages (:stages body)]
+                      (when-not (and (vector? stages) (seq stages)) (rules/fail! 400 "stages 必须是阶段权重数组"))
+                      (let [rows (mapv (fn [row]
+                                         (rules/object! row [:code :weight])
+                                         (when-not (contains? codes (:code row)) (rules/fail! 400 (str "阶段编码不在模板内: " (:code row))))
+                                         (when-not (and (integer? (:weight row)) (<= 0 (:weight row) 100)) (rules/fail! 400 "阶段权重必须是0到100的整数"))
+                                         (select-keys row [:code :weight]))
+                                       stages)]
+                        (when-not (= (count rows) (count (set (map :code rows)))) (rules/fail! 400 "阶段编码重复"))
+                        (when-not (= codes (set (map :code rows))) (rules/fail! 400 "必须给出模板全部阶段的权重"))
+                        (when-not (= 100 (reduce + (map :weight rows))) (rules/fail! 400 "阶段权重合计必须等于100"))
+                        (let [names (into {} (map (juxt :code :name) template-stages))
+                              prior (gov/records q project "stage-weights")
+                              revision (inc (reduce max 0 (map :revision prior)))]
+                          (gov/insert! q project actor "stage-weights"
+                                       {:code "stage-weights" :stages (mapv #(assoc % :name (names (:code %))) rows)
+                                        :reason (rules/text! (:reason body) "覆盖说明" 500 false) :source "project_override"}
+                                       {:status "recorded" :revision revision})))))))

@@ -1,13 +1,18 @@
 (ns com.ruoyi.domain.pms.planning.schedule
   "工作日历,四类前置依赖与关键路径的纯函数排程."
-  (:require [clojure.set :as set]
-            [com.ruoyi.domain.pms.read-model :as rm]
-            [com.ruoyi.domain.pms.rules :as rules])
-  (:import [java.time LocalDate]))
+  (:require
+    [clojure.set :as set]
+    [com.ruoyi.domain.pms.read-model :as rm]
+    [com.ruoyi.domain.pms.rules :as rules])
+  (:import
+    (java.time
+      LocalDate)))
+
 
 (def default-calendar
   "默认采用周一至周五,每天八小时."
   {:working_days [1 2 3 4 5] :holidays [] :extra_workdays [] :hours_per_day 8})
+
 
 (defn working-day?
   "判断日期是否属于项目工作日,额外工作日优先于假日."
@@ -17,6 +22,7 @@
         (and (not (contains? (set (:holidays calendar)) date))
              (contains? (set (:working_days calendar))
                         (.getValue (.getDayOfWeek (LocalDate/parse date))))))))
+
 
 (defn shift-working-days
   "把日期按项目日历移动 n 个工作日 (n 可为负), 结果落在工作日上; n 为 0 时返回当日或之后的首个工作日."
@@ -52,11 +58,12 @@
     (loop [remaining ids result []]
       (if (empty? remaining) result
           (let [ready (sort (filter (fn [id]
-                                     (not-any? #(and (= id (:successor_id %))
-                                                    (remaining (:predecessor_id %))) dependencies))
-                                   remaining))]
+                                      (not-any? #(and (= id (:successor_id %))
+                                                      (remaining (:predecessor_id %))) dependencies))
+                                    remaining))]
             (when (empty? ready) (rules/fail! 409 "任务依赖构成循环,无法排程"))
             (recur (apply disj remaining ready) (into result ready)))))))
+
 
 (defn- dates
   "生成一百年以内的工作日索引,避免异常输入导致无界计算."
@@ -66,11 +73,13 @@
     (->> (range 36600) (map #(.plusDays start %))
          (filter #(working-day? calendar %)) (mapv str))))
 
+
 (defn- date-index
   "把最早开始日期映射到当日或之后的首个工作日."
   [working date]
   (or (first (keep-indexed #(when (not (neg? (compare %2 date))) %1) working))
       (rules/fail! 400 "排程日期超过一百年支持范围")))
+
 
 (defn- weight
   "把FS,SS,FF,SF转换为两个开始点之间的工作日距离."
@@ -78,6 +87,7 @@
   (let [pd (:duration_days (by-id predecessor_id))
         sd (:duration_days (by-id successor_id))]
     (+ lag_days (case dependency_type "FS" pd "SS" 0 "FF" (- pd sd) "SF" (- sd)))))
+
 
 (defn- earliest
   "向前计算每个任务的最早开始偏移."
@@ -89,6 +99,7 @@
                                 (filter #(= id (:successor_id %)) dependencies)))))
           {} order))
 
+
 (defn- latest
   "向后计算不延误项目完工的最晚开始偏移."
   [order by-id dependencies finish]
@@ -98,6 +109,7 @@
                            (map #(- (result (:successor_id %)) (weight by-id %))
                                 (filter #(= id (:predecessor_id %)) dependencies)))))
           {} (reverse order)))
+
 
 (defn- scheduled-task
   "生成任务的工作日区间与总时差."
@@ -110,6 +122,7 @@
      :start_date (working start) :end_date (working end) :duration_days duration
      :total_float slack :critical (zero? slack)
      :working_dates (subvec working start (+ start duration))}))
+
 
 (defn- summary-row
   "递归汇总WBS父任务的子任务日期范围."
@@ -129,6 +142,7 @@
          :start_date start :end_date end
          :duration_days (inc (- (date-index working end) (date-index working start)))
          :total_float slack :critical (boolean (some :critical values)) :working_dates []}))))
+
 
 (defn schedule
   "计算叶子任务CPM与父任务汇总,依赖使用工作日及半开工期区间."
@@ -150,6 +164,7 @@
          :end_date (last (sort (map :end_date rows))) :working_days finish
          :critical_path (mapv :task_id (filter :critical rows))}))))
 
+
 (defn overallocations
   "累加资源每天的计划负荷,报告超过独立日容量的日期."
   [schedule resources allocations capacities]
@@ -168,13 +183,16 @@
                       :planned_hours hours :capacity_hours capacity :excess_hours (- hours capacity)}))))
          (sort-by (juxt :date :resource_id)) vec)))
 
+
 (def ^:private near-critical-ratio
   "近关键带宽占项目工作日跨度的比例: 总时差落在 0 与该带宽之间即视为近关键, 轻微滑移就会变成关键任务."
   0.1)
 
+
 (def ^:private near-critical-floor
   "近关键带宽的最小工作日下限, 防止短项目带宽退化为 0."
   2)
+
 
 (defn- float-band
   "按项目工作日跨度推导近关键带宽 (至少 near-critical-floor 个工作日), 跨度缺失时取下限."
@@ -182,6 +200,7 @@
   (if (and (number? span) (pos? span))
     (int (max (long near-critical-floor) (Math/round ^double (* near-critical-ratio (double span)))))
     near-critical-floor))
+
 
 (defn float-sensitivity
   "把 CPM 排程结果的总时差只读派生为关键路径敏感度概览 (H04):
@@ -209,14 +228,17 @@
      :near-critical-tasks (mapv detail near)
      :min-near-float (:total_float (first near))}))
 
+
 (def ^:private tightness-thresholds
   "关键任务占比 (%) 的紧凑度分档上界: 达到即判为对应档位, 用于把排程整体松紧给一个定性健康度."
   [["very-tight" 50] ["tight" 25] ["moderate" 10]])
+
 
 (defn- tightness-level
   "按关键任务占比给出定性紧凑度档位 (无叶任务时 nil)."
   [critical-pct]
   (some (fn [[level upper]] (when (>= critical-pct upper) level)) tightness-thresholds))
+
 
 (defn float-tightness
   "把 CPM 排程结果的总时差只读派生为排程整体紧凑度概览 (H04), 与 float-sensitivity 正交互补:
@@ -243,12 +265,14 @@
      :span (:working_days schedule)
      :tightness-level (when (pos? leaf-count) (tightness-level critical-pct))}))
 
+
 (defn- find-root
   "在并查集父表 parents 中沿父指针找 x 的根 (路径压缩前). 未登录的节点自成根."
   [parents x]
   (loop [node x]
     (let [p (get parents node node)]
       (if (= p node) node (recur p)))))
+
 
 (defn- uf-union
   "把并查集父表里 a,b 两节点所在集合合并 (按根对接)."
@@ -257,11 +281,13 @@
         rb (find-root parents b)]
     (if (= ra rb) parents (assoc parents rb ra))))
 
+
 (defn- uf-build
   "对无向边集 edges (每项 [a b]) 初始化并查集 (nodes 为其端点全集) 并逐边合并, 返回父表."
   [nodes edges]
   (let [seed (reduce (fn [acc n] (assoc acc n n)) {} nodes)]
     (reduce (fn [p [a b]] (uf-union p a b)) seed edges)))
+
 
 (defn network-connectivity
   "把 WBS 依赖网络只读派生为计划网络连通性概览 (H04), 与 float-sensitivity / float-tightness 正交互补:
@@ -287,9 +313,10 @@
                       (remove #(linked-leaf-ids (:task_id %)))
                       (sort-by :wbs_code)
                       (mapv #(select-keys % [:task_id :wbs_code :name])))
-        complete-edges (keep (fn [d] (let [p (:predecessor_id d)
-                                           s (:successor_id d)]
-                                       (when (and p s) [p s]))) dependencies)
+        complete-edges (keep (fn [d]
+                               (let [p (:predecessor_id d)
+                                     s (:successor_id d)]
+                                 (when (and p s) [p s]))) dependencies)
         parents (uf-build endpoints complete-edges)
         component-count (count (into #{}
                                      (comp (filter leaf-ids) (map #(find-root parents %)))
@@ -308,9 +335,11 @@
                            (>= component-count 2) "fragmented"
                            :else "connected")}))
 
+
 (def ^:private dependency-type-labels
   "四类逻辑依赖关系 (PMBOK) 的中文标签, 供 by-type 明细稳定回显."
   {"FS" "完成-开始" "SS" "开始-开始" "FF" "完成-完成" "SF" "开始-完成"})
+
 
 (defn dependency-type-mix
   "把 WBS 依赖网络只读派生为依赖类型结构概览 (H04), 与 network-connectivity / float-tightness / float-sensitivity 正交:
@@ -331,8 +360,9 @@
         parallel-count (+ (count-of "SS") (count-of "FF") (count-of "SF"))
         lagged-count (count (filter #(let [l (:lag_days %)]
                                        (and (some? l) (not= 0 l))) typed))
-        by-type (mapv (fn [t] (let [c (count-of t)]
-                                {:type t :label (get dependency-type-labels t) :count c :pct (pct c)}))
+        by-type (mapv (fn [t]
+                        (let [c (count-of t)]
+                          {:type t :label (get dependency-type-labels t) :count c :pct (pct c)}))
                       ["FS" "SS" "FF" "SF"])]
     {:available (pos? total)
      :dependency-count total
@@ -349,13 +379,16 @@
                             (< (pct parallel-count) 50) "mixed"
                             :else "parallel-heavy")}))
 
+
 (def ^:private coarse-task-days
   "单个非汇总叶任务工期达到该工作日数即视为过粗 (难以按日跟踪, 违背 WBS 分解粒度经验; 默认 10 个工作日约两周)."
   10)
 
+
 (def ^:private dominant-share-pct
   "最长单任务占全部叶任务工期总和的比例 (%) 达到该值即判定单任务吞掉大半工期, 分解严重不足."
   40)
+
 
 (defn- rounded-mean
   "把 sum/n 保留一位小数 (n<=0 时返回 0), 与 float-tightness 的 avg-float 同口径."
@@ -363,6 +396,7 @@
   (if (pos? n)
     (rm/round-dec (/ (double sum) (double n)) 1)
     0))
+
 
 (defn- median-days
   "对升序工作日向量取中位数: 奇数取中间项 (整数), 偶数取中间两项均值保留一位小数; 空向量返回 nil."
@@ -372,6 +406,7 @@
       (zero? n) nil
       (odd? n) (nth sorted (/ n 2))
       :else (rounded-mean (+ (nth sorted (dec (/ n 2))) (nth sorted (/ n 2))) 2))))
+
 
 (defn duration-granularity
   "把 WBS 叶任务工期只读派生为任务分解粒度概览 (H04), 与 float-sensitivity / float-tightness / network-connectivity /
@@ -418,13 +453,16 @@
                           (pos? (count coarse)) "coarse"
                           :else "fine")}))
 
+
 (def ^:private deep-hierarchy-depth
   "WBS 树最大嵌套层数 (根记为 1) 达到该值即判定层级过深: 汇总层太多, 逐层上卷与责任追踪会变复杂."
   4)
 
+
 (def ^:private leaf-depth-spread
   "叶任务最深层与最浅层的层差达到该值即判定层级失衡: 同粒度工作被挂在差异悬殊的深度, 分解口径不一致."
   2)
+
 
 (defn- task-depth
   "沿 parent_id 链回溯某任务的层级 (根记为 1), 带 visited 环守卫; 父级缺失或成环时按已到深度返回."
@@ -434,6 +472,7 @@
       (if (or (nil? parent-id) (seen parent-id) (not (contains? by-id parent-id)))
         depth
         (recur parent-id (conj seen id) (inc depth))))))
+
 
 (defn wbs-hierarchy
   "把 WBS 任务树按 parent_id 的父子结构只读派生为层级结构概览 (H04), 与 float-sensitivity / float-tightness /

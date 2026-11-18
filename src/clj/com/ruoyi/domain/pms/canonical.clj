@@ -1,6 +1,7 @@
 (ns com.ruoyi.domain.pms.canonical
   "确定性键序规范化: 递归把嵌套结构中的 map 转为按字符串比较的有序 map, 使相同内容产生字节稳定的序列化结果. 纯函数, 不查库不落库不投递."
-  (:require [clojure.walk :as walk]))
+  (:require
+    [clojure.walk :as walk]))
 
 
 (defn stable-sorted

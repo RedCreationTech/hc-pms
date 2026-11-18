@@ -1,11 +1,20 @@
 (ns com.ruoyi.domain.pms.integration.transport
   "由部署环境配置的HTTPS消息交付,必须取得匹配业务回执才算成功."
-  (:require [cheshire.core :as json]
-            [com.ruoyi.domain.pms.finance-money :as money]
-            [com.ruoyi.domain.pms.rules :as r])
-  (:import [java.net URI]
-           [java.net.http HttpClient HttpRequest HttpRequest$BodyPublishers HttpResponse$BodyHandlers]
-           [java.time Duration]))
+  (:require
+    [cheshire.core :as json]
+    [com.ruoyi.domain.pms.finance-money :as money]
+    [com.ruoyi.domain.pms.rules :as r])
+  (:import
+    (java.net
+      URI)
+    (java.net.http
+      HttpClient
+      HttpRequest
+      HttpRequest$BodyPublishers
+      HttpResponse$BodyHandlers)
+    (java.time
+      Duration)))
+
 
 (defn connectors
   "从服务注入或部署环境读取连接器,不在数据库或UI保存认证令牌."
@@ -14,6 +23,7 @@
       (when-let [config (not-empty (System/getenv "PMS_CONNECTORS_JSON"))]
         (try (json/parse-string config true)
              (catch Exception _ (r/fail! 503 "接口部署配置无效")))) {}))
+
 
 (defn connection!
   "要求服务端配置可信目标,只允许HTTPS或测试显式启用的本地HTTP."
@@ -29,6 +39,7 @@
       (r/fail! 503 "目标连接器认证环境变量未设置"))
     (assoc config :uri uri)))
 
+
 (defn- receipt
   "2xx响应还须返回accepted,对应message_id和非空receipt_id."
   [row status text]
@@ -40,9 +51,11 @@
      :receipt_id (when accepted? rid) :receipt_hash (money/digest text)
      :error_code (when-not accepted? (if (<= 200 status 299) "receipt_mismatch" "http_rejected"))}))
 
+
 (def ^:dynamic *response-timeout-ms*
   "覆盖连接,响应头及完整正文的总等待上限,测试可缩短."
   10000)
+
 
 (defn- bounded-subscriber
   "以有限缓冲读取回执,收到超限正文立即取消订阅."
@@ -51,8 +64,11 @@
         buffer (java.io.ByteArrayOutputStream.)]
     (reify java.net.http.HttpResponse$BodySubscriber
       (getBody [_] result)
+
       (onSubscribe [_ sub] (reset! subscription sub) (.request sub 1))
-      (onNext [_ chunks]
+
+      (onNext
+        [_ chunks]
         (try
           (doseq [chunk chunks]
             (let [size (.remaining ^java.nio.ByteBuffer chunk)]
@@ -63,8 +79,11 @@
           (catch Exception e
             (.cancel ^java.util.concurrent.Flow$Subscription @subscription)
             (.completeExceptionally result e))))
+
       (onError [_ error] (.completeExceptionally result error))
+
       (onComplete [_] (.complete result (.toByteArray buffer))))))
+
 
 (defn- response!
   "完整响应受同一个截止时间约束,超时取消网络和正文订阅."
@@ -79,6 +98,7 @@
         (when-let [sub @subscription] (.cancel ^java.util.concurrent.Flow$Subscription sub))
         (.cancel pending true)
         (throw e)))))
+
 
 (defn send!
   "禁止重定向,限制完整响应时间和大小,只有匹配的业务回执才表示交付成功."

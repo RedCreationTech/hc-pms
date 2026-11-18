@@ -4,8 +4,8 @@
     ["@ant-design/icons" :refer [DownloadOutlined SearchOutlined ReloadOutlined PlusOutlined EditOutlined DeleteOutlined]]
     [com.ruoyi.frontend.antd :as antd]
     [com.ruoyi.frontend.api :as api]
-    [com.ruoyi.frontend.components.page-search :as page-search]
     [com.ruoyi.frontend.components.dept-tree-select :refer [build-tree]]
+    [com.ruoyi.frontend.components.page-search :as page-search]
     [com.ruoyi.frontend.components.page-toolbar :as page-toolbar]
     [com.ruoyi.frontend.permission :as permission]
     [re-frame.core :as rf]
@@ -152,14 +152,14 @@
                                  "删除"]])
                              (when can-edit?
                                [antd/dropdown {:menu {:items (clj->js [{:key "data" :label "数据权限"}
-                                                                     {:key "users" :label "分配用户"}
-                                                                     {:key "perm" :label "分配权限"}])
-                                                    :onClick (fn [e]
-                                                               (case (.-key e)
-                                                                 "data" (rf/dispatch [:roles/open-data-scope record-clj])
-                                                                 "users" (rf/dispatch [:roles/open-user-alloc record-clj])
-                                                                 "perm" (rf/dispatch [:roles/open-permission record-clj])
-                                                                 nil))}}
+                                                                       {:key "users" :label "分配用户"}
+                                                                       {:key "perm" :label "分配权限"}])
+                                                      :onClick (fn [e]
+                                                                 (case (.-key e)
+                                                                   "data" (rf/dispatch [:roles/open-data-scope record-clj])
+                                                                   "users" (rf/dispatch [:roles/open-user-alloc record-clj])
+                                                                   "perm" (rf/dispatch [:roles/open-permission record-clj])
+                                                                   nil))}}
                                 [antd/button {:type "link" :size "small"}
                                  "更多"]])]))))}])
 

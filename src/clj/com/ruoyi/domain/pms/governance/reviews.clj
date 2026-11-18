@@ -1,12 +1,14 @@
 (ns com.ruoyi.domain.pms.governance.reviews
   "问题受控重开及风险周期复审,所有决定由指定独立人员确认."
-  (:require [com.ruoyi.domain.pms.governance.store :as s]
-            [com.ruoyi.domain.pms.governance.risk-assessment :as ra]
-            [com.ruoyi.domain.pms.kernel :as k]
-            [com.ruoyi.domain.pms.read-model :as rm]
-            [com.ruoyi.domain.pms.rules :as r])
-  (:import [java.time LocalDate]))
-
+  (:require
+    [com.ruoyi.domain.pms.governance.risk-assessment :as ra]
+    [com.ruoyi.domain.pms.governance.store :as s]
+    [com.ruoyi.domain.pms.kernel :as k]
+    [com.ruoyi.domain.pms.read-model :as rm]
+    [com.ruoyi.domain.pms.rules :as r])
+  (:import
+    (java.time
+      LocalDate)))
 
 
 (defn- history
@@ -17,26 +19,24 @@
                 :prior_status (:status record)} fields)))
 
 
-
 (defn reopen-issue!
   "关闭问题仅能通过有理由,证据和独立指定人的重开申请重新处理."
   [svc actor id rid body]
   (k/mutate! svc actor id "pms:project:edit" body "issue.reopen-submitted"
-    (fn [q project]
-      (s/input! body [:reason :reviewer_id :evidence_ids])
-      (let [issue (s/record! q project "issue" rid)
-            reason (s/text! body :reason)
-            evidence (s/evidence! q project (:evidence_ids body) true)]
-        (s/status! issue #{"closed"})
-        (s/change! q project issue "in_review"
-                   {:review_action "reopen" :reopen_reason reason :submitted_by (:user_id actor)
-                    :reviewer_id (s/reviewer! q project actor (:reviewer_id body))
-                    :reopen_evidence_ids evidence
-                    :workflow_history (history issue actor "reopen_requested"
-                                               {:reason reason :evidence_ids evidence
-                                                :prior_resolution (:resolution issue)
-                                                :prior_verification_reason (:verification_reason issue)})})))))
-
+             (fn [q project]
+               (s/input! body [:reason :reviewer_id :evidence_ids])
+               (let [issue (s/record! q project "issue" rid)
+                     reason (s/text! body :reason)
+                     evidence (s/evidence! q project (:evidence_ids body) true)]
+                 (s/status! issue #{"closed"})
+                 (s/change! q project issue "in_review"
+                            {:review_action "reopen" :reopen_reason reason :submitted_by (:user_id actor)
+                             :reviewer_id (s/reviewer! q project actor (:reviewer_id body))
+                             :reopen_evidence_ids evidence
+                             :workflow_history (history issue actor "reopen_requested"
+                                                        {:reason reason :evidence_ids evidence
+                                                         :prior_resolution (:resolution issue)
+                                                         :prior_verification_reason (:verification_reason issue)})})))))
 
 
 (defn decide-reopening!
@@ -53,7 +53,6 @@
                 :workflow_history (history issue actor "reopen_decided" {:decision decision :reason reason})})))
 
 
-
 (defn- next-review!
   "仍需跟踪的风险必须设置下一次未来复审日期."
   [body outcome]
@@ -62,7 +61,6 @@
       (when-not (.isAfter (LocalDate/parse date) (LocalDate/now))
         (r/fail! 400 "下一次风险复审日期必须晚于今天"))
       date)))
-
 
 
 (defn- explicit-next-review-date
@@ -83,13 +81,11 @@
             (next-review! body outcome))))
 
 
-
 (defn- linked-issues-closed!
   "已发生风险的历史问题在关闭或恢复监控前必须全部验证关闭."
   [q project risk]
   (doseq [rid (distinct (remove nil? (conj (vec (:issue_ids risk)) (:issue_id risk))))]
     (s/status! (s/record! q project "issue" rid) #{"closed"})))
-
 
 
 (defn- proposed-rescore
@@ -111,23 +107,22 @@
   "提交带真实证据的风险周期复审或关闭申请, 可同时提议重新评分, 待独立审批."
   [svc actor id rid body]
   (k/mutate! svc actor id "pms:project:edit" body "risk.review-submitted"
-    (fn [q project]
-      (s/input! body [:outcome :review_note :evidence_ids :reviewer_id :next_review_date :probability :impact])
-      (let [risk (s/record! q project "risk" rid)
-            outcome (s/enum! (:outcome body) #{"active" "mitigated" "closed"} "outcome")
-            note (s/text! body :review_note)
-            rescore (proposed-rescore body)
-            patch (merge {:review_action "risk_review" :review_previous_status (:status risk)
-                          :requested_outcome outcome :review_note note
-                          :next_review_date (resolve-next-review! risk body outcome)
-                          :review_evidence_ids (s/evidence! q project (:evidence_ids body) true)
-                          :reviewer_id (s/reviewer! q project actor (:reviewer_id body)) :submitted_by (:user_id actor)
-                          :workflow_history (history risk actor "review_requested" {:outcome outcome :note note})}
-                         rescore)]
-        (s/status! risk #{"open" "mitigated" "materialized" "closed"})
-        (linked-issues-closed! q project risk)
-        (s/change! q project risk "in_review" patch)))))
-
+             (fn [q project]
+               (s/input! body [:outcome :review_note :evidence_ids :reviewer_id :next_review_date :probability :impact])
+               (let [risk (s/record! q project "risk" rid)
+                     outcome (s/enum! (:outcome body) #{"active" "mitigated" "closed"} "outcome")
+                     note (s/text! body :review_note)
+                     rescore (proposed-rescore body)
+                     patch (merge {:review_action "risk_review" :review_previous_status (:status risk)
+                                   :requested_outcome outcome :review_note note
+                                   :next_review_date (resolve-next-review! risk body outcome)
+                                   :review_evidence_ids (s/evidence! q project (:evidence_ids body) true)
+                                   :reviewer_id (s/reviewer! q project actor (:reviewer_id body)) :submitted_by (:user_id actor)
+                                   :workflow_history (history risk actor "review_requested" {:outcome outcome :note note})}
+                                  rescore)]
+                 (s/status! risk #{"open" "mitigated" "materialized" "closed"})
+                 (linked-issues-closed! q project risk)
+                 (s/change! q project risk "in_review" patch)))))
 
 
 (defn- approved-risk-patch
@@ -156,29 +151,29 @@
   "指定独立审核人批准复审结果(可同时应用复评期间的重新评分),或恢复提交之前的风险状态."
   [svc actor id rid body]
   (k/mutate! svc actor id "pms:quality:approve" body "risk.review-decided" {:write? false}
-    (fn [q project]
-      (s/input! body [:decision :reason])
-      (let [risk (s/record! q project "risk" rid)
-            decision (s/enum! (:decision body) r/decisions "decision")
-            reason (s/text! body :reason) approved? (= "approved" decision)
-            state (if approved? (case (:requested_outcome risk) "active" "open" "mitigated" "mitigated" "closed")
-                      (:review_previous_status risk))
-            {:keys [rescoring? patch]} (rescore-patch risk approved? state)]
-        (s/status! risk #{"in_review"})
-        (s/decision-actor! actor risk)
-        (s/evidence! q project (:review_evidence_ids risk) true)
-        (when approved?
-          (linked-issues-closed! q project risk)
-          (next-review! risk (:requested_outcome risk)))
-        (s/change! q project risk state
-                   (cond-> {:review_decided_by (:user_id actor) :review_decision_reason reason
-                            :workflow_history (cond-> (history risk actor "review_decided" {:decision decision :reason reason})
-                                                rescoring? (conj {:action "rescored" :actor_id (:user_id actor)
-                                                                  :on (str (LocalDate/now))
-                                                                  :from_score (:score risk)
-                                                                  :to_score (:review_proposed_score risk)}))}
-                     true (merge patch)
-                     approved? (merge (approved-risk-patch risk))))))))
+             (fn [q project]
+               (s/input! body [:decision :reason])
+               (let [risk (s/record! q project "risk" rid)
+                     decision (s/enum! (:decision body) r/decisions "decision")
+                     reason (s/text! body :reason) approved? (= "approved" decision)
+                     state (if approved? (case (:requested_outcome risk) "active" "open" "mitigated" "mitigated" "closed")
+                               (:review_previous_status risk))
+                     {:keys [rescoring? patch]} (rescore-patch risk approved? state)]
+                 (s/status! risk #{"in_review"})
+                 (s/decision-actor! actor risk)
+                 (s/evidence! q project (:review_evidence_ids risk) true)
+                 (when approved?
+                   (linked-issues-closed! q project risk)
+                   (next-review! risk (:requested_outcome risk)))
+                 (s/change! q project risk state
+                            (cond-> {:review_decided_by (:user_id actor) :review_decision_reason reason
+                                     :workflow_history (cond-> (history risk actor "review_decided" {:decision decision :reason reason})
+                                                         rescoring? (conj {:action "rescored" :actor_id (:user_id actor)
+                                                                           :on (str (LocalDate/now))
+                                                                           :from_score (:score risk)
+                                                                           :to_score (:review_proposed_score risk)}))}
+                              true (merge patch)
+                              approved? (merge (approved-risk-patch risk))))))))
 
 
 (def review-due-soon-days
@@ -193,7 +188,7 @@
         due (if (contains? risk :review_due_date) (:review_due_date risk) (:due_date risk))
         days (when-not closed? (rm/days-until due))]
     (assoc risk :review_due_date due
-                :review_overdue (boolean (and (not closed?) due
-                                              (not (.isAfter (LocalDate/parse due) (LocalDate/now)))))
-                :review_due_in_days days
-                :review_due_soon (boolean (and (some? days) (<= 1 days review-due-soon-days))))))
+           :review_overdue (boolean (and (not closed?) due
+                                         (not (.isAfter (LocalDate/parse due) (LocalDate/now)))))
+           :review_due_in_days days
+           :review_due_soon (boolean (and (some? days) (<= 1 days review-due-soon-days))))))

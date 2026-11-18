@@ -1,8 +1,9 @@
 (ns com.ruoyi.domain.pms.membership
   "成员撤销前的跨业务责任交接检查,防止形成无人可处理的待办."
-  (:require [com.ruoyi.domain.pms.delivery :as delivery]
-            [com.ruoyi.domain.pms.governance :as gov]
-            [com.ruoyi.domain.pms.rules :as r]))
+  (:require
+    [com.ruoyi.domain.pms.delivery :as delivery]
+    [com.ruoyi.domain.pms.governance :as gov]
+    [com.ruoyi.domain.pms.rules :as r]))
 
 
 (defn- execution-blockers

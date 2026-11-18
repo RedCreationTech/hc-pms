@@ -1,16 +1,18 @@
 (ns com.ruoyi.domain.pms.closure
   "项目收尾清单, 遗留移交, 经验与绑定确定证据快照的独立关闭审批."
-  (:require [cheshire.core :as json]
-            [clojure.string :as str]
-            [com.ruoyi.domain.pms.approval-chain :as chain]
-            [com.ruoyi.domain.pms.canonical :as canonical]
-            [com.ruoyi.domain.pms.finance :as finance]
-            [com.ruoyi.domain.pms.delivery :as delivery]
-            [com.ruoyi.domain.pms.finance-money :as money]
-            [com.ruoyi.domain.pms.governance :as governance]
-            [com.ruoyi.domain.pms.kernel :as kernel]
-            [com.ruoyi.domain.pms.read-model :as rm]
-            [com.ruoyi.domain.pms.rules :as rules]))
+  (:require
+    [cheshire.core :as json]
+    [clojure.string :as str]
+    [com.ruoyi.domain.pms.approval-chain :as chain]
+    [com.ruoyi.domain.pms.canonical :as canonical]
+    [com.ruoyi.domain.pms.delivery :as delivery]
+    [com.ruoyi.domain.pms.finance :as finance]
+    [com.ruoyi.domain.pms.finance-money :as money]
+    [com.ruoyi.domain.pms.governance :as governance]
+    [com.ruoyi.domain.pms.kernel :as kernel]
+    [com.ruoyi.domain.pms.read-model :as rm]
+    [com.ruoyi.domain.pms.rules :as rules]))
+
 
 (defn task-blockers
   "仅叶级任务全部完成后才能进入收尾, 汇总节点由排程计算."
@@ -20,6 +22,7 @@
     (cond-> []
       (empty? tasks) (conj "项目没有可验收的计划任务")
       (seq pending) (conj (str "仍有" (count pending) "个未完成的叶级任务")))))
+
 
 (defn- blocker-groups
   "把结项缺口按来源域分组, 作为 blockers 与只读就绪度汇总的单一事实来源. 返回每域一个消息向量: tasks 计划任务, governance 治理与质量, finance 财务决算, delivery 交付链, items 收尾清单. 分组顺序与 blockers 完全一致, 不改变任何门控判定."
@@ -34,11 +37,13 @@
      :delivery (vec (delivery/closure-blockers q project))
      :items item-msgs}))
 
+
 (defn blockers
   "汇总任务, 质量, 财务和必需收尾项的真实缺口. 由 blocker-groups 按域展平, 与历史顺序一致, 门控判定不变."
   [q project]
   (let [g (blocker-groups q project)]
     (vec (concat (:tasks g) (:governance g) (:finance g) (:delivery g) (:items g)))))
+
 
 (defn- snapshot
   "收集会影响关闭决定的对象版本, 不包含可变化的通用审计计数."
@@ -46,18 +51,20 @@
   (let [params {:project_id (:project_id project)}]
     {:project (select-keys project [:project_id :project_no :name :manager_id :contract_no :end_date])
      :delivery (into {} (for [kind ["configuration" "material" "bom" "assembly" "test" "shipment" "service"]]
-                           [kind (vec (q :delivery/list (assoc params :kind kind)))]))
+                          [kind (vec (q :delivery/list (assoc params :kind kind)))]))
      :tasks (vec (q :planning/tasks params)) :plan (q :planning/plan params)
      :quality (into {} (for [kind ["charter" "gate-template" "gate" "issue" "document"]]
-                        [kind (vec (q :gov/list (assoc params :kind kind)))]))
+                         [kind (vec (q :gov/list (assoc params :kind kind)))]))
      :costs (vec (q :finance/versions params)) :times (vec (q :finance/times params))
      :items (vec (q :closure/items params)) :lessons (vec (q :closure/lessons params))}))
+
 
 (defn- encoded-snapshot
   "以稳定键序编码关闭输入快照用于摘要比较."
   [q project]
   (json/generate-string
     (canonical/stable-sorted (snapshot q project))))
+
 
 (defn ready!
   "关闭时再次核对实际条件和审批时的内容摘要, 防止批准后改写依据."
@@ -72,6 +79,7 @@
       (rules/fail! 409 "关闭依据在审批后发生变化,请重新提交关闭审批")))
   true)
 
+
 (defn progress-summary
   "E10 收尾清单闭环只读汇总: 对 checks+handoffs 与关闭审批/经验在读取时派生项目级收尾进度, 免迁移, 不构成门控 (真正门控仍由 blockers/ready!/submit!/review! 与独立审批状态机强制). 键名不带尾随 ?."
   [items approval lessons today]
@@ -85,7 +93,7 @@
         required (filterv :required items)
         required-open (count (remove closed? required))
         overdue-open (count (filterv #(and (not (closed? %)) (:due_date %)
-                                        (neg? (compare (:due_date %) today-str))) items))
+                                           (neg? (compare (:due_date %) today-str))) items))
         kind-row (fn [key label rows]
                    (let [t (count rows) c (count (filterv closed? rows))]
                      {:key key :label label :total t :completed c
@@ -130,6 +138,7 @@
   "H15a 经验教训适用场景/阶段受控枚举: 让复盘经验能标注其适用的项目过程阶段, 便于后续按场景检索复用. 历史经验留空表示未标注."
   ["启动" "规划" "执行" "监控" "收尾" "质量" "交付" "成本" "风险" "采购" "干系人" "沟通"])
 
+
 (defn lesson-summary
   "H15 经验教训类别分布与作者覆盖度只读汇总 (免迁移, 不构成门控): 收尾复盘此前只有 经验 N 总数, 看不出经验集中在哪些分类, 覆盖了几类, 由多少人贡献. 本项在读取时对已登记经验派生项目级复盘分布可见性——按 分类 category 累计每类条数 (by-category 按条数降序, 同数按名称升序), 给出分类覆盖数 distinct-categories, 最大类 dominant-category 与其条数 dominant-count 及分类集中度 concentration-pct (最大类占总数的四舍五入整数百分比), 另按 贡献人 created_by 给出参与人数 author-count 与最活跃作者条数 top-author-count, 已标注分类数 categorized 与未标注分类数 uncategorized. H15a 追加只读派生: 按 适用场景 applicable_stage 累计 by-stage (同样条数降序/名称升序) 与已标注场景数 stages-declared, 场景覆盖 distinct-stages, 以及跟进责任人落地度 owner-assigned (标注了 owner_id 的经验数) 与 owner-coverage-pct (占总数四舍五入整数百分比). 经验总数为 0 时 available 为 false 且各计数为 0, dominant-category 为 nil. 这是复盘这一治理对象的只读投影, 与各经验行的逐条视图互补, 不写入存储, 不新增 kind/命令/路由, 也不构成任何门控 (登记的真正约束仍由 create-lesson! 强制), 键名不带尾随问号."
   [lessons]
@@ -173,23 +182,24 @@
   "返回收尾工作台和明确缺口, 不向普通成员暴露财务金额."
   [svc actor project-id]
   (kernel/read! svc actor project-id "pms:project:query"
-    (fn [q project]
-      (let [items (mapv #(assoc % :id (:item_id %) :required (= 1 (:required %)))
-                        (q :closure/items {:project_id project-id}))
-            groups (blocker-groups q project)
-            missing (vec (concat (:tasks groups) (:governance groups) (:finance groups)
-                                 (:delivery groups) (:items groups)))
-            approval (q :closure/approval {:project_id project-id})
-            lessons (mapv #(assoc % :id (:lesson_id %)) (q :closure/lessons {:project_id project-id}))]
-        {:project_version (:version project) :checks (filterv #(= "check" (:kind %)) items)
-         :handoffs (filterv #(= "handoff" (:kind %)) items)
-         :lessons lessons
-         :reopen_request (q :reopen/latest {:project_id project-id})
-         :approval (some-> approval (dissoc :snapshot_json))
-         :ready (empty? missing) :blockers missing
-         :readiness (readiness-summary groups approval)
-         :progress (progress-summary items approval lessons (java.time.LocalDate/now))
-         :lesson_summary (lesson-summary lessons)}))))
+                (fn [q project]
+                  (let [items (mapv #(assoc % :id (:item_id %) :required (= 1 (:required %)))
+                                    (q :closure/items {:project_id project-id}))
+                        groups (blocker-groups q project)
+                        missing (vec (concat (:tasks groups) (:governance groups) (:finance groups)
+                                             (:delivery groups) (:items groups)))
+                        approval (q :closure/approval {:project_id project-id})
+                        lessons (mapv #(assoc % :id (:lesson_id %)) (q :closure/lessons {:project_id project-id}))]
+                    {:project_version (:version project) :checks (filterv #(= "check" (:kind %)) items)
+                     :handoffs (filterv #(= "handoff" (:kind %)) items)
+                     :lessons lessons
+                     :reopen_request (q :reopen/latest {:project_id project-id})
+                     :approval (some-> approval (dissoc :snapshot_json))
+                     :ready (empty? missing) :blockers missing
+                     :readiness (readiness-summary groups approval)
+                     :progress (progress-summary items approval lessons (java.time.LocalDate/now))
+                     :lesson_summary (lesson-summary lessons)}))))
+
 
 (defn create-item!
   "建立受控收尾检查或遗留移交事项."
@@ -199,97 +209,101 @@
     (rules/fail! 400 "必需标记必须是布尔值"))
   (when-not (contains? #{"check" "handoff"} kind) (rules/fail! 400 "无效收尾对象类型"))
   (kernel/mutate! svc actor project-id "pms:project:edit" body "closure.item.created"
-    (fn [q project]
-      (let [owner (when (= kind "handoff") (kernel/user! q project (:owner_id body) "移交责任人"))
-            date (when (= kind "handoff") (rules/date! (:due_date body) "移交期限"))
-            item {:item_id (kernel/id) :project_id project-id :kind kind
-                  :title (rules/text! (:title body) "收尾事项" 200 true)
-                  :required (if (false? (:required body)) 0 1) :owner_id owner :due_date date}]
-        (when (and (= kind "handoff") (nil? date)) (rules/fail! 400 "移交期限不能为空"))
-        (q :closure/insert-item! item)
-        (assoc item :id (:item_id item) :status "open")))))
+                  (fn [q project]
+                    (let [owner (when (= kind "handoff") (kernel/user! q project (:owner_id body) "移交责任人"))
+                          date (when (= kind "handoff") (rules/date! (:due_date body) "移交期限"))
+                          item {:item_id (kernel/id) :project_id project-id :kind kind
+                                :title (rules/text! (:title body) "收尾事项" 200 true)
+                                :required (if (false? (:required body)) 0 1) :owner_id owner :due_date date}]
+                      (when (and (= kind "handoff") (nil? date)) (rules/fail! 400 "移交期限不能为空"))
+                      (q :closure/insert-item! item)
+                      (assoc item :id (:item_id item) :status "open")))))
+
 
 (defn complete-item!
   "以同项目不可变文档版本完成收尾或移交, 记录实际责任人."
   [svc actor project-id kind item-id body]
   (rules/object! body [:version :evidence_ref :comment])
   (kernel/mutate! svc actor project-id "pms:project:edit" body "closure.item.completed"
-    (fn [q project]
-      (let [item (q :closure/item {:project_id project-id :item_id item-id})
-            evidence (governance/evidence-version! q project (:evidence_ref body))]
-        (when-not (= kind (:kind item)) (rules/fail! 404 "收尾事项不存在"))
-        (when-not (= "open" (:status item)) (rules/fail! 409 "收尾事项已完成"))
-        (when (and (= kind "handoff") (not= (:owner_id item) (:user_id actor)))
-          (rules/fail! 403 "仅指定接收人可以确认遗留事项移交"))
-        (rules/changed! (q :closure/complete-item!
-                           (assoc item :evidence_ref (:id evidence) :completed_by (:user_id actor)
-                                  :comment (rules/text! (:comment body) "完成说明" 1000 true))))
-        (assoc (q :closure/item item) :id item-id)))))
+                  (fn [q project]
+                    (let [item (q :closure/item {:project_id project-id :item_id item-id})
+                          evidence (governance/evidence-version! q project (:evidence_ref body))]
+                      (when-not (= kind (:kind item)) (rules/fail! 404 "收尾事项不存在"))
+                      (when-not (= "open" (:status item)) (rules/fail! 409 "收尾事项已完成"))
+                      (when (and (= kind "handoff") (not= (:owner_id item) (:user_id actor)))
+                        (rules/fail! 403 "仅指定接收人可以确认遗留事项移交"))
+                      (rules/changed! (q :closure/complete-item!
+                                         (assoc item :evidence_ref (:id evidence) :completed_by (:user_id actor)
+                                                :comment (rules/text! (:comment body) "完成说明" 1000 true))))
+                      (assoc (q :closure/item item) :id item-id)))))
+
 
 (defn create-lesson!
   "登记可复用的项目经验, 保留来源项目和作者; H15a 可选标注适用场景 (受控枚举) 与跟进责任人 (须为有效项目成员), 留空表示未标注, 随经验行持久化."
   [svc actor project-id body]
   (rules/object! body [:version :title :category :content :applicable_stage :owner_id])
   (kernel/mutate! svc actor project-id "pms:project:edit" body "closure.lesson.created"
-    (fn [q project]
-      (let [stage-raw (rules/text! (:applicable_stage body) "适用场景" 40 false)
-            stage (when (seq stage-raw)
-                    (when-not (some #(= % stage-raw) lesson-stages)
-                      (rules/fail! 400 (str "适用场景必须是受控枚举之一: " (str/join " / " lesson-stages))))
-                    stage-raw)
-            owner-raw (:owner_id body)
-            owner (when (and (some? owner-raw) (not= "" owner-raw))
-                    (kernel/user! q project owner-raw "跟进责任人"))
-            lesson {:lesson_id (kernel/id) :project_id project-id :created_by (:user_id actor)
-                    :title (rules/text! (:title body) "经验标题" 200 true)
-                    :category (rules/text! (:category body) "经验分类" 40 true)
-                    :content (rules/text! (:content body) "经验内容" 20000 true)
-                    :applicable_stage stage :owner_id owner}]
-        (q :closure/insert-lesson! lesson)
-        (assoc lesson :id (:lesson_id lesson))))))
+                  (fn [q project]
+                    (let [stage-raw (rules/text! (:applicable_stage body) "适用场景" 40 false)
+                          stage (when (seq stage-raw)
+                                  (when-not (some #(= % stage-raw) lesson-stages)
+                                    (rules/fail! 400 (str "适用场景必须是受控枚举之一: " (str/join " / " lesson-stages))))
+                                  stage-raw)
+                          owner-raw (:owner_id body)
+                          owner (when (and (some? owner-raw) (not= "" owner-raw))
+                                  (kernel/user! q project owner-raw "跟进责任人"))
+                          lesson {:lesson_id (kernel/id) :project_id project-id :created_by (:user_id actor)
+                                  :title (rules/text! (:title body) "经验标题" 200 true)
+                                  :category (rules/text! (:category body) "经验分类" 40 true)
+                                  :content (rules/text! (:content body) "经验内容" 20000 true)
+                                  :applicable_stage stage :owner_id owner}]
+                      (q :closure/insert-lesson! lesson)
+                      (assoc lesson :id (:lesson_id lesson))))))
+
 
 (defn submit!
   "在收尾条件满足后提交确定版本的关闭申请."
   [svc actor project-id body]
   (rules/object! body [:version :reviewer_id])
   (kernel/mutate! svc actor project-id "pms:project:edit" body "closure.submitted"
-    (fn [q project]
-      (when-not (= "closing" (:status project)) (rules/fail! 409 "项目必须先进入收尾阶段"))
-      (when-let [message (first (blockers q project))] (rules/fail! 409 message))
-      (let [existing (q :closure/approval {:project_id project-id})
-            ;; 已发布 "项目结项" 审批策略时指定审批人可选 (只用于 "提交人选择" 级别)
-            policy? (some? (chain/policy q "closure"))
-            reviewer (when (or (not policy?) (some? (:reviewer_id body)))
-                       (kernel/user! q project (:reviewer_id body) "关闭审批人"))
-            snapshot (encoded-snapshot q project)
-            approval-id (kernel/id)]
-        (when (= "submitted" (:status existing)) (rules/fail! 409 "已有待处理的关闭申请"))
-        (when (= reviewer (:user_id actor)) (rules/fail! 400 "不能审批自己提交的关闭申请"))
-        (let [started (chain/start! q actor project "closure" approval-id
-                                    {:reviewer-id reviewer :title (str "项目结项 " (:project_no project) " " (:name project))})]
-          (q :closure/insert-approval! {:approval_id approval-id :project_id project-id
-              :project_version (inc (:version project)) :submitted_by (:user_id actor)
-              :reviewer_id (or reviewer (:first-approver started))
-              :snapshot_hash (money/digest snapshot) :snapshot_json snapshot}))
-        (dissoc (q :closure/approval {:project_id project-id}) :snapshot_json)))))
+                  (fn [q project]
+                    (when-not (= "closing" (:status project)) (rules/fail! 409 "项目必须先进入收尾阶段"))
+                    (when-let [message (first (blockers q project))] (rules/fail! 409 message))
+                    (let [existing (q :closure/approval {:project_id project-id})
+                          ;; 已发布 "项目结项" 审批策略时指定审批人可选 (只用于 "提交人选择" 级别)
+                          policy? (some? (chain/policy q "closure"))
+                          reviewer (when (or (not policy?) (some? (:reviewer_id body)))
+                                     (kernel/user! q project (:reviewer_id body) "关闭审批人"))
+                          snapshot (encoded-snapshot q project)
+                          approval-id (kernel/id)]
+                      (when (= "submitted" (:status existing)) (rules/fail! 409 "已有待处理的关闭申请"))
+                      (when (= reviewer (:user_id actor)) (rules/fail! 400 "不能审批自己提交的关闭申请"))
+                      (let [started (chain/start! q actor project "closure" approval-id
+                                                  {:reviewer-id reviewer :title (str "项目结项 " (:project_no project) " " (:name project))})]
+                        (q :closure/insert-approval! {:approval_id approval-id :project_id project-id
+                                                      :project_version (inc (:version project)) :submitted_by (:user_id actor)
+                                                      :reviewer_id (or reviewer (:first-approver started))
+                                                      :snapshot_hash (money/digest snapshot) :snapshot_json snapshot}))
+                      (dissoc (q :closure/approval {:project_id project-id}) :snapshot_json)))))
+
 
 (defn review!
   "指定独立审批人审核仍然有效的关闭依据, 不自动越过最终状态命令."
   [svc actor project-id body]
   (rules/decision! body "审批")
   (kernel/mutate! svc actor project-id "pms:project:close" body "closure.reviewed" {:write? false}
-    (fn [q project]
-      (let [approval (q :closure/approval {:project_id project-id})
-            reason (rules/text! (:reason body) "审批意见" 1000 (= "rejected" (:decision body)))]
-        (when-not (= "submitted" (:status approval)) (rules/fail! 409 "没有待处理的关闭申请"))
-        (chain/guard-legacy-decision! q "closure" (:approval_id approval))
-        (kernel/independent-review! actor (:submitted_by approval) (:reviewer_id approval))
-        (when (= "approved" (:decision body))
-          (when-let [message (first (blockers q project))] (rules/fail! 409 message))
-          (when-not (= (:snapshot_hash approval) (money/digest (encoded-snapshot q project)))
-            (rules/fail! 409 "关闭依据已变化,请驳回并重新提交")))
-        (rules/changed! (q :closure/review! (assoc approval :status (:decision body) :review_note reason)))
-        (dissoc (q :closure/approval {:project_id project-id}) :snapshot_json)))))
+                  (fn [q project]
+                    (let [approval (q :closure/approval {:project_id project-id})
+                          reason (rules/text! (:reason body) "审批意见" 1000 (= "rejected" (:decision body)))]
+                      (when-not (= "submitted" (:status approval)) (rules/fail! 409 "没有待处理的关闭申请"))
+                      (chain/guard-legacy-decision! q "closure" (:approval_id approval))
+                      (kernel/independent-review! actor (:submitted_by approval) (:reviewer_id approval))
+                      (when (= "approved" (:decision body))
+                        (when-let [message (first (blockers q project))] (rules/fail! 409 message))
+                        (when-not (= (:snapshot_hash approval) (money/digest (encoded-snapshot q project)))
+                          (rules/fail! 409 "关闭依据已变化,请驳回并重新提交")))
+                      (rules/changed! (q :closure/review! (assoc approval :status (:decision body) :review_note reason)))
+                      (dissoc (q :closure/approval {:project_id project-id}) :snapshot_json)))))
 
 
 (defn- finalize!

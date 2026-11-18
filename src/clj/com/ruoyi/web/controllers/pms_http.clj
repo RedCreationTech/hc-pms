@@ -1,8 +1,10 @@
 (ns com.ruoyi.web.controllers.pms-http
   "PMS扩展控制器共享的认证, 参数读取与安全HTTP响应."
-  (:require [clojure.tools.logging :as log]
-            [com.ruoyi.domain.pms.service :as pms]
-            [ring.util.response :as response]))
+  (:require
+    [clojure.tools.logging :as log]
+    [com.ruoyi.domain.pms.service :as pms]
+    [ring.util.response :as response]))
+
 
 (defn reply
   "按实际HTTP状态返回项目接口信封."
@@ -10,6 +12,7 @@
   (-> (response/response {:code status :msg message :data data})
       (response/status status)
       (response/content-type "application/json")))
+
 
 (defn invoke
   "解析实时数据库身份, 安全处理领域错误和未知异常."
@@ -25,10 +28,12 @@
       (log/error e "PMS扩展请求失败")
       (reply 500 "服务暂时不可用,请稍后重试" nil))))
 
+
 (defn project-id
   "读取路由中的项目标识."
   [request]
   (get-in request [:path-params :id]))
+
 
 (defn param
   "读取路由中的业务对象标识."

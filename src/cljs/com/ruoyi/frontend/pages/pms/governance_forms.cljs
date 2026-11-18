@@ -163,7 +163,7 @@
   (mapv (fn [entry]
           {:value (:key entry)
            :label (str "[" (:category entry) "] " (:title entry) " — "
-                        (:probability entry) "×" (:impact entry) "=" (* (:probability entry) (:impact entry)))})
+                       (:probability entry) "×" (:impact entry) "=" (* (:probability entry) (:impact entry)))})
         library))
 
 
@@ -312,7 +312,6 @@
             {:key :note :label "表决说明" :type :textarea :hint "可留空"}]})
 
 
-
 (defn issue-reopen-dialog
   "已关闭问题重开须明确新证据与独立责任人."
   [base options documents issue]
@@ -342,6 +341,7 @@
 (def meeting-type-labels
   {"regular" "常规会议" "kickoff" "项目启动会" "review" "评审会" "fat-kickoff" "FAT启动会" "fat-summary" "FAT总结会"})
 
+
 (defn meeting-dialog
   "记录实际会议结论,参会人,会议类型,主计划基线引用与可选会前资料(引用项目内真实文档版本)."
   [base options documents baselines]
@@ -359,6 +359,7 @@
              :hint "选择项目内已登记的证据文档版本作为会前资料 (售前资料/需求), 可留空"}
             {:key :baseline_id :label "引用主计划基线" :type :select
              :options (mapv #(hash-map :value (:baseline_id %) :label (str "计划修订 " (:plan_revision %) " · " (get w/labels (:status %) (:status %)))) baselines)}]})
+
 
 (defn dq-dialog
   "建立 DQ 关键任务: 检查清单逐行, 交付件绑定确定文档版本."
@@ -382,6 +383,7 @@
                        {:value "test" :label "试验"} {:value "documentation-review" :label "文件评审"}]}
             {:key :responsible_role :label "执行角色 (可选)" :hint "预先声明承担质量检查的角色, 例如: 质检员 / 计量工程师."}]})
 
+
 (defn dq-check-dialog
   "逐项登记 DQ 检查结果, 允许有理由的检查项例外放行."
   [base dq]
@@ -402,6 +404,7 @@
                            {:key (keyword (str "note_" (:code item))) :label "检查说明"}
                            {:key (keyword (str "waiver_" (:code item))) :label "例外说明" :hint "选择例外放行时必填, 例如: 计量器具下周送检, 责任人同意先行签认"}]) (:checklist dq)))})
 
+
 (defn dq-remediation-dialog
   "把 DQ 未通过的必需检查项落实为可追踪的整改行动项."
   [base options dq]
@@ -416,6 +419,7 @@
               (owner-field (:users options))
               {:key :due_date :label "整改到期日" :type :date :required? true}]}))
 
+
 (defn dq-remediation-actions-dialog
   "把 DQ 全部未通过的必需检查项一次性落实为多条可追踪整改行动项 (批量版)."
   [base options dq]
@@ -426,6 +430,7 @@
      :fields [(owner-field (:users options))
               {:key :due_date :label "整改到期日" :type :date :required? true}]}))
 
+
 (defn node-pause-dialog
   "对子项目/单机发起局部暂停."
   [base nodes]
@@ -434,6 +439,7 @@
    :fields [{:key :node_id :label "结构节点" :type :select :required? true
              :options (mapv #(hash-map :value (:node_id %) :label (str (:node_code %) " · " (:name %))) (remove #(= "main" (:node_type %)) nodes))}
             {:key :reason :label "暂停原因" :type :textarea :required? true}]})
+
 
 (defn node-resume-dialog
   [base pause]
@@ -487,8 +493,9 @@
                 (-> data (dissoc :check_titles :require_released)
                     (assoc :required true
                            :blocks (vec (or (:blocks data) []))
-                           :checks (mapv (fn [i title] {:code (str "C" (inc i)) :title title :required true
-                                                         :require_released (true? (:require_released data))})
+                           :checks (mapv (fn [i title]
+                                           {:code (str "C" (inc i)) :title title :required true
+                                            :require_released (true? (:require_released data))})
                                          (range) (remove str/blank? (str/split-lines (:check_titles data)))))))
    :fields [{:key :code :label "Gate编号" :required? true}
             {:key :title :label "Gate名称" :required? true}

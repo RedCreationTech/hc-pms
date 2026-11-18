@@ -155,8 +155,8 @@
                                                       (reset! start-select-nodes nodes)
                                                       (when (empty? @users)
                                                         (api/user-options {:page 1 :size 1000}
-                                                                        (fn [r] (reset! users (or (:rows (:data r)) [])))
-                                                                        (fn [_] nil))))))
+                                                                          (fn [r] (reset! users (or (:rows (:data r)) [])))
+                                                                          (fn [_] nil))))))
                                                 (fn [_] nil))
                             (let [parse-schema (fn [j]
                                                  (if (string? j)
@@ -169,11 +169,11 @@
                                           dict-fields (filter #(= "dict-select" (:type %)) (:fields schema))]
                                       (when (seq tree-fields)
                                         (api/dept-options {:parent_id 0}
-                                                        (fn [dr]
-                                                          (reset! form-schema
-                                                                  (fill-field-data schema "tree-select" :tree-data
-                                                                                   (build-dept-tree (walk/keywordize-keys (or (:rows (:data dr)) (:data dr) []))))))
-                                                        #()))
+                                                          (fn [dr]
+                                                            (reset! form-schema
+                                                                    (fill-field-data schema "tree-select" :tree-data
+                                                                                     (build-dept-tree (walk/keywordize-keys (or (:rows (:data dr)) (:data dr) []))))))
+                                                          #()))
                                       (doseq [df dict-fields]
                                         (when-let [dt (get-in df [:props :dict-type])]
                                           (api/list-dict-data {:dict_type dt}

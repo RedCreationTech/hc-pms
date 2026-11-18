@@ -28,8 +28,9 @@
 (defn- columns
   []
   [{:title "能力" :dataIndex "capability" :width 210
-    :render (fn [v row] (r/as-element [:div {:style {:fontWeight 600}} v
-                                       [:div {:style {:fontSize 11 :color "#8793a3" :fontWeight 400}} (aget row "key")]]))}
+    :render (fn [v row]
+              (r/as-element [:div {:style {:fontWeight 600}} v
+                             [:div {:style {:fontSize 11 :color "#8793a3" :fontWeight 400}} (aget row "key")]]))}
    {:title "外部系统" :dataIndex "system" :width 130}
    {:title "归类" :dataIndex "group" :width 120
     :render (fn [v] (r/as-element [antd/tag {:color (get group-colors v "default")} (get group-labels v v)]))}

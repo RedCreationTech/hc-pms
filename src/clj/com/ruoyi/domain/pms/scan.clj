@@ -101,13 +101,13 @@
    快照与提醒记录本身 (created_by / raised_on / last_seen) 即是可追溯的扫描痕迹."
   [svc actor project-id date]
   (kernel/transaction! svc
-    (fn [q]
-      (let [project (q :pms/project {:project_id project-id})]
-        (when-not project (rules/fail! 404 "项目不存在"))
-        (let [snapshot (snapshot! q project actor date)
-              reminders (reminders! q project actor date)]
-          {:project_id project-id :project_no (:project_no project) :snapshot_id (:id snapshot)
-           :spi (:spi snapshot) :cpi (:cpi snapshot) :overall_percent (:overall_percent snapshot) :reminders reminders})))))
+                       (fn [q]
+                         (let [project (q :pms/project {:project_id project-id})]
+                           (when-not project (rules/fail! 404 "项目不存在"))
+                           (let [snapshot (snapshot! q project actor date)
+                                 reminders (reminders! q project actor date)]
+                             {:project_id project-id :project_no (:project_no project) :snapshot_id (:id snapshot)
+                              :spi (:spi snapshot) :cpi (:cpi snapshot) :overall_percent (:overall_percent snapshot) :reminders reminders})))))
 
 
 (defn run-all!

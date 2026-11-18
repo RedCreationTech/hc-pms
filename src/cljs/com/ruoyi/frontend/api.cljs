@@ -98,9 +98,10 @@
   (-> (js/fetch (str api-base "/pms" path) #js {:method "GET" :headers (auth-headers {})})
       (.then (fn [resp]
                (if (.-ok resp)
-                 (.then (.blob resp) (fn [blob] (on-blob blob {:sha256 (.get (.-headers resp) "X-Content-SHA256")
-                                                              :content-type (.get (.-headers resp) "Content-Type")
-                                                              :kind (.get (.-headers resp) "X-Content-Kind")})))
+                 (.then (.blob resp) (fn [blob]
+                                       (on-blob blob {:sha256 (.get (.-headers resp) "X-Content-SHA256")
+                                                      :content-type (.get (.-headers resp) "Content-Type")
+                                                      :kind (.get (.-headers resp) "X-Content-Kind")})))
                  (.then (envelope resp) on-error))))
       (.catch (fn [e] (on-error {:code 0 :msg (.-message e)})))))
 

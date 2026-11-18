@@ -1,11 +1,14 @@
 (ns com.ruoyi.web.routes.pms-planning
   "可挂载在/api/pms下的规划功能路由."
-  (:require [com.ruoyi.web.controllers.pms-planning :as controller]))
+  (:require
+    [com.ruoyi.web.controllers.pms-planning :as controller]))
+
 
 (defn- endpoint
   "注入共享PMS服务到控制器."
   [svc handler]
   {:handler (partial handler svc)})
+
 
 (defn planning-routes
   "返回可拼接的任务,资源,日历与基线审批路由."

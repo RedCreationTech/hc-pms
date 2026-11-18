@@ -1,6 +1,8 @@
 (ns com.ruoyi.domain.pms.config.catalog
   "随代码发布的内置项目模板, Gate模板与编码规则目录 (工程默认值, 待业务签收), 导入后成为可版本化的平台配置."
-  (:require [clojure.string :as str]))
+  (:require
+    [clojure.string :as str]))
+
 
 (def gate-types
   "原蓝图展示的关口类型及其默认检查项; G1-G3 编号映射尚未确认, 仅作为模板候选."
@@ -38,10 +40,12 @@
    {:gate_type "generic" :title "通用Gate" :stage "execution" :page "4"
     :checks [{:code "C1" :title "实际证据齐全" :required true}]}])
 
+
 (defn gate-type
   "按类型读取目录中的关口候选."
   [type]
   (some #(when (= type (:gate_type %)) %) gate-types))
+
 
 (def ^:private order-stages
   "订单项目阶段: levels 声明该阶段派生到哪一层计划 (main 主计划 / sub 子项目 / machine 单机), default_days 为派生任务的工程默认工期."
@@ -54,14 +58,17 @@
    {:code "S7" :name "现场SAT" :weight 10 :levels ["main" "machine"] :default_days 10}
    {:code "S8" :name "收尾归档" :weight 5 :levels ["main"] :default_days 5}])
 
+
 (def ^:private rd-stages
   [{:code "R1" :name "立项论证" :weight 15 :levels ["main"] :default_days 10} {:code "R2" :name "方案设计" :weight 25 :levels ["main"] :default_days 20}
    {:code "R3" :name "样机试制" :weight 25 :levels ["main"] :default_days 20} {:code "R4" :name "测试验证" :weight 20 :levels ["main"] :default_days 15}
    {:code "R5" :name "总结归档" :weight 15 :levels ["main"] :default_days 5}])
 
+
 (def ^:private dept-stages
   [{:code "D1" :name "任务立项" :weight 20 :levels ["main"] :default_days 5} {:code "D2" :name "执行推进" :weight 60 :levels ["main"] :default_days 20}
    {:code "D3" :name "总结关闭" :weight 20 :levels ["main"] :default_days 5}])
+
 
 (defn- gate-templates
   "按类型从目录展开模板内 Gate 定义."
@@ -71,6 +78,7 @@
             {:code (str "GT-" (str/upper-case type)) :title (:title g) :gate_type type
              :stage (:stage g) :required true :blocks (or (:blocks g) []) :checks (:checks g)}))
         types))
+
 
 (def project-templates
   "内置项目模板: 订单型 (设备/整线/服务) 与研发/部门事务型, 各自阶段/结构/Gate/交付/收尾不同."
@@ -135,6 +143,7 @@
     :delivery {:required_stages ["materials" "assembly" "quality"] :required_test_types ["SIT"]}
     :closure_items [{:kind "check" :title "事务总结归档" :required true}]}])
 
+
 (def coding-rules
   "内置编码规则: 占位符 {YYYY} {YY} {MM} {TYPE} {PROJECT} {SEQ:n}; 版本规则统一为整数修订号."
   [{:code "RULE-PROJECT" :object_type "project" :pattern "PRJ-{YYYY}-{SEQ:4}" :enforced false
@@ -150,6 +159,7 @@
     :description "URS需求: 项目编号 + 三位流水" :version_rule "同编号递增 revision" :collection_rule "追踪按最新版本"}
    {:code "RULE-TASK" :object_type "task" :pattern "WBS-{SEQ:3}" :enforced false
     :description "WBS任务编号" :version_rule "随计划修订" :collection_rule "计划基线快照"}])
+
 
 (def approval-policies
   "内置审批策略示例 (导入为草稿后按公司组织调整再发布). 规则: role 指定角色, dept_leader 项目所属部门负责人 (up 上溯级数),

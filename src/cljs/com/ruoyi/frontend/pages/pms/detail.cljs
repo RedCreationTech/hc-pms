@@ -4,19 +4,20 @@
     ["@ant-design/icons" :refer [ArrowRightOutlined EditOutlined]]
     [clojure.string :as str]
     [com.ruoyi.frontend.antd :as antd]
-    [com.ruoyi.frontend.pages.pms.form :as project-form]
-    [com.ruoyi.frontend.pages.pms.shared :as shared]
-    [com.ruoyi.frontend.pages.pms.widgets :as w]
-    [com.ruoyi.frontend.pages.pms.structure :as structure]
-    [com.ruoyi.frontend.pages.pms.planning :as planning]
-    [com.ruoyi.frontend.pages.pms.governance :as governance]
-    [com.ruoyi.frontend.pages.pms.finance :as finance]
     [com.ruoyi.frontend.pages.pms.closure :as closure]
     [com.ruoyi.frontend.pages.pms.delivery :as delivery]
+    [com.ruoyi.frontend.pages.pms.finance :as finance]
+    [com.ruoyi.frontend.pages.pms.form :as project-form]
+    [com.ruoyi.frontend.pages.pms.governance :as governance]
     [com.ruoyi.frontend.pages.pms.integration :as integration]
+    [com.ruoyi.frontend.pages.pms.planning :as planning]
     [com.ruoyi.frontend.pages.pms.process :as process]
+    [com.ruoyi.frontend.pages.pms.shared :as shared]
+    [com.ruoyi.frontend.pages.pms.structure :as structure]
+    [com.ruoyi.frontend.pages.pms.widgets :as w]
     [reagent.core :as r]
     [reagent.hooks :as hooks]))
+
 
 (defn- lifecycle
   "突出真实生命周期状态和阶段位置."
@@ -35,6 +36,7 @@
         [:span {:style {:fontWeight 600 :color (if (= current status) (:primary colors) (:muted colors))}} label]])
      (when (contains? #{"paused" "cancelled"} current) [shared/status-tag current])]))
 
+
 (defn- summary-grid
   "展示项目标识,归属与计划日期."
   [project]
@@ -45,6 +47,7 @@
                                    [[:project_no "项目编号"] [:project_type_label "项目类别"] [:customer "客户"] [:contract_no "合同编号"]
                                     [:manager_name "项目经理"] [:dept_name "所属部门"]
                                     [:start_date "计划开始"] [:end_date "计划完成"]])}])
+
 
 (defn- transition-dialog
   "每次生命周期变更要求确认,取消还需填写原因."
@@ -72,14 +75,15 @@
        [antd/text-area {:rows 3 :maxLength 500 :showCount true
                         :placeholder (if cancelling? "说明取消原因" "可补充本次变更的背景")}]]]]))
 
+
 (defn- lifecycle-actions
   "只提供当前版本已实现的合法状态操作."
   [project set-target!]
   (let [can-transition? (shared/use-permission "pms:project:transition")
         status (:status project)
         next-status (if (= "paused" status) (:resume_status project)
-                      ({"draft" "initiated" "initiated" "planning" "planning" "execution"
-                        "execution" "closing" "closing" "closed"} status))]
+                        ({"draft" "initiated" "initiated" "planning" "planning" "execution"
+                          "execution" "closing" "closing" "closed"} status))]
     (when can-transition?
       [antd/space
        (when-not (contains? #{"closed" "cancelled"} status)
@@ -92,6 +96,7 @@
           (if (= status "paused") "恢复项目"
               (get {"initiated" "确认立项" "planning" "进入计划" "execution" "进入执行"
                     "closing" "进入收尾" "closed" "正式关闭"} next-status))])])))
+
 
 (defn- event-content
   "展示服务端生成的审计记录."
@@ -106,6 +111,7 @@
      [:div {:style {:fontSize 12 :color (:muted colors) :marginTop 8}}
       (str (or (:actor_name event) "系统") " · " (:created_at event))]]))
 
+
 (defn- project-events
   "加载项目变更时间线,不给不存在的记录占位."
   [id revision]
@@ -116,7 +122,8 @@
        loading? [antd/spin]
        (empty? (:rows data)) [shared/empty-state "暂无变更记录" nil]
        :else [antd/timeline {:items (mapv #(hash-map :key (:event_id %) :content (r/as-element [event-content %]))
-                                         (:rows data))}])]))
+                                          (:rows data))}])]))
+
 
 (defn- template-dialog
   "从已发布且适用于当前项目类别的平台模板中选择并一次性实例化项目网络 (A07/A09)."
@@ -137,6 +144,7 @@
                                     :options (mapv #(hash-map :value (:id %) :label (str (:title %) " (" (:code %) " v" (:revision %) ")")) templates)}
                                    {:key :reason :label "应用说明" :type :textarea}]}])))
 
+
 (defn- template-summary
   "展示已实例化模板的版本快照."
   [template]
@@ -152,6 +160,7 @@
      [:div {:style {:fontSize 12 :color (:muted colors) :marginTop 8}}
       (str "阶段权重: " (str/join " / " (map #(str (:name %) " " (:weight %) "%") (:stages template)))
            (when (seq (:team_roles template)) (str "  |  团队角色: " (str/join ", " (:team_roles template)))))]]))
+
 
 (defn- detail-body
   "以项目结构,团队与变更记录组织详情工作区."
@@ -174,31 +183,33 @@
      [structure/project-members (:project_id project) revision options editable? changed! (:version project)]
      [project-events (:project_id project) revision]]))
 
+
 (defn- workbench-content
   "项目级工作台统一组织计划,治理,费用与结项."
   [project revision options changed! edit! target! apply-template!]
   (let [members (shared/use-resource (str "/projects/" (:project_id project) "/members") {} [revision])
         ids (set (map :user_id (get-in members [:data :rows])))
         member-options (assoc options :users (filterv #(contains? ids (:user_id %)) (:users options)))]
-  [antd/tabs {:defaultActiveKey "overview" :destroyOnHidden false
-              :items [{:key "overview" :label "项目概况"
-                       :children (r/as-element [detail-body project revision options changed! edit! target! apply-template!])}
-                      {:key "planning" :label "计划与执行"
-                       :children (r/as-element [planning/planning-workspace project revision member-options changed!])}
-                      {:key "governance" :label "需求与治理"
-                       :children (r/as-element [governance/governance-workspace project revision member-options changed!])}
-                      {:key "delivery" :label "工程交付"
-                       :children (r/as-element [delivery/delivery-workspace project revision member-options changed!])}
-                      {:key "process" :label "过程看板"
-                       :children (r/as-element [process/process-workspace project revision])}
-                      {:key "time" :label "实际工时"
-                       :children (r/as-element [finance/time-workspace project revision member-options changed!])}
-                      {:key "finance" :label "项目费用"
-                       :children (r/as-element [finance/finance-workspace project revision member-options changed!])}
-                      {:key "integration" :label "接口运维"
-                       :children (r/as-element [integration/integration-workspace project revision member-options changed!])}
-                      {:key "closure" :label "结项与移交"
-                       :children (r/as-element [closure/closure-workspace project revision member-options changed!])}]}]))
+    [antd/tabs {:defaultActiveKey "overview" :destroyOnHidden false
+                :items [{:key "overview" :label "项目概况"
+                         :children (r/as-element [detail-body project revision options changed! edit! target! apply-template!])}
+                        {:key "planning" :label "计划与执行"
+                         :children (r/as-element [planning/planning-workspace project revision member-options changed!])}
+                        {:key "governance" :label "需求与治理"
+                         :children (r/as-element [governance/governance-workspace project revision member-options changed!])}
+                        {:key "delivery" :label "工程交付"
+                         :children (r/as-element [delivery/delivery-workspace project revision member-options changed!])}
+                        {:key "process" :label "过程看板"
+                         :children (r/as-element [process/process-workspace project revision])}
+                        {:key "time" :label "实际工时"
+                         :children (r/as-element [finance/time-workspace project revision member-options changed!])}
+                        {:key "finance" :label "项目费用"
+                         :children (r/as-element [finance/finance-workspace project revision member-options changed!])}
+                        {:key "integration" :label "接口运维"
+                         :children (r/as-element [integration/integration-workspace project revision member-options changed!])}
+                        {:key "closure" :label "结项与移交"
+                         :children (r/as-element [closure/closure-workspace project revision member-options changed!])}]}]))
+
 
 (defn project-detail
   "项目详情抽屉,集中维护版本与刷新关联数据."
@@ -210,9 +221,9 @@
         {:keys [data loading? error refresh!]} (shared/use-resource (str "/projects/" id) {} [revision])
         changed! (fn [] (set-revision! inc) (on-change))]
     [antd/drawer {:title (r/as-element
-                          [:div {:style {:display "flex" :gap 12 :alignItems "center"}}
-                           [:span (or (:name data) "项目详情")]
-                           (when data [shared/status-tag (:status data)])])
+                           [:div {:style {:display "flex" :gap 12 :alignItems "center"}}
+                            [:span (or (:name data) "项目详情")]
+                            (when data [shared/status-tag (:status data)])])
                   :open true :size "min(1440px, 100vw)"
                   :onClose on-close :destroyOnHidden true}
      (cond

@@ -23,11 +23,12 @@
             {:key :target_value :label "目标值" :required? true :hint "收入/毛利为金额 (两位小数); 结项数为整数; 准时率为 0-100"}
             {:key :currency :label "币种 (金额指标)" :type :select :options (mapv (fn [c] {:value c :label c}) ["CNY" "USD" "EUR" "GBP" "HKD"])}
             {:key :basis :label "目标来源/口径" :type :textarea}]
-   :transform (fn [data] (let [v (:target_value data)]
-                           (cond-> (dissoc data :currency)
-                             (contains? #{"revenue" "gross_margin"} (:metric data)) (assoc :currency (or (:currency data) "CNY"))
-                             (= "closed_projects" (:metric data)) (assoc :target_value (js/parseInt v))
-                             (= "on_time_rate" (:metric data)) (assoc :target_value (js/parseFloat v)))))})
+   :transform (fn [data]
+                (let [v (:target_value data)]
+                  (cond-> (dissoc data :currency)
+                    (contains? #{"revenue" "gross_margin"} (:metric data)) (assoc :currency (or (:currency data) "CNY"))
+                    (= "closed_projects" (:metric data)) (assoc :target_value (js/parseInt v))
+                    (= "on_time_rate" (:metric data)) (assoc :target_value (js/parseFloat v)))))})
 
 
 (defn- achievement-cell
@@ -53,7 +54,8 @@
         [antd/tag {:color "red"} (str "落后 " (:behind att) " 个")]]
        [antd/space {:wrap true}
         (for [bm (:by-metric att) :when (pos? (:total bm))] ^{:key (:metric bm)}
-          [antd/tag {} (str (get metric-labels (:metric bm) (:metric bm)) " · 目标 " (:total bm) " 个, 达标 " (:met bm) " 个, 平均达成 " (:avg-pct bm) "%")])]])))
+             [antd/tag {} (str (get metric-labels (:metric bm) (:metric bm)) " · 目标 " (:total bm) " 个, 达标 " (:met bm) " 个, 平均达成 " (:avg-pct bm) "%")])]])))
+
 
 (defn targets-page
   "经营目标看板."
@@ -79,9 +81,10 @@
            {:title "实际" :dataIndex "actual" :width 140 :render (fn [v] (str v))}
            {:title "达成率" :dataIndex "achievement_pct" :width 190 :render (fn [v] (achievement-cell v))}
            {:title "关闭项目" :dataIndex "closed_projects" :width 220
-            :render (fn [v] (r/as-element (into [antd/space {:wrap true}]
-                                                (map (fn [p] [antd/button {:type "link" :size "small" :style {:padding 0} :on-click #(todo/open-project! (:project_id p))} (:project_no p)])
-                                                     (js->clj v :keywordize-keys true)))))}
+            :render (fn [v]
+                      (r/as-element (into [antd/space {:wrap true}]
+                                          (map (fn [p] [antd/button {:type "link" :size "small" :style {:padding 0} :on-click #(todo/open-project! (:project_id p))} (:project_no p)])
+                                               (js->clj v :keywordize-keys true)))))}
            (w/text-column :basis "口径")
            {:title "状态" :dataIndex "status" :width 100 :render #(r/as-element [config/status-badge %])}]
           (fn [row]

@@ -288,7 +288,7 @@
   (if-let [next (when-let [s (:next_date plan)]
                   (try (LocalDate/parse s) (catch Exception _ nil)))]
     (assoc plan :comm_overdue (boolean (and (= "active" (:status plan)) (not (.isAfter next (LocalDate/now)))))
-                :comm_days_until (int (rm/days-until next)))
+           :comm_days_until (int (rm/days-until next)))
     (assoc plan :comm_overdue false :comm_days_until nil)))
 
 
@@ -318,9 +318,9 @@
   [stakeholder]
   (let [[state gap] (engagement-assessment (:engagement stakeholder) (:desired_engagement stakeholder))]
     (assoc stakeholder :stakeholder_quadrant (quadrant-of stakeholder)
-                       :stakeholder_unbound (not (:owner_id stakeholder))
-                       :stakeholder_engagement_state state
-                       :stakeholder_engagement_gap gap)))
+           :stakeholder_unbound (not (:owner_id stakeholder))
+           :stakeholder_engagement_state state
+           :stakeholder_engagement_gap gap)))
 
 
 (defn engagement-coverage
@@ -393,9 +393,10 @@
         total-logs (count log-entries)
         declared (count (filterv some? channel-vals))
         tally (frequencies (remove nil? channel-vals))
-        by-channel (mapv (fn [ch] {:channel ch
-                                   :label (get channel-labels ch ch)
-                                   :count (get tally ch 0)})
+        by-channel (mapv (fn [ch]
+                           {:channel ch
+                            :label (get channel-labels ch ch)
+                            :count (get tally ch 0)})
                          channel-order)
         dominant (rm/dominant-value tally channel-order declared)
         dominant-count (rm/dominant-count tally dominant)]
@@ -415,9 +416,10 @@
   (let [active-plans (filterv #(not= "discarded" (:status %)) (s/latest comm-plans))
         size-of (fn [plan] (count (:audience plan)))
         total (count active-plans)
-        sized (mapv (fn [plan] {:code (:code plan)
-                                :objective (:objective plan)
-                                :size (size-of plan)})
+        sized (mapv (fn [plan]
+                      {:code (:code plan)
+                       :objective (:objective plan)
+                       :size (size-of plan)})
                     active-plans)
         targeted (filterv (fn [m] (pos? (:size m))) sized)
         targeted-count (count targeted)
@@ -429,12 +431,13 @@
                          (first targeted)
                          targeted))
         max-size (if widest (:size widest) 0)
-        bucket-of (fn [n] (cond (= 1 n) "solo"
-                                (<= n 3) "few"
-                                :else "many"))
+        bucket-of (fn [n]
+                    (cond (= 1 n) "solo"
+                          (<= n 3) "few"
+                          :else "many"))
         buckets [["solo" "单受众"] ["few" "2-3 人"] ["many" "4 人及以上"]]
         by-breadth (rm/freq-rows buckets :bucket
-                                  (fn [k] (count (filterv #(= k (bucket-of (:size %))) targeted))))]
+                                 (fn [k] (count (filterv #(= k (bucket-of (:size %))) targeted))))]
     {:available (pos? total)
      :total total
      :targeted targeted-count
@@ -464,10 +467,11 @@
   (let [active (filterv #(not= "discarded" (:status %)) (s/latest stakeholders))
         total (count active)
         tally (frequencies (remove nil? (map :category active)))
-        by-category (mapv (fn [c] {:category c
-                                   :label (get category-labels c c)
-                                   :count (get tally c 0)})
-                         category-order)
+        by-category (mapv (fn [c]
+                            {:category c
+                             :label (get category-labels c c)
+                             :count (get tally c 0)})
+                          category-order)
         covered (rm/covered-count by-category)
         dominant (rm/dominant-value tally category-order total)
         dominant-count (rm/dominant-count tally dominant)]
@@ -509,11 +513,12 @@
         unassigned (- total declared)
         tally (frequencies engaged)
         pct (fn [n] (rm/pct total n))
-        by-engagement (mapv (fn [e] {:engagement e
-                                     :label (get engagement-labels e e)
-                                     :count (get tally e 0)
-                                     :pct (pct (get tally e 0))})
-                           engagement-order)
+        by-engagement (mapv (fn [e]
+                              {:engagement e
+                               :label (get engagement-labels e e)
+                               :count (get tally e 0)
+                               :pct (pct (get tally e 0))})
+                            engagement-order)
         covered (rm/covered-count by-engagement)
         dominant (rm/dominant-value tally engagement-order covered)
         dominant-count (rm/dominant-count tally dominant)]
@@ -573,7 +578,7 @@
   [r-loads row]
   (let [load (get r-loads (:stakeholder_id row) 0)]
     (assoc row :raci_r_load load
-               :raci_overloaded (>= load raci-overload-threshold))))
+           :raci_overloaded (>= load raci-overload-threshold))))
 
 
 (defn raci-engagement-coverage
@@ -624,10 +629,11 @@
   (let [total (count raci-rows)
         tally (frequencies (remove nil? (map :responsibility raci-rows)))
         role-pct (fn [n] (rm/pct total n))
-        by-role (mapv (fn [r] {:role r
-                               :label (get role-labels r r)
-                               :count (get tally r 0)
-                               :pct (role-pct (get tally r 0))})
+        by-role (mapv (fn [r]
+                        {:role r
+                         :label (get role-labels r r)
+                         :count (get tally r 0)
+                         :pct (role-pct (get tally r 0))})
                       role-order)
         covered (rm/covered-count by-role)
         dominant (rm/dominant-value tally role-order total)

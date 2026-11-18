@@ -1,30 +1,38 @@
 (ns com.ruoyi.domain.pms.config
   "平台级版本化业务配置: 项目模板, 编码/版本规则, 季度经营目标, 跨项目研发费用池与工时封期.
    记录不可变按版本演进 (draft -> published/frozen/locked -> retired), 修改模板不追溯覆盖已实例化项目."
-  (:require [cheshire.core :as json]
-            [clojure.string :as str]
-            [com.ruoyi.domain.pms.config.catalog :as catalog]
-            [com.ruoyi.domain.pms.finance-money :as money]
-            [com.ruoyi.domain.pms.governance.store :as s]
-            [com.ruoyi.domain.pms.kernel :as k]
-            [com.ruoyi.domain.pms.rules :as r])
-  (:import [java.time LocalDate]))
+  (:require
+    [cheshire.core :as json]
+    [clojure.string :as str]
+    [com.ruoyi.domain.pms.config.catalog :as catalog]
+    [com.ruoyi.domain.pms.finance-money :as money]
+    [com.ruoyi.domain.pms.governance.store :as s]
+    [com.ruoyi.domain.pms.kernel :as k]
+    [com.ruoyi.domain.pms.rules :as r])
+  (:import
+    (java.time
+      LocalDate)))
+
 
 (def kinds
   "允许持久化的平台配置类型."
   #{"project-template" "coding-rule" "quarterly-target" "rd-pool" "period-lock" "approval-policy" "rate-table"})
 
+
 (def project-types
   "项目类别: 订单型三类与研发/部门事务型 (A11)."
   #{"equipment" "line" "service" "new_product" "new_technology" "special_rd" "dept_affairs"})
+
 
 (def checkpoints
   "Gate 模板可阻断的交付检查点."
   #{"assembly.start" "test.SIT" "test.FAT" "test.SAT" "shipment.dispatch"})
 
+
 (def gate-stages
   "Gate 模板适用阶段: execution/closure 参与项目状态迁移, 其余为专项过程阶段."
   #{"execution" "closure" "design" "manufacturing" "delivery" "site"})
+
 
 (def write-permissions
   "各类型的维护权限."
@@ -32,9 +40,11 @@
    "quarterly-target" "pms:target:edit" "rd-pool" "pms:finance:approve" "period-lock" "pms:finance:approve"
    "approval-policy" "pms:config:edit" "rate-table" "pms:finance:approve"})
 
+
 (def read-permissions
   "读取平台配置的任一权限."
   ["pms:config:list" "pms:project:query" "pms:finance:query" "pms:dashboard:query"])
+
 
 (defn decode
   "把配置记录展开为平铺只读对象."
@@ -42,11 +52,13 @@
   (when row
     (merge (json/parse-string (:payload row) true) (dissoc row :payload) {:id (:config_id row)})))
 
+
 (defn records
   "读取某类型全部版本."
   [q kind]
   (s/enum! kind kinds "kind")
   (mapv decode (q :config/list {:kind kind})))
+
 
 (defn record!
   "读取指定类型的配置记录."
@@ -56,15 +68,18 @@
     (when-not (and row (= kind (:kind row))) (r/fail! 404 "配置不存在或类型不匹配"))
     row))
 
+
 (defn published
   "取每个编码当前生效 (published/frozen/locked) 的版本."
   [q kind]
   (filterv #(contains? #{"published" "frozen" "locked"} (:status %)) (records q kind)))
 
+
 (defn published-by-code
   "按编码读取当前生效版本."
   [q kind code]
   (some #(when (= code (:code %)) %) (published q kind)))
+
 
 ;; ── 校验 ────────────────────────────────────────────────────────
 
@@ -74,6 +89,7 @@
   (when-not (and (vector? values) (<= (count values) limit))
     (r/fail! 400 (str label "必须是最多" limit "项的数组")))
   (mapv #(r/text! % label 100 true) values))
+
 
 (defn- stage-gates!
   "单阶段三门: 权重 0..100 整数, 派生层级非空 main/sub/machine 数组, 默认工期 1..3650 整数."
@@ -106,6 +122,7 @@
     (when-not (= 100 (reduce + (map :weight rows))) (r/fail! 400 "阶段权重合计必须等于100"))
     rows))
 
+
 (defn- structure!
   "结构模板: 子项目/单元与其下单机, 编号后缀唯一."
   [structure]
@@ -116,19 +133,22 @@
                        (when-not (and (vector? machines) (<= (count machines) 50)) (r/fail! 400 "单机模板最多50台"))
                        {:node_type (s/enum! (or (:node_type node) "sub") #{"sub"} "node_type")
                         :suffix (s/text! node :suffix 20) :name (s/text! node :name 200)
-                        :machines (mapv (fn [m] (r/object! m [:suffix :name])
+                        :machines (mapv (fn [m]
+                                          (r/object! m [:suffix :name])
                                           {:suffix (s/text! m :suffix 20) :name (s/text! m :name 200)}) machines)}))
                    structure)
         suffixes (concat (map :suffix rows) (mapcat #(map :suffix (:machines %)) rows))]
     (when-not (= (count suffixes) (count (set suffixes))) (r/fail! 400 "结构编号后缀重复"))
     rows))
 
+
 (defn- gate-checks!
   "检查项列表门: 1 到 30 项, 每项白名单与必填文本, 编码唯一; 返回归一后的检查项行."
   [gate]
   (let [checks (:checks gate)]
     (when-not (and (vector? checks) (<= 1 (count checks) 30)) (r/fail! 400 "关口模板需要1到30个检查项"))
-    (let [rows (mapv (fn [c] (r/object! c [:code :title :required :require_released])
+    (let [rows (mapv (fn [c]
+                       (r/object! c [:code :title :required :require_released])
                        (cond-> {:code (s/text! c :code 50) :title (s/text! c :title 200)
                                 :required (s/boolean! (:required c) "required")}
                          (contains? c :require_released) (assoc :require_released (s/boolean! (:require_released c) "require_released"))))
@@ -151,12 +171,14 @@
      :stage (s/enum! (:stage gate) gate-stages "stage")
      :required (s/boolean! (:required gate) "required") :blocks (vec blocks) :checks rows}))
 
+
 (defn- gate-templates!
   [gates]
   (when-not (and (vector? gates) (<= (count gates) 30)) (r/fail! 400 "模板最多30个Gate"))
   (let [rows (mapv gate-template! gates)]
     (when-not (= (count rows) (count (set (map :code rows)))) (r/fail! 400 "Gate模板编码重复"))
     rows))
+
 
 (defn- delivery!
   "适用交付环节与试验类型, 与交付配置同一约束."
@@ -174,12 +196,15 @@
         (r/fail! 400 "适用环节必须包含物料,装配,质量的必要前置")))
     {:required_stages stages :required_test_types tests}))
 
+
 (defn- closure-items!
   [items]
   (when-not (and (vector? items) (<= (count items) 30)) (r/fail! 400 "收尾清单最多30项"))
-  (mapv (fn [item] (r/object! item [:kind :title :required])
+  (mapv (fn [item]
+          (r/object! item [:kind :title :required])
           {:kind (s/enum! (or (:kind item) "check") #{"check" "handoff"} "kind")
            :title (s/text! item :title 200) :required (if (false? (:required item)) false true)}) items))
+
 
 (defn- template!
   [body]
@@ -196,9 +221,11 @@
      :delivery (delivery! (or (:delivery body) {:required_stages ["materials" "assembly" "quality" "shipment"] :required_test_types ["SIT" "FAT" "SAT"]}))
      :closure_items (closure-items! (or (:closure_items body) []))}))
 
+
 (def placeholder
   "编码规则占位符."
   #"\{(YYYY|YY|MM|TYPE|PROJECT|SEQ:[1-9])\}")
+
 
 (defn- coding-rule!
   [body]
@@ -212,9 +239,11 @@
      :description (s/optional-text! body :description 500) :version_rule (s/optional-text! body :version_rule 500)
      :collection_rule (s/optional-text! body :collection_rule 500)}))
 
+
 (def target-metrics
   "季度经营目标指标: 收入/毛利为金额, 结项数为整数, 准时率为百分比."
   #{"revenue" "gross_margin" "closed_projects" "on_time_rate"})
+
 
 (defn- target-value!
   "按指标校验并归一目标值: 结项数为 0..100000 整数, 准时率为 0..100 数值, 金额类转分且不得为负."
@@ -253,10 +282,12 @@
                :target_value value :basis (s/optional-text! body :basis 1000)}
         currency (assoc :currency currency)))))
 
+
 (defn- period!
   [value]
   (when-not (and (string? value) (re-matches #"[0-9]{4}-(0[1-9]|1[0-2])" value)) (r/fail! 400 "期间格式必须为 YYYY-MM"))
   value)
+
 
 (defn- rd-pool!
   [body]
@@ -268,14 +299,17 @@
     {:code (str "POOL-" (period! (:period body))) :period (:period body) :amount (money/money amount)
      :amount_minor amount :currency currency :description (s/optional-text! body :description 1000)}))
 
+
 (defn- period-lock!
   [body]
   (r/object! body [:period :reason])
   {:code (period! (:period body)) :period (:period body) :reason (s/text! body :reason 500)})
 
+
 (def ^:private member-roles
   "费率可按项目成员角色取值 (与 pms_member.role 一致)."
   #{"manager" "editor" "viewer"})
+
 
 (defn- rate-entry!
   "校验一条有效期费率: 角色或人员范围, 每小时金额为正, 起止日期有序."
@@ -296,6 +330,7 @@
      :amount_per_hour (money/money amount) :amount_per_hour_minor amount
      :effective_from from :effective_to to}))
 
+
 (defn- rate-table!
   "有效期费率表: 同一对象 (角色或人员) 的有效期互不重叠, 允许留白区间 (该区间未覆盖)."
   [body]
@@ -311,6 +346,7 @@
             (r/fail! 400 "同一对象的费率有效期重叠"))))
       {:code (str "RATE-" currency) :base_currency currency :rates rates})))
 
+
 (def approval-types
   "可按策略配置多级审批的业务类型 (编码即类型); 带金额的类型允许按金额设置级别条件."
   {"plan-baseline" {:label "计划基线" :amount? false}
@@ -318,9 +354,11 @@
    "cost-version" {:label "费用版本" :amount? true}
    "closure" {:label "项目结项" :amount? false}})
 
+
 (def approval-rules
   "审批人规则: 指定角色, 项目所属部门负责人 (可上溯), 项目经理, 指定用户, 提交人选择."
   #{"role" "dept_leader" "project_manager" "user" "submitter_choice"})
+
 
 (defn- level-rule-fields
   "按审批人规则补齐规则专属字段并返回级别行: role 的角色与成员限定, dept_leader 的上溯级数, user 的指定用户."
@@ -352,6 +390,7 @@
               :min_amount min-amount}]
     (level-rule-fields rule level base)))
 
+
 (defn- approval-policy!
   "审批策略: 编码为业务类型, 1 到 6 级, 每级一个审批人规则."
   [body]
@@ -361,6 +400,7 @@
     {:code code
      :name (r/text! (or (:name body) (str (get-in approval-types [code :label]) "审批")) "策略名称" 100 true)
      :levels (mapv #(approval-level! (get-in approval-types [code :amount?]) %) levels)}))
+
 
 (defn content!
   "按类型校验配置内容."
@@ -374,12 +414,14 @@
     "rate-table" (rate-table! body)
     "approval-policy" (approval-policy! body)))
 
+
 ;; ── 命令 ────────────────────────────────────────────────────────
 
 (defn- history
   [record action actor reason]
   (conj (vec (:history record)) {:action action :actor_id (:user_id actor) :actor_name (:user_name actor)
-                                  :at (str (java.time.Instant/now)) :reason reason}))
+                                 :at (str (java.time.Instant/now)) :reason reason}))
+
 
 (defn- insert!
   [q actor kind fields revision status]
@@ -388,6 +430,7 @@
                         :created_by (:user_id actor)
                         :payload (json/generate-string (assoc (dissoc fields :code) :history (history nil (if (= status "locked") "locked" "created") actor nil)))})
     (record! q kind id)))
+
 
 (defn change!
   "受控改变配置状态并追加历史, 可附带命令产生的补充字段 (如费用池分摊结果)."
@@ -398,19 +441,21 @@
      (r/changed! (q :config/update! {:config_id (:id record) :status status :payload (json/generate-string payload)}))
      (record! q kind (:id record)))))
 
+
 (defn create!
   "创建新编码的首个版本: 常规类型为草稿, 封期直接锁定."
   [svc actor kind body]
   (s/enum! kind kinds "kind")
   (r/permit! actor (write-permissions kind))
   (k/transaction! svc
-    (fn [q]
-      (let [fields (content! kind body)
-            existing (filter #(= (:code fields) (:code %)) (records q kind))]
-        (when (some #(not= "retired" (:status %)) existing)
-          (r/fail! 409 "编码已存在, 请对最新版本创建修订"))
-        ;; 同编码全部已退役 (如解锁后的封期, 已退役的费用池) 时以新修订号重新建立, 保留历史.
-        (insert! q actor kind fields (inc (reduce max 0 (map :revision existing))) (if (= kind "period-lock") "locked" "draft"))))))
+                  (fn [q]
+                    (let [fields (content! kind body)
+                          existing (filter #(= (:code fields) (:code %)) (records q kind))]
+                      (when (some #(not= "retired" (:status %)) existing)
+                        (r/fail! 409 "编码已存在, 请对最新版本创建修订"))
+                      ;; 同编码全部已退役 (如解锁后的封期, 已退役的费用池) 时以新修订号重新建立, 保留历史.
+                      (insert! q actor kind fields (inc (reduce max 0 (map :revision existing))) (if (= kind "period-lock") "locked" "draft"))))))
+
 
 (defn revise!
   "从最新版本创建新修订草稿, 旧版本内容不变."
@@ -419,16 +464,17 @@
   (r/permit! actor (write-permissions kind))
   (when (= kind "period-lock") (r/fail! 400 "封期不支持修订, 请解锁后重新锁定"))
   (k/transaction! svc
-    (fn [q]
-      (let [old (record! q kind id)
-            all (records q kind)
-            latest (apply max-key :revision (filter #(= (:code old) (:code %)) all))]
-        (when-not (= (:id latest) (:id old)) (r/fail! 409 "对象已有更新版本,请使用最新版本"))
-        (when (= "draft" (:status old)) (r/fail! 409 "当前版本仍是草稿, 可直接发布或作废"))
-        (let [fields (content! kind (if (contains? #{"project-template" "coding-rule" "approval-policy"} kind)
-                                      (assoc body :code (:code old)) (dissoc body :code)))]
-          (when-not (= (:code fields) (:code old)) (r/fail! 400 "修订不能改变配置编码"))
-          (insert! q actor kind (assoc fields :previous_id (:id old)) (inc (:revision old)) "draft"))))))
+                  (fn [q]
+                    (let [old (record! q kind id)
+                          all (records q kind)
+                          latest (apply max-key :revision (filter #(= (:code old) (:code %)) all))]
+                      (when-not (= (:id latest) (:id old)) (r/fail! 409 "对象已有更新版本,请使用最新版本"))
+                      (when (= "draft" (:status old)) (r/fail! 409 "当前版本仍是草稿, 可直接发布或作废"))
+                      (let [fields (content! kind (if (contains? #{"project-template" "coding-rule" "approval-policy"} kind)
+                                                    (assoc body :code (:code old)) (dissoc body :code)))]
+                        (when-not (= (:code fields) (:code old)) (r/fail! 400 "修订不能改变配置编码"))
+                        (insert! q actor kind (assoc fields :previous_id (:id old)) (inc (:revision old)) "draft"))))))
+
 
 (defn publish!
   "发布草稿使其生效, 同编码此前生效版本自动退役; 研发费用池发布即冻结."
@@ -437,14 +483,15 @@
   (r/permit! actor (write-permissions kind))
   (r/object! body [:reason])
   (k/transaction! svc
-    (fn [q]
-      (let [record (record! q kind id)
-            target (if (= kind "rd-pool") "frozen" "published")]
-        (s/status! record #{"draft"})
-        (doseq [prior (filter #(and (= (:code record) (:code %)) (not= (:id record) (:id %))
-                                    (contains? #{"published" "frozen"} (:status %))) (records q kind))]
-          (change! q kind prior "retired" actor "superseded" (str "被版本 " (:revision record) " 取代")))
-        (change! q kind record target actor target (s/optional-text! body :reason 500))))))
+                  (fn [q]
+                    (let [record (record! q kind id)
+                          target (if (= kind "rd-pool") "frozen" "published")]
+                      (s/status! record #{"draft"})
+                      (doseq [prior (filter #(and (= (:code record) (:code %)) (not= (:id record) (:id %))
+                                                  (contains? #{"published" "frozen"} (:status %))) (records q kind))]
+                        (change! q kind prior "retired" actor "superseded" (str "被版本 " (:revision record) " 取代")))
+                      (change! q kind record target actor target (s/optional-text! body :reason 500))))))
+
 
 (defn retire!
   "退役生效版本或作废草稿, 解锁封期; 保留完整历史."
@@ -453,10 +500,11 @@
   (r/permit! actor (write-permissions kind))
   (r/object! body [:reason])
   (k/transaction! svc
-    (fn [q]
-      (let [record (record! q kind id)]
-        (s/status! record #{"draft" "published" "frozen" "locked"})
-        (change! q kind record "retired" actor "retired" (s/text! body :reason 500))))))
+                  (fn [q]
+                    (let [record (record! q kind id)]
+                      (s/status! record #{"draft" "published" "frozen" "locked"})
+                      (change! q kind record "retired" actor "retired" (s/text! body :reason 500))))))
+
 
 (defn import-catalog!
   "从内置目录导入一项为草稿配置."
@@ -469,6 +517,7 @@
                nil)]
     (when-not item (r/fail! 404 "目录项不存在"))
     (create! svc actor kind item)))
+
 
 ;; ── 读取 ────────────────────────────────────────────────────────
 
@@ -487,6 +536,7 @@
      :gate_types catalog/gate-types
      :current_user_id (:user_id actor)}))
 
+
 ;; ── 编码规则应用 ────────────────────────────────────────────────
 
 (defn- placeholder-regex
@@ -494,6 +544,7 @@
   (cond (= token "YYYY") "[0-9]{4}" (= token "YY") "[0-9]{2}" (= token "MM") "[0-9]{2}"
         (= token "TYPE") "[A-Z_]+" (= token "PROJECT") ".+"
         (str/starts-with? token "SEQ:") (str "[0-9]{" (subs token 4) ",}")))
+
 
 (defn pattern-regex
   "把编码模式转换为校验正则: 占位符换成对应字符类, 其余字面量原样转义."
@@ -504,6 +555,7 @@
                                   (java.util.regex.Pattern/quote piece)))
                               (remove str/blank? (str/split pattern #"(?<=\})|(?=\{)"))))))
 
+
 (defn- sequence-count
   [q object-type project]
   (case object-type
@@ -511,6 +563,7 @@
     ("sub" "machine") (:total (q :config/node-count {:node_type object-type}))
     ("document" "requirement") (:total (q :config/gov-count {:project_id (:project_id project) :kind object-type}))
     "task" (:total (q :config/task-count {:project_id (:project_id project)}))))
+
 
 (defn render
   "按规则生成下一个编号."
@@ -525,6 +578,7 @@
                          (= token "PROJECT") (or (:project_no context) "PRJ")
                          :else (format (str "%0" (subs token 4) "d") (inc (or (:count context) 0))))))))
 
+
 (defn next-code
   "读取对象类型当前生效规则并生成建议编号 (流水按现有数量+1, 保存时仍以唯一约束为准)."
   [svc actor object-type project-id type]
@@ -537,6 +591,7 @@
       {:object_type object-type :rule (select-keys rule [:id :code :pattern :enforced :revision])
        :code (render rule {:type (or type (:project_type project)) :project_no (:project_no project)
                            :count (sequence-count q object-type project)})})))
+
 
 (defn enforce!
   "当生效规则要求强制时校验编号格式, 否则放行."

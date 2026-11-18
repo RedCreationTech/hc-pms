@@ -1,13 +1,18 @@
 (ns com.ruoyi.domain.pms.delivery.store
   "交付执行对象的受控记录与共享校验,不暴露任意JSON写入."
-  (:require [cheshire.core :as json]
-            [com.ruoyi.domain.pms.governance.store :as g]
-            [com.ruoyi.domain.pms.kernel :as k]
-            [com.ruoyi.domain.pms.rules :as r])
-  (:import [java.time LocalDate]))
+  (:require
+    [cheshire.core :as json]
+    [com.ruoyi.domain.pms.governance.store :as g]
+    [com.ruoyi.domain.pms.kernel :as k]
+    [com.ruoyi.domain.pms.rules :as r])
+  (:import
+    (java.time
+      LocalDate)))
 
 
-(def kinds "交付对象白名单." #{"configuration" "material" "bom" "assembly" "test" "shipment" "service" "survey" "handover" "site-task"})
+(def kinds
+  "交付对象白名单."
+  #{"configuration" "material" "bom" "assembly" "test" "shipment" "service" "survey" "handover" "site-task"})
 
 
 (defn records
@@ -84,6 +89,7 @@
       (r/fail! 400 "实际发生日期不能晚于今天"))
     date))
 
+
 (defn execution!
   "真实执行反馈仅允许在执行或收尾阶段登记."
   [project]
@@ -115,12 +121,12 @@
   "交付链通用决定端点: 校验 body 仅含 decision/reason, 载入 kind 记录并按 approved-status 落决定, event 写入同事务审计; pre-approve 为 decision 为 approved 时的前置钩子 (nil 表示无). 统一七处 decide-* 端点内联的 input!+record!+decide! 惯用法."
   [svc actor id rid body event kind approved-status pre-approve]
   (mutate! svc actor id body event true
-    (fn [q project]
-      (g/input! body [:decision :reason])
-      (let [record (record! q project kind rid)]
-        (when (and pre-approve (= "approved" (:decision body)))
-          (pre-approve q project record))
-        (decide! q project actor record body approved-status)))))
+           (fn [q project]
+             (g/input! body [:decision :reason])
+             (let [record (record! q project kind rid)]
+               (when (and pre-approve (= "approved" (:decision body)))
+                 (pre-approve q project record))
+               (decide! q project actor record body approved-status)))))
 
 
 (defn configuration-of
@@ -147,6 +153,7 @@
                                   ["shipment" #{"materials" "assembly" "quality"}]]]
       (when (and (selected stage) (not-every? selected predecessors))
         (r/fail! 400 "适用环节必须包含物料,装配,质量的必要前置")))))
+
 
 (defn- numeric-fields!
   "数值型配置字段必须是 0 到上限的整数 (仅校验请求中出现的字段)."
@@ -196,14 +203,14 @@
   "在正式执行前配置适用环节和试验,执行后锁定流程配置."
   [svc actor id body]
   (mutate! svc actor id body "delivery.configured" false
-    (fn [q project]
-      (validate-configuration! body project)
-      (let [fields (assoc (select-keys body [:required_stages :required_test_types :required_survey_visits
-                                             :pre_ship_conditions :handover_deadline_days :site_lag_days :handover_required])
-                          :code "configuration" :source "project_configuration" :reason (g/text! body :reason))]
-        (if-let [old (first (records q project "configuration"))]
-          (change! q project old "registered" fields)
-          (insert! q project actor "configuration" fields "registered"))))))
+           (fn [q project]
+             (validate-configuration! body project)
+             (let [fields (assoc (select-keys body [:required_stages :required_test_types :required_survey_visits
+                                                    :pre_ship_conditions :handover_deadline_days :site_lag_days :handover_required])
+                                 :code "configuration" :source "project_configuration" :reason (g/text! body :reason))]
+               (if-let [old (first (records q project "configuration"))]
+                 (change! q project old "registered" fields)
+                 (insert! q project actor "configuration" fields "registered"))))))
 
 
 (defn task-referenced?

@@ -1,15 +1,18 @@
 (ns com.ruoyi.frontend.pages.pms.plan-views
   "服务端 CPM 排程,资源负荷和基线差异的可视化."
-  (:require [clojure.string :as str]
-            [com.ruoyi.frontend.antd :as antd]
-            [com.ruoyi.frontend.pages.pms.shared :as shared]
-            [com.ruoyi.frontend.pages.pms.widgets :as w]
-            [reagent.core :as r]))
+  (:require
+    [clojure.string :as str]
+    [com.ruoyi.frontend.antd :as antd]
+    [com.ruoyi.frontend.pages.pms.shared :as shared]
+    [com.ruoyi.frontend.pages.pms.widgets :as w]
+    [reagent.core :as r]))
+
 
 (defn- day-index
   "把服务端 ISO 日期转换为图表日轴."
   [date]
   (/ (js/Date.parse (str date "T00:00:00Z")) 86400000))
+
 
 (defn- gantt-row
   "以服务端最早日期绘制任务条,红色明确关键任务."
@@ -30,6 +33,7 @@
                      :left (str (* 100 (/ offset span)) "%") :width (str (max 1 (* 100 (/ length span))) "%")
                      :background (if critical? "#e05b64" (:primary colors))}}]]]))
 
+
 (defn gantt
   "只可视化服务端计算出的工作日历与关键路径结果."
   [model]
@@ -44,6 +48,7 @@
           [:span (:start_date schedule)] [:span (str "跨度 " span " 个自然日")] [:span (:end_date schedule)]]
          (for [task tasks] ^{:key (:task_id task)} [gantt-row task model origin span])]]
        [shared/empty-state "添加任务并设置开始日期后生成排程" nil])]))
+
 
 (defn overloads
   "逐日展示真实超负荷记录, 并在顶部附项目级只读汇总概览."
@@ -66,6 +71,7 @@
        [:div {:style {:padding 16 :color "#568775"}}
         (if (seq (:allocations model)) "当前排程未发现资源超负荷." "尚未分配资源,分配后将执行负荷检查.")])]))
 
+
 (defn allocation-coverage
   "把可分配任务的实际工时投入覆盖情况以只读汇总面板呈现, 并列出尚未投入任何工时的任务."
   [model]
@@ -85,6 +91,7 @@
              ^{:key (:task_id t)} [antd/tag {:color "volcano"} (str (:wbs_code t) " " (:name t))])])]
        [shared/empty-state "尚无普通任务 (汇总与里程碑不计入投入覆盖)." nil])]))
 
+
 (defn critical-path-staffing
   "把关键路径上尚未排入资源工时的任务以只读汇总面板呈现, 优先暴露最高进度风险的投入缺口."
   [model]
@@ -103,6 +110,7 @@
            (for [t (:unstaffed-tasks cp)]
              ^{:key (:task_id t)} [antd/tag {:color "volcano"} (str (:wbs_code t) " " (:name t))])])]
        [shared/empty-state "关键路径上暂无可分配任务 (里程碑与汇总不计入)." nil])]))
+
 
 (defn schedule-sensitivity
   "把 CPM 总时差只读派生为关键路径敏感度概览, 暴露零浮动关键任务之外轻微滑移即会上关键链的近关键任务; 只读洞察, 不构成门控."
@@ -124,12 +132,14 @@
              ^{:key (:task_id t)} [antd/tag {:color "volcano"} (str (:wbs_code t) " " (:name t) " · 时差 " (:total_float t) " 天")])])]
        [shared/empty-state "尚未排程 (需任务设置工期与依赖后计算总时差)." nil])]))
 
+
 (def ^:private tightness-view
   "排程紧凑度档位 -> [中文标签 颜色]: 关键任务占比越高越紧 (几乎无松弛余量), 越低越宽松."
   {"very-tight" ["极紧 (关键任务过半)" "red"]
    "tight"      ["偏紧" "volcano"]
    "moderate"   ["中等" "gold"]
    "loose"      ["宽松" "green"]})
+
 
 (defn schedule-tightness
   "把 CPM 总时差只读派生为排程整体紧凑度概览: 关键任务占比、平均/最小/最大总时差与定性档位; 与敏感度面板正交, 只读洞察, 不构成门控."
@@ -148,11 +158,13 @@
          [antd/tag {:color "default"} (str "关键任务 " (:critical-count t) " / 叶任务 " (:leaf-count t))]]]
        [shared/empty-state "尚未排程 (需任务设置工期与依赖后计算总时差)." nil])]))
 
+
 (def ^:private connectivity-view
   "依赖网络连通性档位 -> [中文标签 颜色]: 存在未链接任务最优先 (排程缺陷), 其次多段平行链, 全链连贯最好."
   {"unlinked"   ["存在未链接任务" "red"]
    "fragmented" ["多段平行链" "volcano"]
    "connected"  ["网络连贯" "green"]})
+
 
 (defn schedule-connectivity
   "把 WBS 依赖网络只读派生为计划网络连通性概览: 已链接占比、独立依赖链段数、孤立 (未链接) 任务清单与定性档位; 与敏感度/紧凑度面板正交, 只读洞察, 不构成门控."
@@ -175,12 +187,14 @@
              ^{:key (:task_id t)} [antd/tag {:color "red"} (str (:wbs_code t) " " (:name t))])])]
        [shared/empty-state "尚未建任务 (创建任务后方可检查依赖网络是否连贯)." nil])]))
 
+
 (def ^:private serialization-view
   "依赖类型结构的并行度档位 -> [中文标签 颜色]: 纯串行链最刚性 (缺并行优化), 并行越充分越好."
   {"fully-serial"   ["纯串行链" "red"]
    "mostly-serial"  ["以串行为主" "volcano"]
    "mixed"          ["串并混合" "gold"]
    "parallel-heavy" ["并行充分" "green"]})
+
 
 (defn dependency-type-mix
   "把 WBS 依赖网络只读派生为依赖类型结构概览: 四类逻辑依赖 FS/SS/FF/SF 的占比、并行度档位、缓冲 (非零间隔) 依赖占比与逐类明细; 与连通性/紧凑度/敏感度面板正交 (那三者看拓扑与浮动, 本项看并行编排结构), 只读洞察, 不构成门控."
@@ -204,11 +218,13 @@
                               (str (:label b) " " (:count b) " (" (:pct b) "%)")])]]
        [shared/empty-state "尚无依赖 (建立任务间 FS/SS/FF/SF 依赖后方可分析并行度)." nil])]))
 
+
 (def ^:private granularity-view
   "任务分解粒度档位 -> [中文标签 颜色]: 单任务吞掉大半工期最严重 (几乎未拆分), 存在过粗任务次之, 分解粒度合理最好."
   {"hard-to-track" ["单任务吞掉大半工期" "red"]
    "coarse"        ["存在过粗任务" "volcano"]
    "fine"          ["分解粒度合理" "green"]})
+
 
 (defn duration-granularity
   "把 WBS 叶任务工期只读派生为任务分解粒度概览: 叶任务数、总/平均/中位工期、最长单任务占比、过粗任务 (工期达阈值) 数与清单及定性档位; 与前四项排程洞察正交 (那四项默认任务已拆到合适粒度, 本项反过来核验分解粒度本身), 只读洞察, 不构成门控."
@@ -232,12 +248,14 @@
              ^{:key (:task_id t)} [antd/tag {:color "red"} (str (:wbs_code t) " " (:name t) " · " (:duration_days t) " 天")])])]
        [shared/empty-state "尚未建任务 (创建任务并设定工期后方可评估分解粒度)." nil])]))
 
+
 (def ^:private hierarchy-view
   "WBS 层级结构档位 -> [中文标签 颜色]: 层级过深逐层上卷困难, 叶任务挂在悬殊深度分解不均, 全部平铺无汇总, 层次均衡最好."
   {"deep"       ["层级过深" "volcano"]
    "unbalanced" ["叶任务深度不均" "gold"]
    "flat"       ["无汇总层级 (全部平铺)" "blue"]
    "balanced"   ["层次均衡" "green"]})
+
 
 (defn wbs-hierarchy
   "把 WBS 任务树按 parent_id 的父子结构只读派生为层级结构概览: 最深层级、汇总/叶/顶层计数、叶任务深度跨度、逐层分布与父级缺失孤儿数; 与前五项排程洞察正交 (那些看工期/浮动/拓扑/编排与叶任务粒度, 本项看分解树的\"形状\"), 只读洞察, 不构成门控."
@@ -264,12 +282,14 @@
              ^{:key (:task_id o)} [antd/tag {:color "red"} (str (:wbs_code o) " " (:name o))])])]
        [shared/empty-state "尚未建任务 (创建 WBS 任务后方可分析层级结构)." nil])]))
 
+
 (def ^:private leveling-view
   "资源投入均衡度档位 -> [中文标签 颜色]: 负荷忽高忽低 (峰值远超均值) 最需平滑, 有一定忙闲不均次之, 排了日历却无人投入, 负荷平稳最好."
   {"spiky"      ["负荷尖峰 (忙闲不均)" "volcano"]
    "moderate"   ["存在忙闲波动" "gold"]
    "unassigned" ["排定工作日尚无投入" "blue"]
    "level"      ["负荷均衡" "green"]})
+
 
 (defn resource-load-leveling
   "把各任务工作日上摊派的工时只读派生为资源投入均衡度 (负荷平滑) 概览: 排定工作日/有负荷工作日/空转工作日、逐日总负荷曲线的峰值 (及其最早出现日)、平均、峰值-均值比与波动系数, 并给定性档位; 与超负荷/投入覆盖/关键路径缺口三项正交 (那三项看够不够与缺不缺, 本项看忙闲均不均), 只读洞察, 不构成门控."
@@ -289,8 +309,10 @@
          [antd/tag {:color "default"} (str "排定 " (:scheduled-days r) " 天 · 有负荷 " (:active-days r) " 天")]]]
        [shared/empty-state "尚无排程任务 (创建任务、排程并分配工时后方可评估投入均衡度)." nil])]))
 
+
 (def ^:private utilization-view
   {"underused" ["投入不足" "gold"] "balanced" ["利用适中" "green"] "saturated" ["接近满负荷" "volcano"]})
+
 
 (defn capacity-utilization
   "把每个被排入资源相对其日历可用容量的投入占比只读派生为资源容量利用率 (投入与容量匹配度) 概览: 整体/平均/最低/最高利用率、被排入资源数、投入与容量工时合计, 并列出轻载 (投入不足) 与接近满负荷资源; 与超负荷/投入覆盖/关键路径缺口/投入均衡度四项正交 (那四项看够不够、缺不缺、均不均, 本项看相对日历容量整体填了多少, 尤其暴露\"没用满\"的轻载资源), 只读洞察, 不构成门控."
@@ -319,9 +341,11 @@
              ^{:key (:resource_id x)} [antd/tag {:color "volcano"} (str (:name x) " " (:utilization-pct x) "%")])])]
        [shared/empty-state "尚无资源工时分配 (创建资源、排程并分配工时后方可评估容量利用率)." nil])]))
 
+
 (def ^:private resource-type-label
   "资源类别 -> 中文标签: 本项目仅支持人力与设备两类."
   {"person" "人力" "equipment" "设备"})
+
 
 (def ^:private structure-view
   "投入结构档位 -> [中文标签 颜色]: 几乎只依赖一类 (严重偏科) 最需关注, 有一定偏向次之, 排了资源却零投入, 各类均有投入结构均衡最好."
@@ -329,6 +353,7 @@
    "skewed"       ["投入偏向某类" "gold"]
    "unassigned"   ["已建资源尚无投入" "blue"]
    "balanced"     ["投入结构均衡" "green"]})
+
 
 (defn resource-type-mix
   "把各资源按其类别 (人力/设备) 汇总的工时投入只读派生为投入结构 (资源类别构成) 概览: 主导类别及占比、各类别占比、投入合计工时、类别数, 并逐类给出投入工时/已排入/闲置; 与超负荷/投入覆盖/关键路径缺口/投入均衡度/容量利用率五项正交 (那五项逐日逐任务逐被排入资源, 本项把视角拉到类别层面, 暴露\"严重偏科\"与\"整类闲置\"), 只读洞察, 不构成门控."
@@ -356,19 +381,23 @@
                    (when (pos? (:idle x)) (str " · 闲置 " (:idle x))))])])]
        [shared/empty-state "尚无资源 (创建人力或设备资源后方可评估投入结构)." nil])]))
 
+
 (def readable-fields
   {:name "名称" :start_date "开始日期" :end_date "结束日期" :duration_days "工期"
    :wbs_code "WBS编号" :task_type "类型" :daily_capacity "日容量" :hours_per_day "日负荷"
    :dependency_type "依赖关系" :lag_days "间隔" :capacity_hours "容量" :date "日期"})
 
+
 (defn- describe-record
   "以业务字段解释基线快照差异."
   [record]
   (if (map? record)
-    (let [parts (keep (fn [[key label]] (when (contains? record key)
-                                        (str label ": " (shared/display-value (get record key))))) readable-fields)]
+    (let [parts (keep (fn [[key label]]
+                        (when (contains? record key)
+                          (str label ": " (shared/display-value (get record key))))) readable-fields)]
       (if (seq parts) (str/join "; " parts) "日历或关联关系发生变更"))
     (shared/display-value record)))
+
 
 (defn baseline-diff
   "对照冻结快照查看当前计划变化."
@@ -383,16 +412,18 @@
          (if (seq (:changes data))
            [w/record-table (:changes data)
             [{:title "对象" :dataIndex "entity_type" :render #(get {"task" "WBS任务" "schedule" "排程" "calendar" "工作日历"
-                                                                 "dependency" "任务依赖" "resource" "资源" "allocation" "资源分配" "capacity" "资源容量"} % %)}
+                                                                  "dependency" "任务依赖" "resource" "资源" "allocation" "资源分配" "capacity" "资源容量"} % %)}
              {:title "变化" :dataIndex "change_type" :render #(get {"added" "新增" "removed" "删除" "modified" "修改"} % %)}
              {:title "基线内容" :dataIndex "before" :render #(describe-record (js->clj % :keywordize-keys true))}
              {:title "当前内容" :dataIndex "after" :render #(describe-record (js->clj % :keywordize-keys true))}] nil]
            [shared/empty-state "当前计划与该基线一致" nil])])]]))
 
+
 (defn- percent-bar
   "带百分比文字的进度条."
   [percent color]
   [antd/progress {:percent (or percent 0) :size "small" :strokeColor color :style {:width 200}}])
+
 
 (defn- metric
   [label value suffix color]
@@ -462,7 +493,7 @@
                       (r/as-element [antd/space {:wrap true}
                                      [antd/tag {:color c} l]
                                      (when (pos? total) [:span {:style {:color "#718096" :fontSize 12}}
-                                                        (str total " 项 · 未闭环 " open)])])))}]
+                                                         (str total " 项 · 未闭环 " open)])])))}]
         on-register])]))
 
 
@@ -481,8 +512,7 @@
         [metric "措施总数" (:action_total summary) " 项" nil]
         [metric "已闭环措施" (:action_closed summary) " 项" "#1d39c4"]
         [metric "未闭环措施" (:action_open summary) " 项" (when (pos? (:action_open summary)) "#cf1322")]
-        [metric "措施闭环率" pct "%" (cond (>= pct 100) "#1d39c4" (zero? pct) "#cf1322" :else "#e6a23c")]
-       ])]))
+        [metric "措施闭环率" pct "%" (cond (>= pct 100) "#1d39c4" (zero? pct) "#cf1322" :else "#e6a23c")]])]))
 
 
 (defn conflicts-panel

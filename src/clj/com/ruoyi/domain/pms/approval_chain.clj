@@ -36,10 +36,11 @@
   [svc actor]
   (rules/permit! actor ["pms:project:list" "pms:project:query" "pms:config:list"])
   (let [q (:query-fn svc)]
-    (into {} (keep (fn [t] (when-let [p (policy q t)]
-                             [t {:id (:id p) :name (:name p) :revision (:revision p)
-                                 :levels (:levels p)
-                                 :needs_reviewer (boolean (some #(= "submitter_choice" (:rule %)) (:levels p)))}])))
+    (into {} (keep (fn [t]
+                     (when-let [p (policy q t)]
+                       [t {:id (:id p) :name (:name p) :revision (:revision p)
+                           :levels (:levels p)
+                           :needs_reviewer (boolean (some #(= "submitter_choice" (:rule %)) (:levels p)))}])))
           (keys config/approval-types))))
 
 
@@ -274,14 +275,13 @@
   (let [decision (:decision body)]
     (when-not (contains? rules/decisions decision) (rules/fail! 400 "无效审批决定"))
     (kernel/transaction! svc
-      (fn [q]
-        (let [{:keys [f project mine comment adapter]} (decide-context q actor flow-id body decision)]
-          (rules/changed! (q :approval/decide-step! {:step_id (:step_id mine) :status decision :comment comment}))
-          (rules/changed! (q :pms/touch-project! project))
-          (let [steps (q :approval/steps {:flow_id flow-id})
-                level (:current_level f)
-                result (advance! q actor project f mine level steps decision comment adapter)]
-            (kernel/event! q actor project (str "approval." (:biz_type f) "." decision)
-                           {:reason comment :result {:id flow-id :status result :decision decision}})
-            (flow-view q (q :approval/flow {:flow_id flow-id}))))))))
-
+                         (fn [q]
+                           (let [{:keys [f project mine comment adapter]} (decide-context q actor flow-id body decision)]
+                             (rules/changed! (q :approval/decide-step! {:step_id (:step_id mine) :status decision :comment comment}))
+                             (rules/changed! (q :pms/touch-project! project))
+                             (let [steps (q :approval/steps {:flow_id flow-id})
+                                   level (:current_level f)
+                                   result (advance! q actor project f mine level steps decision comment adapter)]
+                               (kernel/event! q actor project (str "approval." (:biz_type f) "." decision)
+                                              {:reason comment :result {:id flow-id :status result :decision decision}})
+                               (flow-view q (q :approval/flow {:flow_id flow-id}))))))))

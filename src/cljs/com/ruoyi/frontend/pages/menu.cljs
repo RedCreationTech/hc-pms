@@ -680,9 +680,9 @@
                        :rowKey "menu_id"
                        :loading loading?
                        :columns (menu-columns handle-order-change set-delete-target!
-                                               {:can-add? (permission/permitted? "system:menu:add")
-                                                :can-edit? (permission/permitted? "system:menu:edit")
-                                                :can-remove? (permission/permitted? "system:menu:remove")})
+                                              {:can-add? (permission/permitted? "system:menu:add")
+                                               :can-edit? (permission/permitted? "system:menu:edit")
+                                               :can-remove? (permission/permitted? "system:menu:remove")})
                        :dataSource (clj->js tree-data)
                        :pagination false
                        :indentSize 24

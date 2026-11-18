@@ -42,18 +42,18 @@
   [{:keys [kind icon on-click disabled? children label perms]}]
   (let [is-dark? (= @(rf/subscribe [:theme/mode]) :dark)]
     (when (or (nil? perms) (permission/permitted? perms))
-    [antd/button {:icon icon
-                  :disabled disabled?
-                  :on-click on-click
-                  :style (merge {:height 36
-                                 :minWidth 86
-                                 :padding "0 15px"
-                                 :borderRadius 4
-                                 :fontSize 14}
-                                (get (button-colors is-dark?) kind)
-                                (when disabled?
-                                  {:opacity 0.55}))}
-     (or label children)])))
+      [antd/button {:icon icon
+                    :disabled disabled?
+                    :on-click on-click
+                    :style (merge {:height 36
+                                   :minWidth 86
+                                   :padding "0 15px"
+                                   :borderRadius 4
+                                   :fontSize 14}
+                                  (get (button-colors is-dark?) kind)
+                                  (when disabled?
+                                    {:opacity 0.55}))}
+       (or label children)])))
 
 
 (defn toolbar-left

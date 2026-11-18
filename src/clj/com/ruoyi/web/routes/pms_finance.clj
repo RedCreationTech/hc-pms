@@ -1,22 +1,26 @@
 (ns com.ruoyi.web.routes.pms-finance
   "挂载在/api/pms下的财务版本, 成本和独立工时业务路由."
-  (:require [com.ruoyi.domain.pms.finance :as finance]
-            [com.ruoyi.domain.pms.finance-allocation :as allocation]
-            [com.ruoyi.domain.pms.finance-budget :as budget]
-            [com.ruoyi.domain.pms.finance-commitment :as commitment]
-            [com.ruoyi.domain.pms.finance-cost :as cost]
-            [com.ruoyi.domain.pms.finance-time :as time]
-            [com.ruoyi.web.controllers.pms-finance :as controller]))
+  (:require
+    [com.ruoyi.domain.pms.finance :as finance]
+    [com.ruoyi.domain.pms.finance-allocation :as allocation]
+    [com.ruoyi.domain.pms.finance-budget :as budget]
+    [com.ruoyi.domain.pms.finance-commitment :as commitment]
+    [com.ruoyi.domain.pms.finance-cost :as cost]
+    [com.ruoyi.domain.pms.finance-time :as time]
+    [com.ruoyi.web.controllers.pms-finance :as controller]))
+
 
 (defn- query
   "构造安全的查询handler."
   [svc f]
   {:handler (partial controller/query svc f)})
 
+
 (defn- command
   "构造已确定参数的命令handler."
   [svc f keys]
   {:handler (partial controller/command svc f keys)})
+
 
 (defn finance-routes
   "返回可拼接的费用与工时接口."

@@ -69,7 +69,7 @@
                                                      (= kind "comm-plan") stakeholders/comm-plan-read-model
                                                      (= kind "stakeholder") stakeholders/stakeholder-read-model
                                                      (= kind "change") approval/change-read-model
-                                         (= kind "gate") gates/gate-read-model)
+                                                     (= kind "gate") gates/gate-read-model)
                                                   (store/records q project kind))]))
                    actions-by-meeting (group-by :meeting_id (:actions data))
                    raci-loads (stakeholders/raci-r-loads (:raci data))

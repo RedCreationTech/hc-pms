@@ -1,13 +1,16 @@
 (ns com.ruoyi.domain.pms.planning.capacity
   "跨项目人员容量汇总,对外只返回本项目资源和匿名占用总量."
-  (:require [com.ruoyi.domain.pms.planning.store :as store]
-            [com.ruoyi.domain.pms.read-model :as rm]))
+  (:require
+    [com.ruoyi.domain.pms.planning.store :as store]
+    [com.ruoyi.domain.pms.read-model :as rm]))
+
 
 (defn- person-resources
   "从快照中取得需要共享容量的人员资源."
   [snapshot user-ids]
   (filter #(and (= "person" (:resource_type %)) (contains? user-ids (:user_id %)))
           (:resources snapshot)))
+
 
 (defn- person-loads
   "把任务工作日上的资源分配折合为人员每日总量."
@@ -20,15 +23,17 @@
                         loads (:working_dates (tasks task_id)))
                 loads)) {} (:allocations snapshot))))
 
+
 (defn- capacity-on
   "同一人员在多个未结束项目中的容量设置取保守最小值."
   [snapshots uid date]
   (apply min
          (mapcat (fn [snapshot]
                    (let [overrides (into {} (map #(vector [(:resource_id %) (:date %)] (:capacity_hours %))
-                                                  (:capacities snapshot)))]
+                                                 (:capacities snapshot)))]
                      (map #(get overrides [(:resource_id %) date] (:daily_capacity %))
                           (person-resources snapshot #{uid})))) snapshots)))
+
 
 (defn- shared-rows
   "按当前项目资源返回共享占用,不返回外部项目或任务标识."
@@ -48,6 +53,7 @@
                  :other_project_hours (get external [uid date] 0M)
                  :capacity_hours capacity :excess_hours (- hours capacity)}))) total)))
 
+
 (defn overloads
   "综合本项目设备和所有未结束项目人员负荷,保护外部项目内容."
   [q project snapshot]
@@ -58,6 +64,7 @@
                    (mapv #(store/snapshot q %) (q :planning/shared-person-projects {:project_id (:project_id project)})))
         rows (concat equipment (when (seq people) (shared-rows snapshot (into [snapshot] external))))]
     (vec (sort-by (juxt :date :resource_id) rows))))
+
 
 (defn overload-summary
   "把逐日超负荷明细聚合为项目级只读概览(超配资源数/人日/设备日/最大单日超出/峰值负荷日),
@@ -80,6 +87,7 @@
      :worst-excess-hours worst
      :peak-date peak-date}))
 
+
 (defn allocation-coverage
   "把可分配叶任务 (task_type=task, 汇总与里程碑不接受工时分配) 与工时分配明细只读聚合为投入覆盖概览:
   逐任务判断是否至少有一条工时分配, 输出可分配总数/已投入/未投入/覆盖率与未投入任务清单;
@@ -97,6 +105,7 @@
      :without-allocations (- total with)
      :coverage-pct (rm/pct total with)
      :unallocated-tasks without}))
+
 
 (defn critical-path-staffing
   "把关键路径任务与工时分配明细只读聚合为关键路径投入缺口概览:
@@ -119,18 +128,22 @@
      :staffing-pct (rm/pct total staffed)
      :unstaffed-tasks gaps}))
 
+
 (def ^:private level-ratio
   "峰值-平均负荷比 (peak-to-avg) 低于该值即视为负荷均衡 (资源平滑良好, 无需再调配)."
   1.3)
+
 
 (def ^:private moderate-ratio
   "峰值-平均负荷比达到该值即视为负荷尖峰 (存在明显忙闲不均, 需要资源平滑)."
   1.6)
 
+
 (defn- rounded-dec
   "把一个数值保留一位小数 (走 double 避免 BigDecimal 非终止除法), 供负荷均值与峰值-平均比呈现."
   [x]
   (rm/round-dec x 1))
+
 
 (defn resource-load-leveling
   "把本项目各任务工作日上的工时分配只读派生为资源投入均衡度 (负荷平滑) 概览: 与 overload-summary (谁超容量) /
@@ -185,13 +198,16 @@
                        (< peak-to-avg moderate-ratio) "moderate"
                        :else "spiky")}))
 
+
 (def ^:private low-utilization-pct
   "整体容量利用率低于该百分比即视为资源投入不足 (日历容量明显富余, 排入的资源大多只用了不到一半)."
   50)
 
+
 (def ^:private high-utilization-pct
   "整体容量利用率达到该百分比即视为资源接近满负荷 (日历容量与投入基本贴平, 再插任务即超配)."
   90)
+
 
 (defn- pct-bigdec-safe
   "共用百分比原语: numer/denom 四舍五入整数百分比, denom 为 0 或缺失时给 0; 走 double 除法避开 BigDecimal 非终止小数异常 (1/3 之类). utilization-pct 与 share-pct 两个同形状 wrapper 共用此原语."
@@ -200,10 +216,12 @@
     (int (Math/round ^double (* 100.0 (/ (double numer) (double denom)))))
     0))
 
+
 (defn- utilization-pct
   "committed/capacity 的百分比 (四舍五入整数), 容量为 0 或缺失时给 0, 走 double 避免 BigDecimal 非终止除法."
   [committed capacity]
   (pct-bigdec-safe committed capacity))
+
 
 (defn capacity-utilization
   "把本项目每个资源在其被排入的工作日上的投入工时与其日历可用容量只读派生为容量利用率 (投入与容量匹配度) 概览:
@@ -280,18 +298,22 @@
                           (< overall-pct high-utilization-pct) "balanced"
                           :else "saturated")}))
 
+
 (def ^:private concentrated-share-pct
   "单一资源类型投入占比达到该百分比即视为投入结构高度集中 (严重偏科, 项目工时几乎只压在某一类资源上)."
   80)
+
 
 (def ^:private skewed-share-pct
   "单一资源类型投入占比达到该百分比即视为投入结构明显偏斜 (一类资源主导, 其余类型贡献偏低)."
   60)
 
+
 (defn- share-pct
   "part/total 的百分比 (四舍五入整数), total 为 0 或缺失时给 0, 走 double 避免 BigDecimal 非终止除法."
   [part total]
   (pct-bigdec-safe part total))
+
 
 (defn resource-type-mix
   "把本项目各资源按其 resource_type (person 人力 / equipment 设备) 分组的工时投入只读派生为投入结构
