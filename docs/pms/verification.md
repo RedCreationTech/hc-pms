@@ -2614,3 +2614,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 - 八类真实系统字段/认证/责任边界/沙箱尚未提供;本地通用协议和回执测试不代表CRM/OA/ERP/PLM/MES/SRM/销服物料/BI已联通.
 - 完整主子单机计划网络/进度卷积/局部暂停,专属业务模板/沟通自动提醒与消息渠道推送,二进制/密级/批量文档及正式签发,完整财务更正封期/费率/跨项目池/汇率税务/经营口径,AI等仍按矩阵保留真实待办.
 - 生产升级/回退和备份恢复,负载/兼容性/既有数据迁移/业务UAT尚未验收. 未重跑继承模板全部历史办公/BPM测试. 公开源码和本地启动不等于生产部署.
+
+## H12 延伸 预测完工成本 EAC/ETC (增量7 切片, 2026-11-18)
+
+设计与口径: 兑现矩阵 H12 长期标注"待: 预测完工成本 EAC 公式"的缺口. 新增 `finance_forecast` 纯派生命名空间, GET `/finance` 顶层 `forecast` 按 `budget` 与 `estimate` 两个基线口径各输出一份: BAC 取该口径最新已批准费用版本总金额, AC 取最新已批准 actual 版本总金额, 已承诺取 `pms_cost_commitment` 中 submitted/approved 的本位金额合计. `ETC = max(BAC - AC - 已承诺, 0)`, `EAC = AC + 已承诺 + ETC`; 已用率与剩余率按**已发生**口径 (`AC + 已承诺`) 计算, 因此未发生的 ETC 不会虚高占用率. 超支时 ETC 截零, `over_budget=true`, 不出现负 ETC.
+
+不可算情形如实标注而不伪造: 无已批准基线或总额非正时 `available=false` 且全部金额键为 nil; 已批准实际币种与预算不一致时同样不可算, 并回传 `currency`/`actual_currency` 供界面提示人工对账, **不做隐式换汇**. 预算缺失属于"不可比"而非"错配", 故 `currency_mismatch` 要求两端都存在才可能为 true (浏览器验收已断言不会误报 `( / CNY)`).
+
+这是读取时派生: 不写任何费用版本、不与费用池分摊重复计费、不构成门控, 故不影响既有四算与封期口径.
+
+| 项目 | 结果 |
+|---|---|
+| 领域测试 | `forecast-eac-etc-is-derived-read-only`: 纯函数四态 (正常 BAC 1000/AC 400/承诺 250 -> ETC 350/EAC 1000 已用 65%; 超支 ETC 截零 EAC 1200; 预算缺失不可算且不误报币种; 币种不一致不可算并回传两边币种) + 真实项目端到端 (预算 1000 + 实际 400 独立批准 -> overview 暴露 `:forecast`) + 只读性 (两次读取费用版本状态不变) |
+| 套件回归 | `clojure -M:test -n com.ruoyi.pms-portfolio-test` 17 tests / 322 assertions, 0 failures/errors |
+| 全量回归 | 见本页验证表 (SQLite) |
+| 前端 | `npx shadow-cljs compile app` 0 warnings; 新面板"预测完工成本 (EAC/ETC)" |
+| 浏览器 | `pms-h12eac.spec.js` 1 passed: 空态两个口径均"缺少可比的已批准预算, 不可算" -> 预算+实际独立批准后 BAC 1000/AC 400/ETC 600/EAC 1000/已用 40% -> 登记并提交 300 承诺后 ETC 300/EAC 1000/已用 70%, 并断言概算口径不误报币种不一致; 真实截图 `reports/h12eac/` |
+
+边界: EAC 为本地确定性算式 (预算 - 实际 - 已承诺), **不是** EVM 绩效指数法 (CPI/SPI 推算), 也没接入税额、多币种对账与结算回执, 故矩阵 H12 行状态保持 `implemented / local` 不因本切片上行到生产验收, H13 的税额/汇率/结算对账仍待规则.

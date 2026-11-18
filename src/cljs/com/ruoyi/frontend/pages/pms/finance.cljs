@@ -358,6 +358,41 @@
                    (map row (:by-kind cm)))))]))
 
 
+(defn- forecast-section
+  "H12/H13 预测完工成本: 按预算与概算两个基线口径只读派生 BAC/AC/已承诺/ETC/EAC,
+   预算缺失或币种不一致时如实标注不可算, 不做隐式换汇, 不构成门控."
+  [{:keys [model]}]
+  (let [fc (:forecast model)
+        label {"budget" "预算基线" "estimate" "概算基线"}
+        one (fn [[k v]]
+              (let [title (get label (name k) (name k))]
+                (cond
+                  (nil? v)
+                  ^{:key (name k)} [:div {:style {:fontSize 13 :color "#98a2b3"}} (str title " · 尚未派生")]
+
+                  (not (:available v))
+                  ^{:key (name k)}
+                  [:div {:style {:fontSize 13 :color "#4b5563"}}
+                   (str title " · ")
+                   (if (:currency_mismatch v)
+                     [antd/tag {:color "red"} (str "币种不一致 (" (:currency v) " / " (:actual_currency v) ") 不可算")]
+                     [antd/tag {:color "orange"} "缺少可比的已批准预算, 不可算"])]
+
+                  :else
+                  ^{:key (name k)}
+                  [:div {:style {:fontSize 13 :color "#4b5563"}}
+                   (str title " · BAC " (:bac v) " 元, AC " (:ac v) " 元, 已承诺 " (quot (:committed_minor v) 100) "."
+                        (let [m (mod (:committed_minor v) 100)] (if (< m 10) (str "0" m) m))
+                        " 元, ETC " (:etc v) " 元, EAC " (:eac v) " 元 ")
+                   [antd/tag {:color (if (:over_budget v) "red" "green")}
+                    (str "已用 " (:used_pct v) "%" (when (:over_budget v) " · 预计超支"))]])))]
+    [shared/panel "预测完工成本 (EAC/ETC)" "只读派生 · 已批准预算 - 已核销实际 - 已承诺未发生 = 完工尚需, 不构成任何门控" nil
+     (if-not (:forecast model)
+       [:span {:style {:color "#98a2b3"}} "本版本后端未提供预测完工成本派生."]
+       (into [:div {:style {:display "grid" :gap 8}}]
+             (map one (:forecast model))))]))
+
+
 (defn- labor-section
   "H07 人工成本 (费率折算): 已批准工时按有效期费率只读派生, 人员费率优先于角色费率, 缺费率分钟如实未覆盖."
   [{:keys [model]}]
@@ -601,6 +636,7 @@
                         :children (r/as-element [:div {:style {:display "grid" :gap 20}}
                                                  [cost-review-section context]
                                                  [cost-margin-section context]
+                                                 [forecast-section context]
                                                  [labor-section context]
                                                  [four-count-section context]
                                                  [cost-section context] [ledger-section context selected] [allocation-review-section context] [allocation-history (:model context)]])}

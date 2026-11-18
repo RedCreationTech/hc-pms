@@ -6,6 +6,7 @@
     [com.ruoyi.domain.pms.finance-budget :as budget]
     [com.ruoyi.domain.pms.finance-commitment :as commitment]
     [com.ruoyi.domain.pms.finance-cost :as cost]
+    [com.ruoyi.domain.pms.finance-forecast :as forecast]
     [com.ruoyi.domain.pms.finance-money :as money]
     [com.ruoyi.domain.pms.finance-rate :as rate]
     [com.ruoyi.domain.pms.finance-time :as time]
@@ -142,6 +143,14 @@
      :by-kind (mapv one ["estimate" "budget" "actual" "settlement"])}))
 
 
+(defn attach-forecast
+  "H12/H13 把预测完工成本挂到财务概览读模型顶层 :forecast, 按 budget 与 estimate 两个基线口径各派生一份.
+   需要查询函数与项目, 故在 overview 内以 let 显式调用而非线程; 只读派生, 不写费用版本."
+  [q project-id data]
+  (assoc data :forecast {:budget (forecast/forecast q project-id "budget")
+                         :estimate (forecast/forecast q project-id "estimate")}))
+
+
 (defn attach-margin-summary
   "把 margin-summary 挂到财务概览读模型顶层 :cost_margin; 读取时派生, 不改变任何逐条费用版本."
   [data]
@@ -194,17 +203,18 @@
   (kernel/read! svc actor project-id "pms:finance:query"
                 (fn [q project]
                   (let [versions (mapv #(cost/dto q %) (q :finance/versions {:project_id project-id}))]
-                    (-> (merge {:project_version (:version project) :cost_versions versions
-                                :time_entries (mapv time/dto (q :finance/times {:project_id project-id}))
-                                :allocations (mapv allocation/dto (q :finance/allocations {:project_id project-id}))
-                                :four_count (four-count-comparison versions)
-                                :commitments (commitment/list-all q project-id)
-                                :budget_rules (budget/list-rules q project-id)
-                                :budget_control {:budget (budget/evaluate q project-id "budget" 0)
-                                                 :estimate (budget/evaluate q project-id "estimate" 0)}
-                                :labor_cost (rate/summary q project-id)
-                                :locked_periods (mapv :period (config/published q "period-lock"))}
-                               (summary versions)) time/attach-timesheet-review-summary attach-cost-review-summary attach-allocation-review-summary attach-margin-summary attach-commitment-closure-summary)))))
+                    (attach-forecast q project-id
+                                     (-> (merge {:project_version (:version project) :cost_versions versions
+                                                 :time_entries (mapv time/dto (q :finance/times {:project_id project-id}))
+                                                 :allocations (mapv allocation/dto (q :finance/allocations {:project_id project-id}))
+                                                 :four_count (four-count-comparison versions)
+                                                 :commitments (commitment/list-all q project-id)
+                                                 :budget_rules (budget/list-rules q project-id)
+                                                 :budget_control {:budget (budget/evaluate q project-id "budget" 0)
+                                                                  :estimate (budget/evaluate q project-id "estimate" 0)}
+                                                 :labor_cost (rate/summary q project-id)
+                                                 :locked_periods (mapv :period (config/published q "period-lock"))}
+                                                (summary versions)) time/attach-timesheet-review-summary attach-cost-review-summary attach-allocation-review-summary attach-margin-summary attach-commitment-closure-summary))))))
 
 
 (defn times

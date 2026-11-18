@@ -6,6 +6,7 @@
             [com.ruoyi.domain.pms.finance :as finance]
             [com.ruoyi.domain.pms.finance-allocation :as allocation]
             [com.ruoyi.domain.pms.finance-cost :as cost]
+            [com.ruoyi.domain.pms.finance-forecast :as forecast]
             [com.ruoyi.domain.pms.finance-money :as money]
             [com.ruoyi.domain.pms.finance-pool :as pool]
             [com.ruoyi.domain.pms.finance-time :as time]
@@ -809,3 +810,95 @@
     (is (= 1 (:total s)))
     (is (= 1 (:met s)))
     (is (= {:metric "revenue" :total 1 :met 1 :avg-pct 120} (first (:by-metric s))))))
+
+
+(deftest forecast-eac-etc-is-derived-read-only
+  ;; H12/H13 预测完工成本: 纯函数三态 (正常/预算缺失/币种不一致) + 真实项目端到端暴露顶层 :forecast.
+  (let [f (forecast/forecast (fn [name params]
+                               (case name
+                                 :finance/latest-approved-total
+                                 (if (= "actual" (:kind params)) {:total_minor 40000 :currency "CNY"}
+                                     {:total_minor 100000 :currency "CNY"})
+                                 :finance/commitment-consumed {:committed_minor 25000}))
+                             1 "budget")]
+    ;; 正常: BAC 1000, AC 400, 已承诺 250 -> ETC 350, EAC 1000.
+    (is (true? (:available f)))
+    (is (= 100000 (:bac_minor f)))
+    (is (= 40000 (:ac_minor f)))
+    (is (= 25000 (:committed_minor f)))
+    (is (= 35000 (:etc_minor f)))
+    (is (= 100000 (:eac_minor f)))
+    (is (= "350.00" (:etc f)))
+    (is (= "1000.00" (:eac f)))
+    (is (false? (:over_budget f)))
+    ;; 已用 = 实际 + 已承诺 = 400 + 250 = 650, 占预算 65%; ETC 尚未发生, 剩余 35%.
+    (is (= 65000 (:used_minor f)))
+    (is (= 65 (:used_pct f)))
+    (is (= 35 (:remaining_pct f))))
+  ;; 超支: 预算 1000, 实际 900, 已承诺 300 -> ETC 截零, EAC 1200, over_budget.
+  (let [f (forecast/forecast (fn [name params]
+                               (case name
+                                 :finance/latest-approved-total
+                                 (if (= "actual" (:kind params)) {:total_minor 90000 :currency "CNY"}
+                                     {:total_minor 100000 :currency "CNY"})
+                                 :finance/commitment-consumed {:committed_minor 30000}))
+                             1 "budget")]
+    (is (true? (:over_budget f)))
+    (is (= 0 (:etc_minor f)))
+    (is (= 120000 (:eac_minor f))))
+  ;; 预算缺失: 不可算, 金额键全 nil, 不伪造 EAC.
+  (let [f (forecast/forecast (fn [name _] (case name
+                                            :finance/latest-approved-total nil
+                                            :finance/commitment-consumed {:committed_minor 5000}))
+                             1 "budget")]
+    (is (false? (:available f)))
+    (is (nil? (:eac_minor f)))
+    (is (nil? (:etc_minor f)))
+    (is (= 5000 (:committed_minor f)))
+    ;; 预算缺失是"不可比"而非"币种错配", 不得误报 mismatch.
+    (is (false? (:currency_mismatch f)))
+    (is (nil? (:currency f))))
+  ;; 币种不一致: 不做隐式换汇, 不可算并显式标注两端币种.
+  (let [f (forecast/forecast (fn [name params]
+                               (case name
+                                 :finance/latest-approved-total
+                                 (if (= "actual" (:kind params)) {:total_minor 90000 :currency "USD"}
+                                     {:total_minor 100000 :currency "CNY"})
+                                 :finance/commitment-consumed {:committed_minor 0}))
+                             1 "budget")]
+    (is (false? (:comparable f)))
+    (is (true? (:currency_mismatch f)))
+    (is (= "CNY" (:currency f)))
+    (is (= "USD" (:actual_currency f)))
+    (is (nil? (:eac_minor f))))
+  ;; 端到端: 真实预算版本 + 实际成本版本 (均独立批准) -> GET /finance 顶层 :forecast.
+  (let [{id :id} (executing-project! "预测完工项目")
+        create (fn [kind] (:result (cost/create! *service* (actor 9701) id {:version (version id) :kind kind :period "2026-09" :currency "CNY" :name (str kind "版本") :revenue "0" :reviewer_id 9702})))
+        entry (fn [vid amount] (cost/add-entry! *service* (actor 9701) id vid {:version (version id) :category "material" :label "材料" :amount amount}))
+        approve (fn [vid] (cost/submit! *service* (actor 9701) id vid {:version (version id)})
+                  (cost/review! *service* (actor 9702) id vid {:version (version id) :decision "approved" :reason "ok"}))
+        budget-v (create "budget")
+        actual-v (create "actual")]
+    (entry (:id budget-v) "1000")
+    (approve (:id budget-v))
+    (entry (:id actual-v) "400")
+    (approve (:id actual-v))
+    (let [fc (:forecast (finance/overview *service* (actor 9701) id))
+          b (:budget fc)]
+      (is (true? (:available b)))
+      (is (= "1000.00" (:bac b)))
+      (is (= "400.00" (:ac b)))
+      (is (= "600.00" (:etc b)))
+      (is (= "1000.00" (:eac b)))
+      (is (false? (:over_budget b)))))
+  ;; 只读派生: 概览多次读取不改费用版本状态.
+  (let [{id :id} (executing-project! "预测只读项目")
+        v (:result (cost/create! *service* (actor 9701) id {:version (version id) :kind "budget" :period "2026-09" :currency "CNY" :name "预算" :revenue "0" :reviewer_id 9702}))
+        _ (cost/add-entry! *service* (actor 9701) id (:id v) {:version (version id) :category "material" :label "材料" :amount "500"})
+        _ (cost/submit! *service* (actor 9701) id (:id v) {:version (version id)})
+        _ (cost/review! *service* (actor 9702) id (:id v) {:version (version id) :decision "approved" :reason "ok"})
+        before (mapv :status (:cost_versions (finance/overview *service* (actor 9701) id)))
+        _ (finance/overview *service* (actor 9701) id)
+        after (mapv :status (:cost_versions (finance/overview *service* (actor 9701) id)))]
+    (is (= before after))
+    (is (= ["approved"] after))))
