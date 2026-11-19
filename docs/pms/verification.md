@@ -2766,3 +2766,25 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 | 真机数据 | 首次扫描投递 82 条, 重扫新建 0 / 已达 137 条; 逾期事件覆盖 DEMO-SEED 项目的任务/齐套/试验/发运等对象; 项目列显示真实项目名 (环保涂装生产线项目等) |
 
 边界: 只做**本地通知与本地待办**, 不接邮件/短信/企业微信等外部通道 (矩阵要求的"外部消息回执"属外部系统集成, 本轮不接也不以 mock 冒充), 不做通知偏好/静默时段/批量已读. 矩阵 C11 行由 `planned / 待合同` 上调为 `partial / 待外部回执`. MySQL 迁移文件已同步但本机无实例未实跑.
+
+## A04 售前资料交接与产品线应交资料清单 (增量9 切片, 2026-11-19)
+
+设计与口径: 兑现矩阵 A04 中"按适用产品线校验应交文件, 缺资料退回, 完整资料随已批准立项申请关联项目"的本地侧. 此前项目管理没有"这个产品线应交哪些资料"的可配置口径, 也没有缺料阻断与退回追溯:
+
+- 应交清单 (`domain/pms/presales.clj` `checklist!` 经 `config.clj` 分派): 新增平台配置类型 `presales-checklist`, 沿用配置记录的草稿-发布版本化; 清单编码即产品线, 必交/可选不得重复, 名称在清单内唯一.
+- 适用清单 (`checklist-for`): 项目按 `contract_no` 匹配清单编码, 退化到 `"default"`, **未发布清单时不臆造必交项**, 如实返回 `checklist_missing`.
+- 证据绑定 (`items!`): 只接受清单内名称, 每项须绑定同项目不可变文档版本, 名称不重复; 调用方不能自带清单掩盖缺料.
+- 阻断与退回 (`submit!` / `return!`): 必交项未收齐直接 409 并列出缺料名称; 退回记录原因/退回人/退回日期/本次缺料与历次退回历史.
+- 职责分离 (`g/reviewer!` / `g/decision-actor!`): 审核人须具有 `pms:quality:approve` 且非提交人; 只有指定审核人可决定, 已批准交接只读. 审批类命令改为只读项目范围 (`{:write? false}`) 并允许指定功能权限, **审批人不因审批而需要项目编辑权**.
+- 外部来源: `source` 只作来源标注, `crm`/`oa` 一律 `source_sync=not_configured`, 不冒充已同步.
+
+契约修正: `create-role!` 原先只认 `menu-ids`, 而 HTTP 层传 `menu_ids`, 导致**新建角色即使带了菜单也是零权限** (界面随后 PUT 才补上, 直接调用 API 则静默丢权限). `domain/system/role.clj` 现同时接受两种写法, 创建与更新一致.
+
+| 项目 | 结果 |
+|---|---|
+| 领域/HTTP 测试 | `pms_presales_test.clj` 5 tests / 37 assertions, 0 failures/errors: `checklist-config-is-versioned-and-validated`; `missing-items-block-submission-and-return-is-traced`; `approval-requires-independent-reviewer-and-complete-pack`; `approver-only-needs-read-scope` (viewer + 质量审批权限的审核人可批准, 不需要编辑权); `handover-http-contract-and-scope` (401 / 403 / 未发布清单不臆造 / 跨项目 404) |
+| 全量回归 | `clojure -J-Xmx1800m -M:test` 849 tests / 7986 assertions, 0 failures/errors (SQLite) |
+| 前端 | `npx shadow-cljs compile app` 0 warnings; 项目工作台新增"售前资料交接"页签 (产品线应交资料、必交/可选标签、缺料标记、来源与外部回执标注、交接记录表) |
+| 浏览器 | `pms-a04presales.spec.js` 1 passed: 建项目+发布产品线清单+登记文档证据 -> 缺料时页面显示"必交: 技术协议"与"缺料 技术协议" -> 提交 409 含"技术协议" -> 补交后齐套 -> 提交人自任审核人 409"审核人不得为提交人" -> 非指定审核人批准 403 -> 指定独立审核人 (真实另建账号+项目 viewer 成员) 批准 approved 且 `source_sync=not_applicable` -> 页面显示"已批准 1"/"当前无缺料" -> 未发布清单的产品线如实显示"尚未发布应交清单" -> 无 `pageerror`; 截图 `reports/a04presales/{a04-presales-missing,a04-presales-approved,a04-presales-no-checklist}.png` |
+
+边界: 只做**本地清单与本地交接**, CRM/OA 真实交接回执与来源对账属外部系统集成, 本轮不接也不以 mock 冒充. 矩阵 A04 行由 `planned / 待合同` 上调为 `partial / 待外部回执`. MySQL 迁移文件已同步但本机无实例未实跑.

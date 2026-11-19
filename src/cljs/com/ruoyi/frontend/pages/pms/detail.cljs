@@ -11,6 +11,7 @@
     [com.ruoyi.frontend.pages.pms.governance :as governance]
     [com.ruoyi.frontend.pages.pms.integration :as integration]
     [com.ruoyi.frontend.pages.pms.planning :as planning]
+    [com.ruoyi.frontend.pages.pms.presales :as presales]
     [com.ruoyi.frontend.pages.pms.process :as process]
     [com.ruoyi.frontend.pages.pms.shared :as shared]
     [com.ruoyi.frontend.pages.pms.structure :as structure]
@@ -195,6 +196,8 @@
                          :children (r/as-element [detail-body project revision options changed! edit! target! apply-template!])}
                         {:key "planning" :label "计划与执行"
                          :children (r/as-element [planning/planning-workspace project revision member-options changed!])}
+                        {:key "presales" :label "售前资料交接"
+                         :children (r/as-element [presales/presales-workspace project revision changed!])}
                         {:key "governance" :label "需求与治理"
                          :children (r/as-element [governance/governance-workspace project revision member-options changed!])}
                         {:key "delivery" :label "工程交付"

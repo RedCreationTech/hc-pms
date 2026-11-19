@@ -17,7 +17,7 @@
 (def kinds
   "允许持久化的平台配置类型."
   #{"project-template" "coding-rule" "quarterly-target" "rd-pool" "period-lock" "approval-policy" "rate-table" "exchange-rate"
-    "tax-rate" "report-metric"})
+    "tax-rate" "report-metric" "presales-checklist"})
 
 
 (def project-types
@@ -41,7 +41,7 @@
    "quarterly-target" "pms:target:edit" "rd-pool" "pms:finance:approve" "period-lock" "pms:finance:approve"
    "approval-policy" "pms:config:edit" "rate-table" "pms:finance:approve"
    "exchange-rate" "pms:finance:approve" "tax-rate" "pms:finance:approve"
-   "report-metric" "pms:config:edit"})
+   "report-metric" "pms:config:edit" "presales-checklist" "pms:config:edit"})
 
 
 (def read-permissions
@@ -533,7 +533,8 @@
     "exchange-rate" (exchange-rate! body)
     "tax-rate" (tax-rate! body)
     "report-metric" (report-metric! body)
-    "approval-policy" (approval-policy! body)))
+    "approval-policy" (approval-policy! body)
+    "presales-checklist" (apply (requiring-resolve 'com.ruoyi.domain.pms.presales/checklist!) [body])))
 
 
 ;; ── 命令 ────────────────────────────────────────────────────────

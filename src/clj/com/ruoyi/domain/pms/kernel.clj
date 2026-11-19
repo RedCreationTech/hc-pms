@@ -89,7 +89,8 @@
 
 
 (defn mutate!
-  "原子执行项目命令, 检查版本, 递增聚合版本并记录审计."
+  "原子执行项目命令, 检查版本, 递增聚合版本并记录审计.
+   options 可覆盖默认写范围, 审批类命令以 {:write? false} 让审批人只读参与项目."
   ([svc actor project-id permission body event-type f]
    (mutate! svc actor project-id permission body event-type {} f))
   ([svc actor project-id permission body event-type options f]

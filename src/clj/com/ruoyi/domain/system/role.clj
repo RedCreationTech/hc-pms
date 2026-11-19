@@ -29,10 +29,16 @@
    :remark nil})
 
 
+(defn- menu-ids
+  "统一菜单编号入参: HTTP 层传 menu_ids, 服务层内部使用 menu-ids."
+  [params]
+  (or (:menu-ids params) (:menu_ids params)))
+
+
 (defn- apply-create-defaults
   "补齐创建角色所需参数.必填默认字段为 nil 时也使用默认值,备注允许为空."
   [params]
-  (let [params (dissoc params :menu-ids)]
+  (let [params (dissoc params :menu-ids :menu_ids)]
     (reduce-kv (fn [acc k default-value]
                  (if (and (contains? acc k)
                           (or (= k :remark) (some? (get acc k))))
@@ -94,16 +100,16 @@
 
 (defn create-role!
   "创建角色并绑定菜单权限."
-  [{:keys [query-fn db]} {:keys [menu-ids] :as params}]
+  [{:keys [query-fn db]} params]
   (let [role-id (db/insert-and-get-id! query-fn db :create-role! (apply-create-defaults params))]
-    (doseq [m-id menu-ids]
+    (doseq [m-id (menu-ids params)]
       (query-fn :insert-role-menu! {:role_id role-id :menu_id m-id}))
     role-id))
 
 
 (defn update-role!
   "更新角色及菜单权限."
-  [{:keys [query-fn]} {:keys [role-id menu-ids] :as params}]
+  [{:keys [query-fn]} {:keys [role-id] :as params}]
   ;; 更新角色基本信息(只保留实际字段)
   (let [role-params (merge {:role_name nil :role_key nil :role_sort nil :data_scope nil
                             :menu_check_strictly nil :dept_check_strictly nil
@@ -114,9 +120,9 @@
                            {:role_id role-id})]
     (query-fn :update-role! role-params))
   ;; 更新菜单权限
-  (when menu-ids
+  (when-some [ids (menu-ids params)]
     (query-fn :delete-role-menus! {:role_id role-id})
-    (doseq [m-id menu-ids]
+    (doseq [m-id ids]
       (query-fn :insert-role-menu! {:role_id role-id :menu_id (if (string? m-id) (parse-long m-id) m-id)})))
   role-id)
 

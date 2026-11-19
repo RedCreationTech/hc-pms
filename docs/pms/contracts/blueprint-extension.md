@@ -120,3 +120,20 @@
 | POST `/notifications/:id/status` | status (read/handled/dismissed/unread) | 本人处置通知; 非本人 403, 未知状态 400, 非法流转 409, 不存在 404 |
 | POST `/notifications/:id/delivery-failed` | - | 登记本地投递失败 (`delivery=failed`), 不改业务状态; 非本人 403 |
 | POST `/notifications/retry` | - | 重试本人所有失败通知: `delivery=failed -> delivered`, `attempts+1`, 返回 `{retried, rows[{id, code, attempts}]}`; 不新建通知, 总数不变 |
+
+## A04 售前资料交接 (本地侧)
+
+- 权限: 读取与维护需 `pms:project:list` / `pms:project:query` / `pms:project:edit` 任一, 且须为项目成员或管理者; 提交/退回/批准另有职责分离校验 (退回与批准只要求 `pms:project:query` + 项目只读范围, 批准人须具 `pms:quality:approve` 且为指定审核人).
+- 清单: 平台配置类型 `presales-checklist` 经配置记录版本化 (`draft -> published`); 编码即产品线, 项目按 `contract_no` 选取生效清单, 退化到 `default`; 未发布清单时 `checklist=null` 且 `checklist_missing=true`, **不臆造必交项**.
+- 证据: 每项资料须绑定同项目不可变文档版本 (`document_ids`), 只接受清单内名称且不重复; 调用方不能自带清单.
+- 存储: 治理记录 kind `presales-handover` (迁移 `202611190010-presales-checklist`), 状态 `pending / submitted / returned / approved`; payload 含 `product_line`, `checklist_code`, `checklist[{name, required}]`, `items[{name, document_ids}]`, `source`(local/crm/oa), `source_sync`, `reviewer_id`, `submitted_by/on`, `return_reason/returned_by/returned_on/return_missing/returns[]`, `decision_reason/decided_by/decided_on`.
+- 外部来源: `source_sync` 对 `crm`/`oa` 一律 `not_configured`, `local` 为 `not_applicable`; 不冒充已同步, 待真实外部合同.
+
+| 路径 | 字段 | 业务结果 |
+| --- | --- | --- |
+| GET `/projects/:id/presales` | - | `{product_line, version, checklist, checklist_missing, required_docs[], rows[], summary{pending, returned, approved, missing_all}}`; 每行派生 `rule_missing`, `rule_complete`, `required_count` |
+| POST `/projects/:id/presales` | version, title, owner_id, items[], source?, reference_no? | 建立交接, 返回记录与 `rule_missing`; 未发布清单时 `checklist=[]` |
+| POST `/projects/:id/presales/:record_id` | version, items?, title?, owner_id?, reference_no? | 维护资料与证据; 非清单内名称 400 |
+| POST `/projects/:id/presales/:record_id/submit` | version, reviewer_id, reason? | `pending|returned -> submitted`; 缺料 409 并列出名称; 审核人不得为提交人 409, 无质量审批权限 403 |
+| POST `/projects/:id/presales/:record_id/return` | version, reason | `submitted|pending -> returned`, 记录原因/退回人/缺料与历次退回 |
+| POST `/projects/:id/presales/:record_id/approve` | version, reason | `submitted -> approved`; 非指定审核人 403, 缺料 409, 批准后只读 |
