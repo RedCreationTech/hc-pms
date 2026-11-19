@@ -137,3 +137,23 @@
 | POST `/projects/:id/presales/:record_id/submit` | version, reviewer_id, reason? | `pending|returned -> submitted`; 缺料 409 并列出名称; 审核人不得为提交人 409, 无质量审批权限 403 |
 | POST `/projects/:id/presales/:record_id/return` | version, reason | `submitted|pending -> returned`, 记录原因/退回人/缺料与历次退回 |
 | POST `/projects/:id/presales/:record_id/approve` | version, reason | `submitted -> approved`; 非指定审核人 403, 缺料 409, 批准后只读 |
+
+## B17 项目/单机受控取消 (本地侧)
+
+- 权限: 读取与建单需 `pms:project:list` / `pms:project:query` / `pms:project:transition` 任一, 且须为项目成员或管理者; 审批命令以只读项目范围 (`{:write? false}`) 执行并在领域层独立校验审批资格与职责分离, **审批人不因审批而需要项目编辑权**.
+- 依据: 取消申请必须关联**已批准**的变更记录 (`basis_change_id`), 无依据 400, 依据未批准 409; 提交与批准时均重新复核依据仍然成立 (依据被后续版本取代则拒绝). 来源 `local` 为 `not_applicable`, `oa` 一律 `not_configured`, 不冒充已同步.
+- 范围: `target` 为 `project` (全项目) 或 `node` (指定结构节点**及其全部后代**); 节点不存在或不属于本项目 404. 受影响对象 (`items`) 必须落在范围内, 否则 409.
+- 冻结与停止下发: 建单冻结 `affected_nodes` / `affected_tasks` (仅 `todo` / `in_progress`) / `outbound` (`shipment` / `service` 交付记录, 经 task -> node 解析归属), 批准时按当时真实数据重算并置 `dispatch_stopped=true` / `stopped_tasks` / `pending_compensation`; 驳回不停止下发.
+- 外部补偿: 已执行外发部分的真实补偿与 OA/ERP 对账回执属外部系统集成, 一律 `external_compensation=not_configured`, 不冒充已对账.
+- 存储: 治理记录 kind `cancellation` (迁移 `202611190012-cancellation`), 状态 `pending / submitted / approved / rejected / withdrawn`; 配置 `approval-types` 增加 `cancellation` (无金额维度).
+- 审批链: 经 `approval-chain` 适配器 `cancellation` 注册 `finalize`; 未配置审批策略时走单人独立审核入口, 提交时必须指定审批人且不得为提交人 (409).
+
+| 路径 | 字段 | 业务结果 |
+| --- | --- | --- |
+| GET `/projects/:id/cancellations` | - | `{version, project_status, targets[], external_compensation, rows[], summary{pending, submitted, approved, stopped, pending_compensation}}` |
+| POST `/projects/:id/cancellations` | version, target, node_id?, basis_change_id, reason, source?, reference_no?, items[]? | `pending`; 无依据 400, 依据未批准 409, 节点不存在 404, 受影响对象越界 409 |
+| GET `/projects/:id/cancellations/:record_id` | - | 单条明细, 含 `record` 与审批链状态 |
+| POST `/projects/:id/cancellations/:record_id/withdraw` | version, reason | `pending -> withdrawn`; 仅申请人可撤回 (403) |
+| POST `/projects/:id/cancellations/:record_id/submit` | version, reviewer_id?, reason? | `pending -> submitted`; 依据失效 409, 审批人不得为提交人 409 |
+| POST `/projects/:id/cancellations/:record_id/review` | version, decision, reason? | `submitted -> approved|rejected`; 非指定审批人 403; 批准后 `dispatch_stopped=true` 并生成待补偿对账清单 |
+| GET `/cancellations/approval-types` | - | `{requires_reviewer, configured}`, 供前端决定提交时是否必填审批人 |

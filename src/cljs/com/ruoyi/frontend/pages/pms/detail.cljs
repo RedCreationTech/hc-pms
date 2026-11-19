@@ -5,6 +5,7 @@
     [clojure.string :as str]
     [com.ruoyi.frontend.antd :as antd]
     [com.ruoyi.frontend.pages.pms.closure :as closure]
+    [com.ruoyi.frontend.pages.pms.cancellation :as cancellation]
     [com.ruoyi.frontend.pages.pms.delivery :as delivery]
     [com.ruoyi.frontend.pages.pms.finance :as finance]
     [com.ruoyi.frontend.pages.pms.form :as project-form]
@@ -198,6 +199,8 @@
                          :children (r/as-element [planning/planning-workspace project revision member-options changed!])}
                         {:key "presales" :label "售前资料交接"
                          :children (r/as-element [presales/presales-workspace project revision changed!])}
+                        {:key "cancellation" :label "取消申请"
+                         :children (r/as-element [cancellation/cancellation-workspace project revision changed!])}
                         {:key "governance" :label "需求与治理"
                          :children (r/as-element [governance/governance-workspace project revision member-options changed!])}
                         {:key "delivery" :label "工程交付"

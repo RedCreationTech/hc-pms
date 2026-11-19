@@ -2788,3 +2788,26 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 | 浏览器 | `pms-a04presales.spec.js` 1 passed: 建项目+发布产品线清单+登记文档证据 -> 缺料时页面显示"必交: 技术协议"与"缺料 技术协议" -> 提交 409 含"技术协议" -> 补交后齐套 -> 提交人自任审核人 409"审核人不得为提交人" -> 非指定审核人批准 403 -> 指定独立审核人 (真实另建账号+项目 viewer 成员) 批准 approved 且 `source_sync=not_applicable` -> 页面显示"已批准 1"/"当前无缺料" -> 未发布清单的产品线如实显示"尚未发布应交清单" -> 无 `pageerror`; 截图 `reports/a04presales/{a04-presales-missing,a04-presales-approved,a04-presales-no-checklist}.png` |
 
 边界: 只做**本地清单与本地交接**, CRM/OA 真实交接回执与来源对账属外部系统集成, 本轮不接也不以 mock 冒充. 矩阵 A04 行由 `planned / 待合同` 上调为 `partial / 待外部回执`. MySQL 迁移文件已同步但本机无实例未实跑.
+
+## B17 项目/单机受控取消 (增量9 切片, 2026-11-19)
+
+设计与口径: 兑现矩阵 B17 中"已批准外部变更关联取消原因和受影响对象, 停止后续下发并完成外系统补偿/对账"的本地侧. 此前项目只有 B16 的暂停/复工, 取消一旦发生便无审批依据、无受影响对象冻结、也无"停止后续下发"的可核对范围:
+
+- 依据 (`domain/pms/cancellation.clj` `change-basis!`): 取消申请必须关联**已批准**的变更记录; 无依据 400, 依据未批准 409, 提交与批准时都要重新复核依据仍成立.
+- 范围 (`scope-nodes` / `scope!`): `target` 为 `project` 或 `node`; 节点范围自动包含**全部后代**, 因此取消子项目即覆盖其下全部单机, 取消单机不影响兄弟设备.
+- 影响对象 (`impacted!` / `affected-tasks` / `outbound-records`): 受影响对象必须落在范围内 (越界 409); 任务只取 `todo` / `in_progress`; 外发记录从交付记录 (`shipment` / `service`) 经 task -> node 解析归属节点.
+- 停止下发 (`reconcile!` / `finalize!`): 批准时按**当时真实数据**重算影响面并冻结 `dispatch_stopped=true`, `stopped_tasks`, `pending_compensation`; 驳回不停止下发.
+- 职责分离: 审批命令改为只读项目范围 (`{:write? false}`) 并允许指定功能权限 `pms:project:query`, 由 `g/decision-actor!` 单独判定资格; 提交人不得自任审批人 (409), 非指定审批人决定 403.
+- 外部补偿: `external_compensation` 恒为 `not_configured`, 界面如实显示"外部补偿回执待合同", 不冒充已对账.
+
+顺带修正: 取消表"停止下发"列原按整行对象取值导致恒显示"未生效", 现按 `dispatch_stopped` 字段渲染; "变更依据"列由裸记录编号改为变更标题, 便于审批人核对.
+
+| 项目 | 结果 |
+|---|---|
+| 领域/HTTP 测试 | `pms_cancellation_test.clj` 5 tests / 39 assertions, 0 failures/errors: `create-requires-approved-change-and-valid-scope`; `scope-excludes-unrelated-machine`; `approval-stops-dispatch-and-lists-compensation`; `non-approver-cannot-decide`; `cancellation-http-contract` |
+| 全量回归 | `clojure -J-Xmx1800m -M:test` 854 tests / 8025 assertions, 0 failures/errors (SQLite) |
+| 迁移 | `202611190012-cancellation` (SQLite + MySQL): 治理 kind 增加 `cancellation`, 状态白名单增加 `withdrawn`; down 已验证可回滚 |
+| 前端 | `npx shadow-cljs compile app` 0 warnings; 项目工作台新增"取消申请"页签 (汇总标签、范围与外部补偿口径、取消申请表) |
+| 浏览器 | `pms-b17cancellation.spec.js` 1 passed: 无已批准变更时登记按钮真实禁用且服务端 400 -> 变更登记并提交独立审批人批准 -> 取消申请登记 (节点范围) -> 提交 -> 提交人自批 403 -> 独立审批 (真实另建账号 + viewer 成员) 批准 -> 界面"已停止"/"已批准"/变更标题回显 |
+
+边界: 只做**本地取消闭环**, OA 批准依据与 ERP/OA 的外发补偿回执属外部系统集成, 本轮不接也不以 mock 冒充. 矩阵 B17 行由 `planned / 待合同` 上调为 `partial / 待外部回执` (外发已执行部分的真实补偿用例仍缺). MySQL 迁移文件已同步但本机无实例未实跑.

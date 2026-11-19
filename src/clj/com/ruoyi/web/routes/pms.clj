@@ -3,6 +3,7 @@
   (:require
     [com.ruoyi.web.controllers.pms :as pms]
     [com.ruoyi.web.middleware.auth :as auth]
+    [com.ruoyi.web.routes.pms-cancellation :as cancellation]
     [com.ruoyi.web.routes.pms-closure :as closure]
     [com.ruoyi.web.routes.pms-config :as config]
     [com.ruoyi.web.routes.pms-delivery :as delivery]
@@ -47,4 +48,5 @@
                 (delivery/delivery-routes (:pms-service opts))
                 (config/config-routes (:pms-service opts))
                 (platform/platform-routes (:pms-service opts))
-                (presales/presales-routes (:pms-service opts)))))
+                (presales/presales-routes (:pms-service opts))
+                (cancellation/cancellation-routes (:pms-service opts)))))

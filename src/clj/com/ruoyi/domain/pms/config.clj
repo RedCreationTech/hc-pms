@@ -470,7 +470,8 @@
   {"plan-baseline" {:label "计划基线" :amount? false}
    "charter" {:label "项目章程" :amount? true}
    "cost-version" {:label "费用版本" :amount? true}
-   "closure" {:label "项目结项" :amount? false}})
+   "closure" {:label "项目结项" :amount? false}
+   "cancellation" {:label "项目/单机取消" :amount? false}})
 
 
 (def approval-rules
