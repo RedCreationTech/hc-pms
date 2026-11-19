@@ -348,14 +348,22 @@
                    (if (:computable bk)
                      [antd/tag {:color (if (neg? (or (:margin-pct bk) 0)) "red" "green")}
                       (str "毛利率 " (:margin-pct bk) "%")]
-                     [antd/tag {:color "orange"} "不可算 (零或负收入)"])])))]
-    [shared/panel "成本毛利看板" "只读派生 · 各口径最新已批准版本的收入, 成本, 毛利与毛利率, 不构成任何门控" nil
+                     [antd/tag {:color "orange"} "不可算 (零或负收入)"])
+                   ;; F08 税后净利: 仅在已发布税率表且币种口径一致时派生, 否则如实留白.
+                   (when (:taxable bk)
+                     [antd/tag {:color (if (neg? (or (:net_margin_pct bk) 0)) "red" "blue")}
+                      (str "税后净利 " (:net_margin bk) " 元 (" (:net_margin_pct bk) "%) 含税 " (:tax_amount bk) " 元")])])))]
+    [shared/panel "成本毛利看板" "只读派生 · 各口径最新已批准版本的收入, 成本, 毛利与毛利率, 已发布税率表时再派生税额与税后净利, 不构成任何门控" nil
      (if-not (:available cm)
        [:span {:style {:color "#98a2b3"}} "尚无已批准的四算版本, 独立批准后此处自动汇总各口径毛利."]
        (into [:div {:style {:display "grid" :gap 12}}]
              (cons (when-not (:comparable cm)
                      [antd/tag {:color "red"} "各口径币种不一致, 毛利率不可横向比较"])
-                   (map row (:by-kind cm)))))]))
+                   (cons
+                     (if-let [tax (:tax cm)]
+                       [antd/tag {:color "green"} (str "税率口径 " (:code tax) " · 增值税 " (:vat_rate tax) " · 净利率 " (:net_rate tax))]
+                       [antd/tag {:color "orange"} "未发布税率表, 税后净利不可算"])
+                     (map row (:by-kind cm))))))]))
 
 
 (defn- forecast-section

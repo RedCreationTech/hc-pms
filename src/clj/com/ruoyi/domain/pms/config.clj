@@ -16,7 +16,8 @@
 
 (def kinds
   "允许持久化的平台配置类型."
-  #{"project-template" "coding-rule" "quarterly-target" "rd-pool" "period-lock" "approval-policy" "rate-table" "exchange-rate"})
+  #{"project-template" "coding-rule" "quarterly-target" "rd-pool" "period-lock" "approval-policy" "rate-table" "exchange-rate"
+    "tax-rate"})
 
 
 (def project-types
@@ -39,7 +40,7 @@
   {"project-template" "pms:config:edit" "coding-rule" "pms:config:edit"
    "quarterly-target" "pms:target:edit" "rd-pool" "pms:finance:approve" "period-lock" "pms:finance:approve"
    "approval-policy" "pms:config:edit" "rate-table" "pms:finance:approve"
-   "exchange-rate" "pms:finance:approve"})
+   "exchange-rate" "pms:finance:approve" "tax-rate" "pms:finance:approve"})
 
 
 (def read-permissions
@@ -387,6 +388,30 @@
       {:code (str "RATE-" currency) :base_currency currency :rates rates})))
 
 
+(defn- tax-rate!
+  "F08 税率口径: 按本位币种维护增值税税率与净利率, 均为 0-1 之间的比例字符串 (最多 6 位小数),
+   由 finance 以 BigDecimal 解释, 不经浮点. 净利率 <= 1 - 税率, 保证税后净利非负.
+   缺这张表时看板只输出税前毛利并如实标注净利不可算, 不猜默认税率."
+  [body]
+  (r/object! body [:base_currency :vat_rate :net_rate :reason])
+  (let [currency (or (:base_currency body) "CNY")
+        shape #"[0-9]{1,2}(\.[0-9]{1,6})?"
+        rate! (fn [k label]
+                (let [v (s/text! body k 20)
+                      minor (money/amount! v label)]
+                  (when-not (re-matches shape v) (r/fail! 400 (str label "必须是最多6位小数的比例 (0到1)")))
+                  (when-not (<= 0 minor 100) (r/fail! 400 (str label "必须在0到1之间")))
+                  (money/money minor)))]
+    (when-not (money/currencies currency) (r/fail! 400 "暂仅支持CNY/USD/EUR/GBP/HKD"))
+    (let [vat (rate! :vat_rate "增值税税率")
+          net (rate! :net_rate "净利率")]
+      (when (pos? (compare (BigDecimal. vat) (BigDecimal. "1"))) (r/fail! 400 "增值税税率必须在0到1之间"))
+      (when (pos? (compare (BigDecimal. net) (.subtract (BigDecimal. "1") (BigDecimal. vat))))
+        (r/fail! 400 "净利率不能超过 1 - 增值税税率"))
+      ;; 编码由本位币种派生, 与费率表/汇率表同为后端生成.
+      {:code (str "TAX-" currency) :base_currency currency :vat_rate vat :net_rate net})))
+
+
 (def approval-types
   "可按策略配置多级审批的业务类型 (编码即类型); 带金额的类型允许按金额设置级别条件."
   {"plan-baseline" {:label "计划基线" :amount? false}
@@ -453,6 +478,7 @@
     "period-lock" (period-lock! body)
     "rate-table" (rate-table! body)
     "exchange-rate" (exchange-rate! body)
+    "tax-rate" (tax-rate! body)
     "approval-policy" (approval-policy! body)))
 
 

@@ -2651,3 +2651,23 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 | 回归修复 | 顺带修两处环境/重跑脆弱用例: `pms-h07-rates.spec.js` 同编码下草稿与已退役行并存导致 strict 冲突 (改为按状态定位); `bpm_p1_test.clj` 分类列表 `size=100` 在共享库累积 121 条后把本用例新建分类挤出第一页导致 `pos` 为 nil (改为 `size=1000`) |
 
 边界: 汇率表覆盖的是**看板折算口径**, 不做复式记账/汇兑损益/月末重估; 税额、收入确认、开票/回款/付款/结算对账与财务批准算法仍未触碰, 故矩阵 H13 行保持 `partial` 不上行; MySQL 迁移文件已同步但本机无 MySQL 实例未实跑.
+
+## F08 延伸 税后净利与税率表 (增量7 切片, 2026-11-19)
+
+设计与口径: 兑现矩阵 F08 长期标注"待: 净利公式/税额"的缺口. 平台级配置新增 `tax-rate` kind: 按**本位币种**一张表 (`code = TAX-<本位币>`), 表内是增值税税率与净利率两个 0-1 之间的比例 (最多 6 位小数, 字符串表达), 编码由后端派生. 校验: 本位币在支持范围内, 两个比例匹配 `[0-9]{1,2}(\.[0-9]{1,6})?`, 增值税税率 ≤ 1, **净利率 ≤ 1 - 增值税税率** (保证税后净利非负), 双库迁移 `202611190002` 更新 kind CHECK 白名单, 权限 `pms:finance:approve` (与费率表/汇率表同口径: 属于财务口径).
+
+派生 (`finance/margin-summary` 双 arity, 第二参数为已发布税率表): 对每个有已批准版本的口径追加 `taxable` / `vat_rate` / `tax_amount` / `net_margin` / `net_margin_pct`:
+`tax_amount = round(收入 × 增值税税率, 2)`; `net_margin = 收入 - tax_amount - round(收入 × 净利率, 2)`; `net_margin_pct = round(100 × net_margin / 收入)`, 全程 `BigDecimal` + `HALF_UP`, 不经 double. 税前毛利与毛利率**不受税率影响**, 两条口径并列展示.
+
+不可算情形如实标注而不伪造: 无已发布税率表, 或税率表本位币与该口径币种不一致时 `taxable=false` 且净利相关键为 nil, 界面显示"未发布税率表, 税后净利不可算", **不取默认税率**. 这是读取时派生: 不写任何费用版本、不构成门控.
+
+| 项目 | 结果 |
+|---|---|
+| 领域测试 | `tax-rate-validates-scope-and-ceiling` (净利率超过 1 - 税率 400 / 增值税税率 > 1 400 / 非小数 400 / 不支持本位币 400 / 合法时编码 `TAX-EUR` 且比例规范化为两位小数); `net-margin-requires-published-tax-rate` (无税率表 `tax=nil`/`taxable=false`/净利 nil -> 发布 13%+5% 后 1000 收入派生税额 130.00 与净利 820.00/82%, 税前毛利 400.00 不变 -> 币种口径不一致不套用 -> 净利率 0.87 与 13% 组合合法边界) |
+| 套件回归 | `clojure -J-Xmx1800m -M:test -n com.ruoyi.pms-finance-test` 41 tests / 268 assertions, 0 failures/errors |
+| 全量回归 | `clojure -J-Xmx1800m -M:test` 829 tests / 7824 assertions, 0 failures/errors (SQLite) |
+| 前端 | `npx shadow-cljs compile app` 0 warnings; 模板与规则新增"税率表"页签 (建立/发布/退役 + 只读详情), 成本毛利看板新增税率口径徽标与逐口径税后净利徽标 |
+| 浏览器 | `pms-f08net.spec.js` 1 passed: 概算 1000/成本 600 独立批准 -> 无税率表时面板"未发布税率表, 税后净利不可算"且无净利徽标 -> 界面建立并发布 13%+5% -> 面板显示 `税率口径 TAX-CNY · 增值税 0.13 · 净利率 0.05` 与 `税后净利 820.00 元 (82%) 含税 130.00 元`, 接口 `cost_margin` 同源一致 -> 退役后回落不可算且 `tax=null`; 真实截图 `reports/f08net/` |
+| 回归 | `pms-f08mb.spec.js` / `pms-h13fx.spec.js` / `pms-h12eac.spec.js` 3 passed |
+
+边界: 税率表只覆盖**本项目本地毛利口径的税额与净利**, 不做多档税率/进项抵扣/递延税/收入确认, 也不做跨产品线经营分析; 税率按本位币维护, 外币口径需先折算 (与 H13 汇率口径一致, 未做自动联动). 矩阵 F08 行保持 `partial`, 不因本切片上行; MySQL 迁移文件已同步但本机无实例未实跑.

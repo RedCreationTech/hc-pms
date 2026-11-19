@@ -114,33 +114,70 @@
   (assoc data :allocation_review (allocation-review-summary (:allocations data))))
 
 
+(def tax-scales
+  "税额与净利舍入口径小数位: 税额四舍五入到分, 净利按分取整, 全程 BigDecimal 不经浮点."
+  2)
+
+
+(defn- tax-context
+  "F08 税率口径: 取本位币对应的已发布税率表; 无发布版本返回 nil (净利不可算, 不猜默认税率).
+   非本位币版本不参与计算 (税率按本位币维护, 外币口径需先折算)."
+  [q currency]
+  (when currency
+    (let [rows (config/published q "tax-rate")]
+      (some #(when (= currency (:base_currency %)) %) rows))))
+
+
+(defn- taxable-minor
+  "税额 = 收入 × 增值税税率, 四舍五入到分."
+  [revenue-minor vat]
+  (-> (BigDecimal/valueOf (long revenue-minor))
+      (.multiply (BigDecimal. vat))
+      (.setScale tax-scales java.math.RoundingMode/HALF_UP)
+      (.longValueExact)))
+
+
 (defn margin-summary
-  "F08 成本毛利看板只读派生: 概算-预算-核算-决算各口径取最新已批准版本, 给出收入/成本/毛利金额与毛利率(百分比), 零或负收入标注不可算(computable=false); 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号."
-  [versions]
-  (let [approved (filterv #(= "approved" (:status %)) versions)
-        latest (into {} (for [kind ["estimate" "budget" "actual" "settlement"]]
-                          [kind (->> approved (filter #(= kind (:kind %))) (sort-by :version_no >) first)]))
-        one (fn [kind]
-              (if-let [v (get latest kind)]
-                (let [rev (long (:revenue_minor v))
-                      cost (long (:total_minor v))
-                      margin (- rev cost)
-                      computable (pos? rev)]
-                  {:kind kind
-                   :present true
-                   :version_no (:version_no v)
-                   :period (:period v)
-                   :currency (:currency v)
-                   :name (:name v)
-                   :revenue (:revenue v)
-                   :cost (:total v)
-                   :margin (:margin v)
-                   :computable computable
-                   :margin-pct (when computable (rm/pct rev margin))})
-                {:kind kind :present false}))]
-    {:available (boolean (seq approved))
-     :comparable (<= (count (distinct (remove nil? (map :currency (vals latest))))) 1)
-     :by-kind (mapv one ["estimate" "budget" "actual" "settlement"])}))
+  "F08 成本毛利看板只读派生: 概算-预算-核算-决算各口径取最新已批准版本, 给出收入/成本/毛利金额与毛利率(百分比), 零或负收入标注不可算(computable=false); 只读派生, 不落库不投递, 不构成门控. 键名不带尾随问号. 传入税率为已发布税率表内容时再派生税额与税后净利 (taxable 为 false 的口径不给净利)."
+  ([versions] (margin-summary versions nil))
+  ([versions tax-file]
+   (let [approved (filterv #(= "approved" (:status %)) versions)
+         latest (into {} (for [kind ["estimate" "budget" "actual" "settlement"]]
+                           [kind (->> approved (filter #(= kind (:kind %))) (sort-by :version_no >) first)]))
+         one (fn [kind]
+               (if-let [v (get latest kind)]
+                 (let [rev (long (:revenue_minor v))
+                       cost (long (:total_minor v))
+                       margin (- rev cost)
+                       computable (pos? rev)
+                       ;; 税率只在与该版本币种口径一致时适用, 不一致则不猜税率.
+                       same-tax (and tax-file (or (nil? (:currency v)) (= (:currency v) (:base_currency tax-file))))
+                       taxable (and computable same-tax)
+                       vat-minor (when taxable (taxable-minor rev (:vat_rate tax-file)))
+                       net-rate-minor (when taxable (taxable-minor rev (:net_rate tax-file)))
+                       net-minor (when taxable (- (- rev vat-minor) net-rate-minor))]
+                   {:kind kind
+                    :present true
+                    :version_no (:version_no v)
+                    :period (:period v)
+                    :currency (:currency v)
+                    :name (:name v)
+                    :revenue (:revenue v)
+                    :cost (:total v)
+                    :margin (:margin v)
+                    :computable computable
+                    :margin-pct (when computable (rm/pct rev margin))
+                    :taxable (boolean taxable)
+                    :vat_rate (when taxable (:vat_rate tax-file))
+                    :tax_amount (when taxable (money/money vat-minor))
+                    :net_margin (when taxable (money/money net-minor))
+                    :net_margin_pct (when (and taxable (pos? rev)) (rm/pct rev net-minor))})
+                 {:kind kind :present false}))]
+     {:available (boolean (seq approved))
+      :comparable (<= (count (distinct (remove nil? (map :currency (vals latest))))) 1)
+      :tax (when tax-file (select-keys tax-file [:code :base_currency :vat_rate :net_rate]))
+      :taxable (boolean (some :taxable (map one ["estimate" "budget" "actual" "settlement"])))
+      :by-kind (mapv one ["estimate" "budget" "actual" "settlement"])})))
 
 
 (defn attach-forecast
@@ -153,9 +190,12 @@
 
 
 (defn attach-margin-summary
-  "把 margin-summary 挂到财务概览读模型顶层 :cost_margin; 读取时派生, 不改变任何逐条费用版本."
-  [data]
-  (assoc data :cost_margin (margin-summary (:cost_versions data))))
+  "把 margin-summary 挂到财务概览读模型顶层 :cost_margin; 读取时派生, 不改变任何逐条费用版本.
+   有已发布税率表 (tax-rate) 且币种口径一致时同时派生税额与税后净利."
+  [q data]
+  (let [versions (:cost_versions data)
+        currency (some->> versions (filter #(= "approved" (:status %))) (sort-by :version_no >) first :currency)]
+    (assoc data :cost_margin (margin-summary versions (tax-context q currency)))))
 
 
 (defn commitment-closure-summary
@@ -203,19 +243,20 @@
   [svc actor project-id]
   (kernel/read! svc actor project-id "pms:finance:query"
                 (fn [q project]
-                  (let [versions (mapv #(cost/dto q %) (q :finance/versions {:project_id project-id}))]
-                    (attach-forecast q project-id
-                                     (-> (merge {:project_version (:version project) :cost_versions versions
-                                                 :time_entries (mapv time/dto (q :finance/times {:project_id project-id}))
-                                                 :allocations (mapv allocation/dto (q :finance/allocations {:project_id project-id}))
-                                                 :four_count (four-count-comparison versions)
-                                                 :commitments (commitment/list-all q project-id)
-                                                 :budget_rules (budget/list-rules q project-id)
-                                                 :budget_control {:budget (budget/evaluate q project-id "budget" 0)
-                                                                  :estimate (budget/evaluate q project-id "estimate" 0)}
-                                                 :labor_cost (rate/summary q project-id)
-                                                 :locked_periods (mapv :period (config/published q "period-lock"))}
-                                                (summary versions)) time/attach-timesheet-review-summary attach-cost-review-summary attach-allocation-review-summary attach-margin-summary attach-commitment-closure-summary))))))
+                  (let [versions (mapv #(cost/dto q %) (q :finance/versions {:project_id project-id}))
+                        data (-> (merge {:project_version (:version project) :cost_versions versions
+                                         :time_entries (mapv time/dto (q :finance/times {:project_id project-id}))
+                                         :allocations (mapv allocation/dto (q :finance/allocations {:project_id project-id}))
+                                         :four_count (four-count-comparison versions)
+                                         :commitments (commitment/list-all q project-id)
+                                         :budget_rules (budget/list-rules q project-id)
+                                         :budget_control {:budget (budget/evaluate q project-id "budget" 0)
+                                                          :estimate (budget/evaluate q project-id "estimate" 0)}
+                                         :labor_cost (rate/summary q project-id)
+                                         :locked_periods (mapv :period (config/published q "period-lock"))}
+                                        (summary versions)) time/attach-timesheet-review-summary attach-cost-review-summary attach-allocation-review-summary attach-commitment-closure-summary)]
+                    ;; forecast 与 税后净利 都需要查询函数读取已发布配置, 故在 let 内显式调用而非放进线程.
+                    (attach-forecast q project-id (attach-margin-summary q data))))))
 
 
 (defn times

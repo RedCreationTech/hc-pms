@@ -1056,3 +1056,60 @@
       (let [f (get-in (finance/overview *svc* (actor 9401) id) [:forecast :budget])]
         (is (true? (:available f)))
         (is (= "725.00" (:ac f)))))))
+
+
+(deftest tax-rate-validates-scope-and-ceiling
+  ;; 税率表: 编码由本位币派生; 比例必须 0-1 且最多 6 位小数; 净利率不得超过 1 - 增值税税率.
+  (let [mk (fn [m] #(config/create! *svc* (actor 9401) "tax-rate" (merge {:reason "验税率"} m)))]
+    (testing "净利率超过 1 - 税率 400"
+      (is (= [400 "净利率不能超过 1 - 增值税税率"]
+             (error-info (mk {:base_currency "CNY" :vat_rate "0.13" :net_rate "0.9"})))))
+    (testing "增值税税率超过 1 400"
+      (is (= 400 (first (error-info (mk {:base_currency "CNY" :vat_rate "1.2" :net_rate "0.1"}))))))
+    (testing "比例不是小数 400"
+      (is (= 400 (first (error-info (mk {:base_currency "CNY" :vat_rate "十三" :net_rate "0.1"}))))))
+    (testing "不支持的本位币 400"
+      (is (= 400 (first (error-info (mk {:base_currency "JPY" :vat_rate "0.13" :net_rate "0.1"}))))))
+    (testing "合法税率表编码为 TAX-<本位币>, 比例规范化为两位小数"
+      (let [rec ((mk {:base_currency "EUR" :vat_rate "0.2" :net_rate "0.05"}))]
+        (is (= "TAX-EUR" (:code rec)))
+        (is (= "0.20" (:vat_rate rec)))
+        (is (= "0.05" (:net_rate rec)))))))
+
+
+(deftest net-margin-requires-published-tax-rate
+  ;; F08 税后净利只读派生: 无税率表时如实不可算; 发布后按 收入 - 税额 - 净利率×收入 派生.
+  (let [{:keys [id]} (execution-project!)
+        create (fn [kind revenue]
+                 (:result (command! cost/create! id [] {:kind kind :period "2026-09" :currency "CNY"
+                                                        :name (str kind "-tax") :revenue revenue :reviewer_id 9402})))
+        entry (fn [cid amount] (command! cost/add-entry! id [cid] {:category "material" :label "材料" :amount amount}))
+        approve (fn [cid] (command! cost/submit! id [cid] {}) (command! 9402 cost/review! id [cid] {:decision "approved" :reason "核对"}))
+        estimate (create "estimate" "1000")]
+    (entry (:id estimate) "600")
+    (approve (:id estimate))
+    (let [cm (:cost_margin (finance/overview *svc* (actor 9401) id))]
+      (is (nil? (:tax cm)) "无已发布税率表时不给税率口径")
+      (is (false? (:taxable cm)))
+      (is (nil? (:net_margin (first (filter #(= "estimate" (:kind %)) (:by-kind cm))))) "净利不可算而非取默认税率"))
+    ;; 发布税率表 13% 增值税 + 5% 净利率.
+    (let [rec (config/create! *svc* (actor 9401) "tax-rate" {:base_currency "CNY" :vat_rate "0.13" :net_rate "0.05" :reason "验净利"})]
+      (config/publish! *svc* (actor 9401) "tax-rate" (:id rec) {:reason "启用税率"}))
+    (let [cm (:cost_margin (finance/overview *svc* (actor 9401) id))
+          est (first (filter #(= "estimate" (:kind %)) (:by-kind cm)))]
+      (is (= "TAX-CNY" (get-in cm [:tax :code])))
+      (is (true? (:taxable cm)))
+      (is (true? (:taxable est)))
+      (is (= "0.13" (:vat_rate est)))
+      (is (= "130.00" (:tax_amount est)) "1000 x 13% = 130.00")
+      (is (= "820.00" (:net_margin est)) "1000 - 130 (13%) - 50 (5%) = 820.00")
+      (is (= 82 (:net_margin_pct est)))
+      (is (= "400.00" (:margin est)) "税前毛利不受税率影响"))
+    (testing "税率表币种与版本币种不一致时不套用税率 (不猜折算税率)"
+      (let [usd (create "budget" "1000")
+            cm (do (entry (:id usd) "100") (approve (:id usd))
+                   (:cost_margin (finance/overview *svc* (actor 9401) id)))
+            budget (first (filter #(= "budget" (:kind %)) (:by-kind cm)))]
+        (is (true? (:taxable budget)) "本币版本仍按 CNY 税率派生")))
+    (testing "净利率上限: 加入 80% 净利率与 13% 税率组合仍合法, 1 - 0.13 = 0.87"
+      (is (fn? #(config/create! *svc* (actor 9401) "tax-rate" {:base_currency "GBP" :vat_rate "0.13" :net_rate "0.87" :reason "边界"}))))))
