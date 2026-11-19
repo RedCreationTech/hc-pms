@@ -18,6 +18,7 @@
         "pms/search" :pms-search
         "pms/targets" :pms-targets
         "pms/reports" :pms-reports
+        "pms/platform" :pms-platform
         "system/user" :user
         "system/role" :role
         "system/menu" :menu
@@ -88,6 +89,7 @@
    :pms-search "全局检索"
    :pms-targets "经营目标看板"
    :pms-reports "报表中心"
+   :pms-platform "平台能力"
    :user "用户管理"
    :role "角色管理"
    :menu "菜单管理"

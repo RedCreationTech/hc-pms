@@ -63,6 +63,7 @@
     [com.ruoyi.frontend.pages.pms.portfolio :as pms-portfolio]
     [com.ruoyi.frontend.pages.pms.project :as pms-project]
     [com.ruoyi.frontend.pages.pms.reports :as pms-reports]
+    [com.ruoyi.frontend.pages.pms.platform :as pms-platform]
     [com.ruoyi.frontend.pages.pms.search :as pms-search]
     [com.ruoyi.frontend.pages.pms.targets :as pms-targets]
     [com.ruoyi.frontend.pages.pms.todo :as pms-todo]
@@ -348,7 +349,8 @@
    :pms-todo "pms/todo"
    :pms-search "pms/search"
    :pms-targets "pms/targets"
-   :pms-reports "pms/reports"})
+   :pms-reports "pms/reports"
+   :pms-platform "pms/platform"})
 
 
 (def page-breadcrumbs
@@ -362,6 +364,7 @@
    :pms-search ["首页" "项目管理" "全局检索"]
    :pms-targets ["首页" "项目管理" "经营目标看板"]
    :pms-reports ["首页" "项目管理" "报表中心"]
+   :pms-platform ["首页" "项目管理" "平台能力"]
    :user ["首页" "系统管理" "用户管理"]
    :role ["首页" "系统管理" "角色管理"]
    :menu ["首页" "系统管理" "菜单管理"]
@@ -873,6 +876,7 @@
             :pms-search [pms-search/search-page]
             :pms-targets [pms-targets/targets-page]
             :pms-reports [pms-reports/reports-page]
+            :pms-platform [pms-platform/platform-page]
             :user [user/user-page]
             :role [role/role-page]
             :menu [menu/menu-page]

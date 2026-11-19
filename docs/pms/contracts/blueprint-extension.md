@@ -91,3 +91,18 @@
 
 - `POST /time-entries/:entry_id/correct` (本人, `pms:project:edit`): hours, note, reason, reviewer_id; 已批准原单 -> `corrected` 并释放同日容量, 生成 `corrects_entry_id` 关联的更正单 (submitted, 重新预留容量); 更正单被驳回时原单恢复 approved 并重新预留; 已更正原单不参与 `approved-times` 分摊. 生效封期 (`period-lock` locked) 内的工作日期提交与更正均 409.
 - `GET /finance` 新增 `four_count{comparable, currency, versions{estimate|budget|actual|settlement}, rows[{category, estimate, budget, actual, settlement}], totals, variances{budget_vs_estimate, actual_vs_budget, settlement_vs_actual, settlement_vs_budget}}`: 各口径取最新已批准版本按分类对比, 币种不一致时 `comparable=false`.
+
+## 平台能力与兼容基线 `GET /api/pms/platform/capabilities` (G18, 增量8)
+
+- 权限: 需 `pms:project:list` (超管不受限); 未登录 401, 无权限 403, 沿用统一 `{code, msg, data}` 信封.
+- 只读: 不改任何数据, 不落库, 不构成门控; 浏览器判定取自**本次请求头 `User-Agent`**, 其余来自服务端运行环境与本库配置.
+- 返回 `{java, databases, database, browsers, client, frontend, metrics, environment, generated_at}`:
+  - `java` = `{version, major, required, supported, vendor, home}`. `required` 固定 21; `major` 由 `java.version` 主版本派生 (`1.8.x` 按次版本); `supported = major >= required`.
+  - `database` = `{kind, label, migration_dir, supported}`: `kind` 由真实 JDBC 元数据判定 (`sqlite` / `mysql` / `unknown`), `unknown` 时 `supported=false` 且 `migration_dir=nil`, 不做 URL 猜测.
+  - `databases` = 支持列表 `[{kind, label, migration_dir, current}]`, `current` 恰有一条为 true (未知库时全为 false).
+  - `browsers` = 基线 `[{family, label, minimum, current, supported}]`; 基线为 `chrome 100` (含 Edge/Chromium) / `firefox 100` / `safari 15`.
+  - `client` = `{family, label, version, minimum, supported, reported}`; 无法从 UA 识别族与版本时 `reported=false`, `supported=null` (**不当作通过**).
+  - `frontend` = `{framework: "Reagent 2 + Ant Design 6", build: "shadow-cljs"}`.
+  - `metrics` = `{published, definitions[{object_type, label, metric_count}], object_types}`: 仅统计**当前生效**的报表指标定义, 三档之和等于 `published`; 不返回指标值本身 (值走 `/reports`).
+  - `environment` = `{project_rows, task_rows, cost_entry_rows}`: 当前授权范围内的真实行数, 只读核对, 空库为 0.
+- 菜单: 迁移 `202611190007-platform-menu` 新增 5009 平台能力 (`pms/platform/index`, `pms:project:list`), 授予 admin 角色; 回滚见同名 `.down.sql`.

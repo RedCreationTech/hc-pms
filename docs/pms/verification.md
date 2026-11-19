@@ -2724,3 +2724,25 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 | 浏览器 | `pms-g16reports.spec.js` 1 passed: 按候选口径建立指标 (同口径 409 时换候选, 不绕过门控) -> 发布 -> 另建一条草稿 -> 模板与规则"报表指标"页签两条可见 -> 报表中心显示已发布编码、不显示草稿编码且未生效清单列出草稿 -> 表格列标题与接口 `columns` 同序同值 -> 导出 CSV 表头与页面列一致且行数 = 指标数 + 1 -> 退役后从求值中消失并进入未生效清单; 真实截图 `reports/g16reports/{pms-g16-config-metrics,pms-g16-reports}.png` |
 
 边界: 只做**本地定义 + 服务端求值 + 同口径导出**, 不做外部 BI 接出 (矩阵要求的 BI 入站/出站属外部系统集成, 本轮不接也不以 mock 冒充), 不做指标分组/钻取/时间序列, 不做定时推送. 费用明细类指标依赖财务查看权限, 现有实现是**整类隐藏**而不是逐行脱敏. 矩阵 G16 行保持 `partial`, 不因本切片上行. MySQL 迁移文件已同步但本机无实例未实跑.
+
+## G18 兼容矩阵规则配置化 (增量8 切片, 2026-11-19)
+
+设计与口径: 兑现矩阵 G18 中"兼容基线按实际 AntD6/依赖确定, 不由旧示意版本推定支持"这一本地子能力. 此前兼容基线只存在于测试浏览器与文档表述里, 代码中没有任何可核对的规则, 无法回答"当前这套环境到底在不在支持下限内". 本切片把兼容基线收敛为**服务端唯一规则的只读核对**:
+
+- 规则常量 (`domain/pms/platform.clj`): 最低 JDK `21`; 支持数据库仅 `sqlite`(migrations-sqlite) 与 `mysql`(migrations); 浏览器基线 `chrome/edge 100`, `firefox 100`, `safari 15`.
+- 真实派生而非猜测:
+  - JDK 取 `java.version` 并按主版本比较, `1.8.x` 旧格式按次版本取值; 低于 21 时 `supported=false` 并如实给出 `required`.
+  - 数据库类型走项目既有的 `com.ruoyi.infra.db/detect-db-type` (读真实 JDBC 元数据), 不复用 URL 字符串匹配; 未识别的库如实返回 `kind="unknown"` 且 `supported=false`, 不硬凑成 sqlite.
+  - 浏览器按**本次请求的 User-Agent** 判定; 解析不出族与版本时 `reported=false` / `supported=null`, **未上报不当作通过**; 低于基线为 `false`.
+- 报表口径分布: `items` 按对象类型汇总**当前生效**的指标定义, 三档之和必须等于 `published`; `environment` 只读统计当前授权范围内的项目/任务/费用明细真实行数, 空即为 0, 不伪造.
+- 路由 `GET /api/pms/platform/capabilities` 声明在 `/platform` 子路由, 复用 `pms-http/invoke` 的实时身份与错误信封, 权限 `pms:project:list` (fail closed). 菜单 (迁移 `202611190007-platform-menu`, 5009 平台能力) 挂在项目管理下.
+
+| 项目 | 结果 |
+|---|---|
+| 领域/HTTP 测试 | `pms_platform_test.clj` 3 tests / 25 assertions, 0 failures/errors: `client-baseline-parses-real-user-agents` (Chrome 120 通过 / Firefox 60 不通过 / Safari 16.4 识别为 safari / `curl/8.4.0` 为 `reported=false` 且 `supported=nil`); `capabilities-report-runtime-and-database-truth` (JDK 版本与真实系统属性一致且 25≥21 通过 / 数据库按元数据判定为当前库且 `:current` 唯一 / 三档对象类型与可读称谓齐全 / 空库下指标计数与环境行数为 0 而不是伪造); `capabilities-http-contract` (未登录 401 / 无 PMS 权限 403 / 有权限 200 且 `client.family=chrome`、`frontend` 文案为 `Reagent 2 + Ant Design 6`) |
+| 全量回归 | `clojure -J-Xmx1800m -M:test` 840 tests / 7915 assertions, 0 failures/errors (SQLite) |
+| 前端 | `npx shadow-cljs compile app` 0 warnings; 项目管理新增"平台能力"页: 运行环境描述表 (JDK 版本与基线、数据库与迁移目录、前端框架、本次客户端与判定、核对时间、只读环境核对行数) + 兼容矩阵规则配置页签 (数据库 / 浏览器 / 指标口径) |
+| 浏览器 | `pms-g18platform.spec.js` 1 passed: 页面 JDK 主版本与基线、`SQLite / 迁移目录 migrations-sqlite`、Chrome 族判定与接口一致 -> 数据库页签仅一条"当前" -> 浏览器与指标口径页签可见且三项之和 = 已发布数 -> 以 `curl/8.4.0` 请求回 `reported=false` / `supported=null`, 以 Firefox/60 请求回 `supported=false` -> 无 `pageerror`; 截图 `reports/g18platform/{pms-g18-capabilities,pms-g18-matrix}.png` |
+| 真机数据 | JDK 25.0.2 (基线 21, 符合) / SQLite 当前 / Chrome 149 符合 / 已发布指标 11 条 = 项目 8 + 费用明细 2 + WBS 任务 1 / 授权项目 128、任务 696、费用明细 203 |
+
+边界: 只做**本地规则与只读核对**, 不做逐环境实机验证 (矩阵要求的"在批准的桌面系统/浏览器矩阵验证核心操作"需要真实客户端与真实人工结论, 本轮不接也不以 Playwright 内置 Chromium 冒充), 不做分辨率/无障碍适配验收, 不做客户端信息上报落库. 矩阵 G18 行保持 `partial / 待环境实测`, 不因本切片上行. MySQL 迁移文件已同步但本机无实例未实跑.

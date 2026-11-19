@@ -9,7 +9,8 @@
     [com.ruoyi.web.routes.pms-finance :as finance]
     [com.ruoyi.web.routes.pms-governance :as governance]
     [com.ruoyi.web.routes.pms-integration :as integration]
-    [com.ruoyi.web.routes.pms-planning :as planning]))
+    [com.ruoyi.web.routes.pms-planning :as planning]
+    [com.ruoyi.web.routes.pms-platform :as platform]))
 
 
 (defn- endpoint
@@ -43,4 +44,5 @@
                 (closure/closure-routes (:pms-service opts))
                 (integration/integration-routes (:pms-service opts))
                 (delivery/delivery-routes (:pms-service opts))
-                (config/config-routes (:pms-service opts)))))
+                (config/config-routes (:pms-service opts))
+                (platform/platform-routes (:pms-service opts)))))

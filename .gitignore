@@ -61,3 +61,4 @@ __pycache__/
 # Dryer tool metrics (regenerated per analysis run)
 /.metrics/
 /reports/g16reports/
+/reports/g18platform/
