@@ -129,15 +129,71 @@
     [action context "提交解决验证" (forms/resolve-dialog context row)]))
 
 
+(def direct-ship-type-labels
+  {"laminar" "层流罩直发 (D04)" "non_laminar" "非层流罩直发 (D05)"})
+
+
+(defn- direct-ship-actions
+  "直发申请: 草稿可提交独立审批, 独立审核人可批准或驳回."
+  [{:keys [editable? approve? options] :as context} collection row]
+  (let [current (:currentUserId options)]
+    [antd/space {:wrap true}
+     (when (and editable? (contains? #{"draft" "rejected"} (:status row)))
+       [action context "提交审批" (forms/submit-dialog context collection row "submit" true "提交直发申请审批")])
+     (when (and approve? (= "in_review" (:status row))
+                (= current (:reviewer_id row)) (not= current (:submitted_by row)))
+       [action context "批准" (forms/decision-dialog context collection row "approved")]
+       [action context "驳回" (forms/decision-dialog context collection row "rejected")])]))
+
+
+(defn- direct-ship-summary-section
+  "D04/D05 项目级直发申请只读汇总: 类别分布, 审批进度与协调冲突, 外部同步未配置."
+  [{:keys [model]}]
+  (let [sv (:direct_ship_summary model)]
+    [shared/panel "直发申请汇总" "层流罩 (D04) 随任务直接发起, 非层流罩 (D05) 须逐项物料关联采购订单; 已批准申请仅供本地对账, 外部采购与物流系统未接入"
+     nil
+     [:div {:style {:display "grid" :gap 12}}
+      [antd/space {:wrap true}
+       [antd/tag {:color "blue"} (str "直发申请 " (:total sv))]
+       [antd/tag {:color "purple"} (str "层流罩 " (:laminar sv))]
+       [antd/tag {:color "geekblue"} (str "非层流罩 " (:non_laminar sv))]
+       [antd/tag (str "草稿 " (:draft sv))]
+       [antd/tag {:color "gold"} (str "审批中 " (:in_review sv))]
+       [antd/tag {:color "green"} (str "已批准 " (:approved sv))]
+       [antd/tag {:color (if (pos? (or (:rejected sv) 0)) "red" "default")} (str "已驳回 " (:rejected sv))]
+       (when (pos? (or (:conflicts sv) 0)) [antd/tag {:color "red"} (str "协调冲突 " (:conflicts sv))])
+       [antd/tag {:color "default"} "外部同步 not_configured"]]
+      (when (seq (:direct_ship_ledgers model))
+        [w/record-table (:direct_ship_ledgers model)
+         [(w/text-column :code "编号")
+          {:title "直发类别" :dataIndex "direct_ship_type" :width 150 :render #(get direct-ship-type-labels % %)}
+          {:title "来源任务" :dataIndex "task_name" :width 180 :ellipsis true}
+          {:title "节点" :dataIndex "node_code" :width 110}
+          {:title "物料行" :dataIndex "items" :width 80 :render (fn [v] (count (js->clj v)))}
+          {:title "采购订单" :dataIndex "purchase_orders" :width 200
+           :render (fn [v]
+                     (let [orders (js->clj v :keywordize-keys true)
+                           entries (seq (or orders {}))]
+                       (r/as-element (if entries [:span (str/join ", " (map (fn [[k x]] (str k "=" x)) entries))] [:span "—"]))))}
+          {:title "缺单物料" :dataIndex "purchase_orders_missing" :width 140
+           :render (fn [v] (let [xs (js->clj v)] (r/as-element [:span (if (seq xs) (str/join ", " xs) "—")])))}
+          {:title "既有发运工单" :dataIndex "existing_work_orders" :width 120
+           :render (fn [v] (let [xs (js->clj v)] (r/as-element [antd/tag {:color (if (seq xs) "orange" "default")} (count xs)])))}
+          {:title "审核结论" :dataIndex "decision_reason"}]])]]))
+
+
 (defn- record-actions
   "按业务类型显示必要的下一步及明细."
   [{:keys [inspect!] :as context} collection row]
   [antd/space {:wrap true}
    [w/edit-button "查看明细" #(inspect! (assoc row :collection collection))]
-   [(case collection "material-requests" material-actions "boms" bom-actions "assemblies" assembly-actions
-          "tests" test-actions "shipments" shipment-actions "service-cases" service-actions
-          "surveys" survey-actions "handovers" handover-actions "site-tasks" site-task-actions) context row]
-   [review-actions context collection row]])
+   (case collection
+     "direct-ships" [direct-ship-actions context collection row]
+     [:<>
+      [(case collection "material-requests" material-actions "boms" bom-actions "assemblies" assembly-actions
+             "tests" test-actions "shipments" shipment-actions "service-cases" service-actions
+             "surveys" survey-actions "handovers" handover-actions "site-tasks" site-task-actions) context row]
+      [review-actions context collection row]])])
 
 
 (defn- record-section
@@ -207,6 +263,20 @@
          [antd/tag {:color "default"} (str "草稿 " (:draft summary))]]
         [antd/table {:rowKey "key" :size "small" :pagination false
                      :dataSource (clj->js (:by-source summary)) :columns columns}]])]))
+
+
+(defn- direct-ships-section
+  "D04/D05 直发申请: 层流罩随任务直接发起, 非层流罩逐项物料关联采购订单后方可批准."
+  [context]
+  [:div {:style {:display "grid" :gap 20}}
+   [record-section context :direct_ships "direct-ships" "直发申请与采购协调"
+    "直发物料不进入本厂装配与齐套: 层流罩 (D04) 按任务直接发起, 非层流罩 (D05) 须逐项物料编码关联采购订单, 缺单或缺任务归属不得提交批准"
+    "新建直发申请" forms/direct-ship-dialog
+    [{:title "直发类别" :dataIndex "direct_ship_type" :width 150 :render #(get direct-ship-type-labels % %)}
+     {:title "来源任务" :dataIndex "task_name" :width 180 :ellipsis true}
+     {:title "物料行" :dataIndex "items" :width 80 :render (fn [v] (count (js->clj v)))}
+     {:title "收货地址" :dataIndex "ship_address"}]]
+   [direct-ship-summary-section context]])
 
 
 (defn- materials-section
@@ -686,7 +756,8 @@
    [overview context]
    [antd/tabs {:items (mapv (fn [[key label component]]
                               {:key key :label label :children (r/as-element [component context])})
-                            [["materials" "备料与BOM" materials-section] ["assemblies" "装配交检" assemblies-section]
+                            [["materials" "备料与BOM" materials-section]
+                             ["direct-ships" "直发申请" direct-ships-section] ["assemblies" "装配交检" assemblies-section]
                              ["tests" "质量试验" tests-section] ["shipments" "发运签收" shipments-section]
                              ["fieldwork" "工勘与现场" fieldwork-section]
                              ["services" "售后闭环" services-section]])}]])

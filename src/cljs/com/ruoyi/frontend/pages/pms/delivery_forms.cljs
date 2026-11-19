@@ -113,6 +113,39 @@
                         (trace-fields planning governance)))})
 
 
+(defn direct-ship-dialog
+  "D04/D05 新建直发申请: 层流罩 (D04) 直接随任务发起; 非层流罩 (D05) 须逐项物料编码关联采购订单号.
+   采购订单按物料行同步展开为输入项, 提交时组装为 {物料编码 订单号} 映射, 不臆造订单."
+  [{:keys [base options planning governance]}]
+  {:title "新建直发申请" :path (str base "/direct-ships")
+   :initial {:direct_ship_type "laminar"
+             :items [{:code "" :name "" :quantity 1 :unit "台"}]}
+   :transform (fn [data]
+                (let [type (:direct_ship_type data)
+                      items (vec (:items data))
+                      orders (into {} (for [{:keys [code]} items
+                                            :let [po (get (:purchase_orders data) code)]
+                                            :when (and (= "non_laminar" type)
+                                                       (not (str/blank? code))
+                                                       (not (str/blank? po)))]
+                                        [code po]))]
+                  (cond-> (dissoc data :purchase_orders)
+                    (= "non_laminar" type) (assoc :purchase_orders orders))))
+   :fields (vec (concat (identity-fields)
+                        [{:key :direct_ship_type :label "直发类别" :type :select :required? true
+                          :options [{:value "laminar" :label "层流罩直发 (D04)"}
+                                    {:value "non_laminar" :label "非层流罩直发 (D05)"}]}]
+                        (trace-fields planning governance)
+                        [(governance/owner-field (:users options))
+                         {:key :assembly_requirement :label "装配要求" :type :textarea
+                          :hint "随货装配说明或现场安装约束, 可留空."}
+                         {:key :ship_address :label "收货地址" :hint "直发地址, 需与客户或现场确认一致."}]))
+   :rows-key :items :rows-title "直发物料明细" :editable-rows? true :new-row {:quantity 1 :unit "台"}
+   :rows-fields [{:key :code :label "物料编号" :required? true} {:key :name :label "物料名称" :required? true}
+                 {:key :quantity :label "数量" :type :number :min 1 :required? true} {:key :unit :label "计量单位" :required? true}
+                 {:key :purchase_order :label "采购订单号 (非层流罩必填)"}]})
+
+
 (defn submit-dialog
   "提交冻结证据并选择独立审核人."
   [{:keys [base options governance]} collection row action reviewer? title]

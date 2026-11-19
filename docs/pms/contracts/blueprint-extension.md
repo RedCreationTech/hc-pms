@@ -157,3 +157,21 @@
 | POST `/projects/:id/cancellations/:record_id/submit` | version, reviewer_id?, reason? | `pending -> submitted`; 依据失效 409, 审批人不得为提交人 409 |
 | POST `/projects/:id/cancellations/:record_id/review` | version, decision, reason? | `submitted -> approved|rejected`; 非指定审批人 403; 批准后 `dispatch_stopped=true` 并生成待补偿对账清单 |
 | GET `/cancellations/approval-types` | - | `{requires_reviewer, configured}`, 供前端决定提交时是否必填审批人 |
+## D04/D05 层流罩与非层流罩直发申请 (本地侧)
+
+- 权限: 建单与维护需 `pms:project:edit`; 审批命令以只读项目范围 (`{:write? false}`) 执行并用 `pms:quality:approve` 判定资格, **审批人不因审批而需要项目编辑权**; 审批人必须是指定审核人且不得为提交人, 否则 403 / 409.
+- 来源任务: 直发申请必须由本项目内真实任务发起 (`task_id`), 节点的归属由 `progress/task-node` 沿父链解析得出; 任务不存在 404, 无节点归属 409. 不接受手工填写的节点.
+- 类别: `direct_ship_type` 只能是 `laminar` (D04 层流罩) 或 `non_laminar` (D05 非层流罩), 其它取值 400. 两类共用同一受控链路与同一状态机.
+- 物料清单: 1 到 200 行, 物料编码不得重复, 数量须为 1..1000000000 的整数, 单位必填.
+- 采购订单 (D05 专有): `purchase_orders` 为 `{物料编码 采购订单号}` 映射, 值须为非空文本; **创建时即要求清单内每个物料编码都有订单**, 否则 400. 提交与批准时再次复核, 缺单 409 并在文案中点名缺失编码. D04 层流罩不需要订单.
+- 既有发运工单与已发运冲突: 经任务解析出的结构节点上若已存在发运记录, 提交与批准均被阻断 (409); 已批准状态同样复核. 冲突清单 (`existing_work_orders` / `already_dispatched`) 在台账只读回显, 汇总计入 `conflicts`.
+- 外部系统: OA 审批回执、采购订单回执、采购发货状态与多目标同步补偿一律 `external_sync_status = not_configured`, 不冒充已关联或已回写.
+- 存储: 交付记录 kind `direct-ship` (迁移 `202611190013-direct-ship`, 重建 `pms_delivery_record` 以扩展 `kind` 的 CHECK 白名单), 状态 `draft / in_review / approved / rejected`; 已批准与审批中的记录不可再编辑 (409).
+
+| 路径 | 字段 | 业务结果 |
+| --- | --- | --- |
+| GET `/projects/:id/delivery` | - | 追加 `direct_ships[]`, `direct_ship_summary{total, draft, in_review, approved, rejected, laminar, non_laminar, conflicts, external_sync_status}` 与 `direct_ship_ledgers[]` (含 `task_name` / `node_code` / 冲突清单只读派生) |
+| POST `/projects/:id/delivery/direct-ships` | version, code, title, direct_ship_type, task_id, requirement_ids, items[], purchase_orders?, assembly_requirement?, ship_address?, owner_id | 建单为 `draft`; 任务不存在 404 / 无节点归属 409 / 类型非法 400 / 编码重复 400 / D05 缺订单 400 |
+| POST `/projects/:id/delivery/direct-ships/:record_id` | version, title, direct_ship_type, items[], purchase_orders?, ... | 仅在 `draft` / `rejected` 可改, 其余 409 |
+| POST `/projects/:id/delivery/direct-ships/:record_id/submit` | version, reviewer_id, evidence_ids[] | `draft|rejected -> in_review`; 审批人不得为提交人 409; 缺单 409 点名编码; 既有发运工单 409 |
+| POST `/projects/:id/delivery/direct-ships/:record_id/decision` | version, decision, reason | `in_review -> approved|rejected`; 非指定审批人 403; 批准时再次复核缺单与既有工单 (409); 结果 `external_sync_status = not_configured` |

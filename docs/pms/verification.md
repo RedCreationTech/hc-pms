@@ -2811,3 +2811,26 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 | 浏览器 | `pms-b17cancellation.spec.js` 1 passed: 无已批准变更时登记按钮真实禁用且服务端 400 -> 变更登记并提交独立审批人批准 -> 取消申请登记 (节点范围) -> 提交 -> 提交人自批 403 -> 独立审批 (真实另建账号 + viewer 成员) 批准 -> 界面"已停止"/"已批准"/变更标题回显 |
 
 边界: 只做**本地取消闭环**, OA 批准依据与 ERP/OA 的外发补偿回执属外部系统集成, 本轮不接也不以 mock 冒充. 矩阵 B17 行由 `planned / 待合同` 上调为 `partial / 待外部回执` (外发已执行部分的真实补偿用例仍缺). MySQL 迁移文件已同步但本机无实例未实跑.
+## D04/D05 层流罩与非层流罩直发申请 (增量9 切片, 2026-11-19)
+
+设计与口径: 兑现矩阵 D04/D05 的本地侧. 此前备料申请只有 standard/long_lead/raw_material/direct_ship/packaging 五个泛化类型, 没有独立的直发受控链路: 直发物料既不由任务固定节点归属, 非层流罩也不要求逐项物料关联采购订单, 更不会检查该节点上是否已有发运工单. 本切片把两类直发做成一条共用受控链路:
+
+- 类别 (`direct-ship.clj` `kinds`): `laminar` (D04 层流罩) 与 `non_laminar` (D05 非层流罩) 共用 `kind = "direct-ship"` 与同一状态机.
+- 来源任务 (`task-node!`): 申请必须引用本项目真实任务 (`task_id`), 节点归属由 `progress/task-node` 沿父链解析; 任务不存在 404, 无节点归属 409, **不接受手填节点**.
+- 物料清单 (`items!`): 1-200 行, 物料编码不得重复, 数量为 1..1e9 的整数, 单位必填.
+- 采购订单 (`purchase-orders!`, D05 专有): `{物料编码 采购订单号}` 映射, 创建时清单内每个编码都必须有非空订单 (400), 提交与批准时再次复核并以 409 点名缺失编码, 只缺一项也阻断.
+- 冲突检查 (`existing-work-order!` / `conflicts`): 经任务解析的节点上若已有发运记录, 提交与批准均 409; 冲突清单 (既有工单 / 已发运) 在台账只读列出并计入项目汇总; 兄弟设备无工单则不受影响.
+- 职责分离: 提交须指定独立审核人且不得为提交人 (409); 审批命令改写为 `k/mutate!` + `{:write? false}` + `pms:quality:approve`, 由 `g/decision-actor!` 单独判定资格, 非指定审批人 403, 审批人不因审批而需要项目编辑权.
+- 外部系统: OA 审批回执、采购订单与发货状态回写、多目标同步补偿一律 `external_sync_status = not_configured`, 界面显示"外部同步 not_configured", 不冒充已关联.
+
+顺带修正: 直发台账的"来源任务"与"节点"原按摘要里的 `:tasks` / `[:planning :nodes]` 反查, 而交付工作台并不返回这两个集合, 导致两列退化成裸 UUID. 改为在 `ledgers` 服务端解析 `task_name` / `node_code` 一并下发, 台账自解释且不再依赖工作台外的集合.
+
+| 项目 | 结果 |
+|---|---|
+| 领域/HTTP 测试 | `pms_direct_ship_test.clj` 3 tests / 38 assertions, 0 failures/errors: `laminar-direct-ship-requires-task-source-and-independent-approval`; `non-laminar-direct-ship-requires-purchase-orders-per-item-code`; `existing-work-order-and-dispatched-shipment-block-direct-ship` |
+| 全量回归 | `clojure -J-Xmx1800m -M:test` 857 tests / 8063 assertions, 0 failures/errors (SQLite) |
+| 迁移 | `202611190013-direct-ship` (SQLite + MySQL): `pms_delivery_record` 的 `kind` CHECK 增加 `direct-ship`, 因 SQLite 不能就地改 CHECK 故重建表 (关外键 -> 建新表 -> 拷贝 -> 改名 -> 建索引); MySQL 用 `ENGINE=InnoDB` 重建 |
+| 前端 | `npx shadow-cljs compile app` 0 warnings; "工程交付"页签新增"直发申请"子页签 (台账 + 只读汇总 + 对账明细), 新建表单支持类别切换与按物料行的采购订单输入, 提交时组装为 `{编码 订单}` 映射并剔除空值 |
+| 浏览器 | `pms-d04d05directship.spec.js` 1 passed: 建项目与真实任务 -> "直发申请"页签与"外部同步 not_configured"可见 -> 层流罩直发建单 (节点由任务解析) -> 非层流罩无订单真实 400 -> 补单建单 -> 只缺 NP-2 提交 409 且文案点名 NP-2 -> 补齐后提交 -> 独立审核人 (真实另建账号 + viewer 成员) 批准 -> 界面"直发申请 2 / 层流罩 1 / 非层流罩 1 / 已批准 1"与对账台账 `NP-1=PO-1001, NP-2=PO-1002` 回显 |
+
+边界: 只做**本地直发受控链路**. OA 审批回执、采购订单回执、采购发货状态与多目标同步补偿属外部系统集成, 本轮不接也不以 mock 冒充. 矩阵 D04/D05 行由 `planned / 待合同` 上调为 `partial / 待合同` (本地闭环已实现, 外部回执仍缺). MySQL 迁移文件已同步但本机无实例未实跑.

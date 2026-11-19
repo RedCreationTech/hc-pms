@@ -1,6 +1,7 @@
 (ns com.ruoyi.domain.pms.delivery
   "交付执行工作台,受控业务命令及收尾阻塞检查."
   (:require
+    [com.ruoyi.domain.pms.delivery.direct-ship :as direct-ship]
     [com.ruoyi.domain.pms.delivery.fieldwork :as fieldwork]
     [com.ruoyi.domain.pms.delivery.materials :as materials]
     [com.ruoyi.domain.pms.delivery.production :as production]
@@ -16,7 +17,7 @@
 
 (def sections
   "交付工作台类型集合."
-  {:material_requests "material" :boms "bom" :assemblies "assembly"
+  {:material_requests "material" :direct_ships "direct-ship" :boms "bom" :assemblies "assembly"
    :tests "test" :shipments "shipment" :service_cases "service"
    :surveys "survey" :handovers "handover" :site_tasks "site-task"})
 
@@ -103,7 +104,8 @@
 (defn- task-links
   "按来源任务归集其发起的申请/交付记录状态, 供任务侧回看结果 (D03 回到来源任务)."
   [data]
-  (->> (concat (:material_requests data) (:surveys data) (:assemblies data) (:tests data) (:shipments data))
+  (->> (concat (:material_requests data) (:direct_ships data) (:surveys data)
+               (:assemblies data) (:tests data) (:shipments data))
        (filter :task_id)
        (group-by :task_id)
        (map (fn [[task-id rows]] [task-id (mapv #(select-keys % [:id :kind :code :title :status :request_type]) rows)]))
@@ -147,6 +149,8 @@
                           :blockers (closure-blockers q project) :external_sync_status "not_configured"
                           :kitting_rollup (materials/kitting-rollup (:boms data) tasks nodes)
                           :material_approval_summary (materials/material-approval-summary (:material_requests data) (:boms data))
+                          :direct_ship_summary (direct-ship/direct-ship-summary q project (:direct_ships data))
+                          :direct_ship_ledgers (direct-ship/ledgers q project (:direct_ships data))
                           :task_links (task-links data)
                           :assembly_steps fieldwork/assembly-steps))))))
 
@@ -163,6 +167,8 @@
    [:shipments :create] shipping/create-shipment! [:shipments :submit] shipping/submit-shipment!
    [:shipments :decision] shipping/decide-shipment! [:shipments :dispatch] shipping/dispatch!
    [:shipments :receipt] shipping/receipt! [:service-cases :create] shipping/create-service!
+   [:direct-ships :create] direct-ship/create! [:direct-ships :update] direct-ship/update!
+   [:direct-ships :submit] direct-ship/submit! [:direct-ships :decision] direct-ship/decide!
    [:service-cases :resolve] shipping/resolve-service! [:service-cases :decision] shipping/decide-service!
    [:surveys :create] fieldwork/create-survey! [:surveys :submit] fieldwork/submit-survey!
    [:surveys :decision] fieldwork/decide-survey!

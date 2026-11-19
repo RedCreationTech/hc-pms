@@ -12,7 +12,8 @@
 
 (def kinds
   "交付对象白名单."
-  #{"configuration" "material" "bom" "assembly" "test" "shipment" "service" "survey" "handover" "site-task"})
+  #{"configuration" "material" "bom" "assembly" "test" "shipment" "service" "survey" "handover" "site-task"
+    "direct-ship"})
 
 
 (defn records
