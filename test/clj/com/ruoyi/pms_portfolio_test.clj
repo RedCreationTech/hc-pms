@@ -841,7 +841,8 @@
                                  :finance/latest-approved-total
                                  (if (= "actual" (:kind params)) {:total_minor 90000 :currency "CNY"}
                                      {:total_minor 100000 :currency "CNY"})
-                                 :finance/commitment-consumed {:committed_minor 30000}))
+                                 :finance/commitment-consumed {:committed_minor 30000}
+                                 :config/list []))
                              1 "budget")]
     (is (true? (:over_budget f)))
     (is (= 0 (:etc_minor f)))
@@ -849,7 +850,8 @@
   ;; 预算缺失: 不可算, 金额键全 nil, 不伪造 EAC.
   (let [f (forecast/forecast (fn [name _] (case name
                                             :finance/latest-approved-total nil
-                                            :finance/commitment-consumed {:committed_minor 5000}))
+                                            :finance/commitment-consumed {:committed_minor 5000}
+                                            :config/list []))
                              1 "budget")]
     (is (false? (:available f)))
     (is (nil? (:eac_minor f)))
@@ -864,7 +866,8 @@
                                  :finance/latest-approved-total
                                  (if (= "actual" (:kind params)) {:total_minor 90000 :currency "USD"}
                                      {:total_minor 100000 :currency "CNY"})
-                                 :finance/commitment-consumed {:committed_minor 0}))
+                                 :finance/commitment-consumed {:committed_minor 0}
+                                 :config/list []))
                              1 "budget")]
     (is (false? (:comparable f)))
     (is (true? (:currency_mismatch f)))

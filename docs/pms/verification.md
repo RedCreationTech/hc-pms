@@ -2632,3 +2632,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 | 浏览器 | `pms-h12eac.spec.js` 1 passed: 空态两个口径均"缺少可比的已批准预算, 不可算" -> 预算+实际独立批准后 BAC 1000/AC 400/ETC 600/EAC 1000/已用 40% -> 登记并提交 300 承诺后 ETC 300/EAC 1000/已用 70%, 并断言概算口径不误报币种不一致; 真实截图 `reports/h12eac/` |
 
 边界: EAC 为本地确定性算式 (预算 - 实际 - 已承诺), **不是** EVM 绩效指数法 (CPI/SPI 推算), 也没接入税额、多币种对账与结算回执, 故矩阵 H12 行状态保持 `implemented / local` 不因本切片上行到生产验收, H13 的税额/汇率/结算对账仍待规则.
+
+## H13 多币种汇率表与看板折算 (增量7 切片, 2026-11-19)
+
+设计与口径: 兑现矩阵 H13 长期标注"待: 多币种/汇率"的缺口. 平台级配置新增 `exchange-rate` kind (与 `rate-table` 同构的版本化配置): 一张汇率表按**本位币种**区分 (`code = FX-<本位币>`, 同一本位币只允许一张, 其余走修订), 表内每条汇率行是 `来源币种 -> 目标币种` 的有效期区间 (生效起止**含端点**, 止日可空表示持续有效), 汇率以最多 8 位小数的**字符串**表达, 由 `finance_forecast` 用 `BigDecimal` 解释, 全程不经 double. 校验: 币种必须在 `finance_money/currencies` (CNY/USD/EUR/GBP/HKD) 内, 来源与目标不可相同, 汇率为正数且匹配 `[0-9]{1,9}(\.[0-9]{1,8})?`, 生效止日不早于起日, **同一币种对的生效区间不可重叠** (重叠会让同一日期有两个汇率, 折算结果不确定), 单表 1-200 行. 行编码 `USD-CNY` 与表编码 `FX-CNY` 均由后端派生, 调用方自带编码按非法字段 400 拒绝, 避免界面与接口出现两套编码口径. 双库迁移 `202611190001-exchange-rate-kind` 重建/更新 `kind` CHECK 白名单 (SQLite 重建表, MySQL `DROP CHECK` + `ADD CONSTRAINT`), 已实测 up/down/re-up 往返. 权限 `pms:finance:approve` (与费率表同口径: 看板折算属于财务口径).
+
+折算算法 (`finance_forecast`): 给定日期的**直接命中**优先 (`A -> B`); 无直达汇率时经本位币中转 `A -> base -> B`, 乘积 `setScale 8 HALF_UP`, 并在输出标注 `via_base=true`. 结果以 `convert-minor` 走 `longValueExact` 转整数最小货币单位 (分), 拒绝静默截断. 预测完工成本 (`forecast`) 因此新增 `:ac_source_minor` (原始外币金额) 与 `:fx {:from :to :rate :path :via_base :date :converted}`: 币种不一致时**只在存在可比汇率时**折算 AC, 否则仍然 `available=false` + `currency_mismatch=true`, 不估算、不取默认汇率. 前端"预测完工成本 (EAC/ETC)"面板在有折算时显示 `(由 N 分 USD 按 直连/中转汇率 X 折算, 折算日 Y)` 与 `已折算 USD→CNY @rate` 徽标, 保留原始分值可追溯.
+
+这是读取时派生: 不写任何账项、不构成门控, 折算只用于看板口径.
+
+| 项目 | 结果 |
+|---|---|
+| 领域测试 | `exchange-rate-validates-pairs-and-windows` (重叠区间 400 / 不同币种对可重叠且编码后端派生 `FX-EUR`+`USD-EUR` / 同币种 400 / 不支持币种 400 / 负数与 9 位小数 400 / 取止日早于起日 400 / 自带行编码 400); `exchange-rate-resolves-and-converts-without-floating-point` (直接命中 / 窗口外 nil / 经本位币中转乘积 8 位; `convert-minor` 0.5 分向上取整); `forecast-converts-approved-actual-with-published-rate` (发布汇率前不可算且 `fx` 为 nil -> 发布后 100 USD x 7.25 = 725 CNY 且 `ac_source_minor=10000`, ETC/EAC 随折算更新) |
+| 套件回归 | `clojure -J-Xmx1800m -M:test -n com.ruoyi.pms-finance-test` 39 tests / 248 assertions, 0 failures/errors |
+| 全量回归 | `clojure -J-Xmx1800m -M:test` 827 tests / 7804 assertions, 0 failures/errors (SQLite) |
+| 前端 | `npx shadow-cljs compile app` 0 warnings; 模板与规则新增"汇率表"页签 (建立/发布/修订/退役 + 详情币种对表格), 折算标注见上 |
+| 浏览器 | `pms-h13fx.spec.js` 1 passed: 界面建立 USD->CNY 7.1234 并发布 -> 详情弹出 `USD -> CNY` 行 -> 预算 CNY 1000 + 实际 USD 100 独立批准 -> 面板显示 `AC 712.34 元 (由 10000 分 USD 按 直连汇率 7.1234 折算, 折算日 ...)` 与 `已折算 USD→CNY @7.1234`, 不出现"币种不一致" -> 退役汇率表后回落为 `币种不一致 (CNY / USD) 不可算` 且无折算徽标; 真实截图 `reports/h13fx/` |
+| 回归修复 | 顺带修两处环境/重跑脆弱用例: `pms-h07-rates.spec.js` 同编码下草稿与已退役行并存导致 strict 冲突 (改为按状态定位); `bpm_p1_test.clj` 分类列表 `size=100` 在共享库累积 121 条后把本用例新建分类挤出第一页导致 `pos` 为 nil (改为 `size=1000`) |
+
+边界: 汇率表覆盖的是**看板折算口径**, 不做复式记账/汇兑损益/月末重估; 税额、收入确认、开票/回款/付款/结算对账与财务批准算法仍未触碰, 故矩阵 H13 行保持 `partial` 不上行; MySQL 迁移文件已同步但本机无 MySQL 实例未实跑.

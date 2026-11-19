@@ -229,14 +229,15 @@
           r2 (parse-json (POST app "/api/business/bpm/category" {:name n2 :code (str "p1b" (rand-int 10000))} h))]
       (is (= 200 (:code r1)) (str "创建分类1失败: " (:msg r1)))
       (is (= 200 (:code r2)) (str "创建分类2失败: " (:msg r2))))
-    (let [cats (get-in (parse-json (GET app "/api/business/bpm/category?page=1&size=100" {} h)) [:data :rows])
+    (let [cats (get-in (parse-json (GET app "/api/business/bpm/category?page=1&size=1000" {} h)) [:data :rows])
           id1 (:category_id (first (filter #(= n1 (:name %)) cats)))
           id2 (:category_id (first (filter #(= n2 (:name %)) cats)))]
       (is (and id1 id2))
       (testing "倒序保存排序"
         (let [r (parse-json (PUT app "/api/business/bpm/category/sort" {:ids [id2 id1]} h))]
           (is (= 200 (:code r)))))
-      (let [cats2 (get-in (parse-json (GET app "/api/business/bpm/category?page=1&size=100" {} h)) [:data :rows])
+      ;; 共享库中分类会随重跑累积, 分页过小会把本用例新建的分类挤出第一页 (选不到 -> pos 为 nil).
+      (let [cats2 (get-in (parse-json (GET app "/api/business/bpm/category?page=1&size=1000" {} h)) [:data :rows])
             pos (fn [id] (first (keep-indexed (fn [i c] (when (= id (:category_id c)) i)) cats2)))]
         (is (< (pos id2) (pos id1)) "倒序后 id2 应排在 id1 前")))))
 

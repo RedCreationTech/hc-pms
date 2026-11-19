@@ -147,8 +147,9 @@
   "H12/H13 把预测完工成本挂到财务概览读模型顶层 :forecast, 按 budget 与 estimate 两个基线口径各派生一份.
    需要查询函数与项目, 故在 overview 内以 let 显式调用而非线程; 只读派生, 不写费用版本."
   [q project-id data]
-  (assoc data :forecast {:budget (forecast/forecast q project-id "budget")
-                         :estimate (forecast/forecast q project-id "estimate")}))
+  (let [today (str (java.time.LocalDate/now))]
+    (assoc data :forecast {:budget (forecast/forecast q project-id "budget" today)
+                           :estimate (forecast/forecast q project-id "estimate" today)})))
 
 
 (defn attach-margin-summary

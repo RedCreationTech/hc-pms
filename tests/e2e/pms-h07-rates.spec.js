@@ -73,7 +73,8 @@ test('费率表建立发布与人工成本面板按生效费率折算', async ({
   expect((await (await created).json()).code).toBe(200);
   await expect(dlg).toBeHidden();
 
-  const draftRow = page.locator('table tbody tr').filter({ hasText: 'RATE-CNY' });
+  // 同一编码只保留最新草稿版本, 历史退役版本仍在列表 -> 按状态定位当前草稿行.
+  const draftRow = page.locator('table tbody tr').filter({ hasText: 'RATE-CNY' }).filter({ hasText: '草稿' });
   await expect(draftRow).toBeVisible();
   await expect(draftRow).toContainText('草稿');
 
@@ -86,7 +87,7 @@ test('费率表建立发布与人工成本面板按生效费率折算', async ({
   await publish.getByRole('button', { name: /^保\s*存$/ }).click();
   expect((await (await publishedResp).json()).code).toBe(200);
   await expect(publish).toBeHidden();
-  await expect(page.locator('table tbody tr').filter({ hasText: 'RATE-CNY' })).toContainText('已发布');
+  await expect(page.locator('table tbody tr').filter({ hasText: 'RATE-CNY' }).filter({ hasText: '已发布' })).toHaveCount(1);
   await shot(page, 'h07-rate-table-published.png');
 
   // 3. 找一个有 admin 已批准工时 (不早于人员费率生效日) 的项目, 校验人工成本面板.

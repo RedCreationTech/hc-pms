@@ -381,9 +381,15 @@
                   :else
                   ^{:key (name k)}
                   [:div {:style {:fontSize 13 :color "#4b5563"}}
-                   (str title " · BAC " (:bac v) " 元, AC " (:ac v) " 元, 已承诺 " (quot (:committed_minor v) 100) "."
+                   (str title " · BAC " (:bac v) " 元, AC " (:ac v) " 元"
+                        (when-let [fx (:fx v)]
+                          (str " (由 " (:ac_source_minor v) " 分 " (:from fx) " 按 "
+                               (if (:via_base fx) "中转" "直连") "汇率 " (:rate fx) " 折算, 折算日 " (:date fx) ")"))
+                        ", 已承诺 " (quot (:committed_minor v) 100) "."
                         (let [m (mod (:committed_minor v) 100)] (if (< m 10) (str "0" m) m))
                         " 元, ETC " (:etc v) " 元, EAC " (:eac v) " 元 ")
+                   (when-let [fx (:fx v)]
+                     [antd/tag {:color "blue"} (str "已折算 " (:from fx) "→" (:to fx) " @" (:rate fx))])
                    [antd/tag {:color (if (:over_budget v) "red" "green")}
                     (str "已用 " (:used_pct v) "%" (when (:over_budget v) " · 预计超支"))]])))]
     [shared/panel "预测完工成本 (EAC/ETC)" "只读派生 · 已批准预算 - 已核销实际 - 已承诺未发生 = 完工尚需, 不构成任何门控" nil

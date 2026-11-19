@@ -442,6 +442,133 @@
                                       :path (str "/config/rate-table/" (:id row) "/retire")})])])]])
 
 
+(defn- fx-blank
+  []
+  {:key (str (random-uuid)) :from_currency "USD" :to_currency "CNY"
+   :rate "" :effective_from "" :effective_to ""})
+
+
+(defn- fx-payload
+  "组装汇率表命令报文 (去掉视图专用 key)."
+  [currency rates reason]
+  {:base_currency currency
+   :rates (mapv #(dissoc % :key) rates)
+   :reason reason})
+
+
+(def ^:private fx-currencies ["CNY" "USD" "EUR" "GBP" "HKD"])
+
+
+(defn- fx-dialog
+  "H13 汇率表命令弹窗: :mode :rates 维护汇率行, :mode :reason 仅填原因 (发布/退役)."
+  [{:keys [title path mode initial on-close on-saved]}]
+  (let [[currency set-currency!] (hooks/use-state (get initial :base_currency "CNY"))
+        [rates set-rates!] (hooks/use-state (mapv #(assoc % :key (str (random-uuid))) (get initial :rates [(fx-blank)])))
+        [reason set-reason!] (hooks/use-state "")
+        {:keys [busy? error run!]} (shared/use-action on-saved)
+        set-row! (fn [i k v] (set-rates! (vec (map-indexed (fn [j r] (if (= i j) (assoc r k v) r)) rates))))
+        drop-row! (fn [i] (set-rates! (vec (concat (subvec rates 0 i) (subvec rates (inc i))))))
+        input! (fn [i k] (fn [e] (set-row! i k (.. e -target -value))))
+        opts (clj->js (mapv (fn [c] {:value c :label c}) fx-currencies))
+        submit! (fn []
+                  (run! :post path (if (= :rates mode) (fx-payload currency rates reason) {:reason reason})
+                        (str title "成功")))]
+    [antd/modal {:title title :open true :onCancel on-close :onOk submit!
+                 :okText "保存" :cancelText "返回" :confirmLoading busy? :destroyOnHidden true
+                 :style {:maxWidth "calc(100vw - 32px)"} :width 940}
+     (when error [shared/error-panel error nil])
+     (if (= :rates mode)
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:align "center"}
+         [:span "本位币种"]
+         [antd/select {:style {:width 140} :value currency :options opts :on-change set-currency!}]
+         [antd/button {:on-click #(set-rates! (conj (vec rates) (fx-blank)))} "添加汇率行"]]
+        (for [[i row] (map-indexed vector rates)]
+          ^{:key (:key row)}
+          [:div {:style {:display "flex" :gap 8 :flexWrap "wrap" :alignItems "center"
+                         :padding "8px" :border "1px solid #e4e8ee" :borderRadius 8}}
+           [antd/select {:style {:width 100} :value (:from_currency row) :options opts
+                         :on-change #(set-row! i :from_currency %)}]
+           [:span "->"]
+           [antd/select {:style {:width 100} :value (:to_currency row) :options opts
+                         :on-change #(set-row! i :to_currency %)}]
+           [antd/input {:style {:width 130} :value (:rate row) :placeholder "汇率 (最多8位小数)"
+                        :on-change (input! i :rate)}]
+           [antd/input {:type "date" :style {:width 148} :value (:effective_from row) :on-change (input! i :effective_from)}]
+           [antd/input {:type "date" :style {:width 148} :value (or (:effective_to row) "") :placeholder "止日可空"
+                        :on-change (input! i :effective_to)}]
+           [antd/button {:type "link" :danger true :on-click #(drop-row! i)} "移除"]])
+        [:p {:style {:color "#7b8798" :margin 0}}
+         "汇率精确到分, 不经浮点; 有效期含端点, 止日可空表示持续有效; 同一币种对的生效区间不可重叠. "
+         "缺少本币直达汇率时按 来源 -> 本位 -> 目标 中转并在看板标注. 折算只用于看板口径, 不写回任何账项."]
+        [:div [antd/text-area {:rows 2 :value reason :placeholder "说明 (可空)" :on-change #(set-reason! (.. % -target -value))}]]]
+       [:div {:style {:display "grid" :gap 12}}
+        [:span "说明 / 原因"]
+        [antd/text-area {:rows 3 :value reason :placeholder "本次操作原因" :on-change #(set-reason! (.. % -target -value))}]])]))
+
+
+(defn- fx-detail
+  "只读展示汇率表版本内容."
+  [record on-close]
+  (let [rows (mapv (fn [r]
+                     {:code (:code r)
+                      :pair (str (:from_currency r) " -> " (:to_currency r))
+                      :rate (:rate r)
+                      :from (:effective_from r)
+                      :to (or (:effective_to r) "持续")})
+                   (:rates record))]
+    [antd/modal {:title (str "汇率表 " (:code record) " / V" (:revision record)) :open true :onCancel on-close :footer nil :width 860
+                 :style {:maxWidth "calc(100vw - 32px)"}}
+     [:div {:style {:display "grid" :gap 16}}
+      [antd/space {:wrap true}
+       [status-badge (:status record)]
+       [antd/tag (str "本位 " (:base_currency record))]
+       [antd/tag (str (count rows) " 条汇率")]]
+      [antd/table {:size "small" :pagination false :rowKey "code"
+                   :dataSource (clj->js rows)
+                   :columns (clj->js [{:title "编码" :dataIndex "code" :width 140}
+                                      {:title "币种对" :dataIndex "pair" :width 150}
+                                      {:title "汇率" :dataIndex "rate" :width 130}
+                                      {:title "生效起" :dataIndex "from" :width 130}
+                                      {:title "生效止" :dataIndex "to" :width 130}])}]
+      (when (seq (:history record))
+        [:div [:h4 "版本历史"]
+         [:ul {:style {:margin 0 :paddingLeft 20}}
+          (for [h (:history record)] ^{:key (:at h)}
+               [:li (str (:at h) " · " (:action h) " · " (:actor_name h) (when (seq (:reason h)) (str " · " (:reason h))))])]])]]))
+
+
+(defn- fx-section
+  "H13 汇率表: 维护币种对的有效期汇率, 供成本看板把不同币种折算到同一口径."
+  [{:keys [data editable? open! detail!]}]
+  [shared/panel "汇率表" "同一币种对的生效区间不可重叠; 看板折算显式标注所用汇率与折算日期, 缺汇率时如实不可算而不是估算"
+   (when editable?
+     [antd/button {:type "primary"
+                   :on-click #(open! {:title "建立汇率表" :mode :rates :path "/config/exchange-rate"
+                                      :initial {:base_currency "CNY" :rates [(fx-blank)]}})}
+      "建立汇率表"])
+   [w/record-table (:rows data)
+    [{:title "编码" :dataIndex "code" :width 170}
+     {:title "本位币种" :dataIndex "base_currency" :width 100}
+     {:title "汇率行" :dataIndex "rates" :width 90 :render (fn [v] (str (count (or v []))))}
+     {:title "版本" :dataIndex "revision" :width 70}
+     {:title "状态" :dataIndex "status" :width 100 :render (fn [v] (r/as-element [status-badge v]))}
+     {:title "创建人" :dataIndex "created_by_name" :width 150}]
+    (fn [row]
+      [antd/space {:wrap true}
+       [w/edit-button "详情" #(detail! row)]
+       (when (and editable? (= "draft" (:status row)))
+         [w/edit-button "发布" #(open! {:title "发布汇率表" :mode :reason
+                                      :path (str "/config/exchange-rate/" (:id row) "/publish")})])
+       (when (and editable? (= "published" (:status row)))
+         [w/edit-button "修订" #(open! {:title "修订汇率表" :mode :rates
+                                      :path (str "/config/exchange-rate/" (:id row) "/revisions")
+                                      :initial {:base_currency (:base_currency row) :rates (:rates row)}})])
+       (when (and editable? (contains? #{"draft" "published"} (:status row)))
+         [w/edit-button "退役" #(open! {:title "退役汇率表" :mode :reason
+                                      :path (str "/config/exchange-rate/" (:id row) "/retire")})])])]])
+
+
 (defn- kind-workspace
   "按类型加载配置列表并协调命令弹窗; 可按类型覆盖写权限与命令弹窗组件."
   ([kind section detail-view] (kind-workspace kind section detail-view nil))
@@ -479,5 +606,8 @@
                        {:key "rates" :label "费率表"
                         :children (r/as-element [kind-workspace "rate-table" rate-section rate-detail
                                                  {:permission "pms:finance:approve" :dialog-comp rate-dialog}])}
+                       {:key "fx" :label "汇率表"
+                        :children (r/as-element [kind-workspace "exchange-rate" fx-section fx-detail
+                                                 {:permission "pms:finance:approve" :dialog-comp fx-dialog}])}
                        {:key "approvals" :label "审批策略"
                         :children (r/as-element [kind-workspace "approval-policy" approval/policy-section approval/policy-detail])}]}]])
