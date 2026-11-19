@@ -17,7 +17,7 @@
 (def kinds
   "允许持久化的平台配置类型."
   #{"project-template" "coding-rule" "quarterly-target" "rd-pool" "period-lock" "approval-policy" "rate-table" "exchange-rate"
-    "tax-rate"})
+    "tax-rate" "report-metric"})
 
 
 (def project-types
@@ -40,7 +40,8 @@
   {"project-template" "pms:config:edit" "coding-rule" "pms:config:edit"
    "quarterly-target" "pms:target:edit" "rd-pool" "pms:finance:approve" "period-lock" "pms:finance:approve"
    "approval-policy" "pms:config:edit" "rate-table" "pms:finance:approve"
-   "exchange-rate" "pms:finance:approve" "tax-rate" "pms:finance:approve"})
+   "exchange-rate" "pms:finance:approve" "tax-rate" "pms:finance:approve"
+   "report-metric" "pms:config:edit"})
 
 
 (def read-permissions
@@ -412,6 +413,58 @@
       {:code (str "TAX-" currency) :base_currency currency :vat_rate vat :net_rate net})))
 
 
+(def report-objects
+  "G16 报表指标可覆盖的对象类型: 每类对象只能使用与该类型语意相符的聚合."
+  #{"project" "cost-entry" "task"})
+
+
+(def report-aggregates
+  "G16 报表指标聚合: 计数/求和 (按字段取值)/算术平均 (按字段取分或整数)."
+  #{"count" "sum" "avg"})
+
+
+(def report-statuses
+  "G16 指标可附加的对象状态过滤: 费用明细按所属版本状态, 项目按项目状态; 未指定表示不限状态 (count 口径同此)."
+  #{"approved" "submitted" "draft" "rejected" "cancelled" "closed"})
+
+
+(def report-fields
+  "G16 指标取值字段白名单; 字段不存在于对象行时该行不计入 (reconciled 如实标注), 不用 0 冒充分母."
+  {"project" #{:overall_percent :days_to_end :kit_percent :open_issues :open_risks}
+   "cost-entry" #{:amount_minor}
+   "task" #{:percent_complete}})
+
+
+(defn- report-field!
+  "校验指标字段: count 不允许字段, 其余必须落在对象的字段白名单内."
+  [object aggregate field]
+  (if (= "count" aggregate)
+    (when (some? field) (r/fail! 400 "计数指标不能指定字段"))
+    (let [f (s/enum! field (set (map name (report-fields object))) "指标字段")]
+      (keyword f))))
+
+
+(defn- report-metric!
+  "G16 报表指标定义: 对象 + 聚合 + 字段的组合决定口径, 编码由三者派生 (PROJ-COUNT / ENTRY-SUM-AMOUNT_MINOR),
+    调用方无需填写; 单位只允许受控取值, 保证导出的表头与数值同口径."
+  [body]
+  (r/object! body [:object_type :aggregate :field :status :unit :label :description :reason])
+  (let [object (s/enum! (:object_type body) report-objects "对象类型")
+        aggregate (s/enum! (:aggregate body) report-aggregates "聚合")
+        field (report-field! object aggregate (not-empty (str (or (:field body) ""))))
+        status (not-empty (str (or (:status body) "")))
+        status (when status (s/enum! status report-statuses "对象状态"))
+        unit (s/enum! (or (:unit body) "count") #{"count" "money" "percent"} "指标单位")]
+    ;; 状态是口径的一部分, 编入编码, 保证同一编码不多口径累加.
+    {:code (str (str/upper-case (str (if (= "project" object) "PROJ" (str/upper-case object))
+                                     "-" aggregate
+                                     (when field (str "-" (name field)))))
+                (when status (str "@" (str/upper-case status))))
+     :object_type object :aggregate aggregate :field field :filter_status status :unit unit
+     :label (r/text! (or (:label body) (str object " " aggregate)) "指标名称" 100 true)
+     :description (s/optional-text! body :description 500)}))
+
+
 (def approval-types
   "可按策略配置多级审批的业务类型 (编码即类型); 带金额的类型允许按金额设置级别条件."
   {"plan-baseline" {:label "计划基线" :amount? false}
@@ -479,6 +532,7 @@
     "rate-table" (rate-table! body)
     "exchange-rate" (exchange-rate! body)
     "tax-rate" (tax-rate! body)
+    "report-metric" (report-metric! body)
     "approval-policy" (approval-policy! body)))
 
 

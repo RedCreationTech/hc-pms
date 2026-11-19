@@ -28,6 +28,10 @@
 (def form (r/adapt-react-class Form))
 (def form-item (r/adapt-react-class (.-Item Form)))
 (def form-use-form (.-useForm Form))
+(defn form-use-watch
+  "响应式读取表单字段值, 用于按当前选择条件显示/隐藏表单项."
+  [name form]
+  ((.-useWatch Form) name form))
 (def input (r/adapt-react-class Input))
 (def input-number (r/adapt-react-class InputNumber))
 (def password (r/adapt-react-class (.-Password Input)))

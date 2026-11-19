@@ -2704,3 +2704,23 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 | 浏览器 | `pms-f07loss.spec.js` 1 passed: 执行态项目 (独立审批人角色) 登记并批准一条 `corrective` (6 天 / 5000.00) 与一条 `updates` (2 天 / 2000.00) 变更 -> 核算版本新增两条变更损失 -> 关联前面板显示"尚无已批准的四算版本" -> 通过真实弹窗"关联变更"逐条挂到已批准变更且表格回显编码 -> 未批准核算版本 `total_count=0` -> 独立批准后接口回显 `total_count=2` / `total_amount=7000.00` / `total_schedule_days=8` / `by_product_line[0]` 为合同号且 2 笔 7000.00 8 天 / `by_type` 两档各 1 笔 -> 面板显示"已计入笔数 2"/"累计损失 7000.00 CNY"/"累计工期影响 8 天"/"全部损失均可追溯已批准变更" -> 真实 HTTP 门控: 概算口径 400、金额不符 409、未批准变更 409、非损失分类 400; 截图 `reports/f07loss/{f07loss-1-empty,f07loss-2-bound,f07loss-3-summary}.png` |
 
 边界: 本切片是**本地"变更 → 损失"单据关联与汇总**, **不做 BI 损失入站** (矩阵 F07 要求的"从经确认的分析来源接收"属外部系统集成, 本轮明确不接, 也不以 mock 冒充), 不做复式记账/汇兑损益/收入确认, 不驱动任何门控 (关联与否不影响审批链, 汇总只读不落库). 产品线维度暂借用项目合同号, 未接产品线主数据. 矩阵 F07 行保持 `partial / 待合同`, 不因本切片上行. MySQL 迁移文件已同步但本机无实例未实跑.
+
+## G16 报表指标定义与导出范围一致 (增量8 切片, 2026-11-19)
+
+设计与口径: 兑现矩阵 G16 中"报表指标定义/导出范围一致"这一本地子能力. 此前报表中心只有固定清单, 无法表达"这个数就是页面上这一行这一列", 导出与页面容易各自为政. 本切片把指标口径做成**版本化配置**, 由服务端统一求值, **页面与 CSV 共用同一份列定义与同一份行集**:
+
+- 配置类型 `report-metric` (迁移 `202611190004-report-metric-kind` 把 `pms_config_record.kind` 白名单扩到该类型; SQLite 走表重建, MySQL 走 CHECK 约束替换). 口径由 `{object_type, aggregate, field, filter_status}` 组合而成, **编码由服务端派生** (`PROJ-COUNT`, `PROJ-SUM-OPEN_ISSUES`, `COST-ENTRY-SUM-AMOUNT_MINOR@APPROVED`), 调用方不得填写. 状态是口径的一部分并编入编码, 同一编码不会多口径累加; 同口径重复建立返回 409.
+- 校验: 对象限 `project/cost-entry/task`, 聚合限 `count/sum/avg`, 字段必须是该对象的白名单字段, `count` 不接受字段 (400), 状态限 `approved/submitted/draft/rejected/cancelled/closed`, 单位限 `count/money/percent`.
+- 求值 (`domain/pms/report.clj`): 只取**每个编码的最新修订**, 且仅 `published/frozen/locked` 参与; 草稿与已退役版本如实进入 `excluded` 并在页面列明. 行集按登录用户的项目授权范围过滤; 无 `pms:finance:query` 时费用明细类指标进入 `withheld` 而**不返回 0**. 平均值取整两位小数; **字段缺失的行不计入** (nil 不冒充 0); 无可用行时 `available=false`, 指标值输出空而不是 0.
+- 项目类字段 (**切片中发现并修复的真实缺陷**): `overall_percent/kit_percent/days_to_end/open_issues/open_risks` 在 `pms_project` 表上根本不存在, 最初直接按列名取值使整列静默算成 0. 现已改为与组合看板**同源派生** (任务/节点卷积进度, BOM 卷积齐套率, 治理记录计数问题与风险), 指纹一致: 项目平均进度 12.06%、问题合计 9、齐套均值 14.06%, 与 `/portfolio` 卡片同值.
+- 明细状态: `pms_cost_entry` 新增 `status` 列 (迁移 `202611190006-cost-entry-status`, 插入时按所属版本派生, submit/review/cancel/finalize 后同步), 使 `@APPROVED` 口径有真实来源. 真机: 不限状态 203 行 / 1168108.50, `@APPROVED` 164 行 / 1052103.00.
+- 路由: `GET /api/pms/reports` 返回行集与列定义; `GET /api/pms/reports/export` 以同一 `csv-cells` 输出带 BOM 的 UTF-8 CSV, 错误仍返回 JSON 信封. 菜单 (迁移 `202611190005-report-menu`): 5008 报表中心 `pms:dashboard:query`, 5045 报表指标维护 `pms:config:edit`.
+
+| 项目 | 结果 |
+|---|---|
+| 领域/HTTP 测试 | `pms_report_test.clj` 5 tests / 42 assertions, 0 failures/errors: `report-metric-definition-derives-code-and-validates-scope` (编码派生 / 同口径 409 / 状态不同即不同口径 / 7 类非法口径 400); `report-export-evaluates-published-definitions-only` (只有已发布参与求值, 草稿进 `excluded`, 明细按状态过滤且金额精确到分, 列数与列序与 csv-cells 一致); `report-project-fields-derive-from-plan-not-zero` (项目字段与组合看板同源, 不是静默的 0 列); `report-export-requires-finance-permission-for-cost-entries` (无财务权限进入 `withheld` 而非 0); `report-http-contract` (未登录 401 / 导出 BOM 与表头 / 行数与导出行数一致 / 只读用户可看报表但维护定义 403) |
+| 全量回归 | `clojure -J-Xmx1800m -M:test` 837 tests / 7890 assertions, 0 failures/errors (SQLite) |
+| 前端 | `npx shadow-cljs compile app` 0 warnings; 模板与规则新增"报表指标"页签 (建立/发布/修订/退役 + 只读详情, 聚合为求和/平均时才要求字段), 项目管理新增"报表中心"页面 (生效指标/生成时间/隐藏数徽标, 未生效清单, 导出CSV) |
+| 浏览器 | `pms-g16reports.spec.js` 1 passed: 按候选口径建立指标 (同口径 409 时换候选, 不绕过门控) -> 发布 -> 另建一条草稿 -> 模板与规则"报表指标"页签两条可见 -> 报表中心显示已发布编码、不显示草稿编码且未生效清单列出草稿 -> 表格列标题与接口 `columns` 同序同值 -> 导出 CSV 表头与页面列一致且行数 = 指标数 + 1 -> 退役后从求值中消失并进入未生效清单; 真实截图 `reports/g16reports/{pms-g16-config-metrics,pms-g16-reports}.png` |
+
+边界: 只做**本地定义 + 服务端求值 + 同口径导出**, 不做外部 BI 接出 (矩阵要求的 BI 入站/出站属外部系统集成, 本轮不接也不以 mock 冒充), 不做指标分组/钻取/时间序列, 不做定时推送. 费用明细类指标依赖财务查看权限, 现有实现是**整类隐藏**而不是逐行脱敏. 矩阵 G16 行保持 `partial`, 不因本切片上行. MySQL 迁移文件已同步但本机无实例未实跑.

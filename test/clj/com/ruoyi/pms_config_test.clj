@@ -5,6 +5,8 @@
     [clojure.string :as str]
     [clojure.test :refer [deftest is testing use-fixtures]]
     [com.ruoyi.domain.pms.config :as config]
+    [com.ruoyi.domain.pms.finance-cost :as cost]
+    [com.ruoyi.domain.pms.report :as report]
     [com.ruoyi.domain.pms.external-catalog :as external]
     [com.ruoyi.domain.pms.governance :as gov]
     [com.ruoyi.domain.pms.governance.gates :as gates]

@@ -165,6 +165,7 @@
                       (kernel/independent-review! actor (:submitted_by version) (:reviewer_id version))
                       (kernel/user! q project (:reviewer_id version) "财务审批人")
                       (rules/changed! (q :finance/review-version! (assoc version :status (:decision body) :review_note reason)))
+                      (q :finance/set-entry-status! {:project_id project-id :version_id version-id :status (:decision body)})
                       (dto q (version! q project-id version-id))))))
 
 
@@ -200,6 +201,7 @@
                       (when-not (contains? #{"draft" "rejected"} (:status version))
                         (rules/fail! 409 "只能取消费用草稿或驳回版本"))
                       (rules/changed! (q :finance/cancel-version! (assoc version :review_note reason)))
+                      (q :finance/set-entry-status! {:project_id project-id :version_id version-id :status "cancelled"})
                       (dto q (version! q project-id version-id))))))
 
 
@@ -208,7 +210,8 @@
   [q _actor project version-id decision reason]
   (let [version (version! q (:project_id project) version-id)]
     (when-not (= "submitted" (:status version)) (rules/fail! 409 "费用版本不在待审批状态"))
-    (rules/changed! (q :finance/review-version! (assoc version :status decision :review_note (or reason ""))))))
+    (rules/changed! (q :finance/review-version! (assoc version :status decision :review_note (or reason ""))))
+    (q :finance/set-entry-status! {:project_id (:project_id version) :version_id version-id :status decision})))
 
 
 (chain/register-adapter! "cost-version" {:finalize finalize!})

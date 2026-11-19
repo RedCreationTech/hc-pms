@@ -650,10 +650,107 @@
        [w/edit-button "详情" #(detail! row)]
        (when (and editable? (= "draft" (:status row)))
          [w/edit-button "发布" #(open! {:title "发布税率表" :mode :reason
-                                       :path (str "/config/tax-rate/" (:id row) "/publish")})])
+                                      :path (str "/config/tax-rate/" (:id row) "/publish")})])
        (when (and editable? (contains? #{"draft" "published"} (:status row)))
          [w/edit-button "退役" #(open! {:title "退役税率表" :mode :reason
-                                       :path (str "/config/tax-rate/" (:id row) "/retire")})])])]])
+                                      :path (str "/config/tax-rate/" (:id row) "/retire")})])])]])
+
+
+(defn- metric-payload
+  "组装报表指标命令报文; 编码由后端按 对象/聚合/字段/状态 派生, 前端不填写."
+  [{:keys [object_type aggregate field filter_status unit label description]} reason]
+  (cond-> {:object_type object_type :aggregate aggregate :unit unit :label label :description description :reason reason}
+    (and (seq (or field "")) (not= "count" aggregate)) (assoc :field field)
+    (seq (or filter_status "")) (assoc :status filter_status)))
+
+
+(defn- metric-dialog
+  "G16 报表指标命令弹窗: :mode :edit 维护定义, :mode :reason 仅填原因 (发布/退役)."
+  [{:keys [title path mode initial on-close on-saved]}]
+  (let [[form] (antd/form-use-form)
+        [reason set-reason!] (hooks/use-state "")
+        {:keys [busy? error run!]} (shared/use-action on-saved)
+        aggregate (antd/form-use-watch "aggregate" form)
+        unit! (fn [v] (get {:count "count" "money" "money" "percent" "percent"} v "count"))
+        submit! (fn []
+                  (if (= :edit mode)
+                    (-> (.validateFields form)
+                        (.then (fn [v]
+                                 (let [data (js->clj v :keywordize-keys true)]
+                                   (run! :post path (metric-payload data reason) (str title "成功")))))
+                        (.catch (fn [_] nil)))
+                    (run! :post path {:reason reason} (str title "成功"))))]
+    [antd/modal {:title title :open true :onCancel on-close :onOk submit!
+                 :okText "保存" :cancelText "返回" :confirmLoading busy? :destroyOnHidden true :width 600}
+     (when error [shared/error-panel error nil])
+     [antd/form {:form form :layout "vertical"
+                 :initialValues (clj->js (merge {:object_type "project" :aggregate "count" :unit "count" :filter_status ""} initial))}
+      (if (= :edit mode)
+        [:div {:style {:display "grid" :gap 4}}
+         [antd/form-item {:name "object_type" :label "对象类型" :rules (clj->js [{:required true}])}
+          [antd/select {:options (clj->js (mapv (fn [[v l]] {:value v :label l})
+                                                [["project" "项目"] ["cost-entry" "费用明细"] ["task" "WBS任务"]]))}]]
+         [antd/form-item {:name "aggregate" :label "聚合" :rules (clj->js [{:required true}])}
+          [antd/select {:options (clj->js (mapv (fn [[v l]] {:value v :label l})
+                                                [["count" "计数"] ["sum" "求和"] ["avg" "平均"]]))}]]
+         (when (not= "count" aggregate)
+           [antd/form-item {:name "field" :label "取值字段"
+                            :rules (clj->js [{:required true :message "求和/平均必须指定字段"}])
+                            :extra "字段须属于所选对象; 字段不存在的对象不计入, 不用 0 冒充分母"}
+            [antd/select {:placeholder "选择字段"
+                          :options (clj->js (mapv (fn [[v l]] {:value v :label l})
+                                                  [["overall_percent" "整体进度%"] ["days_to_end" "距完工天数"]
+                                                   ["kit_percent" "齐套率%"] ["open_issues" "未关闭问题数"]
+                                                   ["open_risks" "未关闭风险数"] ["amount_minor" "明细金额"]
+                                                   ["percent_complete" "任务完成进度%"]]))}]])
+         [antd/form-item {:name "unit" :label "单位" :rules (clj->js [{:required true}])}
+          [antd/select {:options (clj->js (mapv (fn [[v l]] {:value v :label l})
+                                                [["count" "个"] ["money" "金额"] ["percent" "百分比"]]))}]]
+         [antd/form-item {:name "filter_status" :label "状态过滤"
+                          :extra "留空表示不限状态; 费用明细按所属版本状态 (approved 等) 过滤"}
+          [antd/select {:allowClear true :placeholder "不限"
+                        :options (clj->js (mapv (fn [v] {:value v :label v})
+                                                ["approved" "submitted" "draft" "rejected" "cancelled" "closed"]))}]]
+         [antd/form-item {:name "label" :label "指标名称" :rules (clj->js [{:required true :max 100}])}
+          [antd/input {:placeholder "例如 已批准明细金额"}]]
+         [antd/form-item {:name "description" :label "口径说明"}
+          [antd/input {:placeholder "可空"}]]]
+        [:span {:style {:color "#64748b"}} (str "本次操作: " title)])
+      [antd/form-item {:name "reason" :label "说明 / 原因"}
+       [antd/input {:placeholder "可空" :on-change #(set-reason! (.. % -target -value))}]]]]))
+
+
+(defn- metric-section
+  "G16 报表指标定义: 对象 + 聚合 + 字段 + 状态过滤组合口径, 编码由后端派生, 发布后在报表中心求值."
+  [{:keys [data editable? open! detail!]}]
+  [shared/panel "报表指标" "指标口径 = 对象 / 聚合 / 字段 / 状态过滤; 编码由后端派生, 草稿与已退役版本不在报表中心求值"
+   (when editable?
+     [antd/button {:type "primary"
+                   :on-click #(open! {:title "建立报表指标" :mode :edit :path "/config/report-metric"
+                                      :initial {:object_type "project" :aggregate "count" :unit "count"}})}
+      "建立报表指标"])
+   [w/record-table (:rows data)
+    [{:title "编码" :dataIndex "code" :width 260}
+     {:title "指标名称" :dataIndex "label" :width 180}
+     {:title "对象" :dataIndex "object_type" :width 110 :render (fn [v] (get {"project" "项目" "cost-entry" "费用明细" "task" "WBS任务"} v v))}
+     {:title "聚合" :dataIndex "aggregate" :width 90 :render (fn [v] (get {"count" "计数" "sum" "求和" "avg" "平均"} v v))}
+     {:title "字段" :dataIndex "field" :width 150 :render (fn [v] (or v "—"))}
+     {:title "状态过滤" :dataIndex "filter_status" :width 110 :render (fn [v] (or v "不限"))}
+     {:title "版本" :dataIndex "revision" :width 70}
+     {:title "状态" :dataIndex "status" :width 100 :render (fn [v] (r/as-element [status-badge v]))}]
+    (fn [row]
+      [antd/space {:wrap true}
+       [w/edit-button "详情" #(detail! row)]
+       (when (and editable? (= "draft" (:status row)))
+         [w/edit-button "发布" #(open! {:title "发布报表指标" :mode :reason
+                                      :path (str "/config/report-metric/" (:id row) "/publish")})])
+       (when (and editable? (= "published" (:status row)))
+         [w/edit-button "修订" #(open! {:title "修订报表指标" :mode :edit
+                                      :path (str "/config/report-metric/" (:id row) "/revisions")
+                                      :initial (select-keys row [:object_type :aggregate :field :filter_status :unit :label :description])})])
+       (when (and editable? (contains? #{"draft" "published"} (:status row)))
+         [w/edit-button "退役" #(open! {:title "退役报表指标" :mode :reason
+                                      :path (str "/config/report-metric/" (:id row) "/retire")})])])]])
 
 
 (defn- kind-workspace
@@ -699,5 +796,8 @@
                        {:key "tax" :label "税率表"
                         :children (r/as-element [kind-workspace "tax-rate" tax-section tax-detail
                                                  {:permission "pms:finance:approve" :dialog-comp tax-dialog}])}
+                       {:key "reports" :label "报表指标"
+                        :children (r/as-element [kind-workspace "report-metric" metric-section rule-detail
+                                                 {:permission "pms:config:edit" :dialog-comp metric-dialog}])}
                        {:key "approvals" :label "审批策略"
                         :children (r/as-element [kind-workspace "approval-policy" approval/policy-section approval/policy-detail])}]}]])

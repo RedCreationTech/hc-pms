@@ -72,8 +72,13 @@ VALUES (:version_id,:project_id,:kind,:period,:currency,:name,:revenue_minor,:ve
 SELECT * FROM pms_cost_entry WHERE project_id=:project_id AND version_id=:version_id ORDER BY created_at,entry_id
 --;;
 -- :name finance/insert-entry! :! :n
-INSERT INTO pms_cost_entry(entry_id,project_id,version_id,category,label,amount_minor,source_ref,change_code)
-VALUES (:entry_id,:project_id,:version_id,:category,:label,:amount_minor,:source_ref,:change_code)
+INSERT INTO pms_cost_entry(entry_id,project_id,version_id,category,label,amount_minor,source_ref,change_code,status)
+VALUES (:entry_id,:project_id,:version_id,:category,:label,:amount_minor,:source_ref,:change_code,
+        (SELECT status FROM pms_cost_version WHERE version_id=:version_id))
+--;;
+-- 版本状态迁移时同步明细状态, 供报表指标精确过滤 (明细状态始终跟随所属版本).
+-- :name finance/set-entry-status! :! :n
+UPDATE pms_cost_entry SET status=:status WHERE project_id=:project_id AND version_id=:version_id
 --;;
 -- :name finance/bind-change! :! :n
 UPDATE pms_cost_entry SET change_code=:change_code

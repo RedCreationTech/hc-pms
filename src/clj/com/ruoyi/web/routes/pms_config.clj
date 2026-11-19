@@ -1,13 +1,17 @@
 (ns com.ruoyi.web.routes.pms-config
-  "平台级模板/编码规则/经营目标/费用池/封期配置路由, 以及跨项目待办/检索/组合看板/经营目标达成的只读路由, 挂载在已认证的 /api/pms 内."
+  "平台级模板/编码规则/经营目标/费用池/封期配置路由, 以及跨项目待办/检索/组合看板/经营目标达成/报表指标的只读路由, 挂载在已认证的 /api/pms 内."
   (:require
+    [clojure.data.csv :as csv]
     [com.ruoyi.domain.pms.approval-chain :as chain]
     [com.ruoyi.domain.pms.config :as config]
     [com.ruoyi.domain.pms.external-catalog :as external]
     [com.ruoyi.domain.pms.finance-pool :as pool]
     [com.ruoyi.domain.pms.portfolio :as portfolio]
+    [com.ruoyi.domain.pms.report :as report]
     [com.ruoyi.domain.pms.scan :as scan]
-    [com.ruoyi.web.controllers.pms-http :as http]))
+    [com.ruoyi.domain.pms.service :as pms]
+    [com.ruoyi.web.controllers.pms-http :as http]
+    [ring.util.response :as response]))
 
 
 (defn- kind
@@ -49,6 +53,25 @@
     (http/invoke svc request #(portfolio/search %1 %2 {:q (get params "q") :classification (get params "classification")}))))
 
 
+(defn- report-csv
+  "G16 报表导出: 与页面同一求值结果, 列定义也取同一份 columns, 保证导出范围与界面一致.
+    领域错误仍返回 JSON 信封 (错误不得伪装成空的 CSV), 其余以带 BOM 的 UTF-8 CSV 下载."
+  [svc request]
+  (try
+    (let [data (report/reports svc (or (:actor request) (pms/actor svc (:identity request))))
+          output (java.io.StringWriter.)
+          header (mapv :title (:columns data))]
+      (csv/write-csv output (cons header (mapv report/csv-cells (:rows data))) :separator \, :quote (char 34))
+      (-> (response/response (str "\uFEFF" output))
+          (response/status 200)
+          (response/header "Content-Type" "text/csv; charset=utf-8")
+          (response/header "Content-Disposition" "attachment; filename=pms-report.csv")))
+    (catch clojure.lang.ExceptionInfo e
+      (http/reply (:status (ex-data e)) (.getMessage e) nil))
+    (catch Exception _
+      (http/reply 500 "服务暂时不可用,请稍后重试" nil))))
+
+
 (defn config-routes
   "返回可拼接的配置与跨项目只读路由."
   [svc]
@@ -70,6 +93,11 @@
    ["/search" {:get {:handler (partial search svc)}}]
    ["/portfolio" {:get {:handler (fn [request] (http/invoke svc request portfolio/portfolio))}}]
    ["/targets/board" {:get {:handler (fn [request] (http/invoke svc request portfolio/targets))}}]
+   ;; G16 报表: 已发布指标定义求值, 导出与页面共用同一求值与列定义
+   ["/reports" {:get {:handler (fn [request] (http/invoke svc request report/reports))
+                      :perms ["pms:dashboard:query" "pms:project:list"]}}]
+   ["/reports/export" {:get {:handler (partial report-csv svc)
+                             :perms ["pms:dashboard:query" "pms:project:list"]}}]
    ["/config/:kind" {:get {:handler (partial listing svc)} :post {:handler (partial create svc)}}]
    ["/config/:kind/import" {:post {:handler (partial import-catalog svc)}}]
    ["/config/:kind/:config_id/revisions" {:post {:handler (partial (versioned config/revise!) svc)}}]
