@@ -4,6 +4,7 @@
     [com.ruoyi.domain.pms.config :as config]
     [com.ruoyi.domain.pms.finance-allocation :as allocation]
     [com.ruoyi.domain.pms.finance-budget :as budget]
+    [com.ruoyi.domain.pms.finance-change-loss :as change-loss]
     [com.ruoyi.domain.pms.finance-commitment :as commitment]
     [com.ruoyi.domain.pms.finance-cost :as cost]
     [com.ruoyi.domain.pms.finance-forecast :as forecast]
@@ -189,6 +190,12 @@
                            :estimate (forecast/forecast q project-id "estimate" today)})))
 
 
+(defn attach-change-loss
+  "F07 把变更损失汇总挂到财务概览读模型顶层 :change_loss; 读取时派生, 不改变任何逐条费用版本."
+  [q project-id data]
+  (change-loss/attach q project-id data))
+
+
 (defn attach-margin-summary
   "把 margin-summary 挂到财务概览读模型顶层 :cost_margin; 读取时派生, 不改变任何逐条费用版本.
    有已发布税率表 (tax-rate) 且币种口径一致时同时派生税额与税后净利."
@@ -256,7 +263,7 @@
                                          :locked_periods (mapv :period (config/published q "period-lock"))}
                                         (summary versions)) time/attach-timesheet-review-summary attach-cost-review-summary attach-allocation-review-summary attach-commitment-closure-summary)]
                     ;; forecast 与 税后净利 都需要查询函数读取已发布配置, 故在 let 内显式调用而非放进线程.
-                    (attach-forecast q project-id (attach-margin-summary q data))))))
+                    (attach-forecast q project-id (attach-margin-summary q (change-loss/attach q project-id data)))))))
 
 
 (defn times

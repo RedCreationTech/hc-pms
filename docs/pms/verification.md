@@ -2671,3 +2671,36 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 | 回归 | `pms-f08mb.spec.js` / `pms-h13fx.spec.js` / `pms-h12eac.spec.js` 3 passed |
 
 边界: 税率表只覆盖**本项目本地毛利口径的税额与净利**, 不做多档税率/进项抵扣/递延税/收入确认, 也不做跨产品线经营分析; 税率按本位币维护, 外币口径需先折算 (与 H13 汇率口径一致, 未做自动联动). 矩阵 F08 行保持 `partial`, 不因本切片上行; MySQL 迁移文件已同步但本机无实例未实跑.
+
+## F07 延伸 变更损失逐项关联与产品线汇总 (增量7 切片, 2026-11-19)
+
+设计与口径: 兑现矩阵 F07 "从经确认的分析来源接收损失数量/金额并关联变更, 可分产品线汇总, 不与成本账项重复计费" 中**除 BI 入站外**的全部本地子能力. 此前 `change_loss` 只是一个成本分类字符串, 与治理侧的正式变更毫无关联, 损失既无法追溯来源变更, 也无法按产品线/变更类型汇总. 本切片把"变更 → 损失"建成**显式双向可追溯**的单据关系:
+
+写路径 (`finance_cost/bind-change!` → `finance_change_loss/bind!`): 新增 `POST /projects/:id/cost-versions/:cost_id/entries/:entry_id/change`, 请求体 `{version, change_code}`. 在费用明细行上新增 `change_code` 列 (引用治理 `pms_gov_record` 中 `kind=change` 记录的**业务编码**, 服务端派生, 不引用内部 record_id, 因此修订链天然共享同一编码), 迁移 `202611190003-change-loss` 双库同步: SQLite 走 `PRAGMA` 无关的表重建 (`CREATE new` + `INSERT SELECT` + `DROP` + `RENAME`) 并重建 `UNIQUE(version_id,source_ref)` 与新增 `UNIQUE(version_id,change_code)` 及 `idx_pms_cost_entry_change(project_id,change_code)`; MySQL 直接 `ADD COLUMN` + `ADD CONSTRAINT pms_cost_entry_change_uq` + 建索引, down 逆序拆除.
+
+四道门控 (全部在事务内, 失败回滚, 不留下半关联):
+1. **口径**: 只允许 `kind=actual` (核算) 的草稿版本. 概算/预算属于预测, 决算属于收尾口径, 都不该在发生时点登记实际损失.
+2. **变更必须已独立批准**: 修订链上任一版本被独立审批通过即视为已有正式变更依据; 但若**最新修订已被明确驳回**则视为否决, 拒绝关联 (须重新提交并经批准). 未经批准或仅有草稿的变更一律 409, 防止"先记损失再补批".
+3. **金额一致**: 当该变更已申报 `cost_impact_amount` 时, 损失金额必须与之**精确相等** (最小货币单位比较). 这直接实现矩阵要求的"不与成本账项重复计费"——变更影响已经作为一项成本影响被量化申报, 损失明细必须就是那笔数, 不允许既报影响又按另一个金额再计入成本; 变更未申报成本影响时不设此约束 (此时损失明细就是唯一的量化来源).
+4. **不重复计费**: 同一版本内同一条变更只允许关联一条损失明细 (`UNIQUE(version_id,change_code)` + 前置可读的同类检查返回中文 409), 已关联其它变更的明细必须另建条目, 不允许悄悄改绑.
+
+聚合与非重复计费 (`finance_change_loss/summary`): 概览读模型新增顶层 `:change_loss`. 统计范围是**已批准**四算版本中 `change_code` 非空的明细; 同一条变更可能在概算/预算/核算三份已批准版本里各记一笔, 汇总时按 `actual > budget > estimate > settlement` 的优先级**每变更只取一笔**, 因此项目级总额不会被多口径累加放大. 输出 `{available, currency, line, reconciled, total_count, total_amount, total_schedule_days, by_product_line, by_type, unapproved_count, unapproved_amount, orphan_count, orphan_amount}`:
+- `by_product_line`: 产品线取项目 `contract_no` (未填写归入 `-`), 这是本地唯一可用的产品线分组维度; 产品线主数据属企业系统, 不臆造.
+- `by_type`: 按变更 `change_type` (PMBOK 四类) 分组, 未设定归入 `unspecified`, 与 H09 的类型字段同口径.
+- `reconciled`: 所有挂有 `change_code` 的已批准明细是否**全部**可追溯到已批准变更; 为 false 时说明存在未批准或孤儿明细.
+- `unapproved_count/amount`: 关联了但变更尚未批准的损失, **如实标注但不计入总额**, 而不是悄悄计入或直接丢弃.
+- 每组给出 `count` / `amount` / `schedule_days` (该组变更已申报的工期影响天数之和), 使"损失钱"与"损失时间"同屏对照.
+
+失败场景显式覆盖: 非核算口径 400, 非 `change_loss` 分类 400, 变更未批准/不存在 409, 金额不一致 409, 同版本重复关联 409, 已批准版本明细不可再关联 409 (`draft!` 拦截). `orphan` 分支为历史数据兜底: 变更记录被清理后损失行仍在时计入 `orphan_count` 而不是崩溃.
+
+前端 (`pages/pms/finance.cljs`): 成本明细表格新增"关联变更"列 (未关联显示灰色 `未关联` 标签); 核算口径草稿版本的 `change_loss` 条目在操作列出现"关联变更"按钮, 弹出 `bind-change-dialog` 填写变更编码; 财务概览"成本与分摊"页签在预测面板之后新增"变更损失汇总"面板 (`change-loss-section`), 顶部徽标为已计入笔数 / 累计损失 / 累计工期影响 / 可追溯性 / 待批准损失 / 无对应变更, 下面两张小表分别按产品线与变更类型列出笔数、损失金额与量化工期.
+
+| 项目 | 结果 |
+|---|---|
+| 领域测试 | `change-loss-binds-to-approved-change` (未关联时 `change_code` 为 nil / 关联后回显编码 / 同版本重复关联 409 (含金额一致与不一致两种) / 非 `change_loss` 分类 400 / 未批准变更 409); `change-loss-scope-guards` (概算口径 400 / 金额不一致 409 / 已批准版本明细不可再关联 409); `change-loss-summary-rolls-up-by-product-line-and-type` (未批准版本不计入 `total_count=0` -> 批准后 `total_count=2` / `total_amount=7000.00` / `total_schedule_days=8` / 未填合同号归入 `-` 产品线 / 按 `corrective`+`updates` 各 1 笔分组 / `reconciled=true` / 汇总不改变任何明细行) |
+| 套件回归 | `clojure -J-Xmx1800m -M:test -n com.ruoyi.pms-finance-test` 44 tests / 292 assertions, 0 failures/errors |
+| 全量回归 | `clojure -J-Xmx1800m -M:test` 832 tests / 7848 assertions, 0 failures/errors (SQLite) |
+| 前端 | `npx shadow-cljs compile app` 0 failures, 0 warnings; 成本明细新增"关联变更"列与关联弹窗, 财务概览新增"变更损失汇总"面板 |
+| 浏览器 | `pms-f07loss.spec.js` 1 passed: 执行态项目 (独立审批人角色) 登记并批准一条 `corrective` (6 天 / 5000.00) 与一条 `updates` (2 天 / 2000.00) 变更 -> 核算版本新增两条变更损失 -> 关联前面板显示"尚无已批准的四算版本" -> 通过真实弹窗"关联变更"逐条挂到已批准变更且表格回显编码 -> 未批准核算版本 `total_count=0` -> 独立批准后接口回显 `total_count=2` / `total_amount=7000.00` / `total_schedule_days=8` / `by_product_line[0]` 为合同号且 2 笔 7000.00 8 天 / `by_type` 两档各 1 笔 -> 面板显示"已计入笔数 2"/"累计损失 7000.00 CNY"/"累计工期影响 8 天"/"全部损失均可追溯已批准变更" -> 真实 HTTP 门控: 概算口径 400、金额不符 409、未批准变更 409、非损失分类 400; 截图 `reports/f07loss/{f07loss-1-empty,f07loss-2-bound,f07loss-3-summary}.png` |
+
+边界: 本切片是**本地"变更 → 损失"单据关联与汇总**, **不做 BI 损失入站** (矩阵 F07 要求的"从经确认的分析来源接收"属外部系统集成, 本轮明确不接, 也不以 mock 冒充), 不做复式记账/汇兑损益/收入确认, 不驱动任何门控 (关联与否不影响审批链, 汇总只读不落库). 产品线维度暂借用项目合同号, 未接产品线主数据. 矩阵 F07 行保持 `partial / 待合同`, 不因本切片上行. MySQL 迁移文件已同步但本机无实例未实跑.

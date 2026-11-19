@@ -1113,3 +1113,119 @@
         (is (true? (:taxable budget)) "本币版本仍按 CNY 税率派生")))
     (testing "净利率上限: 加入 80% 净利率与 13% 税率组合仍合法, 1 - 0.13 = 0.87"
       (is (fn? #(config/create! *svc* (actor 9401) "tax-rate" {:base_currency "GBP" :vat_rate "0.13" :net_rate "0.87" :reason "边界"}))))))
+
+
+(defn- change!
+  "登记并独立批准一条正式变更, 返回服务端派生的业务编码及可选量化成本影响与变更类型."
+  [id title & {:keys [cost type days]}]
+  (let [body (cond-> {:title title :reason "客户要求" :scope_impact "范围" :schedule_impact "工期"
+                      :cost_impact "成本" :quality_impact "质量" :resource_impact "资源"}
+               cost (assoc :cost_impact_amount cost)
+               type (assoc :change_type type)
+               days (assoc :schedule_impact_days days))
+        rec (gov! id :changes :create nil body)]
+    (gov! id :changes :submit (:id rec) {:reviewer_id 9402})
+    (gov! 9402 id :changes :decision (:id rec) {:decision "approved" :reason "影响可接受"})
+    (:code rec)))
+
+
+(defn- change-loss-entry!
+  "在指定口径版本中新增一条变更损失明细."
+  [id cid amount]
+  (let [v (:result (command! cost/add-entry! id [cid]
+                             {:category "change_loss" :label "变更损失" :amount amount}))]
+    (last (filter #(and (= "change_loss" (:category %)) (= amount (:amount %))) (:entries v)))))
+
+
+(deftest change-loss-binds-to-approved-change
+  (let [id (project!)
+        code (change! id "CC-1001" :cost "5000.00" :type "corrective" :days 6)
+        actual (cost! id "actual")
+        entry (change-loss-entry! id (:id actual) "5000.00")]
+    (testing "损失明细可关联已批准变更"
+      (is (nil? (:change_code entry)) "未关联时不含变更编码")
+      (let [v (:result (command! cost/bind-change! id [(:id actual) (:id entry)] {:change_code code}))
+            bound (first (filter #(= "change_loss" (:category %)) (:entries v)))]
+        (is (= code (:change_code bound)))))
+    (testing "同一变更在同版本内不重复计费 409"
+      (let [other (:result (command! cost/add-entry! id [(:id actual)]
+                                     {:category "change_loss" :label "重复损失" :amount "1.00"
+                                      :source_ref "dup-loss"}))
+            dup (first (filter #(= "重复损失" (:label %)) (:entries other)))]
+        (is (= 409 (error-status #(command! cost/bind-change! id [(:id actual) (:id dup)]
+                                            {:change_code code}))))))
+    (testing "同一变更在同一版本内即使金额一致也不重复计费 409"
+      (let [twin (:result (command! cost/add-entry! id [(:id actual)]
+                                    {:category "change_loss" :label "同额损失" :amount "5000.00"
+                                     :source_ref "twin-loss"}))
+            same (first (filter #(= "同额损失" (:label %)) (:entries twin)))]
+        (is (= 409 (error-status #(command! cost/bind-change! id [(:id actual) (:id same)]
+                                            {:change_code code}))))))
+    (testing "非变更损失分类拒绝 400"
+      (let [v (:result (command! cost/add-entry! id [(:id actual)]
+                                 {:category "material" :label "材料" :amount "1.00"}))
+            material (first (filter #(= "material" (:category %)) (:entries v)))]
+        (is (= 400 (error-status #(command! cost/bind-change! id [(:id actual) (:id material)]
+                                            {:change_code code}))))))
+    (testing "未批准的变更不能关联 409"
+      (let [draft (gov! id :changes :create nil {:title "草案" :reason "草案" :scope_impact "s"
+                                                 :schedule_impact "t" :cost_impact "c" :quality_impact "q"
+                                                 :resource_impact "r"})
+            extra (change-loss-entry! id (:id actual) "10.00")]
+        (is (some? draft))
+        (is (= 409 (error-status #(command! cost/bind-change! id [(:id actual) (:id extra)]
+                                            {:change_code (:code draft)}))))))))
+
+
+(deftest change-loss-scope-guards
+  (let [id (project!)
+        code (change! id "CC-3001" :cost "100.00")
+        estimate (cost! id "estimate")
+        entry (change-loss-entry! id (:id estimate) "100.00")]
+    (testing "只有核算口径可以登记变更损失"
+      (is (= 400 (error-status #(command! cost/bind-change! id [(:id estimate) (:id entry)]
+                                          {:change_code code})))))
+    (let [actual (cost! id "actual")
+          e1 (change-loss-entry! id (:id actual) "120.00")
+          e2 (change-loss-entry! id (:id actual) "140.00")]
+      (testing "损失金额必须与变更已声明成本影响一致"
+        (is (= 409 (error-status #(command! cost/bind-change! id [(:id actual) (:id e1)]
+                                            {:change_code code})))))
+      (testing "已批准版本的明细不可再关联"
+        (let [ok (change-loss-entry! id (:id actual) "100.00")
+              v (:result (command! cost/bind-change! id [(:id actual) (:id ok)] {:change_code code}))]
+          (is (some? v))
+          (command! cost/submit! id [(:id actual)] {})
+          (command! 9402 cost/review! id [(:id actual)] {:decision "approved" :reason "核对"})
+          (is (= 409 (error-status #(command! cost/bind-change! id [(:id actual) (:id e2)]
+                                              {:change_code code})))))))))
+
+
+(deftest change-loss-summary-rolls-up-by-product-line-and-type
+  (let [id (project!)
+        code-a (change! id "CC-A" :cost "300.00" :type "corrective" :days 4)
+        code-b (change! id "CC-B" :cost "200.00" :type "updates" :days 2)
+        actual (cost! id "actual")
+        e1 (change-loss-entry! id (:id actual) "300.00") e2 (change-loss-entry! id (:id actual) "200.00")]
+    (command! cost/bind-change! id [(:id actual) (:id e1)] {:change_code code-a})
+    (command! cost/bind-change! id [(:id actual) (:id e2)] {:change_code code-b})
+    (testing "未批准版本不计入汇总"
+      (is (zero? (:total_count (:change_loss (finance/overview *svc* (actor 9401) id))))))
+    (approve-cost! id (:id actual))
+    (let [cl (:change_loss (finance/overview *svc* (actor 9401) id))]
+      (is (true? (:available cl)))
+      (is (true? (:reconciled cl)))
+      (is (= 2 (:total_count cl)))
+      (is (= "500.00" (:total_amount cl)))
+      (is (= 6 (:total_schedule_days cl)))
+      (is (= "CNY" (:currency cl)))
+      (is (= 1 (count (:by_product_line cl))) "未填合同号时归入同一兜底产品线")
+      (is (= "-" (:key (first (:by_product_line cl)))))
+      (is (= "500.00" (:amount (first (:by_product_line cl)))))
+      (let [types (into {} (map (juxt :key :count) (:by_type cl)))]
+        (is (= 1 (get types "corrective")))
+        (is (= 1 (get types "updates"))))
+      (testing "汇总为只读派生, 不改变任何费用明细"
+        (let [v (cost/version! (:query-fn *svc*) id (:id actual))]
+          (is (empty? (filter #(and (= "change_loss" (:category %)) (nil? (:change_code %)))
+                              ((:query-fn *svc*) :finance/entries {:project_id id :version_id (:id actual)})))))))))

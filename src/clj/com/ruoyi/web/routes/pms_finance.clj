@@ -32,6 +32,7 @@
    ["/projects/:id/cost-versions" {:post (command svc cost/create! [])}]
    ["/projects/:id/cost-versions/:cost_id/entries" {:post (command svc cost/add-entry! [:cost_id])}]
    ["/projects/:id/cost-versions/:cost_id/entries/:entry_id" {:delete (command svc cost/delete-entry! [:cost_id :entry_id])}]
+   ["/projects/:id/cost-versions/:cost_id/entries/:entry_id/change" {:post (command svc cost/bind-change! [:cost_id :entry_id])}]
    ["/projects/:id/cost-versions/:cost_id/submit" {:post (command svc cost/submit! [:cost_id])}]
    ["/projects/:id/cost-versions/:cost_id/review" {:post (command svc cost/review! [:cost_id])}]
    ["/projects/:id/cost-versions/:cost_id/revise" {:post (command svc cost/revise! [:cost_id])}]

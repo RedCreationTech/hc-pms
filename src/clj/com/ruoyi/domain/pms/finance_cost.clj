@@ -4,6 +4,8 @@
     [cheshire.core :as json]
     [com.ruoyi.domain.pms.approval-chain :as chain]
     [com.ruoyi.domain.pms.config :as config]
+    [com.ruoyi.domain.pms.finance-change-loss :as change-loss]
+    [com.ruoyi.domain.pms.finance-cost-view :as cost-view]
     [com.ruoyi.domain.pms.finance-money :as money]
     [com.ruoyi.domain.pms.kernel :as kernel]
     [com.ruoyi.domain.pms.rules :as rules])
@@ -39,25 +41,10 @@
   version)
 
 
-(defn entry-dto
-  "返回精确金额字符串及成本项标识."
-  [entry]
-  (assoc entry :id (:entry_id entry) :amount (money/money (:amount_minor entry))))
+(def entry-dto cost-view/entry-dto)
 
 
-(defn dto
-  "读取费用版本的明细及可复算总额, 不使用数据库浮点SUM."
-  [q version]
-  (let [entries (mapv entry-dto (q :finance/entries version))
-        total (reduce + 0 (map :amount_minor entries))]
-    (-> version (dissoc :snapshot_json)
-        (assoc :id (:version_id version) :entries entries
-               :revenue (money/money (:revenue_minor version))
-               :total (money/money total) :total_minor total
-               :margin (money/money (- (:revenue_minor version) total))
-               ;; 按审批策略逐级审批中 (前端据此隐藏原单人审核入口)
-               :chain_pending (and (= "submitted" (:status version))
-                                   (some? (chain/pending-flow q "cost-version" (:version_id version))))))))
+(def dto cost-view/dto)
 
 
 (defn- input!
@@ -103,10 +90,28 @@
                           entry {:entry_id (kernel/id) :project_id project-id :version_id version-id
                                  :category (:category body) :label (rules/text! (:label body) "费用说明" 200 true)
                                  :amount_minor (money/amount! (:amount body) "金额")
+                                 :change_code nil
                                  :source_ref (not-empty (rules/text! (:source_ref body) "来源引用" 200 false))}]
                       (period-open! q (:period version))
                       (q :finance/insert-entry! entry)
                       (dto q version)))))
+
+
+(defn bind-change!
+  "F07 把变更损失明细关联到已批准的正式变更, 防止与成本账项重复计费."
+  [svc actor project-id version-id entry-id body]
+  (rules/object! body [:version :change_code])
+  (kernel/mutate! svc actor project-id "pms:finance:edit" body "cost.entry.change-bound"
+                  (fn [q project]
+                    (let [version (draft! (version! q project-id version-id))
+                          entry (q :finance/entry {:project_id project-id :entry_id entry-id})]
+                      (when-not (= version-id (:version_id entry)) (rules/fail! 404 "费用项不存在"))
+                      (period-open! q (:period version))
+                      (let [code (change-loss/bind! q project {:version version :vid version-id :entry entry
+                                                               :change-code (:change_code body)})]
+                        (rules/changed! (q :finance/bind-change! {:project_id project-id :version_id version-id
+                                                                  :entry_id entry-id :change_code code}))
+                        (dto q version))))))
 
 
 (defn delete-entry!

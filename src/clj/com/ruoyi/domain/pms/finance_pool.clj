@@ -69,7 +69,7 @@
                                                     (q :finance/insert-plain-version! version)
                                                     (q :finance/insert-entry! {:entry_id (kernel/id) :project_id (:project_id project) :version_id (:version_id version)
                                                                                :category "labor" :label (str name " / " (:minutes row) " 分钟")
-                                                                               :amount_minor (:amount_minor row) :source_ref (str "rd-pool:" (:id pool))})
+                                                                               :amount_minor (:amount_minor row) :source_ref (str "rd-pool:" (:id pool)) :change_code nil})
                                                     {:project_id (:project_id project) :project_no (:project_no project) :project_name (:name project)
                                                      :minutes (:minutes row) :amount (money/money (:amount_minor row)) :amount_minor (:amount_minor row)
                                                      :version_id (:version_id version)})))]
