@@ -16,7 +16,8 @@
 
 (def kinds
   "允许持久化的平台配置类型."
-  #{"project-template" "coding-rule" "quarterly-target" "rd-pool" "period-lock" "approval-policy" "rate-table"})
+  #{"project-template" "coding-rule" "quarterly-target" "rd-pool" "period-lock" "approval-policy" "rate-table" "exchange-rate"
+    "tax-rate"})
 
 
 (def project-types
@@ -38,7 +39,8 @@
   "各类型的维护权限."
   {"project-template" "pms:config:edit" "coding-rule" "pms:config:edit"
    "quarterly-target" "pms:target:edit" "rd-pool" "pms:finance:approve" "period-lock" "pms:finance:approve"
-   "approval-policy" "pms:config:edit" "rate-table" "pms:finance:approve"})
+   "approval-policy" "pms:config:edit" "rate-table" "pms:finance:approve"
+   "exchange-rate" "pms:finance:approve" "tax-rate" "pms:finance:approve"})
 
 
 (def read-permissions
@@ -331,6 +333,45 @@
      :effective_from from :effective_to to}))
 
 
+(defn- exchange-rate-entry!
+  "校验一条有效期汇率: 币种对必须不同且都在支持范围, 汇率是正的小数精度字符串 (不经浮点),
+   起止日期有序. 精确小数由 finance_forecast 以 BigDecimal 解释, 这里只校验形状与小数位."
+  [row]
+  (r/object! row [:from_currency :to_currency :rate :effective_from :effective_to])
+  (let [from (s/text! row :from_currency 3)
+        to (s/text! row :to_currency 3)
+        rate (s/text! row :rate 30)
+        effective-from (r/date! (:effective_from row) "生效起日")
+        effective-to (r/date! (:effective_to row) "生效止日")]
+    (when-not (money/currencies from) (r/fail! 400 "来源币种不在支持范围"))
+    (when-not (money/currencies to) (r/fail! 400 "目标币种不在支持范围"))
+    (when (= from to) (r/fail! 400 "来源与目标币种不能相同"))
+    (when-not (re-matches #"[0-9]{1,9}(\.[0-9]{1,8})?" rate) (r/fail! 400 "汇率必须是最多8位小数的正数"))
+    (when-not (pos? (compare (BigDecimal. rate) BigDecimal/ZERO)) (r/fail! 400 "汇率必须大于0"))
+    (when-not effective-from (r/fail! 400 "生效起日必填"))
+    (when (and effective-to (pos? (compare effective-from effective-to)))
+      (r/fail! 400 "生效止日不能早于生效起日"))
+    ;; 编码由币种对派生, 调用方无需填写 (与费率表 RATE-<币种> 同为后端生成).
+    {:code (str from "-" to) :from_currency from :to_currency to :rate rate
+     :effective_from effective-from :effective_to effective-to}))
+
+
+(defn- exchange-rate!
+  "有效期汇率表: 同一币种对的生效区间互不重叠 (重叠会导致同一日期有两个汇率, 折算结果不确定)."
+  [body]
+  (r/object! body [:base_currency :rates :reason])
+  (let [currency (or (:base_currency body) "CNY")]
+    (when-not (money/currencies currency) (r/fail! 400 "暂仅支持CNY/USD/EUR/GBP/HKD"))
+    (when-not (and (vector? (:rates body)) (<= 1 (count (:rates body)) 200))
+      (r/fail! 400 "汇率行需要1到200条"))
+    (let [rates (mapv exchange-rate-entry! (:rates body))]
+      (doseq [[_ rows] (group-by (juxt :from_currency :to_currency) rates)]
+        (doseq [[a b] (partition 2 1 (sort-by :effective_from rows))]
+          (when-not (pos? (compare (:effective_from b) (or (:effective_to a) "9999-12-31")))
+            (r/fail! 400 "同一币种对的汇率有效期重叠"))))
+      {:code (str "FX-" currency) :base_currency currency :rates rates})))
+
+
 (defn- rate-table!
   "有效期费率表: 同一对象 (角色或人员) 的有效期互不重叠, 允许留白区间 (该区间未覆盖)."
   [body]
@@ -345,6 +386,30 @@
           (when-not (pos? (compare (:effective_from b) (or (:effective_to a) "9999-12-31")))
             (r/fail! 400 "同一对象的费率有效期重叠"))))
       {:code (str "RATE-" currency) :base_currency currency :rates rates})))
+
+
+(defn- tax-rate!
+  "F08 税率口径: 按本位币种维护增值税税率与净利率, 均为 0-1 之间的比例字符串 (最多 6 位小数),
+   由 finance 以 BigDecimal 解释, 不经浮点. 净利率 <= 1 - 税率, 保证税后净利非负.
+   缺这张表时看板只输出税前毛利并如实标注净利不可算, 不猜默认税率."
+  [body]
+  (r/object! body [:base_currency :vat_rate :net_rate :reason])
+  (let [currency (or (:base_currency body) "CNY")
+        shape #"[0-9]{1,2}(\.[0-9]{1,6})?"
+        rate! (fn [k label]
+                (let [v (s/text! body k 20)
+                      minor (money/amount! v label)]
+                  (when-not (re-matches shape v) (r/fail! 400 (str label "必须是最多6位小数的比例 (0到1)")))
+                  (when-not (<= 0 minor 100) (r/fail! 400 (str label "必须在0到1之间")))
+                  (money/money minor)))]
+    (when-not (money/currencies currency) (r/fail! 400 "暂仅支持CNY/USD/EUR/GBP/HKD"))
+    (let [vat (rate! :vat_rate "增值税税率")
+          net (rate! :net_rate "净利率")]
+      (when (pos? (compare (BigDecimal. vat) (BigDecimal. "1"))) (r/fail! 400 "增值税税率必须在0到1之间"))
+      (when (pos? (compare (BigDecimal. net) (.subtract (BigDecimal. "1") (BigDecimal. vat))))
+        (r/fail! 400 "净利率不能超过 1 - 增值税税率"))
+      ;; 编码由本位币种派生, 与费率表/汇率表同为后端生成.
+      {:code (str "TAX-" currency) :base_currency currency :vat_rate vat :net_rate net})))
 
 
 (def approval-types
@@ -412,6 +477,8 @@
     "rd-pool" (rd-pool! body)
     "period-lock" (period-lock! body)
     "rate-table" (rate-table! body)
+    "exchange-rate" (exchange-rate! body)
+    "tax-rate" (tax-rate! body)
     "approval-policy" (approval-policy! body)))
 
 

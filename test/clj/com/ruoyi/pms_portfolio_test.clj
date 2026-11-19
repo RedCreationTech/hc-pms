@@ -1,25 +1,31 @@
 (ns com.ruoyi.pms-portfolio-test
   "追踪覆盖率与偏差 (C03), 文档多层下钻 (C04), 密级访问 (C05), 逾期追溯升级 (C09), 我的待办 (C07), 全局检索 (G16),
    项目组合看板 (G02), 工时更正与封期 (F04), 跨项目研发费用池 (F05), 四算拉通 (F06), 经营目标 (F09) 的真实数据库测试."
-  (:require [clojure.test :refer [deftest is testing use-fixtures]]
-            [com.ruoyi.domain.pms.config :as config]
-            [com.ruoyi.domain.pms.finance :as finance]
-            [com.ruoyi.domain.pms.finance-allocation :as allocation]
-            [com.ruoyi.domain.pms.finance-cost :as cost]
-            [com.ruoyi.domain.pms.finance-money :as money]
-            [com.ruoyi.domain.pms.finance-pool :as pool]
-            [com.ruoyi.domain.pms.finance-time :as time]
-            [com.ruoyi.domain.pms.governance :as gov]
-            [com.ruoyi.domain.pms.planning :as planning]
-            [com.ruoyi.domain.pms.portfolio :as portfolio]
-            [com.ruoyi.domain.pms.queries :as queries]
-            [com.ruoyi.domain.pms.service :as pms]
-            [conman.core :as conman]
-            [migratus.core :as migratus]
-            [next.jdbc :as jdbc])
-  (:import [java.nio.file Files]
-           [java.time LocalDate]
-           [java.util UUID]))
+  (:require
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [com.ruoyi.domain.pms.config :as config]
+    [com.ruoyi.domain.pms.finance :as finance]
+    [com.ruoyi.domain.pms.finance-allocation :as allocation]
+    [com.ruoyi.domain.pms.finance-cost :as cost]
+    [com.ruoyi.domain.pms.finance-forecast :as forecast]
+    [com.ruoyi.domain.pms.finance-money :as money]
+    [com.ruoyi.domain.pms.finance-pool :as pool]
+    [com.ruoyi.domain.pms.finance-time :as time]
+    [com.ruoyi.domain.pms.governance :as gov]
+    [com.ruoyi.domain.pms.planning :as planning]
+    [com.ruoyi.domain.pms.portfolio :as portfolio]
+    [com.ruoyi.domain.pms.queries :as queries]
+    [com.ruoyi.domain.pms.service :as pms]
+    [conman.core :as conman]
+    [migratus.core :as migratus]
+    [next.jdbc :as jdbc])
+  (:import
+    (java.nio.file
+      Files)
+    (java.time
+      LocalDate)
+    (java.util
+      UUID)))
 
 
 (def ^:dynamic *service* nil)
@@ -65,7 +71,9 @@
 (use-fixtures :once database-fixture)
 
 
-(defn- actor [uid] (pms/actor *service* {:user-id uid}))
+(defn- actor
+  [uid]
+  (pms/actor *service* {:user-id uid}))
 
 
 (defn- error-status
@@ -73,7 +81,9 @@
   (try (f) nil (catch clojure.lang.ExceptionInfo e (:status (ex-data e)))))
 
 
-(defn- version [id] (:version (pms/project *service* (actor 9701) id)))
+(defn- version
+  [id]
+  (:version (pms/project *service* (actor 9701) id)))
 
 
 (defn- gov!
@@ -121,7 +131,9 @@
     {:id id :task_id (:task_id task) :evidence (:id document)}))
 
 
-(defn- today-minus [days] (str (.minusDays (LocalDate/now) days)))
+(defn- today-minus
+  [days]
+  (str (.minusDays (LocalDate/now) days)))
 
 
 (deftest traceability-coverage-phases-and-deviation-levels
@@ -337,7 +349,8 @@
                 :approval/legacy-reopens [(assoc ref :request_id 63)]
                 :approval/legacy-baselines [(assoc ref :baseline_id 64 :plan_revision 3)]
                 :approval/my-pending [{:id 41 :biz_id 31 :biz_type "charter" :level_name "一级"}]}
-        svc {:query-fn (fn ([name _] (get canned name [])) ([tx name _] (get canned name [])))}
+        svc {:query-fn (fn
+                         ([name _] (get canned name [])) ([tx name _] (get canned name [])))}
         todo (portfolio/todo svc actor)]
     (testing "reviews: 治理待审 + 签收验证 + 工时审核 + legacy 四类, 链式章程与自提交被排除"
       (is (= [["reviews" "review" "风险复评" 11 "R-1" "风险甲" "in_review" (d 2) 2 false true]
@@ -498,7 +511,8 @@
   (let [{:keys [id]} (executing-project! "四算审批汇总项目")
         overview (fn [] (finance/overview *service* (actor 9701) id))
         create (fn [kind] (:result (cost/create! *service* (actor 9701) id {:version (version id) :kind kind :period "2026-09" :currency "CNY" :name (str kind "版本") :revenue "1000" :reviewer_id 9702})))
-        submit-with (fn [vid] (cost/add-entry! *service* (actor 9701) id vid {:version (version id) :category "material" :label "料" :amount "100"})
+        submit-with (fn [vid]
+                      (cost/add-entry! *service* (actor 9701) id vid {:version (version id) :category "material" :label "料" :amount "100"})
                       (cost/submit! *service* (actor 9701) id vid {:version (version id)}))]
     (is (false? (:available (:cost_review (overview)))))
     (is (= 0 (:total (:cost_review (overview)))))
@@ -623,7 +637,7 @@
       (is (false? (:computable (by "actual"))))
       (is (nil? (:margin-pct (by "actual"))))
       (is (false? (:present (by "settlement")))))
-    (let [out (finance/attach-margin-summary {:cost_versions rows})]
+    (let [out (finance/attach-margin-summary (fn [_ _] nil) {:cost_versions rows})]
       (is (= rows (:cost_versions out)))
       (is (= 2 (get-in out [:cost_margin :by-kind 0 :version_no])))
       (is (= 20 (get-in out [:cost_margin :by-kind 0 :margin-pct])))))
@@ -640,7 +654,8 @@
   (let [{:keys [id]} (executing-project! "毛利看板项目")
         create (fn [kind revenue] (:result (cost/create! *service* (actor 9701) id {:version (version id) :kind kind :period "2026-09" :currency "CNY" :name (str kind "版本") :revenue revenue :reviewer_id 9702})))
         entry (fn [vid category amount] (cost/add-entry! *service* (actor 9701) id vid {:version (version id) :category category :label category :amount amount}))
-        approve (fn [vid] (cost/submit! *service* (actor 9701) id vid {:version (version id)})
+        approve (fn [vid]
+                  (cost/submit! *service* (actor 9701) id vid {:version (version id)})
                   (cost/review! *service* (actor 9702) id vid {:version (version id) :decision "approved" :reason "ok"}))
         estimate (create "estimate" "1000")
         settlement (create "settlement" "0")]
@@ -660,11 +675,13 @@
       (is (false? (:present (by "budget"))))
       (is (false? (:present (by "actual")))))))
 
+
 (deftest four-count-comparison-and-quarterly-targets
   (let [{:keys [id]} (executing-project! "四算项目")
         create (fn [kind revenue] (:result (cost/create! *service* (actor 9701) id {:version (version id) :kind kind :period "2026-09" :currency "CNY" :name (str kind "版本") :revenue revenue :reviewer_id 9702})))
         entry (fn [vid category amount] (cost/add-entry! *service* (actor 9701) id vid {:version (version id) :category category :label category :amount amount}))
-        approve (fn [vid] (cost/submit! *service* (actor 9701) id vid {:version (version id)})
+        approve (fn [vid]
+                  (cost/submit! *service* (actor 9701) id vid {:version (version id)})
                   (cost/review! *service* (actor 9702) id vid {:version (version id) :decision "approved" :reason "ok"}))
         estimate (create "estimate" "1000") budget (create "budget" "1000") actual (create "actual" "1000")]
     (entry (:id estimate) "material" "300") (entry (:id estimate) "labor" "200") (approve (:id estimate))
@@ -727,14 +744,14 @@
                       :revenue_minor 500000 :currency "CNY"}]}
         entries {101 [{:entry_id "e1" :amount_minor 200000} {:entry_id "e2" :amount_minor 50000}]}
         q (fake-targets-q projects lifecycle versions entries
-                           [{:config_id "t1" :payload "{}" :year 2026 :quarter 3 :metric "revenue"
-                             :target_value "5000" :revision 1 :status "published" :code "2026Q3-revenue"}
-                            {:config_id "t2" :payload "{}" :year 2026 :quarter 3 :metric "gross_margin"
-                             :target_value "1000" :revision 1 :status "published" :code "2026Q3-margin"}
-                            {:config_id "t3" :payload "{}" :year 2026 :quarter 3 :metric "closed_projects"
-                             :target_value 1 :revision 1 :status "published" :code "2026Q3-closed"}
-                            {:config_id "t4" :payload "{}" :year 2026 :quarter 4 :metric "on_time_rate"
-                             :target_value 50 :revision 1 :status "published" :code "2026Q4-ontime"}])
+                          [{:config_id "t1" :payload "{}" :year 2026 :quarter 3 :metric "revenue"
+                            :target_value "5000" :revision 1 :status "published" :code "2026Q3-revenue"}
+                           {:config_id "t2" :payload "{}" :year 2026 :quarter 3 :metric "gross_margin"
+                            :target_value "1000" :revision 1 :status "published" :code "2026Q3-margin"}
+                           {:config_id "t3" :payload "{}" :year 2026 :quarter 3 :metric "closed_projects"
+                            :target_value 1 :revision 1 :status "published" :code "2026Q3-closed"}
+                           {:config_id "t4" :payload "{}" :year 2026 :quarter 4 :metric "on_time_rate"
+                            :target_value 50 :revision 1 :status "published" :code "2026Q4-ontime"}])
         board (portfolio/targets {:query-fn q} actor)
         row (fn [id] (first (filter #(= id (:id %)) (:rows board))))]
     (testing "关闭项目按归档季度分组, 决算收入/毛利与准时结项判定 (无决算项目不崩且按 0 计)"
@@ -801,6 +818,7 @@
       (is (>= (:behind att) 1))
       (is (some #(and (= "revenue" (:metric %)) (>= (:total %) 1)) (:by-metric att))))))
 
+
 ;; batch70 (mutator 形式级甄别): 同编码低修订回退累加器分支 (portfolio L386).
 (deftest goal-attainment-skips-lower-revision-rows
   (let [rows [{:code "Q-B70" :revision 2 :status "published" :metric "revenue" :achievement_pct 120}
@@ -809,3 +827,100 @@
     (is (= 1 (:total s)))
     (is (= 1 (:met s)))
     (is (= {:metric "revenue" :total 1 :met 1 :avg-pct 120} (first (:by-metric s))))))
+
+
+(deftest forecast-eac-etc-is-derived-read-only
+  ;; H12/H13 预测完工成本: 纯函数三态 (正常/预算缺失/币种不一致) + 真实项目端到端暴露顶层 :forecast.
+  (let [f (forecast/forecast (fn [name params]
+                               (case name
+                                 :finance/latest-approved-total
+                                 (if (= "actual" (:kind params)) {:total_minor 40000 :currency "CNY"}
+                                     {:total_minor 100000 :currency "CNY"})
+                                 :finance/commitment-consumed {:committed_minor 25000}))
+                             1 "budget")]
+    ;; 正常: BAC 1000, AC 400, 已承诺 250 -> ETC 350, EAC 1000.
+    (is (true? (:available f)))
+    (is (= 100000 (:bac_minor f)))
+    (is (= 40000 (:ac_minor f)))
+    (is (= 25000 (:committed_minor f)))
+    (is (= 35000 (:etc_minor f)))
+    (is (= 100000 (:eac_minor f)))
+    (is (= "350.00" (:etc f)))
+    (is (= "1000.00" (:eac f)))
+    (is (false? (:over_budget f)))
+    ;; 已用 = 实际 + 已承诺 = 400 + 250 = 650, 占预算 65%; ETC 尚未发生, 剩余 35%.
+    (is (= 65000 (:used_minor f)))
+    (is (= 65 (:used_pct f)))
+    (is (= 35 (:remaining_pct f))))
+  ;; 超支: 预算 1000, 实际 900, 已承诺 300 -> ETC 截零, EAC 1200, over_budget.
+  (let [f (forecast/forecast (fn [name params]
+                               (case name
+                                 :finance/latest-approved-total
+                                 (if (= "actual" (:kind params)) {:total_minor 90000 :currency "CNY"}
+                                     {:total_minor 100000 :currency "CNY"})
+                                 :finance/commitment-consumed {:committed_minor 30000}
+                                 :config/list []))
+                             1 "budget")]
+    (is (true? (:over_budget f)))
+    (is (= 0 (:etc_minor f)))
+    (is (= 120000 (:eac_minor f))))
+  ;; 预算缺失: 不可算, 金额键全 nil, 不伪造 EAC.
+  (let [f (forecast/forecast (fn [name _]
+                               (case name
+                                 :finance/latest-approved-total nil
+                                 :finance/commitment-consumed {:committed_minor 5000}
+                                 :config/list []))
+                             1 "budget")]
+    (is (false? (:available f)))
+    (is (nil? (:eac_minor f)))
+    (is (nil? (:etc_minor f)))
+    (is (= 5000 (:committed_minor f)))
+    ;; 预算缺失是"不可比"而非"币种错配", 不得误报 mismatch.
+    (is (false? (:currency_mismatch f)))
+    (is (nil? (:currency f))))
+  ;; 币种不一致: 不做隐式换汇, 不可算并显式标注两端币种.
+  (let [f (forecast/forecast (fn [name params]
+                               (case name
+                                 :finance/latest-approved-total
+                                 (if (= "actual" (:kind params)) {:total_minor 90000 :currency "USD"}
+                                     {:total_minor 100000 :currency "CNY"})
+                                 :finance/commitment-consumed {:committed_minor 0}
+                                 :config/list []))
+                             1 "budget")]
+    (is (false? (:comparable f)))
+    (is (true? (:currency_mismatch f)))
+    (is (= "CNY" (:currency f)))
+    (is (= "USD" (:actual_currency f)))
+    (is (nil? (:eac_minor f))))
+  ;; 端到端: 真实预算版本 + 实际成本版本 (均独立批准) -> GET /finance 顶层 :forecast.
+  (let [{id :id} (executing-project! "预测完工项目")
+        create (fn [kind] (:result (cost/create! *service* (actor 9701) id {:version (version id) :kind kind :period "2026-09" :currency "CNY" :name (str kind "版本") :revenue "0" :reviewer_id 9702})))
+        entry (fn [vid amount] (cost/add-entry! *service* (actor 9701) id vid {:version (version id) :category "material" :label "材料" :amount amount}))
+        approve (fn [vid]
+                  (cost/submit! *service* (actor 9701) id vid {:version (version id)})
+                  (cost/review! *service* (actor 9702) id vid {:version (version id) :decision "approved" :reason "ok"}))
+        budget-v (create "budget")
+        actual-v (create "actual")]
+    (entry (:id budget-v) "1000")
+    (approve (:id budget-v))
+    (entry (:id actual-v) "400")
+    (approve (:id actual-v))
+    (let [fc (:forecast (finance/overview *service* (actor 9701) id))
+          b (:budget fc)]
+      (is (true? (:available b)))
+      (is (= "1000.00" (:bac b)))
+      (is (= "400.00" (:ac b)))
+      (is (= "600.00" (:etc b)))
+      (is (= "1000.00" (:eac b)))
+      (is (false? (:over_budget b)))))
+  ;; 只读派生: 概览多次读取不改费用版本状态.
+  (let [{id :id} (executing-project! "预测只读项目")
+        v (:result (cost/create! *service* (actor 9701) id {:version (version id) :kind "budget" :period "2026-09" :currency "CNY" :name "预算" :revenue "0" :reviewer_id 9702}))
+        _ (cost/add-entry! *service* (actor 9701) id (:id v) {:version (version id) :category "material" :label "材料" :amount "500"})
+        _ (cost/submit! *service* (actor 9701) id (:id v) {:version (version id)})
+        _ (cost/review! *service* (actor 9702) id (:id v) {:version (version id) :decision "approved" :reason "ok"})
+        before (mapv :status (:cost_versions (finance/overview *service* (actor 9701) id)))
+        _ (finance/overview *service* (actor 9701) id)
+        after (mapv :status (:cost_versions (finance/overview *service* (actor 9701) id)))]
+    (is (= before after))
+    (is (= ["approved"] after))))

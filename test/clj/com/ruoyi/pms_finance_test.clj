@@ -1,29 +1,33 @@
 (ns com.ruoyi.pms-finance-test
   "验证真实数据库中的精确成本,工时审批和完整生命周期闭环."
-  (:require [cheshire.core :as json]
-            [clojure.java.io :as io]
-            [clojure.test :refer [deftest is testing use-fixtures]]
-            [com.ruoyi.domain.pms.config :as config]
-            [com.ruoyi.domain.pms.kernel :as kernel]
-            [com.ruoyi.domain.pms.service :as pms]
-            [com.ruoyi.domain.pms.planning :as plan]
-            [com.ruoyi.domain.pms.governance :as gov]
-            [com.ruoyi.domain.pms.finance :as finance]
-            [com.ruoyi.domain.pms.finance-money :as money]
-            [com.ruoyi.domain.pms.finance-cost :as cost]
-            [com.ruoyi.domain.pms.finance-budget :as budget]
-            [com.ruoyi.domain.pms.finance-time :as time]
-            [com.ruoyi.domain.pms.finance-allocation :as allocation]
-            [com.ruoyi.domain.pms.closure :as closure]
-            [com.ruoyi.domain.pms.approval-chain :as chain]
-            [com.ruoyi.domain.pms.reopen :as reopen]
-            [com.ruoyi.pms-delivery-scenario :as scenario]
-            [com.ruoyi.domain.pms.lifecycle :as lifecycle]
-            [conman.core :as conman]
-            [migratus.core :as migratus]
-            [next.jdbc :as jdbc]))
+  (:require
+    [cheshire.core :as json]
+    [clojure.java.io :as io]
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [com.ruoyi.domain.pms.approval-chain :as chain]
+    [com.ruoyi.domain.pms.closure :as closure]
+    [com.ruoyi.domain.pms.config :as config]
+    [com.ruoyi.domain.pms.finance :as finance]
+    [com.ruoyi.domain.pms.finance-allocation :as allocation]
+    [com.ruoyi.domain.pms.finance-budget :as budget]
+    [com.ruoyi.domain.pms.finance-cost :as cost]
+    [com.ruoyi.domain.pms.finance-forecast :as forecast]
+    [com.ruoyi.domain.pms.finance-money :as money]
+    [com.ruoyi.domain.pms.finance-time :as time]
+    [com.ruoyi.domain.pms.governance :as gov]
+    [com.ruoyi.domain.pms.kernel :as kernel]
+    [com.ruoyi.domain.pms.lifecycle :as lifecycle]
+    [com.ruoyi.domain.pms.planning :as plan]
+    [com.ruoyi.domain.pms.reopen :as reopen]
+    [com.ruoyi.domain.pms.service :as pms]
+    [com.ruoyi.pms-delivery-scenario :as scenario]
+    [conman.core :as conman]
+    [migratus.core :as migratus]
+    [next.jdbc :as jdbc]))
+
 
 (def ^:dynamic *svc* nil)
+
 
 (defn- fixture
   "在隔离SQLite或CI的MySQL中迁移并建立专属审批账户."
@@ -34,7 +38,7 @@
         db (jdbc/get-datasource {:jdbcUrl url})]
     (try
       (migratus/migrate {:store :database :db {:datasource db}
-                        :migration-dir (if (.contains url "mysql") "migrations" "migrations-sqlite")})
+                         :migration-dir (if (.contains url "mysql") "migrations" "migrations-sqlite")})
       (jdbc/execute! db ["INSERT INTO sys_role(role_id,role_name,role_key,role_sort,status,del_flag) VALUES(9400,'Finance test','finance-test',40,'0','0')"])
       (jdbc/execute! db ["INSERT INTO sys_role_menu(role_id,menu_id) SELECT 9400,menu_id FROM sys_menu WHERE perms LIKE 'pms:%'"])
       (doseq [id [9401 9402 9403]]
@@ -44,18 +48,39 @@
                        (filter #(re-matches #"pms.*\.sql" (.getName %)))
                        (map #(str "sql/" (.getName %))) sort)
             queries (:fns (apply conman/bind-connection-map db {} files))
-            query (fn ([k p] ((get-in queries [k :fn]) p))
-                      ([tx k p] ((get-in queries [k :fn]) tx p)))]
+            query (fn
+                    ([k p] ((get-in queries [k :fn]) p))
+                    ([tx k p] ((get-in queries [k :fn]) tx p)))]
         (binding [*svc* {:db db :query-fn query}] (f)))
       (finally (when file (.delete file))))))
 
+
 (use-fixtures :once fixture)
 
-(defn- actor "读取实际有效身份和权限." [id] (pms/actor *svc* {:user-id id}))
-(defn- version "读取当前项目版本." [id] (:version ((:query-fn *svc*) :pms/project {:project_id id})))
-(defn- error-status "提取业务错误状态." [f] (try (f) nil (catch clojure.lang.ExceptionInfo e (:status (ex-data e)))))
-(defn- error-info "提取业务错误状态与文案, 成功时返回 nil." [f]
+
+(defn- actor
+  "读取实际有效身份和权限."
+  [id]
+  (pms/actor *svc* {:user-id id}))
+
+
+(defn- version
+  "读取当前项目版本."
+  [id]
+  (:version ((:query-fn *svc*) :pms/project {:project_id id})))
+
+
+(defn- error-status
+  "提取业务错误状态."
+  [f]
+  (try (f) nil (catch clojure.lang.ExceptionInfo e (:status (ex-data e)))))
+
+
+(defn- error-info
+  "提取业务错误状态与文案, 成功时返回 nil."
+  [f]
   (try (f) nil (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
+
 
 (defn- command!
   "以指定成员携带真实版本执行业务命令."
@@ -63,24 +88,30 @@
   ([uid f id args body]
    (apply f *svc* (actor uid) id (concat args [(assoc body :version (version id))]))))
 
+
 (defn- project!
   "创建项目并设置审批人和普通成员,不直接改生命周期状态."
   []
   (let [p (pms/create-project! *svc* (actor 9401)
-             {:project_no (str "FIN-" (kernel/id)) :name "生命周期验收"
-              :manager_id 9401 :dept_id 1 :start_date "2026-09-01" :end_date "2026-12-31"})
+                               {:project_no (str "FIN-" (kernel/id)) :name "生命周期验收"
+                                :manager_id 9401 :dept_id 1 :start_date "2026-09-01" :end_date "2026-12-31"})
         id (:project_id p)]
     (pms/set-member! *svc* (actor 9401) id {:user_id 9402 :role "viewer"})
     (pms/set-member! *svc* (actor 9401) id {:user_id 9403 :role "editor"})
     id))
 
-(defn- transition! "通过受控命令推进生命周期." [id status]
+
+(defn- transition!
+  "通过受控命令推进生命周期."
+  [id status]
   (command! pms/transition-project! id [] {:status status :reason "验收流程"}))
+
 
 (defn- task!
   "创建可以报工和验收的实际WBS任务."
   [id code]
   (:result (command! plan/create-task! id [] {:wbs_code code :name code :duration_days 1 :owner_id 9401})))
+
 
 (defn- gov!
   "调用治理的固定业务命令."
@@ -88,21 +119,24 @@
   ([uid id resource action rid body]
    (:result (command! uid gov/command! id [resource action rid] body))))
 
+
 (defn- document!
   "创建真实不可变验收记录."
   [id]
   (gov! id :documents :create nil {:code (kernel/id) :title "验收记录" :filename "proof.txt" :content "实际测试通过\n"}))
 
+
 (defn- gate!
   "从模板经检查和独立审批完成一个阶段Gate."
   [id stage document-id]
   (let [template (gov! id :gate-templates :create nil
-                      {:code stage :title (str stage "审查") :stage stage :required true
-                       :checks [{:code "proof" :title "实际证据" :required true}]})
+                       {:code stage :title (str stage "审查") :stage stage :required true
+                        :checks [{:code "proof" :title "实际证据" :required true}]})
         gate (gov! id :gates :create nil {:template_id (:id template) :title "质量审查" :reviewer_id 9402})]
     (gov! id :gates :checks (:id gate) {:checks [{:code "proof" :passed true :evidence_ids [document-id]}]})
     (gov! id :gates :submit (:id gate) {})
     (gov! 9402 id :gates :decision (:id gate) {:decision "approved" :reason "已独立检查证据"})))
+
 
 (defn- execution-project!
   "真实通过章程,计划基线和Gate后进入执行,不绕过任何生命周期校验."
@@ -110,7 +144,7 @@
   (let [id (project!) _ (transition! id "initiated") _ (transition! id "planning")
         task (task! id "1") document (document! id)
         charter (gov! id :charters :create nil
-                     {:title "交付章程" :objective "验收交付" :scope "设备" :success_criteria "通过试验" :sponsor_id 9403})]
+                      {:title "交付章程" :objective "验收交付" :scope "设备" :success_criteria "通过试验" :sponsor_id 9403})]
     (gov! id :charters :submit (:id charter) {:reviewer_id 9402})
     (gov! 9402 id :charters :decision (:id charter) {:decision "approved" :reason "范围明确"})
     (gate! id "execution" (:id document))
@@ -119,25 +153,29 @@
     (transition! id "execution")
     {:id id :task task :document document}))
 
+
 (defn- time!
   "提交真实任务工时并可选执行独立审批."
   [id task hours date approve?]
   (let [entry (:result (command! time/submit! id []
-                         {:task_id (:task_id task) :work_date date :hours hours :note "实际设计工作" :reviewer_id 9402}))]
+                                 {:task_id (:task_id task) :work_date date :hours hours :note "实际设计工作" :reviewer_id 9402}))]
     (when approve? (command! 9402 time/review! id [(:id entry)] {:decision "approved" :reason "工作已核验"}))
     entry))
+
 
 (defn- cost!
   "建立明确期间和币种的成本版本."
   [id kind]
   (:result (command! cost/create! id [] {:kind kind :period "2026-09" :currency "CNY"
-                                       :name "九月成本" :revenue "100.00" :reviewer_id 9402})))
+                                         :name "九月成本" :revenue "100.00" :reviewer_id 9402})))
+
 
 (defn- approve-cost!
   "提交已有成本版本并独立批准."
   [id cid]
   (command! cost/submit! id [cid] {})
   (command! 9402 cost/review! id [cid] {:decision "approved" :reason "核对完成"}))
+
 
 (deftest exact-money-and-conservation
   (is (= 29 (money/amount! "0.29" "成本")))
@@ -148,6 +186,7 @@
   (let [rows (money/distribute 100 [{:task_id "c" :minutes 1} {:task_id "a" :minutes 1} {:task_id "b" :minutes 1}])]
     (is (= 100 (reduce + (map :amount_minor rows))))
     (is (= {"a" 34 "b" 33 "c" 33} (into {} (map (juxt :task_id :amount_minor) rows))))))
+
 
 (deftest costs-are-immutable-and-review-is-independent
   (let [id (project!) v (cost! id "budget") cid (:id v)]
@@ -165,6 +204,7 @@
       (is (= "0.29" (get-in readmodel [:summary "budget" :amount]))))
     (is (= 403 (error-status #(finance/overview *svc* (update (actor 9403) :permissions disj "pms:finance:query") id))))))
 
+
 (deftest allocation-is-idempotent-and-conserves-real-costs
   (let [{:keys [id task]} (execution-project!) task-b (task! id "2") v (cost! id "actual")
         body {:amount "1.01" :from_date "2026-09-01" :to_date "2026-09-22" :idempotency_key "pool-1" :label "研发池"}]
@@ -181,6 +221,7 @@
       (is (= 409 (error-status #(command! allocation/allocate! id [(:id v)] (assoc body :amount "2")))))
       (is (= 409 (error-status #(command! cost/delete-entry! id [(:id v) (:id (first (:entries version)))] {})))))))
 
+
 (deftest day-cap-is-global-and-rejection-releases-reservation
   (let [a (execution-project!) b (execution-project!) date "2026-09-02"
         entry (time! (:id a) (:task a) "20" date false)]
@@ -191,16 +232,19 @@
     (is (empty? (:rows (finance/times *svc* (actor 9403) (:id b)))))
     (is (= 400 (error-status #(command! time/submit! (:id a) [] {:task_id (:task_id (:task b)) :work_date date :hours "1" :note "越界" :reviewer_id 9402}))))))
 
+
 (deftest financial-write-and-audit-roll-back-together
   (let [id (project!) cid (:id (cost! id "estimate")) before (version id) query (:query-fn *svc*)
-        failing (assoc *svc* :query-fn (fn ([k p] (query k p))
-                                       ([tx k p] (when (= k :pms/insert-event!) (throw (ex-info "audit down" {})))
-                                        (query tx k p))))]
+        failing (assoc *svc* :query-fn (fn
+                                         ([k p] (query k p))
+                                         ([tx k p] (when (= k :pms/insert-event!) (throw (ex-info "audit down" {})))
+                                                   (query tx k p))))]
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"audit down"
           (cost/add-entry! failing (actor 9401) id cid {:version before :category "labor" :label "设计" :amount "12.34"})))
     (is (= before (version id)))
     (is (empty? (:entries (first (:cost_versions (finance/overview *svc* (actor 9401) id))))))
     (is (= 409 (error-status #(cost/add-entry! *svc* (actor 9401) id cid {:version (dec before) :category "labor" :label "旧版本" :amount "1"}))))))
+
 
 (defn- closure-ready-project!
   "从实际执行完成到收尾,填入独立财务及质量证据."
@@ -208,7 +252,7 @@
   (let [{:keys [id task document] :as context} (execution-project!)
         cid (:id (cost! id "settlement"))
         requirement (gov! id :requirements :create nil
-                         {:code "URS-DELIVERY" :text "交付符合验收准则" :category "交付" :priority "required" :owner_id 9401})]
+                          {:code "URS-DELIVERY" :text "交付符合验收准则" :category "交付" :priority "required" :owner_id 9401})]
     (scenario/complete-delivery! *svc* 9401 9402 id (:task_id task) (:id document) (:id requirement))
     (command! plan/task-feedback! id [(:task_id task)] {:status "done" :percent_complete 100 :remaining_days 0})
     (transition! id "closing")
@@ -218,6 +262,7 @@
     (let [item (:result (command! closure/create-item! id ["check"] {:title "交付资料归档" :required true}))]
       (command! closure/complete-item! id ["check" (:id item)] {:evidence_ref (:id document) :comment "已确认归档"}))
     context))
+
 
 (deftest real-lifecycle-requires-all-evidence-and-independent-close
   (let [empty-id (project!)]
@@ -233,19 +278,20 @@
     (is (= "closed" (:status (transition! id "closed"))))
     (is (= 409 (error-status #(command! cost/create! id [] {:kind "actual"}))))))
 
+
 ;; batch52 (mutator 方向: cover the uncovered): closure 守卫 — 必需标记400, 移交接收人403, 重复审批409, 审批时阻塞项409.
 (deftest closure-item-and-review-guards
   (testing "收尾事项的必需标记必须是布尔值400"
     (let [id (project!)]
       (is (= 400 (error-status #(command! closure/create-item! id ["check"]
-                                           {:title "标记校验" :required "yes"}))))))
+                                          {:title "标记校验" :required "yes"}))))))
   (testing "非指定接收人不能确认遗留移交403, 接收人本人可以"
     (let [id (project!)
           document (document! id)
           item (:result (command! closure/create-item! id ["handoff"]
                                   {:title "资料移交" :owner_id 9403 :due_date "2026-10-01"}))]
       (is (= 403 (error-status #(command! closure/complete-item! id ["handoff" (:id item)]
-                                           {:evidence_ref (:id document) :comment "我来确认"}))))
+                                          {:evidence_ref (:id document) :comment "我来确认"}))))
       (is (= "completed" (:status (:result (command! 9403 closure/complete-item! id ["handoff" (:id item)]
                                                      {:evidence_ref (:id document) :comment "接收确认"})))))))
   (testing "关闭申请已审批后不能再次审批409"
@@ -270,6 +316,7 @@
     (command! 9402 closure/review! id [] {:decision "approved" :reason "新快照通过"})
     (is (= "closed" (:status (transition! id "closed"))))))
 
+
 (deftest revoked-creator-and-paused-project-cannot-write
   (let [id (project!)]
     (pms/update-project! *svc* (actor 9401) id {:version (version id) :manager_id 9403})
@@ -281,15 +328,16 @@
     (is (= 409 (error-status #(command! cost/create! id [] {:kind "actual"}))))
     (is (= "execution" (:status (transition! id "execution"))))))
 
+
 (deftest closed-project-reopening-requires-new-independent-close
   (let [{:keys [id]} (closure-ready-project!)]
     (command! closure/submit! id [] {:reviewer_id 9402})
     (command! 9402 closure/review! id [] {:decision "approved" :reason "初次关闭"})
     (transition! id "closed")
     (let [request (:result (command! reopen/request! id []
-                            {:reviewer_id 9402 :scope "纠正交付归档" :reason "客户提出资料更正"}))]
+                                     {:reviewer_id 9402 :scope "纠正交付归档" :reason "客户提出资料更正"}))]
       (is (= 409 (error-status #(command! reopen/request! id []
-                                {:reviewer_id 9402 :scope "重复申请" :reason "已有待审批申请"}))))
+                                          {:reviewer_id 9402 :scope "重复申请" :reason "已有待审批申请"}))))
       (is (= 403 (error-status #(command! reopen/review! id [(:id request)] {:decision "approved" :reason "自审"}))))
       (command! 9402 reopen/review! id [(:id request)] {:decision "approved" :reason "同意受控更正"})
       (is (= "closing" (:status (pms/project *svc* (actor 9401) id))))
@@ -299,15 +347,17 @@
       (command! 9402 closure/review! id [] {:decision "approved" :reason "重新确认新依据"})
       (is (= "closed" (:status (transition! id "closed")))))))
 
+
 (deftest pending-financial-reviewer-cannot-be-removed
   (let [id (project!) cost-version (cost! id "actual")]
     (is (= 409 (error-status #(command! lifecycle/remove-member! id [9402] {}))))
     (command! cost/cancel! id [(:id cost-version)] {:reason "本次不再提交"})
     (is (= "removed" (get-in (command! lifecycle/remove-member! id [9402] {}) [:result :status])))))
 
+
 (deftest zero-revenue-profit-and-financial-audit-privacy
   (let [id (project!) version (:result (command! cost/create! id []
-                        {:kind "actual" :period "2026-09" :currency "CNY" :name "无收入成本" :revenue "0" :reviewer_id 9402}))
+                                                 {:kind "actual" :period "2026-09" :currency "CNY" :name "无收入成本" :revenue "0" :reviewer_id 9402}))
         cid (:id version)]
     (command! cost/add-entry! id [cid] {:category "other" :label "明确成本" :amount "100"})
     (command! cost/submit! id [cid] {})
@@ -318,20 +368,21 @@
     (command! cost/add-entry! id [(:id version)] {:category "other" :label "本项目零费用确认" :amount "0"})
     (is (= "approved" (get-in (approve-cost! id (:id version)) [:result :status])))))
 
+
 ;; batch55 (mutator 方向: cover the uncovered): cost 版本四门 — 口径400, 未知版本404, 删除明细成功, 非草稿取消409.
 (deftest cost-version-lifecycle-gates
   (let [id (project!)
         version (:result (command! cost/create! id [] {:kind "estimate" :period "2026-11" :currency "CNY"
-                                                        :name "十一月估算" :revenue "100.00" :reviewer_id 9402}))]
+                                                       :name "十一月估算" :revenue "100.00" :reviewer_id 9402}))]
     (testing "费用口径受控400"
       (is (= 400 (error-status #(command! cost/create! id [] {:kind "weird" :period "2026-11" :currency "CNY"
                                                               :name "坏口径" :revenue "0" :reviewer_id 9402})))))
     (testing "未知费用版本404"
       (is (= 404 (error-status #(command! cost/add-entry! id ["no-such-version"]
-                                           {:category "material" :label "x" :amount "1"})))))
+                                          {:category "material" :label "x" :amount "1"})))))
     (testing "草稿明细可删除: 成功路径返回版本 dto 且明细消失"
       (let [with-entry (:result (command! cost/add-entry! id [(:id version)]
-                                           {:category "material" :label "临时明细" :amount "10"}))
+                                          {:category "material" :label "临时明细" :amount "10"}))
             entry (first (filter #(= "临时明细" (:label %)) (:entries with-entry)))]
         (is (some? entry))
         (let [after (:result (command! cost/delete-entry! id [(:id version) (:entry_id entry)] {}))]
@@ -368,6 +419,7 @@
     (is (= "submitted" (:status (:result (command! cost/submit! id [c2] {})))))
     (is (not-any? #{"2026-09"} (:locked_periods (finance/overview *svc* (actor 9401) id))))))
 
+
 (deftest period-lock-does-not-gate-independent-cost-review
   (let [id (project!)
         cid (:id (:result (command! cost/create! id [] {:kind "budget" :period "2026-09" :currency "CNY" :name "预算E" :revenue "100.00" :reviewer_id 9402})))]
@@ -377,6 +429,7 @@
     (is (= "approved" (:status (:result (command! 9402 cost/review! id [cid] {:decision "approved" :reason "封期后独立批准"})))))
     (let [lock (first (filter #(= "2026-09" (:period %)) (config/published (:query-fn *svc*) "period-lock")))]
       (config/retire! *svc* (actor 9401) "period-lock" (:id lock) {:reason "重开月结"}))))
+
 
 (deftest lesson-summary-aggregates-categories-and-authors-read-only
   (let [empty (closure/lesson-summary [])]
@@ -404,6 +457,7 @@
     (is (= [{:category "交付" :count 2} {:category "成本" :count 1} {:category "质量" :count 1}]
            (:by-category s)))))
 
+
 (deftest lesson-summary-in-closure-overview-is-read-only
   (let [id (project!)]
     (is (false? (:available (:lesson_summary (closure/overview *svc* (actor 9401) id)))))
@@ -423,6 +477,7 @@
       ;; 只读派生: 不改变 progress 的经验计数, 也不改动任何写路径
       (is (= 3 (:lessons (:progress ov))))
       (is (= 3 (count (:lessons ov)))))))
+
 
 (deftest lesson-context-owner-persists-and-echoes-in-read-model
   (let [id (project!)]
@@ -458,13 +513,15 @@
       (is (= 3 (:owner-assigned ls)))
       (is (= 60 (:owner-coverage-pct ls))))))
 
+
 (deftest lesson-invalid-stage-rejected
   (let [id (project!)]
     (is (= 400 (error-status #(command! closure/create-lesson! id [] {:title "坏场景" :category "交付" :content "x"
                                                                       :applicable_stage "未知场景"}))))
     ;; 合法场景仍然通过, 与枚举白名单一致
     (is (= "采购" (:applicable_stage (:result (command! closure/create-lesson! id [] {:title "好场景" :category "交付" :content "y"
-                                                                                     :applicable_stage "采购"})))))))
+                                                                                    :applicable_stage "采购"})))))))
+
 
 (deftest lesson-owner-must-be-valid-member
   (let [id (project!)]
@@ -480,6 +537,7 @@
         (is (= 0 (:stages-declared ls)))
         (is (= [] (:by-stage ls)))
         (is (= 0 (:owner-coverage-pct ls)))))))
+
 
 ;; batch58 (mutator 方向: cover the uncovered): closure 审批链适配器 finalize! 全路径 —
 ;; 发布 "closure" 策略后走 chain/decide! 收口, 覆盖批准落定, 驳回落定, 批准前收尾缺口 409,
@@ -538,6 +596,7 @@
         (when-let [p (config/published-by-code (:query-fn *svc*) "approval-policy" "closure")]
           (config/retire! *svc* admin "approval-policy" (:id p) {:reason "测试退役"}))))))
 
+
 ;; batch58 (mutator 方向: cover the uncovered): closure 提交, 复核与事项守卫 —
 ;; 收尾任务门 (L19/L22), 就绪复核缺口 (L65), 工作台带出审批且脱敏 (L125/L188),
 ;; 对象类型与移交期限 400 (L200/L208), 事项重复完成 404/409 (L220/L221),
@@ -594,12 +653,13 @@
       (command! closure/create-item! id ["check"] {:title "关闭前新增缺口" :required true})
       (is (= [409 "尚未完成: 关闭前新增缺口"] (error-info #(transition! id "closed")))))))
 
+
 ;; batch62 (mutator 方向: cover the uncovered): 分摊期间/金额校验 (L25/L26)
 ;; 与工时期间对齐费用版本期间 (L71).
 (deftest allocation-period-amount-and-version-alignment-guards
   (let [id (project!)
         v (:result (command! cost/create! id [] {:kind "actual" :period "2026-09" :currency "CNY"
-                                                :name "九月分摊" :revenue "0" :reviewer_id 9402}))]
+                                                 :name "九月分摊" :revenue "0" :reviewer_id 9402}))]
     (testing "分摊期间无效400 (结束早于开始)"
       (is (= [400 "分摊期间无效"]
              (error-info #(command! allocation/allocate! id [(:id v)]
@@ -615,6 +675,7 @@
              (error-info #(command! allocation/allocate! id [(:id v)]
                                     {:amount "1.00" :from_date "2026-10-01" :to_date "2026-10-05"
                                      :idempotency_key "wrong-month" :label "跨月期间"})))))))
+
 
 ;; batch66 (mutator 方向: cover the uncovered): 工时小数位/未来日期400 (money L29/time L32)
 ;; 与 closure-blockers 费用草稿/待审工时分支 (finance L216/L218), 预算规则跨项目停用403 (L141-142).
@@ -645,6 +706,7 @@
            (error-info #(command! budget/disable-rule! b [(or (:id rule) (:rule_id rule))]
                                   {:reason "越权停用"}))))))
 
+
 ;; batch70 (mutator 形式级甄别): 汇总任务不计入收尾任务门 —
 ;; done 叶级 + summary 并存时 transition closing 放行 (closure L19 谓词两分支).
 (deftest summary-tasks-do-not-block-closing
@@ -653,6 +715,7 @@
     (command! plan/create-task! id [] {:wbs_code "SUM-70" :name "汇总节点" :task_type "summary"
                                        :duration_days 0 :owner_id 9401})
     (is (= "closing" (:status (transition! id "closing"))))))
+
 
 ;; batch71 (mutator 方向: cover the uncovered): 费用版本输入守卫群 (finance_cost
 ;; L62/L63/L64/L65/L66/L87/L108/L123/L124/L143/L157/L160 十二门).
@@ -775,6 +838,7 @@
         (when-let [p (config/published-by-code (:query-fn *svc*) "approval-policy" "closure")]
           (config/retire! *svc* admin "approval-policy" (:id p) {:reason "测试退役"}))))))
 
+
 ;; batch73 (mutator 方向: cover the uncovered): 工时提交/审核/更正输入守卫
 ;; (finance_time L26/L33/L60/L61/L80/L90 六门).
 (deftest time-submit-review-and-correction-input-guards
@@ -825,6 +889,7 @@
                (error-info #(command! 9402 time/review! (:id p1) [(:id corr)]
                                       {:decision "rejected" :reason "不予更正"}))))))))
 
+
 ;; ── H07 有效期费率表与批准工时人工成本只读派生 ─────────────────────
 
 (deftest rate-table-validates-effective-windows
@@ -851,6 +916,7 @@
       (is (= 400 (first (error-info (mk [{:code "D" :scope "role" :role "viewer" :amount_per_hour "10.00"
                                           :effective_from "2026/01/01"}]))))))))
 
+
 (deftest approved-times-derive-labor-cost-with-effective-rates
   (let [env (execution-project!) id (:id env) task (:task env)
         rates (fn [person-amount]
@@ -859,12 +925,12 @@
                  {:code "R-EDT" :scope "role" :role "editor" :amount_per_hour "80.00" :effective_from "2026-09-01"}])]
     (testing "创建并发布有效期费率表"
       (let [rec (config/create! *svc* (actor 9401) "rate-table"
-                  {:base_currency "CNY" :reason "验收费率" :rates (rates "150.00")})]
+                                {:base_currency "CNY" :reason "验收费率" :rates (rates "150.00")})]
         (config/publish! *svc* (actor 9401) "rate-table" (:id rec) {:reason "启用费率"})))
     (testing "已批准工时按人员费率, 角色费率与生效前未覆盖分别折算"
       (time! id task "2" "2026-09-08" true)
       (let [e (:result (command! 9403 time/submit! id []
-                        {:task_id (:task_id task) :work_date "2026-09-09" :hours "1" :note "编辑支持" :reviewer_id 9402}))]
+                                 {:task_id (:task_id task) :work_date "2026-09-09" :hours "1" :note "编辑支持" :reviewer_id 9402}))]
         (command! 9402 time/review! id [(:id e)] {:decision "approved" :reason "核验"}))
       (time! id task "2" "2026-08-15" true)
       (let [lc (:labor_cost (finance/overview *svc* (actor 9401) id))]
@@ -882,9 +948,168 @@
     (testing "修订费率并发布后按新费率重算 (版本化不改旧版)"
       (let [old (config/published-by-code (:query-fn *svc*) "rate-table" "RATE-CNY")
             revised (config/revise! *svc* (actor 9401) "rate-table" (:id old)
-                      {:base_currency "CNY" :reason "调价"
-                       :rates [{:code "P-9401" :scope "person" :user_id 9401 :amount_per_hour "200.00" :effective_from "2026-09-01"}
-                               {:code "R-MGR" :scope "role" :role "manager" :amount_per_hour "100.00" :effective_from "2026-09-01"}
-                               {:code "R-EDT" :scope "role" :role "editor" :amount_per_hour "80.00" :effective_from "2026-09-01"}]})]
+                                    {:base_currency "CNY" :reason "调价"
+                                     :rates [{:code "P-9401" :scope "person" :user_id 9401 :amount_per_hour "200.00" :effective_from "2026-09-01"}
+                                             {:code "R-MGR" :scope "role" :role "manager" :amount_per_hour "100.00" :effective_from "2026-09-01"}
+                                             {:code "R-EDT" :scope "role" :role "editor" :amount_per_hour "80.00" :effective_from "2026-09-01"}]})]
         (config/publish! *svc* (actor 9401) "rate-table" (:id revised) {:reason "调价发布"})
         (is (= 48000 (:covered_minor (:labor_cost (finance/overview *svc* (actor 9401) id)))))))))
+
+
+(deftest exchange-rate-validates-pairs-and-windows
+  ;; 同一本位币只能有一张汇率表 (其余走修订), 故不同小用例换本位币避免编码冲突.
+  (let [create (fn [base rates] #(config/create! *svc* (actor 9401) "exchange-rate" {:base_currency base :rates rates}))
+        mk (fn [rates] (create "CNY" rates))]
+    (testing "同一币种对有效期重叠400"
+      (is (= [400 "同一币种对的汇率有效期重叠"]
+             (error-info (mk [{:from_currency "USD" :to_currency "CNY" :rate "7.1"
+                               :effective_from "2026-01-01" :effective_to "2026-06-30"}
+                              {:from_currency "USD" :to_currency "CNY" :rate "7.2"
+                               :effective_from "2026-06-01" :effective_to "2026-12-31"}])))))
+    (testing "不同币种对可重叠 (互不冲突); 表编码与行编码均由后端按币种派生, 调用方不填"
+      (let [rec ((create "EUR" [{:from_currency "USD" :to_currency "EUR" :rate "0.92" :effective_from "2026-01-01"}
+                                {:from_currency "GBP" :to_currency "EUR" :rate "1.18" :effective_from "2026-01-01"}]))]
+        (is (= "FX-EUR" (:code rec)))
+        (is (= ["USD-EUR" "GBP-EUR"] (mapv :code (:rates rec))))))
+    (testing "调用方自带行编码400 (编码不可由用户指定)"
+      (is (= 400 (first (error-info (mk [{:code "X" :from_currency "USD" :to_currency "CNY" :rate "7.1"
+                                          :effective_from "2026-01-01"}]))))))
+    (testing "来源与目标币种相同400"
+      (is (= 400 (first (error-info (mk [{:from_currency "USD" :to_currency "USD" :rate "1"
+                                          :effective_from "2026-01-01"}]))))))
+    (testing "不支持的币种400"
+      (is (= 400 (first (error-info (mk [{:from_currency "JPY" :to_currency "CNY" :rate "1"
+                                          :effective_from "2026-01-01"}]))))))
+    (testing "非正汇率400"
+      (is (= 400 (first (error-info (mk [{:from_currency "USD" :to_currency "CNY" :rate "0"
+                                          :effective_from "2026-01-01"}]))))))
+    (testing "超过8位小数400"
+      (is (= 400 (first (error-info (mk [{:from_currency "USD" :to_currency "CNY" :rate "7.123456789"
+                                          :effective_from "2026-01-01"}]))))))
+    (testing "止日早于起日400"
+      (is (= 400 (first (error-info (mk [{:from_currency "USD" :to_currency "CNY" :rate "7.1"
+                                          :effective_from "2026-05-01" :effective_to "2026-04-01"}]))))))))
+
+
+(deftest exchange-rate-resolves-and-converts-without-floating-point
+  (let [rates [{:from_currency "USD" :to_currency "CNY" :rate "7.25"
+                :effective_from "2026-01-01" :effective_to "2026-06-30"}
+               {:from_currency "USD" :to_currency "CNY" :rate "7.50"
+                :effective_from "2026-07-01"}
+               {:from_currency "CNY" :to_currency "EUR" :rate "0.13"
+                :effective_from "2026-01-01"}]]
+    (testing "直接命中, 含端点"
+      (is (= "7.25" (:rate (forecast/resolve-rate rates "USD" "CNY" "2026-06-30" "CNY"))))
+      (is (= "7.50" (:rate (forecast/resolve-rate rates "USD" "CNY" "2026-07-01" "CNY")))))
+    (testing "未命中有效期返回 nil, 不猜汇率"
+      (is (nil? (forecast/resolve-rate rates "USD" "CNY" "2025-12-31" "CNY")))
+      (is (nil? (forecast/resolve-rate rates "GBP" "CNY" "2026-03-01" "CNY"))))
+    (testing "同币种恒为 1"
+      (is (= "1" (:rate (forecast/resolve-rate rates "USD" "USD" "2026-03-01" "CNY")))))
+    (testing "经本位币中转: USD->CNY->EUR, 乘积保留8位"
+      (let [r (forecast/resolve-rate rates "USD" "EUR" "2026-03-01" "CNY")]
+        (is (= "CNY" (second (:path r))))
+        (is (true? (:via-base r)))
+        (is (= "0.94250000" (:rate r)))))
+    (testing "折算四舍五入到分, 不经浮点"
+      (is (= 725 (forecast/convert-minor 100 "7.25")))
+      (is (= 439 (forecast/convert-minor 35 "12.55")))
+      (is (= 1 (forecast/convert-minor 1 "0.5")) "0.5 分向上取整到 1 分"))))
+
+
+(deftest forecast-converts-approved-actual-with-published-rate
+  (let [{:keys [id]} (execution-project!)
+        body (fn [kind currency amount]
+               (:result (command! cost/create! id [] {:kind kind :period "2026-09" :currency currency
+                                                      :name (str kind "-fx") :revenue "0" :reviewer_id 9402})))
+        entry (fn [cid amount] (command! cost/add-entry! id [cid] {:category "material" :label "材料" :amount amount}))
+        approve (fn [cid] (command! cost/submit! id [cid] {}) (command! 9402 cost/review! id [cid] {:decision "approved" :reason "核对"}))
+        budget (body "budget" "CNY" nil) actual (body "actual" "USD" nil)]
+    (entry (:id budget) "1000")
+    (approve (:id budget))
+    (entry (:id actual) "100")
+    (approve (:id actual))
+    (testing "无已发布汇率 -> 不可算且标记币种不一致, 不隐式换汇"
+      (let [f (forecast/forecast (:query-fn *svc*) id "budget" "2026-03-01")]
+        (is (false? (:available f)))
+        (is (true? (:currency_mismatch f)))
+        (is (nil? (:eac_minor f)))
+        (is (nil? (:fx f)))))
+    (testing "发布汇率后 -> 实际折算到预算币种, 标注汇率与折算日期"
+      (let [rec (config/create! *svc* (actor 9401) "exchange-rate"
+                                {:base_currency "CNY" :reason "验汇率"
+                                 :rates [{:from_currency "USD" :to_currency "CNY" :rate "7.25"
+                                          :effective_from "2026-01-01"}]})]
+        (config/publish! *svc* (actor 9401) "exchange-rate" (:id rec) {:reason "启用汇率"}))
+      (let [f (forecast/forecast (:query-fn *svc*) id "budget" "2026-03-01")]
+        (is (true? (:available f)))
+        (is (false? (:currency_mismatch f)))
+        (is (= 10000 (:ac_source_minor f)) "原始美元金额保留")
+        (is (= 72500 (:ac_minor f)) "100 USD x 7.25 -> 725 CNY")
+        (is (= 27500 (:etc_minor f)))
+        (is (= 100000 (:eac_minor f)))
+        (is (= "7.25" (get-in f [:fx :rate])))
+        (is (= "2026-03-01" (get-in f [:fx :date])))
+        (is (= "USD" (get-in f [:fx :from])))
+        (is (true? (get-in f [:fx :converted])))))
+    (testing "概览顶层 forecast 也走同一折算口径"
+      (let [f (get-in (finance/overview *svc* (actor 9401) id) [:forecast :budget])]
+        (is (true? (:available f)))
+        (is (= "725.00" (:ac f)))))))
+
+
+(deftest tax-rate-validates-scope-and-ceiling
+  ;; 税率表: 编码由本位币派生; 比例必须 0-1 且最多 6 位小数; 净利率不得超过 1 - 增值税税率.
+  (let [mk (fn [m] #(config/create! *svc* (actor 9401) "tax-rate" (merge {:reason "验税率"} m)))]
+    (testing "净利率超过 1 - 税率 400"
+      (is (= [400 "净利率不能超过 1 - 增值税税率"]
+             (error-info (mk {:base_currency "CNY" :vat_rate "0.13" :net_rate "0.9"})))))
+    (testing "增值税税率超过 1 400"
+      (is (= 400 (first (error-info (mk {:base_currency "CNY" :vat_rate "1.2" :net_rate "0.1"}))))))
+    (testing "比例不是小数 400"
+      (is (= 400 (first (error-info (mk {:base_currency "CNY" :vat_rate "十三" :net_rate "0.1"}))))))
+    (testing "不支持的本位币 400"
+      (is (= 400 (first (error-info (mk {:base_currency "JPY" :vat_rate "0.13" :net_rate "0.1"}))))))
+    (testing "合法税率表编码为 TAX-<本位币>, 比例规范化为两位小数"
+      (let [rec ((mk {:base_currency "EUR" :vat_rate "0.2" :net_rate "0.05"}))]
+        (is (= "TAX-EUR" (:code rec)))
+        (is (= "0.20" (:vat_rate rec)))
+        (is (= "0.05" (:net_rate rec)))))))
+
+
+(deftest net-margin-requires-published-tax-rate
+  ;; F08 税后净利只读派生: 无税率表时如实不可算; 发布后按 收入 - 税额 - 净利率×收入 派生.
+  (let [{:keys [id]} (execution-project!)
+        create (fn [kind revenue]
+                 (:result (command! cost/create! id [] {:kind kind :period "2026-09" :currency "CNY"
+                                                        :name (str kind "-tax") :revenue revenue :reviewer_id 9402})))
+        entry (fn [cid amount] (command! cost/add-entry! id [cid] {:category "material" :label "材料" :amount amount}))
+        approve (fn [cid] (command! cost/submit! id [cid] {}) (command! 9402 cost/review! id [cid] {:decision "approved" :reason "核对"}))
+        estimate (create "estimate" "1000")]
+    (entry (:id estimate) "600")
+    (approve (:id estimate))
+    (let [cm (:cost_margin (finance/overview *svc* (actor 9401) id))]
+      (is (nil? (:tax cm)) "无已发布税率表时不给税率口径")
+      (is (false? (:taxable cm)))
+      (is (nil? (:net_margin (first (filter #(= "estimate" (:kind %)) (:by-kind cm))))) "净利不可算而非取默认税率"))
+    ;; 发布税率表 13% 增值税 + 5% 净利率.
+    (let [rec (config/create! *svc* (actor 9401) "tax-rate" {:base_currency "CNY" :vat_rate "0.13" :net_rate "0.05" :reason "验净利"})]
+      (config/publish! *svc* (actor 9401) "tax-rate" (:id rec) {:reason "启用税率"}))
+    (let [cm (:cost_margin (finance/overview *svc* (actor 9401) id))
+          est (first (filter #(= "estimate" (:kind %)) (:by-kind cm)))]
+      (is (= "TAX-CNY" (get-in cm [:tax :code])))
+      (is (true? (:taxable cm)))
+      (is (true? (:taxable est)))
+      (is (= "0.13" (:vat_rate est)))
+      (is (= "130.00" (:tax_amount est)) "1000 x 13% = 130.00")
+      (is (= "820.00" (:net_margin est)) "1000 - 130 (13%) - 50 (5%) = 820.00")
+      (is (= 82 (:net_margin_pct est)))
+      (is (= "400.00" (:margin est)) "税前毛利不受税率影响"))
+    (testing "税率表币种与版本币种不一致时不套用税率 (不猜折算税率)"
+      (let [usd (create "budget" "1000")
+            cm (do (entry (:id usd) "100") (approve (:id usd))
+                   (:cost_margin (finance/overview *svc* (actor 9401) id)))
+            budget (first (filter #(= "budget" (:kind %)) (:by-kind cm)))]
+        (is (true? (:taxable budget)) "本币版本仍按 CNY 税率派生")))
+    (testing "净利率上限: 加入 80% 净利率与 13% 税率组合仍合法, 1 - 0.13 = 0.87"
+      (is (fn? #(config/create! *svc* (actor 9401) "tax-rate" {:base_currency "GBP" :vat_rate "0.13" :net_rate "0.87" :reason "边界"}))))))

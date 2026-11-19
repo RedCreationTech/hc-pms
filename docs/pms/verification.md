@@ -2614,3 +2614,60 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 - 八类真实系统字段/认证/责任边界/沙箱尚未提供;本地通用协议和回执测试不代表CRM/OA/ERP/PLM/MES/SRM/销服物料/BI已联通.
 - 完整主子单机计划网络/进度卷积/局部暂停,专属业务模板/沟通自动提醒与消息渠道推送,二进制/密级/批量文档及正式签发,完整财务更正封期/费率/跨项目池/汇率税务/经营口径,AI等仍按矩阵保留真实待办.
 - 生产升级/回退和备份恢复,负载/兼容性/既有数据迁移/业务UAT尚未验收. 未重跑继承模板全部历史办公/BPM测试. 公开源码和本地启动不等于生产部署.
+
+## H12 延伸 预测完工成本 EAC/ETC (增量7 切片, 2026-11-18)
+
+设计与口径: 兑现矩阵 H12 长期标注"待: 预测完工成本 EAC 公式"的缺口. 新增 `finance_forecast` 纯派生命名空间, GET `/finance` 顶层 `forecast` 按 `budget` 与 `estimate` 两个基线口径各输出一份: BAC 取该口径最新已批准费用版本总金额, AC 取最新已批准 actual 版本总金额, 已承诺取 `pms_cost_commitment` 中 submitted/approved 的本位金额合计. `ETC = max(BAC - AC - 已承诺, 0)`, `EAC = AC + 已承诺 + ETC`; 已用率与剩余率按**已发生**口径 (`AC + 已承诺`) 计算, 因此未发生的 ETC 不会虚高占用率. 超支时 ETC 截零, `over_budget=true`, 不出现负 ETC.
+
+不可算情形如实标注而不伪造: 无已批准基线或总额非正时 `available=false` 且全部金额键为 nil; 已批准实际币种与预算不一致时同样不可算, 并回传 `currency`/`actual_currency` 供界面提示人工对账, **不做隐式换汇**. 预算缺失属于"不可比"而非"错配", 故 `currency_mismatch` 要求两端都存在才可能为 true (浏览器验收已断言不会误报 `( / CNY)`).
+
+这是读取时派生: 不写任何费用版本、不与费用池分摊重复计费、不构成门控, 故不影响既有四算与封期口径.
+
+| 项目 | 结果 |
+|---|---|
+| 领域测试 | `forecast-eac-etc-is-derived-read-only`: 纯函数四态 (正常 BAC 1000/AC 400/承诺 250 -> ETC 350/EAC 1000 已用 65%; 超支 ETC 截零 EAC 1200; 预算缺失不可算且不误报币种; 币种不一致不可算并回传两边币种) + 真实项目端到端 (预算 1000 + 实际 400 独立批准 -> overview 暴露 `:forecast`) + 只读性 (两次读取费用版本状态不变) |
+| 套件回归 | `clojure -M:test -n com.ruoyi.pms-portfolio-test` 17 tests / 322 assertions, 0 failures/errors |
+| 全量回归 | 见本页验证表 (SQLite) |
+| 前端 | `npx shadow-cljs compile app` 0 warnings; 新面板"预测完工成本 (EAC/ETC)" |
+| 浏览器 | `pms-h12eac.spec.js` 1 passed: 空态两个口径均"缺少可比的已批准预算, 不可算" -> 预算+实际独立批准后 BAC 1000/AC 400/ETC 600/EAC 1000/已用 40% -> 登记并提交 300 承诺后 ETC 300/EAC 1000/已用 70%, 并断言概算口径不误报币种不一致; 真实截图 `reports/h12eac/` |
+
+边界: EAC 为本地确定性算式 (预算 - 实际 - 已承诺), **不是** EVM 绩效指数法 (CPI/SPI 推算), 也没接入税额、多币种对账与结算回执, 故矩阵 H12 行状态保持 `implemented / local` 不因本切片上行到生产验收, H13 的税额/汇率/结算对账仍待规则.
+
+## H13 多币种汇率表与看板折算 (增量7 切片, 2026-11-19)
+
+设计与口径: 兑现矩阵 H13 长期标注"待: 多币种/汇率"的缺口. 平台级配置新增 `exchange-rate` kind (与 `rate-table` 同构的版本化配置): 一张汇率表按**本位币种**区分 (`code = FX-<本位币>`, 同一本位币只允许一张, 其余走修订), 表内每条汇率行是 `来源币种 -> 目标币种` 的有效期区间 (生效起止**含端点**, 止日可空表示持续有效), 汇率以最多 8 位小数的**字符串**表达, 由 `finance_forecast` 用 `BigDecimal` 解释, 全程不经 double. 校验: 币种必须在 `finance_money/currencies` (CNY/USD/EUR/GBP/HKD) 内, 来源与目标不可相同, 汇率为正数且匹配 `[0-9]{1,9}(\.[0-9]{1,8})?`, 生效止日不早于起日, **同一币种对的生效区间不可重叠** (重叠会让同一日期有两个汇率, 折算结果不确定), 单表 1-200 行. 行编码 `USD-CNY` 与表编码 `FX-CNY` 均由后端派生, 调用方自带编码按非法字段 400 拒绝, 避免界面与接口出现两套编码口径. 双库迁移 `202611190001-exchange-rate-kind` 重建/更新 `kind` CHECK 白名单 (SQLite 重建表, MySQL `DROP CHECK` + `ADD CONSTRAINT`), 已实测 up/down/re-up 往返. 权限 `pms:finance:approve` (与费率表同口径: 看板折算属于财务口径).
+
+折算算法 (`finance_forecast`): 给定日期的**直接命中**优先 (`A -> B`); 无直达汇率时经本位币中转 `A -> base -> B`, 乘积 `setScale 8 HALF_UP`, 并在输出标注 `via_base=true`. 结果以 `convert-minor` 走 `longValueExact` 转整数最小货币单位 (分), 拒绝静默截断. 预测完工成本 (`forecast`) 因此新增 `:ac_source_minor` (原始外币金额) 与 `:fx {:from :to :rate :path :via_base :date :converted}`: 币种不一致时**只在存在可比汇率时**折算 AC, 否则仍然 `available=false` + `currency_mismatch=true`, 不估算、不取默认汇率. 前端"预测完工成本 (EAC/ETC)"面板在有折算时显示 `(由 N 分 USD 按 直连/中转汇率 X 折算, 折算日 Y)` 与 `已折算 USD→CNY @rate` 徽标, 保留原始分值可追溯.
+
+这是读取时派生: 不写任何账项、不构成门控, 折算只用于看板口径.
+
+| 项目 | 结果 |
+|---|---|
+| 领域测试 | `exchange-rate-validates-pairs-and-windows` (重叠区间 400 / 不同币种对可重叠且编码后端派生 `FX-EUR`+`USD-EUR` / 同币种 400 / 不支持币种 400 / 负数与 9 位小数 400 / 取止日早于起日 400 / 自带行编码 400); `exchange-rate-resolves-and-converts-without-floating-point` (直接命中 / 窗口外 nil / 经本位币中转乘积 8 位; `convert-minor` 0.5 分向上取整); `forecast-converts-approved-actual-with-published-rate` (发布汇率前不可算且 `fx` 为 nil -> 发布后 100 USD x 7.25 = 725 CNY 且 `ac_source_minor=10000`, ETC/EAC 随折算更新) |
+| 套件回归 | `clojure -J-Xmx1800m -M:test -n com.ruoyi.pms-finance-test` 39 tests / 248 assertions, 0 failures/errors |
+| 全量回归 | `clojure -J-Xmx1800m -M:test` 827 tests / 7804 assertions, 0 failures/errors (SQLite) |
+| 前端 | `npx shadow-cljs compile app` 0 warnings; 模板与规则新增"汇率表"页签 (建立/发布/修订/退役 + 详情币种对表格), 折算标注见上 |
+| 浏览器 | `pms-h13fx.spec.js` 1 passed: 界面建立 USD->CNY 7.1234 并发布 -> 详情弹出 `USD -> CNY` 行 -> 预算 CNY 1000 + 实际 USD 100 独立批准 -> 面板显示 `AC 712.34 元 (由 10000 分 USD 按 直连汇率 7.1234 折算, 折算日 ...)` 与 `已折算 USD→CNY @7.1234`, 不出现"币种不一致" -> 退役汇率表后回落为 `币种不一致 (CNY / USD) 不可算` 且无折算徽标; 真实截图 `reports/h13fx/` |
+| 回归修复 | 顺带修两处环境/重跑脆弱用例: `pms-h07-rates.spec.js` 同编码下草稿与已退役行并存导致 strict 冲突 (改为按状态定位); `bpm_p1_test.clj` 分类列表 `size=100` 在共享库累积 121 条后把本用例新建分类挤出第一页导致 `pos` 为 nil (改为 `size=1000`) |
+
+边界: 汇率表覆盖的是**看板折算口径**, 不做复式记账/汇兑损益/月末重估; 税额、收入确认、开票/回款/付款/结算对账与财务批准算法仍未触碰, 故矩阵 H13 行保持 `partial` 不上行; MySQL 迁移文件已同步但本机无 MySQL 实例未实跑.
+
+## F08 延伸 税后净利与税率表 (增量7 切片, 2026-11-19)
+
+设计与口径: 兑现矩阵 F08 长期标注"待: 净利公式/税额"的缺口. 平台级配置新增 `tax-rate` kind: 按**本位币种**一张表 (`code = TAX-<本位币>`), 表内是增值税税率与净利率两个 0-1 之间的比例 (最多 6 位小数, 字符串表达), 编码由后端派生. 校验: 本位币在支持范围内, 两个比例匹配 `[0-9]{1,2}(\.[0-9]{1,6})?`, 增值税税率 ≤ 1, **净利率 ≤ 1 - 增值税税率** (保证税后净利非负), 双库迁移 `202611190002` 更新 kind CHECK 白名单, 权限 `pms:finance:approve` (与费率表/汇率表同口径: 属于财务口径).
+
+派生 (`finance/margin-summary` 双 arity, 第二参数为已发布税率表): 对每个有已批准版本的口径追加 `taxable` / `vat_rate` / `tax_amount` / `net_margin` / `net_margin_pct`:
+`tax_amount = round(收入 × 增值税税率, 2)`; `net_margin = 收入 - tax_amount - round(收入 × 净利率, 2)`; `net_margin_pct = round(100 × net_margin / 收入)`, 全程 `BigDecimal` + `HALF_UP`, 不经 double. 税前毛利与毛利率**不受税率影响**, 两条口径并列展示.
+
+不可算情形如实标注而不伪造: 无已发布税率表, 或税率表本位币与该口径币种不一致时 `taxable=false` 且净利相关键为 nil, 界面显示"未发布税率表, 税后净利不可算", **不取默认税率**. 这是读取时派生: 不写任何费用版本、不构成门控.
+
+| 项目 | 结果 |
+|---|---|
+| 领域测试 | `tax-rate-validates-scope-and-ceiling` (净利率超过 1 - 税率 400 / 增值税税率 > 1 400 / 非小数 400 / 不支持本位币 400 / 合法时编码 `TAX-EUR` 且比例规范化为两位小数); `net-margin-requires-published-tax-rate` (无税率表 `tax=nil`/`taxable=false`/净利 nil -> 发布 13%+5% 后 1000 收入派生税额 130.00 与净利 820.00/82%, 税前毛利 400.00 不变 -> 币种口径不一致不套用 -> 净利率 0.87 与 13% 组合合法边界) |
+| 套件回归 | `clojure -J-Xmx1800m -M:test -n com.ruoyi.pms-finance-test` 41 tests / 268 assertions, 0 failures/errors |
+| 全量回归 | `clojure -J-Xmx1800m -M:test` 829 tests / 7824 assertions, 0 failures/errors (SQLite) |
+| 前端 | `npx shadow-cljs compile app` 0 warnings; 模板与规则新增"税率表"页签 (建立/发布/退役 + 只读详情), 成本毛利看板新增税率口径徽标与逐口径税后净利徽标 |
+| 浏览器 | `pms-f08net.spec.js` 1 passed: 概算 1000/成本 600 独立批准 -> 无税率表时面板"未发布税率表, 税后净利不可算"且无净利徽标 -> 界面建立并发布 13%+5% -> 面板显示 `税率口径 TAX-CNY · 增值税 0.13 · 净利率 0.05` 与 `税后净利 820.00 元 (82%) 含税 130.00 元`, 接口 `cost_margin` 同源一致 -> 退役后回落不可算且 `tax=null`; 真实截图 `reports/f08net/` |
+| 回归 | `pms-f08mb.spec.js` / `pms-h13fx.spec.js` / `pms-h12eac.spec.js` 3 passed |
+
+边界: 税率表只覆盖**本项目本地毛利口径的税额与净利**, 不做多档税率/进项抵扣/递延税/收入确认, 也不做跨产品线经营分析; 税率按本位币维护, 外币口径需先折算 (与 H13 汇率口径一致, 未做自动联动). 矩阵 F08 行保持 `partial`, 不因本切片上行; MySQL 迁移文件已同步但本机无实例未实跑.
