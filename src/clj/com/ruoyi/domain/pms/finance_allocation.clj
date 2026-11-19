@@ -56,7 +56,7 @@
          {:entry_id (kernel/id) :project_id (:project_id params) :version_id (:version_id params)
           :category "labor" :label (str (:label params) " / " (:task_id row))
           :amount_minor (:amount_minor row)
-          :source_ref (str "allocation:" (:allocation_id allocation) ":" (:task_id row))}))
+          :source_ref (str "allocation:" (:allocation_id allocation) ":" (:task_id row)) :change_code nil}))
     (dto allocation)))
 
 

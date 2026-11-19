@@ -249,6 +249,15 @@
   {"material" "材料" "labor" "人工" "manufacturing" "制造" "travel" "差旅/现场" "other" "其它" "change_loss" "变更损失"})
 
 
+(defn- bind-change-dialog
+  "F07 把一条变更损失明细关联到已独立批准的正式变更."
+  [base cost entry]
+  {:title "关联正式变更" :path (str base "/cost-versions/" (:id cost) "/entries/" (:id entry) "/change")
+   :initial {:change_code ""}
+   :description (str (:label entry) " / " (:amount entry) " - 仅核算口径草稿版本可关联, 金额须与变更已声明成本影响一致")
+   :fields [{:key :change_code :label "变更编码" :required? true :hint "治理变更台账中的编码, 须已独立批准."}]})
+
+
 (defn- four-count-section
   "F06 四算拉通: 概算/预算/核算/决算最新批准版本按分类对比与逐级差异 (只读派生)."
   [{:keys [model]}]
@@ -364,6 +373,38 @@
                        [antd/tag {:color "green"} (str "税率口径 " (:code tax) " · 增值税 " (:vat_rate tax) " · 净利率 " (:net_rate tax))]
                        [antd/tag {:color "orange"} "未发布税率表, 税后净利不可算"])
                      (map row (:by-kind cm))))))]))
+
+
+(defn- change-loss-section
+  "F07 变更损失按产品线与变更类型只读汇总, 只统计已关联已批准变更的损失, 不与成本账项重复计费."
+  [{:keys [model]}]
+  (let [cl (:change_loss model)
+        bucket-table (fn [rows label]
+                       [antd/table {:rowKey "key" :size "small" :pagination false
+                                    :dataSource (clj->js (vec rows))
+                                    :columns (clj->js [{:title label :dataIndex "key"}
+                                                       {:title "笔数" :dataIndex "count"}
+                                                       {:title "损失金额" :dataIndex "amount"}
+                                                       {:title "量化工期 (天)" :dataIndex "schedule_days"}])}])]
+    [shared/panel "变更损失汇总" "只读派生 · 已批准变更的逐项损失, 按产品线与变更类型汇总, 不与成本账项重复计费" nil
+     (cond
+       (not (:available cl)) [:span {:style {:color "#98a2b3"}} "尚无已批准的四算版本, 无法汇总变更损失."]
+       (and (zero? (or (:total_count cl) 0)) (zero? (or (:unapproved_count cl) 0)) (zero? (or (:orphan_count cl) 0)))
+       [:span {:style {:color "#98a2b3"}} "暂无已关联的变更损失; 在核算口径草稿版本的变更损失条目上点击“关联变更”."]
+       :else
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "已计入笔数 " (:total_count cl))]
+         [antd/tag {:color "purple"} (str "累计损失 " (:total_amount cl) " " (or (:currency cl) ""))]
+         [antd/tag {:color "geekblue"} (str "累计工期影响 " (:total_schedule_days cl) " 天")]
+         [antd/tag {:color (if (:reconciled cl) "green" "red")}
+          (if (:reconciled cl) "全部损失均可追溯已批准变更" "存在未计入的损失行")]
+         (when (pos? (or (:unapproved_count cl) 0))
+           [antd/tag {:color "orange"} (str "待批准变更损失 " (:unapproved_count cl) " 笔 / " (:unapproved_amount cl))])
+         (when (pos? (or (:orphan_count cl) 0))
+           [antd/tag {:color "volcano"} (str "无对应变更记录 " (:orphan_count cl) " 笔 / " (:orphan_amount cl))])]
+        [bucket-table (:by_product_line cl) "产品线 (合同号)"]
+        [bucket-table (:by_type cl) "变更类型"]])]))
 
 
 (defn- forecast-section
@@ -512,14 +553,19 @@
      [approval/biz-flow base "cost-version" (:id cost)]
      [w/record-table (:entries cost)
       [(w/text-column :label "条目") {:title "类别" :dataIndex "category" :render #(or (:label (some (fn [x] (when (= % (:value x)) x)) categories)) %)}
-       (w/text-column :amount "金额") (w/text-column :source_ref "来源引用")]
-      (when (and editable? (= "draft" (:status cost)))
-        (fn [entry]
-          (when-not (.startsWith (or (:source_ref entry) "") "allocation:")
-            [w/edit-button "删除条目"
-             #(open! {:title "删除成本条目" :method :delete :fields []
-                      :description (str "删除条目: " (:label entry))
-                      :path (str base "/cost-versions/" (:id cost) "/entries/" (:id entry))})])))]]))
+       (w/text-column :amount "金额") (w/text-column :source_ref "来源引用")
+       {:title "关联变更" :dataIndex "change_code" :render (fn [code] (or code [antd/tag {:color "default"} "未关联"]))}]
+      (fn [entry]
+        (when-not (.startsWith (or (:source_ref entry) "") "allocation:")
+          [antd/space {:wrap true}
+           (when (and editable? (= "draft" (:status cost)) (= "actual" (:kind cost))
+                      (= "change_loss" (:category entry)) (nil? (:change_code entry)))
+             [w/edit-button "关联变更" #(open! (bind-change-dialog base cost entry))])
+           (when (and editable? (= "draft" (:status cost)))
+             [w/edit-button "删除条目"
+              #(open! {:title "删除成本条目" :method :delete :fields []
+                       :description (str "删除条目: " (:label entry))
+                       :path (str base "/cost-versions/" (:id cost) "/entries/" (:id entry))})])]))]]))
 
 
 (defn- allocation-history
@@ -651,6 +697,7 @@
                                                  [cost-review-section context]
                                                  [cost-margin-section context]
                                                  [forecast-section context]
+                                                 [change-loss-section context]
                                                  [labor-section context]
                                                  [four-count-section context]
                                                  [cost-section context] [ledger-section context selected] [allocation-review-section context] [allocation-history (:model context)]])}

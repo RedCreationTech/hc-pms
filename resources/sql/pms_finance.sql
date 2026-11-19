@@ -72,8 +72,20 @@ VALUES (:version_id,:project_id,:kind,:period,:currency,:name,:revenue_minor,:ve
 SELECT * FROM pms_cost_entry WHERE project_id=:project_id AND version_id=:version_id ORDER BY created_at,entry_id
 --;;
 -- :name finance/insert-entry! :! :n
-INSERT INTO pms_cost_entry(entry_id,project_id,version_id,category,label,amount_minor,source_ref)
-VALUES (:entry_id,:project_id,:version_id,:category,:label,:amount_minor,:source_ref)
+INSERT INTO pms_cost_entry(entry_id,project_id,version_id,category,label,amount_minor,source_ref,change_code)
+VALUES (:entry_id,:project_id,:version_id,:category,:label,:amount_minor,:source_ref,:change_code)
+--;;
+-- :name finance/bind-change! :! :n
+UPDATE pms_cost_entry SET change_code=:change_code
+WHERE project_id=:project_id AND version_id=:version_id AND entry_id=:entry_id
+--;;
+-- :name finance/change-loss-entries :? :*
+SELECT * FROM pms_cost_entry WHERE project_id=:project_id AND change_code IS NOT NULL
+ORDER BY version_id,change_code
+--;;
+-- :name pms/change-loss-in-projects :? :*
+SELECT * FROM pms_cost_entry WHERE project_id IN (:v*:project_ids) AND change_code IS NOT NULL
+ORDER BY project_id,version_id,change_code
 --;;
 -- :name finance/entry :? :1
 SELECT * FROM pms_cost_entry WHERE project_id=:project_id AND entry_id=:entry_id

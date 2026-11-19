@@ -97,3 +97,9 @@ POST `/closure/review`: project:close,指定独立审核人,decision/reason. 审
 ## 验证边界
 
 真实SQLite/MySQL和浏览器的本轮结果以verification.md为准. 测试包括整数金额/余差守恒/零工时/独立审核/同源幂等/审计失败回滚/成员撤权/实际物料至签收至关闭/关闭快照失效/独立重开. 模块不代替ERP财务总账,不宣称已接收真实收入/回款/税额合同或生产客户数据.
+
+## F07 变更损失关联 (增量7 切片)
+
+`POST /cost-versions/:cost_id/entries/:entry_id/change`: `{version, change_code}`. 把一条 `category=change_loss` 的核算明细关联到治理侧一条**已独立批准**的正式变更 (编码为 `pms_gov_record` 中 `kind=change` 记录的业务编码, 修订链共享同一编码, 最新修订被驳回即视为否决). 门控: 仅 `kind=actual` 的草稿版本 (其余 400); 非 `change_loss` 分类 400; 变更未批准/不存在 409; 变更已申报 `cost_impact_amount` 时损失金额必须与之精确相等 (否则 409, 保证不与成本账项重复计费); 同一版本内同一条变更只允许一条损失 (`UNIQUE(version_id,change_code)`, 重复 409); 已关联其它变更的明细须另建条目 409; 已批准版本不可再关联 409. 迁移 `202611190003-change-loss` 新增 `pms_cost_entry.change_code` 及唯一约束与索引 (SQLite 表重建 / MySQL ALTER, 双库同步).
+
+GET `/finance` 新增只读派生顶层键 `change_loss`: `{available, currency, line, reconciled, total_count, total_amount, total_schedule_days, by_product_line[], by_type[], unapproved_count, unapproved_amount, orphan_count, orphan_amount}`. 统计范围为已批准四算版本中 `change_code` 非空的明细, 同一条变更跨概算/预算/核算多份已批准版本时**按 actual > budget > estimate > settlement 只取一笔**, 不发生多口径累加. `by_product_line` 以项目 `contract_no` 为产品线分组键 (未填归入 `-`), `by_type` 以变更 `change_type` 分组 (未设定归入 `unspecified`), 每组含 `count` / `amount` / `schedule_days`. `reconciled` 为挂有 `change_code` 的明细是否全部可追溯到已批准变更; 未批准变更挂有的损失计入 `unapproved_count/amount` 但**不计入总额**, 变更记录缺失则计入 `orphan_count/amount`. 本接口只读派生, 不写任何费用版本, 不构成门控.
