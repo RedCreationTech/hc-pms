@@ -19,6 +19,7 @@
         "pms/targets" :pms-targets
         "pms/reports" :pms-reports
         "pms/platform" :pms-platform
+        "pms/notifications" :pms-notifications
         "system/user" :user
         "system/role" :role
         "system/menu" :menu
@@ -90,6 +91,7 @@
    :pms-targets "经营目标看板"
    :pms-reports "报表中心"
    :pms-platform "平台能力"
+   :pms-notifications "我的通知"
    :user "用户管理"
    :role "角色管理"
    :menu "菜单管理"

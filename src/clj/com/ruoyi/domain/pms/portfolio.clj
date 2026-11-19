@@ -203,11 +203,12 @@
              :due_soon (count (filter :due_soon all))}})
 
 
-(defn todo
-  "汇总待我审批, 待我确认升级, 我负责的到期/逾期事项与交底/现场时限, 只读派生供本地提醒."
-  [svc actor]
+(defn todo-rows
+  "按给定查询与日期派生当前用户全部待办条目 (按 group 折叠), 供待办接口与本地通知投递共用.
+   只读, 不落库; 返回前已按项目授权过滤."
+  [q actor today]
   (r/permit! actor ["pms:project:list" "pms:project:query"])
-  (let [q (:query-fn svc) uid (:user_id actor) today (LocalDate/now)
+  (let [uid (:user_id actor)
         approver? (or (:admin? actor) (contains? (:permissions actor) "pms:quality:approve"))
         active (filterv #(not (contains? #{"closed" "cancelled"} (:status %))) (authorized-projects q actor))
         gov-by (by-project q :pms/gov-in-projects active {:kinds ["charter" "change" "document" "gate" "risk" "issue" "action" "dq" "reminder"]} g/decode)
@@ -227,6 +228,12 @@
                         (chain/my-pending q actor))
         all (vec (concat (apply concat items) (legacy-items q actor uid active) approvals))]
     (assoc (group-todos all) :delivery_status "local_only" :generated_at (str today))))
+
+
+(defn todo
+  "汇总待我审批, 待我确认升级, 我负责的到期/逾期事项与交底/现场时限, 只读派生供本地提醒."
+  [svc actor]
+  (todo-rows (:query-fn svc) actor (LocalDate/now)))
 
 
 ;; ── 全局检索 ────────────────────────────────────────────────────

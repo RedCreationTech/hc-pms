@@ -5,6 +5,7 @@
     [com.ruoyi.domain.pms.delivery.store :as d]
     [com.ruoyi.domain.pms.governance.store :as gov]
     [com.ruoyi.domain.pms.kernel :as kernel]
+    [com.ruoyi.domain.pms.notify :as notify]
     [com.ruoyi.domain.pms.planning.earned-value :as ev]
     [com.ruoyi.domain.pms.planning.network :as network]
     [com.ruoyi.domain.pms.planning.progress :as progress]
@@ -111,11 +112,14 @@
 
 
 (defn run-all!
-  "扫描全部执行中项目; 手动触发须具备平台配置权限, 定时任务以系统身份调用."
+  "扫描全部执行中项目并为本扫描执行人投递本地通知 (已有通知不重复).
+   手动触发须具备平台配置权限, 定时任务以系统身份调用."
   ([svc actor] (run-all! svc actor (str (LocalDate/now))))
   ([svc actor date]
    (rules/permit! actor "pms:config:edit")
    (let [q (:query-fn svc)
-         projects (q :pms/projects-in-status {:status "execution"})]
+         projects (q :pms/projects-in-status {:status "execution"})
+         notifications (notify/deliver! q actor date)]
      {:date date :project_count (count projects)
+      :notifications notifications
       :results (mapv #(scan-project! svc actor (:project_id %) date) projects)})))

@@ -11,7 +11,7 @@
   #{"charter" "requirement" "document" "trace" "risk" "issue"
     "meeting" "action" "change" "gate-template" "gate"
     "stakeholder" "raci" "comm-plan" "template-instance" "dq" "node-pause"
-    "stage-weights" "reschedule" "progress-snapshot" "reminder"})
+    "stage-weights" "reschedule" "progress-snapshot" "reminder" "notification"})
 
 
 (defn input!

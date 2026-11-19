@@ -106,3 +106,17 @@
   - `metrics` = `{published, definitions[{object_type, label, metric_count}], object_types}`: 仅统计**当前生效**的报表指标定义, 三档之和等于 `published`; 不返回指标值本身 (值走 `/reports`).
   - `environment` = `{project_rows, task_rows, cost_entry_rows}`: 当前授权范围内的真实行数, 只读核对, 空库为 0.
 - 菜单: 迁移 `202611190007-platform-menu` 新增 5009 平台能力 (`pms/platform/index`, `pms:project:list`), 授予 admin 角色; 回滚见同名 `.down.sql`.
+
+## 本地通知管道 `/api/pms/notifications` (C11, 增量9)
+
+- 权限: 读与处置均需 `pms:project:list` 或 `pms:project:query`; 收件箱只返回**本人为收件人且本人当前仍可见该项目**的通知, 撤权后立即不再返回, 不暴露跨项目内容.
+- 投递: 由每日 `pms-progress-scan` 或 `POST /api/pms/scan` 触发 (`post-scan` 结果新增 `notifications{created, existing, total}`), 取待办读模型中的逾期/即将到期/待我确认/升级待处理事件; 编码 `notify:<nature>:<target_kind>:<target_id>:<recipient_id>`, 同一编码只落一条, 重跑不新建也不覆盖既有状态.
+- 存储: 治理记录 kind `notification` (迁移 `202611190008-notify-kinds`), `pms_gov_record.code` 放宽到 227; payload 含 `nature`(overdue/due-soon/pending-review/escalation), `target_kind`, `target_id`, `title`, `tab`, `due_date`, `raised_on`, `channel=local`, `delivery`(delivered/failed), `attempts`.
+- 状态: `unread / read / handled / dismissed`; 允许 `unread -> read|handled|dismissed`, `read -> handled|dismissed`, `handled -> read`, `dismissed` 为终态.
+
+| 路径 | 字段 | 业务结果 |
+| --- | --- | --- |
+| GET `/notifications?status=&project_id=` | - | `{rows[{id, code, nature, target_kind, target_id, title, project_id, project_no, project_name, due_date, raised_on, status, delivery, attempts}], total, summary{unread, read, handled, dismissed, failed}, delivery{delivered, failed}, channel: "local"}`; `project_name` 取项目主数据 |
+| POST `/notifications/:id/status` | status (read/handled/dismissed/unread) | 本人处置通知; 非本人 403, 未知状态 400, 非法流转 409, 不存在 404 |
+| POST `/notifications/:id/delivery-failed` | - | 登记本地投递失败 (`delivery=failed`), 不改业务状态; 非本人 403 |
+| POST `/notifications/retry` | - | 重试本人所有失败通知: `delivery=failed -> delivered`, `attempts+1`, 返回 `{retried, rows[{id, code, attempts}]}`; 不新建通知, 总数不变 |

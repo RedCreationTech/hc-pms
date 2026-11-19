@@ -2746,3 +2746,23 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 | 真机数据 | JDK 25.0.2 (基线 21, 符合) / SQLite 当前 / Chrome 149 符合 / 已发布指标 11 条 = 项目 8 + 费用明细 2 + WBS 任务 1 / 授权项目 128、任务 696、费用明细 203 |
 
 边界: 只做**本地规则与只读核对**, 不做逐环境实机验证 (矩阵要求的"在批准的桌面系统/浏览器矩阵验证核心操作"需要真实客户端与真实人工结论, 本轮不接也不以 Playwright 内置 Chromium 冒充), 不做分辨率/无障碍适配验收, 不做客户端信息上报落库. 矩阵 G18 行保持 `partial / 待环境实测`, 不因本切片上行. MySQL 迁移文件已同步但本机无实例未实跑.
+
+## C11 本地通知管道 (增量9 切片, 2026-11-19)
+
+设计与口径: 兑现矩阵 C11 中"项目事件产生授权收件人的待办或提醒, 可去重/已读/处理, 重试不重复通知且不暴露跨项目内容"的本地侧. 此前项目只有每日扫描写出的逾期 `reminder` 记录 (只读投影到待办), 收件人无法对待办做已读/已处理的处置, 也没有投递状态与失败重试的概念:
+
+- 投递 (`domain/pms/notify.clj` `deliver!`): 复用待办读模型 (把 `portfolio/todo` 的派生抽成 `todo-rows`, 待办接口与通知共用同一份来源, 不复制逻辑), 取逾期/即将到期/待我确认/升级待处理四类事件, 只对当前用户真实可见且未关闭/取消的项目投递. 编码 `notify:<性质>:<对象类型>:<对象ID>:<收件人>`, **同一事件同一收件人只落一条**, 重跑不再新建.
+- 收件箱 (`inbox`): 先按项目授权过滤再筛选, 因此**收件人被移出项目成员后立即看不到历史通知**; 项目名取项目主数据而不是投递时快照; 返回 `summary{unread, read, handled, dismissed, failed}` 与 `delivery{delivered, failed}`.
+- 处置 (`mark!`): 只允许收件人本人操作 (他人 403), 状态机 `unread -> read|handled|dismissed`, `read -> handled|dismissed`, `handled -> read`, `dismissed` 为终态; 非法流转 409, 未知状态 400.
+- 失败重试 (`retry-failures!` / `mark-delivery-failed!`): 失败只改投递维度 `delivery=failed`, 不改业务状态; 重试把它推进为 `delivered` 并累加 `attempts`, **通知条数不变**.
+- 存储: 治理记录新增 `notification` kind (迁移 `202611190008-notify-kinds` 重建 `pms_gov_record`, 同时把 `code` 放宽到 227 并新增 `unread/read/handled/dismissed` 四个状态); 菜单迁移 `202611190009-notify-menu` 新增 5016 我的通知与 5046 通知处理. 每日 `pms-progress-scan` 在扫描后追加 `notifications` 投递计数.
+
+| 项目 | 结果 |
+|---|---|
+| 领域/HTTP 测试 | `pms_notify_test.clj` 4 tests / 34 assertions, 0 failures/errors: `deliver-dedupes-and-does-not-cross-projects` (首次投递有新建, 重跑 created=0 且编码去重, 只含本项目, 全部 unread/local, 他人收件箱为空); `read-handle-and-revoke` (他人 403 / 未知状态 400 / 已读再已处理成功 / 终态回退未读 409 / 重新投递不覆盖已处理 / 移出成员后立即为空); `retry-failed-delivery-does-not-duplicate` (登记失败不改业务状态且条数不变 / 重试后失败归零且 attempts=1 / 总数不变); `notifications-http-contract` (401 / 403 / 200 + channel=local + summary 齐全) |
+| 全量回归 | `clojure -J-Xmx1800m -M:test` 844 tests / 7949 assertions, 0 failures/errors (SQLite) |
+| 前端 | `npx shadow-cljs compile app` 0 warnings; 项目管理新增"我的通知"页 (汇总标签, 状态筛选, 逐条标为已读/已处理/作废, 投递失败时出现"重试失败投递") |
+| 浏览器 | `pms-c11notify.spec.js` 1 passed: 全量扫描投递 (58 个执行中项目) -> 再扫一次 created=0 -> 收件箱条数 = 编码去重数且 channel=local -> 页面显示"未读 N" -> 真实点击"标为已读"/"已处理"后汇总变为"已读 1"/"已处理 1" -> 接口登记投递失败后 failed>0 且总数不变 -> 重试后 failed=0 且总数不变 -> 无 pageerror; 截图 `reports/c11notify/{c11-notify-inbox,c11-notify-handled}.png` |
+| 真机数据 | 首次扫描投递 82 条, 重扫新建 0 / 已达 137 条; 逾期事件覆盖 DEMO-SEED 项目的任务/齐套/试验/发运等对象; 项目列显示真实项目名 (环保涂装生产线项目等) |
+
+边界: 只做**本地通知与本地待办**, 不接邮件/短信/企业微信等外部通道 (矩阵要求的"外部消息回执"属外部系统集成, 本轮不接也不以 mock 冒充), 不做通知偏好/静默时段/批量已读. 矩阵 C11 行由 `planned / 待合同` 上调为 `partial / 待外部回执`. MySQL 迁移文件已同步但本机无实例未实跑.
