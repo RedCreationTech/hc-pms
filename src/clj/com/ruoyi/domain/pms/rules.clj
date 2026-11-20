@@ -1,7 +1,8 @@
 (ns com.ruoyi.domain.pms.rules
   "项目领域的输入校验,身份权限和生命周期规则."
   (:require
-    [clojure.string :as str])
+    [clojure.string :as str]
+    [com.ruoyi.domain.pms.read-model :as rm])
   (:import
     (java.time
       LocalDate)
@@ -55,13 +56,25 @@
   {:admin (if (:admin? actor) 1 0) :user_id (:user_id actor)})
 
 
+(defn active-member
+  "识别当前仍在有效期内的项目成员, 撤销或委派到期后不再授予任何读取或编辑范围.
+   契约行缺少 ends_on 时视为长期有效; ends_on 缺失/空串/null 同为长期有效."
+  ([query-fn actor project]
+   (active-member query-fn actor project (LocalDate/now)))
+  ([query-fn actor project today]
+   (let [member (query-fn :pms/member {:project_id (:project_id project) :user_id (:user_id actor)})]
+     (when (and member (let [ends-on (:ends_on member)]
+                         (or (nil? ends-on) (not (neg? (rm/days-until ends-on today))))))
+       member))))
+
+
 (defn access!
-  "检查当前项目成员和管理者的读取或编辑范围,撤销成员立即失效.
+  "检查当前项目成员和管理者的读取或编辑范围,撤销成员或委派到期立即失效.
    审批链的参与人 (已轮到或已处理过的审批人) 即使不是项目成员也可只读查看, 以便依据项目资料作出审批."
   [query-fn actor project write?]
   (when-not project (fail! 404 "项目不存在"))
   (let [uid (:user_id actor)
-        member (query-fn :pms/member {:project_id (:project_id project) :user_id uid})
+        member (active-member query-fn actor project)
         manager? (= uid (:manager_id project))
         reader? (or manager? member)
         writer? (or manager? (contains? #{"manager" "editor"} (:role member)))

@@ -270,12 +270,16 @@
 
 
 (defn members
-  "读取项目现有成员, 附带委派到期生命周期只读派生."
+  "读取项目现有成员, 附带委派到期生命周期与撤权后是否仍生效的只读派生."
   [{:keys [query-fn]} actor id]
   (rules/permit! actor "pms:project:query")
   (load-project! query-fn actor id false)
   (let [{:keys [rows summary]} (member-lifecycle (query-fn :pms/members {:project_id id}) nil)]
-    {:rows (vec rows) :lifecycle summary}))
+    {:rows (vec (mapv (fn [m]
+                        (assoc m :access-effective?
+                               (contains? #{"active" "open-ended" "expiring-soon"} (:lifecycle-state m))))
+                      rows))
+     :lifecycle summary}))
 
 
 (defn- member-input!

@@ -1,26 +1,33 @@
 (ns com.ruoyi.pms-test
   "在全新应用数据库上验证项目管理 API,事务和权限边界."
-  (:require [cheshire.core :as json]
-            [clojure.java.io :as io]
-            [clojure.test :refer [deftest is testing use-fixtures]]
-            [com.ruoyi.domain.pms.closure :as closure]
-            [com.ruoyi.domain.pms.planning :as planning]
-            [com.ruoyi.domain.pms.service :as pms]
-            [com.ruoyi.infra.security :as security]
-            [com.ruoyi.web.routes.api :as api]
-            [com.ruoyi.web.routes.pms :as routes]
-            [conman.core :as conman]
-            [migratus.core :as migratus]
-            [next.jdbc :as jdbc]
-            [reitit.ring :as ring]
-            [ring.mock.request :as mock])
-  (:import [java.nio.file Files]
-           [java.time LocalDate]
-           [java.util UUID]))
+  (:require
+    [cheshire.core :as json]
+    [clojure.java.io :as io]
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [com.ruoyi.domain.pms.closure :as closure]
+    [com.ruoyi.domain.pms.planning :as planning]
+    [com.ruoyi.domain.pms.service :as pms]
+    [com.ruoyi.infra.security :as security]
+    [com.ruoyi.web.routes.api :as api]
+    [com.ruoyi.web.routes.pms :as routes]
+    [conman.core :as conman]
+    [migratus.core :as migratus]
+    [next.jdbc :as jdbc]
+    [reitit.ring :as ring]
+    [ring.mock.request :as mock])
+  (:import
+    (java.nio.file
+      Files)
+    (java.time
+      LocalDate)
+    (java.util
+      UUID)))
+
 
 (def ^:dynamic *service* nil)
 (def ^:dynamic *handler* nil)
 (def ^:dynamic *jdbc-url* (System/getenv "PMS_TEST_JDBC_URL"))
+
 
 (defn- query-function
   "创建可显式注入事务连接的 HugSQL 查询函数."
@@ -29,6 +36,7 @@
     (fn
       ([name params] ((get-in queries [name :fn]) params))
       ([tx name params] ((get-in queries [name :fn]) tx params)))))
+
 
 (defn- seed-users!
   "建立独立角色,用于分开验证功能权限与项目成员权限."
@@ -40,6 +48,7 @@
                        id (str "pms-test-" id) (str "测试用户" id)])
     (when-not (= 9105 id)
       (jdbc/execute! db ["INSERT INTO sys_user_role(user_id,role_id) VALUES (?,9100)" id]))))
+
 
 (defn- database-fixture
   "创建隔离 SQLite 数据库,或使用调用者提供的全新 MySQL 数据库."
@@ -58,12 +67,15 @@
         (binding [*service* service *handler* handler] (f)))
       (finally (when file (Files/deleteIfExists file))))))
 
+
 (use-fixtures :once database-fixture)
+
 
 (defn- actor
   "取得测试用户的实时身份."
   [id]
   (pms/actor *service* {:user-id id}))
+
 
 (defn- body
   "生成唯一且完整的项目创建请求."
@@ -74,22 +86,25 @@
     :project_type "equipment" :manager_id manager :dept_id 1
     :start_date "2026-01-01" :end_date "2026-02-01"}))
 
+
 (defn- create!
   "由管理员创建项目."
   ([] (create! (body)))
   ([params] (pms/create-project! *service* (actor 1) params)))
+
 
 (defn- error-status
   "返回领域操作的预期业务错误状态."
   [f]
   (try (f) nil (catch clojure.lang.ExceptionInfo e (:status (ex-data e)))))
 
+
 (defn- request
   "经真实路由,认证与 JSON 中间件发送请求."
   [method path user-id payload]
   (let [req (cond-> (-> (mock/request method path)
-                         (mock/content-type "application/json")
-                         (mock/header "accept" "application/json"))
+                        (mock/content-type "application/json")
+                        (mock/header "accept" "application/json"))
               user-id (mock/header "authorization"
                                    (str "Bearer " (security/generate-token user-id "test" [])))
               payload (mock/body (json/generate-string payload)))
@@ -98,6 +113,7 @@
         text (cond (map? raw) (json/generate-string raw) (string? raw) raw (bytes? raw) (String. ^bytes raw "UTF-8")
                    :else (slurp raw))]
     {:status (:status response) :body (json/parse-string text true)}))
+
 
 (deftest rest-contract-and-validation
   (let [created (request :post "/api/pms/projects" 1 (body))
@@ -121,12 +137,14 @@
       (is (seq (:users options)))
       (is (every? #(not (contains? % :password)) (:users options))))))
 
+
 (deftest invalid-inputs
   (doseq [changes [{:start_date "2026-02-30"} {:end_date "2025-01-01"}
                    {:manager_id 999999} {:dept_id 999999} {:manager_id {}}
                    {:name "  "} {:project_type "unknown"} {:customer []}]]
     (is (= 400 (error-status #(create! (merge (body) changes))))))
   (is (= 400 (error-status #(pms/create-project! *service* (actor 1) [])))))
+
 
 (deftest structure-and-optimistic-lock
   (let [project (create!) id (:project_id project)
@@ -141,7 +159,7 @@
     (is (= 409 (error-status #(pms/create-node! *service* (actor 1) id machine))))
     (is (= 400 (error-status #(pms/create-node! *service* (actor 1) other machine))))
     (is (= 400 (error-status #(pms/create-node! *service* (actor 1) id
-                                                              (assoc machine :parent_id (:node_id root) :node_code "M-2")))))
+                                                (assoc machine :parent_id (:node_id root) :node_code "M-2")))))
     (is (= 409 (error-status #(pms/update-project! *service* (actor 9101) id {:name "陈旧更新" :version 1}))))
     (let [latest (pms/project *service* (actor 1) id)
           edited (pms/update-project! *service* (actor 9101) id
@@ -149,7 +167,8 @@
       (is (= "已修改" (:name edited)))
       (is (= (inc (:version latest)) (:version edited)))
       (is (= 409 (error-status #(pms/update-project! *service* (actor 1) id
-                                                    {:name "覆盖" :version (:version latest)})))))))
+                                                     {:name "覆盖" :version (:version latest)})))))))
+
 
 (deftest data-isolation-and-members
   (let [project (create!) id (:project_id project)
@@ -169,6 +188,7 @@
     (pms/set-member! *service* (actor 1) id {:user_id 9104 :role "editor"})
     (is (= 1 (count (filter #(= 9104 (:user_id %)) (:rows (pms/members *service* (actor 1) id))))))))
 
+
 (deftest member-lifecycle-is-derived-read-only
   (let [rows [{:user_id 1 :user_name "a" :nick_name "甲" :role "editor" :ends_on "2026-09-01"}
               {:user_id 2 :user_name "b" :nick_name "乙" :role "editor" :ends_on "2026-10-10"}
@@ -182,9 +202,9 @@
     (testing "逐成员状态按窗口边界归类"
       (is (= "expired" (by-id 1)))
       (is (= "expiring-soon" (by-id 2)))
-      (is (= "expiring-soon" (by-id 3)))           ;; 到期日=今天, 边界内
-      (is (= "expiring-soon" (by-id 4)))           ;; 还剩14天, 窗口上界
-      (is (= "active" (by-id 5)))                  ;; 还剩15天, 出窗口
+      (is (= "expiring-soon" (by-id 3)))           ; 到期日=今天, 边界内
+      (is (= "expiring-soon" (by-id 4)))           ; 还剩14天, 窗口上界
+      (is (= "active" (by-id 5)))                  ; 还剩15天, 出窗口
       (is (= "open-ended" (by-id 6)))
       (is (= -35 (:days-left (first (:rows (pms/member-lifecycle rows "2026-10-06")))))))
     (testing "汇总计数与两个清单"
@@ -198,6 +218,7 @@
       (is (= {:active 1} (get-in summary [:by-role "manager"])))
       (is (= {:expired 1 :expiring-soon 1 :open-ended 1} (get-in summary [:by-role "editor"]))))))
 
+
 (deftest member-ends-on-persists-and-lifecycle-visible
   (let [project (create!) id (:project_id project)
         soon (.toString (.plusDays (LocalDate/now) 5))
@@ -209,11 +230,11 @@
     (is (= 400 (error-status #(pms/set-member! *service* (actor 1) id {:user_id 9102 :role "editor" :ends_on "2026-13-40"}))))
     (pms/set-member! *service* (actor 1) id {:user_id 9102 :role "editor" :ends_on far})
     (let [res (request :get (str "/api/pms/projects/" id "/members") 1 nil)
-        body (:body res)
-        rows (get-in body [:data :rows])
-        lifecycle (get-in body [:data :lifecycle])
-        ends-by (zipmap (map :user_id rows) (map :ends_on rows))
-        state-by (zipmap (map :user_id rows) (map :lifecycle-state rows))]
+          body (:body res)
+          rows (get-in body [:data :rows])
+          lifecycle (get-in body [:data :lifecycle])
+          ends-by (zipmap (map :user_id rows) (map :ends_on rows))
+          state-by (zipmap (map :user_id rows) (map :lifecycle-state rows))]
       (is (= 200 (:status res)))
       (is (= past (ends-by 9104)))
       (is (= far (ends-by 9102)))
@@ -223,7 +244,17 @@
       (is (= 1 (get-in lifecycle [:counts :expired])))
       (is (= 1 (get-in lifecycle [:counts :expiring-soon])))
       (is (= 1 (get-in lifecycle [:counts :active])))
-      (is (= [9104] (mapv :user_id (:expired lifecycle)))))))
+      (is (= [9104] (mapv :user_id (:expired lifecycle))))
+      (testing "H17 委派到期后立即失去访问资格, 成员行仍在但不再授予读写范围"
+        (is (false? (:access-effective? (first (filter #(= 9104 (:user_id %)) rows)))))
+        (is (true? (:access-effective? (first (filter #(= 9102 (:user_id %)) rows)))))
+        (is (= 403 (error-status #(pms/project *service* (actor 9104) id))))
+        (is (= 403 (error-status #(pms/update-project! *service* (actor 9104) id
+                                                       {:name "过期越权" :version 1}))))
+        (testing "把到期日续期后访问资格恢复"
+          (pms/set-member! *service* (actor 1) id {:user_id 9104 :role "editor" :ends_on far})
+          (is (= id (:project_id (pms/project *service* (actor 9104) id)))))))))
+
 
 (deftest lifecycle-and-audit
   (let [project (create!) id (:project_id project)
@@ -250,6 +281,7 @@
       (is (= 3 (count (filter #(= "project.transitioned" (:event_type %)) events))))
       (is (some #(= "合同取消" (:description %)) events)))))
 
+
 (deftest audit-failure-rolls-back-entire-creation
   (let [original (:query-fn *service*)
         payload (body)
@@ -275,8 +307,9 @@
     (pms/create-node! *service* (actor 1) id
                       {:parent_id (:node_id root) :node_type "sub" :node_code "OCCUPIED" :name "子项目"})
     (is (= 409 (error-status #(pms/update-project! *service* (actor 1) id
-                                                  {:version 3 :project_no "OCCUPIED"}))))
+                                                   {:version 3 :project_no "OCCUPIED"}))))
     (is (= (:project_no updated) (:project_no (pms/project *service* (actor 1) id))))))
+
 
 (deftest disabled-user-and-revoked-permission
   (let [db (:db *service*)]
@@ -289,11 +322,13 @@
       (is (= 403 (:status (request :get "/api/pms/projects" 9103 nil))))
       (finally (jdbc/execute! db ["INSERT INTO sys_user_role(user_id,role_id) VALUES (9103,9100)"])))))
 
+
 (deftest unexpected-errors-do-not-expose-internals
   (with-redefs [pms/actor (fn [& _] (throw (ex-info "secret-sql-details" {:sql "sensitive-query"})))]
     (let [response (request :get "/api/pms/projects" 1 nil)]
       (is (= 500 (:status response)))
       (is (= {:code 500 :msg "服务暂时不可用,请稍后重试" :data nil} (:body response))))))
+
 
 (deftest simultaneous-updates-have-one-winner
   (let [project (create!) id (:project_id project)
@@ -385,67 +420,68 @@
                                  {:version (:project_version (overview)) :reviewer_id 9104})))))
 
 
-(deftest closure-readiness-summary-is-derived-read-only
-  ;; 全部就绪: 五类均空 -> ready true, 100%, next-focus nil
-  (let [clear (closure/readiness-summary {:tasks [] :governance [] :finance [] :delivery [] :items []} nil)]
-    (is (true? (:available clear)))
-    (is (= ["tasks" "governance" "finance" "delivery" "items"] (mapv :key (:categories clear))))
-    (is (= 0 (:total-blockers clear)))
-    (is (= 5 (:clear-count clear)))
-    (is (= 0 (:blocked-count clear)))
-    (is (= 100 (:readiness-pct clear)))
-    (is (true? (:ready clear)))
-    (is (nil? (:next-focus clear)))
-    (is (= "none" (:approval-state clear)))
-    (is (every? :clear (:categories clear))))
-  ;; 多域受阻: tasks2/gov0/fin1/del3/items1 -> 总7, 就绪类别1, 受阻4, 20%, next-focus 首个受阻类别 计划任务
-  (let [rollup (closure/readiness-summary {:tasks ["T1" "T2"] :governance []
-                                           :finance ["F1"] :delivery ["D1" "D2" "D3"] :items ["I1"]}
-                                          {:status "submitted"})]
-    (is (= 7 (:total-blockers rollup)))
-    (is (= 1 (:clear-count rollup)))
-    (is (= 4 (:blocked-count rollup)))
-    (is (= 20 (:readiness-pct rollup)))
-    (is (false? (:ready rollup)))
-    (is (= "计划任务" (:next-focus rollup)))
-    (is (= "submitted" (:approval-state rollup)))
-    (is (= [2 0 1 3 1] (mapv :blocker-count (:categories rollup))))
-    (is (= [false true false false false] (mapv :clear (:categories rollup))))
-    (is (= [2 0 1 3 1] (mapv count (map :messages (:categories rollup))))))
-  ;; 单域多条缺口: 交付链7条 -> messages 截前5, more 2, 仅它受阻 -> 就绪4/5=80%, next-focus 交付链
-  (let [big (closure/readiness-summary {:tasks [] :governance [] :finance []
-                                       :delivery (vec (map str (range 7))) :items []} nil)
-        del (first (filter #(= "delivery" (:key %)) (:categories big)))]
-    (is (= 7 (:blocker-count del)))
-    (is (= 5 (count (:messages del))))
-    (is (= 2 (:more del)))
-    (is (= 7 (:total-blockers big)))
-    (is (= 4 (:clear-count big)))
-    (is (= 80 (:readiness-pct big)))
-    (is (= "交付链" (:next-focus big)))))
+  (deftest closure-readiness-summary-is-derived-read-only
+    ;; 全部就绪: 五类均空 -> ready true, 100%, next-focus nil
+    (let [clear (closure/readiness-summary {:tasks [] :governance [] :finance [] :delivery [] :items []} nil)]
+      (is (true? (:available clear)))
+      (is (= ["tasks" "governance" "finance" "delivery" "items"] (mapv :key (:categories clear))))
+      (is (= 0 (:total-blockers clear)))
+      (is (= 5 (:clear-count clear)))
+      (is (= 0 (:blocked-count clear)))
+      (is (= 100 (:readiness-pct clear)))
+      (is (true? (:ready clear)))
+      (is (nil? (:next-focus clear)))
+      (is (= "none" (:approval-state clear)))
+      (is (every? :clear (:categories clear))))
+    ;; 多域受阻: tasks2/gov0/fin1/del3/items1 -> 总7, 就绪类别1, 受阻4, 20%, next-focus 首个受阻类别 计划任务
+    (let [rollup (closure/readiness-summary {:tasks ["T1" "T2"] :governance []
+                                             :finance ["F1"] :delivery ["D1" "D2" "D3"] :items ["I1"]}
+                                            {:status "submitted"})]
+      (is (= 7 (:total-blockers rollup)))
+      (is (= 1 (:clear-count rollup)))
+      (is (= 4 (:blocked-count rollup)))
+      (is (= 20 (:readiness-pct rollup)))
+      (is (false? (:ready rollup)))
+      (is (= "计划任务" (:next-focus rollup)))
+      (is (= "submitted" (:approval-state rollup)))
+      (is (= [2 0 1 3 1] (mapv :blocker-count (:categories rollup))))
+      (is (= [false true false false false] (mapv :clear (:categories rollup))))
+      (is (= [2 0 1 3 1] (mapv count (map :messages (:categories rollup))))))
+    ;; 单域多条缺口: 交付链7条 -> messages 截前5, more 2, 仅它受阻 -> 就绪4/5=80%, next-focus 交付链
+    (let [big (closure/readiness-summary {:tasks [] :governance [] :finance []
+                                          :delivery (vec (map str (range 7))) :items []} nil)
+          del (first (filter #(= "delivery" (:key %)) (:categories big)))]
+      (is (= 7 (:blocker-count del)))
+      (is (= 5 (count (:messages del))))
+      (is (= 2 (:more del)))
+      (is (= 7 (:total-blockers big)))
+      (is (= 4 (:clear-count big)))
+      (is (= 80 (:readiness-pct big)))
+      (is (= "交付链" (:next-focus big)))))
 
 
-(deftest closure-readiness-attached-in-overview-is-faithful
-  (let [project (create!) id (:project_id project)
-        path (str "/api/pms/projects/" id)
-        body (:body (request :get (str path "/closure") 1 nil))
-        overview (:data body)
-        r (:readiness overview)]
-    (is (= 200 (:status body)))
-    (is (some? r))
-    (is (true? (:available r)))
-    (is (= ["tasks" "governance" "finance" "delivery" "items"] (mapv :key (:categories r))))
-    ;; 只读投影与权威扁平 blockers 同源: 总缺口数 = :blockers 条数, 各类别之和 = 总缺口
-    (is (= (:total-blockers r) (count (:blockers overview))))
-    (is (= (:total-blockers r) (reduce + (map :blocker-count (:categories r)))))
-    ;; 就绪百分比 = 已就绪类别 / 全部类别 (四舍五入整数)
-    (is (= (:readiness-pct r)
-           (int (Math/round ^double (* 100.0 (/ (double (:clear-count r)) 5.0))))))
-    ;; 新建项目无任务/无决算/无齐套 -> 必然有缺口, 未就绪, next-focus 与 ready 互斥
-    (is (false? (:ready r)))
-    (is (= (:ready r) (empty? (:blockers overview))))
-    (is (true? (pos? (:total-blockers r))))
-    (is (string? (:next-focus r))))))
+  (deftest closure-readiness-attached-in-overview-is-faithful
+    (let [project (create!) id (:project_id project)
+          path (str "/api/pms/projects/" id)
+          body (:body (request :get (str path "/closure") 1 nil))
+          overview (:data body)
+          r (:readiness overview)]
+      (is (= 200 (:status body)))
+      (is (some? r))
+      (is (true? (:available r)))
+      (is (= ["tasks" "governance" "finance" "delivery" "items"] (mapv :key (:categories r))))
+      ;; 只读投影与权威扁平 blockers 同源: 总缺口数 = :blockers 条数, 各类别之和 = 总缺口
+      (is (= (:total-blockers r) (count (:blockers overview))))
+      (is (= (:total-blockers r) (reduce + (map :blocker-count (:categories r)))))
+      ;; 就绪百分比 = 已就绪类别 / 全部类别 (四舍五入整数)
+      (is (= (:readiness-pct r)
+             (int (Math/round ^double (* 100.0 (/ (double (:clear-count r)) 5.0))))))
+      ;; 新建项目无任务/无决算/无齐套 -> 必然有缺口, 未就绪, next-focus 与 ready 互斥
+      (is (false? (:ready r)))
+      (is (= (:ready r) (empty? (:blockers overview))))
+      (is (true? (pos? (:total-blockers r))))
+      (is (string? (:next-focus r))))))
+
 
 ;; batch67 (mutator 方向: cover the uncovered): 项目日期变更锁计划 (service L160 +
 ;; planning L96-98), 父节点UUID400 (L194), 成员角色400 (L281).
@@ -469,4 +505,4 @@
   (testing "成员角色必须为 manager/editor/viewer400"
     (let [project (create!) id (:project_id project)]
       (is (= 400 (error-status #(pms/set-member! *service* (actor 1) id
-                                                  {:user_id 9102 :role "boss"})))))))
+                                                 {:user_id 9102 :role "boss"})))))))

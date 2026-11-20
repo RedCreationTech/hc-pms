@@ -2834,3 +2834,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 | 浏览器 | `pms-d04d05directship.spec.js` 1 passed: 建项目与真实任务 -> "直发申请"页签与"外部同步 not_configured"可见 -> 层流罩直发建单 (节点由任务解析) -> 非层流罩无订单真实 400 -> 补单建单 -> 只缺 NP-2 提交 409 且文案点名 NP-2 -> 补齐后提交 -> 独立审核人 (真实另建账号 + viewer 成员) 批准 -> 界面"直发申请 2 / 层流罩 1 / 非层流罩 1 / 已批准 1"与对账台账 `NP-1=PO-1001, NP-2=PO-1002` 回显 |
 
 边界: 只做**本地直发受控链路**. OA 审批回执、采购订单回执、采购发货状态与多目标同步补偿属外部系统集成, 本轮不接也不以 mock 冒充. 矩阵 D04/D05 行由 `planned / 待合同` 上调为 `partial / 待合同` (本地闭环已实现, 外部回执仍缺). MySQL 迁移文件已同步但本机无实例未实跑.
+## H17 精细职责分离: 委派到期即失去访问范围 (增量10 切片, 2026-11-20)
+
+设计与口径: 兑现矩阵 H17 中"通过赋权越权"的本地侧闭合. 此前 H16 只把成员委派到期做成**只读可视化提醒** (lifecycle-state / days-left / 已过期清单), 到期成员**仍然保有**项目读写范围 —— 提醒看得见, 权限不收回, 这正是"到期委派仍可操作"的真实缺口.
+
+- 判定 (`rules/active-member`): 成员行存在且 `ends_on` 为空或不早于服务器当天才算当前有效成员; 撤销 (行删除) 与委派到期等价.
+- 落点 (`rules/access!`): 这是所有 PMS 项目读写命令与工作台读取的公共入口, 改在此处生效, 到期成员的读取与编辑一律 403, 不需要逐命令打补丁.
+- 例外: 项目经理的项目范围来自项目本身而非成员行, 不受成员委派到期影响; 超级管理员仍按 `*:*:*` 放行; 审批链参与人仍可只读查看但不得借此获得编辑范围.
+- 恢复: 重新 `POST /members` 设置更晚的 `ends_on` 即恢复访问, 历史署名不变.
+- 只读回显: `GET /members` 每行追加 `access-effective?`, 项目团队台账对失效成员标"已失效", 汇总追加"访问资格已失效"计数, 过期清单文案改为"访问资格自动失效, 建议复核或重新委派".
+
+| 项目 | 结果 |
+|---|---|
+| 领域测试 | `pms_membership_test.clj` 新增 `expired-member-loses-access-scope` (2 tests / 26 assertions 全通过): 长期/今天/未来到期仍授予读写, 已过期与撤销读写都 403, 项目经理与管理员不受成员委派影响 |
+| 集成测试 | `pms_test.clj` `member-ends-on-persists-and-lifecycle-visible` 追加 H17 段: 过期成员 `access-effective?` 为假且真实 `project`/`update-project!` 均 403, 续期后恢复 |
+| 全量回归 | `clojure -J-Xmx1800m -M:test` 858 tests / 8079 assertions, 0 failures/errors (SQLite) |
+| 前端 | `npx shadow-cljs compile app` 0 warnings; 项目团队台账逐行"已失效"徽标 (仅对 `access-effective?` 为假的成员), 生命周期汇总追加红色"访问资格已失效 N" |
+| 浏览器 | `pms-h16ml.spec.js` 1 passed: 四种到期状态真实可见 -> 服务端 `access-effective?` 逐成员命中 -> 到期成员真实 HTTP 读取 403 -> 管理员续期后该成员 `access-effective?` 恢复为真且状态转 `active` |
+
+边界: 本片只闭合**成员委派到期/撤销**这一个越权入口. 节点级字段密级与外部参与者的完整角色矩阵仍待实现, 故矩阵 H17 行保持 `partial`. 免迁移 (复用既有 `ends_on` 列).

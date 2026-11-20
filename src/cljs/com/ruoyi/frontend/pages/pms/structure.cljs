@@ -141,7 +141,8 @@
       [antd/tag {:color "green"} (str "有效 " (:active counts))]
       [antd/tag {:color "gold"} (str "即将到期 " (:expiring-soon counts))]
       [antd/tag {:color "red"} (str "已过期 " (:expired counts))]
-      [antd/tag {:color "default"} (str "长期 " (:open-ended counts))]]
+      [antd/tag {:color "default"} (str "长期 " (:open-ended counts))]
+      [antd/tag {:color "red"} (str "访问资格已失效 " (:expired counts))]]
      (when (seq (:expiring-soon lc))
        [:div {:style {:marginTop 12}}
         [:div {:style {:fontSize 12 :color (:muted colors) :marginBottom 6}}
@@ -149,7 +150,7 @@
         [lifecycle-list (:expiring-soon lc) "gold"]])
      (when (seq (:expired lc))
        [:div {:style {:marginTop 12}}
-        [:div {:style {:fontSize 12 :color (:muted colors) :marginBottom 6}} "已过期, 建议复核访问权限"]
+        [:div {:style {:fontSize 12 :color (:muted colors) :marginBottom 6}} "已过期, 访问资格自动失效, 建议复核或重新委派"]
         [lifecycle-list (:expired lc) "red"]])]))
 
 
@@ -167,6 +168,7 @@
       [:span name]]
      [antd/space
       (when-let [tag (lifecycle-tag member)] tag)
+      (when (false? (:access-effective? member)) [antd/tag {:color "red"} "已失效"])
       [antd/tag {:color (if (= "manager" (:role member)) "blue" "default")}
        (get role-labels (:role member) (:role member))]
       (when (and remove! (not= "manager" (:role member)))

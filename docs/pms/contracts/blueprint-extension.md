@@ -175,3 +175,16 @@
 | POST `/projects/:id/delivery/direct-ships/:record_id` | version, title, direct_ship_type, items[], purchase_orders?, ... | 仅在 `draft` / `rejected` 可改, 其余 409 |
 | POST `/projects/:id/delivery/direct-ships/:record_id/submit` | version, reviewer_id, evidence_ids[] | `draft|rejected -> in_review`; 审批人不得为提交人 409; 缺单 409 点名编码; 既有发运工单 409 |
 | POST `/projects/:id/delivery/direct-ships/:record_id/decision` | version, decision, reason | `in_review -> approved|rejected`; 非指定审批人 403; 批准时再次复核缺单与既有工单 (409); 结果 `external_sync_status = not_configured` |
+## H17 精细职责分离: 成员委派到期与撤销的门控语义
+
+- 判定 (`domain/pms/rules.clj` `active-member`): 成员行存在**且** `ends_on` 为空或到期日不早于服务器当天, 才算当前有效成员. 撤销 (成员行删除) 与委派到期在 `access!` 中等价, 都立即失去读取范围.
+- 影响面: `access!` 是所有 PMS 项目读写命令与工作台读取的公共入口, 因此到期成员的读取与编辑一律 403, 无需逐个命令打补丁.
+- 例外: 项目经理 (`manager_id`) 的项目范围来自项目本身而非成员行, 不受成员委派到期影响; 超级管理员仍按 `*:*:*` 放行; 审批链参与人 (已轮到或已处理) 仍可只读查看, 但**不能**因此获得编辑范围.
+- 恢复: 用 `POST /members` 重新设置 `role` 与更晚的 `ends_on` 即恢复访问, 不改变历史署名.
+- 只读回显: `GET /members` 的每行追加 `access-effective?` (布尔), 与 `lifecycle-state` 同源派生 (`active` / `open-ended` / `expiring-soon` 为真, `expired` 为假).
+
+| 路径 | 字段 | 业务结果 |
+| --- | --- | --- |
+| GET `/projects/:id/members` | - | `rows[]` 每行含 `lifecycle-state` / `days-left` / `access-effective?`; `lifecycle{total, counts{active,expiring-soon,expired,open-ended}, by-role, expiring-soon[], expired[]}` |
+| POST `/projects/:id/members` | user_id, role, ends_on? | 新增或续期; `ends_on` 留空为长期有效; 项目经理角色必须为 `manager` (409) |
+| DELETE `/projects/:id/members/:user_id` | version | 撤销成员; 未交接责任 409, 撤销后立即失去访问范围 |

@@ -4,7 +4,8 @@ const path = require('node:path');
 // H16 成员委派到期与权限生命周期只读看板: 项目概况 -> 项目团队 面板的只读概览.
 // pms_member 新增可空 ends_on 列 (委派到期日), GET /members 读取时对每个成员按今天派生 lifecycle-state + days-left,
 // 并汇总 lifecycle {today/window-days/total/counts{active,expiring-soon,expired,open-ended}/by-role/expiring-soon[]/expired[]}.
-// 纯只读派生 (免门控/免写): 到期不代表夺权, 写拦截属后续独立片, 本片刻只做"谁即将到期/已过期/长期"的可视化提醒.
+// 纯只读派生 (免门控/免写): 本条覆盖"谁即将到期/已过期/长期"的可视化提醒.
+// H17 起 rules/access! 只认仍在有效期的成员, 故同一 spec 追加"到期成员真实失去访问 / 续期后恢复"的断言.
 // 状态口径: 无到期日->open-ended; days-left<0->expired; 0..window(14)->expiring-soon; >window->active.
 // 免新kind/免新命令/免新路由/免门控, 仅迁移加一列 + GET 读模型扩展 + 前端只读面板.
 // 流程: 建项目(admin 即项目经理, 自动成为 open-ended 成员) -> 造 4 个真实系统用户 ->
@@ -131,7 +132,10 @@ test.describe('H16 成员权限生命周期只读看板浏览器验收', () => {
     await expect(card.getByText('已过期 1', { exact: true })).toBeVisible();
     await expect(card.getByText('长期 2', { exact: true })).toBeVisible();
     await expect(card.getByText('即将到期 (未来 14 天内)', { exact: true })).toBeVisible();
-    await expect(card.getByText('已过期, 建议复核访问权限', { exact: true })).toBeVisible();
+    await expect(card.getByText('已过期, 访问资格自动失效, 建议复核或重新委派', { exact: true })).toBeVisible();
+    await expect(card.getByText('访问资格已失效 1', { exact: true })).toBeVisible();
+    // H17: 委派到期后成员行仍在但标"已失效", 且该成员真实失去访问资格.
+    await expect(card.getByText('已失效', { exact: true }).first()).toBeVisible();
     // 逐行到期徽标 (与汇总同源).
     await expect(card.getByText(/即将到期\s*剩\d+天/).first()).toBeVisible();
     await expect(card.getByText(/已过期\s*2000-01-01/).first()).toBeVisible();
@@ -145,6 +149,23 @@ test.describe('H16 成员权限生命周期只读看板浏览器验收', () => {
     expect(m2.lifecycle.total).toBe(1);
     expect(m2.lifecycle.counts['open-ended']).toBe(1);
     expect(m2.lifecycle.expired).toHaveLength(0);
+
+    // H17 精细职责分离: 到期成员的 access-effective? 为假, 真实 HTTP 读写均 403; 续期后恢复.
+    expect(byId[uidExpired]['access-effective?']).toBe(false);
+    expect(byId[uidFar]['access-effective?']).toBe(true);
+    expect(byId[uidOpen]['access-effective?']).toBe(true);
+    expect(byId[uidSoon]['access-effective?']).toBe(true);
+    const expiredLogin = await page.request.post('/api/auth/login', { data: { username: `exp_${suffix}`, password: `E2e!${suffix}` } });
+    const expiredToken = (await expiredLogin.json()).data.token;
+    const denied = await page.request.fetch(base(id), { headers: { Authorization: `Bearer ${expiredToken}` } });
+    expect(denied.status(), '委派已到期的成员读取项目应被拒绝').toBe(403);
+    // 续期后同一成员恢复访问资格, 证明拦截依据是委派到期而非永久撤权.
+    // (合成用户没有 pms 功能角色, 故用管理员读取的 access-effective? 判定数据范围是否恢复.)
+    await api(page, 'POST', base(id) + '/members', { user_id: uidExpired, role: 'editor', ends_on: isoDay(90) });
+    const renewed = await api(page, 'GET', base(id) + '/members');
+    const renewedRow = renewed.rows.find(r => r.user_id === uidExpired);
+    expect(renewedRow['access-effective?'], '续期后应恢复访问资格').toBe(true);
+    expect(renewedRow['lifecycle-state']).toBe('active');
 
     expect(errors, `未捕获的浏览器JS错误: ${errors.join('; ')}`).toEqual([]);
   });
