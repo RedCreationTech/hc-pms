@@ -2,6 +2,7 @@
   "项目领域的输入校验,身份权限和生命周期规则."
   (:require
     [clojure.string :as str]
+    [com.ruoyi.domain.pms.charter-pm :as charter-pm]
     [com.ruoyi.domain.pms.read-model :as rm])
   (:import
     (java.time
@@ -81,8 +82,10 @@
   (let [uid (:user_id actor)
         member (active-member query-fn actor project)
         manager? (= uid (:manager_id project))
-        reader? (or manager? member)
-        writer? (or manager? (contains? #{"manager" "editor"} (:role member)))
+        ;; 已批准章程的授权项目经理与 manager_id 同级获得编辑范围; 章程未批准前该字段不授权 (不越权).
+        delegated-manager? (boolean (and (not manager?) (charter-pm/authorized-pm? query-fn project uid)))
+        reader? (or manager? delegated-manager? member)
+        writer? (or manager? delegated-manager? (contains? #{"manager" "editor"} (:role member)))
         approver? (fn [] (map? (query-fn :approval/participant {:project_id (:project_id project) :user_id uid})))]
     (when-not (or (:admin? actor) (if write? writer? (or reader? (approver?))))
       (fail! 403 "没有该项目的数据访问权限")))

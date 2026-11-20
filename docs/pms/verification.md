@@ -2910,3 +2910,26 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 本轮未执行 (如实记录): MySQL 回归 (本地无实例); 经验**发布**到跨项目模板/风险库仍需模板审核批准, 本片只做只读检索与复用呈现, 不新增发布写路径.
 
 边界: 本片为只读派生, 免迁移 (仅新增一条读取语句, 修复迁移除外) / 无新命令 / 不构成任何门控: 经验登记约束仍唯一由 `closure/create-lesson!` 强制 (场景枚举与责任人成员校验), 检索覆盖度高低不阻止任何登记. H15 整行保持 `partial` — "经批准反馈模板或风险库"仍需审批批准后才可发布, 只读检索不上行整行状态.
+
+## H01 章程授权项目经理权限联动与初始预算对账 (增量10 切片, 2026-11-20)
+
+设计与口径: 矩阵 H01 长期留有两个未完子能力 —— "授权PM字段与项目实际编辑/审批权限联动及通知投递" 与 "初始预算与批准后财务基线的正式对账关联", 此前 authorized_pm_id/initial_budget 都只是随章程版本冻结的展示字段, 与真实授权和财务口径毫无关系. 本片把两项都落成真实行为.
+
+授权 PM 联动: 新增叶命名空间 `com.ruoyi.domain.pms.charter-pm` (`authorized-pm` 读 `gov/approved-charter-pm` 取已批准章程最高 revision 的 `authorized_pm_id`; 只依赖 cheshire, **不能** require `rules`, 否则与既有的 `rules -> finance_money -> config -> approval_chain -> service -> web.controllers.pms` 形成加载环). `rules/access!` 据此把授权 PM 提升到与 `manager_id` 同级的读写范围, 关键约束是**仅章程已批准后生效** —— 章程只是创建/审批中时该字段不授权, 授权 PM 仍是普通成员, 不能借未批准章程越权. 章程批准时 (单人审批 `decide!` 与审批链 `finalize-charter!` 两条路径) 由 `notify-authorized-pm!` 把 nature=`charter-authorized` 的本地通知投递到该 PM 的收件箱, 编码含 `record_id` + `revision`, 同一章程版本对同一收件人不重复投递; 只投本机收件箱, 不涉及外部消息.
+
+预算对账: 新增叶命名空间 `com.ruoyi.domain.pms.charter-baseline`, 纯函数 `reconciliation` 输入已批准章程版本与财务最新 budget 版本 (finance/cost-view dto), 输出 `available/charter{approved,revision,code,declared,amount,amount_minor,currency}/baseline{present,version_id,version_no,status,approved,amount,amount_minor,currency}/currency_match/variance/variance_minor/variance_pct/over_budget/within_budget/state`, 其中 `state ∈ not_declared|no_baseline|currency_mismatch|aligned|under|over`. 章程 `initial_budget` 以 money 字符串冻结, 财务版本以整数最小单位存储, 先经 `money/amount!` 归一到同一口径再比较; **币种不一致时只报 currency_mismatch 并置 variance 为 nil**, 不做跨币种伪比较, 也不引入隐式汇率. 该派生挂在 `governance/workspace` 顶层 `:charter_budget_baseline`, 只读计算不写存储, 不构成任何门控 (差额高低不阻止财务登记或章程修订). 前端 `governance.cljs` 章程页签在审批进度面板之后新增只读面板 "章程预算与财务基线对账" (状态标签 + 章程版本 + 章程预算 + 财务预算(未批准时标注) + 差额与百分比, 差额超预算 red / 未超 green).
+
+本轮实际执行的验证:
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 治理命名空间测试 | `pms_governance_test` 165 tests / 2963 assertions, 0 失败 | 新增 `charter-authorized-pm-gains-edit-scope-only-after-approval` (章程未批准时授权PM `update-project!` 403, 批准后同一写入 200 且项目名真变; 收件箱出现 charter-authorized 通知且同一记录只一条; 非授权人员仍 403) 与 `charter-budget-baseline-reconciliation-is-derived-read-only` (未批准章程 not_declared, 批准后无财务版本 no_baseline, 纯函数口径 aligned/over/under/currency_mismatch 且 mismatch 时 variance 为 nil) |
+| 全量回归 | `clojure -J-Xmx1800m -M:test` 864 tests / 8174 assertions, 0 failures / 0 errors (SQLite) | 无回归 |
+| 前端 | `npx shadow-cljs compile app` 0 warnings (4041 files) | 对账面板编译通过 |
+| cljstyle | 通过 | 新增两命名空间与测试文件已格式化 |
+| 冷启动迁移 (隔离库) | 通过 | 独立 `/tmp/hc-h01.db` 全新迁移启动 `:3100` |
+| 浏览器 | `tests/e2e/pms-h01pmb.spec.js` 1 passed | 界面登记章程 (初始预算 120000.00 CNY + 授权PM) -> 独立审核人批准 -> 面板显示"尚无财务预算基线"与"章程预算 120000.00 CNY" (截图 `reports/h01pmb/h01pmb-1-panel.png`) -> 财务登记并独立批准 budget 版本 (合计 110000.00) -> 面板翻为"低于章程预算"与"差额 -10000.00 (-8%)" (截图 `h01pmb-2-reconciled.png`) |
+
+本轮未执行 (如实记录): MySQL 回归 (本地无实例); 授权 PM 的**审批**权限联动 —— 本片只联动项目内读写范围, `pms:quality:approve` 等功能权限仍由角色决定, 不因授权 PM 自动获得审批权 (职责分离仍要求独立审核人).
+
+边界: 授权 PM 只在章程**已批准**后获得范围内授权, 且不影响职责分离 (提交人与审核人仍须不同人, 审核人仍须具 `pms:quality:approve`); 通知只投本机收件箱, 外部消息渠道不在本地范围. 预算对账只与最新 budget 版本比较, 不做汇率换算与多币种折算, 不构成门控. H01 整行仍为 `partial`: 本片把两个具名未完子能力补成真实行为, 但整行验收还包含 UAT/生产口径, 不上行整行状态.

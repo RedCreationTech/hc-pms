@@ -3,6 +3,7 @@
   (:require
     [cheshire.core :as json]
     [clojure.test :refer [deftest is testing use-fixtures]]
+    [com.ruoyi.domain.pms.charter-baseline :as charter-baseline]
     [com.ruoyi.domain.pms.governance :as gov]
     [com.ruoyi.domain.pms.governance.approval :as approval]
     [com.ruoyi.domain.pms.governance.collaboration :as collab]
@@ -12,6 +13,7 @@
     [com.ruoyi.domain.pms.governance.quality :as quality]
     [com.ruoyi.domain.pms.governance.stakeholders :as stakeholders]
     [com.ruoyi.domain.pms.governance.store :as s]
+    [com.ruoyi.domain.pms.notify :as notify]
     [com.ruoyi.domain.pms.planning :as planning]
     [com.ruoyi.domain.pms.queries :as queries]
     [com.ruoyi.domain.pms.service :as pms]
@@ -777,10 +779,10 @@
   (is (= "declared-unverified" (:verification_alignment (evidence/requirement-trace-model {} {} {:id "r" :verification_method "test"}))))
   (is (= "not-applicable" (:verification_alignment (evidence/requirement-trace-model {"r" [{:relation "verifies"}]} {} {:id "r"}))))
   (let [agg (evidence/verification-evidence-alignment
-             [{:id "a" :code "A" :revision 1 :status "registered" :verification_method "test"}
-              {:id "b" :code "B" :revision 1 :status "registered" :verification_method "analysis"}
-              {:id "c" :code "C" :revision 1 :status "registered"}]
-             [{:requirement_id "a" :relation "verifies"}] {})]
+              [{:id "a" :code "A" :revision 1 :status "registered" :verification_method "test"}
+               {:id "b" :code "B" :revision 1 :status "registered" :verification_method "analysis"}
+               {:id "c" :code "C" :revision 1 :status "registered"}]
+              [{:requirement_id "a" :relation "verifies"}] {})]
     (is (= 2 (:declared agg)))
     (is (= 1 (:aligned agg)))
     (is (= 1 (:gap agg)))
@@ -828,32 +830,32 @@
     (is (= "URS-RL" (:code (rs (:id req-rel))))))
   ;; 纯函数直测: 声明且 verifies 指向已批准文档 -> released; 指向未批准文档 -> pending; 指向任务 -> pending; 未声明 -> not-applicable.
   (is (= "released" (:verification_evidence_state
-                     (evidence/requirement-trace-model {"r" [{:relation "verifies" :target_kind "document" :target_id "d1"}]}
+                      (evidence/requirement-trace-model {"r" [{:relation "verifies" :target_kind "document" :target_id "d1"}]}
                                                         {"d1" {:id "d1" :status "approved"}}
                                                         {:id "r" :verification_method "test"}))))
   (is (= "pending" (:verification_evidence_state
-                    (evidence/requirement-trace-model {"r" [{:relation "verifies" :target_kind "document" :target_id "d1"}]}
+                     (evidence/requirement-trace-model {"r" [{:relation "verifies" :target_kind "document" :target_id "d1"}]}
                                                        {"d1" {:id "d1" :status "registered"}}
                                                        {:id "r" :verification_method "test"}))))
   (is (= "pending" (:verification_evidence_state
-                    (evidence/requirement-trace-model {"r" [{:relation "verifies" :target_kind "task" :target_id "t1"}]}
+                     (evidence/requirement-trace-model {"r" [{:relation "verifies" :target_kind "task" :target_id "t1"}]}
                                                        {}
                                                        {:id "r" :verification_method "test"}))))
   (is (= "no-verification" (:verification_evidence_state
-                            (evidence/requirement-trace-model {} {} {:id "r" :verification_method "test"}))))
+                             (evidence/requirement-trace-model {} {} {:id "r" :verification_method "test"}))))
   (is (= "not-applicable" (:verification_evidence_state
                             (evidence/requirement-trace-model {"r" [{:relation "verifies" :target_kind "document" :target_id "d1"}]}
-                                                               {"d1" {:id "d1" :status "approved"}}
-                                                               {:id "r"}))))
+                                                              {"d1" {:id "d1" :status "approved"}}
+                                                              {:id "r"}))))
   ;; 纯函数聚合直测: released/pending 口径与分母.
   (let [docs {"d-rel" {:id "d-rel" :status "approved"} "d-pend" {:id "d-pend" :status "in_review"}}
         agg (evidence/verification-evidence-alignment
-             [{:id "a" :code "A" :revision 1 :status "registered" :verification_method "test"}
-              {:id "b" :code "B" :revision 1 :status "registered" :verification_method "analysis"}
-              {:id "c" :code "C" :revision 1 :status "registered" :verification_method "demonstration"}]
-             [{:requirement_id "a" :relation "verifies" :target_kind "document" :target_id "d-rel"}
-              {:requirement_id "b" :relation "verifies" :target_kind "document" :target_id "d-pend"}]
-             docs)]
+              [{:id "a" :code "A" :revision 1 :status "registered" :verification_method "test"}
+               {:id "b" :code "B" :revision 1 :status "registered" :verification_method "analysis"}
+               {:id "c" :code "C" :revision 1 :status "registered" :verification_method "demonstration"}]
+              [{:requirement_id "a" :relation "verifies" :target_kind "document" :target_id "d-rel"}
+               {:requirement_id "b" :relation "verifies" :target_kind "document" :target_id "d-pend"}]
+              docs)]
     (is (= 3 (:declared agg)))
     (is (= 2 (:aligned agg)))
     (is (= 1 (:gap agg)))
@@ -897,16 +899,16 @@
     (is (true? (:evidence_voided (evidence/trace-read-model docs {:target_kind "document" :target_id "a"}))))
     (is (false? (:evidence_voided (evidence/trace-read-model docs {:target_kind "task" :target_id "t1"}))))
     (is (false? (:evidence_voided (evidence/trace-read-model {"x" {:id "x" :code "CX" :revision 1 :status "approved"}}
-                                                              {:target_kind "document" :target_id "x"})))))
+                                                             {:target_kind "document" :target_id "x"})))))
   ;; 纯函数直测: requirement-trace-model verification_evidence_voided 随 verifies 指向编码最新版本作废而翻真; 任务目标恒 false.
   (let [docs {"a" {:id "a" :code "C1" :revision 1 :status "registered"}
               "b" {:id "b" :code "C1" :revision 2 :status "discarded"}}]
     (is (true? (:verification_evidence_voided
-                (evidence/requirement-trace-model
-                 {"r" [{:relation "verifies" :target_kind "document" :target_id "a"}]} docs {:id "r" :verification_method "test"}))))
-    (is (false? (:verification_evidence_voided
                  (evidence/requirement-trace-model
-                  {"r" [{:relation "verifies" :target_kind "task" :target_id "t"}]} docs {:id "r" :verification_method "test"}))))))
+                   {"r" [{:relation "verifies" :target_kind "document" :target_id "a"}]} docs {:id "r" :verification_method "test"}))))
+    (is (false? (:verification_evidence_voided
+                  (evidence/requirement-trace-model
+                    {"r" [{:relation "verifies" :target_kind "task" :target_id "t"}]} docs {:id "r" :verification_method "test"}))))))
 
 
 (deftest risk-becomes-one-issue-and-requires-independent-verification
@@ -1376,13 +1378,13 @@
         (is (= 400 (error-status #(command! id :gates :checks (:id gate) {:checks []}))))
         (is (= 400 (error-status #(command! id :gates :checks (:id gate)
                                             {:checks [{:code "C-9" :passed true :evidence_ids []}]})))))
-    (testing "提交时未附豁免申请, 决定 waived 被拒409"
-      (let [gate (command! id :gates :create nil {:template_id (:id template) :title "豁免关口" :reviewer_id 9302})]
-        (command! id :gates :checks (:id gate)
-                  {:checks [{:code "C-1" :passed true :evidence_ids [(:id document)]}]})
-        (command! id :gates :submit (:id gate) {})
-        (is (= 409 (error-status #(command! 9302 id :gates :decision (:id gate)
-                                            {:decision "waived" :reason "无申请却要豁免"})))))))))
+      (testing "提交时未附豁免申请, 决定 waived 被拒409"
+        (let [gate (command! id :gates :create nil {:template_id (:id template) :title "豁免关口" :reviewer_id 9302})]
+          (command! id :gates :checks (:id gate)
+                    {:checks [{:code "C-1" :passed true :evidence_ids [(:id document)]}]})
+          (command! id :gates :submit (:id gate) {})
+          (is (= 409 (error-status #(command! 9302 id :gates :decision (:id gate)
+                                              {:decision "waived" :reason "无申请却要豁免"})))))))))
 
 
 ;; batch57 (mutator 方向: cover the uncovered): gates 剩余缺口 — 目录导入可选关口,
@@ -1952,19 +1954,19 @@
     ;; 纯函数聚合: closed/converted 视为完成不计 open, 无 source_dq_id 不计入.
     (is (= {"d1" {:total 4 :open 2 :overdue 0}}
            (collab/remediation-rollup-by-dq
-            [{:source_dq_id "d1" :status "open"}
-             {:source_dq_id "d1" :status "closed"}
-             {:source_dq_id "d1" :status "converted"}
-             {:source_dq_id "d1" :status "in_review"}
-             {:status "open"}])))
+             [{:source_dq_id "d1" :status "open"}
+              {:source_dq_id "d1" :status "closed"}
+              {:source_dq_id "d1" :status "converted"}
+              {:source_dq_id "d1" :status "in_review"}
+              {:status "open"}])))
     ;; 纯函数聚合含逾期: overdue 仅计到期不晚于运行日且未关闭未转任务者.
     (is (= {"d1" {:total 5 :open 3 :overdue 2}}
            (collab/remediation-rollup-by-dq
-            [{:source_dq_id "d1" :status "open" :due_date "2020-01-01"}
-             {:source_dq_id "d1" :status "in_review" :due_date "2020-01-01"}
-             {:source_dq_id "d1" :status "open" :due_date "2099-01-01"}
-             {:source_dq_id "d1" :status "closed" :due_date "2020-01-01"}
-             {:source_dq_id "d1" :status "converted" :due_date "2020-01-01"}])))
+             [{:source_dq_id "d1" :status "open" :due_date "2020-01-01"}
+              {:source_dq_id "d1" :status "in_review" :due_date "2020-01-01"}
+              {:source_dq_id "d1" :status "open" :due_date "2099-01-01"}
+              {:source_dq_id "d1" :status "closed" :due_date "2020-01-01"}
+              {:source_dq_id "d1" :status "converted" :due_date "2020-01-01"}])))
     ;; dq-remediation-read-model 纯映射三态 + overdue 缺省 0.
     (is (= "in-progress" (:dq_remediation_state (collab/dq-remediation-read-model {"d1" {:total 2 :open 1 :overdue 1}} {:id "d1"}))))
     (is (= "completed" (:dq_remediation_state (collab/dq-remediation-read-model {"d1" {:total 2 :open 0 :overdue 0}} {:id "d1"}))))
@@ -2092,19 +2094,19 @@
     ;; 纯函数聚合: closed/converted 视为完成不计 open, 无 source_gate_id 不计入.
     (is (= {"g1" {:total 4 :open 2 :overdue 0}}
            (collab/remediation-rollup-by-gate
-            [{:source_gate_id "g1" :status "open"}
-             {:source_gate_id "g1" :status "closed"}
-             {:source_gate_id "g1" :status "converted"}
-             {:source_gate_id "g1" :status "in_review"}
-             {:status "open"}])))
+             [{:source_gate_id "g1" :status "open"}
+              {:source_gate_id "g1" :status "closed"}
+              {:source_gate_id "g1" :status "converted"}
+              {:source_gate_id "g1" :status "in_review"}
+              {:status "open"}])))
     ;; 纯函数聚合含逾期: overdue 仅计到期不晚于运行日且未关闭未转任务者.
     (is (= {"g1" {:total 5 :open 3 :overdue 2}}
            (collab/remediation-rollup-by-gate
-            [{:source_gate_id "g1" :status "open" :due_date "2020-01-01"}
-             {:source_gate_id "g1" :status "in_review" :due_date "2020-01-01"}
-             {:source_gate_id "g1" :status "open" :due_date "2099-01-01"}
-             {:source_gate_id "g1" :status "closed" :due_date "2020-01-01"}
-             {:source_gate_id "g1" :status "converted" :due_date "2020-01-01"}])))
+             [{:source_gate_id "g1" :status "open" :due_date "2020-01-01"}
+              {:source_gate_id "g1" :status "in_review" :due_date "2020-01-01"}
+              {:source_gate_id "g1" :status "open" :due_date "2099-01-01"}
+              {:source_gate_id "g1" :status "closed" :due_date "2020-01-01"}
+              {:source_gate_id "g1" :status "converted" :due_date "2020-01-01"}])))
     ;; gate-remediation-read-model 纯映射三态 + overdue 缺省 0.
     (is (= "in-progress" (:gate_remediation_state (collab/gate-remediation-read-model {"g1" {:total 2 :open 1 :overdue 1}} {:id "g1"}))))
     (is (= "completed" (:gate_remediation_state (collab/gate-remediation-read-model {"g1" {:total 2 :open 0 :overdue 0}} {:id "g1"}))))
@@ -2126,11 +2128,11 @@
                  {:source_risk_id "r1" :status "converted" :due_date "2020-01-01"}
                  {:variance_kind "schedule" :status "open" :due_date "2020-01-01"}
                  {:variance_kind "cost" :status "closed" :due_date "2099-01-01"}
-                 {:status "open" :due_date "2020-01-01"}]  ;; 无来源标记的会议行动不计入任何整改来源
+                 {:status "open" :due_date "2020-01-01"}]  ; 无来源标记的会议行动不计入任何整改来源
         issues [{:id "i1" :code "ISS-1" :revision 1 :status "open" :source_test_id "t1" :due_date "2020-01-01"}
                 {:id "i1" :code "ISS-1" :revision 2 :status "closed" :source_test_id "t1" :due_date "2020-01-01"}
                 {:id "i2" :code "ISS-2" :revision 1 :status "open" :source_test_id "t2" :due_date "2020-01-01"}
-                {:id "i3" :code "ISS-3" :revision 1 :status "open" :due_date "2020-01-01"}]  ;; 试验来源之外的问题不计入
+                {:id "i3" :code "ISS-3" :revision 1 :status "open" :due_date "2020-01-01"}]  ; 试验来源之外的问题不计入
         ov (collab/project-remediation-overview actions issues)
         by (zipmap (map :key (:by-source ov)) (:by-source ov))]
     (is (true? (:available ov)))
@@ -2204,16 +2206,16 @@
   (let [today (java.time.LocalDate/now)
         iso #(.toString %)
         risks [{:id "r-over" :status "open" :due_date (iso (.minusDays today 5))}
-               {:id "r-rev" :status "open" :review_due_date (iso (.plusDays today 3)) :due_date (iso (.minusDays today 50))}  ;; 风险优先复审到期日
-               {:id "r-closed" :status "closed" :due_date (iso (.minusDays today 5))}  ;; 已关闭不计入
-               {:id "r-none" :status "mitigating" :due_date nil}]                      ;; 无到期日落 undated
+               {:id "r-rev" :status "open" :review_due_date (iso (.plusDays today 3)) :due_date (iso (.minusDays today 50))}  ; 风险优先复审到期日
+               {:id "r-closed" :status "closed" :due_date (iso (.minusDays today 5))}  ; 已关闭不计入
+               {:id "r-none" :status "mitigating" :due_date nil}]                      ; 无到期日落 undated
         issues [{:id "i-soon" :status "open" :due_date (iso (.plusDays today 3))}
                 {:id "i-up" :status "in_progress" :due_date (iso (.plusDays today 15))}
-                {:id "i-closed" :status "closed" :due_date (iso (.plusDays today 1))}] ;; 已关闭不计入
-        actions [{:id "a-far" :status "open" :due_date (iso (.plusDays today 100))}    ;; 更远期(>30天)
-                 {:id "a-conv" :status "converted" :due_date (iso (.minusDays today 10))} ;; 已转任务不计入
+                {:id "i-closed" :status "closed" :due_date (iso (.plusDays today 1))}] ; 已关闭不计入
+        actions [{:id "a-far" :status "open" :due_date (iso (.plusDays today 100))}    ; 更远期(>30天)
+                 {:id "a-conv" :status "converted" :due_date (iso (.minusDays today 10))} ; 已转任务不计入
                  {:id "a-over" :status "pending" :due_date (iso (.minusDays today 2))}
-                 {:id "a-closed" :status "closed" :due_date (iso (.minusDays today 30))}] ;; 已关闭不计入
+                 {:id "a-closed" :status "closed" :due_date (iso (.minusDays today 30))}] ; 已关闭不计入
         ov (collab/due-workload-overview risks issues actions)
         first-soonest (first (:soonest ov))
         last-soonest (last (:soonest ov))]
@@ -2287,13 +2289,13 @@
   (let [today (java.time.LocalDate/now)
         iso #(.toString %)
         owner-name {1 "甲" 2 "乙"}
-        risks [{:id "r1" :status "open" :owner_id 1 :due_date (iso (.minusDays today 5))}     ;; 逾期(4)
-               {:id "r2" :status "open" :owner_id 1 :due_date (iso (.plusDays today 3))}       ;; 临期(2)
-               {:id "r3" :status "closed" :owner_id 1 :due_date (iso (.minusDays today 40))}   ;; 已关闭不计
-               {:id "r4" :status "mitigating" :owner_id 2 :due_date (iso (.minusDays today 20))}] ;; 逾期(4)
-        issues [{:id "i1" :status "open" :owner_id 1 :due_date (iso (.plusDays today 15))}     ;; 未来(1)
-                {:id "i2" :status "open" :owner_id nil :due_date (iso (.minusDays today 3))}]   ;; 无责任人只计未分配
-        actions [{:id "a1" :status "open" :owner_id 2 :due_date nil}]                          ;; 无到期日不计压力
+        risks [{:id "r1" :status "open" :owner_id 1 :due_date (iso (.minusDays today 5))}     ; 逾期(4)
+               {:id "r2" :status "open" :owner_id 1 :due_date (iso (.plusDays today 3))}       ; 临期(2)
+               {:id "r3" :status "closed" :owner_id 1 :due_date (iso (.minusDays today 40))}   ; 已关闭不计
+               {:id "r4" :status "mitigating" :owner_id 2 :due_date (iso (.minusDays today 20))}] ; 逾期(4)
+        issues [{:id "i1" :status "open" :owner_id 1 :due_date (iso (.plusDays today 15))}     ; 未来(1)
+                {:id "i2" :status "open" :owner_id nil :due_date (iso (.minusDays today 3))}]   ; 无责任人只计未分配
+        actions [{:id "a1" :status "open" :owner_id 2 :due_date nil}]                          ; 无到期日不计压力
         op (collab/owner-due-pressure risks issues actions owner-name)
         o1 (first (:by-owner op))
         o2 (second (:by-owner op))]
@@ -2302,7 +2304,7 @@
     (is (= 5 (:assigned-total op)))
     (is (= 1 (:unassigned-total op)))
     (is (= 2 (:owner-count op)))
-    (is (= 2 (:overdue op)))   ;; 仅计有责任人: r1+r4, 排除无责任人 i2
+    (is (= 2 (:overdue op)))   ; 仅计有责任人: r1+r4, 排除无责任人 i2
     (is (= 1 (:due-soon op)))
     (is (= 1 (:upcoming op)))
     (is (= 0 (:further op)))
@@ -2400,7 +2402,7 @@
                                      {:code "R-2" :title "必需二" :required true}]
                          :deliverable_ids []})]
       (command! id3 :dqs :checks (:id dq3) {:results [{:code "R-1" :passed true :note ""}
-                                                       {:code "R-2" :passed false :note ""}]})
+                                                      {:code "R-2" :passed false :note ""}]})
       (is (= "draft" (:status (first (filter #(= (:id dq3) (:id %)) (:dqs (workspace id3)))))))
       (let [acts (command! id3 :dqs :remediation-actions (:id dq3) {:due_date "2026-12-01"})]
         (is (= 1 (count acts)))
@@ -2429,9 +2431,9 @@
     ;; 跨项目 DQ -> 404.
     (let [other (project!)
           other-dq (command! other :dqs :create nil
-                            {:code "DQ-OTB" :title "他项目批量" :owner_id 9301
-                             :checklist [{:code "R" :title "必需" :required true}]
-                             :deliverable_ids []})]
+                             {:code "DQ-OTB" :title "他项目批量" :owner_id 9301
+                              :checklist [{:code "R" :title "必需" :required true}]
+                              :deliverable_ids []})]
       (is (= 404 (error-status #(command! id :dqs :remediation-actions (:id other-dq) {:due_date "2026-12-01"})))))
     ;; 批量落实不改变来源 DQ 状态 (仍 draft).
     (is (= "draft" (:status (find-dq))))))
@@ -2560,10 +2562,11 @@
   (let [id (project!)
         doc (document! id "DQ-SUM")
         did (:id doc)
-        mk (fn [code] (command! id :dqs :create nil
-                                {:code code :title (str "闭环 " code) :owner_id 9301
-                                 :checklist [{:code "C" :title "必需检查" :required true}]
-                                 :deliverable_ids [did]}))
+        mk (fn [code]
+             (command! id :dqs :create nil
+                       {:code code :title (str "闭环 " code) :owner_id 9301
+                        :checklist [{:code "C" :title "必需检查" :required true}]
+                        :deliverable_ids [did]}))
         pass (fn [dq] (command! id :dqs :checks (:id dq) {:results [{:code "C" :passed true :note ""}]}))
         d1 (mk "DQ-1")
         d2 (mk "DQ-2")
@@ -2620,8 +2623,9 @@
                                       {:code code :title "闭环关口" :stage "execution" :required true
                                        :checks [{:code "R" :title "必需检查" :required true}]})]
                (command! id :gates :create nil {:template_id (:id template) :title "评审" :reviewer_id 9302})))
-        check! (fn [g doc] (command! id :gates :checks (:id g)
-                                     {:checks [{:code "R" :passed true :evidence_ids [(:id doc)]}]}))
+        check! (fn [g doc]
+                 (command! id :gates :checks (:id g)
+                           {:checks [{:code "R" :passed true :evidence_ids [(:id doc)]}]}))
         g1 (mk "G-C1")
         g2 (mk "G-C2")
         g3 (mk "G-C3")
@@ -2705,16 +2709,16 @@
       (is (= 0 (:waiver-pct e))))
     ;; 纯函数直测: 就绪且含例外=exception-dependent; 未就绪即便含例外也不计入; 例外缺说明计入 reason-missing.
     (let [m (gates/gate-exception-summary
-             [{:checks [{:required true :passed true}
-                        {:required true :passed false :waived true :waiver_reason "已接受"}]}   ; gA 靠例外才就绪
-              {:checks [{:required true :passed false :waived true :waiver_reason "已接受"}
-                        {:required true :passed false}]}                                        ; gB 含例外但未就绪 -> 不算依赖
-              {:checks [{:required true :passed true}
-                        {:required true :passed true}]}                                          ; gC 全通过 -> 无例外
-              {:checks [{:required false :passed false}]
-               :status "draft"}                                                                  ; gD 非必需项不计入分母
-              {:checks [{:required true :passed false :waived true}]}]                           ; gE 例外缺说明且就绪 -> reason-missing + 依赖
-             )]
+              [{:checks [{:required true :passed true}
+                         {:required true :passed false :waived true :waiver_reason "已接受"}]}   ; gA 靠例外才就绪
+               {:checks [{:required true :passed false :waived true :waiver_reason "已接受"}
+                         {:required true :passed false}]}                                        ; gB 含例外但未就绪 -> 不算依赖
+               {:checks [{:required true :passed true}
+                         {:required true :passed true}]}                                          ; gC 全通过 -> 无例外
+               {:checks [{:required false :passed false}]
+                :status "draft"}                                                                  ; gD 非必需项不计入分母
+               {:checks [{:required true :passed false :waived true}]}]                           ; gE 例外缺说明且就绪 -> reason-missing + 依赖
+              )]
       (is (= 5 (:total m)))
       (is (= 7 (:required-checks m)))            ; 2+2+2+0+1
       (is (= 3 (:passed-checks m)))              ; gA R1 + gC R1 R2 = 3
@@ -2735,8 +2739,9 @@
                                       {:code code :title "流转关口" :stage stage :required true
                                        :checks [{:code "R" :title "必需检查" :required true}]})]
                (command! id :gates :create nil {:template_id (:id template) :title "评审" :reviewer_id 9302})))
-        pass! (fn [g] (command! id :gates :checks (:id g)
-                                {:checks [{:code "R" :passed true :evidence_ids [(:id doc-rel)]}]}))]
+        pass! (fn [g]
+                (command! id :gates :checks (:id g)
+                          {:checks [{:code "R" :passed true :evidence_ids [(:id doc-rel)]}]}))]
     ;; 覆盖五个互斥流转桶: needs-checks 草稿(必需检查未满足), ready-to-submit 检查通过未提交,
     ;; awaiting-decision 提交待独立裁决, rework 提交后被驳回, signed 提交并独立批准.
     (let [g-needs (mk "G-V1" "closure")
@@ -2777,43 +2782,42 @@
           (is (= 1 (:checks-passed entry)))
           (is (= 1 (:checks-total entry))))
         (is (= ver (version id)) "只读流转汇总不得漂移项目聚合版本"))))
-    ;; 纯函数直测: 空集 available=false 且各计数与点名为空, closure-pct 为 0.
-    (let [e (gates/gate-velocity-summary [])]
-      (is (false? (:available e)))
-      (is (= 0 (:total e)))
-      (is (= 0 (:closure-pct e)))
-      (is (= 0 (:actionable-backlog e)))
-      (is (= [] (:ready-to-submit-list e))))
-    ;; 纯函数直测: 六条混合关口覆盖五桶与三阶段; 状态优先于就绪度分桶 (in_review/rejected 即便 ready_to_sign 为真也不改桶); 已签核不计入可推进积压.
-    (let [m (gates/gate-velocity-summary
-             [{:status "draft" :ready_to_sign false :stage "execution" :title "X"}       ; needs-checks
-              {:status "ready" :ready_to_sign true :stage "planning" :title "B"           ; ready-to-submit
-               :id "b-id" :gate_passed 3 :gate_total 4}
-              {:status "in_review" :ready_to_sign true :stage "execution" :title "C"}     ; awaiting-decision
-              {:status "rejected" :ready_to_sign true :stage "closure" :title "D"}         ; rework
-              {:status "approved" :ready_to_sign true :stage "execution" :title "E"}      ; signed
-              {:status "waived" :ready_to_sign false :stage "planning" :title "F"}])]    ; signed (waived)
-      (is (= 6 (:total m)))
-      (is (= 2 (:signed m)))
-      (is (= 1 (:awaiting-decision m)))
-      (is (= 1 (:ready-to-submit m)))
-      (is (= 1 (:needs-checks m)))
-      (is (= 1 (:rework m)))
-      (is (= 3 (:actionable-backlog m)))
-      (is (= 6 (+ (:signed m) (:awaiting-decision m) (:ready-to-submit m) (:needs-checks m) (:rework m))))
-      (is (= 33 (:closure-pct m)))               ; round(100*2/6)
-      (is (= 3 (count (:by-stage m))))
-      (is (= {:total 1 :signed 0 :pending 1} (get-in m [:by-stage "closure"])))
-      (is (= {:total 3 :signed 1 :pending 2} (get-in m [:by-stage "execution"])))
-      (is (= {:total 2 :signed 1 :pending 1} (get-in m [:by-stage "planning"])))
-      (is (= 1 (count (:ready-to-submit-list m))))
-      (let [entry (first (:ready-to-submit-list m))]
-        (is (= "b-id" (:gate-id entry)))
-        (is (= "B" (:title entry)))
-        (is (= "planning" (:stage entry)))
-        (is (= 3 (:checks-passed entry)))
-        (is (= 4 (:checks-total entry))))))
-
+  ;; 纯函数直测: 空集 available=false 且各计数与点名为空, closure-pct 为 0.
+  (let [e (gates/gate-velocity-summary [])]
+    (is (false? (:available e)))
+    (is (= 0 (:total e)))
+    (is (= 0 (:closure-pct e)))
+    (is (= 0 (:actionable-backlog e)))
+    (is (= [] (:ready-to-submit-list e))))
+  ;; 纯函数直测: 六条混合关口覆盖五桶与三阶段; 状态优先于就绪度分桶 (in_review/rejected 即便 ready_to_sign 为真也不改桶); 已签核不计入可推进积压.
+  (let [m (gates/gate-velocity-summary
+            [{:status "draft" :ready_to_sign false :stage "execution" :title "X"}       ; needs-checks
+             {:status "ready" :ready_to_sign true :stage "planning" :title "B"           ; ready-to-submit
+              :id "b-id" :gate_passed 3 :gate_total 4}
+             {:status "in_review" :ready_to_sign true :stage "execution" :title "C"}     ; awaiting-decision
+             {:status "rejected" :ready_to_sign true :stage "closure" :title "D"}         ; rework
+             {:status "approved" :ready_to_sign true :stage "execution" :title "E"}      ; signed
+             {:status "waived" :ready_to_sign false :stage "planning" :title "F"}])]    ; signed (waived)
+    (is (= 6 (:total m)))
+    (is (= 2 (:signed m)))
+    (is (= 1 (:awaiting-decision m)))
+    (is (= 1 (:ready-to-submit m)))
+    (is (= 1 (:needs-checks m)))
+    (is (= 1 (:rework m)))
+    (is (= 3 (:actionable-backlog m)))
+    (is (= 6 (+ (:signed m) (:awaiting-decision m) (:ready-to-submit m) (:needs-checks m) (:rework m))))
+    (is (= 33 (:closure-pct m)))               ; round(100*2/6)
+    (is (= 3 (count (:by-stage m))))
+    (is (= {:total 1 :signed 0 :pending 1} (get-in m [:by-stage "closure"])))
+    (is (= {:total 3 :signed 1 :pending 2} (get-in m [:by-stage "execution"])))
+    (is (= {:total 2 :signed 1 :pending 1} (get-in m [:by-stage "planning"])))
+    (is (= 1 (count (:ready-to-submit-list m))))
+    (let [entry (first (:ready-to-submit-list m))]
+      (is (= "b-id" (:gate-id entry)))
+      (is (= "B" (:title entry)))
+      (is (= "planning" (:stage entry)))
+      (is (= 3 (:checks-passed entry)))
+      (is (= 4 (:checks-total entry))))))
 
 
 (deftest change-review-lock-and-audit-rollback
@@ -2957,7 +2961,6 @@
         (is (= "pending" (:escalation_state row)))
         (is (= 409 (error-status #(command! 9302 id :changes :decision hid {:decision "approved" :reason "未确认不得批准"}))))
         (is (= "rejected" (:status (command! 9302 id :changes :decision hid {:decision "rejected" :reason "高影响但直接否决无需确认"}))))))))
-
 
 
 (deftest ccb-ballot-quorum-gates-change-approval
@@ -3537,7 +3540,7 @@
     (let [closed (command! 9302 id :issues :decision (:id issue) {:decision "approved" :reason "复验通过"})]
       (is (= "closed" (:status closed)))
       (is (= "closure" (:review_action closed)))
-      (is (= 5 (count (:workflow_history closed)))))))  ;; created + 升级确认 + 提交解决 + 复开 + 关闭
+      (is (= 5 (count (:workflow_history closed)))))))  ; created + 升级确认 + 提交解决 + 复开 + 关闭
 
 
 (deftest risk-review-requires-evidence-and-future-followup
@@ -3568,7 +3571,7 @@
         soon (str (.plusDays today 2))
         over (str (.minusDays today 5))
         rf (command! id :risks :create nil {:title "远期复审风险" :probability 2 :impact 3 :owner_id 9301
-                                             :mitigation "例会跟踪" :due_date far})
+                                            :mitigation "例会跟踪" :due_date far})
         rs (command! id :risks :create nil {:title "临期复审风险" :probability 2 :impact 3 :owner_id 9301
                                             :mitigation "例会跟踪" :due_date soon})
         ro (command! id :risks :create nil {:title "逾期复审风险" :probability 2 :impact 3 :owner_id 9301
@@ -3591,7 +3594,7 @@
       (is (true? (:review_overdue r))))
     ;; 对远期风险提交复审并把下次复评审成临期(+2天), 独立批准后倒计时按复审日重算
     (command! id :risks :review (:id rf) {:outcome "active" :review_note "复审继续监控"
-                                           :reviewer_id 9302 :evidence_ids [evidence] :next_review_date soon})
+                                          :reviewer_id 9302 :evidence_ids [evidence] :next_review_date soon})
     (command! 9302 id :risks :decision (:id rf) {:decision "approved" :reason "监控有效"})
     (let [r (row (:id rf))]
       (is (= soon (:review_due_date r)))
@@ -3647,7 +3650,7 @@
                                                  :owner_id 9301 :mitigation "未设频率" :due_date (str (.plusDays today 5))})]
       (is (nil? (:review_frequency plain)))
       (is (= 400 (error-status #(command! id :risks :review (:id plain) {:outcome "active" :review_note "缺下次复审日期"
-                                                                        :reviewer_id 9302 :evidence_ids [evidence]})))))
+                                                                         :reviewer_id 9302 :evidence_ids [evidence]})))))
     ;; 非法复审频率登记被白名单校验拒绝.
     (is (= 400 (error-status #(command! id :risks :create nil {:title "非法频率风险" :probability 2 :impact 3
                                                                :owner_id 9301 :mitigation "x" :due_date (str (.plusDays today 5))
@@ -3682,7 +3685,7 @@
     (is (= 400 (error-status #(command! 9302 id :risks :escalate (:id high)
                                         {:decision "maybe" :note "无效决定"}))))
     (let [acked (command! 9302 id :risks :escalate (:id high)
-                         {:decision "approved" :note "管理层责成启动备选供应商并加严来料检验"})]
+                          {:decision "approved" :note "管理层责成启动备选供应商并加严来料检验"})]
       (is (= "acknowledged" (:escalation_state acked)))
       (is (= "open" (:status acked)))
       (is (= 9302 (:escalation_ack_by acked)))
@@ -4046,7 +4049,7 @@
       (is (= [0 0 0 0] (map :count (:by-band empty)))))
     (let [one (collab/risk-score-distribution
                 [{:code "R" :revision 1 :score 4} {:code "R" :revision 2 :score 20}])
-        bc (fn [k] (:count (first (filter #(= k (:band %)) (:by-band one)))))]
+          bc (fn [k] (:count (first (filter #(= k (:band %)) (:by-band one)))))]
       (is (= 1 (:total one)))
       (is (= 0 (bc "low")))
       (is (= 1 (bc "critical")))
@@ -4058,8 +4061,9 @@
   (let [id (project!)
         dist (fn [] (:risk_stage_distribution (workspace id)))
         st (fn [k] (first (filter #(= k (:stage %)) (:stages (dist)))))
-        lib (fn [k] (command! id :risks :from-library nil
-                              {:template_key k :owner_id 9301 :due_date "2026-10-20"}))
+        lib (fn [k]
+              (command! id :risks :from-library nil
+                        {:template_key k :owner_id 9301 :due_date "2026-10-20"}))
         create (fn [title p i]
                  (command! id :risks :create nil
                            {:title title :probability p :impact i
@@ -4355,9 +4359,10 @@
 (deftest comm-audience-coverage-is-derived-read-only
   (let [id (project!)
         cov (fn [] (:comm_audience_coverage (workspace id)))
-        sh (fn [code] (:id (command! id :stakeholders :create nil
-                                     {:code code :name (str "干系人-" code) :role "评审" :category "internal"
-                                      :interest "medium" :influence "medium" :owner_id 9301})))
+        sh (fn [code]
+             (:id (command! id :stakeholders :create nil
+                            {:code code :name (str "干系人-" code) :role "评审" :category "internal"
+                             :interest "medium" :influence "medium" :owner_id 9301})))
         plan (fn [code audience]
                (command! id :comm-plans :create nil
                          {:code code :objective "进度同步" :channel "meeting" :frequency "weekly"
@@ -4450,9 +4455,10 @@
 (deftest comm-execution-coverage-is-derived-read-only
   (let [id (project!)
         exec (fn [] (:comm_execution_coverage (workspace id)))
-        sh (fn [code] (:id (command! id :stakeholders :create nil
-                                     {:code code :name (str "干系人-" code) :role "评审" :category "internal"
-                                      :interest "medium" :influence "medium" :owner_id 9301})))
+        sh (fn [code]
+             (:id (command! id :stakeholders :create nil
+                            {:code code :name (str "干系人-" code) :role "评审" :category "internal"
+                             :interest "medium" :influence "medium" :owner_id 9301})))
         plan (fn [code audience]
                (command! id :comm-plans :create nil
                          {:code code :objective (str "沟通-" code) :channel "meeting" :frequency "weekly"
@@ -4542,9 +4548,10 @@
   (let [id (project!)
         usage (fn [] (:comm_channel_usage (workspace id)))
         by (fn [ch] (first (filter #(= ch (:channel %)) (:by-channel (usage)))))
-        sh (fn [code] (:id (command! id :stakeholders :create nil
-                                     {:code code :name (str "干系人-" code) :role "评审" :category "internal"
-                                      :interest "medium" :influence "medium" :owner_id 9301})))
+        sh (fn [code]
+             (:id (command! id :stakeholders :create nil
+                            {:code code :name (str "干系人-" code) :role "评审" :category "internal"
+                             :interest "medium" :influence "medium" :owner_id 9301})))
         plan (fn [code channel]
                (command! id :comm-plans :create nil
                          {:code code :objective (str "沟通-" code) :channel channel :frequency "weekly"
@@ -4625,99 +4632,101 @@
       (is (= 0 (:count (first (filter #(= "meeting" (:channel %)) (:by-channel disc)))))))
 
 
-(deftest comm-plan-audience-breadth-is-derived-read-only
-  (let [id (project!)
-        breadth (fn [] (:comm_audience_breadth (workspace id)))
-        bb (fn [k] (first (filter #(= k (:bucket %)) (:by-breadth (breadth)))))
-        sh (fn [code] (:id (command! id :stakeholders :create nil
-                                     {:code code :name (str "干系人-" code) :role "评审" :category "internal"
-                                      :interest "medium" :influence "medium" :owner_id 9301})))
-        plan (fn [code audience]
-               (command! id :comm-plans :create nil
-                         {:code code :objective (str "沟通-" code) :channel "meeting" :frequency "weekly"
-                          :audience audience :next_date "2026-10-15" :owner_id 9301}))
-        s1 (sh "AB-1") s2 (sh "AB-2") s3 (sh "AB-3") s4 (sh "AB-4")
-        p1 (plan "AB-P1" [s1]) p2 (plan "AB-P2" [s1 s2]) _ (plan "AB-P3" [s1 s2 s3 s4])]
-    ;; 三条计划分别面向 1/2/4 人 -> solo/few/many 各 1, 引用总数 7, 平均四舍五入 2, 最宽 AB-P3 4 人.
-    (is (true? (:available (breadth))))
-    (is (= 3 (:total (breadth))))
-    (is (= 3 (:targeted (breadth))))
-    ;; 真实命令受众恒为 1..50, 故未设定受众计划数为 0.
-    (is (= 0 (:untargeted (breadth))))
-    (is (= 7 (:total-refs (breadth))))
-    (is (= 2 (:avg-size (breadth))))
-    (is (= 4 (:max-size (breadth))))
-    (is (= "AB-P3" (:code (:widest-plan (breadth)))))
-    (is (= 4 (:size (:widest-plan (breadth)))))
-    (is (= ["solo" "few" "many"] (mapv :bucket (:by-breadth (breadth)))))
-    (is (= 1 (:count (bb "solo"))))
-    (is (= 1 (:count (bb "few"))))
-    (is (= 1 (:count (bb "many"))))
-    ;; 只读派生不改变记录: 重复读取稳定, 计划仍 active.
-    (is (= (breadth) (:comm_audience_breadth (workspace id))))
-    (let [row (first (filter #(= "AB-P1" (:code %)) (:comm_plans (workspace id))))]
-      (is (= "active" (:status row))))
-    ;; 界面受控修订: AB-P2 受众由 2 人增到 4 人 -> few 清零, many 升到 2, 引用 9, 平均 3, 最宽仍 4.
-    (command! id :comm-plans :revisions (:id p2)
-              {:code "AB-P2" :objective "沟通-AB-P2" :channel "meeting" :frequency "weekly"
-               :audience [s1 s2 s3 s4] :next_date "2026-10-15" :owner_id 9301})
-    (is (= 3 (:total (breadth))))
-    (is (= 9 (:total-refs (breadth))))
-    (is (= 3 (:avg-size (breadth))))
-    (is (= 4 (:max-size (breadth))))
-    (is (= 1 (:count (bb "solo"))))
-    (is (= 0 (:count (bb "few"))))
-    (is (= 2 (:count (bb "many"))))
-    ;; 纯函数直测: 空输入 available false/全 0/三档顺序 solo few many 全 0/无最宽计划.
-    (let [empty (stakeholders/comm-plan-audience-breadth [])]
-      (is (false? (:available empty)))
-      (is (= 0 (:total empty)))
-      (is (= 0 (:targeted empty)))
-      (is (= 0 (:untargeted empty)))
-      (is (= 0 (:total-refs empty)))
-      (is (= 0 (:avg-size empty)))
-      (is (= 0 (:max-size empty)))
-      (is (nil? (:widest-plan empty)))
-      (is (= ["solo" "few" "many"] (mapv :bucket (:by-breadth empty))))
-      (is (every? zero? (mapv :count (:by-breadth empty)))))
-    ;; 合成: 无受众计划计入未设定, targeted 为 0 时平均广度取 0 且无最宽计划.
-    (let [ut (stakeholders/comm-plan-audience-breadth
-               [{:code "Z" :revision 1 :status "active"}])]
-      (is (= 1 (:total ut)))
-      (is (= 0 (:targeted ut)))
-      (is (= 1 (:untargeted ut)))
-      (is (= 0 (:total-refs ut)))
-      (is (= 0 (:avg-size ut)))
-      (is (nil? (:widest-plan ut))))
-    ;; 合成: s/latest 只计最新修订版受众, 旧版人数不重复计入, 新版收缩到 1 -> solo.
-    (let [rev (stakeholders/comm-plan-audience-breadth
-                [{:code "P" :revision 1 :status "active" :audience ["a" "b"]}
-                 {:code "P" :revision 2 :status "active" :audience ["a"]}])]
-      (is (= 1 (:total rev)))
-      (is (= 1 (:targeted rev)))
-      (is (= 1 (:total-refs rev)))
-      (is (= 1 (:max-size rev)))
-      (is (= 1 (:count (first (filter #(= "solo" (:bucket %)) (:by-breadth rev))))))
-      (is (= 0 (:count (first (filter #(= "few" (:bucket %)) (:by-breadth rev)))))))
-    ;; 合成: 最新版被作废的计划不计入, 仅活动计划参与广度统计.
-    (let [disc (stakeholders/comm-plan-audience-breadth
-                 [{:code "A" :revision 1 :status "discarded" :audience ["w" "x" "y" "z"]}
-                  {:code "B" :revision 1 :status "active" :audience ["p" "q"]}])]
-      (is (= 1 (:total disc)))
-      (is (= 1 (:targeted disc)))
-      (is (= 2 (:total-refs disc)))
-      (is (= 2 (:max-size disc)))
-      (is (= 1 (:count (first (filter #(= "few" (:bucket %)) (:by-breadth disc))))))
-      (is (= 0 (:count (first (filter #(= "many" (:bucket %)) (:by-breadth disc)))))))))))
+    (deftest comm-plan-audience-breadth-is-derived-read-only
+      (let [id (project!)
+            breadth (fn [] (:comm_audience_breadth (workspace id)))
+            bb (fn [k] (first (filter #(= k (:bucket %)) (:by-breadth (breadth)))))
+            sh (fn [code]
+                 (:id (command! id :stakeholders :create nil
+                                {:code code :name (str "干系人-" code) :role "评审" :category "internal"
+                                 :interest "medium" :influence "medium" :owner_id 9301})))
+            plan (fn [code audience]
+                   (command! id :comm-plans :create nil
+                             {:code code :objective (str "沟通-" code) :channel "meeting" :frequency "weekly"
+                              :audience audience :next_date "2026-10-15" :owner_id 9301}))
+            s1 (sh "AB-1") s2 (sh "AB-2") s3 (sh "AB-3") s4 (sh "AB-4")
+            p1 (plan "AB-P1" [s1]) p2 (plan "AB-P2" [s1 s2]) _ (plan "AB-P3" [s1 s2 s3 s4])]
+        ;; 三条计划分别面向 1/2/4 人 -> solo/few/many 各 1, 引用总数 7, 平均四舍五入 2, 最宽 AB-P3 4 人.
+        (is (true? (:available (breadth))))
+        (is (= 3 (:total (breadth))))
+        (is (= 3 (:targeted (breadth))))
+        ;; 真实命令受众恒为 1..50, 故未设定受众计划数为 0.
+        (is (= 0 (:untargeted (breadth))))
+        (is (= 7 (:total-refs (breadth))))
+        (is (= 2 (:avg-size (breadth))))
+        (is (= 4 (:max-size (breadth))))
+        (is (= "AB-P3" (:code (:widest-plan (breadth)))))
+        (is (= 4 (:size (:widest-plan (breadth)))))
+        (is (= ["solo" "few" "many"] (mapv :bucket (:by-breadth (breadth)))))
+        (is (= 1 (:count (bb "solo"))))
+        (is (= 1 (:count (bb "few"))))
+        (is (= 1 (:count (bb "many"))))
+        ;; 只读派生不改变记录: 重复读取稳定, 计划仍 active.
+        (is (= (breadth) (:comm_audience_breadth (workspace id))))
+        (let [row (first (filter #(= "AB-P1" (:code %)) (:comm_plans (workspace id))))]
+          (is (= "active" (:status row))))
+        ;; 界面受控修订: AB-P2 受众由 2 人增到 4 人 -> few 清零, many 升到 2, 引用 9, 平均 3, 最宽仍 4.
+        (command! id :comm-plans :revisions (:id p2)
+                  {:code "AB-P2" :objective "沟通-AB-P2" :channel "meeting" :frequency "weekly"
+                   :audience [s1 s2 s3 s4] :next_date "2026-10-15" :owner_id 9301})
+        (is (= 3 (:total (breadth))))
+        (is (= 9 (:total-refs (breadth))))
+        (is (= 3 (:avg-size (breadth))))
+        (is (= 4 (:max-size (breadth))))
+        (is (= 1 (:count (bb "solo"))))
+        (is (= 0 (:count (bb "few"))))
+        (is (= 2 (:count (bb "many"))))
+        ;; 纯函数直测: 空输入 available false/全 0/三档顺序 solo few many 全 0/无最宽计划.
+        (let [empty (stakeholders/comm-plan-audience-breadth [])]
+          (is (false? (:available empty)))
+          (is (= 0 (:total empty)))
+          (is (= 0 (:targeted empty)))
+          (is (= 0 (:untargeted empty)))
+          (is (= 0 (:total-refs empty)))
+          (is (= 0 (:avg-size empty)))
+          (is (= 0 (:max-size empty)))
+          (is (nil? (:widest-plan empty)))
+          (is (= ["solo" "few" "many"] (mapv :bucket (:by-breadth empty))))
+          (is (every? zero? (mapv :count (:by-breadth empty)))))
+        ;; 合成: 无受众计划计入未设定, targeted 为 0 时平均广度取 0 且无最宽计划.
+        (let [ut (stakeholders/comm-plan-audience-breadth
+                   [{:code "Z" :revision 1 :status "active"}])]
+          (is (= 1 (:total ut)))
+          (is (= 0 (:targeted ut)))
+          (is (= 1 (:untargeted ut)))
+          (is (= 0 (:total-refs ut)))
+          (is (= 0 (:avg-size ut)))
+          (is (nil? (:widest-plan ut))))
+        ;; 合成: s/latest 只计最新修订版受众, 旧版人数不重复计入, 新版收缩到 1 -> solo.
+        (let [rev (stakeholders/comm-plan-audience-breadth
+                    [{:code "P" :revision 1 :status "active" :audience ["a" "b"]}
+                     {:code "P" :revision 2 :status "active" :audience ["a"]}])]
+          (is (= 1 (:total rev)))
+          (is (= 1 (:targeted rev)))
+          (is (= 1 (:total-refs rev)))
+          (is (= 1 (:max-size rev)))
+          (is (= 1 (:count (first (filter #(= "solo" (:bucket %)) (:by-breadth rev))))))
+          (is (= 0 (:count (first (filter #(= "few" (:bucket %)) (:by-breadth rev)))))))
+        ;; 合成: 最新版被作废的计划不计入, 仅活动计划参与广度统计.
+        (let [disc (stakeholders/comm-plan-audience-breadth
+                     [{:code "A" :revision 1 :status "discarded" :audience ["w" "x" "y" "z"]}
+                      {:code "B" :revision 1 :status "active" :audience ["p" "q"]}])]
+          (is (= 1 (:total disc)))
+          (is (= 1 (:targeted disc)))
+          (is (= 2 (:total-refs disc)))
+          (is (= 2 (:max-size disc)))
+          (is (= 1 (:count (first (filter #(= "few" (:bucket %)) (:by-breadth disc))))))
+          (is (= 0 (:count (first (filter #(= "many" (:bucket %)) (:by-breadth disc)))))))))))
 
 
 (deftest stakeholder-category-distribution-is-derived-read-only
   (let [id (project!)
         dist (fn [] (:stakeholder_category_distribution (workspace id)))
         cc (fn [k] (:count (first (filter #(= k (:category %)) (:by-category (dist))))))
-        sh (fn [code cat] (:id (command! id :stakeholders :create nil
-                                         {:code code :name (str "干系人-" code) :role "评审" :category cat
-                                          :interest "medium" :influence "medium" :owner_id 9301})))
+        sh (fn [code cat]
+             (:id (command! id :stakeholders :create nil
+                            {:code code :name (str "干系人-" code) :role "评审" :category cat
+                             :interest "medium" :influence "medium" :owner_id 9301})))
         _ (sh "SC-1" "internal") _ (sh "SC-2" "internal")
         _ (sh "SC-3" "external") _ (sh "SC-4" "supplier")]
     ;; 四名干系人分属 internal(2)/external(1)/supplier(1): 覆盖 3 类, 未覆盖 2, 覆盖率 60, 主导 internal.
@@ -4792,9 +4801,10 @@
         dist (fn [] (:stakeholder_quadrant_distribution (workspace id)))
         qc (fn [k] (:count (first (filter #(= k (:quadrant %)) (:by-quadrant (dist))))))
         qp (fn [k] (:pct (first (filter #(= k (:quadrant %)) (:by-quadrant (dist))))))
-        sh (fn [code inf itr] (:id (command! id :stakeholders :create nil
-                                             {:code code :name (str "干系人-" code) :role "评审" :category "internal"
-                                              :interest itr :influence inf :owner_id 9301})))
+        sh (fn [code inf itr]
+             (:id (command! id :stakeholders :create nil
+                            {:code code :name (str "干系人-" code) :role "评审" :category "internal"
+                             :interest itr :influence inf :owner_id 9301})))
         ;; SH-1/SH-2 双高 -> manage-close; SH-3 仅影响力高 -> keep-satisfied; SH-4 仅关注度高 -> keep-informed.
         _ (sh "SQ-1" "high" "high") _ (sh "SQ-2" "high" "high")
         _ (sh "SQ-3" "high" "low") _ (sh "SQ-4" "low" "high")]
@@ -4874,13 +4884,15 @@
         dist (fn [] (:stakeholder_engagement_distribution (workspace id)))
         ec (fn [k] (:count (first (filter #(= k (:engagement %)) (:by-engagement (dist))))))
         ep (fn [k] (:pct (first (filter #(= k (:engagement %)) (:by-engagement (dist))))))
-        sh (fn [code eng] (:id (command! id :stakeholders :create nil
-                                         {:code code :name (str "干系人-" code) :role "评审" :category "internal"
-                                          :interest "medium" :influence "medium" :owner_id 9301
-                                          :engagement eng})))
-        sh-none (fn [code] (:id (command! id :stakeholders :create nil
-                                          {:code code :name (str "干系人-" code) :role "评审" :category "internal"
-                                           :interest "medium" :influence "medium" :owner_id 9301})))
+        sh (fn [code eng]
+             (:id (command! id :stakeholders :create nil
+                            {:code code :name (str "干系人-" code) :role "评审" :category "internal"
+                             :interest "medium" :influence "medium" :owner_id 9301
+                             :engagement eng})))
+        sh-none (fn [code]
+                  (:id (command! id :stakeholders :create nil
+                                 {:code code :name (str "干系人-" code) :role "评审" :category "internal"
+                                  :interest "medium" :influence "medium" :owner_id 9301})))
         ;; SE-1 未知晓, SE-2 抵制, SE-3 支持, SE-4 未设定态度(可选字段留空).
         _ (sh "SE-1" "unaware") _ (sh "SE-2" "resistant") _ (sh "SE-3" "supportive") _ (sh-none "SE-4")]
     (is (true? (:available (dist))))
@@ -4983,11 +4995,13 @@
 (deftest raci-assignment-coverage-is-derived-read-only
   (let [id (project!)
         cov (fn [] (:raci_assignment_coverage (workspace id)))
-        sh (fn [code name] (:id (command! id :stakeholders :create nil
-                                          {:code code :name name :role "评审" :category "internal"
-                                           :interest "high" :influence "medium" :owner_id 9301})))
-        raci (fn [act sid resp] (command! id :raci :create nil
-                                          {:activity act :stakeholder_id sid :responsibility resp}))
+        sh (fn [code name]
+             (:id (command! id :stakeholders :create nil
+                            {:code code :name name :role "评审" :category "internal"
+                             :interest "high" :influence "medium" :owner_id 9301})))
+        raci (fn [act sid resp]
+               (command! id :raci :create nil
+                         {:activity act :stakeholder_id sid :responsibility resp}))
         s1 (sh "RA-1" "甲") s2 (sh "RA-2" "乙") s3 (sh "RA-3" "丙")]
     ;; 完整甲: 同时有 R 和 A -> 完整.
     (raci "完整甲" s1 "R")
@@ -5046,11 +5060,13 @@
 (deftest raci-engagement-coverage-is-derived-read-only
   (let [id (project!)
         cov (fn [] (:raci_engagement_coverage (workspace id)))
-        sh (fn [code name] (:id (command! id :stakeholders :create nil
-                                          {:code code :name name :role "评审" :category "internal"
-                                           :interest "high" :influence "medium" :owner_id 9301})))
-        raci (fn [act sid resp] (command! id :raci :create nil
-                                          {:activity act :stakeholder_id sid :responsibility resp}))
+        sh (fn [code name]
+             (:id (command! id :stakeholders :create nil
+                            {:code code :name name :role "评审" :category "internal"
+                             :interest "high" :influence "medium" :owner_id 9301})))
+        raci (fn [act sid resp]
+               (command! id :raci :create nil
+                         {:activity act :stakeholder_id sid :responsibility resp}))
         s1 (sh "RE-1" "甲") s2 (sh "RE-2" "乙") s3 (sh "RE-3" "丙") s4 (sh "RE-4" "丁")]
     ;; 充分活动: 有 R 与 A 之外还配了 C 与 I -> 咨询与知会齐备.
     (raci "充分活动" s1 "R")
@@ -5113,11 +5129,13 @@
   (let [id (project!)
         dist (fn [] (:raci_role_distribution (workspace id)))
         role (fn [k] (first (filter #(= k (:role %)) (:by-role (dist)))))
-        sh (fn [code name] (:id (command! id :stakeholders :create nil
-                                          {:code code :name name :role "评审" :category "internal"
-                                           :interest "high" :influence "medium" :owner_id 9301})))
-        raci (fn [act sid resp] (command! id :raci :create nil
-                                          {:activity act :stakeholder_id sid :responsibility resp}))
+        sh (fn [code name]
+             (:id (command! id :stakeholders :create nil
+                            {:code code :name name :role "评审" :category "internal"
+                             :interest "high" :influence "medium" :owner_id 9301})))
+        raci (fn [act sid resp]
+               (command! id :raci :create nil
+                         {:activity act :stakeholder_id sid :responsibility resp}))
         s1 (sh "RR-1" "甲") s2 (sh "RR-2" "乙") s3 (sh "RR-3" "丙") s4 (sh "RR-4" "丁")]
     ;; 纯函数空输入: available false, total 0, covered 0, uncovered 4, 覆盖 0, dominant nil, 四档各计数与占比 0.
     (let [empty (stakeholders/raci-role-distribution [])]
@@ -5220,8 +5238,9 @@
 (deftest meeting-release-coverage-is-derived-read-only
   (let [id (project!)
         cov (fn [] (:meeting_release_coverage (workspace id)))
-        mk (fn [title] (command! id :meetings :create nil
-                                 {:title title :held_on "2026-09-12" :minutes "形成结论" :attendee_ids [9301 9302]}))
+        mk (fn [title]
+             (command! id :meetings :create nil
+                       {:title title :held_on "2026-09-12" :minutes "形成结论" :attendee_ids [9301 9302]}))
         draft (mk "阶段评审会")
         pending (mk "整改例会")
         published (mk "设计评审会")
@@ -5299,8 +5318,8 @@
     (is (= 409 (error-status #(command! id :risks :mitigation-action (:id risk) {:title "越门控"}))))
     (let [other (project!)
           other-risk (command! other :risks :create nil
-                                {:title "他项目风险" :probability 2 :impact 3 :owner_id 9301
-                                 :mitigation "其它" :due_date "2026-10-20"})]
+                               {:title "他项目风险" :probability 2 :impact 3 :owner_id 9301
+                                :mitigation "其它" :due_date "2026-10-20"})]
       (is (= 404 (error-status #(command! id :risks :mitigation-action (:id other-risk) {:title "跨项目"})))))))
 
 
@@ -5344,11 +5363,11 @@
     ;; 纯函数按 source_risk_id 聚合: closed/converted 视为完成, 无来源风险的行动不计入.
     (is (= {"r1" {:total 4 :open 2 :overdue 0}}
            (collab/mitigation-rollup-by-risk
-            [{:source_risk_id "r1" :status "open"}
-             {:source_risk_id "r1" :status "closed"}
-             {:source_risk_id "r1" :status "converted"}
-             {:source_risk_id "r1" :status "in_review"}
-             {:status "open"}])))
+             [{:source_risk_id "r1" :status "open"}
+              {:source_risk_id "r1" :status "closed"}
+              {:source_risk_id "r1" :status "converted"}
+              {:source_risk_id "r1" :status "in_review"}
+              {:status "open"}])))
     ;; mitigation-read-model 纯映射: 由 rollup 计数直接得出三态.
     (is (= "in-progress" (:mitigation_action_state (collab/mitigation-read-model {"r1" {:total 2 :open 1}} {:id "r1"}))))
     (is (= "completed" (:mitigation_action_state (collab/mitigation-read-model {"r1" {:total 2 :open 0}} {:id "r1"}))))
@@ -5392,11 +5411,11 @@
     ;; 纯函数聚合: overdue 仅计到期日不晚于运行日且未关闭未转任务的行动, 且必为 open 子集.
     (is (= {"r1" {:total 5 :open 3 :overdue 2}}
            (collab/mitigation-rollup-by-risk
-            [{:source_risk_id "r1" :status "open" :due_date "2020-01-01"}
-             {:source_risk_id "r1" :status "in_review" :due_date "2020-01-01"}
-             {:source_risk_id "r1" :status "open" :due_date "2099-01-01"}
-             {:source_risk_id "r1" :status "closed" :due_date "2020-01-01"}
-             {:source_risk_id "r1" :status "converted" :due_date "2020-01-01"}])))
+             [{:source_risk_id "r1" :status "open" :due_date "2020-01-01"}
+              {:source_risk_id "r1" :status "in_review" :due_date "2020-01-01"}
+              {:source_risk_id "r1" :status "open" :due_date "2099-01-01"}
+              {:source_risk_id "r1" :status "closed" :due_date "2020-01-01"}
+              {:source_risk_id "r1" :status "converted" :due_date "2020-01-01"}])))
     ;; read-model 无命中时 overdue 缺省 0; overdue 永不超过 open.
     (is (= 0 (:mitigation_action_overdue (collab/mitigation-read-model {} {:id "r2"}))))
     (let [rm (collab/mitigation-read-model {"r1" {:total 3 :open 2 :overdue 2}} {:id "r1"})]
@@ -5439,11 +5458,11 @@
     ;; 纯函数直测: 相同状态与到期日组合得到一致聚合; 空集各计数为0且闭环率为0.
     (is (= {:total 5 :closed 2 :open 3 :converted 1 :overdue 2 :closure-pct 40}
            (collab/action-closure-summary
-            [{:status "open" :due_date "2099-01-01"}
-             {:status "open" :due_date "2020-01-01"}
-             {:status "closed" :due_date "2020-01-01"}
-             {:status "converted" :due_date "2020-01-01"}
-             {:status "rejected" :due_date "2020-01-01"}])))
+             [{:status "open" :due_date "2099-01-01"}
+              {:status "open" :due_date "2020-01-01"}
+              {:status "closed" :due_date "2020-01-01"}
+              {:status "converted" :due_date "2020-01-01"}
+              {:status "rejected" :due_date "2020-01-01"}])))
     (is (= {:total 0 :closed 0 :open 0 :converted 0 :overdue 0 :closure-pct 0}
            (collab/action-closure-summary [])))))
 
@@ -5600,9 +5619,9 @@
         o (first (filter #(= (:id open) (:id %)) rows))
         f (first (filter #(= (:id future) (:id %)) rows))]
     (is (true? (:issue_overdue o)))
-      (is (true? (:issue_critical o)))
-      (is (false? (:issue_overdue f)))
-      (is (false? (:issue_critical f)))))
+    (is (true? (:issue_critical o)))
+    (is (false? (:issue_overdue f)))
+    (is (false? (:issue_critical f)))))
 
 
 (deftest stakeholder-quadrant-and-unbound-owner-read-model
@@ -5728,7 +5747,7 @@
       (is (nil? (:desired_engagement plain)))
       (is (= "active" (:status plain)))
       (is (= "unmarked" (:stakeholder_engagement_state
-                         (first (filter #(= (:id plain) (:id %)) (:stakeholders (workspace id))))))))
+                          (first (filter #(= (:id plain) (:id %)) (:stakeholders (workspace id))))))))
     ;; 非法期望参与态度枚举被白名单校验拒绝.
     (is (= 400 (error-status #(command! id :stakeholders :create nil
                                         {:code "SH-DE-3" :name "非法期望态度" :role "x" :category "external"
@@ -5742,7 +5761,7 @@
       (is (= "leading" (:desired_engagement revised)))
       (is (= 2 (:revision revised)))
       (is (= "supportive" (:desired_engagement
-                           (first (filter #(= (:id target) (:id %)) (:stakeholders (workspace id))))))))))
+                            (first (filter #(= (:id target) (:id %)) (:stakeholders (workspace id))))))))))
 
 
 (deftest stakeholder-engagement-assessment-matrix-is-derived-read-only
@@ -5756,11 +5775,11 @@
                          desired (assoc :desired_engagement desired))))
         by-code (fn [code] (first (filter #(= code (:code %)) (:stakeholders (workspace id)))))]
     ;; PMBOK 投入度评估矩阵: 当前 vs 期望按每个业务编码最新有效版本计算差距档数并分类.
-    (sh "EM-UP2" "resistant" "leading")    ;; gap +3 -> up
-    (sh "EM-UP1" "unaware" "neutral")      ;; gap +2 -> up
-    (sh "EM-ON" "supportive" "supportive") ;; gap 0  -> on
-    (sh "EM-DOWN" "leading" "neutral")     ;; gap -2 -> down
-    (sh "EM-MARK" "supportive" nil)        ;; 缺期望 -> unmarked
+    (sh "EM-UP2" "resistant" "leading")    ; gap +3 -> up
+    (sh "EM-UP1" "unaware" "neutral")      ; gap +2 -> up
+    (sh "EM-ON" "supportive" "supportive") ; gap 0  -> on
+    (sh "EM-DOWN" "leading" "neutral")     ; gap -2 -> down
+    (sh "EM-MARK" "supportive" nil)        ; 缺期望 -> unmarked
     (is (true? (:available (matrix))))
     (is (= 5 (:total (matrix))))
     (is (= 4 (:marked (matrix))))
@@ -6378,7 +6397,7 @@
                                         {:decision "maybe" :note "无效决定"}))))
     ;; 独立质量审批人确认后状态翻转为 acknowledged, 问题仍 open, 记录确认人/决定与审计.
     (let [acked (command! 9302 id :issues :escalate (:id blocker)
-                         {:decision "approved" :note "责成停线整改并复测"})]
+                          {:decision "approved" :note "责成停线整改并复测"})]
       (is (= "acknowledged" (:escalation_state acked)))
       (is (= "open" (:status acked)))
       (is (= 9302 (:escalation_ack_by acked)))
@@ -7106,6 +7125,7 @@
         (is (= [409 "已关联任务不存在,需要修复任务引用"]
                (error-info #(command! id :actions :task (:id action) {}))))))))
 
+
 ;; batch68 (mutator 方向: cover the uncovered): 未知治理命令404 (governance L264)
 ;; 与风险复审联动问题状态门 (reviews L91 — materialize 后的 open 问题阻塞复审).
 (deftest governance-unknown-command-and-risk-linked-issue-guard
@@ -7121,6 +7141,7 @@
       (is (= 409 (error-status #(command! id :risks :review (:id risk)
                                           {:outcome "closed" :review_note "周期复审关闭"
                                            :reviewer_id 9302 :evidence_ids [evidence]})))))))
+
 
 ;; batch70 (mutator 形式级甄别): 读模型回退分支纯函数直钉 —
 ;; 沟通计划无有效 next_date 不算到期 (stakeholders L292),
@@ -7140,12 +7161,14 @@
       (is (= "用户7" (:name (first (filter #(= 7 (:user-id %)) (:top-attendees s))))))
       (is (= "有名" (:name (first (filter #(= 8 (:user-id %)) (:top-attendees s)))))))))
 
+
 ;; batch73 (mutator 方向: cover the uncovered): kernel 对象体守卫 (kernel L64) —
 ;; 命令直接以非对象 body 调用时在访问/版本校验之前拒绝.
 (deftest kernel-rejects-non-map-command-body
   (let [id (project!)]
     (is (= [400 "请求体必须是JSON对象"]
            (error-info #(lifecycle/discard! *service* (actor 9301) id "document" "any-id" []))))))
+
 
 ;; batch76 (dryer): 回退标题截断惯用法提取为 s/fallback-title —
 ;; quality/gates/collaboration 五处逐字克隆 (含单条与批量两形态) 收敛到单一纯函数.
@@ -7160,6 +7183,7 @@
         base (apply str (repeat room "y"))]
     (is (= (str prefix base) (s/fallback-title prefix base 200)) "恰好等于上限不截断")
     (is (= 200 (count (s/fallback-title prefix (str base "z") 200))) "超出上限截到整200")))
+
 
 ;; batch74 (mutator 方向: cover the uncovered): 变更升级确认与 ccb 表决的
 ;; 提交人门 (approval L219/L222/L272).
@@ -7230,3 +7254,62 @@
       (let [plan (command! id :comm-plans :create nil (assoc fields :code "CP-EMPTY"))]
         (is (= [409 "沟通计划受众未绑定有效项目成员, 无法生成会议"]
                (error-info #(command! id :comm-plans :meeting (:id plan) {}))))))))
+
+
+(deftest charter-authorized-pm-gains-edit-scope-only-after-approval
+  (let [id (project!)
+        ;; 9303 在此项目中只是 viewer 成员, 不具备编辑范围.
+        baseline (error-status #(pms/set-member! *service* (actor 9303) id {:user_id 9303 :role "viewer"}))
+        charter (command! id :charters :create nil (assoc (charter-body) :authorized_pm_id 9303))
+        rid (:id charter)]
+    (is (nil? baseline))
+    ;; 章程已创建但未批准: 授权 PM 仍是 viewer, 不能借未批准章程越权编辑.
+    (is (= 403 (error-status #(pms/update-project! *service* (actor 9303) id
+                                                   {:version (version id) :name "越权改名"}))))
+    (approve! id :charters rid)
+    ;; 章程批准后, 授权 PM 与 manager_id 同级获得真实编辑范围.
+    (let [updated (pms/update-project! *service* (actor 9303) id
+                                       {:version (version id) :name "授权PM改名"})]
+      (is (= "授权PM改名" (:name updated)))
+      (is (= "授权PM改名" (:name (pms/project *service* (actor 9301) id)))))
+    ;; 章程批准时把授权 PM 通知投递到其本地收件箱, 且同一章程版本不重复投递.
+    (let [inbox (notify/inbox *service* (actor 9303) {})
+          rows (filter #(= "charter-authorized" (:nature %)) (:rows inbox))]
+      (is (<= 1 (count rows)))
+      (is (= 1 (count (filter #(= (str rid) (:target_id %)) rows)))))
+    ;; 非授权人员(未被授予编辑范围)依然被拒绝.
+    (is (= 403 (error-status #(pms/update-project! *service* (actor 9304) id
+                                                   {:version (version id) :name "他人改名"}))))))
+
+
+(deftest charter-budget-baseline-reconciliation-is-derived-read-only
+  (let [id (project!) budget-str "120000.00"
+        charter (command! id :charters :create nil
+                          (assoc (charter-body) :initial_budget budget-str :budget_currency "CNY"))
+        rid (:id charter)]
+    ;; 未批准章程 + 无财务预算版本: 只读对账如实给出 not_declared / no_baseline.
+    (let [r (:charter_budget_baseline (workspace id))]
+      (is (false? (:available r)))
+      (is (= "not_declared" (:state r)))
+      (is (false? (get-in r [:charter :approved]))))
+    (approve! id :charters rid)
+    (let [r (:charter_budget_baseline (workspace id))]
+      (is (true? (get-in r [:charter :approved])))
+      (is (= "no_baseline" (:state r)))
+      (is (= "120000.00" (get-in r [:charter :amount]))))
+    ;; 纯函数口径: 币种一致时给差额, 不一致只报 currency_mismatch 不做伪比较.
+    (let [charters [{:status "approved" :revision 1 :code "charter" :initial_budget "100.00" :budget_currency "CNY"}]]
+      (is (= "aligned" (:state (charter-baseline/reconciliation
+                                 charters {:id "v" :kind "budget" :version_no 1 :status "approved" :currency "CNY"
+                                           :entries [{:amount_minor 10000}]}))))
+      (is (= "over" (:state (charter-baseline/reconciliation
+                              charters {:id "v" :kind "budget" :version_no 1 :status "approved" :currency "CNY"
+                                        :entries [{:amount_minor 13000}]}))))
+      (is (= "under" (:state (charter-baseline/reconciliation
+                               charters {:id "v" :kind "budget" :version_no 1 :status "approved" :currency "CNY"
+                                         :entries [{:amount_minor 8000}]}))))
+      (let [r (charter-baseline/reconciliation
+                charters {:id "v" :kind "budget" :version_no 1 :status "approved" :currency "USD"
+                          :entries [{:amount_minor 10000}]})]
+        (is (= "currency_mismatch" (:state r)))
+        (is (nil? (:variance r)))))))

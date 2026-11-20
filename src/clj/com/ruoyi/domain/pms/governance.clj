@@ -1,7 +1,9 @@
 (ns com.ruoyi.domain.pms.governance
   "项目治理工作台的只读模型,类型化命令入口及生命周期条件."
   (:require
+    [com.ruoyi.domain.pms.charter-baseline :as charter-baseline]
     [com.ruoyi.domain.pms.config.catalog :as catalog]
+    [com.ruoyi.domain.pms.finance-cost-view :as cost-view]
     [com.ruoyi.domain.pms.governance.appointment :as appointment]
     [com.ruoyi.domain.pms.governance.approval :as approval]
     [com.ruoyi.domain.pms.governance.collaboration :as collab]
@@ -106,7 +108,14 @@
                    collab/attach-issue-closure-summary
                    (collab/enrich-risk-issue-links)
                    (collab/enrich-action-source-links)
-                   (assoc :project_version (:version project) :blockers (blockers q project)
+                   (assoc :charter_budget_baseline
+                          (charter-baseline/reconciliation
+                            (:charters data)
+                            (let [budgets (filter #(= "budget" (:kind %))
+                                                  (q :finance/versions {:project_id (:project_id project)}))
+                                  latest (last (sort-by :version_no budgets))]
+                              (when latest (cost-view/dto q latest))))
+                          :project_version (:version project) :blockers (blockers q project)
                           :appointments (appointment/list-summaries q project)
                           :raci_conflicts (stakeholders/conflicts q project)
                           :traceability traceability

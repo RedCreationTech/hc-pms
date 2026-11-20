@@ -204,6 +204,23 @@
               :else "voting")}))
 
 
+(defn- notify-authorized-pm!
+  "H01 章程批准即把授权项目经理通知投递到其本地收件箱. 只投本机收件箱, 同一章程版本对同一收件人只落一条
+   (编码含 record_id 与 revision), 不影响任何审批判定."
+  [q project actor record]
+  (when-let [pm (:authorized_pm_id record)]
+    (let [code (str "notify:charter-authorized:" (:id record) ":" (:revision record) ":" pm)]
+      (when-not (:record_id (q :gov/record-by-code {:project_id (:project_id project) :kind "notification" :code code}))
+        (s/insert! q project actor "notification"
+                   {:code code :recipient_id pm :nature "charter-authorized"
+                    :target_kind "charter" :target_id (str (:id record))
+                    :project_no (:project_no project)
+                    :title (str "项目章程 " (:code record) " 已批准, 你被授权为项目经理")
+                    :tab "章程" :raised_on (str (LocalDate/now))
+                    :channel "local" :delivery "delivered" :attempts 0}
+                   {:status "unread"})))))
+
+
 (defn decide!
   "指定独立审核人批准或退回当前提交版本."
   [svc actor id kind rid body]
@@ -223,9 +240,12 @@
                        (r/fail! 409 (str "变更控制委员会表决未达通过票数 (需 " required "/" members " 赞成, 现 " approve " 票), 请补足赞成票后再批准")))))
                  (when (= "charter" kind) (chain/guard-legacy-decision! q "charter" (:id record)))
                  (s/decision-actor! actor record)
-                 (s/change! q project record decision
-                            {:decision_reason (s/text! body :reason)
-                             :decided_by (:user_id actor)})))))
+                 (let [changed (s/change! q project record decision
+                                          {:decision_reason (s/text! body :reason)
+                                           :decided_by (:user_id actor)})]
+                   (when (and (= "charter" kind) (= "approved" decision))
+                     (notify-authorized-pm! q project actor changed))
+                   changed)))))
 
 
 (defn acknowledge-change-escalation!
@@ -494,7 +514,9 @@
   [q actor project rid decision reason]
   (let [record (s/latest! q project (s/record! q project "charter" rid))]
     (s/status! record #{"in_review"})
-    (s/change! q project record decision {:decision_reason (or reason "") :decided_by (:user_id actor)})))
+    (let [changed (s/change! q project record decision {:decision_reason (or reason "") :decided_by (:user_id actor)})]
+      (when (= "approved" decision) (notify-authorized-pm! q project actor changed))
+      changed)))
 
 
 (chain/register-adapter! "charter" {:finalize finalize-charter!})

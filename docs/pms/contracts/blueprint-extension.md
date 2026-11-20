@@ -217,3 +217,14 @@
 - `GET /pms/search` 的 `lesson` kind 已打开: 结果中 `kind="lesson"`, `label="经验"`, `tab="结项与移交"`, 并附带 `lesson_category`/`owner_name`/`applicable_stage`.
 - 迁移 `202611200001-repair-current-text-timestamps` (仅 SQLite): 修正早期把 `created_at`/`reviewed_at` 落成字面量 `CURRENT_TEXT` 的历史行, 并纠正 `202609220006-finance-closure`、`202611190003-change-loss` 两处 DDL 默认值为 `(datetime('now'))`.
 - 前端: 全局检索页新增只读 `跨项目知识复用` 面板 (覆盖度标签 + 按场景分布 + 可回链项目的经验表格 + 关键字/适用场景/分类筛选).
+
+## H01 章程授权项目经理权限联动与预算基线对账 (增量10 切片, 2026-11-20)
+
+- `GET /projects/:id/governance` 顶层追加 **`charter_budget_baseline`** (只读派生, 免迁移): `{available, charter{approved, revision, code, declared, amount, amount_minor, currency}, baseline{present, version_id, version_no, status, approved, amount, amount_minor, currency}, currency_match, variance, variance_minor, variance_pct, over_budget, within_budget, state}`.
+  - `state ∈ not_declared | no_baseline | currency_mismatch | aligned | under | over`; 章程 `initial_budget` (money 字符串) 与财务 budget 版本 (整数最小单位) 先归一到同一口径再比较.
+  - **币种不一致时只报 `currency_mismatch`, `variance` 为 `nil`** —— 不跨币种比较, 不引入隐式汇率.
+  - 只读计算, 不写存储, **不构成门控**: 差额高低不阻止任何财务登记或章程修订.
+- 授权项目经理 (`authorized_pm_id`) 的权限联动 (`rules/access!`): 该类用户的**已批准章程** (最高 revision) 指定其 `authorized_pm_id` 时, 该用户获得与 `manager_id` 同级的项目内读写范围; **章程未批准前不授权**. 不改变功能权限 (`pms:quality:approve` 等仍由角色决定), 不放松职责分离.
+- 章程批准即投递本地通知 (`gov` 记录 kind=`notification`, nature=`charter-authorized`) 给授权 PM; 编码含 `record_id` + `revision`, 同一版本不重复投递; 单人审批与审批链两条批准路径都投递.
+- 新增读取语句: `gov/approved-charter-pm`, `gov/record-by-code`.
+- 前端: 章程页签新增只读 `章程预算与财务基线对账` 面板 (状态/章程版本/章程预算/财务预算/差额与百分比).

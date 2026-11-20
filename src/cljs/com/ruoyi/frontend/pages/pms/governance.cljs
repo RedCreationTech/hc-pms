@@ -37,6 +37,33 @@
         [w/edit-button "驳回" #(open! (forms/decision-dialog (str path "/decision") "rejected" (if (= "reopen" (:review_action record)) "驳回问题重开" "驳回评审")))]])]))
 
 
+(def ^:private charter-baseline-labels
+  {"not_declared" "章程未声明初始预算" "no_baseline" "尚无财务预算基线" "currency_mismatch" "币种不一致, 不做金额比较"
+   "aligned" "与财务预算基线一致" "over" "超出章程预算" "under" "低于章程预算"})
+
+
+(defn- charter-baseline-panel
+  "H01 章程初始预算与批准后财务基线的只读对账; 只呈现读取时派生结果, 不构成门控."
+  [{:keys [model]}]
+  (when-let [r (:charter_budget_baseline model)]
+    (let [state (:state r)]
+      [shared/panel "章程预算与财务基线对账"
+       "章程批准时冻结的初始预算与财务 budget 版本在读取时对账; 币种不一致时只提示不比较金额"
+       nil
+       [antd/space {:wrap true}
+        [antd/tag {:color "geekblue"} (get charter-baseline-labels state state)]
+        [antd/tag {:color "blue"} (str "章程版本 " (or (get-in r [:charter :revision]) "-"))]
+        (when (get-in r [:charter :declared])
+          [antd/tag {:color "cyan"} (str "章程预算 " (get-in r [:charter :amount]) " " (get-in r [:charter :currency]))])
+        (when (get-in r [:baseline :present])
+          [antd/tag {:color (if (get-in r [:baseline :approved]) "green" "gold")}
+           (str "财务预算 " (get-in r [:baseline :amount]) " " (get-in r [:baseline :currency])
+                (when-not (get-in r [:baseline :approved]) " (未批准)"))])
+        (when (and (:currency_match r) (some? (:variance r)))
+          [antd/tag {:color (cond (:over_budget r) "red" (:within_budget r) "green" :else "default")}
+           (str "差额 " (:variance r) " (" (or (:variance_pct r) 0) "%)")])]])))
+
+
 (defn- charter-section
   "章程目标,范围和成功标准进入独立审批 (已发布 \"项目章程\" 审批策略时按策略逐级审批)."
   [{:keys [base model options editable? open!] :as context}]
@@ -66,7 +93,8 @@
                         [:span {:style {:color "#98a2b3"}} "未指定"]))))}
        (w/state-column)]
       #(review-actions context "charters" %)]
-     [approval/latest-flow-panel flows "章程审批进度"]]))
+     [approval/latest-flow-panel flows "章程审批进度"]
+     [charter-baseline-panel context]]))
 
 
 (defn- requirement-section

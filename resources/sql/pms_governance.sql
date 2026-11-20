@@ -48,3 +48,13 @@ WHERE project_id=:project_id AND template_id=:template_id AND status='active';
 UPDATE pms_risk_template SET status='discarded',updated_at=CURRENT_TIMESTAMP
 WHERE project_id=:project_id AND template_id=:template_id AND status='active';
 --;;
+
+-- :name gov/approved-charter-pm :? :*
+SELECT record_id,revision,payload FROM pms_gov_record
+WHERE project_id=:project_id AND kind='charter' AND status='approved' ORDER BY revision DESC,record_id;
+--;;
+
+-- :name gov/record-by-code :? :1
+SELECT record_id,status FROM pms_gov_record
+WHERE project_id=:project_id AND kind=:kind AND code=:code ORDER BY revision DESC,record_id LIMIT 1;
+--;;
