@@ -16,7 +16,8 @@
     [com.ruoyi.domain.pms.governance.store :as store]
     [com.ruoyi.domain.pms.governance.templates :as templates]
     [com.ruoyi.domain.pms.kernel :as k]
-    [com.ruoyi.domain.pms.rules :as r]))
+    [com.ruoyi.domain.pms.rules :as r]
+    [com.ruoyi.domain.pms.scope :as scope]))
 
 
 (def sections
@@ -82,6 +83,11 @@
                    docs-by-id (into {} (map (juxt :id identity)) (:documents data))
                    voided-codes (evidence/voided-document-codes docs-by-id)
                    traces-by-req (group-by :requirement_id (:traces data))
+                   traces-by-task (group-by :target_id (filterv #(= "task" (:target_kind %)) (:traces data)))
+                   charter (->> (:charters data)
+                                (filterv #(= "approved" (:status %)))
+                                (sort-by :revision)
+                                last)
                    members (q :pms/members {:project_id (:project_id project)})
                    owner-name (into {} (map (fn [m] [(:user_id m) (or (not-empty (:nick_name m)) (not-empty (:user_name m)) (str "用户" (:user_id m)))]) members))
                    traceability (evidence/traceability-report (:requirements data) (:traces data))]
@@ -118,6 +124,11 @@
                           :project_version (:version project) :blockers (blockers q project)
                           :appointments (appointment/list-summaries q project)
                           :raci_conflicts (stakeholders/conflicts q project)
+                          :scope_statement_review
+                          (scope/review (q :planning/tasks {:project_id (:project_id project)})
+                                        (:requirements data) traces-by-task
+                                        (scope/statements (:scope_exclusions charter))
+                                        (scope/statements (:acceptance_criteria charter)))
                           :traceability traceability
                           :trace_summary (evidence/trace-summary traceability)
                           :document_collection (evidence/document-collection (:documents data))

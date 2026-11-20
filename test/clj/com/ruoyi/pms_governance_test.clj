@@ -16,6 +16,7 @@
     [com.ruoyi.domain.pms.notify :as notify]
     [com.ruoyi.domain.pms.planning :as planning]
     [com.ruoyi.domain.pms.queries :as queries]
+    [com.ruoyi.domain.pms.scope :as scope]
     [com.ruoyi.domain.pms.service :as pms]
     [com.ruoyi.infra.security :as security]
     [com.ruoyi.web.routes.api :as api]
@@ -7313,3 +7314,107 @@
                           :entries [{:amount_minor 10000}]})]
         (is (= "currency_mismatch" (:state r)))
         (is (nil? (:variance r)))))))
+
+
+(deftest charter-scope-exclusions-and-acceptance-criteria-map-to-wbs-leaves
+  (testing "纯函数口径: 排除项命中汇总或叶节点编号/名称即已声明, 验收准则命中叶节点或覆盖需求正文即已映射"
+    (let [tasks [{:task_id "s" :task_type "summary" :wbs_code "1" :name "整机集成"}
+                 {:task_id "a" :task_type "task" :wbs_code "1.1" :name "上位机软件" :description "负责标定界面"}
+                 {:task_id "b" :task_type "task" :wbs_code "1.2" :name "风道结构"}]
+          reqs [{:id "r1" :code "URS-1" :text "支持自动标定流程"}]
+          sbt {"a" ["r1"]}
+          ex (scope/exclusion-rows tasks ["整机集成" "客户现场安装"])
+          ac (scope/acceptance-rows tasks ["自动标定" "噪声<=60dB"] reqs sbt)]
+      (is (= [true false] (mapv :mapped ex)))
+      (is (= ["1"] (:matched_codes (first ex))))
+      (is (= [true false] (mapv :mapped ac)))
+      (is (= ["1.1"] (:matched_codes (first ac))))
+      (is (= ["URS-1"] (:matched_requirements (first ac))))
+      (is (= ["A" "B"] (scope/statements [" A " "" "A" "B"])))
+      (is (= ["A" "B"] (scope/statements " A \n\nA\nB ")))
+      (is (= ["A" "B"] (scope/statements ["A" " " "A" "B"])))
+      (let [r (scope/review tasks reqs sbt ["整机集成" "客户现场安装"] ["自动标定" "噪声<=60dB"])]
+        (is (true? (:available r)))
+        (is (= 2 (:mapped-total r)))
+        (is (= 50 (:mapped-pct r)))
+        (is (= ["客户现场安装" "噪声<=60dB"] (:unmapped r)))))
+    (is (false? (:available (scope/review [] [] {} [] []))))
+    (is (= 0 (:mapped-pct (scope/review [] [] {} [] [])))))
+  (testing "命令: 章程可选范围排除项/验收准则校验, 规范化与版本冻结, 免迁移随 payload 持久化"
+    (let [id (project!)
+          charter (command! id :charters :create nil
+                            (assoc (charter-body)
+                                   :scope_exclusions [" 客户现场安装 " "" "客户现场安装" "培训教材外购"]
+                                   :acceptance_criteria "整机噪声<=60dB\n连续8小时无故障"))
+          rid (:id charter)]
+      (is (= ["客户现场安装" "培训教材外购"] (:scope_exclusions charter)))
+      (is (= ["整机噪声<=60dB" "连续8小时无故障"] (:acceptance_criteria charter)))
+      (approve! id :charters rid)
+      (let [stored (first (filter #(= rid (:id %)) (:charters (workspace id))))]
+        (is (= "approved" (:status stored)))
+        (is (= ["客户现场安装" "培训教材外购"] (:scope_exclusions stored)))
+        (is (= ["整机噪声<=60dB" "连续8小时无故障"] (:acceptance_criteria stored))))
+      ;; 修订是新的不可变版本, 旧版本逐条声明不漂移
+      (let [revision (command! id :charters :revisions rid
+                               (assoc (charter-body) :scope_exclusions ["只保留一条"]))
+            old (first (filter #(= rid (:id %)) (:charters (workspace id))))]
+        (is (= 2 (:revision revision)))
+        (is (= ["只保留一条"] (:scope_exclusions revision)))
+        (is (nil? (:acceptance_criteria revision)))
+        (is (= ["客户现场安装" "培训教材外购"] (:scope_exclusions old)))))
+    ;; 未声明时不写入键, 零回归
+    (let [id (project!) plain (command! id :charters :create nil (charter-body))]
+      (is (not (contains? plain :scope_exclusions)))
+      (is (not (contains? plain :acceptance_criteria))))
+    ;; 非字符串项/纯空白条目/超长条目/超量条目均被拒绝
+    (let [id (project!)]
+      (is (= 400 (error-status #(command! id :charters :create nil
+                                          (assoc (charter-body) :scope_exclusions ["合法" 42])))))
+      (is (= 400 (error-status #(command! id :charters :create nil
+                                          (assoc (charter-body) :acceptance_criteria ["  "])))))
+      (is (= 400 (error-status #(command! id :charters :create nil
+                                          (assoc (charter-body) :acceptance_criteria [(apply str (repeat 501 "x"))])))))
+      (is (= 400 (error-status #(command! id :charters :create nil
+                                          (assoc (charter-body) :acceptance_criteria (mapv (fn [i] (str "准则" i)) (range 101)))))))
+      ;; 章程专属字段追加到变更申请体被白名单拒绝
+      (is (= 400 (error-status #(command! id :changes :create nil
+                                          {:title "更改范围" :reason "合同调整" :scope_impact "增加设备"
+                                           :schedule_impact "增加五日" :cost_impact "重新估价" :quality_impact "增加测试"
+                                           :resource_impact "追加工程师" :scope_exclusions ["客户现场安装"]})))))))
+
+
+(deftest scope-statement-review-is-derived-read-only
+  (testing "workspace 与 read-plan 均按已批准章程逐条映射, 只读派生不改项目版本"
+    (let [id (project!)
+          _ (jdbc/execute! (:db *service*) ["UPDATE pms_project SET status='planning' WHERE project_id=?" id])
+          leaf (fn [code name]
+                 (:result (planning/create-task!
+                            *service* (actor 9301) id
+                            {:wbs_code code :name name :duration_days 2 :owner_id 9301
+                             :version (version id)})))
+          a (leaf "1.1" "上位机软件")
+          _ (leaf "1.2" "风道结构")
+          charter (command! id :charters :create nil
+                            (assoc (charter-body)
+                                   :scope_exclusions ["风道结构" "客户现场安装"]
+                                   :acceptance_criteria ["上位机软件" "噪声<=60dB"]))]
+      (approve! id :charters (:id charter))
+      (let [v-before (version id)
+            ws (:scope_statement_review (workspace id))
+            plan (:scope_statement_review (planning/read-plan *service* (actor 9301) id))]
+        (doseq [r [ws plan]]
+          (is (true? (:available r)))
+          (is (= ["风道结构" "客户现场安装"] (mapv :statement (:exclusions r))))
+          (is (= [true false] (mapv :mapped (:exclusions r))))
+          (is (= ["上位机软件" "噪声<=60dB"] (mapv :statement (:acceptance_criteria r))))
+          (is (= [true false] (mapv :mapped (:acceptance_criteria r))))
+          (is (= 2 (:mapped-total r)))
+          (is (= 50 (:mapped-pct r)))
+          (is (= ["客户现场安装" "噪声<=60dB"] (:unmapped r))))
+        (is (= v-before (version id)))
+        (is (= v-before (:project_version (workspace id))))
+        (is (= v-before (:project_version (planning/read-plan *service* (actor 9301) id))))
+        ;; 只读派生不门控: 未映射条目存在时计划仍可提交并冻结基线
+        (is (= "submitted" (:status (:result (planning/submit-plan!
+                                               *service* (actor 9301) id
+                                               {:version (version id) :comment "范围仍可提交"})))))))))

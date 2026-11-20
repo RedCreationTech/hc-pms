@@ -1,12 +1,14 @@
 (ns com.ruoyi.domain.pms.governance.approval
   "项目章程与正式变更的类型化内容和独立评审."
   (:require
+    [clojure.string :as str]
     [com.ruoyi.domain.pms.approval-chain :as chain]
     [com.ruoyi.domain.pms.finance-money :as money]
     [com.ruoyi.domain.pms.governance.store :as s]
     [com.ruoyi.domain.pms.kernel :as k]
     [com.ruoyi.domain.pms.read-model :as rm]
-    [com.ruoyi.domain.pms.rules :as r])
+    [com.ruoyi.domain.pms.rules :as r]
+    [com.ruoyi.domain.pms.scope :as scope])
   (:import
     (java.time
       LocalDate)))
@@ -25,6 +27,11 @@
 (def charter-pm-fields
   "章程可选授权项目经理字段,随内容版本不可变持久化."
   [:authorized_pm_id])
+
+
+(def charter-scope-fields
+  "章程可选范围排除项与验收准则字段 (逐条字符串数组),随内容版本不可变持久化."
+  [:scope_exclusions :acceptance_criteria])
 
 
 (def change-fields
@@ -74,6 +81,27 @@
   [q body]
   (when-let [uid (:authorized_pm_id body)]
     {:authorized_pm_id (s/user! q uid)}))
+
+
+(defn- charter-scope!
+  "校验章程可选范围排除项/验收准则: 须为字符串数组或换行分隔文本, 归一为去空白去重后的字符串向量;
+   未声明 (缺键/空串/空数组) 时不写入键, 声称声明却全为空白条目 400. 免迁移随 payload 持久化."
+  [body]
+  (reduce (fn [acc field]
+            (let [raw (get body field)]
+              (cond
+                (nil? raw) acc
+                (and (string? raw) (str/blank? raw)) acc
+                (not (or (string? raw) (sequential? raw))) (r/fail! 400 (str (name field) "必须为字符串数组"))
+                (and (sequential? raw) (not-every? string? raw)) (r/fail! 400 (str (name field) "必须为字符串数组"))
+                :else
+                (let [items (scope/statements raw)]
+                  (when (and (empty? items) (seq raw)) (r/fail! 400 (str (name field) "不得包含空白条目")))
+                  (when (some #(> (count %) 500) items) (r/fail! 400 (str (name field) "单条不得超过500字")))
+                  (when (> (count items) 100) (r/fail! 400 (str (name field) "不得超过100条")))
+                  (if (empty? items) acc (assoc acc field items))))))
+          {}
+          charter-scope-fields))
 
 
 (defn- change-impact!
@@ -126,7 +154,8 @@
   [q kind body]
   (let [fields (if (= kind "charter") charter-fields change-fields)
         allowed (if (= kind "charter")
-                  (into (into charter-fields charter-budget-fields) charter-pm-fields)
+                  (into (into charter-fields charter-budget-fields)
+                        (into charter-pm-fields charter-scope-fields))
                   (into (into change-fields change-impact-fields) change-type-fields))]
     (s/input! body allowed)
     (cond-> (into {} (for [field (remove #{:sponsor_id} fields)]
@@ -134,6 +163,7 @@
       (= kind "charter") (assoc :sponsor_id (s/user! q (:sponsor_id body)))
       (= kind "charter") (merge (charter-budget! body))
       (= kind "charter") (merge (charter-pm! q body))
+      (= kind "charter") (merge (charter-scope! body))
       (= kind "change") (merge (change-impact! body))
       (= kind "change") (merge (change-type! body)))))
 

@@ -14,7 +14,8 @@
     [com.ruoyi.domain.pms.planning.store :as store]
     [com.ruoyi.domain.pms.planning.tasks :as tasks]
     [com.ruoyi.domain.pms.rules :as rules]
-    [com.ruoyi.domain.pms.scan :as scan]))
+    [com.ruoyi.domain.pms.scan :as scan]
+    [com.ruoyi.domain.pms.scope :as scope]))
 
 
 (defn read-plan
@@ -29,6 +30,13 @@
                         raw-tasks (store/rows q project :planning/tasks)
                         paused (quality/paused-node-ids q project)
                         traces (governance/records q project "trace")
+                        charter (->> (governance/records q project "charter")
+                                     (filter #(= "approved" (:status %)))
+                                     (sort-by :revision)
+                                     last)
+                        requirements (->> (governance/records q project "requirement")
+                                          governance/latest
+                                          (filterv #(not= "discarded" (:status %))))
                         traces-by-task (group-by :target_id (filterv #(= "task" (:target_kind %)) traces))
                         tasks (mapv #(merge % (get (:by-task bvar) (:task_id %) {}))
                                     (mapv #(tasks/scope-read-model traces-by-task
@@ -50,6 +58,10 @@
                             :node_pauses (governance/records q project "node-pause")
                             :paused_node_ids (vec paused)
                             :scope_coverage (tasks/scope-coverage raw-tasks traces)
+                            :scope_statement_review
+                            (scope/review raw-tasks requirements traces-by-task
+                                          (scope/statements (:scope_exclusions charter))
+                                          (scope/statements (:acceptance_criteria charter)))
                             :baseline_variance (:summary bvar)
                             :progress_rollup (assoc (progress/rollup tasks nodes stages) :source (network/stage-weight-source q project))
                             :plan_conflicts (network/conflicts raw-tasks (:schedule snapshot) nodes)

@@ -82,6 +82,35 @@
         [:span {:style {:color "#718096"}} (str "未覆盖 WBS: " (str/join ", " codes))])]]))
 
 
+(defn- scope-statement-section
+  "按已批准章程的范围排除项/验收准则逐条映射到 WBS 叶节点的只读审查, 仅作提示, 不阻断计划编制."
+  [{:keys [model]}]
+  (let [r (:scope_statement_review model)
+        rows (fn [label items mapped-total]
+               (when (seq items)
+                 [:div {:style {:marginTop 6}}
+                  [:span {:style {:color "#4a5568"}} (str label " " mapped-total "/" (count items) ": ")]
+                  (for [item items]
+                    ^{:key (str label (:statement item))}
+                    [antd/tag {:color (if (:mapped item) "green" "orange")}
+                     (str (:statement item)
+                          (when (:mapped item)
+                            (str " → " (str/join "/" (concat (:matched_codes item) (:matched_requirements item))))))])]))]
+    [shared/panel "范围排除项与验收准则映射"
+     "取最新已批准章程声明的排除项与验收准则, 逐条比对 WBS 叶节点的编号/名称/描述及覆盖该叶节点的需求正文; 只读派生, 不阻断保存与提交"
+     (if-not (:available r)
+       [antd/tag {:color "default"} "章程未声明范围排除项与验收准则"]
+       [:div
+        [:div {:style {:display "flex" :gap 12 :alignItems "center" :flexWrap "wrap"}}
+         [antd/tag {:color "blue"} (str "逐条声明 " (+ (or (:exclusions-total r) 0) (or (:acceptance-total r) 0)))]
+         [antd/tag {:color (if (zero? (or (:mapped-total r) 0)) "red" "green")}
+          (str "已映射 " (or (:mapped-total r) 0) " (" (or (:mapped-pct r) 0) "%)")]
+         [antd/tag {:color "purple"} (str "排除项 " (or (:exclusions-mapped r) 0) "/" (or (:exclusions-total r) 0))]
+         [antd/tag {:color "cyan"} (str "验收准则 " (or (:acceptance-mapped r) 0) "/" (or (:acceptance-total r) 0))]]
+        (rows "排除项" (:exclusions r) (:exclusions-mapped r))
+        (rows "验收准则" (:acceptance_criteria r) (:acceptance-mapped r))])]))
+
+
 (defn- baseline-variance-section
   "与最新已批准计划基线冻结排程逐任务只读比较的进度偏差汇总, 仅提示偏移, 不门控保存与提交."
   [{:keys [model]}]
@@ -245,7 +274,7 @@
       (when-let [spi (get-in model [:earned_value :spi])] [antd/tag {:color (if (< spi 0.9) "red" "blue")} (str "SPI " spi)])]
      [antd/tabs {:items
                  [{:key "wbs" :label "WBS与排程" :children (r/as-element [:div {:style {:display "grid" :gap 20}}
-                                                                       [baseline-variance-section context] [scope-coverage-section context] [task-section context] [dependency-section context] [views/gantt model]])}
+                                                                       [baseline-variance-section context] [scope-coverage-section context] [scope-statement-section context] [task-section context] [dependency-section context] [views/gantt model]])}
                   {:key "resources" :label "资源与日历" :children (r/as-element [:div {:style {:display "grid" :gap 20}}
                                                                             [resource-section context] [allocation-section context]
                                                                             [calendar-section context] [views/allocation-coverage model] [views/critical-path-staffing model] [views/schedule-sensitivity model] [views/schedule-tightness model] [views/schedule-connectivity model] [views/dependency-type-mix model] [views/duration-granularity model] [views/wbs-hierarchy model] [views/resource-load-leveling model] [views/capacity-utilization model] [views/resource-type-mix model] [views/overloads model]])}

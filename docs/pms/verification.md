@@ -2933,3 +2933,25 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 本轮未执行 (如实记录): MySQL 回归 (本地无实例); 授权 PM 的**审批**权限联动 —— 本片只联动项目内读写范围, `pms:quality:approve` 等功能权限仍由角色决定, 不因授权 PM 自动获得审批权 (职责分离仍要求独立审核人).
 
 边界: 授权 PM 只在章程**已批准**后获得范围内授权, 且不影响职责分离 (提交人与审核人仍须不同人, 审核人仍须具 `pms:quality:approve`); 通知只投本机收件箱, 外部消息渠道不在本地范围. 预算对账只与最新 budget 版本比较, 不做汇率换算与多币种折算, 不构成门控. H01 整行仍为 `partial`: 本片把两个具名未完子能力补成真实行为, 但整行验收还包含 UAT/生产口径, 不上行整行状态.
+
+## H03 范围排除项与验收准则逐条映射 (本轮增补, 2026-11-20)
+
+设计与口径: H03 上一轮把"WBS 叶节点是否被需求 satisfies 覆盖"做成只读派生, 但章程里根本没有任何地方可以声明"本次不做什么"(范围排除项)与"怎样算做完"(验收准则), 也就无从核对它们是否真的落在某个叶节点上. 本片补齐这条链的两端: 章程内容版本可选声明两项清单, 计划工作台在读取时把它们逐条映射到 WBS 叶节点.
+
+领域: 新增叶命名空间 `com.ruoyi.domain.pms.scope` (只 require `clojure.string`, 不 require rules/store, 避免与 planning/governance 形成加载环). `statements` 把声明归一为去空白去重的字符串向量 (支持向量与换行分隔文本); `exclusion-rows` 判定排除项是否命中 WBS 汇总任务或叶节点的编号/名称 —— 排除项本意是"落在范围之外", 因此命中汇总任务同样成立; `acceptance-rows` 判定验收准则是否命中叶节点的编号/名称/任务描述, 或命中覆盖该叶节点的需求正文/编号; `review` 聚合 `available/exclusions/acceptance_criteria/exclusions-total/exclusions-mapped/acceptance-total/acceptance-mapped/mapped-total/mapped-pct/unmapped`, 映射率为四舍五入整数百分比且总数 0 时给 0. 三项声明字段 (`scope_exclusions`/`acceptance_criteria`) 加入 `approval/charter-scope-fields` 白名单: 非字符串数组 400、纯空白条目 400、单条超 500 字 400、超 100 条 400, 未声明 (缺键/空串/空数组) 不写键, 免迁移随 payload 持久化, 与既有初始预算/授权 PM 一样随内容版本不可变冻结; 变更申请体追加这两键被白名单拒绝.
+
+读模型接线: `planning/read-plan` 与 `governance/workspace` 两处都取"已批准章程最高 revision"的声明 (workspace 直接复用其 `data` 里的 charters, planning 侧自行读取), 并以同一 `satisfies-by-task` 分组调用 `scope/review`, 分别挂在 `:scope_statement_review`. 两处同源同口径, 均只读派生, **不构成任何门控** —— 未映射条目不阻断任务保存、依赖、资源分配与计划提交冻结.
+
+前端: `governance_forms.cljs` 章程对话框新增"范围排除项"/"验收准则"两个多行输入 (每行一条, `:transform` 拆行去空白并在全空时删键), `planning.cljs` 在"范围覆盖性审查"面板之后新增"范围排除项与验收准则映射"面板 (逐条声明 N / 已映射 M (P%) / 排除项 a/b / 验收准则 c/d 四个标签, 下方两条明细逐条以绿"已映射 → 命中目标"或橙"未映射"呈现).
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 治理命名空间测试 | `pms_governance_test` 167 tests / 3013 assertions, 0 失败 | 新增 `charter-scope-exclusions-and-acceptance-criteria-map-to-wbs-leaves` (纯函数口径: statements 归一/排除项命中汇总任务亦成立/验收准则命中描述与覆盖需求正文; 命令口径: 规范化去重、独立批准后逐条声明不漂移、修订产生新不可变版本且旧版不漂移、未声明不写键、非字符串/纯空白/超长/超量 400、变更体追加该键 400) 与 `scope-statement-review-is-derived-read-only` (read-plan 与 workspace 两处回显逐条一致、项目版本不变、未映射存在时计划仍成功提交冻结) |
+| 全量回归 | `clojure -J-Xmx1800m -M:test` 866 tests / 8224 assertions, 0 failures / 0 errors (SQLite) | 无回归 |
+| 前端 | `npx shadow-cljs compile app` 0 warnings (4041 files) | 面板与对话框字段编译通过 |
+| cljstyle | 通过 | `scope.clj` 与新测试已格式化, `git diff --stat` 仅含本片改动 |
+| 浏览器 | `tests/e2e/pms-h03sm.spec.js` 1 passed | 界面建两条叶任务 (上位机软件/风道结构) + 需求及其 satisfies 追踪 -> 界面"编制项目章程"逐行填写排除项与验收准则 -> 独立审核人第二真实上下文批准 -> 面板显示"逐条声明 4 / 已映射 2 (50%) / 排除项 1/2 / 验收准则 1/2"且"风道结构 → 1.2""上位机软件 → 1.1"绿标、"客户现场安装""噪声<=60dB"橙标 (截图 `reports/h03sm/h03sm-1-panel.png`、`h03sm-2-page.png`) -> GET /planning 与 GET /governance 双读模型回显 mapped-pct=50 且 unmapped 逐条一致 -> 未映射存在时提交计划审批仍成功并冻结 -> 空态新项目面板提示"章程未声明范围排除项与验收准则" (截图 `h03sm-3-empty.png`), 无未捕获 JS 错误 |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本片完全免迁移不新增 DDL); 映射判定为**子串命中**而非语义理解, 因此同义改写或翻译过的声明不会被识别 (界面上以橙色"未映射"如实呈现, 不改写用户声明); 不做"覆盖性审查通过后强制冻结基线"的门控.
+
+边界: 本片补齐的是 H03 的"排除项/验收准则逐条映射"这一具名子能力, 且明确只读不门控. H03 整行验收仍含"覆盖性审查后**强制冻结**"与范围变更受控的更完整形态, 故 H03 行保持 `partial` 不上行.
