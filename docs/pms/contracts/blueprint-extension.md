@@ -206,3 +206,14 @@
 - 新增读取语句: `closure/approvals`, `reopen/all`, `lifecycle/state`. 不写入任何存储, 不改变任何门控判定.
 - 终态只读参与 (`kernel/writable!`): `rules/editable!` 只在 `write?` 为真且未显式 `allow-terminal?`/`allow-paused?` 时执行, 因此审批类只读命令 (`{:write? false}`) 在 `closed`/`cancelled`/`paused` 项目上不再被写入锁 409 误挡; 所有真正的写入路径 (`write?` true) 的终态/暂停限制保持不变.
 - 前端: "结项与移交"页签 `项目归档状态` 面板 (只读), 显示归档徽标/项目状态/归档时刻/受控重开次数, 以及关闭审批与重开申请的批准/驳回/待审批次数表与最近重开原因.
+
+## H15 跨项目经验复用: 只读知识检索 (增量10 切片, 2026-11-20)
+
+- 新增 `GET /pms/knowledge?stage=&category=&q=` (权限 `pms:project:list` + `pms:project:query`), 返回 `{available, total, project-count, stage-declared, stage-coverage-pct, owner-declared, owner-coverage-pct, by-stage[{stage,count}], rows[{project_id, project_no, project_name, lesson_id, title, category, content, applicable_stage, owner_id, owner_name, created_at}], stages[], stage, category, q}`.
+  - 只读取**当前用户授权项目**内的经验 (与 `GET /pms/search` 同一授权口径), 未授权项目的经验不出现.
+  - `stage` 取值限 `rules/lesson-stages` 受控枚举, 非法值 `400`; `q` 大小写无关且同时匹配 `title` 与 `content`.
+  - `available` 为假当且仅当结果为空; 覆盖度按结果行派生 (`stage-coverage-pct`/`owner-coverage-pct` 为四舍五入整数百分比).
+- 新增读取语句 `closure/lessons-by-projects` (`WHERE project_id IN (...)`). 不写入任何存储, 不改变任何门控: 经验登记仍唯一由 `POST /projects/:id/closure/lessons` (`closure/create-lesson!`) 强制.
+- `GET /pms/search` 的 `lesson` kind 已打开: 结果中 `kind="lesson"`, `label="经验"`, `tab="结项与移交"`, 并附带 `lesson_category`/`owner_name`/`applicable_stage`.
+- 迁移 `202611200001-repair-current-text-timestamps` (仅 SQLite): 修正早期把 `created_at`/`reviewed_at` 落成字面量 `CURRENT_TEXT` 的历史行, 并纠正 `202609220006-finance-closure`、`202611190003-change-loss` 两处 DDL 默认值为 `(datetime('now'))`.
+- 前端: 全局检索页新增只读 `跨项目知识复用` 面板 (覆盖度标签 + 按场景分布 + 可回链项目的经验表格 + 关键字/适用场景/分类筛选).

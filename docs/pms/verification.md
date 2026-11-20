@@ -2890,3 +2890,23 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 | 浏览器 | `tests/e2e/pms-h14arc.spec.js` 1 passed: 新建项目打开"结项与移交", "项目归档状态"面板可见 (截图 `reports/h14arc/h14arc-1-open.png` + `h14arc-1-open-panel.png`), 界面"未归档"/"未重开"与服务端 `:archive` (`closed=false, archived=false, archived-at=null, approvals.total=0, reopens.total=0`) 同源; 未进入收尾阶段真实 `POST /closure/submit` 与 `/closure/review` 均 409, 交叉核验只读面板不旁路写门控 |
 
 边界: 本片只把归档**状态**呈现出来并放开终态只读参与, 归档快照的长期不可变存储/外部归档库对接/电子签章仍不在本地范围; 终态项目的完整只读矩阵与 MySQL 回归仍待完成, 矩阵 H14 行保持 `partial`. 本片免迁移 (只新增读取语句).
+
+## H15 跨项目经验复用检索 (增量10 切片, 2026-11-20)
+
+设计与口径: H15 此前只能在一个项目的收尾台账里看到本项目的经验 (逐条 `pms_lesson` + `lesson_summary` 单项目分布), 无法回答"别的授权项目做过什么、哪条经验能复用到当前阶段" — 矩阵把"跨项目知识发布与检索"列为 H15 的核心未完项. 本片只读打通检索侧: 新建 `com.ruoyi.domain.pms.knowledge/knowledge-reuse` 纯函数 (只依赖 `clojure.string` 与 `read-model`, 不 require `closure`/`portfolio`, 避免 `closure -> portfolio -> notify -> scan -> planning -> governance -> closure` 的既有环), 输入当前用户**授权项目集合**与这些项目的经验行, 派生 `available/total/project-count/stage-declared/stage-coverage-pct/owner-declared/owner-coverage-pct/by-stage` 与 `rows` (按时间倒序, 带 `project_id/project_no/project_name/lesson_id/title/category/content/applicable_stage/owner_id/owner_name/created_at`), 支持按适用场景 `stage` (受控枚举, 非法值 400) / 分类 `category` / 关键字 `q` (大小写无关, 同时匹配标题与正文) 选择性检索, 不命中过滤键即返回全部. 新增读取语句 `closure/lessons-by-projects` (`WHERE l.project_id IN (:v*:project_ids)`); `rules/lesson-stages` 由 `closure` 迁入 `rules` 作为单一枚举来源 (closure 侧改用 `rules/lesson-stages`, 取值不变). 授权口径与全局检索完全一致: 只批量读取当前用户有权访问的项目, 未授权项目的经验不进入结果. 同时把 `portfolio/search` 的 `lesson` kind 打开 (`search-kinds` 增 `"lesson" ["经验" "结项与移交"]`, `matches?` 扩字段, `search-hit` 条件附带 `lesson_category/owner_name/applicable_stage`), 使全局检索也能命中经验并回链到"结项与移交"页签; 顺带为 `project-ids` 为空加守卫, 避免空 IN 列表查询. 前端全局检索页新增只读"跨项目知识复用"面板: 覆盖度标签 (可复用经验/涉及项目/已标注适用场景 %/责任人落地 %), 按场景分布标签, 以及可点击回链项目的经验表格, 支持关键字/适用场景/分类三级筛选与重置.
+
+本轮实际执行的验证:
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 组合命名空间测试 | `pms_portfolio_test` 18 tests / 343 assertions, 0 失败 | 新增 `cross-project-lesson-knowledge-is-searchable-and-read-only`: 两个项目各登记经验, 断言跨项目汇总 (total/project-count/stage/owner 覆盖度), 按场景/分类/关键字 (含正文) 选择性检索, 非法场景 400, 全局检索含 `lesson` kind 且回链"结项与移交", 以及经验写入仍只走 `create-lesson!` |
+| 全量回归 | `clojure -J-Xmx1800m -M:test` 862 tests / 8156 assertions, 0 failures / 0 errors (SQLite) | 无回归 |
+| 前端 | `npx shadow-cljs compile app` 0 warnings (4041 files) | 知识复用面板编译通过 |
+| 冷启动迁移 (隔离库) | 通过 | 以独立 `/tmp/hc-h15v.db` 全新迁移启动 `:3100`, 未触碰默认库 |
+| 浏览器 | `tests/e2e/pms-h15kb.spec.js` 1 passed | 两个项目登记经验后打开"全局检索": 面板列出两条经验并可回链项目 (截图 `reports/h15kb/h15kb-1-search.png` + `h15kb-1-panel.png`), 标签数值与同条件服务端响应一致; 面板内按"执行"场景收窄后仅剩对应经验 (截图 `h15kb-2-stage.png`); 非法场景真实 400; 缺标题的经验登记仍 400 且不新增行 |
+
+顺带修复 (同片发现的真实数据缺陷): 早期 SQLite 迁移把列默认值写成 `CURRENT_TEXT` (非法函数名), 导致经验/成本/关账台账的 `created_at`/`reviewed_at` 落库为字面量 `CURRENT_TEXT`, 界面上"登记时间"列直接显示 `CURRENT_TEXT`. 新增迁移 `202611200001-repair-current-text-timestamps` 修正既有行, 并纠正 `202609220006-finance-closure` 与 `202611190003-change-loss` 两处 DDL 默认值为 `(datetime('now'))` (新装库同样受益; MySQL 迁移无此问题).
+
+本轮未执行 (如实记录): MySQL 回归 (本地无实例); 经验**发布**到跨项目模板/风险库仍需模板审核批准, 本片只做只读检索与复用呈现, 不新增发布写路径.
+
+边界: 本片为只读派生, 免迁移 (仅新增一条读取语句, 修复迁移除外) / 无新命令 / 不构成任何门控: 经验登记约束仍唯一由 `closure/create-lesson!` 强制 (场景枚举与责任人成员校验), 检索覆盖度高低不阻止任何登记. H15 整行保持 `partial` — "经批准反馈模板或风险库"仍需审批批准后才可发布, 只读检索不上行整行状态.

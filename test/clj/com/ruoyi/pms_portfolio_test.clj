@@ -3,6 +3,7 @@
    项目组合看板 (G02), 工时更正与封期 (F04), 跨项目研发费用池 (F05), 四算拉通 (F06), 经营目标 (F09) 的真实数据库测试."
   (:require
     [clojure.test :refer [deftest is testing use-fixtures]]
+    [com.ruoyi.domain.pms.closure :as closure]
     [com.ruoyi.domain.pms.config :as config]
     [com.ruoyi.domain.pms.finance :as finance]
     [com.ruoyi.domain.pms.finance-allocation :as allocation]
@@ -12,6 +13,7 @@
     [com.ruoyi.domain.pms.finance-pool :as pool]
     [com.ruoyi.domain.pms.finance-time :as time]
     [com.ruoyi.domain.pms.governance :as gov]
+    [com.ruoyi.domain.pms.knowledge :as knowledge]
     [com.ruoyi.domain.pms.planning :as planning]
     [com.ruoyi.domain.pms.portfolio :as portfolio]
     [com.ruoyi.domain.pms.queries :as queries]
@@ -350,7 +352,8 @@
                 :approval/legacy-baselines [(assoc ref :baseline_id 64 :plan_revision 3)]
                 :approval/my-pending [{:id 41 :biz_id 31 :biz_type "charter" :level_name "一级"}]}
         svc {:query-fn (fn
-                         ([name _] (get canned name [])) ([tx name _] (get canned name [])))}
+                         ([name _] (get canned name []))
+                         ([tx name _] (get canned name [])))}
         todo (portfolio/todo svc actor)]
     (testing "reviews: 治理待审 + 签收验证 + 工时审核 + legacy 四类, 链式章程与自提交被排除"
       (is (= [["reviews" "review" "风险复评" 11 "R-1" "风险甲" "in_review" (d 2) 2 false true]
@@ -924,3 +927,45 @@
         after (mapv :status (:cost_versions (finance/overview *service* (actor 9701) id)))]
     (is (= before after))
     (is (= ["approved"] after))))
+
+
+(defn- lesson!
+  "在当前项目登记一条真实经验, 可选标注适用场景与跟进责任人."
+  [id body]
+  (:result (closure/create-lesson! *service* (actor 9701) id (assoc body :version (version id)))))
+
+
+(deftest cross-project-lesson-knowledge-is-searchable-and-read-only
+  (let [a (project! "知识复用甲") b (project! "知识复用乙")
+        _ (lesson! a {:title "装配线节拍瓶颈" :category "质量" :content "先做工位平衡表再排产" :applicable_stage "执行" :owner_id 9702})
+        _ (lesson! a {:title "供应商提前锁价" :category "成本" :content "长周期物料提前一季度锁价" :applicable_stage "采购"})
+        _ (lesson! b {:title "客户验收表模板" :category "交付" :content "验收前统一模板并预演" :applicable_stage "收尾" :owner_id 9702})]
+    (testing "跨项目汇总: 授权项目内的全部经验都在, 覆盖度按条数派生"
+      (let [k (portfolio/knowledge *service* (actor 9701) {})]
+        (is (true? (:available k)))
+        (is (>= (:total k) 3))
+        (is (<= 2 (:project-count k)))
+        (is (= (:total k) (:stage-declared k)))
+        (is (= 100 (:stage-coverage-pct k)))
+        (is (= 2 (:owner-declared k)))
+        (is (contains? (set (map :title (:rows k))) "装配线节拍瓶颈"))
+        (is (every? #(contains? % :project_no) (:rows k)))
+        (doseq [t ["装配线节拍瓶颈" "供应商提前锁价" "客户验收表模板"]]
+          (is (some #(= t (:title %)) (:rows k)) t))))
+    (testing "按适用场景/分类/关键字选择性检索, 且关键字同时匹配正文"
+      (is (= #{"装配线节拍瓶颈"} (set (map :title (:rows (portfolio/knowledge *service* (actor 9701) {:stage "执行"}))))))
+      (is (= #{"供应商提前锁价"} (set (map :title (:rows (portfolio/knowledge *service* (actor 9701) {:category "成本"}))))))
+      (is (= #{"供应商提前锁价"} (set (map :title (:rows (portfolio/knowledge *service* (actor 9701) {:q "锁价"}))))))
+      (is (empty? (:rows (portfolio/knowledge *service* (actor 9701) {:q "不存在的经验片段"}))))
+      (is (= 400 (error-status #(portfolio/knowledge *service* (actor 9701) {:stage "不存在的场景"}))))
+      (is (= #{"启动" "规划"} (set (take 2 (:stages (portfolio/knowledge *service* (actor 9701) {})))))))
+    (testing "全局检索把经验纳入结果并回链到项目页签"
+      (let [r (portfolio/search *service* (actor 9701) {:q "锁价"})]
+        (is (some #(and (= "lesson" (:kind %)) (= "经验" (:label %)) (= "结项与移交" (:tab %))) (:results r)))
+        (is (= "成本" (:lesson_category (first (filter #(= "lesson" (:kind %)) (:results r))))))))
+    (testing "只读派生不写存储: 经验行与项目版本都不因检索而改变"
+      (let [before (map #(select-keys % [:lesson_id :title :created_at]) (:rows (portfolio/knowledge *service* (actor 9701) {})))
+            _ (portfolio/knowledge *service* (actor 9701) {:q "锁价"})
+            after (map #(select-keys % [:lesson_id :title :created_at]) (:rows (portfolio/knowledge *service* (actor 9701) {})))]
+        (is (= before after))
+        (is (= (version a) (version a)))))))

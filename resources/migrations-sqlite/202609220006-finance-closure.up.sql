@@ -8,7 +8,7 @@ CREATE TABLE pms_time_entry (
  task_id VARCHAR(36) NOT NULL, user_id BIGINT NOT NULL, work_date VARCHAR(10) NOT NULL,
  minutes INTEGER NOT NULL, note VARCHAR(1000) NOT NULL,
  status VARCHAR(20) NOT NULL, submitted_by BIGINT NOT NULL, reviewer_id BIGINT NOT NULL,
- review_note VARCHAR(1000) NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TEXT,
+ review_note VARCHAR(1000) NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')),
  reviewed_at TEXT NULL, FOREIGN KEY(project_id) REFERENCES pms_project(project_id)
 );
 --;;
@@ -22,7 +22,7 @@ CREATE TABLE pms_cost_version (
  name VARCHAR(200) NOT NULL, revenue_minor BIGINT NOT NULL, version_no INTEGER NOT NULL,
  status VARCHAR(20) NOT NULL, submitted_by BIGINT NOT NULL, reviewer_id BIGINT NOT NULL,
  review_note VARCHAR(1000) NOT NULL DEFAULT '', snapshot_json TEXT,
- created_at TEXT NOT NULL DEFAULT CURRENT_TEXT, reviewed_at TEXT NULL,
+ created_at TEXT NOT NULL DEFAULT (datetime('now')), reviewed_at TEXT NULL,
  UNIQUE(project_id,kind,period,version_no), FOREIGN KEY(project_id) REFERENCES pms_project(project_id)
 );
 --;;
@@ -30,7 +30,7 @@ CREATE TABLE pms_cost_entry (
  entry_id VARCHAR(36) PRIMARY KEY, project_id VARCHAR(36) NOT NULL,
  version_id VARCHAR(36) NOT NULL, category VARCHAR(30) NOT NULL,
  label VARCHAR(200) NOT NULL, amount_minor BIGINT NOT NULL, source_ref VARCHAR(200),
- created_at TEXT NOT NULL DEFAULT CURRENT_TEXT,
+ created_at TEXT NOT NULL DEFAULT (datetime('now')),
  UNIQUE(version_id,source_ref), FOREIGN KEY(project_id) REFERENCES pms_project(project_id),
  FOREIGN KEY(version_id) REFERENCES pms_cost_version(version_id)
 );
@@ -40,7 +40,7 @@ CREATE TABLE pms_cost_allocation (
  version_id VARCHAR(36) NOT NULL, idempotency_key VARCHAR(100) NOT NULL,
  amount_minor BIGINT NOT NULL, from_date VARCHAR(10) NOT NULL, to_date VARCHAR(10) NOT NULL,
  input_hash VARCHAR(64) NOT NULL, input_json TEXT NOT NULL, result_json TEXT NOT NULL,
- created_at TEXT NOT NULL DEFAULT CURRENT_TEXT,
+ created_at TEXT NOT NULL DEFAULT (datetime('now')),
  UNIQUE(project_id,idempotency_key), FOREIGN KEY(project_id) REFERENCES pms_project(project_id),
  FOREIGN KEY(version_id) REFERENCES pms_cost_version(version_id)
 );
@@ -50,7 +50,7 @@ CREATE TABLE pms_closure_item (
  title VARCHAR(200) NOT NULL, required INTEGER NOT NULL DEFAULT 1,
  owner_id BIGINT, due_date VARCHAR(10), status VARCHAR(20) NOT NULL DEFAULT 'open',
  evidence_ref VARCHAR(200), comment VARCHAR(1000), completed_by BIGINT,
- created_at TEXT NOT NULL DEFAULT CURRENT_TEXT,
+ created_at TEXT NOT NULL DEFAULT (datetime('now')),
  FOREIGN KEY(project_id) REFERENCES pms_project(project_id)
 );
 --;;
@@ -59,7 +59,7 @@ CREATE INDEX idx_pms_closure_project ON pms_closure_item(project_id,kind);
 CREATE TABLE pms_lesson (
  lesson_id VARCHAR(36) PRIMARY KEY, project_id VARCHAR(36) NOT NULL,
  title VARCHAR(200) NOT NULL, category VARCHAR(40) NOT NULL, content TEXT NOT NULL,
- created_by BIGINT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TEXT,
+ created_by BIGINT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')),
  FOREIGN KEY(project_id) REFERENCES pms_project(project_id)
 );
 --;;
@@ -68,7 +68,7 @@ CREATE TABLE pms_closure_approval (
  status VARCHAR(20) NOT NULL, submitted_by BIGINT NOT NULL, reviewer_id BIGINT NOT NULL,
  project_version INTEGER NOT NULL,
  snapshot_hash VARCHAR(64) NOT NULL, snapshot_json TEXT NOT NULL,
- review_note VARCHAR(1000) NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TEXT,
+ review_note VARCHAR(1000) NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')),
  reviewed_at TEXT NULL, FOREIGN KEY(project_id) REFERENCES pms_project(project_id)
 );
 --;;

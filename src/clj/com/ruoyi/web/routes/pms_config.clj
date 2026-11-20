@@ -53,6 +53,13 @@
     (http/invoke svc request #(portfolio/search %1 %2 {:q (get params "q") :classification (get params "classification")}))))
 
 
+(defn- knowledge
+  [svc request]
+  (let [params (:query-params request)]
+    (http/invoke svc request #(portfolio/knowledge %1 %2 {:q (get params "q") :stage (get params "stage")
+                                                          :category (get params "category")}))))
+
+
 (defn- report-csv
   "G16 报表导出: 与页面同一求值结果, 列定义也取同一份 columns, 保证导出范围与界面一致.
     领域错误仍返回 JSON 信封 (错误不得伪装成空的 CSV), 其余以带 BOM 的 UTF-8 CSV 下载."
@@ -91,6 +98,7 @@
                                (http/invoke svc request (fn [svc actor]
                                                           (scan/run-all! svc actor (or (get-in request [:body-params :date]) (str (java.time.LocalDate/now)))))))}}]
    ["/search" {:get {:handler (partial search svc)}}]
+   ["/knowledge" {:get {:handler (partial knowledge svc)}}]
    ["/portfolio" {:get {:handler (fn [request] (http/invoke svc request portfolio/portfolio))}}]
    ["/targets/board" {:get {:handler (fn [request] (http/invoke svc request portfolio/targets))}}]
    ;; G16 报表: 已发布指标定义求值, 导出与页面共用同一求值与列定义

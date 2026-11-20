@@ -17,6 +17,10 @@ WHERE project_id=:project_id AND item_id=:item_id AND status='open'
 SELECT l.*,u.nick_name AS owner_name FROM pms_lesson l LEFT JOIN sys_user u ON u.user_id=l.owner_id
 WHERE l.project_id=:project_id ORDER BY l.created_at,l.lesson_id
 --;;
+-- :name closure/lessons-by-projects :? :*
+SELECT l.*,u.nick_name AS owner_name FROM pms_lesson l LEFT JOIN sys_user u ON u.user_id=l.owner_id
+WHERE l.project_id IN (:v*:project_ids) ORDER BY l.created_at,l.lesson_id
+--;;
 -- :name closure/insert-lesson! :! :n
 INSERT INTO pms_lesson(lesson_id,project_id,title,category,content,applicable_stage,owner_id,created_by)
 VALUES (:lesson_id,:project_id,:title,:category,:content,:applicable_stage,:owner_id,:created_by)

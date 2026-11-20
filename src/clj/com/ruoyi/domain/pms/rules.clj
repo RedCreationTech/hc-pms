@@ -21,6 +21,11 @@
   #{"draft" "initiated" "planning" "execution" "paused" "closing" "closed" "cancelled"})
 
 
+(def lesson-stages
+  "H15a 经验教训适用场景/阶段受控枚举: 让复盘经验能标注其适用的项目过程阶段, 便于后续按场景检索复用. 历史经验留空表示未标注."
+  ["启动" "规划" "执行" "监控" "收尾" "质量" "交付" "成本" "风险" "采购" "干系人" "沟通"])
+
+
 (defn fail!
   "抛出带 HTTP 状态的可预期业务异常."
   [status message]

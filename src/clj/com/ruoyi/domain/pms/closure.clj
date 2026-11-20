@@ -134,11 +134,6 @@
      :next-focus (when (pos? total-blockers) (:label (first (remove :clear cats))))}))
 
 
-(def lesson-stages
-  "H15a 经验教训适用场景/阶段受控枚举: 让复盘经验能标注其适用的项目过程阶段, 便于后续按场景检索复用. 历史经验留空表示未标注."
-  ["启动" "规划" "执行" "监控" "收尾" "质量" "交付" "成本" "风险" "采购" "干系人" "沟通"])
-
-
 (defn lesson-summary
   "H15 经验教训类别分布与作者覆盖度只读汇总 (免迁移, 不构成门控): 收尾复盘此前只有 经验 N 总数, 看不出经验集中在哪些分类, 覆盖了几类, 由多少人贡献. 本项在读取时对已登记经验派生项目级复盘分布可见性——按 分类 category 累计每类条数 (by-category 按条数降序, 同数按名称升序), 给出分类覆盖数 distinct-categories, 最大类 dominant-category 与其条数 dominant-count 及分类集中度 concentration-pct (最大类占总数的四舍五入整数百分比), 另按 贡献人 created_by 给出参与人数 author-count 与最活跃作者条数 top-author-count, 已标注分类数 categorized 与未标注分类数 uncategorized. H15a 追加只读派生: 按 适用场景 applicable_stage 累计 by-stage (同样条数降序/名称升序) 与已标注场景数 stages-declared, 场景覆盖 distinct-stages, 以及跟进责任人落地度 owner-assigned (标注了 owner_id 的经验数) 与 owner-coverage-pct (占总数四舍五入整数百分比). 经验总数为 0 时 available 为 false 且各计数为 0, dominant-category 为 nil. 这是复盘这一治理对象的只读投影, 与各经验行的逐条视图互补, 不写入存储, 不新增 kind/命令/路由, 也不构成任何门控 (登记的真正约束仍由 create-lesson! 强制), 键名不带尾随问号."
   [lessons]
@@ -280,8 +275,8 @@
                   (fn [q project]
                     (let [stage-raw (rules/text! (:applicable_stage body) "适用场景" 40 false)
                           stage (when (seq stage-raw)
-                                  (when-not (some #(= % stage-raw) lesson-stages)
-                                    (rules/fail! 400 (str "适用场景必须是受控枚举之一: " (str/join " / " lesson-stages))))
+                                  (when-not (some #(= % stage-raw) rules/lesson-stages)
+                                    (rules/fail! 400 (str "适用场景必须是受控枚举之一: " (str/join " / " rules/lesson-stages))))
                                   stage-raw)
                           owner-raw (:owner_id body)
                           owner (when (and (some? owner-raw) (not= "" owner-raw))

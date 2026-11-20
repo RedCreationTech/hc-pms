@@ -12,6 +12,7 @@
     [com.ruoyi.domain.pms.finance-money :as money]
     [com.ruoyi.domain.pms.governance.gates :as gates]
     [com.ruoyi.domain.pms.governance.store :as g]
+    [com.ruoyi.domain.pms.knowledge :as knowledge]
     [com.ruoyi.domain.pms.planning.progress :as progress]
     [com.ruoyi.domain.pms.read-model :as rm]
     [com.ruoyi.domain.pms.rules :as r])
@@ -243,12 +244,15 @@
    "meeting" ["会议" "需求与治理"] "action" ["行动" "需求与治理"] "change" ["变更" "需求与治理"] "charter" ["章程" "需求与治理"]
    "gate" ["Gate" "需求与治理"] "gate-template" ["Gate模板" "需求与治理"] "stakeholder" ["干系人" "需求与治理"] "dq" ["DQ" "需求与治理"]
    "material" ["备料申请" "工程交付"] "bom" ["BOM" "工程交付"] "assembly" ["装配" "工程交付"] "test" ["试验" "工程交付"]
-   "shipment" ["发运" "工程交付"] "service" ["售后" "工程交付"] "survey" ["工勘" "工程交付"] "handover" ["交底" "工程交付"] "site-task" ["现场任务" "工程交付"]})
+   "shipment" ["发运" "工程交付"] "service" ["售后" "工程交付"] "survey" ["工勘" "工程交付"] "handover" ["交底" "工程交付"] "site-task" ["现场任务" "工程交付"]
+   "lesson" ["经验" "结项与移交"]})
 
 
 (defn- matches?
   [needle record]
-  (let [hay (str/lower-case (str/join " " (remove nil? (map #(get record %) [:code :title :text :name :wbs_code :reason :minutes :description :deliverable]))))]
+  (let [hay (str/lower-case (str/join " " (remove nil? (map #(get record %)
+                                                            [:code :title :text :name :wbs_code :reason :minutes :description :deliverable
+                                                             :content :category :applicable_stage]))))]
     (str/includes? hay needle)))
 
 
@@ -271,15 +275,19 @@
 (defn- search-hit
   "命中记录投影为回链到项目页签的结果行 (id/code/title 按对象类型回退)."
   [project rec]
-  (let [[label tab] (get search-kinds (:kind rec) (if (= "task" (:kind rec)) ["WBS任务" "计划与执行"] ["项目" "项目概况"]))]
-    {:project_id (:project_id project) :project_no (:project_no project) :project_name (:name project)
-     :kind (:kind rec) :label label :tab tab :id (or (:id rec) (:task_id rec) (:project_id rec))
-     :code (or (:code rec) (:wbs_code rec)) :title (or (:title rec) (:name rec) (:text rec))
-     :revision (:revision rec) :status (:status rec) :classification (:classification rec)}))
+  (let [[label tab] (get search-kinds (:kind rec) (if (= "task" (:kind rec)) ["WBS任务" "计划与执行"] ["项目" "项目概况"]))
+        hit {:project_id (:project_id project) :project_no (:project_no project) :project_name (:name project)
+             :kind (:kind rec) :label label :tab tab :id (or (:id rec) (:task_id rec) (:project_id rec))
+             :code (or (:code rec) (:wbs_code rec)) :title (or (:title rec) (:name rec) (:text rec))
+             :revision (:revision rec) :status (:status rec) :classification (:classification rec)}]
+    ;; 经验不是治理对象, 只有命中经验行时才附带其分类/场景/责任人, 其余类型的命中行形状保持不变.
+    (if (= "lesson" (:kind rec))
+      (merge hit {:lesson_category (:category rec) :owner_name (:owner_name rec) :applicable_stage (:applicable_stage rec)})
+      hit)))
 
 
 (defn search
-  "按项目权限检索项目/任务/治理/交付对象; 机密文档仅对具备密级权限者可见; 结果回链到项目页签, 不返回正文."
+  "按项目权限检索项目/任务/治理/交付对象与经验教训; 机密文档仅对具备密级权限者可见; 结果回链到项目页签, 不返回正文."
   [svc actor params]
   (r/permit! actor ["pms:project:list" "pms:project:query"])
   (let [q (:query-fn svc)
@@ -288,18 +296,44 @@
         confidential? (or (:admin? actor) (contains? (:permissions actor) "*:*:*") (contains? (:permissions actor) "pms:document:confidential"))
         projects (authorized-projects q actor)
         by-project (into {} (map (juxt :project_id identity) projects))
+        project-ids (mapv :project_id projects)
+        ;; 经验不是治理对象, 此前从未进入检索; 按同一授权项目集合批量读取 (空集合不发查询).
+        lessons (when (seq project-ids) (q :closure/lessons-by-projects {:project_ids project-ids}))
         params (assoc (r/access-params actor) :q needle)
         ;; SQL 先按授权范围与关键字预筛 (编号/JSON载荷/任务名), 再在内存按可读字段精确匹配, 避免逐项目逐类型扫描.
         candidates (concat (map #(assoc % :kind "project" :code (:project_no %) :title (:name %)) (filter #(matches? needle %) projects))
-                           (map #(assoc % :kind "task") (q :pms/search-tasks params))
-                           (map g/decode (q :pms/search-gov params))
-                           (map g/decode (q :pms/search-delivery params)))
+                           (when (seq project-ids) (map #(assoc % :kind "task") (q :pms/search-tasks params)))
+                           (when (seq project-ids) (map g/decode (q :pms/search-gov params)))
+                           (when (seq project-ids) (map g/decode (q :pms/search-delivery params)))
+                           (map #(assoc % :kind "lesson" :id (:lesson_id %)) lessons))
         results (for [rec candidates
                       :let [project (get by-project (:project_id rec))]
                       :when (search-hit? needle classification confidential? project rec)]
                   (search-hit project rec))]
     {:q needle :count (count (take 200 results)) :truncated (> (count results) 200)
      :results (vec (take 200 results)) :confidential_visible confidential?}))
+
+
+;; ── 跨项目知识 (H15) ────────────────────────────────────────────
+
+(defn knowledge
+  "跨项目可复用经验检索: 只读取当前用户授权项目内的经验, 支持按适用场景/分类/关键字过滤并回链到项目页签.
+   与全局检索同源同权限口径, 额外给出覆盖度与按场景分布; 不写存储, 不改变任何门控."
+  [svc actor params]
+  (r/permit! actor ["pms:project:list" "pms:project:query"])
+  (let [q (:query-fn svc)
+        stage (not-empty (r/text! (:stage params) "适用场景" 40 false))
+        category (not-empty (r/text! (:category params) "经验分类" 40 false))
+        needle (not-empty (r/text! (:q params) "检索内容" 200 false))
+        projects (authorized-projects q actor)
+        lessons (if (seq projects)
+                  (q :closure/lessons-by-projects {:project_ids (mapv :project_id projects)})
+                  [])]
+    (when (and stage (not (contains? (set r/lesson-stages) stage)))
+      (r/fail! 400 "无效的适用场景"))
+    (assoc (knowledge/knowledge-reuse lessons projects {:stage stage :category category :q needle})
+           :stages r/lesson-stages
+           :stage stage :category category :q needle)))
 
 
 ;; ── 项目组合看板 ────────────────────────────────────────────────
