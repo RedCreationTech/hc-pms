@@ -2834,6 +2834,24 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 | 浏览器 | `pms-d04d05directship.spec.js` 1 passed: 建项目与真实任务 -> "直发申请"页签与"外部同步 not_configured"可见 -> 层流罩直发建单 (节点由任务解析) -> 非层流罩无订单真实 400 -> 补单建单 -> 只缺 NP-2 提交 409 且文案点名 NP-2 -> 补齐后提交 -> 独立审核人 (真实另建账号 + viewer 成员) 批准 -> 界面"直发申请 2 / 层流罩 1 / 非层流罩 1 / 已批准 1"与对账台账 `NP-1=PO-1001, NP-2=PO-1002` 回显 |
 
 边界: 只做**本地直发受控链路**. OA 审批回执、采购订单回执、采购发货状态与多目标同步补偿属外部系统集成, 本轮不接也不以 mock 冒充. 矩阵 D04/D05 行由 `planned / 待合同` 上调为 `partial / 待合同` (本地闭环已实现, 外部回执仍缺). MySQL 迁移文件已同步但本机无实例未实跑.
+## H16 成员撤销: 责任交接、撤权即时性与留痕 (增量10 切片, 2026-11-20)
+
+设计与口径: 兑现矩阵 H16 的"撤权后新请求和证据链接不可越权, 保留历史署名". 此前撤销成员只看计划任务/成本/工时/收尾四类责任, 未结束的审批待办与未读通知会被撤成"无人可处理"; 撤销后成员行消失, 但没有任何地方能读出"谁何时被谁撤销".
+
+- 交接 (`membership/removal-blockers`): 新增未结束审批流与未读通知两类阻塞, 与治理/交付/计划财务/收尾同一 409 通道, 顺序即优先级.
+- 撤权: `rules/access!` (H17 `active-member`) 已覆盖读写; 本片补上审批决定侧 —— `decide-context` 先判当前级审批人, 再判该成员是否已被撤销 (403), 防止撤销后仍需按原账号代批.
+- 留痕: `services/members` 输出 `:revoked` / `:revoked_user_ids`, 与 `access-effective?` 同源; 前端项目团队面板新增只读"已撤销成员 N"区, 显示成员、操作人与时间.
+- 校验顺序: `remove-member!` 的版本校验前移到交接检查之前, 陈旧版本优先 409.
+
+| 项目 | 结果 |
+|---|---|
+| 表征测试 | `pms_membership_test.clj` `removal-blockers-cover-every-responsibility` 增审批流与通知两类阻塞及放行分支 (2 tests / 29 assertions) |
+| 集成测试 | `pms_approval_chain_test.clj` `revoked-member-loses-scope-and-pending-approval`: 台账初值 -> 章程审批 (交接 409) -> 批准 -> 撤销 -> 读/写 403 -> 留痕与重复撤销 404 -> 重新委派恢复 -> 陈旧版本 409 |
+| 浏览器 | `tests/e2e/pms-h16ml.spec.js` 追加真实 HTTP `DELETE /members/:user_id`, 断言 `revoked_user_ids`、被撤销成员 `GET /projects/:id` 403、界面"已撤销成员 1" (截图 `reports/h16ml/h16ml-2-revoked.png`) |
+| 回归 | 全量 `clojure -J-Xmx1800m -M:test`: 859 tests / 8106 assertions, 0 失败; `shadow-cljs compile app` 0 warnings |
+
+边界: 外部离职/HR 同步、证据链接的历史访问规则与 MySQL 回归仍待完成, 矩阵 H16 行保持 `partial`. 本片免迁移.
+
 ## H17 精细职责分离: 委派到期即失去访问范围 (增量10 切片, 2026-11-20)
 
 设计与口径: 兑现矩阵 H17 中"通过赋权越权"的本地侧闭合. 此前 H16 只把成员委派到期做成**只读可视化提醒** (lifecycle-state / days-left / 已过期清单), 到期成员**仍然保有**项目读写范围 —— 提醒看得见, 权限不收回, 这正是"到期委派仍可操作"的真实缺口.

@@ -188,3 +188,11 @@
 | GET `/projects/:id/members` | - | `rows[]` 每行含 `lifecycle-state` / `days-left` / `access-effective?`; `lifecycle{total, counts{active,expiring-soon,expired,open-ended}, by-role, expiring-soon[], expired[]}` |
 | POST `/projects/:id/members` | user_id, role, ends_on? | 新增或续期; `ends_on` 留空为长期有效; 项目经理角色必须为 `manager` (409) |
 | DELETE `/projects/:id/members/:user_id` | version | 撤销成员; 未交接责任 409, 撤销后立即失去访问范围 |
+
+## H16 成员撤销: 责任交接、撤权即时性与留痕 (增量10 切片, 2026-11-20)
+
+- 撤销前置交接 (`domain/pms/membership.clj` `removal-blockers`): 除治理/交付/计划/成本/工时/收尾责任外, 新增两类检查 —— 该成员仍是**未结束审批流** (`approval/pending-approver-flows`, 含轮到与等待中的步骤) 的审批人时 409 "该成员仍是未结束审批流的待定审批人,请先完成或改派"; 该成员仍有**未读本地通知**时 409 "该成员仍有未读的项目通知,撤销后其将丢失投递目标".
+- 撤权即时性: 成员行删除即失去 `access!` 范围 (读取/编辑 403); 审批侧另加门控 (`approval_chain/decide-context`), 已轮到但成员资格已撤销的审批人不能再代为批准 (403).
+- 撤销留痕 (只读派生, 免迁移): `GET /members` 追加 `revoked[]{user_id, actor_id, actor_name, reason, at}` 与 `revoked_user_ids[]`, 来源为审计事件 `member.removed` 与当前存活成员行的差集; 重新委派后该成员从留痕中消失, 历史事件仍保留署名.
+- 校验顺序: `remove-member!` 不再拒绝请求体附加字段, 但 `rules/version!` 排在交接检查之前, 保证陈旧版本请求优先得到 409 "项目已被其他操作更新".
+- 权限: 撤销与查看分别沿用 `pms:member:edit` 与 `pms:project:query`.

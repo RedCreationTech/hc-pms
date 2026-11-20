@@ -104,7 +104,7 @@
                        (event! q actor project event-type
                                {:reason (:reason body) :request_fields (mapv name (sort (keys body)))
                                 :result (when (map? result)
-                                          (select-keys result [:id :record_id :task_id :baseline_id
+                                          (select-keys result [:id :record_id :task_id :baseline_id :user_id
                                                                :version_id :gate_id :status :decision]))})
                        {:result result :project_version (:version current)}))))))
 

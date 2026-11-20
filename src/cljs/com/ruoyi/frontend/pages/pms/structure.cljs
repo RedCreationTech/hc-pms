@@ -175,6 +175,24 @@
         [antd/button {:type "link" :danger true :size "small" :on-click #(remove! member)} "移除"])]]))
 
 
+(defn- revoked-overview
+  "只读呈现已撤销成员的撤权留痕 (GET /members revoked), 历史署名保留, 不再参与访问."
+  [rows]
+  (let [colors (shared/use-colors)]
+    [:div {:style {:marginTop 16 :paddingTop 16 :borderTop (str "1px solid " (:border colors))}}
+     [:div {:style {:fontSize 13 :fontWeight 600 :marginBottom 10}}
+      (str "已撤销成员 " (count rows))]
+     [:div {:style {:fontSize 12 :color (:muted colors) :marginBottom 8}}
+      "撤销后该成员立即失去访问资格, 历史署名仍保留在审计事件中"]
+     (into [:div {:style {:display "flex" :flexWrap "wrap" :gap 6}}]
+           (map (fn [r]
+                  ^{:key (str (:user_id r) (:at r))}
+                  [antd/tag {:color "red"}
+                   (str (:user_id r) " · " (:actor_name r)
+                        (when-let [at (:at r)] (str " · " at)))])
+                rows))]))
+
+
 (defn project-members
   "加载与维护有真实权限的项目成员."
   [id revision options editable? on-change project-version]
@@ -190,6 +208,7 @@
        (empty? (:rows data)) [shared/empty-state "暂无项目成员" nil]
        :else (into [:div] (map #(with-meta [member-row % (when can-edit? set-removing!)] {:key (:user_id %)}) (:rows data))))
      (when-let [lc (:lifecycle data)] [lifecycle-overview lc])
+     (when (seq (:revoked data)) [revoked-overview (:revoked data)])
      (when adding? [member-form id options #(set-adding! false)
                     (fn [_] (set-adding! false) (refresh!) (on-change))])
      (when removing [w/mutation-dialog

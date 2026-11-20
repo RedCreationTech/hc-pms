@@ -2,23 +2,27 @@
   "S3 可配置审批链: 审批策略校验与版本化, 按规则解析审批人 (部门负责人/上溯/角色/项目经理/指定用户/提交人选择),
    或签/会签, 金额条件, 无审批人处理, 逐级决定与独立审核底线, 审批参与人只读访问, 统一待办,
    以及费用版本/项目章程/计划基线三类业务的落定. 在真实迁移后的 SQLite (或 CI MySQL) 上验证."
-  (:require [clojure.java.io :as io]
-            [clojure.test :refer [deftest is testing use-fixtures]]
-            [com.ruoyi.domain.pms.approval-chain :as chain]
-            [com.ruoyi.domain.pms.config :as config]
-            [com.ruoyi.domain.pms.finance-cost :as cost]
-            [com.ruoyi.domain.pms.governance :as gov]
-            [com.ruoyi.domain.pms.governance.store :as store]
-            [com.ruoyi.domain.pms.kernel :as kernel]
-            [com.ruoyi.domain.pms.planning :as plan]
-            [com.ruoyi.domain.pms.portfolio :as portfolio]
-            [com.ruoyi.domain.pms.service :as pms]
-            [conman.core :as conman]
-            [migratus.core :as migratus]
-            [next.jdbc :as jdbc]))
+  (:require
+    [clojure.java.io :as io]
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [com.ruoyi.domain.pms.approval-chain :as chain]
+    [com.ruoyi.domain.pms.config :as config]
+    [com.ruoyi.domain.pms.finance-cost :as cost]
+    [com.ruoyi.domain.pms.governance :as gov]
+    [com.ruoyi.domain.pms.governance.store :as store]
+    [com.ruoyi.domain.pms.kernel :as kernel]
+    [com.ruoyi.domain.pms.lifecycle :as lifecycle]
+    [com.ruoyi.domain.pms.planning :as plan]
+    [com.ruoyi.domain.pms.portfolio :as portfolio]
+    [com.ruoyi.domain.pms.service :as pms]
+    [conman.core :as conman]
+    [migratus.core :as migratus]
+    [next.jdbc :as jdbc]))
+
 
 (def ^:dynamic *svc* nil)
 (def ^:dynamic *db* nil)
+
 
 ;; 9510 项目经理/提交人, 9511 研发部门负责人, 9512 深圳总公司负责人, 9513 财务 (角色 chain-finance, 非项目成员),
 ;; 9514 项目成员 (被指定审批人), 9515 另一财务
@@ -30,7 +34,7 @@
         db (jdbc/get-datasource {:jdbcUrl url})]
     (try
       (migratus/migrate {:store :database :db {:datasource db}
-                        :migration-dir (if (.contains url "mysql") "migrations" "migrations-sqlite")})
+                         :migration-dir (if (.contains url "mysql") "migrations" "migrations-sqlite")})
       (jdbc/execute! db ["INSERT INTO sys_role(role_id,role_name,role_key,role_sort,status,del_flag) VALUES(9520,'Chain PMS','chain-pms',40,'0','0')"])
       (jdbc/execute! db ["INSERT INTO sys_role(role_id,role_name,role_key,role_sort,status,del_flag) VALUES(9521,'Chain finance','chain-finance',41,'0','0')"])
       (jdbc/execute! db ["INSERT INTO sys_role(role_id,role_name,role_key,role_sort,status,del_flag) VALUES(9522,'Chain empty','chain-empty',42,'0','0')"])
@@ -46,23 +50,42 @@
                        (filter #(re-matches #"pms.*\.sql" (.getName %)))
                        (map #(str "sql/" (.getName %))) sort)
             queries (:fns (apply conman/bind-connection-map db {} files))
-            query (fn ([k p] ((get-in queries [k :fn]) p))
-                      ([tx k p] ((get-in queries [k :fn]) tx p)))]
+            query (fn
+                    ([k p] ((get-in queries [k :fn]) p))
+                    ([tx k p] ((get-in queries [k :fn]) tx p)))]
         (binding [*svc* {:db db :query-fn query} *db* db] (f)))
       (finally (when file (.delete file))))))
 
+
 (use-fixtures :once fixture)
 
-(defn- actor [id] (pms/actor *svc* {:user-id id}))
-(defn- version [id] (:version ((:query-fn *svc*) :pms/project {:project_id id})))
-(defn- error-status [f] (try (f) nil (catch clojure.lang.ExceptionInfo e (:status (ex-data e)))))
-(defn- error-info "提取业务错误状态与文案, 成功时返回 nil." [f]
+
+(defn- actor
+  [id]
+  (pms/actor *svc* {:user-id id}))
+
+
+(defn- version
+  [id]
+  (:version ((:query-fn *svc*) :pms/project {:project_id id})))
+
+
+(defn- error-status
+  [f]
+  (try (f) nil (catch clojure.lang.ExceptionInfo e (:status (ex-data e)))))
+
+
+(defn- error-info
+  "提取业务错误状态与文案, 成功时返回 nil."
+  [f]
   (try (f) nil (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
+
 
 (defn- command!
   ([f id args body] (command! 9510 f id args body))
   ([uid f id args body]
    (apply f *svc* (actor uid) id (concat args [(assoc body :version (version id))]))))
+
 
 (defn- project!
   "研发部门 (4) 的项目, 9510 为项目经理, 9514 为编辑成员."
@@ -73,6 +96,7 @@
         id (:project_id p)]
     (pms/set-member! *svc* (actor 9510) id {:user_id 9514 :role "editor"})
     id))
+
 
 (defn- publish-policy!
   "发布 (替换) 某类型的审批策略."
@@ -86,27 +110,32 @@
                 (config/create! *svc* admin "approval-policy" {:code code :levels levels}))]
     (config/publish! *svc* admin "approval-policy" (:id draft) {:reason "测试发布"})))
 
+
 (defn- retire-policy!
   [code]
   (when-let [p (config/published-by-code (:query-fn *svc*) "approval-policy" code)]
     (config/retire! *svc* (actor 9510) "approval-policy" (:id p) {:reason "测试退役"})))
 
+
 (defn- cost-version!
   "建立并提交一个总额为 amount 的费用版本 (指定审批人 9514)."
   [id amount]
   (let [cv (:result (command! cost/create! id [] {:kind "budget" :period "2026-09" :currency "CNY"
-                                                   :name (str "预算" amount) :revenue "0.00" :reviewer_id 9514}))]
+                                                  :name (str "预算" amount) :revenue "0.00" :reviewer_id 9514}))]
     (command! cost/add-entry! id [(:id cv)] {:category "material" :label "原料" :amount amount})
     (command! cost/submit! id [(:id cv)] {})
     (:id cv)))
+
 
 (defn- flow-of
   [id biz-type biz-id]
   (first (chain/project-flows *svc* (actor 9510) id {:biz_type biz-type :biz_id biz-id})))
 
+
 (defn- decide!
   [uid flow decision & [comment]]
   (chain/decide! *svc* (actor uid) (:flow_id flow) (cond-> {:decision decision} comment (assoc :comment comment))))
+
 
 (defn- cost-status
   [id cid]
@@ -275,7 +304,7 @@
       (publish-policy! "cost-version" [{:name "空角色" :rule "role" :role_key "chain-empty" :on_empty "reject"}])
       (let [id (project!)
             cv (:result (command! cost/create! id [] {:kind "budget" :period "2026-09" :currency "CNY"
-                                                       :name "空角色" :revenue "0.00" :reviewer_id 9514}))]
+                                                      :name "空角色" :revenue "0.00" :reviewer_id 9514}))]
         (command! cost/add-entry! id [(:id cv)] {:category "material" :label "原料" :amount "1.00"})
         (is (= 409 (error-status #(command! cost/submit! id [(:id cv)] {}))))
         (is (= "draft" (cost-status id (:id cv))))))
@@ -326,8 +355,70 @@
         (retire-policy! "charter")
         (retire-policy! "plan-baseline")))))
 
+
 ;; batch71 (mutator 方向: cover the uncovered): 无效审批决定400 (approval_chain L283,
 ;; 决定枚举校验先于流程查找, 无需真实流程).
 (deftest decide-rejects-invalid-decision-before-flow-lookup
   (is (= [400 "无效审批决定"]
          (error-info #(chain/decide! *svc* (actor 9510) "no-such-flow" {:decision "maybe"})))))
+
+
+;; H16 成员撤销与权限生命周期: 撤销后新请求失去范围, 撤销前必须交接未结束的审批待办,
+;; 撤销后该成员已轮到的审批待办不能再代为处理, 并在成员台账留下可读的撤销留痕.
+(deftest revoked-member-loses-scope-and-pending-approval
+  (let [id (project!)
+        try-remove! (fn [uid & [ver]]
+                      (try [:ok (lifecycle/remove-member! *svc* (actor 9510) id uid
+                                                          {:version (or ver (version id))})]
+                           (catch clojure.lang.ExceptionInfo e [(:status (ex-data e)) (.getMessage e)])))
+        remove! (fn [uid & [ver]] (first (try-remove! uid ver)))
+        member (fn [uid] ((:query-fn *svc*) :pms/member {:project_id id :user_id uid}))
+        data #(pms/members *svc* (actor 9510) id)
+        access (fn [uid] (:access-effective? (first (filter #(= uid (:user_id %)) (:rows (data))))))]
+    (testing "成员台账回显访问资格, 未撤销时撤销留痕为空"
+      (is (true? (access 9514)))
+      (is (empty? (:revoked (data)))))
+    (testing "未结束审批流交接前不能撤销, 批准后可以撤销"
+      (publish-policy! "charter" [{:name "项目经理" :rule "project_manager" :on_empty "skip"}
+                                  {:name "部门负责人" :rule "dept_leader"}])
+      (command! pms/transition-project! id [] {:status "initiated" :reason "立项"})
+      (try
+        (let [charter (:result (command! gov/command! id [:charters :create nil]
+                                         {:title "章程" :objective "交付" :scope "设备"
+                                          :success_criteria "验收" :sponsor_id 9514}))
+              _ (command! gov/command! id [:charters :submit (:id charter)] {})
+              flow (flow-of id "charter" (:id charter))]
+          (is (= [9511] (mapv :approver_id (:steps (first (:levels flow))))))
+          (pms/set-member! *svc* (actor 9510) id {:user_id 9511 :role "viewer"})
+          (is (true? (access 9511)))
+          (is (= "approved" (:status (decide! 9511 flow "approved" "范围明确"))))
+          ;; 审批链走完后不再有该成员的待办审批步骤, 撤销即可完成
+          (is (= :ok (remove! 9511)) "交接完成后可以撤销"))
+        (finally (retire-policy! "charter"))))
+    (testing "撤销仍生效的编辑成员后, 现有请求立即失效且成员行不再存活"
+      (is (= :ok (remove! 9514)))
+      (is (nil? (member 9514)))
+      (is (= 403 (error-status #(pms/project *svc* (actor 9514) id))))
+      (is (= 403 (error-status #(pms/update-project! *svc* (actor 9514) id
+                                                     {:name "越权" :version (version id)})))))
+    (testing "撤销留痕: 台账回显被撤销成员与操作人, 行集合不再含该成员"
+      (let [rows (data)
+            revoked (first (:revoked rows))]
+        (is (nil? (access 9514)))
+        (is (= #{9511 9514} (set (:revoked_user_ids rows))))
+        (is (= 9514 (:user_id revoked)))
+        (is (= 9510 (:actor_id revoked)))
+        (is (not (contains? (set (map :user_id (:rows rows))) 9514)) "撤销后行不再出现在行集合中")
+        (is (some #(= "member.removed" (:event_type %))
+                  ((:query-fn *svc*) :pms/events {:project_id id})) "审计事件保留撤销署名")))
+    (testing "已撤销成员不能重复撤销, 非成员不留下撤销记录"
+      (is (= 404 (remove! 9514)))
+      (is (= 404 (remove! 9513)))
+      (is (= 400 (remove! 0)))
+      (is (= 404 (remove! 9999)))
+      (is (= #{9511 9514} (set (:revoked_user_ids (data))))))
+    (testing "重新委派后访问资格恢复且撤销留痕清除, 陈旧版本撤销被拒绝"
+      (pms/set-member! *svc* (actor 9510) id {:user_id 9514 :role "viewer"})
+      (is (true? (access 9514)))
+      (is (not (contains? (set (:revoked_user_ids (data))) 9514)) "撤销留痕不再包含重新委派的成员")
+      (is (= 409 (remove! 9514 1))))))

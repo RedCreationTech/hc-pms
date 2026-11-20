@@ -9,7 +9,7 @@
 (defn- fake-removal-q
   "按查询名返回罐头数据的桩查询, 供 removal-ready! 纯表征测试 (不查库).
    :gov/list 与 :delivery/list 按 kind 取行, 覆盖两个跨域 blockers 的内部查询."
-  [{:keys [tasks costs times approval items reopen gov delivery]}]
+  [{:keys [tasks costs times approval items reopen gov delivery flows notifications]}]
   (fn [name params]
     (case name
       :planning/tasks (or tasks [])
@@ -18,6 +18,8 @@
       :closure/approval approval
       :closure/items (or items [])
       :reopen/latest reopen
+      :approval/pending-approver-flows (or flows [])
+      :pms/gov-in-projects (get (or notifications {}) (:kinds params) [])
       :gov/list (get (or gov {}) (:kind params) [])
       :delivery/list (get (or delivery {}) (:kind params) [])
       nil)))
@@ -66,6 +68,14 @@
            (ready {:reopen {:reviewer_id 9501 :status "submitted"}})))
     (is (= [409 "该成员仍有未确认移交事项"]
            (ready {:items [{:owner_id 9501 :status "open"}]}))))
+  (testing "审批链与通知: 未结束审批流的待定审批人, 未读的项目通知"
+    (is (= [409 "该成员仍是未结束审批流的待定审批人,请先完成或改派"]
+           (ready {:flows [{:flow_id "f1" :biz_type "charter" :title "项目章程"}]})))
+    (is (= [409 "该成员仍有未读的项目通知,撤销后其将丢失投递目标"]
+           (ready {:notifications {["notification"] [{:recipient_id 9501 :status "unread"}]}})))
+    (is (true? (ready {:flows []
+                       :notifications {["notification"] [{:recipient_id 9501 :status "read"}
+                                                         {:recipient_id 9502 :status "unread"}]}}))))
   (testing "多类阻塞按 跨域 -> 计划财务 -> 收尾 顺序拼接, 取第一条"
     (is (= [409 "该成员仍是待办审核或未完成Gate的指定审核人"]
            (ready {:gov {"issue" [{:reviewer_id 9501 :status "in_review"}]}

@@ -3,6 +3,7 @@
   (:require
     [cheshire.core :as json]
     [clojure.string :as str]
+    [com.ruoyi.domain.pms.approval-chain :as chain]
     [com.ruoyi.domain.pms.config :as config]
     [com.ruoyi.domain.pms.governance.store :as gov-store]
     [com.ruoyi.domain.pms.kernel :as kernel]
@@ -269,17 +270,35 @@
                :expired (mapv pick (filter #(= "expired" (:lifecycle-state %)) enriched))}}))
 
 
+(defn- event-user-id
+  "从撤销事件的结构化详情取成员标识."
+  [event]
+  (let [payload (try (json/parse-string (:payload event) true) (catch Exception _ nil))]
+    (some-> (:user_id (:result payload)) long)))
+
+
 (defn members
   "读取项目现有成员, 附带委派到期生命周期与撤权后是否仍生效的只读派生."
   [{:keys [query-fn]} actor id]
   (rules/permit! actor "pms:project:query")
   (load-project! query-fn actor id false)
-  (let [{:keys [rows summary]} (member-lifecycle (query-fn :pms/members {:project_id id}) nil)]
-    {:rows (vec (mapv (fn [m]
-                        (assoc m :access-effective?
-                               (contains? #{"active" "open-ended" "expiring-soon"} (:lifecycle-state m))))
-                      rows))
-     :lifecycle summary}))
+  (let [{:keys [rows summary]} (member-lifecycle (query-fn :pms/members {:project_id id}) nil)
+        revoked (chain/revoked-member-ids query-fn id)]
+    {:rows (mapv (fn [m]
+                   (assoc m :access-effective?
+                          (and (contains? #{"active" "open-ended" "expiring-soon"} (:lifecycle-state m))
+                               (not (contains? revoked (:user_id m))))))
+                 rows)
+     :lifecycle summary
+     ;; 撤权留痕: 撤销后成员行不再存活; 历史署名仍在审计事件中保留, 这里只读呈现最近一次撤销.
+     :revoked (mapv (fn [e]
+                      (let [payload (try (json/parse-string (:payload e) true) (catch Exception _ {}))]
+                        {:user_id (event-user-id e) :actor_id (:actor_id e)
+                         :actor_name (:actor_name e) :reason (:reason payload) :at (:created_at e)}))
+                    (filter #(and (= "member.removed" (:event_type %))
+                                  (contains? revoked (event-user-id %)))
+                            (query-fn :pms/events {:project_id id})))
+     :revoked_user_ids (vec (sort revoked))}))
 
 
 (defn- member-input!

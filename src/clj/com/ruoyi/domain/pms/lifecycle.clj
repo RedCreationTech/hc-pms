@@ -70,13 +70,14 @@
 (defn remove-member!
   "撤销项目成员范围, 当前经理必须先完成负责人的交接."
   [svc actor project-id user-id body]
-  (rules/object! body [:version])
   (kernel/mutate! svc actor project-id "pms:member:edit" body "member.removed"
                   (fn [q project]
                     (let [uid (rules/positive-id! user-id "成员")
                           member (q :pms/member {:project_id project-id :user_id uid})]
                       (when (= uid (:manager_id project)) (rules/fail! 409 "请先变更项目经理,再撤销原经理成员关系"))
                       (when-not member (rules/fail! 404 "项目成员不存在"))
+                      ;; 责任交接的 409 排在版本校验之后: 请求版本已陈旧时优先提示刷新重试.
+                      (rules/version! project (:version body))
                       (membership/removal-ready! q project uid)
                       (rules/changed! (q :lifecycle/delete-member! {:project_id project-id :user_id uid}))
                       {:user_id uid :status "removed"}))))

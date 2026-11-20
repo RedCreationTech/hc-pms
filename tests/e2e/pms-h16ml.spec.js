@@ -6,6 +6,8 @@ const path = require('node:path');
 // 并汇总 lifecycle {today/window-days/total/counts{active,expiring-soon,expired,open-ended}/by-role/expiring-soon[]/expired[]}.
 // 纯只读派生 (免门控/免写): 本条覆盖"谁即将到期/已过期/长期"的可视化提醒.
 // H17 起 rules/access! 只认仍在有效期的成员, 故同一 spec 追加"到期成员真实失去访问 / 续期后恢复"的断言.
+// H16 撤销: DELETE /members/:user_id 撤销后成员行不再存活, GET /members 回显 revoked/revoked_user_ids,
+// 界面"已撤销成员 N"留痕可见, 被撤销成员真实 HTTP 403.
 // 状态口径: 无到期日->open-ended; days-left<0->expired; 0..window(14)->expiring-soon; >window->active.
 // 免新kind/免新命令/免新路由/免门控, 仅迁移加一列 + GET 读模型扩展 + 前端只读面板.
 // 流程: 建项目(admin 即项目经理, 自动成为 open-ended 成员) -> 造 4 个真实系统用户 ->
@@ -166,6 +168,34 @@ test.describe('H16 成员权限生命周期只读看板浏览器验收', () => {
     const renewedRow = renewed.rows.find(r => r.user_id === uidExpired);
     expect(renewedRow['access-effective?'], '续期后应恢复访问资格').toBe(true);
     expect(renewedRow['lifecycle-state']).toBe('active');
+
+
+    // H16 成员撤销与权限生命周期: 撤销后真实失去访问, 台账留下撤销留痕, 界面只读呈现已撤销成员.
+    expect(m.revoked, '未撤销时无撤销留痕').toEqual([]);
+    expect(m['revoked_user_ids']).toEqual([]);
+    const project = await api(page, 'GET', base(id));
+    const token = await page.evaluate(() => localStorage.getItem('ruoyi_token'));
+    const revoke = await page.request.fetch(base(id) + `/members/${uidFar}`, { method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: { version: project.version }, timeout: 30000 });
+    expect(revoke.status(), '撤销成员应成功').toBe(200);
+    const after = await api(page, 'GET', base(id) + '/members');
+    expect(after.rows.map(r => r.user_id)).not.toContain(uidFar);
+    expect(after['revoked_user_ids']).toEqual([uidFar]);
+    expect(after.revoked[0].user_id).toBe(uidFar);
+    expect(after.revoked[0].actor_id).toBe(adminId);
+    const farLogin = await page.request.post('/api/auth/login', { data: { username: `far_${suffix}`, password: `E2e!${suffix}` } });
+    const farToken = (await farLogin.json()).data.token;
+    const revokedRead = await page.request.fetch(base(id), { headers: { Authorization: `Bearer ${farToken}` } });
+    expect(revokedRead.status(), '被撤销成员读取项目应被拒绝').toBe(403);
+
+    // 界面: 已撤销成员只读留痕与撤销提示文案真实可见.
+    await open(page, id);
+    const teamCard = panel(page, '项目团队');
+    await expect(teamCard.getByText('已撤销成员 1', { exact: true })).toBeVisible();
+    await expect(teamCard.getByText(/撤销后该成员立即失去访问资格/).first()).toBeVisible();
+    await expect(teamCard.getByText(new RegExp(`${uidFar} · `)).first()).toBeVisible();
+    await panelShot(page, '项目团队', 'h16ml-2-revoked.png');
 
     expect(errors, `未捕获的浏览器JS错误: ${errors.join('; ')}`).toEqual([]);
   });

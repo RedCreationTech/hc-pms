@@ -203,6 +203,33 @@
     (flow-view q f)))
 
 
+(defn revoked-member-ids
+  "项目内已被撤销的成员: 该成员在本项目留下过撤销记录, 但当前已无存活成员行.
+   由审计事件与成员台账派生, 不新增字段, 也不把撤销行保留成仍生效的成员."
+  [q project-id]
+  (let [current (set (map :user_id (q :pms/members {:project_id project-id})))]
+    (->> (q :pms/events {:project_id project-id})
+         (filter #(= "member.removed" (:event_type %)))
+         (keep (fn [row]
+                 (let [payload (try (json/parse-string (:payload row) true) (catch Exception _ nil))]
+                   (some-> (:user_id (:result payload)) long))))
+         (remove current)
+         (into #{}))))
+
+
+(defn member-revoked?
+  "该用户在本项目是否已被撤销成员资格: 留下过撤销记录但已无存活成员行.
+   由审计事件与成员台账派生, 不新增字段, 也不把撤销行保留成仍生效的成员."
+  [q project-id user-id]
+  (contains? (revoked-member-ids q project-id) user-id))
+
+
+(defn pending-approver-flows
+  "该用户在项目内尚未结束的审批流, 供撤销成员前的责任交接检查."
+  [q params uid]
+  (q :approval/pending-approver-flows (assoc params :user_id uid)))
+
+
 (defn my-pending
   "当前用户待处理的审批步骤 (统一待办)."
   [q actor]
@@ -234,6 +261,9 @@
         mine (first (filter #(and (= uid (:approver_id %)) (= "pending" (:status %))
                                   (= (:current_level f) (:level_no %))) steps))
         _ (when-not mine (rules/fail! 403 "只有当前级的审批人可以作出此决定"))
+        ;; 成员撤销后即失去本项目的处理资格, 已轮到的在该级的待办不能再代为批准.
+        _ (when (member-revoked? q (:project_id f) uid)
+            (rules/fail! 403 "该成员的项目成员资格已被撤销, 不能再处理本项目审批"))
         comment (rules/text! (:comment body) "审批意见" 1000 (= "rejected" decision))
         adapter (get @adapters (:biz_type f))]
     (when-not adapter (rules/fail! 500 "审批业务未登记"))
