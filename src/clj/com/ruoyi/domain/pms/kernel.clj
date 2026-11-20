@@ -76,11 +76,14 @@
 
 
 (defn- writable!
-  "校验项目版本及写入状态, 审批可显式使用项目只读范围."
+  "校验项目版本及写入状态, 审批可显式使用项目只读范围.
+   write? 为假时是只读参与 (如外部门审批人查看依据后决定), 不适用暂停与终态的写入限制:
+   终态项目仍可只读查看依据, 但任何真正的写入都必须经过 allow-terminal? 显式放行."
   [q actor project-id body {:keys [write? allow-terminal? allow-paused?]}]
   (when-not (map? body) (rules/fail! 400 "请求体必须是JSON对象"))
   (let [project (rules/access! q actor (q :pms/project {:project_id project-id}) write?)]
-    (when-not (or allow-terminal? (and allow-paused? (= "paused" (:status project))))
+    (when (and write? (not allow-terminal?)
+               (not (and allow-paused? (= "paused" (:status project)))))
       (rules/editable! project))
     (when (and (= "paused" (:status project)) (not allow-paused?))
       (rules/fail! 409 "项目暂停中,请先完成受控恢复"))

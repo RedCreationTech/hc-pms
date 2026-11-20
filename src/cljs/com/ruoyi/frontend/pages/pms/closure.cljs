@@ -247,12 +247,50 @@
                                                        (r/as-element [antd/progress {:percent pct :size "small" :style {:width 180}}])))}])}])])]))
 
 
+(defn- archive-panel
+  "H14 归档状态只读派生: 呈现是否已正式归档, 归档时刻, 历届关闭审批与受控重开次数;
+   全部来自服务端 :archive 投影, 不门控任何写入, 终态项目同样可读."
+  [{:keys [model]}]
+  (let [a (:archive model)
+        approvals (:approvals a)
+        reopens (:reopens a)
+        archived? (:archived a)]
+    [shared/panel "项目归档状态" "是否已正式归档/归档时刻/历届关闭审批与受控重开; 只读派生, 不门控" nil
+     (if (nil? a)
+       [shared/empty-state "归档状态随项目关闭后自动呈现" nil]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color (if archived? "green" "default")}
+          (if archived? "已归档" "未归档")]
+         [antd/tag {:color "blue"} (str "项目状态 " (or (:status a) "-"))]
+         (if archived?
+           [antd/tag {:color "cyan"} (str "归档时刻 " (:archived-at a))]
+           [antd/tag (str "关闭审批 " (or (:approval-status a) "无"))])
+         [antd/tag {:color (if (:reopened a) "orange" "default")}
+          (if (:reopened a) (str "受控重开过 " (or (:reopened-version a) "-") " 次") "未重开")]]
+        [antd/table {:rowKey "label" :size "small" :pagination false
+                     :dataSource (clj->js [{:label "关闭审批" :total (:total approvals)
+                                            :approved (:approved approvals) :rejected (:rejected approvals)
+                                            :pending (:submitted approvals)}
+                                           {:label "重开申请" :total (:total reopens)
+                                            :approved (:approved reopens) :rejected (:rejected reopens)
+                                            :pending (:submitted reopens)}])
+                     :columns (clj->js [{:title "环节" :dataIndex "label" :width 140}
+                                        {:title "批准次数" :dataIndex "total" :width 110}
+                                        {:title "已通过" :dataIndex "approved" :width 110}
+                                        {:title "已驳回" :dataIndex "rejected" :width 110}
+                                        {:title "待审批" :dataIndex "pending" :width 110}])}]
+        (when (:latest-reason reopens)
+          [:div {:style {:color "#6b7280" :font-size 12}}
+           (str "最近重开原因: " (:latest-reason reopens))])])]))
+
+
 (defn- closure-content
   "按检查,移交,复盘与正式审批组织结项."
   [context]
   [:div {:style {:display "grid" :gap 20}}
    [blocker-panel (:model context)] [readiness-panel context] [progress-panel context] [checklist context] [handoffs context]
-   [lessons context] [lesson-summary-panel context] [approval context] [reopen-panel context]])
+   [lessons context] [lesson-summary-panel context] [archive-panel context] [approval context] [reopen-panel context]])
 
 
 (defn closure-workspace

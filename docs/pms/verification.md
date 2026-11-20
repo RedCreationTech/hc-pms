@@ -2871,3 +2871,22 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 | 浏览器 | `pms-h16ml.spec.js` 1 passed: 四种到期状态真实可见 -> 服务端 `access-effective?` 逐成员命中 -> 到期成员真实 HTTP 读取 403 -> 管理员续期后该成员 `access-effective?` 恢复为真且状态转 `active` |
 
 边界: 本片只闭合**成员委派到期/撤销**这一个越权入口. 节点级字段密级与外部参与者的完整角色矩阵仍待实现, 故矩阵 H17 行保持 `partial`. 免迁移 (复用既有 `ends_on` 列).
+
+## H14 收尾批准与项目归档: 归档状态的只读派生与终态只读参与 (增量10 切片, 2026-11-20)
+
+设计与口径: 兑现矩阵 H14 的"正式关闭后归档只读"中的**可见与可读**一半. 此前 `archived_at` 只在关闭时写入, 受控重开时清除, 但没有任何接口把它呈现出来: 前端只能从组合看板的关闭时间反推"是否已归档", 历届关闭审批与重开次数也散落在两张表里. 第二处缺口在 `kernel/writable!`: 该函数对**所有** `mutate!` 调 `rules/editable!`, 于是终态项目的只读参与 (如审批人查看依据后作驳回) 也被 409 写入锁挡住, 与"归档只读"相矛盾.
+
+- 归档派生 (`closure/archive-summary`): 读时投影 `{status, closed, archived, archived-at, reopened, reopened-version, approvals{total/approved/rejected/submitted}, approval-status, reopens{total/approved/rejected/submitted, latest-status, latest-reason}}`; `archived` 要求项目 `closed` 且 `archived_at` 非空; `reopens.total` 记**已批准**的重开次数 (每次重开必须重新关闭审批). 纯读取, 不写成任何存储, 不改变任何门控, 键名不带尾随问号.
+- 新增查询: `closure/approvals` (按 `project_version` 历届关闭审批) 与 `reopen/all` (历届重开申请); 新增 `lifecycle/state` 读查询 (原 SQL 只有写路径). 三者为读取语句, 免迁移.
+- 终态只读 (`kernel/writable!`): `rules/editable!` 只在 `write?` 为真且未显式 `allow-terminal?`/`allow-paused?` 时检查, 只读参与 (审批类 `{:write? false}`) 在 `closed`/`cancelled`/`paused` 下不再被写入锁误挡; 真正的写入路径一条未放宽.
+- 前端: "结项与移交"页签新增只读"项目归档状态"面板 (归档徽标/项目状态/归档时刻/受控重开次数 + 关闭审批与重开申请四次计数表 + 最近重开原因).
+
+| 项目 | 结果 |
+|---|---|
+| 领域测试 | `pms_finance_test.clj` 新增 `closed-project-exposes-derived-archive-state`: 收尾中未归档且 `approvals.submitted=1` -> 关闭后 `archived=true` 且 `archived-at` 非空、`approvals.approved=1` -> 批准重开后 `archived=false`/`archived-at` 归空/`reopened=true`/`reopens{total 1, latest-approved, reason}`/历届关闭审批仍在 -> 重新关闭后 `approvals.total=2` 且仍记住重开过 |
+| 终态测试 | 新增 `terminal-project-stays-read-only-for-participants`: `closed` 后参与者仍能 `closure/overview` (归档 `archived=true`, 进度投影不变), 只读 `review!` 命中业务语义 409 "没有待处理的关闭申请" 而非写入锁, 检查项/经验/状态转换真实写入仍 409 |
+| 全量回归 | `clojure -J-Xmx1800m -M:test` 861 tests / 8135 assertions, 0 failures / 0 errors (SQLite) |
+| 前端 | `npx shadow-cljs compile app` 0 warnings |
+| 浏览器 | `tests/e2e/pms-h14arc.spec.js` 1 passed: 新建项目打开"结项与移交", "项目归档状态"面板可见 (截图 `reports/h14arc/h14arc-1-open.png` + `h14arc-1-open-panel.png`), 界面"未归档"/"未重开"与服务端 `:archive` (`closed=false, archived=false, archived-at=null, approvals.total=0, reopens.total=0`) 同源; 未进入收尾阶段真实 `POST /closure/submit` 与 `/closure/review` 均 409, 交叉核验只读面板不旁路写门控 |
+
+边界: 本片只把归档**状态**呈现出来并放开终态只读参与, 归档快照的长期不可变存储/外部归档库对接/电子签章仍不在本地范围; 终态项目的完整只读矩阵与 MySQL 回归仍待完成, 矩阵 H14 行保持 `partial`. 本片免迁移 (只新增读取语句).

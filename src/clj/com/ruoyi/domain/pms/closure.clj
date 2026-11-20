@@ -178,6 +178,37 @@
      :owner-coverage-pct (pct owner-assigned)}))
 
 
+(defn archive-summary
+  "H14 归档只读派生 (免迁移, 不构成门控): 把项目是否已正式归档, 何时归档, 被重开过几次
+   直接呈现在收尾工作台, 不必从组合看板的关闭时间反推.
+   archived-at 取 pms_lifecycle_state.archived_at (只在真正关闭时写入, 受控重开时清除);
+   关闭审批按历届结论统计 (approved/rejected/submitted), 重开按批准次数 (total), 待审与驳回
+   次数以及最近一次结论统计.
+   全部为读取时投影, 不写存储, 不改变任何门控判定, 键名不带尾随问号."
+  [project approvals reopens state]
+  (let [closed? (= "closed" (:status project))
+        archived-at (:archived_at state)
+        tally (fn [rows status] (count (filter #(= status (:status %)) rows)))
+        latest-reopen (last reopens)]
+    {:status (:status project)
+     :closed closed?
+     :archived (boolean (and closed? (some? archived-at)))
+     :archived-at archived-at
+     :reopened (boolean (and (some? (:reopened_version state)) (pos? (:reopened_version state))))
+     :reopened-version (:reopened_version state)
+     :approvals {:total (count approvals)
+                 :approved (tally approvals "approved")
+                 :rejected (tally approvals "rejected")
+                 :submitted (tally approvals "submitted")}
+     :approval-status (:status (last approvals))
+     :reopens {:total (count (filter #(= "approved" (:status %)) reopens))
+               :approved (tally reopens "approved")
+               :rejected (tally reopens "rejected")
+               :submitted (tally reopens "submitted")
+               :latest-status (:status latest-reopen)
+               :latest-reason (:reason latest-reopen)}}))
+
+
 (defn overview
   "返回收尾工作台和明确缺口, 不向普通成员暴露财务金额."
   [svc actor project-id]
@@ -196,6 +227,9 @@
                      :reopen_request (q :reopen/latest {:project_id project-id})
                      :approval (some-> approval (dissoc :snapshot_json))
                      :ready (empty? missing) :blockers missing
+                     :archive (archive-summary project (q :closure/approvals {:project_id project-id})
+                                               (q :reopen/all {:project_id project-id})
+                                               (q :lifecycle/state {:project_id project-id}))
                      :readiness (readiness-summary groups approval)
                      :progress (progress-summary items approval lessons (java.time.LocalDate/now))
                      :lesson_summary (lesson-summary lessons)}))))

@@ -24,6 +24,9 @@ VALUES (:lesson_id,:project_id,:title,:category,:content,:applicable_stage,:owne
 -- :name closure/approval :? :1
 SELECT * FROM pms_closure_approval WHERE project_id=:project_id ORDER BY project_version DESC LIMIT 1
 --;;
+-- :name closure/approvals :? :*
+SELECT * FROM pms_closure_approval WHERE project_id=:project_id ORDER BY project_version
+--;;
 -- :name closure/insert-approval! :! :n
 INSERT INTO pms_closure_approval(approval_id,project_id,status,submitted_by,reviewer_id,project_version,snapshot_hash,snapshot_json)
 VALUES (:approval_id,:project_id,'submitted',:submitted_by,:reviewer_id,:project_version,:snapshot_hash,:snapshot_json)
@@ -47,8 +50,14 @@ UPDATE pms_project SET status=:status,updated_at=CURRENT_TIMESTAMP WHERE project
 -- :name lifecycle/archive! :! :n
 UPDATE pms_lifecycle_state SET archived_at=CURRENT_TIMESTAMP WHERE project_id=:project_id
 --;;
+-- :name lifecycle/state :? :1
+SELECT * FROM pms_lifecycle_state WHERE project_id=:project_id
+--;;
 -- :name lifecycle/delete-member! :! :n
 DELETE FROM pms_member WHERE project_id=:project_id AND user_id=:user_id
+--;;
+-- :name reopen/all :? :*
+SELECT * FROM pms_reopen_request WHERE project_id=:project_id ORDER BY project_version
 --;;
 -- :name reopen/latest :? :1
 SELECT * FROM pms_reopen_request WHERE project_id=:project_id ORDER BY project_version DESC LIMIT 1

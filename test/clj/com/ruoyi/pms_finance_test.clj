@@ -348,6 +348,72 @@
       (is (= "closed" (:status (transition! id "closed")))))))
 
 
+(deftest closed-project-exposes-derived-archive-state
+  (let [{:keys [id]} (closure-ready-project!)
+        archive #(get-in (closure/overview *svc* (actor 9403) id) [:archive])]
+    (testing "收尾中未归档: 归档时间空, 关闭审批计数从提交开始累计"
+      (is (= {:closed false :archived false :archived-at nil}
+             (select-keys (archive) [:closed :archived :archived-at])))
+      (command! closure/submit! id [] {:reviewer_id 9402})
+      (is (= {"total" 1 "submitted" 1 "approved" 0 "rejected" 0}
+             (into {} (map (fn [[k v]] [(name k) v]) (:approvals (archive))))))
+      (is (= "submitted" (:approval-status (archive))))
+      (command! 9402 closure/review! id [] {:decision "approved" :reason "独立批准关闭"}))
+    (testing "正式关闭后归档成立, 归档时间来自生命周期状态"
+      (transition! id "closed")
+      (let [a (archive)]
+        (is (true? (:closed a)))
+        (is (true? (:archived a)))
+        (is (string? (:archived-at a)))
+        (is (= {"total" 1 "submitted" 0 "approved" 1 "rejected" 0}
+               (into {} (map (fn [[k v]] [(name k) v]) (:approvals a)))))
+        (is (zero? (:total (:reopens a))))
+        (is (false? (:reopened a)))))
+    (testing "受控重开清除归档时间, 历届关闭审批与重开申请全部保留"
+      (let [request (:result (command! reopen/request! id []
+                                       {:reviewer_id 9402 :scope "纠正交付归档" :reason "客户提出资料更正"}))]
+        (command! 9402 reopen/review! id [(:id request)] {:decision "approved" :reason "同意受控更正"})
+        (let [a (archive)]
+          (is (= "closing" (:status a)))
+          (is (false? (:archived a)))
+          (is (nil? (:archived-at a)))
+          (is (true? (:reopened a)))
+          (is (= {:total 1 :approved 1 :submitted 0 :rejected 0}
+                 (select-keys (:reopens a) [:total :approved :submitted :rejected])))
+          (is (= "approved" (:latest-status (:reopens a))))
+          (is (= "客户提出资料更正" (:latest-reason (:reopens a))))
+          (is (= 1 (get-in a [:approvals :total])))))
+      (command! closure/submit! id [] {:reviewer_id 9402})
+      (command! 9402 closure/review! id [] {:decision "approved" :reason "重新确认新依据"})
+      (transition! id "closed")
+      (let [a (archive)]
+        (is (true? (:archived a)))
+        (is (= 2 (get-in a [:approvals :total])))
+        (is (true? (:reopened a)))
+        (is (pos? (long (:reopened-version a))))))))
+
+
+(deftest terminal-project-stays-read-only-for-participants
+  (let [{:keys [id]} (closure-ready-project!)]
+    (command! closure/submit! id [] {:reviewer_id 9402})
+    (command! 9402 closure/review! id [] {:decision "approved" :reason "独立批准关闭"})
+    (transition! id "closed")
+    (let [base (get-in (closure/overview *svc* (actor 9403) id) [:progress])]
+      (testing "终态项目参与者仍可只读查看收尾工作台, 归档摘要一致"
+        (let [after (closure/overview *svc* (actor 9403) id)]
+          (is (= "closed" (:status (pms/project *svc* (actor 9403) id))))
+          (is (true? (get-in after [:archive :archived])))
+          (is (= "approved" (get-in after [:readiness :approval-state])))
+          (is (= base (:progress after)))))
+      (testing "只读审批看到终态时给出明确的没有待审申请, 而不是写入锁"
+        (is (= [409 "没有待处理的关闭申请"]
+               (error-info #(command! 9402 closure/review! id [] {:decision "approved" :reason "重复"})))))
+      (testing "真正的写入仍被终态锁拒绝"
+        (is (= 409 (error-status #(command! closure/create-item! id ["check"] {:title "关闭后追加"}))))
+        (is (= 409 (error-status #(command! closure/create-lesson! id [] {:title "关闭后经验" :category "交付" :content "x"}))))
+        (is (= 409 (error-status #(transition! id "execution"))))))))
+
+
 (deftest pending-financial-reviewer-cannot-be-removed
   (let [id (project!) cost-version (cost! id "actual")]
     (is (= 409 (error-status #(command! lifecycle/remove-member! id [9402] {}))))

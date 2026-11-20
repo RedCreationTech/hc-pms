@@ -196,3 +196,13 @@
 - 撤销留痕 (只读派生, 免迁移): `GET /members` 追加 `revoked[]{user_id, actor_id, actor_name, reason, at}` 与 `revoked_user_ids[]`, 来源为审计事件 `member.removed` 与当前存活成员行的差集; 重新委派后该成员从留痕中消失, 历史事件仍保留署名.
 - 校验顺序: `remove-member!` 不再拒绝请求体附加字段, 但 `rules/version!` 排在交接检查之前, 保证陈旧版本请求优先得到 409 "项目已被其他操作更新".
 - 权限: 撤销与查看分别沿用 `pms:member:edit` 与 `pms:project:query`.
+
+## H14 收尾批准与项目归档: 归档状态只读派生 (增量10 切片, 2026-11-20)
+
+- `GET /projects/:id/closure` 顶层追加 **`archive`** (只读派生, 免迁移): `{status, closed, archived, archived-at, reopened, reopened-version, approvals{total,approved,rejected,submitted}, approval-status, reopens{total,approved,rejected,submitted,latest-status,latest-reason}}`.
+  - `archived` 为真当且仅当项目 `status="closed"` 且 `pms_lifecycle_state.archived_at` 非空 (该列在 `closing -> closed` 时写入, 受控重开批准时清空).
+  - `approvals` 按 `pms_closure_approval.project_version` 统计**历届**关闭审批 (含重新关闭), `approval-status` 为最近一次结论.
+  - `reopens.total` 记**已批准**的重开次数 (`pms_reopen_request` 中 `status="approved"`), 与 `reopened-version` (生命周期状态中记录的重开聚合版本) 互为印证; `submitted`/`rejected` 另计, `latest-status`/`latest-reason` 取最近一次申请.
+- 新增读取语句: `closure/approvals`, `reopen/all`, `lifecycle/state`. 不写入任何存储, 不改变任何门控判定.
+- 终态只读参与 (`kernel/writable!`): `rules/editable!` 只在 `write?` 为真且未显式 `allow-terminal?`/`allow-paused?` 时执行, 因此审批类只读命令 (`{:write? false}`) 在 `closed`/`cancelled`/`paused` 项目上不再被写入锁 409 误挡; 所有真正的写入路径 (`write?` true) 的终态/暂停限制保持不变.
+- 前端: "结项与移交"页签 `项目归档状态` 面板 (只读), 显示归档徽标/项目状态/归档时刻/受控重开次数, 以及关闭审批与重开申请的批准/驳回/待审批次数表与最近重开原因.
