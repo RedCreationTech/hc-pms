@@ -1,3 +1,9 @@
+DROP INDEX IF EXISTS idx_pms_closure_project;
+--;;
+DROP INDEX IF EXISTS idx_pms_time_project;
+--;;
+DROP INDEX IF EXISTS idx_pms_time_user;
+--;;
 DROP TABLE IF EXISTS pms_lifecycle_state;
 --;;
 DROP TABLE IF EXISTS pms_closure_approval;

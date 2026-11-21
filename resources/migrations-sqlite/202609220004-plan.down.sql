@@ -1,3 +1,7 @@
+DROP INDEX IF EXISTS idx_plan_baseline_status;
+--;;
+DROP INDEX IF EXISTS idx_plan_feedback_task;
+--;;
 DROP TABLE IF EXISTS pms_plan_feedback;
 --;;
 DROP TABLE IF EXISTS pms_plan_baseline;

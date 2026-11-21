@@ -1,3 +1,11 @@
+DROP INDEX IF EXISTS idx_bpm_expression_name;
+--;;
+DROP INDEX IF EXISTS idx_bpm_listener_type;
+--;;
+DROP INDEX IF EXISTS idx_bpm_settings_name;
+--;;
+DROP INDEX IF EXISTS idx_bpm_user_group_name;
+--;;
 DROP TABLE IF EXISTS biz_bpm_settings;
 --;;
 DROP TABLE IF EXISTS biz_bpm_expression;
@@ -5,3 +13,4 @@ DROP TABLE IF EXISTS biz_bpm_expression;
 DROP TABLE IF EXISTS biz_bpm_listener;
 --;;
 DROP TABLE IF EXISTS biz_bpm_user_group;
+--;;

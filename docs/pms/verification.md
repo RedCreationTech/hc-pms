@@ -3127,4 +3127,31 @@ down 为空操作但迁移确实改了结构 (回退后旧代码读不到已删�
 
 另: `docs/pms/migration-verification.md` 的旧往返脚本 (34 断言, 2026-09-22, 覆盖 52 迁移的 004-009) 在当前 84 迁移集下**已过期** -- 其 "全量回放 schema 逐字相同" 断言不成立, 因为后续迁移会修改早期表结构. 该断言应改为 "回退后列集合等于该迁移应用前的列集合", 而不是 DDL 文本相等.
 
-本轮**不**修 down 脚本 (属于迁移资产变更, 需单独切片并重跑双库回归与全量测试); 以上如实记为 H19 待办, H19 仍为 `partial`.
+### H19 迁移回退修复 (2026-11-21, 承接上一节)
+
+上一节列出的 7 个报错 down 已修复, 复跑同一审计脚本后 **down 执行报错 0 个, 声明删除的列全部被删 0 残留**.
+
+| 迁移 | 修法 |
+| --- | --- |
+| `202611190003-change-loss` (SQLite) | `ALTER TABLE ... DROP INDEX` 非法, 且 `change_code` 参与表级 `UNIQUE(version_id,change_code)`, SQLite 的 `DROP COLUMN` 对该列直接报错 (实测复现) -- 改为 12 步重建表, 结构还原到 `202609220006-finance-closure` 的原始 DDL |
+| `202611190006-cost-entry-status` (SQLite) | `DROP INDEX IF EXISTS` + `DROP COLUMN status` |
+| `202611190003` / `202611190006` (MySQL) | `DROP INDEX` 补 `ON 表名` |
+| `202406110014-seed-data` | `TRUNCATE ... CASCADE` 改为逐表 `DELETE FROM` |
+| `202608270002-bpm-menu-icons` | `SELECT 1` 改无害 `UPDATE`, 并把图标清空 |
+| `202611200001-repair-current-text-timestamps` | `SELECT 1` 改 0 行 `UPDATE` |
+| `202606170001-cleanup-business-tables` | 同上 |
+| `202607040101-remove-obsolete-tool-menus` | 只有注释的 down 补可执行语句 |
+
+同时把 25 个"down 只删表"的脚本补上索引清理 (被删表上的索引在 SQLite 里随表消失, 但 `DROP INDEX IF EXISTS` 显式写出更抗后续迁移改结构).
+
+`20260613215630-add-notice-content` 的 down 改为保留列 (空写): 该列被早期公告列表查询引用, 真删会让"回滚到旧代码"的库读不到正文.
+
+验证 (全部实测):
+
+| 项 | 结果 |
+| --- | --- |
+| 逐个迁移 down 审计 | 84 个迁移, **0 报错**, 声明删除的列 0 残留 |
+| 全量 down-all 再 up-all 往返 | 84 已应用 -> 0 -> 84 已应用, `pms_cost_entry` 列集合两次一致 |
+| 全量后端回归 | 875 tests / 8467 assertions, **0 failures, 0 errors** |
+
+未覆盖: MySQL 目标环境仍未连上 (本机无 MySQL 实例), MySQL 侧的两处 `DROP INDEX ... ON` 修复只做了语法修正, **未在真实 MySQL 上执行过**, 因此 H19 整行仍为 `partial`, 不因本片上行.
