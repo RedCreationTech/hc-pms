@@ -2,6 +2,7 @@
   "平台能力与兼容基线 (G18): 展示服务端真实运行环境, 支持的数据库与浏览器基线, 本次请求客户端的判定, 以及报表指标口径分布.
    全部取值来自后端只读核对, 未上报或未识别的项如实标注, 不当作通过."
   (:require
+    [clojure.string :as str]
     [com.ruoyi.frontend.antd :as antd]
     [com.ruoyi.frontend.pages.pms.shared :as shared]
     [com.ruoyi.frontend.pages.pms.widgets :as w]
@@ -96,10 +97,36 @@
      [antd/tabs {:activeKey tab :onChange set-tab! :items tab-items}]]))
 
 
+(defn- readiness-section
+  "H19 运行就绪核对: 真实连接往返探测, 迁移版本对账与关键配置在位情况; 只读, 配置项只报在位与否."
+  [{:keys [data]}]
+  (let [db (:database data)
+        m (:migrations data)
+        pending (:pending-count data)
+        unreadable (:unreadable m)
+        ready (:ready data)]
+    [antd/card {:title "运行就绪核对" :size "small" :styles {:body {:padding 16}}}
+     [antd/space {:wrap true :size 4}
+      [antd/tag {:color (if ready "green" "red")} (str "就绪判定: " (if ready "就绪" "未就绪"))]
+      [antd/tag {:color (if (:connected db) "geekblue" "red")} (str "数据库" (if (:connected db) "连通" "不可达"))]
+      [antd/tag {:color (if (:slow db) "orange" "blue")}
+       (str "探测耗时 " (:latency-ms db) " ms (阈值 " (:threshold-ms db) " ms)")]
+      (when (:error db) [antd/tag {:color "red"} (:error db)])
+      [antd/tag {:color (if unreadable "orange" (if (pos? pending) "red" "green"))}
+       (if unreadable "迁移清单不可读" (str "迁移 " (:applied m) "/" (:known m) " 已应用"))]
+      (when (and (not unreadable) (pos? pending))
+        [antd/tag {:color "red"} (str "待应用迁移 " pending)])
+      [antd/tag {:color (if (:config-complete data) "green" "orange")}
+       (if (:config-complete data) "关键配置齐备" (str "关键配置缺失 " (count (:missing-config data)) " 项"))]
+      (when (seq (:missing-config data))
+        [antd/tag {:color "volcano"} (str "缺失: " (clojure.string/join " / " (:missing-config data)))])
+      [antd/tag {:color "blue"} (str "支持库 " (clojure.string/join " / " (:supports data)))]]]))
+
 (defn platform-page
   "平台能力与兼容基线页."
   []
-  (let [resource (shared/use-resource "/platform/capabilities" {} [])]
+  (let [resource (shared/use-resource "/platform/capabilities" {} [])
+        readiness (shared/use-resource "/platform/readiness" {} [])]
     [:div {:style {:padding 24}}
      [shared/page-heading "PROJECT MANAGEMENT" "平台能力"
       "服务端真实运行环境, 数据库与浏览器兼容基线, 本次请求客户端判定与报表指标口径分布; 未上报或不支持的项如实标注" nil]
@@ -107,5 +134,7 @@
       (fn [data]
         [:div
          [runtime-section {:data data}]
+         [:div {:style {:height 16}}]
+         [w/resource-view readiness (fn [ready] [readiness-section {:data ready}])]
          [:div {:style {:height 16}}]
          [matrix-section {:data data}]])]]))

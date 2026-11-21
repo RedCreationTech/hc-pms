@@ -3074,3 +3074,28 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 本轮未执行 (如实记录): 不做按检验方法看签认耗时的统计; 不做角色维度的跨项目汇总; MySQL 回归 (本地无实例, 本片完全免迁移).
 
 边界: 本片是 H10 "方法 × 角色" 横向覆盖只读洞察, 与 `dq-summary` 的状态纵向闭环正交, 不构成任何门控 (未声明方法/角色照常登记与签认). H10 整行仍为 `partial`: 全项目质量计划与企业适用模板仍待签收.
+
+## H19 生产就绪: 运行就绪核对只读派生 (本轮增补, 2026-11-21)
+
+设计与口径: H19 的要求是"MySQL 目标环境, 迁移升级/回退, 压测, 监控告警, 备份恢复与 RPO/RTO 演练通过", 这些都需要真实目标环境与运维窗口, 本轮**不**假装完成. 本轮补的是其中可以由代码如实回答的那一层: 服务此刻跑在什么状态下. `readiness` 对当前数据源做**一次真实往返** (`SELECT 1`) 并计耗时, 用 migratus 自己的迁移清单与 `schema_migrations` 已应用集合求差, 逐项核对关键配置是否在位.
+
+领域: `domain/pms/readiness.clj` 新增 `max-latency-ms`、`required-config`、`migration-config`、`migration-check-fns`、`readiness`. 三处口径选择:
+- **探测失败不抛异常**: 连不上时记录异常类型与消息, 函数仍返回完整结构, 供故障态下运维读到实况;
+- **读不到清单不下结论**: 迁移清单读不到时标 `unreadable`, 而不是把 `pending` 当成 0 谎报就绪;
+- **配置只报在位**: `value_exposed` 恒为 `false`, 绝不回显连接串等取值.
+
+**实现坑**: `migratus/completed-list` 返回的是迁移**名称**而非版本 id, 直接与 `:id` 集合求差会得出"84 条全部待应用"的错误结论; 改为直接读 `schema_migrations.id` 后对账正确 (known 84 / applied 84).
+
+前端: 平台能力页在"运行环境"卡片之下新增"运行就绪核对"面板: 就绪判定 / 数据库连通 / 探测耗时与阈值 / 迁移 N/N 已应用 / 待应用迁移 / 关键配置齐备或缺失点名 / 支持库.
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 平台命名空间测试 | `pms_platform_test` 新增 2 deftest 共 35 assertions, 0 失败 | `readiness-reports-live-runtime-and-migration-truth`: 真实往返探测连通且不慢、耗时非负、阈值为 1000ms; 迁移 `known = applied` 且 `pending` 为空 (与启动同源); 配置只报在位 (`value_exposed` 全 false, 响应结构里没有取值); `read-only` 真且 `side-effects` 空; 缺失 `JDBC_URL` 时如实点名但**不**阻断 `ready`; 用 `with-redefs` 注入抛错的迁移清单读取器时标 `unreadable` 且不谎报; 无 PMS 权限返回 403. `readiness-http-contract`: 401 / 403 / 200, 原始响应体不含 `jdbc:` 连接串 |
+| 全量回归 | `clojure -J-Xmx1800m -M:test` 875 tests / 8467 assertions, 0 failures / 0 errors (SQLite) | 无回归 (较上片 873/8430 增加 2 tests / 37 assertions) |
+| 前端 | `npx shadow-cljs watch app` 0 warnings (4083 files) | 面板编译通过 |
+| cljstyle | 通过 | `readiness.clj`、`pms_platform.clj`、`pms_platform_test.clj` 已格式化 |
+| 浏览器 | `tests/e2e/pms-h19ready.spec.js` 1 passed | 真实浏览器打开 `/pms/platform` -> 面板"就绪判定: 就绪 / 数据库连通 / 探测耗时 N ms (阈值 1000 ms) / 迁移 84/84 已应用 / 关键配置齐备 / 支持库 sqlite / mysql" (截图 `reports/h19ready/readiness-1-page.png`、`readiness-2-card.png`, 已目视确认) -> 真实 HTTP GET `/api/pms/platform/readiness` 回显 `ready=true` / `pending-count=0` / `read-only=true` / `config.value_exposed` 全 false, 原始响应体不含连接串 |
+
+**过程记录 (如实)**: 本轮首次跑全量回归出现 `bpm-p0-copy-strategy-test` 2 处失败, 单独复跑该命名空间与再次全量均通过, 判定为业务 BPM 测试对全库执行顺序的既有依赖抖动, 与本片改动无关 (本片只新增只读命名空间与一条 GET 路由, 不触碰 BPM).
+
+本轮未执行 (如实记录): MySQL 目标环境迁移升级/回退演练; 压测与容量基线; 监控告警接线与演练; 备份恢复与 RPO/RTO 演练. H19 整行仍为 `partial`.

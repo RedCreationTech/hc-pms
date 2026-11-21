@@ -3,6 +3,7 @@
   (:require
     [com.ruoyi.domain.pms.notify :as notify]
     [com.ruoyi.domain.pms.platform :as platform]
+    [com.ruoyi.domain.pms.readiness :as readiness]
     [com.ruoyi.web.controllers.pms-http :as http]))
 
 
@@ -10,6 +11,14 @@
   "按实时身份读取平台能力; 浏览器判定取自本次请求的 User-Agent."
   [svc request]
   (http/invoke svc request (fn [service actor] (platform/capabilities service actor (:headers request)))))
+
+
+(defn- readiness-check
+  "H19 运行就绪核对: 实时连接探测 + 迁移对账 + 关键配置在位; 只读且不回显配置取值."
+  [svc request]
+  (http/invoke svc request (fn [service actor]
+                             (let [env (into {} (System/getenv))]
+                               (readiness/readiness service actor env)))))
 
 
 (defn- inbox
@@ -42,6 +51,9 @@
   [svc]
   [["/platform/capabilities" {:get {:summary "平台能力与兼容基线"
                                     :handler (partial capabilities svc)}}]
+   ["/platform/readiness" {:get {:summary "运行就绪核对 (只读)"
+                                 :perms ["pms:project:list"]
+                                 :handler (partial readiness-check svc)}}]
    ["/notifications" {:get {:summary "本地通知收件箱"
                             :perms ["pms:project:list" "pms:project:query"]
                             :handler (partial inbox svc)}}]

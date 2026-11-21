@@ -5,6 +5,7 @@
     [clojure.test :refer [deftest is testing use-fixtures]]
     [com.ruoyi.domain.pms.platform :as platform]
     [com.ruoyi.domain.pms.queries :as queries]
+    [com.ruoyi.domain.pms.readiness :as readiness]
     [com.ruoyi.domain.pms.service :as pms]
     [com.ruoyi.infra.security :as security]
     [com.ruoyi.web.routes.api :as api]
@@ -127,3 +128,61 @@
     (is (true? (get-in data [:client :supported])))
     (is (= "Reagent 2 + Ant Design 6" (get-in data [:frontend :framework])))
     (is (seq (:browsers data)))))
+
+
+(deftest readiness-reports-live-runtime-and-migration-truth
+  (let [data (readiness/readiness *service* (actor 9462) {"JDBC_URL" "jdbc:sqlite:/x.db" "JAVA_HOME" "/opt/jdk"})]
+    (testing "连接探测是真实往返, 但如实报告耗时与阈值"
+      (is (true? (get-in data [:database :connected])))
+      (is (false? (get-in data [:database :slow])))
+      (is (nat-int? (get-in data [:database :latency-ms])))
+      (is (= readiness/max-latency-ms (get-in data [:database :threshold-ms])))
+      (is (nil? (get-in data [:database :error]))))
+    (testing "迁移对账与启动同源: 已应用全部迁移, 待应用为 0"
+      (is (nil? (get-in data [:migrations :unreadable])) "读得到清单时不标 unreadable")
+      (is (pos? (get-in data [:migrations :known])))
+      (is (= (get-in data [:migrations :known]) (get-in data [:migrations :applied])))
+      (is (empty? (get-in data [:migrations :pending])))
+      (is (zero? (:pending-count data)))
+      (is (true? (:ready data))))
+    (testing "配置只报在位与否, 绝不回显取值"
+      (is (true? (:config-complete data)))
+      (is (empty? (:missing-config data)))
+      (is (every? #(false? (:value_exposed %)) (:config data)))
+      (is (= #{"JDBC_URL" "JAVA_HOME"} (set (map :key (:config data)))))
+      (is (not-any? #(some-> (get-in data [:config % :value]) some?) (range (count (:config data))))))
+    (testing "只读复核: 明确声明无副作用, 支持库为随包迁移的两种"
+      (is (true? (:read-only data)))
+      (is (empty? (:side-effects data)))
+      (is (= #{"sqlite" "mysql"} (set (:supports data))))
+      (is (string? (:checked-at data)))))
+  (testing "缺失关键配置如实点名, 不猜默认值"
+    (let [data (readiness/readiness *service* (actor 9462) {"JAVA_HOME" "/opt/jdk"})]
+      (is (false? (:config-complete data)))
+      (is (= ["JDBC_URL"] (:missing-config data)))
+      (is (true? (:ready data)) "配置缺失不阻断就绪判定, 只如实点名")))
+  (testing "迁移清单读不到时标 unreadable, 不下「已全部应用」结论"
+    (let [data (readiness/readiness *service* (actor 9462) nil)]
+      (is (map? (:migrations data))))
+    (with-redefs [readiness/migration-check-fns {:all (fn [_] (throw (ex-info "boom" {})))}]
+      (let [data (readiness/readiness *service* (actor 9462) nil)]
+        (is (true? (get-in data [:migrations :unreadable])))
+        (is (zero? (:pending-count data)))
+        (is (true? (:ready data))))))
+  (testing "权限: 无 PMS 权限的用户被拒"
+    (is (= 403 (try (readiness/readiness *service* (actor 9463) nil) nil
+                    (catch clojure.lang.ExceptionInfo e (:status (ex-data e))))))))
+
+
+(deftest readiness-http-contract
+  (is (= 401 (:status (request "/api/pms/platform/readiness" nil nil))))
+  (is (= 403 (:status (request "/api/pms/platform/readiness" 9463 nil))))
+  (let [resp (request "/api/pms/platform/readiness" 9462 nil)
+        data (:data (:body resp))]
+    (is (= 200 (:status resp)))
+    (is (true? (:ready data)))
+    (is (true? (get-in data [:database :connected])))
+    (is (zero? (:pending-count data)))
+    (is (true? (:read-only data)))
+    (is (every? #(false? (:value_exposed %)) (:config data)))
+    (is (not (re-find #"jdbc:" (pr-str data))) "响应体不得出现连接串")))
