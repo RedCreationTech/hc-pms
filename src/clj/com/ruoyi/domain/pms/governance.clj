@@ -112,6 +112,7 @@
                    gates/attach-gate-exception-summary
                    gates/attach-gate-velocity-summary
                    collab/attach-issue-closure-summary
+                   lifecycle/attach-retention-summary
                    (collab/enrich-risk-issue-links)
                    (collab/enrich-action-source-links)
                    (assoc :charter_budget_baseline

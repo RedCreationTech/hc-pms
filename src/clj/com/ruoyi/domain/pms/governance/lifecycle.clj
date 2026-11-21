@@ -7,7 +7,9 @@
     [com.ruoyi.domain.pms.rules :as r])
   (:import
     (java.time
-      LocalDate)))
+      LocalDate)
+    (java.time.temporal
+      ChronoUnit)))
 
 
 (def discardable-status
@@ -127,3 +129,73 @@
                 :status status :latest? (not newer?) :status_discardable? status-ok?
                 :references (vec refs)
                 :discardable? (boolean (and (not newer?) status-ok? (empty? refs)))}))))
+
+
+(def default-retention-days
+  "默认保留期(天): 已作废但未恢复的记录在保留期内保持可追溯, 到期后进入待归档清单."
+  90)
+
+
+(defn- discarded-on
+  "取某条已作废记录最近一次作废日期 (LocalDate), 兼容 workflow_history 最新 discarded 审计项; 无法解析返回 nil."
+  [record]
+  (let [from-history (some->> (:workflow_history record)
+                              (filterv #(= "discarded" (:action %)))
+                              (last)
+                              (:on))
+        raw (or from-history (:discarded_on record))]
+    (try (when raw (LocalDate/parse (str raw)))
+         (catch Exception _ nil))))
+
+
+(defn retention-policy
+  "历史资料保留策略只读派生: 按保留期(天)把已作废但未恢复的记录分成 '保留期内' 与 '待归档' 两档,
+   并给出各类可作废对象的在册/已作废/在保留期/待归档/已恢复计数与恢复率, 以及按类型汇总的待归档清单.
+   只读派生, 不落库不投递, 不构成门控 (到期记录仍可恢复, 是否归档由人工按清单决定). 键名不带尾随问号."
+  ([records-by-section] (retention-policy records-by-section default-retention-days (LocalDate/now)))
+  ([records-by-section retention-days today]
+   (let [kinds [["requirements" "requirement" "URS需求"] ["documents" "document" "文档"]
+                ["stakeholders" "stakeholder" "干系人"] ["meetings" "meeting" "会议纪要"]]
+         rows-of (fn [section]
+                   (let [rows (or (get records-by-section section)
+                                  (get records-by-section (keyword section)))]
+                     (if (seq rows) (s/latest (vec rows)) [])))
+         days-old (fn [record]
+                    (when-some [day (discarded-on record)]
+                      (.between ChronoUnit/DAYS day today)))
+         restored? (fn [record] (some #(= "restored" (:action %)) (:workflow_history record)))
+         by-kind (mapv (fn [[section kind label]]
+                         (let [rows (rows-of section)
+                               discarded (filterv #(= "discarded" (:status %)) rows)
+                               due (filterv #(>= (long (or (days-old %) 0)) retention-days) discarded)]
+                           {:section section :kind kind :label label
+                            :total (count rows)
+                            :discarded (count discarded)
+                            :within-retention (- (count discarded) (count due))
+                            :due-for-archive (count due)
+                            :restored (count (filterv restored? rows))}))
+                       kinds)
+         sum-of (fn [k] (reduce + (map k by-kind)))
+         discarded (sum-of :discarded)
+         archived (sum-of :due-for-archive)
+         restored (sum-of :restored)]
+     {:available (pos? (sum-of :total))
+      :retention-days retention-days
+      :today (str today)
+      :total (sum-of :total)
+      :discardable (reduce + (map #(count (filterv (fn [row] (contains? (get discardable-status (:kind %) #{}) (:status row)))
+                                                   (rows-of (:section %))))
+                                  by-kind))
+      :discarded discarded
+      :within-retention (- discarded archived)
+      :due-for-archive archived
+      :restored restored
+      :recovery-pct (if (zero? (+ discarded restored))
+                      0 (Math/round (double (/ (* 100.0 restored) (+ discarded restored)))))
+      :by-kind by-kind})))
+
+
+(defn attach-retention-summary
+  "把 retention-policy 挂到治理工作区顶层 :retention_summary; 读取时派生, 不改变任何逐条记录."
+  [data]
+  (assoc data :retention_summary (retention-policy data)))

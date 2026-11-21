@@ -37,6 +37,8 @@
       Files)
     (java.security
       MessageDigest)
+    (java.time
+      LocalDate)
     (java.util
       UUID)
     (java.util.zip
@@ -7418,3 +7420,73 @@
         (is (= "submitted" (:status (:result (planning/submit-plan!
                                                *service* (actor 9301) id
                                                {:version (version id) :comment "范围仍可提交"})))))))))
+
+
+(deftest retention-policy-summarizes-discard-and-archive-readiness
+  (testing "纯函数口径: 已作废未恢复记录按保留期分档, 已恢复记录计入恢复数不计入待归档"
+    (let [n (atom 0)
+          row (fn [status & [extra]]
+                (merge {:code (str "R" (swap! n inc)) :revision 1
+                        :status status :workflow_history []} extra))
+          by-section {"requirements" [(row "registered")
+                                      (row "discarded" {:discarded_on "2025-12-01"
+                                                        :workflow_history [{:action "discarded" :on "2025-12-01"}]})
+                                      (row "discarded" {:workflow_history [{:action "discarded" :on "2026-03-01"}]})
+                                      (row "registered" {:workflow_history [{:action "discarded" :on "2026-01-01"}
+                                                                            {:action "restored" :on "2026-01-02"}]})]}]
+      (let [sm (lifecycle/retention-policy by-section 90 (LocalDate/parse "2026-03-10"))]
+        (is (true? (:available sm)))
+        (is (= 4 (:total sm)))
+        (is (= 2 (:discarded sm)))
+        (is (= 1 (:within-retention sm)))
+        (is (= 1 (:due-for-archive sm)))
+        (is (= 1 (:restored sm)))
+        (is (= 33 (:recovery-pct sm)))
+        (is (= 2 (:discardable sm)))
+        (is (= ["requirements" "documents" "stakeholders" "meetings"] (mapv :section (:by-kind sm)))))))
+  (testing "空工作区: 无记录时 available=false 且计数归零"
+    (let [sm (lifecycle/retention-policy {} 90 (LocalDate/parse "2026-03-10"))]
+      (is (false? (:available sm)))
+      (is (zero? (:total sm)))
+      (is (zero? (:recovery-pct sm)))))
+  (testing "真实工作区: 作废一条需求后 retained 1 / due 0, 恢复后 discarded 0 且 restored 1"
+    (let [id (project!)
+          req (command! id :requirements :create nil
+                        {:code "URS-RET" :text "保留策略需求" :category "功能" :priority "required" :owner_id 9301})
+          sm0 (:retention_summary (workspace id))]
+      (is (true? (:available sm0)))
+      (is (= 90 (:retention-days sm0)))
+      (is (= 1 (:discardable sm0)))
+      (let [kind (first (filter #(= "requirement" (:kind %)) (:by-kind sm0)))]
+        (is (= 1 (:total kind)))
+        (is (zero? (:discarded kind))))
+      (command! id :requirements :discard (:id req) {:reason "保留策略验收"})
+      (let [sm1 (:retention_summary (workspace id))
+            kind (first (filter #(= "requirement" (:kind %)) (:by-kind sm1)))]
+        (is (= 1 (:discarded sm1)))
+        (is (= 1 (:within-retention sm1)))
+        (is (zero? (:due-for-archive sm1)))
+        (is (zero? (:due-for-archive kind)))
+        (is (= 1 (:within-retention kind)))
+        (is (zero? (:discardable sm1))))
+      (command! id :requirements :restore (:id req) {:reason "恢复验收"})
+      (let [sm2 (:retention_summary (workspace id))
+            kind (first (filter #(= "requirement" (:kind %)) (:by-kind sm2)))]
+        (is (zero? (:discarded sm2)))
+        (is (= 1 (:restored sm2)))
+        (is (= 100 (:recovery-pct sm2)))
+        (is (= 1 (:restored kind))))))
+  (testing "HTTP 合同: 治理工作区接口下发 retention_summary, 且未登录拒绝"
+    (let [id (project!)
+          path (str "/api/pms/projects/" id "/governance")
+          _ (command! id :requirements :create nil
+                      {:code "URS-RET-HTTP" :text "保留策略接口验收" :category "功能" :priority "required" :owner_id 9301})
+          _ (is (= 401 (:status (request :get path nil nil))))
+          ws (request :get path 9301 nil)
+          sm (get-in ws [:body :data :retention_summary])]
+      (is (= 200 (:status ws)))
+      (is (= 90 (:retention-days sm)))
+      (is (= 1 (:total sm)))
+      (is (= 1 (:discardable sm)))
+      (is (= 0 (:discarded sm)))
+      (is (= 0 (:due-for-archive sm))))))

@@ -261,6 +261,37 @@
                                   (str (:label p) " · " (:count p) " (" (:pct p 0) "%)")])]])]))
 
 
+(defn- retention-summary-section
+  "按各类可作废对象最新有效版本只读聚合历史资料保留策略执行情况: 保留期天数, 在册总数, 已作废数及其在保留期/待归档分档, 已恢复数与恢复率, 并逐类型列出计数; 与作废/恢复台账同源不同维度, 只读派生, 到期仍可恢复, 不构成门控."
+  [{:keys [model]}]
+  (let [sm (:retention_summary model)
+        total (:total sm 0)
+        days (:retention-days sm 0)
+        discarded (:discarded sm 0)
+        within (:within-retention sm 0)
+        due (:due-for-archive sm 0)
+        restored (:restored sm 0)
+        pct (:recovery-pct sm 0)
+        by-kind (:by-kind sm [])
+        kind-colors {"requirement" "blue" "document" "geekblue" "stakeholder" "cyan" "meeting" "purple"}]
+    [shared/panel "历史资料保留策略" "按各类可作废对象最新有效版本只读聚合: 已作废记录按保留期内/待归档分档, 并统计已恢复数与恢复率; 只读派生, 到期记录仍可恢复, 是否归档由人工按清单决定"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无治理记录, 登记需求/文档/干系人/会议后可在此查看保留策略执行情况."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "保留期 " days " 天")]
+         [antd/tag {:color "default"} (str "在册 " total)]
+         [antd/tag {:color (if (pos? discarded) "volcano" "default")} (str "已作废 " discarded)]
+         [antd/tag {:color "gold"} (str "保留期内 " within)]
+         [antd/tag {:color (if (pos? due) "red" "default")} (str "待归档 " due)]
+         [antd/tag {:color "green"} (str "已恢复 " restored " (恢复率 " pct "%)")]]
+        [antd/space {:wrap true}
+         (for [row by-kind]
+           ^{:key (:kind row)} [antd/tag {:color (get kind-colors (:kind row) "default")}
+                                (str (:label row) " · 在册 " (:total row) " · 已作废 " (:discarded row)
+                                     " · 待归档 " (:due-for-archive row))])]])]))
+
+
 (defn- coverage-section
   "按每个需求编号的最新有效版本只读聚合验证方式声明覆盖度: 四类方法各自计数与覆盖率; 修订不重复计数, 已作废不计入."
   [{:keys [model]}]
@@ -2915,7 +2946,7 @@
                       {:key key :label label :children (r/as-element
                                                          (into [:div {:style {:display "grid" :gap 20}}] (map #(vector % context) components)))})
                     [["charter" "章程" [charter-section]]
-                     ["requirements" "URS与追踪" [requirement-section coverage-section requirement-priority-distribution-section alignment-section traceability-section trace-section]]
+                     ["requirements" "URS与追踪" [requirement-section retention-summary-section coverage-section requirement-priority-distribution-section alignment-section traceability-section trace-section]]
                      ["evidence" "证据版本" [document-section collection-section tree-section release-coverage-section document-classification-distribution-section]]
                      ["appointments" "成员任命" [appointment-section]]
                      ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section raci-role-distribution-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section comm-channel-usage-section comm-plan-audience-breadth-section stakeholder-category-distribution-section stakeholder-quadrant-distribution-section stakeholder-engagement-distribution-section]]

@@ -2970,3 +2970,25 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例, 本片完全免迁移不新增 DDL); 映射判定为**子串命中**而非语义理解, 因此同义改写或翻译过的声明不会被识别 (界面上以橙色"未映射"如实呈现, 不改写用户声明); 不做"覆盖性审查通过后强制冻结基线"的门控.
 
 边界: 本片补齐的是 H03 的"排除项/验收准则逐条映射"这一具名子能力, 且明确只读不门控. H03 整行验收仍含"覆盖性审查后**强制冻结**"与范围变更受控的更完整形态, 故 H03 行保持 `partial` 不上行.
+
+## H18 历史资料保留策略只读派生 (本轮增补, 2026-11-21)
+
+设计与口径: H18 前面几轮已把"作废"变成可审计的状态迁移并支持受控恢复, 但没有回答"作废之后这些历史记录留多久、何时该归档". 本片补齐这一端: 读取治理工作区时, 按各类可作废对象 (需求/文档/干系人/会议纪要) **最新有效版本** 统计在册/已作废, 并把已作废记录按保留期 (默认 90 天) 分成"保留期内"与"待归档"两档, 再给出已恢复数与恢复率. 全部读取时派生, 免迁移, 免新命令, 免新 kind, **不构成任何门控** —— 到期记录仍然可以恢复, 是否归档由人工按清单决定.
+
+领域: `governance/lifecycle.clj` 新增 `default-retention-days` (90)、`discarded-on` (取 `workflow_history` 最近一条 `discarded` 审计项的 `:on`, 回退到记录上的 `:discarded_on`, 无法解析返回 nil)、`retention-policy` (arity 2/3, 第三参允许注入 `today` 以便纯函数测试)、`attach-retention-summary`. `retention-policy` 用 `s/latest` 按编码去重后逐类型给出 `total/discarded/within-retention/due-for-archive/restored`, 顶层再汇总 `available/retention-days/today/total/discardable/discarded/within-retention/due-for-archive/restored/recovery-pct/by-kind`; 行级分档用 `(.between ChronoUnit/DAYS day today)`, 天数 `>= retention-days` 判为待归档; `recovery-pct` 分母为 `discarded + restored` (已恢复过的记录退回 registered 后仍计入恢复率), 四舍五入整数百分比, 分母 0 给 0. `rows-of` 同时接受字符串与关键字 section 键 (读模型用关键字), 避免治理工作区 `data` 以 `:requirements` 存键时查不到行.
+
+读模型接线: `governance/workspace` 的 `->` 链在 `collab/attach-issue-closure-summary` 之后加 `lifecycle/attach-retention-summary`, 把结果挂在 `:retention_summary`.
+
+前端: `governance.cljs` 新增 `retention-summary-section` 面板, 挂在"需求与治理 → URS与追踪"页签 `requirement-section` 之后: 第一行标签为保留期天数/在册/已作废/保留期内/待归档/已恢复与恢复率, 第二行逐类型标签 (需求/文档/干系人/会议), 空态提示"暂无治理记录".
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 治理命名空间测试 | `pms_governance_test` 168 tests / 3040 assertions, 0 失败 | 新增 `retention-policy-summarizes-discard-and-archive-readiness` (34 assertions): 纯函数口径 (90 天前的作废记录判 `due-for-archive`, 近距离作废判 `within-retention`, 已恢复计入 `restored` 与恢复率, `discardable` 按状态口径统计, `by-kind` 恒含四类); 空工作区 `available=false` 且计数归零; 真实工作区 (作废 -> discarded 1 / within 1 / due 0 / discardable 0, 恢复 -> discarded 0 / restored 1 / 恢复率 100%); HTTP 合同 (治理路由未登录 401, 登录后下发 `retention_summary` 且与工作区一致) |
+| 全量回归 | `clojure -J-Xmx1800m -M:test` 868 tests / 8286 assertions, 0 failures / 0 errors (SQLite) | 无回归 |
+| 前端 | `npx shadow-cljs compile app` 0 warnings (4041 files) | 面板编译通过 |
+| cljstyle | 通过 | `lifecycle.clj`、`governance.clj`、`pms_governance_test.clj` 已格式化 |
+| 浏览器 | `tests/e2e/pms-h18rp.spec.js` 1 passed | 真实治理命令登记三条需求并作废 B / 作废再恢复 C -> "历史资料保留策略"面板显示"保留期 90 天/在册 3/已作废 1/保留期内 1/待归档 0/已恢复 1 (恢复率 50%)"与"URS需求 · 在册 3 · 已作废 1 · 待归档 0" (截图 `reports/h18rp/h18rp-1-panel.png`、`h18rp-2-page.png`) -> GET /governance 回显 retention_summary 逐项一致 -> 再作废 A 后面板与读模型翻转为已作废 2 / 保留期内 2 -> 保留期内恢复 A 成功后 discarded 回落 1、restored 上升 2, 证明到期前不门控 -> 空态新项目面板提示暂无治理记录 (截图 `h18rp-3-empty.png`), 无未捕获 JS 错误 |
+
+本轮未执行 (如实记录): 保留期天数暂为固定 90 天, 未开放按项目/按类型配置; 未实现真实的归档搬运 (仅给出待归档清单), 也未做归档后的只读检索; MySQL 回归 (本地无实例, 本片完全免迁移).
+
+边界: 本片补齐的是 H18 "正式历史按保留策略归档" 这一具名子能力的**只读派生侧** (保留期分档与待归档清单), 归档动作本身与生产验收仍未实现, 故 H18 行保持 `partial` 不上行.
