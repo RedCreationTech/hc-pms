@@ -3014,3 +3014,23 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 本轮未执行 (如实记录): 两维之间不做汇率折算与加权综合 (并列呈现, 不发明一个"总影响分数"); 不按时间窗口 (近 N 天/按阶段) 切片; MySQL 回归 (本地无实例, 本片完全免迁移).
 
 边界: 本片是 H09 "影响分析" 的数值侧补充面板, 与覆盖度、模式分布、分档分布三项正交并列. H09 整行仍为 `partial`, 跨系统通知与财务自动应用仍未实现.
+
+## H11 售后遗留项处理时限只读派生 (本轮增补, 2026-11-21)
+
+设计与口径: H11 上一轮用 `service-closure-summary` 聚合售后遗留项的**关闭进度** (待处理/解决审核中/已关闭/已驳回/逾期未闭环/闭环率/来源分解), 但没有回答"这些单子拖了多久、承诺期限留了多少余量". 本片补上时间侧: 对整项目每条售后异常给出**已历时天数** (登记日 → 今天)、**允许天数** (登记日 → 承诺期限) 与未关闭项的**已逾期天数**, 再汇总平均已历时/未关闭平均已历时/平均允许天数/未关闭逾期数, 以及按允许天数分段的分布 (≤7 天 / 8 至 30 天 / >30 天 / 未设期限). 与闭环汇总互补并列, 同样只读派生、不落库、不投递、**不改变任何售后状态或门控** (解决仍须证据、关闭仍须独立审核人, 由 `resolve-service!`/`decide-service!` 在写入时强制).
+
+领域: `delivery/fieldwork.clj` 新增私有 `service-edate` (取 `:created_at` 前 10 位解析为 `LocalDate`, 不可解析返回 nil)、`service-turnaround` (返回 `:days-open`/`:slack-days`/`:overdue-days`, 未关闭项的逾期天数才计入) 与公开 `service-turnaround-summary`; 均值用 `rm/mean-int` (denom, sum) 四舍五入到整数天. `attach-service-turnaround` 挂到交付工作区顶层 `:service_turnaround`, 接在 `attach-service-closure` 之后. 注意 `(.between ChronoUnit/DAYS a b)` 必须写成对象调用形式 (`(ChronoUnit/DAYS.between a b)` 在 clj 下编译失败).
+
+前端: `delivery.cljs` 新增 `service-turnaround-section` 面板, 挂在"工程交付 → 售后闭环"页签 `service-closure-section` 之后: 第一行 售后项/未关闭/平均已历时/未关闭平均已历时/平均允许/未关闭逾期, 第二行 承诺期限分段四档.
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 交付命名空间测试 | `pms_delivery_test` 新 deftest 30 assertions, 0 失败 | `service-turnaround-summary-derives-elapsed-and-slack`: 纯函数口径 (四条覆盖 已历时 20/6/51/1 -> 平均 20, 未关闭平均 13, 未关闭逾期 1 (审核中项期限已过 16 天), 分段 7 天内 1 / 8 至 30 天 2 / 超 30 天 1, 平均允许 20); 缺登记日期与未设期限各自归位 (未设期限 2 条, 平均允许 0 因无一条同时具备两个日期); 空集合 available=false; 真实工作区 (条件接收生成售后项 -> total 1/unresolved 1/逾期 0/8 至 30 天 1, 重复读取稳定证明只读; 提交解决后仍 unresolved 1, 独立关闭后 unresolved 0 且闭环汇总 closure-pct=100) |
+| 全量回归 | `clojure -J-Xmx1800m -M:test` 870 tests / 8345 assertions, 0 failures / 0 errors (SQLite) | 无回归 |
+| 前端 | `npx shadow-cljs compile app` 0 warnings (4041 files) | 面板编译通过 |
+| cljstyle | 通过 | `delivery.clj`、`fieldwork.clj`、`pms_delivery_test.clj` 已格式化 |
+| 浏览器 | `tests/e2e/pms-h11tt.spec.js` 1 passed | 真实交付链到发运后登记两条售后 (一条期限已过 3 天, 一条 10 天后到期) -> "售后遗留项处理时限"面板显示"售后项 2/未关闭 2/平均已历时 0 天/未关闭平均已历时 0 天/平均允许 4 天/未关闭逾期 1"与"7 天内 1/8 至 30 天 1/超 30 天 0/未设期限 0" (截图 `reports/h11tt/h11tt-2-open-panel.png`、`h11tt-2-open.png`) -> GET /delivery 回显 `service_turnaround` 逐项一致 -> 提交解决并由独立核查人关闭一条后"未关闭 1/未关闭逾期 0" 且闭环汇总 pct=50 (两块面板同源不同维度) -> 空态新项目面板提示 (截图 `h11tt-1-empty.png`), 无未捕获 JS 错误 |
+
+本轮未执行 (如实记录): 已历时以"登记日 → 今天"为准, 不计算"实际关闭用时" (关闭时间戳未单独入账库字段, 需另立审计键, 本片不做); 不做 SLA 告警投递, 不做按责任人的时限负荷分布; MySQL 回归 (本地无实例, 本片完全免迁移).
+
+边界: 本片补齐 H11 售后遗留项的**时间维度**只读洞察, 与闭环汇总正交. H11 整行仍为 `partial`: 受控交付包发布与客户外部签章仍未实现.

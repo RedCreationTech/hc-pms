@@ -646,6 +646,30 @@
                                                      (r/as-element [antd/progress {:percent (if (pos? (:total sv)) (int (* 100 (/ c (:total sv)))) 0) :size "small" :style {:width 180}}])))}])}]])]))
 
 
+(defn- service-turnaround-section
+  "H11 售后遗留项处理时限只读汇总: 按登记日期到今天的已历时与承诺期限分段 (<=7 天/8 至 30 天/>30 天/未设期限) 聚合项目全部售后异常, 给出平均已历时、未关闭平均已历时、平均允许天数与未关闭逾期数; 与闭环汇总互补 (本项看时间是否被拖住), 只读派生不门控任何写操作."
+  [{:keys [model]}]
+  (let [tw (:service_turnaround model)]
+    [shared/panel "售后遗留项处理时限" "按登记日期至今的已历时与承诺期限分段聚合全部售后异常, 给出平均历时与未关闭逾期数; 只读派生, 不门控任何写操作" nil
+     (if-not (:available tw)
+       [shared/empty-state "尚无售后异常, 条件接收或拒收时自动生成, 也可在发运后手工登记" nil]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "售后项 " (:total tw))]
+         [antd/tag {:color "default"} (str "未关闭 " (:unresolved tw))]
+         [antd/tag {:color "geekblue"} (str "平均已历时 " (:avg-days-open tw) " 天")]
+         [antd/tag {:color "geekblue"} (str "未关闭平均已历时 " (:avg-unresolved-days-open tw) " 天")]
+         [antd/tag {:color "purple"} (str "平均允许 " (:avg-slack-days tw) " 天")]
+         [antd/tag {:color (if (pos? (or (:overdue-unresolved tw) 0)) "red" "default")}
+          (str "未关闭逾期 " (:overdue-unresolved tw))]]
+        [antd/space {:wrap true}
+         [:span {:style {:fontWeight 600 :marginRight 4}} "承诺期限分段"]
+         [antd/tag {:color "green"} (str "7 天内 " (:short-bucket tw))]
+         [antd/tag {:color "gold"} (str "8 至 30 天 " (:medium-bucket tw))]
+         [antd/tag {:color "orange"} (str "超 30 天 " (:long-bucket tw))]
+         [antd/tag {:color "default"} (str "未设期限 " (:unspecified-bucket tw))]]])]))
+
+
 (defn- services-section
   "发运异常和售后处理需要解决证据与独立关闭; 台账下追加售后遗留项闭环只读汇总."
   [context]
@@ -659,7 +683,8 @@
                                                                     (some? left) [antd/tag {:color "gold"} (str "剩 " left " 天")]
                                                                     :else [:span "—"]))))}
                                    (w/text-column :resolution "解决说明")]]
-   [service-closure-section context]])
+   [service-closure-section context]
+   [service-turnaround-section context]])
 
 
 (defn- overview

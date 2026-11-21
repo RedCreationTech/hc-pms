@@ -143,6 +143,7 @@
                    fieldwork/attach-handover-timeliness
                    fieldwork/attach-survey-closure
                    fieldwork/attach-service-closure
+                   fieldwork/attach-service-turnaround
                    fieldwork/attach-test-execution
                    fieldwork/attach-test-remediation-closure
                    (assoc :configuration config :project_version (:version project)

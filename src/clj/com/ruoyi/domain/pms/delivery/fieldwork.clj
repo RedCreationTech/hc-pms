@@ -10,7 +10,9 @@
     [com.ruoyi.domain.pms.rules :as r])
   (:import
     (java.time
-      LocalDate)))
+      LocalDate)
+    (java.time.temporal
+      ChronoUnit)))
 
 
 ;; ── B07 工勘 ────────────────────────────────────────────────────
@@ -394,6 +396,66 @@
   "把 service-closure-summary 挂到交付工作区读模型顶层 :service_closure; 读取时派生, 不改变任何逐条售后遗留项."
   [data]
   (assoc data :service_closure (service-closure-summary (:service_cases data))))
+
+
+(defn- service-edate
+  "取售后遗留项的登记日期 (record :created_at 前 10 位), 缺省或不可解析返回 nil."
+  [service]
+  (when-some [raw (:created_at service)]
+    (try (LocalDate/parse (subs (str raw) 0 (min 10 (count (str raw)))))
+         (catch Exception _ nil))))
+
+
+(defn- service-turnaround
+  "计算某售后遗留项的处理用时(天)与相对承诺期限的提前天数; 无登记日期返回 nil 用时. 未关闭项另给已逾期天数."
+  [today service]
+  (let [start (service-edate service)
+        registered (when start (.between ChronoUnit/DAYS start today))
+        due (when-some [raw (:due_date service)]
+              (try (LocalDate/parse (str raw)) (catch Exception _ nil)))
+        slack (when (and due start) (.between ChronoUnit/DAYS start due))
+        overdue (when due
+                  (let [n (.between ChronoUnit/DAYS due today)] (if (neg? n) 0 n)))]
+    {:days-open registered
+     :slack-days slack
+     :overdue-days (if (contains? #{"open" "in_review"} (:status service)) overdue 0)}))
+
+
+(defn service-turnaround-summary
+  "H11 售后遗留项处理时限只读汇总: 对整项目 :service_cases (已 service-read-model enrich) 读取时聚合, 给出每条遗留项从登记到今天的已历时天数, 承诺期限允许多少天(slack), 以及未关闭项的已逾期天数; 再汇总 平均已历时/未关闭平均已历时/按承诺期限分段(<=7 天/8 至 30 天/>30 天/未设期限)与逾期处罚面.
+   与 service-closure-summary 互补: 后者看关闭进度与状态构成, 本项看时间是否被拖住. 只读派生, 不落库不投递, 不改变任何售后状态或门控 (关闭仍由 resolve-service!/decide-service! 强制独立审核). 键名 kebab-case 无尾随问号."
+  [today services]
+  (let [rows (mapv (fn [svc] (merge svc (service-turnaround today svc))) services)
+        total (count rows)
+        unresolved (filterv #(contains? #{"open" "in_review"} (:status %)) rows)
+        elapsed (keep :days-open rows)
+        slack-bucket (fn [svc]
+                       (let [s (:slack-days svc)]
+                         (cond
+                           (nil? s) "unspecified"
+                           (<= s 7) "short"
+                           (<= s 30) "medium"
+                           :else "long")))
+        bucket-count (fn [k] (count (filterv #(= k (slack-bucket %)) rows)))
+        positive-slack (keep :slack-days rows)]
+    {:available (pos? total)
+     :total total
+     :unresolved (count unresolved)
+     :avg-days-open (rm/mean-int (count elapsed) (reduce + 0 elapsed))
+     :avg-unresolved-days-open (rm/mean-int (count (keep :days-open unresolved))
+                                            (reduce + 0 (keep :days-open unresolved)))
+     :short-bucket (bucket-count "short")
+     :medium-bucket (bucket-count "medium")
+     :long-bucket (bucket-count "long")
+     :unspecified-bucket (bucket-count "unspecified")
+     :avg-slack-days (rm/mean-int (count positive-slack) (reduce + 0 positive-slack))
+     :overdue-unresolved (count (filterv #(pos? (or (:overdue-days %) 0)) unresolved))}))
+
+
+(defn attach-service-turnaround
+  "把 service-turnaround-summary 挂到交付工作区读模型顶层 :service_turnaround; 读取时派生, 不改变任何逐条售后遗留项."
+  [data]
+  (assoc data :service_turnaround (service-turnaround-summary (LocalDate/now) (:service_cases data))))
 
 
 (defn handover-timeliness-summary

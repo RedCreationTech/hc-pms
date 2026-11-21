@@ -1,25 +1,32 @@
 (ns com.ruoyi.pms-delivery-test
   "真实数据库上的治理审批,证据,整批导入和跨模块闭环测试."
-  (:require [cheshire.core :as json]
-            [clojure.test :refer [deftest is testing use-fixtures]]
-            [com.ruoyi.domain.pms.governance :as gov]
-            [com.ruoyi.domain.pms.delivery :as delivery]
-            [com.ruoyi.domain.pms.delivery.store :as dstore]
-            [com.ruoyi.domain.pms.delivery.materials :as materials]
-            [com.ruoyi.pms-delivery-scenario :as scenario]
-            [com.ruoyi.domain.pms.planning :as planning]
-            [com.ruoyi.domain.pms.queries :as queries]
-            [com.ruoyi.domain.pms.service :as pms]
-            [com.ruoyi.infra.security :as security]
-            [com.ruoyi.web.routes.api :as api]
-            [com.ruoyi.web.routes.pms :as routes]
-            [conman.core :as conman]
-            [migratus.core :as migratus]
-            [next.jdbc :as jdbc]
-            [reitit.ring :as ring]
-            [ring.mock.request :as mock])
-  (:import [java.nio.file Files]
-           [java.util UUID]))
+  (:require
+    [cheshire.core :as json]
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [com.ruoyi.domain.pms.delivery :as delivery]
+    [com.ruoyi.domain.pms.delivery.fieldwork :as fieldwork]
+    [com.ruoyi.domain.pms.delivery.materials :as materials]
+    [com.ruoyi.domain.pms.delivery.store :as dstore]
+    [com.ruoyi.domain.pms.governance :as gov]
+    [com.ruoyi.domain.pms.planning :as planning]
+    [com.ruoyi.domain.pms.queries :as queries]
+    [com.ruoyi.domain.pms.service :as pms]
+    [com.ruoyi.infra.security :as security]
+    [com.ruoyi.pms-delivery-scenario :as scenario]
+    [com.ruoyi.web.routes.api :as api]
+    [com.ruoyi.web.routes.pms :as routes]
+    [conman.core :as conman]
+    [migratus.core :as migratus]
+    [next.jdbc :as jdbc]
+    [reitit.ring :as ring]
+    [ring.mock.request :as mock])
+  (:import
+    (java.nio.file
+      Files)
+    (java.time
+      LocalDate)
+    (java.util
+      UUID)))
 
 
 (def ^:dynamic *service* nil)
@@ -60,13 +67,14 @@
         db (jdbc/get-datasource {:jdbcUrl url})]
     (try
       (migratus/migrate {:store :database :db {:datasource db}
-                        :migration-dir (if (.contains url "mysql") "migrations" "migrations-sqlite")})
+                         :migration-dir (if (.contains url "mysql") "migrations" "migrations-sqlite")})
       (seed! db)
       (let [svc {:db db :query-fn (query-function db)}
             handler (ring/ring-handler (ring/router [["/api" api/route-data
                                                       (routes/pms-routes {:pms-service svc})]]))]
         (binding [*service* svc *handler* handler] (f)))
       (finally (when file (Files/deleteIfExists file))))))
+
 
 (use-fixtures :once database-fixture)
 
@@ -81,9 +89,9 @@
   "创建项目并分离管理者,只读审批人和普通编辑者."
   []
   (let [project (pms/create-project! *service* (actor 1)
-                 {:project_no (str "GOV-" (UUID/randomUUID)) :name "治理闭环验证"
-                  :customer "本地测试" :contract_no "GOV-TEST" :project_type "equipment"
-                  :manager_id 9501 :dept_id 1 :start_date "2026-09-01" :end_date "2026-12-31"})
+                                     {:project_no (str "GOV-" (UUID/randomUUID)) :name "治理闭环验证"
+                                      :customer "本地测试" :contract_no "GOV-TEST" :project_type "equipment"
+                                      :manager_id 9501 :dept_id 1 :start_date "2026-09-01" :end_date "2026-12-31"})
         id (:project_id project)]
     (pms/set-member! *service* (actor 1) id {:user_id 9502 :role "viewer"})
     (pms/set-member! *service* (actor 1) id {:user_id 9503 :role "editor"})
@@ -125,7 +133,7 @@
   "上传真实文本作为可核验的版本证据."
   [id code]
   (gov! id :documents :create nil
-            {:code code :title "实际验证记录" :filename "验收.txt" :content " 真实证据\n"}))
+        {:code code :title "实际验证记录" :filename "验收.txt" :content " 真实证据\n"}))
 
 
 (defn- charter-body
@@ -175,7 +183,7 @@
   []
   (let [id (project!) document (document! id "REAL-EVIDENCE")
         req (gov! id :requirements :create nil {:code "URS-1" :text "设备交付须验证"
-                                               :category "验收" :priority "required" :owner_id 9501})
+                                                :category "验收" :priority "required" :owner_id 9501})
         task (:result (planning/create-task! *service* (actor 9501) id
                                              {:version (version id) :wbs_code "D-1" :name "交付任务"
                                               :owner_id 9501 :start_date "2026-09-22" :duration_days 1}))]
@@ -184,7 +192,7 @@
     (transition! id "planning")
     (let [baseline (:result (planning/submit-plan! *service* (actor 9501) id {:version (version id) :comment "提交"}))]
       (planning/review-plan! *service* (actor 9502) id (:baseline_id baseline)
-                            {:version (version id) :decision "approved" :comment "独立确认"}))
+                             {:version (version id) :decision "approved" :comment "独立确认"}))
     (transition! id "execution")
     {:id id :evidence (:id document) :task_id (:task_id task) :requirement_ids [(:id req)]}))
 
@@ -209,9 +217,9 @@
   (let [id (:id ctx)
         material (command! id :material-requests :create nil
                            (merge (refs ctx) {:code "MR-1" :title "长周期件预投" :request_type "long_lead"
-                                             :owner_id 9501 :needed_on "2026-10-01"
-                                             :items [{:code "M-1" :name "执行器" :quantity 2 :unit "个"}
-                                                     {:code "M-2" :name "连接线" :quantity 4 :unit "根"}]}))]
+                                              :owner_id 9501 :needed_on "2026-10-01"
+                                              :items [{:code "M-1" :name "执行器" :quantity 2 :unit "个"}
+                                                      {:code "M-2" :name "连接线" :quantity 4 :unit "根"}]}))]
     (review! ctx :material-requests (:id material) :submit)
     (let [bom (command! id :boms :create nil {:code "BOM-1" :title "受控配置" :material_request_id (:id material)})]
       (review! ctx :boms (:id bom) :freeze))))
@@ -222,7 +230,7 @@
   [ctx]
   (let [id (:id ctx) bom (frozen-bom! ctx)]
     (command! id :boms :kit (:id bom) {:items [{:code "M-1" :available_quantity 2} {:code "M-2" :available_quantity 4}]
-                                      :evidence_ids [(:evidence ctx)]})
+                                       :evidence_ids [(:evidence ctx)]})
     (let [assembly (command! id :assemblies :create nil
                              (merge (refs ctx) {:code "ASS-1" :title "执行装配" :bom_id (:id bom) :owner_id 9501}))]
       (command! id :assemblies :start (:id assembly) {:evidence_ids [(:evidence ctx)]})
@@ -234,8 +242,8 @@
   [ctx assembly type]
   (command! (:id ctx) :tests :create nil
             (merge (refs ctx) {:code (str type "-1") :title (str type "验证") :assembly_id (:id assembly)
-                              :test_type type :owner_id 9501
-                              :criteria [{:code "Q-1" :title "动作满足URS" :required true}]})))
+                               :test_type type :owner_id 9501
+                               :criteria [{:code "Q-1" :title "动作满足URS" :required true}]})))
 
 
 (defn- results!
@@ -259,8 +267,8 @@
   [ctx assembly]
   (let [shipment (command! (:id ctx) :shipments :create nil
                            (merge (refs ctx) {:code "SHIP-1" :title "设备发运" :assembly_ids [(:id assembly)]
-                                             :consignee "现场接收团队" :delivery_address "客户指定地址"
-                                             :planned_date "2026-10-05" :reviewer_id 9502}))]
+                                              :consignee "现场接收团队" :delivery_address "客户指定地址"
+                                              :planned_date "2026-10-05" :reviewer_id 9502}))]
     (review! ctx :shipments (:id shipment) :submit)))
 
 
@@ -381,12 +389,12 @@
     (is (= 50.0 (:kit_percent partial)))
     (is (= [2 4] (mapv :quantity (:items partial))))
     (is (= 409 (error-status #(command! id :assemblies :create nil
-                                      (merge (refs ctx) {:code "A" :title "违规开工" :bom_id (:id bom) :owner_id 9501})))))
+                                        (merge (refs ctx) {:code "A" :title "违规开工" :bom_id (:id bom) :owner_id 9501})))))
     (is (= 400 (error-status #(command! id :boms :kit (:id bom)
-                                      {:items [{:code "M-1" :available_quantity 99} {:code "M-2" :available_quantity 4}]
-                                       :evidence_ids [(:evidence ctx)]}))))
+                                        {:items [{:code "M-1" :available_quantity 99} {:code "M-2" :available_quantity 4}]
+                                         :evidence_ids [(:evidence ctx)]}))))
     (is (= 409 (error-status #(command! id :configuration :update nil
-                                      {:required_stages ["materials"] :required_test_types ["SIT"] :reason "执行后绕开"}))))
+                                        {:required_stages ["materials"] :required_test_types ["SIT"] :reason "执行后绕开"}))))
     (is (= 403 (error-status #(delivery/workspace *service* (actor 9504) id))))
     (is (= "not_configured" (:external_sync_status (delivery/workspace *service* (actor 9501) id))))))
 
@@ -397,16 +405,16 @@
     (testing "试验准则三门400: 空数组, 无必检项, 编码重复"
       (is (= 400 (error-status #(command! id :tests :create nil
                                           (merge (refs ctx) {:code "CR-1" :title "准则空" :assembly_id (:id assembly)
-                                                            :test_type "SIT" :owner_id 9501 :criteria []})))))
+                                                             :test_type "SIT" :owner_id 9501 :criteria []})))))
       (is (= 400 (error-status #(command! id :tests :create nil
                                           (merge (refs ctx) {:code "CR-2" :title "无必检" :assembly_id (:id assembly)
-                                                            :test_type "SIT" :owner_id 9501
-                                                            :criteria [{:code "A" :title "a" :required false}]})))))
+                                                             :test_type "SIT" :owner_id 9501
+                                                             :criteria [{:code "A" :title "a" :required false}]})))))
       (is (= 400 (error-status #(command! id :tests :create nil
                                           (merge (refs ctx) {:code "CR-3" :title "编码重复" :assembly_id (:id assembly)
-                                                            :test_type "SIT" :owner_id 9501
-                                                            :criteria [{:code "A" :title "a" :required true}
-                                                                       {:code "A" :title "b" :required false}]}))))))
+                                                             :test_type "SIT" :owner_id 9501
+                                                             :criteria [{:code "A" :title "a" :required true}
+                                                                        {:code "A" :title "b" :required false}]}))))))
     (testing "登记结果必须与准则码集一致400"
       (let [test (command! id :tests :create nil
                            (merge (refs ctx) {:code "CR-R" :title "结果完整性" :assembly_id (:id assembly)
@@ -444,8 +452,8 @@
       (let [shipment (shipment! ctx assembly)]
         (dispatch! ctx shipment)
         (is (= 403 (error-status #(command! id :shipments :receipt (:id shipment)
-                                          {:received_on (.toString (.minusDays (java.time.LocalDate/now) 1)) :receiver_name "自己签收" :acceptance "accepted"
-                                           :evidence_ids [(:evidence ctx)]}))))
+                                            {:received_on (.toString (.minusDays (java.time.LocalDate/now) 1)) :receiver_name "自己签收" :acceptance "accepted"
+                                             :evidence_ids [(:evidence ctx)]}))))
         (is (seq (:blockers (delivery/workspace *service* (actor 9501) id))))
         (is (= "received" (:status (accept! ctx shipment))))
         (results! ctx premature true)
@@ -546,9 +554,9 @@
 (deftest applicability-cannot-skip-upstream-execution
   (let [id (project!)]
     (is (= 400 (error-status #(command! id :configuration :update nil
-                                      {:required_stages ["quality"] :required_test_types ["SIT"] :reason "缺少前置"}))))
+                                        {:required_stages ["quality"] :required_test_types ["SIT"] :reason "缺少前置"}))))
     (is (= 400 (error-status #(command! id :configuration :update nil
-                                      {:required_stages ["shipment"] :required_test_types ["FAT"] :reason "缺少前置"}))))
+                                        {:required_stages ["shipment"] :required_test_types ["FAT"] :reason "缺少前置"}))))
     (is (some #(re-find #"装配" %) (:blockers (delivery/workspace *service* (actor 9501) id))))))
 
 
@@ -559,8 +567,8 @@
     (let [shipment (shipment! ctx assembly)
           retest (command! id :tests :create nil
                            (merge (refs ctx) {:code "SIT-RETEST" :title "变更后的SIT复验" :assembly_id (:id assembly)
-                                             :test_type "SIT" :owner_id 9501
-                                             :criteria [{:code "Q-1" :title "变更后仍满足URS" :required true}]}))]
+                                              :test_type "SIT" :owner_id 9501
+                                              :criteria [{:code "Q-1" :title "变更后仍满足URS" :required true}]}))]
       (is (= 409 (error-status #(dispatch! ctx shipment))))
       (results! ctx retest false)
       (is (= 409 (error-status #(dispatch! ctx shipment))))
@@ -569,7 +577,7 @@
 
 (deftest reusable-scenario-preserves-all-business-approvals
   (let [ctx (context!) result (scenario/complete-delivery! *service* 9501 9502 (:id ctx)
-                                                         (:task_id ctx) (:evidence ctx) (first (:requirement_ids ctx)))]
+                                                           (:task_id ctx) (:evidence ctx) (first (:requirement_ids ctx)))]
     (is (empty? (:blockers result)))
     (is (= #{"SIT" "FAT" "SAT"} (set (map :test_type (:tests result)))))
     (is (= "received" (:status (first (:shipments result)))))
@@ -587,117 +595,117 @@
     (let [shipment (shipment! ctx assembly)
           receipt {:received_on future :receiver_name "签收人" :acceptance "accepted" :evidence_ids [(:evidence ctx)]}]
       (is (= 400 (error-status #(command! id :shipments :dispatch (:id shipment)
-                                        {:shipped_on future :tracking_no "未发生" :evidence_ids [(:evidence ctx)]}))))
+                                          {:shipped_on future :tracking_no "未发生" :evidence_ids [(:evidence ctx)]}))))
       (dispatch! ctx shipment)
       (is (= 400 (error-status #(command! 9502 id :shipments :receipt (:id shipment) receipt))))
       (is (= 400 (error-status #(command! 9502 id :shipments :receipt (:id shipment)
-                                        (assoc receipt :received_on (str (.minusDays today 3)))))))
+                                          (assoc receipt :received_on (str (.minusDays today 3)))))))
       (is (= "received" (:status (accept! ctx shipment))))))
 
 
-(defn- submit-material!
-  "把物料申请提交给独立审批人,停在 in_review."
-  [ctx rid]
-  (command! (:id ctx) :material-requests :submit rid {:reviewer_id 9502 :evidence_ids [(:evidence ctx)]}))
+  (defn- submit-material!
+    "把物料申请提交给独立审批人,停在 in_review."
+    [ctx rid]
+    (command! (:id ctx) :material-requests :submit rid {:reviewer_id 9502 :evidence_ids [(:evidence ctx)]}))
 
 
-(defn- decide-material!
-  "由独立审批人批准或驳回物料申请."
-  [ctx rid decision]
-  (command! 9502 (:id ctx) :material-requests :decision rid {:decision decision :reason "独立核验物料申请"}))
+  (defn- decide-material!
+    "由独立审批人批准或驳回物料申请."
+    [ctx rid decision]
+    (command! 9502 (:id ctx) :material-requests :decision rid {:decision decision :reason "独立核验物料申请"}))
 
 
-(defn- submit-bom!
-  "把 BOM 提交独立冻结审批,停在 in_review."
-  [ctx rid]
-  (command! (:id ctx) :boms :freeze rid {:reviewer_id 9502 :evidence_ids [(:evidence ctx)]}))
+  (defn- submit-bom!
+    "把 BOM 提交独立冻结审批,停在 in_review."
+    [ctx rid]
+    (command! (:id ctx) :boms :freeze rid {:reviewer_id 9502 :evidence_ids [(:evidence ctx)]}))
 
 
-(defn- decide-bom!
-  "由独立审批人冻结或驳回 BOM."
-  [ctx rid decision]
-  (command! 9502 (:id ctx) :boms :decision rid {:decision decision :reason "独立核验物料清单"}))
+  (defn- decide-bom!
+    "由独立审批人冻结或驳回 BOM."
+    [ctx rid decision]
+    (command! 9502 (:id ctx) :boms :decision rid {:decision decision :reason "独立核验物料清单"}))
 
 
-(defn- new-request!
-  "创建一条物料申请并返回记录."
-  [ctx code]
-  (command! (:id ctx) :material-requests :create nil
-            (merge (refs ctx) {:code code :title "审批闭环物料" :request_type "standard"
-                               :owner_id 9501 :needed_on "2026-10-10"
-                               :items [{:code (str code "-P") :name "部件" :quantity 1 :unit "个"}]})))
+  (defn- new-request!
+    "创建一条物料申请并返回记录."
+    [ctx code]
+    (command! (:id ctx) :material-requests :create nil
+              (merge (refs ctx) {:code code :title "审批闭环物料" :request_type "standard"
+                                 :owner_id 9501 :needed_on "2026-10-10"
+                                 :items [{:code (str code "-P") :name "部件" :quantity 1 :unit "个"}]})))
 
 
-(deftest material-approval-summary-is-pure-derived-read-model
-  (is (false? (:available (materials/material-approval-summary [] []))))
-  (let [empty (materials/material-approval-summary [] [])]
-    (is (zero? (:total empty)))
-    (is (zero? (:closure-pct empty)))
-    (is (= [{:key "request" :total 0 :approved 0 :in-review 0 :rejected 0 :draft 0 :closure-pct 0}
-            {:key "bom" :total 0 :approved 0 :in-review 0 :rejected 0 :draft 0 :closure-pct 0}]
-           (mapv #(select-keys % [:key :total :approved :in-review :rejected :draft :closure-pct]) (:by-source empty)))))
-  (let [rows (materials/material-approval-summary
-              [{:status "approved"} {:status "draft"} {:status "in_review"} {:status "rejected"}]
-              [{:status "frozen"} {:status "partial"} {:status "ready"} {:status "draft"}])
-        by (into {} (map (juxt :key identity) (:by-source rows)))]
-    (is (true? (:available rows)))
-    (is (= 8 (:total rows)))
-    (is (= 4 (:approved rows)))
-    (is (= 50 (:closure-pct rows)))
-    (is (= 4 (:request-total rows)))
-    (is (= 4 (:bom-total rows)))
-    (is (= ["request" "bom"] (mapv :key (:by-source rows))))
-    (is (= {:total 4 :approved 1 :in-review 1 :rejected 1 :draft 1 :closure-pct 25}
-           (select-keys (get by "request") [:total :approved :in-review :rejected :draft :closure-pct])))
-    (is (= {:total 4 :approved 3 :in-review 0 :rejected 0 :draft 1 :closure-pct 75}
-           (select-keys (get by "bom") [:total :approved :in-review :rejected :draft :closure-pct])))))
+  (deftest material-approval-summary-is-pure-derived-read-model
+    (is (false? (:available (materials/material-approval-summary [] []))))
+    (let [empty (materials/material-approval-summary [] [])]
+      (is (zero? (:total empty)))
+      (is (zero? (:closure-pct empty)))
+      (is (= [{:key "request" :total 0 :approved 0 :in-review 0 :rejected 0 :draft 0 :closure-pct 0}
+              {:key "bom" :total 0 :approved 0 :in-review 0 :rejected 0 :draft 0 :closure-pct 0}]
+             (mapv #(select-keys % [:key :total :approved :in-review :rejected :draft :closure-pct]) (:by-source empty)))))
+    (let [rows (materials/material-approval-summary
+                 [{:status "approved"} {:status "draft"} {:status "in_review"} {:status "rejected"}]
+                 [{:status "frozen"} {:status "partial"} {:status "ready"} {:status "draft"}])
+          by (into {} (map (juxt :key identity) (:by-source rows)))]
+      (is (true? (:available rows)))
+      (is (= 8 (:total rows)))
+      (is (= 4 (:approved rows)))
+      (is (= 50 (:closure-pct rows)))
+      (is (= 4 (:request-total rows)))
+      (is (= 4 (:bom-total rows)))
+      (is (= ["request" "bom"] (mapv :key (:by-source rows))))
+      (is (= {:total 4 :approved 1 :in-review 1 :rejected 1 :draft 1 :closure-pct 25}
+             (select-keys (get by "request") [:total :approved :in-review :rejected :draft :closure-pct])))
+      (is (= {:total 4 :approved 3 :in-review 0 :rejected 0 :draft 1 :closure-pct 75}
+             (select-keys (get by "bom") [:total :approved :in-review :rejected :draft :closure-pct])))))
 
 
-(deftest material-approval-summary-survives-real-workspace-lifecycle
-  (let [ctx (context!) id (:id ctx)
-        draft-req (new-request! ctx "MR-D")
-        review-req (new-request! ctx "MR-R")
-        approved-req (new-request! ctx "MR-A")
-        rejected-req (new-request! ctx "MR-X")
-        _ (submit-material! ctx (:id review-req))
-        _ (submit-material! ctx (:id approved-req))
-        _ (decide-material! ctx (:id approved-req) "approved")
-        _ (submit-material! ctx (:id rejected-req))
-        _ (decide-material! ctx (:id rejected-req) "rejected")
-        bom-draft (command! id :boms :create nil {:code "BOM-D" :title "受控草稿" :material_request_id (:id approved-req)})
-        bom-frozen (command! id :boms :create nil {:code "BOM-F" :title "受控冻结" :material_request_id (:id approved-req)})
-        bom-kitted (command! id :boms :create nil {:code "BOM-K" :title "受控齐套" :material_request_id (:id approved-req)})
-        bom-rejected (command! id :boms :create nil {:code "BOM-X" :title "受控驳回" :material_request_id (:id approved-req)})
-        _ (submit-bom! ctx (:id bom-frozen))
-        _ (decide-bom! ctx (:id bom-frozen) "approved")
-        _ (submit-bom! ctx (:id bom-kitted))
-        _ (decide-bom! ctx (:id bom-kitted) "approved")
-        _ (command! id :boms :kit (:id bom-kitted) {:items [{:code "MR-A-P" :available_quantity 1}] :evidence_ids [(:evidence ctx)]})
-        _ (submit-bom! ctx (:id bom-rejected))
-        _ (decide-bom! ctx (:id bom-rejected) "rejected")
-        ws (delivery/workspace *service* (actor 9501) id)
-        summary (:material_approval_summary ws)
-        status-of (fn [rows code] (:status (first (filterv #(= code (:code %)) rows))))]
-    (is (= "draft" (status-of (:material_requests ws) "MR-D")))
-    (is (= "in_review" (status-of (:material_requests ws) "MR-R")))
-    (is (= "approved" (status-of (:material_requests ws) "MR-A")))
-    (is (= "rejected" (status-of (:material_requests ws) "MR-X")))
-    (is (= "draft" (status-of (:boms ws) "BOM-D")))
-    (is (= "frozen" (status-of (:boms ws) "BOM-F")))
-    (is (= "ready" (status-of (:boms ws) "BOM-K")))
-    (is (= "rejected" (status-of (:boms ws) "BOM-X")))
-    (is (true? (:available summary)))
-    (is (= 8 (:total summary)))
-    (is (= 3 (:approved summary)))
-    (is (= 1 (:in-review summary)))
-    (is (= 2 (:rejected summary)))
-    (is (= 2 (:draft summary)))
-    (is (= 4 (:request-total summary)))
-    (is (= 4 (:bom-total summary)))
-    (is (= 38 (:closure-pct summary)))
-    (is (= ["request" "bom"] (mapv :key (:by-source summary))))
-    (is (= "not_configured" (:external_sync_status ws)))
-    (is (some? (:kitting_rollup ws))))))
+  (deftest material-approval-summary-survives-real-workspace-lifecycle
+    (let [ctx (context!) id (:id ctx)
+          draft-req (new-request! ctx "MR-D")
+          review-req (new-request! ctx "MR-R")
+          approved-req (new-request! ctx "MR-A")
+          rejected-req (new-request! ctx "MR-X")
+          _ (submit-material! ctx (:id review-req))
+          _ (submit-material! ctx (:id approved-req))
+          _ (decide-material! ctx (:id approved-req) "approved")
+          _ (submit-material! ctx (:id rejected-req))
+          _ (decide-material! ctx (:id rejected-req) "rejected")
+          bom-draft (command! id :boms :create nil {:code "BOM-D" :title "受控草稿" :material_request_id (:id approved-req)})
+          bom-frozen (command! id :boms :create nil {:code "BOM-F" :title "受控冻结" :material_request_id (:id approved-req)})
+          bom-kitted (command! id :boms :create nil {:code "BOM-K" :title "受控齐套" :material_request_id (:id approved-req)})
+          bom-rejected (command! id :boms :create nil {:code "BOM-X" :title "受控驳回" :material_request_id (:id approved-req)})
+          _ (submit-bom! ctx (:id bom-frozen))
+          _ (decide-bom! ctx (:id bom-frozen) "approved")
+          _ (submit-bom! ctx (:id bom-kitted))
+          _ (decide-bom! ctx (:id bom-kitted) "approved")
+          _ (command! id :boms :kit (:id bom-kitted) {:items [{:code "MR-A-P" :available_quantity 1}] :evidence_ids [(:evidence ctx)]})
+          _ (submit-bom! ctx (:id bom-rejected))
+          _ (decide-bom! ctx (:id bom-rejected) "rejected")
+          ws (delivery/workspace *service* (actor 9501) id)
+          summary (:material_approval_summary ws)
+          status-of (fn [rows code] (:status (first (filterv #(= code (:code %)) rows))))]
+      (is (= "draft" (status-of (:material_requests ws) "MR-D")))
+      (is (= "in_review" (status-of (:material_requests ws) "MR-R")))
+      (is (= "approved" (status-of (:material_requests ws) "MR-A")))
+      (is (= "rejected" (status-of (:material_requests ws) "MR-X")))
+      (is (= "draft" (status-of (:boms ws) "BOM-D")))
+      (is (= "frozen" (status-of (:boms ws) "BOM-F")))
+      (is (= "ready" (status-of (:boms ws) "BOM-K")))
+      (is (= "rejected" (status-of (:boms ws) "BOM-X")))
+      (is (true? (:available summary)))
+      (is (= 8 (:total summary)))
+      (is (= 3 (:approved summary)))
+      (is (= 1 (:in-review summary)))
+      (is (= 2 (:rejected summary)))
+      (is (= 2 (:draft summary)))
+      (is (= 4 (:request-total summary)))
+      (is (= 4 (:bom-total summary)))
+      (is (= 38 (:closure-pct summary)))
+      (is (= ["request" "bom"] (mapv :key (:by-source summary))))
+      (is (= "not_configured" (:external_sync_status ws)))
+      (is (some? (:kitting_rollup ws))))))
 
 
 ;; batch65 (mutator 方向: cover the uncovered): 物料数量/清单/节点门 (L14/L22/L39),
@@ -732,7 +740,7 @@
                                        :evidence_ids [(:evidence ctx)]}))))
         (command! id :boms :kit (:id bom) {:items [{:code "M-1" :available_quantity 2}
                                                    {:code "M-2" :available_quantity 4}]
-                                          :evidence_ids [(:evidence ctx)]})
+                                           :evidence_ids [(:evidence ctx)]})
         (let [assembly (command! id :assemblies :create nil
                                  (merge (refs ctx) {:code "A-KIT" :title "开工降级校验"
                                                     :bom_id (:id bom) :owner_id 9501}))]
@@ -774,6 +782,7 @@
     (testing "未知交付命令404"
       (is (= [404 "交付命令不存在"]
              (error-info #(command! id :bogus :create nil {})))))))
+
 
 ;; batch75 (mutator 方向: cover the uncovered): 试验前序/必检/复验/整改链门
 ;; (production L124-125/L177/L196/L198-199) 与交付引用/配置数值门
@@ -821,3 +830,73 @@
                                      :required_test_types ["SIT"]
                                      :required_survey_visits 1.5
                                      :reason "数值门"})))))))
+
+
+(deftest service-turnaround-summary-derives-elapsed-and-slack
+  (testing "纯函数口径: 已历时/允许天数/未关闭逾期与承诺期限分段"
+    (let [today (LocalDate/parse "2026-11-21")
+          tw (fieldwork/service-turnaround-summary
+               today
+               [{:status "open" :created_at "2026-11-01 09:00:00" :due_date "2026-11-30" :service_overdue false}
+                {:status "in_review" :created_at "2026-11-15 09:00:00" :due_date "2026-11-05" :service_overdue true}
+                {:status "closed" :created_at "2026-10-01 09:00:00" :due_date "2026-10-20" :service_overdue false}
+                {:status "rejected" :created_at "2026-11-20 09:00:00" :due_date "2026-12-31" :service_overdue false}])]
+      (is (true? (:available tw)))
+      (is (= 4 (:total tw)))
+      (is (= 2 (:unresolved tw)))
+      ;; 已历时 20/6/51/1 -> 平均 20; 未关闭 (20+6)/2 = 13.
+      (is (= 20 (:avg-days-open tw)))
+      (is (= 13 (:avg-unresolved-days-open tw)))
+      ;; 允许天数 29/-8/19/41 -> 仅审核中项 (期限已过 16 天) 计入未关闭逾期 1 条, 开放项未逾期.
+      (is (= 1 (:overdue-unresolved tw)))
+      ;; 分段: <=7 {in_review -8}=1, 8 至 30 {open 29, closed 19}=2, >30 {rejected 41}=1, 未设期限 0.
+      (is (= 1 (:short-bucket tw)))
+      (is (= 2 (:medium-bucket tw)))
+      (is (= 1 (:long-bucket tw)))
+      (is (= 0 (:unspecified-bucket tw)))
+      (is (= 20 (:avg-slack-days tw)))))
+  (testing "纯函数口径: 缺登记日期与未设期限各自归位"
+    (let [today (LocalDate/parse "2026-11-21")
+          tw (fieldwork/service-turnaround-summary
+               today
+               [{:status "open" :due_date "2026-11-30"}
+                {:status "open" :created_at "2026-11-01 09:00:00"}])]
+      (is (= 2 (:total tw)))
+      (is (= 2 (:unspecified-bucket tw)))
+      (is (= 20 (:avg-days-open tw)))
+      ;; 两条记录各缺一样 (一条有期限无登记日, 一条有登记日无期限), 允许天数无一条可算, 故为 0.
+      (is (= 0 (:avg-slack-days tw)))
+      (is (= 0 (:overdue-unresolved tw)))))
+  (testing "空集合: available=false 且计数归零"
+    (let [tw (fieldwork/service-turnaround-summary (LocalDate/parse "2026-11-21") [])]
+      (is (false? (:available tw)))
+      (is (zero? (:total tw)))
+      (is (zero? (:avg-days-open tw)))))
+  (testing "真实工作区: 条件接收生成的售后项计入处理时限, 独立关闭后未关闭数回落"
+    (let [ctx (context!) id (:id ctx) assembly (approved-assembly! ctx)]
+      (approved-test! ctx assembly "SIT")
+      (approved-test! ctx assembly "FAT")
+      (let [shipment (shipment! ctx assembly)
+            _ (dispatch! ctx shipment)
+            receipt (command! 9502 id :shipments :receipt (:id shipment)
+                              {:received_on (.toString (.minusDays (LocalDate/now) 1)) :receiver_name "现场接收人"
+                               :acceptance "conditional" :evidence_ids [(:evidence ctx)]
+                               :exception_reason "运输后附件需更换" :owner_id 9501
+                               :due_date (.toString (.plusDays (LocalDate/now) 10))})
+            service-id (:receipt_service_id receipt)
+            tw (fn [] (:service_turnaround (delivery/workspace *service* (actor 9501) id)))]
+        (is (true? (:available (tw))))
+        (is (= 1 (:total (tw))))
+        (is (= 1 (:unresolved (tw))))
+        (is (= 0 (:overdue-unresolved (tw))))
+        (is (= 1 (:medium-bucket (tw))))
+        ;; 只读派生: 重复读取稳定, 不改变售后状态.
+        (is (= (tw) (:service_turnaround (delivery/workspace *service* (actor 9501) id))))
+        (is (= "open" (:status (first (:service_cases (delivery/workspace *service* (actor 9501) id))))))
+        (command! id :service-cases :resolve service-id
+                  {:resolution "更换附件并现场确认" :reviewer_id 9502 :evidence_ids [(:evidence ctx)]})
+        (is (= 1 (:unresolved (tw))))
+        (command! 9502 id :service-cases :decision service-id {:decision "approved" :reason "现场独立验证"})
+        (is (= 0 (:unresolved (tw))))
+        (is (= 1 (:total (tw))))
+        (is (= 100 (:closure-pct (:service_closure (delivery/workspace *service* (actor 9501) id)))))))))
