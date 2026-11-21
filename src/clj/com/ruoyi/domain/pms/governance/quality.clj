@@ -3,6 +3,7 @@
    DQ: 检查清单 + 确定版本交付件, 逐项检查后提交独立签认; 交付件出现新版本时只读标注失效.
    局部暂停: 记录节点范围与原因, 暂停期间该节点及后代任务禁止进度反馈, 恢复时记录影响说明."
   (:require
+    [clojure.string :as str]
     [com.ruoyi.domain.pms.governance.remediation :as remediation]
     [com.ruoyi.domain.pms.governance.store :as s]
     [com.ruoyi.domain.pms.kernel :as k]
@@ -190,6 +191,76 @@
   "在治理读模型上追加 :dq_summary 只读汇总 (基于已富化的 :dqs), 不改变任何逐条 DQ 记录."
   [data]
   (assoc data :dq_summary (dq-summary (:dqs data))))
+
+
+(def method-order
+  "检验方法的固定展示顺序 (不按字母序), 供派生行与前端面板共用."
+  ["inspection" "measurement" "test" "documentation-review"])
+
+
+(def check-method-labels
+  "检验方法枚举的中文标签, 供前端面板与 E2E 断言共用同一口径."
+  {"inspection" "检验" "measurement" "测量" "test" "试验" "documentation-review" "文件评审"})
+
+
+(defn check-method-coverage
+  "DQ 检验方法与执行角色交叉覆盖只读派生 (H10 质量准则/方法/角色口径的覆盖度视图).
+   以全部 DQ 为分母, 按声明顺序固定列举四种检验方法 (inspection/measurement/test/documentation-review)
+   与逐条出场的执行角色, 给出方法/角色是否被使用、按方法或角色分组的 DQ 数与已签认数,
+   并点名「声明了方法但未指派执行角色」的缺口 DQ 数.
+   methods/roles 恒列出全部观察到的身份, 未被任何 DQ 声明者 omitted 为 true;
+   roles 仅枚举真正声明了 responsible_role 的字符串 (空串视同未声明), 按出场次数降序、同数按文本升序.
+   键名一律 kebab-case 去尾随 ?, 纯只读, 不落库, 不门控, 不改任何 DQ 记录."
+  [dqs]
+  (let [total (count dqs)
+        method-of (fn [dq] (let [m (:check_method dq)] (when (seq m) m)))
+        role-of (fn [dq]
+                  (let [role (:responsible_role dq)]
+                    (when (and (string? role) (seq (str/trim role))) (str/trim role))))
+        method-used (into {} (for [[m rows] (group-by method-of (filter method-of dqs))]
+                               [m {:count (count rows)
+                                   :approved (count (filter #(= "approved" (:status %)) rows))}]))
+        role-used (into {} (for [[r rows] (group-by role-of (filter role-of dqs))]
+                             [r {:count (count rows)
+                                 :approved (count (filter #(= "approved" (:status %)) rows))}]))
+        roles (->> role-used keys
+                   (sort-by (fn [r] [(- (get-in role-used [r :count] 0)) r])))
+        method-rows (mapv (fn [m]
+                            {:method m
+                             :label (get check-method-labels m m)
+                             :count (get-in method-used [m :count] 0)
+                             :approved (get-in method-used [m :approved] 0)
+                             :omitted (not (contains? method-used m))})
+                          method-order)
+        role-rows (mapv (fn [r]
+                          {:role r
+                           :count (get-in role-used [r :count] 0)
+                           :approved (get-in role-used [r :approved] 0)})
+                        roles)
+        no-method (count (remove method-of dqs))
+        no-role (count (remove role-of dqs))]
+    {:available (pos? total)
+     :total total
+     :approved (count (filter #(= "approved" (:status %)) dqs))
+     :method-covered (count (filter method-of dqs))
+     :role-covered (count (filter role-of dqs))
+     :full-covered (count (filter #(and (method-of %) (role-of %)) dqs))
+     :no-method no-method
+     :no-role no-role
+     :method-missing-role (count (filter #(and (method-of %) (not (role-of %))) dqs))
+     :role-missing-method (count (filter #(and (role-of %) (not (method-of %))) dqs))
+     :method-usage-pct (rm/pct total (count (filter method-of dqs)))
+     :role-usage-pct (rm/pct total (count (filter role-of dqs)))
+     :full-usage-pct (rm/pct total (count (filter #(and (method-of %) (role-of %)) dqs)))
+     :roles role-rows
+     :methods (mapv #(dissoc % :label) method-rows)
+     :method-labels (into {} (map (fn [m] [m (get check-method-labels m m)]) method-order))}))
+
+
+(defn attach-dq-method-coverage
+  "在治理读模型上追加 :dq_method_coverage 只读派生 (基于已富化的 :dqs), 不改变任何逐条 DQ 记录."
+  [data]
+  (assoc data :dq_method_coverage (check-method-coverage (:dqs data))))
 
 
 ;; ── 局部暂停 ────────────────────────────────────────────────────

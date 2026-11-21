@@ -2616,6 +2616,110 @@
       (is (= 20 (:closure-pct m))))))
 
 
+(deftest dq-method-role-coverage-is-derived-read-only
+  (let [id (project!)
+        doc (document! id "DQ-MRC")
+        did (:id doc)
+        mk (fn [code opts]
+             (command! id :dqs :create nil
+                       (merge {:code code :title (str "覆盖 " code) :owner_id 9301
+                               :checklist [{:code "C" :title "必需检查" :required true}]
+                               :deliverable_ids [did]}
+                              opts)))
+        d1 (mk "DQ-M1" {:check_method "inspection" :responsible_role "质检员"})
+        d2 (mk "DQ-M2" {:check_method "test"})
+        d3 (mk "DQ-M3" {:responsible_role "计量工程师"})
+        _ (mk "DQ-M4" {})
+        _ (mk "DQ-M5" {:check_method "test" :responsible_role "质检员"})
+        ver (version id)
+        c (:dq_method_coverage (workspace id))]
+    (is (true? (:available c)))
+    (is (= 5 (:total c)))
+    (is (= 3 (:method-covered c)))
+    (is (= 3 (:role-covered c)))
+    (is (= 2 (:full-covered c)))
+    (is (= 2 (:no-method c)))
+    (is (= 2 (:no-role c)))
+    (is (= 1 (:method-missing-role c)) "DQ-M2 有方法无角色")
+    (is (= 1 (:role-missing-method c)) "DQ-M3 有角色无方法")
+    (is (= 60 (:method-usage-pct c)))
+    (is (= 60 (:role-usage-pct c)))
+    (is (= 40 (:full-usage-pct c)))
+    (is (= ["inspection" "measurement" "test" "documentation-review"] (mapv :method (:methods c))))
+    (is (= [1 0 2 0] (mapv :count (:methods c))))
+    (is (= [false true false true] (mapv :omitted (:methods c))))
+    (is (= ["质检员" "计量工程师"] (mapv :role (:roles c))) "角色按出场次数降序")
+    (is (= [2 1] (mapv :count (:roles c))))
+    (is (= ver (version id)) "只读覆盖度不得漂移项目聚合版本")
+    (is (not (contains? (first (:dqs (workspace id))) :dq_method_coverage)) "不得回写逐条 DQ")
+    ;; 纯函数直测: 空集与全未声明/全声明.
+    (let [e (quality/check-method-coverage [])]
+      (is (false? (:available e)))
+      (is (= 0 (:total e)))
+      (is (= 0 (:method-usage-pct e)))
+      (is (empty? (:roles e)))
+      (is (= [0 0 0 0] (mapv :count (:methods e)))))
+    (let [all (quality/check-method-coverage [{:check_method "test" :responsible_role " 质检员 "}
+                                              {:check_method "measurement" :responsible_role "计量"}])]
+      (is (= 100 (:method-usage-pct all)))
+      (is (= 100 (:role-usage-pct all)))
+      (is (= 100 (:full-usage-pct all)))
+      (is (= #{"质检员" "计量"} (set (map :role (:roles all)))))
+      (is (= "质检员" (->> (:roles all) (filter #(= "质检员" (:role %))) first :role))
+          "角色文本已 trim 去除首尾空白")
+      (is (= 2 (:role-covered all)))
+      (is (= #{1} (set (map :count (:roles all))))
+          "trim 后两条角色各计 1 项"))
+    (let [blank (quality/check-method-coverage [{:check_method "test" :responsible_role "   "}])]
+      (is (= 0 (:role-covered blank)) "纯空白角色视同未声明")
+      (is (= 1 (:method-missing-role blank))))))
+
+
+(deftest dq-method-role-coverage-in-workspace-spans-roles-and-approval
+  (let [id (project!)
+        doc (document! id "DQ-MRCW")
+        did (:id doc)
+        mk (fn [code opts]
+             (command! id :dqs :create nil
+                       (merge {:code code :title (str "覆盖 " code) :owner_id 9301
+                               :checklist [{:code "C" :title "必需检查" :required true}]
+                               :deliverable_ids [did]}
+                              opts)))
+        pass (fn [dq] (command! id :dqs :checks (:id dq) {:results [{:code "C" :passed true :note ""}]}))
+        d1 (mk "DQ-W1" {:check_method "inspection" :responsible_role "质检员"})
+        d2 (mk "DQ-W2" {:check_method "inspection" :responsible_role "质检员"})]
+    (pass d2) (command! id :dqs :submit (:id d2) {:reviewer_id 9302})
+    (command! 9302 id :dqs :decision (:id d2) {:decision "approved" :reason "独立签认通过"})
+    (let [c (:dq_method_coverage (workspace id))
+          ins (first (filter #(= "inspection" (:method %)) (:methods c)))]
+      (is (= 2 (:total c)))
+      (is (= 2 (:method-covered c)))
+      (is (= 2 (:role-covered c)))
+      (is (= 2 (:full-covered c)))
+      (is (= 2 (:count ins)))
+      (is (= 1 (:approved ins)))
+      (is (= [2] (mapv :count (:roles c))))
+      (is (= 1 (:approved (first (:roles c)))))
+      (is (= ["质检员"] (mapv :role (:roles c))))
+      (is (zero? (:method-missing-role c)))
+      (is (= 1 (:approved c))))
+    ;; 源 DQ 仍保持各自状态, 覆盖度只读.
+    (let [statuses (into {} (map (juxt :code :status) (:dqs (workspace id))))]
+      (is (= "draft" (get statuses "DQ-W1")))
+      (is (= "approved" (get statuses "DQ-W2"))))
+    ;; 新增只声明方法未指派角色的 DQ, 覆盖度分母扩大而分母命中不变, 缺口上浮.
+    (mk "DQ-W3" {:check_method "inspection"})
+    (let [c (:dq_method_coverage (workspace id))]
+      (is (= 3 (:total c)))
+      (is (= 3 (:method-covered c)))
+      (is (= 2 (:full-covered c)))
+      (is (= 1 (:method-missing-role c)))
+      (is (zero? (:no-method c)))
+      (is (= 100 (:method-usage-pct c)))
+      (is (= 67 (:role-usage-pct c)))
+      (is (= 67 (:full-usage-pct c))))))
+
+
 (deftest gate-closure-summary-is-derived-read-only
   (let [id (project!)
         doc-reg (document! id "GATE-CR")

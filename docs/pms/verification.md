@@ -3054,3 +3054,23 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 本轮未执行 (如实记录): 不统计单次复审的耗时天数 (提交与决策时间戳未单独立键); 不做按责任人的复审及时率分布; MySQL 回归 (本地无实例, 本片完全免迁移).
 
 边界: 本片是 H08 "复审"一侧的**历史执行**只读洞察, 与到期节奏正交. H08 整行仍为 `partial`: 升级通知投递与跨项目风险汇总升级仍未实现.
+
+## H10 质量: DQ 检验方法与执行角色交叉覆盖只读派生 (本轮增补, 2026-11-21)
+
+设计与口径: H10 已有 `check_method` (四类枚举) 与 `responsible_role` (自由文本) 两个编制期可选声明字段, `dq-summary` 只给出"声明了多少条"的总数, 却没有回答"哪些方法真的被用上、由谁执行、有没有声明了方法却没指派角色". 本片补上这层覆盖度视角: 以全部 DQ 为分母, 按**固定展示顺序** (检验/测量/试验/文件评审, 非字母序) 列出每种方法的 DQ 数与已签认数, 未被任何 DQ 声明者标 `omitted`, 并给出按执行角色分组 (按出场次数降序、同数按文本升序) 的计数; 缺口侧区分四种情形: 未声明方法 / 未指派角色 / 有方法未指派角色 / 有角色未声明方法, 另给三个覆盖率 (方法已覆盖 / 角色已覆盖 / 方法与角色齐备).
+
+领域: `governance/quality.clj` 新增 `method-order`、`check-method-labels`、`check-method-coverage` / `attach-dq-method-coverage`. `role-of` 用 `str/trim` 归一, 纯空白角色视同未声明 (与写路径 `s/optional-text!` 的 trim-aware 口径一致). **顺序坑**: `(sort check-methods)` 返回字母序 (`documentation-review` 居首), 与前端下拉的展示顺序不一致, 故显式定义 `method-order`.
+
+前端: `governance.cljs` 新增 `dq-method-coverage-section` 面板, 挂在"需求与治理 → DQ与局部暂停"页签 `dq-summary-section` 与 `dq-section` 之间: 第一行汇总标签, 第二行四个方法标签 (未使用者灰字"未使用"), 第三行执行角色排名.
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 治理命名空间测试 | 新增两个 deftest 共 54 assertions, 0 失败 | `dq-method-role-coverage-is-derived-read-only`: 五分 DQ (检验+质检员 / 试验无角色 / 测量+质检员 / 全未声明) -> 方法 3 角色 3 齐备 2, 缺口 有方法无角色 1 / 有角色无方法 1, 覆盖率 60/60/40, `methods` 顺序严格 `[inspection measurement test documentation-review]` 且 `omitted [false true false true]`, 角色排名 `[质检员 计量工程师]` 降序; 纯函数直测空集 `available=false` 且四档全 0、全声明 100%、纯空白角色视同未声明; 断言 `project_version` 不漂移且逐条 DQ 不含派生键. `dq-method-role-coverage-in-workspace-spans-roles-and-approval`: 两条同方法同角色 DQ, 独立核查人批准其中一条 -> `inspection` 分组 count 2 / approved 1, 角色排名 approved 1; 再补一条只声明方法未指派角色的 DQ -> total 3 / method-covered 3 / full-covered 2 / method-missing-role 1 / 覆盖率 100·67·67, 且源 DQ 仍分别 draft 与 approved 不被回写 |
+| 全量回归 | `clojure -J-Xmx1800m -M:test` 873 tests / 8430 assertions, 0 failures / 0 errors (SQLite) | 无回归 (较上片 871/8376 增加 2 tests / 54 assertions) |
+| 前端 | `npx shadow-cljs compile app` 0 warnings (4041 files) | 面板编译通过 |
+| cljstyle | 通过 | `quality.clj`、`governance.clj`、`pms_governance_test.clj` 已格式化 |
+| 浏览器 | `tests/e2e/pms-h10mrc.spec.js` 1 passed | 空态占位 -> 界面登记三条 DQ (检验+质检员 / 试验无角色 / 测量+质检员) -> 面板"DQ 总数 3 / 方法已覆盖 100% (3/3) / 角色已覆盖 67% (2/3) / 方法与角色齐备 67% (2/3) / 有方法未指派角色 1 / 未指派角色 1" 与方法标签"检验·1项 / 测量·1项 / 试验·1项 / 文件评审·未使用"及"执行角色: 质检员 (2 项 · 已签认 0)" (截图 `reports/h10mrc/h10mrc-1-coverage.png`, 已目视确认渲染正确) -> 真实 HTTP GET `/governance` 回显 `dq_method_coverage` 十五个字段与方法顺序/计数/`omitted` 标记、角色分组一致, 且逐条 DQ 不含 `dq_method_coverage`、源 DQ 的 `check_method` 原样不漂移 |
+
+本轮未执行 (如实记录): 不做按检验方法看签认耗时的统计; 不做角色维度的跨项目汇总; MySQL 回归 (本地无实例, 本片完全免迁移).
+
+边界: 本片是 H10 "方法 × 角色" 横向覆盖只读洞察, 与 `dq-summary` 的状态纵向闭环正交, 不构成任何门控 (未声明方法/角色照常登记与签认). H10 整行仍为 `partial`: 全项目质量计划与企业适用模板仍待签收.

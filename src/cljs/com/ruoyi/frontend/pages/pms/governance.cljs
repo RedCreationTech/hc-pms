@@ -2870,6 +2870,40 @@
           [antd/tag {:color "red"} (str "交付件作废 " voided)])])]))
 
 
+(defn- dq-method-coverage-section
+  "按检验方法与执行角色交叉展示 DQ 覆盖度: 方法是否被使用、角色出场排名与「有方法无角色」缺口; 只读派生, 不改变 DQ 状态, 不构成门控."
+  [{:keys [model]}]
+  (let [sm (:dq_method_coverage model)
+        total (:total sm 0)
+        method-pct (:method-usage-pct sm 0)
+        role-pct (:role-usage-pct sm 0)
+        full-pct (:full-usage-pct sm 0)
+        missing-role (:method-missing-role sm 0)
+        missing-method (:role-missing-method sm 0)
+        no-method (:no-method sm 0)
+        no-role (:no-role sm 0)
+        label {"inspection" "检验" "measurement" "测量" "test" "试验" "documentation-review" "文件评审"}
+        names (fn [rows] (str/join " / " (map (fn [{:keys [role count approved]}] (str role " (" count " 项 · 已签认 " approved ")")) rows)))]
+    [shared/panel "DQ 检验方法与执行角色覆盖" "交叉核对全部 DQ 声明的质量检验方法(检验/测量/试验/文件评审)与执行角色是否被使用; 汇总按方法与角色分组的 DQ 数与已签认数, 并点名「有方法但未指派角色」的覆盖缺口; 只读派生, 不改变 DQ 状态"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无 DQ 关键任务, 建立 DQ 并声明检验方法/执行角色后可在此查看方法角色覆盖."]
+       (into [antd/space {:wrap true}]
+             (concat
+               [[antd/tag {:color "blue"} (str "DQ 总数 " total)]
+                [antd/tag {:color (if (= 100 method-pct) "green" (if (zero? method-pct) "red" "gold"))} (str "方法已覆盖 " method-pct "% (" (:method-covered sm 0) "/" total ")")]
+                [antd/tag {:color (if (= 100 role-pct) "green" (if (zero? role-pct) "red" "gold"))} (str "角色已覆盖 " role-pct "% (" (:role-covered sm 0) "/" total ")")]
+                [antd/tag {:color (if (= 100 full-pct) "green" (if (zero? full-pct) "default" "gold"))} (str "方法与角色齐备 " full-pct "% (" (:full-covered sm 0) "/" total ")")]
+                [antd/tag {:color "orange"} (str "有方法未指派角色 " missing-role)]
+                [antd/tag {:color "volcano"} (str "有角色未声明方法 " missing-method)]
+                [antd/tag {:color "default"} (str "未声明方法 " no-method)]
+                [antd/tag {:color "default"} (str "未指派角色 " no-role)]]
+               (map (fn [{:keys [method count approved omitted]}]
+                      [antd/tag {:key method :color (if omitted "default" "geekblue")} (str (get label method method) " · " (if omitted "未使用" (str count " 项 · 已签认 " approved)))])
+                    (:methods sm))
+               (when (seq (:roles sm))
+                 [[antd/tag {:color "purple"} (str "执行角色: " (names (:roles sm)))]]))))]))
+
+
 (defn- dq-section
   "B08 DQ 编制与确认关键任务: 检查清单 + 确定版本交付件 + 独立签认, 交付件更新即标注失效."
   [{:keys [base model options planning editable? open!] :as context}]
@@ -3024,7 +3058,7 @@
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-stage-distribution-section risk-review-frequency-section risk-review-cadence-section risk-review-history-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section meeting-attendance-section meeting-cadence-section meeting-type-distribution-section action-closure-section action-priority-distribution-section project-remediation-overview-section due-workload-overview-section owner-due-pressure-section action-section]]
                      ["changes" "变更控制" [change-section change-closure-section change-type-coverage-section change-impact-coverage-section change-impact-pattern-section change-impact-magnitude-section change-impact-window-section ccb-participation-section]]
-                     ["quality" "DQ与局部暂停" [dq-summary-section dq-section node-pause-summary-section pause-section]]])}])
+                     ["quality" "DQ与局部暂停" [dq-summary-section dq-method-coverage-section dq-section node-pause-summary-section pause-section]]])}])
 
 
 (defn- import-dialog

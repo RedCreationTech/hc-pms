@@ -98,6 +98,7 @@
                    (update :dqs #(mapv (partial quality/dq-deliverable-voided-model voided-codes docs-by-id) %))
                    (update :dqs #(mapv (partial collab/dq-remediation-read-model remediation-rollup) %))
                    quality/attach-dq-summary
+                   quality/attach-dq-method-coverage
                    (update :raci #(mapv (partial stakeholders/raci-read-model raci-loads) %))
                    (update :issues #(mapv (partial collab/owner-workload-read-model owner-loads) %))
                    (update :risks #(mapv (partial collab/owner-workload-read-model owner-loads) %))
