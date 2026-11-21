@@ -1,6 +1,7 @@
 (ns com.ruoyi.domain.pms.planning.capacity
   "跨项目人员容量汇总,对外只返回本项目资源和匿名占用总量."
   (:require
+    [clojure.string :as str]
     [com.ruoyi.domain.pms.planning.store :as store]
     [com.ruoyi.domain.pms.read-model :as rm]))
 
@@ -373,3 +374,47 @@
      :dominant-type (:resource_type dominant)
      :dominant-share-pct (:share-pct dominant)
      :structure-level structure-level}))
+
+
+(defn skill-match
+  "把任务对技能的要求与承担该任务的人力资源已声明技能做只读匹配:
+   任务借 requirements 里的 required-skills 声明 (经 :skills 键, 由 read-plan 解析为向量) 描述\"这件事需要谁会\",
+   资源档案的 skills 列 (逗号分隔小写) 描述\"这个人会什么\". 逐任务输出缺失技能与是否匹配,
+   并在项目层面聚合已匹配/缺失与覆盖率. :tasks 只列有技能要求且已排入人力的任务 (需要比对的才是分母);
+   无技能要求或未排人力的任务不进列表也不进分母.
+   仅供台账面板呈现, 只读派生, 不落库不投递, 不构成门控 (技能不匹配不阻止任何分配或计划提交), 键名不带尾随问号."
+  [tasks resources allocations]
+  (let [skills-of (fn [resource]
+                    (->> (str/split (str (or (:skills resource) "")) #",")
+                         (map str/trim)
+                         (remove str/blank?)
+                         (map str/lower-case)
+                         set))
+        by-resource (into {} (map (juxt :resource_id identity)) resources)
+        allocations-by-task (group-by :task_id allocations)
+        with-requirements (filterv #(seq (:required_skills %)) (filterv #(= "task" (:task_type %)) tasks))
+        rows (mapv (fn [task]
+                     (let [allocs (get allocations-by-task (:task_id task) [])
+                           persons (keep (fn [a]
+                                           (let [r (get by-resource (:resource_id a))]
+                                             (when (= "person" (:resource_type r)) r)))
+                                         allocs)
+                           covered (reduce (fn [acc r] (into acc (skills-of r))) #{} persons)
+                           required (mapv str/lower-case (:required_skills task))
+                           missing (vec (remove covered required))]
+                       (when (seq persons)
+                         {:task_id (:task_id task) :wbs_code (:wbs_code task) :name (:name task)
+                          :required required :person-count (count persons)
+                          :covered (vec (filter covered required))
+                          :missing missing
+                          :matched (boolean (empty? missing))})))
+                   with-requirements)
+        rows (vec (remove nil? rows))
+        total (count rows)
+        matched (count (filterv :matched rows))]
+    {:available (pos? total)
+     :total-requirements total
+     :matched matched
+     :unmatched (- total matched)
+     :coverage-pct (if (zero? total) 0 (Math/round (double (/ (* 100.0 matched) total))))
+     :tasks rows}))

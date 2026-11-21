@@ -15,7 +15,7 @@
 
 (def fields
   "客户端允许维护的任务设计字段."
-  [:version :parent_id :wbs_code :name :task_type :duration_days :owner_id :start_date :description :node_id :stage_code])
+  [:version :parent_id :wbs_code :name :task_type :duration_days :owner_id :start_date :description :node_id :stage_code :required_skills])
 
 
 (defn- node!
@@ -46,6 +46,26 @@
   (store/integer! duration "计划工期" (if (= type "task") 1 0) (if (= type "task") 3650 0)))
 
 
+(defn- required-skills!
+  "任务可选声明所需技能 (数组或逗号/空白分隔文本), 归一为去空白去重小写并以逗号拼接存列; 未声明返回 nil."
+  [body]
+  (when (contains? body :required_skills)
+    (let [raw (:required_skills body)
+          items (cond (nil? raw) []
+                      (string? raw) (str/split raw #"[,;\s]+")
+                      (sequential? raw) raw
+                      :else [(str raw)])
+          skills (->> items
+                      (keep (fn [item] (when (string? item) (str/trim item))))
+                      (remove str/blank?)
+                      (map str/lower-case)
+                      distinct
+                      vec)]
+      (when (> (count skills) 20) (rules/fail! 400 "所需技能不得超过20项"))
+      (when (some #(> (count %) 50) skills) (rules/fail! 400 "单个技能不得超过50字"))
+      (not-empty (str/join "," skills)))))
+
+
 (defn- task-row
   "组装任务设计行: 必填名称/说明/阶段编码与可选负责人/结构节点, 按原 map 求值顺序逐段校验."
   [q project task-id body code start type duration]
@@ -56,6 +76,7 @@
    :description (rules/text! (:description body) "任务说明" 2000 false)
    :node_id (node! q project (:node_id body))
    :stage_code (not-empty (rules/text! (:stage_code body) "阶段编码" 50 false))
+   :required_skills (required-skills! body)
    :source_type (:source_type body) :source_id (:source_id body)})
 
 

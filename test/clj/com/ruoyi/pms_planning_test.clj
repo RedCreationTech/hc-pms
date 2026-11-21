@@ -612,19 +612,20 @@
     (is (= (:task_id task) (:task_id ((:query-fn *svc*) :planning/task {:project_id id :task_id (:task_id task)}))))))
 
 (defn- shared-allocation!
-  "为多个项目建立相同人员的真实资源与分配."
-  [id hours capacity]
-  (pms/set-member! *svc* (actor 1) id {:user_id 9204 :role "viewer"})
-  (let [task (task! id "SHARED" 1)
-        resource (:result (command! plan/create-resource! id []
-                                    {:name "共享工程师" :resource_type "person" :user_id 9204 :daily_capacity capacity}))]
-    (command! plan/create-allocation! id [] {:task_id (:task_id task) :resource_id (:resource_id resource) :hours_per_day hours})
-    resource))
+  "为多个项目建立相同人员的真实资源与分配 (共享人员可用 9204 或显式指定, 避开技能用例的 9203/9210)."
+  ([id hours capacity] (shared-allocation! id hours capacity 9204))
+  ([id hours capacity uid]
+   (pms/set-member! *svc* (actor 1) id {:user_id uid :role "viewer"})
+   (let [task (task! id "SHARED" 1)
+         resource (:result (command! plan/create-resource! id []
+                                     {:name "共享工程师" :resource_type "person" :user_id uid :daily_capacity capacity}))]
+     (command! plan/create-allocation! id [] {:task_id (:task_id task) :resource_id (:resource_id resource) :hours_per_day hours})
+     resource)))
 
 (deftest shared-person-capacity-preserves-other-project-privacy
   (let [id (project!) other (project!)
         local (shared-allocation! id 5 8) _ (shared-allocation! other 4 8)]
-    (jdbc/execute! (:db *svc*) ["UPDATE pms_project SET manager_id=9203 WHERE project_id=?" other])
+    (jdbc/execute! (:db *svc*) ["UPDATE pms_project SET manager_id=9204 WHERE project_id=?" other])
     (jdbc/execute! (:db *svc*) ["DELETE FROM pms_member WHERE project_id=? AND user_id=9201" other])
     (is (= 403 (status #(plan/read-plan *svc* (actor 9201) other))))
     (let [rows (:overallocations (plan/read-plan *svc* (actor 9201) id)) row (first rows)]
@@ -1701,3 +1702,101 @@
            (error-info #(store/calendar! {:working_days [1] :holidays "oops"}))))
     (is (= [400 "日历日期不能为空"]
            (error-info #(store/calendar! {:working_days [1] :holidays [""]}))))))
+
+
+;; H05 任务技能匹配: 任务可选声明 required_skills, 人力/设备资源可选声明 skills,
+;; read-plan 读取时逐条比对并给出 已匹配/缺失/覆盖率; 只读派生, 不落库快照, 不构成任何门控.
+(deftest skill-declarations-and-matching-are-optional-and-derived
+  (testing "声明归一: 去空白/去重/小写, 数组与分隔文本等价"
+    (let [id (project!)]
+      (let [t (:result (command! plan/create-task! id []
+                                {:wbs_code "S.1" :name "焊接" :duration_days 2 :owner_id 9201
+                                 :required_skills [" 焊接 " "探伤" "焊接" ""]}))]
+        (is (= "焊接,探伤" (:required_skills t))))
+      (let [t (:result (command! plan/create-task! id []
+                                {:wbs_code "S.2" :name "装配" :duration_days 1 :owner_id 9201
+                                 :required_skills "装配; 调试 ,装配"}))]
+        (is (= "装配,调试" (:required_skills t))))
+      (testing "未声明不写键"
+        (is (nil? (:required_skills (:result (command! plan/create-task! id []
+                                                                       {:wbs_code "S.3" :name "无技能" :duration_days 1 :owner_id 9201}))))))))
+  (testing "声明上限与单条长度400"
+    (let [id (project!)]
+      (is (= [400 "所需技能不得超过20项"]
+             (error-info #(command! plan/create-task! id []
+                                    {:wbs_code "L.1" :name "超量" :duration_days 1 :owner_id 9201
+                                     :required_skills (mapv str (range 21))}))))
+      (is (= [400 "单个技能不得超过50字"]
+             (error-info #(command! plan/create-task! id []
+                                    {:wbs_code "L.2" :name "超长" :duration_days 1 :owner_id 9201
+                                     :required_skills [(apply str (repeat 51 "技"))]}))))
+      (is (= [400 "技能声明不得超过20项"]
+             (error-info #(command! plan/create-resource! id []
+                                    {:name "超量资源" :resource_type "equipment" :daily_capacity 8
+                                     :skills (mapv str (range 21))}))))
+      (is (= [400 "单个技能不得超过50字"]
+             (error-info #(command! plan/create-resource! id []
+                                    {:name "超长资源" :resource_type "equipment" :daily_capacity 8
+                                     :skills [(apply str (repeat 51 "技"))]}))))))
+  (testing "读取派生: 逐任务缺失清单与项目覆盖率; 补声明后翻转; 设备资源不计入人员技能"
+    (let [id (project!)
+          _ (doseq [uid [9203 9210]] (pms/set-member! *svc* (actor 1) id {:user_id uid :role "viewer"}))]
+      (let [a (:result (command! plan/create-task! id []
+                                {:wbs_code "M.1" :name "焊接作业" :duration_days 2 :owner_id 9201
+                                 :required_skills "焊接,探伤"}))
+            b (:result (command! plan/create-task! id []
+                                {:wbs_code "M.2" :name "装配作业" :duration_days 2 :owner_id 9201
+                                 :required_skills "装配"}))
+            c (:result (command! plan/create-task! id []
+                                {:wbs_code "M.3" :name "未排人力" :duration_days 1 :owner_id 9201
+                                 :required_skills "探伤"}))
+            welder (:result (command! plan/create-resource! id []
+                                      {:name "焊工" :resource_type "person" :user_id 9203 :daily_capacity 8 :skills "焊接"}))
+            assembler (:result (command! plan/create-resource! id []
+                                       {:name "装配工" :resource_type "person" :user_id 9210 :daily_capacity 8 :skills "装配"}))
+            rig (:result (command! plan/create-resource! id []
+                                  {:name "焊机" :resource_type "equipment" :daily_capacity 8 :skills "焊接,探伤"}))
+            summary (:result (command! plan/create-task! id []
+                                      {:wbs_code "M.0" :name "汇总" :task_type "summary" :duration_days 0 :owner_id 9201}))
+            _ (command! plan/update-task! id [(:task_id c)] {:parent_id (:task_id summary)})]
+        (is (= "焊接" (:skills welder)))
+        (is (= "焊接,探伤" (:skills rig)))
+        (command! plan/create-allocation! id [] {:task_id (:task_id a) :resource_id (:resource_id welder) :hours_per_day 6})
+        (command! plan/create-allocation! id [] {:task_id (:task_id a) :resource_id (:resource_id rig) :hours_per_day 2})
+        (command! plan/create-allocation! id [] {:task_id (:task_id b) :resource_id (:resource_id assembler) :hours_per_day 6})
+        (let [sm (:skill_match (plan/read-plan *svc* (actor 1) id))]
+          (is (true? (:available sm)))
+          (testing "未排人力与汇总任务不进入列表也不进入分母 (C 是汇总下的空叶子)"
+            (is (= 2 (:total-requirements sm)))
+            (is (= ["M.1" "M.2"] (mapv :wbs_code (:tasks sm)))))
+          (is (= 1 (:matched sm)))
+          (is (= 1 (:unmatched sm)))
+          (is (= 50 (:coverage-pct sm)))
+          (let [row (first (filter #(= "M.1" (:wbs_code %)) (:tasks sm)))]
+            (testing "设备资源声明不弥补人员缺失"
+              (is (= ["焊接" "探伤"] (:required row)))
+              (is (= ["焊接"] (:covered row)))
+              (is (= ["探伤"] (:missing row)))
+              (is (false? (:matched row)))))
+          (is (true? (:matched (first (filter #(= "M.2" (:wbs_code %)) (:tasks sm)))))))
+        (testing "补声明后读取时翻转, 证明是派生而非快照"
+          (command! plan/update-resource! id [(:resource_id welder)] {:skills ["焊接" "探伤"]})
+          (let [sm (:skill_match (plan/read-plan *svc* (actor 1) id))]
+            (is (= 2 (:matched sm)))
+            (is (= 100 (:coverage-pct sm)))
+            (is (empty? (:missing (first (filter #(= "M.1" (:wbs_code %)) (:tasks sm))))))))
+        (testing "不门控: 技能不匹配不阻止计划提交冻结 (跨项目共享人员负荷先降到可提交)"
+          (doseq [uid [9203 9210]]
+            (jdbc/execute! (:db *svc*) ["UPDATE pms_project SET status='cancelled'
+                                         WHERE manager_id=? OR project_id IN
+                                           (SELECT project_id FROM pms_plan_resource WHERE user_id=? AND project_id<>?)"
+                                        uid uid id]))
+          (is (= "submitted" (get-in (command! plan/submit-plan! id [] {:comment "技能只读"}) [:result :status])))))))
+  (testing "空态: 无任务声明技能时 available=false 且覆盖率 0"
+    (let [id (project!)]
+      (task! id "E.1" 2)
+      (let [sm (:skill_match (plan/read-plan *svc* (actor 1) id))]
+        (is (false? (:available sm)))
+        (is (zero? (:total-requirements sm)))
+        (is (zero? (:coverage-pct sm)))
+        (is (empty? (:tasks sm)))))))

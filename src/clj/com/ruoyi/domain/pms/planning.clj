@@ -1,6 +1,7 @@
 (ns com.ruoyi.domain.pms.planning
   "计划工作台对外应用服务及其他PMS模块的集成入口."
   (:require
+    [clojure.string :as str]
     [com.ruoyi.domain.pms.governance.quality :as quality]
     [com.ruoyi.domain.pms.governance.store :as governance]
     [com.ruoyi.domain.pms.kernel :as kernel]
@@ -79,6 +80,13 @@
                             :current_user_id (:user_id actor) :overallocations overloads
                             :overload_summary (capacity/overload-summary overloads)
                             :allocation_coverage (capacity/allocation-coverage raw-tasks (:allocations snapshot))
+                            :skill_match
+                            (capacity/skill-match
+                              (mapv #(assoc % :required_skills
+                                            (->> (str/split (str (or (:required_skills %) "")) #",")
+                                                 (map str/trim) (remove str/blank?) vec))
+                                    raw-tasks)
+                              (:resources snapshot) (:allocations snapshot))
                             :critical_path_staffing (capacity/critical-path-staffing raw-tasks (:allocations snapshot)
                                                                                      (get-in snapshot [:schedule :critical_path]))
                             :resource_load_leveling (capacity/resource-load-leveling (get-in snapshot [:schedule :tasks])

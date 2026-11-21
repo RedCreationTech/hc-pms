@@ -10,7 +10,7 @@
 (def task-fields
   "计划版本包含的任务设计字段,不混入实际进度."
   [:task_id :project_id :parent_id :wbs_code :name :task_type :duration_days
-   :owner_id :start_date :description :source_type :source_id :node_id :stage_code])
+   :owner_id :start_date :description :source_type :source_id :node_id :stage_code :required_skills])
 
 
 (defn integer!

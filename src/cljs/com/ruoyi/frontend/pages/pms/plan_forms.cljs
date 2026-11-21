@@ -23,7 +23,8 @@
    {:key :duration_days :label "工期(工作日)" :type :number :min 0 :required? true
     :hint "普通任务至少1天,汇总任务和里程碑填0."}
    {:key :start_date :label "最早开始日期" :type :date}
-   {:key :description :label "交付内容" :type :textarea}])
+   {:key :description :label "交付内容" :type :textarea}
+   {:key :required_skills :label "所需技能" :hint "逗号分隔, 可留空; 与承担该任务的人力资源已声明技能在读取时逐条比对, 不构成门控"}])
 
 
 (defn task-dialog
@@ -32,7 +33,7 @@
   {:title (if task "编辑WBS任务" "新建WBS任务")
    :path (str base "/tasks" (when task (str "/" (:task_id task))))
    :method (if task :put :post) :fields (task-fields model options)
-   :initial (if task (select-keys task [:wbs_code :name :task_type :parent_id :owner_id :duration_days :start_date :description :node_id :stage_code])
+   :initial (if task (select-keys task [:wbs_code :name :task_type :parent_id :owner_id :duration_days :start_date :description :node_id :stage_code :required_skills])
                 {:task_type "task" :duration_days 1})})
 
 
@@ -55,12 +56,13 @@
   {:title (if resource "编辑项目资源" "新增项目资源")
    :path (str base "/resources" (when resource (str "/" (:resource_id resource))))
    :method (if resource :put :post)
-   :initial (if resource (select-keys resource [:name :resource_type :user_id :daily_capacity])
+   :initial (if resource (select-keys resource [:name :resource_type :user_id :daily_capacity :skills])
                 {:resource_type "person" :daily_capacity 8})
    :fields [{:key :name :label "资源名称" :required? true}
             {:key :resource_type :label "资源类型" :type :select :options (w/choices ["person" "equipment"]) :required? true}
             {:key :user_id :label "关联用户" :type :select :options (w/user-options (:users options))}
-            {:key :daily_capacity :label "每日可用工时" :type :number :min 0 :max 24 :required? true}]})
+            {:key :daily_capacity :label "每日可用工时" :type :number :min 0 :max 24 :required? true}
+            {:key :skills :label "已掌握技能" :hint "逗号分隔, 可留空; 用于任务所需技能的读取时比对, 不构成门控"}]})
 
 
 (defn allocation-dialog

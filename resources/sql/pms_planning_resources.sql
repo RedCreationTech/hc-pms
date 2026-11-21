@@ -7,12 +7,12 @@ SELECT * FROM pms_plan_resource WHERE project_id=:project_id AND resource_id=:re
 --;;
 
 -- :name planning/create-resource! :! :n
-INSERT INTO pms_plan_resource(resource_id,project_id,name,resource_type,user_id,daily_capacity)
-VALUES (:resource_id,:project_id,:name,:resource_type,:user_id,:daily_capacity)
+INSERT INTO pms_plan_resource(resource_id,project_id,name,resource_type,user_id,daily_capacity,skills)
+VALUES (:resource_id,:project_id,:name,:resource_type,:user_id,:daily_capacity,:skills)
 --;;
 
 -- :name planning/update-resource! :! :n
-UPDATE pms_plan_resource SET name=:name,resource_type=:resource_type,user_id=:user_id,daily_capacity=:daily_capacity
+UPDATE pms_plan_resource SET name=:name,resource_type=:resource_type,user_id=:user_id,daily_capacity=:daily_capacity,skills=:skills
 WHERE project_id=:project_id AND resource_id=:resource_id
 --;;
 

@@ -111,6 +111,32 @@
         (rows "验收准则" (:acceptance_criteria r) (:acceptance-mapped r))])]))
 
 
+(defn- skill-match-section
+  "任务所需技能与承担该任务的人力资源已声明技能的只读匹配, 仅作提示, 不阻断计划编制."
+  [{:keys [model]}]
+  (let [m (:skill_match model)
+        total (or (:total-requirements m) 0)
+        matched (or (:matched m) 0)
+        pct (or (:coverage-pct m) 0)
+        rows (filterv (complement :matched) (:tasks m))]
+    [shared/panel "任务技能匹配"
+     "任务声明所需技能, 人力资源声明已掌握技能; 按承担该任务的人力在读取时逐条比对, 未排人力视为全部缺失; 只读派生, 不阻断保存与提交"
+     (if-not (:available m)
+       [antd/tag {:color "default"} "尚无任务声明所需技能"]
+       [:div
+        [:div {:style {:display "flex" :gap 12 :alignItems "center" :flexWrap "wrap"}}
+         [antd/tag {:color "blue"} (str "技能要求 " total)]
+         [antd/tag {:color (if (and (pos? total) (zero? (- total matched))) "green" "orange")}
+          (str "已匹配 " matched " (" pct "%)")]
+         [antd/tag {:color (if (seq rows) "red" "default")} (str "未匹配 " (or (:unmatched m) 0))]]
+        (when (seq rows)
+          [:div {:style {:marginTop 6 :display "flex" :gap 8 :flexWrap "wrap"}}
+           (for [r rows]
+             ^{:key (:task_id r)}
+             [antd/tag {:color "red"}
+              (str (:wbs_code r) " " (:name r) " 缺: " (str/join ", " (:missing r)))])])])]))
+
+
 (defn- baseline-variance-section
   "与最新已批准计划基线冻结排程逐任务只读比较的进度偏差汇总, 仅提示偏移, 不门控保存与提交."
   [{:keys [model]}]
@@ -274,7 +300,7 @@
       (when-let [spi (get-in model [:earned_value :spi])] [antd/tag {:color (if (< spi 0.9) "red" "blue")} (str "SPI " spi)])]
      [antd/tabs {:items
                  [{:key "wbs" :label "WBS与排程" :children (r/as-element [:div {:style {:display "grid" :gap 20}}
-                                                                       [baseline-variance-section context] [scope-coverage-section context] [scope-statement-section context] [task-section context] [dependency-section context] [views/gantt model]])}
+                                                                       [baseline-variance-section context] [scope-coverage-section context] [skill-match-section context] [scope-statement-section context] [task-section context] [dependency-section context] [views/gantt model]])}
                   {:key "resources" :label "资源与日历" :children (r/as-element [:div {:style {:display "grid" :gap 20}}
                                                                             [resource-section context] [allocation-section context]
                                                                             [calendar-section context] [views/allocation-coverage model] [views/critical-path-staffing model] [views/schedule-sensitivity model] [views/schedule-tightness model] [views/schedule-connectivity model] [views/dependency-type-mix model] [views/duration-granularity model] [views/wbs-hierarchy model] [views/resource-load-leveling model] [views/capacity-utilization model] [views/resource-type-mix model] [views/overloads model]])}

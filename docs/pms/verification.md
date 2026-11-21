@@ -1343,6 +1343,21 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 
 边界: H05 整行保持 `partial` — 本项只是"人力与设备投入结构是否偏科 / 哪类整类闲置"这一资源类别分布视角的只读洞察子能力, 与前五视角 (超配 / 未排 / 关键路径缺口 / 忙闲不均 / 容量利用) 正交互补, 一个只读子能力不改变整行状态; 偏科或闲置经协调解决的处置闭环 (如类别再平衡建议) 仍未实现, 投入结构不构成任何门控 (不阻断保存/提交/冻结), 不新增写路径/kind/命令/路由/表结构.
 
+## H05 任务技能匹配只读派生 (本轮增补, 2026-11-21)
+
+设计与口径: 矩阵 H05 的"资源需求到人员/角色/技能分派"此前只覆盖到"谁有空够不够", 缺"这件事需要谁会、这个人会不会"这一层 — 资源档案只有名称/类别/成员/日容量, 任务只有负责人, 技能这一维完全不可见. 本轮首次为资源与任务各加一个**可选的技能声明列**, 并在读取时做逐条比对: (1) 迁移 `202611210001-plan-resource-skills` (up/down 成对, `migrations/` 与 `migrations-sqlite/` 两份) 给 `pms_plan_resource` 加 `skills VARCHAR(500)`, 给 `pms_plan_task` 加 `required_skills VARCHAR(500)`, 均可空. (2) 写入归一: `planning.tasks/required-skills!` 与 `planning.resources/skills!` 接受数组或逗号/分号/空白分隔文本, 去空白、去重、转小写后以逗号拼接存列, 未声明返回 nil 不写键; 上限 20 项、单条 50 字, 超出 400 (`所需技能不得超过20项` / `单个技能不得超过50字` / `技能声明不得超过20项`). (3) 读取派生: `planning.capacity/skill-match` 对 `task_type="task"` 且有 `required_skills` 的任务, 取该任务全部 alloc 中 `resource_type="person"` 的资源 (设备资源不计 — 焊机自带"焊接"技能也不弥补人的缺失), 合并其 skills 得 covered 集合, 逐任务给 `required/covered/missing/person-count/matched`; **未排入任何人力的任务不进列表也不进分母** (无对象可比), 项目级给 `available/total-requirements/matched/unmatched/coverage-pct`. `planning/read-plan` merge 块暴露 `:skill_match` (下划线命名, 内层连字符). 全程只读派生: 不落快照、不投递、**不构成任何门控** — 技能不匹配不阻止分配、不阻止计划提交冻结. (4) 前端: `plan_forms.cljs` 任务对话框加"所需技能"、资源对话框加"已掌握技能"两个文本输入 (均可留空), `planning.cljs` 在"WBS与排程"页签新增"任务技能匹配"面板 (技能要求 / 已匹配 N (P%) / 未匹配 N 三个彩色标签 + 逐任务 `WBS 名称 缺: 技能` 火山标签), 置于范围排除项面板之前, 无技能要求时显空态.
+
+| 证据 | 实际记录 |
+|---|---|
+| 领域测试 | `pms-planning-test`, 新增 `skill-declarations-and-matching-are-optional-and-derived` (28 assertions): 声明归一 (数组/分隔文本等价、去重小写、未声明不写键)、上限 20 项与单条 50 字 400 (任务与资源两侧)、读取派生 (任务 A 需 `焊接,探伤` 排入只懂焊接的人 + 设备资源声明焊接·探伤 -> `total-requirements` 2 / `matched` 1 / `unmatched` 1 / `coverage-pct` 50 / A 行 `missing ["探伤"]` 且 `matched` false, 设备声明不弥补)、补声明后读取时翻转为 100% (证派生非快照)、无人力与汇总任务不进入列表、空态 `available` false, 且技能不匹配不阻止 `plan/submit-plan!` 返回 `submitted` |
+| 全量 PMS 回归 (CLI SQLite) | `clojure -J-Xmx1800m -M:test` 通过 867 tests / 8252 assertions, 0 failures/errors |
+| 前端编译 | `npx shadow-cljs compile app` 4041 files / 0 warnings |
+| 浏览器 E2E (隔离 `:3100` 独立库 `/tmp/h05sk.db`) | `pms-h05sk.spec.js` 1 passed: 界面建 1.1 焊接作业(`焊接,探伤`) 与 1.2 装配作业(`装配`), 界面建焊工资源(技能`焊接`)并分配 6h, 经真实用户接口建装配工成员与装配资源(`装配`)分配 6h -> "任务技能匹配"面板精确显示"技能要求 2 / 已匹配 1 (50%) / 未匹配 1"与"1.1 焊接作业 缺: 探伤"; GET `/planning` 回显 `skill_match` 各字段一致 (A 行 required `[焊接,探伤]` covered `[焊接]` missing `[探伤]`); 补声明后翻转为"已匹配 2 (100%) / 未匹配 0"且服务端 `coverage-pct` 100; 提交计划审批成功冻结 ("计划已冻结,等待独立审批.") 证不门控; 空态项目显"尚无任务声明所需技能"且 `available` false (截图 h05sk-1-panel.png / h05sk-2-page.png / h05sk-3-empty.png, 存 `reports/h05sk/`) |
+
+本轮未执行 (如实记录): MySQL 迁移与回归 (本地无可用实例); 技能替代建议、缺人自动告警、技能词典/等级与按技能检索资源均未实现 — 本项只把"需要什么技能 / 谁会什么 / 谁缺什么"摆到人前.
+
+边界: H05 整行保持 `partial` — 本项补上"技能"这一维的声明与逐条比对, 但矩阵要求"资源需求到人员/角色/技能分派"(按技能反向检索可派人员)、"替代人员"、"请假规则"与"超配经协调解决的处置闭环"仍未实现; 且技能比对照例对设备资源完全不计, 也不阻断任何写操作, 故不上行.
+
 ## H10 DQ 质量检查闭环汇总只读派生 (本轮增补, 2026-09-30)
 
 设计与口径: DQ (设计确认) 台账此前只有逐条 DQ 的"检查通过""必需检查就绪度""版本失效""交付件作废"内联徽标, 整个项目"DQ 关键任务总体签认闭环到什么程度, 还有几条在草稿/待提交/审批中, 多少已签认, 多少依据已失效或作废"无处一眼可读. 本项在 `governance.quality` 新增只读汇总纯函数 `dq-summary`: 输入是已被 `dq-read-model` (逐条 `:dq_required_met` / `:dq_stale` 等) 与 `dq-deliverable-voided-model` (逐条 `:dq_deliverable_voided`) 富化过的 `:dqs` 向量, 按 `:status` 频次聚合输出 `available / total / approved / in-review / ready / draft / rejected / required-met / stale / voided / closure-pct` (`closure-pct` 为 `approved/total` 四舍五入整数百分比, 分母为全部 DQ 数, `total` 为 0 时给 0). `attach-dq-summary` 以整图函数在 `->` 读模型线程里 `(update :dqs ...)` 富化步骤之后 `assoc` 顶层 `:dq_summary` (下划线命名, 内层键用连字符), 不改变任何逐条 DQ 记录. 免迁移 / 免新 kind / 免新命令 / 免新路由 / 不构成任何门控 (只读呈现, 不改变任何 DQ 状态机语义). 前端 `governance.cljs` 在"DQ与局部暂停"页签 DQ 台账之上新增 `dq-summary-section` 面板 "DQ 质量检查闭环汇总" (彩色标签 DQ 总数 / 已签认 N% / 必需项全通过 / 签认审批中 / 待提交 / 草稿 / 已退回 / 交付件失效 / 交付件作废; 计数为 0 的状态标签不渲染; 无 DQ 时空态 "暂无 DQ 关键任务, 建立 DQ 并逐项检查签认后可在此查看质量闭环概览."). 键名不带尾随 `?` 以免序列化为 JSON 字面键.

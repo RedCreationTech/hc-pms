@@ -2,6 +2,7 @@
   "项目资源,每日容量覆盖与任务资源分配."
   (:require
     [cheshire.core :as json]
+    [clojure.string :as str]
     [com.ruoyi.domain.pms.kernel :as kernel]
     [com.ruoyi.domain.pms.planning.store :as store]
     [com.ruoyi.domain.pms.rules :as rules]))
@@ -9,7 +10,23 @@
 
 (def fields
   "资源表单允许维护的字段."
-  [:version :name :resource_type :user_id :daily_capacity])
+  [:version :name :resource_type :user_id :daily_capacity :skills])
+
+
+(defn- skills!
+  "把资源技能声明归一为去空白去重的小写技能名向量; 支持数组或逗号分隔文本, 未声明返回 nil."
+  [value]
+  (let [items (cond (nil? value) []
+                    (string? value) (str/split value #"[,;\s]+")
+                    (sequential? value) value
+                    :else [(str value)])]
+    (->> items
+         (keep (fn [item] (when (string? item) (str/trim item))))
+         (remove str/blank?)
+         (map str/lower-case)
+         distinct
+         vec
+         not-empty)))
 
 
 (defn calendar!
@@ -43,7 +60,11 @@
     (resource-gates! q project resource-id type uid)
     {:resource_id resource-id :project_id (:project_id project)
      :name (rules/text! (:name body) "资源名称" 200 true) :resource_type type
-     :user_id uid :daily_capacity (store/hours! daily "每日容量" true)}))
+     :user_id uid :daily_capacity (store/hours! daily "每日容量" true)
+     :skills (when-some [declared (skills! (when (contains? body :skills) (:skills body)))]
+               (when (> (count declared) 20) (rules/fail! 400 "技能声明不得超过20项"))
+               (when (some #(> (count %) 50) declared) (rules/fail! 400 "单个技能不得超过50字"))
+               (str/join "," declared))}))
 
 
 (defn create!
