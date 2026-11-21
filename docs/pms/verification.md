@@ -3034,3 +3034,23 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 本轮未执行 (如实记录): 已历时以"登记日 → 今天"为准, 不计算"实际关闭用时" (关闭时间戳未单独入账库字段, 需另立审计键, 本片不做); 不做 SLA 告警投递, 不做按责任人的时限负荷分布; MySQL 回归 (本地无实例, 本片完全免迁移).
 
 边界: 本片补齐 H11 售后遗留项的**时间维度**只读洞察, 与闭环汇总正交. H11 整行仍为 `partial`: 受控交付包发布与客户外部签章仍未实现.
+
+## H08 风险复审历史执行只读派生 (本轮增补, 2026-11-21)
+
+设计与口径: H08 已有 `risk-review-cadence-summary` 回答"下一次复审什么时候到期", 却没有回答"过去的复审到底做了什么、有没有走完". 本片补上这段: 按每个风险**最新有效版本**从 `workflow_history` 里筛出 `review_decided` 审计项, 统计复审决策次数、批准/驳回与批准率, 以及已批准复审的结论分布 (维持应对 / 已缓解 / 关闭); 另给**复审缺口** (未关闭且尚无已决策复审的风险数) 与**重新评分次数** (`rescored` 审计项). 与到期节奏互补并列, 只读派生、不落库、不投递、不改变风险状态、**不构成门控**.
+
+领域: `governance/reviews.clj` 新增 `risk-review-outcome-labels` (固定三档顺序)、私有 `review-decisions` 与公开 `risk-review-history-summary` / `attach-risk-review-history`; 批准率用 `rm/pct`, 分母为批准 + 驳回次数 (总数为 0 时给 0). **口径说明**: 复审提交后处于 `in_review` 但尚未有 `review_decided` 时, 该风险仍计入复审缺口 —— "提交了但没走完独立确认"不算闭环, 测试对此有显式断言.
+
+前端: `governance.cljs` 新增 `risk-review-history-section` 面板, 挂在"需求与治理 → 风险与问题"页签 `risk-review-cadence-section` 之后: 第一行 风险总数/已复审/复审缺口/复审批准率/已驳回/重新评分, 第二行 已批准结论三档。
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 治理命名空间测试 | `pms_governance_test` 新 deftest 31 assertions, 0 失败 | `risk-review-history-summary-aggregates-decisions`: 纯函数口径 (批准 2/驳回 1/批准率 67%, 结论分布 维持应对 1/已缓解 0/关闭 1, 重新评分 1, 已关闭风险不计缺口); 复审缺口 (两条未关闭无决策 -> 2, 空集合 available=false 且三档顺序固定); 真实工作区 (两条风险 -> 缺口 2; 提交复审未决策时仍为缺口 2 且批准 0; 独立批准后已复审 1/批准 100%/已缓解 1/缺口 1; 第二条提交后驳回 -> 驳回 1/批准率 50%; 重复读取稳定) |
+| 全量回归 | `clojure -J-Xmx1800m -M:test` 871 tests / 8376 assertions, 0 failures / 0 errors (SQLite) | 无回归 |
+| 前端 | `npx shadow-cljs compile app` 0 warnings (4041 files) | 面板编译通过 |
+| cljstyle | 通过 | `reviews.clj`、`governance.clj`、`pms_governance_test.clj` 已格式化 |
+| 浏览器 | `tests/e2e/pms-rrh.spec.js` 1 passed | 界面登记两条风险 -> 面板"风险总数 2/已复审 0/复审缺口 2" (截图 `reports/rrh/rrh-2-none.png`), 空态占位 (`rrh-1-empty.png`) -> 独立核查人经真实 HTTP 批准一条"已缓解"复审 (登记人自行批准 403) -> 面板"已复审 1/复审批准率 100% (1/1)/已缓解 1/复审缺口 1" (截图 `rrh-3-approved.png`、`rrh-4-page.png`) -> 另一条提交后驳回 -> "复审批准率 50% (1/2)/已驳回 1" (截图 `rrh-5-rejected.png`), GET /governance 回显 `risk_review_history` 逐项一致, 无未捕获 JS 错误 |
+
+本轮未执行 (如实记录): 不统计单次复审的耗时天数 (提交与决策时间戳未单独立键); 不做按责任人的复审及时率分布; MySQL 回归 (本地无实例, 本片完全免迁移).
+
+边界: 本片是 H08 "复审"一侧的**历史执行**只读洞察, 与到期节奏正交. H08 整行仍为 `partial`: 升级通知投递与跨项目风险汇总升级仍未实现.

@@ -1492,6 +1492,37 @@
         [antd/tag {:color color} label]))))
 
 
+(defn- risk-review-history-section
+  "按每个风险最新有效版本只读聚合复审历史: 已复审风险数与从未复审的未关闭风险数(复审缺口), 已批准/已驳回次数与批准率, 重新评分次数, 以及已批准复审的结论分布(维持应对/已缓解/关闭); 与复审到期节奏互补(后者看下次何时到期), 只读派生, 不改变风险状态."
+  [{:keys [model]}]
+  (let [rh (:risk_review_history model)
+        total (:total rh 0)
+        reviewed (:reviewed rh 0)
+        gap (:review-gap rh 0)
+        approved (:approved rh 0)
+        rejected (:rejected rh 0)
+        pct (:approval-pct rh 0)
+        rescored (:rescored rh 0)
+        by-outcome (:by-outcome rh [])]
+    [shared/panel "风险复审历史执行" "按每个风险的最新有效版本只读聚合历次复审决策: 已复审/复审缺口, 批准与驳回次数及批准率, 重新评分次数与结论分布; 与复审到期节奏互补, 只读派生, 不改变风险状态"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无项目风险, 登记后可在此查看复审历史执行情况."]
+       [:div {:style {:display "grid" :gap 12}}
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "风险总数 " total)]
+         [antd/tag {:color "geekblue"} (str "已复审 " reviewed)]
+         [antd/tag {:color (if (pos? gap) "gold" "default")} (str "复审缺口 " gap)]
+         [antd/tag {:color (cond (= pct 100) "green" (zero? pct) "red" :else "gold")}
+          (str "复审批准率 " pct "% (" approved "/" (+ approved rejected) ")")]
+         (when (pos? rejected) [antd/tag {:color "red"} (str "已驳回 " rejected)])
+         (when (pos? rescored) [antd/tag {:color "purple"} (str "重新评分 " rescored)])]
+        [antd/space {:wrap true}
+         [:span {:style {:fontWeight 600 :marginRight 4}} "已批准结论"]
+         (for [row by-outcome]
+           ^{:key (:outcome row)} [antd/tag {:color (get {"active" "default" "mitigated" "gold" "closed" "green"} (:outcome row) "default")}
+                                   (str (:label row) " " (:count row))])]])]))
+
+
 (defn- issue-section
   "问题解决必须附证据并交独立人员验证; 阻断级问题登记即自动升级, 未经独立确认不得提交解决."
   [{:keys [base model options editable? approve? open!] :as context}]
@@ -2990,7 +3021,7 @@
                      ["appointments" "成员任命" [appointment-section]]
                      ["stakeholders" "干系人与沟通" [stakeholder-section engagement-coverage-section engagement-matrix-section raci-section raci-assignment-section raci-engagement-section raci-role-distribution-section comm-plan-section comm-cadence-section comm-audience-section comm-execution-section comm-channel-usage-section comm-plan-audience-breadth-section stakeholder-category-distribution-section stakeholder-quadrant-distribution-section stakeholder-engagement-distribution-section]]
                      ["gates" "Gate评审" [gate-section]]
-                     ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-stage-distribution-section risk-review-frequency-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
+                     ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-stage-distribution-section risk-review-frequency-section risk-review-cadence-section risk-review-history-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section meeting-attendance-section meeting-cadence-section meeting-type-distribution-section action-closure-section action-priority-distribution-section project-remediation-overview-section due-workload-overview-section owner-due-pressure-section action-section]]
                      ["changes" "变更控制" [change-section change-closure-section change-type-coverage-section change-impact-coverage-section change-impact-pattern-section change-impact-magnitude-section change-impact-window-section ccb-participation-section]]
                      ["quality" "DQ与局部暂停" [dq-summary-section dq-section node-pause-summary-section pause-section]]])}])

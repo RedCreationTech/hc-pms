@@ -192,3 +192,54 @@
                                          (not (.isAfter (LocalDate/parse due) (LocalDate/now)))))
            :review_due_in_days days
            :review_due_soon (boolean (and (some? days) (<= 1 days review-due-soon-days))))))
+
+
+(def risk-review-outcome-labels
+  "风险复审结论与写入时 :outcome 枚举的固定顺序与中文标签."
+  [["active" "维持应对"]
+   ["mitigated" "已缓解"]
+   ["closed" "关闭"]])
+
+
+(defn- review-decisions
+  "从风险记录 workflow_history 里筛出复审决策审计项."
+  [record]
+  (filterv #(= "review_decided" (:action %)) (:workflow_history record)))
+
+
+(defn risk-review-history-summary
+  "按每个风险最新有效版本只读聚合复审历史执行情况: 统计复审提交/决策次数与批准/驳回, 以及已批准复审里各结论(维持应对/已缓解/关闭)的分布与批准率; 另给未关闭且尚无已决策复审的风险数(复审缺口, 含提交后仍待独立确认者), 以及全部决策中的重新评分次数.
+   与 risk-review-cadence-summary 互补: 后者看下一次复审何时到期, 本项看过去复审到底做了什么. 只读派生, 不落库不投递, 不改变风险状态, 不构成门控. 键名 kebab-case 无尾随问号."
+  [risks]
+  (let [active (s/latest risks)
+        total (count active)
+        decisions-of (fn [r] (review-decisions r))
+        reviewed (count (filterv #(seq (decisions-of %)) active))
+        approved? (fn [d] (= "approved" (:decision d)))
+        approved (count (mapcat #(filterv approved? (decisions-of %)) active))
+        rejected (- (reduce + (map #(count (decisions-of %)) active)) approved)
+        open-without-review (count (filterv #(and (not= "closed" (:status %)) (empty? (decisions-of %))) active))
+        rescored (reduce + (map #(count (filterv (fn [h] (= "rescored" (:action h))) (:workflow_history %))) active))
+        outcome-of (fn [r] (:requested_outcome r))
+        approved-by-record (fn [r] (if (seq (filterv approved? (decisions-of r))) r nil))
+        approved-risks (keep approved-by-record active)
+        rejected-risks (filterv #(some (complement approved?) (decisions-of %)) active)
+        outcome-count (fn [k] (count (filterv #(= k (outcome-of %)) approved-risks)))
+        by-outcome (mapv (fn [[k label]] {:outcome k :label label :count (outcome-count k)})
+                         risk-review-outcome-labels)]
+    {:available (pos? total)
+     :total total
+     :reviewed reviewed
+     :review-gap open-without-review
+     :approved approved
+     :rejected rejected
+     :approval-pct (rm/pct (+ approved rejected) approved)
+     :rescored rescored
+     :rejected-risks (count rejected-risks)
+     :by-outcome by-outcome}))
+
+
+(defn attach-risk-review-history
+  "把 risk-review-history-summary 挂到治理工作区顶层 :risk_review_history; 读取时派生, 不改变任何逐条风险."
+  [data]
+  (assoc data :risk_review_history (risk-review-history-summary (:risks data))))

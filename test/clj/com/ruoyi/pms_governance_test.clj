@@ -11,6 +11,7 @@
     [com.ruoyi.domain.pms.governance.gates :as gates]
     [com.ruoyi.domain.pms.governance.lifecycle :as lifecycle]
     [com.ruoyi.domain.pms.governance.quality :as quality]
+    [com.ruoyi.domain.pms.governance.reviews :as reviews]
     [com.ruoyi.domain.pms.governance.stakeholders :as stakeholders]
     [com.ruoyi.domain.pms.governance.store :as s]
     [com.ruoyi.domain.pms.notify :as notify]
@@ -3664,6 +3665,77 @@
       (is (= "closed" (:status r)))
       (is (nil? (:review_due_in_days r)))
       (is (false? (:review_due_soon r))))))
+
+
+(deftest risk-review-history-summary-aggregates-decisions
+  (testing "纯函数口径: 复审决策次数/批准率/结论分布/重新评分与复审缺口"
+    (let [rh (reviews/risk-review-history-summary
+               [{:code "R1" :revision 1 :status "open" :requested_outcome "active"
+                 :workflow_history [{:action "review_decided" :decision "approved"} {:action "rescored"}]}
+                {:code "R2" :revision 1 :status "open" :requested_outcome "mitigated"
+                 :workflow_history [{:action "review_decided" :decision "rejected"}]}
+                {:code "R3" :revision 1 :status "closed"}
+                {:code "R4" :revision 1 :status "mitigated" :requested_outcome "closed"
+                 :workflow_history [{:action "review_decided" :decision "approved"}]}])]
+      (is (true? (:available rh)))
+      (is (= 4 (:total rh)))
+      (is (= 3 (:reviewed rh)))
+      (is (= 2 (:approved rh)))
+      (is (= 1 (:rejected rh)))
+      (is (= 67 (:approval-pct rh)))
+      (is (= 1 (:rescored rh)))
+      ;; 已关闭风险无复审历史不算缺口; 另两条 open 都有决策.
+      (is (= 0 (:review-gap rh)))
+      (is (= 1 (:rejected-risks rh)))
+      (is (= [["active" 1] ["mitigated" 0] ["closed" 1]]
+             (mapv (juxt :outcome :count) (:by-outcome rh))))))
+  (testing "纯函数口径: 未关闭且无复审记录计入复审缺口; 空集合 available=false 且结论档位固定"
+    (let [rh (reviews/risk-review-history-summary
+               [{:code "A" :revision 1 :status "open"}
+                {:code "B" :revision 1 :status "mitigated"}
+                {:code "C" :revision 1 :status "closed"}])
+          empty (reviews/risk-review-history-summary [])]
+      (is (= 2 (:review-gap rh)))
+      (is (= 0 (:reviewed rh)))
+      (is (= 0 (:approval-pct rh)))
+      (is (false? (:available empty)))
+      (is (= ["active" "mitigated" "closed"] (mapv :outcome (:by-outcome empty))))))
+  (testing "真实工作区: 提交复审并独立批准后计入批准与结论, 驳回后计入驳回"
+    (let [id (project!)
+          evidence (:id (document! id "RRH-DOC"))
+          today (java.time.LocalDate/now)
+          rh (fn [] (:risk_review_history (workspace id)))
+          r1 (command! id :risks :create nil {:title "需复审风险" :probability 2 :impact 3 :owner_id 9301
+                                              :mitigation "例会跟踪" :due_date (str (.plusDays today 5))})
+          r2 (command! id :risks :create nil {:title "从不复审风险" :probability 1 :impact 2 :owner_id 9301
+                                              :mitigation "例会跟踪" :due_date (str (.plusDays today 9))})]
+      (is (= 2 (:total (rh))))
+      (is (= 2 (:review-gap (rh))))
+      (is (= 0 (:approved (rh))))
+      (command! id :risks :review (:id r1) {:outcome "mitigated" :review_note "已验证缓解"
+                                            :reviewer_id 9302 :evidence_ids [evidence]
+                                            :next_review_date (str (.plusDays today 21))})
+      ;; 提交但未决策 (in_review): 尚不计入批准; 复审未闭环, 故仍计为复审缺口.
+      (is (= "in_review" (:status (first (filterv #(= (:id r1) (:id %)) (:risks (workspace id)))))))
+      (is (= 2 (:review-gap (rh))))
+      (is (= 0 (:approved (rh))))
+      (command! 9302 id :risks :decision (:id r1) {:decision "approved" :reason "独立确认缓解"})
+      (is (= 1 (:approved (rh))))
+      (is (= 1 (:reviewed (rh))))
+      (is (= 100 (:approval-pct (rh))))
+      (is (= 1 (get (into {} (map (juxt :outcome :count)) (:by-outcome (rh))) "mitigated")))
+      (is (= 1 (:review-gap (rh))))
+      ;; 第二条提交后被驳回 -> 计入驳回, 批准率回落 50%.
+      (command! id :risks :review (:id r2) {:outcome "active" :review_note "证据不足"
+                                            :reviewer_id 9302 :evidence_ids [evidence]
+                                            :next_review_date (str (.plusDays today 30))})
+      (command! 9302 id :risks :decision (:id r2) {:decision "rejected" :reason "证据不足退回"})
+      (is (= 1 (:approved (rh))))
+      (is (= 1 (:rejected (rh))))
+      (is (= 50 (:approval-pct (rh))))
+      (is (= 1 (:rejected-risks (rh))))
+      ;; 只读派生: 重复读取稳定, 不改变风险状态.
+      (is (= (rh) (:risk_review_history (workspace id)))))))
 
 
 (deftest risk-review-frequency-auto-advances-next-review-date
