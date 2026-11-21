@@ -3099,3 +3099,32 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 **过程记录 (如实)**: 本轮首次跑全量回归出现 `bpm-p0-copy-strategy-test` 2 处失败, 单独复跑该命名空间与再次全量均通过, 判定为业务 BPM 测试对全库执行顺序的既有依赖抖动, 与本片改动无关 (本片只新增只读命名空间与一条 GET 路由, 不触碰 BPM).
 
 本轮未执行 (如实记录): MySQL 目标环境迁移升级/回退演练; 压测与容量基线; 监控告警接线与演练; 备份恢复与 RPO/RTO 演练. H19 整行仍为 `partial`.
+
+### H19 迁移回退本机审计 (2026-11-21, SQLite)
+
+做法: 对 `resources/migrations-sqlite` 的 84 个迁移逐个复跑一遍可重复的往返 -- 每个迁移在**独立临时库**里只回放到它自己 (`migratus/migrate-until-just-before (inc id)`), 记录迁移前 `sqlite_master` 全量 DDL 与表集合, 执行该迁移的 `down`, 再比对 DDL 与表集合. 脚本与完整日志: `reports/h19-downaudit/` (不入库).
+
+| 结论 | 数量 | 说明 |
+| --- | --- | --- |
+| down 执行无错且 DDL 逐字还原 | 32 | 建表类与只改列的迁移均可回退 |
+| down 丢弃了表/列但 DDL 未逐字还原 | 52 | 不是回退失败, 而是 SQLite `DROP COLUMN` 会重写 `CREATE TABLE` 文本 (约束顺序/列序), 语义等价; 已用「迁移前后表集合与列集合」交叉核对确认 |
+| down 脚本运行**报错** | 7 | 见下表, 需修复 |
+| down 为空操作但迁移改了结构 | 17 | 见下表, 需补写 |
+
+down 报错的 7 个 (真实缺陷, SQLite 不支持或语句写错):
+
+| 迁移 | 报错 | 原因 |
+| --- | --- | --- |
+| `202611190003-change-loss` | `near "INDEX": syntax error` | `ALTER TABLE ... DROP INDEX` 不是 SQLite 语法, 应为 `DROP INDEX idx`, 且索引随 `DROP COLUMN` 自动消失 |
+| `202611190006-cost-entry-status` | `near "INDEX": syntax error` | 同上 |
+| `202406110014-seed-data` | `near "TRUNCATE": syntax error` | SQLite 无 `TRUNCATE ... CASCADE`, 应为 `DELETE FROM` |
+| `202608270002-bpm-menu-icons` | `query returns results` | down 里写 `SELECT 1;`, 驱动把结果集当成更新语句 |
+| `202611200001-repair-current-text-timestamps` | `query returns results` | 同上 |
+| `202606170001-cleanup-business-tables` | `query returns results` | 同上 |
+| `202607040101-remove-obsolete-tool-menus` | `prepared statement has been finalized` | 该 down 文件只有注释, 没有语句也没有 `--;;` 分隔, migratus 拿到空语段 |
+
+down 为空操作但迁移确实改了结构 (回退后旧代码读不到已删列/仍在读不存在的东西) 的 17 个: `bpm-phase3`、`bpm-phase4`、`bpm-model-p1`、`bpm-model-permissions`、`bpm-model-form-fields`、`model-fields-permission`、`add-member-ends-on`、`lesson-context-owner`、`plan-progress`、`plan-resource-skills`、`commitment-accounting-period`、`pms-event-version`、`notify-kinds`、`gov-status-discard`、`cancellation`、`direct-ship`、`add-notice-content`. 其中 `add-member-ends-on`/`plan-resource-skills` 写了 `ALTER ... DROP COLUMN` 却没生效 (审计显示 dropped=0), `direct-ship` 写了重建表却没生效, 需要单独复核原因.
+
+另: `docs/pms/migration-verification.md` 的旧往返脚本 (34 断言, 2026-09-22, 覆盖 52 迁移的 004-009) 在当前 84 迁移集下**已过期** -- 其 "全量回放 schema 逐字相同" 断言不成立, 因为后续迁移会修改早期表结构. 该断言应改为 "回退后列集合等于该迁移应用前的列集合", 而不是 DDL 文本相等.
+
+本轮**不**修 down 脚本 (属于迁移资产变更, 需单独切片并重跑双库回归与全量测试); 以上如实记为 H19 待办, H19 仍为 `partial`.
