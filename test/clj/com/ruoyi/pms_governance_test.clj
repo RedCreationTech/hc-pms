@@ -3418,6 +3418,59 @@
       (is (= 4 (:cost-quantified edge))))))
 
 
+(deftest change-impact-window-summarizes-quantified-magnitudes
+  (testing "纯函数口径: 两维各自取最大与已量化均值, 未申报该维不计入分母, 两维皆未申报计入纯文字"
+    (let [w (approval/change-impact-window
+              [{:code "A" :revision 1 :schedule_impact_days 3}
+               {:code "B" :revision 1 :schedule_impact_days 15 :cost_impact_amount "120000.00"}
+               {:code "C" :revision 1}
+               {:code "D" :revision 1 :cost_impact_amount "500.50"}])]
+      (is (true? (:available w)))
+      (is (= 4 (:total w)))
+      (is (= 3 (:quantified w)))
+      (is (= 1 (:unquantified w)))
+      (is (= 15 (:max-schedule-days w)))
+      (is (= 9 (:avg-schedule-days w)))
+      (is (= 12000000 (:max-cost-minor w)))
+      (is (= 6025025 (:avg-cost-minor w)))
+      (is (= 1 (:high-impact w)))))
+  (testing "纯函数口径: 无记录时 available=false 且数值归零为 nil"
+    (let [w (approval/change-impact-window [])]
+      (is (false? (:available w)))
+      (is (zero? (:total w)))
+      (is (nil? (:max-schedule-days w)))
+      (is (nil? (:avg-cost-minor w)))))
+  (testing "真实工作区: 数值窗口随变更登记与修订翻转为读取时派生"
+    (let [id (project!)
+          win (fn [] (:change_impact_window (workspace id)))
+          body {:title "更改设备范围" :reason "合同调整" :scope_impact "增加设备"
+                :schedule_impact "增加五日" :cost_impact "重新估价" :quality_impact "增加测试"
+                :resource_impact "追加工程师"}
+          c1 (command! id :changes :create nil (assoc body :title "工期12成本10万"
+                                                      :schedule_impact_days 12 :cost_impact_amount "100000"))
+          _c2 (command! id :changes :create nil (assoc body :title "工期5" :schedule_impact_days 5))
+          _c3 (command! id :changes :create nil (assoc body :title "仅文字描述"))]
+      (is (true? (:available (win))))
+      (is (= 3 (:total (win))))
+      (is (= 2 (:quantified (win))))
+      (is (= 1 (:unquantified (win))))
+      (is (= 12 (:max-schedule-days (win))))
+      (is (= 9 (:avg-schedule-days (win))))
+      (is (= 10000000 (:max-cost-minor (win))))
+      (is (= 10000000 (:avg-cost-minor (win))))
+      (is (= 1 (:high-impact (win))))
+      ;; 只读派生: 重复读取稳定, 不改变变更状态.
+      (is (= (win) (:change_impact_window (workspace id))))
+      ;; 修订撤销量化影响 -> 最新版不计入, 数值窗口回落.
+      (command! id :changes :revisions (:id c1) (assoc body :title "工期12成本10万(撤销量化)"))
+      (is (= 3 (:total (win))))
+      (is (= 1 (:quantified (win))))
+      (is (= 2 (:unquantified (win))))
+      (is (= 5 (:max-schedule-days (win))))
+      (is (nil? (:max-cost-minor (win))))
+      (is (= 0 (:high-impact (win)))))))
+
+
 (deftest ccb-participation-summary-is-derived-read-only
   (let [id (project!)
         part (fn [] (:ccb_participation (workspace id)))

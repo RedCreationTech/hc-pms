@@ -2430,6 +2430,45 @@
          [antd/tag {:color "volcano"} (str "高影响 10 万及以上 " c-high)]]])]))
 
 
+(defn- change-impact-window-section
+  "按每个变更最新有效版本只读聚合两维量化影响数值窗口: 已量化/未量化(纯文字)数, 工期的最大与平均天数, 成本的最大与平均金额, 以及复用高影响阈值的项目级最重项高影响数; 与数值分档分布互补(分档看落在哪一档, 本项看数值大小本身), 只读派生, 不改变变更状态或门控."
+  [{:keys [model]}]
+  (let [w (:change_impact_window model)
+        total (:total w 0)
+        quantified (:quantified w 0)
+        unquantified (:unquantified w 0)
+        high (:high-impact w 0)
+        s-max (:max-schedule-days w)
+        s-avg (:avg-schedule-days w)
+        c-max (:max-cost-minor w)
+        c-avg (:avg-cost-minor w)
+        yuan (fn [minor]
+               (when (some? minor)
+                 (let [cents (js/Math.abs minor)
+                       qi (js/Math.floor (/ cents 100))
+                       rf (.padStart (str (mod cents 100)) 2 "0")]
+                   (str (when (neg? minor) "-") qi "." rf))))]
+    [shared/panel "变更量化影响数值窗口" "按每个变更的最新有效版本给出工期与成本两维已量化数值的最大值与平均值(未申报该维不计入分母), 并标出项目级最重项与高影响数; 只读派生, 不改变变更状态或门控"
+     (if (zero? total)
+       [:span {:style {:color "#8793a3"}} "暂无项目变更, 登记变更后可在此查看量化影响数值窗口."]
+       [:div
+        [antd/space {:wrap true}
+         [antd/tag {:color "blue"} (str "变更总数 " total)]
+         [antd/tag {:color "geekblue"} (str "已量化 " quantified)]
+         [antd/tag {:color "default"} (str "纯文字 " unquantified)]
+         [antd/tag {:color (if (pos? high) "volcano" "default")} (str "高影响 " high)]]
+        [:div {:style {:height 8}}]
+        [antd/space {:wrap true}
+         [antd/tag {:color (cond (nil? s-max) "default" (>= s-max 10) "volcano" :else "gold")}
+          (str "工期最大 " (if (some? s-max) (str s-max " 天") "未量化"))]
+         [antd/tag {:color (if (some? s-avg) "gold" "default")}
+          (str "工期平均 " (if (some? s-avg) (str s-avg " 天") "未量化"))]
+         [antd/tag {:color (cond (nil? c-max) "default" (>= c-max 10000000) "volcano" :else "orange")}
+          (str "成本最大 " (if (some? c-max) (str (yuan c-max) " 元") "未量化"))]
+         [antd/tag {:color (if (some? c-avg) "orange" "default")}
+          (str "成本平均 " (if (some? c-avg) (str (yuan c-avg) " 元") "未量化"))]]])]))
+
+
 (defn- ccb-participation-section
   "只读汇总跨变更的变更控制委员会表决参与情况: 委员会覆盖的变更数, 席位与已投票数与参与率, 在途与停滞变更, 以及每位委员被邀请/已投/欠票负荷; 复用 ccb-tally 口径, 不改变任何表决进度或门控."
   [{:keys [model options]}]
@@ -2953,7 +2992,7 @@
                      ["gates" "Gate评审" [gate-section]]
                      ["risks" "风险与问题" [risk-section risk-coverage-section risk-category-coverage-section risk-escalation-section risk-score-distribution-section risk-stage-distribution-section risk-review-frequency-section risk-review-cadence-section risk-template-section issue-section issue-escalation-section issue-closure-summary-section resolution-coverage-section]]
                      ["meetings" "会议行动" [meeting-section meeting-release-coverage-section meeting-material-readiness-section meeting-attendance-section meeting-cadence-section meeting-type-distribution-section action-closure-section action-priority-distribution-section project-remediation-overview-section due-workload-overview-section owner-due-pressure-section action-section]]
-                     ["changes" "变更控制" [change-section change-closure-section change-type-coverage-section change-impact-coverage-section change-impact-pattern-section change-impact-magnitude-section ccb-participation-section]]
+                     ["changes" "变更控制" [change-section change-closure-section change-type-coverage-section change-impact-coverage-section change-impact-pattern-section change-impact-magnitude-section change-impact-window-section ccb-participation-section]]
                      ["quality" "DQ与局部暂停" [dq-summary-section dq-section node-pause-summary-section pause-section]]])}])
 
 

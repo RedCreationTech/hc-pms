@@ -550,3 +550,52 @@
 
 
 (chain/register-adapter! "charter" {:finalize finalize-charter!})
+
+
+(defn- change-impact-dims
+  "把某变更最新有效版本量化影响归一为两维数值: 工期天数(未申报为 nil), 成本最小单位(未申报为 nil)."
+  [record]
+  {:schedule (when-some [d (:schedule_impact_days record)] d)
+   :cost (let [c (:cost_impact_amount record)]
+           (when (and (some? c) (not= "" c)) (money/amount! c "成本影响")))})
+
+
+(defn- dim-max
+  "按期变更两维数值各自的最高值; 两维皆未申报时返回 nil."
+  [records]
+  (let [dims (map change-impact-dims records)
+        sched (seq (keep :schedule dims))
+        cost (seq (keep :cost dims))]
+    (when (or sched cost)
+      {:schedule (when sched (apply max sched))
+       :cost (when cost (apply max cost))})))
+
+
+(defn- dim-avg
+  "按期已量化两维的算术平均(缺失维不计入分母); 两维皆未申报时返回 nil."
+  [records]
+  (let [dims (map change-impact-dims records)
+        sched (seq (keep :schedule dims))
+        cost (seq (keep :cost dims))]
+    (when (or sched cost)
+      {:schedule (when sched (rm/mean-int (count sched) (reduce + sched)))
+       :cost (when cost (rm/mean-int (count cost) (reduce + cost)))})))
+
+
+(defn change-impact-window
+  "项目级变更量化影响数值窗口只读汇总: 按每个变更最新有效版本(s/latest, 修订链只计最新版), 在 change-impact-magnitude 分档的基础上给出两维已量化数值的极值与算术平均 —— max-schedule-days/max-cost-minor 为项目内最重一项, avg-schedule-days/avg-cost-minor 为已量化记录的均值(未申报该维的记录不计入分母, 两维互不折算汇率). 输出 total/quantified/unquantified(两维皆未量化的纯文字变更)与 high-impact(复用 high-impact? 单一口径). 与分档分布互补: 分档看计数落在哪一档, 本项看数值大小本身. 只读派生, 不落库不投递, 不改变任何变更状态或门控. 键名 kebab-case 无尾随问号."
+  [changes]
+  (let [active (s/latest changes)
+        total (count active)
+        quantified (filterv #(some some? ((juxt :schedule :cost) (change-impact-dims %))) active)
+        max-of (dim-max active)
+        avg-of (dim-avg active)]
+    {:available (pos? total)
+     :total total
+     :quantified (count quantified)
+     :unquantified (- total (count quantified))
+     :max-schedule-days (:schedule max-of)
+     :max-cost-minor (:cost max-of)
+     :avg-schedule-days (:schedule avg-of)
+     :avg-cost-minor (:cost avg-of)
+     :high-impact (count (filterv high-impact? active))}))

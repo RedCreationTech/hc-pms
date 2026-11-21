@@ -2992,3 +2992,25 @@ PORT=3101 HTTP_HOST=127.0.0.1 NREPL_PORT=0 FLOWABLE_ASYNC=false \
 本轮未执行 (如实记录): 保留期天数暂为固定 90 天, 未开放按项目/按类型配置; 未实现真实的归档搬运 (仅给出待归档清单), 也未做归档后的只读检索; MySQL 回归 (本地无实例, 本片完全免迁移).
 
 边界: 本片补齐的是 H18 "正式历史按保留策略归档" 这一具名子能力的**只读派生侧** (保留期分档与待归档清单), 归档动作本身与生产验收仍未实现, 故 H18 行保持 `partial` 不上行.
+
+## H09 变更量化影响数值窗口只读派生 (本轮增补, 2026-11-21)
+
+设计与口径: H09 上一轮用 `change-impact-magnitude` 把变更两维量化影响做成**分档计数分布** (回答"变更都落在哪一档"), 但没有回答"数值本身到底有多大". 本片补上数值侧: 按每个变更**最新有效版本** (`s/latest`, 修订链只计最新版), 给出工期 (天) 与成本 (最小单位) 两维已量化数值的**最大值**与**算术平均**, 外加已量化/纯文字/高影响计数. 与分档分布互补, 且同样只读派生、不落库、不投递、**不构成任何门控**.
+
+领域: `governance/approval.clj` 新增私有 `change-impact-dims` (把某记录两维归一为数值, 未申报为 nil)、`dim-max`/`dim-avg` (分别对工期与成本各自取极值/均值, 该维一条都没有时返回 nil) 与公开 `change-impact-window`. 成本用既有 `money/amount!` 解析 (与 `change-impact-coverage`/`pattern`/`magnitude` 同一口径, 保证 500.50 这类两位小数不丢), 均值用 `rm/mean-int` (denom, sum) 四舍五入到整数最小单位; 两维**互不折算汇率**, 各算各的. `high-impact` 复用写路径私有 `high-impact?` (工期 ≥10 天或成本 ≥100000.00), 与升级门控单一口径对齐不漂移. 输出键: `available/total/quantified/unquantified/max-schedule-days/max-cost-minor/avg-schedule-days/avg-cost-minor/high-impact`.
+
+读模型接线: `governance/workspace` 在 `:change_impact_magnitude` 之后追加 `:change_impact_window`.
+
+前端: `governance.cljs` 新增 `change-impact-window-section` 面板, 挂在"需求与治理 → 变更控制"页签 `change-impact-magnitude-section` 之后: 第一行 变更总数/已量化/纯文字/高影响, 第二行 工期最大/工期平均/成本最大/成本平均; 金额用整数除法 + 两位补零格式化 (`10000000` → `100000.00`), 不走浮点除法避免 `50250.25` 变成 `50250.249999`. 未量化时标签显示"未量化"并以灰底区分.
+
+| 验证 | 实际结果 | 说明 |
+|---|---|---|
+| 治理命名空间测试 | `pms_governance_test` 新 deftest 29 assertions, 0 失败 | `change-impact-window-summarizes-quantified-magnitudes`: 纯函数口径 (两维极值与已量化均值, 未申报该维不计入分母, 两维皆未申报计入纯文字, 空集合 available=false 且极值为 nil); 真实工作区 (登记两维/仅工期/仅文字三条 -> total 3/quantified 2/unquantified 1/max 12 天/avg 9 天/cost max 与 avg 均为 100000.00/高影响 1, 重复读取稳定证明只读; 给两维那条出修订撤销量化 -> 最新版不计入, max 回落 5 天, 成本窗口变 nil, 高影响 0) |
+| 全量回归 | `clojure -J-Xmx1800m -M:test` 869 tests / 8315 assertions, 0 failures / 0 errors (SQLite) | 无回归 |
+| 前端 | `npx shadow-cljs compile app` 0 warnings (4041 files) | 面板编译通过 |
+| cljstyle | 通过 | `approval.clj`、`governance.clj`、`pms_governance_test.clj` 已格式化 |
+| 浏览器 | `tests/e2e/pms-ciwn.spec.js` 1 passed | 界面登记四条变更 (12天/10万、仅工期5天、仅文字、仅成本500.50) -> "变更量化影响数值窗口"面板显示"变更总数 4/已量化 3/纯文字 1/高影响 1/工期最大 12 天/工期平均 9 天/成本最大 100000.00 元/成本平均 50250.25 元" (截图 `reports/ciwn/ciwn-1-panel.png`、`ciwn-2-page.png`) -> GET /governance 回显 `change_impact_window` 逐项一致 (max-cost-minor 10000000, avg-cost-minor 5025025) -> 给两维那条出修订撤销量化 -> 面板回落到"已量化 2/纯文字 2/高影响 0/工期最大 5 天/成本最大 500.50 元" (仅小成本仍在) -> 空态新项目面板提示"暂无项目变更, 登记变更后可在此查看量化影响数值窗口." (截图 `ciwn-3-empty.png`), 无未捕获 JS 错误 |
+
+本轮未执行 (如实记录): 两维之间不做汇率折算与加权综合 (并列呈现, 不发明一个"总影响分数"); 不按时间窗口 (近 N 天/按阶段) 切片; MySQL 回归 (本地无实例, 本片完全免迁移).
+
+边界: 本片是 H09 "影响分析" 的数值侧补充面板, 与覆盖度、模式分布、分档分布三项正交并列. H09 整行仍为 `partial`, 跨系统通知与财务自动应用仍未实现.
