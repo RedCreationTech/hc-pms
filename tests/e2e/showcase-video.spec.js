@@ -52,6 +52,19 @@ async function api(page, method, url, data, expected = 200) {
   return body.data;
 }
 
+// 期望非 200 (阻断/越权) 的原始调用: 返回状态码与响应体, 供演示如实展示服务端阻断.
+async function rawHttp(page, method, url, data) {
+  const token = await page.evaluate(() => localStorage.getItem('ruoyi_token'));
+  const response = await page.request.fetch(url, { method, headers: { Authorization: `Bearer ${token}` }, data });
+  return { status: response.status(), body: await response.json() };
+}
+
+// 治理类命令把项目 id 放在路径中段 (/projects/:id/governance/*), 不能拼在后缀上: 直接用完整路径提交.
+async function mutateAt(page, url, data = {}, expected = 200, method = 'POST') {
+  const project = await api(page, 'GET', base(state.id));
+  return api(page, method, url, { ...data, version: project.version }, expected);
+}
+
 // 项目命令一律先读当前 version 再提交 (服务端乐观锁强制).
 async function mutate(page, id, suffix, data = {}, expected = 200, method = 'POST') {
   const project = await api(page, 'GET', base(id));
@@ -143,7 +156,24 @@ async function login(page, user = 'admin', password = 'admin123') {
 }
 
 // 每场景: 独立上下文录屏 (或干跑截图), beat 记录台词起点并保证句间不重叠.
+// 调试: 前置章节仍要跑 (它们建立 state.id 等项目状态), 只是不录屏/不截图, 用来快速验证后续新增章节.
+const FROM = process.env.SHOWCASE_FROM || null;
+const ORDER = ['01','02','03','04','05','06','07','09','10','11','12','13','14','08'];
+const skipScene = id => FROM && ORDER.indexOf(id) < ORDER.indexOf(FROM);
+
 async function runScene(browser, id, fn) {
+  if (skipScene(id)) {
+    // 静默模式: 走同一套页面操作但不录屏, 保证 state 与后端数据与正式录制一致.
+    const context = await browser.newContext({
+      baseURL: BASE_URL, viewport: { width: 1560, height: 1080 },
+      ...(id === '01' ? {} : { storageState: await adminState() }),
+    });
+    const page = await context.newPage();
+    const noop = async () => {};
+    try { await fn({ page, beat: noop, id }); } finally { await context.close(); }
+    console.log(`scene ${id}: skipped (SHOWCASE_FROM=${FROM})`);
+    return;
+  }
   fs.mkdirSync(RECORD ? RAW : DRY_DIR, { recursive: true });
   const context = await browser.newContext({
     baseURL: BASE_URL,
@@ -634,20 +664,28 @@ test.describe('功能演示视频录制 (showcase)', () => {
 
       await open(page, state.id, '实际工时');
       await beat('06-2');
-      await drawer(page).getByRole('button', { name: '提交实际工时', exact: true }).click();
-      const te = modal(page, '提交实际工时');
-      await fill(te, { work_date: '2026-09-08', hours: '2', note: '设计准备评审' });
-      await choose(page, te, 'task_id', '设计准备 (主计划)');
-      await choose(page, te, 'reviewer_id', state.who.username);
-      await save(page, '提交实际工时');
+      // 提交实际工时: 服务端强制同一天跨项目累计不超过 24 小时 (pms_time_day 按用户+日期预留), 干跑多次会把同一天占满.
+      // 这里逐个候选日期走真实表单提交: 仅当服务端自己返回每日容量 409 时才换日期, 不绕过任何服务端校验.
+      let workDate = null;
+      for (const day of ['2026-09-08', '2026-09-15', '2026-09-22', '2026-09-29']) {
+        await drawer(page).getByRole('button', { name: '提交实际工时', exact: true }).click();
+        const te = modal(page, '提交实际工时');
+        await fill(te, { work_date: day, hours: '2', note: '设计准备评审' });
+        await choose(page, te, 'task_id', '设计准备 (主计划)');
+        await choose(page, te, 'reviewer_id', state.who.username);
+        const body = await save(page, '提交实际工时', 200).catch(() => null);
+        if (body) { workDate = day; break; }
+        await page.keyboard.press('Escape');
+      }
+      expect(workDate, '未找到当日剩余工时容量的演示日期').toBeTruthy();
       // 审核人批准工时 (真实 HTTP: /time-entries/:id/review {version, decision, reason}).
       const times = await asReviewer(page, 'GET', base(state.id) + '/time-entries');
-      const pendingTime = (times.rows || times.entries || []).find(t => (t.status === 'pending' || t.status === 'submitted'));
+      const pendingTime = (times.rows || times.entries || []).find(t => t.work_date === workDate && (t.status === 'pending' || t.status === 'submitted'));
       expect(pendingTime, '待审核工时单').toBeTruthy();
       await asReviewer(page, 'POST', base(state.id) + `/time-entries/${pendingTime.entry_id || pendingTime.id}/review`,
         { decision: 'approved', reason: '核对工作日与任务, 同意' });
       await open(page, state.id, '实际工时');
-      await expect(row(page, '2026-09-08').getByText('已批准')).toBeVisible();
+      await expect(row(page, workDate).getByText('已批准')).toBeVisible();
 
       await open(page, state.id, '项目费用');
       await beat('06-3');
@@ -676,6 +714,216 @@ test.describe('功能演示视频录制 (showcase)', () => {
       await expect(page.getByRole('heading', { name: '项目驾驶舱' }).or(page.getByText('项目总数')).first()).toBeVisible();
       await beat('07-3');
       await expect(page.getByText('已逾期').first()).toBeVisible();
+    });
+
+    // ── 09 售前资料交接 ──
+    await runScene(browser, '09', async ({ page, beat }) => {
+      // 清单编码即产品线, 服务端以项目 contract_no 匹配, 缺省回退 default; 演示项目无合同号, 故以 project_no 作产品线并同时发布 default 兜底.
+      const project = await api(sp, 'GET', base(state.id));
+      const line = project.contract_no || project.project_no;
+      // 已收证据必须是同项目文档: 复用演示项目已上传的证据版本.
+      const evidenceId = state.evidence?.id || state.evidence?.document_id;
+      expect(evidenceId, '演示证据文档').toBeTruthy();
+      const checklist = await api(sp, 'GET', '/api/pms/config/presales-checklist');
+      const published = new Set((checklist.rows || []).filter(r => ['published', 'frozen', 'locked'].includes(r.status)).map(r => r.code));
+      for (const code of [line, 'default']) {
+        if (published.has(code)) continue;
+        const draft = await api(sp, 'POST', '/api/pms/config/presales-checklist', {
+          code, name: `产品线 ${code} 应交资料`, product_line: code,
+          required_docs: ['技术规格书', '外观与接口尺寸图', '客户确认的验收标准', '历史质量问题清单'],
+          optional_docs: ['现场安装环境说明'], reason: '演示: 按产品线发布应交资料清单',
+        });
+        await api(sp, 'POST', `/api/pms/config/presales-checklist/${draft.id}/publish`, { reason: '演示发布' });
+      }
+      const handovers = await api(sp, 'GET', base(state.id) + '/presales');
+      if (!(handovers.rows || []).length) {
+        await mutateAt(sp, `${base(state.id)}/presales`, {
+          title: '售前资料交接: 客户确认版', owner_id: state.who.userId, source: 'local',
+          items: [{ name: '技术规格书', document_ids: [evidenceId] }],
+        });
+      }
+
+      await open(page, state.id, '售前资料交接');
+      await expect(page.getByText('产品线应交资料', { exact: true })).toBeVisible();
+      await beat('09-1');
+      await expect(drawer(page).getByText(/必交: /).first()).toBeVisible({ timeout: 15000 });
+
+      // 缺必交项时提交被服务端阻断并点名缺料 (真实 409), 页面给出提示.
+      const before = await api(sp, 'GET', base(state.id) + '/presales');
+      const record = (before.rows || [])[0];
+      expect(record, '售前资料交接记录').toBeTruthy();
+      const blocked = await rawHttp(sp, 'POST', `${base(state.id)}/presales/${record.record_id}/submit`,
+        { reviewer_id: state.who.userId, version: before.version });
+      expect(blocked.status, `缺料提交应被阻断: ${JSON.stringify(blocked.body)}`).toBe(409);
+      expect(String(blocked.body.msg)).toMatch(/必交|缺/);
+      await beat('09-2');
+      await open(page, state.id, '售前资料交接');
+      await expect(drawer(page).getByText(/缺料|必交/).first()).toBeVisible({ timeout: 15000 });
+      await expect(row(page, '待补交')).toBeVisible();
+      await expect(drawer(page).getByText(/^\d+ \/ \d+$/).first()).toBeVisible();
+
+      // 9-3 台词是补交齐备后由独立审核人批准: 补齐剩余必交项 -> 提交 -> 审核人批准 (全程真实 HTTP).
+      await mutateAt(sp, `${base(state.id)}/presales/${record.record_id}`, {
+        owner_id: state.who.userId,
+        items: [
+          { name: '技术规格书', document_ids: [evidenceId] },
+          { name: '外观与接口尺寸图', document_ids: [evidenceId] },
+          { name: '客户确认的验收标准', document_ids: [evidenceId] },
+          { name: '历史质量问题清单', document_ids: [evidenceId] },
+        ],
+      });
+      await mutateAt(sp, `${base(state.id)}/presales/${record.record_id}/submit`, { reviewer_id: state.who.userId, note: '必交资料已补齐' });
+      await asReviewer(sp, 'POST', base(state.id) + `/presales/${record.record_id}/approve`, { reason: '必交资料齐备, 独立核对通过' });
+
+      await beat('09-3');
+      await open(page, state.id, '售前资料交接');
+      await expect(drawer(page).getByText(/已批准|当前无缺料/).first()).toBeVisible({ timeout: 15000 });
+      await expect(drawer(page).getByText('已收/应交', { exact: true }).first()).toBeVisible();
+    });
+
+    // ── 10 计划技能匹配与执行洞察 ──
+    await runScene(browser, '10', async ({ page, beat }) => {
+      // 10-1/10-2 都在 WBS与排程: 任务技能匹配面板同时给出 "未排人力视为全部缺失" 只读提示 (不阻断保存与提交).
+      // 真实前置: 在一条叶任务上声明所需技能, 再排入一名未声明该技能的项目成员, 让"技能要求/未匹配"来自真实资源档案比对.
+      const task = (await api(sp, 'GET', base(state.id) + '/planning')).tasks.find(t => t.task_type !== 'summary');
+      if (!(task.required_skills || []).length) {
+        // 服务端只接受白名单字段: 不能把读模型整条回传, 只提交设计字段 + 所需技能.
+        const design = Object.fromEntries(['parent_id', 'wbs_code', 'name', 'task_type', 'duration_days', 'owner_id', 'start_date', 'description', 'node_id', 'stage_code']
+          .filter(k => task[k] !== undefined).map(k => [k, task[k]]));
+        await mutate(sp, state.id, `/tasks/${task.task_id}`, { ...design, required_skills: ['装配调试'] }, 200, 'PUT');
+      }
+      const planNow = await api(sp, 'GET', base(state.id) + '/planning');
+      // 人员资源必须关联项目成员, 且只声明另一项技能, 以便真实比对出缺失技能.
+      const memberId = state.who.userId;
+      const resourceId = (planNow.resources || []).find(r => r.resource_type === 'person')?.resource_id
+        || (await mutate(sp, state.id, '/resources', {
+          name: '装配技师', resource_type: 'person', user_id: memberId, skills: ['质量检验'],
+        })).result.resource_id;
+      const allocated = (planNow.allocations || []).some(a => a.task_id === task.task_id);
+      if (!allocated) {
+        await mutate(sp, state.id, '/allocations', { task_id: task.task_id, resource_id: resourceId, hours_per_day: 4 });
+      }
+      await open(page, state.id, '计划与执行', 'WBS与排程');
+      const skillPanel = drawer(page).getByText('任务技能匹配', { exact: true });
+      await skillPanel.scrollIntoViewIfNeeded();
+      await beat('10-1');
+      await expect(skillPanel).toBeVisible();
+      await expect(drawer(page).getByText(/^技能要求 \d+$/).first()).toBeVisible({ timeout: 15000 });
+
+      await beat('10-2');
+      await expect(drawer(page).getByText(/未排人力视为全部缺失/).first()).toBeVisible();
+      await expect(drawer(page).getByText(/^未匹配 \d+$/).first()).toBeVisible();
+
+      // 关键路径与投入缺口面板在 "资源与日历" 页签 (进度卷积只含卷积/挣值/趋势), 且排在一长串只读面板之后, 需先滚动到目标面板.
+      await open(page, state.id, '计划与执行', '资源与日历');
+      const cpPanel = drawer(page).getByText('关键路径投入缺口', { exact: true });
+      await cpPanel.scrollIntoViewIfNeeded();
+      await beat('10-3');
+      await expect(cpPanel).toBeVisible();
+      await expect(drawer(page).getByText(/关键路径投入率/).first()).toBeVisible({ timeout: 15000 });
+      await expect(drawer(page).getByText(/^投入缺口 \d+$/).first()).toBeVisible();
+    });
+
+    // ── 11 治理洞察汇总 ──
+    // 治理页签是抽屉内的二级页签: 必须限定在第二个 tabs 容器内, 否则会命中外层页签.
+    // 治理分区页签: 按名称在所有可见 tablist 里找 (外层项目页签里没有这些名字, 不冲突).
+    const govTab = async (page, name) => {
+      const target = page.locator('[role="tablist"]:visible').getByRole('tab', { name, exact: true });
+      await expect(target).toHaveCount(1);
+      await target.click();
+      await page.waitForLoadState('networkidle');
+    };
+    await runScene(browser, '11', async ({ page, beat }) => {
+      await open(page, state.id, '需求与治理', '章程');
+      await expect(page.locator('[role="tablist"]:visible').getByRole('tab', { name: '章程', exact: true })).toBeVisible({ timeout: 15000 });
+      await beat('11-1');
+      await expect(drawer(page).getByText('项目章程', { exact: true }).first()).toBeVisible({ timeout: 15000 });
+
+      await govTab(page, 'DQ与局部暂停');
+      await expect(drawer(page).getByText(/检验方法|方法已覆盖|暂无/).first()).toBeVisible({ timeout: 15000 });
+      await beat('11-2');
+
+      await govTab(page, '风险与问题');
+      await expect(drawer(page).getByText('风险复审频率分布', { exact: true })).toBeVisible({ timeout: 20000 });
+      await beat('11-3');
+
+      await govTab(page, 'URS与追踪');
+      await expect(drawer(page).getByText('历史资料保留策略', { exact: true })).toBeVisible({ timeout: 20000 });
+      await beat('11-4');
+    });
+
+    // ── 12 受控取消与直发链路 ──
+    await runScene(browser, '12', async ({ page, beat }) => {
+      await open(page, state.id, '取消申请');
+      await expect(page.getByText('取消范围与外部补偿', { exact: true })).toBeVisible({ timeout: 15000 });
+      await beat('12-1');
+      await expect(page.getByText(/批准后立即停止该范围后续下发/)).toBeVisible();
+
+      // 取消必须关联已批准的变更依据: 先真实登记并批准一条变更 (服务端强制), 再登记取消.
+      const change = (await mutateAt(sp, `${base(state.id)}/governance/changes`, {
+        title: '演示: 附件单元改为外购', reason: '客户调整配置',
+        scope_impact: '附件单元整体外购', schedule_impact: '压缩 5 个工作日',
+        cost_impact: '增加采购成本', quality_impact: '沿用原验收标准', resource_impact: '减少内部装配人力',
+        change_type: 'updates',
+      })).result;
+      // 治理命令的项目 id 在路径里: 必须用 base(state.id), 不能只传相对后缀.
+      await mutateAt(sp, `${base(state.id)}/governance/changes/${change.record_id}/submit`, { reviewer_id: state.who.userId });
+      await asReviewer(sp, 'POST', `${base(state.id)}/governance/changes/${change.record_id}/decision`,
+        { decision: 'approved', reason: '影响面已核实' });
+
+      const cancel = (await mutateAt(sp, `${base(state.id)}/cancellations`, {
+        target: 'project', basis_change_id: change.id, reason: '按已批准变更停止附件单元下发',
+      })).result;
+      await mutateAt(sp, `${base(state.id)}/cancellations/${cancel.record_id}/submit`, { reviewer_id: state.who.userId, reason: '影响范围已核实' });
+      await asReviewer(sp, 'POST', `${base(state.id)}/cancellations/${cancel.record_id}/review`,
+        { decision: 'approved', reason: '证据齐备, 同意停止下发' });
+
+      await open(page, state.id, '取消申请');
+      // 真实界面文案: 汇总条 "已批准 / 已停止任务 / 待补偿", 表格 "停止下发" 列显示 "已停止".
+      await expect(drawer(page).getByText(/^已停止任务 \d+$/)).toBeVisible({ timeout: 15000 });
+      await expect(row(page, '已停止')).toBeVisible();
+      await beat('12-2');
+
+      await beat('12-3');
+      await expect(drawer(page).getByText(/^待补偿 \d+$/)).toBeVisible();
+      await expect(drawer(page).getByText('取消范围与外部补偿')).toBeVisible();
+      await expect(drawer(page).getByText(/未配置|外发记录/).first()).toBeVisible();
+
+      await open(page, state.id, '工程交付');
+      await beat('12-4');
+      await expect(page.getByText(/直发|层流罩|交付/).first()).toBeVisible({ timeout: 15000 });
+    });
+
+    // ── 13 平台能力与运行就绪 ──
+    await runScene(browser, '13', async ({ page, beat }) => {
+      await page.goto('/pms/platform');
+      await expect(page.getByText('数据库支持').or(page.getByText('平台能力')).first()).toBeVisible();
+      await beat('13-1');
+
+      await expect(page.getByText('运行就绪核对', { exact: true }).or(page.getByText(/就绪判定/)).first()).toBeVisible({ timeout: 20000 });
+      await beat('13-2');
+      await expect(page.getByText(/探测耗时|数据库连通/).first()).toBeVisible();
+
+      await beat('13-3');
+      await expect(page.getByText(/迁移 \d+\/\d+ 已应用|关键配置/).first()).toBeVisible();
+    });
+
+    // ── 14 搜索审计与通知 ──
+    await runScene(browser, '14', async ({ page, beat }) => {
+      await page.goto('/pms/search');
+      await expect(page.getByPlaceholder('输入关键字')).toBeVisible();
+      await beat('14-1');
+      await page.getByPlaceholder('输入关键字').fill('URS');
+      await page.getByRole('button', { name: /^检\s*索$/ }).click();
+      await expect(page.getByText(/检索结果 \d+/)).toBeVisible({ timeout: 30000 });
+
+      await page.goto('/monitor/operlog');
+      await beat('14-2');
+      await expect(page.getByRole('heading', { name: /操作日志/ }).or(page.getByText('系统模块')).first()).toBeVisible();
+
+      await page.goto('/pms/notifications');
+      await beat('14-3');
+      await expect(page.getByText(/通知|收件箱/).first()).toBeVisible();
     });
 
     // ── 章节间预置: 叶任务完成 + SAT 批准 + SAT 确认 Gate (真实 HTTP) ──

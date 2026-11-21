@@ -46,9 +46,9 @@
   [db]
   (jdbc/execute! db ["INSERT INTO sys_role(role_id,role_name,role_key,role_sort,status,del_flag) VALUES (9900,'Cancel owner','pms-cancel-owner',90,'0','0')"])
   (jdbc/execute! db ["INSERT INTO sys_role_menu(role_id,menu_id) SELECT 9900,menu_id FROM sys_menu WHERE perms LIKE 'pms:%'"])
-  ;; 审批人只有项目只读功能权限, 取消审批不应要求编辑权.
+  ;; 审批人只有项目只读功能权限, 取消审批不应要求编辑权 (pms:project:transition).
   (jdbc/execute! db ["INSERT INTO sys_role(role_id,role_name,role_key,role_sort,status,del_flag) VALUES (9902,'Cancel approver','pms-cancel-approver',91,'0','0')"])
-  (jdbc/execute! db ["INSERT INTO sys_role_menu(role_id,menu_id) SELECT 9902,menu_id FROM sys_menu WHERE perms IN ('pms:project:list','pms:project:query','pms:project:transition','pms:quality:approve')"])
+  (jdbc/execute! db ["INSERT INTO sys_role_menu(role_id,menu_id) SELECT 9902,menu_id FROM sys_menu WHERE perms IN ('pms:project:list','pms:project:query','pms:quality:approve')"])
   (jdbc/execute! db ["INSERT INTO sys_role(role_id,role_name,role_key,role_sort,status,del_flag) VALUES (9903,'Cancel outsider','pms-cancel-outsider',92,'0','0')"])
   (doseq [[id role] [[9901 9900] [9902 9902] [9903 9903]]]
     (jdbc/execute! db ["INSERT INTO sys_user(user_id,dept_id,user_name,nick_name,status,del_flag) VALUES (?,1,?,?,'0','0')"

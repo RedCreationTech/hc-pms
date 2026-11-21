@@ -272,9 +272,11 @@
 
 
 (defn review!
-  "未配置审批策略时的单人独立审核入口, 与策略链互斥."
+  "未配置审批策略时的单人独立审核入口, 与策略链互斥.
+   审核人只需查看项目依据与审批资格 (pms:quality:approve), 与提交/建单的写权限 (pms:project:transition) 分开,
+   否则独立审核人必须同时拥有取消发起权才能审批; 越权仍由 decision-actor! 核验指定审核人."
   [svc actor id rid body]
-  (k/mutate! svc actor id "pms:project:transition" body "cancellation.reviewed" {:write? false}
+  (k/mutate! svc actor id "pms:quality:approve" body "cancellation.reviewed" {:write? false}
              (fn [q project]
                (r/object! body [:version :decision :reason])
                (let [record (g/record! q project kind rid)
