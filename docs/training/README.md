@@ -22,8 +22,8 @@
 - The *file references* predate the BPM restructuring; always check the
   current paths in [../design/design.org](../design/design.org) and
   [../guides/add-new-module.md](../guides/add-new-module.md).
-- The `coverage-report/` subdirectory is a stale Clojure coverage snapshot
-  (2026-06-13); see `test/coverage-report.md` (also archived) and run
-  `bb coverage` for current numbers.
+- The 2026-06-13 Clojure coverage snapshot (`coverage-report/`) and its
+  summary were removed on 2026-11-22; run `bb coverage` for current numbers
+  (`target/coverage/index.html`).
 - `assets/` holds performance experiment data (type-hint benchmarks,
   flamegraph) that is still valid.

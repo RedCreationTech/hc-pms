@@ -1,3 +1,5 @@
+> **历史分镜**: 本文档描述的是 2026-09 版 12 章 / 64 镜头 / 125 字幕的完整流程视频管线 (成片未随仓库发布). 当前对外功能演示改用 `scripts/demo-video/showcase-storyboard.json` 驱动的 14 章 / 45 句管线 (录屏入口 `tests/e2e/showcase-video.spec.js`), 详见 [scripts/demo-video/README.md](../../scripts/demo-video/README.md). 本文档保留作为该管线的设计记录.
+
 # 红创PMS 完整流程演示视频: 分镜与字幕
 
 本文件由 `scripts/demo-video/storyboard_md.js` 从 `scripts/demo-video/storyboard.js` 生成, 请修改数据源后重新生成, 不要直接编辑. 视频用同一个设备订单项目把 PMS 从平台模板走到正式关闭, 与 [演示剧本](14-demo-script.md) 的 37 步一致; 录屏由 `tests/e2e/pms-demo-video.spec.js` 在真实系统上自动完成, 字幕按本分镜逐条出现.

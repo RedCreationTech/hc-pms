@@ -36,7 +36,6 @@ src/clj/com/ruoyi/                   ← 后端源码
 src/cljs/com/ruoyi/frontend/         ← 前端源码
 resources/                           ← 配置,SQL,迁移,静态资源
 test/clj/com/ruoyi/                  ← 测试
-test/coverage-report.md              ← 覆盖率报告
 env/dev/clj/user.clj                 ← 开发环境 REPL 工具函数
 ```
 
@@ -567,15 +566,15 @@ antd 无法自动向 Reagent 函数组件注入 `value`/`onChange`,需要通过 
 | [CHANGELOG.md](./CHANGELOG.md)                       | 版本演进历史(2026-09-20 回溯整理)       |
 | [docs/guides/add-new-module.md](docs/guides/add-new-module.md) | 新增业务模块端到端指南(迁移→SQL→领域→控制器→前端→权限→测试) |
 | [docs/guides/deployment.md](docs/guides/deployment.md) | 部署与运维指南(uberjar 构建,环境变量,双库切换,备份恢复,生产清单) |
-| [ROADMAP.md](./ROADMAP.md)                           | 功能齐平路线图(**已归档**,2026-06)     |
-| [GAP_ANALYSIS.md](./GAP_ANALYSIS.md)                 | RuoYi-Vue 逐项对比分析(**已归档**,2026-06) |
-| [RUOYI_VUE_COMPARISON.md](./RUOYI_VUE_COMPARISON.md) | 更详细的功能对比(**已归档**,2026-06)   |
+| [docs/pms/README.md](docs/pms/README.md)             | PMS 设计与开发基线入口(产品,蓝图,领域,API,验收矩阵) |
+| [docs/pms/11-feature-acceptance-matrix.md](docs/pms/11-feature-acceptance-matrix.md) | 功能验收矩阵: PPT 逐项覆盖与标准 PMS 补全状态 |
 | [build.clj](./build.clj)                             | Uberjar 构建配置                          |
 | [docs/training/](./docs/training/)                   | 5 节开发培训 HTML 课件(基于 6 月代码,BPM 之前) |
 | [docs/design/design.org](./docs/design/design.org)   | **单一设计文档(权威)**:C4 架构视图,ADR 设计决策,数据模型,BPM/办公一体化设计 |
 | [docs/design/BPM_GAP_PLAN.md](./docs/design/BPM_GAP_PLAN.md) | BPM 差距补全规格原文(已汇总至 design.org) |
 | [docs/design/BPM_OA_DESIGN.md](./docs/design/BPM_OA_DESIGN.md) | BPM/OA 顶层设计原文 + 63 条逐日 changelog(已汇总至 design.org) |
-| [test/coverage-report.md](./test/coverage-report.md) | 覆盖率报告(**已归档**,2026-06-13)      |
+
+> 2026-06 时代的 RuoYi-Vue 对比与齐平文档 (ROADMAP / GAP_ANALYSIS / RUOYI_VUE_COMPARISON / ROUYI_VUE_18_FEATURE_GAP_AUDIT / test/coverage-report.md) 已于 2026-11-22 移除, 内容已被 PMS 设计与验收矩阵取代, 需要追溯可查 git 历史.
 
 ---
 

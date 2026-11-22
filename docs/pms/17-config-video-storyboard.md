@@ -1,3 +1,5 @@
+> **历史分镜**: 本文档描述的是组织/菜单/流程配置的专门演示视频管线 (成片未随仓库发布). 当前对外功能演示改用 `scripts/demo-video/showcase-storyboard.json` 驱动的 14 章 / 45 句管线, 本文件保留作为配置类演示的设计记录.
+
 # 红创PMS 组织, 菜单与流程配置演示视频: 分镜与字幕
 
 本文件由 `scripts/demo-video/storyboard_md.js` 从 `scripts/demo-video/storyboard-config.js` 生成 (`DEMO_STORYBOARD=scripts/demo-video/storyboard-config.js`), 请修改数据源后重新生成, 不要直接编辑. 视频在一个全新的演示库上, 以一家公司的多个部门为例, 依次演示: 搭建部门与负责人, 用角色配置菜单/按钮/数据权限并看到权限效果, 在 "审批策略" 中配置多级审批并由不同部门的审批人逐级处理. 录屏由 `tests/e2e/config-demo-video.spec.js` 在真实系统上自动完成; 设计见 [16 权限, 组织与审批流程整改计划](16-permission-org-workflow.md).
