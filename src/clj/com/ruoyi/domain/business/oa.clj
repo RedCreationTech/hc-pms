@@ -9,10 +9,19 @@
   {:query-fn query-fn :db db})
 
 
+(defn- optional-id
+  "把可选的数字参数转成整数; 缺失或非数字时返回 nil.
+   查询串由调用方自由传入, 非数字值不应让列表请求抛 NumberFormatException."
+  [v]
+  (when v
+    (try (Integer/parseInt (str v))
+         (catch NumberFormatException _ nil))))
+
+
 (defn- page-params
   [params]
-  (let [page (or (some-> (get params :page) Integer/parseInt) 1)
-        size (or (some-> (get params :size) Integer/parseInt) 10)]
+  (let [page (or (optional-id (get params :page)) 1)
+        size (or (optional-id (get params :size)) 10)]
     {:page page :size size :offset (* (dec page) size)}))
 
 
@@ -20,7 +29,7 @@
 (defn calendar-list
   [{:keys [query-fn]} params]
   (let [{:keys [offset size]} (page-params params)
-        p {:user_id (when-let [u (get params :user_id)] (Integer/parseInt (str u)))
+        p {:user_id (optional-id (get params :user_id))
            :page_size size :offset offset}]
     {:rows (query-fn :oa/calendar-list p)
      :total (:total (query-fn :oa/calendar-count p))}))
