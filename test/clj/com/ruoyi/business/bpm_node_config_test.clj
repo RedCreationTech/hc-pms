@@ -457,3 +457,121 @@
               (is (some #(= "后续审批" (:name %)) todos) "等待 90 秒后超时 AUTO_PASS 仍未生效")
               (do (Thread/sleep 2500)
                   (recur (inc attempt))))))))))
+
+
+;; ── 2.6 发起人部门负责人 / 多级部门负责人 / 发起人自选 ────────────────────
+;;
+;; 这三个策略此前没有任何测试. 部门负责人取 depts 行的 leader_id(或 leader),
+;; 多级策略向上最多爬 3 级; START_USER_SELECT 读发起时写入的流程变量 startUserSelected.
+
+(defn- dept-with-leader!
+  "建一个部门并指定负责人, 返回 {:dept-id id}."
+  [app h leader-id parent-id]
+  (let [nm (str "PH2部门" (rand-int 1000000))
+        _ (is (= 200 (:code (parse-json (POST app "/api/system/dept"
+                                              {:parent_id (or parent-id 0) :dept_name nm
+                                               :order_num 98 :leader_id leader-id :status "0"} h)))))
+        dl (parse-json (GET app (str "/api/system/dept?dept_name=" nm) {} h))]
+    {:dept-id (:dept_id (first (filter #(= nm (:dept_name %)) (:data dl))))}))
+
+
+(defn- move-user-to-dept!
+  [app h user-id dept-id]
+  (is (= 200 (:code (parse-json (PUT app (str "/api/system/user/" user-id)
+                                    {:dept_id dept-id} h))))))
+
+
+(deftest bpm-phase2-start-user-dept-leader-test
+  (let [app (handler) token (login-token "admin") h (auth-hdr token)
+        starter (ensure-user! app h)
+        leader (ensure-user! app h)
+        {:keys [dept-id]} (dept-with-leader! app h (:user-id leader) nil)]
+    (is (some? dept-id))
+    (move-user-to-dept! app h (:user-id starter) dept-id)
+    (let [cfg {:approve-type "USER" :candidate-strategy "START_USER_DEPT_LEADER"
+               :approve-method "SEQUENTIAL" :assign-empty-handler {:type "TO_ADMIN"}}
+          {:keys [model-id]} (deploy-bpmn! app h (simple-bpmn [(task-el "t1" "发起人部门负责人" cfg)]))
+          pid (start-instance! app (:hdr starter) model-id nil)]
+      (testing "START_USER_DEPT_LEADER: 发起人所属部门的负责人收到待办"
+        (is (some? pid))
+        (is (some #(= "发起人部门负责人" (:name %)) (todo-of app (:hdr leader) pid))
+            "部门负责人未收到待办")
+        (is (empty? (todo-of app (:hdr starter) pid)) "发起人不应收到待办")))))
+
+
+(deftest bpm-phase2-multi-level-dept-leader-test
+  (let [app (handler) token (login-token "admin") h (auth-hdr token)
+        starter (ensure-user! app h)
+        mid-leader (ensure-user! app h)
+        top-leader (ensure-user! app h)
+        top (dept-with-leader! app h (:user-id top-leader) nil)
+        mid (dept-with-leader! app h (:user-id mid-leader) (:dept-id top))]
+    (is (some? (:dept-id mid)))
+    (move-user-to-dept! app h (:user-id starter) (:dept-id mid))
+    (let [cfg {:approve-type "USER" :candidate-strategy "MULTI_LEVEL_DEPT_LEADER"
+               :approve-method "SEQUENTIAL" :assign-empty-handler {:type "TO_ADMIN"}}
+          {:keys [model-id]} (deploy-bpmn! app h (simple-bpmn [(task-el "t1" "多级部门负责人" cfg)]))
+          pid (start-instance! app (:hdr starter) model-id nil)]
+      (testing "MULTI_LEVEL_DEPT_LEADER: 本部门与上级部门负责人同时收到待办"
+        (is (some? pid))
+        (is (some #(= "多级部门负责人" (:name %)) (todo-of app (:hdr mid-leader) pid))
+            "直属部门负责人未收到待办")
+        (is (some #(= "多级部门负责人" (:name %)) (todo-of app (:hdr top-leader) pid))
+            "上级部门负责人未收到待办")))))
+
+
+(deftest bpm-phase2-start-user-select-test
+  (let [app (handler) token (login-token "admin") h (auth-hdr token)
+        picked (ensure-user! app h)
+        cfg {:approve-type "USER" :candidate-strategy "START_USER_SELECT"
+             :approve-method "SEQUENTIAL" :assign-empty-handler {:type "TO_ADMIN"}}
+        {:keys [model-id]} (deploy-bpmn! app h (simple-bpmn [(task-el "t1" "发起人自选" cfg)]))
+        r0 (POST app "/api/business/bpm/instance"
+                 {:model_id model-id
+                  ;; 前端提交的是 user_id(数字), 不是用户名
+                  :form_data {:reason "x" :startUserSelected [(:user-id picked)]}}
+                 h)
+        pid (get-in (parse-json r0) [:data :process-instance-id])]
+    (testing "START_USER_SELECT: 发起时选中的用户收到待办"
+      (is (some? pid))
+      (is (some #(= "发起人自选" (:name %)) (todo-of app (:hdr picked) pid))
+          "被选中用户未收到待办"))))
+
+
+(deftest bpm-phase2-approve-user-select-test
+  (let [app (handler) token (login-token "admin") h (auth-hdr token)
+        picked (ensure-user! app h)
+        other (ensure-user! app h)
+        ;; node-config-prop 用关键字键写 XML, 引擎读回来是字符串键(与设计师一致)
+        t1-cfg {:approve-type "USER" :candidate-strategy "USER"
+                :candidate-param {:user-ids [1]}
+                :approve-method "SEQUENTIAL" :assign-empty-handler {:type "TO_ADMIN"}}
+        t2-cfg {:approve-type "USER" :candidate-strategy "APPROVE_USER_SELECT"
+                :candidate-param {:user-ids [1]}
+                :approve-method "SEQUENTIAL" :assign-empty-handler {:type "TO_ADMIN"}}
+        {:keys [model-id]} (deploy-bpmn! app h (simple-bpmn [(task-el "t1" "一级审批" t1-cfg)
+                                                             (task-el "t2" "二级审批" t2-cfg)]))
+        pid (start-instance! app h model-id nil)
+        t1 (:task-id (first (filter #(= "一级审批" (:name %)) (todo-of app h pid))))]
+    (testing "下一节点是审批人自选(二级审批), 一级审批的 task-detail 让前端出示选择器"
+      (is (true? (get-in (parse-json (GET app (str "/api/business/bpm/task/" t1 "/detail") {} h))
+                         [:data :select-user-require]))))
+    (testing "不指定下一审批人: 走为空策略转交 admin"
+      (let [r (parse-json (POST app (str "/api/business/bpm/task/" t1 "/approve")
+                                {:comment "不指定"} h))]
+        (is (= 200 (:code r)) (pr-str r))
+        (is (some #(= "二级审批" (:name %)) (todo-of app h pid)) "admin 应收到待办")))
+    (testing "二级审批自身没有下一节点, task-detail 不再要求选择"
+      (let [t2 (:task-id (first (filter #(= "二级审批" (:name %)) (todo-of app h pid))))]
+        (is (false? (get-in (parse-json (GET app (str "/api/business/bpm/task/" t2 "/detail") {} h))
+                            [:data :select-user-require])))))
+    (testing "指定下一审批人: 被选中的人收到待办, 其他人没有"
+      (let [pid2 (start-instance! app h model-id nil)
+            t1b (:task-id (first (filter #(= "一级审批" (:name %)) (todo-of app h pid2))))
+            r (parse-json (POST app (str "/api/business/bpm/task/" t1b "/approve")
+                                {:comment "指定" :next_user_ids [(:username picked)]} h))]
+        (is (= 200 (:code r)))
+        (is (some #(= "二级审批" (:name %)) (todo-of app (:hdr picked) pid2))
+            "被选中用户未收到待办")
+        (is (empty? (todo-of app (:hdr other) pid2)) "未被选中用户不应收到待办")
+        (is (empty? (todo-of app h pid2)) "admin 不应收到待办(为空策略未触发)")))))

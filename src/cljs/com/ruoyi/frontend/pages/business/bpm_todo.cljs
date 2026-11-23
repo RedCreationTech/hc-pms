@@ -221,6 +221,8 @@
                                    (:sign-enable form-data)
                                    (#{"approve" "reject"} action)))
         reason-required? (boolean (:reason-require form-data))
+        select-user-require? (boolean (and visible? (= "approve" action)
+                                           (:select-user-require form-data)))
         default-return (or (some #(when (= (:reject-return-node form-data) (:activity-id %)) (:activity-id %))
                                  return-list)
                            (:activity-id (first return-list)))
@@ -292,6 +294,10 @@
                  (user-select users)]
                 [comment-item "抄送说明"]]
         [:<>
+         (when select-user-require?
+           [antd/form-item {:label "下一节点审批人" :name "next_user_ids"
+                            :rules [{:required true :message "请选择下一节点审批人"}]}
+            (user-select users)])
          [comment-item "审批意见" reason-required?]
          (when sign-enable?
            [antd/form-item {:label "手写签名" :required true}

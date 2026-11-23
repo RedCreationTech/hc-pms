@@ -3149,6 +3149,7 @@
                (case action
                  "approve" (upload-sign! (:sign_data values)
                                          #(api/bpm-approve-task task-id (:comment values) %
+                                                                (:next_user_ids values)
                                                                 (ok "审批通过") err))
                  "reject" (upload-sign! (:sign_data values)
                                         #(api/bpm-reject-task task-id (:comment values)

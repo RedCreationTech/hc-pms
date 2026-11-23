@@ -516,6 +516,7 @@
   "把 Flowable Task 对象转成 Clojure map."
   [^Task t]
   {:task-id (.getId t)
+   :task-key (.getTaskDefinitionKey t)
    :name (.getName t)
    :description (.getDescription t)
    :assignee (.getAssignee t)
@@ -686,6 +687,7 @@
       (.setVariableLocal ts task-id "approved" (boolean (:approved variables))))
     (when-let [s (or (:sign-pic-url variables) (:signPicUrl variables))]
       (.setVariableLocal ts task-id "signPicUrl" (str s)))
+    ;; approveUserSelected 要真的落到流程变量(下一节点策略读它), 不能只当任务局部变量
     (.complete ts task-id (vars-map (dissoc variables :comment :sign-pic-url :signPicUrl)))
     ;; Phase 4 Webhook:task_end 统一触发点(失败只记日志);
     ;; 若这是最后一个任务,实例随之结束 → 触发 process_end
@@ -713,15 +715,21 @@
 
 (defn approve!
   "审批通过:完成任务,写入 approved=true.父任务通过前校验无未完成加签子任务.
-   可选 sign-pic-url 作为任务局部变量存储手写签名图 URL."
+   可选 sign-pic-url 作为任务局部变量存储手写签名图 URL.
+   可选 next-user-ids: 本次审批指定的下一节点审批人(用户名),写在完成任务同一个命令里
+   成为流程变量 approveUserSelected,供下一节点 APPROVE_USER_SELECT 策略解析."
   ([^ProcessEngine engine task-id user comment]
    (approve! engine task-id user comment nil))
   ([^ProcessEngine engine task-id user comment sign-pic-url]
+   (approve! engine task-id user comment sign-pic-url nil))
+  ([^ProcessEngine engine task-id user comment sign-pic-url next-user-ids]
    (when (pos? (open-sign-count engine task-id))
      (throw (ex-info "加签任务未完成" {:task-id task-id})))
    (complete* engine task-id user (cond-> {:approved true}
                                     comment (assoc :comment comment)
-                                    sign-pic-url (assoc :sign-pic-url sign-pic-url)))
+                                    sign-pic-url (assoc :sign-pic-url sign-pic-url)
+                                    (seq next-user-ids)
+                                    (assoc :approveUserSelected (mapv str next-user-ids))))
    true))
 
 
@@ -732,24 +740,72 @@
   true)
 
 
-(defn node-config-of
-  "从任务对应 BPMN 节点的 extensionElements 读取 nodeConfig JSON(config round-trip 数据)."
-  [^ProcessEngine engine task]
+(defn- element-config
+  "从 BPMN 元素(FlowElement)的 extensionElements 解析 nodeConfig JSON, 无则 nil."
+  [^org.flowable.bpmn.model.FlowElement el]
   (try
-    (let [repo (.getRepositoryService engine)
-          bpmn (.getBpmnModel repo (.getProcessDefinitionId task))
-          el (.getFlowElement bpmn (.getTaskDefinitionKey task))
-          ext (when el (.getExtensionElements el))
-          props-list (when ext (or (.get ext "flowable:properties") (.get ext "properties")))
-          props (when (and props-list (seq props-list)) (first props-list))
-          children (when props (.getChildElements props))
-          props-children (when children (or (.get children "flowable:property") (.get children "property")))]
+    (let [ext (.getExtensionElements el)
+          nested (fn nested [parent]
+                   (let [c (.getChildElements parent)]
+                     (concat (or (.get c "property") []) (mapcat nested (or (.get c "properties") [])))))
+          props-children (when ext (mapcat nested (or (.get ext "properties") (.get ext "flowable:properties"))))]
       (some (fn [^org.flowable.bpmn.model.ExtensionElement p]
               (when (= "nodeConfig" (.getAttributeValue p nil "name"))
                 (when-let [v (.getAttributeValue p nil "value")]
                   (try (cheshire.core/parse-string v true) (catch Exception _ nil)))))
-            (or props-children [])))
+            props-children))
     (catch Exception _ nil)))
+
+
+(defn- node-config-of-task
+  "读取节点 nodeConfig 的共用实现, task 必须是 Flowable Task 对象."
+  [engine ^org.flowable.task.api.Task task]
+  (try
+    (let [repo (.getRepositoryService engine)
+          bpmn (.getBpmnModel repo (.getProcessDefinitionId task))]
+      (element-config (.getFlowElement bpmn (.getTaskDefinitionKey task))))
+    (catch Exception _ nil)))
+
+
+(defn next-node-config-of
+  "当前任务节点之后的下一个用户任务节点的 nodeConfig(沿出线穿越网关等非用户节点).
+   供 APPROVE_USER_SELECT 场景: 当前审批人办理时指定下一节点审批人."
+  [engine task]
+  (try
+    (let [^org.flowable.task.api.Task t (if (instance? org.flowable.task.api.Task task)
+                                          task
+                                          (some-> (.taskId (.createTaskQuery (.getTaskService engine))
+                                                           (str (or (:task-id task) (:id task))))
+                                                  .singleResult))
+          repo (.getRepositoryService engine)
+          bpmn (.getBpmnModel repo (.getProcessDefinitionId t))
+          start (.getFlowElement bpmn (.getTaskDefinitionKey t))
+          user-task? (fn [^org.flowable.bpmn.model.FlowElement e]
+                       (instance? org.flowable.bpmn.model.UserTask e))
+          next-user-task (fn step [^org.flowable.bpmn.model.FlowElement el seen]
+                           (when (and el (not (seen (.getId el))))
+                             (let [targets (keep #(.getTargetFlowElement ^org.flowable.bpmn.model.SequenceFlow %)
+                                                 (.getOutgoingFlows ^org.flowable.bpmn.model.FlowNode el))]
+                               (or (some #(when (user-task? %) %) targets)
+                                   (some #(step % (conj seen (.getId el))) targets)))))]
+      (when-let [nt (next-user-task start #{})]
+        (element-config nt)))
+    (catch Exception _ nil)))
+
+
+(defn node-config-of
+  "从任务对应 BPMN 节点的 extensionElements 读取 nodeConfig JSON(config round-trip 数据).
+   调用方可以传 Task 对象, 也可以传 task->map 的结果(只要带 :task-id).
+   Flowable 解析 XML 时把 <flowable:properties> 存成不带前缀的键 properties/property,
+   带前缀取不到(曾导致节点配置在任务详情/按钮/意见必填等读取点静默为空)."
+  [engine task]
+  (if (instance? org.flowable.task.api.Task task)
+    (node-config-of-task engine task)
+    (let [tid (or (:task-id task) (:id task))]
+      (when tid
+        (some-> (.taskId (.createTaskQuery (.getTaskService engine)) (str tid))
+                .singleResult
+                (->> (node-config-of-task engine)))))))
 
 
 ;; ── 操作按钮配置(nodeConfig.buttons)────────────────────────────────────
@@ -799,10 +855,10 @@
   [^org.flowable.bpmn.model.FlowElement el]
   (try
     (let [ext (.getExtensionElements el)
-          props-list (when ext (or (.get ext "flowable:properties") (.get ext "properties")))
+          props-list (when ext (or (.get ext "properties") (.get ext "flowable:properties")))
           props (when (and props-list (seq props-list)) (first props-list))
           children (when props (.getChildElements props))
-          props-children (when children (or (.get children "flowable:property") (.get children "property")))]
+          props-children (when children (or (.get children "property") (.get children "flowable:property")))]
       (some (fn [^org.flowable.bpmn.model.ExtensionElement p]
               (when (= "nodeConfig" (.getAttributeValue p nil "name"))
                 (when-let [v (.getAttributeValue p nil "value")]

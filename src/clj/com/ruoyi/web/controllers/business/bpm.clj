@@ -283,12 +283,15 @@
 
 
 (defn approve-task
-  "审批通过.path: :id (task-id), body: {:comment x :sign_pic_url 可选}"
+  "审批通过.path: :id (task-id),
+   body: {:comment x :sign_pic_url 可选 :next_user_ids [用户名] 可选(指定下一节点审批人)}"
   [{:keys [bpm-service]} request]
   (wrap-err #(let [task-id (get-in request [:path-params :id])
                    comment (get-in request [:body-params :comment])
-                   sign-pic-url (get-in request [:body-params :sign_pic_url])]
-               (bpm/task-approve! bpm-service task-id (current-user request) comment sign-pic-url)
+                   sign-pic-url (get-in request [:body-params :sign_pic_url])
+                   next-users (seq (get-in request [:body-params :next_user_ids]))]
+               (bpm/task-approve! bpm-service task-id (current-user request)
+                                  comment sign-pic-url next-users)
                (ok nil))))
 
 

@@ -276,6 +276,15 @@ bpm/core.clj       ← 高层 API:部署/发起/审批/驳回/转办/待办/已�
 | 子表单/富文本/地区组件 | 支持 | 无 | 待评估 |
 | 模板/复制表单 | 支持 | 无 | 待做 |
 
+- **2026-11-23** **审批人自选(APPROVE_USER_SELECT)全链路打通 + 候选人解析缺陷修复**:
+  · 修复 `node-config-of` 读不到 nodeConfig 的 P0 缺陷(Flowable 解析 `<flowable:properties>` 存无前缀键,
+    原代码查 `flowable:properties` 永远为 nil,导致任务详情按钮/签名/意见必填/候选策略全部静默为空);
+  · 修复 `node-config-of` 传 map 时反射解析错误(拆 `node-config-of-task` + `instance?` 分流);
+  · START/APPROVE_USER_SELECT 变量形态统一:发起传 user_id、审批传 user_name,`selected-names` 两端兼容;
+  · 当前审批人办理时,若**下一节点**为 APPROVE_USER_SELECT,审批弹窗渲染"下一节点审批人"多选,
+    提交 `next_user_ids` → `approveUserSelected` 流程变量;新增 `next-node-config-of` 沿出线找下一个用户任务
+    (之前误用当前节点自身配置,导致选择器出现在错误节点);
+  · 修复 START_USER_DEPT_LEADER / MULTI_LEVEL_DEPT_LEADER 部门 id 类型(Long vs String)比较不命中.
 - **2026-08-26 (63)** **界面浅色修复**:
   · 流程设计器强制浅色(bpm-flow-wrap 白色背景,dark 模式也保持浅色画布)
   · 侧边栏从深色(#172033)改为浅色(白色):Sider/Menu 改 light 主题,logo/文字色调整

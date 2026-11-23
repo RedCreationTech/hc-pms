@@ -1089,13 +1089,17 @@
 
 
 (defn bpm-approve-task
-  "审批通过.sign-pic-url 可选:手写签名图 URL."
+  "审批通过.sign-pic-url 可选:手写签名图 URL.
+   next-user-ids 可选(用户名列表):APPROVE_USER_SELECT 节点指定的下一节点审批人."
   ([task-id comment on-success on-error]
    (bpm-approve-task task-id comment nil on-success on-error))
   ([task-id comment sign-pic-url on-success on-error]
+   (bpm-approve-task task-id comment sign-pic-url nil on-success on-error))
+  ([task-id comment sign-pic-url next-user-ids on-success on-error]
    (request {:method :post :uri (str "/business/bpm/task/" task-id "/approve")
              :params (cond-> {:comment comment}
-                       sign-pic-url (assoc :sign_pic_url sign-pic-url))
+                       sign-pic-url (assoc :sign_pic_url sign-pic-url)
+                       (seq next-user-ids) (assoc :next_user_ids next-user-ids))
              :on-success on-success :on-error on-error})))
 
 

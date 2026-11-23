@@ -119,10 +119,26 @@
         user-name-of (fn [id]
                        (:user_name (first (filter #(= (str id) (str (:user_id %))) users))))
         user-names-of (fn [ids] (distinct (vec (keep user-name-of ids))))
+        ;; 自选流程变量两种形态并存: 发起时传 user_id(数字), 审批时传 user_name;
+        ;; 值能匹配用户名就原样保留, 否则按 user_id 换名, 最后只留真实存在的账号
+        by-id (into {} (map (juxt (comp str :user_id) :user_name)) users)
+        by-name (set (keep :user_name users))
+        selected-names (fn [v]
+                         (distinct (vec (filter by-name
+                                                (map #(let [s (str %)]
+                                                        (if (by-name s) s (by-id s)))
+                                                     v)))))
         leaders-of (fn [dept-id]
                      (when-let [d (first (filter #(= (str dept-id) (str (:dept_id %))) depts))]
                        (when-let [leader (or (:leader_id d) (:leader d))]
-                         (user-names-of [leader]))))]
+                         (user-names-of [leader]))))
+    start-user-dept-id (fn [start-user]
+                         (:dept_id (first (filter #(= start-user (str (:user_name %))) users))))
+    ;; 部门 id 可能是 Long 或 String, 一律按字符串比较
+    dept-parent-id (fn [dept-id]
+                     (some (fn [d] (when (= (str dept-id) (str (:dept_id d)))
+                                     (:parent_id d)))
+                           depts))]
     (case strategy
       "INITIATOR_SELF"
       (when (seq start-user) [start-user])
@@ -167,23 +183,23 @@
               (nil? v) nil
               :else [(str v)]))))
       "START_USER_DEPT_LEADER"
-      (when start-user
-        (leaders-of (:dept_id (first (filter #(= start-user (str (:user_name %))) users)))))
+      (when-let [did (start-user-dept-id start-user)]
+        (leaders-of did))
       "MULTI_LEVEL_DEPT_LEADER"
-      (when start-user
-        (loop [did (:dept_id (first (filter #(= start-user (str (:user_name %))) users)))
-               n 0 acc []]
-          (if (or (nil? did) (>= n 3))
-            (distinct acc)
-            (recur (:parent_id (first (filter #(= did (:dept_id %)) depts)))
-                   (inc n)
-                   (concat acc (leaders-of did))))))
+      (when-let [did (start-user-dept-id start-user)]
+        (distinct
+          (loop [did did n 0 acc []]
+            (if (or (nil? did) (>= n 3))
+              acc
+              (recur (dept-parent-id did)
+                     (inc n)
+                     (concat acc (leaders-of did)))))))
       "START_USER_SELECT"
       (let [v (some-> (.getVariable task "startUserSelected") seq)]
-        (when (seq v) (user-names-of v)))
+        (when (seq v) (selected-names v)))
       "APPROVE_USER_SELECT"
       (let [v (some-> (.getVariable task "approveUserSelected") seq)]
-        (when (seq v) (user-names-of v)))
+        (when (seq v) (selected-names v)))
       nil)))
 
 
@@ -930,6 +946,8 @@
                 (bpm/buttons-of node-config bpm/default-transactor-buttons)
                 (bpm/buttons-of node-config))
      :sign-enable (boolean (or (:sign-enable node-config) (:signEnable node-config)))
+     :select-user-require (= "APPROVE_USER_SELECT"
+                             (:candidate-strategy (bpm/next-node-config-of engine task-obj)))
      :reason-require (boolean (or (:reason-require node-config) (:reasonRequire node-config)))
      :reject-return-node (or (:return-node-id reject-handler) (:return-node reject-handler)
                              (:reject-return-node node-config) (:rejectReturnNode node-config))
@@ -1082,12 +1100,13 @@
 
 
 (defn task-approve!
-  "审批通过:意见必填校验(nodeConfig.reason-require)+ 手写签名存任务局部变量."
-  [{:keys [engine]} task-id user comment sign-pic-url]
+  "审批通过:意见必填校验(nodeConfig.reason-require)+ 手写签名存任务局部变量.
+   next-user-ids 非空时一并写入流程变量 approveUserSelected,供下一节点 APPROVE_USER_SELECT 使用."
+  [{:keys [engine]} task-id user comment sign-pic-url next-user-ids]
   (check-task-actor! engine task-id user)
   (when (and (reason-required? engine task-id) (str/blank? (or comment "")))
     (throw (ex-info "当前节点要求填写审批意见" {:task-id task-id})))
-  (bpm/approve! engine task-id user comment sign-pic-url))
+  (bpm/approve! engine task-id user comment sign-pic-url next-user-ids))
 
 
 (defn task-reject!
