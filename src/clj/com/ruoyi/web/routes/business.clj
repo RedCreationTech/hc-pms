@@ -26,8 +26,9 @@
 (defn business-routes
   [{:keys [bpm-service hrm-service oa-service crm-service leave-service reimburse-service mgmt-service query-fn]}]
   ["/business"
-   {:middleware [(auth-mw/auth-middleware {:required? true}) (authz/perms-middleware query-fn)]
-    :swagger {:tags ["办公" "BPM"]}}
+   {:middleware     [(auth-mw/auth-middleware {:required? true}) (authz/perms-middleware query-fn)]
+    :params/parse?  true
+    :swagger        {:tags ["办公" "BPM"]}}
 
    ;; ── 流程分类 ──
    ["/bpm/category"

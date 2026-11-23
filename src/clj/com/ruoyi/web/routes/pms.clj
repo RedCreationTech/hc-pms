@@ -25,8 +25,10 @@
   "注册项目台账,结构,成员,审计与驾驶舱接口."
   [opts]
   (into ["/pms"
-         {:middleware [(auth/auth-middleware {:required? true})]
-          :swagger {:tags ["项目管理"]}}
+         {:middleware      [(auth/auth-middleware {:required? true})]
+          :params/parse?   true
+          :params/priority :query
+          :swagger         {:tags ["项目管理"]}}
          ["/projects"
           ["" {:get (endpoint opts "项目台账" pms/projects)
                :post (endpoint opts "创建项目" pms/create-project)}]

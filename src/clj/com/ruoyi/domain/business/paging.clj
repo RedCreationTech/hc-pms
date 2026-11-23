@@ -10,11 +10,14 @@
 
 (defn optional-id
   "把可选的数字参数转成整数; 缺失或非数字时返回 nil.
-   查询串由调用方自由传入, 非数字值不应让列表请求抛 NumberFormatException."
+   入口中间件已把数字串解析成整数, 这里同时接受整数与字符串,
+   非数字值返回 nil 而不是抛 NumberFormatException."
   [v]
-  (when v
-    (try (Integer/parseInt (str v))
-         (catch NumberFormatException _ nil))))
+  (cond
+    (integer? v) v
+    (nil? v) nil
+    :else (try (Integer/parseInt (str v))
+               (catch NumberFormatException _ nil))))
 
 
 (defn params

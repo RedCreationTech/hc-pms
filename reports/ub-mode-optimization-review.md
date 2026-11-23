@@ -2,9 +2,9 @@
 
 依据: 全量 Cloverage 实测 (883 tests / 8509 assertions, 整体行覆盖 87.26%),
 覆盖率 HTML 的逐行未覆盖数据, 以及对 `src/clj` 的结构化检索.
-工具情况: 环境中 **没有** crapper / dryer / mutator 可执行文件, 下述对应条目
-是用等价手工手段 (覆盖率 HTML 逐行提取, 结构检索, 重复度比对) 得到的,
-不冒充工具输出.
+工具情况: 本次盘点时环境中没有 crapper / dryer / mutator, 对应条目是用等价手工手段
+(覆盖率 HTML 逐行提取, 结构检索, 重复度比对) 得到的. 三件工具随后已安装并跑出真实
+基线, 见文末 "ub-mode 三工具实测基线".
 
 ---
 
@@ -70,19 +70,46 @@ AGENTS.md 规定 "每个 namespace 不超过 500 行, 函数不超过 40 行".
 
 ---
 
-## 三, 边界纪律缺口: 同一类解析散落在各处 (Boundary Discipline / Type System Discipline)
+## 三, 边界纪律缺口: 同一类解析散落在各处 (Boundary Discipline) -- 已完成
 
 "Parse outside data once, where it comes in."
 
-目前查询串在**每个领域函数内部**各自解析:
+### 落地
 
-- `Integer/parseInt` 在 `infra/scheduler.clj:98` 附近还有一份带 `re-matches` 守卫的版本
-  (写法正确, 但又是一种实现).
-- `templates`/`monitor` 等处直接调用 `System/getProperty`, `Runtime/getRuntime` 等
-  环境读取穿插在控制器里.
+- `web/middleware/params.clj` 新增 `wrap-parse-params`, 挂在 `api/route-data` 的中间件链里,
+  只在声明 `:params/parse?` 的路由组上生效:
+  - `/business` 声明 `:params/parse? true` (默认表单优先, multipart 部件原样保留);
+  - `/pms` 声明 `:params/parse? true` + `:params/priority :query` (它的 REST 契约靠 `?page=0`
+    这种查询串做校验, 创建接口的表单又是 JSON 体).
+- `bu/kquery` 改为调用同一个 `parse-params`, 并同时合并 `:params`, 保持 ring 的合并语义;
+  入口已解析时是幂等的, 控制器单测按 string 键构造请求也得到同样结果.
+- 数字串转整数只放行会**往返一致**的值: `007` / `1.0` / `1e3` 保持字符串原样.
 
-**建议**: 一次性在入口 (路由或 `kquery`) 完成 "查询串 → 已解析的强类型 map",
-领域层拿到的就是整数. 这样第 1 条的一类缺陷在入口就被挡住, 而不是每个函数各挡一次.
+### 落地时暴露并修掉的真实回归 (先 Make it Work, 再 Make it Right)
+
+入口解析改变了键类型, 三处按字符串读取查询串的代码随之失效, 全部由全量测试抓到:
+
+1. `bpm/instance/print-data` 读 `:id` 后 `(some-> (get ... :id) Integer/parseInt)` —— 键值已是整数,
+   `Integer/parseInt` 抛异常 => 500. 改用 `paging/optional-id`.
+2. `bpm/sign-list` / `bpm/return-list` 把 `:taskId` 直接交给 Flowable
+   `taskParentTaskId`, 要求字符串; 变成整数后 `Long cannot be cast to String` => 500.
+   改为一律 `str`.
+3. `bu/kquery` 原先只读 `:query-params`; 控制器测试构造的请求把字段放在 `:params`,
+   于是 `name=张` 被静默丢弃. 改为两个来源合并.
+
+`parse-params` 第一版用 `assoc` 一次性写 `:query-params` 与 `:params`, 后者读到的是
+被前者覆盖后的请求 —— 这类求值顺序陷阱已通过先绑定再 `assoc` 消除, 并补了优先级用例.
+
+### 证据
+
+- `test/clj/com/ruoyi/web/middleware/params_test.clj`: 数字串/原样保留/负数/multipart/
+  空请求/两来源优先级/kquery 幂等.
+- 全量 `clojure -M:test`: 891 tests / 8550 assertions, 0 failures 0 errors.
+- 真实 HTTP (admin 令牌): `oa/leave` `bpm/user-group` `hrm/employee` 带
+  `page=abc&size=xyz` 均 200; `pms/projects` 的 `page=0` / `size=101` / `page=abc`
+  均 400 且错误文案正确 (说明查询串真的流到了校验层, 而不是被丢弃后走默认值).
+- 浏览器: 项目中心、请假、报销页面渲染正常.
+- shadow-cljs: 0 warnings.
 
 ---
 
@@ -91,9 +118,8 @@ AGENTS.md 规定 "每个 namespace 不超过 500 行, 函数不超过 40 行".
 `bb coverage` 跑完一次需 **约 75 分钟** (875 tests 全量插桩). 上一轮为了看办公三模块的数字,
 中途尝试了三次参数才成功 (`-n` 同时作用于被测和测试命名空间; `--test-ns` 不存在;
 正确的是 `-t <test-ns-regex>`). 这些参数弯路没有沉淀到文档里, 下次还会再踩.
-
-**建议**: 在 `docs/guides/` 或 `bb.edn` 注释里记录: 全量约 75 分钟, 定向复测用
-`clojure -M:coverage -t "ns-regex" -o target/coverage-x --text`.
+本轮另发现 `bb coverage` 完成后 `target/coverage/*.html` 会被清理, 只剩 `coverage.txt`,
+而 crapper/mutator 的逐行覆盖率**只认 HTML 里的 `forms covered`**. 详见待办第 4 条.
 
 ---
 
@@ -106,12 +132,25 @@ AGENTS.md 规定 "每个 namespace 不超过 500 行, 函数不超过 40 行".
 
 ---
 
-## 建议的落实顺序
+## ub-mode 三工具实测基线 (2026-11-23)
 
-1. **先做第一条** (叶子命名空间 + 7 处替换 + leave/reimburse 的 user_id). 收益: 消除 5 处
-   可触发的 500, 消掉 4 份重复实现, 改动局限在 `domain/business/*`.
-2. 再做第三/四条 (入口解析 + 记录覆盖率命令).
-3. 第二条 (BPM 拆分) 单独排期, 先补行为测试.
-4. 第五条的 authz 测量口径核对.
+| 工具 | 基线 | 说明 |
+|------|------|------|
+| crapper | 1982 个函数, CRAP>10 共 101 个 | bpm 16, bpm.core 13, obs.trace 8; 最高 `resolve-candidate-users` 217.8 |
+| dryer | 632 对相似度 >=0.82 (566 对 =1.00), 69 个文件 | 跨文件 478 对, 同文件 154 对 |
+| mutator | 5762 个变异点 (369 个未被覆盖) | 定点跑受限于覆盖率格式, 见下 |
 
-以上均未改动任何代码, 等你确认范围后再执行.
+第一条完成后 dryer 从 632 降到 620 对.
+
+**mutator 的真实限制**: 它的 Clojure 覆盖率只认 `target/coverage/**/*.html`, 默认试 `clj -M:cov --lcov`,
+本项目没有 `:cov` 别名; `--coverage-command` 也救不回来, 因为命令之后仍从磁盘读 bundle,
+而 HTML 已被清理. 要拿到变异分数需要: 先产出 HTML 覆盖率, 再为每个被测文件指定对应的定向测试命令,
+否则全量测试 × 每个变异点不可行 (单次 `clojure -M:test` 启动就要 22-37 秒).
+
+---
+
+## 落实状态
+
+1. **第一条 (叶子命名空间 + 7 处替换 + leave/reimburse 的 user_id)** -- 已提交 `c9b4851`.
+2. **第三条 (入口解析)** -- 本轮完成, 消掉 3 处真实回归.
+3. 第四条 (记录覆盖率命令) 与第二条 (BPM 拆分)、第五条 (authz 测量口径) 仍待办.

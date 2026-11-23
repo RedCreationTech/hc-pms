@@ -4,6 +4,7 @@
     [clojure.string]
     [com.ruoyi.bpm.core :as bpm-core]
     [com.ruoyi.domain.business.bpm :as bpm]
+    [com.ruoyi.domain.business.paging :as paging]
     [com.ruoyi.web.controllers.business.util :as bu]
     [com.ruoyi.web.middleware.authz :as authz]
     [ring.util.response :as response]))
@@ -187,7 +188,7 @@
 (defn print-data
   "打印数据.query: id(biz_bpm_instance.instance_id); 参与人或流程管理员可打印."
   [{:keys [bpm-service]} request]
-  (wrap-err #(let [id (some-> (get (bu/kquery request) :id) Integer/parseInt)
+  (wrap-err #(let [id (paging/optional-id (get (bu/kquery request) :id))
                    pid (:process_instance_id ((:query-fn bpm-service) :bpm/find-instance-by-id {:instance_id id}))]
                (when pid
                  (bpm/check-instance-viewer! bpm-service pid (current-user request) (manager? request)))
@@ -322,7 +323,7 @@
 (defn sign-list
   "加签子任务列表.query: taskId="
   [{:keys [bpm-service]} request]
-  (wrap-err #(let [task-id (get (bu/kquery request) :taskId)]
+  (wrap-err #(let [task-id (some-> (get (bu/kquery request) :taskId) str)]
                (bpm/check-task-viewer! bpm-service task-id (current-user request) (manager? request))
                (ok {:rows (bpm/task-sign-list bpm-service task-id)}))))
 
@@ -330,7 +331,7 @@
 (defn return-list
   "可退回节点列表.query: taskId="
   [{:keys [bpm-service]} request]
-  (wrap-err #(let [task-id (get (bu/kquery request) :taskId)]
+  (wrap-err #(let [task-id (some-> (get (bu/kquery request) :taskId) str)]
                (bpm/check-task-actor! (:engine bpm-service) task-id (current-user request))
                (ok {:rows (bpm/task-return-list bpm-service task-id)}))))
 

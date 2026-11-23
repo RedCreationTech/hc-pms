@@ -3,6 +3,7 @@
     [com.ruoyi.web.controllers.health :as health]
     [com.ruoyi.web.middleware.exception :as exception]
     [com.ruoyi.web.middleware.formats :as formats]
+    [com.ruoyi.web.middleware.params :as params-mw]
     [com.ruoyi.web.routes.auth :as auth]
     [com.ruoyi.web.routes.business :as business]
     [com.ruoyi.web.routes.captcha :as captcha]
@@ -28,6 +29,7 @@
                 muuntaja/format-request-middleware
                 coercion/coerce-response-middleware
                 coercion/coerce-request-middleware
+                params-mw/wrap-parse-params
                 exception/wrap-exception]})
 
 
