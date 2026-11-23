@@ -1121,21 +1121,36 @@
   (bpm/claim! engine task-id user))
 
 
+(defn- check-target-user!
+  "转办/委派的目标必须是系统中启用且未删除的用户.
+   不校验的话任务会被指派给不存在的用户名: 该用户永远不会登录,
+   任务也不会再出现在任何人的待办里, 流程实例就此卡死."
+  [query-fn task-id to-user]
+  (let [to-user (some-> to-user str str/trim)
+        target (when-not (str/blank? to-user)
+                 (query-fn :find-user-by-name {:user_name to-user}))]
+    (when (nil? target)
+      (throw (ex-info (str "目标用户不存在或已停用: " to-user)
+                      {:task-id task-id :to-user to-user :status 400})))
+    to-user))
+
+
 (defn task-transfer!
-  "转办: 只有当前办理人 (或未认领任务的候选人) 可以转办."
-  [{:keys [engine]} task-id user to-user]
+  "转办: 只有当前办理人 (或未认领任务的候选人) 可以转办, 目标必须是有效用户."
+  [{:keys [engine query-fn]} task-id user to-user]
   (check-task-actor! engine task-id user)
-  (bpm/transfer! engine task-id user to-user))
+  (bpm/transfer! engine task-id user (check-target-user! query-fn task-id to-user)))
 
 
 (defn task-delegate!
-  "委派: 只有当前办理人可以委派, 本人保留为任务所有者."
-  [{:keys [engine]} task-id user to-user]
+  "委派: 只有当前办理人可以委派, 本人保留为任务所有者; 目标必须是有效用户."
+  [{:keys [engine query-fn]} task-id user to-user]
   (check-task-actor! engine task-id user)
-  (let [t (bpm/task-of engine (str task-id))]
+  (let [target (check-target-user! query-fn task-id to-user)
+        t (bpm/task-of engine (str task-id))]
     (when (nil? (:assignee t))
-      (bpm/claim! engine task-id user)))
-  (bpm/delegate! engine task-id to-user))
+      (bpm/claim! engine task-id user))
+    (bpm/delegate! engine task-id target)))
 
 
 (defn task-resolve!
@@ -1247,15 +1262,28 @@
 
 ;; ── Phase 1 审批闭环:加签 / 减签 / 取消 / 撤回 / 抄送 / 可退回节点 ─────
 
+(defn- check-sign-targets!
+  "加签目标必须是系统中已存在的用户.
+   加到不存在的用户名上时子任务无人可办, 只会阻塞后续节点(与转办同样的卡死风险)."
+  [query-fn task-id user-names]
+  (let [targets (mapv str user-names)
+        missing (remove #(query-fn :find-user-by-name {:user_name %}) targets)]
+    (when (seq missing)
+      (throw (ex-info (str "加签用户不存在或已停用: " (str/join ", " missing))
+                      {:task-id task-id :users missing :status 400})))
+    targets))
+
+
 (defn task-create-sign!
-  "加签:仅任务当前办理人可操作.节点配置意见必填时 reason 不能为空."
-  [{:keys [engine]} task-id user-names sign-type reason user]
+  "加签:仅任务当前办理人可操作.节点配置意见必填时 reason 不能为空, 加签人必须是有效用户."
+  [{:keys [engine query-fn]} task-id user-names sign-type reason user]
   (when-not (bpm/task-of engine task-id) (throw (ex-info "任务不存在" {:task-id task-id})))
   (when-not (task-actor? engine task-id user)
     (throw (forbidden "只有任务办理人可以加签" {:task-id task-id})))
   (when (and (reason-required? engine task-id) (str/blank? (or reason "")))
     (throw (ex-info "当前节点要求填写审批意见" {:task-id task-id})))
-  (bpm/create-sign! engine task-id user-names sign-type reason))
+  (bpm/create-sign! engine task-id (check-sign-targets! query-fn task-id user-names)
+                    sign-type reason))
 
 
 (defn task-delete-sign!

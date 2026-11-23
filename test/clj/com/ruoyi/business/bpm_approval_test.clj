@@ -162,6 +162,13 @@
         task1 (:task-id (first (todo-of app h pid)))]
     (is (some? pid))
     (is (some? task1))
+    (testing "加签目标不存在 → 400, 不产生子任务"
+      (let [r (parse-json (POST app "/api/business/bpm/task/create-sign"
+                                {:taskId task1 :userIds ["nosuchuser-xyz"] :type "before" :reason "x"} h))
+            signs (parse-json (GET app (str "/api/business/bpm/task/sign-list?taskId=" task1) {} h))]
+        (is (= 400 (:code r)))
+        (is (re-find #"不存在" (:msg r)))
+        (is (empty? (get-in signs [:data :rows])) "失败的加签不能留下子任务")))
     (testing "加签：创建子任务并出现在加签列表"
       (let [r (parse-json (POST app "/api/business/bpm/task/create-sign"
                                 {:taskId task1 :userIds [username] :type "before" :reason "请协助"} h))

@@ -311,18 +311,20 @@
 
 ;; ── Phase 1 审批闭环:加签 / 减签 / 抄送 / 取消 / 撤回 / 可退回节点 ─────
 (defn create-sign
-  "加签.body: {:taskId x :userIds [] :type before|after :reason x}"
+  "加签.body: {:taskId x :userIds [] :type before|after :reason x}(task-id 亦接受)"
   [{:keys [bpm-service]} request]
-  (wrap-err #(let [{:keys [taskId userIds type reason]} (:body-params request)]
-               (bpm/task-create-sign! bpm-service taskId userIds type reason (current-user request))
+  (wrap-err #(let [{:keys [taskId task-id userIds type reason]} (:body-params request)]
+               (bpm/task-create-sign! bpm-service (or taskId task-id) userIds type reason
+                                      (current-user request))
                (ok nil))))
 
 
 (defn delete-sign
-  "减签.body: {:taskId x :userIds [] :reason x}"
+  "减签.body: {:taskId x :userIds [] :reason x}(task-id 亦接受)"
   [{:keys [bpm-service]} request]
-  (wrap-err #(let [{:keys [taskId userIds reason]} (body-or-query request)]
-               (bpm/task-delete-sign! bpm-service taskId userIds reason (current-user request))
+  (wrap-err #(let [{:keys [taskId task-id userIds reason]} (body-or-query request)]
+               (bpm/task-delete-sign! bpm-service (or taskId task-id) userIds reason
+                                      (current-user request))
                (ok nil))))
 
 

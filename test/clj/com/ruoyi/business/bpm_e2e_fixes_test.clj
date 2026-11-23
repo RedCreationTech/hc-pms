@@ -243,7 +243,24 @@
     (testing "delegate 缺 to_user → 500 提示"
       (let [r (parse-json (POST app (str "/api/business/bpm/task/" t1 "/delegate") {} h))]
         (is (= 500 (:code r)))
-        (is (re-find #"to_user" (:msg r)))))))
+        (is (re-find #"to_user" (:msg r)))))
+    (testing "transfer 目标用户不存在 → 400, 任务仍在原办理人待办里"
+      (let [r (parse-json (POST app (str "/api/business/bpm/task/" t1 "/transfer")
+                                {:to_user "nosuchuser-xyz"} h))]
+        (is (= 400 (:code r)))
+        (is (re-find #"不存在" (:msg r)))
+        (is (some? (first (todo-of app h pid))) "任务不能被指派给不存在的用户")))
+    (testing "delegate 目标用户不存在 → 400, 任务仍可由原办理人办理"
+      (let [r (parse-json (POST app (str "/api/business/bpm/task/" t1 "/delegate")
+                                {:to_user "nosuchuser-xyz"} h))]
+        (is (= 400 (:code r)))
+        (is (= 200 (:code (parse-json (GET app (str "/api/business/bpm/task/" t1 "/detail") {} h))))
+            "任务仍在并仍属于原办理人")))
+    (testing "transfer 到有效用户 → 任务离开原办理人待办"
+      (let [r (parse-json (POST app (str "/api/business/bpm/task/" t1 "/transfer")
+                                {:to_user "admin"} h))]
+        (is (= 200 (:code r)))
+        (is (= "admin" (:assignee (first (todo-of app h pid)))))))))
 
 
 (defn- DELETE
