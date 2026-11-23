@@ -169,21 +169,24 @@
       (clojure.string/replace ">" "&gt;")))
 
 
+(defn- listeners-json
+  "节点监听器配置: create/assign/complete 三事件回调, 可覆盖默认 params."
+  ([url] (listeners-json url (fn [_ev] [{"key" "taskId" "value" "${taskId}"}
+                                         {"key" "event" "value" "${event}"}])))
+  ([url params-of]
+   (json/write-str
+     {"listeners"
+      (into {}
+            (map (fn [ev] [ev {"enable" true "url" url "params" (params-of ev)}]))
+            ["create" "assign" "complete"])})))
+
+
 (defn- listener-bpmn
-  "两节点流程,a1 节点带 nodeConfig.listeners(create/assign/complete 三事件 HTTP 回调)."
-  [key marker url]
-  (let [nc (json/write-str
-             {"listeners"
-              {"create" {"enable" true "url" url
-                         "params" [{"key" "taskId" "value" "${taskId}"}
-                                   {"key" "event" "value" "${event}"}]}
-               "assign" {"enable" true "url" url
-                         "params" [{"key" "taskId" "value" "${taskId}"}
-                                   {"key" "event" "value" "${event}"}]}
-               "complete" {"enable" true "url" url
-                           "params" [{"key" "taskId" "value" "${taskId}"}
-                                     {"key" "event" "value" "${event}"}]}}})
-        ext (str "<extensionElements>"
+  "两节点流程, a1 节点带 nodeConfig.listeners(create/assign/complete 三事件 HTTP 回调).
+   nc 可传入自定义配置 json(用于测响应回写等)."
+  ([key marker url] (listener-bpmn key marker url (listeners-json url)))
+  ([key marker _url nc]
+  (let [ext (str "<extensionElements>"
                  "<flowable:taskListener event=\"create\" delegateExpression=\"${bpmTaskListener}\"/>"
                  "<flowable:taskListener event=\"assignment\" delegateExpression=\"${bpmTaskListener}\"/>"
                  "<flowable:taskListener event=\"complete\" delegateExpression=\"${bpmTaskListener}\"/>"
@@ -201,7 +204,7 @@
          "<sequenceFlow id=\"f1\" sourceRef=\"start\" targetRef=\"a1\"/>"
          "<sequenceFlow id=\"f2\" sourceRef=\"a1\" targetRef=\"a2\"/>"
          "<sequenceFlow id=\"f3\" sourceRef=\"a2\" targetRef=\"end\"/>"
-         "</process></definitions>")))
+         "</process></definitions>"))))
 
 
 (defn- create-model!
@@ -517,4 +520,67 @@
           (let [cp (first (events-of "complete"))]
             (is (some? cp) "complete 事件未触发")
             (is (= t1 (:taskId cp))))))
+      (finally (stop-receiver! receiver)))))
+
+
+;; ── 4.5 响应回写(response-mappings)─────────────────────────────────────
+;;
+;; 接收端点回 {"data":{"level":"vip"}}. 流程只用模型级 webhook 的响应把 level
+;; 写进流程变量, 再由任务结束时的 complete 监听器以 ${level} 转发回来.
+
+(defn- writeback-bpmn
+  "start → a1(admin) → end; a1 挂 create/complete 两个 TaskListener(complete 转发 level)."
+  [key marker nc]
+  (let [ext (str "<extensionElements>"
+                 "<flowable:taskListener event=\"create\" delegateExpression=\"${bpmTaskListener}\"/>"
+                 "<flowable:taskListener event=\"complete\" delegateExpression=\"${bpmTaskListener}\"/>"
+                 "<flowable:properties><flowable:property name=\"nodeConfig\" value=\""
+                 (escape-xml-attr nc) "\"/></flowable:properties></extensionElements>")]
+    (str "<?xml version=\"1.0\"?><definitions xmlns=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" "
+         "xmlns:flowable=\"http://flowable.org/bpmn\" id=\"d\" targetNamespace=\"http://bpmn.io/schema/bpmn\">"
+         "<process id=\"" key "\" name=\"WB" marker "\" isExecutable=\"true\">"
+         "<startEvent id=\"start\"/>"
+         "<userTask id=\"a1\" name=\"回写1" marker "\" flowable:candidateUsers=\"admin\">" ext "</userTask>"
+         "<endEvent id=\"end\"/>"
+         "<sequenceFlow id=\"f1\" sourceRef=\"start\" targetRef=\"a1\"/>"
+         "<sequenceFlow id=\"f2\" sourceRef=\"a1\" targetRef=\"end\"/>"
+         "</process></definitions>")))
+
+
+(defn- writeback-hook
+  [url]
+  {:url url
+   :bodyParams [{"key" "event" "value" "${event}"}]
+   ;; 写上任务局部变量(实例级写入会与引擎当前事务冲突)
+   :responseMappings [{"key" "data.level" "value" "level" "scope" "task"}]})
+
+
+(defn- level-of
+  [receiver event]
+  (some #(when (= event (:event %)) (:level %)) (received-bodies receiver)))
+
+
+(deftest bpm-phase4-webhook-response-mapping-test
+  (let [app (handler) h (auth-hdr (login-token "admin"))
+        receiver (start-receiver!)
+        url (str "http://127.0.0.1:" (:port receiver) "/hook")
+        webhooks {"process_start" (writeback-hook url)}
+        nc (listeners-json url (fn [ev]
+                                 (if (= "complete" ev)
+                                   [{"key" "event" "value" "${event}"}
+                                    {"key" "level" "value" "${level}"}]
+                                   [{"key" "event" "value" "${event}"}])))]
+    (try
+      (let [{:keys [model-id model-key]} (create-model! app h {:webhooks (json/write-str webhooks)})
+            _ (update-bpmn! app h model-id (writeback-bpmn model-key "WB" nc))
+            _ (deploy! app h model-id)
+            pid (:process-instance-id (start-instance! app h model-id {:days 2}))
+            _ (is (some? pid))
+            t1 (:task-id (first (todo-of app h pid)))]
+        (is (some? t1))
+        (testing "模型级 webhook 响应按 JSON 路径写回流程变量"
+          (approve! app h t1)
+          (is (wait-for #(some? (level-of receiver "complete"))) "complete 监听器未收到")
+          (is (= "vip" (level-of receiver "complete"))
+              (str "响应回写未生效, 收到的回调: " (pr-str (received-bodies receiver))))))
       (finally (stop-receiver! receiver)))))

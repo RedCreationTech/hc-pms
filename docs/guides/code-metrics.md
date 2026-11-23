@@ -92,6 +92,14 @@ CRAP = CC^2 x (1 - 覆盖率)^3 + CC. 缺少 HTML 覆盖率时所有函数覆盖
 分数退化成 CC^2 + CC, 整个项目会被误算成上千个函数超标, 最高分会上万.
 不同轮次之间**只能在同一覆盖率口径下比较**, 否则数字没有意义.
 
+### 定向覆盖率的输出目录必须就是 `target/coverage`
+
+`mutator --use-existing-coverage` 只读 `target/coverage`, 用别的输出目录
+(如 `-o target/coverage-bpm`) 它看不到, 会把已覆盖的行也判成 uncovered.
+`target/coverage` 是符号链接也行, mutator 会跟随.
+
+覆盖率过期同样致命: 先跑覆盖率再写测试, 新测试覆盖到的行仍然算 uncovered.
+
 ## 基线 (2026-11-23)
 
 | 指标 | 数值 |
@@ -103,6 +111,12 @@ CRAP = CC^2 x (1 - 覆盖率)^3 + CC. 缺少 HTML 覆盖率时所有函数覆盖
 | 变异点 | 5762 (其中 369 个在当前覆盖率下未被覆盖) |
 
 修正 `domain/business/paging` 之后重复对从 632 降到 620.
+
+变异分数示例 (定向测试, 覆盖率取自 `target/coverage`):
+
+| 文件 | 变异点 | 存活 | 未覆盖 | 分数 |
+|------|--------|------|--------|------|
+| `domain/business/webhook.clj` | 21 | 0 | 0 | 100% |
 
 把 BPM 的 Webhook/节点监听器实现抽到 `domain/business/webhook`, 业务表 JSON 解析抽到
 `domain/business/json_field` 之后仍是 620: BPM 原文件内部的重复基本已被同一次抽取消掉,

@@ -55,7 +55,7 @@
   "P1 响应回写:解析 JSON 响应体,按 response-mappings(JSON 路径 → 流程变量名)
    提取并写流程变量;任何失败只记日志,绝不影响流程."
   [engine pid hook resp]
-  (let [mappings (seq (:response-mappings hook))]
+  (let [mappings (seq (or (:response-mappings hook) (:responseMappings hook)))]
     (when (and mappings (some #(seq (str (:key %))) mappings))
       (try
         (let [data (json/parse-string (str (:body resp)) true)
@@ -122,7 +122,10 @@
 (defn fire-node-listener!
   "节点监听器(nodeConfig.listeners 的 Create/Assign/Complete 三事件):
    触发配置的 HTTP POST,params[] 的值支持固定值或 ${字段}(流程变量 + taskId/实例等).
-   P1:同样支持 response-mappings 响应回写.失败只记日志,绝不影响流程."
+   P1:同样支持 response-mappings 响应回写.失败只记日志,绝不影响流程.
+
+已知限制(与 fire-webhooks! 相同):响应在引擎命令内同步写流程变量,同一实例上若有
+   并发的写操作会命中乐观锁冲突,此时只记日志不回写."
   [{:keys [engine]} event-name ^org.flowable.task.service.delegate.DelegateTask task]
   (let [node-config (bpm/node-config-of engine task)
         listeners (:listeners node-config)
