@@ -566,6 +566,7 @@ antd 无法自动向 Reagent 函数组件注入 `value`/`onChange`,需要通过 
 | [CHANGELOG.md](./CHANGELOG.md)                       | 版本演进历史(2026-09-20 回溯整理)       |
 | [docs/guides/add-new-module.md](docs/guides/add-new-module.md) | 新增业务模块端到端指南(迁移→SQL→领域→控制器→前端→权限→测试) |
 | [docs/guides/deployment.md](docs/guides/deployment.md) | 部署与运维指南(uberjar 构建,环境变量,双库切换,备份恢复,生产清单) |
+| [docs/guides/code-metrics.md](docs/guides/code-metrics.md) | 代码质量度量(crapper CRAP / dryer 重复度 / mutator 变异),工具安装与覆盖率坑 |
 | [docs/pms/README.md](docs/pms/README.md)             | PMS 设计与开发基线入口(产品,蓝图,领域,API,验收矩阵) |
 | [docs/pms/11-feature-acceptance-matrix.md](docs/pms/11-feature-acceptance-matrix.md) | 功能验收矩阵: PPT 逐项覆盖与标准 PMS 补全状态 |
 | [build.clj](./build.clj)                             | Uberjar 构建配置                          |

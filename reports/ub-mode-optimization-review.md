@@ -127,8 +127,12 @@ AGENTS.md 规定 "每个 namespace 不超过 500 行, 函数不超过 40 行".
 
 - `domain/pms/config/catalog.clj` 140 行从未被任何测试触达 (覆盖 0%), 但它是纯数据目录,
   风险低; 若确有引用路径, 一个断言目录完整性/唯一性的测试即可锁住.
-- `web/middleware/authz.clj` 覆盖 0%, 但 `test/clj/com/ruoyi/web/authz_test.clj` 存在 ——
-  这是**测量口径问题** (该测试可能只校验路由声明而不经过中间件函数), 值得核对是否漏测了实际授权路径.
+- `web/middleware/authz.clj` 覆盖 0% —— **已核对, 是测量口径假象**:
+  `test/clj/com/ruoyi/web/authz_test.clj` 从不在 `:require` 里引用 authz 命名空间, 而是经
+  `ring/ring-handler` + 真实 `api/route-data` 走完整路由与中间件链做黑盒验证, 断言覆盖
+  "未声明 :perms 一律拒绝", "无菜单权限 403", "只读权限列表 200 / 新增 403",
+  "撤销菜单权限后下一次请求即失效" 等实际授权路径. cloverage 只统计直接加载该命名空间的测试,
+  因此把整文件记为 0%. 真实授权行为有覆盖, 无需补测.
 
 ---
 

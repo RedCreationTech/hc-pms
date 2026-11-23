@@ -19,6 +19,12 @@
          test      {:doc  "runs tests"
                     :task (clojure {:dir "."} "-M:test")}
 
+         ;; 全量 cloverage 约 75 分钟 (875+ tests, 全量插桩), 不要随手全跑.
+         ;; 定向复测 (cloverage 的 -t 是测试命名空间正则; -n 会同时过滤被测命名空间):
+         ;;   clojure -M:coverage -t "com.ruoyi.business.office-test" -o target/coverage-office --text
+         ;; 注意: 跑完后 target/coverage/*.html 会被清理, 只剩 coverage.txt 与空目录;
+         ;; 而 crapper/mutator 的逐行覆盖率只认 HTML 里的 "forms covered".
+         ;; 需要逐行数据时, 先备份 HTML, 或直接读 coverage.txt 的文件级数字.
          coverage  {:doc  "runs coverage (report at target/coverage/index.html)"
                     :task (clojure {:dir "."} "-M:coverage")}
 
