@@ -2,6 +2,7 @@
   "BPM 管理套件领域服务:用户分组/流程监听器/流程表达式/流程设置 的通用 CRUD.
    4 个模块 CRUD 结构相同,用数据驱动配置复用."
   (:require
+    [com.ruoyi.domain.business.paging :as paging]
     [integrant.core :as ig]))
 
 
@@ -34,13 +35,6 @@
                 :fields [:name :value :description :status :remark]}})
 
 
-(defn- page-params
-  [params]
-  (let [page (or (some-> (get params :page) Integer/parseInt) 1)
-        size (or (some-> (get params :size) Integer/parseInt) 10)]
-    {:page page :size size :offset (* (dec page) size)}))
-
-
 (defn- cfg
   [module]
   (get crud module))
@@ -48,7 +42,7 @@
 
 (defn list-items
   [{:keys [query-fn]} module params]
-  (let [{:keys [offset size]} (page-params params)
+  (let [{:keys [offset size]} (paging/params params)
         c (cfg module)
         p {:name (get params :name) :type (get params :type)
            :page_size size :offset offset}

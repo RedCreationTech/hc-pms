@@ -4,6 +4,7 @@
    process_instance_id 关联,status 随流程推进/结束自动同步."
   (:require
     [com.ruoyi.bpm.core :as bpm]
+    [com.ruoyi.domain.business.paging :as paging]
     [integrant.core :as ig]))
 
 
@@ -13,13 +14,6 @@
 (defmethod ig/init-key :app.business/leave-service
   [_ {:keys [engine query-fn db]}]
   {:engine engine :query-fn query-fn :db db})
-
-
-(defn- page-params
-  [params]
-  (let [page (or (some-> (get params :page) Integer/parseInt) 1)
-        size (or (some-> (get params :size) Integer/parseInt) 10)]
-    {:page page :size size :offset (* (dec page) size)}))
 
 
 (defn- running?
@@ -87,8 +81,8 @@
 
 (defn leave-list
   [{:keys [query-fn] :as svc} params]
-  (let [{:keys [offset size]} (page-params params)
-        p {:user_id (when-let [u (get params :user_id)] (Integer/parseInt (str u)))
+  (let [{:keys [offset size]} (paging/params params)
+        p {:user_id (paging/optional-id (get params :user_id))
            :status (get params :status)
            :page_size size :offset offset}
         rows (query-fn :oa/leave-list p)]

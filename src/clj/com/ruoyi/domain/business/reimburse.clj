@@ -2,6 +2,7 @@
   "报销申请领域服务 -- 复用'业务记录 + BPM 审批流'模式."
   (:require
     [com.ruoyi.bpm.core :as bpm]
+    [com.ruoyi.domain.business.paging :as paging]
     [integrant.core :as ig]))
 
 
@@ -11,13 +12,6 @@
 (defmethod ig/init-key :app.business/reimburse-service
   [_ {:keys [engine query-fn db]}]
   {:engine engine :query-fn query-fn :db db})
-
-
-(defn- page-params
-  [params]
-  (let [page (or (some-> (get params :page) Integer/parseInt) 1)
-        size (or (some-> (get params :size) Integer/parseInt) 10)]
-    {:page page :size size :offset (* (dec page) size)}))
 
 
 (defn- running?
@@ -79,8 +73,8 @@
 
 (defn reimburse-list
   [{:keys [query-fn] :as svc} params]
-  (let [{:keys [offset size]} (page-params params)
-        p {:user_id (when-let [u (get params :user_id)] (Integer/parseInt (str u)))
+  (let [{:keys [offset size]} (paging/params params)
+        p {:user_id (paging/optional-id (get params :user_id))
            :status (get params :status)
            :page_size size :offset offset}
         rows (query-fn :oa/reimburse-list p)]

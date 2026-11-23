@@ -10,6 +10,10 @@
     [com.ruoyi.domain.business.crm :as crm]
     [com.ruoyi.domain.business.hrm :as hrm]
     [com.ruoyi.domain.business.oa :as oa]
+    [com.ruoyi.domain.business.paging :as paging]
+    [com.ruoyi.domain.business.leave :as leave]
+    [com.ruoyi.domain.business.reimburse :as reimburse]
+    [com.ruoyi.domain.business.bpm-mgmt :as bpm-mgmt]
     [com.ruoyi.web.controllers.business.crm :as crm-web]
     [com.ruoyi.web.controllers.business.hrm :as hrm-web]
     [com.ruoyi.web.controllers.business.oa :as oa-web]))
@@ -237,3 +241,68 @@
     (let [[svc _] (recorder (fn [_ _] (throw (ex-info "boom" {}))))
           resp (hrm-web/list-employees {:hrm-service svc} {:query-params {}})]
       (is (= 500 (:code (body-of resp)))))))
+
+;; ── 共用分页归一 (domain.business.paging) ──────────────────────────────
+(deftest paging-params-test
+  (testing "缺失页码与每页数量退化为 1/10"
+    (is (= {:page 1 :size 10 :offset 0} (paging/params {}))))
+  (testing "字符串页码换算成偏移"
+    (is (= {:page 3 :size 20 :offset 40} (paging/params {:page "3" :size "20"}))))
+  (testing "数字类型同样可用"
+    (is (= {:page 2 :size 5 :offset 5} (paging/params {:page 2 :size 5}))))
+  (testing "非数字退化为默认值而不是抛异常"
+    (is (= {:page 1 :size 10 :offset 0} (paging/params {:page "abc" :size "xyz"}))))
+  (testing "零与负数页码按 1 处理, 保证 offset 不为负"
+    (is (= {:page 1 :size 10 :offset 0} (paging/params {:page "0" :size "0"})))
+    (is (= {:page 1 :size 10 :offset 0} (paging/params {:page "-2" :size "-5"})))))
+
+
+(deftest paging-optional-id-test
+  (testing "缺失返回 nil"
+    (is (nil? (paging/optional-id nil))))
+  (testing "字符串与数字都转成整数"
+    (is (= 42 (paging/optional-id "42")))
+    (is (= 42 (paging/optional-id 42))))
+  (testing "非数字返回 nil 而不是抛异常"
+    (is (nil? (paging/optional-id "abc")))
+    (is (nil? (paging/optional-id "")))))
+
+
+;; ── 请假 / 报销 / BPM 管理原本的非法分页参数崩溃 ──────────────────────
+(deftest leave-reimburse-illegal-paging-test
+  (testing "请假列表遇到非数字 page/size 不再抛 NumberFormatException"
+    (let [[svc calls] (recorder default-handler)]
+      (is (map? (leave/leave-list svc {:page "abc" :size "xyz"})))
+      (is (= {:user_id nil :status nil :page_size 10 :offset 0}
+             (second (call-of calls :oa/leave-list))))))
+  (testing "请假列表正常分页与非数字 user_id"
+    (let [[svc calls] (recorder default-handler)]
+      (leave/leave-list svc {:page "2" :size "5" :user_id "7" :status "1"})
+      (is (= {:user_id 7 :status "1" :page_size 5 :offset 5}
+             (second (call-of calls :oa/leave-list)))))
+    (let [[svc calls] (recorder default-handler)]
+      (is (map? (leave/leave-list svc {:user_id "abc"})))
+      (is (nil? (:user_id (second (call-of calls :oa/leave-list)))))))
+  (testing "报销列表遇到非数字 page/size/user_id 不再抛异常"
+    (let [[svc calls] (recorder default-handler)]
+      (is (map? (reimburse/reimburse-list svc {:page "abc" :size "xyz" :user_id "abc"})))
+      (is (= {:user_id nil :status nil :page_size 10 :offset 0}
+             (second (call-of calls :oa/reimburse-list))))))
+  (testing "报销列表正常分页"
+    (let [[svc calls] (recorder default-handler)]
+      (reimburse/reimburse-list svc {:page "3" :size "10" :user_id "9"})
+      (is (= {:user_id 9 :status nil :page_size 10 :offset 20}
+             (second (call-of calls :oa/reimburse-list)))))))
+
+
+(deftest bpm-mgmt-illegal-paging-test
+  (testing "BPM 管理列表遇到非数字分页参数时回退默认值"
+    (let [[svc calls] (recorder default-handler)]
+      (is (map? (bpm-mgmt/list-items svc :user-group {:page "abc" :size "xyz"})))
+      (is (= {:name nil :type nil :page_size 10 :offset 0}
+             (second (call-of calls :bpmmgmt/group-list))))))
+  (testing "BPM 管理列表正常分页"
+    (let [[svc calls] (recorder default-handler)]
+      (bpm-mgmt/list-items svc :user-group {:page "4" :size "25" :name "运维"})
+      (is (= {:name "运维" :type nil :page_size 25 :offset 75}
+             (second (call-of calls :bpmmgmt/group-list)))))))

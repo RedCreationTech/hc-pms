@@ -58,7 +58,7 @@ __pycache__/
 # Demo video artifacts (MP4/SRT/cards/raw): regenerated locally, not committed
 /reports/demo-video/
 
-# Dryer tool metrics (regenerated per analysis run)
+# ub-mode 度量产物 (crapper/dryer/mutator 各自生成, 不入库)
 /.metrics/
 /reports/g16reports/
 /reports/g18platform/
@@ -85,3 +85,4 @@ __pycache__/
 /reports/h10dqra/
 /reports/h12/
 /reports/h19-downaudit/
+/reports/ub-metrics/

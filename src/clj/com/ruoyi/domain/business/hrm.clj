@@ -1,6 +1,7 @@
 (ns com.ruoyi.domain.business.hrm
   "HRM 人力资源领域服务."
   (:require
+    [com.ruoyi.domain.business.paging :as paging]
     [integrant.core :as ig]))
 
 
@@ -9,27 +10,11 @@
   {:query-fn query-fn :db db})
 
 
-(defn- optional-id
-  "把可选的数字参数转成整数; 缺失或非数字时返回 nil.
-   查询串由调用方自由传入, 非数字值不应让列表请求抛 NumberFormatException."
-  [v]
-  (when v
-    (try (Integer/parseInt (str v))
-         (catch NumberFormatException _ nil))))
-
-
-(defn- page-params
-  [params]
-  (let [page (or (optional-id (get params :page)) 1)
-        size (or (optional-id (get params :size)) 10)]
-    {:page page :size size :offset (* (dec page) size)}))
-
-
 (defn employee-list
   [{:keys [query-fn]} params]
-  (let [{:keys [offset size]} (page-params params)
+  (let [{:keys [offset size]} (paging/params params)
         p {:name (get params :name)
-           :dept_id (optional-id (get params :dept_id))
+           :dept_id (paging/optional-id (get params :dept_id))
            :status (get params :status)
            :page_size size :offset offset}]
     {:rows (query-fn :hrm/employee-list p)

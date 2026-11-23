@@ -8,6 +8,7 @@
     [clojure.tools.logging :as log]
     [com.ruoyi.bpm.core :as bpm]
     [com.ruoyi.domain.business.bpm-flow :as bpm-flow]
+    [com.ruoyi.domain.business.paging :as paging]
     [integrant.core :as ig]))
 
 
@@ -344,13 +345,7 @@
     service))
 
 
-;; ── 分页工具 ──────────────────────────────────────────────────────────
-(defn- page-params
-  "统一分页参数."
-  [params]
-  (let [page (or (some-> (get params :page) Integer/parseInt) 1)
-        size (or (some-> (get params :size) Integer/parseInt) 10)]
-    {:page page :size size :offset (* (dec page) size)}))
+
 
 
 (defn- row->json
@@ -445,7 +440,7 @@
 ;; ── 流程分类 ──────────────────────────────────────────────────────────
 (defn category-list
   [{:keys [query-fn]} params]
-  (let [{:keys [offset size]} (page-params params)
+  (let [{:keys [offset size]} (paging/params params)
         p {:name (get params :name) :page_size size :offset offset}]
     {:rows (query-fn :bpm/category-list p)
      :total (:total (query-fn :bpm/category-count p))}))
@@ -513,7 +508,7 @@
   "P1:行附带最新部署时间(deploy_time),可发起人员/部门名简表(start_users/start_depts),
    分类名随 LEFT JOIN 返回;排序按 order_num;前端按 category_id 自行分组."
   [{:keys [engine query-fn]} params]
-  (let [{:keys [offset size]} (page-params params)
+  (let [{:keys [offset size]} (paging/params params)
         p {:model_name (get params :model_name) :category_id (get params :category_id)
            :page_size size :offset offset}
         users (list-all-users query-fn)
@@ -717,7 +712,7 @@
 ;; ── 动态表单 ──────────────────────────────────────────────────────────
 (defn form-list
   [{:keys [query-fn]} params]
-  (let [{:keys [offset size]} (page-params params)
+  (let [{:keys [offset size]} (paging/params params)
         p {:form_name (get params :form_name) :status (get params :status)
            :page_size size :offset offset}]
     {:rows (mapv #(row->json % [:form_json]) (query-fn :bpm/form-list p))
@@ -909,7 +904,7 @@
 
 (defn instance-list
   [{:keys [query-fn]} params]
-  (let [{:keys [offset size]} (page-params params)
+  (let [{:keys [offset size]} (paging/params params)
         p {:starter_id (get params :starter_id) :model_key (get params :model_key)
            :page_size size :offset offset}]
     {:rows (mapv (fn [row]
@@ -1288,7 +1283,7 @@
 (defn copy-page
   "我的抄送分页(当前登录用户)."
   [{:keys [query-fn]} params user]
-  (let [{:keys [offset size]} (page-params params)
+  (let [{:keys [offset size]} (paging/params params)
         p {:user_id user :page_size size :offset offset}]
     {:rows (mapv (fn [row]
                    (let [data (row->json row [:form_data_json])]
@@ -1305,7 +1300,7 @@
    附带模型表单绑定(form_type/form_id/form_name)与部署时间.
    P1:附带分类名(category_name)与发起权限简表(start_users)."
   [{:keys [engine query-fn]} params]
-  (let [{:keys [offset size]} (page-params params)
+  (let [{:keys [offset size]} (paging/params params)
         key (get params :modelKey)
         result (bpm/definition-page engine key offset size)
         model (when (seq key) (query-fn :bpm/find-model-by-key {:model_key key}))
