@@ -3044,24 +3044,29 @@
 
 ;; ─── 办公:BPM 待办/已办 ────────────────────────────────────────────
 (rf/reg-event-fx :bpm/todo-fetch
-                 (fn [{:keys [db]} _]
-                   {:db (assoc-in db [:bpm-todo :loading?] true)
-                    :api/bpm-list-todo nil}))
+                 (fn [{:keys [db]} [_ params]]
+                   (let [params (or params {})
+                         page (or (:page params) 1)
+                         size (or (:size params) 10)]
+                     {:db (assoc-in db [:bpm-todo :loading?] true)
+                      :api/bpm-list-todo {:page page :size size}})))
 
 
 (rf/reg-fx :api/bpm-list-todo
-           (fn [_]
-             (api/bpm-list-todo
-               (fn [r]
-                 (when (= 200 (:code r))
-                   (rf/dispatch [:bpm/todo-set-list (:data r)])))
-               (fn [_] (antd/error! "加载待办失败")))))
+           (fn [params]
+             (api/bpm-list-todo params
+                                (fn [r]
+                                  (when (= 200 (:code r))
+                                    (rf/dispatch [:bpm/todo-set-list (:data r)])))
+                                (fn [_] (antd/error! "加载待办失败")))))
 
 
 (rf/reg-event-db :bpm/todo-set-list
                  (fn [db [_ data]]
                    (let [rows (:rows data [])]
                      (assoc db :bpm-todo {:items rows :total (:total data 0)
+                                          :page (or (:page data) 1)
+                                          :size (or (:size data) 10)
                                           :loading? false :modal-visible? false
                                           :current nil :submitting? false}))))
 
@@ -3307,24 +3312,30 @@
 
 
 (rf/reg-event-fx :bpm/done-fetch
-                 (fn [{:keys [db]} _]
-                   {:db (assoc-in db [:bpm-done :loading?] true)
-                    :api/bpm-list-done nil}))
+                 (fn [{:keys [db]} [_ params]]
+                   (let [params (or params {})
+                         page (or (:page params) 1)
+                         size (or (:size params) 10)]
+                     {:db (assoc-in db [:bpm-done :loading?] true)
+                      :api/bpm-list-done {:page page :size size}})))
 
 
 (rf/reg-fx :api/bpm-list-done
-           (fn [_]
-             (api/bpm-list-done
-               (fn [r]
-                 (when (= 200 (:code r))
-                   (rf/dispatch [:bpm/done-set-list (:data r)])))
-               (fn [_] (antd/error! "加载已办失败")))))
+           (fn [params]
+             (api/bpm-list-done params
+                                (fn [r]
+                                  (when (= 200 (:code r))
+                                    (rf/dispatch [:bpm/done-set-list (:data r)])))
+                                (fn [_] (antd/error! "加载已办失败")))))
 
 
 (rf/reg-event-db :bpm/done-set-list
                  (fn [db [_ data]]
                    (let [rows (:rows data [])]
-                     (assoc db :bpm-done {:items rows :total (count rows) :loading? false}))))
+                     (assoc db :bpm-done {:items rows :total (or (:total data) (count rows))
+                                          :page (or (:page data) 1)
+                                          :size (or (:size data) 10)
+                                          :loading? false}))))
 
 
 ;; ─── 办公:我的流程 ──────────────────────────────────────────────────

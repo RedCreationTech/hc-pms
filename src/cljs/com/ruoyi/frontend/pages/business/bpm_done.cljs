@@ -32,6 +32,8 @@
   []
   (let [items @(rf/subscribe [:bpm-done/items])
         total @(rf/subscribe [:bpm-done/total])
+        page @(rf/subscribe [:bpm-done/page])
+        size @(rf/subscribe [:bpm-done/size])
         loading? @(rf/subscribe [:bpm-done/loading?])]
     ;; 直达本页(刷新/外部链接)时自行拉取一次,不依赖 :navigate 时序
     (hooks/use-effect (fn [] (rf/dispatch [:bpm/done-fetch])) [])
@@ -47,5 +49,7 @@
                   :columns (done-columns)
                   :dataSource (clj->js items)
                   :loading loading?
-                  :pagination {:total total :pageSize 10 :showSizeChanger true
-                               :showTotal (fn [total] (str "共 " total " 条"))}}]]))
+                  :pagination {:total total :pageSize size :current page :showSizeChanger true
+                               :showTotal (fn [total] (str "共 " total " 条"))
+                               :onChange (fn [p s]
+                                           (rf/dispatch [:bpm/done-fetch {:page p :size s}]))}}]]))

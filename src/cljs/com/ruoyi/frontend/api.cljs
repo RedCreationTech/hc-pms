@@ -1071,15 +1071,17 @@
 
 
 (defn bpm-list-todo
-  [on-success on-error]
-  (request {:method :get :uri "/business/bpm/todo"
-            :on-success on-success :on-error on-error}))
+  ([on-success on-error] (bpm-list-todo {} on-success on-error))
+  ([params on-success on-error]
+   (request {:method :get :uri "/business/bpm/todo"
+             :params params :on-success on-success :on-error on-error})))
 
 
 (defn bpm-list-done
-  [on-success on-error]
-  (request {:method :get :uri "/business/bpm/done"
-            :on-success on-success :on-error on-error}))
+  ([on-success on-error] (bpm-list-done {} on-success on-error))
+  ([params on-success on-error]
+   (request {:method :get :uri "/business/bpm/done"
+             :params params :on-success on-success :on-error on-error})))
 
 
 (defn bpm-task-detail

@@ -779,6 +779,8 @@
 ;; ─── 办公:BPM 待办 ──────────────────────────────────────────────────
 (rf/reg-sub :bpm-todo/items (fn [db _] (get-in db [:bpm-todo :items] [])))
 (rf/reg-sub :bpm-todo/total (fn [db _] (get-in db [:bpm-todo :total] 0)))
+(rf/reg-sub :bpm-todo/page (fn [db _] (get-in db [:bpm-todo :page] 1)))
+(rf/reg-sub :bpm-todo/size (fn [db _] (get-in db [:bpm-todo :size] 10)))
 (rf/reg-sub :bpm-todo/loading? (fn [db _] (get-in db [:bpm-todo :loading?] false)))
 (rf/reg-sub :bpm-todo/modal-visible? (fn [db _] (get-in db [:bpm-todo :modal-visible?] false)))
 (rf/reg-sub :bpm-todo/current (fn [db _] (get-in db [:bpm-todo :current] nil)))
@@ -796,6 +798,8 @@
 ;; ─── 办公:BPM 已办 ──────────────────────────────────────────────────
 (rf/reg-sub :bpm-done/items (fn [db _] (get-in db [:bpm-done :items] [])))
 (rf/reg-sub :bpm-done/total (fn [db _] (get-in db [:bpm-done :total] 0)))
+(rf/reg-sub :bpm-done/page (fn [db _] (get-in db [:bpm-done :page] 1)))
+(rf/reg-sub :bpm-done/size (fn [db _] (get-in db [:bpm-done :size] 10)))
 (rf/reg-sub :bpm-done/loading? (fn [db _] (get-in db [:bpm-done :loading?] false)))
 
 

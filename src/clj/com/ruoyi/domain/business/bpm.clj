@@ -954,40 +954,97 @@
      :form {:schema schema :values (:form_data_json inst-data)}}))
 
 
+(defn- memoize-by
+  "按 key-fn 记忆化的单参函数 (null 参数不缓存).
+   列表接口逐行查实例/模型时会重复命中同一条记录, 缓存避免重复 SQL."
+  [f key-fn]
+  (let [cache (atom {})]
+    (fn [x]
+      (if (nil? x)
+        (f x)
+        (if-let [e (find @cache (key-fn x))]
+          (val e)
+          (let [v (f x)]
+            (swap! cache assoc (key-fn x) v)
+            v))))))
+
+
+(defn- todo-row
+  "单条待办行: 任务字段 + 节点按钮配置 + 实例名/单号/摘要."
+  [engine query-fn inst-of model-of t]
+  (let [inst (inst-of (some-> t .getProcessInstanceId str))
+        model (when inst (model-of (:model_id inst)))
+        node-config (bpm/node-config-of engine t)]
+    (assoc (bpm/task->map* t)
+           :buttons (if (= "TRANSACTOR" (get-in node-config [:nodeType]))
+                      (bpm/buttons-of node-config bpm/default-transactor-buttons)
+                      (bpm/buttons-of node-config))
+           :instance-name (:name inst)
+           :bill-code (:bill_code inst)
+           :summary (summary-of query-fn (:summary_fields model)
+                                (:form_id model) (:form_data_json inst)))))
+
+
+(defn- todo-tasks
+  "某人的待办任务查询 (候选人或已认领), 按创建时间倒序."
+  ^org.flowable.task.api.TaskQuery
+  [engine user]
+  (-> (.createTaskQuery (.getTaskService engine))
+      (.taskCandidateOrAssigned user)
+      (.orderByTaskCreateTime)
+      (.desc)))
+
+
+(defn paged-params?
+  "查询参数里是否显式给了 page 或 size (决定列表接口是否分页).
+   分页与否只看显式参数: 调用方传 {} 时保持\"返回全部\"的旧语义."
+  [params]
+  (boolean (or (some? (get params :page)) (some? (get params :size)))))
+
+
 (defn todo-list-with-buttons
   "某人待办(候选人或已认领),每行附带当前节点操作按钮配置(Buttons),
-   实例名/单号与模型摘要(summary);办理人节点默认按钮为\"办理\"."
-  [{:keys [engine query-fn]} user]
-  (let [ts (.getTaskService engine)
-        tasks (.list (.taskCandidateOrAssigned (.createTaskQuery ts) user))]
-    (mapv (fn [^org.flowable.task.api.Task t]
-            (let [inst (jf/parse-columns (query-fn :bpm/find-instance-by-pid
-                                            {:process_instance_id (.getProcessInstanceId t)})
-                                  [:form_data_json])
-                  model (when inst (query-fn :bpm/find-model-by-id {:model_id (:model_id inst)}))
-                  node-config (bpm/node-config-of engine t)]
-              (assoc (bpm/task->map* t)
-                     :buttons (if (= "TRANSACTOR" (get-in node-config [:nodeType]))
-                                (bpm/buttons-of node-config bpm/default-transactor-buttons)
-                                (bpm/buttons-of node-config))
-                     :instance-name (:name inst)
-                     :bill-code (:bill_code inst)
-                     :summary (summary-of query-fn (:summary_fields model)
-                                          (:form_id model) (:form_data_json inst)))))
-          tasks)))
+   实例名/单号与模型摘要(summary);办理人节点默认按钮为\"办理\".
+   params 支持 :page/:size (与其它列表接口一致, 缺省全部返回)."
+  ([service user] (todo-list-with-buttons service user {}))
+  ([{:keys [engine query-fn]} user params]
+   (let [{:keys [page size offset]} (paging/params params)
+         paged? (paged-params? params)
+         q (todo-tasks engine user)
+         tasks (if paged? (.listPage q offset size) (.list q))
+         inst-of (memoize-by #(some-> (query-fn :bpm/find-instance-by-pid
+                                                {:process_instance_id %})
+                                      (jf/parse-columns [:form_data_json]))
+                             identity)
+         model-of (memoize-by #(query-fn :bpm/find-model-by-id {:model_id %}) identity)]
+     {:rows (mapv (partial todo-row engine query-fn inst-of model-of) tasks)
+      :total (.count (todo-tasks engine user))
+      :page (when paged? page) :size (when paged? size)})))
+
 
 
 (defn done-list-with-model-flags
   "某人已办(Flowable 历史),每行附带所属模型的权限开关 allow_cancel/allow_withdraw
-   (P0-4:前端据此显隐撤回按钮).实例/模型缺失时默认允许."
-  [{:keys [engine query-fn]} user]
-  (mapv (fn [row]
-          (let [inst (query-fn :bpm/find-instance-by-pid {:process_instance_id (:process-instance-id row)})
-                model (when inst (query-fn :bpm/find-model-by-id {:model_id (:model_id inst)}))]
-            (assoc row
-                   :allow_cancel (or (:allow_cancel model) "1")
-                   :allow_withdraw (or (:allow_withdraw model) "1"))))
-        (bpm/done-list engine user)))
+   (P0-4:前端据此显隐撤回按钮).实例/模型缺失时默认允许.
+   params 支持 :page/:size; 返回 {:rows :total :page :size}."
+  ([service user] (done-list-with-model-flags service user {}))
+  ([{:keys [engine query-fn]} user params]
+   (let [{:keys [page size offset]} (paging/params params)
+         paged? (paged-params? params)
+         rows (if paged?
+                (bpm/done-list engine user {:limit size :offset offset})
+                (bpm/done-list engine user))
+         inst-of (memoize-by #(query-fn :bpm/find-instance-by-pid {:process_instance_id %}) identity)
+         model-of (memoize-by #(query-fn :bpm/find-model-by-id {:model_id %}) identity)]
+     {:rows (mapv (fn [row]
+                    (let [inst (inst-of (some-> (:process-instance-id row) str))
+                          model (when inst (model-of (:model_id inst)))]
+                      (assoc row
+                             :allow_cancel (or (:allow_cancel model) "1")
+                             :allow_withdraw (or (:allow_withdraw model) "1"))))
+                  rows)
+      :total (bpm/done-count engine user)
+      :page (when paged? page) :size (when paged? size)})))
 
 
 ;; ── 任务与实例的归属校验 ─────────────────────────────────────────────

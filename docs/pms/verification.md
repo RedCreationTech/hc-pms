@@ -3155,3 +3155,20 @@ down 为空操作但迁移确实改了结构 (回退后旧代码读不到已删�
 | 全量后端回归 | 875 tests / 8467 assertions, **0 failures, 0 errors** |
 
 未覆盖: MySQL 目标环境仍未连上 (本机无 MySQL 实例), MySQL 侧的两处 `DROP INDEX ... ON` 修复只做了语法修正, **未在真实 MySQL 上执行过**, 因此 H19 整行仍为 `partial`, 不因本片上行.
+
+## BPM 待办/已办服务端分页 (本轮, 2026-11-23)
+
+范围与取舍: BPM 深测发现 `/api/business/bpm/todo` 与 `/api/business/bpm/done` 完全忽略 `page`/`size`(违反 AGENTS 7.3), 且逐行查实例与模型形成 N+1. 本轮只修这两个列表接口的分页与逐行查询放大, 不改审批/加签/抄送等业务语义; 分页与否只看是否显式传参, 不传时保持"返回全部"旧语义以免影响既有调用方.
+
+设计要点: `bpm/core` 新增 `done-count`, `done-list` 改为 2 arity(按结束时间倒序, `{:limit :offset}` 走 Flowable `listPage`); 领域层 `todo-list-with-buttons` / `done-list-with-model-flags` 加 params arity 并返回 `{:rows :total :page :size}`(`total` 为全量查询计数, 不是当页条数), 逐行实例/模型查询用 `memoize-by` 按 `process-instance-id` / `model_id` 记忆化; 非法参数由 `paging/params` 退化为 1/10; 前端待办/已办页脚改服务端分页并取接口 `total`(原取当页行数).
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| 真实 HTTP 计时 (dev, SQLite + H2) | 已办 `page=1&size=3` 78.7s -> 0.63s | 同一 admin 账号 3132 条历史已办; 修复前请求 30s 超时等同不可用, 修复后首屏秒回 |
+| 真实 HTTP 分页语义 | page=1&size=2 返回 2 行 / total 85; page=2&size=5 返回 5 行 / page 2; 不传参返回 85 行且 page/size 为 null; `page=abc&size=-1` 退化为 1/10 且不报 500 | 待办 85 条(含测试残留) |
+| BPM 回归测试 (SQLite) | 54 tests / 763 assertions 全绿(既有 8 文件), 新增 `bpm_paging_test.clj` 覆盖分页 / 全量 total / 非法参数 / 已办倒序 / 模型权限开关保留 | 运行前后端已停, 避免 H2 文件锁 |
+| 全量回归 (CLI SQLite) | 899 tests / 8637 assertions, 0 failures/errors | `clojure -M:test`, 分页改动未影响其它模块 |
+| 前端编译 | 0 warnings | shadow-cljs watch, 修改 api/events/subs/两个页面后增量编译 |
+| Chrome 浏览器 (Playwright) | 1 spec 2 passed | `tests/e2e/bpm-todo-done-paging.spec.js`: API 建两节点模型并发起 3 次实例 -> 待办页脚"共 N 条"与接口 total 一致, 首页行数 = min(10, total), 翻到第 2 页行数正确, 切换"20 条/页"后行数与页脚同步; 已办同口径; 截图 `reports/bpm-todo-done-paging/01..05` |
+
+本轮未执行 (如实记录): 待办/已办的按状态或流程名过滤、导出、按任务名称排序均未提供; `total` 为每次请求的实时 `count`, 未做缓存; 历史已办数量增长后单页仍要 2 次 SQL/行, 逐行只做了同实例去重.

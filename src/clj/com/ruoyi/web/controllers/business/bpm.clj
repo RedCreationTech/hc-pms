@@ -263,16 +263,19 @@
 
 ;; ── 任务(待办/已办/审批)────────────────────────────────────────────
 (defn list-todo
+  "我的待办.query: page size (缺省按 page=1,size=10 分页)"
   [{:keys [bpm-service]} request]
-  (wrap-err #(let [user (current-user request)
-                   rows (bpm/todo-list-with-buttons bpm-service user)]
-               (ok {:rows rows
-                    :total (count rows)}))))
+  (let [user (current-user request)
+        params (bu/kquery request)]
+    (wrap-err #(ok (bpm/todo-list-with-buttons bpm-service user params)))))
 
 
 (defn list-done
+  "我的已办.query: page size (缺省按 page=1,size=10 分页)"
   [{:keys [bpm-service]} request]
-  (wrap-err #(ok {:rows (bpm/done-list-with-model-flags bpm-service (current-user request))})))
+  (let [user (current-user request)
+        params (bu/kquery request)]
+    (wrap-err #(ok (bpm/done-list-with-model-flags bpm-service user params)))))
 
 
 (defn task-detail

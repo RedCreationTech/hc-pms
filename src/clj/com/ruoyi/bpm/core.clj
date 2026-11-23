@@ -575,21 +575,43 @@
                                    process-instance-id))))
 
 
-(defn done-list
-  "某人已办(历史已完成任务)."
+(defn- historic-done-query
+  "某人已完成历史任务的查询 (按结束时间倒序)."
+  ^org.flowable.task.api.history.HistoricTaskInstanceQuery
   [^ProcessEngine engine user]
-  (let [hs (.getHistoryService engine)
-        q (-> (.createHistoricTaskInstanceQuery hs)
-              (.taskAssignee user)
-              (.finished))]
-    (mapv (fn [h]
-            {:task-id (.getId h)
-             :name (.getName h)
-             :assignee (.getAssignee h)
-             :process-instance-id (.getProcessInstanceId h)
-             :start-time (timestamp->str (.getStartTime h))
-             :end-time (timestamp->str (.getEndTime h))})
-          (.list q))))
+  (let [hs (.getHistoryService engine)]
+    (-> (.createHistoricTaskInstanceQuery hs)
+        (.taskAssignee user)
+        (.finished)
+        (.orderByHistoricTaskInstanceEndTime)
+        (.desc))))
+
+
+(defn done-list
+  "某人已办(历史已完成任务), 按结束时间倒序.
+   不传分页参数时返回全部 (兼容旧调用); 传 limit 时最多返回 limit 行, 传 offset 时先跳过 offset 行."
+  ([engine user] (done-list engine user {}))
+  ([^ProcessEngine engine user {:keys [limit offset]}]
+   (let [q (historic-done-query engine user)
+         rows (if (and offset (pos? (long offset)))
+                (.listPage q (int offset) (int (if (and limit (pos? (long limit)))
+                                                 (long limit) 1000000)))
+                (.list q))
+         rows (if (and limit (pos? (long limit))) (take (int limit) rows) rows)]
+     (mapv (fn [h]
+             {:task-id (.getId h)
+              :name (.getName h)
+              :assignee (.getAssignee h)
+              :process-instance-id (.getProcessInstanceId h)
+              :start-time (timestamp->str (.getStartTime h))
+              :end-time (timestamp->str (.getEndTime h))})
+           rows))))
+
+
+(defn done-count
+  "某人已办(历史已完成任务)总数."
+  [^ProcessEngine engine user]
+  (.count (historic-done-query engine user)))
 
 
 (defn claim!

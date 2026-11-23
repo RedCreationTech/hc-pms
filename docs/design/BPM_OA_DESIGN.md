@@ -276,6 +276,21 @@ bpm/core.clj       ← 高层 API:部署/发起/审批/驳回/转办/待办/已�
 | 子表单/富文本/地区组件 | 支持 | 无 | 待评估 |
 | 模板/复制表单 | 支持 | 无 | 待做 |
 
+- **2026-11-23 (2)** **待办/已办列表服务端分页**:
+  · `/bpm/todo` 与 `/bpm/done` 之前完全忽略 page/size:`.list` 取全量,且每行再跑 2 条 SQL
+    (`find-instance-by-pid` + `find-model-by-id`)加一次 BPMN 模型解析.实测 admin 3132 条已办时
+    `/bpm/done` 要 **78 秒**(前端 30s 超时等同不可用),41 条待办耗时 2.5s;
+  · `bpm/core` 新增 `done-count`,并把 `done-list` 改为 2 arity:按结束时间倒序,`{:limit :offset}` 走
+    `listPage`;`todo-list-with-buttons` / `done-list-with-model-flags` 加 params arity,
+    返回 `{:rows :total :page :size}`(`total` 是全量,不是当页条数);
+  · 逐行查询按 `process-instance-id` / `model-id` 记忆化(`memoize-by`),同一实例的多条任务只查一次库;
+  · 分页与否只看**是否显式传 page/size**,不传时保持"返回全部"旧语义(`page/size` 为 nil),避免
+    既有调用方行为变化;非法值(`page=abc&size=-1`)由 `paging/params` 退化为 1/10;
+  · 前端 `bpm-list-todo` / `bpm-list-done` 加 params arity,待办/已办页脚改服务端分页(`onChange` 带
+    `{:page :size}` 重新请求),`total` 取接口值(原来取当页行数,已办页脚永远显示 10);
+  · 实测:已办 `page=1&size=3` **78s → 0.63s**;待办首屏不再随累计实例线性变慢.
+  · 回归:`test/clj/com/ruoyi/business/bpm_paging_test.clj`(分页/全量 total/非法参数/已办倒序),
+    E2E `tests/e2e/bpm-todo-done-paging.spec.js`(页脚"共 N 条"、翻页行数、切换每页条数).
 - **2026-11-23** **审批人自选(APPROVE_USER_SELECT)全链路打通 + 候选人解析缺陷修复**:
   · 修复 `node-config-of` 读不到 nodeConfig 的 P0 缺陷(Flowable 解析 `<flowable:properties>` 存无前缀键,
     原代码查 `flowable:properties` 永远为 nil,导致任务详情按钮/签名/意见必填/候选策略全部静默为空);

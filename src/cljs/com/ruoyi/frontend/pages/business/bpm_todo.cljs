@@ -401,6 +401,8 @@
   []
   (let [items @(rf/subscribe [:bpm-todo/items])
         total @(rf/subscribe [:bpm-todo/total])
+        page @(rf/subscribe [:bpm-todo/page])
+        size @(rf/subscribe [:bpm-todo/size])
         loading? @(rf/subscribe [:bpm-todo/loading?])]
     (r/with-let [ops-visible (r/atom false)
                  ops-task (r/atom nil)
@@ -448,8 +450,10 @@
                               :columns (task-columns open-ops open-detail (:user_name @(rf/subscribe [:auth/user])))
                               :dataSource (clj->js items)
                               :loading loading?
-                              :pagination {:total total :pageSize 10 :showSizeChanger true
-                                           :showTotal (fn [total] (str "共 " total " 条"))}}]
+                              :pagination {:total total :pageSize size :current page :showSizeChanger true
+                                           :showTotal (fn [total] (str "共 " total " 条"))
+                                           :onChange (fn [p s]
+                                                       (rf/dispatch [:bpm/todo-fetch {:page p :size s}]))}}]
                  [approve-modal @users]
                  [ops-modal {:task @ops-task :type @ops-type :to-user @ops-user
                              :users @users :visible? @ops-visible
