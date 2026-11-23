@@ -94,9 +94,21 @@ test('BPM 流程设计器：条件规则编辑器 + 字段权限截图', async (
   // 选动态表单（leaveApproval 已关联请假申请单）
   await wrap.locator('.ant-radio-wrapper').filter({ hasText: '动态表单' }).click();
   await page.waitForTimeout(600);
-  await wrap.locator('.ant-select:visible').first().click();
-  await page.waitForTimeout(800);
-  await page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option').first().click();
-  await page.waitForTimeout(1200);
+  // 字段权限区的每行各有一个下拉（可编辑/只读/隐藏），下拉框在行内而不是页面第一个
+  const permSelect = wrap.getByText('字段权限').first()
+    .locator('xpath=ancestor::div[1]/following-sibling::div[1]//div[contains(@class,"ant-select")]').first();
+  const hasPermSelect = (await permSelect.count()) > 0;
+  if (hasPermSelect) {
+    await permSelect.scrollIntoViewIfNeeded();
+    await permSelect.click();
+    await page.waitForTimeout(600);
+    const opt = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option').first();
+    if (await opt.count() > 0) {
+      await opt.click();
+      await page.waitForTimeout(800);
+    } else {
+      await page.keyboard.press('Escape');
+    }
+  }
   await shot(page, '27-字段权限配置');
 });
