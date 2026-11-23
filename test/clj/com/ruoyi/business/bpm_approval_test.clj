@@ -156,7 +156,7 @@
 
 (deftest bpm-phase1-sign-withdraw-return-test
   (let [app (handler) token (login-token "admin") h (auth-hdr token)
-        {:keys [username hdr] :as u} (ensure-user! app h)
+        {:keys [username hdr]} (ensure-user! app h)
         {:keys [model-id]} (deploy-test-model! app h nil)
         pid (start-instance! app h model-id)
         task1 (:task-id (first (todo-of app h pid)))]
@@ -215,6 +215,14 @@
             rl (parse-json (GET app (str "/api/business/bpm/task/return-list?taskId=" task2) {} h))]
         (is (some? task2))
         (is (some #(= "approve1" (:activity-id %)) (get-in rl [:data :rows])))))
+    (testing "驳回：退回节点不存在 → 400 且任务仍在, 流程不被破坏"
+      (let [task2 (:task-id (first (todo-of app h pid)))
+            r (parse-json (POST app (str "/api/business/bpm/task/" task2 "/reject")
+                                {:comment "x" :return_node_id "nosuchnode"} h))]
+        (is (= 400 (:code r)))
+        (is (re-find #"目标节点不存在" (:msg r)))
+        (is (some #(= (str task2) (:task-id %)) (todo-of app h pid))
+            "非法退回节点不能把任务弄丢")))
     (testing "驳回：选择 return-list 节点退回"
       (let [task2 (:task-id (first (todo-of app h pid)))
             r (parse-json (POST app (str "/api/business/bpm/task/" task2 "/reject")

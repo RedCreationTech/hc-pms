@@ -1101,8 +1101,28 @@
 
 
 (defn- move-to-activity!
-  "把流程实例从当前活动迁移到目标活动(驳回到指定节点)."
+  "把流程实例从当前活动迁移到目标活动(驳回/撤回).
+   目标活动不存在时 Flowable 直接抛 NullPointerException, 这里先换成可读的业务错误."
   [^ProcessEngine engine process-instance-id from-activity-id to-activity-id]
+  (let [target (some-> (.getRuntimeService engine)
+                       (.createProcessInstanceQuery)
+                       (.processInstanceId process-instance-id)
+                       .singleResult
+                       (.getProcessDefinitionId)
+                       ;; 实例可能已结束: 退回历史实例查定义
+                       (or (some-> (.getHistoryService engine)
+                                   (.createHistoricProcessInstanceQuery)
+                                   (.processInstanceId process-instance-id)
+                                   .singleResult
+                                   (.getProcessDefinitionId)))
+                       (as-> def-id (when def-id
+                                      (.getBpmnModel (.getRepositoryService engine) def-id)))
+                       (as-> model (when model
+                                     (.getFlowElement model (str to-activity-id)))))]
+    (when-not target
+      (throw (ex-info (str "目标节点不存在: " to-activity-id)
+                      {:process-instance-id process-instance-id
+                       :activity-id to-activity-id :status 400}))))
   (-> (.createChangeActivityStateBuilder (.getRuntimeService engine))
       (.processInstanceId process-instance-id)
       (.moveActivityIdTo from-activity-id to-activity-id)
