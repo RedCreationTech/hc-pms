@@ -86,6 +86,12 @@ mutator --source-root src/clj \
 
 另外 `mutator` 传具体文件路径时仍会扫描全项目, 需要配 `--changed` 或 `--lines` 收窄.
 
+### CRAP 只有在 HTML 覆盖率在场时才可比较
+
+CRAP = CC^2 x (1 - 覆盖率)^3 + CC. 缺少 HTML 覆盖率时所有函数覆盖率被当成 0,
+分数退化成 CC^2 + CC, 整个项目会被误算成上千个函数超标, 最高分会上万.
+不同轮次之间**只能在同一覆盖率口径下比较**, 否则数字没有意义.
+
 ## 基线 (2026-11-23)
 
 | 指标 | 数值 |
@@ -97,3 +103,7 @@ mutator --source-root src/clj \
 | 变异点 | 5762 (其中 369 个在当前覆盖率下未被覆盖) |
 
 修正 `domain/business/paging` 之后重复对从 632 降到 620.
+
+把 BPM 的 Webhook/节点监听器实现抽到 `domain/business/webhook`, 业务表 JSON 解析抽到
+`domain/business/json_field` 之后仍是 620: BPM 原文件内部的重复基本已被同一次抽取消掉,
+剩下的重复集中在系统管理页面与 `pms/planning` 的模板化代码, 不是 BPM 的属性.

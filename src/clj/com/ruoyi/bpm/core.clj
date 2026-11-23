@@ -15,11 +15,11 @@
     [cheshire.core :as json]
     [clj-http.client :as http]
     [clojure.string :as str]
-    [clojure.tools.logging :as log])
+    [clojure.tools.logging :as log]
+    [com.ruoyi.domain.business.json-field :as jf])
   (:import
     (java.util
-      Date
-      HashMap)
+      Date)
     (org.flowable.engine
       ProcessEngine)
     (org.flowable.engine.history
@@ -682,7 +682,7 @@
             (.setVariable rt pid "bpmLastApprover" (str user))))))
     (when-let [c (:comment variables)]
       (.setVariableLocal ts task-id "comment" c))
-    (when-let [a (contains? variables :approved)]
+    (when (contains? variables :approved)
       (.setVariableLocal ts task-id "approved" (boolean (:approved variables))))
     (when-let [s (or (:sign-pic-url variables) (:signPicUrl variables))]
       (.setVariableLocal ts task-id "signPicUrl" (str s)))
@@ -868,19 +868,6 @@
 
 ;; ── Phase 4 触发器节点(serviceTask + bpmTriggerDelegate)────────────────
 
-(defn- get-in-path
-  "按 a.b.0 路径从解析后的 JSON 取值(map keyword / vector 下标)."
-  [m path]
-  (reduce (fn [acc k]
-            (cond
-              (nil? acc) nil
-              (and (sequential? acc) (re-matches #"\d+" (str k)))
-              (nth acc (Integer/parseInt (str k)) nil)
-              (map? acc) (get acc (keyword (str k)) (get acc (str k)))
-              :else nil))
-          m (str/split (str path) #"\.")))
-
-
 (defn- coerce-num
   [v]
   (cond
@@ -951,7 +938,7 @@
             (doseq [{:keys [source target]} (:response-mappings cfg)]
               (when (and (seq (str source)) (seq (str target)))
                 (.setVariable execution (str target)
-                              (get-in-path parsed (str source)))))
+                              (jf/get-path parsed (str source)))))
             (log/info "[bpm-trigger] HTTP_REQUEST" url "->" status
                       "回写" (count (:response-mappings cfg)) "个变量"))
           (log/error "[bpm-trigger] HTTP_REQUEST" url "返回非 2xx:" status))))))
@@ -1337,16 +1324,16 @@
         idx (or (first (keep-indexed (fn [i [id _]] (when (= id cur-key) i)) order))
                 0)
         hs (.getHistoryService engine)
-        completed (set (map (fn [^HistoricActivityInstance h] (.getActivityId h))
+completed (set (map (fn [^HistoricActivityInstance h] (.getActivityId h))
                             (filter #(.getEndTime ^HistoricActivityInstance %)
                                     (.list (.processInstanceId
                                              (.createHistoricActivityInstanceQuery hs)
-                                             pid)))))]
-    (let [nodes (->> (take idx order)
-                     (filter (fn [[id _]] (contains? completed id)))
-                     (mapv (fn [[id name]] {:activity-id id :activity-name name})))]
-      (if (seq nodes)
-        nodes
-        ;; 首节点(无前序已完成 userTask):提供"发起人(退回起始)"选项
-        [{:activity-id reject-to-start-marker
-          :activity-name "发起人（退回起始）"}]))))
+                                             pid)))))
+        nodes (->> (take idx order)
+                   (filter (fn [[id _]] (contains? completed id)))
+                   (mapv (fn [[id name]] {:activity-id id :activity-name name})))]
+    (if (seq nodes)
+      nodes
+      ;; 首节点(无前序已完成 userTask): 提供"发起人(退回起始)"选项
+      [{:activity-id reject-to-start-marker
+        :activity-name "发起人（退回起始）"}])))

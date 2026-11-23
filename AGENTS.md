@@ -162,6 +162,8 @@ bidi router → pages (reagent component + re-frame) → api.cljs (fetch) → HT
 
 测试:`test/clj/com/ruoyi/bpm/core_test.clj` + `test/clj/com/ruoyi/business/` 下 8 个测试文件(bpm_approval,bpm_e2e_fixes,bpm_integration,bpm_node_config,bpm_p0,bpm_p1,bpm_phase3,bpm_phase4).
 
+`domain/business/` 下的叶子命名空间(无业务依赖, 可被多模块与 `bpm/core` 共用): `paging`(分页参数归一), `json_field`(业务表 JSON 列解析与按路径取值), `webhook`(模型级 Webhook 与节点监听器 HTTP 分发). `domain/business/bpm.clj` 只在 IG 初始化处引用 `webhook` 的分发器.
+
 ---
 
 ## 四,默认账号

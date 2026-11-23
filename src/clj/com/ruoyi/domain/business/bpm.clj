@@ -3,12 +3,14 @@
    提供流程分类/模型/表单/实例 的 CRUD 与流程运行操作."
   (:require
     [cheshire.core :as json]
-    [clj-http.client :as http]
     [clojure.string :as str]
+    [clojure.walk]
     [clojure.tools.logging :as log]
     [com.ruoyi.bpm.core :as bpm]
     [com.ruoyi.domain.business.bpm-flow :as bpm-flow]
+    [com.ruoyi.domain.business.json-field :as jf]
     [com.ruoyi.domain.business.paging :as paging]
+    [com.ruoyi.domain.business.webhook :as hook]
     [integrant.core :as ig]))
 
 
@@ -348,39 +350,22 @@
 
 
 
-(defn- row->json
-  "把表的 JSON 文本字段解析为 Clojure 数据."
-  [row ks]
-  (reduce (fn [m k]
-            (if-let [v (get row k)]
-              (assoc m k (try (json/parse-string v true) (catch Exception _ v)))
-              m))
-          row ks))
-
 
 ;; ── Phase 3 治理能力:编号规则 / 标题渲染 / 摘要计算 ────────────────────
-
-(defn- parse-json-field
-  "解析 JSON 文本字段(已是数据则原样返回)."
-  [v]
-  (cond
-    (nil? v) nil
-    (string? v) (try (json/parse-string v true) (catch Exception _ nil))
-    :else v))
 
 
 (defn- form-fields-of
   "动态表单 schema 的字段列表 [{:field :title}]."
   [query-fn form-id]
   (when-let [form (and form-id (query-fn :bpm/find-form-by-id {:form_id form-id}))]
-    (:fields (parse-json-field (:form_json form)))))
+    (:fields (jf/parse-field (:form_json form)))))
 
 
 (defn summary-of
   "按模型 summary_fields(表单字段 id 列表)计算实例摘要,
    返回 [{:key :value :label}];未配置或无表单数据时返回 nil."
   [query-fn summary-fields form-id form-data]
-  (let [fields (seq (parse-json-field summary-fields))]
+  (let [fields (seq (jf/parse-field summary-fields))]
     (when (and (seq fields) (map? form-data))
       (let [labels (into {}
                          (keep (fn [f]
@@ -400,7 +385,7 @@
   "按模型 process_id_rule 生成流程单号:前缀+日期中缀+后缀+当日递增流水号(长度≥5).
    规则未启用时返回 nil."
   [query-fn model]
-  (let [rule (parse-json-field (:process_id_rule model))]
+  (let [rule (jf/parse-field (:process_id_rule model))]
     (when (:enable rule)
       (let [now (java.time.LocalDateTime/now)
             full (.format now (java.time.format.DateTimeFormatter/ofPattern "yyyyMMddHHmmss"))
@@ -500,7 +485,7 @@
 (defn- json-ids
   "JSON 文本 → id 字符串向量(nil/非法返回 [])."
   [v]
-  (let [parsed (parse-json-field v)]
+  (let [parsed (jf/parse-field v)]
     (if (sequential? parsed) (mapv str parsed) [])))
 
 
@@ -516,7 +501,7 @@
         uname (into {} (map (juxt (comp str :user_id) :user_name)) users)
         dname (into {} (map (juxt (comp str :dept_id) :dept_name)) depts)]
     {:rows (mapv (fn [row]
-                   (let [data (row->json row [:form_json :bpmn_xml :webhooks
+                   (let [data (jf/parse-columns row [:form_json :bpmn_xml :webhooks
                                               :start_user_ids :start_dept_ids :manager_user_ids])]
                      (assoc data
                             :deploy_time (deploy-time-of engine (:deployment_id data))
@@ -529,13 +514,13 @@
 (defn model-get
   [{:keys [query-fn]} id]
   (-> (query-fn :bpm/find-model-by-id {:model_id id})
-      (row->json [:form_json :bpmn_xml :webhooks])))
+      (jf/parse-columns [:form_json :bpmn_xml :webhooks])))
 
 
 (defn model-get-by-key
   [{:keys [query-fn]} key]
   (-> (query-fn :bpm/find-model-by-key {:model_key key})
-      (row->json [:form_json :bpmn_xml :webhooks])))
+      (jf/parse-columns [:form_json :bpmn_xml :webhooks])))
 
 
 (def ^:private model-key-pattern
@@ -715,14 +700,14 @@
   (let [{:keys [offset size]} (paging/params params)
         p {:form_name (get params :form_name) :status (get params :status)
            :page_size size :offset offset}]
-    {:rows (mapv #(row->json % [:form_json]) (query-fn :bpm/form-list p))
+    {:rows (mapv #(jf/parse-columns % [:form_json]) (query-fn :bpm/form-list p))
      :total (:total (query-fn :bpm/form-count p))}))
 
 
 (defn form-get
   [{:keys [query-fn]} id]
   (-> (query-fn :bpm/find-form-by-id {:form_id id})
-      (row->json [:form_json])))
+      (jf/parse-columns [:form_json])))
 
 
 (defn form-create
@@ -908,7 +893,7 @@
         p {:starter_id (get params :starter_id) :model_key (get params :model_key)
            :page_size size :offset offset}]
     {:rows (mapv (fn [row]
-                   (let [data (row->json row [:form_data_json])]
+                   (let [data (jf/parse-columns row [:form_data_json])]
                      (assoc data :summary (summary-of query-fn (:summary_fields data)
                                                       (:form_id data) (:form_data_json data)))))
                  (query-fn :bpm/instance-list p))
@@ -932,7 +917,7 @@
                  (query-fn :bpm/find-form-by-id {:form_id fid})))
         schema (when-let [fj (or (:form_json form) (:form_json model))]
                  (if (string? fj) (json/parse-string fj true) fj))
-        inst-data (row->json inst [:form_data_json])
+        inst-data (jf/parse-columns inst [:form_data_json])
         node-config (bpm/node-config-of engine task-obj)
         reject-handler (:reject-handler node-config)
         transactor? (= "TRANSACTOR" (get-in node-config [:nodeType]))]
@@ -958,7 +943,7 @@
   (let [ts (.getTaskService engine)
         tasks (.list (.taskCandidateOrAssigned (.createTaskQuery ts) user))]
     (mapv (fn [^org.flowable.task.api.Task t]
-            (let [inst (row->json (query-fn :bpm/find-instance-by-pid
+            (let [inst (jf/parse-columns (query-fn :bpm/find-instance-by-pid
                                             {:process_instance_id (.getProcessInstanceId t)})
                                   [:form_data_json])
                   model (when inst (query-fn :bpm/find-model-by-id {:model_id (:model_id inst)}))
@@ -1125,7 +1110,7 @@
         form (when-let [fid (:form_id model)]
                (when (pos? (long (or fid 0)))
                  (query-fn :bpm/find-form-by-id {:form_id fid})))
-        inst (row->json biz [:form_data_json])]
+        inst (jf/parse-columns biz [:form_data_json])]
     {:instance inst
      :model {:model_id (:model_id model) :model_name (:model_name model)
              :model_key (:model_key model) :form_type (:form_type model)
@@ -1163,7 +1148,6 @@
         reimburse-total (get (query-fn :stats/reimburse-total {}) :total 0)
         employee-total (get (query-fn :stats/employee-total {}) :total 0)
         customer-total (get (query-fn :stats/customer-total {}) :total 0)
-        st (fn [rows k] (or (some #(= k (:status %)) rows) 0))
         cnt (fn [rows k] (:cnt (first (filter #(= k (:status %)) rows)) 0))
         reimb-amount (fn [rows k] (or (:total_amount (first (filter #(= k (:status %)) rows))) 0))
         total-amount (reduce + (map #(or (:total_amount %) 0) reimburse-status))]
@@ -1286,7 +1270,7 @@
   (let [{:keys [offset size]} (paging/params params)
         p {:user_id user :page_size size :offset offset}]
     {:rows (mapv (fn [row]
-                   (let [data (row->json row [:form_data_json])]
+                   (let [data (jf/parse-columns row [:form_data_json])]
                      (assoc data :summary (summary-of query-fn (:summary_fields data)
                                                       (:form_id data) (:form_data_json data)))))
                  (query-fn :bpm/copy-page p))
@@ -1432,154 +1416,18 @@
     (let [model (query-fn :bpm/find-model-by-id {:model_id (:model_id biz)})
           form (when-let [fid (:form_id model)]
                  (query-fn :bpm/find-form-by-id {:form_id fid}))
-          inst (row->json biz [:form_data_json])]
+          inst (jf/parse-columns biz [:form_data_json])]
       {:instance inst
        :model {:model_id (:model_id model)
                :model_name (:model_name model)
                :print_template_enable (:print_template_enable model)
                :print_template_html (:print_template_html model)}
-       :form {:schema (parse-json-field (:form_json form))
+       :form {:schema (jf/parse-field (:form_json form))
               :values (:form_data_json inst)}
        :task-history (bpm/task-history-of engine (:process_instance_id biz))})))
 
+;; 模型级 Webhook / 节点监听器 / 响应回写:实现搬到 com.ruoyi.domain.business.webhook,
+;; 本命名空间保留 IG 初始化处引用的分发器符号.
+(def fire-webhooks! hook/fire-webhooks!)
 
-;; ── Phase 4 进阶能力:模型级 Webhook + 节点监听器 ─────────────────────────
-
-(defn- instance-vars
-  "流程实例变量 → 字符串 key 的 Clojure map(运行中取,结束后取历史).
-   供 ${字段} 占位符解析(表单字段在发起时已展开为流程变量)."
-  [engine pid]
-  (let [rt (.getRuntimeService ^org.flowable.engine.ProcessEngine engine)
-        running (try (into {} (.getVariables rt pid)) (catch Exception _ {}))]
-    (if (seq running)
-      running
-      (try
-        (into {}
-              (map (fn [^org.flowable.variable.api.history.HistoricVariableInstance hvi]
-                     [(.getVariableName hvi) (.getValue hvi)]))
-              (.list (.processInstanceId
-                       (.createHistoricVariableInstanceQuery (.getHistoryService
-                                                               ^org.flowable.engine.ProcessEngine engine))
-                       pid)))
-        (catch Exception _ {})))))
-
-
-(defn- find-biz-instance
-  "查询业务实例(带短重试):task_start 钩子在 Flowable 命令内触发,
-   可能略早于业务行 insert 提交,重试最多 10 次 ×100ms."
-  [query-fn pid]
-  (loop [n 10]
-    (let [inst (try (query-fn :bpm/find-instance-by-pid
-                              {:process_instance_id pid})
-                    (catch Exception _ nil))]
-      (cond
-        inst inst
-        (zero? n) nil
-        :else (do (Thread/sleep 100)
-                  (recur (dec n)))))))
-
-
-(defn- json-path-get
-  "按点分路径(如 data.level / list.0.name)从解析后的 JSON 数据取值."
-  [data path]
-  (reduce (fn [acc k]
-            (cond
-              (map? acc) (let [kk (keyword k)] (if (contains? acc kk) (get acc kk) (get acc k)))
-              (sequential? acc) (let [i (try (Integer/parseInt (str k)) (catch Exception _ -1))]
-                                  (when (and (>= i 0) (< i (count acc))) (nth acc i)))
-              :else nil))
-          data
-          (str/split (str path) #"\.")))
-
-
-(defn- writeback-webhook-response!
-  "P1 Webhook 响应回写:解析 JSON 响应体,按 response-mappings(JSON 路径 → 流程变量名)
-   提取并写流程变量;任何失败只记日志,绝不影响流程."
-  [engine pid hook resp]
-  (let [mappings (seq (:response-mappings hook))]
-    (when (and mappings (some #(seq (str (:key %))) mappings))
-      (try
-        (let [data (json/parse-string (str (:body resp)) true)
-              rt (.getRuntimeService ^org.flowable.engine.ProcessEngine engine)]
-          (doseq [{:keys [key value]} mappings
-                  :when (and (seq (str key)) (seq (str value)))
-                  :let [v (json-path-get data (str key))]
-                  :when (some? v)]
-            (.setVariable rt (str pid) (str value) v)
-            (log/info "[bpm-webhook] 响应回写" key "→" value "=" v)))
-        (catch Exception e
-          (log/warn "[bpm-webhook] 响应回写失败:" (.getMessage e)))))))
-
-
-(defn- fire-webhooks!
-  "按模型级 webhooks 配置触发 HTTP POST(4 钩子:process_start/process_end/task_start/task_end).
-   headers[]/bodyParams[] 的值支持固定值或 ${字段} 占位(流程变量 + 事件信息).
-   P1:POST 成功后按 response-mappings(JSON 路径 → 流程变量名)解析 JSON 响应并回写流程变量.
-   失败只记日志,绝不影响流程.实例无业务记录(绕过业务层直接起实例)时不触发."
-  [event {:keys [engine query-fn]} {:keys [task-id process-instance-id task-name]}]
-  (when (and query-fn (seq (str process-instance-id)))
-    (when-let [inst (find-biz-instance query-fn process-instance-id)]
-      (let [model (try (query-fn :bpm/find-model-by-id {:model_id (:model_id inst)})
-                       (catch Exception _ nil))
-            hooks (parse-json-field (:webhooks model))
-            hook (or (get hooks (keyword event)) (get hooks event))]
-        (when (and (map? hook) (seq (str (:url hook))))
-          (let [vars (merge (instance-vars engine process-instance-id)
-                            {"processInstanceId" (str process-instance-id)
-                             "taskId" (str (or task-id ""))
-                             "event" event
-                             "taskName" (str (or task-name ""))})
-                headers (into {}
-                              (keep (fn [{:keys [key value]}]
-                                      (when (seq (str key))
-                                        [(str key) (str (bpm/resolve-placeholders value vars))])))
-                              (:headers hook))
-                body (into {}
-                           (keep (fn [{:keys [key value]}]
-                                   (when (seq (str key))
-                                     [(keyword (str key)) (str (bpm/resolve-placeholders value vars))])))
-                           (:bodyParams hook))]
-            (try
-              (let [resp (http/post (str (:url hook))
-                                    {:headers headers
-                                     :form-params body
-                                     :content-type :json
-                                     :socket-timeout 5000
-                                     :conn-timeout 5000})]
-                (log/info "[bpm-webhook]" event "→" (:url hook))
-                (writeback-webhook-response! engine process-instance-id hook resp))
-              (catch Exception e
-                (log/error "[bpm-webhook]" event "POST 失败:" (:url hook) (.getMessage e))))))))))
-
-
-(defn- fire-node-listener!
-  "节点监听器(nodeConfig.listeners 的 Create/Assign/Complete 三事件):
-   触发配置的 HTTP POST,params[] 的值支持固定值或 ${字段}(流程变量 + taskId/实例等).
-   失败只记日志,绝不影响流程."
-  [{:keys [engine]} event-name ^org.flowable.task.service.delegate.DelegateTask task]
-  (let [node-config (bpm/node-config-of engine task)
-        listeners (:listeners node-config)
-        cfg (or (get listeners (keyword event-name)) (get listeners event-name))
-        cfg (if (map? cfg) cfg {})]
-    (when (and (:enable cfg) (seq (str (:url cfg))))
-      (let [pid (.getProcessInstanceId task)
-            vars (merge (instance-vars engine pid)
-                        {"taskId" (.getId task)
-                         "processInstanceId" (str pid)
-                         "taskName" (str (.getName task))
-                         "event" (str event-name)})
-            body (into {}
-                       (keep (fn [{:keys [key value]}]
-                               (when (seq (str key))
-                                 [(keyword (str key)) (bpm/resolve-placeholders value vars)])))
-                       (:params cfg))]
-        (try
-          (http/post (str (:url cfg))
-                     {:form-params body
-                      :content-type :json
-                      :socket-timeout 5000
-                      :conn-timeout 5000})
-          (log/info "[bpm-node-listener]" event-name "→" (:url cfg) "任务" (.getId task))
-          (catch Exception e
-            (log/error "[bpm-node-listener]" event-name "POST 失败:"
-                       (:url cfg) (.getMessage e))))))))
+(def fire-node-listener! hook/fire-node-listener!)
