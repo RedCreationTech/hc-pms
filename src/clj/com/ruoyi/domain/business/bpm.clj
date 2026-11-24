@@ -1211,7 +1211,7 @@
             :values (get inst :form_data_json)}
      :activities (bpm/history-of engine pid)
      :task-history (bpm/task-history-of engine pid)
-     :running? (pos? (bpm/todo-count engine (or (:starter_id biz) "")))}))
+     :running? (bpm/process-running? engine pid)}))
 
 
 (defn instance-diagram

@@ -383,8 +383,8 @@
     (catch Exception _ {})))
 
 
-(defn- process-running?
-  "流程实例是否仍在运行."
+(defn process-running?
+  "流程实例是否仍在运行(运行中的实例才存在于 ACT_RU_EXECUTION)."
   [^ProcessEngine engine process-instance-id]
   (pos? (.count (.processInstanceId (.createProcessInstanceQuery (.getRuntimeService engine))
                                     process-instance-id))))

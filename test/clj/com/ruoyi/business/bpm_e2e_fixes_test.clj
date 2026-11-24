@@ -176,6 +176,26 @@
         (is (empty? (str (:current_task row2))))))))
 
 
+(deftest bpm-instance-running-flag-test
+  (let [app (handler) token (login-token "admin") h (auth-hdr token)
+        {:keys [model-id]} (deploy-model! app h)]
+    (testing "运行中的实例 running? = true"
+      (let [pid (start-instance! app h model-id)
+            hist (parse-json (GET app (str "/api/business/bpm/instance/history/" pid) {} h))]
+        (is (= 200 (:code hist)))
+        (is (true? (get-in hist [:data :running?])))))
+    (testing "终止后 running? = false (不能只看发起人还有没有待办)"
+      (let [pid (start-instance! app h model-id)
+            _ (is (some? (first (todo-of app h pid))))
+            term (parse-json (POST app (str "/api/business/bpm/instance/" pid "/terminate")
+                                   {:reason "回归测试"} h))
+            _ (is (= 200 (:code term)))
+            hist (parse-json (GET app (str "/api/business/bpm/instance/history/" pid) {} h))]
+        (is (= 200 (:code hist)))
+        (is (false? (get-in hist [:data :running?]))
+            "实例已终止, running? 必须为 false")))))
+
+
 (deftest bpm-embedded-form-json-task-detail-test
   (let [app (handler) token (login-token "admin") h (auth-hdr token)
         {:keys [model-id model-key]} (deploy-model! app h)
