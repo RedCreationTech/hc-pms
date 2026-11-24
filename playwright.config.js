@@ -58,6 +58,16 @@ module.exports = defineConfig({
         ...(process.env.PW_NO_CHANNEL ? {} : { channel: 'chrome' }),
       },
     },
+    // G18 浏览器兼容矩阵: Firefox 与 WebKit 用于跨引擎实测, 默认不跑 (全套 e2e 仍只在
+    // Chromium 上跑), 只有显式 --project=firefox / --project=webkit 时才执行.
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
+    },
   ],
 
   /* Run local dev server before starting the tests */

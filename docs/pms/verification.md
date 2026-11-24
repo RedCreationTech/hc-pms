@@ -3258,3 +3258,26 @@ down 为空操作但迁移确实改了结构 (回退后旧代码读不到已删�
 3. **迁移集合真实差异**: `202611200001-repair-current-text-timestamps` 原本只在 `migrations-sqlite/`, MySQL 目录无同名文件. 该迁移修的是 SQLite 历史缺陷 (`CURRENT_TEXT` 非法函数名), MySQL 从未产生该字面量, 因此补的是**版本号对齐占位迁移** (`UPDATE ... WHERE 1 = 0`), 不改 MySQL 任何数据.
 
 本轮未执行 (如实记录): 业务代表按剧本实际走查并签字 (需用户方指派); 真实生产目标环境的容量与 RPO/RTO 实测 (本机 22 秒启动不代表生产); 真实主机换 jar 与 `bb deploy:rollback` 演练 (本机 `gpu` 可连但 `hc-pms` 服务为 `inactive`, 从未部署); `docs/training/` 课件仍基于 6 月代码未随 PMS 更新; Firefox / WebKit 浏览器矩阵 (G18 范围); MySQL 主从与异地备份未做.
+
+
+## G18 浏览器兼容矩阵 - macOS 桌面三引擎实测 (本轮, 2026-11-24 (5))
+
+范围与取舍: G18 此前只有后端基线规则 (UA 解析 / 版本下限 / 未上报不计通过) 与 Chromium 单引擎 E2E, 缺的正是"逐环境实机结果". 本轮补 macOS 桌面上的 Chromium / Firefox / WebKit 三引擎真实实测, 并把断言从"能跑"提升到"该引擎被正确识别且无未捕获异常". Windows 桌面仍未做 (见文末).
+
+设计要点: 不能用同一份 Chromium 假设去跑三个引擎. `pms-g18platform.spec.js` 硬编码 `client.family === 'chrome'`, 只能在 Chromium 下跑, 因此新增 `pms-g18engines.spec.js`, 每个引擎自己声明期望家族 (`chromium->chrome / firefox->firefox / webkit->safari`) 并逐引擎落盘结论. `playwright.config.js` 增加 firefox 与 webkit 两个 project, 但**默认仍只跑 chromium**, 只有显式 `--project=firefox / --project=webkit` 才执行, 不拖慢既有全套 E2E.
+
+console error 的处理也是刻意收紧的: 起初只断言 `pageerror` 为空, 实测发现每条 console error 都来自 shadow-cljs 开发热重载的 WebSocket (连 dev server 的 9630 端口, 生产构建不存在). 于是按前缀豁免这一条, **其余 console error 仍然让用例失败** - 正是这个收紧立刻抓出了一个真实前端缺陷.
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| 三引擎核心操作 | **3 passed** (Chromium 149 / Firefox 151 / WebKit 26.5) | 登录 -> 动态菜单 -> 待办 10 行 -> 分页总数 -> 发起流程 -> 平台能力页浏览器页签 |
+| UA 家族判定 | chromium->`chrome` / firefox->`firefox` / webkit->`safari`, 三者 `supported` 均为 true | 后端按真实 UA 判定, 不是前端自报 |
+| 未捕获异常 | 三引擎均 0 | `pageerror` 为空 |
+| console error | 修复后三引擎均 0 | 修复前每条都是同一个 key 警告 |
+| 实测发现的真实缺陷 | 平台能力页 3 张 AntD Table 未给 `rowKey`, React 对 tbody 子行报 `Each child in a list should have a unique "key" prop` | 三引擎均复现, **与浏览器无关**, 单引擎 + 只断言 pageerror 时长期未被发现 |
+| 修复方式 | 补 `:rowKey` (kind / family / key), 并把 `descriptions` 由 children 子元素写法改为项目既有的 `:items` 写法 | 改为项目内既有模式, 不留特例 |
+| 前端编译 | shadow-cljs 0 warnings | 增量重编译 2.13s |
+| 全量回归 | 909 tests / 8744 assertions, 0 failures/errors | 前端改动不影响后端用例 |
+| 证据目录 | `reports/g18engines/` 12 张截图 + 3 份逐引擎结论 JSON | 含 UA, 判定家族, 版本, 待办行数, 错误计数 |
+
+本轮未执行 (如实记录): Windows 桌面实机 (本机为 macOS); 屏幕分辨率矩阵与无障碍适配; 旧版 AntD6 依赖边界实测; Safari 真机 (WebKit 26.5 为 Playwright 内置构建, 与用户真实 Safari 版本仍有差异); 移动端浏览器.

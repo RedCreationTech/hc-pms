@@ -225,5 +225,5 @@ JDBC_URL="..." MIGRATION_DIR=migrations clojure -M:dev -m com.ruoyi.core
   因此真实换 jar 与回滚未在本轮演练.
 - **业务 UAT 签收**: 需要业务代表按下表实际走查并签字, 代码与脚本不能代替.
 - **培训课件更新**: `docs/training/` 仍基于 BPM 之前 (6 月) 的代码, 未随 PMS 更新.
-- **浏览器兼容矩阵**: 仅 Chromium 实测, Firefox / WebKit 未跑 (G18 范围).
+- **浏览器兼容矩阵**: macOS 桌面 Chromium / Firefox / WebKit 三引擎已实测通过 (见 verification.md G18 章节); **Windows 桌面实机、无障碍适配、旧版 AntD6 依赖边界未做** (G18 范围).
 - **MySQL 主从 / 备份存储异地**: 未做.

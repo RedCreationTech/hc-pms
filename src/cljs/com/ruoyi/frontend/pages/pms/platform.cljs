@@ -25,22 +25,28 @@
         client (:client data)
         env (:environment data)]
     [antd/card {:title "运行环境" :size "small" :styles {:body {:padding 16}}}
-     [antd/descriptions {:column 2 :size "small" :bordered true}
-      [antd/descriptions-item {:label "JDK 版本"}
-       [:span (str (:version java) " (主版本 " (:major java) ", 基线 " (:required java) ") ")]
-       [verdict (:supported java)]]
-      [antd/descriptions-item {:label "JDK 厂商"} (:vendor java)]
-      [antd/descriptions-item {:label "数据库"}
-       (str (or (:label database) "未识别") " / 迁移目录 " (or (:migration_dir database) "-"))]
-      [antd/descriptions-item {:label "数据库支持"} [verdict (:supported database)]]
-      [antd/descriptions-item {:label "前端构建"} (str (get-in data [:frontend :framework]) " / " (get-in data [:frontend :build]))]
-      [antd/descriptions-item {:label "本次客户端"}
-       (if (:reported client)
-         (str (or (:label client) (:family client)) " " (:version client)
-              (when (:minimum client) (str " (基线 " (:minimum client) ")")))
-         "未上报 User-Agent")]
-      [antd/descriptions-item {:label "客户端兼容"} [verdict (:supported client)]]
-      [antd/descriptions-item {:label "核对时间"} (:generated_at data)]]
+     ;; 用 :items (项目里 config.cljs / detail.cljs 的既有写法) 而不是 children 子元素:
+     ;; 子元素写法下 Reagent 会把多个 descriptions-item 当无 key 的列表展开, React 报
+     ;; "Each child in a list should have a unique key prop" (G18 跨引擎实测发现).
+     [antd/descriptions {:column 2 :size "small" :bordered true
+                         :items (mapv (fn [[k label children]]
+                                        {:key (name k) :label label :children (r/as-element children)})
+                                      [[:jdk "JDK 版本"
+                                        [:span (str (:version java) " (主版本 " (:major java) ", 基线 " (:required java) ") ")
+                                         [verdict (:supported java)]]]
+                                       [:jdk_vendor "JDK 厂商" [:span (:vendor java)]]
+                                       [:database "数据库"
+                                        [:span (str (or (:label database) "未识别") " / 迁移目录 " (or (:migration_dir database) "-"))]]
+                                       [:database_supported "数据库支持" [verdict (:supported database)]]
+                                       [:frontend "前端构建"
+                                        [:span (str (get-in data [:frontend :framework]) " / " (get-in data [:frontend :build]))]]
+                                       [:client "本次客户端"
+                                        [:span (if (:reported client)
+                                                 (str (or (:label client) (:family client)) " " (:version client)
+                                                      (when (:minimum client) (str " (基线 " (:minimum client) ")")))
+                                                 "未上报 User-Agent")]]
+                                       [:client_supported "客户端兼容" [verdict (:supported client)]]
+                                       [:generated_at "核对时间" [:span (:generated_at data)]]])}]
      [:div {:style {:marginTop 12 :fontSize 12 :color "#8793a3" :lineHeight 1.8}}
       [:div (str "环境核对 (只读): 授权项目 " (:project_rows env) " 个, 任务 "
                  (:task_rows env) " 条, 费用明细 " (:cost_entry_rows env) " 条.")]]]))
@@ -76,23 +82,29 @@
   "兼容矩阵规则配置: 数据库支持、浏览器基线与报表指标口径分布, 全部来自后端只读核对."
   [{:keys [data]}]
   (let [[tab set-tab!] (hooks/use-state "databases")
-        tab-items (mapv (fn [[key label columns rows note]]
+        ;; row-key 必须给: AntD Table 拿不到唯一行键时会回退用索引, React 于是对 tbody 的
+        ;; 子行报 "Each child in a list should have a unique key prop" (G18 跨引擎实测发现).
+        tab-items (mapv (fn [[key label columns rows note row-key]]
                           {:key key :label label
                            :children (r/as-element
                                        [:div
                                         (when note [:div {:style {:marginBottom 8 :color "#8793a3" :fontSize 12}} note])
                                         [antd/table {:size "small" :pagination false
+                                                     :rowKey row-key
                                                      :columns (columns)
                                                      :dataSource (clj->js (vec (or rows [])))}]])})
                         [["databases" "数据库"
                           database-columns (:databases data)
-                          "仅支持本项目提供迁移脚本的数据库; 其余一律如实标为未识别, 不做猜测."]
+                          "仅支持本项目提供迁移脚本的数据库; 其余一律如实标为未识别, 不做猜测."
+                          "kind"]
                          ["browsers" "浏览器"
                           browser-columns (:browsers data)
-                          "可识别的主流浏览器最低主版本; 未上报 User-Agent 的请求不判定通过."]
+                          "可识别的主流浏览器最低主版本; 未上报 User-Agent 的请求不判定通过."
+                          "family"]
                          ["metrics" "指标口径"
                           metric-columns (get-in data [:metrics :definitions])
-                          (str "已发布指标定义 " (get-in data [:metrics :published]) " 个.")]])]
+                          (str "已发布指标定义 " (get-in data [:metrics :published]) " 个.")
+                          "key"]])]
     [antd/card {:title "兼容矩阵规则配置" :size "small" :styles {:body {:padding 16}}}
      [antd/tabs {:activeKey tab :onChange set-tab! :items tab-items}]]))
 
