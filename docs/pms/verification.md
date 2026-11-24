@@ -3172,3 +3172,22 @@ down 为空操作但迁移确实改了结构 (回退后旧代码读不到已删�
 | Chrome 浏览器 (Playwright) | 1 spec 2 passed | `tests/e2e/bpm-todo-done-paging.spec.js`: API 建两节点模型并发起 3 次实例 -> 待办页脚"共 N 条"与接口 total 一致, 首页行数 = min(10, total), 翻到第 2 页行数正确, 切换"20 条/页"后行数与页脚同步; 已办同口径; 截图 `reports/bpm-todo-done-paging/01..05` |
 
 本轮未执行 (如实记录): 待办/已办的按状态或流程名过滤、导出、按任务名称排序均未提供; `total` 为每次请求的实时 `count`, 未做缓存; 历史已办数量增长后单页仍要 2 次 SQL/行, 逐行只做了同实例去重.
+
+
+## BPM 边界与语义缺陷修复 (本轮, 2026-11-24)
+
+范围与取舍: 按"用真实 API 攻击 BPM 边界/权限/异常"的方法继续深测, 本轮只修四个已复现且能给出前后证据的缺陷, 不改审批主流程语义: 非法退回节点、抄送目标用户、实例 `running?` 语义、以及驳回迁移的实现方式(改用运行时/历史实例查流程定义). 未修项(错误码等级、缺 taskId 的 500、加签加自己)见文末如实记录.
+
+设计要点: `bpm/core` 的 `move-to-activity!` 在调用 Flowable `moveActivityIdTo` 前先校验目标节点存在于 BPMN 模型, 校验时**不能用 `ProcessDefinitionQuery`**(它没有 `processInstanceId` 方法), 而是从运行时 `createProcessInstanceQuery` 取 `processDefinitionId`, 实例已结束时回退 `createHistoricProcessInstanceQuery`, 再 `repositoryService.getBpmnModel` + `getFlowElement`; 领域层新增 `check-copy-targets!` 与既有 `check-sign-targets!` 同构, 抄送写库前逐个校验 `:find-user-by-name`; `instance-history` 的 `:running?` 从"发起人全局待办数是否大于 0"改为 `bpm/process-running?`(由私有改公开, 查 `ACT_RU_EXECUTION`), 与 `instance-diagram` 的口径统一.
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| 真实 HTTP 非法退回节点 | `POST /bpm/task/<id>/reject {"return_node_id":"nosuchnode"}` -> `{"code":400,"msg":"目标节点不存在: nosuchnode"}`; 随后 `/bpm/todo` 仍含该 task | 修复前为 Flowable NullPointerException(500); 非法输入不再可能让流程状态悬空 |
+| 真实 HTTP 抄送不存在用户 | `POST /bpm/task/copy {"userIds":["nosuchuser-zz"]}` -> `{"code":400,"msg":"抄送用户不存在或已停用: nosuchuser-zz"}`; 合法 admin -> 200 | 修复前返回 200 并真的插入一条永远无人可见的 `biz_bpm_copy` 记录 |
+| 真实 HTTP 实例 running? | 终止前 `running? = true`; `POST /bpm/instance/<pid>/terminate` 后 `running? = false`, `status = CANCELED` | 修复前用发起人全系统待办数, 已终止实例也报 true, 前端据此错误显示"取消"按钮 |
+| 撤回语义核对 | approve 后 `PUT /bpm/task/withdraw` 重新激活已办节点任务(新 task-id), 下游任务被结束 | 行为正确, 未改动 |
+| BPM 回归测试 (SQLite) | 新增 `bpm-instance-running-flag-test`; `bpm-approval-test` 增非法退回节点与非法抄送目标两组断言 | 均在既有文件内扩展 |
+| 全量回归 (CLI SQLite) | 902 tests / 8708 assertions, 0 failures/errors | 三次独立提交各自跑过全量, 最终一次为 902 全绿 |
+| 静态检查 | `clj-kondo --lint` 所有改动文件 0 errors 0 warnings | 顺手清掉 `bpm_approval_test` 一个未使用的 `:as u` 绑定 |
+
+本轮未执行 (如实记录): 写操作缺 `taskId` 仍返回 500 `Task id is null`; "任务不存在"仍用 500 而非 404, 已结束任务重复办理仍用 500 而非 409; 加签允许加自己; 访问不存在的端点返回 500 并暴露全部 query key 名. 上述四项只影响错误码可读性, 不改变数据正确性, 留待后续统一收敛错误码时处理.

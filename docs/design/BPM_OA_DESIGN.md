@@ -276,6 +276,24 @@ bpm/core.clj       ← 高层 API:部署/发起/审批/驳回/转办/待办/已�
 | 子表单/富文本/地区组件 | 支持 | 无 | 待评估 |
 | 模板/复制表单 | 支持 | 无 | 待做 |
 
+- **2026-11-24** **BPM 边界与语义缺陷四项修复**:
+  · **驳回目标节点不存在抛 NPE**:`move-to-activity!` 把 `to-activity-id` 直接交给 Flowable 的
+    `moveActivityIdTo`,目标节点不在 BPMN 里时引擎内部取不到元素直接 NullPointerException,
+    前端只看到 500 与 Java 堆栈.现在调用前先校验节点存在:从运行时 `createProcessInstanceQuery`
+    取 `processDefinitionId`,实例已结束时回退 `createHistoricProcessInstanceQuery`,再
+    `repositoryService.getBpmnModel` + `getFlowElement`.注意 `ProcessDefinitionQuery` **没有**
+    `processInstanceId` 方法,不能用它反查.查不到抛带 `:status 400` 的 ex-info;
+  · **抄送目标未校验**:`task-copy!` 只校验操作人是参与人,传不存在的用户名返回 200 并真的插入
+    `biz_bpm_copy` 记录,该用户永远不会登录,"抄送我的"永远查不到 - 通知语义下的静默丢失.
+    新增 `check-copy-targets!`,与 `check-sign-targets!` 同构,写库前逐个校验 `:find-user-by-name`;
+  · **实例 `running?` 语义错误**:`instance-history` 之前算的是
+    `(pos? (bpm/todo-count starter_id))`,即发起人在**全系统**的待办总数,与实例无关 - 已终止/
+    已驳回/已完成实例都报 true,发起人待办清零但实例仍在跑时又报 false.前端
+    `bpm_instance.cljs` 正是用它决定是否显示"取消"按钮.改为 `bpm/process-running?`
+    (由私有改公开,查 `ACT_RU_EXECUTION`),与 `instance-diagram` 的 `active-activity-ids` 口径统一;
+  · 证据:全量回归 902 tests / 8708 assertions 0 failures;真实 HTTP 三条前后对比
+    (非法退回节点 400 + 任务仍在待办 / 非法抄送 400 / 终止后 `running?=false`);
+    撤回与终止语义核对无误,未改动.
 - **2026-11-23 (2)** **待办/已办列表服务端分页**:
   · `/bpm/todo` 与 `/bpm/done` 之前完全忽略 page/size:`.list` 取全量,且每行再跑 2 条 SQL
     (`find-instance-by-pid` + `find-model-by-id`)加一次 BPMN 模型解析.实测 admin 3132 条已办时
