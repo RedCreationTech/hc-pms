@@ -3211,3 +3211,22 @@ down 为空操作但迁移确实改了结构 (回退后旧代码读不到已删�
 | 顺带修复 | `bpm-mgmt/list-items` 的 `doseq`+`assoc` 返回值被丢弃, 监听器列表 `:type` 永远回显 nil | 改为 `mapv`, 并加断言锁住 |
 
 本轮未执行 (如实记录): 错误码语义只在本轮触及的 BPM/办公控制器统一, 是否全站统一 (PMS 等模块) 未做; 前端对 409 的提示文案仍是通用的消息透传, 未做专门的冲突重试交互.
+
+
+## H19 真实 MySQL 双库演练 (本轮, 2026-11-24 (3))
+
+范围与取舍: 此前所有"双库兼容"结论都只来自 SQLite 单库运行, MySQL 迁移集与业务写入路径实际上从未被真正执行过. 本轮在本机真实 MySQL 8.4.3 (Oracle 官方 tarball, x86_64, 默认 `STRICT_TRANS_TABLES`) 上以全新库 (`DROP DATABASE` / `CREATE`) 做一次完整演练: 跑全部迁移, 跑全量测试, 再回头修被 SQLite 掩盖的缺陷. 只修已复现的数据库层缺陷, 不动任何业务语义与 API 形状.
+
+设计要点: 两个缺陷的共同特征是 **SQLite 都会静默接受, 所以只测 SQLite 永远发现不了**. 一是 `resources/migrations` 四个菜单种子迁移用了 SQLite 专有语法 `INSERT OR IGNORE INTO`, 迁移在第一个文件就中止; 二是 `biz_bpm_instance.status` 声明为 `CHAR(1)` 而 cancel/terminate 写 `'CANCELED'`, MySQL 严格模式报 `1406 Data too long` 让取消实例全部失败. 列宽缺陷选择**放宽列宽而不是改写入值**, 因为前端三处 (`bpm_copy.cljs:21` / `bpm_instance.cljs:70` / `bpm_ops.cljs:18`) 都按字符串 `"CANCELED"` 渲染"已取消", 改值会波及前端与既有数据.
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| MySQL 迁移全量 (全新库) | 全部迁移文件执行成功 | 修复前在第一个种子迁移就语法错误中止 |
+| MySQL 全量测试 | 909 tests / 8744 assertions, 0 failures 0 errors | 修复前 `bpm-phase1-cancel-test` / `bpm-p0-allow-cancel-test` 报 500 |
+| SQLite 全量测试 | 909 tests / 8744 assertions, 0 failures 0 errors | 两侧用例数/断言数完全一致, 无平台专属跳过 |
+| 列宽缺陷直接复现 | MySQL 实测 `UPDATE ... SET status='CANCELED'` 报 `ERROR 1406 Data too long for column 'status'` | SQLite 同语句静默成功, 这是被掩盖的根因 |
+| 迁移语法修复 | `INSERT OR IGNORE INTO` -> `INSERT IGNORE INTO`, 共 14 处 (4 个文件) | 两目录语义对齐, 唯一键冲突时跳过 |
+| 列宽修复 | 双边迁移 `202611240001-widen-bpm-instance-status`: MySQL `VARCHAR(16)`, SQLite `UPDATE ... WHERE 0` 占位 | down 迁移先把 CANCELED 归一到单字符再收回 `CHAR(1)` |
+| 静态检查 | `clj-kondo --lint` 无新增问题 | 本轮不改 Clojure 代码 |
+
+本轮未执行 (如实记录): 演练只覆盖 MySQL 8.4 一个版本, 5.7 / 8.0 / PostgreSQL 未验证 (项目本身只支持 SQLite 与 MySQL, 见 `infra/db.clj:222`); 未做大数据量下的迁移耗时与索引膨胀测量; 未做 MySQL 主从或备份恢复演练, 该部分仍归 H20 的切换演练范围. SQLite 占位迁移踩坑已记录: **不能用 `SELECT 1;`**, Migratus 走 `executeUpdate` 会抛 "query returns results", 改用 `UPDATE ... WHERE 0`.

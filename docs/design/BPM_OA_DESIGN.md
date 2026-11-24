@@ -276,6 +276,33 @@ bpm/core.clj       ← 高层 API:部署/发起/审批/驳回/转办/待办/已�
 | 子表单/富文本/地区组件 | 支持 | 无 | 待评估 |
 | 模板/复制表单 | 支持 | 无 | 待做 |
 
+- **2026-11-24 (3)** **H19 真实 MySQL 双库演练: 修两个被 SQLite 完全掩盖的数据库缺陷**:
+  · 演练环境: 本机真实 MySQL 8.4.3 (Oracle 官方 tarball, x86_64) 跑在
+    `127.0.0.1:3308` (与 AGENTS.md 约定端口一致), 全新库 `DROP DATABASE / CREATE`,
+    默认 `STRICT_TRANS_TABLES`. 此前所有"双库兼容"结论都只来自 SQLite 单库运行,
+    MySQL 迁移集实际从未被真正执行过;
+  · **缺陷一 - 迁移用了 SQLite 专有语法**: `resources/migrations/20261119000{5,7,9,11}`
+    四个菜单种子迁移里共 14 处 `INSERT OR IGNORE INTO`, MySQL 直接语法错误,
+    迁移在第一个文件就中止. 改为 MySQL 语法 `INSERT IGNORE INTO` (语义等价: 唯一键
+    冲突时跳过), 两个迁移目录必须保持同一语义;
+  · **缺陷二 - 列宽与写入值不匹配**: `biz_bpm_instance.status` 是 `CHAR(1)`, 但
+    cancel / terminate 路径写入 `'CANCELED'` (8 字符). SQLite 的 `TEXT` 不校验长度所以
+    静默接受, MySQL 严格模式报 `ERROR 1406 Data too long for column 'status'`, 导致
+    **MySQL 上一个流程实例都取消不掉**, 业务状态永远停在 `'1'`, 表现为
+    `bpm-phase1-cancel-test` / `bpm-p0-allow-cancel-test` 全部 500;
+  · **修法是放宽列宽而不是改写入值**: 前端 `bpm_copy.cljs` / `bpm_instance.cljs` /
+    `bpm_ops.cljs` 三处都按字符串 `"CANCELED"` 判定"已取消", 改值会波及前端.
+    新增双边迁移 `202611240001-widen-bpm-instance-status`: MySQL 侧
+    `MODIFY COLUMN status VARCHAR(16)` (既有的 `1`=审批中 / `2`=通过 / `3`=驳回
+    单字符编码仍兼容), SQLite 侧本就无长度限制, 用不改数据的 `UPDATE ... WHERE 0`
+    占位以保持两侧版本号对齐; down 迁移先把 CANCELED 归一到单字符再收回 `CHAR(1)`,
+    避免 MySQL 因超长拒绝 ALTER, SQLite 静默截断丢数据;
+  · **踩坑**: SQLite 占位迁移**不能用 `SELECT 1;`** - Migratus 走 `executeUpdate`,
+    返回结果集会抛 "query returns results";
+  · 证据: MySQL 8.4.3 全新库全量 **909 tests / 8744 assertions, 0 failures 0 errors**,
+    SQLite 全量同样 909/8744 0 失败 (两侧完全一致); 修复前 MySQL 实测
+    `UPDATE ... SET status='CANCELED'` 报 `ERROR 1406`.
+
 - **2026-11-24 (2)** **错误码收敛 (400/403/404/409) 与候选解析拆分**:
   · 根因定位: 领域层标了 `:status` 却仍然全部报 500, 原因是**七个业务控制器各自复制了一份
     `wrap-err`, 其中六份硬编码 500 并丢弃 `ex-data` 的 `:status`**. 只改领域层无效.
