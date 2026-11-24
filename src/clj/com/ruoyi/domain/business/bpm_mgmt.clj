@@ -36,8 +36,13 @@
 
 
 (defn- cfg
+  "取模块的 CRUD 配置. 未知模块直接 404: 路由是 `/bpm/:module` 通配, 任何拼错的
+   或方法不匹配的路径都会落到这里, 未校验时会拿 nil 去调 HugSQL, 抛出的错误里
+   带着全部可用 query 键名 (信息泄露) 且报成 500."
   [module]
-  (get crud module))
+  (or (get crud module)
+      (throw (ex-info (str "未知的 BPM 管理模块: " (name module))
+                      {:module (name module) :status 404}))))
 
 
 (defn list-items
@@ -46,9 +51,10 @@
         c (cfg module)
         p {:name (get params :name) :type (get params :type)
            :page_size size :offset offset}
-        rows (query-fn (:list c) p)]
-    (when (= :listener module)
-      (doseq [r rows] (assoc r :type (get params :type))))
+        rows (query-fn (:list c) p)
+        ;; doseq + 不可变 assoc 的返回值会被丢弃, 改 mapv 才真正写回 :type
+        rows (cond->> rows
+               (= :listener module) (mapv (fn [r] (assoc r :type (get params :type)))))]
     {:rows rows :total (:total (query-fn (:count c) p))}))
 
 

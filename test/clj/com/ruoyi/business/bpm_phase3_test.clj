@@ -284,7 +284,7 @@
         (is (every? :suspended? defs)))
       (let [r (parse-json (POST app "/api/business/bpm/instance"
                                 {:model_id model-id :form_data {:days 1}} h))]
-        (is (= 500 (:code r)))
+        (is (= 400 (:code r)))
         (is (re-find #"挂起" (:msg r))))
       (let [r (parse-json (PUT app "/api/business/bpm/model/state" {:id model-id :state 1} h))]
         (is (= 200 (:code r)))

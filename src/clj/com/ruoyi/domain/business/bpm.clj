@@ -14,6 +14,34 @@
     [integrant.core :as ig]))
 
 
+;; ── 业务错误码 ─────────────────────────────────────────────────────────
+;; 控制器 wrap-err 读 ex-data 的 :status 作为业务码, 缺省 500. 把"调用方能用
+;; 400/403/404/409 区分的情况"显式带上状态码:
+;;   400 参数/输入非法, 403 无权限, 404 引用的对象不存在, 409 状态冲突.
+
+(defn- forbidden
+  [msg data]
+  (ex-info msg (assoc data :status 403)))
+
+
+(defn- invalid-input
+  "参数或输入非法 -> 400."
+  [msg data]
+  (ex-info msg (assoc data :status 400)))
+
+
+(defn- missing
+  "被引用的对象不存在 -> 404."
+  [msg data]
+  (ex-info msg (assoc data :status 404)))
+
+
+(defn- conflict
+  "与当前状态冲突 -> 409."
+  [msg data]
+  (ex-info msg (assoc data :status 409)))
+
+
 ;; ── 抄送节点处理器(COPY_TASK)─────────────────────────────────────────
 
 (declare resolve-candidate-users list-all-users)
@@ -564,11 +592,11 @@
   [{:keys [query-fn]} params user]
   (let [key (some-> (:model_key params) str str/trim)]
     (when (str/blank? key)
-      (throw (ex-info "流程key不能为空" {:model_key (:model_key params)})))
+      (throw (invalid-input "流程key不能为空" {:model_key (:model_key params)})))
     (when-not (re-matches model-key-pattern key)
-      (throw (ex-info "流程key格式不正确：须以字母或下划线开头，只能包含字母、数字、_ - . $" {})))
+      (throw (invalid-input "流程key格式不正确：须以字母或下划线开头，只能包含字母、数字、_ - . $" {})))
     (when (query-fn :bpm/find-model-by-key {:model_key key})
-      (throw (ex-info (str "流程key已存在：" key) {:model_key key})))
+      (throw (conflict (str "流程key已存在：" key) {:model_key key})))
     (query-fn :bpm/insert-model
               {:model_key key :model_name (or (:model_name params) key)
                :category_id (or (:category_id params) 0) :version 1
@@ -656,8 +684,8 @@
   "部署流程模型到 Flowable,并回写 deployment_id.返回新 deployment-id."
   [{:keys [engine query-fn]} id]
   (let [m (query-fn :bpm/find-model-by-id {:model_id id})
-        _ (when-not m (throw (ex-info "流程模型不存在" {:model_id id})))
-        _ (when-not (:bpmn_xml m) (throw (ex-info "模型未定义 BPMN" {:model_id id})))
+        _ (when-not m (throw (missing "流程模型不存在" {:model_id id})))
+        _ (when-not (:bpmn_xml m) (throw (missing "模型未定义 BPMN" {:model_id id})))
         _ (bpm/sync-identity! engine (load-identity-data query-fn))
         dep-id (bpm/deploy! engine (:bpmn_xml m) (:model_key m) (:model_name m))
         new-version (inc (or (:version m) 1))]
@@ -846,7 +874,7 @@
                              (dept-and-parents query-fn (:dept_id u))))]
         (when-not (and u (or (and (seq uid-set) (contains? uid-set (str (:user_id u))))
                              dept-ok?))
-          (throw (ex-info "您没有权限发起该流程" {:model_id (:model_id model)})))))))
+          (throw (forbidden "您没有权限发起该流程" {:model_id (:model_id model)})))))))
 
 
 (defn instance-start!
@@ -855,12 +883,12 @@
    子流程多实例节点(mi-enable)注入 miList_<id> 实例数量列表变量."
   [{:keys [engine query-fn]} model-id business-key form-data starter]
   (let [m (query-fn :bpm/find-model-by-id {:model_id model-id})
-        _ (when-not m (throw (ex-info "流程模型不存在" {:model_id model-id})))
+        _ (when-not m (throw (missing "流程模型不存在" {:model_id model-id})))
         _ (check-start-permission! query-fn m starter)
         _ (when-not (:deployment_id m)
-            (throw (ex-info "模型未部署，请先部署" {:model_id model-id :key (:model_key m)})))
+            (throw (invalid-input "模型未部署，请先部署" {:model_id model-id :key (:model_key m)})))
         _ (when (:suspended? (bpm/latest-definition engine (:model_key m)))
-            (throw (ex-info "流程定义已挂起，不可发起" {:model_id model-id :key (:model_key m)})))
+            (throw (invalid-input "流程定义已挂起，不可发起" {:model_id model-id :key (:model_key m)})))
         ;; 发起前同步组织身份 (角色/部门/岗位/部门负责人成员关系), 组织调整后无需重新部署模型
         _ (bpm/sync-identity! engine (load-identity-data query-fn))
         biz-key (or business-key (str "biz-" (System/currentTimeMillis)))
@@ -922,7 +950,7 @@
    P0:办理人节点(TRANSACTOR)默认按钮为\"办理\";模型权限开关 allow_cancel/allow_withdraw 一并返回."
   [{:keys [engine query-fn]} task-id]
   (let [task-obj (some-> (.taskId (.createTaskQuery (.getTaskService engine)) task-id) .singleResult)
-        _ (when-not task-obj (throw (ex-info "任务不存在" {:task-id task-id})))
+        _ (when-not task-obj (throw (missing "任务不存在" {:task-id task-id})))
         task (bpm/task->map* task-obj)
         pid (:process-instance-id task)
         inst (query-fn :bpm/find-instance-by-pid {:process_instance_id pid})
@@ -1051,11 +1079,6 @@
 ;; 个人办理类接口只要求登录, 授权来自任务归属: 流程配置把谁设为审批人, 谁就能办理,
 ;; 不会因为角色未授权菜单而卡住流程; 越权操作返回 403.
 
-(defn- forbidden
-  [msg data]
-  (ex-info msg (assoc data :status 403)))
-
-
 (defn task-actor?
   "用户是否可以办理运行中的任务: 已指派给本人, 或未认领且本人是候选人 (含候选组)."
   [engine task-id user]
@@ -1070,7 +1093,7 @@
   "运行中任务必须存在且当前用户可以办理."
   [engine task-id user]
   (when-not (bpm/task-of engine (str task-id))
-    (throw (ex-info "任务不存在或已完成" {:task-id task-id})))
+    (throw (missing "任务不存在或已完成" {:task-id task-id})))
   (when-not (task-actor? engine task-id user)
     (throw (forbidden "无权办理该任务(非本人)" {:task-id task-id}))))
 
@@ -1110,7 +1133,7 @@
   "查看任务相关信息: 任务所属实例的参与人或流程管理员."
   [{:keys [engine] :as service} task-id user manager?]
   (let [pid (task-instance-id engine task-id)]
-    (when-not pid (throw (ex-info "任务不存在" {:task-id task-id})))
+    (when-not pid (throw (missing "任务不存在" {:task-id task-id})))
     (check-instance-viewer! service pid user manager?)))
 
 
@@ -1157,7 +1180,7 @@
   "委派办结: 只有被委派人 (当前办理人) 可以办结, 任务回到所有者."
   [{:keys [engine]} task-id user]
   (let [t (bpm/task-of engine (str task-id))]
-    (when-not t (throw (ex-info "任务不存在或已完成" {:task-id task-id})))
+    (when-not t (throw (missing "任务不存在或已完成" {:task-id task-id})))
     (when-not (= (str user) (str (:assignee t)))
       (throw (forbidden "只有被委派人可以办结" {:task-id task-id}))))
   (bpm/resolve! engine task-id))
@@ -1177,7 +1200,7 @@
   [{:keys [engine]} task-id user comment sign-pic-url next-user-ids]
   (check-task-actor! engine task-id user)
   (when (and (reason-required? engine task-id) (str/blank? (or comment "")))
-    (throw (ex-info "当前节点要求填写审批意见" {:task-id task-id})))
+    (throw (invalid-input "当前节点要求填写审批意见" {:task-id task-id})))
   (bpm/approve! engine task-id user comment sign-pic-url next-user-ids))
 
 
@@ -1186,7 +1209,7 @@
   [{:keys [engine]} task-id user comment return-node-id sign-pic-url]
   (check-task-actor! engine task-id user)
   (when (and (reason-required? engine task-id) (str/blank? (or comment "")))
-    (throw (ex-info "当前节点要求填写审批意见" {:task-id task-id})))
+    (throw (invalid-input "当前节点要求填写审批意见" {:task-id task-id})))
   (bpm/reject! engine task-id user comment return-node-id sign-pic-url))
 
 
@@ -1195,7 +1218,7 @@
    P0-4:模型权限开关 allow_cancel/allow_withdraw 随模型返回,前端据此显隐取消/撤回按钮."
   [{:keys [engine query-fn]} pid]
   (let [biz (query-fn :bpm/find-instance-by-pid {:process_instance_id pid})
-        _ (when-not biz (throw (ex-info "流程实例不存在" {:pid pid})))
+        _ (when-not biz (throw (missing "流程实例不存在" {:pid pid})))
         model (query-fn :bpm/find-model-by-id {:model_id (:model_id biz)})
         ;; form_id>0 走表单记录;form_id=0/空且模型内嵌 form_json 时回退解析模型的表单
         form (when-let [fid (:form_id model)]
@@ -1218,7 +1241,7 @@
   "流程实例的图示数据:BPMN XML + 进行中/已完成节点 id,供前端 bpmn-js 高亮."
   [{:keys [engine query-fn]} pid]
   (let [biz (query-fn :bpm/find-instance-by-pid {:process_instance_id pid})
-        _ (when-not biz (throw (ex-info "流程实例不存在" {:pid pid})))
+        _ (when-not biz (throw (missing "流程实例不存在" {:pid pid})))
         model (query-fn :bpm/find-model-by-id {:model_id (:model_id biz)})
         active (bpm/active-activity-ids engine pid)
         completed (bpm/completed-activity-ids engine pid)]
@@ -1277,11 +1300,13 @@
 (defn task-create-sign!
   "加签:仅任务当前办理人可操作.节点配置意见必填时 reason 不能为空, 加签人必须是有效用户."
   [{:keys [engine query-fn]} task-id user-names sign-type reason user]
-  (when-not (bpm/task-of engine task-id) (throw (ex-info "任务不存在" {:task-id task-id})))
+  (when-not (bpm/task-of engine task-id) (throw (missing "任务不存在" {:task-id task-id})))
   (when-not (task-actor? engine task-id user)
     (throw (forbidden "只有任务办理人可以加签" {:task-id task-id})))
+  (when (some #(= (str user) (str %)) user-names)
+    (throw (invalid-input "不能给自己加签" {:task-id task-id :user user})))
   (when (and (reason-required? engine task-id) (str/blank? (or reason "")))
-    (throw (ex-info "当前节点要求填写审批意见" {:task-id task-id})))
+    (throw (invalid-input "当前节点要求填写审批意见" {:task-id task-id})))
   (bpm/create-sign! engine task-id (check-sign-targets! query-fn task-id user-names)
                     sign-type reason))
 
@@ -1289,7 +1314,7 @@
 (defn task-delete-sign!
   "减签:仅任务当前办理人可操作."
   [{:keys [engine]} task-id user-names reason user]
-  (when-not (bpm/task-of engine task-id) (throw (ex-info "任务不存在" {:task-id task-id})))
+  (when-not (bpm/task-of engine task-id) (throw (missing "任务不存在" {:task-id task-id})))
   (when-not (task-actor? engine task-id user)
     (throw (forbidden "只有任务办理人可以减签" {:task-id task-id})))
   (bpm/delete-sign! engine task-id user-names reason))
@@ -1312,13 +1337,13 @@
    P0-4:模型 allow_cancel=0 时发起人不可撤销审批中的申请(管理员不受限)."
   [{:keys [engine query-fn]} process-instance-id reason user admin?]
   (let [inst (query-fn :bpm/find-instance-by-pid {:process_instance_id process-instance-id})]
-    (when-not inst (throw (ex-info "流程实例不存在" {:process-instance-id process-instance-id})))
+    (when-not inst (throw (missing "流程实例不存在" {:process-instance-id process-instance-id})))
     (when-not (or admin? (= user (:starter_id inst)))
       (throw (forbidden "只有发起人或管理员可以取消流程" {:process-instance-id process-instance-id})))
     (when-not admin?
       (let [model (query-fn :bpm/find-model-by-id {:model_id (:model_id inst)})]
         (when (and model (= "0" (str (:allow_cancel model))))
-          (throw (ex-info "该流程模型已禁止发起人撤销审批中的申请"
+          (throw (conflict "该流程模型已禁止发起人撤销审批中的申请"
                           {:process-instance-id process-instance-id})))))
     (bpm/cancel-instance! engine process-instance-id reason)
     (query-fn :bpm/update-instance-status {:process_instance_id process-instance-id
@@ -1331,7 +1356,7 @@
   (let [inst (query-fn :bpm/find-instance-by-pid {:process_instance_id pid})
         model (when inst (query-fn :bpm/find-model-by-id {:model_id (:model_id inst)}))]
     (when (and model (= "0" (str (:allow_withdraw model))))
-      (throw (ex-info "该流程模型已禁止审批人撤回" {:process-instance-id pid})))))
+      (throw (conflict "该流程模型已禁止审批人撤回" {:process-instance-id pid})))))
 
 
 (defn task-withdraw!
@@ -1347,7 +1372,7 @@
   "发起人撤回到起始节点重新编辑:发起人或管理员."
   [{:keys [engine query-fn]} process-instance-id user admin?]
   (let [inst (query-fn :bpm/find-instance-by-pid {:process_instance_id process-instance-id})]
-    (when-not inst (throw (ex-info "流程实例不存在" {:process-instance-id process-instance-id})))
+    (when-not inst (throw (missing "流程实例不存在" {:process-instance-id process-instance-id})))
     (when-not (or admin? (= user (:starter_id inst)))
       (throw (forbidden "只有发起人或管理员可以撤回流程" {:process-instance-id process-instance-id})))
     (check-model-withdraw-allowed! query-fn process-instance-id)
@@ -1374,7 +1399,7 @@
   (when-not (instance-participant? service process-instance-id user)
     (throw (forbidden "只有流程参与人可以抄送" {:process-instance-id process-instance-id})))
   (when (empty? (seq user-names))
-    (throw (ex-info "抄送人不能为空" {:process-instance-id process-instance-id})))
+    (throw (invalid-input "抄送人不能为空" {:process-instance-id process-instance-id})))
   (doseq [u (check-copy-targets! query-fn process-instance-id user-names)]
     (query-fn :bpm/insert-copy
               {:user_id (str u) :process_instance_id process-instance-id
@@ -1429,7 +1454,7 @@
   [{:keys [engine]} definition-id]
   (let [key (bpm/definition-key-of engine definition-id)]
     (when-not key
-      (throw (ex-info "流程定义不存在" {:definition-id definition-id})))
+      (throw (missing "流程定义不存在" {:definition-id definition-id})))
     {:definition-id definition-id
      :model-key key
      :xml (bpm/definition-xml engine definition-id)}))
@@ -1440,13 +1465,13 @@
   [{:keys [engine query-fn]} definition-id]
   (let [key (bpm/definition-key-of engine definition-id)]
     (when-not key
-      (throw (ex-info "流程定义不存在" {:definition-id definition-id})))
+      (throw (missing "流程定义不存在" {:definition-id definition-id})))
     (let [xml (bpm/definition-xml engine definition-id)]
       (when-not (seq xml)
-        (throw (ex-info "无法读取定义 BPMN" {:definition-id definition-id})))
+        (throw (missing "无法读取定义 BPMN" {:definition-id definition-id})))
       (let [model (query-fn :bpm/find-model-by-key {:model_key key})]
         (when-not model
-          (throw (ex-info "找不到对应流程模型" {:model-key key})))
+          (throw (missing "找不到对应流程模型" {:model-key key})))
         (query-fn :bpm/restore-model {:model_id (:model_id model) :bpmn_xml xml})
         {:model_id (:model_id model) :model_key key}))))
 
@@ -1456,7 +1481,7 @@
   [{:keys [engine query-fn]} id state user]
   (let [m (query-fn :bpm/find-model-by-id {:model_id id})]
     (when-not m
-      (throw (ex-info "流程模型不存在" {:model_id id})))
+      (throw (missing "流程模型不存在" {:model_id id})))
     (let [key (:model_key m)
           suspend? (= "2" (str state))]
       (if suspend?
@@ -1473,7 +1498,7 @@
   [{:keys [engine query-fn]} id]
   (let [m (query-fn :bpm/find-model-by-id {:model_id id})]
     (when-not m
-      (throw (ex-info "流程模型不存在" {:model_id id})))
+      (throw (missing "流程模型不存在" {:model_id id})))
     (let [key (:model_key m)
           pids (mapv :process_instance_id (query-fn :bpm/instances-by-model-key {:model_key key}))
           deployments (bpm/delete-deployments-by-key! engine key)]
@@ -1490,7 +1515,7 @@
   [{:keys [query-fn]} id user]
   (let [m (query-fn :bpm/find-model-by-id {:model_id id})]
     (when-not m
-      (throw (ex-info "流程模型不存在" {:model_id id})))
+      (throw (missing "流程模型不存在" {:model_id id})))
     (let [new-key (loop [k (str (:model_key m) "_copy")]
                     (if (query-fn :bpm/find-model-by-key {:model_key k})
                       (recur (str k "_copy"))
@@ -1530,7 +1555,7 @@
   [{:keys [engine query-fn]} instance-id]
   (let [biz (query-fn :bpm/find-instance-by-id {:instance_id instance-id})]
     (when-not biz
-      (throw (ex-info "流程实例不存在" {:instance-id instance-id})))
+      (throw (missing "流程实例不存在" {:instance-id instance-id})))
     (let [model (query-fn :bpm/find-model-by-id {:model_id (:model_id biz)})
           form (when-let [fid (:form_id model)]
                  (query-fn :bpm/find-form-by-id {:form_id fid}))

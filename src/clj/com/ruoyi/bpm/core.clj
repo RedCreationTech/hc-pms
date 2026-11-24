@@ -34,6 +34,34 @@
       HistoricTaskInstance)))
 
 
+;; ── 业务错误码 ─────────────────────────────────────────────────────────
+;; 控制器 wrap-err 读 ex-data 的 :status 作为业务码, 缺省 500. 把"调用方能用
+;; 400/404/409 区分的情况"显式带上状态码, 避免把可自愈的用户输入错误都报成
+;; 500(前端无法区分"我填错了"和"服务端挂了").
+;;   400: 请求参数缺失/非法(缺 taskId, 目标节点或用户不存在, 流程 key 非法)
+;;   404: 被引用的对象不存在(任务/实例/模型/定义)
+;;   409: 与当前状态冲突(任务已被他人处理, 流程已结束)
+
+
+(defn invalid!
+  "参数或输入非法 -> 400."
+  [msg data]
+  (ex-info msg (assoc data :status 400)))
+
+
+(defn not-found!
+  "对象不存在 -> 404."
+  [msg data]
+  (ex-info msg (assoc data :status 404)))
+
+
+(defn conflict!
+  "与当前状态冲突 -> 409."
+  [msg data]
+  (ex-info msg (assoc data :status 409)))
+
+
+
 ;; ── 工具 ───────────────────────────────────────────────────────────────
 
 (defn- vars-map
@@ -195,7 +223,7 @@
                 (.startProcessInstanceByKey rt definition-key business-key (vars-map variables))
                 (.startProcessInstanceByKey rt definition-key business-key))]
      (when (nil? inst)
-       (throw (ex-info "流程实例启动失败: 未找到流程定义" {:key definition-key})))
+       (throw (not-found! "流程实例启动失败: 未找到流程定义" {:key definition-key})))
      {:process-instance-id (.getId ^ProcessInstance inst)
       :process-definition-id (.getProcessDefinitionId ^ProcessInstance inst)
       :business-key (.getBusinessKey ^ProcessInstance inst)})))
@@ -534,8 +562,11 @@
 
 
 (defn task-of
-  "按任务 id 查单个任务(含实例 id/定义 id)."
+  "按任务 id 查单个任务(含实例 id/定义 id). 空 id 直接 400:
+   把 nil 交给 Flowable 的 TaskQuery 会抛 (Task id is null) 这种内部异常."
   [^ProcessEngine engine task-id]
+  (when (str/blank? (str task-id))
+    (throw (invalid! "缺少任务编号 taskId" {:task-id task-id})))
   (some-> (.singleResult (.taskId (.createTaskQuery (.getTaskService engine)) task-id))
           task->map))
 
@@ -635,7 +666,7 @@
     (when-let [task (.singleResult (.taskId (.createTaskQuery (.getTaskService engine)) task-id))]
       (let [cur (.getAssignee task)]
         (when (and cur (not= cur from-user))
-          (throw (ex-info "转办失败: 任务不属于该用户" {:task-id task-id :from from-user :cur cur}))))))
+          (throw (invalid! "转办失败: 任务不属于该用户" {:task-id task-id :from from-user :cur cur}))))))
   (.setAssignee (.getTaskService engine) task-id to-user)
   true)
 
@@ -655,12 +686,16 @@
 
 
 (defn- task-entity
-  "按任务 id 查运行中任务实体,不存在则抛错."
+  "按任务 id 查运行中任务实体,不存在则抛错.
+   先校验 id 非空: 直接把 nil 交给 Flowable 的 TaskQuery 会抛
+   (Task id is null), 那是内部异常而不是可读的业务错误."
   [^ProcessEngine engine task-id]
+  (when (str/blank? (str task-id))
+    (throw (invalid! "缺少任务编号 taskId" {:task-id task-id})))
   (let [t (some-> (.taskId (.createTaskQuery (.getTaskService engine)) task-id)
                   .singleResult)]
     (when-not t
-      (throw (ex-info "任务不存在或已完成" {:task-id task-id})))
+      (throw (not-found! "任务不存在或已完成" {:task-id task-id})))
     t))
 
 
@@ -731,7 +766,7 @@
   (try
     (complete-impl engine task-id user variables)
     (catch org.flowable.common.engine.api.FlowableOptimisticLockingException _
-      (throw (ex-info "任务已被他人处理，请刷新" {:task-id task-id}))))
+      (throw (conflict! "任务已被他人处理，请刷新" {:task-id task-id}))))
   true)
 
 
@@ -746,7 +781,7 @@
    (approve! engine task-id user comment sign-pic-url nil))
   ([^ProcessEngine engine task-id user comment sign-pic-url next-user-ids]
    (when (pos? (open-sign-count engine task-id))
-     (throw (ex-info "加签任务未完成" {:task-id task-id})))
+     (throw (conflict! "加签任务未完成" {:task-id task-id})))
    (complete* engine task-id user (cond-> {:approved true}
                                     comment (assoc :comment comment)
                                     sign-pic-url (assoc :sign-pic-url sign-pic-url)
@@ -1155,7 +1190,7 @@
        (let [pid (.getProcessInstanceId t)
              start-act (start-event-activity-id engine pid)]
          (when-not start-act
-           (throw (ex-info "找不到流程起始节点" {:process-instance-id pid})))
+           (throw (not-found! "找不到流程起始节点" {:process-instance-id pid})))
          (when comment
            (let [rt (.getRuntimeService engine)]
              (.setVariable rt pid "comment" comment)))
@@ -1271,7 +1306,7 @@
   (let [t (task-entity engine task-id)
         ts (.getTaskService engine)]
     (when (empty? (seq user-names))
-      (throw (ex-info "加签人不能为空" {:task-id task-id})))
+      (throw (invalid! "加签人不能为空" {:task-id task-id})))
     (doseq [u user-names]
       (let [child (.newTask ts)]
         (.setName child (str (.getName t)))
@@ -1296,7 +1331,7 @@
         children (filter #(contains? user-set (str (.getAssignee ^Task %)))
                          (child-sign-tasks engine task-id))]
     (when (empty? children)
-      (throw (ex-info "没有可减签的加签任务" {:task-id task-id :users user-names})))
+      (throw (not-found! "没有可减签的加签任务" {:task-id task-id :users user-names})))
     (doseq [^Task c children]
       (.deleteTask ts (.getId c) true))
     (when reason
@@ -1356,17 +1391,17 @@
         ht (some-> (.createHistoricTaskInstanceQuery hs)
                    (.taskId task-id) .singleResult)]
     (when-not ht
-      (throw (ex-info "任务不存在" {:task-id task-id})))
+      (throw (not-found! "任务不存在" {:task-id task-id})))
     (when-not (= (str user) (str (.getAssignee ht)))
-      (throw (ex-info "只能撤回本人审批的任务" {:task-id task-id :user user})))
+      (throw (invalid! "只能撤回本人审批的任务" {:task-id task-id :user user})))
     (let [pid (.getProcessInstanceId ht)
           act (.getTaskDefinitionKey ht)
           active (active-activity-ids-safe engine pid)]
       (when (empty? active)
-        (throw (ex-info "流程已结束，无法撤回" {:process-instance-id pid})))
+        (throw (conflict! "流程已结束，无法撤回" {:process-instance-id pid})))
       (let [next-acts (remove #(= act %) active)]
         (when (empty? next-acts)
-          (throw (ex-info "没有可撤回的后续节点" {:process-instance-id pid})))
+          (throw (not-found! "没有可撤回的后续节点" {:process-instance-id pid})))
         (move-to-activity! engine pid (first next-acts) act)
         ;; 迁移后重新生成的本节点任务指派人还原为原审批人
         (let [ts (.getTaskService engine)
@@ -1390,9 +1425,9 @@
                           .list first (.getActivityId))
         active (active-activity-ids-safe engine process-instance-id)]
     (when (empty? active)
-      (throw (ex-info "流程已结束，无法撤回" {:process-instance-id process-instance-id})))
+      (throw (conflict! "流程已结束，无法撤回" {:process-instance-id process-instance-id})))
     (when-not start-act
-      (throw (ex-info "找不到流程起始节点" {:process-instance-id process-instance-id})))
+      (throw (not-found! "找不到流程起始节点" {:process-instance-id process-instance-id})))
     (let [rt (.getRuntimeService engine)
           builder (.createChangeActivityStateBuilder rt)]
       (.processInstanceId builder process-instance-id)

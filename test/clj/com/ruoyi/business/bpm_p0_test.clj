@@ -150,7 +150,7 @@
     (testing "非法 key（数字开头）被拒绝"
       (let [r (parse-json (POST app "/api/business/bpm/model"
                                 {:model_key (str "9" key) :model_name "x"} h))]
-        (is (= 500 (:code r)))
+        (is (= 400 (:code r)))
         (is (re-find #"格式不正确" (:msg r)))))
     (testing "重名 key 被拒绝"
       (let [_ (create-model! app h)
@@ -158,7 +158,7 @@
                              [:data :rows 0 :model_key])
             r (parse-json (POST app "/api/business/bpm/model"
                                 {:model_key existing :model_name "x"} h))]
-        (is (= 500 (:code r)))
+        (is (= 409 (:code r)))
         (is (re-find #"已存在" (:msg r)))))
     (testing "合法 key 创建成功并补默认 BPMN 骨架/权限开关默认值"
       (let [{:keys [model-id model-key]} (create-model! app h)
@@ -206,7 +206,7 @@
     (testing "allow_cancel=0：发起人取消被拒绝"
       (let [r (parse-json (DELETE app "/api/business/bpm/instance/cancel"
                                   {:id pid :reason "不想申请了"} hdr))]
-        (is (= 500 (:code r)))
+        (is (= 409 (:code r)))
         (is (re-find #"已禁止发起人撤销" (:msg r)))))
     (testing "allow_cancel=0：管理员仍可取消"
       (let [r (parse-json (DELETE app "/api/business/bpm/instance/cancel"
@@ -245,11 +245,11 @@
         (is (some #(= "审批2" (:name %)) (todo-of app h pid))))
       (testing "allow_withdraw=0：审批人撤回被拒绝"
         (let [r (parse-json (PUT app "/api/business/bpm/task/withdraw" {:taskId task1} h))]
-          (is (= 500 (:code r)))
+          (is (= 409 (:code r)))
           (is (re-find #"已禁止审批人撤回" (:msg r)))))
       (testing "allow_withdraw=0：发起人撤回到起始节点也被拒绝"
         (let [r (parse-json (PUT app "/api/business/bpm/task/withdraw-to-start" {:processInstanceId pid} hdr))]
-          (is (= 500 (:code r)))
+          (is (= 409 (:code r)))
           (is (re-find #"已禁止审批人撤回" (:msg r)))))
       (testing "allow_withdraw=1：审批人撤回成功"
         (let [{:keys [model-id]} (deploy-switch-model! app h {:allow_withdraw "1"})

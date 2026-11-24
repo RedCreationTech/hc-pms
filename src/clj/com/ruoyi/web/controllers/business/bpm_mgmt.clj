@@ -13,14 +13,7 @@
        (response/content-type "application/json"))))
 
 
-(defn- fail
-  [msg]
-  (-> (response/response {:code 500 :msg msg}) (response/content-type "application/json")))
-
-
-(defn- wrap-err
-  [f]
-  (try (f) (catch Exception e (fail (.getMessage e)))))
+(def wrap-err bu/wrap-err)
 
 
 (defn- module-of

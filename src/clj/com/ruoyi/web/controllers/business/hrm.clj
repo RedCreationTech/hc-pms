@@ -20,9 +20,7 @@
        (response/content-type "application/json"))))
 
 
-(defn- wrap-err
-  [f]
-  (try (f) (catch Exception e (fail (.getMessage e)))))
+(def wrap-err bu/wrap-err)
 
 
 (defn- parse-id

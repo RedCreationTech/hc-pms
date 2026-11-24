@@ -400,3 +400,37 @@
         (is (seq (todo-of app h pid2)) "新负责人 (admin) 收到新待办")
         (is (empty? (todo-of app u-hdr pid2)) "原负责人不再收到新待办")
         (is (empty? (todo-of app u-hdr pid1)) "原负责人的候选资格随成员关系移除")))))
+
+
+;; ── 错误码收敛: 参数非法 400 / 对象不存在 404 / 状态冲突 409 ──────────
+
+(deftest bpm-error-code-mapping-test
+  (let [app (handler) token (login-token "admin") h (auth-hdr token)]
+    (testing "未知的 BPM 管理模块 → 404, 不再 500 且不泄露 query 键名"
+      (let [r (parse-json (GET app "/api/business/bpm/copy" {} h))]
+        (is (= 404 (:code r)))
+        (is (re-find #"未知的 BPM 管理模块" (:msg r)))
+        (is (not (re-find #"available queries" (:msg r)))
+            "错误信息不能带出全部可用 query 键名")))
+    (testing "任务不存在 → 404"
+      (let [r (parse-json (POST app "/api/business/bpm/task/99999999/approve" {:comment "x"} h))]
+        (is (= 404 (:code r)))
+        (is (re-find #"任务不存在" (:msg r)))))
+    (testing "缺 taskId 的写操作 → 400, 不再是 Task id is null"
+      (let [r (parse-json (POST app "/api/business/bpm/task/create-sign"
+                                {:userIds ["admin"] :type "before" :reason "x"} h))]
+        (is (= 400 (:code r)))
+        (is (re-find #"缺少任务编号|任务不存在" (:msg r)))
+        (is (not (re-find #"Task id is null" (:msg r)))
+            "不能把 Flowable 的内部报错透给前端")))
+    (testing "监听器列表按 type 过滤时 :type 真正回显到每行"
+      (let [nm (str "lst" (rand-int 1000000))
+            cr (parse-json (POST app "/api/business/bpm/listener"
+                                 {:name nm :type "task" :event "create"
+                                  :listener "${x}" :status "0"} h))
+            _ (is (= 200 (:code cr)))
+            r (parse-json (GET app "/api/business/bpm/listener?page=1&size=100&type=task" {} h))
+            row (first (filter #(= nm (:name %)) (get-in r [:data :rows])))]
+        (is (= 200 (:code r)))
+        (is (some? row))
+        (is (= "task" (:type row)) "之前 doseq+assoc 结果被丢弃, :type 永远 nil")))))

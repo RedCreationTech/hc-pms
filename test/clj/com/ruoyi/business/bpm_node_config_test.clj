@@ -379,7 +379,7 @@
       (is (= true (get-in detail [:data :reason-require]))))
     (testing "意见必填：无意见审批被拒绝"
       (let [r (parse-json (POST app (str "/api/business/bpm/task/" task-id "/approve") {} h))]
-        (is (= 500 (:code r)))
+        (is (= 400 (:code r)))
         (is (re-find #"审批意见" (:msg r)))))
     (testing "带签名图 URL + 意见可审批，历史记录含签名图"
       (let [r (parse-json (POST app (str "/api/business/bpm/task/" task-id "/approve")

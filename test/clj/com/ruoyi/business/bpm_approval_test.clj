@@ -169,6 +169,11 @@
         (is (= 400 (:code r)))
         (is (re-find #"不存在" (:msg r)))
         (is (empty? (get-in signs [:data :rows])) "失败的加签不能留下子任务")))
+    (testing "给自己加签 → 400"
+      (let [r (parse-json (POST app "/api/business/bpm/task/create-sign"
+                                {:taskId task1 :userIds ["admin"] :type "before" :reason "x"} h))]
+        (is (= 400 (:code r)))
+        (is (re-find #"不能给自己加签" (:msg r)))))
     (testing "加签：创建子任务并出现在加签列表"
       (let [r (parse-json (POST app "/api/business/bpm/task/create-sign"
                                 {:taskId task1 :userIds [username] :type "before" :reason "请协助"} h))
@@ -179,7 +184,7 @@
         (is (= "RUNNING" (:status (first (get-in signs [:data :rows])))))))
     (testing "子任务完成前父任务不能通过"
       (let [r (parse-json (POST app (str "/api/business/bpm/task/" task1 "/approve") {:comment "同意"} h))]
-        (is (= 500 (:code r)))
+        (is (= 409 (:code r)))
         (is (re-find #"加签任务未完成" (:msg r)))))
     (testing "加签子任务在抄送人待办中，可完成"
       (let [child (first (todo-of app hdr pid))]

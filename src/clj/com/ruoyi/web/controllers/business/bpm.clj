@@ -26,14 +26,7 @@
        (response/content-type "application/json"))))
 
 
-(defn- wrap-err
-  "把服务异常转成失败响应; ex-data 中的整数 :status (如 403) 作为业务码, 否则 500."
-  [f]
-  (try
-    (f)
-    (catch Exception e
-      (let [status (:status (ex-data e))]
-        (fail (if (integer? status) status 500) (.getMessage e))))))
+(def wrap-err bu/wrap-err)
 
 
 (defn- parse-id
@@ -423,7 +416,7 @@
 ;; ── 流程任务管理 / 流程实例运维 ─────────────────────────────────────
 (defn list-all-tasks
   "全部运行中任务(管理员)."
-  [{:keys [bpm-service]} request]
+  [{:keys [bpm-service]} _request]
   (wrap-err #(ok {:rows (bpm-core/all-tasks (:engine bpm-service))})))
 
 

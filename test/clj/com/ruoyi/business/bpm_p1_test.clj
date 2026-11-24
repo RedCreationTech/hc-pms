@@ -160,9 +160,9 @@
                    {:start_user_ids (json/write-str [admin-id])
                     :start_dept_ids "[]"})
     (deploy-model! app admin-h model-id)
-    (testing "不在指定人员名单内 → 500 您没有权限发起该流程"
+    (testing "不在指定人员名单内 → 403 您没有权限发起该流程"
       (let [r (start-instance app (:hdr u) model-id)]
-        (is (= 500 (:code r)))
+        (is (= 403 (:code r)))
         (is (= "您没有权限发起该流程" (:msg r)))))
     (testing "指定人员内 → 放行"
       (let [r (start-instance app admin-h model-id)]
@@ -188,7 +188,7 @@
         (is (= 200 (:code r)) (str "发起应成功: " (:msg r)))))
     (testing "无部门测试用户不在指定部门 → 拦截"
       (let [r (start-instance app (:hdr u) model-id)]
-        (is (= 500 (:code r)))
+        (is (= 403 (:code r)))
         (is (= "您没有权限发起该流程" (:msg r)))))))
 
 
