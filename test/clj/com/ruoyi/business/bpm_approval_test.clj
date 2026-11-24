@@ -278,6 +278,16 @@
             rows (get-in page [:data :rows])]
         (is (pos? (get-in page [:data :total])))
         (is (some #(= pid (:process_instance_id %)) rows))))
+    (testing "抄送到不存在的用户 → 400, 不写入幽灵抄送记录"
+      (let [before (get-in (parse-json (GET app "/api/business/bpm/task/copy/page?page=1&size=100" {} hdr))
+                           [:data :total])
+            r (parse-json (POST app "/api/business/bpm/task/copy"
+                                {:processInstanceId pid :userIds ["nosuchuser-zz"] :reason "x"} h))
+            after (get-in (parse-json (GET app "/api/business/bpm/task/copy/page?page=1&size=100" {} hdr))
+                          [:data :total])]
+        (is (= 400 (:code r)))
+        (is (re-find #"抄送用户不存在" (:msg r)))
+        (is (= before after) "非法抄送不能写入记录")))
     (testing "COPY_TASK 节点：任务创建时自动抄送并自动完成"
       (let [{m2 :model-id} (deploy-test-model! app h username)
             pid2 (start-instance! app h m2)

@@ -1354,6 +1354,20 @@
     (bpm/withdraw-to-start! engine process-instance-id)))
 
 
+(defn- check-copy-targets!
+  "抄送目标必须是系统中已存在的用户.
+   抄送到不存在的用户名只会写入一条永远没人看见的 biz_bpm_copy 记录,
+   用户以为已经通知了对方, 实际上是静默丢失."
+  [query-fn process-instance-id user-names]
+  (let [targets (mapv str user-names)
+        missing (remove #(query-fn :find-user-by-name {:user_name %}) targets)]
+    (when (seq missing)
+      (throw (ex-info (str "抄送用户不存在或已停用: " (str/join ", " missing))
+                      {:process-instance-id process-instance-id
+                       :users missing :status 400})))
+    targets))
+
+
 (defn task-copy!
   "手动抄送:为每个抄送人插 biz_bpm_copy 记录."
   [{:keys [query-fn] :as service} process-instance-id user-names reason activity-id activity-name user]
@@ -1361,7 +1375,7 @@
     (throw (forbidden "只有流程参与人可以抄送" {:process-instance-id process-instance-id})))
   (when (empty? (seq user-names))
     (throw (ex-info "抄送人不能为空" {:process-instance-id process-instance-id})))
-  (doseq [u user-names]
+  (doseq [u (check-copy-targets! query-fn process-instance-id user-names)]
     (query-fn :bpm/insert-copy
               {:user_id (str u) :process_instance_id process-instance-id
                :activity_id (or activity-id "") :activity_name (or activity-name "")
