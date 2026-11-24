@@ -3230,3 +3230,31 @@ down 为空操作但迁移确实改了结构 (回退后旧代码读不到已删�
 | 静态检查 | `clj-kondo --lint` 无新增问题 | 本轮不改 Clojure 代码 |
 
 本轮未执行 (如实记录): 演练只覆盖 MySQL 8.4 一个版本, 5.7 / 8.0 / PostgreSQL 未验证 (项目本身只支持 SQLite 与 MySQL, 见 `infra/db.clj:222`); 未做大数据量下的迁移耗时与索引膨胀测量; 未做 MySQL 主从或备份恢复演练, 该部分仍归 H20 的切换演练范围. SQLite 占位迁移踩坑已记录: **不能用 `SELECT 1;`**, Migratus 走 `executeUpdate` 会抛 "query returns results", 改用 `UPDATE ... WHERE 0`.
+
+
+## H20 UAT, 数据迁移与上线切换演练 (本轮, 2026-11-24 (4))
+
+范围与取舍: H20 的四项能力 (UAT 剧本, 历史数据迁移对账, 切换/回退, 培训与支持责任) 里, 只有"业务代表签字"和"真实生产环境容量"必须由用户方完成, 其余都能在本地做成可重复执行的演练并留证. 本轮做后者: 三个工具脚本 + 一份指南 + 一次完整切换/回退/备份恢复演练. 不改业务代码, 只补运维能力与被遗漏的迁移对齐.
+
+设计要点: 演练的可信度取决于"对账结果不说假话", 因此对账脚本必须能自证. `migration-reconcile.mjs` 有 `--self` 模式 (源与目标指向同一库), 任何非零差异都是脚本自身 bug; 本轮两个最危险的脚本缺陷正是靠它抓出来的. 备份必须覆盖**三个独立存储** (业务库 / Flowable H2 引擎库 / PMS 证据文件), 且 SQLite 与 H2 在服务运行中复制会得到不一致或损坏快照, 所以脚本默认拒绝在运行时操作 (退出码 2).
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| 备份/恢复实测 | 备份 1 秒 (业务库 2.7M + H2 53M + 证据 8K); 恢复 1 秒; 恢复后 22 秒 healthy | `scripts/backup-restore.sh`, 三存储一起, 生成不含连接串的 MANIFEST 与 SHA256SUMS |
+| 恢复正确性 | 破坏前 197 用户/491 实例 -> 破坏后 198/0 -> 恢复后 197/491, 与基线逐项一致 | 恢复后 BPM 待办 total=1321 / 模型 464 / 实例 491, 证明引擎库不只是"文件对"而是真能用 |
+| 不安全操作被拒 | 服务运行时 `backup` 与 `restore` 均拒绝, 退出码 2 | 防止在线复制出不一致快照 |
+| 损坏备份被拒 | 篡改 `business.db` 后 `verify` 报 sha256 不一致, `restore` 拒绝执行 | 不会把坏备份铺上去 |
+| SQLite -> MySQL 切换 | 目标库真实跑 85 个迁移建出 71 张表; 搬运 71 表 6126 行 0 失败 | `scripts/migration-copy.mjs` 拒绝写入库名不含 cutover/rehearsal/drill/test/uat 的库 |
+| 三层对账 | **224 项 0 差异** (结构: 表清单+列集合+迁移集合; 数据: 逐表行数; 语义: 9 组聚合) | 行数相同不代表内容相同, 语义层抓截断/归一 |
+| 切换后可用性 | 用 MySQL 库启动 20 秒 healthy 且 0 ERROR; 实例 491/模型 464/待办 1321/用户 197 与 SQLite 一致; 真实新建项目返回 200 并可读回 total=1 | 证明写路径可用, 不只是只读 |
+| 回退 | 切回 SQLite 22 秒 healthy, 实例 491 完好, 项目 0 (演练项目只在 MySQL 侧) | 回退后原库数据不受影响 |
+| 演示数据集 | `seed-demo-data.mjs` 493 秒产出 DEMO-SEED-01..06, 状态 draft/initiated/planning/execution/closing/closed 各一, 幂等 | 完整订单闭环 UAT 的数据底座, 全虚构不含真实客户与金额 |
+| 全量回归 (SQLite) | 909 tests / 8744 assertions, 0 failures/errors | 新增迁移未影响既有行为 |
+| 全量回归 (MySQL 8.4.3) | 909 tests / 8744 assertions, 0 failures/errors | 与 SQLite 完全一致 |
+
+对账脚本自身缺陷 (都会让结果说假话, 修前修后都有证据):
+1. **MySQL 默认 `sql_mode` 下 `||` 是逻辑或不是拼接** (缺 `PIPES_AS_CONCAT`). `'instance=' || status` 在 MySQL 上被算成 `0`/`1`, 脚本不报错, 只是静默给出错误键. 修法: 按方言写两份 SQL, SQLite 用 `||`, MySQL 用 `CONCAT()`.
+2. **`sqlite3 -json` 把纯数字 id 解析成 JS number**, 而 `mysql -N` 只给文本. 不统一转字符串则 `includes` 永远 false, 造出"目标缺失全部迁移"的假差异. 修法: 迁移 id 统一 `String()`.
+3. **迁移集合真实差异**: `202611200001-repair-current-text-timestamps` 原本只在 `migrations-sqlite/`, MySQL 目录无同名文件. 该迁移修的是 SQLite 历史缺陷 (`CURRENT_TEXT` 非法函数名), MySQL 从未产生该字面量, 因此补的是**版本号对齐占位迁移** (`UPDATE ... WHERE 1 = 0`), 不改 MySQL 任何数据.
+
+本轮未执行 (如实记录): 业务代表按剧本实际走查并签字 (需用户方指派); 真实生产目标环境的容量与 RPO/RTO 实测 (本机 22 秒启动不代表生产); 真实主机换 jar 与 `bb deploy:rollback` 演练 (本机 `gpu` 可连但 `hc-pms` 服务为 `inactive`, 从未部署); `docs/training/` 课件仍基于 6 月代码未随 PMS 更新; Firefox / WebKit 浏览器矩阵 (G18 范围); MySQL 主从与异地备份未做.
