@@ -276,6 +276,25 @@ bpm/core.clj       ← 高层 API:部署/发起/审批/驳回/转办/待办/已�
 | 子表单/富文本/地区组件 | 支持 | 无 | 待评估 |
 | 模板/复制表单 | 支持 | 无 | 待做 |
 
+- **2026-11-24 (2)** **错误码收敛 (400/403/404/409) 与候选解析拆分**:
+  · 根因定位: 领域层标了 `:status` 却仍然全部报 500, 原因是**七个业务控制器各自复制了一份
+    `wrap-err`, 其中六份硬编码 500 并丢弃 `ex-data` 的 `:status`**. 只改领域层无效.
+    现在收敛为 `web/controllers/business/util.clj` 唯一一份并读取 `:status`;
+  · `bpm/core` 新增 `invalid!` / `not-found!` / `conflict!` (与既有 `forbidden` 同构),
+    领域层加私有同名变体. **helper 必须定义在使用点之前**, 否则 `Unresolved symbol` -
+    领域层原有 `forbidden` 在文件中部, 本轮连同新 helper 一并上移到顶部;
+  · 语义: 400 参数/输入非法 (缺 taskId, 目标节点/用户不存在, key 格式非法, 给自己加签);
+    403 无权限; 404 被引用对象不存在 (任务/实例/模型/定义); 409 状态冲突 (任务已被他人
+    处理, 流程已结束, key 重名, 模型禁止撤销/撤回, 未知管理模块);
+  · 顺带修复 `bpm-mgmt/list-items` 的 `doseq` + 不可变 `assoc` 返回值被丢弃,
+    监听器列表 `:type` 永远回显 nil, 改 `mapv`;
+  · 重构: `resolve-candidate-users` CC 43 (9 个策略 + 6 个内联闭包) 拆为纯函数
+    (`user-names-of` / `selected-names` / `leader-of-dept` / `start-user-dept-id` /
+    `dept-parent-id`) 与按策略小函数, 主函数剩 45 行单个 `case`;
+  · 证据: 重构前后断言数完全一致 (903/8722), 最终 909 tests / 8744 assertions 0 failures;
+    七项错误码真实 HTTP 前后对比; 新增 22 条纯函数断言覆盖数字/字符串 id 混传、
+    查不到的用户被丢弃、部门链收敛.
+
 - **2026-11-24** **BPM 边界与语义缺陷四项修复**:
   · **驳回目标节点不存在抛 NPE**:`move-to-activity!` 把 `to-activity-id` 直接交给 Flowable 的
     `moveActivityIdTo`,目标节点不在 BPMN 里时引擎内部取不到元素直接 NullPointerException,

@@ -3191,3 +3191,23 @@ down 为空操作但迁移确实改了结构 (回退后旧代码读不到已删�
 | 静态检查 | `clj-kondo --lint` 所有改动文件 0 errors 0 warnings | 顺手清掉 `bpm_approval_test` 一个未使用的 `:as u` 绑定 |
 
 本轮未执行 (如实记录): 写操作缺 `taskId` 仍返回 500 `Task id is null`; "任务不存在"仍用 500 而非 404, 已结束任务重复办理仍用 500 而非 409; 加签允许加自己; 访问不存在的端点返回 500 并暴露全部 query key 名. 上述四项只影响错误码可读性, 不改变数据正确性, 留待后续统一收敛错误码时处理.
+
+
+## BPM 错误码收敛与候选解析拆分 (本轮, 2026-11-24 (2))
+
+范围与取舍: 收掉上一节如实记录的四个遗留项 (缺 taskId 报 500、任务不存在用 500、加签可加自己、未知端点 500 且泄露 query 键名), 并做一次圈复杂度重构. 只动错误码与内部结构, 不改任何审批业务语义与正常路径的返回结构.
+
+设计要点: 真正的根因不在领域层, 而在**七个业务控制器各自复制了一份 `wrap-err`, 其中六份硬编码 500 并丢弃 `ex-data` 的 `:status`** - 领域层即使标了状态码也全被吞成 500. 因此本轮一是把 `wrap-err` 收敛为 `web/controllers/business/util.clj` 里唯一一份并读 `:status`, 二是给 `bpm/core` 增加 `invalid!` / `not-found!` / `conflict!` (与既有 `forbidden` 同构), 领域层增加私有同名变体. 注意这些 helper 必须**定义在使用点之前**, 否则 `Unresolved symbol`; 领域层原有的 `forbidden` 位于文件中部, 本轮将其与三个新 helper 一并上移到文件顶部. 错误码语义: 400 参数/输入非法 (缺 taskId、目标节点或用户不存在、key 格式非法、给自己加签), 403 无权限, 404 被引用对象不存在, 409 与当前状态冲突 (任务已被他人处理、流程已结束、key 重名、模型禁止撤销/撤回、未知管理模块).
+
+重构: `resolve-candidate-users` (圈复杂度 43, 9 个策略 + 6 个内联闭包) 拆为纯函数 (`user-names-of` / `selected-names` / `leader-of-dept` / `start-user-dept-id` / `dept-parent-id`) 加按策略的小函数 (`resolve-user-group` / `resolve-form-user` / `resolve-expression`), 主函数缩减到 45 行的单个 `case` 分派.
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| 真实 HTTP 错误码 | 未知模块 `GET /bpm/copy` → `404 未知的 BPM 管理模块: copy`; 任务不存在 → 404; 缺 taskId → `400 缺少任务编号 taskId`; 重名 key → `409 流程key已存在：reimburseApproval`; 非法 key → 400; 给自己加签 → `400 不能给自己加签`; 驳回非法节点 → 400 | 修复前这七项全部是 500, 其中未知模块一项还带出 `available queries: (...)` 全部 query 键名 |
+| 重构等价性 | 重构前后断言数完全一致: 903 tests / 8722 assertions 全绿 | 断言数相同而非仅用例数相同, 说明没有断言被吞掉或跳过 |
+| 新纯函数单测 | 新增 `bpm_candidate_test.clj`, 6 deftest / 22 断言 | 覆盖数字与字符串 user_id、自选值混传 id 与用户名、查不到的用户被丢弃不透出、去重、部门链收敛不死循环 |
+| 全量回归 (CLI SQLite) | 909 tests / 8744 assertions, 0 failures/errors | 含新增 22 条断言 |
+| 静态检查 | `clj-kondo --lint` 全部改动文件 0 errors 0 warnings | 顺带清掉既有的 `fail` 未使用、`request` 未使用两个 warning |
+| 顺带修复 | `bpm-mgmt/list-items` 的 `doseq`+`assoc` 返回值被丢弃, 监听器列表 `:type` 永远回显 nil | 改为 `mapv`, 并加断言锁住 |
+
+本轮未执行 (如实记录): 错误码语义只在本轮触及的 BPM/办公控制器统一, 是否全站统一 (PMS 等模块) 未做; 前端对 409 的提示文案仍是通用的消息透传, 未做专门的冲突重试交互.
