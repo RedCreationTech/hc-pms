@@ -139,95 +139,144 @@
   (query-fn :list-all-users {}))
 
 
+;; ── 候选解析的纯函数部分(与 Flowable 无关, 便于单独测试与复用)─────────
+
+(defn- user-names-of
+  "把一组 user_id 换成用户名(过滤掉查不到的 id, 结果去重)."
+  [users ids]
+  (let [by-id (into {} (map (juxt (comp str :user_id) :user_name)) users)]
+    (distinct (vec (keep #(get by-id (str %)) ids)))))
+
+
+(defn- selected-names
+  "把流程变量里的自选值解析成真实存在的用户名.
+
+   自选流程变量两种形态并存: 发起时传 user_id(数字), 审批时传 user_name.
+   值能匹配用户名就原样保留, 否则按 user_id 换名, 最后只留真实存在的账号."
+  [users v]
+  (let [by-name (set (keep :user_name users))
+        by-id (into {} (map (juxt (comp str :user_id) :user_name)) users)
+        resolve-one (fn [x]
+                      (let [s (str x)]
+                        (if (contains? by-name s) s (get by-id s))))]
+    (distinct (vec (filter by-name (map resolve-one v))))))
+
+
+(defn- leader-of-dept
+  "部门负责人用户名列表; 部门不存在或没有负责人时返回 nil."
+  [users depts dept-id]
+  (when-let [d (first (filter #(= (str dept-id) (str (:dept_id %))) depts))]
+    (when-let [leader (or (:leader_id d) (:leader d))]
+      (seq (user-names-of users [leader])))))
+
+
+(defn- start-user-dept-id
+  [users start-user]
+  (:dept_id (first (filter #(= start-user (str (:user_name %))) users))))
+
+
+(defn- dept-parent-id
+  "上级部门 id. 部门 id 可能是 Long 或 String, 一律按字符串比较."
+  [depts dept-id]
+  (some (fn [d] (when (= (str dept-id) (str (:dept_id d)))
+                  (:parent_id d)))
+        depts))
+
+
+;; ── 候选策略(按策略拆成小函数, 便于定位与单测)─────────────────────
+
+(defn- resolve-user-group
+  "USER_GROUP: 节点配置的用户分组里的全部成员用户名."
+  [query-fn param users]
+  (let [gids (set (map str (:user-group-ids param)))
+        groups (query-fn :bpmmgmt/group-list {:name nil :page_size 100000 :offset 0})
+        ids (distinct (mapcat #(str/split (str (:user_ids %)) #"[,\s]+")
+                              (filter #(contains? gids (str (:group_id %))) groups)))]
+    (user-names-of users ids)))
+
+
+(defn- resolve-form-user
+  "FORM_USER: 按表单字段值取用户; 值可能是用户名或 user_id, 可能单个或集合."
+  [^org.flowable.task.service.delegate.DelegateTask task param users]
+  (let [f (:form-user-field param)
+        v (when f (.getVariable task (name f)))]
+    (cond
+      (and (coll? v) (seq v)) (user-names-of users v)
+      (and (string? v) (seq v))
+      (if (some #(= v (:user_name %)) users) [v] (user-names-of users [v]))
+      (some? v) (user-names-of users [v])
+      :else nil)))
+
+
+(defn- resolve-expression
+  "EXPRESSION: 对流程实例执行 JEXL 表达式, 结果归一为用户名列表."
+  [engine query-fn ^org.flowable.task.service.delegate.DelegateTask task node-config]
+  (let [expr (or (:expression node-config)
+                 (when-let [eid (:expression-id node-config)]
+                   (:expression (query-fn :bpmmgmt/find-expression-by-id
+                                          {:expression_id eid}))))
+        execution (when-let [pid (.getProcessInstanceId task)]
+                    (some-> (.createExecutionQuery (.getRuntimeService engine))
+                            (.processInstanceId pid)
+                            .singleResult))]
+    (when (and expr execution)
+      (let [v (try
+                (-> (.getExpressionManager (.getProcessEngineConfiguration engine))
+                    (.createExpression expr)
+                    (.getValue execution))
+                (catch Exception e
+                  (log/warn "[bpm-node] 表达式求值失败:" (.getMessage e))))]
+        (cond
+          (and (coll? v) (seq v)) (mapv str v)
+          (and (string? v) (seq v)) [v]
+          (nil? v) nil
+          :else [(str v)])))))
+
+
 (defn- resolve-candidate-users
   "按候选策略解析用户名列表(审批/办理节点 create 与抄送节点共用的策略解析器).
    返回 nil 表示解析不到候选(调用方决定为空策略/兼容回退)."
   [engine query-fn ^org.flowable.task.service.delegate.DelegateTask task strategy param node-config users depts]
-  (let [start-user (some-> (.getVariable task "startUserId") str)
-        user-name-of (fn [id]
-                       (:user_name (first (filter #(= (str id) (str (:user_id %))) users))))
-        user-names-of (fn [ids] (distinct (vec (keep user-name-of ids))))
-        ;; 自选流程变量两种形态并存: 发起时传 user_id(数字), 审批时传 user_name;
-        ;; 值能匹配用户名就原样保留, 否则按 user_id 换名, 最后只留真实存在的账号
-        by-id (into {} (map (juxt (comp str :user_id) :user_name)) users)
-        by-name (set (keep :user_name users))
-        selected-names (fn [v]
-                         (distinct (vec (filter by-name
-                                                (map #(let [s (str %)]
-                                                        (if (by-name s) s (by-id s)))
-                                                     v)))))
-        leaders-of (fn [dept-id]
-                     (when-let [d (first (filter #(= (str dept-id) (str (:dept_id %))) depts))]
-                       (when-let [leader (or (:leader_id d) (:leader d))]
-                         (user-names-of [leader]))))
-    start-user-dept-id (fn [start-user]
-                         (:dept_id (first (filter #(= start-user (str (:user_name %))) users))))
-    ;; 部门 id 可能是 Long 或 String, 一律按字符串比较
-    dept-parent-id (fn [dept-id]
-                     (some (fn [d] (when (= (str dept-id) (str (:dept_id d)))
-                                     (:parent_id d)))
-                           depts))]
+  (let [start-user (some-> (.getVariable task "startUserId") str)]
     (case strategy
       "INITIATOR_SELF"
       (when (seq start-user) [start-user])
+
       "USER_GROUP"
-      (let [gids (set (map str (:user-group-ids param)))
-            groups (query-fn :bpmmgmt/group-list {:name nil :page_size 100000 :offset 0})
-            ids (distinct (mapcat #(str/split (str (:user_ids %)) #"[,\s]+")
-                                  (filter #(contains? gids (str (:group_id %))) groups)))]
-        (user-names-of ids))
+      (resolve-user-group query-fn param users)
+
       "FORM_USER"
-      (let [f (:form-user-field param)
-            v (when f (.getVariable task (name f)))]
-        (cond
-          (and (coll? v) (seq v)) (user-names-of v)
-          (and (string? v) (seq v))
-          (if (some #(= v (:user_name %)) users) [v] (user-names-of [v]))
-          (some? v) (user-names-of [v])
-          :else nil))
+      (resolve-form-user task param users)
+
       "FORM_DEPT_LEADER"
-      (let [f (:form-dept-field param)
-            v (when f (.getVariable task (name f)))]
-        (leaders-of v))
+      (let [f (:form-dept-field param)]
+        (leader-of-dept users depts (when f (.getVariable task (name f)))))
+
       "EXPRESSION"
-      (let [expr (or (:expression node-config)
-                     (when-let [eid (:expression-id node-config)]
-                       (:expression (query-fn :bpmmgmt/find-expression-by-id
-                                              {:expression_id eid}))))
-            execution (when-let [pid (.getProcessInstanceId task)]
-                        (some-> (.createExecutionQuery (.getRuntimeService engine))
-                                (.processInstanceId pid)
-                                (.singleResult)))]
-        (when (and expr execution)
-          (let [v (try
-                    (-> (.getExpressionManager (.getProcessEngineConfiguration engine))
-                        (.createExpression expr)
-                        (.getValue execution))
-                    (catch Exception e
-                      (log/warn "[bpm-node] 表达式求值失败:" (.getMessage e))))]
-            (cond
-              (and (coll? v) (seq v)) (mapv str v)
-              (and (string? v) (seq v)) [v]
-              (nil? v) nil
-              :else [(str v)]))))
+      (resolve-expression engine query-fn task node-config)
+
       "START_USER_DEPT_LEADER"
-      (when-let [did (start-user-dept-id start-user)]
-        (leaders-of did))
+      (when-let [did (start-user-dept-id users start-user)]
+        (leader-of-dept users depts did))
+
       "MULTI_LEVEL_DEPT_LEADER"
-      (when-let [did (start-user-dept-id start-user)]
+      (when-let [did (start-user-dept-id users start-user)]
         (distinct
           (loop [did did n 0 acc []]
             (if (or (nil? did) (>= n 3))
               acc
-              (recur (dept-parent-id did)
+              (recur (dept-parent-id depts did)
                      (inc n)
-                     (concat acc (leaders-of did)))))))
+                     (concat acc (leader-of-dept users depts did)))))))
+
       "START_USER_SELECT"
       (let [v (some-> (.getVariable task "startUserSelected") seq)]
-        (when (seq v) (selected-names v)))
+        (when (seq v) (selected-names users v)))
+
       "APPROVE_USER_SELECT"
       (let [v (some-> (.getVariable task "approveUserSelected") seq)]
-        (when (seq v) (selected-names v)))
+        (when (seq v) (selected-names users v)))
+
       nil)))
 
 
