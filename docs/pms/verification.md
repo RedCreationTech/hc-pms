@@ -3280,4 +3280,45 @@ console error 的处理也是刻意收紧的: 起初只断言 `pageerror` 为空
 | 全量回归 | 909 tests / 8744 assertions, 0 failures/errors | 前端改动不影响后端用例 |
 | 证据目录 | `reports/g18engines/` 12 张截图 + 3 份逐引擎结论 JSON | 含 UA, 判定家族, 版本, 待办行数, 错误计数 |
 
-按 2026-11-25 用户意见, **Windows 桌面, Safari 真机与移动端不做专项适配或验收, 默认可用**, 因此本行不计为未完成项. 仍如实记录的是: 屏幕分辨率矩阵与无障碍适配未做; 旧版 AntD6 依赖边界未实测.
+按 2026-11-25 用户意见, **Windows 桌面, Safari 真机与移动端不做专项适配或验收, 默认可用**, 因此本行不计为未完成项.
+
+关于"旧版 AntD6 依赖边界": 该约束源自矩阵原文"兼容基线按实际 AntD6/依赖确定, 不由旧示意版本推定支持", 早期被误读成"要支持某个更旧的 AntD6 版本". 实际核对 `package.json` 与锁文件后确认本仓库**只有单一版本** `antd 6.4.4` 与 `react 19.2.7`, 不存在多版本并存, 因此"旧版 AntD6 边界"是**不存在的伪需求**, 已从 G18 待办中移除. 仍如实记录: 屏幕分辨率矩阵未做.
+
+## G18 无障碍适配 - 无名字控件清零 (本轮, 2026-11-25)
+
+范围与取舍: 此前"透明度/无障碍适配未做"只是文档里的一句空口保留, 没有任何实测. 本轮改为**实测并修复**: 用 Playwright 真实打开核心页面, 枚举所有 `input/textarea/select/button/[role=switch]`, 按可访问名口径 (aria-label / aria-labelledby / 关联 label / placeholder / title / 文本) 判定, 结果为空的即"无名字控件".
+
+判定口径是这轮的关键. 起初把 AntD 内部节点也算进去, 得到"3 个输入 + 10 个开关无名"的结论, 但那是**误判**: 内部装饰节点自身没有独立语义, 名字在父容器或关联 label 上. 因此排除以下节点后重算:
+
+| 节点 | 为什么不计入 |
+|---|---|
+| `ant-checkbox-input` | 真实名字在包住它的 `<label>` 上, 由 label 关联提供 |
+| `ant-input-clear-icon` | 清空图标, 不可聚焦, 语义由输入框自身承担 |
+| `ant-pagination-item-link` | 上一页/下一页的装饰图标, `tabIndex=-1`, 语义与可聚焦性由外层 `li[title]` 承担 (AntD 仅在 `itemRender` 自渲染时才补 aria-label) |
+
+排除后剩下的**全部是项目自己造的控件**, 逐个补了可访问名:
+
+| 位置 | 修复前无名控件 | 修复方式 |
+|---|---|---|
+| `/system/user` 工具栏 | 显示搜索 / 刷新 / 显隐列 3 个圆形图标按钮 | `:aria-label` |
+| `/system/user` 列显隐下拉 | 10 个 `antd/switch` 列开关 | `:aria-label (str "显示列 " label)` |
+| `/system/user` 表格状态列 | 每行 1 个 `antd/switch`, 共 10 个 | `:aria-label (str "用户状态 " user_name)`, 便于按名字区分行 |
+| `/system/user` 分页 | 每页条数 select / 页码 input | `:aria-label "每页条数"` / `"页码"` |
+| `/system/user` 搜索表单 | 用户状态 select | `:aria-label "用户状态"` |
+| `/system/user` 组织机构侧栏 | 折叠面板 / 刷新 / 树节点展开箭头 | `:aria-label` + `role="button"` + `tabIndex 0` |
+| 全站顶栏 (`layout.cljs`) | 全局搜索 / GitHub / 文档 / 全屏 / 显示设置 / 通知 6 个图标按钮 | `:aria-label` |
+| 共享工具栏 (`page_toolbar.cljs` `round-tool-button`) | 各页圆形工具按钮 (如待办页"刷新") | 由已有 `title` 派生 `:aria-label`, **一处修复覆盖所有使用该组件的页面** |
+
+修复路径刻意选择"改共享组件而非逐页打补丁": `round-tool-button` 本来就收到 `title`, 由它派生 aria-label 是最小改动且不会漏页. 同时新增 `tests/e2e/pms-g18a11y.spec.js` 作为**防回归**, 而不是只留一次性探测脚本.
+
+| 证据 | 结果 | 说明 |
+|---|---|---|
+| 新增用例 | `pms-g18a11y.spec.js` 1 test | 登录 -> `/system/user` (含展开列显隐下拉) -> `/office/bpm/todo`, 断言无名字控件为空 |
+| 无名字控件 | 修复前 **21** -> 修复后 **0** (排除 AntD 内部节点口径) | 同一口径前后对照 |
+| 按名字可达 | 断言 `role=switch` 名为"用户状态 admin" / `combobox` 名为"每页条数" / `textbox` 名为"页码" / `combobox` 名为"用户状态" / 待办页按钮名"刷新" | 证明不是靠位置而是靠名字可定位 |
+| 跨引擎 | **chromium / firefox / webkit 3 引擎各 1 passed** (6 passed 含 `pms-g18engines.spec.js`) | 无障碍不是 Chromium 专属结论 |
+| 前端编译 | shadow-cljs 0 warnings | 期间两次编译错误 (括号与 map 跨行) 均已修正后重编译通过 |
+| 全量回归 | 909 tests / 8744 assertions, 0 failures/errors | 与基线完全一致 |
+| 排查记录 | `pms-a-templates.spec.js` 与 `pms-h16ml.spec.js` 在共享 dev 库上失败 (编码规则 `HCE-{YYYY}-{SEQ:4}` 状态漂移); 用 `git stash` 回到未改动基线复跑, **失败完全相同**, 证明与本轮改动无关 | 未把既有失败算成本轮成果 |
+
+仍如实记录: 屏幕分辨率矩阵未做; 只覆盖"控件有没有名字", 未做屏幕阅读器实读与对比度检查.

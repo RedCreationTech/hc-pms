@@ -94,6 +94,7 @@
        [:div {:style {:display "flex" :alignItems "center" :gap 8 :width 260}}
         [:span {:style {:whiteSpace "nowrap" :fontSize 14 :fontWeight 600 :color "var(--ant-color-text-secondary, #606266)" :width 42 :textAlign "right"}} "状态"]
         [antd/select {:placeholder "用户状态"
+                      :aria-label "用户状态"
                       :style {:width 210 :height 34}
                       :value (:status query-params)
                       :allowClear true
@@ -177,12 +178,14 @@
      [:div {:style {:display "flex" :gap 12}}
       [antd/tooltip {:title "显示搜索"}
        [antd/button {:shape "circle"
+                     :aria-label "显示搜索"
                      :icon (r/as-element [:> SearchOutlined])
                      :style {:width 38 :height 38 :borderColor "var(--ant-color-border, #dcdfe6)" :color "var(--ant-color-text-secondary, #606266)"
                              :background (if show-search? "var(--ant-color-bg-container, #fff)" "var(--ant-color-fill-tertiary, #f5f7fa)")}
                      :on-click #(rf/dispatch [:users/toggle-search])}]]
       [antd/tooltip {:title "刷新"}
        [antd/button {:shape "circle"
+                     :aria-label "刷新"
                      :icon (r/as-element [:> ReloadOutlined])
                      :style {:width 38 :height 38 :borderColor "var(--ant-color-border, #dcdfe6)" :color "var(--ant-color-text-secondary, #606266)"}
                      :on-click #(rf/dispatch [:users/fetch-with-params])}]]
@@ -194,13 +197,14 @@
                                                         [:div {:style {:display "flex" :justifyContent "space-between"
                                                                        :alignItems "center" :width 120}}
                                                          [:span label]
-                                                         [antd/switch {:size "small" :checked visible?}]])})
+                                                         [antd/switch {:size "small" :aria-label (str "显示列 " label) :checked visible?}]])})
                                             columns))
                               :onClick (fn [e]
                                          (let [key (keyword (.-key e))]
                                            (rf/dispatch [:users/toggle-column key])))}
                        :trigger #js ["click"]}
         [antd/button {:shape "circle"
+                      :aria-label "显隐列"
                       :icon (r/as-element [:> AppstoreOutlined])
                       :style {:width 38 :height 38 :borderColor "var(--ant-color-border, #dcdfe6)" :color "var(--ant-color-text-secondary, #606266)"}}]]]]]))
 
@@ -236,6 +240,7 @@
                    :render (fn [v record]
                              (r/as-element
                                [antd/switch {:checked (= v "0")
+                                              :aria-label (str "用户状态 " (.-user_name ^js record))
                                              :disabled (not can-edit?)
                                              :on-change (fn [checked?]
                                                           (rf/dispatch [:users/change-status
@@ -506,6 +511,7 @@
                        :boxShadow "0 2px 8px rgba(0,0,0,0.08)"
                        :display "flex" :alignItems "center" :justifyContent "center"
                        :color "#a8abb2" :fontSize 20 :cursor "pointer" :zIndex 12}
+               :aria-label (if collapsed? "展开组织机构面板" "折叠组织机构面板")
                :on-click #(set-collapsed! (not collapsed?))}
       (if collapsed? "»" "«")]
      (when-not collapsed?
@@ -517,8 +523,10 @@
           [:> FileTextOutlined {:style {:color "#409eff"}}]
           "组织机构"]
          [:div {:style {:display "flex" :alignItems "center" :gap 16 :color "#a8abb2"}}
-          [:span {:style {:fontSize 18 :lineHeight 1 :cursor "pointer"}} "⌄"]
+          [:span {:style {:fontSize 18 :lineHeight 1 :cursor "pointer"}
+                  :role "button" :tabIndex 0 :aria-label "折叠组织机构面板"} "⌄"]
           [:> ReloadOutlined {:style {:fontSize 15 :cursor "pointer"}
+                              :role "button" :tabIndex 0 :aria-label "刷新组织机构"
                               :on-click #(rf/dispatch [:depts/fetch-user-tree])}]]]
         [:div {:style {:padding "12px 12px 8px"}}
          [antd/input {:placeholder "请输入部门名称"
@@ -541,7 +549,8 @@
                             :width (str (* (:_depth d) 24) "px")
                             :flexShrink 0}}]
             (if (seq (:children d))
-              [:span {:style {:display "inline-flex" :width 14 :fontSize 10
+              [:span {:role "button" :tabIndex 0 :aria-label (str "展开/折叠 " (:dept_name d))
+                      :style {:display "inline-flex" :width 14 :fontSize 10
                               :marginRight 4 :color "#a8abb2"
                               :cursor "pointer"
                               :transform (if (contains? expanded-ids (:dept_id d))
@@ -650,6 +659,7 @@
                  :color "var(--ant-color-text-secondary, #606266)" :fontSize 16}}
    [:span (str "共 " total " 条")]
    [antd/select {:value page-size
+                  :aria-label "每页条数"
                  :style {:width 142}
                  :on-change #(rf/dispatch [:users/change-page 1 %])}
     [antd/select-option {:value 10} "10条/页"]
@@ -668,6 +678,7 @@
     "›"]
    [:span "前往"]
    [antd/input {:value page
+                 :aria-label "页码"
                 :style {:width 68 :height 40 :textAlign "center" :borderRadius 4}
                 :on-change (fn [e]
                              (let [v (js/parseInt (.. e -target -value) 10)]

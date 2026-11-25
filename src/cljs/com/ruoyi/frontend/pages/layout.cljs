@@ -648,6 +648,7 @@
                :placement "bottomRight"}
    [:> Button {:type "text"
                :style {:fontSize 18 :color "#606266"}
+               :aria-label "显示设置"
                :icon (r/as-element [:> FontSizeOutlined])}]])
 
 
@@ -813,14 +814,14 @@
                 crumb]])]])]
        [:div {:style {:display "flex" :alignItems "center" :gap 6}}
         ;; 搜索
-        [:> Button {:type "text" :style {:fontSize 18 :color text-secondary} :icon (r/as-element [:> SearchOutlined])}]
+        [:> Button {:type "text" :style {:fontSize 18 :color text-secondary} :aria-label "全局搜索" :icon (r/as-element [:> SearchOutlined])}]
         ;; GitHub
-        [:> Button {:type "text" :style {:fontSize 18 :color text-secondary} :icon (r/as-element [:> GithubOutlined])
+        [:> Button {:type "text" :style {:fontSize 18 :color text-secondary} :aria-label "GitHub 仓库" :icon (r/as-element [:> GithubOutlined])
                     :onClick #(js/window.open "https://github.com/RedCreationTech/rouyi_clojure" "_blank")}]
         ;; 文档
-        [:> Button {:type "text" :style {:fontSize 18 :color text-secondary} :icon (r/as-element [:> QuestionCircleOutlined])}]
+        [:> Button {:type "text" :style {:fontSize 18 :color text-secondary} :aria-label "文档" :icon (r/as-element [:> QuestionCircleOutlined])}]
         ;; 全屏
-        [:> Button {:type "text" :style {:fontSize 18 :color text-secondary} :icon (r/as-element [:> ExpandOutlined])
+        [:> Button {:type "text" :style {:fontSize 18 :color text-secondary} :aria-label "全屏切换" :icon (r/as-element [:> ExpandOutlined])
                     :onClick #(let [doc js/document.documentElement]
                                 (if (.-fullscreenElement js/document)
                                   (.exitFullscreen js/document)
@@ -828,7 +829,7 @@
         [display-settings-button]
         ;; 通知
         [:> Badge {:count 3 :size "small"}
-         [:> Button {:type "text" :style {:fontSize 18 :color text-secondary} :icon (r/as-element [:> BellOutlined])}]]
+         [:> Button {:type "text" :style {:fontSize 18 :color text-secondary} :aria-label "通知" :icon (r/as-element [:> BellOutlined])}]]
         ;; 头像 + 下拉菜单
         [:> Dropdown {:menu {:items (clj->js [{:key "profile" :label "个人中心"}
                                               {:key "layout-settings" :label "布局设置"}

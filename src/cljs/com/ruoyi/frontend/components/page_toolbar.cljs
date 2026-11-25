@@ -99,6 +99,7 @@
                            0)))]
     [antd/tooltip {:title title}
      [antd/button {:shape "circle"
+                   :aria-label title
                    :icon icon
                    :on-click handle-click
                    :style {:width 40
