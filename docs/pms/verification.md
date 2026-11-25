@@ -3262,7 +3262,7 @@ down 为空操作但迁移确实改了结构 (回退后旧代码读不到已删�
 
 ## G18 浏览器兼容矩阵 - macOS 桌面三引擎实测 (本轮, 2026-11-24 (5))
 
-范围与取舍: G18 此前只有后端基线规则 (UA 解析 / 版本下限 / 未上报不计通过) 与 Chromium 单引擎 E2E, 缺的正是"逐环境实机结果". 本轮补 macOS 桌面上的 Chromium / Firefox / WebKit 三引擎真实实测, 并把断言从"能跑"提升到"该引擎被正确识别且无未捕获异常". Windows 桌面仍未做 (见文末).
+范围与取舍: G18 此前只有后端基线规则 (UA 解析 / 版本下限 / 未上报不计通过) 与 Chromium 单引擎 E2E, 缺的正是"逐环境实机结果". 本轮补 macOS 桌面上的 Chromium / Firefox / WebKit 三引擎真实实测, 并把断言从"能跑"提升到"该引擎被正确识别且无未捕获异常". Windows 桌面, Safari 真机与移动端按用户意见不做专项适配 (默认可用), 不计为缺口.
 
 设计要点: 不能用同一份 Chromium 假设去跑三个引擎. `pms-g18platform.spec.js` 硬编码 `client.family === 'chrome'`, 只能在 Chromium 下跑, 因此新增 `pms-g18engines.spec.js`, 每个引擎自己声明期望家族 (`chromium->chrome / firefox->firefox / webkit->safari`) 并逐引擎落盘结论. `playwright.config.js` 增加 firefox 与 webkit 两个 project, 但**默认仍只跑 chromium**, 只有显式 `--project=firefox / --project=webkit` 才执行, 不拖慢既有全套 E2E.
 
@@ -3280,4 +3280,4 @@ console error 的处理也是刻意收紧的: 起初只断言 `pageerror` 为空
 | 全量回归 | 909 tests / 8744 assertions, 0 failures/errors | 前端改动不影响后端用例 |
 | 证据目录 | `reports/g18engines/` 12 张截图 + 3 份逐引擎结论 JSON | 含 UA, 判定家族, 版本, 待办行数, 错误计数 |
 
-本轮未执行 (如实记录): Windows 桌面实机 (本机为 macOS); 屏幕分辨率矩阵与无障碍适配; 旧版 AntD6 依赖边界实测; Safari 真机 (WebKit 26.5 为 Playwright 内置构建, 与用户真实 Safari 版本仍有差异); 移动端浏览器.
+按 2026-11-25 用户意见, **Windows 桌面, Safari 真机与移动端不做专项适配或验收, 默认可用**, 因此本行不计为未完成项. 仍如实记录的是: 屏幕分辨率矩阵与无障碍适配未做; 旧版 AntD6 依赖边界未实测.
